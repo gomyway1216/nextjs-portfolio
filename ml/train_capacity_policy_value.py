@@ -23,9 +23,22 @@ import listwise_policy_value as lpv
 PROTOCOL_SCHEMA = "shogi-capacity-policy-value-plan-v1"
 PROTOCOL_SCHEMA_V2 = "shogi-capacity-policy-value-plan-v2"
 PROTOCOL_SCHEMA_V3 = "shogi-capacity-policy-value-plan-v3"
+STRENGTH_PROTOCOL_SCHEMA = "shogi-child-board-strength-candidate-plan-v1"
 RESULT_SCHEMA = "shogi-capacity-policy-value-result-v1"
 RESULT_SCHEMA_V2 = "shogi-capacity-policy-value-result-v2"
 RESULT_SCHEMA_V3 = "shogi-capacity-policy-value-result-v3"
+STRENGTH_RESULT_SCHEMA = "shogi-child-board-strength-candidate-result-v1"
+STRENGTH_MODEL_SCHEMA = "shogi-child-board-strength-candidate-v1"
+STRENGTH_MODEL_VARIANT = "child-board-strength-candidate-v1"
+STRENGTH_CHECKPOINT_SCHEMA = (
+    "shogi-child-board-strength-candidate-phase1-checkpoint-v1"
+)
+STRENGTH_FINAL_CHECKPOINT_SCHEMA = (
+    "shogi-child-board-strength-candidate-final-checkpoint-v1"
+)
+STRENGTH_CHECKPOINT_RECEIPT_SCHEMA = (
+    "shogi-child-board-strength-candidate-checkpoint-receipt-v1"
+)
 TRACKED_PROTOCOL_PATH = (
     Path(__file__).parent / "protocols" / "capacity-policy-value-v1-plan.json"
 )
@@ -45,6 +58,14 @@ TRACKED_PROTOCOL_V3_PATH = (
 )
 TRACKED_PROTOCOL_V3_SHA256 = (
     "4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6"
+)
+TRACKED_STRENGTH_PROTOCOL_PATH = (
+    Path(__file__).parent
+    / "protocols"
+    / "child-board-strength-candidate-v1-plan.json"
+)
+TRACKED_STRENGTH_PROTOCOL_SHA256 = (
+    "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2"
 )
 
 PROTOCOL_BINDINGS = (
@@ -79,6 +100,19 @@ PROTOCOL_BINDINGS = (
         "model_schema": cpv.CHILD_SCHEMA,
         "feature_version": cpv.CHILD_FEATURE_VERSION,
         "result_schema": RESULT_SCHEMA_V3,
+    },
+    {
+        "path": TRACKED_STRENGTH_PROTOCOL_PATH,
+        "sha256": TRACKED_STRENGTH_PROTOCOL_SHA256,
+        "schema": STRENGTH_PROTOCOL_SCHEMA,
+        "status": "prospective-scratch-strength-candidate-lane-only",
+        "objective": cpv.OBJECTIVE_V2,
+        "model_class": cpv.OfflineChildBoardCapacityPolicyValue,
+        "model_variant": STRENGTH_MODEL_VARIANT,
+        "model_schema": STRENGTH_MODEL_SCHEMA,
+        "feature_version": cpv.CHILD_FEATURE_VERSION,
+        "result_schema": STRENGTH_RESULT_SCHEMA,
+        "execution_mode": "strength-phase1-two-scratch-tune-locked",
     },
 )
 
@@ -154,8 +188,16 @@ def _last_checkpoint_model_metadata(
     )
 
 
-def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
-    binding = _protocol_binding(args.protocol)
+def _is_strength_phase1(binding: Mapping[str, object]) -> bool:
+    return (
+        binding.get("execution_mode")
+        == "strength-phase1-two-scratch-tune-locked"
+    )
+
+
+def _verified_protocol_identity(
+    binding: Mapping[str, object],
+) -> dict[str, object]:
     tracked_path = binding["path"]
     expected_sha = binding["sha256"]
     if not isinstance(tracked_path, Path) or not isinstance(expected_sha, str):
@@ -171,6 +213,20 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
         raise ValueError("capacity protocol schema mismatch")
     if protocol.get("status") != binding["status"]:
         raise ValueError("capacity protocol is not prospective")
+    return {
+        "protocol": {
+            "path": str(tracked_path.resolve()),
+            "bytes": len(raw),
+            "sha256": actual_protocol_sha,
+        },
+        "document": protocol,
+    }
+
+
+def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
+    binding = _protocol_binding(args.protocol)
+    verified_identity = _verified_protocol_identity(binding)
+    protocol = verified_identity["document"]
     architecture = protocol.get("architecture")
     if type(architecture) is not dict:
         raise ValueError("capacity protocol architecture is absent")
@@ -246,7 +302,10 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
                 f"known-eval capacity input {index} identity mismatch"
             )
 
-    registered_training = protocol.get("training")
+    strength_phase1 = _is_strength_phase1(binding)
+    registered_training = protocol.get(
+        "phase1_training" if strength_phase1 else "training"
+    )
     if type(registered_training) is not dict:
         raise ValueError("capacity training controls are absent")
     objective = binding["objective"]
@@ -258,12 +317,6 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
         ):
             raise ValueError("capacity objective v2 identity mismatch")
     actual_training = {
-        "split_seed": args.split_seed,
-        "tune_modulus": args.tune_modulus,
-        "sentinel_seed": args.sentinel_seed,
-        "sentinel_epochs": args.sentinel_epochs,
-        "sentinel_browser_parents": args.sentinel_browser_parents,
-        "sentinel_v9_parents": args.sentinel_v9_parents,
         "v9_pretrain_epochs": args.v9_pretrain_epochs,
         "mixed_epochs": args.mixed_epochs,
         "browser_batch": args.browser_batch,
@@ -275,6 +328,16 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
         "best_margin_cp": args.best_margin_cp,
         "gradient_clip": args.gradient_clip,
     }
+    if not strength_phase1:
+        actual_training = {
+            "split_seed": args.split_seed,
+            "tune_modulus": args.tune_modulus,
+            "sentinel_seed": args.sentinel_seed,
+            "sentinel_epochs": args.sentinel_epochs,
+            "sentinel_browser_parents": args.sentinel_browser_parents,
+            "sentinel_v9_parents": args.sentinel_v9_parents,
+            **actual_training,
+        }
     for key, value in actual_training.items():
         if registered_training.get(key) != value:
             raise ValueError(
@@ -282,15 +345,56 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
                 f"{registered_training.get(key)!r} != {value!r}"
             )
     seeds = registered_training.get("seeds")
-    if type(seeds) is not list or args.seed not in seeds:
+    if (
+        type(seeds) is not list
+        or (
+            seeds != [42, 314159]
+            if strength_phase1
+            else args.seed not in seeds
+        )
+    ):
         raise ValueError("capacity model seed is not registered")
+    if strength_phase1:
+        registered_split = protocol.get("data_receipt", {}).get("fit_tune")
+        if (
+            type(registered_split) is not dict
+            or registered_split.get("split_seed") != args.split_seed
+            or registered_split.get("tune_modulus") != args.tune_modulus
+        ):
+            raise ValueError("strength phase1 fit partition controls drift")
+        if registered_training.get("execution_order") != [42, 314159]:
+            raise ValueError("strength phase1 execution order drift")
+        if registered_training.get("checkpoint_selection") != (
+            "mixed epoch 12 final checkpoint only"
+        ):
+            raise ValueError("strength phase1 checkpoint selection drift")
+        if any(
+            registered_training.get(key) is not expected
+            for key, expected in (
+                ("best_checkpoint_selection", False),
+                ("early_stopping", False),
+                ("tune_monitoring", False),
+                ("seed42_gate_before_seed314159", False),
+                ("sequential_single_mps_process", True),
+            )
+        ):
+            raise ValueError("strength phase1 selection controls drift")
+        bypass = protocol.get("sentinel_bypass_authorization")
+        if (
+            type(bypass) is not dict
+            or bypass.get("authorized") is not True
+            or bypass.get("authority")
+            != "new-scratch-strength-candidate-lane-not-v3-continuation"
+            or bypass.get("sentinel_execution") != "forbidden"
+            or bypass.get("sentinel_result_reuse") != "forbidden"
+            or bypass.get("v3_checkpoint_or_optimizer_reuse") != "forbidden"
+            or bypass.get("scratch_seeds") != [42, 314159]
+            or bypass.get("both_checkpoints_must_freeze_before_tune")
+            is not True
+        ):
+            raise ValueError("strength phase1 sentinel bypass drift")
     verified = {
-        "protocol": {
-            "path": str(tracked_path.resolve()),
-            "bytes": len(raw),
-            "sha256": actual_protocol_sha,
-        },
-        "document": protocol,
+        **verified_identity,
         "verified_inputs": verified_inputs,
     }
     if objective == cpv.OBJECTIVE_V2:
@@ -645,8 +749,1274 @@ def _sentinel_gate(
     }
 
 
+def _fit_only_data_receipt(
+    receipt: Mapping[str, object],
+) -> dict[str, object]:
+    """Bind the authenticated fit partition without opening candidate scores."""
+    sources = receipt.get("sources")
+    partition = receipt.get("partition")
+    fit_tune = receipt.get("fit_tune")
+    if (
+        type(sources) is not dict
+        or type(partition) is not dict
+        or type(fit_tune) is not dict
+    ):
+        raise ValueError("strength phase1 data receipt is malformed")
+    return {
+        "sources": sources,
+        "partition": partition,
+        "fit_partition": {
+            "algorithm": fit_tune.get("algorithm"),
+            "split_seed": fit_tune.get("split_seed"),
+            "tune_modulus": fit_tune.get("tune_modulus"),
+            "browser": {
+                key: fit_tune.get("browser", {}).get(key)
+                for key in (
+                    "algorithm",
+                    "seed",
+                    "tune_modulus",
+                    "components",
+                    "fit_components",
+                    "fit_parents",
+                    "fit_games",
+                    "component_assignments_sha256",
+                )
+            },
+            "v9": {
+                key: fit_tune.get("v9", {}).get(key)
+                for key in (
+                    "algorithm",
+                    "seed",
+                    "tune_modulus",
+                    "components",
+                    "fit_components",
+                    "fit_parents",
+                    "fit_games",
+                    "component_assignments_sha256",
+                )
+            },
+        },
+    }
+
+
+def _validate_spent_v3_result(
+    protocol: Mapping[str, object],
+    data_receipt: Mapping[str, object],
+) -> dict[str, object]:
+    document = protocol.get("document")
+    if type(document) is not dict:
+        raise ValueError("strength phase1 protocol document is absent")
+    spent = document.get("spent_development_evidence")
+    expected = (
+        spent.get("v3_result") if type(spent) is dict else None
+    )
+    if type(expected) is not dict:
+        raise ValueError("strength phase1 spent v3 receipt is absent")
+    path = expected.get("path")
+    if not isinstance(path, str):
+        raise ValueError("strength phase1 spent v3 path is absent")
+    actual_identity = _fingerprint(path)
+    if (
+        actual_identity.get("bytes") != expected.get("bytes")
+        or actual_identity.get("sha256") != expected.get("sha256")
+    ):
+        raise ValueError("strength phase1 spent v3 identity mismatch")
+    result = _strict_json(path)
+    if (
+        result.get("schema") != expected.get("schema")
+        or result.get("status") != expected.get("status")
+        or result.get("objective") != cpv.OBJECTIVE_V2
+        or result.get("data_receipt") != data_receipt
+    ):
+        raise ValueError("strength phase1 spent v3 claims mismatch")
+    expected_protocol = expected.get("protocol")
+    result_protocol = result.get("protocol")
+    if (
+        type(expected_protocol) is not dict
+        or type(result_protocol) is not dict
+        or result_protocol.get("bytes") != expected_protocol.get("bytes")
+        or result_protocol.get("sha256") != expected_protocol.get("sha256")
+        or Path(str(result_protocol.get("path"))).resolve()
+        != TRACKED_PROTOCOL_V3_PATH.resolve()
+    ):
+        raise ValueError("strength phase1 spent v3 protocol mismatch")
+    expected_sentinel = expected.get("sentinel")
+    sentinel = result.get("sentinel")
+    if type(expected_sentinel) is not dict or type(sentinel) is not dict:
+        raise ValueError("strength phase1 spent v3 sentinel receipt is absent")
+    metrics = sentinel.get("metrics")
+    gate = sentinel.get("gate")
+    if type(metrics) is not dict or type(gate) is not dict:
+        raise ValueError("strength phase1 spent v3 sentinel is malformed")
+    for domain in ("browser", "v9"):
+        registered = expected_sentinel.get(domain)
+        observed = metrics.get(domain)
+        if type(registered) is not dict or type(observed) is not dict:
+            raise ValueError("strength phase1 spent v3 metric is malformed")
+        if any(observed.get(key) != value for key, value in registered.items()):
+            raise ValueError("strength phase1 spent v3 metric drift")
+    if (
+        gate.get("passed") is not expected_sentinel.get("gate_passed")
+        or sentinel.get("weights_discarded")
+        is not expected_sentinel.get("weights_discarded")
+        or result.get("model_training_started") is not False
+        or result.get("second_seed_authorized") is not False
+        or result.get("sealed_teacher_authorized") is not False
+        or result.get("live_weights_changed") is not False
+        or result.get("wasm_changed") is not False
+    ):
+        raise ValueError("strength phase1 spent v3 boundary drift")
+    return {
+        "path": str(Path(path).resolve()),
+        "bytes": actual_identity["bytes"],
+        "sha256": actual_identity["sha256"],
+        "schema": result["schema"],
+        "status": result["status"],
+        "weights_reused": False,
+    }
+
+
+def _strength_step_index(seed: int, phase: str, epoch: int) -> int:
+    if seed not in (42, 314159):
+        raise ValueError("strength phase1 checkpoint seed is invalid")
+    if phase == "v9" and 1 <= epoch <= 4:
+        local = epoch
+    elif phase == "mixed" and 1 <= epoch <= 12:
+        local = 4 + epoch
+    else:
+        raise ValueError("strength phase1 checkpoint position is invalid")
+    return local + (16 if seed == 314159 else 0)
+
+
+def _strength_step_from_index(index: int) -> tuple[int, str, int]:
+    if not 1 <= index <= 32:
+        raise ValueError("strength phase1 global epoch is invalid")
+    seed = 42 if index <= 16 else 314159
+    local = index if seed == 42 else index - 16
+    return (
+        (seed, "v9", local)
+        if local <= 4
+        else (seed, "mixed", local - 4)
+    )
+
+
+def _strength_next_step(
+    checkpoint: Mapping[str, object] | None,
+) -> tuple[int, str, int] | None:
+    if checkpoint is None:
+        return (42, "v9", 1)
+    index = checkpoint.get("global_epoch")
+    seed = checkpoint.get("seed")
+    phase = checkpoint.get("phase")
+    epoch = checkpoint.get("completed_epoch")
+    if (
+        type(index) is not int
+        or type(seed) is not int
+        or not isinstance(phase, str)
+        or type(epoch) is not int
+        or index != _strength_step_index(seed, phase, epoch)
+    ):
+        raise ValueError("strength phase1 checkpoint order mismatch")
+    return None if index == 32 else _strength_step_from_index(index + 1)
+
+
+def _strength_output_state(output: Path) -> str:
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        raise ValueError("strength phase1 output is a file or symlink")
+    if not output.exists():
+        output.mkdir(parents=True)
+        return "fresh"
+    published_names = {
+        "last.pt",
+        "last-receipt.json",
+        "seed-42-final.pt",
+        "seed-42-final-receipt.json",
+        "seed-314159-final.pt",
+        "seed-314159-final-receipt.json",
+        "result.json",
+    }
+    for entry in output.iterdir():
+        if entry.name.endswith(".tmp") and entry.name[:-4] in published_names:
+            if entry.is_symlink() or not entry.is_file():
+                raise ValueError(
+                    "strength phase1 unpublished temporary is malformed"
+                )
+            entry.unlink()
+    names = {entry.name for entry in output.iterdir()}
+    if "result.json" in names:
+        raise ValueError("strength phase1 terminal result already exists")
+    allowed = published_names - {"result.json"}
+    if not names or not names <= allowed:
+        raise ValueError("strength phase1 output is not the unique recovery run")
+    if any(entry.is_symlink() for entry in output.iterdir()):
+        raise ValueError("strength phase1 output contains a symlink")
+    if "last.pt" not in names:
+        raise ValueError("strength phase1 latest checkpoint is absent")
+    for seed in (42, 314159):
+        checkpoint = f"seed-{seed}-final.pt"
+        receipt = f"seed-{seed}-final-receipt.json"
+        if receipt in names and checkpoint not in names:
+            raise ValueError("strength phase1 final checkpoint is incomplete")
+    return "resume"
+
+
+def _strength_output_path(
+    requested: str | Path,
+    registered: str | Path,
+) -> Path:
+    output = Path(requested).resolve()
+    expected = Path(registered).resolve()
+    if output != expected:
+        raise ValueError("strength phase1 alternate output path is forbidden")
+    return expected
+
+
+def _mps_rng_state() -> torch.Tensor:
+    if not hasattr(torch.mps, "get_rng_state"):
+        raise ValueError("strength phase1 requires readable MPS RNG state")
+    state = torch.mps.get_rng_state()
+    if (
+        not isinstance(state, torch.Tensor)
+        or state.dtype != torch.uint8
+        or state.numel() == 0
+    ):
+        raise ValueError("strength phase1 MPS RNG state is invalid")
+    return state.detach().cpu().clone()
+
+
+def _restore_rng_states(
+    cpu_rng: object,
+    mps_rng: object,
+) -> None:
+    if (
+        not isinstance(cpu_rng, torch.Tensor)
+        or cpu_rng.dtype != torch.uint8
+        or cpu_rng.numel() == 0
+        or not isinstance(mps_rng, torch.Tensor)
+        or mps_rng.dtype != torch.uint8
+        or mps_rng.numel() == 0
+        or not hasattr(torch.mps, "set_rng_state")
+    ):
+        raise ValueError("strength phase1 checkpoint RNG state is invalid")
+    torch.set_rng_state(cpu_rng.detach().cpu())
+    torch.mps.set_rng_state(mps_rng.detach().cpu())
+
+
+def _strength_checkpoint_receipt(
+    checkpoint_path: Path,
+    checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    identity = _fingerprint(checkpoint_path)
+    return {
+        "schema": STRENGTH_CHECKPOINT_RECEIPT_SCHEMA,
+        "checkpoint": identity,
+        "seed": checkpoint["seed"],
+        "phase": checkpoint["phase"],
+        "completed_epoch": checkpoint["completed_epoch"],
+        "global_epoch": checkpoint["global_epoch"],
+        "protocol": checkpoint["protocol"],
+        "fit_data_receipt": checkpoint["fit_data_receipt"],
+        "spent_development_evidence": checkpoint[
+            "spent_development_evidence"
+        ],
+    }
+
+
+def _save_strength_last_checkpoint(
+    output: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    spent_development_evidence: Mapping[str, object],
+    seed: int,
+    phase: str,
+    completed_epoch: int,
+    model: cpv.OfflineCapacityPolicyValue,
+    optimizer: torch.optim.Optimizer,
+    training_curve: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    global_epoch = _strength_step_index(seed, phase, completed_epoch)
+    checkpoint = {
+        "checkpoint_schema": STRENGTH_CHECKPOINT_SCHEMA,
+        **_checkpoint_model_metadata(binding, detailed=True),
+        "model_variant": binding["model_variant"],
+        "objective": binding["objective"],
+        "optimizer_schema": "torch.optim.AdamW-v1",
+        "seed": seed,
+        "phase": phase,
+        "completed_epoch": completed_epoch,
+        "global_epoch": global_epoch,
+        "protocol": dict(protocol_receipt),
+        "fit_data_receipt": dict(fit_data_receipt),
+        "spent_development_evidence": dict(spent_development_evidence),
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "cpu_rng": torch.get_rng_state().detach().cpu().clone(),
+        "mps_rng": _mps_rng_state(),
+        "training_curve": list(training_curve),
+    }
+    path = output / "last.pt"
+    _atomic_torch_save(path, checkpoint)
+    receipt = _strength_checkpoint_receipt(path, checkpoint)
+    _atomic_json(output / "last-receipt.json", receipt)
+    return receipt
+
+
+def _validate_strength_model_state_structure(
+    binding: Mapping[str, object],
+    state: object,
+) -> None:
+    if not isinstance(state, Mapping):
+        raise ValueError("strength phase1 model state is absent")
+    reference_model = binding["model_class"]()
+    reference = reference_model.state_dict()
+    if list(state) != list(reference):
+        raise ValueError("strength phase1 model state keys mismatch")
+    for name, expected in reference.items():
+        observed = state[name]
+        if (
+            not isinstance(observed, torch.Tensor)
+            or observed.device.type != "cpu"
+            or observed.shape != expected.shape
+            or observed.dtype != expected.dtype
+        ):
+            raise ValueError(
+                f"strength phase1 model tensor {name} mismatch"
+            )
+    try:
+        reference_model.load_state_dict(state, strict=True)
+    except RuntimeError as error:
+        raise ValueError("strength phase1 model state mismatch") from error
+    del reference_model
+
+
+def _validate_strength_optimizer_state(
+    state: object,
+    *,
+    model_state: Mapping[str, torch.Tensor],
+    expected_steps: int,
+) -> None:
+    if not isinstance(state, Mapping) or set(state) != {
+        "state",
+        "param_groups",
+    }:
+        raise ValueError("strength phase1 optimizer state is absent")
+    optimizer_state = state["state"]
+    groups = state["param_groups"]
+    if (
+        not isinstance(optimizer_state, Mapping)
+        or type(groups) is not list
+        or len(groups) != 1
+        or type(groups[0]) is not dict
+        or type(groups[0].get("params")) is not list
+        or len(groups[0]["params"]) != len(model_state)
+    ):
+        raise ValueError("strength phase1 optimizer schema mismatch")
+    expected_hyperparameters = {
+        "lr": 3e-4,
+        "betas": (0.9, 0.999),
+        "eps": 1e-8,
+        "weight_decay": 1e-4,
+        "amsgrad": False,
+        "maximize": False,
+        "foreach": None,
+        "capturable": False,
+        "differentiable": False,
+        "fused": None,
+        "decoupled_weight_decay": True,
+    }
+    if set(groups[0]) != set(expected_hyperparameters) | {"params"} or any(
+        groups[0].get(key) != value
+        for key, value in expected_hyperparameters.items()
+    ):
+        raise ValueError("strength phase1 optimizer controls mismatch")
+    parameter_ids = groups[0]["params"]
+    if (
+        any(type(value) is not int for value in parameter_ids)
+        or len(set(parameter_ids)) != len(parameter_ids)
+        or parameter_ids != list(range(len(model_state)))
+    ):
+        raise ValueError("strength phase1 optimizer parameter mismatch")
+    expected_state_ids = {
+        index
+        for index, name in enumerate(model_state)
+        if not name.startswith("state_value.")
+    }
+    if set(optimizer_state) != expected_state_ids:
+        raise ValueError("strength phase1 optimizer state coverage mismatch")
+    for parameter_id, value in optimizer_state.items():
+        if not isinstance(value, Mapping) or set(value) != {
+            "step",
+            "exp_avg",
+            "exp_avg_sq",
+        }:
+            raise ValueError("strength phase1 optimizer entry is malformed")
+        parameter = list(model_state.values())[parameter_id]
+        step = value["step"]
+        if (
+            not isinstance(step, torch.Tensor)
+            or step.device.type != "cpu"
+            or step.shape != torch.Size([])
+            or step.dtype != torch.float32
+            or not torch.isfinite(step).item()
+            or float(step.item()) != expected_steps
+        ):
+            raise ValueError("strength phase1 optimizer step is malformed")
+        for tensor_name in ("exp_avg", "exp_avg_sq"):
+            tensor = value[tensor_name]
+            if (
+                not isinstance(tensor, torch.Tensor)
+                or tensor.device.type != "cpu"
+                or tensor.shape != parameter.shape
+                or tensor.dtype != parameter.dtype
+                or not torch.isfinite(tensor).all().item()
+            ):
+                raise ValueError(
+                    "strength phase1 optimizer tensor is malformed"
+                )
+
+
+def _validate_strength_training_curve(
+    curve: object,
+    *,
+    global_epoch: int,
+) -> None:
+    if type(curve) is not list or len(curve) != global_epoch:
+        raise ValueError("strength phase1 training curve is incomplete")
+    for index, row in enumerate(curve, start=1):
+        expected_seed, expected_phase, expected_epoch = (
+            _strength_step_from_index(index)
+        )
+        if (
+            type(row) is not dict
+            or row.get("seed") != expected_seed
+            or row.get("phase") != expected_phase
+            or row.get("epoch") != expected_epoch
+            or type(row.get("batches")) is not int
+            or row["batches"] <= 0
+        ):
+            raise ValueError("strength phase1 training curve order mismatch")
+
+
+def _validate_strength_rng_states(
+    cpu_rng: object,
+    mps_rng: object,
+) -> None:
+    expected_cpu = torch.get_rng_state()
+    expected_mps = _mps_rng_state()
+    if (
+        not isinstance(cpu_rng, torch.Tensor)
+        or cpu_rng.device.type != "cpu"
+        or cpu_rng.dtype != expected_cpu.dtype
+        or cpu_rng.shape != expected_cpu.shape
+        or not isinstance(mps_rng, torch.Tensor)
+        or mps_rng.device.type != "cpu"
+        or mps_rng.dtype != expected_mps.dtype
+        or mps_rng.shape != expected_mps.shape
+    ):
+        raise ValueError("strength phase1 checkpoint RNG state is invalid")
+
+
+def _load_strength_last_checkpoint(
+    output: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object] | None,
+) -> dict[str, object]:
+    path = output / "last.pt"
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError("strength phase1 checkpoint is unreadable") from error
+    if type(checkpoint) is not dict:
+        raise ValueError("strength phase1 checkpoint is malformed")
+    expected_metadata = _checkpoint_model_metadata(binding, detailed=True)
+    if (
+        checkpoint.get("checkpoint_schema") != STRENGTH_CHECKPOINT_SCHEMA
+        or any(
+            checkpoint.get(key) != value
+            for key, value in expected_metadata.items()
+        )
+        or checkpoint.get("model_variant") != binding["model_variant"]
+        or checkpoint.get("objective") != binding["objective"]
+        or checkpoint.get("optimizer_schema") != "torch.optim.AdamW-v1"
+        or checkpoint.get("protocol") != protocol_receipt
+        or (
+            fit_data_receipt is not None
+            and checkpoint.get("fit_data_receipt") != fit_data_receipt
+        )
+        or type(checkpoint.get("fit_data_receipt")) is not dict
+        or type(checkpoint.get("spent_development_evidence")) is not dict
+    ):
+        raise ValueError("strength phase1 checkpoint binding mismatch")
+    _strength_next_step(checkpoint)
+    _validate_strength_model_state_structure(
+        binding, checkpoint.get("model")
+    )
+    _validate_strength_training_curve(
+        checkpoint.get("training_curve"),
+        global_epoch=checkpoint["global_epoch"],
+    )
+    _validate_strength_optimizer_state(
+        checkpoint.get("optimizer"),
+        model_state=checkpoint["model"],
+        expected_steps=sum(
+            row["batches"] for row in checkpoint["training_curve"]
+        ),
+    )
+    cpu_rng = checkpoint.get("cpu_rng")
+    mps_rng = checkpoint.get("mps_rng")
+    _validate_strength_rng_states(cpu_rng, mps_rng)
+    expected_receipt = _strength_checkpoint_receipt(path, checkpoint)
+    receipt_path = output / "last-receipt.json"
+    receipt = (
+        _strict_json(receipt_path) if receipt_path.exists() else None
+    )
+    if receipt is not None:
+        receipt_epoch = receipt.get("global_epoch")
+        checkpoint_epoch = checkpoint["global_epoch"]
+        if type(receipt_epoch) is not int:
+            raise ValueError("strength phase1 checkpoint receipt is malformed")
+        if receipt_epoch > checkpoint_epoch:
+            raise ValueError("strength phase1 checkpoint was rolled back")
+        if receipt_epoch == checkpoint_epoch and receipt != expected_receipt:
+            raise ValueError("strength phase1 checkpoint identity drift")
+        if receipt_epoch < checkpoint_epoch - 1:
+            raise ValueError(
+                "strength phase1 checkpoint receipt skipped an epoch"
+            )
+        if receipt_epoch == checkpoint_epoch - 1:
+            previous_seed, previous_phase, previous_epoch = (
+                _strength_step_from_index(receipt_epoch)
+            )
+            previous_identity = receipt.get("checkpoint")
+            if (
+                receipt.get("schema")
+                != STRENGTH_CHECKPOINT_RECEIPT_SCHEMA
+                or receipt.get("seed") != previous_seed
+                or receipt.get("phase") != previous_phase
+                or receipt.get("completed_epoch") != previous_epoch
+                or receipt.get("protocol") != checkpoint["protocol"]
+                or receipt.get("fit_data_receipt")
+                != checkpoint["fit_data_receipt"]
+                or receipt.get("spent_development_evidence")
+                != checkpoint["spent_development_evidence"]
+                or type(previous_identity) is not dict
+                or set(previous_identity) != {"path", "bytes", "sha256"}
+                or previous_identity.get("path")
+                != expected_receipt["checkpoint"]["path"]
+                or type(previous_identity.get("bytes")) is not int
+                or previous_identity["bytes"] <= 0
+                or not isinstance(previous_identity.get("sha256"), str)
+                or len(previous_identity["sha256"]) != 64
+            ):
+                raise ValueError(
+                    "strength phase1 stale checkpoint receipt is malformed"
+                )
+    if receipt != expected_receipt:
+        _atomic_json(receipt_path, expected_receipt)
+    return checkpoint
+
+
+def _load_valid_frozen_strength_checkpoint(
+    path: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    seed: int,
+    source_last_checkpoint: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError(
+            "strength phase1 frozen checkpoint is unreadable"
+        ) from error
+    expected_metadata = _checkpoint_model_metadata(binding, detailed=True)
+    if (
+        type(checkpoint) is not dict
+        or checkpoint.get("checkpoint_schema")
+        != STRENGTH_FINAL_CHECKPOINT_SCHEMA
+        or any(
+            checkpoint.get(key) != value
+            for key, value in expected_metadata.items()
+        )
+        or checkpoint.get("model_variant") != binding["model_variant"]
+        or checkpoint.get("objective") != binding["objective"]
+        or checkpoint.get("seed") != seed
+        or checkpoint.get("completed_v9_epoch") != 4
+        or checkpoint.get("completed_mixed_epoch") != 12
+        or checkpoint.get("protocol") != protocol_receipt
+        or checkpoint.get("fit_data_receipt") != fit_data_receipt
+        or type(checkpoint.get("source_last_checkpoint")) is not dict
+        or set(checkpoint["source_last_checkpoint"]) != {
+            "path",
+            "bytes",
+            "sha256",
+        }
+        or (
+            source_last_checkpoint is not None
+            and checkpoint.get("source_last_checkpoint")
+            != source_last_checkpoint
+        )
+    ):
+        raise ValueError("strength phase1 frozen checkpoint binding mismatch")
+    _validate_strength_model_state_structure(
+        binding, checkpoint.get("model")
+    )
+    return checkpoint
+
+
+def _frozen_strength_receipt(
+    path: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    seed: int,
+    source_last_checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "schema": STRENGTH_CHECKPOINT_RECEIPT_SCHEMA,
+        "seed": seed,
+        "model_variant": binding["model_variant"],
+        "parameters": binding["model_class"].parameter_count(),
+        "objective": binding["objective"],
+        "protocol": dict(protocol_receipt),
+        "fit_data_receipt": dict(fit_data_receipt),
+        "completed_v9_epoch": 4,
+        "completed_mixed_epoch": 12,
+        "source_last_checkpoint": dict(source_last_checkpoint),
+        "checkpoint": _fingerprint(path),
+    }
+
+
+def _require_frozen_model_matches_last(
+    last_path: Path,
+    frozen: Mapping[str, object],
+    *,
+    seed: int,
+) -> None:
+    try:
+        source = torch.load(
+            last_path, map_location="cpu", weights_only=True
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError(
+            "strength phase1 source last checkpoint is unreadable"
+        ) from error
+    expected_global_epoch = 16 if seed == 42 else 32
+    source_model = source.get("model") if type(source) is dict else None
+    frozen_model = frozen.get("model")
+    if (
+        type(source) is not dict
+        or source.get("checkpoint_schema") != STRENGTH_CHECKPOINT_SCHEMA
+        or source.get("seed") != seed
+        or source.get("phase") != "mixed"
+        or source.get("completed_epoch") != 12
+        or source.get("global_epoch") != expected_global_epoch
+        or not isinstance(source_model, Mapping)
+        or not isinstance(frozen_model, Mapping)
+        or list(source_model) != list(frozen_model)
+        or any(
+            not torch.equal(source_model[name], frozen_model[name])
+            for name in source_model
+        )
+    ):
+        raise ValueError(
+            "strength phase1 frozen model differs from source last checkpoint"
+        )
+
+
+def _freeze_strength_checkpoint(
+    output: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    seed: int,
+    model: cpv.OfflineCapacityPolicyValue,
+) -> dict[str, object]:
+    path = output / f"seed-{seed}-final.pt"
+    receipt_path = output / f"seed-{seed}-final-receipt.json"
+    source_last_checkpoint = _fingerprint(output / "last.pt")
+    if path.exists() or receipt_path.exists():
+        if not path.is_file():
+            raise ValueError("strength phase1 frozen checkpoint is malformed")
+        checkpoint = _load_valid_frozen_strength_checkpoint(
+            path,
+            binding=binding,
+            protocol_receipt=protocol_receipt,
+            fit_data_receipt=fit_data_receipt,
+            seed=seed,
+            source_last_checkpoint=source_last_checkpoint,
+        )
+        _require_frozen_model_matches_last(
+            output / "last.pt", checkpoint, seed=seed
+        )
+        expected_receipt = _frozen_strength_receipt(
+            path,
+            binding=binding,
+            protocol_receipt=protocol_receipt,
+            fit_data_receipt=fit_data_receipt,
+            seed=seed,
+            source_last_checkpoint=source_last_checkpoint,
+        )
+        receipt = (
+            _strict_json(receipt_path) if receipt_path.exists() else None
+        )
+        if receipt is not None and receipt != expected_receipt:
+            raise ValueError(
+                "strength phase1 frozen checkpoint receipt mismatch"
+            )
+        if receipt is None:
+            _atomic_json(receipt_path, expected_receipt)
+        return expected_receipt
+    state = {
+        "checkpoint_schema": STRENGTH_FINAL_CHECKPOINT_SCHEMA,
+        **_checkpoint_model_metadata(binding, detailed=True),
+        "model_variant": binding["model_variant"],
+        "objective": binding["objective"],
+        "seed": seed,
+        "completed_v9_epoch": 4,
+        "completed_mixed_epoch": 12,
+        "protocol": dict(protocol_receipt),
+        "fit_data_receipt": dict(fit_data_receipt),
+        "source_last_checkpoint": source_last_checkpoint,
+        "model": {
+            name: value.detach().cpu().clone()
+            for name, value in model.state_dict().items()
+        },
+    }
+    _atomic_torch_save(path, state)
+    receipt = _frozen_strength_receipt(
+        path,
+        binding=binding,
+        protocol_receipt=protocol_receipt,
+        fit_data_receipt=fit_data_receipt,
+        seed=seed,
+        source_last_checkpoint=source_last_checkpoint,
+    )
+    _atomic_json(receipt_path, receipt)
+    return receipt
+
+
+def _validate_frozen_strength_receipts(
+    output: Path,
+    *,
+    binding: Mapping[str, object],
+    protocol_receipt: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    completed_global_epoch: int,
+) -> list[dict[str, object]]:
+    receipts: list[dict[str, object]] = []
+    for seed, required_epoch in ((42, 16), (314159, 32)):
+        path = output / f"seed-{seed}-final.pt"
+        receipt_path = output / f"seed-{seed}-final-receipt.json"
+        should_exist = completed_global_epoch >= required_epoch
+        if not should_exist:
+            if path.exists() or receipt_path.exists():
+                raise ValueError("strength phase1 future frozen checkpoint exists")
+            continue
+        if not path.is_file():
+            raise ValueError("strength phase1 frozen checkpoint is absent")
+        source_last_checkpoint = (
+            _fingerprint(output / "last.pt")
+            if completed_global_epoch == required_epoch
+            else None
+        )
+        checkpoint = _load_valid_frozen_strength_checkpoint(
+            path,
+            binding=binding,
+            protocol_receipt=protocol_receipt,
+            fit_data_receipt=fit_data_receipt,
+            seed=seed,
+            source_last_checkpoint=source_last_checkpoint,
+        )
+        if source_last_checkpoint is not None:
+            _require_frozen_model_matches_last(
+                output / "last.pt", checkpoint, seed=seed
+            )
+        expected_receipt = _frozen_strength_receipt(
+            path,
+            binding=binding,
+            protocol_receipt=protocol_receipt,
+            fit_data_receipt=fit_data_receipt,
+            seed=seed,
+            source_last_checkpoint=checkpoint["source_last_checkpoint"],
+        )
+        receipt = (
+            _strict_json(receipt_path) if receipt_path.exists() else None
+        )
+        if receipt is not None and receipt != expected_receipt:
+            raise ValueError(
+                "strength phase1 frozen checkpoint receipt mismatch"
+            )
+        if receipt is None:
+            if source_last_checkpoint is None:
+                raise ValueError(
+                    "strength phase1 frozen checkpoint receipt is absent "
+                    "outside its atomic publication window"
+                )
+            _atomic_json(receipt_path, expected_receipt)
+        receipts.append(expected_receipt)
+    return receipts
+
+
+def _new_strength_model_optimizer(
+    binding: Mapping[str, object],
+    args: argparse.Namespace,
+    *,
+    seed: int,
+) -> tuple[cpv.OfflineCapacityPolicyValue, torch.optim.Optimizer]:
+    model_class = binding["model_class"]
+    torch.manual_seed(seed)
+    random.seed(seed)
+    if not hasattr(torch.mps, "manual_seed"):
+        raise ValueError("strength phase1 requires seedable MPS RNG")
+    torch.mps.manual_seed(seed)
+    model = model_class().to(args.device)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
+    return model, optimizer
+
+
+def _resume_strength_model_optimizer(
+    binding: Mapping[str, object],
+    args: argparse.Namespace,
+    checkpoint: Mapping[str, object],
+) -> tuple[cpv.OfflineCapacityPolicyValue, torch.optim.Optimizer]:
+    seed = checkpoint["seed"]
+    model, optimizer = _new_strength_model_optimizer(
+        binding, args, seed=seed
+    )
+    try:
+        model.load_state_dict(checkpoint["model"], strict=True)
+        optimizer.load_state_dict(checkpoint["optimizer"])
+    except (KeyError, RuntimeError, ValueError) as error:
+        raise ValueError(
+            "strength phase1 model or optimizer state mismatch"
+        ) from error
+    _restore_rng_states(checkpoint["cpu_rng"], checkpoint["mps_rng"])
+    return model, optimizer
+
+
+def _strength_model_from_checkpoint(
+    binding: Mapping[str, object],
+    args: argparse.Namespace,
+    checkpoint: Mapping[str, object],
+) -> cpv.OfflineCapacityPolicyValue:
+    seed = checkpoint["seed"]
+    torch.manual_seed(seed)
+    random.seed(seed)
+    torch.mps.manual_seed(seed)
+    model = binding["model_class"]().to(args.device)
+    try:
+        model.load_state_dict(checkpoint["model"], strict=True)
+    except (KeyError, RuntimeError, ValueError) as error:
+        raise ValueError("strength phase1 final model state mismatch") from error
+    return model
+
+
+def _strength_phase1_result(
+    *,
+    binding: Mapping[str, object],
+    protocol: Mapping[str, object],
+    fit_data_receipt: Mapping[str, object],
+    spent_v3: Mapping[str, object],
+    training_curve: Sequence[Mapping[str, object]],
+    final_receipts: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    training = protocol["document"]["phase1_training"]
+    return {
+        "schema": binding["result_schema"],
+        "status": training["success_status"],
+        "objective": binding["objective"],
+        "protocol": protocol["protocol"],
+        "fit_data_receipt": dict(fit_data_receipt),
+        "spent_development_evidence": dict(spent_v3),
+        "training": {
+            "execution_order": [42, 314159],
+            "v9_pretrain_epochs": 4,
+            "mixed_epochs": 12,
+            "checkpoint_selection": "mixed epoch 12 final checkpoint only",
+            "best_checkpoint_selection": False,
+            "early_stopping": False,
+            "training_curve": list(training_curve),
+            "final_checkpoints": list(final_receipts),
+        },
+        "sentinel_executed": False,
+        "sentinel_bypass_authorization_verified": True,
+        "v3_weights_reused": False,
+        "inter_seed_state_reused": False,
+        "tune_opened": False,
+        "sealed_opened": False,
+        "live_weights_changed": False,
+        "wasm_changed": False,
+        "matches_started": False,
+        "claim_boundary": (
+            "two-frozen-offline-teachers-only-tune-sealed-direct-play-rank-"
+            "live-and-deployment-claims-forbidden"
+        ),
+    }
+
+
+def _terminalize_strength_phase1(
+    args: argparse.Namespace,
+    output: Path,
+    binding: Mapping[str, object],
+    protocol: Mapping[str, object],
+    checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    if checkpoint.get("global_epoch") != 32:
+        raise ValueError("strength phase1 terminal checkpoint is incomplete")
+    fit_data_receipt = checkpoint["fit_data_receipt"]
+    registered_fit_data_receipt = _fit_only_data_receipt(
+        protocol["document"]["data_receipt"]
+    )
+    if fit_data_receipt != registered_fit_data_receipt:
+        raise ValueError("strength phase1 terminal fit receipt mismatch")
+    spent_v3 = checkpoint["spent_development_evidence"]
+    expected_spent = protocol["document"]["spent_development_evidence"][
+        "v3_result"
+    ]
+    if (
+        spent_v3.get("bytes") != expected_spent.get("bytes")
+        or spent_v3.get("sha256") != expected_spent.get("sha256")
+        or spent_v3.get("schema") != expected_spent.get("schema")
+        or spent_v3.get("status") != expected_spent.get("status")
+        or spent_v3.get("weights_reused") is not False
+    ):
+        raise ValueError("strength phase1 spent evidence checkpoint drift")
+    seed2_path = output / "seed-314159-final.pt"
+    if seed2_path.exists():
+        _validate_frozen_strength_receipts(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=fit_data_receipt,
+            completed_global_epoch=32,
+        )
+    else:
+        _validate_frozen_strength_receipts(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=fit_data_receipt,
+            completed_global_epoch=31,
+        )
+        model = _strength_model_from_checkpoint(
+            binding, args, checkpoint
+        )
+        _freeze_strength_checkpoint(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=fit_data_receipt,
+            seed=314159,
+            model=model,
+        )
+        del model
+        if hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+    final_receipts = _validate_frozen_strength_receipts(
+        output,
+        binding=binding,
+        protocol_receipt=protocol["protocol"],
+        fit_data_receipt=fit_data_receipt,
+        completed_global_epoch=32,
+    )
+    result = _strength_phase1_result(
+        binding=binding,
+        protocol=protocol,
+        fit_data_receipt=fit_data_receipt,
+        spent_v3=spent_v3,
+        training_curve=checkpoint["training_curve"],
+        final_receipts=final_receipts,
+    )
+    _atomic_json(output / "result.json", result)
+    return result
+
+
+def _run_strength_phase1(
+    args: argparse.Namespace,
+    binding: Mapping[str, object],
+    protocol: Mapping[str, object],
+    *,
+    prepared_output_state: str | None = None,
+    prepared_checkpoint: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    document = protocol["document"]
+    training = document.get("phase1_training")
+    if type(training) is not dict:
+        raise ValueError("strength phase1 training contract is absent")
+    registered_output = training.get("output_path")
+    if not isinstance(registered_output, str):
+        raise ValueError("strength phase1 output path is absent")
+    if args.seed != 42 or args.seed42_result is not None:
+        raise ValueError("strength phase1 accepts no seed or result override")
+    if args.device != "mps" or not torch.backends.mps.is_available():
+        raise ValueError("strength phase1 requires available MPS; no CPU fallback")
+    if args.torch_threads:
+        torch.set_num_threads(args.torch_threads)
+
+    output = _strength_output_path(args.out, registered_output)
+    output_state = (
+        _strength_output_state(output)
+        if prepared_output_state is None
+        else prepared_output_state
+    )
+    preloaded_checkpoint = (
+        None if prepared_checkpoint is None else dict(prepared_checkpoint)
+    )
+    if output_state == "resume" and preloaded_checkpoint is None:
+        registered_fit_data_receipt = _fit_only_data_receipt(
+            protocol["document"]["data_receipt"]
+        )
+        preloaded_checkpoint = _load_strength_last_checkpoint(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=registered_fit_data_receipt,
+        )
+    if (
+        preloaded_checkpoint is not None
+        and preloaded_checkpoint["global_epoch"] == 32
+    ):
+        return _terminalize_strength_phase1(
+            args, output, binding, protocol, preloaded_checkpoint
+        )
+    browser_fit, _browser_tune, v9_fit, _v9_tune, data_receipt = (
+        _load_and_partition(args, protocol)
+    )
+    fit_data_receipt = _fit_only_data_receipt(data_receipt)
+    spent_v3 = _validate_spent_v3_result(protocol, data_receipt)
+
+    checkpoint: dict[str, object] | None = None
+    if output_state == "resume":
+        checkpoint = preloaded_checkpoint
+        if checkpoint is None or (
+            checkpoint.get("fit_data_receipt") != fit_data_receipt
+        ):
+            raise ValueError("strength phase1 fit data receipt mismatch")
+        boundary_seed = (
+            checkpoint["seed"]
+            if checkpoint["global_epoch"] in (16, 32)
+            else None
+        )
+        boundary_path = (
+            output / f"seed-{boundary_seed}-final.pt"
+            if boundary_seed is not None
+            else None
+        )
+        _validate_frozen_strength_receipts(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=fit_data_receipt,
+            completed_global_epoch=(
+                checkpoint["global_epoch"] - 1
+                if boundary_path is not None and not boundary_path.exists()
+                else checkpoint["global_epoch"]
+            ),
+        )
+        if boundary_path is not None and not boundary_path.exists():
+            recovery_model, recovery_optimizer = (
+                _resume_strength_model_optimizer(binding, args, checkpoint)
+            )
+            _freeze_strength_checkpoint(
+                output,
+                binding=binding,
+                protocol_receipt=protocol["protocol"],
+                fit_data_receipt=fit_data_receipt,
+                seed=boundary_seed,
+                model=recovery_model,
+            )
+            del recovery_optimizer, recovery_model
+            if hasattr(torch.mps, "empty_cache"):
+                torch.mps.empty_cache()
+            _validate_frozen_strength_receipts(
+                output,
+                binding=binding,
+                protocol_receipt=protocol["protocol"],
+                fit_data_receipt=fit_data_receipt,
+                completed_global_epoch=checkpoint["global_epoch"],
+            )
+    next_step = _strength_next_step(checkpoint)
+    training_curve: list[Mapping[str, object]] = (
+        list(checkpoint["training_curve"]) if checkpoint is not None else []
+    )
+
+    model: cpv.OfflineCapacityPolicyValue | None = None
+    optimizer: torch.optim.Optimizer | None = None
+    active_seed: int | None = None
+    if (
+        checkpoint is not None
+        and next_step is not None
+        and next_step[0] == checkpoint["seed"]
+    ):
+        model, optimizer = _resume_strength_model_optimizer(
+            binding, args, checkpoint
+        )
+        active_seed = checkpoint["seed"]
+
+    while next_step is not None:
+        seed, phase, epoch = next_step
+        if seed != active_seed:
+            if optimizer is not None or model is not None:
+                del optimizer, model
+                optimizer = None
+                model = None
+                if hasattr(torch.mps, "empty_cache"):
+                    torch.mps.empty_cache()
+            model, optimizer = _new_strength_model_optimizer(
+                binding, args, seed=seed
+            )
+            active_seed = seed
+        if model is None or optimizer is None:
+            raise ValueError("strength phase1 optimizer state is absent")
+        if phase == "v9":
+            row = _v9_epoch(
+                model,
+                optimizer,
+                v9_fit,
+                epoch=epoch,
+                seed=seed,
+                objective=cpv.OBJECTIVE_V2,
+                args=args,
+            )
+        else:
+            v9_order = sorted(v9_fit, key=lambda group: group.parent_id)
+            random.Random(seed + epoch * 65_537).shuffle(v9_order)
+            selected_v9 = v9_order[: 3 * len(browser_fit)]
+            row = _paired_epoch(
+                model,
+                optimizer,
+                browser_fit,
+                selected_v9,
+                epoch=epoch,
+                seed=seed,
+                equal_domain_weight=False,
+                objective=cpv.OBJECTIVE_V2,
+                args=args,
+            )
+        curve_row = {"seed": seed, "phase": phase, **row}
+        training_curve.append(curve_row)
+        _save_strength_last_checkpoint(
+            output,
+            binding=binding,
+            protocol_receipt=protocol["protocol"],
+            fit_data_receipt=fit_data_receipt,
+            spent_development_evidence=spent_v3,
+            seed=seed,
+            phase=phase,
+            completed_epoch=epoch,
+            model=model,
+            optimizer=optimizer,
+            training_curve=training_curve,
+        )
+        print(json.dumps(curve_row, sort_keys=True), flush=True)
+        if phase == "mixed" and epoch == 12:
+            _freeze_strength_checkpoint(
+                output,
+                binding=binding,
+                protocol_receipt=protocol["protocol"],
+                fit_data_receipt=fit_data_receipt,
+                seed=seed,
+                model=model,
+            )
+        next_step = _strength_step_from_index(
+            _strength_step_index(seed, phase, epoch) + 1
+        ) if _strength_step_index(seed, phase, epoch) < 32 else None
+
+    if checkpoint is not None and checkpoint["global_epoch"] in (16, 32):
+        final_seed = checkpoint["seed"]
+        final_path = output / f"seed-{final_seed}-final.pt"
+        if not final_path.exists():
+            model, optimizer = _resume_strength_model_optimizer(
+                binding, args, checkpoint
+            )
+            _freeze_strength_checkpoint(
+                output,
+                binding=binding,
+                protocol_receipt=protocol["protocol"],
+                fit_data_receipt=fit_data_receipt,
+                seed=final_seed,
+                model=model,
+            )
+            del optimizer, model
+            if hasattr(torch.mps, "empty_cache"):
+                torch.mps.empty_cache()
+
+    final_receipts = _validate_frozen_strength_receipts(
+        output,
+        binding=binding,
+        protocol_receipt=protocol["protocol"],
+        fit_data_receipt=fit_data_receipt,
+        completed_global_epoch=32,
+    )
+    if [receipt["seed"] for receipt in final_receipts] != [42, 314159]:
+        raise ValueError("strength phase1 final seed order mismatch")
+    result = _strength_phase1_result(
+        binding=binding,
+        protocol=protocol,
+        fit_data_receipt=fit_data_receipt,
+        spent_v3=spent_v3,
+        training_curve=training_curve,
+        final_receipts=final_receipts,
+    )
+    _atomic_json(output / "result.json", result)
+    return result
+
+
 def run(args: argparse.Namespace) -> dict[str, object]:
     binding = _protocol_binding(args.protocol)
+    if _is_strength_phase1(binding):
+        identity = _verified_protocol_identity(binding)
+        training = identity["document"].get("phase1_training")
+        if type(training) is not dict or not isinstance(
+            training.get("output_path"), str
+        ):
+            raise ValueError("strength phase1 output path is absent")
+        output = _strength_output_path(args.out, training["output_path"])
+        if args.seed != 42 or args.seed42_result is not None:
+            raise ValueError("strength phase1 accepts no seed or result override")
+        if args.device != "mps" or not torch.backends.mps.is_available():
+            raise ValueError(
+                "strength phase1 requires available MPS; no CPU fallback"
+            )
+        if args.torch_threads:
+            torch.set_num_threads(args.torch_threads)
+        output_state = _strength_output_state(output)
+        checkpoint = None
+        if output_state == "resume":
+            registered_fit_data_receipt = _fit_only_data_receipt(
+                identity["document"]["data_receipt"]
+            )
+            checkpoint = _load_strength_last_checkpoint(
+                output,
+                binding=binding,
+                protocol_receipt=identity["protocol"],
+                fit_data_receipt=registered_fit_data_receipt,
+            )
+            if checkpoint["global_epoch"] == 32:
+                return _terminalize_strength_phase1(
+                    args, output, binding, identity, checkpoint
+                )
+        protocol = _verify_protocol(args)
+        return _run_strength_phase1(
+            args,
+            binding,
+            protocol,
+            prepared_output_state=output_state,
+            prepared_checkpoint=checkpoint,
+        )
     protocol = _verify_protocol(args)
     objective = protocol.get("objective", cpv.OBJECTIVE_V1)
     if not isinstance(objective, str):

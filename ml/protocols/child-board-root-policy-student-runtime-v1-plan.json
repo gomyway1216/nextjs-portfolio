@@ -1,0 +1,906 @@
+{
+  "schema": "shogi-child-board-root-policy-student-runtime-plan-v1",
+  "status": "prospective-pre-tune-fit-only-student-runtime-plan",
+  "result_schema": "shogi-child-board-root-policy-student-runtime-result-v1",
+  "objective": "Distill the preregistered seed-42 child-board teacher into one fixed small production root-ordering student without reading tune or sealed labels, freeze its checkpoint and runtime artifacts, and preregister parity, latency, one-shot tune, one-shot sealed, contamination, and authority gates before any implementation result is used.",
+  "claim_boundary": "This protocol can produce only a frozen root-move-ordering candidate. It never replaces the live NNUE, never supplies a leaf or transposition-table value, and never authorizes a strength, rank, live, or deployment claim by itself.",
+  "protocol_identity": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
+  },
+  "parent_protocol": {
+    "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
+    "bytes": 42427,
+    "sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+    "git_commit": "d1db87249684703fb68e6bef4bfd0d90e51abca9",
+    "required_schema": "shogi-child-board-strength-candidate-plan-v1",
+    "required_status": "prospective-scratch-strength-candidate-lane-only",
+    "authority": "all tune, sealed, formal direct-A/B, external-calibration, live-write, and staged-authority boundaries remain owned by this exact parent protocol"
+  },
+  "teacher_checkpoint_bindings": {
+    "phase1_terminal_result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/result.json",
+      "required_schema": "shogi-child-board-strength-candidate-result-v1",
+      "required_status": "complete-phase1-two-scratch-checkpoints-frozen-tune-locked",
+      "required_parent_protocol_sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+      "required_tune_opened": false,
+      "required_sealed_opened": false,
+      "required_live_weights_changed": false
+    },
+    "designated_distillation_teacher": {
+      "seed": 42,
+      "checkpoint_sha256": "__BIND_PHASE1_SEED_42_FINAL_CHECKPOINT_SHA256__",
+      "source_selector": "/training/final_checkpoints unique array member with integer seed 42, then /checkpoint/sha256",
+      "checkpoint_path_and_bytes": "read without transformation from the unique seed-42 final-checkpoint receipt in phase1_terminal_result and verify against checkpoint_sha256",
+      "role": "the only teacher whose fit-only logits may train the student; fixed independently of every later score"
+    },
+    "replication_teacher": {
+      "seed": 314159,
+      "checkpoint_sha256": "__BIND_PHASE1_SEED_314159_FINAL_CHECKPOINT_SHA256__",
+      "source_selector": "/training/final_checkpoints unique array member with integer seed 314159, then /checkpoint/sha256",
+      "checkpoint_path_and_bytes": "read without transformation from the unique seed-314159 final-checkpoint receipt in phase1_terminal_result and verify against checkpoint_sha256",
+      "role": "replication evidence only; never averaged, ensembled, selected, or used as a student target"
+    },
+    "only_unresolved_slots": [
+      "/teacher_checkpoint_bindings/designated_distillation_teacher/checkpoint_sha256",
+      "/teacher_checkpoint_bindings/replication_teacher/checkpoint_sha256"
+    ],
+    "mechanical_bind_rule": "After the valid phase-1 terminal result exists and before any student optimizer, replace each placeholder exactly once with the corresponding 64-lowercase-hex checkpoint SHA-256 from that result.",
+    "permitted_bind_diff": "only the two placeholder string values above may change; key order, whitespace, all other values, and both articles remain unchanged",
+    "bind_validation": "recompute this protocol byte count and SHA-256, commit the two substitutions alone to public main, and record old/new protocol receipts plus both source JSON pointers in a machine-readable binding receipt",
+    "binding_receipt": {
+      "path": "ml/protocols/child-board-root-policy-student-runtime-v1-binding.json",
+      "schema": "shogi-child-board-root-policy-student-runtime-binding-v1",
+      "publication": "add in the same mechanical-binding commit after validating that the protocol patch contains exactly the two permitted string substitutions"
+    },
+    "unresolved_or_mismatched": "STOP before teacher inference, student initialization, optimizer creation, protected-data access, tune, or sealed"
+  },
+  "postphase_registry": {
+    "path": "ml/protocols/child-board-root-policy-student-postphase-v1-registry.json",
+    "schema": "shogi-child-board-root-policy-student-postphase-registry-v1",
+    "publication": "add a minimum closed-state registry in the mechanical-binding commit; it records the binding and phase-1 receipts but grants no tune, sealed, runtime, formal, external, deployment, or live authority"
+  },
+  "fixed_roles": {
+    "seed42": "fit-only offline distillation teacher",
+    "seed314159": "replication checkpoint scored independently at tune and sealed but never used for student training",
+    "student": "production-candidate root legal-move ordering prior only",
+    "live_nnue": "the sole production child and leaf static evaluator",
+    "stable_engine": "the unchanged production engine and root-ordering behavior",
+    "forbidden": [
+      "teacher averaging or ensembling",
+      "selecting a teacher by tune, sealed, parity, latency, direct-play, or external score",
+      "using either large teacher inside production search",
+      "using student output as a leaf value, quiescence value, terminal value, pruning margin, aspiration bound, or transposition-table value"
+    ]
+  },
+  "data_firewall": {
+    "training_labels": "seed-42 outputs on parent-protocol fit parents only",
+    "browser_fit_parents": 875,
+    "v9_fit_parents": 19264,
+    "total_fit_parents": 20139,
+    "tune_parents_allowed_for_training": 0,
+    "sealed_parents_allowed_for_training": 0,
+    "sentinel_allowed": false,
+    "teacher_seed314159_outputs_allowed_for_training": false,
+    "direct_play_or_external_data_allowed_for_training": false,
+    "known_eval_union_required": {
+      "count": 98420,
+      "bytes": 7086240,
+      "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+      "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+    },
+    "protected_final_required": {
+      "count": 413221,
+      "bytes": 29751912,
+      "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe"
+    },
+    "protected_selection_required": {
+      "count": 425344,
+      "bytes": 30624768,
+      "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d"
+    },
+    "any_overlap_or_role_drift": "STOP before teacher inference or optimizer creation"
+  },
+  "fit_sources": {
+    "browser": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "input_parents": 1334,
+      "kept_parents": 1071,
+      "fit_parents": 875,
+      "tune_parents": 196,
+      "fit_component_assignments_sha256": "c6d88fb8170a9fff280acc848c8cf95bfe98c5e7c64f8f9e0e60d7b3ba455746"
+    },
+    "v9": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "input_parents": 23980,
+      "kept_parents": 23675,
+      "fit_parents": 19264,
+      "tune_parents": 4411,
+      "fit_component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32"
+    },
+    "live_nnue_anchor": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "writable": false
+    }
+  },
+  "fit_only_distillation_artifact": {
+    "output_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/fit-distillation.seed42.jsonl",
+    "generation": "for each of all 875 Browser fit parents and all 19264 V9 fit parents, project the rules-complete legal list to the pinned current production search-move universe, construct only that projected set and its child tensors, and run the frozen seed-42 teacher in eval mode once on that complete projected set",
+    "record_per_parent": [
+      "domain",
+      "game ID",
+      "parent ID",
+      "parent SFEN",
+      "ordered rules-complete legal USI source list",
+      "ordered current-production root search-move USI list",
+      "projection removal list and reason",
+      "child semantic IDs",
+      "exact live NNUE child-side-to-move CP",
+      "exact parent-perspective base_parent_cp equal to negative child-side-to-move CP",
+      "seed-42 combined teacher CP logits produced by a fresh forward on exactly the projected set"
+    ],
+    "ordering": "Browser parents followed by V9 parents; within each domain sort by bytewise parent ID; both source and projected move lists sort by bytewise USI",
+    "teacher_reforward_rule": "Because the teacher consumes the complete move set, first project and rebuild the teacher batch, then forward on the projected set. Computing logits on the rules-complete set and filtering those logits afterward is forbidden even when the retained USI strings are identical.",
+    "numeric_encoding": "finite decimal strings round-tripping to IEEE-754 float32; no clipping beyond the registered teacher forward semantics",
+    "terminal_receipt_requires": [
+      "path",
+      "bytes",
+      "SHA-256",
+      "rows",
+      "parents by domain",
+      "rules-complete source moves, projected production moves, and removed non-promoting bishop/rook moves by domain",
+      "teacher checkpoint path, bytes, and SHA-256",
+      "production move-universe source receipts and projection implementation receipt",
+      "zero tune, sealed, sentinel, replication-teacher, direct-play, or external parents"
+    ],
+    "crash_recovery": {
+      "shards": 64,
+      "assignment": "unsigned big-endian integer represented by the first eight bytes of sha256('student-distill-v1:' + domain + ':' + parent_id), modulo 64",
+      "shard_order": "shards are resume units numbered 0 through 63; inside each shard sort parent records by domain ordinal browser=0 then v9=1 and bytewise parent ID, and sort every record's projected production moves by bytewise USI",
+      "content_address": "sha256 of bound seed-42 checkpoint SHA-256, bound protocol SHA-256, fit-source receipts, shard integer, ordered parent IDs, feature-source receipts, and output schema",
+      "publication": "write one shard to a temporary sibling, fsync file, atomically rename to its content-addressed final path, then atomically publish its path/bytes/SHA receipt",
+      "resume": "before optimizer creation only, validate and retain every complete immutable shard and generate only missing shards; a partial temporary file is ignored, and a final file or receipt mismatch is STOP",
+      "finalization": "after exactly 64 valid receipts, perform a deterministic 64-way merge of complete parent records by (domain ordinal browser=0 then v9=1, bytewise parent ID); retain each record's bytewise-USI move order; write that global Browser-then-V9 stream to a temporary final JSONL, fsync, atomic rename, and atomically publish one final receipt",
+      "after_final_before_optimizer_crash": "validate the final JSONL and all 64 receipts, generate no teacher outputs, and continue to parity-fixture publication then optimizer creation",
+      "candidate_or_protected_scores_opened": false,
+      "alternate_membership_teacher_or_shard_count": false
+    },
+    "regeneration": false
+  },
+  "production_move_universe": {
+    "schema": "shogi-current-production-root-search-move-universe-v1",
+    "purpose": "match the move membership that the current production JS and WASM search engines actually generate; this is not a request to make non-root search rules-complete",
+    "source_receipts": [
+      {
+        "path": "src/components/game/ShogiImproved/GenerateMovesImproved.ts",
+        "bytes": 36585,
+        "sha256": "3a17c296e74f028fad6c26ac3d71a253ddba20e6afc784b49bed57b328c04e97",
+        "role": "JS production promotion branching and legal root filtering"
+      },
+      {
+        "path": "wasm-spike/assembly/index.ts",
+        "bytes": 143322,
+        "sha256": "1005153cbfd17dc7046c5f82d87d33efa7a651736aba35c384e24a5162028880",
+        "role": "WASM source promotion branching, per-node generation, stable heuristic sorting, and iterative deepening"
+      },
+      {
+        "path": "src/components/game/ShogiImproved/wasmEngine.ts",
+        "bytes": 21351,
+        "sha256": "dcd3f01a2489b823f7aac0a6e10d7c58ebcc2bfec6723baed0a8ce04275c6392",
+        "role": "production WASM search wrapper"
+      },
+      {
+        "path": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "bytes": 36545,
+        "sha256": "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31",
+        "role": "currently emitted production search binary"
+      }
+    ],
+    "projection_from_rules_complete_usi": [
+      "parse the parent SFEN board and side to move; preserve every rules-complete legal drop and every move by a piece other than an unpromoted bishop or unpromoted rook",
+      "for side b, remove only a non-promoting move by an unpromoted bishop or rook when either source or destination USI rank is a, b, or c",
+      "for side w, remove only a non-promoting move by an unpromoted bishop or rook when either source or destination USI rank is g, h, or i",
+      "preserve the corresponding promoting USI move and bytewise-sort the retained USI list"
+    ],
+    "equivalence": "the projected list must equal the legal root membership produced independently by both pinned JS and pinned WASM generators for every parent; any mismatch is STOP before teacher inference",
+    "scope": "training distillation, parity fixture, one-shot tune, one-shot sealed scoring, and production root inference all use this same projection",
+    "forbidden": [
+      "changing root or non-root production move membership as part of the student experiment",
+      "adding rules-complete non-promoting bishop or rook branches to the production search",
+      "filtering teacher logits from a larger move-set forward",
+      "retraining either frozen teacher"
+    ]
+  },
+  "student_architecture": {
+    "schema": "shogi-child-board-root-policy-student-v1",
+    "model_variant": "shared-child16x2-residual-mlp-root-ordering-v1",
+    "feature_version": "dense-43-plane-shared-parent-child-livecp-root-v1",
+    "parameters": 877633,
+    "fp32_tensor_payload_bytes": 3510532,
+    "input_contract": {
+      "parent": "side-to-move-normalized 43x9x9 planes identical to the parent teacher encoder",
+      "child": "one side-to-move-normalized 43x9x9 plane tensor for every child in the pinned current production root search-move universe",
+      "move": "from, to, moved piece, captured piece, action, delta file, delta rank, both king relations, ply bucket, exact frozen live-NNUE child-side-to-move CP, and exact parent-perspective base_parent_cp = -child_side_cp",
+      "legality": "the student never changes move membership; it scores exactly the engine-provided current production root search-move list, whose only difference from the rules-complete source list is the pinned existing non-promoting bishop/rook omission"
+    },
+    "shared_board_encoder": "one shared Conv2d 43 to 16, 3x3, padding 1, no bias; GroupNorm 4 and GELU; two residual blocks each with two bias-free 16-channel 3x3 convolutions and GroupNorm 4; flatten 16x9x9; Linear 1296 to 128; LayerNorm 128; apply the identical weights once to the parent and to every valid legal child",
+    "shared_board_encoder_parameters": 181840,
+    "move_embeddings": {
+      "from_square": "82 by 32",
+      "to_square": "81 by 32",
+      "moved_piece": "15 by 32",
+      "captured_piece": "15 by 16",
+      "action": "8 by 16",
+      "delta_file": "17 by 16",
+      "delta_rank": "17 by 16",
+      "self_king_relation": "289 by 16",
+      "enemy_king_relation": "289 by 16",
+      "ply_bucket": "16 by 16",
+      "parameters": 16112
+    },
+    "per_move_feature": "concatenate parent 128, child 128, child-minus-parent 128, the 208 move-embedding values, and tanh(base_parent_cp / 3000), for exactly 593 values",
+    "input_projection": "Linear 593 to 256 with bias, LayerNorm 256, GELU",
+    "input_projection_parameters": 152576,
+    "residual_mlp": "two blocks; each block is Linear 256 to 512 with bias, GELU, Linear 512 to 256 with bias, residual add, LayerNorm 256, GELU",
+    "residual_mlp_parameters": 526848,
+    "output": "Linear 256 to 1 with bias gives residual_units; residual_cp = 600 * residual_units; combined_parent_cp = base_parent_cp + residual_cp where base_parent_cp = -child_side_to_move_live_nnue_cp; invalid padding is zeroed and never ranked",
+    "output_parameters": 257,
+    "parameter_sum_check": "181840 + 16112 + 152576 + 526848 + 257 = 877633",
+    "move_set_semantics": "independent shared scoring over moves with no positional embedding; stable descending combined-CP sort and bytewise-USI ascending tie break make the output permutation-equivariant",
+    "parent_value_head": false,
+    "dropout": 0,
+    "batch_norm": false
+  },
+  "exact_forward_contract": {
+    "pinned_feature_sources": [
+      {
+        "path": "ml/train.py",
+        "bytes": 169091,
+        "sha256": "6530d2cbd54c49f8048f28ce18d3981faea521de2997616780ab4dd498c53184",
+        "role": "side-to-move SFEN normalization, 28 board planes, and 14 hand counts"
+      },
+      {
+        "path": "ml/move_order_head.py",
+        "bytes": 23684,
+        "sha256": "c5e3badb4cf3ee287ec084e3862dd8eead475781b6f66739362bdd91ae63751e",
+        "role": "explicit move parsing and piece/category maps"
+      },
+      {
+        "path": "ml/listwise_policy_value.py",
+        "bytes": 43294,
+        "sha256": "1528165720f6d5bc85c98adaebb17fc72f1f233a7662356421e5b9519fb0caeb",
+        "role": "move indices, child transition, live-NNUE scoring, and parent-perspective sign"
+      },
+      {
+        "path": "ml/capacity_policy_value.py",
+        "bytes": 28621,
+        "sha256": "c0d69a6d3806cef350719fe34647c6be69821fab50b42bc8f66149680d42f61c",
+        "role": "43-plane parent/child tensors, padding, and source child16x2 encoder geometry"
+      }
+    ],
+    "pinned_feature_tests": [
+      {
+        "path": "ml/tests_torch/test_listwise_policy_value.py",
+        "bytes": 18510,
+        "sha256": "4086936edb7d84699ba4c62a125cc86e27d61e05b231d59a103dacfc138741db"
+      },
+      {
+        "path": "ml/tests_torch/test_capacity_policy_value.py",
+        "bytes": 27873,
+        "sha256": "6db0ec16a56a7075dfb26906c14bc46d116560c6a2334c1b0eeaec66741b4019"
+      }
+    ],
+    "dtype": "IEEE-754 float32 for every plane, embedding, weight, bias, activation, normalization statistic, residual, and CP tensor; categorical indices are signed int64 in Python and exact nonnegative int32 in runtime",
+    "plane_map": {
+      "board": "train.parse_sfen produces side-to-move-normalized feature in [0,2267]; piece_plane = feature // 81, square = feature % 81, y = square // 9, x = square % 9, and plane[piece_plane,y,x] = 1",
+      "hand": "planes 28..41 follow HAND_ORDER PLNSGBR for friendly then enemy counts in the exact train.parse_sfen order; divide by maxima [18,4,4,4,4,2,2] repeated twice and fill all 9x9 cells",
+      "ply": "plane 42 fills all cells with min(max(int(SFEN ply)-1,0),255)/255",
+      "child": "derive canonical child SFEN with child_sfen_after_usi and apply the identical 43-plane mapping from the child's new side-to-move perspective",
+      "flatten": "contiguous C-major then y then x; flatten index = channel*81 + y*9 + x"
+    },
+    "move_index_map": {
+      "from_square": "side-to-move normalized (file-1)*9+(rank-1) in [0,80], with drop sentinel 81",
+      "to_square": "same normalized square map in [0,80]",
+      "moved_piece": "exact move_order_head piece map in [0,14]",
+      "captured_piece": "0 for none, otherwise exact destination piece map in [1,14]",
+      "action": "is_drop | (is_promotion << 1) | (has_capture << 2), in [0,7]",
+      "delta_file_and_rank": "for non-drop destination minus source after normalization, clipped to [-8,8] then plus 8; drops use delta zero then index 8",
+      "king_relation": "clip(to_file-king_file)+8 multiplied by 17 plus clip(to_rank-king_rank)+8, separately for friendly and enemy king, in [0,288]",
+      "ply_bucket": "min(15,max(0,(int(parent SFEN ply)-1)//16))",
+      "padding": "valid false, all indices zero, all planes and CP zero; padding never enters normalization statistics, loss, or sorting"
+    },
+    "live_nnue_sign_and_scale": {
+      "child_side_cp": "exact deployed integer score_child_sfens_with_live_nnue output in the child side-to-move view using K=600 and truncation toward zero",
+      "base_parent_cp": "-child_side_cp",
+      "input_scalar": "tanh(base_parent_cp / 3000)",
+      "student_residual_cp": "600 * output_linear_value",
+      "combined_parent_cp": "base_parent_cp + student_residual_cp",
+      "ranking": "higher combined_parent_cp is better for the parent side"
+    },
+    "normalization": {
+      "group_norm": "4 contiguous groups over 16 channels; per sample and group reduce channel-within-group,y,x; population variance with correction=0; epsilon 0.00001 inside sqrt; affine channel weight then bias",
+      "layer_norm": "normalize the final feature axis only; population variance with correction=0; epsilon 0.00001 inside sqrt; affine element weight then bias"
+    },
+    "gelu": "every GELU uses the fixed tanh approximation 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x*x*x))) in float32; approximate='none', ReLU substitution, and implementation-selected variants are forbidden",
+    "operation_order": [
+      "shared board stem Conv2d -> GroupNorm -> GELU",
+      "for each of two board blocks: save residual -> Conv2d -> GroupNorm -> GELU -> Conv2d -> GroupNorm -> residual add -> GELU",
+      "flatten C,y,x -> Linear 1296 to 128 -> LayerNorm",
+      "concatenate parent, child, child-minus-parent, embeddings in the JSON key order, then tanh(base_parent_cp/3000)",
+      "Linear 593 to 256 -> LayerNorm -> GELU",
+      "for each of two MLP blocks: save residual -> Linear 256 to 512 -> GELU -> Linear 512 to 256 -> residual add -> LayerNorm -> GELU",
+      "Linear 256 to 1 -> multiply 600 -> add base_parent_cp -> mask invalid -> stable descending sort with bytewise-USI ascending tie break"
+    ],
+    "implementation_gate": "the future Python reference, runtime source, worker, WASM, manifest exporter, and tests must record resolved path, bytes, SHA-256, Git commit, and the exact schema above before any student optimizer"
+  },
+  "initialization": {
+    "seed": 20260728,
+    "device_seeded": [
+      "Python random",
+      "PyTorch CPU",
+      "PyTorch MPS"
+    ],
+    "conv_and_linear": "PyTorch kaiming_uniform with a=sqrt(5); every bias zero",
+    "embedding": "normal mean 0 standard deviation 0.02",
+    "group_and_layer_norm": "weight one and bias zero",
+    "output_linear": "weight and bias exact zero after the general initialization",
+    "scratch_only": true,
+    "forbidden": "no student, v1/v2/v3, seed-314159, quantized, runtime, tune-selected, or direct-play-selected parameter may initialize any tensor"
+  },
+  "distillation_objective": {
+    "id": "seed42-fit-only-gate-aligned-distillation-v1",
+    "target": "frozen seed-42 combined move CP on fit parents only",
+    "notation": "for valid move i, T_i is frozen seed-42 combined parent-perspective CP and S_i is student combined_parent_cp; m=max_i T_i",
+    "listwise": "P_i=softmax_i(clamp(T_i-m,-2000,0)/100); L_list(parent)=-sum_i P_i*log_softmax_i(S/100); arithmetic mean over parents, weight 1.0",
+    "pair": "E={(i,j):T_i-T_j>=50}; L_pair=mean over every ordered pair in E across the current single-domain microbatch of softplus(-(S_i-S_j)/100); if E is empty, differentiable exact zero; weight 1.0",
+    "tie_aware_hardest_negative_margin": "B={i:T_i=m}, N={i:T_i<m}; if N nonempty L_margin(parent)=ReLU(50-(max_{i in B}S_i-max_{j in N}S_j))/100, else differentiable exact zero; arithmetic mean over parents, weight 1.0",
+    "move_value": "for each parent take the arithmetic mean over valid moves of SmoothL1(clamp(S_i,-3000,3000)/600,clamp(T_i,-3000,3000)/600,beta=0.25); arithmetic mean over parents, weight 0.20",
+    "state_value": false,
+    "domain_combination": "for each Browser or V9 microbatch compute L_domain=mean(L_list)+L_pair+mean(L_margin)+0.20*mean(L_move); Browser and V9 remain separate and their present microbatch domain losses are summed; no cross-domain softmax, pair, or averaging",
+    "optimizer_order": "forward -> summed domain loss -> optimizer zero_grad(set_to_none=true) before backward -> backward -> clip global L2 gradient norm to 5 -> AdamW step; no loss scaling or gradient accumulation unless byte-exactly fixed before optimizer",
+    "fixed_after_teacher_bind": true
+  },
+  "training": {
+    "device": "MPS only; no CPU fallback",
+    "output_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1",
+    "output_directory_policy": "create-only before teacher inference or optimizer creation; an existing directory is accepted only by the exact technical_crash_recovery contract; no alternate path or second attempt",
+    "final_checkpoint_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-final-mixed-epoch12.pt",
+    "pre_optimizer_sequence": [
+      "validate both bound teacher checkpoint receipts and pinned source/test receipts",
+      "content-address generate and atomically finalize the seed-42 fit-only distillation artifact",
+      "deterministically select and atomically publish the fit-only parity-1024 fixture and receipt",
+      "initialize the student exactly once and create AdamW"
+    ],
+    "optimizer": "AdamW",
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "gradient_clip": 5,
+    "browser_batch": 32,
+    "v9_batch": 256,
+    "move_padding_buckets": [
+      16,
+      32,
+      64,
+      96,
+      128,
+      192,
+      272
+    ],
+    "v9_pretrain_epochs": 4,
+    "mixed_epochs": 12,
+    "mixed_parent_ratio": "every Browser fit parent exactly once and exactly three rotating V9 fit parents per Browser parent per epoch",
+    "v9_rotation": "deterministic epoch-dependent cyclic traversal after bytewise parent-ID order; no score-based sampling",
+    "scheduler": "constant learning rate",
+    "checkpoint_selection": "mixed epoch 12 final checkpoint only",
+    "best_checkpoint_selection": false,
+    "early_stopping": false,
+    "tune_monitoring": false,
+    "replication_teacher_monitoring": false,
+    "second_seed": false,
+    "second_attempt": false
+  },
+  "technical_crash_recovery": {
+    "allowed": true,
+    "checkpoint_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/last-completed-epoch.pt",
+    "checkpoint_cadence": "atomically replace after every completed pretrain or mixed epoch; successful atomic publication defines epoch completion",
+    "checkpoint_requires": [
+      "student model",
+      "optimizer",
+      "CPU RNG",
+      "MPS RNG",
+      "seed",
+      "phase",
+      "last completed epoch",
+      "bound protocol bytes and SHA-256",
+      "fit-distillation artifact bytes and SHA-256",
+      "both bound teacher checkpoint SHA-256 values"
+    ],
+    "resume": "after an actual technical process or host crash, exact validation of the unique latest checkpoint at the fixed path may continue only at the immediately following epoch",
+    "publication_windows": {
+      "distillation_incomplete": "use only fit_only_distillation_artifact.crash_recovery; no optimizer may exist",
+      "distillation_final_before_parity_fixture": "validate the final distillation and 64 shard receipts, generate no teacher output, and publish the deterministic fit-only parity fixture",
+      "parity_fixture_before_optimizer": "validate distillation and parity receipts, then initialize the student exactly once",
+      "pretrain_or_mixed_epoch": "validate the unique latest completed-epoch checkpoint and continue only at its next epoch",
+      "mixed_epoch12_checkpoint_published": "training is permanently complete; enter terminalize-only recovery and never create or restore an optimizer",
+      "terminal_result_published": "the lane is complete; no recovery, retry, export, or artifact rewrite is allowed"
+    },
+    "mixed12_terminalize_only": {
+      "allowed": true,
+      "input": "the unique valid mixed-epoch-12 atomic checkpoint plus already final distillation and parity-fixture receipts",
+      "ordered_steps": [
+        "validate protocol, teacher hashes, model schema, parameter count, mixed epoch 12, distillation receipt, parity receipt, and tune/sealed unopened state",
+        "atomically publish student-final-mixed-epoch12.pt if absent",
+        "atomically publish the exact 3510532-byte f32 tensor payload if absent",
+        "atomically publish the manifest binding every tensor offset/length/SHA if absent",
+        "validate the already published parity-1024 fixture and its fit-only source receipt",
+        "atomically publish result.json last"
+      ],
+      "existing_artifact": "accept only an exact valid artifact at the next ordered step; any byte, SHA, schema, ordering, or dependency mismatch is STOP",
+      "permissions": "CPU read of the mixed-12 model state and deterministic serialization only; no optimizer creation/load, no model forward, no training-data read, no teacher inference, and no tune, sealed, sentinel, direct-play, or external read",
+      "partial_temporary_file": "ignore an uncommitted temporary sibling; never overwrite a final path",
+      "result_is_last_commit_point": true
+    },
+    "forbidden": [
+      "alternate output",
+      "scratch restart",
+      "older-epoch rollback",
+      "completed-epoch replay",
+      "checkpoint choice",
+      "partial or unverifiable checkpoint",
+      "optimizer creation or load after mixed epoch 12 publication",
+      "re-export or manifest rewrite after a valid final artifact exists",
+      "retry after terminal complete result",
+      "any recovery after tune or sealed is opened"
+    ]
+  },
+  "artifact_freeze_before_tune": {
+    "required_artifacts": {
+      "distillation_labels": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/fit-distillation.seed42.jsonl",
+      "final_checkpoint": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-final-mixed-epoch12.pt",
+      "runtime_tensor_payload": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-root-ordering.f32.bin",
+      "runtime_manifest": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-root-ordering.manifest.json",
+      "parity_fixture": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/parity-1024.fit-only.jsonl",
+      "terminal_result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/result.json"
+    },
+    "runtime_tensor_format": "all state-dict tensors in bytewise UTF-8 tensor-name order, contiguous row-major little-endian IEEE-754 float32, concatenated without padding; manifest fixes each name, shape, dtype, offset, length, and SHA-256",
+    "parity_fixture_publication": "before student initialization, select from fit only, write a temporary sibling, fsync, atomically rename, and atomically publish its source/path/bytes/SHA receipt; it is immutable throughout training and terminalization",
+    "atomic_publication": "every final artifact uses temporary sibling -> fsync file -> atomic rename without overwrite -> atomic receipt; result.json is published last and binds all earlier receipts",
+    "ordered_terminal_dependencies": [
+      "final distillation receipt",
+      "final parity-fixture receipt",
+      "mixed-epoch-12 checkpoint receipt",
+      "final student checkpoint receipt",
+      "f32 tensor payload receipt",
+      "runtime manifest receipt",
+      "terminal result receipt"
+    ],
+    "runtime_tensor_payload_exact_bytes": 3510532,
+    "terminal_result_requires_exact_receipt_for_every_artifact": [
+      "resolved path",
+      "bytes",
+      "SHA-256"
+    ],
+    "terminal_success_status": "complete-fit-only-student-frozen-tune-locked",
+    "tune_opened": false,
+    "sealed_opened": false,
+    "immutable_after_success": true,
+    "artifact_hash_unknown_is_not_an_unresolved_protocol_slot": "artifact hashes are deterministic execution outputs recorded in the terminal result; their algorithms and paths are fixed here, and all hashes must freeze before tune"
+  },
+  "runtime_build_freeze_before_tune": {
+    "schema": "shogi-child-board-root-policy-production-build-receipt-v1",
+    "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/production-build-receipt.json",
+    "open_requirement": "student terminal result is complete-fit-only-student-frozen-tune-locked and tune/sealed remain unopened",
+    "single_build": "from the already fixed public-main student implementation commit and frozen tensor/manifest, execute one production build; no implementation or artifact change after this point",
+    "source_receipts": "student runtime, search, worker, WASM wrapper/source, TT, package manifest, exact lockfile, Next configuration, TypeScript configuration, tensor, manifest, and live NNUE each record resolved path, bytes, and SHA-256",
+    "output_receipts": "production build manifest, emitted main search chunk, emitted student-capable worker chunk, emitted WASM asset, emitted student tensor, and emitted student manifest each record resolved path, bytes, SHA-256, media type, and build-relative URL",
+    "environment_receipt": "Node, npm, Next, TypeScript, OS, architecture, build command, environment allowlist, source Git commit, and clean tracked-worktree tree hash",
+    "atomic_publication": "write the complete source/output/environment graph to a temporary sibling, fsync, and atomically rename once without partial display",
+    "partial_incomplete_or_mismatch": "STOP before tune; no rebuild, alternate output, dependency update, source edit, or artifact substitution",
+    "immutable_after_publication": true
+  },
+  "runtime_semantics": {
+    "scope": "root-node ordering of the unchanged current production search-move membership only",
+    "application": "infer one stable student rank table for the current production root search-move universe once per search invocation, pass the keyed rank table into WASM, and inside WASM pre-order every newly generated ply-0 move list by that rank immediately before the unchanged stable production heuristic scoring/sort",
+    "iterative_deepening_requirement": "apply the same immutable rank table after every ply-0 regeneration, including root fallback, every iterative-deepening depth, aspiration re-search, and root internal-iterative-deepening call; an outer host sort performed only once is forbidden because searchNodeAS regenerates the root list",
+    "combination_with_stable_ordering": "student rank establishes the initial root array order; the existing stable descending production heuristic sort then remains unchanged, so TT, second-TT, killer, capture, promotion, history, safety, and opening bonuses retain their existing priority while student rank deterministically breaks equal heuristic scores",
+    "selected_move": "still selected solely by the unchanged search result",
+    "leaf_evaluator": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    },
+    "no_contamination_static_rules": [
+      "student code is callable only at root ply zero",
+      "student CP never enters evaluate, quiescence, alpha, beta, aspiration, pruning, extension, reduction, terminal scoring, repetition scoring, or mate scoring",
+      "student CP never writes or modifies a transposition-table score, bound, depth, move, age, or replacement decision",
+      "student CP never replaces live NNUE CP in a node, child, principal variation, UI evaluation, or telemetry field",
+      "large teacher modules and checkpoints are absent from the production dependency graph and browser bundle",
+      "disabling the student restores byte-identical production-generator input order at every root regeneration and all non-root search state"
+    ],
+    "runtime_fault": "on model, feature, manifest, hash, finite-value, shape, or inference failure, fail closed to the stable root ordering and record a technical fault; a faulted formal run is unanalyzable"
+  },
+  "parity_1024": {
+    "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/parity-1024-result.json",
+    "execution_authority": "run exactly once only after the parent one-shot tune and sealed-512 gates pass for both teachers and the frozen student",
+    "fixture_generation_before_tune": "from fit partitions only, take the lowest 512 Browser and lowest 512 V9 parents by sha256('child-board-student-parity-v1:' + domain + ':' + parent_id); include the rules-complete source list, the projected current-production root list, and projection removals, then freeze the fixture bytes/SHA before tune",
+    "parents": 1024,
+    "browser_parents": 512,
+    "v9_parents": 512,
+    "reference": "frozen Python FP32 student-final-mixed-epoch12 checkpoint",
+    "candidate": "production root-ordering runtime loading the frozen f32 tensor payload and manifest",
+    "requirements": {
+      "fixture_and_model_sha_match": true,
+      "parent_and_production_usi_sequence_match": "1024/1024",
+      "live_nnue_child_cp_exact_match": "every projected production move",
+      "finite_outputs": "every projected production move",
+      "top1_match": "1024/1024 with bytewise-USI tie break",
+      "pair_direction_match": "100 percent for every reference pair separated by at least 1.0 CP",
+      "maximum_absolute_combined_cp_error": 0.5,
+      "mean_absolute_combined_cp_error": 0.05,
+      "stable_order_match": "100 percent for every adjacent reference move separated by at least 1.0 CP"
+    },
+    "rerun": false,
+    "any_miss": "STOP before formal direct A/B; no retraining, re-export, tolerance change, or fallback artifact"
+  },
+  "m4_pro_latency": {
+    "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/m4-pro-latency-result.json",
+    "execution_authority": "run exactly once on the same frozen parity fixture and artifact only after sealed-512 passage",
+    "required_chip": "Apple M4 Pro",
+    "environment": "AC power, Low Power Mode off, foreground production Chromium WebAssembly build, one inference worker, no DevTools, exact hardware/OS/browser/build/thread fingerprints recorded",
+    "warmup_roots": 100,
+    "measured_roots": 1024,
+    "fixture_order": "the immutable parity fixture order exactly once; no shuffle, duplicate, omission, outlier removal, or replacement",
+    "timer_contract": {
+      "clock": "performance.now() monotonic high-resolution clock in the production Chromium main thread and inference worker; Date.now, process time, and wall-clock timestamps are forbidden for durations",
+      "end_to_end_start": "main thread immediately before posting the root-order request containing the already fixed parent identity",
+      "incremental_start": "worker immediately after all exact live-NNUE base_parent_cp values are materialized and immediately before parent/child plane construction",
+      "wasm_sync": "one worker and one synchronous single-thread WASM inference call; return is the synchronization point and no GPU, Promise, secondary worker, or outstanding inference is allowed",
+      "incremental_stop": "worker immediately after the final stable-sorted projected-production-move index array is materialized and before response serialization",
+      "end_to_end_stop": "main thread immediately after receiving and validating the matching sequence-number response and before consuming the order in search",
+      "record": "store every raw incremental and end-to-end duration in fixture order plus request/response sequence numbers"
+    },
+    "warmup_and_gc": {
+      "warmup": "run the first 100 fixture parents cyclically as unmeasured complete requests to force fetch, compile, tensor load, allocations, and JIT warmup",
+      "between_warmup_and_measurement": "one fixed 5000 ms idle quiescence with the tab foreground and no model unload",
+      "gc": "do not call, expose, request, or detect explicit GC; retain GC and scheduler pauses in measured durations",
+      "samples": "no discarded, retried, winsorized, trimmed, or corrected timing"
+    },
+    "percentile_convention": {
+      "algorithm": "sort all 1024 finite durations ascending and use one-indexed nearest rank ceil(p*N)",
+      "median_rank": 512,
+      "p95_rank": 973,
+      "p99_rank": 1014,
+      "maximum_rank": 1024,
+      "ties": "retain every sample; ordinary numeric ascending order"
+    },
+    "incremental_scope": "student plane encoding, inference, and stable sort after the exact child-side live-NNUE scores and negated parent-perspective base_parent_cp values are available",
+    "end_to_end_scope": "complete production root-ordering hook including child feature construction, child-side live-NNUE retrieval, exact sign negation, and returned stable order",
+    "incremental_milliseconds": {
+      "median_maximum": 12,
+      "p95_maximum": 25,
+      "p99_maximum": 40,
+      "single_root_maximum": 75
+    },
+    "end_to_end_milliseconds": {
+      "median_maximum": 20,
+      "p95_maximum": 40,
+      "p99_maximum": 60,
+      "single_root_maximum": 100
+    },
+    "technical_faults": 0,
+    "atomic_result": "publish one result containing raw timings, ranks, summaries, environment, source/build/artifact receipts, and every gate decision by temporary sibling, fsync, and atomic rename; partial or incomplete output closes runtime admission",
+    "rerun": false,
+    "any_miss": "STOP before formal direct A/B; no artifact, implementation, sample, threshold, or environment substitution"
+  },
+  "runtime_admission_gate": {
+    "schema": "shogi-child-board-root-policy-runtime-admission-result-v1",
+    "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/runtime-admission-result.json",
+    "success_status": "complete-runtime-admitted-formal-locked",
+    "execution_authority": "exactly one invocation only after seed 42, seed 314159, and the frozen student independently pass the atomic sealed-512 result; sealed passage authorizes this gate and nothing formal or external directly",
+    "frozen_inputs": [
+      "student final checkpoint, f32 tensor, and manifest receipts",
+      "parity-1024 fixture and parity result receipts",
+      "M4 Pro latency result receipt",
+      "pre-tune production-build receipt",
+      "unchanged live NNUE receipt",
+      "bound parent and student protocol receipts"
+    ],
+    "source_and_build_receipts": {
+      "required_sources": [
+        "src/components/game/ShogiImproved/rootPolicyStudentRuntime.ts",
+        "src/components/game/ShogiImproved/ShogiAIImprovedV20.ts",
+        "src/components/game/ShogiImproved/shogi-ai.worker.ts",
+        "src/components/game/ShogiImproved/wasmEngine.ts",
+        "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "src/components/game/ShogiImproved/TranspositionTableImprovedPackedDual.ts"
+      ],
+      "required_build_outputs": [
+        "production build manifest",
+        "emitted main search chunk",
+        "emitted student-capable worker chunk",
+        "emitted WASM asset",
+        "emitted student tensor",
+        "emitted student manifest"
+      ],
+      "receipt_fields": "resolved path, bytes, SHA-256, media type, source Git commit, production build commit, and dependency-graph membership",
+      "freeze": "all source and build receipts freeze before the invocation; any missing or changed receipt is STOP"
+    },
+    "fixture_contract": {
+      "root_determinism": "all 1024 parents and all projected production root moves from the immutable parity fixture",
+      "non_root_and_tt": "first 128 Browser then first 128 V9 parents in parity-fixture order",
+      "fault_injection": "first 16 Browser then first 16 V9 parents in parity-fixture order",
+      "fixture_receipts": "record source parity fixture path/bytes/SHA, ordered selected parent-ID SHA-256 for each subset, rules-complete source-list SHA-256, projected-production-list SHA-256, projection-removal SHA-256, and exact case-table SHA-256",
+      "repeats": 3,
+      "repeat_policy": "three repeats are fixed cases inside the single invocation, not reruns; repeat order is 0,1,2 and no repeat may be discarded"
+    },
+    "executable_cases": [
+      {
+        "id": "root-order-only-determinism",
+        "cases": "1024 parents * 3 repeats",
+        "assert": "student-enabled combined CP bytes, stable-sorted USI rank table, projected move-set hash, model-load count, and inference call count are byte-identical across repeats; inference count is exactly one per search invocation, and WASM rank-application count equals the exact number of ply-0 move-list regenerations"
+      },
+      {
+        "id": "student-disabled-stable",
+        "cases": "1024 parents * 3 repeats",
+        "assert": "same production build with student_enabled=false performs zero student inference and preserves byte-identical production-generator order at every ply-0 regeneration"
+      },
+      {
+        "id": "non-root-call-firewall",
+        "cases": "256 parents * plies [1,2,4,8] * 3 repeats",
+        "assert": "instrumented student hook and tensor-read counters remain exact zero; live-NNUE leaf CP bytes equal the student-disabled adapter"
+      },
+      {
+        "id": "tt-write-firewall",
+        "cases": "256 parents * TT operations [probe,exact,lower,upper,replacement] * 3 repeats",
+        "assert": "instrumented TT API receives no student CP, student object, student buffer, or student-derived bound/depth/move/age/replacement argument; canary TT record bytes remain unchanged by direct student inference"
+      },
+      {
+        "id": "search-state-firewall",
+        "cases": "256 parents * 3 repeats",
+        "assert": "before the first root child search, student-enabled and same-build student-disabled adapters have byte-identical evaluator state, TT state, clocks-disabled state, history/killer/countermove state, repetition state, and projected production move membership; only initial root array order within equal stable-heuristic scores may differ"
+      },
+      {
+        "id": "fail-closed",
+        "cases": "32 parents * faults [missing-tensor,bad-tensor-sha,bad-manifest-sha,bad-shape,nan-output,wrong-feature-schema] * 3 repeats",
+        "assert": "exactly one typed fault is recorded, student order is discarded, byte-identical stable input order is returned, no student value reaches leaf/TT/UI, and no alternate artifact loads"
+      },
+      {
+        "id": "production-dependency-firewall",
+        "cases": "one complete source graph and one emitted production build graph",
+        "assert": "no large teacher checkpoint/module/training dependency is reachable; the student runtime is reachable only from the root hook; forbidden evaluate/quiescence/TT call sites have zero incoming student-dataflow edges"
+      }
+    ],
+    "gate": {
+      "all_cases_pass": true,
+      "determinism_mismatches": 0,
+      "non_root_student_calls": 0,
+      "student_to_leaf_value_flows": 0,
+      "student_to_tt_flows": 0,
+      "large_teacher_production_dependencies": 0,
+      "fault_fallback_mismatches": 0,
+      "technical_faults": 0
+    },
+    "atomic_publication": "collect all raw case records, counters, hashes, source/build receipts, parity receipt, latency receipt, and decisions without partial display; write a temporary result, fsync, and atomically rename once",
+    "partial_incomplete_or_miss": "close before registry creation or formal play; no resume, rerun, case replacement, source/build replacement, threshold change, or result completion",
+    "pass_authorizes_only": "creation and freeze of the exact same-build student formal adapter and registry; no formal game starts until those receipts are complete"
+  },
+  "one_shot_tune": {
+    "open_only_after": [
+      "both teacher SHA placeholders are mechanically bound and the bound protocol is merged to public main",
+      "the student implementation commit and all runtime semantics are fixed",
+      "the student terminal result is complete-fit-only-student-frozen-tune-locked",
+      "the exact hashes of the final checkpoint, f32 payload, manifest, parity fixture, and result are frozen",
+      "the atomic production-build receipt and every source/emitted-build hash required by runtime admission are frozen",
+      "no tune or sealed score has been computed or displayed for either teacher or the student"
+    ],
+    "scoring": "one bound evaluator invocation opens Browser tune and V9 tune exactly once, applies the pinned production move-universe projection, re-forwards each frozen teacher on each complete projected set, and scores seed 42, seed 314159, and the frozen student artifact on identical projected membership; filtering logits from a rules-complete teacher forward is forbidden",
+    "browser": {
+      "parents": 196,
+      "minimum_top1_correct": 26,
+      "minimum_pair_accuracy": 0.673703888923293,
+      "maximum_mean_regret_cp": 15924.158163265307
+    },
+    "v9": {
+      "parents": 4411,
+      "minimum_top1_correct": 1078,
+      "minimum_top1_accuracy": 0.24438902743142144,
+      "minimum_pair_accuracy": 0.5984640986597398,
+      "maximum_mean_regret_cp": 4863.386080253911
+    },
+    "all_three_artifacts_pass_independently": true,
+    "seed_selection": false,
+    "atomic_result": "compute all three artifacts across both domains without publishing or displaying a partial metric, then atomically publish one complete result binding every metric, gate decision, evaluator receipt, and artifact hash",
+    "partial_or_incomplete": "close the lane without sealed generation, resume, rerun, result completion, threshold change, or alternate artifact",
+    "rerun": false,
+    "pass_authorizes_only": "the parent-protocol sealed-512 label generation and scoring",
+    "any_miss": "close the complete lane before sealed, parity, latency, formal, external, or live change"
+  },
+  "one_shot_sealed": {
+    "source_binding": {
+      "parent_protocol_sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+      "clean_derivative_bytes": 2165346,
+      "clean_derivative_sha256": "d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626",
+      "clean_derivative_parents": 3384,
+      "clean_derivative_games": 141,
+      "selection": "sort each clean parent by sha256('capacity-sealed-v1:' + parent_id), take at most four per game, then take the lowest 512 globally",
+      "labels": "generate independent depth-12 YaneuraOu labels under the parent contract, retain exactly the pinned projected production move membership for scoring, and record both source and retained list hashes; the frozen neural teachers are separately re-forwarded on each complete projected set",
+      "label_resume": "before any candidate inference only, independently completed shards may resume by exact content address over parent membership, teacher binary/eval/config, depth, legal enumerator, and bound parent protocol; valid shards are immutable and one atomic final receipt must bind exactly 512 parents and ordered shard hashes"
+    },
+    "open_only_after": "all three frozen artifacts independently pass the one-shot tune and remain byte-identical",
+    "parents": 512,
+    "requirements": {
+      "minimum_top1_correct_gain": 26,
+      "minimum_pair_accuracy_gain": 0.01,
+      "minimum_ndcg_at_5_gain": 0.01,
+      "mcnemar_one_sided_maximum_p": 0.05
+    },
+    "all_three_artifacts_pass_independently": true,
+    "atomic_scoring_result": "score all three frozen artifacts without partial publication and atomically publish one complete result; partial or incomplete scoring closes the lane without resume, rerun, or result completion",
+    "rerun": false,
+    "pass_authorizes_only": "one execution of the fixed parity-1024, M4 Pro latency, and runtime static/determinism/no-leaf-TT-contamination admission gates on the already frozen student",
+    "any_miss": "close before parity, latency, formal, external, or live change"
+  },
+  "formal_candidate_adapter_registry": {
+    "legacy_boundary": {
+      "source_registry": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+        "bytes": 3480,
+        "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9"
+      },
+      "source_amendment": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+        "bytes": 4459,
+        "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c"
+      },
+      "inherit_only": "384 color-swapped opening pairs, 768 games, fixed search controls, zero-fault analyzability, and pair bootstrap seed 20260710 with 100000 replicates",
+      "do_not_inherit": "the legacy single-NNUE-weight candidate adapter or registry identity"
+    },
+    "new_registry": {
+      "path": "ml/protocols/child-board-root-policy-student-formal-v1-registry.json",
+      "schema": "shogi-child-board-root-policy-student-formal-registry-v1",
+      "creation_authority": "only after tune, sealed, parity-1024, M4 Pro latency, static, determinism, and no-contamination gates all pass for the unchanged frozen student",
+      "freeze_before_game1": true
+    },
+    "master_runtime_config": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/master-runtime-config.json",
+      "schema": "shogi-child-board-root-policy-master-runtime-config-v1",
+      "creation": "after complete-runtime-admitted-formal-locked, atomically publish one canonical UTF-8 LF JSON object binding all student, NNUE, opening-book, source, emitted-build, feature, adapter, search, fault, parity, and latency receipts",
+      "formal_mode": "fixed depth 11, quiescence 10, K=600, TT clear before every move, opening book disabled, fallback disabled, clocks disabled, maximum 512 plies",
+      "external_mode": "student enabled, exact production search defaults, official-client 10m+30s clock input, exact external opening book enabled, fail-closed stable root ordering on a typed student fault",
+      "receipt": "resolved path, bytes, SHA-256, schema, producing public-main Git commit, and production build manifest SHA-256 freeze before formal game 1",
+      "rewrite": false
+    },
+    "candidate_adapter": {
+      "schema": "shogi-child-board-root-policy-student-candidate-adapter-v1",
+      "role": "load the frozen student at root only while preserving the exact live NNUE at every static-evaluation call",
+      "must_bind_exact_receipts": {
+        "student_tensor": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-root-ordering.f32.bin",
+        "student_manifest": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/student-root-ordering.manifest.json",
+        "master_runtime_config": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/master-runtime-config.json",
+        "live_nnue": "public/shogi-nnue-weights.bin",
+        "worker_source": "src/components/game/ShogiImproved/shogi-ai.worker.ts",
+        "wasm_source": "src/components/game/ShogiImproved/wasm/shogi.wasm",
+        "production_worker_chunk": "resolved emitted worker asset path from the exact candidate production build",
+        "production_wasm_asset": "resolved emitted WASM asset path from the exact candidate production build",
+        "parity_result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/parity-1024-result.json",
+        "latency_result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/m4-pro-latency-result.json"
+      },
+      "receipt_fields": "each bound file requires resolved path, bytes, SHA-256, schema or media type, and producing public-main Git/build commit",
+      "required_build_provenance": [
+        "student-capable worker source and emitted chunk hashes",
+        "student-capable WASM source and emitted asset hashes",
+        "exact production build manifest hash",
+        "student runtime feature schema",
+        "root-only adapter schema",
+        "stable and candidate Git commits"
+      ],
+      "single_weight_hash_is_insufficient": true,
+      "any_drift": "STOP before game 1 or mark all formal games faulted and unanalyzable"
+    },
+    "formal_candidate": "the exact bound student plus unchanged live NNUE plus exact student-capable worker/WASM build",
+    "formal_stable": {
+      "adapter": "the exact same worker, WASM, live NNUE, production build, source commit, master runtime config, search controls, and asset receipts as candidate",
+      "only_difference": "student_enabled is false instead of true at the root adapter boundary",
+      "requirements": "zero student tensor reads and zero student inference calls; stable root input order is preserved byte-for-byte",
+      "forbidden": "a separately built stable binary, different worker/WASM, different NNUE, different master config, or a legacy single-weight adapter"
+    },
+    "role_adapter_receipts": "atomically publish candidate and stable canonical configs; their parsed trees must be identical except the single boolean /student_enabled, and record path/bytes/SHA-256 plus a machine diff proving that one difference",
+    "result_authority": "only the parent protocol's exact 384-pair/768-game stronger-claim gate can authorize external calibration"
+  },
+  "external_candidate_provenance": {
+    "execution_authority": "only after the parent formal two-sided 95 percent lower bound is strictly above 0.50 with zero faults",
+    "required_assets_before_game1": [
+      "student tensor resolved path, bytes, and SHA-256",
+      "student manifest resolved path, bytes, and SHA-256",
+      "unchanged live NNUE resolved path, bytes, and SHA-256",
+      "exact external opening book resolved path, bytes, and SHA-256",
+      "master runtime config resolved path, bytes, SHA-256, schema, and public-main commit",
+      "student-capable worker source and emitted chunk resolved paths, bytes, and SHA-256",
+      "student-capable WASM source and emitted asset resolved paths, bytes, and SHA-256",
+      "production build manifest path, bytes, SHA-256, and public-main Git commit",
+      "student formal registry and candidate-adapter paths, bytes, SHA-256, and commit",
+      "formal result path, bytes, SHA-256, candidate identity, and trace provenance"
+    ],
+    "external_opening_book": {
+      "path": "public/shogi-opening-book-v2.bin",
+      "bytes": 1785509,
+      "sha256": "ec41836b563be4ca3ed7b79f70614f8183f5e6bf01a32c9cfada10514dcc7530",
+      "runtime_path": "/shogi-opening-book-v2.bin",
+      "mode": "enabled only under the master runtime config external_mode; formal mode remains book-disabled",
+      "fallback_or_alternate_book": false
+    },
+    "master_runtime_config_provenance": "every external trace binds the admitted canonical master config receipt, its external_mode, the exact production build manifest, and the candidate role adapter; no UI default or ambient config may override it",
+    "candidate_trace": "every external game binds the exact student, live NNUE, worker, WASM, build, registry, adapter, account, client, hardware, time control, and game record identities",
+    "drift_or_missing": "STOP; no external claim or substitution"
+  },
+  "staged_authority": [
+    {
+      "phase": 0,
+      "pass": "both teacher hashes are mechanically bound and this otherwise unchanged core is merged to public main",
+      "authorizes_only": "fit-only seed-42 teacher-output generation"
+    },
+    {
+      "phase": 1,
+      "pass": "the fixed final student checkpoint and every runtime artifact hash freeze with no tune or sealed access",
+      "authorizes_only": "the parent one-shot tune for both teachers and the student"
+    },
+    {
+      "phase": 2,
+      "pass": "all three artifacts independently pass every one-shot tune check",
+      "authorizes_only": "parent sealed-512 generation and one-shot scoring"
+    },
+    {
+      "phase": 3,
+      "pass": "all three artifacts independently pass every sealed-512 check",
+      "authorizes_only": "one bound runtime-admission invocation containing parity-1024, M4 Pro latency, static call-graph, determinism, fail-closed, and no-leaf-TT-contamination cases"
+    },
+    {
+      "phase": 4,
+      "pass": "the frozen student passes the atomic runtime-admission result and the same-build stable/candidate configs differ only by student_enabled",
+      "authorizes_only": "freeze of the master runtime config and student formal adapter/registry, then enrollment of those exact receipts in the parent's formal 384-pair/768-game direct A/B"
+    },
+    {
+      "phase": 5,
+      "pass": "the parent formal stronger-claim gate passes",
+      "authorizes_only": "the parent's exact 200-game external calibration; no live write"
+    }
+  ],
+  "failure_conditions": [
+    "STOP before any student work if the parent protocol, phase-1 terminal result, teacher seed, teacher hash, fit partition, protected union, live NNUE, architecture, parameter count, initialization, objective, schedule, path, or artifact contract drifts.",
+    "STOP if either unresolved teacher placeholder remains, if any value other than the two permitted hash strings changed during binding, or if the binding commit is not on public main.",
+    "STOP if any tune, sealed, sentinel, seed-314159, direct-play, external, or post-result data enters labels, initialization, training, export, parity-fixture selection, or debugging.",
+    "STOP if training does not finish the fixed mixed epoch 12 final checkpoint; do not open tune.",
+    "STOP if any required artifact lacks an exact path/byte/SHA receipt before tune.",
+    "STOP on any one-shot tune miss without sealed generation.",
+    "STOP on any one-shot sealed miss without parity, latency, or formal execution.",
+    "STOP on a partial, incomplete, or failed runtime-admission result without resume, rerun, registry creation, or formal direct A/B.",
+    "STOP on any parity, latency, static, determinism, fail-closed, contamination, hash, manifest, source/build, master-config, or runtime fault without formal direct A/B.",
+    "No pass in this protocol changes public/shogi-nnue-weights.bin or authorizes a live deployment."
+  ],
+  "current_state": {
+    "teacher_seed42_hash_bound": false,
+    "teacher_seed314159_hash_bound": false,
+    "student_implementation_merged": false,
+    "distillation_labels_generated": false,
+    "student_training_started": false,
+    "student_final_checkpoint_frozen": false,
+    "runtime_artifacts_frozen": false,
+    "production_build_receipt_frozen": false,
+    "tune_opened": false,
+    "sealed_opened": false,
+    "parity_executed": false,
+    "latency_executed": false,
+    "runtime_admission_executed": false,
+    "master_runtime_config_frozen": false,
+    "formal_student_registry_frozen": false,
+    "formal_games_played": 0,
+    "external_games_played": 0,
+    "live_weights_changed": false
+  }
+}

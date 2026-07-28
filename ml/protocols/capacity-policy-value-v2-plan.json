@@ -1,0 +1,419 @@
+{
+  "schema": "shogi-capacity-policy-value-plan-v2",
+  "status": "prospective-objective-v2-capacity-diagnostic-only",
+  "objective": "Determine whether the identical preregistered v1 architecture, authenticated data, split, sentinel sets, optimizer, schedule, full-training recipe, gates, replication rule, and sealed rule can learn the teacher ordering when only the loss objective is changed to listwise 1.0, domain-microaveraged pair 1.0, tie-aware hardest-negative margin 1.0, move value 0.20, and state value 0.0.",
+  "claim_boundary": "Passing the known-tune gate shows offline representation capacity only. It is not playing-strength, Elo, rank, browser-runtime, distillation, quantization, WASM, match, live-weight, or deployment evidence.",
+  "fixed_from_v1": {
+    "rule": "Everything except the loss objective is identical to capacity-policy-value-v1-plan. No architecture, input, data, exclusion, partition, split, sentinel set, seed, optimizer, learning-rate, batch, epoch, full-training, selection, gate, replication, sealed, or production condition may change.",
+    "identical_fields": [
+      "inputs",
+      "data_receipt",
+      "architecture",
+      "training",
+      "sentinel",
+      "live_baseline",
+      "gates",
+      "sealed_holdout"
+    ],
+    "only_allowed_change": "loss objective"
+  },
+  "spent_development_evidence": {
+    "v1_result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/capacity-policy-value-v1-seed42/result.json",
+      "bytes": 25048,
+      "sha256": "d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2",
+      "schema": "shogi-capacity-policy-value-result-v1",
+      "status": "complete-sentinel-rejected",
+      "role": "fixed spent development evidence only; v1 is closed and this receipt cannot authorize a v1 retry, v1 continuation, v2 full training, second seed, sealed labels, live integration, or deployment"
+    }
+  },
+  "design_firewall": {
+    "allowed_basis": "Only the fixed v1 sentinel training result and the mechanics of the v1 loss objective were used to preregister the v2 objective.",
+    "forbidden_design_inputs": [
+      "known-eval labels, records, candidate scores, or outcomes",
+      "Browser or V9 tune labels, candidate scores, or outcomes",
+      "sealed labels, records, candidate scores, or outcomes"
+    ],
+    "assertion": "No known-eval, tune, or sealed evidence was inspected or used to choose the v2 objective, weights, architecture, recipe, thresholds, or stopping rules. Their registered identities and unchanged gates are carried forward only as a fail-closed provenance and future-evaluation contract."
+  },
+  "closed_lanes": [
+    "Do not rerun the rejected board all-legal warm-start recipe.",
+    "Do not rerun the rejected 35,307-parameter explicit residual recipe.",
+    "Do not use the already observed 643-parent browser reject or 4,798-parent V9 selection as final evidence.",
+    "Do not generate sealed labels, add seeds, extend epochs, relax thresholds, distill, integrate, match, or deploy after a failed registered gate.",
+    "Treat capacity-policy-value-v1 as permanently closed after its registered complete-sentinel-rejected result; do not retry, extend, retune, continue, or reuse its weights.",
+    "If v2 misses any sentinel check, STOP before full training, seed 314159, sealed labels, live integration, or deployment.",
+    "If v2 fails after the sentinel, STOP the remaining second-seed, sealed, and live lanes as applicable; the only next capacity diagnostic allowed by this plan is a separately preregistered small child-board encoder diagnostic."
+  ],
+  "inputs": {
+    "live_nnue": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "role": "frozen exact production child-score anchor; never trainable or writable"
+    },
+    "browser_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+      "bytes": 97820193,
+      "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+      "rows": 112011,
+      "parents": 1334,
+      "games": 38,
+      "role": "all rules-complete legal moves independently depth-12 rescored"
+    },
+    "v9_training": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "rows": 278736,
+      "parents": 23980,
+      "games": 1000,
+      "role": "depth-14 proposal plus independently depth-16-rescored played move"
+    },
+    "fresh_final_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.protected-position-ids.txt",
+      "bytes": 29751912,
+      "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+      "count": 413221,
+      "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+    },
+    "fresh_selection_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.protected-position-ids.txt",
+      "bytes": 30624768,
+      "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+      "count": 425344,
+      "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+    },
+    "known_eval_sources": [
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 50255278,
+        "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+        "rows": 57658
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 23800461,
+        "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+        "rows": 28518
+      },
+      {
+        "path": "ml/data/wcsc36/sealed-partition-6d541f1/siblings.model-selection.jsonl",
+        "role": "known-eval-sibling",
+        "bytes": 3319397,
+        "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+        "rows": 3912
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+        "role": "known-eval-scalar",
+        "bytes": 1576191,
+        "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+        "rows": 3000
+      },
+      {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-balanced-dataset-v1/val.jsonl",
+        "role": "known-eval-scalar",
+        "bytes": 311811,
+        "sha256": "26ef1e6295c05bea313c388633ff035536c422d327a28a89f0adfc72957963fd",
+        "rows": 412
+      }
+    ],
+    "known_eval_union": {
+      "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+      "count": 98420,
+      "bytes": 7086240,
+      "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+      "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+    }
+  },
+  "data_receipt": {
+    "sources": {
+      "browser": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+        "bytes": 97820193,
+        "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e",
+        "rows": 112011,
+        "parents": 1334,
+        "games": 38
+      },
+      "v9": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+        "bytes": 236990586,
+        "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+        "rows": 278736,
+        "parents": 23980,
+        "games": 1000
+      },
+      "protected_position_ids": [
+        {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.protected-position-ids.txt",
+          "bytes": 29751912,
+          "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+          "count": 413221,
+          "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+        },
+        {
+          "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.protected-position-ids.txt",
+          "bytes": 30624768,
+          "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+          "count": 425344,
+          "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+        }
+      ],
+      "known_eval_position_ids": {
+        "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+        "sources": [
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 50255278,
+            "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+            "rows": 57658
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 23800461,
+            "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+            "rows": 28518
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/data/wcsc36/sealed-partition-6d541f1/siblings.model-selection.jsonl",
+            "role": "known-eval-sibling",
+            "bytes": 3319397,
+            "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+            "rows": 3912
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+            "role": "known-eval-scalar",
+            "bytes": 1576191,
+            "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81",
+            "rows": 3000
+          },
+          {
+            "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-parity-pilot480-balanced-dataset-v1/val.jsonl",
+            "role": "known-eval-scalar",
+            "bytes": 311811,
+            "sha256": "26ef1e6295c05bea313c388633ff035536c422d327a28a89f0adfc72957963fd",
+            "rows": 412
+          }
+        ],
+        "count": 98420,
+        "bytes": 7086240,
+        "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+        "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+      }
+    },
+    "partition": {
+      "browser_input_parents": 1334,
+      "browser_kept_parents": 1071,
+      "browser_dropped_parents": 263,
+      "browser_dropped_parent_ids_sha256": "c80de002f54ca6eac40111e516e77ccbc70bde75e60c43a401b5431f75287572",
+      "v9_input_parents": 23980,
+      "v9_kept_parents": 23675,
+      "v9_dropped_parents": 305,
+      "v9_dropped_parent_ids_sha256": "4db3d41ce8befbb737c1db0b04707538d9ece97f283a27169105fce5d50deab1",
+      "cross_domain_semantic_overlap": 0
+    },
+    "fit_tune": {
+      "algorithm": "game-semantic-connected-components-sha256-v1",
+      "split_seed": 42,
+      "tune_modulus": 5,
+      "browser": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 33,
+        "fit_components": 25,
+        "tune_components": 8,
+        "fit_parents": 875,
+        "tune_parents": 196,
+        "fit_games": 28,
+        "tune_games": 8,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "c6d88fb8170a9fff280acc848c8cf95bfe98c5e7c64f8f9e0e60d7b3ba455746"
+      },
+      "v9": {
+        "algorithm": "game-semantic-connected-components-sha256-v1",
+        "seed": 42,
+        "tune_modulus": 5,
+        "components": 1000,
+        "fit_components": 812,
+        "tune_components": 188,
+        "fit_parents": 19264,
+        "tune_parents": 4411,
+        "fit_games": 812,
+        "tune_games": 188,
+        "game_overlap": 0,
+        "semantic_position_overlap": 0,
+        "component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32"
+      }
+    }
+  },
+  "architecture": {
+    "schema": "shogi-capacity-policy-value-v1",
+    "feature_version": "dense-43-plane-resnet-set-policy-v1",
+    "parameters": 5953522,
+    "fp32_weight_bytes": 23814088,
+    "input": "side-to-move-normalized 28 piece occupancy planes, 14 physically normalized hand-count planes, and one clipped exact-ply plane",
+    "state_encoder": "64-channel stem, six residual blocks, flattened 384-dimensional global state",
+    "move_encoder": "source/destination spatial features plus explicit move categories and tanh(exact live parent-view child CP / 3000), 721 to 256",
+    "legal_move_set": "four permutation-equivariant Transformer encoder layers, d_model 256, eight heads, FFN 1024, padding mask, no positional embedding",
+    "outputs": "unclipped unquantized learned policy residual added to the frozen exact live CP anchor, plus an offline parent value",
+    "production_constraints": "none; this is a capacity diagnostic and cannot be loaded by the browser"
+  },
+  "training": {
+    "seeds": [
+      42,
+      314159
+    ],
+    "split_seed": 42,
+    "tune_modulus": 5,
+    "sentinel_seed": 20260726,
+    "sentinel_epochs": 40,
+    "sentinel_browser_parents": 256,
+    "sentinel_v9_parents": 1024,
+    "sentinel_policy": "lexicographically lowest retained fit parent IDs; discard sentinel weights",
+    "v9_pretrain_epochs": 4,
+    "mixed_epochs": 12,
+    "browser_batch": 32,
+    "v9_batch": 256,
+    "mixed_parent_ratio": "every Browser fit parent exactly once and exactly three rotating V9 fit parents per Browser parent per epoch",
+    "move_padding_buckets": [
+      16,
+      32,
+      64,
+      96,
+      128,
+      192,
+      272
+    ],
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "temperature_cp": 100,
+    "pair_gap_cp": 50,
+    "best_margin_cp": 50,
+    "gradient_clip": 5,
+    "optimizer": "AdamW",
+    "checkpoint": "atomic last checkpoint every mixed epoch and immutable best checkpoint",
+    "selection": "maximize Browser tune top1 gain, then Browser pair gain, then V9 top1 gain",
+    "replication": "run seed 314159 only if seed 42 passes every capacity-tune check; do not rerun the sentinel"
+  },
+  "sentinel": {
+    "browser": {
+      "parents": 256,
+      "selection": "lexicographically-lowest-parent-id",
+      "parent_ids_sha256": "2396e5934117542ad1acadd248de7abfa3475f8b09e0b4daf1705dba0614d6c4"
+    },
+    "v9": {
+      "parents": 1024,
+      "selection": "lexicographically-lowest-parent-id",
+      "parent_ids_sha256": "66bc366985137168aea53929366a064a57c5c8888b154d5549460afae0dff5a3"
+    },
+    "semantic_overlap": 0
+  },
+  "live_baseline": {
+    "browser": {
+      "parents": 196,
+      "top1_correct": 16,
+      "top1_accuracy": 0.08163265306122448,
+      "pair_count": 855841,
+      "pair_accuracy": 0.663703888923293,
+      "mean_regret_cp": 15924.158163265307
+    },
+    "v9": {
+      "parents": 4411,
+      "top1_correct": 1078,
+      "top1_accuracy": 0.24438902743142144,
+      "pair_count": 212123,
+      "pair_accuracy": 0.5984640986597398,
+      "mean_regret_cp": 4863.386080253911
+    }
+  },
+  "gates": {
+    "sentinel": {
+      "minimum_top1_accuracy": 0.85,
+      "minimum_pair_accuracy": 0.98,
+      "all_domains_and_checks_required": true
+    },
+    "capacity_tune": {
+      "browser_tune": {
+        "minimum_top1_correct": 26,
+        "minimum_pair_accuracy": 0.673703888923293,
+        "mean_regret": "must not exceed the registered exact live baseline"
+      },
+      "v9_tune": {
+        "minimum_top1_accuracy": 0.23938902743142143,
+        "minimum_pair_accuracy": 0.5964640986597398
+      },
+      "all_checks_required": true
+    },
+    "replication": "seed 314159 must independently pass the identical capacity_tune gate",
+    "sealed": {
+      "open_only_after_both_checkpoint_hashes_are_fixed": true,
+      "parents": 512,
+      "minimum_top1_correct_gain": 26,
+      "minimum_pair_accuracy_gain": 0.01,
+      "minimum_ndcg_at_5_gain": 0.01,
+      "mcnemar_one_sided_maximum_p": 0.05,
+      "both_seeds_must_pass_every_check": true
+    }
+  },
+  "sealed_holdout": {
+    "source_raw": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl",
+      "bytes": 3073360,
+      "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7",
+      "parents": 4800,
+      "games": 200
+    },
+    "clean_derivative": {
+      "policy": "drop an entire source game if any parent or rules-complete legal child semantic ID intersects the preregistered known-eval union; preserve surviving raw lines byte-for-byte",
+      "status": "label-blind-computed-not-yet-published-or-labeled",
+      "bytes": 2165346,
+      "sha256": "d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626",
+      "parents": 3384,
+      "games": 141,
+      "game_ids_sha256": "1c02e592751f3bebca9090128318382a667fd0d2703f367b16b03f5db694e269",
+      "parent_ids_sha256": "027cf1f4973d9ad52ed449989d6d476227920075d55fe8b381f8149c26bbf9e1",
+      "position_ids_sha256": "aff5c3c1c944e8657fcefb1305797a8f8e4f1de8f3508570fa0534d70396fa79",
+      "protected_position_ids": {
+        "count": 284117,
+        "bytes": 20456424,
+        "sha256": "4ea185dffa0922ed80a5b28052dedb95afbd46cebd67894ac492c8c154fed21f",
+        "identifiers_sha256": "20382142589260783d48e66fc7e0fa4fe42289caa2d27032f4ac70530a889d4c"
+      },
+      "known_eval_semantic_overlap": 0
+    },
+    "teacher_after_candidate_freeze": {
+      "selection": "sort each clean parent by sha256('capacity-sealed-v1:' + parent_id), take at most four per game, then take the lowest 512 globally",
+      "labels": "enumerate every rules-complete legal move and independently rescore each child with the pinned YaneuraOu depth-12 teacher used by the Browser dataset",
+      "parallelism": "independent parent shards may run in parallel after both capacity seeds pass",
+      "forbidden_before_freeze": true
+    }
+  },
+  "loss": {
+    "parent_weighting": "Browser and V9 remain separate padded microbatches. Listwise, tie-aware hardest-negative margin, and move-value terms contribute one equal value per parent; the pair term is microaveraged over all eligible ordered pairs inside each domain microbatch.",
+    "listwise": "teacher relative CP clamped to [-2000,0], softmax temperature 100 CP, equal-parent mean, weight 1.0",
+    "pair": "all ordered teacher gaps at least 50 CP, logistic softplus, microaverage across all eligible ordered pairs in the current Browser or V9 domain microbatch, weight 1.0",
+    "tie_aware_hardest_negative_margin": "teacher-max ties form the complete best set and are excluded from negatives; compare max predicted CP within that best set against max predicted CP among all non-best legal moves, apply ReLU(50 CP - (best-set predicted max - non-best predicted max)) / 100 CP, equal-parent mean, weight 1.0; a parent with no non-best move contributes exact zero",
+    "move_value": "SmoothL1 of predicted and teacher move CP clamped to +/-3000 and scaled by 600, beta 0.25, equal-parent mean, weight 0.20",
+    "state_value": "same v1 parent-value target and scaling, weight 0.0; the state-value head remains architecturally present but this objective supplies it no direct loss"
+  },
+  "failure_conditions": [
+    "STOP before optimizer creation on any byte, hash, count, schema, source role, child transition, protected union, partition, split, sentinel, or live-baseline drift.",
+    "STOP before full training if either sentinel domain misses top1 or pair requirements; discard its weights.",
+    "STOP after seed 42 on any capacity-tune miss; do not start seed 314159.",
+    "STOP after seed 314159 on any replication miss; do not generate sealed labels.",
+    "STOP after any sealed miss; do not distill, quantize, integrate, match, change live weights, or deploy.",
+    "No static pass authorizes a playing-strength or high-dan claim.",
+    "v1 is closed: its spent result cannot be retried, continued, promoted, or used to authorize any downstream lane.",
+    "Any v2 sentinel miss ends v2 before full training; any later v2 gate miss ends the remaining second-seed, sealed, live-weight, and deployment lanes.",
+    "After a v2 failure, do not make another objective-only retry. The only next capacity experiment permitted here is a separately preregistered small child-board encoder diagnostic."
+  ]
+}

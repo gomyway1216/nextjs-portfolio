@@ -1110,6 +1110,153 @@ class DistillationShardStore:
         _atomic_publish_bytes(receipt_path, _canonical_json(receipt))
         return receipt
 
+    def validate_final(
+        self,
+        *,
+        output_path: Path,
+        receipt_path: Path,
+        expected_parent_keys_by_shard: (
+            Mapping[int, Sequence[tuple[str, str]]] | None
+        ) = None,
+    ) -> dict[str, object]:
+        if (
+            not output_path.is_file()
+            or output_path.is_symlink()
+            or not receipt_path.is_file()
+            or receipt_path.is_symlink()
+        ):
+            raise ValueError("final distillation publication is incomplete")
+        receipt = _strict_json(receipt_path)
+        embedded_shards = receipt.get("shards")
+        if type(embedded_shards) is not list or len(embedded_shards) != SHARDS:
+            raise ValueError("final distillation shard receipts are incomplete")
+
+        receipts: list[dict[str, object]] = []
+        paths: list[Path] = []
+        for shard, embedded in enumerate(embedded_shards):
+            if type(embedded) is not dict:
+                raise ValueError(
+                    f"final distillation shard receipt {shard} is malformed"
+                )
+            raw_keys = embedded.get("parent_keys")
+            if type(raw_keys) is not list or any(
+                type(row) is not list
+                or len(row) != 2
+                or row[0] not in DOMAIN_ORDINAL
+                or not isinstance(row[1], str)
+                or not row[1]
+                for row in raw_keys
+            ):
+                raise ValueError(
+                    f"final distillation shard keys {shard} are malformed"
+                )
+            parent_keys = [
+                (str(row[0]), str(row[1])) for row in raw_keys
+            ]
+            if (
+                parent_keys
+                != sorted(
+                    parent_keys,
+                    key=lambda row: (
+                        DOMAIN_ORDINAL[row[0]],
+                        row[1].encode("ascii"),
+                    ),
+                )
+                or any(
+                    shard_for_parent(domain, parent_id) != shard
+                    for domain, parent_id in parent_keys
+                )
+                or (
+                    expected_parent_keys_by_shard is not None
+                    and parent_keys
+                    != list(expected_parent_keys_by_shard[shard])
+                )
+            ):
+                raise ValueError(
+                    f"final distillation shard keys {shard} drifted"
+                )
+            validated = self.validate(shard, parent_keys)
+            if validated is None or validated != embedded:
+                raise ValueError(
+                    f"final distillation shard receipt {shard} drifted"
+                )
+            path, _receipt_path, _address = self.paths(shard, parent_keys)
+            paths.append(path)
+            receipts.append(validated)
+
+        parents = production_moves = removals = 0
+        with ExitStack() as stack:
+            shard_handles = [
+                stack.enter_context(path.open("rb")) for path in paths
+            ]
+            final_handle = stack.enter_context(output_path.open("rb"))
+            heap: list[tuple[tuple[int, bytes], int, bytes]] = []
+            for index, handle in enumerate(shard_handles):
+                raw = handle.readline()
+                if raw:
+                    heapq.heappush(
+                        heap,
+                        (_line_key(raw, paths[index]), index, raw),
+                    )
+            previous: tuple[int, bytes] | None = None
+            while heap:
+                key, index, shard_raw = heapq.heappop(heap)
+                final_raw = final_handle.readline()
+                if final_raw != shard_raw:
+                    raise ValueError(
+                        "final distillation differs from its 64 shards"
+                    )
+                final_key = _line_key(final_raw, output_path)
+                if final_key != key or (
+                    previous is not None and final_key <= previous
+                ):
+                    raise ValueError("final distillation merge order drift")
+                previous = final_key
+                parsed = json.loads(final_raw)
+                production = parsed.get("production_usi")
+                removed = parsed.get("projection_removals")
+                if (
+                    parsed.get("schema") != DISTILLATION_SCHEMA
+                    or type(production) is not list
+                    or type(removed) is not list
+                ):
+                    raise ValueError("final distillation row semantics drifted")
+                parents += 1
+                production_moves += len(production)
+                removals += len(removed)
+                next_raw = shard_handles[index].readline()
+                if next_raw:
+                    heapq.heappush(
+                        heap,
+                        (
+                            _line_key(next_raw, paths[index]),
+                            index,
+                            next_raw,
+                        ),
+                    )
+            if final_handle.readline():
+                raise ValueError("final distillation has unbound extra rows")
+
+        expected = {
+            "schema": DISTILLATION_RECEIPT_SCHEMA,
+            "status": "complete-fit-only-projected-set",
+            "artifact": _fingerprint(output_path),
+            "parents": parents,
+            "production_moves": production_moves,
+            "removed_nonpromoting_bishop_rook_moves": removals,
+            "shards": receipts,
+            "teacher": self.teacher_identity,
+            "protocol": self.protocol_identity,
+            "production_move_universe": self.move_universe_receipt,
+            "tune_parents": 0,
+            "sealed_parents": 0,
+            "replication_teacher_parents": 0,
+            "direct_or_external_parents": 0,
+        }
+        if receipt != expected:
+            raise ValueError("final distillation receipt mismatch")
+        return receipt
+
     def finalize(
         self,
         parent_keys_by_shard: Mapping[int, Sequence[tuple[str, str]]],
@@ -1130,16 +1277,11 @@ class DistillationShardStore:
         if output_path.exists() or receipt_path.exists():
             if not output_path.exists() or not receipt_path.exists():
                 raise ValueError("partial final distillation publication")
-            receipt = _strict_json(receipt_path)
-            if (
-                receipt.get("schema") != DISTILLATION_RECEIPT_SCHEMA
-                or receipt.get("artifact") != _fingerprint(output_path)
-                or receipt.get("shards") != receipts
-                or receipt.get("production_move_universe")
-                != self.move_universe_receipt
-            ):
-                raise ValueError("final distillation receipt mismatch")
-            return receipt
+            return self.validate_final(
+                output_path=output_path,
+                receipt_path=receipt_path,
+                expected_parent_keys_by_shard=parent_keys_by_shard,
+            )
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = output_path.with_suffix(output_path.suffix + ".tmp")
@@ -1196,7 +1338,11 @@ class DistillationShardStore:
             "direct_or_external_parents": 0,
         }
         _atomic_publish_bytes(receipt_path, _canonical_json(receipt))
-        return receipt
+        return self.validate_final(
+            output_path=output_path,
+            receipt_path=receipt_path,
+            expected_parent_keys_by_shard=parent_keys_by_shard,
+        )
 
 
 def _line_key(raw: bytes, context: Path) -> tuple[int, bytes]:
@@ -2017,9 +2163,6 @@ def run(mode: str) -> dict[str, object]:
             output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
             receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
         )
-        # Teacher checkpoint bytes cannot be opened until every fit parent has
-        # matched the independent production JS and actual pinned-WASM sets.
-        teacher_model = load_teacher(finals[42], device="mps")
         store = DistillationShardStore(
             OUTPUT,
             protocol_identity=protocol_identity,
@@ -2028,6 +2171,9 @@ def run(mode: str) -> dict[str, object]:
             feature_sources=feature_sources,
             move_universe_receipt=move_universe_receipt,
         )
+        # Teacher checkpoint bytes cannot be opened until every fit parent has
+        # matched the independent production JS and actual pinned-WASM sets.
+        teacher_model = load_teacher(finals[42], device="mps")
         distillation_receipt = generate_distillation(
             projected_fit,
             teacher_model,
@@ -2056,7 +2202,18 @@ def run(mode: str) -> dict[str, object]:
             output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
             receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
         )
-        distillation_receipt = _strict_json(DISTILLATION_RECEIPT_PATH)
+        store = DistillationShardStore(
+            OUTPUT,
+            protocol_identity=protocol_identity,
+            teacher_identity=identities["teacher_identity"],
+            fit_sources=identities["fit_sources"],
+            feature_sources=feature_sources,
+            move_universe_receipt=move_universe_receipt,
+        )
+        distillation_receipt = store.validate_final(
+            output_path=DISTILLATION_PATH,
+            receipt_path=DISTILLATION_RECEIPT_PATH,
+        )
         parity_receipt = _strict_json(PARITY_RECEIPT_PATH)
     if (
         distillation_receipt.get("production_move_universe")

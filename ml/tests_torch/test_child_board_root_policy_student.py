@@ -330,6 +330,33 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 first["removed_nonpromoting_bishop_rook_moves"],
                 1,
             )
+            original_receipt = final_receipt.read_bytes()
+            mutations = (
+                ("role", ("replication_teacher_parents",), 1),
+                ("teacher", ("teacher", "sha256"), "e" * 64),
+                ("protocol", ("protocol", "sha256"), "f" * 64),
+                ("derived_count", ("production_moves",), 2),
+            )
+            for label, key_path, replacement in mutations:
+                with self.subTest(final_receipt_mutation=label):
+                    changed = runner._strict_json(final_receipt)
+                    target = changed
+                    for key in key_path[:-1]:
+                        target = target[key]
+                    target[key_path[-1]] = replacement
+                    final_receipt.write_bytes(
+                        runner._canonical_json(changed)
+                    )
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "final distillation receipt mismatch",
+                    ):
+                        store.finalize(
+                            keys_by_shard,
+                            output_path=final,
+                            receipt_path=final_receipt,
+                        )
+                    final_receipt.write_bytes(original_receipt)
 
     def test_actual_js_wasm_bridge_publishes_and_revalidates_exact_receipt(self):
         browser_group = synthetic_group(

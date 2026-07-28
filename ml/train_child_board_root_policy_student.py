@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import random
 import shutil
+import subprocess
 import sys
 import time
 from typing import BinaryIO, Iterable, Iterator, Mapping, Sequence
@@ -64,6 +65,14 @@ FINAL_CHECKPOINT_PATH = OUTPUT / "student-final-mixed-epoch12.pt"
 TENSOR_PATH = OUTPUT / "student-root-ordering.f32.bin"
 MANIFEST_PATH = OUTPUT / "student-root-ordering.manifest.json"
 RESULT_PATH = OUTPUT / "result.json"
+MOVE_UNIVERSE_PATH = OUTPUT / "production-root-move-universe.jsonl"
+MOVE_UNIVERSE_RECEIPT_PATH = (
+    OUTPUT / "production-root-move-universe.receipt.json"
+)
+MOVE_UNIVERSE_BRIDGE_PATH = (
+    Path(__file__).parent
+    / "child-board-root-move-universe-bridge.ts"
+)
 DISTILLATION_SCHEMA = "shogi-child-board-root-policy-distillation-v1"
 DISTILLATION_SHARD_RECEIPT_SCHEMA = (
     "shogi-child-board-root-policy-distillation-shard-receipt-v1"
@@ -82,6 +91,29 @@ FINAL_CHECKPOINT_SCHEMA = (
 MANIFEST_SCHEMA = "shogi-child-board-root-policy-student-manifest-v1"
 RESULT_SCHEMA = "shogi-child-board-root-policy-student-runtime-result-v1"
 RESULT_STATUS = "complete-fit-only-student-frozen-tune-locked"
+MOVE_UNIVERSE_RECORD_SCHEMA = (
+    "shogi-production-root-move-universe-verification-record-v1"
+)
+MOVE_UNIVERSE_RECEIPT_SCHEMA = (
+    "shogi-production-root-move-universe-verification-receipt-v1"
+)
+MOVE_UNIVERSE_REQUEST_SCHEMA = (
+    "shogi-production-root-move-universe-request-v1"
+)
+MOVE_UNIVERSE_RESPONSE_SCHEMA = (
+    "shogi-production-root-move-universe-response-v1"
+)
+MOVE_UNIVERSE_WASM_BYTES = 36_545
+MOVE_UNIVERSE_WASM_SHA256 = (
+    "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
+)
+MOVE_UNIVERSE_WASM_BUFFER_OFFSET = 7_128_112
+# Updated only when the reviewed bridge source changes. The verifier checks
+# this identity before spawning Node or opening a teacher checkpoint.
+MOVE_UNIVERSE_BRIDGE_BYTES = 11_989
+MOVE_UNIVERSE_BRIDGE_SHA256 = (
+    "7ebc75f58d572bee7aa0e3534f16acb48dceaeb69bbfe988099cd552fe6c3304"
+)
 SHARDS = 64
 V9_PRETRAIN_EPOCHS = 4
 MIXED_EPOCHS = 12
@@ -402,6 +434,391 @@ def _load_fit_groups_from_phase1(
     return {"browser": browser_fit, "v9": v9_fit}
 
 
+def _project_fit_groups(
+    fit: Mapping[str, Sequence[lpv.ParentGroup]],
+) -> dict[str, list[student.ProjectedParent]]:
+    if set(fit) != {"browser", "v9"}:
+        raise ValueError("student fit domains drifted before projection")
+    projected: dict[str, list[student.ProjectedParent]] = {}
+    for domain in ("browser", "v9"):
+        projected[domain] = sorted(
+            student.project_groups_to_production(fit[domain]),
+            key=lambda row: row.group.parent_id.encode("ascii"),
+        )
+    return projected
+
+
+def _bridge_source_identity() -> dict[str, object]:
+    identity = _fingerprint(MOVE_UNIVERSE_BRIDGE_PATH)
+    if (
+        identity["bytes"] != MOVE_UNIVERSE_BRIDGE_BYTES
+        or identity["sha256"] != MOVE_UNIVERSE_BRIDGE_SHA256
+    ):
+        raise ValueError("production move-universe bridge source drift")
+    identity["path"] = "ml/child-board-root-move-universe-bridge.ts"
+    return identity
+
+
+def _strict_json_line(raw: str, context: str) -> dict[str, object]:
+    if not raw.endswith("\n") or raw == "\n":
+        raise ValueError(f"{context}: missing canonical JSONL response")
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"{context}: invalid JSON constant {value}")
+
+    parsed = json.loads(raw, parse_constant=reject_constant)
+    if type(parsed) is not dict:
+        raise ValueError(f"{context}: expected one JSON object")
+    return parsed
+
+
+def verify_production_move_universe(
+    projected: Mapping[str, Sequence[student.ProjectedParent]],
+    *,
+    protocol: Mapping[str, object],
+    protocol_identity: Mapping[str, object],
+    output_path: Path,
+    receipt_path: Path,
+    bridge_command: Sequence[str] | None = None,
+) -> dict[str, object]:
+    """Re-run both production generators before any teacher can be loaded."""
+
+    bridge_identity = _bridge_source_identity()
+    universe = protocol.get("production_move_universe")
+    if type(universe) is not dict:
+        raise ValueError("production move-universe protocol is absent")
+    source_receipts = universe.get("source_receipts")
+    if type(source_receipts) is not list or len(source_receipts) != 4:
+        raise ValueError("production move-universe source receipts drifted")
+    command = list(
+        bridge_command
+        or (
+            "node",
+            "-r",
+            "tsx/cjs",
+            str(MOVE_UNIVERSE_BRIDGE_PATH),
+        )
+    )
+    if not command or not all(isinstance(part, str) and part for part in command):
+        raise ValueError("production move-universe bridge command is invalid")
+
+    process = subprocess.Popen(
+        command,
+        cwd=Path(__file__).parent.parent,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        bufsize=1,
+    )
+    if (
+        process.stdin is None
+        or process.stdout is None
+        or process.stderr is None
+    ):
+        process.kill()
+        raise ValueError("production move-universe bridge pipes are absent")
+
+    records: list[dict[str, object]] = []
+    sequence = 0
+    domain_counts = {"browser": 0, "v9": 0}
+    production_moves = 0
+    node_runtime: dict[str, object] | None = None
+    try:
+        for domain in ("browser", "v9"):
+            rows = projected.get(domain)
+            if not isinstance(rows, Sequence):
+                raise ValueError(
+                    "projected production move-universe domain is absent"
+                )
+            previous_parent_id: bytes | None = None
+            for projected_parent in rows:
+                parent_id = projected_parent.group.parent_id
+                parent_key = parent_id.encode("ascii")
+                if (
+                    previous_parent_id is not None
+                    and parent_key <= previous_parent_id
+                ):
+                    raise ValueError(
+                        "projected move-universe parent order drift"
+                    )
+                previous_parent_id = parent_key
+                request = {
+                    "schema": MOVE_UNIVERSE_REQUEST_SCHEMA,
+                    "sequence": sequence,
+                    "domain": domain,
+                    "parent_id": parent_id,
+                    "parent_sfen": projected_parent.group.parent_sfen,
+                }
+                process.stdin.write(
+                    _canonical_json(request).decode("utf-8")
+                )
+                process.stdin.flush()
+                response = _strict_json_line(
+                    process.stdout.readline(),
+                    f"production move-universe bridge response {sequence}",
+                )
+                if set(response) != {
+                    "schema",
+                    "sequence",
+                    "domain",
+                    "parent_id",
+                    "parent_sfen",
+                    "js_usi",
+                    "wasm_usi",
+                    "wasm",
+                    "node",
+                }:
+                    raise ValueError(
+                        "production move-universe bridge response fields drift"
+                    )
+                expected_identity = (
+                    sequence,
+                    domain,
+                    parent_id,
+                    projected_parent.group.parent_sfen,
+                )
+                observed_identity = (
+                    response.get("sequence"),
+                    response.get("domain"),
+                    response.get("parent_id"),
+                    response.get("parent_sfen"),
+                )
+                if (
+                    response.get("schema") != MOVE_UNIVERSE_RESPONSE_SCHEMA
+                    or observed_identity != expected_identity
+                ):
+                    raise ValueError(
+                        "production move-universe bridge response identity drift"
+                    )
+                expected_moves = list(projected_parent.production_moves)
+                js_usi = response.get("js_usi")
+                wasm_usi = response.get("wasm_usi")
+                if (
+                    type(js_usi) is not list
+                    or type(wasm_usi) is not list
+                    or js_usi != expected_moves
+                    or wasm_usi != expected_moves
+                ):
+                    raise ValueError(
+                        "production move-universe membership mismatch "
+                        f"for {domain}/{parent_id}"
+                    )
+                wasm = response.get("wasm")
+                if (
+                    type(wasm) is not dict
+                    or set(wasm)
+                    != {
+                        "bytes",
+                        "sha256",
+                        "root_move_buffer_offset",
+                        "legal_moves",
+                        "second_search_depth",
+                        "second_search_nodes",
+                        "second_search_leaves",
+                    }
+                    or wasm.get("bytes") != MOVE_UNIVERSE_WASM_BYTES
+                    or wasm.get("sha256") != MOVE_UNIVERSE_WASM_SHA256
+                    or wasm.get("root_move_buffer_offset")
+                    != MOVE_UNIVERSE_WASM_BUFFER_OFFSET
+                    or wasm.get("legal_moves") != len(expected_moves)
+                    or wasm.get("second_search_nodes") != 1
+                    or wasm.get("second_search_leaves") != 0
+                    or wasm.get("second_search_depth") not in (0, 1)
+                ):
+                    raise ValueError(
+                        "production move-universe WASM extraction drift"
+                    )
+                node = response.get("node")
+                if (
+                    type(node) is not dict
+                    or set(node) != {"exec_path", "version"}
+                    or not isinstance(node.get("exec_path"), str)
+                    or not isinstance(node.get("version"), str)
+                ):
+                    raise ValueError(
+                        "production move-universe Node identity is absent"
+                    )
+                if node_runtime is None:
+                    node_runtime = dict(node)
+                elif node != node_runtime:
+                    raise ValueError(
+                        "production move-universe Node runtime changed"
+                    )
+                records.append(
+                    {
+                        "schema": MOVE_UNIVERSE_RECORD_SCHEMA,
+                        "domain": domain,
+                        "parent_id": parent_id,
+                        "parent_sfen": projected_parent.group.parent_sfen,
+                        "projected_usi": expected_moves,
+                        "production_js_usi": js_usi,
+                        "production_wasm_usi": wasm_usi,
+                    }
+                )
+                domain_counts[domain] += 1
+                production_moves += len(expected_moves)
+                sequence += 1
+        process.stdin.close()
+        return_code = process.wait(timeout=30)
+        stderr = process.stderr.read()
+        if return_code != 0 or stderr:
+            raise ValueError(
+                "production move-universe bridge did not exit cleanly: "
+                f"code={return_code} stderr={stderr.strip()!r}"
+            )
+    except BaseException:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        raise
+    finally:
+        for handle in (process.stdin, process.stdout, process.stderr):
+            if not handle.closed:
+                handle.close()
+
+    if node_runtime is None or not records:
+        raise ValueError("production move-universe verification was vacuous")
+    payload = b"".join(_canonical_json(record) for record in records)
+    if output_path.exists() != receipt_path.exists():
+        raise ValueError("partial production move-universe publication")
+    _atomic_publish_bytes(output_path, payload)
+    artifact = _fingerprint(output_path)
+    receipt = {
+        "schema": MOVE_UNIVERSE_RECEIPT_SCHEMA,
+        "status": "complete-all-fit-parents-js-wasm-projection-exact",
+        "artifact": artifact,
+        "parents": len(records),
+        "domain_parents": domain_counts,
+        "production_moves": production_moves,
+        "protocol": dict(protocol_identity),
+        "bridge_source": bridge_identity,
+        "node": node_runtime,
+        "wasm": {
+            "bytes": MOVE_UNIVERSE_WASM_BYTES,
+            "sha256": MOVE_UNIVERSE_WASM_SHA256,
+            "root_move_buffer_offset": MOVE_UNIVERSE_WASM_BUFFER_OFFSET,
+        },
+        "production_move_universe_sources": source_receipts,
+        "projected_equals_production_js": True,
+        "projected_equals_production_wasm": True,
+    }
+    _atomic_publish_bytes(receipt_path, _canonical_json(receipt))
+    if _strict_json(receipt_path) != receipt:
+        raise ValueError("production move-universe receipt changed after publish")
+    return receipt
+
+
+def validate_existing_production_move_universe(
+    *,
+    protocol: Mapping[str, object],
+    protocol_identity: Mapping[str, object],
+    output_path: Path,
+    receipt_path: Path,
+) -> dict[str, object]:
+    """Fully revalidate an already published bridge artifact without a teacher."""
+
+    if (
+        not output_path.is_file()
+        or output_path.is_symlink()
+        or not receipt_path.is_file()
+        or receipt_path.is_symlink()
+    ):
+        raise ValueError("production move-universe publication is absent")
+    universe = protocol.get("production_move_universe")
+    if type(universe) is not dict:
+        raise ValueError("production move-universe protocol is absent")
+    source_receipts = universe.get("source_receipts")
+    if type(source_receipts) is not list or len(source_receipts) != 4:
+        raise ValueError("production move-universe source receipts drifted")
+    bridge_identity = _bridge_source_identity()
+    receipt = _strict_json(receipt_path)
+    node = receipt.get("node")
+    if (
+        type(node) is not dict
+        or set(node) != {"exec_path", "version"}
+        or not isinstance(node.get("exec_path"), str)
+        or not isinstance(node.get("version"), str)
+    ):
+        raise ValueError("production move-universe Node receipt is invalid")
+
+    previous: tuple[int, bytes] | None = None
+    domain_counts = {"browser": 0, "v9": 0}
+    parents = production_moves = 0
+    with output_path.open("rb") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            parsed = json.loads(raw)
+            if raw != _canonical_json(parsed) or type(parsed) is not dict:
+                raise ValueError(
+                    f"production move-universe row {line_number} "
+                    "is not canonical JSON"
+                )
+            if set(parsed) != {
+                "schema",
+                "domain",
+                "parent_id",
+                "parent_sfen",
+                "projected_usi",
+                "production_js_usi",
+                "production_wasm_usi",
+            }:
+                raise ValueError(
+                    "production move-universe artifact fields drifted"
+                )
+            domain = parsed.get("domain")
+            parent_id = parsed.get("parent_id")
+            projected = parsed.get("projected_usi")
+            if (
+                parsed.get("schema") != MOVE_UNIVERSE_RECORD_SCHEMA
+                or domain not in DOMAIN_ORDINAL
+                or not isinstance(parent_id, str)
+                or type(projected) is not list
+                or not projected
+                or parsed.get("production_js_usi") != projected
+                or parsed.get("production_wasm_usi") != projected
+                or any(not isinstance(move, str) for move in projected)
+            ):
+                raise ValueError(
+                    "production move-universe artifact semantics drifted"
+                )
+            key = DOMAIN_ORDINAL[domain], parent_id.encode("ascii")
+            if previous is not None and key <= previous:
+                raise ValueError(
+                    "production move-universe artifact order drifted"
+                )
+            previous = key
+            domain_counts[domain] += 1
+            parents += 1
+            production_moves += len(projected)
+    expected = {
+        "schema": MOVE_UNIVERSE_RECEIPT_SCHEMA,
+        "status": "complete-all-fit-parents-js-wasm-projection-exact",
+        "artifact": _fingerprint(output_path),
+        "parents": parents,
+        "domain_parents": domain_counts,
+        "production_moves": production_moves,
+        "protocol": dict(protocol_identity),
+        "bridge_source": bridge_identity,
+        "node": node,
+        "wasm": {
+            "bytes": MOVE_UNIVERSE_WASM_BYTES,
+            "sha256": MOVE_UNIVERSE_WASM_SHA256,
+            "root_move_buffer_offset": MOVE_UNIVERSE_WASM_BUFFER_OFFSET,
+        },
+        "production_move_universe_sources": source_receipts,
+        "projected_equals_production_js": True,
+        "projected_equals_production_wasm": True,
+    }
+    if (
+        parents != 20_139
+        or domain_counts != {"browser": 875, "v9": 19_264}
+        or receipt != expected
+    ):
+        raise ValueError("production move-universe receipt mismatch")
+    return receipt
+
+
 def shard_for_parent(domain: str, parent_id: str) -> int:
     if domain not in DOMAIN_ORDINAL or not parent_id:
         raise ValueError("invalid distillation shard identity")
@@ -419,6 +836,7 @@ def _content_address(
     teacher_identity: Mapping[str, object],
     fit_sources: Mapping[str, object],
     feature_sources: Sequence[Mapping[str, object]],
+    move_universe_receipt: Mapping[str, object],
 ) -> str:
     value = {
         "schema": DISTILLATION_SCHEMA,
@@ -428,6 +846,7 @@ def _content_address(
         "fit_sources": fit_sources,
         "parent_keys": [list(row) for row in parent_keys],
         "feature_sources": list(feature_sources),
+        "production_move_universe": move_universe_receipt,
     }
     return hashlib.sha256(_canonical_json(value)).hexdigest()
 
@@ -531,12 +950,14 @@ class DistillationShardStore:
         teacher_identity: Mapping[str, object],
         fit_sources: Mapping[str, object],
         feature_sources: Sequence[Mapping[str, object]],
+        move_universe_receipt: Mapping[str, object],
     ) -> None:
         self.root = root
         self.protocol_identity = dict(protocol_identity)
         self.teacher_identity = dict(teacher_identity)
         self.fit_sources = dict(fit_sources)
         self.feature_sources = [dict(row) for row in feature_sources]
+        self.move_universe_receipt = dict(move_universe_receipt)
         self.shard_root = root / "distillation-shards"
 
     def paths(
@@ -551,6 +972,7 @@ class DistillationShardStore:
             teacher_identity=self.teacher_identity,
             fit_sources=self.fit_sources,
             feature_sources=self.feature_sources,
+            move_universe_receipt=self.move_universe_receipt,
         )
         base = self.shard_root / f"shard-{shard:02d}-{address}"
         return (
@@ -600,6 +1022,8 @@ class DistillationShardStore:
             or receipt.get("parent_keys") != [list(row) for row in parent_keys]
             or receipt.get("artifact") != actual
             or observed_keys != list(parent_keys)
+            or receipt.get("production_move_universe")
+            != self.move_universe_receipt
         ):
             raise ValueError(f"distillation shard receipt mismatch {shard}")
         return receipt
@@ -631,6 +1055,7 @@ class DistillationShardStore:
             "artifact": artifact,
             "teacher": self.teacher_identity,
             "protocol": self.protocol_identity,
+            "production_move_universe": self.move_universe_receipt,
         }
         _atomic_publish_bytes(receipt_path, _canonical_json(receipt))
         return receipt
@@ -660,6 +1085,8 @@ class DistillationShardStore:
                 receipt.get("schema") != DISTILLATION_RECEIPT_SCHEMA
                 or receipt.get("artifact") != _fingerprint(output_path)
                 or receipt.get("shards") != receipts
+                or receipt.get("production_move_universe")
+                != self.move_universe_receipt
             ):
                 raise ValueError("final distillation receipt mismatch")
             return receipt
@@ -712,6 +1139,7 @@ class DistillationShardStore:
             "shards": receipts,
             "teacher": self.teacher_identity,
             "protocol": self.protocol_identity,
+            "production_move_universe": self.move_universe_receipt,
             "tune_parents": 0,
             "sealed_parents": 0,
             "replication_teacher_parents": 0,
@@ -758,7 +1186,7 @@ def load_teacher(
 
 
 def generate_distillation(
-    fit: Mapping[str, Sequence[lpv.ParentGroup]],
+    projected_fit: Mapping[str, Sequence[student.ProjectedParent]],
     teacher_model: cpv.OfflineChildBoardCapacityPolicyValue,
     store: DistillationShardStore,
     *,
@@ -770,8 +1198,7 @@ def generate_distillation(
         index: [] for index in range(SHARDS)
     }
     for domain in ("browser", "v9"):
-        projected = student.project_groups_to_production(fit[domain])
-        for row in projected:
+        for row in projected_fit[domain]:
             by_shard[shard_for_parent(domain, row.group.parent_id)].append(
                 (domain, row)
             )
@@ -1539,12 +1966,23 @@ def run(mode: str) -> dict[str, object]:
         finals,
     )
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    move_universe_receipt: dict[str, object]
     distillation_receipt: dict[str, object]
     parity_receipt: dict[str, object]
     if mode in ("prepare", "all"):
         if not torch.backends.mps.is_available():
             raise ValueError("student preparation requires available MPS")
         fit = _load_fit_groups_from_phase1(phase1)
+        projected_fit = _project_fit_groups(fit)
+        move_universe_receipt = verify_production_move_universe(
+            projected_fit,
+            protocol=protocol,
+            protocol_identity=protocol_identity,
+            output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
+            receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
+        )
+        # Teacher checkpoint bytes cannot be opened until every fit parent has
+        # matched the independent production JS and actual pinned-WASM sets.
         teacher_model = load_teacher(finals[42], device="mps")
         store = DistillationShardStore(
             OUTPUT,
@@ -1552,9 +1990,10 @@ def run(mode: str) -> dict[str, object]:
             teacher_identity=identities["teacher_identity"],
             fit_sources=identities["fit_sources"],
             feature_sources=feature_sources,
+            move_universe_receipt=move_universe_receipt,
         )
         distillation_receipt = generate_distillation(
-            fit,
+            projected_fit,
             teacher_model,
             store,
             device="mps",
@@ -1570,13 +2009,23 @@ def run(mode: str) -> dict[str, object]:
         )
         if mode == "prepare":
             return {
+                "production_move_universe": move_universe_receipt,
                 "distillation": distillation_receipt,
                 "parity_fixture": parity_receipt,
             }
     else:
+        move_universe_receipt = validate_existing_production_move_universe(
+            protocol=protocol,
+            protocol_identity=protocol_identity,
+            output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
+            receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
+        )
         distillation_receipt = _strict_json(DISTILLATION_RECEIPT_PATH)
         parity_receipt = _strict_json(PARITY_RECEIPT_PATH)
     if (
+        distillation_receipt.get("production_move_universe")
+        != move_universe_receipt
+        or
         distillation_receipt.get("artifact")
         != _fingerprint(DISTILLATION_PATH)
         or parity_receipt.get("artifact") != _fingerprint(PARITY_PATH)

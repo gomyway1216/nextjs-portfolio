@@ -71,6 +71,43 @@ class SetAwareTeacher(torch.nn.Module):
 
 
 class ChildBoardRootPolicyStudentTests(unittest.TestCase):
+    START_SFEN = (
+        "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/"
+        "PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+    )
+    START_PRODUCTION_MOVES = (
+        "1g1f",
+        "1i1h",
+        "2g2f",
+        "2h1h",
+        "2h3h",
+        "2h4h",
+        "2h5h",
+        "2h6h",
+        "2h7h",
+        "3g3f",
+        "3i3h",
+        "3i4h",
+        "4g4f",
+        "4i3h",
+        "4i4h",
+        "4i5h",
+        "5g5f",
+        "5i4h",
+        "5i5h",
+        "5i6h",
+        "6g6f",
+        "6i5h",
+        "6i6h",
+        "6i7h",
+        "7g7f",
+        "7i6h",
+        "7i7h",
+        "8g8f",
+        "9g9f",
+        "9i9h",
+    )
+
     def test_parameter_payload_and_zero_residual_initialization(self):
         torch.manual_seed(student.INITIALIZATION_SEED)
         model = student.ChildBoardRootPolicyStudent()
@@ -234,6 +271,14 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 },
                 fit_sources={"sha256": "c" * 64},
                 feature_sources=[{"sha256": "d" * 64}],
+                move_universe_receipt={
+                    "schema": runner.MOVE_UNIVERSE_RECEIPT_SCHEMA,
+                    "artifact": {
+                        "path": "move-universe.jsonl",
+                        "bytes": 3,
+                        "sha256": "e" * 64,
+                    },
+                },
             )
             target_shard = runner.shard_for_parent("browser", "parent")
             keys_by_shard = {
@@ -285,6 +330,176 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 first["removed_nonpromoting_bishop_rook_moves"],
                 1,
             )
+
+    def test_actual_js_wasm_bridge_publishes_and_revalidates_exact_receipt(self):
+        browser_group = synthetic_group(
+            "start-browser",
+            self.START_SFEN,
+            self.START_PRODUCTION_MOVES,
+        )
+        v9_group = synthetic_group(
+            "start-v9",
+            self.START_SFEN,
+            self.START_PRODUCTION_MOVES,
+        )
+        projected = runner._project_fit_groups(
+            {"browser": [browser_group], "v9": [v9_group]}
+        )
+        protocol = {
+            "production_move_universe": {
+                "source_receipts": [
+                    {"path": f"source-{index}", "sha256": str(index) * 64}
+                    for index in range(4)
+                ]
+            }
+        }
+        protocol_identity = {
+            "path": "protocol.json",
+            "bytes": 1,
+            "sha256": "a" * 64,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "move-universe.jsonl"
+            receipt_path = root / "move-universe.receipt.json"
+            first = runner.verify_production_move_universe(
+                projected,
+                protocol=protocol,
+                protocol_identity=protocol_identity,
+                output_path=artifact,
+                receipt_path=receipt_path,
+            )
+            second = runner.verify_production_move_universe(
+                projected,
+                protocol=protocol,
+                protocol_identity=protocol_identity,
+                output_path=artifact,
+                receipt_path=receipt_path,
+            )
+            self.assertEqual(first, second)
+            self.assertEqual(first["parents"], 2)
+            self.assertEqual(first["domain_parents"], {"browser": 1, "v9": 1})
+            self.assertEqual(
+                first["production_moves"],
+                len(self.START_PRODUCTION_MOVES) * 2,
+            )
+            rows = [
+                runner._strict_json_line(
+                    raw,
+                    "test move universe artifact",
+                )
+                for raw in artifact.read_text(encoding="utf-8").splitlines(
+                    keepends=True
+                )
+            ]
+            self.assertEqual(
+                [(row["domain"], row["parent_id"]) for row in rows],
+                [
+                    ("browser", "start-browser"),
+                    ("v9", "start-v9"),
+                ],
+            )
+            for row in rows:
+                self.assertEqual(
+                    row["projected_usi"],
+                    list(self.START_PRODUCTION_MOVES),
+                )
+                self.assertEqual(
+                    row["production_js_usi"],
+                    row["projected_usi"],
+                )
+                self.assertEqual(
+                    row["production_wasm_usi"],
+                    row["projected_usi"],
+                )
+
+            changed = dict(first)
+            changed["parents"] = 3
+            receipt_path.write_bytes(runner._canonical_json(changed))
+            with self.assertRaisesRegex(
+                ValueError,
+                "immutable artifact mismatch",
+            ):
+                runner.verify_production_move_universe(
+                    projected,
+                    protocol=protocol,
+                    protocol_identity=protocol_identity,
+                    output_path=artifact,
+                    receipt_path=receipt_path,
+                )
+
+    def test_membership_mismatch_stops_before_teacher_checkpoint_load(self):
+        group = synthetic_group(
+            "start",
+            self.START_SFEN,
+            self.START_PRODUCTION_MOVES[1:],
+        )
+        projected = runner._project_fit_groups(
+            {"browser": [group], "v9": []}
+        )
+        protocol = {
+            "teacher_checkpoint_bindings": {},
+            "production_move_universe": {
+                "source_receipts": [
+                    {"path": f"source-{index}", "sha256": str(index) * 64}
+                    for index in range(4)
+                ]
+            },
+        }
+        protocol_identity = {
+            "path": "protocol.json",
+            "bytes": 1,
+            "sha256": "a" * 64,
+        }
+        finals = {42: {"checkpoint": {"sha256": "b" * 64}}}
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            runner,
+            "OUTPUT",
+            Path(directory),
+        ), mock.patch.object(
+            runner,
+            "_verified_protocol",
+            return_value=(protocol, protocol_identity),
+        ), mock.patch.object(
+            runner,
+            "_verified_phase1",
+            return_value=({}, finals),
+        ), mock.patch.object(
+            runner,
+            "_validate_pinned_sources",
+        ), mock.patch.object(
+            runner,
+            "_identities",
+            return_value=(
+                {"seed42": "b" * 64, "seed314159": "c" * 64},
+                [],
+                {
+                    "fit_sources": {},
+                    "teacher_identity": {"sha256": "b" * 64},
+                },
+            ),
+        ), mock.patch.object(
+            runner.torch.backends.mps,
+            "is_available",
+            return_value=True,
+        ), mock.patch.object(
+            runner,
+            "_load_fit_groups_from_phase1",
+            return_value={"browser": [group], "v9": []},
+        ), mock.patch.object(
+            runner,
+            "_project_fit_groups",
+            return_value=projected,
+        ), mock.patch.object(
+            runner,
+            "load_teacher",
+        ) as load:
+            with self.assertRaisesRegex(
+                ValueError,
+                "membership mismatch",
+            ):
+                runner.run("prepare")
+            load.assert_not_called()
 
     def test_exact_resume_takes_next_epoch_and_matches_uninterrupted(self):
         group = synthetic_group(

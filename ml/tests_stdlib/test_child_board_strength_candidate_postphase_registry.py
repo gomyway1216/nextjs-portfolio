@@ -52,6 +52,25 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         self.assertEqual(outputs["formal"]["pairs"], 384)
         self.assertEqual(outputs["formal"]["games"], 768)
         self.assertEqual(outputs["formal"]["pair_workers"], 12)
+        execution = self.document["execution_contract"]
+        self.assertEqual(
+            execution["score_row"]["score_keys"],
+            [
+                "exact_live",
+                "seed42_teacher",
+                "seed314159_teacher",
+                "frozen_student",
+            ],
+        )
+        self.assertEqual(
+            [domain["parents"] for domain in execution["tune"]["domains"]],
+            [196, 4411],
+        )
+        self.assertEqual(execution["sealed"]["parents"], 512)
+        self.assertIn(
+            "terminalize-only",
+            execution["one_shot_publication"]["recovery"],
+        )
 
     def test_shards_are_exactly_sixteen_consecutive_slices_of_thirty_two(self):
         shards = self.document["sealed_label_shards"]
@@ -74,6 +93,10 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         self.assertEqual(
             metrics["pair_accuracy"]["candidate_tie"],
             "incorrect",
+        )
+        self.assertIn(
+            "teacher-worst",
+            metrics["mean_regret_cp"]["candidate_tie"],
         )
         self.assertIn(
             "teacher CP ascending",

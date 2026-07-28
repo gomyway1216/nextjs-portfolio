@@ -14,9 +14,9 @@ from typing import Any
 REGISTRY_RELATIVE_PATH = (
     "ml/protocols/child-board-strength-candidate-postphase-v1-registry.json"
 )
-REGISTRY_BYTES = 7_879
+REGISTRY_BYTES = 15_009
 REGISTRY_SHA256 = (
-    "5bb6bd907d766d720cc04661e99196ebbdd7c7aaec2f55a9bd01e32bdc5eea2e"
+    "97fac6d997aff5af9a0cce6f9c16323b5423053492f4b2b7990b9702d43bfc1c"
 )
 REGISTRY_SCHEMA = (
     "shogi-child-board-strength-candidate-postphase-registry-v1"
@@ -42,6 +42,7 @@ _EXPECTED_TOP_LEVEL_KEYS = {
     "outputs",
     "sealed_label_shards",
     "metric_definitions",
+    "execution_contract",
     "publication_rules",
     "protected_state_at_registration",
 }
@@ -56,13 +57,16 @@ _SUBTREE_SHA256 = {
         "b3561115db50c08b1045924114315241f5213a302f4919d494baf801a8b43161"
     ),
     "outputs": (
-        "d8a1dbe44cf56509f3de63efecb1c9bedcfdd7eb0842ed8773e375589be0fbd6"
+        "41b4874d40fdc4304a3b29c45f83738827c097a9012121801e395b6273af60a0"
     ),
     "sealed_label_shards": (
         "3ee9b71ec454c508c50624267862e84c3a49a580f0c58d3027c2216097bb4ae2"
     ),
     "metric_definitions": (
-        "94393f02b43b9c4cabb2dc0eaf60fb6f8b85f4114f58304ac4176387aaf3007a"
+        "c577425ca566eaa1d2a8279ecf439eacea0d461dfe8c9e3f9015a6cad0e3581c"
+    ),
+    "execution_contract": (
+        "a3b05898ad03301be9f953e4dd3c2999295e1a0fce51befa822045b0d9aab1f3"
     ),
     "publication_rules": (
         "39f4e9d1bfc43c8adb896fd025932c99fa0acccf413b934fc805cdaa42fb9742"
@@ -156,8 +160,14 @@ def validate_registry_document(document: Mapping[str, Any]) -> None:
         "selected_parent_ids",
         "selection_receipt",
         "label_shards_directory",
+        "label_shard_receipts_directory",
         "labels",
         "label_receipt",
+        "artifact_receipt",
+        "score_bundle",
+        "score_bundle_receipt",
+        "opened_marker",
+        "pending_result",
         "result",
     ):
         if not str(sealed[key]).startswith(str(sealed["root"]) + "/"):
@@ -181,9 +191,11 @@ def validate_registry_document(document: Mapping[str, Any]) -> None:
     pair = _mapping(metrics["pair_accuracy"], "pair_accuracy")
     ndcg = _mapping(metrics["ndcg_at_5"], "ndcg_at_5")
     mcnemar = _mapping(metrics["mcnemar_one_sided"], "mcnemar_one_sided")
+    regret = _mapping(metrics["mean_regret_cp"], "mean_regret_cp")
     if (
         "every move" not in top1["correct"]
         or pair["candidate_tie"] != "incorrect"
+        or "teacher-worst" not in regret["candidate_tie"]
         or "teacher CP ascending" not in ndcg["candidate_order"]
         or mcnemar["continuity_correction"] is not False
         or mcnemar["maximum_p"] != 0.05
@@ -217,6 +229,63 @@ def validate_registry_document(document: Mapping[str, Any]) -> None:
         )
     ):
         raise RegistryError("formal output or pair contract mismatch")
+
+    execution = _mapping(document["execution_contract"], "execution_contract")
+    if execution["artifact_names"] != [
+        "seed42_teacher",
+        "seed314159_teacher",
+        "frozen_student",
+    ] or execution["reference_name"] != "exact_live":
+        raise RegistryError("execution artifact roles mismatch")
+    score_row = _mapping(execution["score_row"], "execution_contract.score_row")
+    if score_row["score_keys"] != [
+        "exact_live",
+        "seed42_teacher",
+        "seed314159_teacher",
+        "frozen_student",
+    ]:
+        raise RegistryError("score-row completeness keys mismatch")
+    tune = _mapping(execution["tune"], "execution_contract.tune")
+    domains = tune["domains"]
+    if (
+        type(domains) is not list
+        or [entry.get("name") for entry in domains] != [
+            "browser_tune",
+            "v9_tune",
+        ]
+        or [entry.get("parents") for entry in domains] != [196, 4411]
+        or tune["all_three_artifacts_pass_independently"] is not True
+    ):
+        raise RegistryError("one-shot tune domain contract mismatch")
+    sealed_execution = _mapping(
+        execution["sealed"], "execution_contract.sealed"
+    )
+    selection = _mapping(
+        sealed_execution["selection"], "execution_contract.sealed.selection"
+    )
+    labeling = _mapping(
+        sealed_execution["labeling"], "execution_contract.sealed.labeling"
+    )
+    if (
+        sealed_execution["parents"] != 512
+        or selection["parents"] != 512
+        or selection["maximum_parents_per_game"] != 4
+        or labeling["depth"] != 12
+        or labeling["labeler"]
+        != "labelAllLegalMoves from ml/build-browser-confusion-ranking-teacher.ts"
+        or sealed_execution["all_three_artifacts_pass_independently"] is not True
+    ):
+        raise RegistryError("sealed preparation or scoring contract mismatch")
+    publication = _mapping(
+        execution["one_shot_publication"],
+        "execution_contract.one_shot_publication",
+    )
+    if (
+        publication["partial_metrics_displayed"] is not False
+        or publication["rerun"] is not False
+        or "terminalize-only" not in publication["recovery"]
+    ):
+        raise RegistryError("one-shot publication/recovery contract mismatch")
 
     state = _mapping(
         document["protected_state_at_registration"],

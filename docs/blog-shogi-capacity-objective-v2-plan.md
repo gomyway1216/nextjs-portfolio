@@ -1,57 +1,93 @@
-# 将棋capacity objective-only v2：失敗原因を1変数だけで再検証する
+# 将棋capacity objective-only v2の結果：Top-1は通過、pairで棄却
 
-> v1は大型モデルでも固定sentinelを通らなかった。しかし入力衝突は0、teacher-score oracleは100%で、学習objectiveと合否指標には具体的な不一致があった。v2はモデルやデータを増やさず、objectiveだけを合否へ合わせる。[English](./blog-shogi-capacity-objective-v2-plan.en.md)
+> v1と同じモデル・データ・1,280親・40 epochで、objectiveだけを合否指標へ合わせた。Top-1はBrowserとV9の両方で閾値を超えたが、pairは両方でv1より悪化し、事前登録どおりv2全体を棄却した。本学習、2つ目のseed、sealed教師、ライブ変更には進んでいない。[English](./blog-shogi-capacity-objective-v2-plan.en.md)
 
-## この実験で答えること
+## 結論
 
-問いは1つだけである。
+objective-only v2は `complete-sentinel-rejected` で終了した。
 
-**v1と同じモデル・同じ1,280親・同じ40 epochでも、objectiveをTop-1とdomain-micro pairへ直接合わせれば固定ゲートを通るか。**
+| 指標 | v1 | v2 | v2−v1 | v2ゲート | 判定 |
+|---|---:|---:|---:|---:|---|
+| Browser Top-1 | 179/256（69.92%） | 222/256（86.72%） | +43親、+16.80pt | 85%以上 | PASS |
+| Browser pair | 73.85% | 73.08% | -0.78pt | 98%以上 | FAIL |
+| V9 Top-1 | 811/1,024（79.20%） | 921/1,024（89.94%） | +110親、+10.74pt | 85%以上 | PASS |
+| V9 pair | 87.00% | 84.85% | -2.15pt | 98%以上 | FAIL |
 
-これは棋力試験ではなく、教師順位を訓練内で再現できるかのcapacity診断である。通過しても高段、ライブ改善、対局勝率の向上は主張しない。
+objective変更は無反応ではなかった。Top-1はBrowserで閾値を1.72pt、V9で4.94pt上回った。一方、直接合わせようとしたpairはBrowserで閾値を24.92pt、V9で13.15pt下回った。4条件のうち2つがFAILなので、総合判定は棄却である。
 
-## v1から変えるもの
+これは訓練内sentinelであり、棋力や未見局面への一般化を測った結果ではない。Top-1通過だけを取り出して「AIが強くなった」とは主張できない。
 
-| objective | v1の問題 | v2 |
-|---|---|---:|
-| listwise policy | 維持する | 1.0 |
-| pair | 親内平均後に親を等重み。合否のdomain-micro pairと不一致 | 各domain batchの全eligible pairをpoolするmicro logistic、1.0 |
-| Top-1 margin | 同率教師首位から1手だけを `argmax` で選択 | 同率首位を集合として扱い、hardest negativeに対するmargin、1.0 |
-| move-value | 合否に直接入らない回帰の比重が大きい | 0.20 |
-| state-value | 合否に直接入らない | 0 |
+## v1から変えたのはobjectiveだけ
 
-eligible pairの教師差50cpとscore temperatureなど、ここに書いていない尺度はv1のままにする。
+| objective | v2 |
+|---|---:|
+| listwise policy | 1.0 |
+| 各domain batchの全eligible pairをpoolするmicro logistic | 1.0 |
+| 教師同率首位を集合で扱うhardest-negative Top-1 margin | 1.0 |
+| move-value | 0.20 |
+| state-value | 0 |
 
-## 変えないもの
+5,953,522-parameterモデル、43-plane入力、データ、除外、分割、sentinel親、seed、AdamW、learning rate、batch、順序、40 epoch、Top-1 85% / pair 98%ゲートはv1と同一である。実際にv1とv2の `data_receipt` とlive baselineは完全一致し、評価pair数もBrowser 1,042,139、V9 49,889で一致した。
 
-- 5,953,522-parameterモデルと43-plane入力
-- Browser/V9のデータ、除外、fit/tune分割
-- parent ID順で固定したBrowser 256親、V9 1,024親
-- sentinel seed
-- AdamW、learning rate、weight decay、gradient clip
-- batch、bucket、domain pairing、epoch順
-- MPS、40 epoch
-- Browser/V9それぞれTop-1 85%以上、pair 98%以上という4条件
+外部 `result.json` は25,053バイト、SHA-256 `1f16f030d52d2aff1d8009614aaeb2183a68b462e212933924fae594c2136e3a`。objectiveは `gate-aligned-micro-pair-hard-negative-v2`、固定protocolは21,089バイト、SHA-256 `15e7c8ffee90a9ad2d6caad41267d9e788984ffd97627a4f1c734aa49954d3d8` である。
 
-これらを固定することで、v1との差をobjective変更へ限定する。
+## 40 epochの実測曲線
 
-## 実行前の整合性チェック
+v2 lossは12.2130から3.1358まで下がり、最小値はepoch 40だった。ただしv1とv2ではobjectiveの定義と重みが違うため、v1のloss 2.2629とv2の3.1358を大小比較して優劣を決めることはできない。
 
-v1のsentinelでは、重複position ID、正規化43-plane入力衝突、同一モデル入力への矛盾labelはいずれも0だった。teacher-score oracleはBrowser/V9のTop-1とpairで100%だった。
+| epoch | loss | 秒 | epoch | loss | 秒 |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 12.213042 | 23.195 | 21 | 3.718387 | 7.383 |
+| 2 | 11.226556 | 7.967 | 22 | 3.709730 | 6.960 |
+| 3 | 9.722485 | 7.884 | 23 | 3.573894 | 7.002 |
+| 4 | 8.641396 | 7.781 | 24 | 3.551910 | 7.291 |
+| 5 | 7.358148 | 7.720 | 25 | 3.644022 | 7.126 |
+| 6 | 6.357735 | 7.808 | 26 | 3.474080 | 7.624 |
+| 7 | 5.619614 | 8.101 | 27 | 3.517037 | 7.268 |
+| 8 | 4.961493 | 7.350 | 28 | 3.530302 | 7.578 |
+| 9 | 4.801455 | 8.276 | 29 | 3.465568 | 7.559 |
+| 10 | 4.625634 | 8.551 | 30 | 3.365900 | 7.397 |
+| 11 | 4.362289 | 7.698 | 31 | 3.300953 | 7.459 |
+| 12 | 4.328898 | 7.675 | 32 | 3.509236 | 7.495 |
+| 13 | 4.126601 | 7.648 | 33 | 3.409219 | 7.161 |
+| 14 | 4.127328 | 7.407 | 34 | 3.311161 | 7.399 |
+| 15 | 4.016109 | 7.369 | 35 | 3.353493 | 7.254 |
+| 16 | 4.120951 | 7.264 | 36 | 3.338644 | 7.545 |
+| 17 | 4.025909 | 7.272 | 37 | 3.293471 | 7.284 |
+| 18 | 3.899232 | 7.248 | 38 | 3.203737 | 7.289 |
+| 19 | 3.872783 | 7.365 | 39 | 3.156432 | 7.185 |
+| 20 | 3.728324 | 6.964 | 40 | 3.135810 | 6.982 |
 
-教師最善手の同点はBrowser 3/256親、V9 13/1,024親にある。v2のhardest-negative marginは同率首位の集合内で互いにmarginを要求せず、首位集合と最も強い非首位だけを分離する。
+記録されたepoch時間の合計は314.78秒（5分14.78秒）。epoch 1は23.19秒、epoch 2〜40は合計291.59秒、中央値7.40秒/epochだった。これは入力読込や事前監査を除くepoch区間だけの時間である。v1より合計68.45秒長いが、初回compile条件も同一ではないため、この2runだけから一般的な速度差は主張しない。
 
-## 停止条件
+参考値のmean regretはBrowser 3,965.14cp、V9 19.40cpで、v1よりそれぞれ9.84cp、2.06cp悪化した。regretはsentinelゲートではないが、v2を救済する材料でもない。
 
-40 epoch後に4条件をすべて通れば、v1で予定していた正式candidate工程へ進む資格ができる。まだライブ変更の資格ではない。
+## 何が分かり、何が分からないか
 
-1条件でも落ちればobjective-only v2は棄却する。追加epoch、追加seed、閾値緩和、同じobjectiveの細かな追試はしない。次は各合法手の「指した後の盤面」を直接encodeするchild-board encoderの小規模capacity診断へ進み、表現不足かを分離する。
+v2は「v1のobjective不一致を直せば4ゲートをすべて通る」という仮説を否定した。Top-1へ直接寄せる変更は効いた一方、全体のpair順位を同時には学べなかった。
 
-## 現在の主張範囲
+まだ次の原因は区別できない。
 
-- v1の失敗は確認済み
-- v2はobjectiveだけを変える固定診断
-- v2の強化効果はまだ未測定
-- 本学習、sealed教師、蒸留、WASM、対局A/B、ライブ重み変更はv2 sentinelの外側
+- parent boardと手特徴だけでは、各合法手後の局面差を表現しにくい
+- 1つのscoreでTop-1 marginと100万超のBrowser pairを同時に満たす最適化が難しい
+- 教師scoreの分布や、固定40 epochの範囲に別の制約がある
 
-v1の実測値は [capacity v1結果記事](./blog-shogi-capacity-policy-value-plan.md) と [機械可読結果](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json) に記録した。
+したがって「大型モデルでも不可能」とは結論しない。一方、同じv2へepochやseedを追加する根拠もない。
+
+## 次はchild-board encoder診断
+
+事前登録した停止規則どおり、v2はここで閉じる。次は別protocolで、各合法手を実際に適用した後の盤面をencodeする小規模child-board capacity診断を行う。
+
+目的は、現行のparent-board＋手特徴に欠ける「指した後の盤面」表現を与えると、Top-1だけでなくpairも訓練内で学べるかを分離することである。まず固定sentinelだけを実行し、通らなければ本学習へ進まない。アーキテクチャやゲートは新protocolで結果を見る前に固定する。
+
+## 現在地
+
+- v2 sentinel：40 epoch完了、Top-1 2条件PASS・pair 2条件FAIL、総合棄却
+- v2正式candidate本学習：未開始
+- seed 314159：未許可・未開始
+- sealed教師生成：未許可・未開始
+- 蒸留、WASM、対局A/B：未開始
+- ライブ重み：未変更
+- 次工程：child-board encoderの小規模capacity診断
+
+完全な40 epoch曲線とv1比較は [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json)、v1結果は [capacity v1記事](./blog-shogi-capacity-policy-value-plan.md) に記録した。

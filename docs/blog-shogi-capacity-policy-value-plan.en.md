@@ -95,29 +95,31 @@ The v1 objective did not exactly match its admission metrics.
 
 This does not prove that the objective is the only cause. Representation, optimization, and teacher distribution remain possible limitations. It does rule out simple input collisions and an unreachable oracle, and it supports changing only the objective next. There is no evidence for rerunning v1 with more epochs or seeds.
 
-## Next: objective-only v2
+## Objective-only v2 was also rejected
 
-The next diagnostic holds the model and data constant and changes only the objective:
+V2 ran with the same model, data, sentinel parents, seed, optimizer, 40 epochs, and gates as v1, changing only the objective to align it with admission.
 
-| Term | V2 weight |
-|---|---:|
-| Listwise policy | 1.0 |
-| Logistic loss over all eligible pairs pooled within each domain batch | 1.0 |
-| Hardest-negative top-1 margin treating tied teacher-best moves as a set | 1.0 |
-| Move value | 0.20 |
-| State value | 0 |
+| Metric | V1 | V2 | V2 result |
+|---|---:|---:|---|
+| Browser top-1 | 69.92% | 86.72% | PASS |
+| Browser pair | 73.85% | 73.08% | FAIL |
+| V9 top-1 | 79.20% | 89.94% | PASS |
+| V9 pair | 87.00% | 84.85% | FAIL |
 
-The model, data, sentinel parents, seed, AdamW, learning rate, batches, ordering, 40 epochs, and 85% top-1 / 98% pair gates remain identical to v1. A pass would show that aligning the objective helped. A miss will not trigger a simple epoch extension or threshold relaxation; the next branch would be a small capacity diagnostic that encodes the child board after each legal move.
+Top-1 passed in both domains, but pair accuracy became worse than v1 in both. With two of four checks missed, v2 ended as preregistered with `complete-sentinel-rejected`. The result shows both that the objective change affected top-1 and that correcting the objective alone was insufficient to learn the full pair ordering. Playing strength and unseen-position generalization remain unmeasured.
 
-The fixed v2 plan is recorded separately in the [objective-only v2 article](./blog-shogi-capacity-objective-v2-plan.en.md).
+The next step is not more epochs or seeds. It is a small capacity diagnostic that directly encodes the board after each legal move. The complete v2 result is in the [objective-only v2 result article](./blog-shogi-capacity-objective-v2-plan.en.md).
 
 ## Current state
 
 - Capacity v1 sentinel: 40 epochs complete, rejected.
+- Objective-only v2 sentinel: 40 epochs complete; two top-1 checks passed, two pair checks failed; overall rejected.
 - Full v1 candidate training: not started.
+- Full v2 candidate training: not started.
 - Seed 314159: unauthorized and not started.
 - Sealed teacher generation: unauthorized and not started.
 - Distillation, WASM, paired play: not started.
 - Live weights: unchanged.
+- Next stage: small child-board encoder capacity diagnostic.
 
-The full measured curve and audit summary are in [shogi-capacity-policy-value-v1-result-2026-07-27.json](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json). Prospective input hashes and split receipts remain in [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json).
+The v1 curve and audit summary are in [shogi-capacity-policy-value-v1-result-2026-07-27.json](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json), v2 is in [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json), and prospective input hashes and split receipts remain in [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json).

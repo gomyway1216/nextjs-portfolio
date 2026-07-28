@@ -1,0 +1,157 @@
+{
+  "schema": "shogi-capacity-policy-value-v2-result-summary-v1",
+  "claim": "Objective-only v2 passed both in-sample top-1 checks but failed both pair checks and was rejected. This is not a playing-strength result.",
+  "external_result": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/capacity-policy-value-v2-seed42/result.json",
+    "bytes": 25053,
+    "sha256": "1f16f030d52d2aff1d8009614aaeb2183a68b462e212933924fae594c2136e3a",
+    "schema": "shogi-capacity-policy-value-result-v2",
+    "status": "complete-sentinel-rejected",
+    "objective": "gate-aligned-micro-pair-hard-negative-v2"
+  },
+  "protocol": {
+    "bytes": 21089,
+    "sha256": "15e7c8ffee90a9ad2d6caad41267d9e788984ffd97627a4f1c734aa49954d3d8"
+  },
+  "sentinel": {
+    "browser_parents": 256,
+    "v9_parents": 1024,
+    "epochs": 40,
+    "weights_discarded": true,
+    "gate_passed": false,
+    "metrics": {
+      "browser": {
+        "top1_correct": 222,
+        "top1_accuracy": 0.8671875,
+        "top1_required_minimum": 0.85,
+        "top1_passed": true,
+        "pair_count": 1042139,
+        "pair_accuracy": 0.73076432222573,
+        "pair_required_minimum": 0.98,
+        "pair_passed": false,
+        "mean_regret_cp_not_a_sentinel_gate": 3965.13671875
+      },
+      "v9": {
+        "top1_correct": 921,
+        "top1_accuracy": 0.8994140625,
+        "top1_required_minimum": 0.85,
+        "top1_passed": true,
+        "pair_count": 49889,
+        "pair_accuracy": 0.8485437671631021,
+        "pair_required_minimum": 0.98,
+        "pair_passed": false,
+        "mean_regret_cp_not_a_sentinel_gate": 19.3974609375
+      }
+    },
+    "timing_seconds": {
+      "recorded_epoch_sum": 314.7845249599777,
+      "epoch_1": 23.19482362503186,
+      "epochs_2_through_40_sum": 291.58970133494586,
+      "epochs_2_through_40_median": 7.397121583111584,
+      "scope": "Recorded epoch intervals only; excludes input loading and preflight audit wall time."
+    },
+    "curve_fields": [
+      "epoch",
+      "loss",
+      "seconds"
+    ],
+    "curve": [
+      {"epoch": 1, "loss": 12.213041912425648, "seconds": 23.19482362503186},
+      {"epoch": 2, "loss": 11.226556257768111, "seconds": 7.966772667132318},
+      {"epoch": 3, "loss": 9.722485455599697, "seconds": 7.883752041961998},
+      {"epoch": 4, "loss": 8.641396002335982, "seconds": 7.781274874694645},
+      {"epoch": 5, "loss": 7.358147621154785, "seconds": 7.720095958095044},
+      {"epoch": 6, "loss": 6.357734983617609, "seconds": 7.8077748329378664},
+      {"epoch": 7, "loss": 5.6196136474609375, "seconds": 8.101028458215296},
+      {"epoch": 8, "loss": 4.961493492126465, "seconds": 7.349689917173237},
+      {"epoch": 9, "loss": 4.801455107602206, "seconds": 8.276448208838701},
+      {"epoch": 10, "loss": 4.625634323466908, "seconds": 8.551129541825503},
+      {"epoch": 11, "loss": 4.362288691780784, "seconds": 7.6977011249400675},
+      {"epoch": 12, "loss": 4.32889834317294, "seconds": 7.675474584102631},
+      {"epoch": 13, "loss": 4.126600677316839, "seconds": 7.647719917353243},
+      {"epoch": 14, "loss": 4.127328395843506, "seconds": 7.407341958023608},
+      {"epoch": 15, "loss": 4.016108621250499, "seconds": 7.368782499805093},
+      {"epoch": 16, "loss": 4.120950503782793, "seconds": 7.263962958008051},
+      {"epoch": 17, "loss": 4.025908686897972, "seconds": 7.272474083118141},
+      {"epoch": 18, "loss": 3.8992319107055664, "seconds": 7.247617042157799},
+      {"epoch": 19, "loss": 3.872782685539939, "seconds": 7.364999417215586},
+      {"epoch": 20, "loss": 3.728324153206565, "seconds": 6.9644932500086725},
+      {"epoch": 21, "loss": 3.7183866717598657, "seconds": 7.382693917024881},
+      {"epoch": 22, "loss": 3.7097297365015205, "seconds": 6.959986332803965},
+      {"epoch": 23, "loss": 3.5738937854766846, "seconds": 7.001885958015919},
+      {"epoch": 24, "loss": 3.551910075274381, "seconds": 7.29062845883891},
+      {"epoch": 25, "loss": 3.6440217711708764, "seconds": 7.1262625409290195},
+      {"epoch": 26, "loss": 3.4740796089172363, "seconds": 7.623512334190309},
+      {"epoch": 27, "loss": 3.5170367631045254, "seconds": 7.268434666097164},
+      {"epoch": 28, "loss": 3.5303015275435015, "seconds": 7.577930292114615},
+      {"epoch": 29, "loss": 3.465568108992143, "seconds": 7.559398750308901},
+      {"epoch": 30, "loss": 3.365899996324019, "seconds": 7.397121583111584},
+      {"epoch": 31, "loss": 3.3009525429118765, "seconds": 7.45884145796299},
+      {"epoch": 32, "loss": 3.5092356421730737, "seconds": 7.494769041892141},
+      {"epoch": 33, "loss": 3.4092188531702217, "seconds": 7.161194292362779},
+      {"epoch": 34, "loss": 3.3111608678644355, "seconds": 7.398985332809389},
+      {"epoch": 35, "loss": 3.3534927368164062, "seconds": 7.253948375117034},
+      {"epoch": 36, "loss": 3.338643962686712, "seconds": 7.5453420002013445},
+      {"epoch": 37, "loss": 3.2934711196205835, "seconds": 7.283968874718994},
+      {"epoch": 38, "loss": 3.2037371722134678, "seconds": 7.289394790772349},
+      {"epoch": 39, "loss": 3.15643217346885, "seconds": 7.185060624964535},
+      {"epoch": 40, "loss": 3.1358096816323022, "seconds": 6.9818083751015365}
+    ],
+    "components": {
+      "epoch_1": {
+        "best_margin": 4.979846976020119,
+        "move_value": 0.9314318570223722,
+        "pair": 1.3811169971119275,
+        "policy": 5.6657914248379795,
+        "state_value_reported_but_zero_weighted": 0.5088552805510435
+      },
+      "epoch_40": {
+        "best_margin": 0.28607009893113916,
+        "move_value": 0.7959913773970171,
+        "pair": 0.5113737718625502,
+        "policy": 2.1791674982417715,
+        "state_value_reported_but_zero_weighted": 0.5064895857464183
+      }
+    }
+  },
+  "v1_comparison": {
+    "v1_external_result": {
+      "bytes": 25048,
+      "sha256": "d7fd48f709bcd149330c8ff86eb4e878aa1b5156d6dde9fe62c2fd6fd55f6cf2"
+    },
+    "data_receipt_exactly_equal": true,
+    "live_baseline_exactly_equal": true,
+    "evaluation_pair_counts_equal": true,
+    "browser": {
+      "top1_correct_delta": 43,
+      "top1_accuracy_points_delta": 16.796875,
+      "pair_accuracy_points_delta": -0.7783030862485774,
+      "mean_regret_cp_delta": 9.8359375
+    },
+    "v9": {
+      "top1_correct_delta": 110,
+      "top1_accuracy_points_delta": 10.7421875,
+      "pair_accuracy_points_delta": -2.1467658201206663,
+      "mean_regret_cp_delta": 2.0576171875
+    },
+    "interpretation": "The objective change moved both top-1 metrics above threshold but made both pair metrics worse than v1. Loss values are not comparable across v1 and v2 because the objectives differ."
+  },
+  "lifecycle": {
+    "full_candidate_training_started": false,
+    "second_seed_authorized": false,
+    "sealed_teacher_authorized": false,
+    "wasm_changed": false,
+    "live_weights_changed": false
+  },
+  "next_branch": {
+    "name": "small child-board encoder capacity diagnostic",
+    "purpose": "Test whether directly encoding the board after each legal move supplies pair-ordering information missing from parent-board plus move features.",
+    "controls": "Use a separately preregistered protocol and run the fixed in-sample sentinel before any full training.",
+    "closed_actions": [
+      "Do not extend v2 epochs.",
+      "Do not add a v2 seed.",
+      "Do not relax v2 gates.",
+      "Do not start full training, sealed labels, distillation, WASM integration, paired play, or live mutation from v2."
+    ]
+  }
+}

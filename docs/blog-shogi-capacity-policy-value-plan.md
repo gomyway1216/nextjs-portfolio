@@ -95,29 +95,31 @@ v1のobjectiveには、合否と一致しない箇所があった。
 
 これは「原因がobjectiveだけだ」と証明したものではない。表現、最適化、教師分布にも未解決の可能性は残る。ただし入力衝突とoracle不達は否定でき、次の最小変更としてobjectiveを合否へ合わせる根拠は得た。同じv1をepochやseedだけ増やして続ける根拠はない。
 
-## 次はobjective-only v2
+## objective-only v2も棄却された
 
-次の診断はモデルやデータを同時に変えず、objectiveだけを次のように変更する。
+v1と同じモデル、データ、sentinel親、seed、optimizer、40 epoch、ゲートのままobjectiveだけを合否へ合わせたv2も実行した。
 
-| 項目 | v2 |
-|---|---:|
-| listwise policy | 1.0 |
-| 各domain batch内の全eligible pairをmicro集計するlogistic loss | 1.0 |
-| 教師同率首位を集合で扱うhardest-negative Top-1 margin | 1.0 |
-| move-value | 0.20 |
-| state-value | 0 |
+| 指標 | v1 | v2 | v2判定 |
+|---|---:|---:|---|
+| Browser Top-1 | 69.92% | 86.72% | PASS |
+| Browser pair | 73.85% | 73.08% | FAIL |
+| V9 Top-1 | 79.20% | 89.94% | PASS |
+| V9 pair | 87.00% | 84.85% | FAIL |
 
-モデル、データ、sentinel親、seed、AdamW、learning rate、batch、順序、40 epoch、Top-1 85% / pair 98%ゲートはv1と同一にする。これで通ればobjective不一致の修正が効いたことを確認できる。通らなければ単純なepoch延長や閾値緩和はせず、合法手の移動先だけでなく「その手を指した後の盤面」をencodeする小規模capacity診断へ分岐する。
+Top-1は両domainで閾値を通ったが、pairは両方でv1より悪化した。2/4条件が未達なので、v2も事前登録どおり `complete-sentinel-rejected` で終了した。この結果はobjective変更がTop-1へ効いたことと、objective修正だけでは全pair順位を学ぶのに不十分だったことを同時に示す。棋力改善や未見局面への一般化はまだ測っていない。
 
-v2の固定計画は [objective-only v2の記事](./blog-shogi-capacity-objective-v2-plan.md) に分離した。
+次はepoch延長や追加seedではなく、各合法手を指した後の盤面を直接encodeする小規模child-board capacity診断へ進む。v2の完全な結果は [objective-only v2結果記事](./blog-shogi-capacity-objective-v2-plan.md) に記録した。
 
 ## 現在地
 
 - capacity v1 sentinel：40 epoch完了、棄却
+- objective-only v2 sentinel：40 epoch完了、Top-1 2条件PASS・pair 2条件FAIL、総合棄却
 - v1正式candidate本学習：未開始
+- v2正式candidate本学習：未開始
 - seed 314159：未許可・未開始
 - sealed教師生成：未許可・未開始
 - 蒸留、WASM、対局A/B：未開始
 - ライブ重み：未変更
+- 次工程：child-board encoderの小規模capacity診断
 
-完全な実測曲線と監査要約は [shogi-capacity-policy-value-v1-result-2026-07-27.json](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json)、事前登録した入力hashと分割は [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json) に記録した。
+v1の完全な実測曲線と監査要約は [shogi-capacity-policy-value-v1-result-2026-07-27.json](./data/shogi-capacity-policy-value-v1-result-2026-07-27.json)、v2は [shogi-capacity-policy-value-v2-result-2026-07-28.json](./data/shogi-capacity-policy-value-v2-result-2026-07-28.json)、事前登録した入力hashと分割は [shogi-capacity-policy-value-plan-2026-07-26.json](./data/shogi-capacity-policy-value-plan-2026-07-26.json) に記録した。

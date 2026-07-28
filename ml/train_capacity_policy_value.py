@@ -22,8 +22,10 @@ import listwise_policy_value as lpv
 
 PROTOCOL_SCHEMA = "shogi-capacity-policy-value-plan-v1"
 PROTOCOL_SCHEMA_V2 = "shogi-capacity-policy-value-plan-v2"
+PROTOCOL_SCHEMA_V3 = "shogi-capacity-policy-value-plan-v3"
 RESULT_SCHEMA = "shogi-capacity-policy-value-result-v1"
 RESULT_SCHEMA_V2 = "shogi-capacity-policy-value-result-v2"
+RESULT_SCHEMA_V3 = "shogi-capacity-policy-value-result-v3"
 TRACKED_PROTOCOL_PATH = (
     Path(__file__).parent / "protocols" / "capacity-policy-value-v1-plan.json"
 )
@@ -38,6 +40,12 @@ TRACKED_PROTOCOL_V2_PATH = (
 TRACKED_PROTOCOL_V2_SHA256 = (
     "15e7c8ffee90a9ad2d6caad41267d9e788984ffd97627a4f1c734aa49954d3d8"
 )
+TRACKED_PROTOCOL_V3_PATH = (
+    Path(__file__).parent / "protocols" / "capacity-policy-value-v3-plan.json"
+)
+TRACKED_PROTOCOL_V3_SHA256 = (
+    "4cdda7ab438aef16332b545477eb7ac12047ef13c19432d621c03803fb67b2a6"
+)
 
 PROTOCOL_BINDINGS = (
     {
@@ -46,6 +54,9 @@ PROTOCOL_BINDINGS = (
         "schema": PROTOCOL_SCHEMA,
         "status": "prospective-capacity-diagnostic-only",
         "objective": cpv.OBJECTIVE_V1,
+        "model_class": cpv.OfflineCapacityPolicyValue,
+        "feature_version": cpv.FEATURE_VERSION,
+        "result_schema": RESULT_SCHEMA,
     },
     {
         "path": TRACKED_PROTOCOL_V2_PATH,
@@ -53,6 +64,21 @@ PROTOCOL_BINDINGS = (
         "schema": PROTOCOL_SCHEMA_V2,
         "status": "prospective-objective-v2-capacity-diagnostic-only",
         "objective": cpv.OBJECTIVE_V2,
+        "model_class": cpv.OfflineCapacityPolicyValue,
+        "feature_version": cpv.FEATURE_VERSION,
+        "result_schema": RESULT_SCHEMA_V2,
+    },
+    {
+        "path": TRACKED_PROTOCOL_V3_PATH,
+        "sha256": TRACKED_PROTOCOL_V3_SHA256,
+        "schema": PROTOCOL_SCHEMA_V3,
+        "status": "prospective-child-board-capacity-diagnostic-only",
+        "objective": cpv.OBJECTIVE_V2,
+        "model_class": cpv.OfflineChildBoardCapacityPolicyValue,
+        "model_variant": cpv.CHILD_MODEL_VARIANT,
+        "model_schema": cpv.CHILD_SCHEMA,
+        "feature_version": cpv.CHILD_FEATURE_VERSION,
+        "result_schema": RESULT_SCHEMA_V3,
     },
 )
 
@@ -97,6 +123,37 @@ def _protocol_binding(path: str | Path) -> Mapping[str, object]:
     raise ValueError("capacity runner accepts only a tracked protocol")
 
 
+def _checkpoint_model_metadata(
+    binding: Mapping[str, object],
+    *,
+    detailed: bool,
+) -> dict[str, object]:
+    model_class = binding.get("model_class")
+    feature_version = binding.get("feature_version")
+    checkpoint_schema = binding.get("model_schema", cpv.SCHEMA)
+    if (
+        not isinstance(model_class, type)
+        or not issubclass(model_class, cpv.OfflineCapacityPolicyValue)
+        or not isinstance(feature_version, str)
+        or not isinstance(checkpoint_schema, str)
+    ):
+        raise ValueError("capacity checkpoint binding is malformed")
+    metadata: dict[str, object] = {"schema": checkpoint_schema}
+    if detailed:
+        metadata["feature_version"] = feature_version
+        metadata["parameters"] = model_class.parameter_count()
+    return metadata
+
+
+def _last_checkpoint_model_metadata(
+    binding: Mapping[str, object],
+) -> dict[str, object]:
+    return _checkpoint_model_metadata(
+        binding,
+        detailed=binding.get("model_variant") is not None,
+    )
+
+
 def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
     binding = _protocol_binding(args.protocol)
     tracked_path = binding["path"]
@@ -117,12 +174,34 @@ def _verify_protocol(args: argparse.Namespace) -> dict[str, object]:
     architecture = protocol.get("architecture")
     if type(architecture) is not dict:
         raise ValueError("capacity protocol architecture is absent")
+    model_class = binding.get("model_class")
+    feature_version = binding.get("feature_version")
+    if (
+        not isinstance(model_class, type)
+        or not issubclass(model_class, cpv.OfflineCapacityPolicyValue)
+        or not isinstance(feature_version, str)
+    ):
+        raise ValueError("capacity model binding is malformed")
     if (
         architecture.get("parameters")
-        != cpv.OfflineCapacityPolicyValue.parameter_count()
-        or architecture.get("feature_version") != cpv.FEATURE_VERSION
+        != model_class.parameter_count()
+        or architecture.get("feature_version") != feature_version
     ):
         raise ValueError("capacity architecture drift")
+    model_variant = binding.get("model_variant")
+    if (
+        model_variant is not None
+        and architecture.get("model_variant") != model_variant
+    ):
+        raise ValueError("capacity model variant drift")
+    model_schema = binding.get("model_schema")
+    if model_schema is not None and architecture.get("schema") != model_schema:
+        raise ValueError("capacity model schema drift")
+    if (
+        model_variant is not None
+        and protocol.get("result_schema") != binding["result_schema"]
+    ):
+        raise ValueError("capacity result schema drift")
 
     input_bindings = {
         "live_nnue": args.live_nnue,
@@ -304,7 +383,10 @@ def _loss(
     args: argparse.Namespace,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     batch = cpv.make_batch(
-        groups, device, pad_moves_to=pad_moves_to
+        groups,
+        device,
+        pad_moves_to=pad_moves_to,
+        include_child_planes=model.requires_child_planes,
     )
     combined, residual, parent_value = model(batch)
     return cpv.policy_value_loss(
@@ -564,14 +646,24 @@ def _sentinel_gate(
 
 
 def run(args: argparse.Namespace) -> dict[str, object]:
+    binding = _protocol_binding(args.protocol)
     protocol = _verify_protocol(args)
     objective = protocol.get("objective", cpv.OBJECTIVE_V1)
     if not isinstance(objective, str):
         raise ValueError("capacity objective binding is malformed")
-    result_schema = (
-        RESULT_SCHEMA_V2
-        if objective == cpv.OBJECTIVE_V2
-        else RESULT_SCHEMA
+    result_schema = binding.get("result_schema")
+    model_class = binding.get("model_class")
+    feature_version = binding.get("feature_version")
+    if (
+        not isinstance(result_schema, str)
+        or not isinstance(model_class, type)
+        or not issubclass(model_class, cpv.OfflineCapacityPolicyValue)
+        or not isinstance(feature_version, str)
+    ):
+        raise ValueError("capacity execution binding is malformed")
+    last_checkpoint_metadata = _last_checkpoint_model_metadata(binding)
+    best_checkpoint_metadata = _checkpoint_model_metadata(
+        binding, detailed=True
     )
     if args.seed not in (42, 314159):
         raise ValueError("capacity model seed is not registered")
@@ -630,7 +722,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         ):
             raise ValueError("first capacity seed did not authorize replication")
         if objective == cpv.OBJECTIVE_V2 and (
-            first.get("schema") != RESULT_SCHEMA_V2
+            first.get("schema") != result_schema
             or first.get("objective") != objective
             or first.get("protocol") != protocol["protocol"]
         ):
@@ -653,7 +745,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     else:
         torch.manual_seed(args.sentinel_seed)
         random.seed(args.sentinel_seed)
-        sentinel_model = cpv.OfflineCapacityPolicyValue().to(args.device)
+        sentinel_model = model_class().to(args.device)
         sentinel_optimizer = torch.optim.AdamW(
             sentinel_model.parameters(),
             lr=args.lr,
@@ -716,7 +808,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
 
     torch.manual_seed(args.seed)
     random.seed(args.seed)
-    model = cpv.OfflineCapacityPolicyValue().to(args.device)
+    model = model_class().to(args.device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
@@ -776,7 +868,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         _atomic_torch_save(
             output / "last.pt",
             {
-                "schema": cpv.SCHEMA,
+                **last_checkpoint_metadata,
                 **(
                     {"objective": objective}
                     if objective == cpv.OBJECTIVE_V2
@@ -807,9 +899,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     _atomic_torch_save(
         output / "best.pt",
         {
-            "schema": cpv.SCHEMA,
-            "feature_version": cpv.FEATURE_VERSION,
-            "parameters": cpv.OfflineCapacityPolicyValue.parameter_count(),
+            **best_checkpoint_metadata,
             **(
                 {"objective": objective}
                 if objective == cpv.OBJECTIVE_V2

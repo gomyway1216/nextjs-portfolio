@@ -26,7 +26,12 @@ import train
 
 
 SCHEMA = "shogi-capacity-policy-value-v1"
+CHILD_SCHEMA = "shogi-capacity-policy-value-v3"
 FEATURE_VERSION = "dense-43-plane-resnet-set-policy-v1"
+CHILD_FEATURE_VERSION = (
+    "dense-43-plane-resnet-set-policy-child16x2-v3"
+)
+CHILD_MODEL_VARIANT = "child-board-encoder-v3"
 BOARD_PLANES = 28
 HAND_PLANES = 14
 PLY_PLANES = 1
@@ -39,6 +44,10 @@ SET_LAYERS = 4
 SET_HEADS = 8
 SET_FF_DIM = 1024
 MOVE_INPUT_DIM = 721
+CHILD_SPATIAL_CHANNELS = 16
+CHILD_RESIDUAL_BLOCKS = 2
+CHILD_GLOBAL_DIM = 128
+CHILD_MOVE_INPUT_DIM = MOVE_INPUT_DIM + CHILD_GLOBAL_DIM
 CP_SCALE = 600.0
 TARGET_CLAMP_CP = 3_000.0
 HAND_MAXIMA = (18.0, 4.0, 4.0, 4.0, 4.0, 2.0, 2.0) * 2
@@ -81,8 +90,91 @@ class SpatialResidualBlock(nn.Module):
         return F.gelu(residual + value)
 
 
+class ChildSpatialResidualBlock(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(
+            CHILD_SPATIAL_CHANNELS,
+            CHILD_SPATIAL_CHANNELS,
+            3,
+            padding=1,
+            bias=False,
+        )
+        self.norm1 = nn.GroupNorm(4, CHILD_SPATIAL_CHANNELS)
+        self.conv2 = nn.Conv2d(
+            CHILD_SPATIAL_CHANNELS,
+            CHILD_SPATIAL_CHANNELS,
+            3,
+            padding=1,
+            bias=False,
+        )
+        self.norm2 = nn.GroupNorm(4, CHILD_SPATIAL_CHANNELS)
+
+    def forward(self, value: torch.Tensor) -> torch.Tensor:
+        residual = value
+        value = F.gelu(self.norm1(self.conv1(value)))
+        value = self.norm2(self.conv2(value))
+        return F.gelu(residual + value)
+
+
+class ChildBoardEncoder(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stem = nn.Conv2d(
+            INPUT_PLANES,
+            CHILD_SPATIAL_CHANNELS,
+            3,
+            padding=1,
+            bias=False,
+        )
+        self.stem_norm = nn.GroupNorm(4, CHILD_SPATIAL_CHANNELS)
+        self.blocks = nn.ModuleList(
+            ChildSpatialResidualBlock()
+            for _ in range(CHILD_RESIDUAL_BLOCKS)
+        )
+        self.projection = nn.Linear(
+            CHILD_SPATIAL_CHANNELS * 81,
+            CHILD_GLOBAL_DIM,
+        )
+        self.output_norm = nn.LayerNorm(CHILD_GLOBAL_DIM)
+
+    def forward(
+        self,
+        planes: torch.Tensor,
+        valid: torch.Tensor,
+    ) -> torch.Tensor:
+        if planes.ndim != 5 or planes.shape[-3:] != (
+            INPUT_PLANES,
+            9,
+            9,
+        ):
+            raise ValueError("child-board planes have an invalid shape")
+        batch_size, move_count = planes.shape[:2]
+        if valid.shape != (batch_size, move_count):
+            raise ValueError("child-board validity mask has an invalid shape")
+        flat_valid = valid.flatten()
+        value = planes.flatten(0, 1)[flat_valid]
+        value = F.gelu(self.stem_norm(self.stem(value)))
+        for block in self.blocks:
+            value = block(value)
+        value = self.output_norm(
+            self.projection(value.flatten(start_dim=1))
+        )
+        encoded = value.new_zeros(
+            (batch_size * move_count, CHILD_GLOBAL_DIM)
+        )
+        encoded = encoded.index_copy(
+            0,
+            flat_valid.nonzero().squeeze(1),
+            value,
+        )
+        return encoded.reshape(batch_size, move_count, CHILD_GLOBAL_DIM)
+
+
 class OfflineCapacityPolicyValue(nn.Module):
     """Approximately six-million-parameter offline policy/value model."""
+
+    requires_child_planes = False
 
     def __init__(self) -> None:
         super().__init__()
@@ -232,6 +324,107 @@ class OfflineCapacityPolicyValue(nn.Module):
         return combined_cp, residual_cp, parent_value_cp
 
 
+class OfflineChildBoardCapacityPolicyValue(OfflineCapacityPolicyValue):
+    """v3 capacity model with one shared encoder over every child board."""
+
+    requires_child_planes = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.child_board_encoder = ChildBoardEncoder()
+        self.move_projection = nn.Linear(
+            CHILD_MOVE_INPUT_DIM,
+            MOVE_DIM,
+        )
+        for module in (
+            *self.child_board_encoder.modules(),
+            self.move_projection,
+        ):
+            if isinstance(module, (nn.Conv2d, nn.Linear)):
+                nn.init.kaiming_uniform_(module.weight, a=math.sqrt(5))
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+    @staticmethod
+    def parameter_count() -> int:
+        model = OfflineChildBoardCapacityPolicyValue()
+        return sum(parameter.numel() for parameter in model.parameters())
+
+    def forward(
+        self, batch: Mapping[str, torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        planes = batch["parent_planes"]
+        spatial = F.gelu(self.stem_norm(self.stem(planes)))
+        for block in self.spatial_blocks:
+            spatial = block(spatial)
+        global_features = self.global_norm(
+            self.global_projection(spatial.flatten(start_dim=1))
+        )
+
+        batch_size, move_count = batch["from_square"].shape
+        flat_spatial = spatial.flatten(start_dim=2).transpose(1, 2)
+        to_features = flat_spatial.gather(
+            1,
+            batch["to_square"].unsqueeze(-1).expand(
+                batch_size, move_count, SPATIAL_CHANNELS
+            ),
+        )
+        from_indices = batch["from_square"].clamp(max=80)
+        from_features = flat_spatial.gather(
+            1,
+            from_indices.unsqueeze(-1).expand(
+                batch_size, move_count, SPATIAL_CHANNELS
+            ),
+        )
+        from_features = torch.where(
+            (batch["from_square"] == 81).unsqueeze(-1),
+            self.drop_source.view(1, 1, -1),
+            from_features,
+        )
+        expanded_global = global_features.unsqueeze(1).expand(
+            -1, move_count, -1
+        )
+        child_features = self.child_board_encoder(
+            batch["child_planes"],
+            batch["valid"],
+        )
+        move_inputs = torch.cat(
+            (
+                expanded_global,
+                from_features,
+                to_features,
+                self.from_square(batch["from_square"]),
+                self.to_square(batch["to_square"]),
+                self.moved_piece(batch["moved_piece"]),
+                self.captured_piece(batch["captured_piece"]),
+                self.action(batch["action"]),
+                self.delta_file(batch["delta_file"]),
+                self.delta_rank(batch["delta_rank"]),
+                self.self_king_relation(batch["self_king_relation"]),
+                self.enemy_king_relation(batch["enemy_king_relation"]),
+                self.ply_bucket(batch["ply_bucket"]),
+                torch.tanh(batch["base_cp"] / 3_000.0).unsqueeze(-1),
+                child_features,
+            ),
+            dim=-1,
+        )
+        if move_inputs.shape[-1] != CHILD_MOVE_INPUT_DIM:
+            raise ValueError(
+                "child-board capacity move feature width changed: "
+                f"{move_inputs.shape[-1]}"
+            )
+        tokens = F.gelu(self.move_norm(self.move_projection(move_inputs)))
+        valid = batch["valid"]
+        tokens = tokens.masked_fill(~valid.unsqueeze(-1), 0.0)
+        tokens = self.move_set(tokens, src_key_padding_mask=~valid)
+        tokens = self.move_set_norm(tokens)
+        residual_cp = self.policy_output(tokens).squeeze(-1) * CP_SCALE
+        residual_cp = residual_cp.masked_fill(~valid, 0.0)
+        combined_cp = batch["base_cp"] + residual_cp
+        parent_value_cp = self.state_value(global_features).squeeze(-1) * CP_SCALE
+        return combined_cp, residual_cp, parent_value_cp
+
+
 def _parent_planes(group: lpv.ParentGroup) -> torch.Tensor:
     planes = torch.zeros((INPUT_PLANES, 9, 9), dtype=torch.float32)
     for feature in group.parent_board:
@@ -258,11 +451,37 @@ def _parent_planes(group: lpv.ParentGroup) -> torch.Tensor:
     return planes
 
 
+def _child_planes(child_sfen: str) -> torch.Tensor:
+    board, hands, _turn, _king = train.parse_sfen(child_sfen)
+    planes = torch.zeros((INPUT_PLANES, 9, 9), dtype=torch.float32)
+    for feature in board:
+        if not 0 <= feature < train.BOARD_FEATS:
+            raise ValueError("child board contains an invalid feature")
+        piece_plane, square = divmod(feature, 81)
+        if planes[piece_plane, square // 9, square % 9] != 0:
+            raise ValueError("child board contains two pieces on one square")
+        planes[piece_plane, square // 9, square % 9] = 1.0
+    for index, (count, maximum) in enumerate(
+        zip(hands, HAND_MAXIMA, strict=True)
+    ):
+        if not math.isfinite(count) or count < 0:
+            raise ValueError("child hand count is invalid")
+        if count > maximum:
+            raise ValueError("child hand count exceeds the physical maximum")
+        planes[BOARD_PLANES + index].fill_(float(count) / maximum)
+    ply = int(child_sfen.split()[3]) - 1
+    if ply < 0:
+        raise ValueError("child SFEN has an invalid ply")
+    planes[-1].fill_(float(min(ply, 255)) / 255.0)
+    return planes
+
+
 def make_batch(
     groups: Sequence[lpv.ParentGroup],
     device: str | torch.device,
     *,
     pad_moves_to: int | None = None,
+    include_child_planes: bool = False,
 ) -> dict[str, torch.Tensor]:
     base = lpv.make_batch(groups, "cpu")
     actual_moves = int(base["valid"].shape[1])
@@ -284,6 +503,29 @@ def make_batch(
     base["parent_planes"] = torch.stack(
         [_parent_planes(group) for group in groups]
     )
+    if include_child_planes:
+        padded_moves = int(base["valid"].shape[1])
+        child_planes = torch.zeros(
+            (
+                len(groups),
+                padded_moves,
+                INPUT_PLANES,
+                9,
+                9,
+            ),
+            dtype=torch.float32,
+        )
+        for group_index, group in enumerate(groups):
+            encoded = torch.stack(
+                [
+                    _child_planes(example.child_sfen)
+                    for example in group.examples
+                ]
+            )
+            child_planes[
+                group_index, : len(group.examples)
+            ] = encoded
+        base["child_planes"] = child_planes
     return {key: value.to(device) for key, value in base.items()}
 
 
@@ -466,7 +708,13 @@ def score_groups(
     with torch.no_grad():
         for start in range(0, len(groups), parent_batch_size):
             selected = groups[start : start + parent_batch_size]
-            batch = make_batch(selected, device)
+            batch = make_batch(
+                selected,
+                device,
+                include_child_planes=bool(
+                    model is not None and model.requires_child_planes
+                ),
+            )
             prediction = (
                 batch["base_cp"]
                 if model is None

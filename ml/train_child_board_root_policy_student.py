@@ -1062,17 +1062,19 @@ class DistillationShardStore:
                         str(row["parent_id"]),
                     )
                 )
-        if (
-            receipt.get("schema") != DISTILLATION_SHARD_RECEIPT_SCHEMA
-            or receipt.get("shard") != shard
-            or receipt.get("content_address") != address
-            or receipt.get("parents") != len(parent_keys)
-            or receipt.get("parent_keys") != [list(row) for row in parent_keys]
-            or receipt.get("artifact") != actual
-            or observed_keys != list(parent_keys)
-            or receipt.get("production_move_universe")
-            != self.move_universe_receipt
-        ):
+        expected = {
+            "schema": DISTILLATION_SHARD_RECEIPT_SCHEMA,
+            "status": "complete-immutable",
+            "shard": shard,
+            "content_address": address,
+            "parents": len(parent_keys),
+            "parent_keys": [list(row) for row in parent_keys],
+            "artifact": actual,
+            "teacher": self.teacher_identity,
+            "protocol": self.protocol_identity,
+            "production_move_universe": self.move_universe_receipt,
+        }
+        if receipt != expected or observed_keys != list(parent_keys):
             raise ValueError(f"distillation shard receipt mismatch {shard}")
         return receipt
 

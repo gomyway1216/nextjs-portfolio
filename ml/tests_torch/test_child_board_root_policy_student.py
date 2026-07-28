@@ -500,6 +500,56 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             ):
                 runner.run("prepare")
             load.assert_not_called()
+    def test_shard_receipt_requires_full_expected_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = runner.DistillationShardStore(
+                root,
+                protocol_identity={
+                    "path": "protocol.json",
+                    "bytes": 1,
+                    "sha256": "a" * 64,
+                },
+                teacher_identity={
+                    "path": "teacher.pt",
+                    "bytes": 2,
+                    "sha256": "b" * 64,
+                },
+                fit_sources={"sha256": "c" * 64},
+                feature_sources=[{"sha256": "d" * 64}],
+                move_universe_receipt={
+                    "schema": runner.MOVE_UNIVERSE_RECEIPT_SCHEMA,
+                    "artifact": {
+                        "path": "move-universe.jsonl",
+                        "bytes": 3,
+                        "sha256": "e" * 64,
+                    },
+                },
+            )
+            shard = runner.shard_for_parent("browser", "parent")
+            keys = [("browser", "parent")]
+            store.publish(
+                shard,
+                keys,
+                [
+                    {
+                        "schema": runner.DISTILLATION_SCHEMA,
+                        "domain": "browser",
+                        "parent_id": "parent",
+                        "production_usi": ["5d4c+"],
+                        "projection_removals": [],
+                    }
+                ],
+            )
+            _path, receipt_path, _address = store.paths(shard, keys)
+            receipt = runner._strict_json(receipt_path)
+            receipt["status"] = "complete-but-unbound"
+            receipt_path.write_bytes(runner._canonical_json(receipt))
+            with self.assertRaisesRegex(
+                ValueError,
+                "distillation shard receipt mismatch",
+            ):
+                store.validate(shard, keys)
 
     def test_exact_resume_takes_next_epoch_and_matches_uninterrupted(self):
         group = synthetic_group(

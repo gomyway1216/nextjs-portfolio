@@ -85,6 +85,56 @@ class _Student(torch.nn.Module):
 
 
 class TuneScoreBundleBuilderTest(unittest.TestCase):
+    def test_loaders_accept_torch_ordered_state_dicts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            teacher_path = root / "teacher.pt"
+            teacher = BUILDER.cpv.OfflineChildBoardCapacityPolicyValue()
+            torch.save(
+                {
+                    "seed": 42,
+                    "parameters": 6_168_130,
+                    "model": teacher.state_dict(),
+                },
+                teacher_path,
+            )
+            loaded_teacher = BUILDER._load_teacher(
+                {
+                    "path": str(teacher_path),
+                    "bytes": teacher_path.stat().st_size,
+                    "sha256": "unused-by-loader",
+                },
+                seed=42,
+                device="cpu",
+            )
+            self.assertFalse(loaded_teacher.training)
+
+            student_path = root / "student.pt"
+            frozen_student = BUILDER.student.ChildBoardRootPolicyStudent()
+            torch.save(
+                {
+                    "checkpoint_schema": (
+                        "shogi-child-board-root-policy-student-"
+                        "final-checkpoint-v1"
+                    ),
+                    "schema": BUILDER.student.SCHEMA,
+                    "parameters": BUILDER.student.PARAMETERS,
+                    "phase": "mixed",
+                    "completed_epoch": 12,
+                    "model": frozen_student.state_dict(),
+                },
+                student_path,
+            )
+            loaded_student = BUILDER._load_student(
+                {
+                    "path": str(student_path),
+                    "bytes": student_path.stat().st_size,
+                    "sha256": "unused-by-loader",
+                },
+                device="cpu",
+            )
+            self.assertFalse(loaded_student.training)
+
     def test_scores_all_four_roles_on_identical_projected_moves(self):
         groups = {
             "browser_tune": [_group("browser-parent")],

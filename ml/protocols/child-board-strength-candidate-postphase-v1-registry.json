@@ -10,8 +10,8 @@
   },
   "student_protocol": {
     "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
-    "prebind_bytes": 57496,
-    "prebind_sha256": "e011bfd0d415ef580d80983e33bd88fd970af92d2c944dddd01784160d61fc47",
+    "bytes": 65314,
+    "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0",
     "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
   },
   "binding_receipt": {
@@ -26,6 +26,11 @@
     },
     "tune": {
       "root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune",
+      "artifact_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/artifacts.json",
+      "score_bundle": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle.jsonl",
+      "score_bundle_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle-receipt.json",
+      "opened_marker": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/opened.json",
+      "pending_result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/pending-result.json",
       "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/result.json",
       "result_schema": "shogi-child-board-strength-candidate-tune-result-v1"
     },
@@ -36,13 +41,20 @@
       "selected_parent_ids": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/selected-parent-ids.txt",
       "selection_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/selection-receipt.json",
       "label_shards_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/label-shards",
+      "label_shard_receipts_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/label-shard-receipts",
       "labels": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/labels.jsonl",
       "label_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/label-receipt.json",
+      "artifact_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/artifacts.json",
+      "score_bundle": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/score-bundle.jsonl",
+      "score_bundle_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/score-bundle-receipt.json",
+      "opened_marker": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/opened.json",
+      "pending_result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/pending-result.json",
       "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-sealed512/result.json",
       "schemas": {
         "clean_derivative_receipt": "shogi-child-board-strength-candidate-sealed-clean-derivative-receipt-v1",
         "selection_receipt": "shogi-child-board-strength-candidate-sealed-selection-receipt-v1",
         "label_shard": "shogi-child-board-strength-candidate-sealed-label-shard-v1",
+        "label_shard_receipt": "shogi-child-board-strength-candidate-sealed-label-shard-receipt-v1",
         "label_receipt": "shogi-child-board-strength-candidate-sealed-label-receipt-v1",
         "result": "shogi-child-board-strength-candidate-sealed-result-v1"
       }
@@ -78,11 +90,7 @@
     "resume": "before candidate inference, retain only exact valid immutable shards and generate missing shards; any final-path mismatch stops the lane"
   },
   "metric_definitions": {
-    "artifacts": [
-      "seed42_teacher",
-      "seed314159_teacher",
-      "frozen_student"
-    ],
+    "artifacts": ["seed42_teacher", "seed314159_teacher", "frozen_student"],
     "reference": "exact live NNUE root ordering",
     "teacher_best_set": "all legal moves tied at the maximum depth-12 teacher CP",
     "candidate_top1_tie": {
@@ -95,6 +103,11 @@
       "correct": "the candidate score difference has the same strict sign as the teacher score difference",
       "candidate_tie": "incorrect",
       "aggregation": "micro-average correct eligible pairs over all parents"
+    },
+    "mean_regret_cp": {
+      "per_parent": "teacher-best CP minus the minimum teacher CP among all moves tied for maximum candidate combined CP",
+      "candidate_tie": "teacher-worst maximum-candidate-CP move is used",
+      "aggregation": "arithmetic mean over parents"
     },
     "ndcg_at_5": {
       "teacher_relevance": "exp(clamp(teacher_cp - teacher_best_cp, -1200, 0) / 100)",
@@ -117,6 +130,141 @@
       "continuity_correction": false,
       "maximum_p": 0.05,
       "exact_pass_comparison": "20 * sum(comb(n,k), k=b..n) <= 2**n"
+    }
+  },
+  "execution_contract": {
+    "artifact_names": [
+      "seed42_teacher",
+      "seed314159_teacher",
+      "frozen_student"
+    ],
+    "reference_name": "exact_live",
+    "artifact_receipt_schema": "shogi-child-board-strength-candidate-artifact-set-v1",
+    "score_row_schema": "shogi-child-board-strength-candidate-score-row-v1",
+    "score_bundle_receipt_schema": "shogi-child-board-strength-candidate-score-bundle-receipt-v1",
+    "score_bundle_receipt": {
+      "source_receipts": "exact domain-name mapping to path/bytes/SHA-256 identities for the authenticated tune partitions or final sealed label receipt",
+      "artifact_receipt_sha256": "SHA-256 of the exact frozen four-role artifact receipt",
+      "bundle": "path/bytes/SHA-256 of the complete canonically ordered score bundle",
+      "completeness": "exact registered domain order and parent count plus the actual total move-row count"
+    },
+    "score_row": {
+      "exact_keys": [
+        "schema",
+        "domain",
+        "parent_id",
+        "move",
+        "teacher_cp",
+        "scores"
+      ],
+      "score_keys": [
+        "exact_live",
+        "seed42_teacher",
+        "seed314159_teacher",
+        "frozen_student"
+      ],
+      "ordering": "domain order fixed by lane, then parent_id and move ascending by UTF-8 bytes",
+      "completeness": "each parent has at least two unique legal USI moves and every score key exactly once per move"
+    },
+    "one_shot_publication": {
+      "opened_marker": "create-only before the first protected score-bundle byte is read",
+      "pending_result": "complete result bytes are atomically create-only published before terminal result",
+      "terminal_result": "atomically create-only publish the validated pending result without reopening a protected score bundle",
+      "recovery": "existing terminal result is validation-only; pending result permits terminalize-only recovery; opened marker without pending or terminal result closes the lane",
+      "partial_metrics_displayed": false,
+      "rerun": false
+    },
+    "tune": {
+      "domains": [
+        {
+          "name": "browser_tune",
+          "parents": 196,
+          "gates": {
+            "minimum_top1_correct": 26,
+            "minimum_pair_accuracy": 0.673703888923293,
+            "maximum_mean_regret_cp": 15924.158163265307
+          }
+        },
+        {
+          "name": "v9_tune",
+          "parents": 4411,
+          "gates": {
+            "minimum_top1_correct": 1078,
+            "minimum_top1_accuracy": 0.24438902743142144,
+            "minimum_pair_accuracy": 0.5984640986597398,
+            "maximum_mean_regret_cp": 4863.386080253911
+          }
+        }
+      ],
+      "all_three_artifacts_pass_independently": true,
+      "success_status": "complete-one-shot-tune-pass-sealed-authorized",
+      "failure_status": "complete-one-shot-tune-fail-lane-closed",
+      "result_flags": {
+        "tune_opened": true,
+        "sealed_labels_generated": false,
+        "sealed_scores_opened": false,
+        "live_weights_changed": false,
+        "deployment_authorized": false
+      }
+    },
+    "sealed": {
+      "source_raw": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.raw.jsonl",
+        "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+        "bytes": 3073360,
+        "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7",
+        "parents": 4800,
+        "games": 200
+      },
+      "known_eval_union": {
+        "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+        "count": 98420,
+        "bytes": 7086240,
+        "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+        "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558"
+      },
+      "clean_derivative_expected": {
+        "bytes": 2165346,
+        "sha256": "d2285225aab6612506536931933410b8a285cc573c5bd6c8feabdd0fe7501626",
+        "parents": 3384,
+        "games": 141,
+        "game_ids_sha256": "1c02e592751f3bebca9090128318382a667fd0d2703f367b16b03f5db694e269",
+        "parent_ids_sha256": "027cf1f4973d9ad52ed449989d6d476227920075d55fe8b381f8149c26bbf9e1",
+        "position_ids_sha256": "aff5c3c1c944e8657fcefb1305797a8f8e4f1de8f3508570fa0534d70396fa79",
+        "known_eval_semantic_overlap": 0
+      },
+      "selection": {
+        "hash_domain": "capacity-sealed-v1:",
+        "maximum_parents_per_game": 4,
+        "parents": 512,
+        "ordering": "sha256(hash_domain + parent_id), then parent_id ascending by UTF-8 bytes"
+      },
+      "labeling": {
+        "teacher_receipt": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/receipt.json",
+        "teacher_receipt_schema": "shogi-browser-confusion-ranking-teacher-receipt-v2",
+        "depth": 12,
+        "legal_enumerator": "rulesCompleteLegalMoves from ml/shogi-sfen.ts",
+        "labeler": "labelAllLegalMoves from ml/build-browser-confusion-ranking-teacher.ts",
+        "candidate_order": "legal USI ascending by UTF-8 bytes"
+      },
+      "score_domain": "sealed512",
+      "parents": 512,
+      "gates": {
+        "minimum_top1_correct_gain": 26,
+        "minimum_pair_accuracy_gain": 0.01,
+        "minimum_ndcg_at_5_gain": 0.01,
+        "mcnemar_one_sided_maximum_p": 0.05
+      },
+      "all_three_artifacts_pass_independently": true,
+      "success_status": "complete-one-shot-sealed-pass-runtime-admission-authorized",
+      "failure_status": "complete-one-shot-sealed-fail-lane-closed",
+      "result_flags": {
+        "tune_opened": true,
+        "sealed_labels_generated": true,
+        "sealed_scores_opened": true,
+        "live_weights_changed": false,
+        "deployment_authorized": false
+      }
     }
   },
   "publication_rules": {

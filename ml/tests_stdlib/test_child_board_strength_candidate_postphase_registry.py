@@ -25,7 +25,7 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         cls.raw = REGISTRY_PATH.read_bytes()
         cls.document = json.loads(cls.raw)
 
-    def test_tracked_registry_and_parent_protocol_identities_are_exact(self):
+    def test_tracked_registry_and_protocol_identities_are_exact(self):
         self.assertEqual(len(self.raw), REGISTRY.REGISTRY_BYTES)
         self.assertEqual(
             hashlib.sha256(self.raw).hexdigest(),
@@ -33,6 +33,15 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         )
         validated = REGISTRY.validate_checked_in_registry(REPO_ROOT)
         self.assertEqual(validated, self.document)
+        student = self.document["student_protocol"]
+        self.assertEqual(
+            student["bytes"],
+            REGISTRY.STUDENT_PROTOCOL_BYTES,
+        )
+        self.assertEqual(
+            student["sha256"],
+            REGISTRY.STUDENT_PROTOCOL_SHA256,
+        )
 
     def test_all_previous_postphase_placeholders_are_concrete(self):
         outputs = self.document["outputs"]
@@ -52,6 +61,25 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         self.assertEqual(outputs["formal"]["pairs"], 384)
         self.assertEqual(outputs["formal"]["games"], 768)
         self.assertEqual(outputs["formal"]["pair_workers"], 12)
+        execution = self.document["execution_contract"]
+        self.assertEqual(
+            execution["score_row"]["score_keys"],
+            [
+                "exact_live",
+                "seed42_teacher",
+                "seed314159_teacher",
+                "frozen_student",
+            ],
+        )
+        self.assertEqual(
+            [domain["parents"] for domain in execution["tune"]["domains"]],
+            [196, 4411],
+        )
+        self.assertEqual(execution["sealed"]["parents"], 512)
+        self.assertIn(
+            "terminalize-only",
+            execution["one_shot_publication"]["recovery"],
+        )
 
     def test_shards_are_exactly_sixteen_consecutive_slices_of_thirty_two(self):
         shards = self.document["sealed_label_shards"]
@@ -74,6 +102,10 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         self.assertEqual(
             metrics["pair_accuracy"]["candidate_tie"],
             "incorrect",
+        )
+        self.assertIn(
+            "teacher-worst",
+            metrics["mean_regret_cp"]["candidate_tie"],
         )
         self.assertIn(
             "teacher CP ascending",

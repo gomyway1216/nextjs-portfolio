@@ -8,13 +8,13 @@ The large teacher reads child boards and the complete move set presented to it. 
 
 This protocol fixes separate roles:
 
-| Artifact | Fixed role |
-|---|---|
-| Seed-42 teacher | Fit-only distillation target |
-| Seed-314159 teacher | Replication evidence only |
-| Student | Root legal-move ordering prior only |
-| `public/shogi-nnue-weights.bin` | Sole child/leaf static evaluator |
-| Search | Selects the move and never stores student CP as a leaf/TT value |
+| Artifact                        | Fixed role                                                      |
+| ------------------------------- | --------------------------------------------------------------- |
+| Seed-42 teacher                 | Fit-only distillation target                                    |
+| Seed-314159 teacher             | Replication evidence only                                       |
+| Student                         | Root legal-move ordering prior only                             |
+| `public/shogi-nnue-weights.bin` | Sole child/leaf static evaluator                                |
+| Search                          | Selects the move and never stores student CP as a leaf/TT value |
 
 Disabling the student must restore the prior root ordering and byte-identical non-root search state.
 
@@ -35,11 +35,11 @@ Seed 42 is the distillation teacher before any score is known. Averaging, ensemb
 
 The frozen seed-42 teacher runs in eval mode on the parent fit partitions only:
 
-| Domain | Fit parents | Tune parents |
-|---|---:|---:|
-| Browser | 875 | 196 |
-| V9 | 19,264 | 4,411 |
-| Total | 20,139 | 4,607 |
+| Domain  | Fit parents | Tune parents |
+| ------- | ----------: | -----------: |
+| Browser |         875 |          196 |
+| V9      |      19,264 |        4,411 |
+| Total   |      20,139 |        4,607 |
 
 Each rules-complete legal list is first projected to the move membership that current production search actually generates. The projection removes only a non-promoting bishop or rook move when promotion is available, because production already omits that branch; every other move remains. Since the teacher consumes the move set as a whole, filtering logits from a rules-complete forward is forbidden. The projected child batch must be rebuilt and the frozen seed-42 teacher re-forwarded on that complete projected set. No teacher retraining is needed.
 
@@ -65,14 +65,14 @@ A fixed hash function assigns parents to 64 shards. Each shard publishes through
 
 Every student parameter initializes from scratch under seed `20260728`.
 
-| Component | Parameters |
-|---|---:|
-| Shared parent/child 16-channel two-block board encoder | 181,840 |
-| Move embeddings | 16,112 |
-| 593-to-256 projection plus LayerNorm | 152,576 |
-| Two 256-to-512-to-256 residual MLP blocks | 526,848 |
-| 256-to-1 output | 257 |
-| Total | **877,633** |
+| Component                                              |  Parameters |
+| ------------------------------------------------------ | ----------: |
+| Shared parent/child 16-channel two-block board encoder |     181,840 |
+| Move embeddings                                        |      16,112 |
+| 593-to-256 projection plus LayerNorm                   |     152,576 |
+| Two 256-to-512-to-256 residual MLP blocks              |     526,848 |
+| 256-to-1 output                                        |         257 |
+| Total                                                  | **877,633** |
 
 The shared board encoder runs once on the parent and once on every child in the projected production set. Parent 128, child 128, child-minus-parent 128, move embeddings 208, and `tanh(base_parent_cp/3000)` form exactly 593 features. For child-side live-NNUE integer `C`, `base_parent_cp=-C`, `residual_cp=600*output`, and `combined_parent_cp=base_parent_cp+residual_cp`; higher is better for the parent.
 
@@ -100,6 +100,14 @@ Output is fixed to `/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-polic
 Only a technical crash may resume. The latest completed-epoch atomic checkpoint must exactly validate model, optimizer, CPU/MPS RNG, seed, phase, epoch, bound protocol, distillation SHA, and both teacher hashes, then continue at the next epoch. Alternate output, scratch restart, older-epoch rollback, completed-epoch replay, checkpoint choice, and post-tune recovery are forbidden.
 
 Publishing the mixed-epoch-12 checkpoint ends training. From that point, `terminalize-only` recovery forbids optimizer creation/load, model forward, and training/protected-data reads. It may atomically publish only missing artifacts in this order: final checkpoint, 3,510,532-byte payload, manifest, validation of the already frozen parity fixture, then `result.json`. A valid final artifact is never overwritten, and the result is always last.
+
+### Padding limit correction discovered on the complete data
+
+When the completed 20,139-parent / 1,738,053-move teacher artifact reached training, first-batch construction stopped because one 318-move parent exceeded the old 272 limit. The measured maximum across the complete artifact is 333 moves, reached by the single parent `sha256:ad3c5a0a…e0c78`. This was not a teacher-label or strength failure. It was an implementation/preregistration mismatch: the padding cap from the V9-candidate-subset era survived the expansion to every production move. Optimizer steps, checkpoints, tensor, manifest, terminal result, tune, sealed, and live changes all remained zero.
+
+The base protocol, 64 shards, merged distillation, and parity fixture are not rewritten. They are already content-addressed to base-protocol SHA `6bc5478a…db0`, the teacher, fit membership, and production move universe; padding is consumed only later when student batches are built. A post-prepare / pre-first-optimizer-step amendment therefore changes only the final bucket from `272` to `384`. Before model initialization or optimizer construction, the runner authenticates both base and amendment identities, every old receipt, the exact maximum of 333, every parent at or below 384, and checkpoint absence, then creates one immutable activation receipt. Checkpoints and the terminal result record both identities. Existing labels can therefore be reused without teacher inference, while remaining honestly bound to the original data protocol rather than being relabeled as new-protocol artifacts.
+
+The single restart command on public main is `PYTHONPATH=ml ml/venv/bin/python ml/train_child_board_root_policy_student.py train`. It does not rerun `prepare`, rename shards, rewrite receipts, change output, or restart from a different lane.
 
 ## Artifacts frozen before tune
 
@@ -141,9 +149,9 @@ Parity requires:
 
 The same fixture and artifact benchmark on Apple M4 Pro with AC power, Low Power Mode off, foreground production Chromium/WASM, and one worker after 100 warmup roots:
 
-| Scope | Median | p95 | p99 | Max |
-|---|---:|---:|---:|---:|
-| Incremental student work | ≤12 ms | ≤25 ms | ≤40 ms | ≤75 ms |
+| Scope                                        | Median |    p95 |    p99 |     Max |
+| -------------------------------------------- | -----: | -----: | -----: | ------: |
+| Incremental student work                     | ≤12 ms | ≤25 ms | ≤40 ms |  ≤75 ms |
 | Full root hook including live-NNUE retrieval | ≤20 ms | ≤40 ms | ≤60 ms | ≤100 ms |
 
 Durations use monotonic `performance.now()` in the main thread and worker only. WASM is one synchronous single-thread call. After 100 warmups, one fixed 5,000-ms idle interval occurs with no explicit GC. None of the 1,024 fixture-order samples is removed. Ascending nearest rank `ceil(p*N)` uses median rank 512, p95 973, p99 1,014, and max 1,024; GC and scheduler pauses remain, and every raw duration is stored.
@@ -191,14 +199,14 @@ The 200-game external run carries complete provenance for student, NNUE, worker,
 
 ## Staged authority
 
-| Phase | A pass authorizes only |
-|---|---|
-| Teacher phase 1 | Mechanical binding of two hashes and core merge |
-| Student phase 1b | One-shot tune after fit-only student/runtime freeze |
-| Tune | Sealed labels and scoring |
-| Sealed | Parity/latency/static/no-contamination admission |
-| Runtime admission | Formal 768 with the exact adapter/registry |
-| Formal stronger gate | External 200 with exact provenance |
+| Phase                | A pass authorizes only                              |
+| -------------------- | --------------------------------------------------- |
+| Teacher phase 1      | Mechanical binding of two hashes and core merge     |
+| Student phase 1b     | One-shot tune after fit-only student/runtime freeze |
+| Tune                 | Sealed labels and scoring                           |
+| Sealed               | Parity/latency/static/no-contamination admission    |
+| Runtime admission    | Formal 768 with the exact adapter/registry          |
+| Formal stronger gate | External 200 with exact provenance                  |
 
 No phase permits a live write. Live activation still requires a separate rollback and staged-live protocol.
 

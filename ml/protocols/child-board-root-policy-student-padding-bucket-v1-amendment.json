@@ -1,0 +1,110 @@
+{
+  "schema": "shogi-child-board-root-policy-student-padding-bucket-amendment-v1",
+  "status": "post-prepare-pre-optimizer-step-amendment",
+  "recorded_date": "2026-07-28",
+  "base_protocol": {
+    "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+    "bytes": 65314,
+    "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0",
+    "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
+  },
+  "amendment": {
+    "scope": "training-padding-capacity-only",
+    "json_pointer": "/training/move_padding_buckets/6",
+    "old_value": 272,
+    "new_value": 384,
+    "effective_move_padding_buckets": [16, 32, 64, 96, 128, 192, 384],
+    "all_other_base_protocol_values_unchanged": true,
+    "model_architecture_unchanged": true,
+    "loss_and_optimizer_recipe_unchanged": true,
+    "fit_membership_and_teacher_targets_unchanged": true,
+    "runtime_semantics_unchanged": true
+  },
+  "failure_evidence": {
+    "failure_phase": "training-batch-construction-before-first-optimizer-step",
+    "observed_exception": "parent has 318 moves above the registered maximum",
+    "registered_maximum": 272,
+    "complete_prepared_artifact_measured_maximum": 333,
+    "safe_replacement_boundary": 384,
+    "maximum_parent_ids": [
+      "sha256:ad3c5a0afb5f78a1b3594964546c7abfd6e8bc08bab1891b62793d04129e0c78"
+    ],
+    "maximum_parent_ids_sha256": "b9e63aff2444341c91727d1b8ea2dd6536851a6387e0816d26dd29074f6061b7"
+  },
+  "prepared_artifacts": {
+    "production_move_universe": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/production-root-move-universe.jsonl",
+      "bytes": 565336695,
+      "sha256": "e229b6c7d52f322a1ee33f75dce33152ab13f09b1d935695f8835af89cc98c89"
+    },
+    "production_move_universe_receipt": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/production-root-move-universe.receipt.json",
+      "bytes": 3245,
+      "sha256": "73e83f786f0ca6116d1ddb745cb8a90240d5c54673542a329415b3fb19b845de"
+    },
+    "distillation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/fit-distillation.seed42.jsonl",
+      "bytes": 560731404,
+      "sha256": "e06127ca3ba280da5d93465770ff39879d1ec29a89a2263dcf977d12543cd7e0"
+    },
+    "distillation_receipt": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/fit-distillation.seed42.receipt.json",
+      "bytes": 1916570,
+      "sha256": "ff7bb57f3bfadd2a7d052da9bf35a917e6116e6d8a5f27928458af2925aff4dc"
+    },
+    "parity_fixture": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/parity-1024.fit-only.jsonl",
+      "bytes": 29342548,
+      "sha256": "592ec6f7f11cc40197c6f03bce10ed1f380a0cafa881cf04cb8e9dcc6115a067"
+    },
+    "parity_receipt": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/parity-1024.fit-only.receipt.json",
+      "bytes": 911,
+      "sha256": "9c4f051592471bee371522eaa98f34d107413bb82a5a7c83389794cc61b5e811"
+    },
+    "parents": 20139,
+    "production_moves": 1738053,
+    "teacher_checkpoint_reads_complete": true,
+    "teacher_inference_complete": true
+  },
+  "reuse_contract": {
+    "teacher_inference_rerun": false,
+    "artifact_or_receipt_rewrite": false,
+    "content_address_rewrite": false,
+    "justification": "padding capacity is consumed only after authenticated distillation rows are loaded; it cannot change production membership, child features, live-NNUE bases, teacher outputs, shard membership, shard content addresses, the merged distillation artifact, or parity selection",
+    "required_validation": [
+      "authenticate the unchanged base protocol",
+      "authenticate all 64 original shard artifacts and receipts against the base protocol",
+      "authenticate the merged distillation and parity artifacts and receipts",
+      "measure every prepared parent width and require maximum exactly 333",
+      "require every width at most 384",
+      "publish one create-only amendment activation receipt before model initialization or optimizer creation"
+    ]
+  },
+  "pre_optimizer_state": {
+    "optimizer_steps_completed": 0,
+    "checkpoint_files_present": 0,
+    "final_tensor_present": false,
+    "final_manifest_present": false,
+    "terminal_result_present": false,
+    "activation_receipt_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/padding-bucket-v1-activation.receipt.json"
+  },
+  "protected_state": {
+    "tune_opened": false,
+    "sealed_opened": false,
+    "replication_teacher_used_for_training": false,
+    "direct_or_external_games": 0,
+    "live_weights_changed": false,
+    "deployment_authorized": false
+  },
+  "authority": {
+    "authorizes": "one continuation of the unchanged fit-only student training from the authenticated prepared artifacts with final padding bucket 384",
+    "tune": false,
+    "sealed": false,
+    "runtime_admission": false,
+    "formal": false,
+    "external": false,
+    "deployment": false,
+    "live_weights_write": false
+  }
+}

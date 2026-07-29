@@ -156,9 +156,19 @@ def partition_sources(
     }
 
 
-def move_bucket(group: lpv.ParentGroup) -> int:
+def move_bucket(
+    group: lpv.ParentGroup,
+    *,
+    boundaries: Sequence[int] = MOVE_BUCKETS,
+) -> int:
     count = len(group.examples)
-    for boundary in MOVE_BUCKETS:
+    if (
+        not boundaries
+        or any(type(value) is not int or value <= 0 for value in boundaries)
+        or tuple(boundaries) != tuple(sorted(set(boundaries)))
+    ):
+        raise ValueError("invalid move padding boundaries")
+    for boundary in boundaries:
         if count <= boundary:
             return boundary
     raise ValueError(f"parent has {count} moves above the registered maximum")
@@ -170,12 +180,15 @@ def bucketed_batches(
     epoch: int,
     seed: int,
     maximum_parents: int,
+    move_buckets: Sequence[int] = MOVE_BUCKETS,
 ) -> list[tuple[int, list[lpv.ParentGroup]]]:
     if not groups or epoch < 0 or seed < 0 or maximum_parents <= 0:
         raise ValueError("invalid capacity bucketed-batch controls")
     buckets: dict[int, list[lpv.ParentGroup]] = {}
     for group in groups:
-        buckets.setdefault(move_bucket(group), []).append(group)
+        buckets.setdefault(
+            move_bucket(group, boundaries=move_buckets), []
+        ).append(group)
     batches: list[tuple[int, list[lpv.ParentGroup]]] = []
     for boundary in sorted(buckets):
         selected = sorted(

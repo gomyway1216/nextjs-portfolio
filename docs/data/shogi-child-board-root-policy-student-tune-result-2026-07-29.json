@@ -1,0 +1,350 @@
+{
+  "schema": "shogi-child-board-root-policy-student-tune-public-summary-v1",
+  "recorded_at": "2026-07-29T15:22:15-07:00",
+  "status": "complete-one-shot-tune-fail-lane-closed",
+  "decision": {
+    "tune_passed": false,
+    "deployment_authorized": false,
+    "stronger_than_live_claimed": false,
+    "high_dan_claimed": false,
+    "rerun_authorized": false,
+    "threshold_change_authorized": false,
+    "alternate_artifact_authorized": false
+  },
+  "source_results": {
+    "tune_result": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/result.json",
+      "bytes": 3678,
+      "sha256": "65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399",
+      "schema": "shogi-child-board-strength-candidate-tune-result-v1"
+    },
+    "pending_result": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/pending-result.json",
+      "bytes": 3678,
+      "sha256": "65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399",
+      "byte_identical_to_tune_result": true
+    },
+    "score_bundle_receipt": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle-receipt.json",
+      "bytes": 908,
+      "sha256": "9ec56c416264ff694c1b7a7b22e9aa1bc962027b17ca5e7cd860b232884ca206"
+    },
+    "score_bundle": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle.jsonl",
+      "bytes": 23409640,
+      "sha256": "2b1f5a4b5f3a1b1dd866022259b6863343d8bcb7d18b8093fb17c764a8cbe299"
+    },
+    "artifact_receipt": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/artifacts.json",
+      "bytes": 1150,
+      "sha256": "5c698efbfd9a973ada9c350fc755298e73b882cd4a13f44f780188ce2b20bda0"
+    }
+  },
+  "workload": {
+    "parents": 4607,
+    "rows": 67870,
+    "domains": {
+      "browser_tune": {
+        "parents": 196,
+        "source_sha256": "7e581727cbbef649a829a46fbdd62070837876921c7bd9460b1caecb4a2b75ea"
+      },
+      "v9_tune": {
+        "parents": 4411,
+        "source_sha256": "09051ee44b484bb09d5bca625f69fa5da27cc87969309fa908da93ce37d7171c"
+      }
+    }
+  },
+  "preregistered_gates": {
+    "browser_tune": {
+      "minimum_top1_correct": 26,
+      "minimum_pair_accuracy": 0.673703888923293,
+      "maximum_mean_regret_cp": 15924.158163265307
+    },
+    "v9_tune": {
+      "minimum_top1_correct": 1078,
+      "minimum_top1_accuracy": 0.24438902743142144,
+      "minimum_pair_accuracy": 0.5984640986597398,
+      "maximum_mean_regret_cp": 4863.386080253911
+    },
+    "all_three_artifacts_must_pass_both_domains": true
+  },
+  "independent_recalculation_audit": {
+    "implementation": "independent-stdlib-parser-and-metric-recalculation",
+    "score_rows_recomputed": 67870,
+    "score_rows_matched": 67870,
+    "domain_rows": {
+      "browser_tune": 16564,
+      "v9_tune": 51306
+    },
+    "checks": {
+      "source_rows_missing": 0,
+      "exact_live_cp_mismatches": 0,
+      "teacher_cp_mismatches": 0,
+      "membership_differences": 0,
+      "all_result_metrics": "pass-exact-except-ndcg-addition-order-at-about-1e-15",
+      "score_orientation": "pass",
+      "artifact_sha_binding": "pass",
+      "student_export": "pass",
+      "protected_overlap": "pass"
+    },
+    "orientation_cross_check": {
+      "browser_pair_accuracy_normal": {
+        "exact_live": 0.6654953890718718,
+        "seed42_teacher": 0.6050011668667582,
+        "seed314159_teacher": 0.5709683550546983,
+        "frozen_student": 0.564729828242025
+      },
+      "browser_pair_accuracy_sign_reversed": {
+        "exact_live": 0.333606,
+        "seed42_teacher": 0.394999,
+        "seed314159_teacher": 0.429032,
+        "frozen_student": 0.43527
+      },
+      "v9_pair_accuracy_normal": {
+        "exact_live": 0.5984640986597398,
+        "seed42_teacher": 0.5901198832752695,
+        "seed314159_teacher": 0.5770614219108725,
+        "frozen_student": 0.5760950014849875
+      },
+      "v9_pair_accuracy_sign_reversed": {
+        "exact_live": 0.400008,
+        "seed42_teacher": 0.40988,
+        "seed314159_teacher": 0.422934,
+        "frozen_student": 0.423905
+      }
+    },
+    "artifact_integrity": {
+      "exact_live": {
+        "bytes": 1185988,
+        "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+      },
+      "seed42_teacher": {
+        "bytes": 24720230,
+        "sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a"
+      },
+      "seed314159_teacher": {
+        "bytes": 24720794,
+        "sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293"
+      },
+      "frozen_student_checkpoint": {
+        "bytes": 3531993,
+        "sha256": "1ae807988f2299b166d9fbf3fcfbad797539ff3bd8ae68dd67a0dc41c48e00e5",
+        "parameters": 877633,
+        "tensors": 47
+      },
+      "frozen_student_runtime_tensor": {
+        "bytes": 3510532,
+        "sha256": "bfa44796406cd1e6e0f20a3cce8b3701ab4e43b731afa3285b02269ba3898003",
+        "manifest_order_shape_offset_and_per_tensor_sha_match": true,
+        "source_and_public_copies_byte_identical": true
+      },
+      "independent_checkpoint_forward": {
+        "parents": 4,
+        "moves": 427,
+        "bundle_field_mapping_match": true,
+        "maximum_mps_cpu_rounding_absolute_cp": 0.00355
+      }
+    },
+    "overlap_audit": {
+      "tune_parent_move_child_duplicates": 0,
+      "browser_v9_cross_semantic_overlap": 0,
+      "fit_parents": 20139,
+      "fit_tune_parent_id_overlap": 0,
+      "fit_tune_game_id_overlap": 0,
+      "fit_tune_semantic_id_overlap": 0,
+      "fit_internal_duplicates": 0,
+      "protected_set_sizes": [413221, 425344],
+      "known_eval_set_size": 98420,
+      "tune_protected_or_known_eval_overlaps": 0
+    },
+    "threshold_derivation_mismatch": {
+      "confirmed": true,
+      "kinds": ["tie-and-regret-accounting", "projection-population"],
+      "v9_exact_live_mean_regret_cp": {
+        "registered": 4863.386080253911,
+        "recomputed_current_reference": 5089.737701201541,
+        "delta": 226.35162094763018,
+        "membership_changed": false,
+        "maximum_score_tie_parents": 19,
+        "cause": "The historical helper selected one argmax move despite documenting pessimistic ties; the registered scorer correctly uses the teacher-worst move across the full max-score tie set."
+      },
+      "browser_projection_reference": {
+        "historical_moves_before_projection": 16879,
+        "current_moves_after_projection": 16564,
+        "nonpromoting_bishop_rook_moves_removed": 315,
+        "historical": {
+          "top1_correct": 16,
+          "pair_accuracy": 0.663703888923293,
+          "mean_regret_cp": 15924.158163265307
+        },
+        "current": {
+          "top1_correct": 19,
+          "pair_accuracy": 0.6654953890718718,
+          "mean_regret_cp": 15858.775510204081
+        },
+        "gate_effect": {
+          "top1_gain_over_current_reference": 7,
+          "pair_accuracy_gain_over_current_reference": 0.0082084998514212,
+          "mean_regret_allowance_over_current_reference_cp": 65.3826530612259,
+          "failure_made_artificially_stricter": false
+        }
+      },
+      "impact": {
+        "thresholds_directly_comparable_to_current_projection": false,
+        "result_computation_corrupted": false,
+        "current_lane_rerun_authorized": false,
+        "current_lane_failure_reversed": false,
+        "reason": "The frozen student and seed42 teacher independently remain below top1 and pair-accuracy gates in both domains; the mismatch does not repair those misses."
+      }
+    },
+    "fit_tune_population_gap": {
+      "fit_v9_original_candidate_moves": 223834,
+      "fit_v9_production_moves": 1663442,
+      "fit_v9_added_seed42_pseudolabel_moves": 1439608,
+      "fit_expansion_ratio": 7.431587694452139,
+      "fit_fraction_pseudolabel_added": 0.8654392518645074,
+      "tune_v9_candidate_subset_moves": 51306,
+      "tune_v9_added_moves": 0,
+      "classification": "coverage-limitation-not-score-computation-bug",
+      "claim_boundary": "V9 tune alone does not measure full-production move coverage."
+    }
+  },
+  "artifacts": {
+    "seed42_teacher": {
+      "sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 22,
+        "top1_accuracy": 0.11224489795918367,
+        "pair_count": 831286,
+        "pair_accuracy": 0.6050011668667582,
+        "ndcg_at_5": 0.33942771400677146,
+        "mean_regret_cp": 15923.525510204081
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 996,
+        "top1_accuracy": 0.225799138517343,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5901198832752695,
+        "ndcg_at_5": 0.5727218720708817,
+        "mean_regret_cp": 9213.469961459987
+      }
+    },
+    "seed314159_teacher": {
+      "sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 13,
+        "top1_accuracy": 0.0663265306122449,
+        "pair_count": 831286,
+        "pair_accuracy": 0.5709683550546983,
+        "ndcg_at_5": 0.30155488715735423,
+        "mean_regret_cp": 15988.979591836734
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 907,
+        "top1_accuracy": 0.20562230786669689,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5770614219108725,
+        "ndcg_at_5": 0.5556811024022296,
+        "mean_regret_cp": 7911.050328723645
+      }
+    },
+    "frozen_student": {
+      "sha256": "1ae807988f2299b166d9fbf3fcfbad797539ff3bd8ae68dd67a0dc41c48e00e5",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 16,
+        "top1_accuracy": 0.08163265306122448,
+        "pair_count": 831286,
+        "pair_accuracy": 0.564729828242025,
+        "ndcg_at_5": 0.2974346062627827,
+        "mean_regret_cp": 15991.244897959185
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 855,
+        "top1_accuracy": 0.19383359782362275,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5760950014849875,
+        "ndcg_at_5": 0.5402254873530283,
+        "mean_regret_cp": 6570.2398549081845
+      }
+    }
+  },
+  "runtime_performance_diagnostic": {
+    "authority": "non-authoritative-prototype-only-formal-latency-not-opened",
+    "reported_warm_latency_ms": {
+      "baseline": 44,
+      "prototype": 41.27
+    },
+    "relative_reduction": 0.062045454545454544,
+    "preregistered_incremental_limits_ms": {
+      "median": 12,
+      "p95": 25
+    },
+    "passed": false,
+    "formal_latency_result_created": false
+  },
+  "downstream": {
+    "sealed512_labels_generated": 0,
+    "sealed512_scores_opened": false,
+    "parity_1024_formal_invocation_executed": false,
+    "runtime_admission_executed": false,
+    "formal_games_completed": 0,
+    "formal_games_planned": 768,
+    "external_games_completed": 0,
+    "external_games_planned": 200,
+    "live_weights_changed": false,
+    "live_flags_changed": false
+  },
+  "supporting_delivery_prs": [
+    {
+      "number": 646,
+      "title": "Add root policy runtime admission runner",
+      "head_commit": "e1ce47793e3183a5b776bd274ebcf2f8b3270109",
+      "merge_commit": "9d798cb8bb2a42309d2dfe55a98bae42c0b26101",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    },
+    {
+      "number": 647,
+      "title": "Add production build output descriptor",
+      "head_commit": "c87764c7ec01f06f8a7af0c637acc731012562d2",
+      "merge_commit": "4d57426d9eb62beb9079eb394dee15014daa2dab",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    },
+    {
+      "number": 648,
+      "title": "Fix tune checkpoint state loading",
+      "head_commit": "78d9238bb52f5109df2f260d5c0c531036beb5f1",
+      "merge_commit": "dcb65982260cbe645aa06661527abc54c25dde9a",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    }
+  ],
+  "established_facts": [
+    "All 4607 parents and 67870 rows were scored and one complete atomic tune result was published.",
+    "An independent recomputation matched all 67870 score rows and found no score-orientation, artifact-SHA, student-export, or protected-overlap fault.",
+    "The independent audit confirmed tie/regret-accounting and projection-population mismatches in threshold derivation. V9 exact-live mean regret moved from the registered 4863.386080253911 cp to the current-reference 5089.737701201541 cp, while Browser reference Top-1 changed from 16 to 19.",
+    "Both frozen teachers and the frozen student failed at least one preregistered check in both domains, so the all-artifact tune gate failed.",
+    "The one-shot lane is closed. Sealed labels, formal runtime admission, 768-game formal A/B, external calibration, and live changes were not authorized or executed.",
+    "The prototype latency work did not satisfy the preregistered 12 ms median and 25 ms p95 incremental limits and was not a formal latency invocation."
+  ],
+  "inferences_not_measurements": [
+    "The threshold audit means the preregistered regret/reference values must not be described as directly comparable to the current projected population; that protocol defect must be fixed prospectively in a new lane.",
+    "Because both large teachers also failed, student compression alone cannot explain the tune failure; data, objective, projection, teacher quality, and threshold comparability require a new prospective design.",
+    "The student trailing seed42 on top1 and pair accuracy in both domains is consistent with additional compression loss, but no causal attribution is established by this result.",
+    "For delivery of a stronger live engine, compute spent on this exact candidate is sunk cost: it yielded no eligible replacement. The reusable runtime, receipt, and fail-closed evaluation infrastructure is engineering output, not playing-strength evidence.",
+    "The one-shot gate prevented a weak or mismatched candidate from being installed, but that safety value must not be described as a strength gain."
+  ]
+}

@@ -22,6 +22,11 @@ import subprocess
 from typing import Any
 import uuid
 
+from build_child_board_production_outputs import (
+    BuildOutputsError,
+    produce_production_build_outputs,
+)
+
 
 SCHEMA = "shogi-child-board-root-policy-production-build-receipt-v1"
 STATUS = "complete-production-build-frozen-tune-locked"
@@ -49,6 +54,9 @@ SOURCE_PATHS = {
     "next_config": "next.config.ts",
     "typescript_config": "tsconfig.json",
     "live_nnue": "public/shogi-nnue-weights.bin",
+    "build_output_descriptor": (
+        "ml/build_child_board_production_outputs.py"
+    ),
 }
 ENVIRONMENT_ALLOWLIST = (
     "CI",
@@ -485,6 +493,11 @@ def produce_production_build_receipt(
                 cwd=repo_root,
                 check=True,
             )
+            produce_production_build_outputs(
+                repo_root=repo_root,
+                registry=registry,
+                descriptor_path=outputs_descriptor_path,
+            )
         package = _strict_json(repo_root / "package.json", "package manifest")
         dependencies = {
             **(
@@ -589,7 +602,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             result_path=args.result,
             run_build=not args.skip_build,
         )
-    except (OSError, subprocess.CalledProcessError, BuildReceiptError) as error:
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        BuildOutputsError,
+        BuildReceiptError,
+    ) as error:
         raise SystemExit(f"production build receipt refused: {error}") from error
     print(
         json.dumps(

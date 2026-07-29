@@ -36,6 +36,7 @@ class StudentFormalFixture:
         self.ready["status"] = FORMAL.READY_STATUS
         self.ready["reason"] = "complete-runtime-admitted-formal-frozen"
         self.ready["authority"]["execution_authorized"] = True
+        self.ready["nonclaims"]["student_tensor_available"] = True
         for name in (
             "tune_passed",
             "sealed_passed",

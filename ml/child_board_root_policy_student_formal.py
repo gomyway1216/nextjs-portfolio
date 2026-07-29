@@ -68,6 +68,43 @@ _REGISTRY_TOP_LEVEL = frozenset(
     }
 )
 _IDENTITY_FIELDS = frozenset({"path", "bytes", "sha256"})
+_AUTHORITY_FIELDS = frozenset(
+    {
+        "execution_authorized",
+        "result_reader_authorized",
+        "external_calibration_authorized",
+        "production_write_authorized",
+    }
+)
+_GATE_FIELDS = frozenset(
+    {
+        "tune_passed",
+        "sealed_passed",
+        "runtime_admission_passed",
+        "all_content_identities_verified",
+        "role_adapter_single_boolean_diff_verified",
+        "stable_student_call_count_zero_verified",
+        "execution_authorized",
+        "complete_result_verified",
+        "zero_technical_faults_verified",
+        "stronger_claim_verified",
+        "external_calibration_authorized",
+        "production_write_authorized",
+    }
+)
+_NONCLAIM_FIELDS = frozenset(
+    {
+        "student_tensor_available",
+        "formal_games_started",
+        "formal_games_completed",
+        "strength_improved",
+        "high_dan_calibrated",
+        "external_calibration_authorized",
+        "live_weights_changed",
+        "production_assets_changed",
+        "production_flags_changed",
+    }
+)
 _PAIR_RESULT_UNITS = {"win": 2, "draw": 1, "loss": 0}
 _PAIR_RECEIPT_FIELDS = frozenset(
     {
@@ -291,6 +328,9 @@ def validate_registry_data(value: object) -> dict[str, Any]:
         for section in (authority, gates, enrollments, nonclaims)
     ):
         raise StudentFormalError("formal registry state sections must be objects")
+    _exact_mapping(authority, _AUTHORITY_FIELDS, "registry.authority")
+    _exact_mapping(gates, _GATE_FIELDS, "registry.gates")
+    _exact_mapping(nonclaims, _NONCLAIM_FIELDS, "registry.nonclaims")
     if registry["status"] == BLOCKED_STATUS:
         if registry["reason"] != "frozen-student-and-runtime-admission-not-enrolled":
             raise StudentFormalError("blocked formal registry reason differs")
@@ -332,6 +372,11 @@ def validate_registry_data(value: object) -> dict[str, Any]:
         if (
             type(enrollments.get("public_main_commit")) is not str
             or len(enrollments["public_main_commit"]) != 40
+            or any(
+                character not in SHA256_RE
+                for character in enrollments["public_main_commit"]
+            )
+            or enrollments["public_main_commit"] == "0" * 40
         ):
             raise StudentFormalError("READY registry commit is invalid")
         required_gates = (
@@ -345,8 +390,34 @@ def validate_registry_data(value: object) -> dict[str, Any]:
         )
         if any(gates.get(name) is not True for name in required_gates):
             raise StudentFormalError("READY registry is missing an execution gate")
-        if authority.get("execution_authorized") is not True:
-            raise StudentFormalError("READY registry does not authorize execution")
+        if authority != {
+            "execution_authorized": True,
+            "result_reader_authorized": False,
+            "external_calibration_authorized": False,
+            "production_write_authorized": False,
+        }:
+            raise StudentFormalError("READY registry authority differs")
+        result_gates = (
+            "complete_result_verified",
+            "zero_technical_faults_verified",
+            "stronger_claim_verified",
+            "external_calibration_authorized",
+            "production_write_authorized",
+        )
+        if any(gates[name] is not False for name in result_gates):
+            raise StudentFormalError("READY registry contains a result gate")
+        if nonclaims != {
+            "student_tensor_available": True,
+            "formal_games_started": 0,
+            "formal_games_completed": 0,
+            "strength_improved": False,
+            "high_dan_calibrated": False,
+            "external_calibration_authorized": False,
+            "live_weights_changed": False,
+            "production_assets_changed": False,
+            "production_flags_changed": False,
+        }:
+            raise StudentFormalError("READY registry contains a result claim")
     return dict(registry)
 
 

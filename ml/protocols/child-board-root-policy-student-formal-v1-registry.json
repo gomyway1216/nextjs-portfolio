@@ -1,0 +1,205 @@
+{
+  "schema": "shogi-child-board-root-policy-student-formal-registry-v1",
+  "status": "blocked",
+  "reason": "frozen-student-and-runtime-admission-not-enrolled",
+  "authority": {
+    "execution_authorized": false,
+    "result_reader_authorized": false,
+    "external_calibration_authorized": false,
+    "production_write_authorized": false
+  },
+  "parent_contracts": {
+    "student_plan": {
+      "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+      "bytes": 65314,
+      "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0",
+      "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
+    },
+    "strength_plan": {
+      "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
+      "bytes": 42427,
+      "sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2",
+      "schema": "shogi-child-board-strength-candidate-plan-v1"
+    },
+    "legacy_schedule_source": {
+      "registry": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-registry.json",
+        "bytes": 3480,
+        "sha256": "fbd3f8c87a046a5d5f448106434aca4861a85056d48512194818860b7e9c39b9",
+        "schema": "shogi-floodgate-formal-paired-ab-registry-v2"
+      },
+      "amendment": {
+        "path": "ml/protocols/floodgate-q1-2026-formal-paired-ab-v2-amendment.json",
+        "bytes": 4459,
+        "sha256": "3ce939d40e011503f2ab27db235de8ad144322a876f1cfcfdcea5b17b8d2157c",
+        "schema": "shogi-floodgate-formal-paired-ab-protocol-amendment-v2"
+      },
+      "inherit_only": [
+        "384 color-swapped opening pairs and 768 games",
+        "fixed depth-11 and quiescence-10 search controls",
+        "zero-fault analyzability",
+        "pair bootstrap seed 20260710 and 100000 replicates"
+      ],
+      "forbidden_inheritance": [
+        "legacy candidate NNUE identity",
+        "legacy stable NNUE identity",
+        "legacy single-weight candidate adapter",
+        "run_formal_paired_ab_v2_fixed.py"
+      ]
+    }
+  },
+  "implementation": {
+    "registry_validator_and_runner": "ml/child_board_root_policy_student_formal.py",
+    "pair_adapter": "ml/child-board-root-policy-student-formal-adapter.ts",
+    "pair_entry": "ml/run-child-board-root-policy-student-formal-pair.ts",
+    "output_root": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-formal-v1",
+    "result": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-formal-v1/result.json",
+    "result_schema": "shogi-child-board-root-policy-student-formal-result-v1",
+    "pair_receipt_schema": "shogi-child-board-root-policy-student-formal-pair-receipt-v1",
+    "candidate_adapter_schema": "shogi-child-board-root-policy-student-candidate-adapter-v1"
+  },
+  "fixed_protocol": {
+    "pairs": 384,
+    "games": 768,
+    "games_per_pair": 2,
+    "colors_per_pair": ["candidate-sente", "candidate-gote"],
+    "pair_workers": 12,
+    "search": {
+      "engine": "production-browser-wasm-v20-with-admitted-root-rank",
+      "fixed_depth": 11,
+      "quiescence_depth": 10,
+      "nnue_scale_k": 600,
+      "clear_tt_before_every_move": true,
+      "opening_book": false,
+      "fallback": false,
+      "clocks": false,
+      "maximum_plies": 512
+    },
+    "pairing": {
+      "same_opening_both_colors": true,
+      "opening_schedule_frozen_before_game_1": true,
+      "candidate_color_order": ["sente", "gote"],
+      "partial_pairs_have_no_decision_authority": true
+    },
+    "technical_fault_policy": {
+      "maximum_faults": 0,
+      "first_fault_stops_run": true,
+      "faulted_or_partial_run_has_strength_conclusion": false,
+      "same_run_retry": false
+    },
+    "decision": {
+      "acceptance_statistic": "complete-run-pair-bootstrap-only",
+      "bootstrap_seed": 20260710,
+      "bootstrap_replicates": 100000,
+      "resampling_unit": "two-game-color-swapped-opening-pair",
+      "one_sided_95_lower_rank": 5000,
+      "two_sided_95_lower_rank": 2500,
+      "safety_gate": "one-sided-95-lower-strictly-above-0.45",
+      "stronger_claim_gate": "two-sided-95-lower-strictly-above-0.50",
+      "external_requires_stronger_claim_gate": true,
+      "sequential_monitor": {
+        "method": "paired-score-sprt-diagnostic-v1",
+        "null_score": 0.45,
+        "alternative_score": 0.55,
+        "alpha": 0.05,
+        "beta": 0.05,
+        "authority": "diagnostic-only-no-early-strength-or-external-decision",
+        "reason": "the inherited contract requires all 384 complete pairs for the authoritative bootstrap"
+      }
+    }
+  },
+  "role_boundary": {
+    "shared_exact_assets": [
+      "live NNUE",
+      "student-capable worker source and emitted chunk",
+      "student-capable WASM source and emitted asset",
+      "production build manifest",
+      "master runtime config",
+      "search controls",
+      "opening schedule"
+    ],
+    "candidate": {
+      "student_enabled": true,
+      "student_tensor_reads": "required",
+      "student_inference_calls": "root-only",
+      "leaf_evaluator": "exact shared live NNUE"
+    },
+    "stable": {
+      "student_enabled": false,
+      "student_tensor_reads": 0,
+      "student_inference_calls": 0,
+      "leaf_evaluator": "exact shared live NNUE"
+    },
+    "machine_diff": "candidate and stable role adapters differ only at /student_enabled",
+    "forbidden": [
+      "separate stable build",
+      "separate candidate NNUE",
+      "student CP in leaf evaluation",
+      "student data in transposition-table values or bounds",
+      "opening book",
+      "JS fallback",
+      "network or cloud execution",
+      "live weight or asset writes"
+    ]
+  },
+  "content_addressing": {
+    "identity_fields": [
+      "resolved path",
+      "bytes",
+      "SHA-256",
+      "schema or media type",
+      "public-main Git commit",
+      "production build manifest SHA-256"
+    ],
+    "freeze_before_game_1": true,
+    "pair_request": "canonical UTF-8 JSON with final LF and SHA-256 domain separation",
+    "pair_receipt": "canonical UTF-8 JSON with final LF and SHA-256 domain separation",
+    "publication": "create-only regular file, fsync file, fsync parent directory",
+    "revalidation": "all bound assets before and after every color-swapped pair",
+    "drift": "technical fault invalidates the complete run"
+  },
+  "enrollments": {
+    "student_terminal_result": null,
+    "student_tensor": null,
+    "student_manifest": null,
+    "live_nnue": null,
+    "runtime_admission_result": null,
+    "parity_result": null,
+    "latency_result": null,
+    "master_runtime_config": null,
+    "production_build_manifest": null,
+    "worker_source": null,
+    "worker_asset": null,
+    "wasm_source": null,
+    "wasm_asset": null,
+    "opening_manifest": null,
+    "candidate_adapter": null,
+    "stable_adapter": null,
+    "public_main_commit": null
+  },
+  "gates": {
+    "tune_passed": false,
+    "sealed_passed": false,
+    "runtime_admission_passed": false,
+    "all_content_identities_verified": false,
+    "role_adapter_single_boolean_diff_verified": false,
+    "stable_student_call_count_zero_verified": false,
+    "execution_authorized": false,
+    "complete_result_verified": false,
+    "zero_technical_faults_verified": false,
+    "stronger_claim_verified": false,
+    "external_calibration_authorized": false,
+    "production_write_authorized": false
+  },
+  "nonclaims": {
+    "student_tensor_available": false,
+    "formal_games_started": 0,
+    "formal_games_completed": 0,
+    "strength_improved": false,
+    "high_dan_calibrated": false,
+    "external_calibration_authorized": false,
+    "live_weights_changed": false,
+    "production_assets_changed": false,
+    "production_flags_changed": false
+  }
+}

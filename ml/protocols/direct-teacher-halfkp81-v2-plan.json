@@ -1,0 +1,231 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v2-plan-v1",
+  "status": "prospective-pilot-preregistered-no-execution",
+  "objective": "Test one conservative HalfKP81 update trained directly on existing fit-only YaneuraOu depth-16 child CP, then decide whether the recipe deserves more data using fresh paired play instead of reopening the failed root-policy tune lane.",
+  "claim_boundary": "This protocol fixes the pilot before data publication, optimizer creation, static scoring, or paired play. A pass authorizes only a separately preregistered expanded-data stage. It cannot establish high-dan strength or authorize a live write.",
+  "inputs": {
+    "initializer": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4",
+      "role": "frozen-alpha-0.50-halfkp81-initializer"
+    },
+    "live_weights": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "role": "immutable-live-baseline-never-writable"
+    },
+    "direct_teacher_source": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+      "bytes": 236990586,
+      "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580",
+      "rows": 278736,
+      "parents": 23980,
+      "games": 1000,
+      "fit_parents": 19264,
+      "tune_parents": 4411,
+      "fit_component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32",
+      "role": "v9-fit-direct-yaneuraou-depth16-child-cp-only"
+    },
+    "spent_tune_result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-tune/result.json",
+      "bytes": 3678,
+      "sha256": "65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399",
+      "schema": "shogi-child-board-strength-candidate-tune-result-v1",
+      "status": "complete-one-shot-tune-fail-lane-closed",
+      "role": "spent-evidence-membership-exclusion-only"
+    },
+    "spent_tune_membership": {
+      "path": "ml/protocols/child-board-root-policy-student-tune-membership-v1.json",
+      "bytes": 3428,
+      "sha256": "73e5af6081ed38108fd38b0b97405bbe22f27298f961610d2797352e90cc817b",
+      "browser_tune_parents": 196,
+      "v9_tune_parents": 4411,
+      "role": "permanent-parent-and-semantic-exclusion"
+    },
+    "fresh_selection_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-selection.protected-position-ids.txt",
+      "bytes": 30624768,
+      "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+      "count": 425344,
+      "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316",
+      "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+      "role": "permanent-semantic-exclusion"
+    },
+    "fresh_final_protected": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2/fresh-final-holdout.protected-position-ids.txt",
+      "bytes": 29751912,
+      "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+      "count": 413221,
+      "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f",
+      "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+      "role": "permanent-semantic-exclusion"
+    },
+    "known_eval_union": {
+      "algorithm": "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+      "count": 98420,
+      "bytes": 7086240,
+      "sha256": "d1ce44a7a0de32818442d93a2101c31683d0385bfa26bdc622e344dfac21ef63",
+      "identifiers_sha256": "2105a32335f161e5f4e21ce47b6d36b20589c24a8800d0f9163e9fb09c68f558",
+      "role": "permanent-semantic-exclusion"
+    },
+    "prior_protected_union": {
+      "count": 900395,
+      "sha256": "419eb5d2e3c74696e69023009623c81abb12917c7a735f874cb4a1507fc9ebbf",
+      "source_result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-root-policy-student-runtime-v1/result.json",
+      "source_result_bytes": 1924221,
+      "source_result_sha256": "7576f691845b1c54c6b8efb8447fd6c0708bf7abbb70c559d295b363ea98421d",
+      "role": "aggregate-membership-cross-check-and-permanent-exclusion"
+    }
+  },
+  "data_firewall": {
+    "allowed_training_role": "direct_teacher_source v9 fit parents only",
+    "fit_parent_membership": {
+      "parents": 19264,
+      "component_assignments_sha256": "bb0e2188eb5a533a7d5d9b0d9aa40a73b2b069a182fc3eb8b6f09ec5f94f4f32"
+    },
+    "permanent_exclusions": [
+      "spent Browser tune 196 parents and their semantic positions",
+      "spent V9 tune 4411 parents and their semantic positions",
+      "known-eval union",
+      "fresh-selection protected IDs",
+      "fresh-final protected IDs",
+      "prior aggregate protected union"
+    ],
+    "dataset_manifest_must_prove": [
+      "zero excluded parent overlap",
+      "zero excluded position_id overlap",
+      "zero excluded child_position_id overlap",
+      "zero cross-role game, parent, position, child-position, or semantic overlap"
+    ],
+    "any_overlap": "STOP before dataset publication or optimizer creation"
+  },
+  "split": {
+    "algorithm": "sha256-game-role-mod10-v1",
+    "hash_domain": "direct-teacher-halfkp81-v2-pilot-split:",
+    "unit": "game_id-before-row-materialization",
+    "training_buckets": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "validation_buckets": [
+      0
+    ],
+    "training_percent": 90,
+    "validation_percent": 10,
+    "whole_game_assignment": true,
+    "empty_role": "STOP",
+    "cross_role_semantic_overlap": "STOP"
+  },
+  "target": {
+    "source_field": "teacher_child_cp",
+    "position_field": "child_sfen",
+    "position_id_field": "child_position_id",
+    "perspective": "child-side-to-move",
+    "teacher": "pinned-yaneuraou-independent-single-move-depth16-exact-rescore",
+    "teacher_score_kind": "cp-only",
+    "neural_teacher_output_allowed": false,
+    "spent_tune_or_protected_label_allowed": false,
+    "game_outcome_target_allowed": false
+  },
+  "training": {
+    "candidate_count": 1,
+    "features": "halfkp-factor",
+    "parameter_scope": "all",
+    "objective": "direct-scalar-sigmoid-bce",
+    "k": 600,
+    "cp_clamp": 3000,
+    "wdl_mix": 0,
+    "rank_weight": 0,
+    "policy_weight": 0,
+    "seed": 42,
+    "batch": 2048,
+    "learning_rate": 0.000003,
+    "epochs": 1,
+    "optimizer": "AdamW",
+    "weight_decay": 0,
+    "scheduler": "constant",
+    "device": "mps",
+    "checkpoint_selection": "final-epoch-1-only",
+    "best_checkpoint_selection": false,
+    "early_stopping": false,
+    "additional_seed": false
+  },
+  "static_sanity": {
+    "claim": "catastrophic-regression-screen-only-not-playing-strength-evidence",
+    "all_checks_required": true,
+    "checks": {
+      "finite_training_and_inference": true,
+      "technical_faults_maximum": 0,
+      "float_export_roundtrip_mismatches_maximum": 0,
+      "wasm_parity_mismatches_maximum": 0,
+      "teacher_mae_cp_improvement_minimum": 5,
+      "pair_accuracy_delta_minimum": -0.002,
+      "quantized_mean_abs_cp_delta_ratio_maximum": 1.05,
+      "quantized_max_abs_cp_delta_ratio_maximum": 1.05,
+      "research_runtime_search_slowdown_percent_maximum": 5
+    },
+    "reference": "exact frozen alpha-0.50 initializer on pilot validation",
+    "any_miss": "STOP before paired play and close the pilot family"
+  },
+  "paired_screen": {
+    "authority": "static-sanity-pass-authorizes-only-this-screen",
+    "fresh_opening_selection": {
+      "pair_seed_scan_start": 1200001,
+      "pairs": 28,
+      "games_per_pair": 2,
+      "colors": [
+        "candidate-sente",
+        "candidate-gote"
+      ],
+      "prior_opening_fingerprint_overlap": 0,
+      "selection": "scan upward and accept the first 28 color-swapped opening fingerprints absent from the complete prior-opening inventory",
+      "manifest_freeze": "before candidate inference or game 1"
+    },
+    "search": {
+      "milliseconds_per_move": 1500,
+      "opening_book": false,
+      "external_mate_solver": false,
+      "fallback": false,
+      "maximum_plies": 512,
+      "pair_workers": 12
+    },
+    "decision": {
+      "games": 56,
+      "score_unit": "candidate-halfpoints-win2-draw1-loss0",
+      "denominator_halfpoints": 112,
+      "minimum_candidate_halfpoints": 62,
+      "futility_stop": "allowed only when current candidate halfpoints plus every remaining possible halfpoint is below 62",
+      "technical_faults_maximum": 0,
+      "all_moves_legal": true,
+      "pass_authorizes_only": "separately-preregistered-expanded-data-stage",
+      "strength_claim": false
+    }
+  },
+  "stop_rules": [
+    "STOP before data publication on source, role, split, target, exclusion, or identity drift.",
+    "STOP before optimizer creation on any current-tune, known-eval, fresh-selection, fresh-final, or aggregate protected-union overlap.",
+    "STOP before paired play on any static-sanity miss.",
+    "A paired56 miss permanently closes this objective and pilot family.",
+    "After any miss, do not add data, epochs, seeds, checkpoints, retries, or change a threshold.",
+    "No pilot state authorizes a write to public/shogi-nnue-weights.bin or any live flag."
+  ],
+  "current_state": {
+    "pilot_dataset_generated": false,
+    "training_started": false,
+    "optimizer_created": false,
+    "checkpoint_frozen": false,
+    "static_sanity_executed": false,
+    "paired_games": 0,
+    "expanded_stage_authorized": false,
+    "live_weights_changed": false
+  }
+}

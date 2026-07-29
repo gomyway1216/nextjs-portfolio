@@ -736,11 +736,15 @@ def score_groups(
             top1 += int(
                 torch.all(~predicted_best | teacher_best, dim=1).sum().item()
             )
-            chosen = prediction.argmax(dim=1)
+            positive = torch.finfo(teacher.dtype).max
+            predicted_worst_teacher = teacher.masked_fill(
+                ~predicted_best,
+                positive,
+            ).min(dim=1).values
             regret_sum += float(
                 (
                     teacher_best_value
-                    - teacher.gather(1, chosen.unsqueeze(1)).squeeze(1)
+                    - predicted_worst_teacher
                 ).sum().item()
             )
             for row, group in enumerate(selected):

@@ -481,6 +481,24 @@ class CapacityPolicyValueTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(prediction.grad).all())
         self.assertIsNone(parent_value.grad)
 
+    def test_score_groups_uses_teacher_worst_predicted_best_tie_for_regret(self):
+        group = synthetic_group(
+            "pessimistic-regret",
+            teacher_scores=(300.0, 0.0, -200.0),
+            base_scores=(10.0, 10.0, 0.0),
+        )
+        metrics = cpv.score_groups(
+            None,
+            [group],
+            device="cpu",
+            parent_batch_size=1,
+            pair_gap_cp=50.0,
+        )
+        self.assertEqual(metrics["top1_correct"], 0)
+        self.assertEqual(metrics["mean_regret_cp"], 300.0)
+        self.assertEqual(metrics["pair_count"], 3)
+        self.assertAlmostEqual(metrics["pair_accuracy"], 2 / 3)
+
     def test_full_model_can_fit_a_tiny_conflicting_policy_sample(self):
         torch.manual_seed(7)
         groups = [

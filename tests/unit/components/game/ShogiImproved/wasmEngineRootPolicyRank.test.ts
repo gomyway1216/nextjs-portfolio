@@ -53,6 +53,9 @@ describe('wasmEngine root-policy rank production enrollment boundary', () => {
 
   it('ignores even a well-shaped rank receipt until candidate WASM enrollment', () => {
     const position = InitialPositionImproved.createInitialPosition();
+    setRootPolicyRankProvider(({ moveKeys }) =>
+      moveKeys.map((moveKey, rank) => ({ moveKey, rank })),
+    );
     const ranks = computeRootPolicyRanks(position, 73, true);
     expect(ranks).not.toBeNull();
     const unenrolledReceipt: WasmRootPolicyRankReceipt = {

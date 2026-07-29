@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -230,6 +231,62 @@ class ProductionBuildReceiptTest(unittest.TestCase):
                 environment_override={},
             )
         self.assertFalse(self.receipt.exists())
+
+    def test_one_shot_build_generates_descriptor_before_receipt(self):
+        (self.root / "package.json").write_text(
+            json.dumps(
+                {
+                    "dependencies": {"next": "16.fixture"},
+                    "devDependencies": {"typescript": "6.fixture"},
+                },
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
+
+        def command_result(command, *, cwd):
+            self.assertEqual(cwd, self.root)
+            if command[:2] == ["git", "status"]:
+                return ""
+            if command == ["git", "rev-parse", "HEAD"]:
+                return "a" * 40
+            if command == ["git", "rev-parse", "origin/main"]:
+                return "a" * 40
+            if command == ["git", "rev-parse", "HEAD^{tree}"]:
+                return "b" * 40
+            if command == ["node", "--version"]:
+                return "v22.fixture"
+            if command == ["npm", "--version"]:
+                return "11.fixture"
+            self.fail(f"unexpected command: {command}")
+
+        with (
+            mock.patch.object(
+                BUILDER, "_run", side_effect=command_result
+            ),
+            mock.patch.object(BUILDER.subprocess, "run") as run,
+            mock.patch.object(
+                BUILDER, "produce_production_build_outputs"
+            ) as produce_outputs,
+        ):
+            BUILDER.produce_production_build_receipt(
+                repo_root=self.root,
+                registry=self.registry,
+                outputs_descriptor_path=self.descriptor,
+                result_path=self.receipt,
+                run_build=True,
+                source_paths_override=self.sources,
+            )
+        run.assert_called_once_with(
+            ["npm", "run", "build"],
+            cwd=self.root,
+            check=True,
+        )
+        produce_outputs.assert_called_once_with(
+            repo_root=self.root,
+            registry=self.registry,
+            descriptor_path=self.descriptor,
+        )
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # direct-teacher HalfKP81 v2：次の56局だけを先に固定する
 
-> 2026-07-29時点では、データ生成、optimizer作成、学習、静的評価、対局をすべて **0** に保っている。本PRが追加するのは、次の実験を結果を見る前に固定する機械可読protocolと検証器だけである。まだAIは強くなっておらず、live weightも1 byteも変更していない。[English](./blog-shogi-direct-teacher-halfkp81-v2-pilot.en.md)
+> 2026-07-29時点では、データ生成、optimizer作成、学習、静的評価、対局をすべて **0** に保っている。protocolと検証器に加えて、create-only dataset生成器の実装・テストまで進んだが、実データ生成はそのコードのmerge後に別実行する。まだAIは強くなっておらず、live weightも1 byteも変更していない。[English](./blog-shogi-direct-teacher-halfkp81-v2-pilot.en.md)
 
 ## なぜ別の実験へ移るのか
 
@@ -27,6 +27,8 @@ HalfKP81のalpha 0.50候補には、別の限定的な根拠がある。56局scr
 
 train/validationの単位は行ではなく**局全体**である。さらに、すでに結果を見たBrowser tune 196親、V9 tune 4,411親、known-eval union、fresh selection、fresh final、過去のprotected unionとの親・局面・子局面・semantic overlapをすべて0にしなければ、datasetを公開できない。trainとvalidationの間も、game、parent、position、child-position、semantic positionの重複を0にする。
 
+生成器は入力元のbytes/SHA-256を照合してからV9 fit membershipを再構成し、`teacher_child_cp`だけを子局面側視点の整数CPとして出力する。同じ`child_position_id`が複数回現れた場合、SFENとCPが同一なら1行へ一意化し、どちらかが異なれば平均や多数決をせずSTOPする。train/validationごとにgame、parent、position、child、semantic ID集合のSHA-256をmanifestへ記録し、出力ファイル、manifest、実行コード、phase-1 receipt、spent-tune receiptを完了receiptで結ぶ。既存directoryは上書きせず、receiptを最後に作る。
+
 ## 二段階の停止条件
 
 学習後すぐ長い対局へ進めない。validationで次をすべて満たす必要がある。
@@ -45,7 +47,8 @@ train/validationの単位は行ではなく**局全体**である。さらに、
 
 | 工程 | 実数 | 状態 |
 |---|---:|---|
-| protocol / validator | 1式 | 実装・テスト対象 |
+| protocol / validator | 1式 | 実装・テスト済み |
+| create-only dataset生成器 | 1式 | 実装・テスト済み、merge後に実行 |
 | pilot dataset | 0行 | 未生成 |
 | optimizer / epoch | 0 / 0 | 未開始 |
 | static sanity | 0件 | 未実行 |

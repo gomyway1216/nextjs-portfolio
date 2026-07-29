@@ -29,6 +29,29 @@ def _identity(path: str, raw: bytes, **extra) -> dict:
     }
 
 
+def _pid(number: int) -> str:
+    return f"sha256:{number:064x}"
+
+
+def _dataset_row(role: str, offset: int) -> dict:
+    return {
+        "schema": PROTOCOL.ROW_SCHEMA,
+        "role": role,
+        "game_id": _pid(offset),
+        "parent_id": _pid(offset + 10),
+        "position_id": _pid(offset + 20),
+        "child_position_id": _pid(offset + 30),
+        "child_sfen": "9/9/9/9/9/9/9/9/9 b - 1",
+        "teacher_child_cp": offset,
+        "teacher_score_kind": "cp",
+        "source_row_sha256": f"{offset:064x}",
+    }
+
+
+def _id_digest(identifier: str) -> str:
+    return hashlib.sha256((identifier + "\n").encode("ascii")).hexdigest()
+
+
 class DirectTeacherHalfkp81V2PlanBuilderTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -137,8 +160,10 @@ class DirectTeacherHalfkp81V2PlanBuilderTests(unittest.TestCase):
         self.protocol_path = self.root / "ml" / "protocols" / "direct-teacher-v2.json"
         self.protocol_path.write_bytes(PROTOCOL.canonical_json_bytes(self.protocol))
 
-        self.training_raw = b'{"split":"training"}\n'
-        self.validation_raw = b'{"split":"validation"}\n'
+        self.training_row = _dataset_row("training", 1)
+        self.validation_row = _dataset_row("validation", 2)
+        self.training_raw = PROTOCOL.canonical_json_bytes(self.training_row)
+        self.validation_raw = PROTOCOL.canonical_json_bytes(self.validation_row)
         (self.root / "dataset" / "training.jsonl").write_bytes(self.training_raw)
         (self.root / "dataset" / "validation.jsonl").write_bytes(self.validation_raw)
 
@@ -147,24 +172,28 @@ class DirectTeacherHalfkp81V2PlanBuilderTests(unittest.TestCase):
             str(self.protocol_path), "synthetic protocol"
         )
         manifest = _dataset_manifest(self.protocol, protocol_identity)
-        manifest["output"]["training"] = {
-            "file": "training.jsonl",
-            "bytes": len(self.training_raw),
-            "sha256": hashlib.sha256(self.training_raw).hexdigest(),
-            "rows": 1,
-            "parents": 1,
-            "games": 1,
-            "row_schema": PROTOCOL.ROW_SCHEMA,
-        }
-        manifest["output"]["validation"] = {
-            "file": "validation.jsonl",
-            "bytes": len(self.validation_raw),
-            "sha256": hashlib.sha256(self.validation_raw).hexdigest(),
-            "rows": 1,
-            "parents": 1,
-            "games": 1,
-            "row_schema": PROTOCOL.ROW_SCHEMA,
-        }
+        for role, raw, row in (
+            ("training", self.training_raw, self.training_row),
+            ("validation", self.validation_raw, self.validation_row),
+        ):
+            manifest["output"][role] = {
+                "file": f"{role}.jsonl",
+                "bytes": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "rows": 1,
+                "parents": 1,
+                "games": 1,
+                "row_schema": PROTOCOL.ROW_SCHEMA,
+                "game_ids_sha256": _id_digest(row["game_id"]),
+                "parent_ids_sha256": _id_digest(row["parent_id"]),
+                "position_ids_sha256": _id_digest(row["position_id"]),
+                "child_position_ids_sha256": _id_digest(
+                    row["child_position_id"]
+                ),
+                "semantic_position_ids_sha256": PROTOCOL.id_set_sha256(
+                    (row["position_id"], row["child_position_id"])
+                ),
+            }
         return manifest
 
     def _build(self) -> dict:
@@ -211,6 +240,22 @@ class DirectTeacherHalfkp81V2PlanBuilderTests(unittest.TestCase):
             PROTOCOL, "EXPECTED_INPUTS", copy.deepcopy(self.inputs)
         ), self.assertRaisesRegex(
             PROTOCOL.DirectTeacherHalfkpV2Error, "fresh_final_protected"
+        ):
+            BUILDER.build_execution_plan(
+                protocol_path=str(self.protocol_path),
+                dataset_manifest_path=str(manifest_path),
+                repo_root=str(self.root),
+            )
+
+    def test_recomputes_dataset_id_set_receipts_from_rows(self) -> None:
+        manifest_path = self.root / "dataset" / "manifest.json"
+        manifest = self._manifest()
+        manifest["output"]["training"]["game_ids_sha256"] = "f" * 64
+        manifest_path.write_bytes(PROTOCOL.canonical_json_bytes(manifest))
+        with mock.patch.object(
+            PROTOCOL, "EXPECTED_INPUTS", copy.deepcopy(self.inputs)
+        ), self.assertRaisesRegex(
+            PROTOCOL.DirectTeacherHalfkpV2Error, "ID-set receipt"
         ):
             BUILDER.build_execution_plan(
                 protocol_path=str(self.protocol_path),

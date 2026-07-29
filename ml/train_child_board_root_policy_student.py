@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import ExitStack
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import heapq
 import json
@@ -39,9 +39,9 @@ PROTOCOL_PATH = (
     / "protocols"
     / "child-board-root-policy-student-runtime-v1-plan.json"
 )
-PROTOCOL_BYTES = 64_050
+PROTOCOL_BYTES = 65_314
 PROTOCOL_SHA256 = (
-    "a15c4b2970dc612800f443c128935950122252bff6ca5ab5f39a9e79c811bc98"
+    "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0"
 )
 PROTOCOL_SCHEMA = "shogi-child-board-root-policy-student-runtime-plan-v1"
 PHASE1_RESULT_PATH = Path(
@@ -73,7 +73,7 @@ MOVE_UNIVERSE_BRIDGE_PATH = (
     Path(__file__).parent
     / "child-board-root-move-universe-bridge.ts"
 )
-DISTILLATION_SCHEMA = "shogi-child-board-root-policy-distillation-v1"
+DISTILLATION_SCHEMA = "shogi-child-board-root-policy-distillation-v2"
 DISTILLATION_SHARD_RECEIPT_SCHEMA = (
     "shogi-child-board-root-policy-distillation-shard-receipt-v1"
 )
@@ -92,16 +92,16 @@ MANIFEST_SCHEMA = "shogi-child-board-root-policy-student-manifest-v1"
 RESULT_SCHEMA = "shogi-child-board-root-policy-student-runtime-result-v1"
 RESULT_STATUS = "complete-fit-only-student-frozen-tune-locked"
 MOVE_UNIVERSE_RECORD_SCHEMA = (
-    "shogi-production-root-move-universe-verification-record-v1"
+    "shogi-production-root-move-universe-verification-record-v2"
 )
 MOVE_UNIVERSE_RECEIPT_SCHEMA = (
-    "shogi-production-root-move-universe-verification-receipt-v1"
+    "shogi-production-root-move-universe-verification-receipt-v2"
 )
 MOVE_UNIVERSE_REQUEST_SCHEMA = (
-    "shogi-production-root-move-universe-request-v1"
+    "shogi-production-root-move-universe-request-v2"
 )
 MOVE_UNIVERSE_RESPONSE_SCHEMA = (
-    "shogi-production-root-move-universe-response-v1"
+    "shogi-production-root-move-universe-response-v2"
 )
 MOVE_UNIVERSE_WASM_BYTES = 36_545
 MOVE_UNIVERSE_WASM_SHA256 = (
@@ -110,9 +110,9 @@ MOVE_UNIVERSE_WASM_SHA256 = (
 MOVE_UNIVERSE_WASM_BUFFER_OFFSET = 7_128_112
 # Updated only when the reviewed bridge source changes. The verifier checks
 # this identity before spawning Node or opening a teacher checkpoint.
-MOVE_UNIVERSE_BRIDGE_BYTES = 11_989
+MOVE_UNIVERSE_BRIDGE_BYTES = 12_340
 MOVE_UNIVERSE_BRIDGE_SHA256 = (
-    "7ebc75f58d572bee7aa0e3534f16acb48dceaeb69bbfe988099cd552fe6c3304"
+    "5d15c0a1399a4f352b4d52b0eb9f9f0514943ac995cfda92b5b050a6e2c5a65d"
 )
 SHARDS = 64
 V9_PRETRAIN_EPOCHS = 4
@@ -124,6 +124,13 @@ LEARNING_RATE = 0.0003
 WEIGHT_DECAY = 0.0001
 GRADIENT_CLIP = 5.0
 DOMAIN_ORDINAL = {"browser": 0, "v9": 1}
+
+
+@dataclass(frozen=True)
+class FitInputs:
+    fit: dict[str, list[lpv.ParentGroup]]
+    protected_ids: frozenset[str]
+    original_tune_ids: frozenset[str]
 
 
 def _strict_json(path: str | Path) -> dict[str, object]:
@@ -370,7 +377,7 @@ def _validate_pinned_sources(protocol: Mapping[str, object]) -> None:
 
 def _load_fit_groups_from_phase1(
     phase1: Mapping[str, object],
-) -> dict[str, list[lpv.ParentGroup]]:
+) -> FitInputs:
     receipt = phase1.get("fit_data_receipt")
     if type(receipt) is not dict:
         raise ValueError("phase-1 fit-data receipt is absent")
@@ -446,14 +453,14 @@ def _load_fit_groups_from_phase1(
         raise ValueError("phase-1 fit partition controls are absent")
     split_seed = int(fit_partition.get("split_seed", -1))
     tune_modulus = int(fit_partition.get("tune_modulus", -1))
-    browser_fit, _browser_tune, browser_split = (
+    browser_fit, browser_tune, browser_split = (
         lpv.split_by_semantic_components(
             browser_kept,
             seed=split_seed,
             tune_modulus=tune_modulus,
         )
     )
-    v9_fit, _v9_tune, v9_split = lpv.split_by_semantic_components(
+    v9_fit, v9_tune, v9_split = lpv.split_by_semantic_components(
         v9_kept,
         seed=split_seed,
         tune_modulus=tune_modulus,
@@ -479,7 +486,14 @@ def _load_fit_groups_from_phase1(
             raise ValueError(f"phase-1 {domain} fit membership drift")
     if len(browser_fit) != 875 or len(v9_fit) != 19_264:
         raise ValueError("phase-1 fit parent count drift")
-    return {"browser": browser_fit, "v9": v9_fit}
+    return FitInputs(
+        fit={"browser": browser_fit, "v9": v9_fit},
+        protected_ids=frozenset().union(*protected_sets),
+        original_tune_ids=(
+            lpv.semantic_union(browser_tune)
+            | lpv.semantic_union(v9_tune)
+        ),
+    )
 
 
 def _project_fit_groups(
@@ -507,6 +521,21 @@ def _bridge_source_identity() -> dict[str, object]:
     return identity
 
 
+def _compatible_node_executable() -> str:
+    """Prefer the repository's pinned NVM Node, then the active PATH."""
+
+    repository = Path(__file__).parent.parent
+    requested = (repository / ".nvmrc").read_text(encoding="ascii").strip()
+    nvm_root = Path(os.environ.get("NVM_DIR", Path.home() / ".nvm"))
+    pinned = nvm_root / "versions" / "node" / f"v{requested}" / "bin" / "node"
+    if pinned.is_file() and not pinned.is_symlink():
+        return str(pinned)
+    active = shutil.which("node")
+    if active is None:
+        raise ValueError("production move-universe Node executable is absent")
+    return active
+
+
 def _strict_json_line(raw: str, context: str) -> dict[str, object]:
     if not raw.endswith("\n") or raw == "\n":
         raise ValueError(f"{context}: missing canonical JSONL response")
@@ -520,28 +549,81 @@ def _strict_json_line(raw: str, context: str) -> dict[str, object]:
     return parsed
 
 
+def _semantic_id_digest(identifiers: Iterable[str]) -> str:
+    digest = hashlib.sha256()
+    for identifier in sorted(set(identifiers), key=lambda value: value.encode("ascii")):
+        digest.update(identifier.encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _float_text(value: float) -> str:
+    if not math.isfinite(value):
+        raise ValueError("move-universe value is non-finite")
+    return format(float(value), ".9g")
+
+
+def _project_rules_complete_moves(
+    parent_sfen: str,
+    rules_complete_usi: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[student.ProjectionRemoval, ...]]:
+    if (
+        not rules_complete_usi
+        or any(not isinstance(move, str) for move in rules_complete_usi)
+        or list(rules_complete_usi)
+        != sorted(rules_complete_usi, key=lambda move: move.encode("ascii"))
+        or len(set(rules_complete_usi)) != len(rules_complete_usi)
+    ):
+        raise ValueError("rules-complete move universe is not canonical")
+    production: list[str] = []
+    removals: list[student.ProjectionRemoval] = []
+    for move in rules_complete_usi:
+        if student._is_nonpromoting_major_in_promotion_zone(
+            parent_sfen,
+            move,
+        ):
+            removals.append(
+                student.ProjectionRemoval(
+                    move=move,
+                    reason=(
+                        "current-production-force-promote-unpromoted-bishop-rook"
+                    ),
+                )
+            )
+        else:
+            production.append(move)
+    if not production:
+        raise ValueError("rules-complete projection removed every move")
+    return tuple(production), tuple(removals)
+
+
 def verify_production_move_universe(
     projected: Mapping[str, Sequence[student.ProjectedParent]],
     *,
     protocol: Mapping[str, object],
     protocol_identity: Mapping[str, object],
+    protected_ids: frozenset[str],
+    original_tune_ids: frozenset[str],
     output_path: Path,
     receipt_path: Path,
     bridge_command: Sequence[str] | None = None,
-) -> dict[str, object]:
-    """Re-run both production generators before any teacher can be loaded."""
+) -> tuple[
+    dict[str, object],
+    dict[str, list[student.ProjectedParent]],
+]:
+    """Verify and expand every fit parent before a teacher can be loaded."""
 
     bridge_identity = _bridge_source_identity()
     universe = protocol.get("production_move_universe")
     if type(universe) is not dict:
         raise ValueError("production move-universe protocol is absent")
     source_receipts = universe.get("source_receipts")
-    if type(source_receipts) is not list or len(source_receipts) != 4:
+    if type(source_receipts) is not list or len(source_receipts) != 5:
         raise ValueError("production move-universe source receipts drifted")
     command = list(
         bridge_command
         or (
-            "node",
+            _compatible_node_executable(),
             "-r",
             "tsx/cjs",
             str(MOVE_UNIVERSE_BRIDGE_PATH),
@@ -568,10 +650,19 @@ def verify_production_move_universe(
         process.kill()
         raise ValueError("production move-universe bridge pipes are absent")
 
-    records: list[dict[str, object]] = []
+    verified: list[
+        tuple[
+            str,
+            student.ProjectedParent,
+            tuple[str, ...],
+            tuple[str, ...],
+            tuple[student.ProjectionRemoval, ...],
+            list[str],
+            list[str],
+        ]
+    ] = []
     sequence = 0
     domain_counts = {"browser": 0, "v9": 0}
-    production_moves = 0
     node_runtime: dict[str, object] | None = None
     try:
         for domain in ("browser", "v9"):
@@ -613,6 +704,7 @@ def verify_production_move_universe(
                     "domain",
                     "parent_id",
                     "parent_sfen",
+                    "rules_complete_usi",
                     "js_usi",
                     "wasm_usi",
                     "wasm",
@@ -640,14 +732,41 @@ def verify_production_move_universe(
                     raise ValueError(
                         "production move-universe bridge response identity drift"
                     )
-                expected_moves = list(projected_parent.production_moves)
+                rules_complete_usi = response.get("rules_complete_usi")
                 js_usi = response.get("js_usi")
                 wasm_usi = response.get("wasm_usi")
                 if (
-                    type(js_usi) is not list
+                    type(rules_complete_usi) is not list
+                    or type(js_usi) is not list
                     or type(wasm_usi) is not list
-                    or js_usi != expected_moves
-                    or wasm_usi != expected_moves
+                ):
+                    raise ValueError(
+                        "production move-universe arrays are absent "
+                        f"for {domain}/{parent_id}"
+                    )
+                production_usi, removals = _project_rules_complete_moves(
+                    projected_parent.group.parent_sfen,
+                    rules_complete_usi,
+                )
+                source_candidates = (
+                    projected_parent.source_candidate_moves
+                    or projected_parent.source_moves
+                )
+                if not set(source_candidates).issubset(rules_complete_usi):
+                    raise ValueError(
+                        "source candidates are outside rules-complete moves "
+                        f"for {domain}/{parent_id}"
+                    )
+                if domain == "browser" and tuple(rules_complete_usi) != tuple(
+                    source_candidates
+                ):
+                    raise ValueError(
+                        "browser all-legal source membership mismatch "
+                        f"for {parent_id}"
+                    )
+                if (
+                    js_usi != list(production_usi)
+                    or wasm_usi != list(production_usi)
                 ):
                     raise ValueError(
                         "production move-universe membership mismatch "
@@ -670,7 +789,7 @@ def verify_production_move_universe(
                     or wasm.get("sha256") != MOVE_UNIVERSE_WASM_SHA256
                     or wasm.get("root_move_buffer_offset")
                     != MOVE_UNIVERSE_WASM_BUFFER_OFFSET
-                    or wasm.get("legal_moves") != len(expected_moves)
+                    or wasm.get("legal_moves") != len(production_usi)
                     or wasm.get("second_search_nodes") != 1
                     or wasm.get("second_search_leaves") != 0
                     or wasm.get("second_search_depth") not in (0, 1)
@@ -694,19 +813,18 @@ def verify_production_move_universe(
                     raise ValueError(
                         "production move-universe Node runtime changed"
                     )
-                records.append(
-                    {
-                        "schema": MOVE_UNIVERSE_RECORD_SCHEMA,
-                        "domain": domain,
-                        "parent_id": parent_id,
-                        "parent_sfen": projected_parent.group.parent_sfen,
-                        "projected_usi": expected_moves,
-                        "production_js_usi": js_usi,
-                        "production_wasm_usi": wasm_usi,
-                    }
+                verified.append(
+                    (
+                        domain,
+                        projected_parent,
+                        tuple(source_candidates),
+                        tuple(rules_complete_usi),
+                        removals,
+                        js_usi,
+                        wasm_usi,
+                    )
                 )
                 domain_counts[domain] += 1
-                production_moves += len(expected_moves)
                 sequence += 1
         process.stdin.close()
         return_code = process.wait(timeout=30)
@@ -726,8 +844,174 @@ def verify_production_move_universe(
             if not handle.closed:
                 handle.close()
 
-    if node_runtime is None or not records:
+    if node_runtime is None or not verified:
         raise ValueError("production move-universe verification was vacuous")
+    derived: list[tuple[str, str]] = []
+    for (
+        _domain,
+        projected_parent,
+        _source_candidates,
+        rules_complete_usi,
+        _removals,
+        _js_usi,
+        _wasm_usi,
+    ) in verified:
+        production_usi, _ = _project_rules_complete_moves(
+            projected_parent.group.parent_sfen,
+            rules_complete_usi,
+        )
+        for move in production_usi:
+            child_sfen = lpv.child_sfen_after_usi(
+                projected_parent.group.parent_sfen,
+                move,
+            )
+            derived.append(
+                (child_sfen, train.position_id_from_sfen(child_sfen))
+            )
+    qweights = lpv.read_live_board_qweights("public/shogi-nnue-weights.bin")
+    child_scores = lpv.score_child_sfens_with_live_nnue(
+        qweights,
+        [child_sfen for child_sfen, _child_id in derived],
+    )
+    score_offset = 0
+    records: list[dict[str, object]] = []
+    expanded: dict[str, list[student.ProjectedParent]] = {
+        "browser": [],
+        "v9": [],
+    }
+    domain_original_candidates = {"browser": 0, "v9": 0}
+    domain_rules_complete_moves = {"browser": 0, "v9": 0}
+    domain_added_moves = {"browser": 0, "v9": 0}
+    domain_projection_removals = {"browser": 0, "v9": 0}
+    domain_production_moves = {"browser": 0, "v9": 0}
+    expanded_semantic_by_domain: dict[str, set[str]] = {
+        "browser": set(),
+        "v9": set(),
+    }
+    for (
+        domain,
+        projected_parent,
+        source_candidates,
+        rules_complete_usi,
+        removals,
+        js_usi,
+        wasm_usi,
+    ) in verified:
+        production_usi, expected_removals = _project_rules_complete_moves(
+            projected_parent.group.parent_sfen,
+            rules_complete_usi,
+        )
+        if removals != expected_removals:
+            raise AssertionError("production projection changed in one run")
+        original_by_move = {
+            example.move: example
+            for example in projected_parent.group.examples
+        }
+        examples: list[lpv.MoveExample] = []
+        move_records: list[dict[str, object]] = []
+        for move in production_usi:
+            child_sfen, child_position_id = derived[score_offset]
+            child_side_cp = child_scores[score_offset]
+            score_offset += 1
+            base_parent_cp = -child_side_cp
+            original = original_by_move.get(move)
+            if original is not None and (
+                original.child_sfen != child_sfen
+                or original.child_position_id != child_position_id
+                or original.base_parent_cp != base_parent_cp
+            ):
+                raise ValueError(
+                    "source child derivation/live baseline mismatch "
+                    f"for {domain}/{projected_parent.group.parent_id}/{move}"
+                )
+            examples.append(
+                lpv.MoveExample(
+                    move=move,
+                    teacher_cp=(
+                        original.teacher_cp if original is not None else 0.0
+                    ),
+                    teacher_rank=(
+                        original.teacher_rank if original is not None else 0
+                    ),
+                    child_position_id=child_position_id,
+                    child_sfen=child_sfen,
+                    features=lpv.encode_explicit_move(
+                        projected_parent.group.parent_sfen,
+                        move,
+                    ),
+                    base_parent_cp=base_parent_cp,
+                )
+            )
+            move_records.append(
+                {
+                    "usi": move,
+                    "child_sfen": child_sfen,
+                    "child_position_id": child_position_id,
+                    "child_side_live_nnue_cp": _float_text(child_side_cp),
+                    "base_parent_cp": _float_text(base_parent_cp),
+                    "was_original_candidate": move in source_candidates,
+                }
+            )
+        semantic_ids = frozenset(
+            [projected_parent.group.position_id]
+            + [example.child_position_id for example in examples]
+        )
+        if semantic_ids & protected_ids:
+            raise ValueError(
+                "expanded fit move universe overlaps protected/known-eval IDs"
+            )
+        if semantic_ids & original_tune_ids:
+            raise ValueError(
+                "expanded fit move universe overlaps original tune IDs"
+            )
+        expanded_semantic_by_domain[domain].update(semantic_ids)
+        expanded_group = replace(
+            projected_parent.group,
+            semantic_position_ids=semantic_ids,
+            examples=tuple(examples),
+        )
+        expanded_parent = student.ProjectedParent(
+            group=expanded_group,
+            source_moves=rules_complete_usi,
+            production_moves=production_usi,
+            removals=removals,
+            source_candidate_moves=source_candidates,
+        )
+        expanded[domain].append(expanded_parent)
+        source_set = set(source_candidates)
+        added = sum(move not in source_set for move in production_usi)
+        domain_original_candidates[domain] += len(source_candidates)
+        domain_rules_complete_moves[domain] += len(rules_complete_usi)
+        domain_added_moves[domain] += added
+        domain_projection_removals[domain] += len(removals)
+        domain_production_moves[domain] += len(production_usi)
+        records.append(
+            {
+                "schema": MOVE_UNIVERSE_RECORD_SCHEMA,
+                "domain": domain,
+                "game_id": expanded_group.game_id,
+                "parent_id": expanded_group.parent_id,
+                "position_id": expanded_group.position_id,
+                "parent_sfen": expanded_group.parent_sfen,
+                "source_candidate_usi": list(source_candidates),
+                "rules_complete_usi": list(rules_complete_usi),
+                "projection_removals": [
+                    asdict(removal) for removal in removals
+                ],
+                "production_usi": list(production_usi),
+                "production_js_usi": js_usi,
+                "production_wasm_usi": wasm_usi,
+                "moves": move_records,
+            }
+        )
+    if score_offset != len(derived) or score_offset != len(child_scores):
+        raise AssertionError("expanded move scoring was not consumed exactly")
+    cross_domain = (
+        expanded_semantic_by_domain["browser"]
+        & expanded_semantic_by_domain["v9"]
+    )
+    if cross_domain:
+        raise ValueError("expanded fit domains retain semantic overlap")
     payload = b"".join(_canonical_json(record) for record in records)
     if output_path.exists() != receipt_path.exists():
         raise ValueError("partial production move-universe publication")
@@ -735,11 +1019,18 @@ def verify_production_move_universe(
     artifact = _fingerprint(output_path)
     receipt = {
         "schema": MOVE_UNIVERSE_RECEIPT_SCHEMA,
-        "status": "complete-all-fit-parents-js-wasm-projection-exact",
+        "status": (
+            "complete-all-fit-parents-rules-js-wasm-expanded-firewall-exact"
+        ),
         "artifact": artifact,
         "parents": len(records),
         "domain_parents": domain_counts,
-        "production_moves": production_moves,
+        "domain_original_candidates": domain_original_candidates,
+        "domain_rules_complete_moves": domain_rules_complete_moves,
+        "domain_added_moves": domain_added_moves,
+        "domain_projection_removals": domain_projection_removals,
+        "domain_production_moves": domain_production_moves,
+        "production_moves": sum(domain_production_moves.values()),
         "protocol": dict(protocol_identity),
         "bridge_source": bridge_identity,
         "node": node_runtime,
@@ -749,23 +1040,48 @@ def verify_production_move_universe(
             "root_move_buffer_offset": MOVE_UNIVERSE_WASM_BUFFER_OFFSET,
         },
         "production_move_universe_sources": source_receipts,
-        "projected_equals_production_js": True,
-        "projected_equals_production_wasm": True,
+        "rules_complete_projected_equals_production_js": True,
+        "rules_complete_projected_equals_production_wasm": True,
+        "semantic_firewall": {
+            "protected_ids": len(protected_ids),
+            "protected_ids_sha256": _semantic_id_digest(protected_ids),
+            "original_tune_ids": len(original_tune_ids),
+            "original_tune_ids_sha256": _semantic_id_digest(
+                original_tune_ids
+            ),
+            "expanded_browser_ids": len(
+                expanded_semantic_by_domain["browser"]
+            ),
+            "expanded_browser_ids_sha256": _semantic_id_digest(
+                expanded_semantic_by_domain["browser"]
+            ),
+            "expanded_v9_ids": len(expanded_semantic_by_domain["v9"]),
+            "expanded_v9_ids_sha256": _semantic_id_digest(
+                expanded_semantic_by_domain["v9"]
+            ),
+            "protected_overlap": 0,
+            "original_tune_overlap": 0,
+            "cross_domain_overlap": 0,
+        },
+        "teacher_inference_started": False,
     }
     _atomic_publish_bytes(receipt_path, _canonical_json(receipt))
     if _strict_json(receipt_path) != receipt:
         raise ValueError("production move-universe receipt changed after publish")
-    return receipt
+    return receipt, expanded
 
 
 def validate_existing_production_move_universe(
+    projected: Mapping[str, Sequence[student.ProjectedParent]],
     *,
     protocol: Mapping[str, object],
     protocol_identity: Mapping[str, object],
+    protected_ids: frozenset[str],
+    original_tune_ids: frozenset[str],
     output_path: Path,
     receipt_path: Path,
 ) -> dict[str, object]:
-    """Fully revalidate an already published bridge artifact without a teacher."""
+    """Fully revalidate an expanded artifact without opening a teacher."""
 
     if (
         not output_path.is_file()
@@ -778,7 +1094,7 @@ def validate_existing_production_move_universe(
     if type(universe) is not dict:
         raise ValueError("production move-universe protocol is absent")
     source_receipts = universe.get("source_receipts")
-    if type(source_receipts) is not list or len(source_receipts) != 4:
+    if type(source_receipts) is not list or len(source_receipts) != 5:
         raise ValueError("production move-universe source receipts drifted")
     bridge_identity = _bridge_source_identity()
     receipt = _strict_json(receipt_path)
@@ -793,7 +1109,25 @@ def validate_existing_production_move_universe(
 
     previous: tuple[int, bytes] | None = None
     domain_counts = {"browser": 0, "v9": 0}
-    parents = production_moves = 0
+    domain_original_candidates = {"browser": 0, "v9": 0}
+    domain_rules_complete_moves = {"browser": 0, "v9": 0}
+    domain_added_moves = {"browser": 0, "v9": 0}
+    domain_projection_removals = {"browser": 0, "v9": 0}
+    domain_production_moves = {"browser": 0, "v9": 0}
+    expanded_semantic_by_domain: dict[str, set[str]] = {
+        "browser": set(),
+        "v9": set(),
+    }
+    expected_by_domain = {
+        domain: {
+            row.group.parent_id: row
+            for row in projected.get(domain, ())
+        }
+        for domain in ("browser", "v9")
+    }
+    child_sfens: list[str] = []
+    recorded_live_values: list[tuple[str, str]] = []
+    parents = 0
     with output_path.open("rb") as handle:
         for line_number, raw in enumerate(handle, start=1):
             parsed = json.loads(raw)
@@ -805,31 +1139,139 @@ def validate_existing_production_move_universe(
             if set(parsed) != {
                 "schema",
                 "domain",
+                "game_id",
                 "parent_id",
+                "position_id",
                 "parent_sfen",
-                "projected_usi",
+                "source_candidate_usi",
+                "rules_complete_usi",
+                "projection_removals",
+                "production_usi",
                 "production_js_usi",
                 "production_wasm_usi",
+                "moves",
             }:
                 raise ValueError(
                     "production move-universe artifact fields drifted"
                 )
             domain = parsed.get("domain")
             parent_id = parsed.get("parent_id")
-            projected = parsed.get("projected_usi")
+            source_candidate_usi = parsed.get("source_candidate_usi")
+            rules_complete_usi = parsed.get("rules_complete_usi")
+            production_usi = parsed.get("production_usi")
+            removals = parsed.get("projection_removals")
+            moves = parsed.get("moves")
             if (
                 parsed.get("schema") != MOVE_UNIVERSE_RECORD_SCHEMA
                 or domain not in DOMAIN_ORDINAL
                 or not isinstance(parent_id, str)
-                or type(projected) is not list
-                or not projected
-                or parsed.get("production_js_usi") != projected
-                or parsed.get("production_wasm_usi") != projected
-                or any(not isinstance(move, str) for move in projected)
+                or type(source_candidate_usi) is not list
+                or type(rules_complete_usi) is not list
+                or type(production_usi) is not list
+                or type(removals) is not list
+                or type(moves) is not list
             ):
                 raise ValueError(
                     "production move-universe artifact semantics drifted"
                 )
+            expected_parent = expected_by_domain[domain].get(parent_id)
+            expected_source_candidates = (
+                ()
+                if expected_parent is None
+                else (
+                    expected_parent.source_candidate_moves
+                    or expected_parent.source_moves
+                )
+            )
+            expected_production, expected_removals = (
+                _project_rules_complete_moves(
+                    str(parsed.get("parent_sfen")),
+                    rules_complete_usi,
+                )
+            )
+            if (
+                expected_parent is None
+                or parsed.get("game_id") != expected_parent.group.game_id
+                or parsed.get("position_id")
+                != expected_parent.group.position_id
+                or parsed.get("parent_sfen")
+                != expected_parent.group.parent_sfen
+                or source_candidate_usi
+                != list(expected_source_candidates)
+                or not set(source_candidate_usi).issubset(
+                    rules_complete_usi
+                )
+                or (
+                    domain == "browser"
+                    and source_candidate_usi != rules_complete_usi
+                )
+                or production_usi != list(expected_production)
+                or removals
+                != [asdict(removal) for removal in expected_removals]
+                or parsed.get("production_js_usi") != production_usi
+                or parsed.get("production_wasm_usi") != production_usi
+                or [move.get("usi") for move in moves] != production_usi
+            ):
+                raise ValueError(
+                    "production move-universe artifact membership drifted"
+                )
+            semantic_ids = {expected_parent.group.position_id}
+            for move, move_record in zip(
+                production_usi,
+                moves,
+                strict=True,
+            ):
+                if type(move_record) is not dict or set(move_record) != {
+                    "usi",
+                    "child_sfen",
+                    "child_position_id",
+                    "child_side_live_nnue_cp",
+                    "base_parent_cp",
+                    "was_original_candidate",
+                }:
+                    raise ValueError(
+                        "production move-universe child record drifted"
+                    )
+                child_sfen = lpv.child_sfen_after_usi(
+                    expected_parent.group.parent_sfen,
+                    move,
+                )
+                child_position_id = train.position_id_from_sfen(child_sfen)
+                if (
+                    move_record.get("child_sfen") != child_sfen
+                    or move_record.get("child_position_id")
+                    != child_position_id
+                    or move_record.get("was_original_candidate")
+                    != (move in source_candidate_usi)
+                    or not isinstance(
+                        move_record.get("child_side_live_nnue_cp"),
+                        str,
+                    )
+                    or not isinstance(
+                        move_record.get("base_parent_cp"),
+                        str,
+                    )
+                ):
+                    raise ValueError(
+                        "production move-universe child derivation drifted"
+                    )
+                child_sfens.append(child_sfen)
+                recorded_live_values.append(
+                    (
+                        move_record["child_side_live_nnue_cp"],
+                        move_record["base_parent_cp"],
+                    )
+                )
+                semantic_ids.add(child_position_id)
+            if semantic_ids & protected_ids:
+                raise ValueError(
+                    "expanded fit move universe overlaps protected/known-eval IDs"
+                )
+            if semantic_ids & original_tune_ids:
+                raise ValueError(
+                    "expanded fit move universe overlaps original tune IDs"
+                )
+            expanded_semantic_by_domain[domain].update(semantic_ids)
             key = DOMAIN_ORDINAL[domain], parent_id.encode("ascii")
             if previous is not None and key <= previous:
                 raise ValueError(
@@ -837,15 +1279,56 @@ def validate_existing_production_move_universe(
                 )
             previous = key
             domain_counts[domain] += 1
+            domain_original_candidates[domain] += len(
+                source_candidate_usi
+            )
+            domain_rules_complete_moves[domain] += len(rules_complete_usi)
+            domain_added_moves[domain] += sum(
+                move not in set(source_candidate_usi)
+                for move in production_usi
+            )
+            domain_projection_removals[domain] += len(removals)
+            domain_production_moves[domain] += len(production_usi)
             parents += 1
-            production_moves += len(projected)
+    if any(
+        domain_counts[domain] != len(expected_by_domain[domain])
+        for domain in ("browser", "v9")
+    ):
+        raise ValueError("production move-universe parent membership drifted")
+    cross_domain = (
+        expanded_semantic_by_domain["browser"]
+        & expanded_semantic_by_domain["v9"]
+    )
+    if cross_domain:
+        raise ValueError("expanded fit domains retain semantic overlap")
+    qweights = lpv.read_live_board_qweights("public/shogi-nnue-weights.bin")
+    observed_scores = lpv.score_child_sfens_with_live_nnue(
+        qweights,
+        child_sfens,
+    )
+    if any(
+        recorded != (_float_text(score), _float_text(-score))
+        for recorded, score in zip(
+            recorded_live_values,
+            observed_scores,
+            strict=True,
+        )
+    ):
+        raise ValueError("production move-universe live baseline drifted")
     expected = {
         "schema": MOVE_UNIVERSE_RECEIPT_SCHEMA,
-        "status": "complete-all-fit-parents-js-wasm-projection-exact",
+        "status": (
+            "complete-all-fit-parents-rules-js-wasm-expanded-firewall-exact"
+        ),
         "artifact": _fingerprint(output_path),
         "parents": parents,
         "domain_parents": domain_counts,
-        "production_moves": production_moves,
+        "domain_original_candidates": domain_original_candidates,
+        "domain_rules_complete_moves": domain_rules_complete_moves,
+        "domain_added_moves": domain_added_moves,
+        "domain_projection_removals": domain_projection_removals,
+        "domain_production_moves": domain_production_moves,
+        "production_moves": sum(domain_production_moves.values()),
         "protocol": dict(protocol_identity),
         "bridge_source": bridge_identity,
         "node": node,
@@ -855,8 +1338,30 @@ def validate_existing_production_move_universe(
             "root_move_buffer_offset": MOVE_UNIVERSE_WASM_BUFFER_OFFSET,
         },
         "production_move_universe_sources": source_receipts,
-        "projected_equals_production_js": True,
-        "projected_equals_production_wasm": True,
+        "rules_complete_projected_equals_production_js": True,
+        "rules_complete_projected_equals_production_wasm": True,
+        "semantic_firewall": {
+            "protected_ids": len(protected_ids),
+            "protected_ids_sha256": _semantic_id_digest(protected_ids),
+            "original_tune_ids": len(original_tune_ids),
+            "original_tune_ids_sha256": _semantic_id_digest(
+                original_tune_ids
+            ),
+            "expanded_browser_ids": len(
+                expanded_semantic_by_domain["browser"]
+            ),
+            "expanded_browser_ids_sha256": _semantic_id_digest(
+                expanded_semantic_by_domain["browser"]
+            ),
+            "expanded_v9_ids": len(expanded_semantic_by_domain["v9"]),
+            "expanded_v9_ids_sha256": _semantic_id_digest(
+                expanded_semantic_by_domain["v9"]
+            ),
+            "protected_overlap": 0,
+            "original_tune_overlap": 0,
+            "cross_domain_overlap": 0,
+        },
+        "teacher_inference_started": False,
     }
     if (
         parents != 20_139
@@ -938,6 +1443,7 @@ def _record_for_prediction(
         "parent_id": group.parent_id,
         "position_id": group.position_id,
         "parent_sfen": group.parent_sfen,
+        "source_candidate_usi": list(projected.source_candidate_moves),
         "source_rules_complete_usi": list(projected.source_moves),
         "production_usi": list(projected.production_moves),
         "projection_removals": [
@@ -2400,14 +2906,17 @@ def run(mode: str) -> dict[str, object]:
     move_universe_receipt: dict[str, object]
     distillation_receipt: dict[str, object]
     parity_receipt: dict[str, object]
+    fit_inputs = _load_fit_groups_from_phase1(phase1)
+    projected_fit = _project_fit_groups(fit_inputs.fit)
     if mode in ("prepare", "all"):
-        fit = _load_fit_groups_from_phase1(phase1)
-        projected_fit = _project_fit_groups(fit)
         if _downstream_artifacts_exist(OUTPUT):
             move_universe_receipt = (
                 validate_existing_production_move_universe(
+                    projected_fit,
                     protocol=protocol,
                     protocol_identity=protocol_identity,
+                    protected_ids=fit_inputs.protected_ids,
+                    original_tune_ids=fit_inputs.original_tune_ids,
                     output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
                     receipt_path=(
                         OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name
@@ -2436,10 +2945,15 @@ def run(mode: str) -> dict[str, object]:
         else:
             if not torch.backends.mps.is_available():
                 raise ValueError("student preparation requires available MPS")
-            move_universe_receipt = verify_production_move_universe(
+            (
+                move_universe_receipt,
+                projected_fit,
+            ) = verify_production_move_universe(
                 projected_fit,
                 protocol=protocol,
                 protocol_identity=protocol_identity,
+                protected_ids=fit_inputs.protected_ids,
+                original_tune_ids=fit_inputs.original_tune_ids,
                 output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
                 receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
             )
@@ -2477,8 +2991,11 @@ def run(mode: str) -> dict[str, object]:
             }
     else:
         move_universe_receipt = validate_existing_production_move_universe(
+            projected_fit,
             protocol=protocol,
             protocol_identity=protocol_identity,
+            protected_ids=fit_inputs.protected_ids,
+            original_tune_ids=fit_inputs.original_tune_ids,
             output_path=OUTPUT / MOVE_UNIVERSE_PATH.name,
             receipt_path=OUTPUT / MOVE_UNIVERSE_RECEIPT_PATH.name,
         )

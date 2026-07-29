@@ -111,6 +111,7 @@ class ProjectedParent:
     source_moves: tuple[str, ...]
     production_moves: tuple[str, ...]
     removals: tuple[ProjectionRemoval, ...]
+    source_candidate_moves: tuple[str, ...] = ()
 
 
 def _is_nonpromoting_major_in_promotion_zone(
@@ -191,6 +192,9 @@ def project_group_to_production(group: lpv.ParentGroup) -> ProjectedParent:
         source_moves=tuple(example.move for example in source_examples),
         production_moves=production_moves,
         removals=tuple(removed),
+        source_candidate_moves=tuple(
+            example.move for example in source_examples
+        ),
     )
 
 

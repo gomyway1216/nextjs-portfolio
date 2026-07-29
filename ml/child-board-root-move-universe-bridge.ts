@@ -4,18 +4,20 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
-import { positionFromSfen, teToUsi } from "./shogi-sfen";
+import {
+  positionFromSfen,
+  rulesCompleteLegalMoves,
+  teToUsi,
+} from "./shogi-sfen";
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
 import { GHI, SFU } from "../src/components/game/ShogiImproved/types";
 import { PRODUCTION_SHOGI_WASM_PATH } from "../wasm-spike/search-driver";
 
-export const REQUEST_SCHEMA =
-  "shogi-production-root-move-universe-request-v1";
+export const REQUEST_SCHEMA = "shogi-production-root-move-universe-request-v2";
 export const RESPONSE_SCHEMA =
-  "shogi-production-root-move-universe-response-v1";
-export const ERROR_SCHEMA =
-  "shogi-production-root-move-universe-error-v1";
+  "shogi-production-root-move-universe-response-v2";
+export const ERROR_SCHEMA = "shogi-production-root-move-universe-error-v1";
 export const PINNED_WASM_BYTES = 36_545;
 export const PINNED_WASM_SHA256 =
   "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31";
@@ -58,6 +60,7 @@ export interface RootMoveUniverseResponse {
   readonly domain: "browser" | "v9";
   readonly parent_id: string;
   readonly parent_sfen: string;
+  readonly rules_complete_usi: readonly string[];
   readonly js_usi: readonly string[];
   readonly wasm_usi: readonly string[];
   readonly node: {
@@ -97,10 +100,7 @@ function instantiatePinnedWasm(value: Uint8Array): RootMembershipWasm {
         throw new Error(`production WASM abort at ${line}:${column}`);
       },
       now: () => performance.now(),
-      sharedTtProbe: (
-        _hashA: number,
-        _hashB: number,
-      ) => 0,
+      sharedTtProbe: (_hashA: number, _hashB: number) => 0,
       sharedTtStore: (
         _hashA: number,
         _hashB: number,
@@ -146,10 +146,7 @@ function instantiatePinnedWasm(value: Uint8Array): RootMembershipWasm {
   return wasm;
 }
 
-function syncWasm(
-  wasm: RootMembershipWasm,
-  position: KyokumenImproved,
-): void {
+function syncWasm(wasm: RootMembershipWasm, position: KyokumenImproved): void {
   wasm.clearBoard();
   for (let file = 1; file <= 9; file++) {
     for (let rank = 1; rank <= 9; rank++) {
@@ -207,11 +204,7 @@ function internalMoveToUsi(value: number): string {
 }
 
 function validateRequest(value: unknown): RootMoveUniverseRequest {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("root move bridge request must be one object");
   }
   const row = value as Record<string, unknown>;
@@ -258,6 +251,12 @@ export class ProductionRootMoveUniverseBridge {
     const request = validateRequest(value);
     const parsed = positionFromSfen(request.parent_sfen);
     const position = parsed.position;
+    const rulesCompleteUsi = rulesCompleteLegalMoves(position).map(
+      (entry) => entry.usi,
+    );
+    if (new Set(rulesCompleteUsi).size !== rulesCompleteUsi.length) {
+      throw new Error("rules-complete generator returned duplicate USI");
+    }
     const jsUsi = GenerateMovesImproved.generateLegalMoves(position)
       .map(teToUsi)
       .sort(bytewiseUsi);
@@ -324,9 +323,14 @@ export class ProductionRootMoveUniverseBridge {
     const wasmUsi = packed.map(internalMoveToUsi).sort(bytewiseUsi);
     if (
       new Set(wasmUsi).size !== wasmUsi.length ||
-      wasmUsi.some((move) => !/^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/u.test(move))
+      wasmUsi.some(
+        (move) =>
+          !/^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/u.test(move),
+      )
     ) {
-      throw new Error("production WASM root buffer is not unique canonical USI");
+      throw new Error(
+        "production WASM root buffer is not unique canonical USI",
+      );
     }
     return {
       schema: RESPONSE_SCHEMA,
@@ -334,6 +338,7 @@ export class ProductionRootMoveUniverseBridge {
       domain: request.domain,
       parent_id: request.parent_id,
       parent_sfen: request.parent_sfen,
+      rules_complete_usi: rulesCompleteUsi,
       js_usi: jsUsi,
       wasm_usi: wasmUsi,
       node: {
@@ -345,10 +350,8 @@ export class ProductionRootMoveUniverseBridge {
         sha256: PINNED_WASM_SHA256,
         root_move_buffer_offset: PINNED_ROOT_MOVE_BUFFER_OFFSET,
         legal_moves: legalMoves,
-        second_search_depth:
-          legalMoves === 0 ? 0 : this.wasm.getSearchDepth(),
-        second_search_nodes:
-          legalMoves === 0 ? 0 : this.wasm.getSearchNodes(),
+        second_search_depth: legalMoves === 0 ? 0 : this.wasm.getSearchDepth(),
+        second_search_nodes: legalMoves === 0 ? 0 : this.wasm.getSearchNodes(),
         second_search_leaves:
           legalMoves === 0 ? 0 : this.wasm.getSearchLeaves(),
       },

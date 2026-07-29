@@ -1,6 +1,6 @@
-# 将棋child-board root-policy student/runtime v1：実装前計画
+# 将棋child-board root-policy student/runtime v1：実装・実行記録
 
-> 6.17M parameterのchild-board teacherをproduction leaf評価へ入れず、seed 42のfit-only出力だけを877,633 parameterのroot-ordering studentへ蒸留する。seed 314159はreplication専用で学習targetにしない。student、live NNUE、worker/WASMを別々にhash固定し、tune、sealed、runtime、正式対局を一方向に進める。phase 1のteacher 2本は凍結済みだが、このpre-bind版ではhash置換前なので、student optimizer、tune、sealed、対局、ライブ変更はすべて未開始である。[English](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.en.md)
+> 6.17M parameterのchild-board teacherをproduction leaf評価へ入れず、seed 42のfit-only出力だけを877,633 parameterのroot-ordering studentへ蒸留する。seed 314159はreplication専用で学習targetにしない。student、live NNUE、worker/WASMを別々にhash固定し、tune、sealed、runtime、正式対局を一方向に進める。phase 1のteacher 2本とhash binding、student実装は完了した。最初のprepareはV9 candidate subsetの解釈誤りを教師推論前に検出して停止し、全production手へ展開するv2修正を検証中である。student optimizer、tune、sealed、対局、ライブ変更はまだ未開始である。[English](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.en.md)
 
 ## なぜ別studentが必要か
 
@@ -18,16 +18,16 @@ large teacherはchild boardとmove set全体を読むoffline policy modelであ�
 
 studentを無効にすると、従来のroot順序と非root search stateへbyte-exactに戻らなければならない。
 
-## 親protocolと2つだけの未解決slot
+## 親protocolと固定済みteacher binding
 
 親は42,427 bytes、SHA-256 `b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2` の [strength-candidate protocol](../ml/protocols/child-board-strength-candidate-v1-plan.json) である。
 
-この実装前coreで未解決なのは次の2文字列だけである。
+当初の実装前coreで未解決だったのは次の2文字列だけだった。
 
 - seed 42 final checkpoint SHA-256
 - seed 314159 final checkpoint SHA-256
 
-phase 1 terminal resultは既に親schema/status、親SHA、`tune_opened=false`、`sealed_opened=false`、`live_weights_changed=false` を満たしている。次のbind commitで `training.final_checkpoints` の対応seedから64桁lowercase SHAを機械的に1回だけ代入する。protocolに許されるdiffはその2 valueだけで、architecture、seed、loss、epoch、path、gate、記事は変えない。bind receiptと最小postphase registryは、ここで事前登録したpath/schemaの新規fileとして同じcommitに加える。
+phase 1 terminal resultは親schema/status、親SHA、`tune_opened=false`、`sealed_opened=false`、`live_weights_changed=false` を満たした。binding commitは `training.final_checkpoints` からseed 42の `b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a` とseed 314159の `9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293` を機械的に代入し、binding receiptとclosed postphase registryを公開済みである。後のproduction source pin更新と今回のmove-universe入力契約修正は、その歴史的binding receiptを書き換えず、現在protocol identityとregistry receiptだけを更新する。
 
 seed 42は結果を見る前からdistillation teacherであり、seed 314159との平均、ensemble、選抜、target化は禁止する。
 
@@ -42,6 +42,18 @@ student targetはseed 42をeval modeにして、親protocolのfit partitionだ�
 | 合計 | 20,139 | 4,607 |
 
 各parentのrules-complete legal listを、現在のproduction searchが実際に生成する集合へ先に射影する。具体的には、成れる角・飛車について既存productionが省く不成だけを除き、他の手は保持する。seed-42 teacherは集合全体を読むため、rules-complete集合で計算したlogitを後からfilterしてはいけない。射影後のchild setでbatchを組み直し、その集合全体をteacherへ再forwardする。teacherの再学習は不要である。
+
+### 2026-07-28実装検査で止めた不完全なV9入力
+
+最初の実データprepareは、教師推論やoptimizerより前に停止した。V9の1局面で、入力JSONLにあった12手を「rules-complete」と誤認していた一方、実production JSと実WASMは同じ27手を返したためである。例のparentは `sha256:0011a06add27c5201bcebcd9b569f197d7fd440ce662e09594128f55bf0103f3`、SFENは `ln1gk1snl/6gb1/p1spppppp/1rp6/7P1/P5P2/1PPPPP2P/1BGK2SR1/LNS2G1NL b p 19` だった。元12手は27手のsubsetで、extraは0、欠けていた手は15、JSとWASMの差は0、この局面の角・飛車不成除外も0だった。
+
+つまりengineが27手を誤生成したのではなく、V9 train rowが「実戦着手＋教師candidate」のsubsetであることをloaderが取り違えた。12手へproductionを縮める、欠けた15手へ古いteacher labelを補間する、live NNUE値をteacher targetとして代用する、という修正はすべて禁止した。
+
+修正版は各fit parentについて、pinned production JS列、そこへ既知の角・飛車不成を復元するpinned `rulesCompleteLegalMoves` 列、別実装のpinned production WASM列を実行する。これは第三の独立した将棋合法手oracleではなく、現在のproduction membershipを二つのproduction実装でexact照合し、射影前後を明示する契約である。復元列をprotocol規則で射影した結果がJS/WASM双方とexact一致した場合だけ、全production手のchild SFEN、semantic ID、explicit feature、凍結live-NNUE baselineを生成する。Browser sourceは875親でrules-complete列を独立に認証してexact一致が必要で、V9 sourceはrules-complete内の認証済みcandidate subsetとして別に記録する。展開後のparent＋全child IDがprotected/known-eval、元tune closure、別fit domainと1件でも交差すればseed-42 checkpointを開く前に停止する。追加手のsource teacher値はplaceholderとして学習targetに使わず、seed 42を全production集合へfresh forwardして初めてtargetを作る。
+
+この停止時点でstudent output directoryは0 bytes、distillation shardは0、teacher inferenceは0、training epochは0、tune/sealed/formal/externalは0、live重み変更も0だった。したがって一週間分の計算結果を採用したわけでも、弱い重みに上書きしたわけでもない。今回の失敗から残すのは原因と回帰テストだけで、旧subset意味のreceiptを新しい意味へ書き換えたり再利用したりしない。
+
+修正版の全20,139-parent preflight実測は次の通りだった。Browser 875は元75,532手、rules-complete 75,532手、production 74,611手、追加0、角・飛車不成除外921。V9 19,264は元candidate 223,834手に対し、rules-complete 1,681,740手、production 1,663,442手、追加1,439,608、除外18,298だった。合計productionは1,738,053手である。射影とJS/WASMの不一致、protected/known-eval 900,395 IDsとの交差、元tune 72,710 IDsとの交差、Browser/V9 fit間の交差はいずれも0だった。teacherを開かないpreflight artifactは565,336,695 bytes、SHA-256 `e229b6c7d52f322a1ee33f75dce33152ab13f09b1d935695f8835af89cc98c89` で、約5分半で生成した。これは一時検証artifactであり、public main merge後の正式receiptとしては再利用しない。
 
 20,139 fit parentsについて、parent ID、SFEN、rules-complete source list、射影後production list、除外理由、child ID、凍結live-NNUEのchild手番CP、その符号を反転したparent視点 `base_parent_cp`、射影後集合で再forwardしたseed-42 combined CPを固定順で1つのJSONLへ書く。path、bytes、SHA、parent/move count、teacher checkpoint receiptをterminal resultへ記録する。
 

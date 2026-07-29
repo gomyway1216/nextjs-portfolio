@@ -28,10 +28,8 @@ import {
   type RootPolicyAdmissionStaticSource,
 } from '@/components/game/ShogiImproved/rootPolicyRuntimeAdmission';
 import {
-  clearWasmTT,
   createWasmRootPolicyRankReceipt,
   getLastWasmRootPolicyRankDiagnostics,
-  wasmSearchBestMove,
 } from '@/components/game/ShogiImproved/wasmEngine';
 
 interface SyntheticFixturePayload {
@@ -280,25 +278,15 @@ describe('root-policy runtime admission harness', () => {
     expect(calls).toBe(0);
   });
 
-  it('proves production JS/WASM move-universe acceptance and iterative root application', () => {
+  it('keeps the stable production WASM unenrolled before tensor-specific admission', () => {
     const position = InitialPositionImproved.createInitialPosition();
     const provider = createSyntheticRootPolicyRankProvider();
     setRootPolicyRankProvider(provider);
     const ranks = computeRootPolicyRanks(position, 991, true);
     expect(ranks).not.toBeNull();
     const receipt = createWasmRootPolicyRankReceipt(position, 991, ranks!);
-    expect(receipt).not.toBeNull();
-
-    clearWasmTT();
-    expect(wasmSearchBestMove(position, 0, 0, 4, 8, receipt)).not.toBeNull();
-    const diagnostics = getLastWasmRootPolicyRankDiagnostics();
-    expect(diagnostics).toMatchObject({
-      accepted: true,
-      nonRootApplyCount: 0,
-      fault: 0,
-    });
-    // One eager root reorder plus every completed iterative-deepening root.
-    expect(diagnostics!.applyCount).toBeGreaterThanOrEqual(3);
+    expect(receipt).toBeNull();
+    expect(getLastWasmRootPolicyRankDiagnostics()).toBeNull();
   });
 
   it('fails closed for malformed synthetic ranks without changing stable order', () => {

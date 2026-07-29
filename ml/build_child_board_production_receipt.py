@@ -26,6 +26,10 @@ import uuid
 SCHEMA = "shogi-child-board-root-policy-production-build-receipt-v1"
 STATUS = "complete-production-build-frozen-tune-locked"
 STUDENT_STATUS = "complete-fit-only-student-frozen-tune-locked"
+PUBLICATION_SCHEMA = (
+    "shogi-child-board-root-policy-public-assets-receipt-v1"
+)
+PUBLICATION_STATUS = "complete-frozen-student-public-assets-create-only"
 OUTPUT_ROLES = (
     "production_build_manifest",
     "main_search_chunk",
@@ -223,6 +227,74 @@ def _require_closed(registry: Mapping[str, Any]) -> None:
                 )
 
 
+def _require_publication(
+    repo_root: Path,
+    registry: Mapping[str, Any],
+    *,
+    student_result_identity: Mapping[str, object],
+    tensor: Mapping[str, object],
+    manifest: Mapping[str, object],
+    student_result_path: Path,
+) -> dict[str, object]:
+    receipt_path = student_result_path.parent / "public-assets.receipt.json"
+    receipt = _strict_json(
+        receipt_path, "public asset publication receipt"
+    )
+    try:
+        public = registry["outputs"]["public_student_assets"]
+        tensor_path = repo_root / public["tensor_path"]
+        manifest_path = repo_root / public["manifest_path"]
+    except (KeyError, TypeError) as error:
+        raise BuildReceiptError(
+            "public student asset registry is malformed"
+        ) from error
+    public_tensor = _fingerprint(tensor_path)
+    public_manifest = _fingerprint(manifest_path)
+    live_nnue = _fingerprint(repo_root / SOURCE_PATHS["live_nnue"])
+    registry_identity = receipt.get("registry")
+    registry_valid = (
+        type(registry_identity) is dict
+        and type(registry_identity.get("path")) is str
+        and _fingerprint(Path(registry_identity["path"]))
+        == registry_identity
+    )
+    if (
+        set(receipt)
+        != {
+            "schema",
+            "status",
+            "registry",
+            "student_result",
+            "source_artifacts",
+            "public_artifacts",
+            "live_nnue",
+            "tune_opened",
+            "sealed_opened",
+            "live_weights_changed",
+        }
+        or receipt.get("schema") != PUBLICATION_SCHEMA
+        or receipt.get("status") != PUBLICATION_STATUS
+        or not registry_valid
+        or receipt.get("student_result") != student_result_identity
+        or receipt.get("source_artifacts")
+        != {"tensor": tensor, "manifest": manifest}
+        or receipt.get("public_artifacts")
+        != {"tensor": public_tensor, "manifest": public_manifest}
+        or receipt.get("live_nnue") != live_nnue
+        or receipt.get("tune_opened") is not False
+        or receipt.get("sealed_opened") is not False
+        or receipt.get("live_weights_changed") is not False
+        or public_tensor["bytes"] != tensor["bytes"]
+        or public_tensor["sha256"] != tensor["sha256"]
+        or public_manifest["bytes"] != manifest["bytes"]
+        or public_manifest["sha256"] != manifest["sha256"]
+    ):
+        raise BuildReceiptError(
+            "public student asset publication is absent or drifted"
+        )
+    return _fingerprint(receipt_path)
+
+
 def _find_student_runtime(repo_root: Path) -> Path:
     candidates: list[Path] = []
     root = repo_root / "src/components/game/ShogiImproved"
@@ -246,6 +318,7 @@ def _source_receipts(
     *,
     student_tensor: Mapping[str, object],
     student_manifest: Mapping[str, object],
+    publication_receipt: Mapping[str, object],
     source_paths_override: Mapping[str, Path] | None,
 ) -> dict[str, dict[str, object]]:
     if source_paths_override is None:
@@ -262,6 +335,7 @@ def _source_receipts(
     receipts = {role: _fingerprint(path) for role, path in paths.items()}
     receipts["student_tensor"] = dict(student_tensor)
     receipts["student_manifest"] = dict(student_manifest)
+    receipts["public_asset_publication"] = dict(publication_receipt)
     return receipts
 
 
@@ -370,6 +444,14 @@ def produce_production_build_receipt(
     _student, tensor, manifest = _require_student(student_result_path)
     _require_closed(registry)
     student_result_identity = _fingerprint(student_result_path)
+    publication_receipt = _require_publication(
+        repo_root,
+        registry,
+        student_result_identity=student_result_identity,
+        tensor=tensor,
+        manifest=manifest,
+        student_result_path=student_result_path,
+    )
     if result_path.exists():
         existing = _strict_json(result_path, "production build receipt")
         _verify_existing_receipt(
@@ -381,6 +463,7 @@ def produce_production_build_receipt(
         repo_root,
         student_tensor=tensor,
         student_manifest=manifest,
+        publication_receipt=publication_receipt,
         source_paths_override=source_paths_override,
     )
     if environment_override is None:

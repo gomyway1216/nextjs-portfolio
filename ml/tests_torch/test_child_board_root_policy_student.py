@@ -11,6 +11,7 @@ from unittest import mock
 
 import torch
 
+import capacity_policy_value_data as capacity_data
 import child_board_root_policy_student as student
 import listwise_policy_value as lpv
 import train
@@ -195,6 +196,185 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             runner._validate_pinned_sources(protocol)
         finally:
             os.chdir(original)
+
+    def test_padding_amendment_preserves_base_and_binds_effective_training(self):
+        repository = Path(__file__).resolve().parents[2]
+        original = Path.cwd()
+        try:
+            os.chdir(repository)
+            protocol, base_identity = runner._verified_protocol()
+            amendment, amendment_identity, effective = (
+                runner._verified_padding_amendment(
+                    protocol,
+                    base_identity,
+                )
+            )
+        finally:
+            os.chdir(original)
+        self.assertEqual(
+            protocol["training"]["move_padding_buckets"],
+            list(runner.BASE_MOVE_PADDING_BUCKETS),
+        )
+        self.assertEqual(
+            amendment["amendment"]["json_pointer"],
+            "/training/move_padding_buckets/6",
+        )
+        self.assertEqual(amendment["amendment"]["old_value"], 272)
+        self.assertEqual(amendment["amendment"]["new_value"], 384)
+        self.assertEqual(effective["base_protocol"], base_identity)
+        self.assertEqual(
+            effective["padding_amendment"],
+            amendment_identity,
+        )
+        self.assertEqual(
+            effective["effective_move_padding_buckets"],
+            list(runner.EFFECTIVE_MOVE_PADDING_BUCKETS),
+        )
+
+    def test_effective_padding_accepts_measured_maximum_and_rejects_overflow(self):
+        group = mock.Mock()
+        group.examples = tuple(range(333))
+        self.assertEqual(
+            capacity_data.move_bucket(
+                group,
+                boundaries=runner.EFFECTIVE_MOVE_PADDING_BUCKETS,
+            ),
+            384,
+        )
+        group.examples = tuple(range(384))
+        self.assertEqual(
+            capacity_data.move_bucket(
+                group,
+                boundaries=runner.EFFECTIVE_MOVE_PADDING_BUCKETS,
+            ),
+            384,
+        )
+        group.examples = tuple(range(385))
+        with self.assertRaisesRegex(ValueError, "above the registered maximum"):
+            capacity_data.move_bucket(
+                group,
+                boundaries=runner.EFFECTIVE_MOVE_PADDING_BUCKETS,
+            )
+
+    def test_capacity_preflight_precedes_model_and_optimizer_construction(self):
+        oversized = mock.Mock()
+        oversized.examples = tuple(range(385))
+        oversized.parent_id = "oversized"
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            student,
+            "ChildBoardRootPolicyStudent",
+        ) as model, mock.patch.object(
+            runner.torch.optim,
+            "AdamW",
+        ) as optimizer:
+            with self.assertRaisesRegex(
+                ValueError,
+                "above the registered maximum",
+            ):
+                runner.train_student(
+                    {"browser": [], "v9": [oversized]},
+                    output=Path(directory),
+                    device="cpu",
+                    protocol_identity={"sha256": "a" * 64},
+                    distillation_identity={"sha256": "b" * 64},
+                    teacher_hashes={
+                        "seed42": "c" * 64,
+                        "seed314159": "d" * 64,
+                    },
+                )
+            model.assert_not_called()
+            optimizer.assert_not_called()
+
+    def test_activation_reuses_bound_artifacts_without_readdressing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            identities = {}
+            for name in (
+                "production_move_universe",
+                "production_move_universe_receipt",
+                "distillation",
+                "distillation_receipt",
+                "parity_fixture",
+                "parity_receipt",
+            ):
+                path = root / f"{name}.bin"
+                path.write_bytes(f"{name}\n".encode("ascii"))
+                identities[name] = runner._fingerprint(path)
+            prepared = {
+                **identities,
+                "parents": 20_139,
+                "production_moves": 1_738_053,
+                "teacher_checkpoint_reads_complete": True,
+                "teacher_inference_complete": True,
+            }
+            amendment = {
+                "prepared_artifacts": prepared,
+                "pre_optimizer_state": {},
+            }
+            observation = {
+                "parents": 20_139,
+                "maximum_moves": 333,
+                "maximum_parent_ids": ["sha256:" + "a" * 64],
+                "maximum_parent_ids_sha256": "b" * 64,
+                "effective_move_padding_buckets": list(
+                    runner.EFFECTIVE_MOVE_PADDING_BUCKETS
+                ),
+            }
+            with mock.patch.object(
+                runner,
+                "_training_padding_observation",
+                return_value=observation,
+            ):
+                first = runner._ensure_padding_amendment_activation(
+                    output=root,
+                    amendment=amendment,
+                    amendment_identity={"sha256": "c" * 64},
+                    effective_protocol_identity={
+                        "schema": runner.EFFECTIVE_PROTOCOL_SCHEMA,
+                    },
+                    move_universe_receipt={
+                        "artifact": identities["production_move_universe"],
+                        "parents": 20_139,
+                        "production_moves": 1_738_053,
+                    },
+                    distillation_receipt={
+                        "artifact": identities["distillation"],
+                        "parents": 20_139,
+                        "production_moves": 1_738_053,
+                    },
+                    parity_receipt={
+                        "artifact": identities["parity_fixture"],
+                    },
+                    groups={"browser": [], "v9": []},
+                )
+                # A later exact-resume checkpoint may exist; the immutable
+                # activation receipt must validate rather than be rewritten.
+                (root / runner.LAST_CHECKPOINT_PATH.name).write_bytes(b"x")
+                second = runner._ensure_padding_amendment_activation(
+                    output=root,
+                    amendment=amendment,
+                    amendment_identity={"sha256": "c" * 64},
+                    effective_protocol_identity={
+                        "schema": runner.EFFECTIVE_PROTOCOL_SCHEMA,
+                    },
+                    move_universe_receipt={
+                        "artifact": identities["production_move_universe"],
+                        "parents": 20_139,
+                        "production_moves": 1_738_053,
+                    },
+                    distillation_receipt={
+                        "artifact": identities["distillation"],
+                        "parents": 20_139,
+                        "production_moves": 1_738_053,
+                    },
+                    parity_receipt={
+                        "artifact": identities["parity_fixture"],
+                    },
+                    groups={"browser": [], "v9": []},
+                )
+            self.assertEqual(first, second)
+            self.assertFalse(first["teacher_inference_rerun"])
+            self.assertFalse(first["artifact_or_receipt_rewrite"])
 
     def test_fixed_gelu_is_the_registered_explicit_tanh_formula(self):
         value = torch.tensor([-3.0, -0.5, 0.0, 0.5, 3.0])

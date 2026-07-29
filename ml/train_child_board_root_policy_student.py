@@ -44,6 +44,21 @@ PROTOCOL_SHA256 = (
     "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0"
 )
 PROTOCOL_SCHEMA = "shogi-child-board-root-policy-student-runtime-plan-v1"
+PADDING_AMENDMENT_PATH = (
+    Path(__file__).parent
+    / "protocols"
+    / "child-board-root-policy-student-padding-bucket-v1-amendment.json"
+)
+PADDING_AMENDMENT_BYTES = 5_172
+PADDING_AMENDMENT_SHA256 = (
+    "cee4a50382dd2557cae5200430209bb575ed4485297c3f3be38875dca846636d"
+)
+PADDING_AMENDMENT_SCHEMA = (
+    "shogi-child-board-root-policy-student-padding-bucket-amendment-v1"
+)
+EFFECTIVE_PROTOCOL_SCHEMA = (
+    "shogi-child-board-root-policy-student-effective-training-protocol-v1"
+)
 PHASE1_RESULT_PATH = Path(
     "/Users/yudaiyaguchi/.codex/shogi-runs/"
     "child-board-strength-candidate-v1-phase1/result.json"
@@ -65,6 +80,9 @@ FINAL_CHECKPOINT_PATH = OUTPUT / "student-final-mixed-epoch12.pt"
 TENSOR_PATH = OUTPUT / "student-root-ordering.f32.bin"
 MANIFEST_PATH = OUTPUT / "student-root-ordering.manifest.json"
 RESULT_PATH = OUTPUT / "result.json"
+PADDING_ACTIVATION_RECEIPT_PATH = (
+    OUTPUT / "padding-bucket-v1-activation.receipt.json"
+)
 MOVE_UNIVERSE_PATH = OUTPUT / "production-root-move-universe.jsonl"
 MOVE_UNIVERSE_RECEIPT_PATH = (
     OUTPUT / "production-root-move-universe.receipt.json"
@@ -124,6 +142,9 @@ LEARNING_RATE = 0.0003
 WEIGHT_DECAY = 0.0001
 GRADIENT_CLIP = 5.0
 DOMAIN_ORDINAL = {"browser": 0, "v9": 1}
+BASE_MOVE_PADDING_BUCKETS = (16, 32, 64, 96, 128, 192, 272)
+EFFECTIVE_MOVE_PADDING_BUCKETS = (16, 32, 64, 96, 128, 192, 384)
+PREPARED_MAXIMUM_MOVES = 333
 
 
 @dataclass(frozen=True)
@@ -288,6 +309,127 @@ def _verified_protocol() -> tuple[dict[str, object], dict[str, object]]:
         ):
             raise ValueError("student protocol retains an unresolved teacher")
     return document, identity
+
+
+def _verified_padding_amendment(
+    protocol: Mapping[str, object],
+    protocol_identity: Mapping[str, object],
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Authenticate the one-field post-prepare training amendment.
+
+    The base protocol remains byte-for-byte unchanged because every prepared
+    teacher artifact is content-addressed against it.  The effective training
+    identity binds that base plus this amendment; it is what checkpoints and
+    the terminal result record.
+    """
+
+    raw = PADDING_AMENDMENT_PATH.read_bytes()
+    amendment_identity = {
+        "path": str(PADDING_AMENDMENT_PATH.resolve()),
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    if (
+        amendment_identity["bytes"] != PADDING_AMENDMENT_BYTES
+        or amendment_identity["sha256"] != PADDING_AMENDMENT_SHA256
+    ):
+        raise ValueError("student padding amendment identity drift")
+    amendment = _strict_json(PADDING_AMENDMENT_PATH)
+    base = amendment.get("base_protocol")
+    change = amendment.get("amendment")
+    evidence = amendment.get("failure_evidence")
+    reuse = amendment.get("reuse_contract")
+    state = amendment.get("pre_optimizer_state")
+    protected = amendment.get("protected_state")
+    authority = amendment.get("authority")
+    training = protocol.get("training")
+    if (
+        amendment.get("schema") != PADDING_AMENDMENT_SCHEMA
+        or amendment.get("status")
+        != "post-prepare-pre-optimizer-step-amendment"
+        or type(base) is not dict
+        or base.get("path")
+        != "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json"
+        or base.get("bytes") != PROTOCOL_BYTES
+        or base.get("sha256") != PROTOCOL_SHA256
+        or base.get("schema") != PROTOCOL_SCHEMA
+        or protocol_identity.get("bytes") != base.get("bytes")
+        or protocol_identity.get("sha256") != base.get("sha256")
+        or type(training) is not dict
+        or training.get("move_padding_buckets")
+        != list(BASE_MOVE_PADDING_BUCKETS)
+        or type(change) is not dict
+        or change.get("scope") != "training-padding-capacity-only"
+        or change.get("json_pointer")
+        != "/training/move_padding_buckets/6"
+        or change.get("old_value") != 272
+        or change.get("new_value") != 384
+        or change.get("effective_move_padding_buckets")
+        != list(EFFECTIVE_MOVE_PADDING_BUCKETS)
+        or change.get("all_other_base_protocol_values_unchanged") is not True
+        or change.get("model_architecture_unchanged") is not True
+        or change.get("loss_and_optimizer_recipe_unchanged") is not True
+        or change.get("fit_membership_and_teacher_targets_unchanged") is not True
+        or change.get("runtime_semantics_unchanged") is not True
+        or tuple(data_contract.MOVE_BUCKETS)
+        != BASE_MOVE_PADDING_BUCKETS
+    ):
+        raise ValueError("student padding amendment is not the exact 272-to-384 delta")
+    if (
+        type(evidence) is not dict
+        or evidence.get("failure_phase")
+        != "training-batch-construction-before-first-optimizer-step"
+        or evidence.get("registered_maximum") != 272
+        or evidence.get("complete_prepared_artifact_measured_maximum")
+        != PREPARED_MAXIMUM_MOVES
+        or evidence.get("safe_replacement_boundary") != 384
+        or evidence.get("maximum_parent_ids")
+        != [
+            "sha256:ad3c5a0afb5f78a1b3594964546c7abfd6e8bc08bab1891b62793d04129e0c78"
+        ]
+        or evidence.get("maximum_parent_ids_sha256")
+        != "b9e63aff2444341c91727d1b8ea2dd6536851a6387e0816d26dd29074f6061b7"
+        or type(reuse) is not dict
+        or reuse.get("teacher_inference_rerun") is not False
+        or reuse.get("artifact_or_receipt_rewrite") is not False
+        or reuse.get("content_address_rewrite") is not False
+        or type(state) is not dict
+        or state.get("optimizer_steps_completed") != 0
+        or state.get("checkpoint_files_present") != 0
+        or state.get("final_tensor_present") is not False
+        or state.get("final_manifest_present") is not False
+        or state.get("terminal_result_present") is not False
+        or type(protected) is not dict
+        or protected.get("tune_opened") is not False
+        or protected.get("sealed_opened") is not False
+        or protected.get("replication_teacher_used_for_training") is not False
+        or protected.get("direct_or_external_games") != 0
+        or protected.get("live_weights_changed") is not False
+        or protected.get("deployment_authorized") is not False
+        or type(authority) is not dict
+        or any(
+            authority.get(name) is not False
+            for name in (
+                "tune",
+                "sealed",
+                "runtime_admission",
+                "formal",
+                "external",
+                "deployment",
+                "live_weights_write",
+            )
+        )
+    ):
+        raise ValueError("student padding amendment state or authority drift")
+    effective_identity = {
+        "schema": EFFECTIVE_PROTOCOL_SCHEMA,
+        "base_protocol": dict(protocol_identity),
+        "padding_amendment": amendment_identity,
+        "effective_move_padding_buckets": list(
+            EFFECTIVE_MOVE_PADDING_BUCKETS
+        ),
+    }
+    return amendment, amendment_identity, effective_identity
 
 
 def _verified_phase1(
@@ -2108,6 +2250,144 @@ def load_distillation_groups(
     return by_domain
 
 
+def _training_padding_observation(
+    groups: Mapping[str, Sequence[lpv.ParentGroup]],
+) -> dict[str, object]:
+    if set(groups) != {"browser", "v9"}:
+        raise ValueError("student training domains drift")
+    maximum = 0
+    maximum_parent_ids: list[str] = []
+    parents = 0
+    for domain in ("browser", "v9"):
+        for group in groups[domain]:
+            parents += 1
+            count = len(group.examples)
+            # This both selects the effective bucket and rejects >384 before
+            # model initialization or optimizer construction.
+            data_contract.move_bucket(
+                group,
+                boundaries=EFFECTIVE_MOVE_PADDING_BUCKETS,
+            )
+            if count > maximum:
+                maximum = count
+                maximum_parent_ids = [group.parent_id]
+            elif count == maximum:
+                maximum_parent_ids.append(group.parent_id)
+    maximum_parent_ids.sort(key=lambda value: value.encode("ascii"))
+    digest = hashlib.sha256(
+        "\n".join(maximum_parent_ids).encode("ascii")
+    ).hexdigest()
+    if (
+        parents != 20_139
+        or maximum != PREPARED_MAXIMUM_MOVES
+        or maximum_parent_ids
+        != [
+            "sha256:ad3c5a0afb5f78a1b3594964546c7abfd6e8bc08bab1891b62793d04129e0c78"
+        ]
+        or digest
+        != "b9e63aff2444341c91727d1b8ea2dd6536851a6387e0816d26dd29074f6061b7"
+    ):
+        raise ValueError("prepared student move-width observation drift")
+    return {
+        "parents": parents,
+        "maximum_moves": maximum,
+        "maximum_parent_ids": maximum_parent_ids,
+        "maximum_parent_ids_sha256": digest,
+        "effective_move_padding_buckets": list(
+            EFFECTIVE_MOVE_PADDING_BUCKETS
+        ),
+    }
+
+
+def _ensure_padding_amendment_activation(
+    *,
+    output: Path,
+    amendment: Mapping[str, object],
+    amendment_identity: Mapping[str, object],
+    effective_protocol_identity: Mapping[str, object],
+    move_universe_receipt: Mapping[str, object],
+    distillation_receipt: Mapping[str, object],
+    parity_receipt: Mapping[str, object],
+    groups: Mapping[str, Sequence[lpv.ParentGroup]],
+) -> dict[str, object]:
+    """Freeze the reuse proof before model initialization/optimizer creation."""
+
+    prepared = amendment.get("prepared_artifacts")
+    state = amendment.get("pre_optimizer_state")
+    if type(prepared) is not dict or type(state) is not dict:
+        raise ValueError("padding amendment prepared-state binding is absent")
+    expected_artifact_names = (
+        "production_move_universe",
+        "production_move_universe_receipt",
+        "distillation",
+        "distillation_receipt",
+        "parity_fixture",
+        "parity_receipt",
+    )
+    for name in expected_artifact_names:
+        expected = prepared.get(name)
+        if type(expected) is not dict:
+            raise ValueError(f"padding amendment {name} identity is absent")
+        actual = _fingerprint(str(expected.get("path")))
+        if actual != expected:
+            raise ValueError(f"padding amendment {name} identity drift")
+    if (
+        prepared.get("parents") != 20_139
+        or prepared.get("production_moves") != 1_738_053
+        or prepared.get("teacher_checkpoint_reads_complete") is not True
+        or prepared.get("teacher_inference_complete") is not True
+        or move_universe_receipt.get("artifact")
+        != prepared["production_move_universe"]
+        or distillation_receipt.get("artifact")
+        != prepared["distillation"]
+        or parity_receipt.get("artifact") != prepared["parity_fixture"]
+        or move_universe_receipt.get("parents") != 20_139
+        or move_universe_receipt.get("production_moves") != 1_738_053
+        or distillation_receipt.get("parents") != 20_139
+        or distillation_receipt.get("production_moves") != 1_738_053
+    ):
+        raise ValueError("padding amendment prepared artifact relationship drift")
+    observation = _training_padding_observation(groups)
+    receipt = {
+        "schema": (
+            "shogi-child-board-root-policy-student-padding-"
+            "bucket-activation-receipt-v1"
+        ),
+        "status": "complete-post-prepare-before-first-optimizer-step",
+        "effective_protocol": dict(effective_protocol_identity),
+        "amendment": dict(amendment_identity),
+        "prepared_artifacts": {
+            name: dict(prepared[name]) for name in expected_artifact_names
+        },
+        "observation": observation,
+        "optimizer_steps_completed_before_activation": 0,
+        "checkpoint_files_present_before_activation": 0,
+        "teacher_inference_rerun": False,
+        "artifact_or_receipt_rewrite": False,
+        "tune_opened": False,
+        "sealed_opened": False,
+        "live_weights_changed": False,
+    }
+    activation_path = output / PADDING_ACTIVATION_RECEIPT_PATH.name
+    if not activation_path.exists():
+        downstream = (
+            output / LAST_CHECKPOINT_PATH.name,
+            output / FINAL_CHECKPOINT_PATH.name,
+            output / TENSOR_PATH.name,
+            output / MANIFEST_PATH.name,
+            output / RESULT_PATH.name,
+        )
+        if any(path.exists() or path.is_symlink() for path in downstream):
+            raise ValueError(
+                "padding amendment activation must precede every checkpoint "
+                "and runtime artifact"
+            )
+    _atomic_publish_bytes(activation_path, _canonical_json(receipt))
+    if _strict_json(activation_path) != receipt:
+        raise ValueError("padding amendment activation receipt drift")
+    return receipt
+
+
 def publish_parity_fixture(
     distillation_path: Path,
     distillation_receipt: Mapping[str, object],
@@ -2509,6 +2789,17 @@ def train_student(
     stop_after: tuple[str, int] | None = None,
 ) -> dict[str, object]:
     checkpoint_path = output / LAST_CHECKPOINT_PATH.name
+    # Capacity is authenticated before RNG seeding, model initialization, or
+    # optimizer construction.  The original implementation discovered an
+    # oversized parent only after constructing AdamW.
+    if set(groups) != {"browser", "v9"}:
+        raise ValueError("student training domains drift")
+    for domain in ("browser", "v9"):
+        for group in groups[domain]:
+            data_contract.move_bucket(
+                group,
+                boundaries=EFFECTIVE_MOVE_PADDING_BUCKETS,
+            )
     if device == "mps" and not torch.backends.mps.is_available():
         raise ValueError("student training requires available MPS")
     existing_checkpoint: dict[str, object] | None = None
@@ -2585,6 +2876,7 @@ def train_student(
                 epoch=epoch,
                 seed=student.INITIALIZATION_SEED,
                 maximum_parents=V9_BATCH,
+                move_buckets=EFFECTIVE_MOVE_PADDING_BUCKETS,
             )
             domain_steps = [
                 ((batch, boundary),) for boundary, batch in batches
@@ -2597,6 +2889,7 @@ def train_student(
                 epoch=epoch,
                 seed=student.INITIALIZATION_SEED,
                 maximum_parents=BROWSER_BATCH,
+                move_buckets=EFFECTIVE_MOVE_PADDING_BUCKETS,
             )
             v9_count = len(groups["browser"]) * V9_PER_BROWSER
             rotating_v9 = _v9_rotation(
@@ -2615,7 +2908,11 @@ def train_student(
                 strict=True,
             ):
                 v9_padding = max(
-                    data_contract.move_bucket(group) for group in v9_batch
+                    data_contract.move_bucket(
+                        group,
+                        boundaries=EFFECTIVE_MOVE_PADDING_BUCKETS,
+                    )
+                    for group in v9_batch
                 )
                 domain_steps.append(
                     (
@@ -2719,6 +3016,11 @@ def terminalize_only(
     teacher_hashes: Mapping[str, str],
 ) -> dict[str, object]:
     result_path = output / RESULT_PATH.name
+    padding_activation_identity: dict[str, object] | None = None
+    if protocol_identity.get("schema") == EFFECTIVE_PROTOCOL_SCHEMA:
+        padding_activation_identity = _fingerprint(
+            output / PADDING_ACTIVATION_RECEIPT_PATH.name
+        )
     if result_path.exists():
         result = _strict_json(result_path)
         if (
@@ -2731,6 +3033,11 @@ def terminalize_only(
             or result.get("live_weights_changed") is not False
             or result.get("distillation") != distillation_receipt
             or result.get("parity_fixture") != parity_receipt
+            or (
+                padding_activation_identity is not None
+                and result.get("padding_amendment_activation")
+                != padding_activation_identity
+            )
         ):
             raise ValueError("student terminal result drift")
         training = result.get("training")
@@ -2849,6 +3156,10 @@ def terminalize_only(
         "external_games": 0,
         "live_weights_changed": False,
     }
+    if padding_activation_identity is not None:
+        result["padding_amendment_activation"] = (
+            padding_activation_identity
+        )
     _atomic_publish_bytes(result_path, _canonical_json(result))
     return result
 
@@ -2894,6 +3205,15 @@ def run(mode: str) -> dict[str, object]:
     if mode not in ("prepare", "train", "terminalize", "all"):
         raise ValueError("unknown student execution mode")
     protocol, protocol_identity = _verified_protocol()
+    amendment: dict[str, object] | None = None
+    amendment_identity: dict[str, object] | None = None
+    effective_protocol_identity: dict[str, object] | None = None
+    if mode in ("train", "terminalize", "all"):
+        (
+            amendment,
+            amendment_identity,
+            effective_protocol_identity,
+        ) = _verified_padding_amendment(protocol, protocol_identity)
     phase1, finals = _verified_phase1(protocol)
     _validate_pinned_sources(protocol)
     teacher_hashes, feature_sources, identities = _identities(
@@ -3021,13 +3341,33 @@ def run(mode: str) -> dict[str, object]:
         or parity_receipt.get("artifact") != _fingerprint(PARITY_PATH)
     ):
         raise ValueError("student pre-optimizer artifact drift")
-    if mode in ("train", "all"):
+    groups: dict[str, list[lpv.ParentGroup]] | None = None
+    if mode in ("train", "terminalize", "all"):
+        if (
+            amendment is None
+            or amendment_identity is None
+            or effective_protocol_identity is None
+        ):
+            raise AssertionError("student padding amendment was not captured")
         groups = load_distillation_groups(DISTILLATION_PATH)
+        _ensure_padding_amendment_activation(
+            output=OUTPUT,
+            amendment=amendment,
+            amendment_identity=amendment_identity,
+            effective_protocol_identity=effective_protocol_identity,
+            move_universe_receipt=move_universe_receipt,
+            distillation_receipt=distillation_receipt,
+            parity_receipt=parity_receipt,
+            groups=groups,
+        )
+    if mode in ("train", "all"):
+        if groups is None or effective_protocol_identity is None:
+            raise AssertionError("student effective training inputs are absent")
         training = train_student(
             groups,
             output=OUTPUT,
             device="mps",
-            protocol_identity=protocol_identity,
+            protocol_identity=effective_protocol_identity,
             distillation_identity=distillation_receipt["artifact"],
             teacher_hashes=teacher_hashes,
         )
@@ -3035,7 +3375,11 @@ def run(mode: str) -> dict[str, object]:
             return training
     return terminalize_only(
         output=OUTPUT,
-        protocol_identity=protocol_identity,
+        protocol_identity=(
+            effective_protocol_identity
+            if effective_protocol_identity is not None
+            else protocol_identity
+        ),
         distillation_receipt=distillation_receipt,
         parity_receipt=parity_receipt,
         teacher_hashes=teacher_hashes,

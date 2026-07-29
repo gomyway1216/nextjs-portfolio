@@ -51,6 +51,7 @@ import { MateSolverImproved } from './MateSolverImproved';
 import { ensureExternalOpeningBookLoaded, getOpeningMoveImproved } from './OpeningBookImproved';
 import { PonderController } from './ponderController';
 import { computeRootPolicyRanks } from './rootPolicyRank';
+import { ensureFrozenRootPolicyStudentLoaded } from './rootPolicyStudentRuntime';
 import { buildPosition, type SerializedKyokumenImproved, type SerializedTeImproved } from './serializedPosition';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 import type { HelperRequest, HelperResponse, MainThreadsInitMessage } from './smpProtocol';
@@ -519,12 +520,12 @@ function computeBestMove(
   const effectiveStudentEnabled = studentEnabled && nnueActuallyEnabled;
 
   // One inference boundary per enabled root, in the MAIN worker only. The
-  // current provider is a deterministic identity stub until the frozen
-  // student export is available. Its integer rank receipt is bound to both
-  // WASM position hashes and reused verbatim by all Lazy-SMP helpers.
+  // The lazily loaded frozen provider returns only integer ranks. Its receipt
+  // is bound to both WASM position hashes and reused verbatim by all Lazy-SMP
+  // helpers.
   const rankSequence = effectiveStudentEnabled ? nextRootPolicySequence() : 0;
   const computedRanks = effectiveStudentEnabled
-    ? computeRootPolicyRanks(k, rankSequence, true)
+    ? computeRootPolicyRanks(k, rankSequence, true, tesu)
     : null;
   const rootPolicyRank = computedRanks
     ? createWasmRootPolicyRankReceipt(k, rankSequence, computedRanks)
@@ -707,41 +708,53 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   if (msg.type !== 'bestMove') return;
 
-  try {
-    const k = buildPosition(msg.position);
-    const result = computeBestMove(
-      k,
-      msg.position,
-      msg.difficulty,
-      msg.tesu | 0,
-      msg.student_enabled === true,
-    );
-    const best = result.move;
-    const move: SerializedTeImproved | null = best
-      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
-      : null;
+  const handleBestMove = async (): Promise<void> => {
+    try {
+      const requestedStudent = msg.student_enabled === true;
+      const studentReady =
+        requestedStudent && difficultyUsesNnue(msg.difficulty)
+          ? await nnueStartup.then(() =>
+              isNnueWeightsLoaded()
+                ? ensureFrozenRootPolicyStudentLoaded()
+                : false,
+            )
+          : false;
+      const k = buildPosition(msg.position);
+      const result = computeBestMove(
+        k,
+        msg.position,
+        msg.difficulty,
+        msg.tesu | 0,
+        requestedStudent && studentReady,
+      );
+      const best = result.move;
+      const move: SerializedTeImproved | null = best
+        ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
+        : null;
 
-    lastSearch = {
-      requestId: msg.id,
-      searchPath: result.searchPath,
-      evaluationPath: result.evaluationPath,
-    };
-    ctx.postMessage({
-      type: 'bestMoveResult',
-      id: msg.id,
-      move,
-      scoreCp: result.scoreCp,
-      depth: result.depth,
-      searchPath: result.searchPath,
-    });
+      lastSearch = {
+        requestId: msg.id,
+        searchPath: result.searchPath,
+        evaluationPath: result.evaluationPath,
+      };
+      ctx.postMessage({
+        type: 'bestMoveResult',
+        id: msg.id,
+        move,
+        scoreCp: result.scoreCp,
+        depth: result.depth,
+        searchPath: result.searchPath,
+      });
 
-    // Answer first, then start thinking on the opponent's time.
-    if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
-  } catch (e) {
-    clearWasmRootPolicyRank();
-    const message = e instanceof Error ? e.message : String(e);
-    ctx.postMessage({ type: 'error', id: msg.id, message });
-  }
+      // Answer first, then start thinking on the opponent's time.
+      if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
+    } catch (e) {
+      clearWasmRootPolicyRank();
+      const message = e instanceof Error ? e.message : String(e);
+      ctx.postMessage({ type: 'error', id: msg.id, message });
+    }
+  };
+  void handleBestMove();
 };
 
 /** Test-only handle: lets unit tests observe ponder state through the message protocol. */

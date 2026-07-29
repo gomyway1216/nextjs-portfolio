@@ -17,6 +17,12 @@ export interface RootPolicyMoveRank {
 
 export interface RootPolicyRankProviderInput {
   readonly sequence: number;
+  /** The authenticated production root. Providers must never retain or mutate it. */
+  readonly position?: KyokumenImproved;
+  /** Search ply is structurally fixed to zero at this only call site. */
+  readonly searchPly?: 0;
+  /** Number of moves already played; used only by the frozen feature contract. */
+  readonly gamePly?: number;
   /**
    * Exact production search universe, in the engine's stable input order.
    * This is intentionally not a rules-complete move list: it preserves the
@@ -31,14 +37,12 @@ export type RootPolicyRankProvider = (
 ) => readonly RootPolicyMoveRank[] | null;
 
 /**
- * Until the frozen student export exists, the enabled boundary is an identity
- * stub. It is deterministic, exercises the complete production plumbing, and
- * leaves playing strength byte-for-byte unchanged.
+ * An unavailable student returns no rank table. The caller then uses the
+ * unchanged stable production ordering.
  */
-const identityRankProvider: RootPolicyRankProvider = ({ moveKeys }) =>
-  moveKeys.map((moveKey, rank) => ({ moveKey, rank }));
+const unavailableRankProvider: RootPolicyRankProvider = () => null;
 
-let rankProvider: RootPolicyRankProvider = identityRankProvider;
+let rankProvider: RootPolicyRankProvider = unavailableRankProvider;
 const rootMoves = new MoveListImproved();
 
 /** Bit-compatible with wasm-spike/assembly/index.ts::jsMoveKeyOf(). */
@@ -64,8 +68,17 @@ export function computeRootPolicyRanks(
   position: KyokumenImproved,
   sequence: number,
   studentEnabled: boolean,
+  gamePly = 0,
 ): readonly RootPolicyMoveRank[] | null {
-  if (!studentEnabled || !isPositiveI32(sequence)) return null;
+  if (
+    !studentEnabled ||
+    !isPositiveI32(sequence) ||
+    !Number.isInteger(gamePly) ||
+    gamePly < 0 ||
+    gamePly > 0x7fffffff
+  ) {
+    return null;
+  }
 
   const moves = GenerateMovesImproved.generateLegalMovesPooled(position, rootMoves);
   const moveKeys = moves.map(rootPolicyMoveKey);
@@ -78,6 +91,9 @@ export function computeRootPolicyRanks(
   try {
     output = rankProvider({
       sequence,
+      position,
+      searchPly: 0,
+      gamePly,
       moves,
       moveKeys,
     });
@@ -112,9 +128,9 @@ export function computeRootPolicyRanks(
 }
 
 /**
- * Runtime injection seam for the eventual frozen student and deterministic
- * tests. Passing null restores the identity stub.
+ * Runtime injection seam for the frozen student and deterministic tests.
+ * Passing null restores the unavailable fail-closed provider.
  */
 export function setRootPolicyRankProvider(provider: RootPolicyRankProvider | null): void {
-  rankProvider = provider ?? identityRankProvider;
+  rankProvider = provider ?? unavailableRankProvider;
 }

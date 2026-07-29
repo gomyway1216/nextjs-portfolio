@@ -26,6 +26,9 @@ const boundary = vi.hoisted(() => {
     setNnueAvailable(available: boolean) {
       nnueAvailable = available;
     },
+    isNnueAvailable() {
+      return nnueAvailable;
+    },
     receipt,
   };
 });
@@ -37,6 +40,10 @@ vi.mock('@/components/game/ShogiImproved/OpeningBookImproved', () => ({
 
 vi.mock('@/components/game/ShogiImproved/rootPolicyRank', () => ({
   computeRootPolicyRanks: boundary.compute,
+}));
+
+vi.mock('@/components/game/ShogiImproved/rootPolicyStudentRuntime', () => ({
+  ensureFrozenRootPolicyStudentLoaded: vi.fn(async () => true),
 }));
 
 vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
@@ -51,7 +58,7 @@ vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
     leaves: 4,
   })),
   isNnueEnabled: vi.fn(() => false),
-  isNnueWeightsLoaded: vi.fn(() => false),
+  isNnueWeightsLoaded: vi.fn(() => boundary.isNnueAvailable()),
   isWasmEngineReady: vi.fn(() => false),
   loadNnueWeights: vi.fn(() => false),
   measureEmbeddedWasmRuntimeIdentity: vi.fn(async () => ({
@@ -79,9 +86,20 @@ function serialize(k: KyokumenImproved) {
   return { board, hand: [...k.hand], teban: k.teban };
 }
 
-function send(data: unknown): void {
+async function send(data: unknown): Promise<void> {
   expect(scope.onmessage).toBeTypeOf('function');
   scope.onmessage!({ data });
+  await vi.waitFor(() => {
+    if (
+      typeof data === 'object' &&
+      data !== null &&
+      'type' in data &&
+      data.type === 'bestMove' &&
+      'id' in data
+    ) {
+      expect(posted.some((message) => message.id === data.id)).toBe(true);
+    }
+  });
 }
 
 beforeAll(async () => {
@@ -91,20 +109,20 @@ beforeAll(async () => {
 });
 
 describe('shogi-ai.worker root-policy SMP boundary', () => {
-  it('infers once in main and distributes the identical receipt to every helper', () => {
+  it('infers once in main and distributes the identical receipt to every helper', async () => {
     const helperMessages: unknown[][] = [[], [], []];
     const ports = helperMessages.map((messages) => ({
       onmessage: null,
       postMessage: (message: unknown) => messages.push(message),
     }));
-    send({
+    await send({
       type: 'smpThreads',
       sab: new SharedArrayBuffer(64),
       ports,
     });
 
     const position = InitialPositionImproved.createInitialPosition();
-    send({
+    await send({
       type: 'bestMove',
       id: 701,
       position: serialize(position),
@@ -143,12 +161,12 @@ describe('shogi-ai.worker root-policy SMP boundary', () => {
     expect(disabledMove).toEqual(enabledMove);
   });
 
-  it('calls no provider for easy or when the exact live NNUE is unavailable', () => {
+  it('calls no provider for easy or when the exact live NNUE is unavailable', async () => {
     const position = InitialPositionImproved.createInitialPosition();
     const callsBefore = boundary.compute.mock.calls.length;
 
     boundary.setNnueAvailable(false);
-    send({
+    await send({
       type: 'bestMove',
       id: 703,
       position: serialize(position),
@@ -160,7 +178,7 @@ describe('shogi-ai.worker root-policy SMP boundary', () => {
     expect(boundary.search.mock.lastCall?.[5]).toBeNull();
 
     boundary.setNnueAvailable(true);
-    send({
+    await send({
       type: 'bestMove',
       id: 704,
       position: serialize(position),

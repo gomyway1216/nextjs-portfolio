@@ -1,6 +1,6 @@
-# Shogi child-board root-policy student/runtime v1: pre-implementation plan
+# Shogi child-board root-policy student/runtime v1: implementation record
 
-> The 6.17M-parameter child-board teacher will not enter production leaf evaluation. Only seed 42 fit outputs distill into an 877,633-parameter root-ordering student; seed 314159 remains replication-only and never becomes a training target. Student, live NNUE, and worker/WASM identities freeze separately before one-way tune, sealed, runtime, and formal gates. Both phase-1 teachers are frozen, but this pre-bind version still has 0/2 hashes substituted, so no student optimizer, tune, sealed scoring, match, or live change has started. [日本語](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.md)
+> The 6.17M-parameter child-board teacher will not enter production leaf evaluation. Only seed 42 fit outputs distill into an 877,633-parameter root-ordering student; seed 314159 remains replication-only and never becomes a training target. Student, live NNUE, and worker/WASM identities freeze separately before one-way tune, sealed, runtime, and formal gates. Both phase-1 teachers, their hash binding, and the student implementation are complete. The first preparation caught a misinterpreted V9 candidate subset before teacher inference and stopped; the v2 full-production-set correction is now under validation. No student optimizer, tune, sealed scoring, match, or live change has started. [日本語](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.md)
 
 ## Why a separate student exists
 
@@ -18,16 +18,16 @@ This protocol fixes separate roles:
 
 Disabling the student must restore the prior root ordering and byte-identical non-root search state.
 
-## Parent protocol and exactly two unresolved slots
+## Parent protocol and frozen teacher binding
 
 The parent is the 42,427-byte [strength-candidate protocol](../ml/protocols/child-board-strength-candidate-v1-plan.json), SHA-256 `b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2`.
 
-Only two strings are unresolved in this pre-implementation core:
+Only two strings were unresolved in the original pre-implementation core:
 
 - Seed-42 final-checkpoint SHA-256
 - Seed-314159 final-checkpoint SHA-256
 
-The phase-1 terminal result now matches the parent schema, status, SHA, and false tune/sealed/live flags. The next binding commit mechanically copies each 64-character lowercase hash from the matching member of `training.final_checkpoints`. The only permitted protocol diff replaces those two values. Architecture, seed, loss, epochs, paths, gates, and articles cannot change. That commit also adds the preregistered binding receipt and minimum closed-state postphase registry as new files.
+The phase-1 terminal result matched the parent schema, status, SHA, and false tune/sealed/live flags. The binding commit mechanically copied seed 42 hash `b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a` and seed 314159 hash `9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293` from `training.final_checkpoints`, then published the binding receipt and closed postphase registry. Later production-source pin refreshes and this move-universe input-contract correction leave that historical binding receipt immutable; only the current protocol identity and registry receipt advance.
 
 Seed 42 is the distillation teacher before any score is known. Averaging, ensembling, selecting, or targeting seed 314159 is forbidden.
 
@@ -42,6 +42,18 @@ The frozen seed-42 teacher runs in eval mode on the parent fit partitions only:
 | Total | 20,139 | 4,607 |
 
 Each rules-complete legal list is first projected to the move membership that current production search actually generates. The projection removes only a non-promoting bishop or rook move when promotion is available, because production already omits that branch; every other move remains. Since the teacher consumes the move set as a whole, filtering logits from a rules-complete forward is forbidden. The projected child batch must be rebuilt and the frozen seed-42 teacher re-forwarded on that complete projected set. No teacher retraining is needed.
+
+### Incomplete V9 input stopped during the 2026-07-28 implementation check
+
+The first real-data preparation stopped before teacher inference or optimizer creation. One V9 parent supplied 12 moves that the loader incorrectly treated as rules-complete, while the real production JS and real production WASM independently returned the same 27 moves. The parent was `sha256:0011a06add27c5201bcebcd9b569f197d7fd440ce662e09594128f55bf0103f3`, with SFEN `ln1gk1snl/6gb1/p1spppppp/1rp6/7P1/P5P2/1PPPPP2P/1BGK2SR1/LNS2G1NL b p 19`. The source 12 were a subset of 27: 15 moves were missing, source extras were zero, JS-versus-WASM differences were zero, and this position had zero bishop/rook non-promotion removals.
+
+The engine did not invent 15 illegal moves. A V9 training row contains the played move plus teacher candidates, so it is a candidate subset rather than a complete legal list. Shrinking production to 12, interpolating old teacher labels for the missing 15, or substituting live-NNUE values as teacher targets are all forbidden.
+
+For every fit parent, the corrected implementation runs the pinned production JS list, pinned `rulesCompleteLegalMoves` that restores the known bishop/rook non-promotion branches on top of that JS list, and the separately implemented pinned production WASM list. This is not a third independent shogi-legality oracle; it is an exact current-production-membership check across two production implementations with explicit pre/post-projection lists. Only when the protocol projection of the restored list exactly equals both production lists does it derive every production child SFEN, semantic ID, explicit feature, and frozen live-NNUE baseline. Browser source rows independently authenticate the rules-complete list on 875 parents; a V9 source remains a separately recorded authenticated candidate subset. Before opening the seed-42 checkpoint, the expanded parent-plus-all-child closure must have zero intersection with protected/known-eval IDs, the original tune closure, and the other fit domain. Added moves carry no usable source teacher target; seed 42 is freshly forwarded on the complete production set to create targets.
+
+At the stop, the student output directory was zero bytes: zero distillation shards, zero teacher inference, zero training epochs, zero tune/sealed/formal/external scoring, and zero live-weight changes. No weak result was installed. The only retained outputs from the failure are its diagnosis and regression tests; a receipt with the old subset meaning cannot be rewritten or reused under the corrected meaning.
+
+The corrected full 20,139-parent preflight measured the following. Browser 875 had 75,532 source and rules-complete moves, 74,611 production moves, zero additions, and 921 bishop/rook non-promotion removals. V9 19,264 had 223,834 source candidates, 1,681,740 rules-complete moves, 1,663,442 production moves, 1,439,608 additions, and 18,298 removals. The combined production set contained 1,738,053 moves. Independent projection versus JS/WASM mismatches were zero; intersections with 900,395 protected/known-eval IDs, 72,710 original tune IDs, and the other fit domain were all zero. The teacher-free preflight artifact was 565,336,695 bytes with SHA-256 `e229b6c7d52f322a1ee33f75dce33152ab13f09b1d935695f8835af89cc98c89`, generated in about five and a half minutes. It is a temporary validation artifact and will not be reused as the formal receipt after the public-main merge.
 
 For all 20,139 fit parents, one fixed-order JSONL records parent identity and SFEN, the rules-complete source list, projected production list, removals and reasons, child identity, frozen live-NNUE child-side CP, its sign-negated parent-perspective `base_parent_cp`, and seed-42 combined CP from the projected-set re-forward. Its path, bytes, SHA, parent/move counts, and teacher receipt enter the terminal result.
 

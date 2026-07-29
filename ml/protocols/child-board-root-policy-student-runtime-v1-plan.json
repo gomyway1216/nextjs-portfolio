@@ -184,6 +184,12 @@
         "role": "JS production promotion branching and legal root filtering"
       },
       {
+        "path": "ml/shogi-sfen.ts",
+        "bytes": 7033,
+        "sha256": "421e73f70ba8f2a499c224b87f6c7a70a40378342295b6a4374d2ba345af5dba",
+        "role": "pinned rules-complete expansion over JS production enumeration plus USI transition contract; this is not a third independent legality oracle"
+      },
+      {
         "path": "wasm-spike/assembly/index.ts",
         "bytes": 143322,
         "sha256": "1005153cbfd17dc7046c5f82d87d33efa7a651736aba35c384e24a5162028880",
@@ -208,7 +214,9 @@
       "for side w, remove only a non-promoting move by an unpromoted bishop or rook when either source or destination USI rank is g, h, or i",
       "preserve the corresponding promoting USI move and bytewise-sort the retained USI list"
     ],
-    "equivalence": "the projected list must equal the legal root membership produced independently by both pinned JS and pinned WASM generators for every parent; any mismatch is STOP before teacher inference",
+    "equivalence": "for every fit parent, materialize the pinned rules-complete expansion from the pinned JS production list, project it, and require the projected list to equal both the JS list and the separately implemented pinned WASM list; Browser875 all-legal source rows independently authenticate the expanded list on 875 parents, V9 source rows are authenticated candidate subsets that must be contained in it, and any mismatch is STOP before teacher inference; this verifies exact current production membership rather than claiming a third independent shogi-legality oracle",
+    "v9_candidate_subset_expansion": "derive every production child SFEN, semantic position ID, explicit move feature, and exact frozen live-NNUE baseline from the verified full production list; never invent source teacher labels for missing candidates; run the frozen seed-42 teacher fresh on the full production set",
+    "expanded_semantic_firewall": "before opening the teacher checkpoint, require the expanded fit parent-and-child closure to have zero intersection with protected and known-eval IDs, the original tune semantic closure, and the other fit domain",
     "scope": "training distillation, parity fixture, one-shot tune, one-shot sealed scoring, and production root inference all use this same projection",
     "forbidden": [
       "changing root or non-root production move membership as part of the student experiment",

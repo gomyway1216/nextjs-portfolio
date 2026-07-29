@@ -4,8 +4,8 @@
   "recorded_stage": "mechanical teacher binding before student implementation",
   "bound_protocol": {
     "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
-    "bytes": 64050,
-    "sha256": "a15c4b2970dc612800f443c128935950122252bff6ca5ab5f39a9e79c811bc98"
+    "bytes": 65314,
+    "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0"
   },
   "phase1_terminal_result": {
     "path": "/Users/yudaiyaguchi/.codex/shogi-runs/child-board-strength-candidate-v1-phase1/result.json",

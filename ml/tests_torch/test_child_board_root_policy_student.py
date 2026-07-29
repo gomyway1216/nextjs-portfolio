@@ -17,6 +17,11 @@ import train
 import train_child_board_root_policy_student as runner
 
 
+TEST_LIVE_QWEIGHTS = lpv.read_live_board_qweights(
+    "public/shogi-nnue-weights.bin"
+)
+
+
 def synthetic_group(
     parent_id: str,
     parent_sfen: str,
@@ -27,18 +32,26 @@ def synthetic_group(
         board[: train.MAX_PIECES]
         + [train.PAD_IDX] * (train.MAX_PIECES - len(board))
     )
+    child_sfens = [
+        lpv.child_sfen_after_usi(parent_sfen, move) for move in moves
+    ]
+    child_scores = lpv.score_child_sfens_with_live_nnue(
+        TEST_LIVE_QWEIGHTS,
+        child_sfens,
+    )
     examples = []
-    for index, move in enumerate(moves):
-        child_sfen = lpv.child_sfen_after_usi(parent_sfen, move)
+    for index, (move, child_sfen, child_score) in enumerate(
+        zip(moves, child_sfens, child_scores, strict=True)
+    ):
         examples.append(
             lpv.MoveExample(
                 move=move,
                 teacher_cp=float(300 - index * 100),
                 teacher_rank=index + 1,
-                child_position_id=f"child-{parent_id}-{move}",
+                child_position_id=train.position_id_from_sfen(child_sfen),
                 child_sfen=child_sfen,
                 features=lpv.encode_explicit_move(parent_sfen, move),
-                base_parent_cp=float(index * 25 - 50),
+                base_parent_cp=-child_score,
             )
         )
     return lpv.ParentGroup(
@@ -408,19 +421,14 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             self.START_SFEN,
             self.START_PRODUCTION_MOVES,
         )
-        v9_group = synthetic_group(
-            "start-v9",
-            self.START_SFEN,
-            self.START_PRODUCTION_MOVES,
-        )
         projected = runner._project_fit_groups(
-            {"browser": [browser_group], "v9": [v9_group]}
+            {"browser": [browser_group], "v9": []}
         )
         protocol = {
             "production_move_universe": {
                 "source_receipts": [
                     {"path": f"source-{index}", "sha256": str(index) * 64}
-                    for index in range(4)
+                    for index in range(5)
                 ]
             }
         }
@@ -433,26 +441,31 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             root = Path(directory)
             artifact = root / "move-universe.jsonl"
             receipt_path = root / "move-universe.receipt.json"
-            first = runner.verify_production_move_universe(
+            first, first_expanded = runner.verify_production_move_universe(
                 projected,
                 protocol=protocol,
                 protocol_identity=protocol_identity,
+                protected_ids=frozenset(),
+                original_tune_ids=frozenset(),
                 output_path=artifact,
                 receipt_path=receipt_path,
             )
-            second = runner.verify_production_move_universe(
+            second, second_expanded = runner.verify_production_move_universe(
                 projected,
                 protocol=protocol,
                 protocol_identity=protocol_identity,
+                protected_ids=frozenset(),
+                original_tune_ids=frozenset(),
                 output_path=artifact,
                 receipt_path=receipt_path,
             )
             self.assertEqual(first, second)
-            self.assertEqual(first["parents"], 2)
-            self.assertEqual(first["domain_parents"], {"browser": 1, "v9": 1})
+            self.assertEqual(first_expanded, second_expanded)
+            self.assertEqual(first["parents"], 1)
+            self.assertEqual(first["domain_parents"], {"browser": 1, "v9": 0})
             self.assertEqual(
                 first["production_moves"],
-                len(self.START_PRODUCTION_MOVES) * 2,
+                len(self.START_PRODUCTION_MOVES),
             )
             rows = [
                 runner._strict_json_line(
@@ -467,21 +480,20 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 [(row["domain"], row["parent_id"]) for row in rows],
                 [
                     ("browser", "start-browser"),
-                    ("v9", "start-v9"),
                 ],
             )
             for row in rows:
                 self.assertEqual(
-                    row["projected_usi"],
+                    row["production_usi"],
                     list(self.START_PRODUCTION_MOVES),
                 )
                 self.assertEqual(
                     row["production_js_usi"],
-                    row["projected_usi"],
+                    row["production_usi"],
                 )
                 self.assertEqual(
                     row["production_wasm_usi"],
-                    row["projected_usi"],
+                    row["production_usi"],
                 )
 
             changed = dict(first)
@@ -495,9 +507,130 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                     projected,
                     protocol=protocol,
                     protocol_identity=protocol_identity,
+                    protected_ids=frozenset(),
+                    original_tune_ids=frozenset(),
                     output_path=artifact,
                     receipt_path=receipt_path,
                 )
+
+    def test_v9_candidate_subset_expands_before_fresh_teacher_forward(self):
+        parent_sfen = (
+            "ln1gk1snl/6gb1/p1spppppp/1rp6/7P1/P5P2/"
+            "1PPPPP2P/1BGK2SR1/LNS2G1NL b p 19"
+        )
+        source_candidates = (
+            "1g1f",
+            "2e2d",
+            "2h2f",
+            "2h2g",
+            "2i3g",
+            "3f3e",
+            "3h3g",
+            "4g4f",
+            "4i4h",
+            "6h5h",
+            "7g7f",
+            "9f9e",
+        )
+        group = synthetic_group("v9-subset", parent_sfen, source_candidates)
+        projected = runner._project_fit_groups(
+            {"browser": [], "v9": [group]}
+        )
+        protocol = {
+            "production_move_universe": {
+                "source_receipts": [
+                    {"path": f"source-{index}", "sha256": str(index) * 64}
+                    for index in range(5)
+                ]
+            }
+        }
+        protocol_identity = {
+            "path": "protocol.json",
+            "bytes": 1,
+            "sha256": "a" * 64,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipt, expanded = runner.verify_production_move_universe(
+                projected,
+                protocol=protocol,
+                protocol_identity=protocol_identity,
+                protected_ids=frozenset(),
+                original_tune_ids=frozenset(),
+                output_path=root / "move-universe.jsonl",
+                receipt_path=root / "move-universe.receipt.json",
+            )
+        self.assertEqual(receipt["domain_original_candidates"]["v9"], 12)
+        self.assertEqual(receipt["domain_rules_complete_moves"]["v9"], 27)
+        self.assertEqual(receipt["domain_added_moves"]["v9"], 15)
+        self.assertEqual(receipt["domain_production_moves"]["v9"], 27)
+        expanded_parent = expanded["v9"][0]
+        self.assertEqual(len(expanded_parent.group.examples), 27)
+        missing = [
+            example
+            for example in expanded_parent.group.examples
+            if example.move not in source_candidates
+        ]
+        self.assertEqual(len(missing), 15)
+        self.assertTrue(
+            all(
+                example.teacher_cp == 0.0 and example.teacher_rank == 0
+                for example in missing
+            )
+        )
+        teacher = SetAwareTeacher()
+        records = runner._teacher_records(
+            [("v9", expanded_parent)],
+            teacher,
+            device="cpu",
+        )
+        self.assertEqual(teacher.observed_move_counts, [27])
+        self.assertEqual(len(records[0]["moves"]), 27)
+
+    def test_expanded_child_overlap_stops_before_publication(self):
+        group = synthetic_group(
+            "firewall",
+            self.START_SFEN,
+            self.START_PRODUCTION_MOVES,
+        )
+        projected = runner._project_fit_groups(
+            {"browser": [group], "v9": []}
+        )
+        blocked_child = group.examples[0].child_position_id
+        protocol = {
+            "production_move_universe": {
+                "source_receipts": [
+                    {"path": f"source-{index}", "sha256": str(index) * 64}
+                    for index in range(5)
+                ]
+            }
+        }
+        protocol_identity = {
+            "path": "protocol.json",
+            "bytes": 1,
+            "sha256": "a" * 64,
+        }
+        for field, message in (
+            ("protected_ids", "protected/known-eval"),
+            ("original_tune_ids", "original tune"),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                arguments = {
+                    "protected_ids": frozenset(),
+                    "original_tune_ids": frozenset(),
+                }
+                arguments[field] = frozenset({blocked_child})
+                with self.assertRaisesRegex(ValueError, message):
+                    runner.verify_production_move_universe(
+                        projected,
+                        protocol=protocol,
+                        protocol_identity=protocol_identity,
+                        output_path=root / "move-universe.jsonl",
+                        receipt_path=root / "move-universe.receipt.json",
+                        **arguments,
+                    )
+                self.assertEqual(list(root.iterdir()), [])
 
     def test_membership_mismatch_stops_before_teacher_checkpoint_load(self):
         group = synthetic_group(
@@ -513,7 +646,7 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             "production_move_universe": {
                 "source_receipts": [
                     {"path": f"source-{index}", "sha256": str(index) * 64}
-                    for index in range(4)
+                    for index in range(5)
                 ]
             },
         }
@@ -556,7 +689,11 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
         ), mock.patch.object(
             runner,
             "_load_fit_groups_from_phase1",
-            return_value={"browser": [group], "v9": []},
+            return_value=runner.FitInputs(
+                fit={"browser": [group], "v9": []},
+                protected_ids=frozenset(),
+                original_tune_ids=frozenset(),
+            ),
         ), mock.patch.object(
             runner,
             "_project_fit_groups",
@@ -678,7 +815,11 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             ), mock.patch.object(
                 runner,
                 "_load_fit_groups_from_phase1",
-                return_value={"browser": [], "v9": []},
+                return_value=runner.FitInputs(
+                    fit={"browser": [], "v9": []},
+                    protected_ids=frozenset(),
+                    original_tune_ids=frozenset(),
+                ),
             ), mock.patch.object(
                 runner,
                 "_project_fit_groups",

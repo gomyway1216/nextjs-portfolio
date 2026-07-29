@@ -33,6 +33,11 @@ describe("child-board root-policy student tune result evidence", () => {
       sha256:
         "65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399",
     });
+    expect(evidence.source_results.pending_result).toMatchObject({
+      bytes: 3678,
+      sha256: evidence.source_results.tune_result.sha256,
+      byte_identical_to_tune_result: true,
+    });
     expect(evidence.source_results.score_bundle).toMatchObject({
       bytes: 23409640,
       sha256:
@@ -76,6 +81,66 @@ describe("child-board root-policy student tune result evidence", () => {
       expect(artifact.v9_tune.pass).toBe(false);
       expect(artifact.pass).toBe(false);
     }
+  });
+
+  it("separates a verified score bundle from threshold-derivation defects", () => {
+    const audit = evidence.independent_recalculation_audit;
+    expect(audit.score_rows_recomputed).toBe(67870);
+    expect(audit.score_rows_matched).toBe(67870);
+    expect(audit.domain_rows.browser_tune + audit.domain_rows.v9_tune).toBe(
+      67870,
+    );
+    expect(audit.checks).toMatchObject({
+      source_rows_missing: 0,
+      exact_live_cp_mismatches: 0,
+      teacher_cp_mismatches: 0,
+      membership_differences: 0,
+      score_orientation: "pass",
+      artifact_sha_binding: "pass",
+      student_export: "pass",
+      protected_overlap: "pass",
+    });
+    expect(
+      audit.artifact_integrity.frozen_student_runtime_tensor,
+    ).toMatchObject({
+      bytes: 3510532,
+      sha256:
+        "bfa44796406cd1e6e0f20a3cce8b3701ab4e43b731afa3285b02269ba3898003",
+      source_and_public_copies_byte_identical: true,
+    });
+
+    const mismatch = audit.threshold_derivation_mismatch;
+    expect(
+      mismatch.v9_exact_live_mean_regret_cp.recomputed_current_reference -
+        mismatch.v9_exact_live_mean_regret_cp.registered,
+    ).toBeCloseTo(mismatch.v9_exact_live_mean_regret_cp.delta, 12);
+    expect(
+      mismatch.browser_projection_reference.historical_moves_before_projection -
+        mismatch.browser_projection_reference.current_moves_after_projection,
+    ).toBe(
+      mismatch.browser_projection_reference
+        .nonpromoting_bishop_rook_moves_removed,
+    );
+    expect(
+      mismatch.browser_projection_reference.gate_effect
+        .failure_made_artificially_stricter,
+    ).toBe(false);
+    expect(mismatch.impact).toMatchObject({
+      result_computation_corrupted: false,
+      current_lane_rerun_authorized: false,
+      current_lane_failure_reversed: false,
+    });
+
+    const coverage = audit.fit_tune_population_gap;
+    expect(
+      coverage.fit_v9_original_candidate_moves +
+        coverage.fit_v9_added_seed42_pseudolabel_moves,
+    ).toBe(coverage.fit_v9_production_moves);
+    expect(coverage.fit_expansion_ratio).toBe(
+      coverage.fit_v9_production_moves /
+        coverage.fit_v9_original_candidate_moves,
+    );
+    expect(coverage.tune_v9_added_moves).toBe(0);
   });
 
   it("keeps downstream authority and live state closed", () => {

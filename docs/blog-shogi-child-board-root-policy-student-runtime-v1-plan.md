@@ -253,6 +253,18 @@ seed 42はregretだけを0.633 cp差で通ったが、Top-1とpairを落とし�
 
 3 artifactsとも全V9条件を落とした。結果を見た後で閾値を下げる、seedを選ぶ、checkpointを替える、同じtuneを再実行する、という救済は行わない。
 
+### 独立再計算で見つかったthreshold導出ミスマッチ
+
+stdlibだけで書いた別parserは67,870手をsource JSONLの `(domain,parent_id,move)` へ再突合し、source欠落、exact-live CP不一致、teacher CP不一致、membership差をすべて0とした。全metricも再計算して一致し、NDCGの加算順による約`1e-15`差だけだった。符号反転するとpair accuracyがBrowser exact/liveで`0.665495→0.333606`、V9で`0.598464→0.400008`まで崩れるためorientationも正常である。全4 artifactのbytes/SHA、4親427手の独立checkpoint forward、877,633 parameter・47 tensorのstudent export、3,510,532-byte payload SHA `bfa44796406cd1e6e0f20a3cce8b3701ab4e43b731afa3285b02269ba3898003`も一致した。fit 20,139親、protected/known-eval集合とのoverlapは0である。つまり、今回の低い数値を符号反転、別weight、壊れたexport、data leakで説明することはできない。
+
+一方、**事前thresholdの導出側には実際の不整合があった**。Browserの旧baselineはprojection前16,879手でlive Top-1 16、pair `0.663703888923293`、regret `15924.158163265307` cpだった。one-shotは不成角・飛車315手を除いた16,564手なので、同じlive weightsでもTop-1 19、pair `0.6654953890718718`、regret `15858.775510204081` cpになる。この差はliveが強くなったことを意味しない。ただし登録gateは現在liveに対してTop-1 +7、pair +`0.0082085`、regret +`65.383` cpの余裕であり、projection差がFAILを不当に厳しくしたわけではない。
+
+V9の51,306手membershipは変わっていない。旧helperはpessimistic tieと説明しながらargmax 1手だけでregretを算出していた。登録scorerは同点best集合のteacher-worstを使うため、exact-live regretは旧 `4863.386080253911` cpから現 `5089.737701201541` cpへ+`226.35162094763018` cp変わった。19親にexact-live tieがあり、このhelper bugによって事前regret/reference値が現在scorerと直接比較可能だった、という前提は誤りである。
+
+ただし、このprotocol defectは現候補を合格へ変えない。seed 42だけでもBrowserはTop-1 `22<26`、pair `0.605001<0.673704`、V9はTop-1 `996<1078`、pair `0.590120<0.598464` である。studentはさらにBrowser `16` / `0.564730`、V9 `855` / `0.576095` だった。regret thresholdを正しく再導出してもTop-1とpairだけでFAILは残る。one-shotの現レーンを再実行したり、結果を見た後でthresholdを修正したりするauthorityもない。修正版は失敗データを選択へ使わない**別のprospective lane**として、実行前に母集団・tie・regret導出を固定する必要がある。
+
+もう1つのcoverage差も見つかった。fit V9は223,834候補からproduction 1,663,442手へ7.43倍に拡張し、追加1,439,608手、全体の86.54%をseed-42 pseudo-labelが占める。一方tune V9は登録どおり51,306候補だけで追加0だった。これは採点バグではないが、tune単独ではfull-production coverageを測らないという限界であり、次のdata/objective設計で先に解消すべきである。
+
 ### 速度、未実施工程、ライブ状態
 
 正式latency gateを開くauthorityはtune PASSの後にしか発生しないため、M4 Pro 1,024件の正式値は存在しない。別の非正式prototype診断ではwarm latencyがbaseline `44.00 ms` からprototype `41.27 ms` へ約6.2%短縮したが、事前登録したstudent追加分のmedian `12 ms`、p95 `25 ms` の双方より遅い。しかも棋力gateが先に閉じたため、このprototypeを現候補の採用証拠にはしない。
@@ -274,6 +286,6 @@ seed 42はregretだけを0.633 cp差で通ったが、Top-1とpairを落とし�
 
 「強いライブAIを届ける」という目的に限れば、このexact candidateへ使った学習computeとruntime最適化はsunk costになった。合格候補もライブ改善も残らず、sealed以降のために作った実装もこのレーンでは使われなかった。これを「基盤ができたから実質成功」とは扱わない。
 
-一方、失敗の場所は絞れた。large teacher 2本も両domainで落ちたため、studentへの圧縮だけを唯一の原因にはできない。teacher品質、学習data、目的関数、production射影、事前閾値との比較可能性を別監査する必要がある。studentがseed 42より両domainのTop-1とpairでさらに低かったことは追加の圧縮損失と整合するが、この結果だけでは因果を確定できない。
+一方、失敗の場所は絞れた。large teacher 2本も両domainで落ちたため、studentへの圧縮だけを唯一の原因にはできない。独立監査でthreshold導出の比較不能性とfit/tune coverage差も確定したため、teacher品質、学習data、目的関数、production射影、threshold導出を次のprospective designで同時に直す必要がある。studentがseed 42より両domainのTop-1とpairでさらに低かったことは追加の圧縮損失と整合するが、この結果だけでは因果を確定できない。
 
 最も重要なのは、loss低下や36件の実装parity、コード完成を棋力向上と読み替えず、弱いか不整合な候補をライブへ入れなかったことである。これは安全上の価値であって棋力向上ではない。次のレーンは、このfail結果を訓練dataへ混ぜたり閾値を後付け変更したりせず、独立監査で原因仮説を固定してから新しい候補を作る。

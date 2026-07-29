@@ -138,17 +138,24 @@ function sha256(value: Uint8Array | string): string {
 }
 
 function exactSha256(value: string, label: string): string {
-  if (!SHA256_RE.test(value)) throw new Error(`${label} must be lowercase SHA-256`);
+  if (!SHA256_RE.test(value))
+    throw new Error(`${label} must be lowercase SHA-256`);
   return value;
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === "string" || typeof value === "boolean") {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return JSON.stringify(value);
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Object.is(value, -0)) {
-      throw new Error("canonical JSON rejects non-finite or negative-zero numbers");
+      throw new Error(
+        "canonical JSON rejects non-finite or negative-zero numbers",
+      );
     }
     return JSON.stringify(value);
   }
@@ -253,12 +260,15 @@ export function buildCleanDerivative(
 ): CleanDerivative {
   validateRawLines(rows, rawLines);
   if (!(knownEvalPositionIds instanceof Set)) {
-    throw new Error("known-eval identifiers must be an immutable-call Set snapshot");
+    throw new Error(
+      "known-eval identifiers must be an immutable-call Set snapshot",
+    );
   }
   const droppedGames = new Set<string>();
   const seenParents = new Set<string>();
   for (const row of rows) {
-    if (seenParents.has(row.parent_id)) throw new Error("raw parent_id is duplicated");
+    if (seenParents.has(row.parent_id))
+      throw new Error("raw parent_id is duplicated");
     seenParents.add(row.parent_id);
     if (semanticClosure(row).some((value) => knownEvalPositionIds.has(value))) {
       droppedGames.add(row.game_id);
@@ -331,7 +341,10 @@ export function buildCleanDerivativeFromAuthenticatedSnapshot(
   expectedIdentity: FloodgateFreshFinalRawIdentity,
   knownEvalPositionIds: ReadonlySet<string>,
 ): CleanDerivative {
-  const rows = parseAuthenticatedFloodgateFreshFinalRows(bytes, expectedIdentity);
+  const rows = parseAuthenticatedFloodgateFreshFinalRows(
+    bytes,
+    expectedIdentity,
+  );
   return buildCleanDerivative(
     rows,
     rawLinesFromSnapshot(bytes),
@@ -381,7 +394,10 @@ export function selectSealedParents(
   const ordered = [...cleanRows].sort((left, right) => {
     const leftHash = sha256(`${SEALED_HASH_DOMAIN}${left.parent_id}`);
     const rightHash = sha256(`${SEALED_HASH_DOMAIN}${right.parent_id}`);
-    return compareBytewise(leftHash, rightHash) || compareBytewise(left.parent_id, right.parent_id);
+    return (
+      compareBytewise(leftHash, rightHash) ||
+      compareBytewise(left.parent_id, right.parent_id)
+    );
   });
   const perGame = new Map<string, number>();
   const selected: Readonly<FloodgateTrainingParent>[] = [];
@@ -392,7 +408,9 @@ export function selectSealedParents(
     if (selected.length === targetParents) break;
   }
   if (selected.length !== targetParents) {
-    throw new Error(`sealed selection incomplete: ${selected.length}/${targetParents}`);
+    throw new Error(
+      `sealed selection incomplete: ${selected.length}/${targetParents}`,
+    );
   }
   const parentIdsBytes = Buffer.from(
     `${selected.map((row) => row.parent_id).join("\n")}\n`,
@@ -408,7 +426,9 @@ export function selectSealedParents(
     selected_parent_ids: Object.freeze({
       bytes: parentIdsBytes.byteLength,
       sha256: sha256(parentIdsBytes),
-      identifiers_sha256: identifierDigest(selected.map((row) => row.parent_id)),
+      identifiers_sha256: identifierDigest(
+        selected.map((row) => row.parent_id),
+      ),
     }),
     teacher_labels_opened: false,
     candidate_scores_opened: false,
@@ -489,11 +509,15 @@ function selectedParent(
   row: Readonly<FloodgateTrainingParent>,
   sourceLine: number,
 ): SelectedConfusionParent {
-  const legal = rulesCompleteLegalMoves(positionFromSfen(row.parent_sfen).position)
+  const legal = rulesCompleteLegalMoves(
+    positionFromSfen(row.parent_sfen).position,
+  )
     .map((move) => move.usi)
     .sort(compareBytewise);
   if (legal.length < 2 || new Set(legal).size !== legal.length) {
-    throw new Error(`sealed parent ${row.parent_id} has fewer than two legal moves`);
+    throw new Error(
+      `sealed parent ${row.parent_id} has fewer than two legal moves`,
+    );
   }
   return Object.freeze({
     schema: BROWSER_CONFUSION_PARENT_SCHEMA,
@@ -568,7 +592,9 @@ async function ensureExactPublished(
   return identity(file, bytes);
 }
 
-async function readIdentity(file: string): Promise<Readonly<{ identity: FileIdentity; bytes: Buffer }>> {
+async function readIdentity(
+  file: string,
+): Promise<Readonly<{ identity: FileIdentity; bytes: Buffer }>> {
   const before = await fs.promises.lstat(file);
   if (!before.isFile() || before.isSymbolicLink()) {
     throw new Error(`immutable file is not a regular non-symlink: ${file}`);
@@ -647,7 +673,8 @@ export async function publishCleanAndSelection(
   if (
     selection.rows.length === 0 ||
     selection.rows.some(
-      (row, index) => row.parent_id !==
+      (row, index) =>
+        row.parent_id !==
         Buffer.from(selection.parentIdsBytes)
           .toString("utf8")
           .trimEnd()
@@ -708,7 +735,8 @@ async function validateExistingShard(
   const output = await readIdentity(outputPath);
   const receiptSnapshot = await readIdentity(receiptPath);
   const receipt = parseJson(receiptSnapshot.bytes, "label shard receipt");
-  const registeredOutput = receipt.output as Record<string, unknown> | undefined;
+  const registeredOutput = receipt.output as
+    Record<string, unknown> | undefined;
   const registeredShard = receipt.shard as Record<string, unknown> | undefined;
   if (
     receipt.schema !== LABEL_SHARD_RECEIPT_SCHEMA ||
@@ -744,7 +772,10 @@ export async function labelAndPublishShard(
   options: LabelShardOptions,
 ): Promise<PublishedShard> {
   const shape = exactShape(options.shape ?? fixedShape());
-  if (options.shape === undefined && options.binding.depth !== FIXED_TEACHER_DEPTH) {
+  if (
+    options.shape === undefined &&
+    options.binding.depth !== FIXED_TEACHER_DEPTH
+  ) {
     throw new Error("production sealed teacher depth must remain 12");
   }
   if (options.verifyBindingFiles !== false) {
@@ -806,7 +837,9 @@ export async function labelAndPublishShard(
     if (
       records.length !== parent.legal_moves.length ||
       new Set(records.map((record) => record.move)).size !== records.length ||
-      records.some((record, index) => record.move !== parent.legal_moves[index]) ||
+      records.some(
+        (record, index) => record.move !== parent.legal_moves[index],
+      ) ||
       records.some(
         (record) =>
           record.parent_id !== member.parent_id ||
@@ -916,7 +949,10 @@ export async function finalizeLabelShards(
     ) {
       throw new Error("existing final label receipt mismatch");
     }
-    return Object.freeze({ ...receipt, recovery: "validated-existing-terminal-receipt" });
+    return Object.freeze({
+      ...receipt,
+      recovery: "validated-existing-terminal-receipt",
+    });
   }
 
   const shardSnapshots = [];
@@ -933,7 +969,9 @@ export async function finalizeLabelShards(
     }
     shardSnapshots.push(output);
   }
-  const labelsBytes = concatBytes(shardSnapshots.map((snapshot) => snapshot.bytes));
+  const labelsBytes = concatBytes(
+    shardSnapshots.map((snapshot) => snapshot.bytes),
+  );
   const labelsIdentity = identity(options.labelsPath, labelsBytes);
   const receipt = Object.freeze({
     schema: LABEL_RECEIPT_SCHEMA,
@@ -962,7 +1000,9 @@ export async function finalizeLabelShards(
       existing.identity.bytes !== labelsIdentity.bytes ||
       existing.identity.sha256 !== labelsIdentity.sha256
     ) {
-      throw new Error("existing labels differ during terminalize-only recovery");
+      throw new Error(
+        "existing labels differ during terminalize-only recovery",
+      );
     }
   } else {
     await atomicCreate(options.labelsPath, labelsBytes);
@@ -971,5 +1011,8 @@ export async function finalizeLabelShards(
     throw new Error("injected fault after complete labels publication");
   }
   await atomicCreate(options.labelReceiptPath, jsonBytes(receipt));
-  return Object.freeze({ ...receipt, recovery: "fresh-or-terminalize-only-complete" });
+  return Object.freeze({
+    ...receipt,
+    recovery: "fresh-or-terminalize-only-complete",
+  });
 }

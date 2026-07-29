@@ -14,9 +14,9 @@ from typing import Any
 REGISTRY_RELATIVE_PATH = (
     "ml/protocols/child-board-strength-candidate-postphase-v1-registry.json"
 )
-REGISTRY_BYTES = 15_487
+REGISTRY_BYTES = 15_447
 REGISTRY_SHA256 = (
-    "a0cc3ae2eab07a039c5f1659af6f908ed882df222f23d453df332c2ade281bf6"
+    "bbc0b8d82cf3ef5219ed4250944ce631241c7f861a34676aa700037f5493d091"
 )
 REGISTRY_SCHEMA = (
     "shogi-child-board-strength-candidate-postphase-registry-v1"
@@ -30,6 +30,10 @@ PARENT_PROTOCOL_RELATIVE_PATH = (
 PARENT_PROTOCOL_BYTES = 42_427
 PARENT_PROTOCOL_SHA256 = (
     "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2"
+)
+STUDENT_PROTOCOL_BYTES = 65_314
+STUDENT_PROTOCOL_SHA256 = (
+    "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0"
 )
 
 _EXPECTED_TOP_LEVEL_KEYS = {
@@ -51,7 +55,7 @@ _SUBTREE_SHA256 = {
         "4804909fd3e36d66f1c3cd398f8d25452cbabe49aae07f6591f07f56d8c4b2a8"
     ),
     "student_protocol": (
-        "226639f40c7c069b87b10756633f5906b39ff1d3b521d536f96efa8bc9a5e4b1"
+        "af51837cca8ec34888361e1ccf08d0cf21f39141a43b638e981fdae3f9afd756"
     ),
     "binding_receipt": (
         "b3561115db50c08b1045924114315241f5213a302f4919d494baf801a8b43161"
@@ -343,6 +347,15 @@ def validate_checked_in_registry(
         or hashlib.sha256(parent_raw).hexdigest() != PARENT_PROTOCOL_SHA256
     ):
         raise RegistryError("parent protocol byte/SHA identity mismatch")
+    student = _mapping(document["student_protocol"], "student_protocol")
+    student_path = root / str(student["path"])
+    student_raw = student_path.read_bytes()
+    if (
+        len(student_raw) != STUDENT_PROTOCOL_BYTES
+        or hashlib.sha256(student_raw).hexdigest()
+        != STUDENT_PROTOCOL_SHA256
+    ):
+        raise RegistryError("student protocol byte/SHA identity mismatch")
     return document
 
 

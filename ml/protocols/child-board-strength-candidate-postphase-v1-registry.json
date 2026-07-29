@@ -10,8 +10,8 @@
   },
   "student_protocol": {
     "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
-    "prebind_bytes": 57496,
-    "prebind_sha256": "e011bfd0d415ef580d80983e33bd88fd970af92d2c944dddd01784160d61fc47",
+    "bytes": 65314,
+    "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0",
     "schema": "shogi-child-board-root-policy-student-runtime-plan-v1"
   },
   "binding_receipt": {
@@ -90,11 +90,7 @@
     "resume": "before candidate inference, retain only exact valid immutable shards and generate missing shards; any final-path mismatch stops the lane"
   },
   "metric_definitions": {
-    "artifacts": [
-      "seed42_teacher",
-      "seed314159_teacher",
-      "frozen_student"
-    ],
+    "artifacts": ["seed42_teacher", "seed314159_teacher", "frozen_student"],
     "reference": "exact live NNUE root ordering",
     "teacher_best_set": "all legal moves tied at the maximum depth-12 teacher CP",
     "candidate_top1_tie": {

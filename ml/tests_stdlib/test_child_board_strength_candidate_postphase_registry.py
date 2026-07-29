@@ -25,7 +25,7 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         cls.raw = REGISTRY_PATH.read_bytes()
         cls.document = json.loads(cls.raw)
 
-    def test_tracked_registry_and_parent_protocol_identities_are_exact(self):
+    def test_tracked_registry_and_protocol_identities_are_exact(self):
         self.assertEqual(len(self.raw), REGISTRY.REGISTRY_BYTES)
         self.assertEqual(
             hashlib.sha256(self.raw).hexdigest(),
@@ -33,6 +33,15 @@ class ChildBoardPostphaseRegistryTest(unittest.TestCase):
         )
         validated = REGISTRY.validate_checked_in_registry(REPO_ROOT)
         self.assertEqual(validated, self.document)
+        student = self.document["student_protocol"]
+        self.assertEqual(
+            student["bytes"],
+            REGISTRY.STUDENT_PROTOCOL_BYTES,
+        )
+        self.assertEqual(
+            student["sha256"],
+            REGISTRY.STUDENT_PROTOCOL_SHA256,
+        )
 
     def test_all_previous_postphase_placeholders_are_concrete(self):
         outputs = self.document["outputs"]

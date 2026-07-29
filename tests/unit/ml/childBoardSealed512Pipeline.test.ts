@@ -39,8 +39,7 @@ import {
   rulesCompleteLegalMoves,
 } from "../../../ml/shogi-sfen";
 
-const START =
-  "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const temporaryRoots: string[] = [];
 
 afterEach(() => {
@@ -136,7 +135,11 @@ async function syntheticLabeler(parent: SelectedConfusionParent) {
 
 function selectedRows(count: number): Readonly<FloodgateTrainingParent>[] {
   return Array.from({ length: count }, (_, index) =>
-    row(START, `game-${Math.floor(index / 2)}`, `parent-${index.toString().padStart(3, "0")}`),
+    row(
+      START,
+      `game-${Math.floor(index / 2)}`,
+      `parent-${index.toString().padStart(3, "0")}`,
+    ),
   );
 }
 
@@ -191,7 +194,10 @@ describe("child-board sealed512 pipeline", () => {
     for (const entry of [...rows].sort((left, right) => {
       const leftHash = digest(`${SEALED_HASH_DOMAIN}${left.parent_id}`);
       const rightHash = digest(`${SEALED_HASH_DOMAIN}${right.parent_id}`);
-      return compareBytewise(leftHash, rightHash) || compareBytewise(left.parent_id, right.parent_id);
+      return (
+        compareBytewise(leftHash, rightHash) ||
+        compareBytewise(left.parent_id, right.parent_id)
+      );
     })) {
       if ((counts.get(entry.game_id) ?? 0) >= 1) continue;
       expected.push(entry);
@@ -242,10 +248,22 @@ describe("child-board sealed512 pipeline", () => {
       selectedParentIds: path.join(root, "selected.txt"),
       selectionReceipt: path.join(root, "selection-receipt.json"),
     };
-    const first = await publishCleanAndSelection(clean, selection, expected, paths);
-    const recovered = await publishCleanAndSelection(clean, selection, expected, paths);
+    const first = await publishCleanAndSelection(
+      clean,
+      selection,
+      expected,
+      paths,
+    );
+    const recovered = await publishCleanAndSelection(
+      clean,
+      selection,
+      expected,
+      paths,
+    );
     expect(recovered).toEqual(first);
-    expect(fs.readFileSync(paths.cleanDerivative)).toEqual(Buffer.from(clean.bytes));
+    expect(fs.readFileSync(paths.cleanDerivative)).toEqual(
+      Buffer.from(clean.bytes),
+    );
     expect(fs.readFileSync(paths.selectedParentIds)).toEqual(
       Buffer.from(selection.parentIdsBytes),
     );
@@ -282,7 +300,9 @@ describe("child-board sealed512 pipeline", () => {
     expect([...new Set(records.map((entry) => entry.parent_id))]).toEqual(
       selected.slice(0, 2).map((entry) => entry.parent_id),
     );
-    for (const parentId of selected.slice(0, 2).map((entry) => entry.parent_id)) {
+    for (const parentId of selected
+      .slice(0, 2)
+      .map((entry) => entry.parent_id)) {
       const moves = records
         .filter((entry) => entry.parent_id === parentId)
         .map((entry) => entry.move);
@@ -316,7 +336,9 @@ describe("child-board sealed512 pipeline", () => {
     );
     fs.writeFileSync(first.receipt.path, receiptBytes);
     fs.appendFileSync(first.output.path, "tamper\n");
-    await expect(labelAndPublishShard(options)).rejects.toThrow(/receipt mismatch/);
+    await expect(labelAndPublishShard(options)).rejects.toThrow(
+      /receipt mismatch/,
+    );
   });
 
   it("verifies legal-enumerator and teacher-receipt bytes before shard recovery", async () => {

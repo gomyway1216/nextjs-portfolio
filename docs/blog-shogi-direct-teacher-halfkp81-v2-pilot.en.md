@@ -1,6 +1,6 @@
 # Direct-teacher HalfKP81 v2: freeze the next 56 games first
 
-> As of July 29, 2026, data generation, optimizer creation, training, static evaluation, and match play all remain at **zero**. This PR adds only a machine-readable prospective protocol and its validators. The AI is not stronger yet, and the live weights have not changed by one byte. [日本語](./blog-shogi-direct-teacher-halfkp81-v2-pilot.md)
+> As of July 29, 2026, data generation, optimizer creation, training, static evaluation, and match play all remain at **zero**. The protocol and validators are now joined by an implemented and tested create-only dataset builder, but the actual data will be generated separately only after that code is merged. The AI is not stronger yet, and the live weights have not changed by one byte. [日本語](./blog-shogi-direct-teacher-halfkp81-v2-pilot.md)
 
 ## Why move to a different experiment
 
@@ -27,6 +27,8 @@ The hypothesis is: **starting from the frozen alpha-0.50 weights and learning on
 
 The train/validation assignment unit is the **whole game**, not a row. The dataset cannot be published unless it proves zero parent, position, child-position, and semantic overlap against the already-spent 196 Browser tune parents, 4,411 V9 tune parents, the known-evaluation union, fresh selection, fresh final, and the previous protected union. Train and validation must also have zero game, parent, position, child-position, and semantic-position overlap with each other.
 
+The builder authenticates source bytes and SHA-256 before reconstructing the V9 fit membership, then emits only integer child-side `teacher_child_cp` targets. Repeated `child_position_id` values are reduced to one row only when SFEN and CP agree; any disagreement stops publication instead of averaging or voting. The manifest records SHA-256 digests for each role's game, parent, position, child, and semantic ID sets. A completion receipt binds the output files, manifest, generator source, phase-1 receipt, and spent-tune receipt. Existing directories are never overwritten, and the receipt is created last.
+
 ## Two stop gates
 
 The pilot does not proceed directly from training to a long match. It must first pass every validation check:
@@ -45,7 +47,8 @@ Any miss closes this objective and pilot family. It forbids adding data, epochs,
 
 | Stage | Count | State |
 |---|---:|---|
-| Protocol / validator | one set | implementation and tests |
+| Protocol / validator | one set | implemented and tested |
+| Create-only dataset builder | one set | implemented and tested; run after merge |
 | Pilot dataset | 0 rows | not generated |
 | Optimizer / epoch | 0 / 0 | not started |
 | Static sanity | 0 checks run | not executed |

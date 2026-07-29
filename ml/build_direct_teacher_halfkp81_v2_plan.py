@@ -165,12 +165,93 @@ def _verify_dataset_outputs(
             raise PROTOCOL.DirectTeacherHalfkpV2Error(
                 f"{role} pilot dataset differs from its manifest"
             )
+        identifiers = {
+            "games": set(),
+            "parents": set(),
+            "positions": set(),
+            "children": set(),
+        }
+        previous_child_id: str | None = None
+        path = os.path.join(directory, declared["file"])
+        with open(path, "rb") as source:
+            for line_number, raw in enumerate(source, start=1):
+                row = PROTOCOL.strict_json_bytes(
+                    raw[:-1], f"{role} pilot dataset:{line_number}"
+                )
+                if (
+                    set(row) != PROTOCOL.DATASET_ROW_FIELDS
+                    or PROTOCOL.canonical_json_bytes(row) != raw
+                    or row["schema"] != PROTOCOL.ROW_SCHEMA
+                    or row["role"] != role
+                    or type(row["child_sfen"]) is not str
+                    or not row["child_sfen"]
+                    or type(row["teacher_child_cp"]) is not int
+                    or row["teacher_score_kind"] != "cp"
+                    or type(row["source_row_sha256"]) is not str
+                    or PROTOCOL.SHA256_RE.fullmatch(
+                        row["source_row_sha256"]
+                    )
+                    is None
+                ):
+                    raise PROTOCOL.DirectTeacherHalfkpV2Error(
+                        f"{role} pilot dataset row contract drift"
+                    )
+                for field in (
+                    "game_id",
+                    "parent_id",
+                    "position_id",
+                    "child_position_id",
+                ):
+                    if (
+                        type(row[field]) is not str
+                        or PROTOCOL.POSITION_ID_RE.fullmatch(row[field]) is None
+                    ):
+                        raise PROTOCOL.DirectTeacherHalfkpV2Error(
+                            f"{role} pilot dataset has invalid {field}"
+                        )
+                child_id = row["child_position_id"]
+                if previous_child_id is not None and child_id <= previous_child_id:
+                    raise PROTOCOL.DirectTeacherHalfkpV2Error(
+                        f"{role} pilot dataset child IDs are not unique and sorted"
+                    )
+                previous_child_id = child_id
+                identifiers["games"].add(row["game_id"])
+                identifiers["parents"].add(row["parent_id"])
+                identifiers["positions"].add(row["position_id"])
+                identifiers["children"].add(child_id)
+        observed_identities = {
+            "rows": line_count,
+            "parents": len(identifiers["parents"]),
+            "games": len(identifiers["games"]),
+            "game_ids_sha256": PROTOCOL.id_set_sha256(identifiers["games"]),
+            "parent_ids_sha256": PROTOCOL.id_set_sha256(identifiers["parents"]),
+            "position_ids_sha256": PROTOCOL.id_set_sha256(
+                identifiers["positions"]
+            ),
+            "child_position_ids_sha256": PROTOCOL.id_set_sha256(
+                identifiers["children"]
+            ),
+            "semantic_position_ids_sha256": PROTOCOL.id_set_sha256(
+                identifiers["positions"] | identifiers["children"]
+            ),
+        }
+        if any(
+            declared[field] != value
+            for field, value in observed_identities.items()
+        ):
+            raise PROTOCOL.DirectTeacherHalfkpV2Error(
+                f"{role} pilot dataset ID-set receipt drift"
+            )
         verified[role] = {
             **actual,
-            "rows": declared["rows"],
-            "parents": declared["parents"],
-            "games": declared["games"],
+            "rows": observed_identities["rows"],
+            "parents": observed_identities["parents"],
+            "games": observed_identities["games"],
             "row_schema": declared["row_schema"],
+            **{
+                field: observed_identities[field]
+                for field in PROTOCOL.ID_SET_SHA256_FIELDS
+            },
         }
     return verified
 

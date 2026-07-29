@@ -19,12 +19,32 @@ from typing import Any, Mapping
 PROTOCOL_SCHEMA = "shogi-direct-teacher-halfkp81-v2-plan-v1"
 DATASET_MANIFEST_SCHEMA = "shogi-direct-teacher-halfkp81-v2-pilot-dataset-manifest-v1"
 ROW_SCHEMA = "shogi-direct-teacher-halfkp81-v2-position-v1"
+ID_SET_SHA256_FIELDS = (
+    "game_ids_sha256",
+    "parent_ids_sha256",
+    "position_ids_sha256",
+    "child_position_ids_sha256",
+    "semantic_position_ids_sha256",
+)
 EXECUTION_PLAN_SCHEMA = "shogi-direct-teacher-halfkp81-v2-pilot-execution-plan-v1"
 PROTOCOL_STATUS = "prospective-pilot-preregistered-no-execution"
 DATASET_STATUS = "complete-pilot-data-training-not-started"
 EXECUTION_STATUS = "pilot-data-bound-training-not-started"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+POSITION_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 POSITION_ID_SET_FORMAT = "sorted-unique-sha256-position-id-utf8-lf-v1"
+DATASET_ROW_FIELDS = {
+    "schema",
+    "role",
+    "game_id",
+    "parent_id",
+    "position_id",
+    "child_position_id",
+    "child_sfen",
+    "teacher_child_cp",
+    "teacher_score_kind",
+    "source_row_sha256",
+}
 _STREAM_CHUNK_BYTES = 4 * 1024 * 1024
 _MAX_JSON_BYTES = 16 * 1024 * 1024
 
@@ -259,6 +279,20 @@ def _reject_constant(value: str) -> None:
     raise DirectTeacherHalfkpV2Error(f"non-finite JSON number is forbidden: {value}")
 
 
+def id_set_sha256(identifiers: Any) -> str:
+    values = list(identifiers)
+    if any(
+        type(value) is not str or POSITION_ID_RE.fullmatch(value) is None
+        for value in values
+    ):
+        raise DirectTeacherHalfkpV2Error("ID-set digest received an invalid identifier")
+    digest = hashlib.sha256()
+    for identifier in sorted(set(values), key=lambda value: value.encode("ascii")):
+        digest.update(identifier.encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -436,6 +470,7 @@ def _identity_shape(value: Any, label: str) -> Mapping[str, Any]:
             "parents",
             "games",
             "row_schema",
+            *ID_SET_SHA256_FIELDS,
         },
         label,
     )
@@ -451,6 +486,12 @@ def _identity_shape(value: Any, label: str) -> Mapping[str, Any]:
         _positive_safe_integer(item[field], f"{label}.{field}")
     if type(item["sha256"]) is not str or SHA256_RE.fullmatch(item["sha256"]) is None:
         raise DirectTeacherHalfkpV2Error(f"{label}.sha256 is invalid")
+    for field in ID_SET_SHA256_FIELDS:
+        if (
+            type(item[field]) is not str
+            or SHA256_RE.fullmatch(item[field]) is None
+        ):
+            raise DirectTeacherHalfkpV2Error(f"{label}.{field} is invalid")
     if item["row_schema"] != ROW_SCHEMA:
         raise DirectTeacherHalfkpV2Error(f"{label}.row_schema mismatch")
     return item
@@ -664,7 +705,8 @@ def validate_dataset_manifest_document(
                 f"dataset accounting.{field} must be a nonnegative safe integer"
             )
     if (
-        accounting["source_fit_parents"] != 19264
+        accounting["source_fit_parents"]
+        != protocol["inputs"]["direct_teacher_source"]["fit_parents"]
         or accounting["eligible_games"] < 2
         or accounting["eligible_parents"] < 2
         or accounting["eligible_rows"] < 2

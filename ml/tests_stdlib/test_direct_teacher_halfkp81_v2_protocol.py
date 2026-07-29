@@ -87,6 +87,12 @@ def _dataset_manifest(
                 "parents": 1,
                 "games": 1,
                 "row_schema": PROTOCOL.ROW_SCHEMA,
+                **{
+                    field: str(index) * 64
+                    for index, field in enumerate(
+                        PROTOCOL.ID_SET_SHA256_FIELDS, start=1
+                    )
+                },
             }
             for role in ("training", "validation")
         },

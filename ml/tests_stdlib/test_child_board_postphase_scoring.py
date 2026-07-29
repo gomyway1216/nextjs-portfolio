@@ -199,21 +199,51 @@ class ChildBoardPostphaseScoringTest(unittest.TestCase):
         bundle_raw = _bundle(self.contract, domains)
         paths["artifact_receipt"].write_bytes(artifact_raw)
         paths["score_bundle"].write_bytes(bundle_raw)
+        source_receipts = {}
+        for domain in domains:
+            source_path = self.root / f"{domain['name']}-source.jsonl"
+            domain_rows = [
+                json.loads(line)
+                for line in bundle_raw.splitlines()
+                if json.loads(line)["domain"] == domain["name"]
+            ]
+            by_parent = {}
+            for row in domain_rows:
+                by_parent.setdefault(row["parent_id"], []).append(row)
+            source_raw = b"".join(
+                _canonical(
+                    {
+                        "schema": (
+                            "shogi-child-board-strength-candidate-"
+                            "tune-source-v1"
+                        ),
+                        "domain": domain["name"],
+                        "parent_id": parent,
+                        "parent_sfen": "fixture",
+                        "moves": [
+                            {
+                                "move": row["move"],
+                                "teacher_cp": row["teacher_cp"],
+                                "exact_live_cp": row["scores"]["exact_live"],
+                                "child_position_id": f"id-{row['move']}",
+                                "child_sfen": "fixture",
+                            }
+                            for row in rows
+                        ],
+                    }
+                )
+                for parent, rows in sorted(by_parent.items())
+            )
+            source_path.write_bytes(source_raw)
+            source_receipts[domain["name"]] = _identity(
+                source_path, source_raw
+            )
         bundle_receipt = {
             "schema": self.contract["score_bundle_receipt_schema"],
             "lane": lane,
             "bundle": _identity(paths["score_bundle"], bundle_raw),
             "domains": [domain["name"] for domain in domains],
-            "source_receipts": {
-                domain["name"]: {
-                    "path": f"/fixed/{domain['name']}-labels.jsonl",
-                    "bytes": 100 + index,
-                    "sha256": hashlib.sha256(
-                        domain["name"].encode()
-                    ).hexdigest(),
-                }
-                for index, domain in enumerate(domains)
-            },
+            "source_receipts": source_receipts,
             "artifact_receipt_sha256": hashlib.sha256(
                 artifact_raw
             ).hexdigest(),
@@ -423,6 +453,70 @@ class ChildBoardPostphaseScoringTest(unittest.TestCase):
                 contract_override=self.contract,
                 verify_artifact_files=False,
             )
+
+    def test_tampered_source_receipt_stops_before_open_marker(self):
+        paths, _ = self._prepare("tune")
+        receipt = json.loads(paths["score_bundle_receipt"].read_bytes())
+        source = Path(receipt["source_receipts"]["browser_tune"]["path"])
+        source.write_bytes(b"tampered\n")
+        with self.assertRaisesRegex(
+            SCORING.ScoringError, "source receipt byte/SHA mismatch"
+        ):
+            SCORING.run_one_shot(
+                lane="tune",
+                registry={},
+                paths_override=paths,
+                contract_override=self.contract,
+                verify_artifact_files=False,
+            )
+        self.assertFalse(paths["opened_marker"].exists())
+
+    def test_tune_receipt_rejects_move_added_beyond_source_membership(self):
+        paths, _ = self._prepare("tune")
+        receipt = json.loads(paths["score_bundle_receipt"].read_bytes())
+        receipt["rows"] += 1
+        paths["score_bundle_receipt"].write_bytes(_canonical(receipt))
+        with self.assertRaisesRegex(
+            SCORING.ScoringError,
+            "differs from exact tune source membership",
+        ):
+            SCORING.run_one_shot(
+                lane="tune",
+                registry={},
+                paths_override=paths,
+                contract_override=self.contract,
+                verify_artifact_files=False,
+            )
+        self.assertFalse(paths["opened_marker"].exists())
+
+    def test_tune_bundle_rejects_same_count_move_substitution(self):
+        paths, _ = self._prepare("tune")
+        receipt = json.loads(paths["score_bundle_receipt"].read_bytes())
+        source_path = Path(
+            receipt["source_receipts"]["browser_tune"]["path"]
+        )
+        source_rows = [
+            json.loads(line) for line in source_path.read_bytes().splitlines()
+        ]
+        source_rows[0]["moves"][0]["move"] = "3g3f"
+        source_raw = b"".join(_canonical(row) for row in source_rows)
+        source_path.write_bytes(source_raw)
+        receipt["source_receipts"]["browser_tune"] = _identity(
+            source_path, source_raw
+        )
+        paths["score_bundle_receipt"].write_bytes(_canonical(receipt))
+        with self.assertRaisesRegex(
+            SCORING.ScoringError,
+            "move membership differs from tune source",
+        ):
+            SCORING.run_one_shot(
+                lane="tune",
+                registry={},
+                paths_override=paths,
+                contract_override=self.contract,
+                verify_artifact_files=False,
+            )
+        self.assertTrue(paths["opened_marker"].exists())
 
     def test_existing_terminal_result_validation_reads_no_protected_inputs(self):
         paths, _ = self._prepare("tune")

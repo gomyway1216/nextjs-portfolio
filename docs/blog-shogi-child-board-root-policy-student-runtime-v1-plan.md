@@ -170,6 +170,8 @@ student runtime、search、worker、WASM、TT sourceと、production manifest/ma
 
 teacher 2本とstudentの全hashが固定された後、Browser 196とV9 4,411を1 invocationで開く。各parentを同じproduction集合へ射影し、teacher 2本はそれぞれ射影後のmove set全体へ再forwardし、studentも同じ集合で採点する。3 artifacts × 2 domainsの全metricを途中表示せず、1つのatomic resultとして公開する。partial/incompleteならlane closeで、resume、rerun、後から完成はない。
 
+ここでいう集合を、tune未開封の段階で[prospective clarification](../ml/protocols/child-board-root-policy-student-tune-membership-v1.json)へ明文化した。Browserはall-legal source 16,879手を既存production規則で16,564手へ射影する。V9はdepth-14 proposal＋候補別depth-16 labelを持つ認証済み51,306候補手だけであり、射影後も51,306手である。V9へ未labelのrules-complete手を足すと `teacher_cp` をseed 42、seed 314159、student、exact liveのいずれかから捏造することになり、そのartifactの自己評価と既存thresholdの無効化を招く。このためtuneは**candidate-subset診断**として追加0手を固定し、source receiptとparent/move membershipのexact一致をscorerがopened marker前に検査する。full-production coverageはfit distillation、all-legal sealed、parity、実production generatorを使うformal/externalで別に強制する。これはthreshold緩和でも、V9 tuneからfull-production強度を主張する変更でもない。
+
 3 artifactsはそれぞれ独立に、親protocolのBrowser gateとV9 exact-live overlayを全部通る必要がある。seed選抜はない。
 
 全員のtune通過後だけsealed 512をlabelする。YaneuraOuの独立depth-12 labelから同じproduction集合だけを採点対象として保持し、teacherは射影後集合へ再forwardする。candidate score未開封の間は、parent集合、teacher、depth、enumerator、protocolでcontent addressしたlabel shardのexact resumeを許す。検証済みshardは不変で、512親が揃った時に1つのatomic label receiptを出す。

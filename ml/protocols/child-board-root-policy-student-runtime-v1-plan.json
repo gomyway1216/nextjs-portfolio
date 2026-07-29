@@ -191,8 +191,8 @@
       },
       {
         "path": "src/components/game/ShogiImproved/wasmEngine.ts",
-        "bytes": 21351,
-        "sha256": "dcd3f01a2489b823f7aac0a6e10d7c58ebcc2bfec6723baed0a8ce04275c6392",
+        "bytes": 28829,
+        "sha256": "7f593c5ed308e8eb54a1706f6d49058811d4196cd32b5b21faabdcb8bb4a9d7d",
         "role": "production WASM search wrapper"
       },
       {

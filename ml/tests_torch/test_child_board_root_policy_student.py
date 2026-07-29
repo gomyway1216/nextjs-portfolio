@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import copy
 import hashlib
+import os
 from pathlib import Path
+import random
 import tempfile
 import unittest
 from unittest import mock
@@ -52,6 +55,30 @@ def synthetic_group(
         examples=tuple(examples),
         source_role="browser-all-legal",
     )
+
+
+def prime_optimizer(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+) -> None:
+    optimizer.zero_grad(set_to_none=True)
+    sum(parameter.sum() for parameter in model.parameters()).backward()
+    optimizer.step()
+
+
+def completed_curve(phase: str, epoch: int) -> list[dict[str, object]]:
+    positions = [
+        {"phase": "v9-pretrain", "epoch": index}
+        for index in range(1, runner.V9_PRETRAIN_EPOCHS + 1)
+    ]
+    if phase == "mixed":
+        positions.extend(
+            {"phase": "mixed", "epoch": index}
+            for index in range(1, epoch + 1)
+        )
+    else:
+        positions = positions[:epoch]
+    return positions
 
 
 class SetAwareTeacher(torch.nn.Module):
@@ -112,6 +139,13 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
         torch.manual_seed(student.INITIALIZATION_SEED)
         model = student.ChildBoardRootPolicyStudent()
         self.assertEqual(model.parameter_count(), 877_633)
+        self.assertEqual(
+            {
+                name: tuple(value.shape)
+                for name, value in model.state_dict().items()
+            },
+            student.STATE_TENSOR_SHAPES,
+        )
         self.assertEqual(
             sum(
                 parameter.numel() * parameter.element_size()
@@ -795,6 +829,268 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                     ),
                     name,
                 )
+            self.assertTrue(
+                runner._torch_semantic_equal(
+                    resumed_checkpoint["optimizer"],
+                    direct_checkpoint["optimizer"],
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    resumed_checkpoint["cpu_rng_state"],
+                    direct_checkpoint["cpu_rng_state"],
+                )
+            )
+            self.assertEqual(
+                resumed_checkpoint["python_rng_state"],
+                direct_checkpoint["python_rng_state"],
+            )
+            resumed_cpu = torch.Generator(device="cpu")
+            resumed_cpu.set_state(resumed_checkpoint["cpu_rng_state"])
+            direct_cpu = torch.Generator(device="cpu")
+            direct_cpu.set_state(direct_checkpoint["cpu_rng_state"])
+            self.assertTrue(
+                torch.equal(
+                    torch.rand(16, generator=resumed_cpu),
+                    torch.rand(16, generator=direct_cpu),
+                )
+            )
+            resumed_python = random.Random()
+            resumed_python.setstate(resumed_checkpoint["python_rng_state"])
+            direct_python = random.Random()
+            direct_python.setstate(direct_checkpoint["python_rng_state"])
+            self.assertEqual(
+                [resumed_python.random() for _ in range(16)],
+                [direct_python.random() for _ in range(16)],
+            )
+
+    @unittest.skipUnless(
+        os.environ.get("RUN_MPS_RESUME_SMOKE") == "1"
+        and torch.backends.mps.is_available(),
+        "set RUN_MPS_RESUME_SMOKE=1 on an MPS host",
+    )
+    def test_mps_exact_resume_matches_immediate_next_epoch(self):
+        group = synthetic_group(
+            "mps-resume",
+            "4k4/9/9/4B4/9/9/9/9/4K4 b - 1",
+            ("5d4c+", "5d6e"),
+        )
+        groups = {"browser": [group], "v9": [group]}
+        protocol = {"path": "protocol.json", "bytes": 1, "sha256": "a" * 64}
+        distillation = {
+            "path": "distillation.jsonl",
+            "bytes": 2,
+            "sha256": "b" * 64,
+        }
+        teachers = {"seed42": "c" * 64, "seed314159": "d" * 64}
+        with tempfile.TemporaryDirectory() as resumed_dir, (
+            tempfile.TemporaryDirectory()
+        ) as uninterrupted_dir:
+            resumed = Path(resumed_dir)
+            uninterrupted = Path(uninterrupted_dir)
+            runner.train_student(
+                groups,
+                output=resumed,
+                device="mps",
+                protocol_identity=protocol,
+                distillation_identity=distillation,
+                teacher_hashes=teachers,
+                stop_after=("v9-pretrain", 1),
+            )
+            runner.train_student(
+                groups,
+                output=resumed,
+                device="mps",
+                protocol_identity=protocol,
+                distillation_identity=distillation,
+                teacher_hashes=teachers,
+                stop_after=("v9-pretrain", 2),
+            )
+            runner.train_student(
+                groups,
+                output=uninterrupted,
+                device="mps",
+                protocol_identity=protocol,
+                distillation_identity=distillation,
+                teacher_hashes=teachers,
+                stop_after=("v9-pretrain", 2),
+            )
+            torch.mps.synchronize()
+            resumed_checkpoint = torch.load(
+                resumed / runner.LAST_CHECKPOINT_PATH.name,
+                map_location="cpu",
+                weights_only=False,
+            )
+            direct_checkpoint = torch.load(
+                uninterrupted / runner.LAST_CHECKPOINT_PATH.name,
+                map_location="cpu",
+                weights_only=False,
+            )
+            self.assertTrue(
+                runner._torch_semantic_equal(
+                    resumed_checkpoint["model"],
+                    direct_checkpoint["model"],
+                )
+            )
+            self.assertTrue(
+                runner._torch_semantic_equal(
+                    resumed_checkpoint["optimizer"],
+                    direct_checkpoint["optimizer"],
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    resumed_checkpoint["cpu_rng_state"],
+                    direct_checkpoint["cpu_rng_state"],
+                )
+            )
+            self.assertEqual(
+                resumed_checkpoint["python_rng_state"],
+                direct_checkpoint["python_rng_state"],
+            )
+            self.assertTrue(
+                torch.equal(
+                    resumed_checkpoint["mps_rng_state"],
+                    direct_checkpoint["mps_rng_state"],
+                )
+            )
+            original_mps_state = torch.mps.get_rng_state()
+            try:
+                torch.mps.set_rng_state(
+                    resumed_checkpoint["mps_rng_state"]
+                )
+                resumed_next = torch.rand(16, device="mps").cpu()
+                torch.mps.set_rng_state(direct_checkpoint["mps_rng_state"])
+                direct_next = torch.rand(16, device="mps").cpu()
+                torch.mps.synchronize()
+                self.assertTrue(torch.equal(resumed_next, direct_next))
+            finally:
+                torch.mps.set_rng_state(original_mps_state)
+
+    def test_missing_python_rng_rejected_before_adamw_creation(self):
+        group = synthetic_group(
+            "missing-python-rng",
+            "4k4/9/9/4B4/9/9/9/9/4K4 b - 1",
+            ("5d4c+", "5d6e"),
+        )
+        protocol = {"path": "protocol.json", "bytes": 1, "sha256": "a" * 64}
+        distillation = {
+            "path": "distillation.jsonl",
+            "bytes": 2,
+            "sha256": "b" * 64,
+        }
+        teachers = {"seed42": "c" * 64, "seed314159": "d" * 64}
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            runner.train_student(
+                {"browser": [group], "v9": [group]},
+                output=output,
+                device="cpu",
+                protocol_identity=protocol,
+                distillation_identity=distillation,
+                teacher_hashes=teachers,
+                stop_after=("v9-pretrain", 1),
+            )
+            checkpoint_path = output / runner.LAST_CHECKPOINT_PATH.name
+            checkpoint = torch.load(
+                checkpoint_path,
+                map_location="cpu",
+                weights_only=False,
+            )
+            del checkpoint["python_rng_state"]
+            runner._atomic_replace_torch(checkpoint_path, checkpoint)
+            with mock.patch.object(
+                runner.torch.optim,
+                "AdamW",
+                side_effect=AssertionError("optimizer created"),
+            ) as adamw:
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "checkpoint metadata drift",
+                ):
+                    runner.train_student(
+                        {"browser": [group], "v9": [group]},
+                        output=output,
+                        device="cpu",
+                        protocol_identity=protocol,
+                        distillation_identity=distillation,
+                        teacher_hashes=teachers,
+                    )
+            adamw.assert_not_called()
+
+    def test_corrupt_resume_state_rejected_before_adamw_creation(self):
+        group = synthetic_group(
+            "corrupt-resume",
+            "4k4/9/9/4B4/9/9/9/9/4K4 b - 1",
+            ("5d4c+", "5d6e"),
+        )
+        protocol = {"path": "protocol.json", "bytes": 1, "sha256": "a" * 64}
+        distillation = {
+            "path": "distillation.jsonl",
+            "bytes": 2,
+            "sha256": "b" * 64,
+        }
+        teachers = {"seed42": "c" * 64, "seed314159": "d" * 64}
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            runner.train_student(
+                {"browser": [group], "v9": [group]},
+                output=output,
+                device="cpu",
+                protocol_identity=protocol,
+                distillation_identity=distillation,
+                teacher_hashes=teachers,
+                stop_after=("v9-pretrain", 1),
+            )
+            checkpoint_path = output / runner.LAST_CHECKPOINT_PATH.name
+            valid = torch.load(
+                checkpoint_path,
+                map_location="cpu",
+                weights_only=False,
+            )
+
+            def bad_model_shape(value):
+                first = next(iter(value["model"]))
+                value["model"][first] = value["model"][first].flatten()
+
+            def bad_optimizer_shape(value):
+                value["optimizer"]["state"][0]["exp_avg"] = (
+                    value["optimizer"]["state"][0]["exp_avg"].flatten()
+                )
+
+            def bad_parameter_order(value):
+                value["optimizer"]["param_groups"][0]["params"].reverse()
+
+            def bad_cpu_rng(value):
+                value["cpu_rng_state"] = value["cpu_rng_state"].to(
+                    torch.int16
+                )
+
+            for label, corrupt, message in (
+                ("model", bad_model_shape, "model state drift"),
+                ("optimizer", bad_optimizer_shape, "optimizer state drift"),
+                ("parameters", bad_parameter_order, "optimizer state drift"),
+                ("cpu-rng", bad_cpu_rng, "CPU RNG state drift"),
+            ):
+                with self.subTest(label=label):
+                    checkpoint = copy.deepcopy(valid)
+                    corrupt(checkpoint)
+                    runner._atomic_replace_torch(checkpoint_path, checkpoint)
+                    with mock.patch.object(
+                        runner.torch.optim,
+                        "AdamW",
+                        side_effect=AssertionError("optimizer created"),
+                    ) as adamw:
+                        with self.assertRaisesRegex(ValueError, message):
+                            runner.train_student(
+                                {"browser": [group], "v9": [group]},
+                                output=output,
+                                device="cpu",
+                                protocol_identity=protocol,
+                                distillation_identity=distillation,
+                                teacher_hashes=teachers,
+                            )
+                    adamw.assert_not_called()
 
     def test_terminalize_only_exports_exact_payload_and_result_last(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -806,6 +1102,7 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 lr=runner.LEARNING_RATE,
                 weight_decay=runner.WEIGHT_DECAY,
             )
+            prime_optimizer(model, optimizer)
             protocol = {
                 "path": "protocol.json",
                 "bytes": 1,
@@ -825,7 +1122,7 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 optimizer,
                 phase="mixed",
                 completed_epoch=runner.MIXED_EPOCHS,
-                curve=[],
+                curve=completed_curve("mixed", runner.MIXED_EPOCHS),
                 protocol_identity=protocol,
                 distillation_identity=distillation_artifact,
                 teacher_hashes=teachers,
@@ -916,6 +1213,7 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 lr=runner.LEARNING_RATE,
                 weight_decay=runner.WEIGHT_DECAY,
             )
+            prime_optimizer(model, optimizer)
             protocol = {
                 "path": "protocol.json",
                 "bytes": 1,
@@ -935,7 +1233,7 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
                 optimizer,
                 phase="mixed",
                 completed_epoch=runner.MIXED_EPOCHS,
-                curve=[],
+                curve=completed_curve("mixed", runner.MIXED_EPOCHS),
                 protocol_identity=protocol,
                 distillation_identity=distillation,
                 teacher_hashes=teachers,

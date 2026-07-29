@@ -1780,9 +1780,31 @@ def _validate_checkpoint_metadata(
     protocol_identity: Mapping[str, object],
     distillation_identity: Mapping[str, object],
     teacher_hashes: Mapping[str, str],
+    device: str | None = None,
 ) -> None:
+    expected_keys = {
+        "checkpoint_schema",
+        "schema",
+        "feature_version",
+        "model_variant",
+        "parameters",
+        "seed",
+        "phase",
+        "completed_epoch",
+        "protocol",
+        "distillation",
+        "teacher_hashes",
+        "model",
+        "optimizer",
+        "cpu_rng_state",
+        "python_rng_state",
+        "curve",
+    }
+    if device == "mps" or device is None and "mps_rng_state" in value:
+        expected_keys.add("mps_rng_state")
     if (
-        value.get("checkpoint_schema") != CHECKPOINT_SCHEMA
+        set(value) != expected_keys
+        or value.get("checkpoint_schema") != CHECKPOINT_SCHEMA
         or value.get("schema") != student.SCHEMA
         or value.get("feature_version") != student.FEATURE_VERSION
         or value.get("model_variant") != student.MODEL_VARIANT
@@ -1808,6 +1830,152 @@ def _validate_checkpoint_metadata(
         and not 1 <= epoch <= MIXED_EPOCHS
     ):
         raise ValueError("student exact-resume epoch drift")
+    expected_curve_rows = (
+        epoch if phase == "v9-pretrain" else V9_PRETRAIN_EPOCHS + epoch
+    )
+    curve = value["curve"]
+    if len(curve) != expected_curve_rows or any(
+        type(row) is not dict for row in curve
+    ):
+        raise ValueError("student exact-resume curve drift")
+
+    model_state = value["model"]
+    if (
+        not isinstance(model_state, Mapping)
+        or list(model_state) != list(student.STATE_TENSOR_SHAPES)
+    ):
+        raise ValueError("student exact-resume model state drift")
+    parameters = 0
+    for name, shape in student.STATE_TENSOR_SHAPES.items():
+        tensor = model_state[name]
+        if (
+            not isinstance(tensor, torch.Tensor)
+            or tensor.device.type != "cpu"
+            or tensor.dtype != torch.float32
+            or tuple(tensor.shape) != shape
+            or not bool(torch.isfinite(tensor).all())
+        ):
+            raise ValueError("student exact-resume model state drift")
+        parameters += tensor.numel()
+    if parameters != student.PARAMETERS:
+        raise ValueError("student exact-resume model state drift")
+
+    optimizer_state = value["optimizer"]
+    if (
+        not isinstance(optimizer_state, Mapping)
+        or set(optimizer_state) != {"state", "param_groups"}
+        or not isinstance(optimizer_state["state"], Mapping)
+        or type(optimizer_state["param_groups"]) is not list
+        or len(optimizer_state["param_groups"]) != 1
+    ):
+        raise ValueError("student exact-resume optimizer state drift")
+    parameter_ids = list(range(len(student.STATE_TENSOR_SHAPES)))
+    expected_group = {
+        "lr": LEARNING_RATE,
+        "betas": (0.9, 0.999),
+        "eps": 1e-8,
+        "weight_decay": WEIGHT_DECAY,
+        "amsgrad": False,
+        "maximize": False,
+        "foreach": None,
+        "capturable": False,
+        "differentiable": False,
+        "fused": None,
+        "decoupled_weight_decay": True,
+        "params": parameter_ids,
+    }
+    if not _torch_semantic_equal(
+        optimizer_state["param_groups"][0],
+        expected_group,
+    ):
+        raise ValueError("student exact-resume optimizer state drift")
+    states = optimizer_state["state"]
+    if set(states) != set(parameter_ids):
+        raise ValueError("student exact-resume optimizer state drift")
+    observed_step: float | None = None
+    for parameter_id, shape in enumerate(student.STATE_TENSOR_SHAPES.values()):
+        state = states[parameter_id]
+        if not isinstance(state, Mapping) or set(state) != {
+            "step",
+            "exp_avg",
+            "exp_avg_sq",
+        }:
+            raise ValueError("student exact-resume optimizer state drift")
+        step = state["step"]
+        if (
+            not isinstance(step, torch.Tensor)
+            or step.device.type != "cpu"
+            or step.dtype != torch.float32
+            or step.shape != ()
+            or not bool(torch.isfinite(step))
+        ):
+            raise ValueError("student exact-resume optimizer state drift")
+        step_value = float(step.item())
+        if step_value < 1 or not step_value.is_integer():
+            raise ValueError("student exact-resume optimizer state drift")
+        if observed_step is None:
+            observed_step = step_value
+        elif step_value != observed_step:
+            raise ValueError("student exact-resume optimizer state drift")
+        for name in ("exp_avg", "exp_avg_sq"):
+            tensor = state[name]
+            if (
+                not isinstance(tensor, torch.Tensor)
+                or tensor.device.type != "cpu"
+                or tensor.dtype != torch.float32
+                or tuple(tensor.shape) != shape
+                or not bool(torch.isfinite(tensor).all())
+            ):
+                raise ValueError("student exact-resume optimizer state drift")
+
+    cpu_rng_state = value["cpu_rng_state"]
+    if (
+        not isinstance(cpu_rng_state, torch.Tensor)
+        or cpu_rng_state.device.type != "cpu"
+        or cpu_rng_state.dtype != torch.uint8
+        or cpu_rng_state.ndim != 1
+        or cpu_rng_state.numel() == 0
+    ):
+        raise ValueError("student exact-resume CPU RNG state drift")
+    try:
+        cpu_generator = torch.Generator(device="cpu")
+        cpu_generator.set_state(cpu_rng_state)
+    except (RuntimeError, TypeError) as error:
+        raise ValueError(
+            "student exact-resume CPU RNG state drift"
+        ) from error
+    if not torch.equal(cpu_generator.get_state(), cpu_rng_state):
+        raise ValueError("student exact-resume CPU RNG state drift")
+
+    try:
+        python_generator = random.Random()
+        python_generator.setstate(value["python_rng_state"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "student exact-resume Python RNG state drift"
+        ) from error
+    if python_generator.getstate() != value["python_rng_state"]:
+        raise ValueError("student exact-resume Python RNG state drift")
+
+    if "mps_rng_state" in expected_keys:
+        mps_rng_state = value["mps_rng_state"]
+        if (
+            not isinstance(mps_rng_state, torch.Tensor)
+            or mps_rng_state.device.type != "cpu"
+            or mps_rng_state.dtype != torch.uint8
+            or mps_rng_state.ndim != 1
+            or mps_rng_state.numel() == 0
+        ):
+            raise ValueError("student exact-resume MPS RNG state drift")
+        if device == "mps":
+            if not torch.backends.mps.is_available():
+                raise ValueError("student exact-resume MPS is unavailable")
+            current_mps_state = _mps_rng_state()
+            if (
+                current_mps_state.dtype != mps_rng_state.dtype
+                or current_mps_state.shape != mps_rng_state.shape
+            ):
+                raise ValueError("student exact-resume MPS RNG state drift")
 
 
 def _next_epoch(phase: str | None, completed: int) -> tuple[str, int] | None:
@@ -1851,6 +2019,7 @@ def train_student(
             protocol_identity=protocol_identity,
             distillation_identity=distillation_identity,
             teacher_hashes=teacher_hashes,
+            device=device,
         )
         if (
             loaded.get("phase") == "mixed"

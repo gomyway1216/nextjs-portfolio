@@ -453,7 +453,7 @@ def _load_teacher(
         type(value) is not dict
         or value.get("seed") != seed
         or value.get("parameters") != 6_168_130
-        or type(value.get("model")) is not dict
+        or not isinstance(value.get("model"), Mapping)
     ):
         raise BundleBuildError(f"seed-{seed} teacher checkpoint metadata drift")
     model = cpv.OfflineChildBoardCapacityPolicyValue()
@@ -479,7 +479,7 @@ def _load_student(
         or value.get("parameters") != student.PARAMETERS
         or value.get("phase") != "mixed"
         or value.get("completed_epoch") != 12
-        or type(value.get("model")) is not dict
+        or not isinstance(value.get("model"), Mapping)
     ):
         raise BundleBuildError("frozen student checkpoint metadata drift")
     model = student.ChildBoardRootPolicyStudent()

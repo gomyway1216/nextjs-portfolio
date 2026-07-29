@@ -8,13 +8,13 @@ large teacherはchild boardとmove set全体を読むoffline policy modelであ�
 
 このprotocolは役割を分ける。
 
-| artifact | 固定した役割 |
-|---|---|
-| seed 42 teacher | fit-only distillation target |
-| seed 314159 teacher | replication evidenceのみ |
-| student | rootの合法手を並べるpriorのみ |
-| `public/shogi-nnue-weights.bin` | child/leaf static evaluationの唯一の値 |
-| search | 最終着手を選び、student scoreをleaf/TTへ保存しない |
+| artifact                        | 固定した役割                                       |
+| ------------------------------- | -------------------------------------------------- |
+| seed 42 teacher                 | fit-only distillation target                       |
+| seed 314159 teacher             | replication evidenceのみ                           |
+| student                         | rootの合法手を並べるpriorのみ                      |
+| `public/shogi-nnue-weights.bin` | child/leaf static evaluationの唯一の値             |
+| search                          | 最終着手を選び、student scoreをleaf/TTへ保存しない |
 
 studentを無効にすると、従来のroot順序と非root search stateへbyte-exactに戻らなければならない。
 
@@ -35,11 +35,11 @@ seed 42は結果を見る前からdistillation teacherであり、seed 314159と
 
 student targetはseed 42をeval modeにして、親protocolのfit partitionだけに対して生成する。
 
-| domain | fit parents | tune parents |
-|---|---:|---:|
-| Browser | 875 | 196 |
-| V9 | 19,264 | 4,411 |
-| 合計 | 20,139 | 4,607 |
+| domain  | fit parents | tune parents |
+| ------- | ----------: | -----------: |
+| Browser |         875 |          196 |
+| V9      |      19,264 |        4,411 |
+| 合計    |      20,139 |        4,607 |
 
 各parentのrules-complete legal listを、現在のproduction searchが実際に生成する集合へ先に射影する。具体的には、成れる角・飛車について既存productionが省く不成だけを除き、他の手は保持する。seed-42 teacherは集合全体を読むため、rules-complete集合で計算したlogitを後からfilterしてはいけない。射影後のchild setでbatchを組み直し、その集合全体をteacherへ再forwardする。teacherの再学習は不要である。
 
@@ -65,14 +65,14 @@ tune、sealed、v3 sentinel、seed 314159、直接対局、外部対局の局面
 
 studentは全parameterをseed `20260728`でscratch初期化する。
 
-| component | parameters |
-|---|---:|
-| parent/child共有16-channel・2-block board encoder | 181,840 |
-| move embeddings | 16,112 |
-| 593→256 projection + LayerNorm | 152,576 |
-| 256→512→256 residual MLP ×2 | 526,848 |
-| 256→1 output | 257 |
-| 合計 | **877,633** |
+| component                                         |  parameters |
+| ------------------------------------------------- | ----------: |
+| parent/child共有16-channel・2-block board encoder |     181,840 |
+| move embeddings                                   |      16,112 |
+| 593→256 projection + LayerNorm                    |     152,576 |
+| 256→512→256 residual MLP ×2                       |     526,848 |
+| 256→1 output                                      |         257 |
+| 合計                                              | **877,633** |
 
 共有board encoderをparentに1回、射影後production集合の各childに1回適用し、parent 128、child 128、child-parent 128、move embedding 208、`tanh(base_parent_cp/3000)` 1の合計593 featuresを作る。child手番から見たlive NNUE整数値を `C` とすると、`base_parent_cp=-C`、`residual_cp=600*output`、`combined_parent_cp=base_parent_cp+residual_cp` で、値が高い手を上位にする。
 
@@ -141,10 +141,10 @@ parityは次をすべて要求する。
 
 同じfixtureとartifactをApple M4 Pro、AC電源、Low Power Mode off、foreground production Chromium/WASM、1 workerで100 roots warmup後に1,024 roots測る。
 
-| scope | median | p95 | p99 | max |
-|---|---:|---:|---:|---:|
-| student追加分 | ≤12ms | ≤25ms | ≤40ms | ≤75ms |
-| live NNUE取得を含むroot hook全体 | ≤20ms | ≤40ms | ≤60ms | ≤100ms |
+| scope                            | median |   p95 |   p99 |    max |
+| -------------------------------- | -----: | ----: | ----: | -----: |
+| student追加分                    |  ≤12ms | ≤25ms | ≤40ms |  ≤75ms |
+| live NNUE取得を含むroot hook全体 |  ≤20ms | ≤40ms | ≤60ms | ≤100ms |
 
 durationはmain threadとworkerのmonotonic `performance.now()`だけを使う。WASMはsingle-thread同期callで、100 warmup後に5,000ms idleし、明示GCを呼ばない。fixture順の1,024 sampleを1つも捨てず、ascending sortしたnearest-rank `ceil(p*N)`、median rank 512、p95 973、p99 1,014、max 1,024を使う。GCやscheduler pauseもそのまま含め、raw timingを全件保存する。
 
@@ -161,6 +161,8 @@ student runtime、search、worker、WASM、TT sourceと、production manifest/ma
 ## one-shot tuneとsealed
 
 teacher 2本とstudentの全hashが固定された後、Browser 196とV9 4,411を1 invocationで開く。各parentを同じproduction集合へ射影し、teacher 2本はそれぞれ射影後のmove set全体へ再forwardし、studentも同じ集合で採点する。3 artifacts × 2 domainsの全metricを途中表示せず、1つのatomic resultとして公開する。partial/incompleteならlane closeで、resume、rerun、後から完成はない。
+
+ここでいう集合を、tune未開封の段階で[prospective clarification](../ml/protocols/child-board-root-policy-student-tune-membership-v1.json)へ明文化した。Browserはall-legal source 16,879手を既存production規則で16,564手へ射影する。V9はdepth-14 proposal＋候補別depth-16 labelを持つ認証済み51,306候補手だけであり、射影後も51,306手である。V9へ未labelのrules-complete手を足すと `teacher_cp` をseed 42、seed 314159、student、exact liveのいずれかから捏造することになり、そのartifactの自己評価と既存thresholdの無効化を招く。このためtuneは**candidate-subset診断**として追加0手を固定し、source receiptとparent/move membershipのexact一致をscorerがopened marker前に検査する。full-production coverageはfit distillation、all-legal sealed、parity、実production generatorを使うformal/externalで別に強制する。これはthreshold緩和でも、V9 tuneからfull-production強度を主張する変更でもない。
 
 3 artifactsはそれぞれ独立に、親protocolのBrowser gateとV9 exact-live overlayを全部通る必要がある。seed選抜はない。
 
@@ -191,14 +193,14 @@ formalのstableとcandidateは同一worker、WASM、NNUE、build、master config
 
 ## 段階authority
 
-| phase | PASSが次に許すこと |
-|---|---|
-| teacher phase 1 | 2 hashの機械bindとcore mergeだけ |
-| student phase 1b | fit-only student/runtime artifacts固定後、one-shot tuneだけ |
-| tune | sealed label/scoringだけ |
-| sealed | parity/latency/static/no-contamination admissionだけ |
-| runtime admission | exact adapter/registryによる正式768局だけ |
-| formal stronger gate | exact provenanceを持つ外部200局だけ |
+| phase                | PASSが次に許すこと                                          |
+| -------------------- | ----------------------------------------------------------- |
+| teacher phase 1      | 2 hashの機械bindとcore mergeだけ                            |
+| student phase 1b     | fit-only student/runtime artifacts固定後、one-shot tuneだけ |
+| tune                 | sealed label/scoringだけ                                    |
+| sealed               | parity/latency/static/no-contamination admissionだけ        |
+| runtime admission    | exact adapter/registryによる正式768局だけ                   |
+| formal stronger gate | exact provenanceを持つ外部200局だけ                         |
 
 どのphaseもlive writeを許可しない。ライブ導入には別のrollback/staged-live protocolが必要である。
 

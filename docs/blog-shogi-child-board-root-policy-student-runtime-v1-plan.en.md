@@ -8,13 +8,13 @@ The large teacher reads child boards and the complete move set presented to it. 
 
 This protocol fixes separate roles:
 
-| Artifact | Fixed role |
-|---|---|
-| Seed-42 teacher | Fit-only distillation target |
-| Seed-314159 teacher | Replication evidence only |
-| Student | Root legal-move ordering prior only |
-| `public/shogi-nnue-weights.bin` | Sole child/leaf static evaluator |
-| Search | Selects the move and never stores student CP as a leaf/TT value |
+| Artifact                        | Fixed role                                                      |
+| ------------------------------- | --------------------------------------------------------------- |
+| Seed-42 teacher                 | Fit-only distillation target                                    |
+| Seed-314159 teacher             | Replication evidence only                                       |
+| Student                         | Root legal-move ordering prior only                             |
+| `public/shogi-nnue-weights.bin` | Sole child/leaf static evaluator                                |
+| Search                          | Selects the move and never stores student CP as a leaf/TT value |
 
 Disabling the student must restore the prior root ordering and byte-identical non-root search state.
 
@@ -35,11 +35,11 @@ Seed 42 is the distillation teacher before any score is known. Averaging, ensemb
 
 The frozen seed-42 teacher runs in eval mode on the parent fit partitions only:
 
-| Domain | Fit parents | Tune parents |
-|---|---:|---:|
-| Browser | 875 | 196 |
-| V9 | 19,264 | 4,411 |
-| Total | 20,139 | 4,607 |
+| Domain  | Fit parents | Tune parents |
+| ------- | ----------: | -----------: |
+| Browser |         875 |          196 |
+| V9      |      19,264 |        4,411 |
+| Total   |      20,139 |        4,607 |
 
 Each rules-complete legal list is first projected to the move membership that current production search actually generates. The projection removes only a non-promoting bishop or rook move when promotion is available, because production already omits that branch; every other move remains. Since the teacher consumes the move set as a whole, filtering logits from a rules-complete forward is forbidden. The projected child batch must be rebuilt and the frozen seed-42 teacher re-forwarded on that complete projected set. No teacher retraining is needed.
 
@@ -65,14 +65,14 @@ A fixed hash function assigns parents to 64 shards. Each shard publishes through
 
 Every student parameter initializes from scratch under seed `20260728`.
 
-| Component | Parameters |
-|---|---:|
-| Shared parent/child 16-channel two-block board encoder | 181,840 |
-| Move embeddings | 16,112 |
-| 593-to-256 projection plus LayerNorm | 152,576 |
-| Two 256-to-512-to-256 residual MLP blocks | 526,848 |
-| 256-to-1 output | 257 |
-| Total | **877,633** |
+| Component                                              |  Parameters |
+| ------------------------------------------------------ | ----------: |
+| Shared parent/child 16-channel two-block board encoder |     181,840 |
+| Move embeddings                                        |      16,112 |
+| 593-to-256 projection plus LayerNorm                   |     152,576 |
+| Two 256-to-512-to-256 residual MLP blocks              |     526,848 |
+| 256-to-1 output                                        |         257 |
+| Total                                                  | **877,633** |
 
 The shared board encoder runs once on the parent and once on every child in the projected production set. Parent 128, child 128, child-minus-parent 128, move embeddings 208, and `tanh(base_parent_cp/3000)` form exactly 593 features. For child-side live-NNUE integer `C`, `base_parent_cp=-C`, `residual_cp=600*output`, and `combined_parent_cp=base_parent_cp+residual_cp`; higher is better for the parent.
 
@@ -141,9 +141,9 @@ Parity requires:
 
 The same fixture and artifact benchmark on Apple M4 Pro with AC power, Low Power Mode off, foreground production Chromium/WASM, and one worker after 100 warmup roots:
 
-| Scope | Median | p95 | p99 | Max |
-|---|---:|---:|---:|---:|
-| Incremental student work | ≤12 ms | ≤25 ms | ≤40 ms | ≤75 ms |
+| Scope                                        | Median |    p95 |    p99 |     Max |
+| -------------------------------------------- | -----: | -----: | -----: | ------: |
+| Incremental student work                     | ≤12 ms | ≤25 ms | ≤40 ms |  ≤75 ms |
 | Full root hook including live-NNUE retrieval | ≤20 ms | ≤40 ms | ≤60 ms | ≤100 ms |
 
 Durations use monotonic `performance.now()` in the main thread and worker only. WASM is one synchronous single-thread call. After 100 warmups, one fixed 5,000-ms idle interval occurs with no explicit GC. None of the 1,024 fixture-order samples is removed. Ascending nearest rank `ceil(p*N)` uses median rank 512, p95 973, p99 1,014, and max 1,024; GC and scheduler pauses remain, and every raw duration is stored.
@@ -161,6 +161,8 @@ The result binds path, bytes, SHA, and Git/build commit for student runtime, sea
 ## One-shot tune and sealed
 
 After both teachers and every student hash freeze, one invocation opens Browser 196 and V9 4,411. Every parent is projected to the same production subset, each frozen teacher is re-forwarded on that complete projected set, and the student scores identical membership. All six artifact/domain cells publish atomically in one result without partial display. Partial or incomplete output closes the lane; there is no resume, rerun, or later completion.
+
+The [prospective clarification](../ml/protocols/child-board-root-policy-student-tune-membership-v1.json) fixes what that membership means before tune opens. Browser projects 16,879 all-legal source moves to 16,564 moves under the existing production rule. V9 has exactly 51,306 authenticated depth-14 proposal candidates with per-candidate depth-16 labels, and remains 51,306 after projection. Adding unlabeled rules-complete V9 moves would require fabricating `teacher_cp` from seed 42, seed 314159, the student, or exact live; each choice would self-reference one artifact and invalidate the existing thresholds. Tune therefore remains a **candidate-subset diagnostic** with zero added moves, and the scorer checks the exact source receipt and parent/move membership before its opened marker. Fit distillation, all-legal sealed data, parity, and formal/external play through the real production generator separately enforce full-production coverage. This neither relaxes a threshold nor permits a full-production-strength claim from V9 tune.
 
 Each of the three artifacts independently passes every parent Browser gate and V9 exact-live overlay. There is no seed selection.
 
@@ -191,14 +193,14 @@ The 200-game external run carries complete provenance for student, NNUE, worker,
 
 ## Staged authority
 
-| Phase | A pass authorizes only |
-|---|---|
-| Teacher phase 1 | Mechanical binding of two hashes and core merge |
-| Student phase 1b | One-shot tune after fit-only student/runtime freeze |
-| Tune | Sealed labels and scoring |
-| Sealed | Parity/latency/static/no-contamination admission |
-| Runtime admission | Formal 768 with the exact adapter/registry |
-| Formal stronger gate | External 200 with exact provenance |
+| Phase                | A pass authorizes only                              |
+| -------------------- | --------------------------------------------------- |
+| Teacher phase 1      | Mechanical binding of two hashes and core merge     |
+| Student phase 1b     | One-shot tune after fit-only student/runtime freeze |
+| Tune                 | Sealed labels and scoring                           |
+| Sealed               | Parity/latency/static/no-contamination admission    |
+| Runtime admission    | Formal 768 with the exact adapter/registry          |
+| Formal stronger gate | External 200 with exact provenance                  |
 
 No phase permits a live write. Live activation still requires a separate rollback and staged-live protocol.
 

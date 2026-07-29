@@ -24,6 +24,7 @@ from typing import Any
 import uuid
 
 import child_board_strength_candidate_postphase_registry as REGISTRY
+import child_board_tune_membership_clarification as TUNE_MEMBERSHIP
 
 
 PAIR_GAP_CP = 50.0
@@ -271,6 +272,74 @@ def _verify_artifact_files(
             or _sha256(raw) != registered["sha256"]
         ):
             raise ScoringError(f"frozen artifact byte/SHA mismatch: {name}")
+
+
+def _verify_source_receipt_files(
+    value: Mapping[str, Any],
+    *,
+    lane: str,
+    domains: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, tuple[str, ...]]]:
+    """Reauthenticate every registered source before opening the score bundle."""
+
+    tune_rows = 0
+    tune_parents = 0
+    tune_membership: dict[str, dict[str, tuple[str, ...]]] = {}
+    for domain in (str(entry["name"]) for entry in domains):
+        identity = value["source_receipts"][domain]
+        path = Path(identity["path"])
+        raw = _read_regular_no_symlink(path, f"source receipt {domain}")
+        if (
+            len(raw) != identity["bytes"]
+            or _sha256(raw) != identity["sha256"]
+        ):
+            raise ScoringError(f"source receipt byte/SHA mismatch: {domain}")
+        if lane != "tune":
+            continue
+        tune_membership[domain] = {}
+        if not raw.endswith(b"\n") or raw.endswith(b"\n\n"):
+            raise ScoringError(f"tune source framing mismatch: {domain}")
+        previous_parent: bytes | None = None
+        for line_number, line in enumerate(raw[:-1].split(b"\n"), start=1):
+            source = strict_json_bytes(
+                line, f"tune source {domain} row {line_number}"
+            )
+            if (
+                source.get("schema")
+                != "shogi-child-board-strength-candidate-tune-source-v1"
+                or source.get("domain") != domain
+                or type(source.get("parent_id")) is not str
+                or type(source.get("moves")) is not list
+            ):
+                raise ScoringError(f"tune source row malformed: {domain}")
+            parent_key = source["parent_id"].encode("utf-8")
+            if previous_parent is not None and parent_key <= previous_parent:
+                raise ScoringError(f"tune source parent order drift: {domain}")
+            previous_parent = parent_key
+            moves = source["moves"]
+            usi = [
+                move.get("move") if type(move) is dict else None
+                for move in moves
+            ]
+            if (
+                len(usi) < 2
+                or any(type(move) is not str for move in usi)
+                or usi != sorted(usi, key=lambda move: move.encode("utf-8"))
+                or len(set(usi)) != len(usi)
+            ):
+                raise ScoringError(
+                    f"tune source production membership drift: {domain}"
+                )
+            tune_rows += len(usi)
+            tune_parents += 1
+            tune_membership[domain][source["parent_id"]] = tuple(usi)
+    if lane == "tune" and (
+        tune_rows != value["rows"] or tune_parents != value["parents"]
+    ):
+        raise ScoringError(
+            "score-bundle receipt differs from exact tune source membership"
+        )
+    return tune_membership
 
 
 def _validate_bundle_receipt(
@@ -1057,6 +1126,8 @@ def run_one_shot(
         if contract_override is not None
         else registry["execution_contract"]
     )
+    if contract_override is None:
+        TUNE_MEMBERSHIP.validate(Path(__file__).resolve().parent.parent)
     paths = (
         dict(paths_override)
         if paths_override is not None
@@ -1135,6 +1206,9 @@ def run_one_shot(
         artifact_receipt_raw=artifact_raw,
         domains=domains,
     )
+    tune_source_membership = _verify_source_receipt_files(
+        bundle_receipt, lane=lane, domains=domains
+    )
     marker = {
         "schema": f"shogi-child-board-strength-candidate-{lane}-opened-v1",
         "status": "protected-score-bundle-open-committed-no-rerun",
@@ -1166,6 +1240,18 @@ def run_one_shot(
         score_row_schema=contract["score_row_schema"],
         score_keys=contract["score_row"]["score_keys"],
     )
+    if lane == "tune":
+        observed_membership = {
+            domain: {
+                group[0].parent_id: tuple(row.move for row in group)
+                for group in domain_groups
+            }
+            for domain, domain_groups in grouped.items()
+        }
+        if observed_membership != tune_source_membership:
+            raise ScoringError(
+                "score bundle move membership differs from tune source"
+            )
     actual_parents = sum(len(groups) for groups in grouped.values())
     actual_rows = sum(
         len(group)
@@ -1223,7 +1309,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry = REGISTRY.validate_checked_in_registry(args.repo_root)
     try:
         result = run_one_shot(lane=args.lane, registry=registry)
-    except (OSError, ScoringError) as error:
+    except (OSError, ScoringError, TUNE_MEMBERSHIP.ClarificationError) as error:
         raise SystemExit(f"{args.lane} scoring refused: {error}") from error
     print(
         json.dumps(

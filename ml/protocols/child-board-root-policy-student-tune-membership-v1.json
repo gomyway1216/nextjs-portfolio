@@ -1,0 +1,68 @@
+{
+  "schema": "shogi-child-board-root-policy-student-tune-membership-clarification-v1",
+  "status": "prospective-pre-tune-source-membership-fixed-unopened",
+  "authority": "clarifies-tune-source-membership-only-no-threshold-model-or-result-change",
+  "bindings": {
+    "parent_protocol": {
+      "path": "ml/protocols/child-board-strength-candidate-v1-plan.json",
+      "bytes": 42427,
+      "sha256": "b9b8256433cec77da8d32a6d05018b9a5e405e5b57fdabe299490a5f9f90cfe2"
+    },
+    "student_protocol": {
+      "path": "ml/protocols/child-board-root-policy-student-runtime-v1-plan.json",
+      "bytes": 65314,
+      "sha256": "6bc5478a76bf52005bf133c097bcb8741a8dd7cf0cf568e2ae4d7c0d65a58db0"
+    },
+    "postphase_registry": {
+      "path": "ml/protocols/child-board-strength-candidate-postphase-v1-registry.json",
+      "bytes": 15447,
+      "sha256": "bbc0b8d82cf3ef5219ed4250944ce631241c7f861a34676aa700037f5493d091"
+    }
+  },
+  "tune_membership": {
+    "browser_tune": {
+      "parents": 196,
+      "authenticated_source_role": "all-legal depth-12 Browser teacher rows",
+      "source_candidate_moves_before_projection": 16879,
+      "projected_source_moves": 16564,
+      "projection": "remove only the pinned current-production non-promoting bishop/rook branches",
+      "new_moves_added": 0,
+      "ground_truth": "teacher_cp from the authenticated source row"
+    },
+    "v9_tune": {
+      "parents": 4411,
+      "authenticated_source_role": "YaneuraOu depth-14 proposal candidates with per-candidate depth-16 reference scores",
+      "source_candidate_moves_before_projection": 51306,
+      "projected_source_moves": 51306,
+      "projection": "remove only the pinned current-production non-promoting bishop/rook branches",
+      "new_moves_added": 0,
+      "ground_truth": "teacher_cp from the authenticated source row",
+      "candidate_subset_only": true
+    },
+    "score_bundle_rule": "for each parent, score exactly every authenticated source candidate retained by the pinned production projection; reject any missing, duplicate, substituted, or newly added move",
+    "forward_rule": "seed 42, seed 314159, frozen student, and exact live baseline are forwarded directly on the identical projected authenticated-source membership",
+    "forbidden": [
+      "rules-complete expansion of V9 tune because added moves have no registered teacher_cp",
+      "fabricating teacher_cp from seed 42, seed 314159, frozen student, or exact live",
+      "using this candidate-subset diagnostic as evidence of full-production coverage",
+      "changing or relaxing any preregistered tune threshold"
+    ]
+  },
+  "full_production_coverage": {
+    "fit_distillation": "rules-complete to current-production expansion is mandatory and already separately bound",
+    "parity": "full projected production membership remains mandatory",
+    "sealed": "independently labeled all-legal parents are projected to current-production membership",
+    "formal": "768 direct games exercise the actual production generator",
+    "external": "200 calibration games exercise the same production generator"
+  },
+  "protected_state_at_registration": {
+    "student_terminal_result_complete": false,
+    "production_build_receipt_complete": false,
+    "tune_opened": false,
+    "sealed_labels_generated": false,
+    "sealed_scores_opened": false,
+    "formal_games_played": 0,
+    "external_games_played": 0,
+    "live_weights_changed": false
+  }
+}

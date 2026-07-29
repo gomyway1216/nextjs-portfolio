@@ -107,7 +107,7 @@ production全手への拡張後に完成した20,139 parent / 1,738,053 movesの
 
 base protocolと64 shard、merged distillation、parityは書き換えない。これらは旧protocol SHA `6bc5478a…db0`、teacher、fit membership、production move universeを既にcontent addressしており、paddingはteacher推論後にstudent batchを作る時だけ使うためである。代わりにpost-prepare / pre-first-optimizer-step amendmentを追加し、最後のbucketだけ`272→384`とした。runnerはbaseとamendmentの両identity、全旧receipt、最大333、全parent≤384、checkpoint不在を検証し、model初期化・optimizer作成前にcreate-only activation receiptを出す。checkpointとterminal resultはbaseとamendmentの両方を記録する。したがってteacher inferenceを再実行せず、既存labelをそのまま使えるが、receiptを新protocolへ「付け替えた」とは主張しない。
 
-再開はpublic mainで `PYTHONPATH=ml ml/venv/bin/python ml/train_child_board_root_policy_student.py train` の1回だけである。`prepare`の再生成、shard rename、receipt rewrite、別output、scratch restartは行わない。
+再開はpublic main worktreeで `PYTHONPATH=ml /Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/venv/bin/python ml/train_child_board_root_policy_student.py train` の1回だけである。`prepare`の再生成、shard rename、receipt rewrite、別output、scratch restartは行わない。
 
 ## tune前に固定するartifacts
 

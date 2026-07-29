@@ -107,7 +107,7 @@ When the completed 20,139-parent / 1,738,053-move teacher artifact reached train
 
 The base protocol, 64 shards, merged distillation, and parity fixture are not rewritten. They are already content-addressed to base-protocol SHA `6bc5478a…db0`, the teacher, fit membership, and production move universe; padding is consumed only later when student batches are built. A post-prepare / pre-first-optimizer-step amendment therefore changes only the final bucket from `272` to `384`. Before model initialization or optimizer construction, the runner authenticates both base and amendment identities, every old receipt, the exact maximum of 333, every parent at or below 384, and checkpoint absence, then creates one immutable activation receipt. Checkpoints and the terminal result record both identities. Existing labels can therefore be reused without teacher inference, while remaining honestly bound to the original data protocol rather than being relabeled as new-protocol artifacts.
 
-The single restart command on public main is `PYTHONPATH=ml ml/venv/bin/python ml/train_child_board_root_policy_student.py train`. It does not rerun `prepare`, rename shards, rewrite receipts, change output, or restart from a different lane.
+The single restart command from the public-main worktree is `PYTHONPATH=ml /Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/venv/bin/python ml/train_child_board_root_policy_student.py train`. It does not rerun `prepare`, rename shards, rewrite receipts, change output, or restart from a different lane.
 
 ## Artifacts frozen before tune
 

@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import tempfile
 import threading
 import unittest
 from unittest import mock
@@ -148,6 +149,19 @@ class StudentFormalRegistryTests(unittest.TestCase):
         self.assertEqual(captured["status"], FORMAL.BLOCKED_STATUS)
         self.assertEqual(registry_identity["schema"], FORMAL.REGISTRY_SCHEMA)
         self.assertEqual(len(registry_identity["sha256"]), 64)
+
+    def test_registry_symlink_is_rejected_before_read(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = (
+                ML
+                / "protocols/child-board-root-policy-student-formal-v1-registry.json"
+            )
+            candidate = root / FORMAL.REGISTRY_RELATIVE_PATH
+            candidate.parent.mkdir(parents=True)
+            candidate.symlink_to(target)
+            with self.assertRaisesRegex(FORMAL.StudentFormalError, "symlink"):
+                FORMAL.load_registry(root)
 
     def test_ready_registry_requires_every_execution_gate(self) -> None:
         FORMAL.assert_execution_authorized(self.fixture.ready)

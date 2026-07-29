@@ -352,8 +352,11 @@ def validate_registry_data(value: object) -> dict[str, Any]:
 
 def load_registry(repo_root: str | Path) -> tuple[dict[str, Any], dict[str, Any]]:
     root = Path(repo_root).resolve(strict=True)
-    path = (root / REGISTRY_RELATIVE_PATH).resolve(strict=True)
-    if root not in path.parents or path.is_symlink() or not path.is_file():
+    registry_candidate = root / REGISTRY_RELATIVE_PATH
+    if registry_candidate.is_symlink():
+        raise StudentFormalError("formal registry must not be a symlink")
+    path = registry_candidate.resolve(strict=True)
+    if root not in path.parents or not path.is_file():
         raise StudentFormalError("formal registry path is not one repository file")
     raw = path.read_bytes()
     registry = validate_registry_data(strict_json_bytes(raw, "formal registry"))
@@ -381,10 +384,12 @@ def load_registry(repo_root: str | Path) -> tuple[dict[str, Any], dict[str, Any]
             {key: item.get(key) for key in _IDENTITY_FIELDS},
             f"formal parent contract {index}",
         )
-        parent_path = (root / captured["path"]).resolve(strict=True)
+        parent_candidate = root / captured["path"]
+        if parent_candidate.is_symlink():
+            raise StudentFormalError("formal parent contract must not be a symlink")
+        parent_path = parent_candidate.resolve(strict=True)
         if (
             root not in parent_path.parents
-            or parent_path.is_symlink()
             or not parent_path.is_file()
         ):
             raise StudentFormalError("formal parent contract path escapes repository")

@@ -311,6 +311,7 @@ describe('root-policy production dependency firewall', () => {
     const root = process.cwd();
     const records: RootPolicyAdmissionStaticSource[] = [
       ['src/components/game/ShogiImproved/rootPolicyRank.ts', 'root-hook'],
+      ['src/components/game/ShogiImproved/rootPolicyStudentRuntime.ts', 'root-hook'],
       ['src/components/game/ShogiImproved/shogi-ai.worker.ts', 'worker'],
       ['src/components/game/ShogiImproved/shogi-ai-helper.worker.ts', 'worker'],
       ['src/components/game/ShogiImproved/wasmEngine.ts', 'wasm-wrapper'],

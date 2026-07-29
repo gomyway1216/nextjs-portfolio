@@ -55,9 +55,26 @@ class ProductionBuildReceiptTest(unittest.TestCase):
             )
             + "\n"
         )
+        self.public_tensor = (
+            self.root / "public/shogi-root-policy-student-v1.f32.bin"
+        )
+        self.public_manifest = (
+            self.root / "public/shogi-root-policy-student-v1.manifest.json"
+        )
+        self.public_tensor.parent.mkdir()
+        self.public_tensor.write_bytes(self.tensor.read_bytes())
+        self.public_manifest.write_bytes(self.manifest.read_bytes())
         self.registry = {
             "outputs": {
                 "student_runtime": {"result": str(self.result)},
+                "public_student_assets": {
+                    "tensor_path": (
+                        "public/shogi-root-policy-student-v1.f32.bin"
+                    ),
+                    "manifest_path": (
+                        "public/shogi-root-policy-student-v1.manifest.json"
+                    ),
+                },
                 "tune": {
                     "opened_marker": str(self.root / "tune/opened.json"),
                     "pending_result": str(self.root / "tune/pending.json"),
@@ -77,12 +94,15 @@ class ProductionBuildReceiptTest(unittest.TestCase):
             path.parent.mkdir(exist_ok=True)
             path.write_bytes(f"source-{role}".encode())
             self.sources[role] = path
+        live_nnue = self.root / "public/shogi-nnue-weights.bin"
+        live_nnue.write_bytes(b"source-live_nnue")
+        self.sources["live_nnue"] = live_nnue
         output_paths = {}
         for role in BUILDER.OUTPUT_ROLES:
             if role == "student_tensor":
-                path = self.tensor
+                path = self.public_tensor
             elif role == "student_manifest":
-                path = self.manifest
+                path = self.public_manifest
             else:
                 path = self.root / "build" / f"{role}.bin"
                 path.parent.mkdir(exist_ok=True)
@@ -107,6 +127,35 @@ class ProductionBuildReceiptTest(unittest.TestCase):
             + "\n"
         )
         self.receipt = self.student / "production-build-receipt.json"
+        self.publication_receipt = (
+            self.student / "public-assets.receipt.json"
+        )
+        self.registry_receipt = self.root / "registry.json"
+        self.registry_receipt.write_text('{"schema":"fixture"}\n')
+        self.publication_receipt.write_text(
+            json.dumps(
+                {
+                    "schema": BUILDER.PUBLICATION_SCHEMA,
+                    "status": BUILDER.PUBLICATION_STATUS,
+                    "registry": _identity(self.registry_receipt),
+                    "student_result": _identity(self.result),
+                    "source_artifacts": {
+                        "tensor": _identity(self.tensor),
+                        "manifest": _identity(self.manifest),
+                    },
+                    "public_artifacts": {
+                        "tensor": _identity(self.public_tensor),
+                        "manifest": _identity(self.public_manifest),
+                    },
+                    "live_nnue": _identity(live_nnue),
+                    "tune_opened": False,
+                    "sealed_opened": False,
+                    "live_weights_changed": False,
+                },
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

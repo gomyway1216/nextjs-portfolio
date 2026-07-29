@@ -173,6 +173,16 @@ class ChildBoardRootPolicyStudentTests(unittest.TestCase):
             )
         )
 
+    def test_pinned_sources_match_current_public_tree(self):
+        repository = Path(__file__).resolve().parents[2]
+        original = Path.cwd()
+        try:
+            os.chdir(repository)
+            protocol, _identity = runner._verified_protocol()
+            runner._validate_pinned_sources(protocol)
+        finally:
+            os.chdir(original)
+
     def test_fixed_gelu_is_the_registered_explicit_tanh_formula(self):
         value = torch.tensor([-3.0, -0.5, 0.0, 0.5, 3.0])
         expected = (

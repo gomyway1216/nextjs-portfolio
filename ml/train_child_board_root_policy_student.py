@@ -41,7 +41,7 @@ PROTOCOL_PATH = (
 )
 PROTOCOL_BYTES = 64_050
 PROTOCOL_SHA256 = (
-    "7ec5fa3a0946f1dc832836bf71df6826f4487b3c56f09af9ff908e8a18b4d2c8"
+    "a15c4b2970dc612800f443c128935950122252bff6ca5ab5f39a9e79c811bc98"
 )
 PROTOCOL_SCHEMA = "shogi-child-board-root-policy-student-runtime-plan-v1"
 PHASE1_RESULT_PATH = Path(

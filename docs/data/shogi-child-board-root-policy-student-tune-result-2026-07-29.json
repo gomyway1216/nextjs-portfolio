@@ -1,0 +1,200 @@
+{
+  "schema": "shogi-child-board-root-policy-student-tune-public-summary-v1",
+  "recorded_at": "2026-07-29T15:22:15-07:00",
+  "status": "complete-one-shot-tune-fail-lane-closed",
+  "decision": {
+    "tune_passed": false,
+    "deployment_authorized": false,
+    "stronger_than_live_claimed": false,
+    "high_dan_claimed": false,
+    "rerun_authorized": false,
+    "threshold_change_authorized": false,
+    "alternate_artifact_authorized": false
+  },
+  "source_results": {
+    "tune_result": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/result.json",
+      "bytes": 3678,
+      "sha256": "65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399",
+      "schema": "shogi-child-board-strength-candidate-tune-result-v1"
+    },
+    "score_bundle_receipt": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle-receipt.json",
+      "bytes": 908,
+      "sha256": "9ec56c416264ff694c1b7a7b22e9aa1bc962027b17ca5e7cd860b232884ca206"
+    },
+    "score_bundle": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/score-bundle.jsonl",
+      "bytes": 23409640,
+      "sha256": "2b1f5a4b5f3a1b1dd866022259b6863343d8bcb7d18b8093fb17c764a8cbe299"
+    },
+    "artifact_receipt": {
+      "path": "$CODEX_HOME/shogi-runs/child-board-strength-candidate-v1-tune/artifacts.json",
+      "bytes": 1150,
+      "sha256": "5c698efbfd9a973ada9c350fc755298e73b882cd4a13f44f780188ce2b20bda0"
+    }
+  },
+  "workload": {
+    "parents": 4607,
+    "rows": 67870,
+    "domains": {
+      "browser_tune": {
+        "parents": 196,
+        "source_sha256": "7e581727cbbef649a829a46fbdd62070837876921c7bd9460b1caecb4a2b75ea"
+      },
+      "v9_tune": {
+        "parents": 4411,
+        "source_sha256": "09051ee44b484bb09d5bca625f69fa5da27cc87969309fa908da93ce37d7171c"
+      }
+    }
+  },
+  "preregistered_gates": {
+    "browser_tune": {
+      "minimum_top1_correct": 26,
+      "minimum_pair_accuracy": 0.673703888923293,
+      "maximum_mean_regret_cp": 15924.158163265307
+    },
+    "v9_tune": {
+      "minimum_top1_correct": 1078,
+      "minimum_top1_accuracy": 0.24438902743142144,
+      "minimum_pair_accuracy": 0.5984640986597398,
+      "maximum_mean_regret_cp": 4863.386080253911
+    },
+    "all_three_artifacts_must_pass_both_domains": true
+  },
+  "artifacts": {
+    "seed42_teacher": {
+      "sha256": "b90baaabbe5a9f7905d7a161ecf5da5abcfebda40f9403af56094847d199d13a",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 22,
+        "top1_accuracy": 0.11224489795918367,
+        "pair_count": 831286,
+        "pair_accuracy": 0.6050011668667582,
+        "ndcg_at_5": 0.33942771400677146,
+        "mean_regret_cp": 15923.525510204081
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 996,
+        "top1_accuracy": 0.225799138517343,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5901198832752695,
+        "ndcg_at_5": 0.5727218720708817,
+        "mean_regret_cp": 9213.469961459987
+      }
+    },
+    "seed314159_teacher": {
+      "sha256": "9b6bbae900d753da18052f880ab090652f4678aa58110d43f08f17e7d858f293",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 13,
+        "top1_accuracy": 0.0663265306122449,
+        "pair_count": 831286,
+        "pair_accuracy": 0.5709683550546983,
+        "ndcg_at_5": 0.30155488715735423,
+        "mean_regret_cp": 15988.979591836734
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 907,
+        "top1_accuracy": 0.20562230786669689,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5770614219108725,
+        "ndcg_at_5": 0.5556811024022296,
+        "mean_regret_cp": 7911.050328723645
+      }
+    },
+    "frozen_student": {
+      "sha256": "1ae807988f2299b166d9fbf3fcfbad797539ff3bd8ae68dd67a0dc41c48e00e5",
+      "pass": false,
+      "browser_tune": {
+        "pass": false,
+        "top1_correct": 16,
+        "top1_accuracy": 0.08163265306122448,
+        "pair_count": 831286,
+        "pair_accuracy": 0.564729828242025,
+        "ndcg_at_5": 0.2974346062627827,
+        "mean_regret_cp": 15991.244897959185
+      },
+      "v9_tune": {
+        "pass": false,
+        "top1_correct": 855,
+        "top1_accuracy": 0.19383359782362275,
+        "pair_count": 212123,
+        "pair_accuracy": 0.5760950014849875,
+        "ndcg_at_5": 0.5402254873530283,
+        "mean_regret_cp": 6570.2398549081845
+      }
+    }
+  },
+  "runtime_performance_diagnostic": {
+    "authority": "non-authoritative-prototype-only-formal-latency-not-opened",
+    "reported_warm_latency_ms": {
+      "baseline": 44,
+      "prototype": 41.27
+    },
+    "relative_reduction": 0.062045454545454544,
+    "preregistered_incremental_limits_ms": {
+      "median": 12,
+      "p95": 25
+    },
+    "passed": false,
+    "formal_latency_result_created": false
+  },
+  "downstream": {
+    "sealed512_labels_generated": 0,
+    "sealed512_scores_opened": false,
+    "parity_1024_formal_invocation_executed": false,
+    "runtime_admission_executed": false,
+    "formal_games_completed": 0,
+    "formal_games_planned": 768,
+    "external_games_completed": 0,
+    "external_games_planned": 200,
+    "live_weights_changed": false,
+    "live_flags_changed": false
+  },
+  "supporting_delivery_prs": [
+    {
+      "number": 646,
+      "title": "Add root policy runtime admission runner",
+      "head_commit": "e1ce47793e3183a5b776bd274ebcf2f8b3270109",
+      "merge_commit": "9d798cb8bb2a42309d2dfe55a98bae42c0b26101",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    },
+    {
+      "number": 647,
+      "title": "Add production build output descriptor",
+      "head_commit": "c87764c7ec01f06f8a7af0c637acc731012562d2",
+      "merge_commit": "4d57426d9eb62beb9079eb394dee15014daa2dab",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    },
+    {
+      "number": 648,
+      "title": "Fix tune checkpoint state loading",
+      "head_commit": "78d9238bb52f5109df2f260d5c0c531036beb5f1",
+      "merge_commit": "dcb65982260cbe645aa06661527abc54c25dde9a",
+      "ready_for_review": true,
+      "ci": "success",
+      "merge_method": "regular-merge"
+    }
+  ],
+  "established_facts": [
+    "All 4607 parents and 67870 rows were scored and one complete atomic tune result was published.",
+    "Both frozen teachers and the frozen student failed at least one preregistered check in both domains, so the all-artifact tune gate failed.",
+    "The one-shot lane is closed. Sealed labels, formal runtime admission, 768-game formal A/B, external calibration, and live changes were not authorized or executed.",
+    "The prototype latency work did not satisfy the preregistered 12 ms median and 25 ms p95 incremental limits and was not a formal latency invocation."
+  ],
+  "inferences_not_measurements": [
+    "Because both large teachers also failed, student compression alone cannot explain the tune failure; data, objective, projection, teacher quality, and threshold comparability require a separate audit.",
+    "The student trailing seed42 on top1 and pair accuracy in both domains is consistent with additional compression loss, but no causal attribution is established by this result.",
+    "For delivery of a stronger live engine, compute spent on this exact candidate is sunk cost: it yielded no eligible replacement. The reusable runtime, receipt, and fail-closed evaluation infrastructure is engineering output, not playing-strength evidence.",
+    "The one-shot gate prevented a weak or mismatched candidate from being installed, but that safety value must not be described as a strength gain."
+  ]
+}

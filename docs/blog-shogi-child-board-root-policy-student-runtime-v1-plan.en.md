@@ -1,6 +1,6 @@
 # Shogi child-board root-policy student/runtime v1: implementation record
 
-> The 6.17M-parameter child-board teacher will not enter production leaf evaluation. Only seed 42 fit outputs distill into an 877,633-parameter root-ordering student; seed 314159 remains replication-only and never becomes a training target. Student, live NNUE, and worker/WASM identities freeze separately before one-way tune, sealed, runtime, and formal gates. Both phase-1 teachers, their hash binding, and the student implementation are complete. The first preparation caught a misinterpreted V9 candidate subset before teacher inference and stopped; the v2 full-production-set correction is now under validation. No student optimizer, tune, sealed scoring, match, or live change has started. [日本語](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.md)
+> The 6.17M-parameter child-board teacher stayed out of production leaf evaluation, and only seed-42 fit outputs were distilled into an 877,633-parameter root-ordering student. On 2026-07-29, the one-shot tune over 4,607 parents and 67,870 moves found that both teachers and the student missed preregistered gates, so the lane **FAILED and closed**. Sealed 512, formal runtime admission, 768 games, 200 external games, and live mutation did not run. This result therefore does not claim that the candidate became stronger or reached high-dan strength. [日本語](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.md)
 
 ## Why a separate student exists
 
@@ -222,3 +222,58 @@ The machine-readable [student/runtime core](../ml/protocols/child-board-root-pol
 After phase 1, only its two placeholders change. The binding commit records the new bytes/SHA. This article retains the historical pre-bind receipt and is not rewritten from later results.
 
 At this pre-bind receipt, both phase-1 teachers are frozen, protocol teacher hashes are bound 0/2, student implementation is unmerged, distillation has 0 parents, student epoch is 0, artifacts are zero, tune and sealed are unopened, parity/latency/runtime admission are unexecuted, formal is 0/768, external is 0/200, and live changes are zero.
+
+## Measured 2026-07-29 result: tune FAIL, current lane closed
+
+The core receipt and initial state above remain historical design records; they are not rewritten with later measurements. Everything in this subsection is an established post-execution **fact**.
+
+The one-shot scorer completed Browser 196 and V9 4,411, for 4,607 parents and 67,870 moves. The 3,678-byte atomic result has SHA-256 `65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399` and status `complete-one-shot-tune-fail-lane-closed`. The 23,409,640-byte score bundle has SHA-256 `2b1f5a4b5f3a1b1dd866022259b6863343d8bcb7d18b8093fb17c764a8cbe299`; its 908-byte receipt has SHA-256 `9ec56c416264ff694c1b7a7b22e9aa1bc962027b17ca5e7cd860b232884ca206`. The complete public values are fixed in the [machine-readable data memo](./data/shogi-child-board-root-policy-student-tune-result-2026-07-29.json).
+
+### Browser tune
+
+The preregistered gates were at least 26 Top-1 correct, pair accuracy at least `0.673703888923293`, and mean regret no greater than `15924.158163265307` cp. NDCG@5 is a recorded metric, not a threshold in this gate.
+
+| Artifact       | Top-1 | Pair accuracy |   NDCG@5 | Mean regret cp | Decision |
+| -------------- | ----: | ------------: | -------: | -------------: | -------- |
+| Seed 42        |    22 |      0.605001 | 0.339428 |      15923.526 | FAIL     |
+| Seed 314159    |    13 |      0.570968 | 0.301555 |      15988.980 | FAIL     |
+| Frozen student |    16 |      0.564730 | 0.297435 |      15991.245 | FAIL     |
+
+Seed 42 passed regret by only 0.633 cp but missed Top-1 and pair accuracy. The other two artifacts missed all three checks. Partial passage and seed selection were not allowed.
+
+### V9 tune
+
+The preregistered gates were at least 1,078 Top-1 correct, Top-1 accuracy at least `0.24438902743142144`, pair accuracy at least `0.5984640986597398`, and mean regret no greater than `4863.386080253911` cp.
+
+| Artifact       | Top-1 | Top-1 accuracy | Pair accuracy |   NDCG@5 | Mean regret cp | Decision |
+| -------------- | ----: | -------------: | ------------: | -------: | -------------: | -------- |
+| Seed 42        |   996 |       0.225799 |      0.590120 | 0.572722 |       9213.470 | FAIL     |
+| Seed 314159    |   907 |       0.205622 |      0.577061 | 0.555681 |       7911.050 | FAIL     |
+| Frozen student |   855 |       0.193834 |      0.576095 | 0.540225 |       6570.240 | FAIL     |
+
+All three artifacts missed every V9 check. We will not rescue the lane after observing the result by lowering a threshold, selecting a seed, replacing a checkpoint, or rerunning the same tune.
+
+### Latency, unexecuted stages, and live state
+
+Authority for the formal 1,024-case M4 Pro latency gate would only arise after a tune pass, so no formal latency result exists. A separate, non-authoritative prototype diagnostic reduced reported warm latency from a `44.00 ms` baseline to `41.27 ms`, about 6.2%, but it remained above both preregistered incremental limits of `12 ms` median and `25 ms` p95. Because the strength gate had already closed, this prototype is not adoption evidence for this candidate.
+
+| Downstream stage               |  Actual count |
+| ------------------------------ | ------------: |
+| Sealed 512 labels              |       0 / 512 |
+| Formal parity-1,024 invocation |       Not run |
+| Runtime admission              |       Not run |
+| Formal A/B                     | 0 / 768 games |
+| External calibration           | 0 / 200 games |
+| Live weight or flag changes    |             0 |
+
+The production build descriptor, runtime-admission runner, and checkpoint-loader correction needed before execution were delivered as ready PRs [#647](https://github.com/gomyway1216/nextjs-portfolio/pull/647), [#646](https://github.com/gomyway1216/nextjs-portfolio/pull/646), and [#648](https://github.com/gomyway1216/nextjs-portfolio/pull/648), respectively, and each regular-merged after all CI passed. They are reusable implementation, but they did not add playing strength to this candidate.
+
+### Candid accounting: sunk work and retained learning
+
+Everything from here is **interpretation**, not another measurement.
+
+For the specific goal of delivering a stronger live engine, training compute and runtime optimization spent on this exact candidate became sunk cost. No eligible replacement and no live improvement remained, and the post-sealed implementation was not exercised by this lane. We will not recast that outcome as a practical success merely because infrastructure was completed.
+
+The failure location is nevertheless narrower. Both large teachers also failed both domains, so student compression cannot be the only explanation. Teacher quality, training data, objective, production projection, and comparability of the preregistered thresholds require a separate audit. The student trailing seed 42 on Top-1 and pair accuracy in both domains is consistent with additional compression loss, but this result does not establish that causal attribution.
+
+Most importantly, lower training loss, 36-case implementation parity, and completed code were not reinterpreted as playing-strength gains, and a weak or mismatched candidate was not installed live. That is safety value, not strength improvement. The next lane must freeze a causal hypothesis through an independent audit without feeding this failed result back into training or retroactively changing the gate.

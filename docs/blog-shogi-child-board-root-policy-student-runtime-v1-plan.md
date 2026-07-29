@@ -1,6 +1,6 @@
 # 将棋child-board root-policy student/runtime v1：実装・実行記録
 
-> 6.17M parameterのchild-board teacherをproduction leaf評価へ入れず、seed 42のfit-only出力だけを877,633 parameterのroot-ordering studentへ蒸留する。seed 314159はreplication専用で学習targetにしない。student、live NNUE、worker/WASMを別々にhash固定し、tune、sealed、runtime、正式対局を一方向に進める。phase 1のteacher 2本とhash binding、student実装は完了した。最初のprepareはV9 candidate subsetの解釈誤りを教師推論前に検出して停止し、全production手へ展開するv2修正を検証中である。student optimizer、tune、sealed、対局、ライブ変更はまだ未開始である。[English](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.en.md)
+> 6.17M parameterのchild-board teacherをproduction leaf評価へ入れず、seed 42のfit-only出力だけを877,633 parameterのroot-ordering studentへ蒸留した。2026-07-29、4,607親・67,870手のone-shot tuneはteacher 2本とstudentがすべて事前基準未達となり、**FAILでレーンを閉じた**。sealed 512、正式runtime admission、768局、外部200局、ライブ変更には進んでいない。したがって、この候補が強くなった、または高段に達したとは主張しない。[English](./blog-shogi-child-board-root-policy-student-runtime-v1-plan.en.md)
 
 ## なぜ別studentが必要か
 
@@ -222,3 +222,58 @@ formalのstableとcandidateは同一worker、WASM、NNUE、build、master config
 phase 1完了後はこのcoreの2 placeholderだけを置換し、新しいbytes/SHAをbind commitで記録する。この記事のreceiptは設計時pre-bind coreを指し、後から実測値へ書き換えない。
 
 このpre-bind receipt時点ではphase 1 teacherは2本とも凍結済み、protocol内のteacher hash bindは0/2、student implementation未merge、distillation 0 parents、student epoch 0、artifact 0、tune未開封、sealed未開封、parity/latency/runtime admission未実行、formal 0/768、external 0/200、ライブ変更0である。
+
+## 2026-07-29実測：tune FAIL、現レーン終了
+
+上のcore receiptと初期状態は設計時の履歴であり、後から結果値へ書き換えない。ここからは実行後に確定した**事実**である。
+
+one-shot scorerはBrowser 196親とV9 4,411親、合計4,607親・67,870手を最後まで採点した。atomic resultは3,678 bytes、SHA-256 `65e93a2bd82bd5ec0cc5cc75ccd53207d6e8e0f7f7628d944ca3e009a5d55399` で、statusは `complete-one-shot-tune-fail-lane-closed` である。score bundleは23,409,640 bytes、SHA-256 `2b1f5a4b5f3a1b1dd866022259b6863343d8bcb7d18b8093fb17c764a8cbe299`、receiptは908 bytes、SHA-256 `9ec56c416264ff694c1b7a7b22e9aa1bc962027b17ca5e7cd860b232884ca206` だった。完全な公開値は[machine-readable data memo](./data/shogi-child-board-root-policy-student-tune-result-2026-07-29.json)に固定した。
+
+### Browser tune
+
+事前基準はTop-1正解数26以上、pair accuracy `0.673703888923293` 以上、mean regret `15924.158163265307` cp以下である。NDCG@5は記録値であり、このgateの閾値ではない。
+
+| artifact       | Top-1 | pair accuracy |   NDCG@5 | mean regret cp | 判定 |
+| -------------- | ----: | ------------: | -------: | -------------: | ---- |
+| seed 42        |    22 |      0.605001 | 0.339428 |      15923.526 | FAIL |
+| seed 314159    |    13 |      0.570968 | 0.301555 |      15988.980 | FAIL |
+| frozen student |    16 |      0.564730 | 0.297435 |      15991.245 | FAIL |
+
+seed 42はregretだけを0.633 cp差で通ったが、Top-1とpairを落とした。他の2 artifactsは3条件すべてを落とした。部分合格やseed選択は許可されない。
+
+### V9 tune
+
+事前基準はTop-1正解数1,078以上、Top-1 accuracy `0.24438902743142144` 以上、pair accuracy `0.5984640986597398` 以上、mean regret `4863.386080253911` cp以下である。
+
+| artifact       | Top-1 | Top-1 accuracy | pair accuracy |   NDCG@5 | mean regret cp | 判定 |
+| -------------- | ----: | -------------: | ------------: | -------: | -------------: | ---- |
+| seed 42        |   996 |       0.225799 |      0.590120 | 0.572722 |       9213.470 | FAIL |
+| seed 314159    |   907 |       0.205622 |      0.577061 | 0.555681 |       7911.050 | FAIL |
+| frozen student |   855 |       0.193834 |      0.576095 | 0.540225 |       6570.240 | FAIL |
+
+3 artifactsとも全V9条件を落とした。結果を見た後で閾値を下げる、seedを選ぶ、checkpointを替える、同じtuneを再実行する、という救済は行わない。
+
+### 速度、未実施工程、ライブ状態
+
+正式latency gateを開くauthorityはtune PASSの後にしか発生しないため、M4 Pro 1,024件の正式値は存在しない。別の非正式prototype診断ではwarm latencyがbaseline `44.00 ms` からprototype `41.27 ms` へ約6.2%短縮したが、事前登録したstudent追加分のmedian `12 ms`、p95 `25 ms` の双方より遅い。しかも棋力gateが先に閉じたため、このprototypeを現候補の採用証拠にはしない。
+
+| downstream                  |      実数 |
+| --------------------------- | --------: |
+| sealed 512 labels           |   0 / 512 |
+| 正式parity 1,024 invocation |    未実施 |
+| runtime admission           |    未実施 |
+| 正式A/B                     | 0 / 768局 |
+| 外部校正                    | 0 / 200局 |
+| live weights / flag変更     |         0 |
+
+実行前に必要だったproduction build descriptor、runtime admission runner、checkpoint loader修正は、それぞれready PR [#647](https://github.com/gomyway1216/nextjs-portfolio/pull/647)、[#646](https://github.com/gomyway1216/nextjs-portfolio/pull/646)、[#648](https://github.com/gomyway1216/nextjs-portfolio/pull/648)で全CI成功後に通常mergeした。これらは再利用可能な実装だが、今回のcandidateへ棋力を足したものではない。
+
+### 率直な棚卸し：無駄だったものと残った学び
+
+ここからは実測そのものではなく、実測からの**解釈**である。
+
+「強いライブAIを届ける」という目的に限れば、このexact candidateへ使った学習computeとruntime最適化はsunk costになった。合格候補もライブ改善も残らず、sealed以降のために作った実装もこのレーンでは使われなかった。これを「基盤ができたから実質成功」とは扱わない。
+
+一方、失敗の場所は絞れた。large teacher 2本も両domainで落ちたため、studentへの圧縮だけを唯一の原因にはできない。teacher品質、学習data、目的関数、production射影、事前閾値との比較可能性を別監査する必要がある。studentがseed 42より両domainのTop-1とpairでさらに低かったことは追加の圧縮損失と整合するが、この結果だけでは因果を確定できない。
+
+最も重要なのは、loss低下や36件の実装parity、コード完成を棋力向上と読み替えず、弱いか不整合な候補をライブへ入れなかったことである。これは安全上の価値であって棋力向上ではない。次のレーンは、このfail結果を訓練dataへ混ぜたり閾値を後付け変更したりせず、独立監査で原因仮説を固定してから新しい候補を作る。

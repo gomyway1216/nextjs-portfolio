@@ -23,6 +23,7 @@ import {
   type ShardBinding,
   type ShardShape,
 } from "../../../ml/child_board_sealed512_pipeline";
+import { readKnownEvalUnion } from "../../../ml/child_board_sealed512_cli";
 import type {
   FixedMoveTeacher,
   SelectedConfusionParent,
@@ -144,6 +145,64 @@ function selectedRows(count: number): Readonly<FloodgateTrainingParent>[] {
 }
 
 describe("child-board sealed512 pipeline", () => {
+  it("rebuilds and authenticates the exact known-eval semantic union", () => {
+    const root = temporaryRoot();
+    const siblingPath = path.join(root, "known-sibling.jsonl");
+    const scalarPath = path.join(root, "known-scalar.jsonl");
+    const identifiers = {
+      parent: `sha256:${"1".repeat(64)}`,
+      child: `sha256:${"2".repeat(64)}`,
+      scalar: `sha256:${"3".repeat(64)}`,
+    };
+    const siblingRaw = Buffer.from(
+      `${JSON.stringify({
+        position_id: identifiers.parent,
+        child_position_id: identifiers.child,
+      })}\n`,
+    );
+    const scalarRaw = Buffer.from(
+      `${JSON.stringify({ position_id: identifiers.scalar })}\n`,
+    );
+    fs.writeFileSync(siblingPath, siblingRaw);
+    fs.writeFileSync(scalarPath, scalarRaw);
+    const source = (
+      file: string,
+      role: "known-eval-sibling" | "known-eval-scalar",
+      raw: Buffer,
+    ) => ({
+      path: file,
+      role,
+      bytes: raw.byteLength,
+      sha256: createHash("sha256").update(raw).digest("hex"),
+      rows: 1,
+    });
+    const sources = [
+      source(siblingPath, "known-eval-sibling", siblingRaw),
+      source(scalarPath, "known-eval-scalar", scalarRaw),
+    ];
+    const ordered = Object.values(identifiers).sort(compareBytewise);
+    const identityBytes = Buffer.from(ordered.join("\n"), "ascii");
+    const canonicalFile = Buffer.concat([identityBytes, Buffer.from("\n")]);
+    const expected = {
+      algorithm:
+        "strict-jsonl-semantic-position-union-bytewise-sort-unique-lf-v1",
+      sources,
+      count: 3,
+      bytes: canonicalFile.byteLength,
+      sha256: createHash("sha256").update(canonicalFile).digest("hex"),
+      identifiers_sha256: createHash("sha256")
+        .update(identityBytes)
+        .digest("hex"),
+    };
+    expect(
+      [...readKnownEvalUnion(sources, expected)].sort(compareBytewise),
+    ).toEqual(ordered);
+    fs.appendFileSync(scalarPath, "tamper\n");
+    expect(() => readKnownEvalUnion(sources, expected)).toThrow(
+      /path\/byte\/SHA identity mismatch/,
+    );
+  });
+
   it("freezes the production 512 = 16 x 32 shard arithmetic", () => {
     expect(FIXED_SEALED_PARENTS).toBe(512);
     expect(FIXED_SHARDS).toBe(16);

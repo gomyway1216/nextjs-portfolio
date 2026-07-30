@@ -311,6 +311,7 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
             with (
                 mock.patch.object(PUBLISHER, "_verify_merged_revision"),
                 mock.patch.object(PUBLISHER, "_verify_preregistration"),
+                mock.patch.object(PUBLISHER, "_verify_technical_recovery"),
                 mock.patch.object(PUBLISHER, "_verify_engine_assets"),
                 mock.patch.object(
                     PROTOCOL,

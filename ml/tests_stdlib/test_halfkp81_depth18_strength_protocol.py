@@ -16,6 +16,9 @@ import halfkp81_depth18_strength_protocol as PROTOCOL  # noqa: E402
 
 
 TRACKED_PLAN = ML_DIR / "halfkp81-hard-depth18-strength-v1-plan.json"
+TRACKED_RECOVERY_PLAN = (
+    ML_DIR / "halfkp81-hard-depth18-engine-evaldir-v2-plan.json"
+)
 
 
 def _identity(path: str, *, schema: str | None = None) -> dict:
@@ -30,17 +33,17 @@ SOURCE_REVISION = "b" * 40
 
 def _selection_evidence() -> PROTOCOL.AuthenticatedSelectionEvidence:
     manifest = {
-        "path": "/tmp/selection.json",
-        "bytes": 123,
-        "sha256": "a" * 64,
+        "path": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["path"],
+        "bytes": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["bytes"],
+        "sha256": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["sha256"],
         "held_read_only_descriptor": True,
         "stable_double_read": True,
         "schema": PROTOCOL.SELECTION_MANIFEST_SCHEMA,
     }
     selected = {
-        "path": "/tmp/selection.jsonl",
-        "bytes": 456,
-        "sha256": "c" * 64,
+        "path": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["path"],
+        "bytes": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["bytes"],
+        "sha256": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["sha256"],
         "held_read_only_descriptor": True,
         "stable_double_read": True,
         "rows": 8_192,
@@ -90,6 +93,9 @@ def _teacher_plan(
         "status": "sealed-not-executed",
         "source_revision": SOURCE_REVISION,
         "preregistration": copy.deepcopy(PROTOCOL.EXPECTED_PREREGISTRATION_IDENTITY),
+        "technical_recovery": copy.deepcopy(
+            PROTOCOL.EXPECTED_TECHNICAL_RECOVERY_IDENTITY
+        ),
         "selection_manifest": {
             key: manifest_identity[key] for key in ("path", "bytes", "sha256", "schema")
         },
@@ -97,21 +103,7 @@ def _teacher_plan(
         "selection_roles": copy.deepcopy(PROTOCOL.EXPECTED_ROLE_COUNTS),
         "engine": copy.deepcopy(PROTOCOL.EXPECTED_ENGINE),
         "teacher": copy.deepcopy(PROTOCOL.EXPECTED_TEACHER),
-        "outputs": {
-            "directory": "/tmp/depth18",
-            "plan_json": "/tmp/depth18/teacher-plan.json",
-            "fit_jsonl": "/tmp/depth18/fit.jsonl",
-            "tune_jsonl": "/tmp/depth18/tune.jsonl",
-            "sealed_jsonl": "/tmp/depth18/sealed.jsonl",
-            "work_jsonl": "/tmp/depth18/teacher-work.jsonl",
-            "milestone_100_json": "/tmp/depth18/teacher-milestone-100.json",
-            "milestone_500_json": "/tmp/depth18/teacher-milestone-500.json",
-            "terminal_fault_json": "/tmp/depth18/teacher-terminal-fault.json",
-            "receipt_json": "/tmp/depth18/teacher-receipt.json",
-            "verified_artifact_receipt_json": (
-                "/tmp/depth18/teacher-verified-artifact-receipt.json"
-            ),
-        },
+        "outputs": copy.deepcopy(PROTOCOL.EXPECTED_RECOVERY_OUTPUTS),
         "authority": {
             "may_execute_teacher": True,
             "may_train": False,
@@ -141,7 +133,7 @@ def _receipt(plan: dict) -> dict:
         "incomplete_parents": 0,
         "old_depth12_targets": 0,
         "outputs": {
-            role: _identity(f"/tmp/depth18/{role}.jsonl")
+            role: _identity(plan["outputs"][f"{role}_jsonl"])
             for role in ("fit", "tune", "sealed")
         },
         "artifact_verification": {
@@ -247,6 +239,10 @@ class Halfkp81Depth18StrengthProtocolTests(unittest.TestCase):
             str(TRACKED_PLAN), "tracked depth18 preregistration"
         )
         cls.plan = PROTOCOL.validate_preregistration_document(raw)
+        recovery, _ = PROTOCOL.load_strict_json_file(
+            str(TRACKED_RECOVERY_PLAN), "tracked depth18 recovery plan"
+        )
+        cls.recovery = PROTOCOL.validate_technical_recovery_plan(recovery)
 
     def test_tracked_plan_fixes_the_strength_lane_before_execution(self) -> None:
         self.assertEqual(self.plan["selection"]["parents"], 8_192)
@@ -271,6 +267,50 @@ class Halfkp81Depth18StrengthProtocolTests(unittest.TestCase):
             PROTOCOL.EXPECTED_SOURCE_IDENTITIES["live_baseline"],
         )
         self.assertFalse(self.plan["forbidden"]["live_weight_write_authorized"])
+
+    def test_recovery_plan_closes_v1_and_rejects_contract_drift(self) -> None:
+        self.assertEqual(
+            self.recovery["predecessor"]["work_ledger"]["parent_records"], 0
+        )
+        self.assertEqual(
+            self.recovery["predecessor"]["terminal_fault"]["technical_faults"], 1
+        )
+        self.assertFalse(
+            self.recovery["predecessor"]["same_family_resume_authorized"]
+        )
+        self.assertEqual(
+            self.recovery["reused_selection"],
+            PROTOCOL.EXPECTED_REUSED_SELECTION,
+        )
+        mutations = {
+            "fingerprint": lambda value: value["predecessor"].__setitem__(
+                "run_fingerprint", "0" * 64
+            ),
+            "completed-parent": lambda value: value["predecessor"][
+                "work_ledger"
+            ].__setitem__("parent_records", 1),
+            "selection": lambda value: value["reused_selection"][
+                "jsonl"
+            ].__setitem__("sha256", "0" * 64),
+            "live": lambda value: value["live_baseline"].__setitem__(
+                "sha256", "0" * 64
+            ),
+            "evaldir": lambda value: value["technical_change"].__setitem__(
+                "to", "/tmp/eval"
+            ),
+            "epoch": lambda value: value["unchanged_contract"]["training"].__setitem__(
+                "epochs", 4
+            ),
+            "authority": lambda value: value["authority"].__setitem__(
+                "may_train", True
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(self.recovery)
+                mutate(changed)
+                with self.assertRaises(PROTOCOL.Halfkp81Depth18StrengthError):
+                    PROTOCOL.validate_technical_recovery_plan(changed)
 
     def test_plan_rejects_selection_teacher_training_and_gate_drift(self) -> None:
         mutations = {

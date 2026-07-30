@@ -52,7 +52,7 @@ import { positionKeyFromSfen, type SiblingRecord } from "./sibling-data";
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
-  "shogi-halfkp81-hard-depth18-teacher-plan-v1" as const;
+  "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =

@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
+  HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY,
+  HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH,
   HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
@@ -34,6 +36,7 @@ import {
   rulesCompleteLegalMoves,
 } from "../../../ml/shogi-sfen";
 import { positionKeyFromSfen } from "../../../ml/sibling-data";
+import type { UsiTeacherEngineOptions } from "../../../ml/usi-engine";
 
 const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
@@ -107,6 +110,7 @@ async function fixture(
   dependencies: Halfkp81Depth18TeacherRunnerDependencies;
   root: string;
   proposeCalls: { value: number };
+  engineOptions: UsiTeacherEngineOptions[];
 }> {
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-runner-test-"),
@@ -161,7 +165,7 @@ async function fixture(
     plan: Object.freeze({}),
     planIdentity: Object.freeze({
       ...identity(outputs.plan_json, planRaw),
-      schema: "shogi-halfkp81-hard-depth18-teacher-plan-v1",
+      schema: "shogi-halfkp81-hard-depth18-teacher-plan-v2",
     }),
     sourceRevision: SOURCE_REVISION,
     selectionIdentity: Object.freeze({
@@ -300,9 +304,13 @@ async function fixture(
       };
     }
   }
+  const engineOptions: UsiTeacherEngineOptions[] = [];
   const dependencies: Halfkp81Depth18TeacherRunnerDependencies = {
     createStableRuntime: async () => stableRuntime,
-    createEngine: async () => new FakeEngine(),
+    createEngine: async (options) => {
+      engineOptions.push(options);
+      return new FakeEngine();
+    },
     authenticateFixedAssets: async () => ({
       binary: identity(enginePath, binaryRaw),
       evalFile: identity(evalPath, evalRaw),
@@ -313,7 +321,7 @@ async function fixture(
     }),
     processes: Math.min(3, roles.length),
   };
-  return { authenticated, dependencies, root, proposeCalls };
+  return { authenticated, dependencies, root, proposeCalls, engineOptions };
 }
 
 function coreContract(roles: readonly Halfkp81Depth18TeacherRole[]) {
@@ -330,6 +338,40 @@ function coreContract(roles: readonly Halfkp81Depth18TeacherRole[]) {
 }
 
 describe("HalfKP81 depth18 teacher runner", () => {
+  it("isolates formal v2 output from the terminal-faulted v1 directory", () => {
+    expect(HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY).toBe(
+      "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2",
+    );
+    expect(HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH).toBe(
+      `${HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY}/teacher-plan.json`,
+    );
+  });
+
+  it("passes the exact directory containing nn.bin as EvalDir", async () => {
+    const roles = ["fit"] as const;
+    const { authenticated, dependencies, engineOptions } = await fixture(roles);
+
+    await runHalfkp81Depth18TeacherCoreForTests(
+      authenticated,
+      dependencies,
+      coreContract(roles),
+    );
+
+    expect(engineOptions).toHaveLength(1);
+    expect(engineOptions[0]).toMatchObject({
+      engineBin: authenticated.engine.binary.path,
+      evalDir: path.dirname(authenticated.engine.eval_file.path),
+      fvScale: 20,
+      hashMb: 512,
+    });
+    expect(path.join(engineOptions[0].evalDir as string, "nn.bin")).toBe(
+      authenticated.engine.eval_file.path,
+    );
+    expect(engineOptions[0].evalDir).not.toBe(
+      path.dirname(path.dirname(authenticated.engine.eval_file.path)),
+    );
+  });
+
   it("strictly authenticates canonical selection rows and derives parent IDs", () => {
     const gameId = `sha256:${digest("selection-game")}`;
     const selectionSfen = START.replace(/ 1$/u, " 13");

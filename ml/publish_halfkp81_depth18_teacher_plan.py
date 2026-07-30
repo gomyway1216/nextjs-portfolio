@@ -149,6 +149,84 @@ def _verify_preregistration(repo_root: Path) -> None:
     PROTOCOL.validate_preregistration_document(value)
 
 
+def _strict_canonical_document(raw: bytes, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            raw,
+            parse_constant=lambda constant: (_ for _ in ()).throw(
+                TeacherPlanPublicationError(f"{label} contains {constant}")
+            ),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise TeacherPlanPublicationError(f"{label} is invalid JSON") from error
+    if type(value) is not dict or PROTOCOL.canonical_json_bytes(value) != raw:
+        raise TeacherPlanPublicationError(f"{label} is not canonical JSON")
+    return value
+
+
+def _verify_technical_recovery(repo_root: Path) -> None:
+    raw = _verify_declared_file_identity(
+        PROTOCOL.EXPECTED_TECHNICAL_RECOVERY_IDENTITY,
+        repo_root=repo_root,
+        label="tracked technical recovery preregistration",
+    )
+    recovery = PROTOCOL.validate_technical_recovery_plan(
+        _strict_canonical_document(raw, "tracked technical recovery preregistration")
+    )
+    predecessor = recovery["predecessor"]
+    prior_plan_raw = _verify_declared_file_identity(
+        predecessor["teacher_plan"],
+        repo_root=repo_root,
+        label="v1 teacher plan",
+    )
+    prior_plan = _strict_canonical_document(prior_plan_raw, "v1 teacher plan")
+    if (
+        prior_plan.get("schema") != PROTOCOL.V1_TEACHER_PLAN_SCHEMA
+        or prior_plan.get("source_revision") != PROTOCOL.EXPECTED_V1_MERGE_REVISION
+    ):
+        raise TeacherPlanPublicationError("v1 teacher plan binding differs")
+    work_raw = _verify_declared_file_identity(
+        predecessor["work_ledger"],
+        repo_root=repo_root,
+        label="v1 teacher work ledger",
+    )
+    lines = work_raw.splitlines(keepends=True)
+    if len(lines) != 1:
+        raise TeacherPlanPublicationError(
+            "v1 teacher work ledger is not exactly one header"
+        )
+    header = _strict_canonical_document(lines[0], "v1 teacher work header")
+    if (
+        header.get("schema") != predecessor["work_ledger"]["schema"]
+        or header.get("kind") != "header"
+        or header.get("run_fingerprint")
+        != PROTOCOL.EXPECTED_V1_RUN_FINGERPRINT
+        or header.get("teacher_plan") != predecessor["teacher_plan"]
+    ):
+        raise TeacherPlanPublicationError("v1 teacher work header differs")
+    fault_raw = _verify_declared_file_identity(
+        predecessor["terminal_fault"],
+        repo_root=repo_root,
+        label="v1 terminal fault",
+    )
+    fault = _strict_canonical_document(fault_raw, "v1 terminal fault")
+    if (
+        fault.get("schema") != predecessor["terminal_fault"]["schema"]
+        or fault.get("status") != predecessor["terminal_fault"]["status"]
+        or fault.get("run_fingerprint")
+        != PROTOCOL.EXPECTED_V1_RUN_FINGERPRINT
+        or fault.get("completed_parents") != 0
+        or fault.get("technical_faults") != 1
+        or fault.get("authority", {}).get("may_resume_same_family") is not False
+    ):
+        raise TeacherPlanPublicationError("v1 terminal fault binding differs")
+    _verify_declared_file_identity(
+        recovery["live_baseline"],
+        repo_root=repo_root,
+        label="unchanged live baseline",
+    )
+
+
 def _verify_engine_assets(repo_root: Path) -> None:
     engine = PROTOCOL.EXPECTED_ENGINE
     _verify_declared_file_identity(
@@ -266,12 +344,17 @@ def build_teacher_plan(
     root = repo_root.resolve()
     _verify_merged_revision(expected_merged_revision, root)
     _verify_preregistration(root)
+    _verify_technical_recovery(root)
     _verify_engine_assets(root)
     evidence = PROTOCOL.authenticate_selection_artifacts(
         selection_jsonl_path,
         selection_manifest_path,
         expected_source_revision=expected_merged_revision,
     )
+    if output_directory != PROTOCOL.EXPECTED_RECOVERY_OUTPUT_DIRECTORY:
+        raise TeacherPlanPublicationError(
+            "output directory differs from technical recovery namespace"
+        )
     directory = _canonical_output_directory(output_directory)
     evidence_document = copy.deepcopy(dict(evidence.document))
     manifest = evidence_document["selection_manifest"]
@@ -288,6 +371,9 @@ def build_teacher_plan(
         "status": "sealed-not-executed",
         "source_revision": expected_merged_revision,
         "preregistration": copy.deepcopy(PROTOCOL.EXPECTED_PREREGISTRATION_IDENTITY),
+        "technical_recovery": copy.deepcopy(
+            PROTOCOL.EXPECTED_TECHNICAL_RECOVERY_IDENTITY
+        ),
         "selection_manifest": {
             key: manifest[key] for key in ("path", "bytes", "sha256", "schema")
         },

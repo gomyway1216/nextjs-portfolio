@@ -17,7 +17,8 @@
  * Usage:
  *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
- *     [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm] \
+ *     [--scale-numer 1] [--scale-denom 1] [--max-plies 256] \
+ *     [--wasm-path research.wasm] \
  *     [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]
  *
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
@@ -37,16 +38,12 @@ import { readFileSync } from "node:fs";
 
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
-import {
-  EMPTY,
-  FU,
-  GOTE,
-  OU,
-  SENTE,
-  Te,
-  getKomashu,
-} from "../src/components/game/ShogiImproved/types";
+import { GOTE, SENTE, Te } from "../src/components/game/ShogiImproved/types";
 import { bucketsForByteLength } from "./nnue-ref";
+import {
+  buildNnueFixedTimeOpening,
+  NNUE_FIXED_TIME_OPENING_PLIES,
+} from "./nnue-fixed-time-opening";
 import {
   loadShogiWasm,
   syncWasm,
@@ -98,7 +95,7 @@ function argLazyPickerMinMoves(flag: string): number {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    "usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--wasm-path research.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
+    "usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path research.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
   );
   process.exit(2);
 }
@@ -121,6 +118,7 @@ const BUCKETS_B = argNum("--buckets-b", 0);
 const EXPECTED_SHA_A = argStr("--sha-a");
 const EXPECTED_SHA_B = argStr("--sha-b");
 const EXPECTED_WASM_SHA = argStr("--wasm-sha");
+const MAX_PLIES = argNum("--max-plies", 256);
 // Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
 // never masquerade as a 1/1 run.
 if (
@@ -133,80 +131,11 @@ if (
     "--scale-numer/--scale-denom must be between 1 and 1,000,000",
   );
 }
-const OPENING_PLIES = 6;
-const MAX_PLIES = 256;
+if (!Number.isSafeInteger(MAX_PLIES) || MAX_PLIES < 1 || MAX_PLIES > 512) {
+  throw new Error("--max-plies must be an integer from 1 through 512");
+}
 const MAX_DEPTH = 32;
 const QUIESCENCE_DEPTH_MAX = 10;
-
-// ---------------------------------------------------------------------------
-// Deterministic RNG + curated opening lines (same policy as match-wasm-vs-js)
-// ---------------------------------------------------------------------------
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickCuratedOpeningMove(
-  k: KyokumenImproved,
-  moves: Te[],
-  rnd: () => number,
-): Te {
-  const quiet = moves.filter(
-    (m) => m.from !== 0 && m.capture === EMPTY && !m.promote,
-  );
-  const pawnStartDan = k.teban === SENTE ? 7 : 3;
-  const pawnNextDan = k.teban === SENTE ? 6 : 4;
-
-  const pawnPush = quiet.filter(
-    (m) =>
-      getKomashu(m.koma) === FU &&
-      (m.from & 0x0f) === pawnStartDan &&
-      (m.to & 0x0f) === pawnNextDan,
-  );
-  if (pawnPush.length > 0) return pawnPush[Math.floor(rnd() * pawnPush.length)];
-
-  const develop = quiet.filter((m) => getKomashu(m.koma) !== OU);
-  if (develop.length > 0) return develop[Math.floor(rnd() * develop.length)];
-  if (quiet.length > 0) return quiet[Math.floor(rnd() * quiet.length)];
-  return moves[Math.floor(rnd() * moves.length)];
-}
-
-function buildOpeningLine(pairIndex: number): Te[] {
-  const k = new KyokumenImproved();
-  k.initHirate();
-  const rnd = mulberry32(0x5eed00 + SEED_BASE * 15485863 + pairIndex * 104729);
-  const line: Te[] = [];
-  for (let ply = 0; ply < OPENING_PLIES; ply++) {
-    const moves = GenerateMovesImproved.generateLegalMoves(k);
-    if (moves.length === 0) break;
-    const te = pickCuratedOpeningMove(k, moves, rnd);
-    te.capture = k.get(te.to);
-    line.push(te.clone());
-    k.move(te);
-    k.toggleTeban();
-  }
-  return line;
-}
-
-function openingFingerprint(openingMoves: readonly Te[]): string {
-  const canonical = openingMoves.map((move) => [
-    move.koma,
-    move.from,
-    move.to,
-    move.promote ? 1 : 0,
-  ]);
-  return createHash("sha256")
-    .update("shogi-nnue-fixed-time-opening-v1\0")
-    .update(JSON.stringify(canonical))
-    .digest("hex");
-}
 
 // ---------------------------------------------------------------------------
 // Plain WASM player (no book, no mate solver — pure search + eval)
@@ -450,16 +379,18 @@ function main(): void {
   console.log(
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
       `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : "WASM+V3"} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
-      `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
+      `opening ${NNUE_FIXED_TIME_OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
       `runtime=${WASM_PATH ?? "production"}, fixed-time-ms=${MOVE_MS}, ` +
+      `max-plies=${MAX_PLIES}, ` +
       `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
       `tt=clear-before-each-game-retain-within-game ===`,
   );
 
   for (let game = 0; game < GAMES; game++) {
     const nnueIsSente = game % 2 === 0;
-    const openingMoves = buildOpeningLine(game >> 1); // same opening for the color-swapped pair
-    const opening = openingFingerprint(openingMoves);
+    const generatedOpening = buildNnueFixedTimeOpening(SEED_BASE, game >> 1);
+    const openingMoves = [...generatedOpening.moves]; // reused for the swapped pair
+    const opening = generatedOpening.fingerprint;
     nnuePlayer.newGame();
     v3Player.newGame();
 

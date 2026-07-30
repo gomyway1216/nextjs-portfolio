@@ -203,4 +203,28 @@ describe("fixed-time NNUE gate match harness", () => {
       );
     },
   );
+
+  it.each(["0", "513", "-1"])(
+    "rejects an invalid maximum ply limit %s before loading the runtime",
+    (invalidValue) => {
+      const weights = resolve(REPO_ROOT, "public/shogi-nnue-weights.bin");
+      const completed = spawnSync(
+        process.execPath,
+        [
+          "-r",
+          "tsx/cjs",
+          "wasm-spike/match-nnue-vs-v3.ts",
+          weights,
+          "--max-plies",
+          invalidValue,
+        ],
+        { cwd: REPO_ROOT, encoding: "utf8", timeout: 15_000 },
+      );
+
+      expect(completed.status).not.toBe(0);
+      expect(completed.stderr).toContain(
+        "--max-plies must be an integer from 1 through 512",
+      );
+    },
+  );
 });

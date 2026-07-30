@@ -1,6 +1,6 @@
 # Direct-teacher HalfKP81 v2: freeze the next 56 games first
 
-> As of July 29, 2026, data generation, optimizer creation, training, static evaluation, and match play all remain at **zero**. The protocol and validators are now joined by an implemented and tested create-only dataset builder, but the actual data will be generated separately only after that code is merged. The AI is not stronger yet, and the live weights have not changed by one byte. [日本語](./blog-shogi-direct-teacher-halfkp81-v2-pilot.md)
+> As of July 29, 2026, the immutable pilot dataset has been generated with **223,834 rows** (200,944 train and 22,890 validation). Optimizer creation, training, static evaluation, and match play remain at **zero**. The protocol, create-only dataset builder, and paired56 controller are proceeding in sequence, but the AI is not stronger yet and the live weights have not changed by one byte. [日本語](./blog-shogi-direct-teacher-halfkp81-v2-pilot.md)
 
 ## Why move to a different experiment
 
@@ -31,6 +31,8 @@ The builder authenticates source bytes and SHA-256 before reconstructing the V9 
 
 The first real-data attempt stopped safely at source line 171. V9 contains 276,209 rows with the base keyset and 2,527 canonical mate rows that add `teacher_mate` and `teacher_mate_sign`; the first builder rejected the latter as unregistered fields. It created no output directory and did not consume the one-shot experiment. The fix permits only those two exact keysets. For mate rows it requires a nonzero integer mate value, a ±1 sign matching that value, `teacher_score_kind == "mate"`, and child-side CP equal to `-sign × (1,000,000 - |mate|)`. Any other field or inconsistency still stops publication.
 
+After that fix was merged, real-data generation completed successfully. Deduplication and permanent exclusion produced **223,834 rows** (**200,944 train** and **22,890 validation**), bound by completion-receipt SHA-256 `67dc301590999aad2f1b4fe1dc8e847f21535bb01a160d764f650d3cb64057da`. This does not establish training success or playing strength; it means only that the authenticated input for the frozen one epoch now exists.
+
 ## Two stop gates
 
 The pilot does not proceed directly from training to a long match. It must first pass every validation check:
@@ -45,13 +47,40 @@ These checks screen catastrophic regressions; they are not playing-strength evid
 
 Any miss closes this objective and pilot family. It forbids adding data, epochs, seeds, checkpoints, retries, or changing a threshold after seeing the result. Even a pass authorizes only a separately preregistered expanded-data stage—not formal A/B, external high-dan calibration, or a live write.
 
+## Boundaries enforced by the paired56 controller
+
+The match openings were frozen in a separate manifest before seeing any training result. The validator authenticates the complete prior-opening inventory of **3,198 fingerprints** by both file SHA-256 and canonical-list SHA-256, then uses the same generator as the fixed-time match harness starting at seed `1200001`. The first 28 seeds all had zero intersection with the prior inventory and zero duplicates within the selection, so seeds `1200001` through `1200028` were frozen directly. This check is separate from the dataset protected-position sets. Screen-plan preparation revalidates both facts: the dataset manifest proves zero tune/protected overlap, and the opening manifest proves zero prior-match-opening overlap.
+
+The controller does not treat the trainer result itself as strength evidence. It creates a content-addressed, create-only screen plan only after this complete identity chain agrees:
+
+- protocol → dataset manifest → execution plan;
+- final-epoch trainer result → candidate weights (81 buckets);
+- runtime sanity → initializer/candidate weights and the HalfKP81 research WASM;
+- static sanity → all nine checks pass with zero technical faults;
+- opening manifest → 28 pairs, 1.5 seconds per move, color reversal, and 12 workers.
+
+The legacy harness keeps its 256-ply default, while the v2 plan explicitly requires `--max-plies 512`. It uses no opening book, external mate solver, or fallback. Every pair log, pair receipt, journal attempt, fault, and result is create-only; existing evidence is never overwritten.
+
+The result classes are intentionally distinct. A completed score below 62 / 112, or mathematical futility, is a **playing-strength failure** that closes the pilot family and cannot resume. A subprocess, asset, or receipt **technical fault** produces no strength conclusion. Only that fault may resume, and only with the same screen-plan SHA-256, candidate/live hashes, openings, and threshold. Neither result authorizes a live write.
+
+The frozen openings can be validated without playing a game:
+
+```bash
+PYTHONPATH=ml python3 ml/direct_teacher_halfkp81_v2_screen.py \
+  validate-openings --repo-root .
+```
+
+Only after training and every static-sanity check pass may `prepare` create the screen plan. `run` then requires that plan's explicit SHA-256; there is no run-first path that bypasses authority. This PR tests pass, strength failure, technical fault, and resume behavior with synthetic receipts and runs no real game.
+
 ## Current measured state
 
 | Stage | Count | State |
 |---|---:|---|
 | Protocol / validator | one set | implemented and tested |
-| Create-only dataset builder | one set | rerun after the mate-keyset fix is tested and merged |
-| Pilot dataset | 0 rows | not generated |
+| Create-only dataset builder | one set | mate-keyset fix merged and real run complete |
+| Fresh opening manifest | 28 pairs | zero overlap with 3,198 prior fingerprints; frozen before training |
+| Paired56 controller | one set | implemented and synthetic-tested; zero real games |
+| Pilot dataset | 223,834 rows | 200,944 train, 22,890 validation, receipt authenticated |
 | Optimizer / epoch | 0 / 0 | not started |
 | Static sanity | 0 checks run | not executed |
 | Paired screen | 0 / 56 games | not started |
@@ -65,4 +94,4 @@ The tracked protocol can be validated read-only with:
 PYTHONPATH=ml python3 ml/build_direct_teacher_halfkp81_v2_plan.py --validate-only
 ```
 
-This command does not open the future dataset and grants no authority to create an optimizer, checkpoint, match, or live write. The next meaningful progress report is not “a PR exists”; it is the measured result of the permanently filtered pilot dataset, the fixed one epoch, and the fixed 56 games.
+This command does not open the future dataset and grants no authority to create an optimizer, checkpoint, match, or live write. The next meaningful progress report is not “a PR exists”; it is the measured result of the permanently filtered pilot dataset, the fixed one epoch, static sanity, and the fixed 56 games.

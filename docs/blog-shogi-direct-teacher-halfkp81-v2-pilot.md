@@ -1,6 +1,6 @@
 # direct-teacher HalfKP81 v2：次の56局だけを先に固定する
 
-> 2026-07-29時点では、データ生成、optimizer作成、学習、静的評価、対局をすべて **0** に保っている。protocolと検証器に加えて、create-only dataset生成器の実装・テストまで進んだが、実データ生成はそのコードのmerge後に別実行する。まだAIは強くなっておらず、live weightも1 byteも変更していない。[English](./blog-shogi-direct-teacher-halfkp81-v2-pilot.en.md)
+> 2026-07-29時点で、immutable pilot datasetは **223,834行**（train 200,944、validation 22,890）まで生成済みである。optimizer作成、学習、静的評価、対局はまだ **0**。protocol、create-only dataset生成器、paired56 controllerの実装とテストを順に進めているが、まだAIは強くなっておらず、live weightも1 byteも変更していない。[English](./blog-shogi-direct-teacher-halfkp81-v2-pilot.en.md)
 
 ## なぜ別の実験へ移るのか
 
@@ -31,6 +31,8 @@ train/validationの単位は行ではなく**局全体**である。さらに、
 
 最初の実データ実行は171行目で安全に停止した。V9には通常keysetが276,209行、`teacher_mate`と`teacher_mate_sign`を加えた正規mate keysetが2,527行あり、初版は後者を未登録fieldとして拒否したためである。出力directoryは作成されず、one-shot実験も消費していない。修正版はこの2 keysetだけを許可し、mate値が非0整数、signが±1でmate値の符号と一致し、`teacher_score_kind == "mate"`、子側CPが`-sign × (1,000,000 - |mate|)`と一致することを検証する。それ以外のfieldや不整合は引き続きSTOPする。
 
+修正版のmerge後、実データ生成は成功した。重複除去と永久除外を通過した出力は **223,834行**（train **200,944**、validation **22,890**）で、完了receiptのSHA-256は `67dc301590999aad2f1b4fe1dc8e847f21535bb01a160d764f650d3cb64057da` である。この成功は学習や棋力向上を意味せず、固定した1 epochへ進める入力が初めて揃ったことだけを意味する。
+
 ## 二段階の停止条件
 
 学習後すぐ長い対局へ進めない。validationで次をすべて満たす必要がある。
@@ -45,13 +47,40 @@ train/validationの単位は行ではなく**局全体**である。さらに、
 
 どこか一つでも失敗したら、このobjectiveとpilot familyを閉じる。後からdata、epoch、seed、checkpoint、retryを足したり、閾値を変えたりしない。合格しても許可されるのは、別途事前登録するexpanded-data stageだけであり、formal A/B、外部高段校正、live反映ではない。
 
+## paired56 controllerが固定する境界
+
+対局openingは学習結果を見る前に別manifestへ固定した。既存のcomplete prior-opening inventory **3,198 fingerprints**をfile SHA-256とcanonical-list SHA-256で認証し、seed `1200001`から同じ固定時間harnessのgeneratorを走らせた。最初の28 seedはすべて過去inventoryとの交差0、選択内重複0だったため、`1200001`〜`1200028`をそのまま採用した。これはdatasetのprotected-position集合とは別の検査である。screen plan作成時には、dataset manifestがtune/protected集合との重複0を証明したことと、opening manifestが過去対局openingとの重複0を証明したことを両方再検証する。
+
+controllerはtrainer resultを直接「強い証拠」と扱わない。次のidentity chainがすべて一致した場合だけ、candidate/liveのhashを固定したcreate-only screen planを作る。
+
+- protocol → dataset manifest → execution plan
+- final-epoch trainer result → candidate weights（81 buckets）
+- runtime sanity → initializer/candidate weightsとHalfKP81 research WASM
+- static sanity → 9条件すべてPASS、technical fault 0
+- opening manifest → 28組、1手1.5秒、先後交換、12 workers
+
+従来harnessの最大手数defaultは256のまま維持し、v2 planだけが `--max-plies 512` を明示する。opening book、外部mate solver、fallbackは使わない。各pair log、pair receipt、journal内のattempt、fault、resultはcreate-onlyで、既存証拠を上書きしない。
+
+結果の分類も分ける。62 / 112未満の完了または数学的futilityは**棋力不合格**であり、pilot familyを閉じて再開できない。subprocess、asset、receiptなどの**technical fault**は棋力結論を出さず、同じscreen-plan SHA-256、同じcandidate/live hash、同じopeningと閾値を保つ場合だけ、明示したtechnical-fault resumeで未完pairを続行できる。どちらもlive writeを許可しない。
+
+openingだけをread-only検証するcommandは次である。
+
+```bash
+PYTHONPATH=ml python3 ml/direct_teacher_halfkp81_v2_screen.py \
+  validate-openings --repo-root .
+```
+
+学習とstatic sanityが全PASSした後に限り、`prepare`でscreen planをcreate-only生成し、そのSHA-256を明示して`run`する。`run`を先に実行して権限を迂回する経路はない。このPRのテストでは合否・fault・resumeを合成receiptで検査しており、実対局は走らせていない。
+
 ## 現在値
 
 | 工程 | 実数 | 状態 |
 |---|---:|---|
 | protocol / validator | 1式 | 実装・テスト済み |
-| create-only dataset生成器 | 1式 | mate keyset修正版をテスト・統合後に再実行 |
-| pilot dataset | 0行 | 未生成 |
+| create-only dataset生成器 | 1式 | mate keyset修正版をmerge・実行済み |
+| fresh opening manifest | 28組 | 3,198件と交差0、学習前に固定 |
+| paired56 controller | 1式 | 実装・合成テスト済み、実対局0 |
+| pilot dataset | 223,834行 | train 200,944、validation 22,890、receipt認証済み |
 | optimizer / epoch | 0 / 0 | 未開始 |
 | static sanity | 0件 | 未実行 |
 | paired screen | 0 / 56局 | 未開始 |
@@ -65,4 +94,4 @@ tracked protocolだけをread-only検証するには次を実行する。
 PYTHONPATH=ml python3 ml/build_direct_teacher_halfkp81_v2_plan.py --validate-only
 ```
 
-このcommandは外部datasetを開かず、optimizer、checkpoint、対局、live writeの権限を一つも発行しない。次の進捗は「PRを作った」ではなく、永久除外を満たしたpilot datasetを作り、固定した1 epochと56局が実測でどうなったかで報告する。
+このcommandは外部datasetを開かず、optimizer、checkpoint、対局、live writeの権限を一つも発行しない。次の進捗は「PRを作った」ではなく、永久除外を満たしたpilot datasetを作り、固定した1 epoch、static sanity、56局が実測でどうなったかで報告する。

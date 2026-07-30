@@ -1,0 +1,86 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v2-screen-foundation-evidence-v1",
+  "status": "implementation-and-synthetic-tests-complete-no-real-games",
+  "recorded_date": "2026-07-29",
+  "base_main": {
+    "commit": "a69dd4d6eb346b36f38fd63d9070bf6b98a36014",
+    "includes_dataset_pull_request": 652,
+    "includes_mate_keyset_fix_pull_request": 653
+  },
+  "opening_preflight": {
+    "manifest": {
+      "path": "ml/protocols/direct-teacher-halfkp81-v2-screen-openings.json",
+      "bytes": 6208,
+      "sha256": "cc521ace5dfaf39c3c97238a1877456ca55e9b42630c4d4413184a9da5f25744"
+    },
+    "complete_prior_inventory": {
+      "path": "ml/protocols/bounded-quiet-history-existing-openings-v1.json",
+      "bytes": 278625,
+      "sha256": "093c504ec71192d35cc900daa74906d4c0205750f270ea157f08b3ba5948ac8d",
+      "fingerprints": 3198,
+      "canonical_list_sha256": "0dde79f19d21dbf671de9525dc87bd4e9c8a617e1a06e3a61f704f1dcbaed291"
+    },
+    "seed_scan_start": 1200001,
+    "selected_pairs": 28,
+    "selected_games": 56,
+    "skipped_seeds": 0,
+    "prior_inventory_overlap": 0,
+    "within_selection_duplicates": 0,
+    "opening_set_sha256": "d2f439ac68e1f531d193af8732a2f878738b8a7a5d5dfc82b611e24f65376507"
+  },
+  "fixed_screen": {
+    "color_swapped_pairs": 28,
+    "games": 56,
+    "milliseconds_per_move": 1500,
+    "maximum_plies": 512,
+    "pair_workers": 12,
+    "opening_book": false,
+    "external_mate_solver": false,
+    "fallback": false,
+    "minimum_candidate_halfpoints": 62,
+    "denominator_halfpoints": 112,
+    "futility_stop_only": true
+  },
+  "authority_chain": {
+    "trainer_result_schema": "shogi-direct-teacher-halfkp81-v2-trainer-result-v1",
+    "runtime_sanity_schema": "shogi-direct-teacher-halfkp81-v2-runtime-sanity-v1",
+    "static_sanity_schema": "shogi-direct-teacher-halfkp81-v2-static-sanity-result-v1",
+    "static_checks_required": 9,
+    "all_static_checks_must_pass": true,
+    "technical_faults_allowed": 0,
+    "candidate_buckets": 81,
+    "candidate_and_live_hashes_fixed_before_game_one": true,
+    "dataset_tune_protected_disjoint_revalidated": true,
+    "prior_match_opening_disjoint_revalidated": true
+  },
+  "durability": {
+    "pair_logs_create_only": true,
+    "pair_receipts_create_only": true,
+    "journal_attempts_create_only": true,
+    "faults_create_only": true,
+    "results_create_only": true,
+    "strength_failure_resume_authorized": false,
+    "technical_fault_same_plan_resume_only": true
+  },
+  "local_validation": {
+    "python_tests_passed": 8,
+    "python_tests_failed": 0,
+    "opening_reproduction_tests_passed": 1,
+    "opening_reproduction_tests_failed": 0,
+    "maximum_plies_boundary_tests_passed": 3,
+    "maximum_plies_boundary_tests_failed": 0,
+    "real_games_run": 0
+  },
+  "measured_state": {
+    "pilot_dataset_rows": 223834,
+    "pilot_train_rows": 200944,
+    "pilot_validation_rows": 22890,
+    "pilot_dataset_receipt_sha256": "67dc301590999aad2f1b4fe1dc8e847f21535bb01a160d764f650d3cb64057da",
+    "optimizer_created": false,
+    "epochs_completed": 0,
+    "static_sanity_executed": false,
+    "paired_games_completed": 0,
+    "expanded_stage_authorized": false,
+    "live_weight_bytes_changed": 0
+  }
+}

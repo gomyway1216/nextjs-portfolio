@@ -72,6 +72,10 @@ export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2 =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r2" as const;
 export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3 =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r3" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -137,6 +141,47 @@ const BOUNDED_STABLE_V3_TEACHER = Object.freeze({
   threads_per_process: 1,
   timeout_seconds_per_parent: 600,
 });
+const YANEURA_ONLY_CANDIDATE_GENERATION_V1 = Object.freeze({
+  mode: "yaneuraou-depth16-multipv12-plus-recorded-only",
+  stable_wasm: "not-instantiated-or-called",
+  proposal_depth: 16,
+  proposal_multipv: 12,
+  recorded_move_required: true,
+  deduplication: "USI-move-exact-before-depth18-rescore",
+  rescore_depth: 18,
+  maximum_rows_per_parent: 13,
+});
+const YANEURA_ONLY_V1_TEACHER = Object.freeze({
+  candidate_policy: Object.freeze({
+    deduplication: "USI-move-exact-before-depth18-rescore",
+    recorded_move: Object.freeze({ required: true }),
+    stable_wasm: Object.freeze({
+      allowed: false,
+      calls_per_parent: 0,
+      candidate_rows: 0,
+      worker_processes: 0,
+    }),
+    yaneuraou_depth16_multipv: Object.freeze({
+      depth: 16,
+      multipv: 12,
+      required: true,
+    }),
+  }),
+  engine: "YaneuraOu NNUE 9.60git 64APPLEM1",
+  hash_mib_per_process: 512,
+  ledger_candidate_generation: YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+  maximum_rows: 106_496,
+  maximum_rows_per_parent: 13,
+  minimum_rows_per_parent: 2,
+  processes: 13,
+  rescore_policy: Object.freeze({
+    all_deduplicated_candidates_independently_rescored: true,
+    depth: 18,
+    old_depth6_or_depth12_cp_target_rows: 0,
+  }),
+  threads_per_process: 1,
+  timeout_seconds_per_parent: 600,
+});
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
   "old_outcome",
@@ -147,7 +192,8 @@ type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
   | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
   | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
-  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3;
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -188,7 +234,9 @@ export interface Halfkp81Depth18TeacherSelectionRow {
 }
 
 export interface Halfkp81Depth18TeacherWorkHeader {
-  readonly schema: typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA;
+  readonly schema:
+    | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18ArtifactIdentity>;
@@ -201,23 +249,27 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     readonly receipt: Readonly<Halfkp81Depth18ArtifactIdentity>;
   }>;
   readonly teacher: Readonly<Record<string, unknown>>;
-  readonly stable_runtime: Readonly<{
+  readonly stable_runtime?: Readonly<{
     readonly receipt_sha256: string;
     readonly receipt: Readonly<Record<string, unknown>>;
   }>;
+  readonly candidate_generation?: typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1;
   readonly label_policy: string;
 }
 
 export interface Halfkp81Depth18TeacherWorkParent {
-  readonly schema: typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA;
+  readonly schema:
+    | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
   readonly role: TeacherRole;
-  readonly stable_result: Readonly<
+  readonly stable_result?: Readonly<
     | FloodgateProductionStableWasmRuntimeResult
     | FloodgateBoundedStableWasmOutcomeV3
   >;
+  readonly candidate_generation?: typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1;
   readonly teacher_entry: Readonly<CompletedWorkEntry>;
   readonly payload_sha256: string;
 }
@@ -317,6 +369,12 @@ function isBoundedStablePlanSchema(
     schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2 ||
     schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
   );
+}
+
+function isYaneuraOnlyPlanSchema(
+  schema: unknown,
+): schema is typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 {
+  return schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1;
 }
 
 function exactObject(
@@ -801,52 +859,80 @@ function validateWrapper(
   expectedParent: Readonly<SelectionParent>,
   fingerprint: string,
   planSchema: TeacherPlanSchema,
-  stableRuntimeReceiptSha256: string,
+  stableRuntimeReceiptSha256: string | undefined,
   stableReusablePoolReceiptSha256: string | undefined,
   source: number,
 ): Readonly<Halfkp81Depth18TeacherWorkParent> {
   const label = `teacher work line ${source}`;
   assertNoOldTeacherTargetFields(value, label);
+  const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
   const wrapper = exactObject(
     value,
-    [
-      "schema",
-      "kind",
-      "run_fingerprint",
-      "parent_id",
-      "role",
-      "stable_result",
-      "teacher_entry",
-      "payload_sha256",
-    ],
+    yaneuraOnly
+      ? [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "parent_id",
+          "role",
+          "candidate_generation",
+          "teacher_entry",
+          "payload_sha256",
+        ]
+      : [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "parent_id",
+          "role",
+          "stable_result",
+          "teacher_entry",
+          "payload_sha256",
+        ],
     label,
   );
   if (
-    wrapper.schema !== HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA ||
+    wrapper.schema !==
+      (yaneuraOnly
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA) ||
     wrapper.kind !== "parent" ||
     wrapper.run_fingerprint !== fingerprint ||
     wrapper.parent_id !== expectedParent.parent.parent_id ||
     wrapper.role !== expectedParent.selection.role ||
-    wrapper.payload_sha256 !== wrapperPayloadSha256(wrapper)
+    wrapper.payload_sha256 !== wrapperPayloadSha256(wrapper) ||
+    (yaneuraOnly &&
+      !sameJson(
+        wrapper.candidate_generation,
+        YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+      ))
   ) {
     throw new Error(`${label} wrapper identity/digest/role differs`);
   }
-  const stableMove = isBoundedStablePlanSchema(planSchema)
-    ? validateFloodgateBoundedStableWasmOutcomeV3(
-        wrapper.stable_result,
-        expectedParent.parent,
-        stableRuntimeReceiptSha256,
-      )
-    : validateStableResult(
-        wrapper.stable_result,
-        expectedParent.parent,
-        stableRuntimeReceiptSha256,
-        requiredText(
-          stableReusablePoolReceiptSha256,
-          "stable reusable pool receipt SHA",
-        ),
-        `${label}.stable_result`,
-      ).row.stable_move;
+  const stableMove = yaneuraOnly
+    ? undefined
+    : isBoundedStablePlanSchema(planSchema)
+      ? validateFloodgateBoundedStableWasmOutcomeV3(
+          wrapper.stable_result,
+          expectedParent.parent,
+          requiredText(
+            stableRuntimeReceiptSha256,
+            "bounded stable runtime receipt SHA",
+          ),
+        )
+      : validateStableResult(
+          wrapper.stable_result,
+          expectedParent.parent,
+          requiredText(
+            stableRuntimeReceiptSha256,
+            "stable runtime receipt SHA",
+          ),
+          requiredText(
+            stableReusablePoolReceiptSha256,
+            "stable reusable pool receipt SHA",
+          ),
+          `${label}.stable_result`,
+        ).row.stable_move;
   const teacherEntry = validateWorkEntry(
     wrapper.teacher_entry,
     fingerprint,
@@ -862,8 +948,13 @@ function validateWrapper(
   if (teacherEntry.kind !== "parent") {
     throw new Error(`${label} contains a fault/skip/incomplete parent`);
   }
-  if (teacherEntry.records.length < 2 || teacherEntry.records.length > 14) {
-    throw new Error(`${label} must contain 2 through 14 fresh target rows`);
+  if (
+    teacherEntry.records.length < 2 ||
+    teacherEntry.records.length > (yaneuraOnly ? 13 : 14)
+  ) {
+    throw new Error(
+      `${label} must contain 2 through ${yaneuraOnly ? 13 : 14} fresh target rows`,
+    );
   }
   const stableSourced = teacherEntry.records.filter((record) =>
     record.sources.includes("stable"),
@@ -1209,31 +1300,50 @@ function validatePlanAndHeader(
   selectionRows: readonly Readonly<SelectionParent>[],
 ): Readonly<Halfkp81Depth18TeacherWorkHeader> {
   const planSchema = plan.schema;
+  const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
   if (
     planSchema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA &&
-    !isBoundedStablePlanSchema(planSchema)
+    !isBoundedStablePlanSchema(planSchema) &&
+    !yaneuraOnly
   ) {
     throw new Error("teacher plan schema is unsupported");
   }
   const header = exactObject(
     headerValue,
-    [
-      "schema",
-      "kind",
-      "run_fingerprint",
-      "teacher_plan",
-      "selection_jsonl",
-      "selection_manifest",
-      "source_revision",
-      "engine",
-      "teacher",
-      "stable_runtime",
-      "label_policy",
-    ],
+    yaneuraOnly
+      ? [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "teacher_plan",
+          "selection_jsonl",
+          "selection_manifest",
+          "source_revision",
+          "engine",
+          "teacher",
+          "candidate_generation",
+          "label_policy",
+        ]
+      : [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "teacher_plan",
+          "selection_jsonl",
+          "selection_manifest",
+          "source_revision",
+          "engine",
+          "teacher",
+          "stable_runtime",
+          "label_policy",
+        ],
     "teacher work header",
   );
   if (
-    header.schema !== HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA ||
+    header.schema !==
+      (yaneuraOnly
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA) ||
     header.kind !== "header" ||
     typeof header.run_fingerprint !== "string" ||
     !SHA256_RE.test(header.run_fingerprint) ||
@@ -1409,26 +1519,39 @@ function validatePlanAndHeader(
   if (
     !sameJson(header.teacher, plan.teacher) ||
     (isBoundedStablePlanSchema(planSchema) &&
-      !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER))
+      !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER)) ||
+    (yaneuraOnly && !sameJson(plan.teacher, YANEURA_ONLY_V1_TEACHER)) ||
+    (yaneuraOnly &&
+      !sameJson(
+        header.candidate_generation,
+        YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+      ))
   ) {
     throw new Error("teacher work policy differs from sealed plan");
   }
-  const stableRuntime = validateStableRuntime(
-    header.stable_runtime,
-    planSchema,
-  );
+  const stableRuntime = yaneuraOnly
+    ? undefined
+    : validateStableRuntime(header.stable_runtime, planSchema);
   if (header.label_policy !== SIBLING_TEACHER_LABEL_POLICY) {
     throw new Error("teacher work label policy differs");
   }
-  const fingerprintPayload = {
+  const fingerprintBase = {
     teacher_plan: header.teacher_plan,
     selection_jsonl: header.selection_jsonl,
     selection_manifest: header.selection_manifest,
     source_revision: header.source_revision,
     engine: header.engine,
     teacher: header.teacher,
-    stable_runtime: stableRuntime,
   };
+  const fingerprintPayload = yaneuraOnly
+    ? {
+        ...fingerprintBase,
+        candidate_generation: header.candidate_generation,
+      }
+    : {
+        ...fingerprintBase,
+        stable_runtime: stableRuntime,
+      };
   const expectedFingerprint = sha256(
     `${HALFKP81_DEPTH18_RUN_FINGERPRINT_DOMAIN}${canonicalHalfkp81Depth18Json(
       fingerprintPayload,
@@ -1620,20 +1743,19 @@ function validateCore(
   );
   validateEngineReceipt(request.engineReceipt, request.engineBinary);
   const planSchema = plan.schema as TeacherPlanSchema;
+  const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
 
   const recordsByRole: Record<TeacherRole, SiblingRecord[]> = {
     fit: [],
     tune: [],
     sealed: [],
   };
-  const stableOperational = header.stable_runtime.receipt.operational as Record<
-    string,
-    unknown
-  >;
+  const stableOperational = header.stable_runtime?.receipt.operational as
+    Record<string, unknown> | undefined;
   const reusablePoolReceiptSha256 =
     planSchema === HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
       ? requiredDigest(
-          stableOperational.reusable_pool_receipt_sha256,
+          stableOperational?.reusable_pool_receipt_sha256,
           "stable reusable pool receipt SHA",
         )
       : undefined;
@@ -1665,7 +1787,7 @@ function validateCore(
       expected,
       header.run_fingerprint,
       planSchema,
-      header.stable_runtime.receipt_sha256,
+      header.stable_runtime?.receipt_sha256,
       reusablePoolReceiptSha256,
       index + 1,
     );
@@ -1705,9 +1827,11 @@ function validateCore(
     }
     if (
       roleRows[role] < bounds.roleCounts[role] * 2 ||
-      roleRows[role] > bounds.roleCounts[role] * 14
+      roleRows[role] > bounds.roleCounts[role] * (yaneuraOnly ? 13 : 14)
     ) {
-      throw new Error(`${role} row count violates 2..14 rows per parent`);
+      throw new Error(
+        `${role} row count violates 2..${yaneuraOnly ? 13 : 14} rows per parent`,
+      );
     }
   }
   const completedRows = ROLE_ORDER.reduce(
@@ -1731,7 +1855,9 @@ function validateCore(
     ),
     work: identityFromSnapshot(
       request.work,
-      HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
+      yaneuraOnly
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
       expectedParents + 1,
     ),
     raw_receipt: identityFromSnapshot(
@@ -1769,9 +1895,16 @@ function validateCore(
       selected_parent_role_membership_recomputed: true,
       cross_role_overlap_zero_recomputed: true,
       wrapper_payload_digests_recomputed: true,
-      stable_depth11_parent_runtime_binding_recomputed: true,
+      ...(yaneuraOnly
+        ? {
+            stable_wasm_absence_recomputed: true,
+            yaneura_only_candidate_generation_recomputed: true,
+          }
+        : { stable_depth11_parent_runtime_binding_recomputed: true }),
       proposal_depth16_exact_depth18_recomputed: true,
-      row_bounds_2_through_14_recomputed: true,
+      ...(yaneuraOnly
+        ? { row_bounds_2_through_13_recomputed: true }
+        : { row_bounds_2_through_14_recomputed: true }),
       old_depth12_target_absence_recomputed: true,
       work_to_role_jsonl_canonical_reconstruction: true,
       fault_skip_missing_parents_recomputed_zero: true,
@@ -1996,6 +2129,7 @@ export async function verifyAndPublishHalfkp81Depth18TeacherArtifacts(
     16 * 1024 * 1024,
   );
   const planValue = parseCanonicalDocument(plan, "teacher plan");
+  const yaneuraOnly = isYaneuraOnlyPlanSchema(planValue.schema);
   const outputs = exactObject(
     planValue.outputs,
     [
@@ -2049,19 +2183,33 @@ export async function verifyAndPublishHalfkp81Depth18TeacherArtifacts(
   const workRows = parseExactJsonl(work.bytes, "teacher work");
   const workHeader = exactObject(
     workRows[0],
-    [
-      "schema",
-      "kind",
-      "run_fingerprint",
-      "teacher_plan",
-      "selection_jsonl",
-      "selection_manifest",
-      "source_revision",
-      "engine",
-      "teacher",
-      "stable_runtime",
-      "label_policy",
-    ],
+    yaneuraOnly
+      ? [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "teacher_plan",
+          "selection_jsonl",
+          "selection_manifest",
+          "source_revision",
+          "engine",
+          "teacher",
+          "candidate_generation",
+          "label_policy",
+        ]
+      : [
+          "schema",
+          "kind",
+          "run_fingerprint",
+          "teacher_plan",
+          "selection_jsonl",
+          "selection_manifest",
+          "source_revision",
+          "engine",
+          "teacher",
+          "stable_runtime",
+          "label_policy",
+        ],
     "teacher work header",
   );
   const engine = exactObject(

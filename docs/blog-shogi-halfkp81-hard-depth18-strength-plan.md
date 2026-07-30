@@ -35,17 +35,17 @@ ply 120以降の旧poolは別のsampling都合でbしか残っていなかった
 
 各親局面で、やねうら王を次の固定条件で動かす。
 
-| 項目               |                        固定値 |
-| ------------------ | ----------------------------: |
-| proposal           |           MultiPV 12、depth16 |
-| 追加する手         | 棋譜の手、固定depth11の安定手 |
-| 全兄弟手の最終採点 |                       depth18 |
-| process            |                            13 |
-| thread / process   |                             1 |
-| hash / process     |                       512 MiB |
-| timeout / parent   |                         600秒 |
+| 項目               |                                      固定値 |
+| ------------------ | ------------------------------------------: |
+| proposal           |                         MultiPV 12、depth16 |
+| 追加する手         | 棋譜の手、20秒内にdepth11まで完了した安定手 |
+| 全兄弟手の最終採点 |                                     depth18 |
+| process            |                                          13 |
+| thread / process   |                                           1 |
+| hash / process     |                                     512 MiB |
+| timeout / parent   |               やねうら王600秒、安定手は20秒 |
 
-見込みは1親あたり約11.62手、約95,191教師row、上限114,688 rowである。元の学習用200,944 direct labelは捨てず、広い局面を忘れないためのreplayにする。22,890 validation labelは学習に混ぜず、保存性能の検査専用に保つ。学習batchは親単位で旧direct 50%、新hard 50%。目的関数はdirect sigmoid BCE 50%と、同じ親の兄弟手順位を学ぶListNet 50%に固定する。
+安定手は候補を一つ増やす補助経路に限定する。20秒のcooperative deadlineまでにdepth11へ届かなければ途中の手・scoreは捨て、認証済みの「省略」として記録する。これは親全体の失敗ではなく、やねうら王のMultiPV 12と棋譜の手は必ずdepth18で再評価する。元の学習用200,944 direct labelは捨てず、広い局面を忘れないためのreplayにする。22,890 validation labelは学習に混ぜず、保存性能の検査専用に保つ。学習batchは親単位で旧direct 50%、新hard 50%。目的関数はdirect sigmoid BCE 50%と、同じ親の兄弟手順位を学ぶListNet 50%に固定する。
 
 initializerは失敗したv3/v4候補ではなく、元のalpha-050 checkpointへ戻す。HalfKP81、1 seed、3 epochs、最終epochだけを候補にする。うまく見えるcheckpointを後から選ばない。
 
@@ -67,7 +67,15 @@ teacher planを作る前にもselection manifestと8,192行JSONLをheld descript
 
 再開可能runnerとartifact verifierを含むPR #666も通常mergeされた（merge `eaa03e570e1ed687c3479a38eba377807be4cd9e`）。stable assetsを復元・再認証し、clean mainから6,306 bytes、SHA-256 `c0b4a4ab2bc0a4b4a685b06e65afb0d3194551c72ae4382a9021754188a725b0`のimmutable teacher planを発行してv1を実行した。しかし、やねうら王へ渡した`EvalDir`が実際の`nn.bin`を含む`.../eval/eval`ではなく、その1階層上の`.../eval`だった。workerは最初の親を処理する前のUSI初期化で終了したため、結果は完了`0 / 8,192`親、depth18教師`0`行、technical fault 1である。これは棋力やデータの失敗ではなく、engine pathの技術的失敗である。
 
-v1のterminal faultは消さずに保存し、v1 output directoryを閉じた。同じfamilyをその場で再開する権限はなく、既存の`teacher-work.jsonl`やteacher planを上書きもしない。次のv2は`halfkp81-hard-depth18-engine-evaldir-v2`という別のtechnical-recovery familyにする。認証済み8,192選抜は同じbytes/SHAのまま再利用する一方、v2修正を含む新しいmerged source revisionと、v1とは別のcreate-only output directoryへ結合する。変更するのは`EvalDir`を`nn.bin`が実在する`.../eval/eval`へ合わせる点だけで、選抜data、教師depth、閾値、3 epochs、1 seedは変更しない。したがって、v1の技術停止を見て条件を緩める再試行ではない。
+v1のterminal faultは消さずに保存し、v1 output directoryを閉じた。同じfamilyをその場で再開する権限はなく、既存の`teacher-work.jsonl`やteacher planを上書きもしない。次のv2は`halfkp81-hard-depth18-engine-evaldir-v2`という別のtechnical-recovery familyにした。認証済み8,192選抜は同じbytes/SHAのまま再利用する一方、v2修正を含む新しいmerged source revisionと、v1とは別のcreate-only output directoryへ結合した。
+
+PR #667は全15 check成功後に通常mergeされ（merge `551759a171ac7fed5cf4a5b7cc2279dc60eea6bd`）、v2は正しいEvalDirで開始した。しかし49 / 8,192親、585行まで進んだ所で、stable-WASM depth11探索が600秒の外側watchdogへ到達してterminal faultになった。共有poolは1 workerの失敗を全active requestへ配ったため、faultに書かれた親だけが原因とは断定できなかった。v2は再開せず、最初の62件で未完だった13親をtrainingに使わないscratch診断へ分離した。
+
+隔離したexact production条件では9件が4.918〜547.152秒でdepth11へ到達し、4件はそれぞれ別workerで600.000〜600.003秒のtimeoutを再現した。全childとpoolは正常に終了し、formal work/faultも不変だった。したがって原因は単一の誤帰属やpool deadlockではなく、複数局面の本物のdepth11長尾と、それを全pool停止へ拡大する実装だった。timeoutをさらに延ばすだけでは完走上限を作れない。
+
+独立v3 `halfkp81-hard-depth18-bounded-stable-v3`は、同じ8,192選抜をbytes/SHA固定で再利用するが、v2の49親・585行は一切流用せず0から計算する。stable-WASMは20秒以内にdepth11へ完了した場合だけ候補手を一つ足し、未完partialは捨てる。通常deadlineはpool全体をpoisonせず、そのworkerだけを回収・交換する。正式起動も`KeepAlive=false`、`LaunchOnlyOnce=true`のone-shot LaunchAgentに変える。これらは結果を見て合格線を変える操作ではなく、弱い補助候補が強い教師生成全体を無期限停止させないための新しい事前登録familyである。診断の全実数は[機械可読メモ](./data/shogi-halfkp81-depth18-v2-timeout-diagnostic-2026-07-30.json)に保存した。
+
+v3のtracked preregistrationは8,607 bytes、SHA-256 `e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1`に固定した。この段階ではまだteacher planを発行・実行しておらず、学習も棋力証明も0である。実装PRが通常mergeされたclean mainを再認証した後にだけ、別のimmutable teacher planをcreate-onlyで発行する。
 
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 

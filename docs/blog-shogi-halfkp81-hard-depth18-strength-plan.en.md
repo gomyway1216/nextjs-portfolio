@@ -35,17 +35,17 @@ The old source has another parity artifact after ply 120, where only `b` positio
 
 Each parent is processed with the following fixed YaneuraOu configuration.
 
-| Item                  |                                  Fixed value |
-| --------------------- | -------------------------------------------: |
-| Proposal              |                       MultiPV 12 at depth 16 |
-| Extra moves           | Recorded move and fixed-depth-11 stable move |
-| Final sibling rescore |                                     Depth 18 |
-| Processes             |                                           13 |
-| Threads per process   |                                            1 |
-| Hash per process      |                                      512 MiB |
-| Timeout per parent    |                                  600 seconds |
+| Item                  |                                                             Fixed value |
+| --------------------- | ----------------------------------------------------------------------: |
+| Proposal              |                                                  MultiPV 12 at depth 16 |
+| Extra moves           | Recorded move and a stable move that reaches depth 11 within 20 seconds |
+| Final sibling rescore |                                                                Depth 18 |
+| Processes             |                                                                      13 |
+| Threads per process   |                                                                       1 |
+| Hash per process      |                                                                 512 MiB |
+| Timeout per parent    |                        600 seconds for YaneuraOu; 20 seconds for stable |
 
-The point estimate is 11.62 moves per parent, approximately 95,191 teacher rows, with a hard maximum of 114,688. The existing 200,944 direct training labels remain broad replay data; the separate 22,890 validation labels never enter training and remain reserved for preservation checks. Parent batches are 50% old direct replay and 50% new hard labels. The objective is 50% direct sigmoid BCE and 50% groupwise ListNet over sibling rankings.
+The stable move is only an auxiliary source for one extra candidate. If it does not reach depth 11 by its 20-second cooperative deadline, the partial move and score are discarded and an authenticated omission is recorded. That omission does not fail the parent: YaneuraOu MultiPV 12 and the recorded move are still always rescored at depth 18. The existing 200,944 direct training labels remain broad replay data; the separate 22,890 validation labels never enter training and remain reserved for preservation checks. Parent batches are 50% old direct replay and 50% new hard labels. The objective is 50% direct sigmoid BCE and 50% groupwise ListNet over sibling rankings.
 
 Training restarts from the original alpha-050 checkpoint, not the failed v3/v4 candidate. The representation is HalfKP81, with one seed, exactly three epochs, and only the final epoch eligible. This prevents selecting a lucky-looking checkpoint after seeing results.
 
@@ -67,7 +67,15 @@ On July 30, 2026, PR #665—containing the preregistration, selector, and authen
 
 PR #666, which added the resumable runner and artifact verifier, was also regularly merged as `eaa03e570e1ed687c3479a38eba377807be4cd9e`. The stable assets were restored and reauthenticated, then v1 was started from clean `main` with an immutable 6,306-byte teacher plan whose SHA-256 is `c0b4a4ab2bc0a4b4a685b06e65afb0d3194551c72ae4382a9021754188a725b0`. The configured YaneuraOu `EvalDir`, however, was the parent `.../eval` directory rather than the actual `.../eval/eval` directory containing `nn.bin`. Every worker exited during USI initialization before the first parent. The terminal result is therefore `0 / 8,192` completed parents, zero depth-18 teacher rows, and one technical fault. This is an engine-path failure, not a strength or data result.
 
-The v1 terminal-fault artifact remains preserved and closes the v1 output directory. The same family may not resume in place, and neither its `teacher-work.jsonl` nor its teacher plan may be overwritten. The successor is a separate technical-recovery family, `halfkp81-hard-depth18-engine-evaldir-v2`. It reuses the exact authenticated 8,192-position selection at the same bytes/SHA, but binds it to the new merged source revision containing the v2 fix and to a separate create-only output directory. Its only intended correction is setting `EvalDir` to the `.../eval/eval` directory that actually contains `nn.bin`; the selection data, teacher depth, thresholds, three epochs, and one seed remain unchanged. This is not a post-result relaxation of the experiment.
+The v1 terminal-fault artifact remains preserved and closes the v1 output directory. The same family may not resume in place, and neither its `teacher-work.jsonl` nor its teacher plan may be overwritten. Its successor was the separate technical-recovery family `halfkp81-hard-depth18-engine-evaldir-v2`, which reused the exact authenticated 8,192-position selection at the same bytes/SHA but bound it to a new merged source revision and create-only output directory.
+
+PR #667 passed all 15 checks and was regularly merged as `551759a171ac7fed5cf4a5b7cc2279dc60eea6bd`. v2 then started with the correct EvalDir, but terminally faulted after 49 / 8,192 parents and 585 rows when a stable-WASM depth-11 search reached the outer 600-second watchdog. Because one worker failure was broadcast to every active request in the shared pool, the parent named in the terminal fault did not by itself identify the cause. v2 was not resumed; the 13 unfinished parents in the first assigned set of 62 were isolated in a scratch-only diagnostic that cannot become training data.
+
+Under the exact production limit, nine isolated searches reached depth 11 in 4.918–547.152 seconds, while four independent workers timed out at 600.000–600.003 seconds. Every child and pool closed cleanly and the formal work/fault artifacts remained unchanged. This proves multiple genuine depth-11 long tails rather than a single misattributed request or pool deadlock, with the pool-wide poison policy amplifying one worker failure into a run-wide stop. Merely increasing the watchdog still would not establish a completion bound.
+
+The independent v3 family, `halfkp81-hard-depth18-bounded-stable-v3`, reuses the same 8,192-position selection by exact bytes/SHA but recomputes every parent from zero; none of v2's 49 parents or 585 rows may be reused. Stable-WASM contributes one move only when it completes depth 11 within 20 seconds. Any partial result is discarded, an ordinary deadline does not poison the pool, and only that worker is reaped and replaced. Formal launch also changes to a one-shot LaunchAgent with `KeepAlive=false` and `LaunchOnlyOnce=true`. These are not post-result strength-threshold changes. They define a new preregistered family in which a weak auxiliary candidate source cannot stop the stronger teacher indefinitely. The complete measured diagnosis is preserved in the [machine-readable memo](./data/shogi-halfkp81-depth18-v2-timeout-diagnostic-2026-07-30.json).
+
+The tracked v3 preregistration is fixed at 8,607 bytes with SHA-256 `e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1`. It does not issue or run a teacher plan, start training, or prove playing strength. A separate immutable teacher plan may be published create-only only after the implementation PR is regularly merged and that clean `main` revision is reauthenticated.
 
 The live baseline remains `public/shogi-nnue-weights.bin`, 1,185,988 bytes, SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`. Completing selection is not evidence of stronger play, and the public flag remains unchanged.
 

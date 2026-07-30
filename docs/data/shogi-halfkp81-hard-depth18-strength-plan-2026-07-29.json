@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "v1-terminal-technical-fault-zero-parents-v2-technical-recovery-defined-no-strength-claim",
+  "status": "v2-terminal-after-49-parents-depth11-long-tail-proved-v3-bounded-stable-defined-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -201,7 +201,9 @@
     "proposal_multipv": 12,
     "proposal_depth": 16,
     "also_include_recorded_move": true,
-    "also_include_fixed_depth11_stable_move": true,
+    "also_include_fixed_depth11_stable_move": "optional-only-if-complete-within-20-seconds",
+    "stable_move_cooperative_budget_seconds": 20,
+    "stable_partial_result_policy": "discard-and-record-authenticated-omission",
     "rescore_depth": 18,
     "processes": 13,
     "threads_per_process": 1,
@@ -298,6 +300,59 @@
       },
       "same_family_resume": false,
       "live_weight_write_authorized": false
+    },
+    "v2_terminal_result": {
+      "source_revision": "551759a171ac7fed5cf4a5b7cc2279dc60eea6bd",
+      "pull_request": 667,
+      "teacher_plan": {
+        "bytes": 6617,
+        "sha256": "b9fbac546c6c77386c43b9318eb7639f3cf74882ff995fa4e117d82d092bacd1"
+      },
+      "completed_parents": 49,
+      "teacher_rows": 585,
+      "technical_faults": 1,
+      "terminal_fault_sha256": "f3c90ccfd165a84fcf5843c3cd6975ec8459791528d7ee9db7ac0b2bf7a0f4db",
+      "same_family_resume_authorized": false,
+      "strength_result_observed": false
+    },
+    "v2_timeout_diagnostic": {
+      "memo": "docs/data/shogi-halfkp81-depth18-v2-timeout-diagnostic-2026-07-30.json",
+      "isolated_parents": 13,
+      "depth11_completed": 9,
+      "independent_600_second_timeouts": 4,
+      "pool_deadlock_observed": false,
+      "multiple_depth11_long_tails_proved": true
+    },
+    "v3": {
+      "family": "halfkp81-hard-depth18-bounded-stable-v3",
+      "classification": "independent-strength-first-family-not-v2-resume",
+      "branch": "codex/shogi-depth18-bounded-stable-v3",
+      "tracked_preregistration": {
+        "path": "ml/halfkp81-hard-depth18-bounded-stable-v3-plan.json",
+        "bytes": 8607,
+        "sha256": "e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1",
+        "schema": "shogi-halfkp81-hard-depth18-bounded-stable-plan-v3"
+      },
+      "selection_rows_reused_by_exact_identity": 8192,
+      "v2_completed_parents_reused": 0,
+      "v2_teacher_rows_reused": 0,
+      "stable_candidate": {
+        "required_depth": 11,
+        "cooperative_budget_milliseconds": 20000,
+        "partial_result_adopted": false,
+        "deadline_poison_pool": false,
+        "timed_out_worker": "reap-and-replace"
+      },
+      "required_candidates": {
+        "yaneuraou_depth16_multipv": 12,
+        "recorded_move": true,
+        "final_rescore_depth": 18
+      },
+      "formal_launch": {
+        "keep_alive": false,
+        "launch_only_once": true
+      },
+      "status": "implementation-in-progress-not-executed"
     }
   },
   "training": {
@@ -387,16 +442,21 @@
     "teacher_runner_merged": true,
     "v1_teacher_plan_published": true,
     "v1_teacher_attempt_terminal_fault": true,
-    "v2_technical_recovery_branch": "codex/shogi-depth18-engine-evaldir-v2"
+    "v2_technical_recovery_branch": "codex/shogi-depth18-engine-evaldir-v2",
+    "v2_merge_revision": "551759a171ac7fed5cf4a5b7cc2279dc60eea6bd",
+    "v2_teacher_attempt_terminal_fault": true,
+    "v3_branch": "codex/shogi-depth18-bounded-stable-v3",
+    "v3_implementation_in_progress": true
   },
   "authority": {
     "formal_selection_executed": true,
     "teacher_generation_executed": true,
     "teacher_generation_completed": false,
-    "teacher_completed_parents": 0,
-    "teacher_rows": 0,
+    "teacher_completed_parents": 49,
+    "teacher_rows": 585,
     "v1_same_family_resume_authorized": false,
-    "v2_technical_recovery_only": true,
+    "v2_same_family_resume_authorized": false,
+    "v3_independent_family_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

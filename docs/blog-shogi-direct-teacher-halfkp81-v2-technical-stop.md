@@ -42,6 +42,8 @@ CLIは次をすべて再認証する。
 `~/.codex/shogi-runs/direct-teacher-halfkp81-v2-technical-stop-v1/result.json`
 をsame-directory temporary file、file `fsync`、hard-link create-only、directory `fsync`の順で1回だけ公開する。旧claimと旧outputへの書込み権限はreceipt内でも常にfalseである。
 
+merged revision `3034d361…2afe`からこの処理を実行し、2,453-byteのreceiptをcreate-onlyで公開した。receiptのSHA-256は`8474df3f…b1226c3`、mtimeは`2026-07-30T03:21:25.324051+00:00`、modeは`0600`である。公開後にstrict JSON load、schema検証、fresh再認証との完全一致をread-onlyで確認した。claim、execution plan、failure log、initializer export、live weightsのbytesとmtimeは公開前後で一致し、旧attemptとlive weightsは変更されていない。
+
 ## 次の学習との境界
 
 旧v2から性能metricは1つも得ていないため、deviceの技術修正を性能結果から選んだ選別バイアスはない。ただし次の実行はv2のretryとは呼ばない。明示的にCPUを固定した新protocol、新execution plan、新claimを持つ独立successorとして事前登録する。dataset bytes、initializer、seed、batch、learning rate、epoch、static thresholdは変えず、claim取得前に予定deviceでinitializer forward capabilityを確認する。

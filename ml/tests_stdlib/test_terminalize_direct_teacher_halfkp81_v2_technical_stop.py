@@ -286,6 +286,25 @@ class DirectTeacherHalfkp81V2TechnicalStopTests(unittest.TestCase):
             memo["terminalization"]["fixed_path"],
             str(TERM.TERMINAL_RESULT_PATH),
         )
+        self.assertEqual(memo["status"], "published-technical-stop-before-optimizer")
+        self.assertEqual(
+            memo["terminalization"]["publication"],
+            {
+                "status": "published-create-only-and-read-only-verified",
+                "terminalizer_revision": (
+                    "3034d3616f6279643847771617e654e7c4bc2afe"
+                ),
+                "bytes": 2453,
+                "sha256": (
+                    "8474df3f8590f4bb537ff261c049c2a59e0b71157161b66c8a6f58662b1226c3"
+                ),
+                "mtime_ns": 1785381685324051497,
+                "mtime_utc": "2026-07-30T03:21:25.324051+00:00",
+                "mode": "0600",
+                "fresh_reauthentication_equal": True,
+                "protected_input_bytes_and_mtimes_unchanged": True,
+            },
+        )
         self.assertFalse(memo["decision"]["old_execution_plan_retry_authorized"])
 
 

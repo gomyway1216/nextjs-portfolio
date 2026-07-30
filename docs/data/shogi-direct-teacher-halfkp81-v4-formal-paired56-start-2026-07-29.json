@@ -1,0 +1,105 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v4-formal-paired56-start-data-memo-v1",
+  "status": "formal-v4-static-pass-fresh-paired56-started-no-strength-decision",
+  "date": "2026-07-29",
+  "predecessor": {
+    "diagnosis_memo": {
+      "path": "docs/data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json",
+      "bytes": 7508,
+      "sha256": "d7d9cc7612151e011bd98a38e38ca36f2ecd96fbe508ad4f4dcff056b0ebbbd6",
+      "immutable_after_v4_preregistration": true
+    },
+    "historical_accounting": {
+      "small_proxy_improvements_are_not_playing_strength": true,
+      "prior_approximately_one_percent_proxy_gain_did_not_establish_strength": true,
+      "work_without_direct_strength_contribution_was_overextended": true,
+      "retained_benefit": "a frozen candidate and authenticated path to a decisive fresh paired screen"
+    }
+  },
+  "formal_static_adjudication": {
+    "checks_passed": 7,
+    "checks_total": 7,
+    "result": {
+      "bytes": 3910,
+      "sha256": "a5e02de08ad116578937bf81a1d27f5d9a9ab197e84fadf7f42efb20affb5b7a"
+    },
+    "observations": {
+      "nearest_rank_p99_9_candidate_over_initializer_ratio": 1.0134990893119955,
+      "absolute_max_cp_delta": 238.4888916015625,
+      "deployed_int16_teacher_mae_cp_improvement": 7.54571533203125,
+      "deployed_int16_pair_accuracy_delta": 0.0004452720207253069,
+      "weight_int16_clipping_coordinates": 0,
+      "wasm_parity_mismatches": 0,
+      "research_runtime_search_slowdown_percent": 2.495517211805487
+    },
+    "authority": {
+      "fresh_v4_paired56_authorized": true,
+      "old_v3_paired56_authorized": false,
+      "expanded_stage_authorized": false,
+      "live_weight_write_authorized": false,
+      "playing_strength_claim_authorized": false
+    }
+  },
+  "fresh_openings": {
+    "complete_prior_union_fingerprints": 3302,
+    "new_fingerprints": 28,
+    "overlap_with_prior_union": 0,
+    "pairs": 28,
+    "games_per_pair": 2,
+    "games_total": 56,
+    "color_swapped": true
+  },
+  "independent_audit": {
+    "findings_fixed": 4,
+    "residual_p1": 0,
+    "residual_p2": 0,
+    "fixes": [
+      {
+        "id": "complete-tracked-opening-inventory",
+        "finding": "two tracked protocol opening fingerprints were absent from the prior union",
+        "resolution": "recursively scan every tracked protocol and bind the resulting 3302-fingerprint union"
+      },
+      {
+        "id": "authenticate-runtime-and-harness",
+        "finding": "Node, tsx, and harness execution were not fully authenticated and the log path was spoofable",
+        "resolution": "bind an exact root-owned Node executable and tracked standalone bundle, read with O_NOFOLLOW, execute through an anonymous fd, and fix the formal executor"
+      },
+      {
+        "id": "durable-fault-evidence",
+        "finding": "fault evidence bound only an exception-type hash",
+        "resolution": "bind stdout and stderr identities, create-only raw bytes, and a domain-separated fault receipt"
+      },
+      {
+        "id": "resolved-run-root",
+        "finding": "a noncanonical run root was described as the default run root",
+        "resolution": "record the actually resolved run root"
+      }
+    ],
+    "additional_hardening": {
+      "reject_zero_legal_moves_transcript": true
+    }
+  },
+  "implementation": {
+    "pull_request": 663,
+    "merge_commit": "bcf77714aee38ddf6f0f671e8c1d475a05dd2593",
+    "merge_strategy": "regular-merge-commit",
+    "formal_plan_sha256": "93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230"
+  },
+  "start_snapshot": {
+    "workers": 12,
+    "completed_pairs": 0,
+    "completed_games": 0,
+    "total_pairs": 28,
+    "total_games": 56,
+    "technical_faults": 0,
+    "snapshot_scope": "formal-run-start-not-a-live-progress-counter"
+  },
+  "authority": {
+    "playing_strength_evidence_at_start": false,
+    "playing_strength_decision": "pending-complete-56-game-result",
+    "live_weights_changed": false,
+    "public_flag_changed": false,
+    "expanded_stage_authorized": false,
+    "external_calibration_authorized": false
+  }
+}

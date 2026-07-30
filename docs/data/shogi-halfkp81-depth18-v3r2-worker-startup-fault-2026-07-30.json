@@ -1,0 +1,182 @@
+{
+  "schema": "shogi-halfkp81-depth18-v3r2-worker-startup-fault-data-memo-v1",
+  "date": "2026-07-30",
+  "status": "v3r2-terminal-after-94-parents-source-pipe-eof-fault-v3r3-required-no-strength-result",
+  "implementation": {
+    "pull_request": 669,
+    "checks_passed": 15,
+    "checks_failed": 0,
+    "merge_strategy": "regular-merge",
+    "merge_revision": "f0ae74c208d3934849864c05cc68219f1834ef83"
+  },
+  "formal_run": {
+    "family": "halfkp81-hard-depth18-bounded-stable-v3r2",
+    "output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2",
+    "source_revision": "f0ae74c208d3934849864c05cc68219f1834ef83",
+    "run_fingerprint": "9d62c01f51dc4ae5a8fb24fb7193c50e93f33c4cefecad164b06dc63c8a3706e",
+    "tracked_preregistration": {
+      "path": "ml/halfkp81-hard-depth18-bounded-stable-v3r2-plan.json",
+      "bytes": 5378,
+      "sha256": "a543e03804b9215abab25eb34f3937f5cc1fa212fc12af80b7a25e923665a7e5",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r2"
+    },
+    "teacher_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-plan.json",
+      "bytes": 10827,
+      "sha256": "53e3aaabf2d08b9c440478e94dc1ccbdca58334618523dfcccf5d80ed3a072a9",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r2",
+      "published_at": "2026-07-30T06:13:56-07:00"
+    },
+    "work_ledger": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-work.jsonl",
+      "bytes": 1463884,
+      "sha256": "f182810f3629c6c57e81db759aca995eda4e4aa76787cd646a96295931856200",
+      "records": 95,
+      "header_records": 1,
+      "completed_parent_records": 94,
+      "teacher_rows": 1125,
+      "created_at": "2026-07-30T06:14:47-07:00",
+      "closed_at": "2026-07-30T06:19:58-07:00"
+    },
+    "stable_candidate_outcomes": {
+      "proposals": 61,
+      "proposal_completed_depth": {
+        "11": 61
+      },
+      "omissions": 33,
+      "omission_reason": {
+        "cooperative-deadline": 33
+      },
+      "omission_completed_depth": {
+        "7": 2,
+        "8": 3,
+        "9": 8,
+        "10": 20
+      },
+      "omission_partial_result_adopted": 0,
+      "omission_worker_reaped": 33,
+      "omission_worker_replaced": 33
+    },
+    "teacher_row_distribution": {
+      "minimum_rows_per_parent": 6,
+      "maximum_rows_per_parent": 13,
+      "parents_with_6_rows": 1,
+      "parents_with_12_rows": 90,
+      "parents_with_13_rows": 3,
+      "all_initial_searches_depth16": true,
+      "all_exact_rescores_depth18": true,
+      "distinct_parent_ids": 94,
+      "roles": {
+        "fit": 94
+      }
+    },
+    "terminal_fault": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-terminal-fault.json",
+      "bytes": 884,
+      "sha256": "10cfd2bc38fab128c3c7eff54bd9a5c005d96bb097ae24f6e322d4521bd4c1e6",
+      "created_at": "2026-07-30T06:19:58-07:00",
+      "completed_parents": 94,
+      "incomplete_parents": 8098,
+      "technical_faults": 1,
+      "message": "teacher labeling failed for parent sha256:811a0ccd95e02dc2dc84676669d04f7a326b556aa24fe74e65d14c8f84c91579: Floodgate production teacher asset authority failed: bounded stable worker startup timeout",
+      "same_family_resume_authorized": false,
+      "training_authorized": false,
+      "live_weight_write_authorized": false
+    },
+    "one_shot_launch": {
+      "label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3r2-f0ae74c2",
+      "started_at_observed": "2026-07-30T06:14:45-07:00",
+      "stopped_at_observed": "2026-07-30T06:19:58-07:00",
+      "observed_elapsed_seconds": 313,
+      "plist": {
+        "bytes": 1500,
+        "sha256": "458a1e87a53dbc03919970bf157816cc15a5b08716b3955ab299ed8daf572cea"
+      },
+      "stderr": {
+        "bytes": 244,
+        "sha256": "bef63d5eb525f1dd0dd6a49b78cc33e852f6c142cc606af2058c343485fa27dc"
+      },
+      "stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "keep_alive": false,
+      "launch_only_once": true,
+      "service_present_after_stop": false
+    },
+    "post_stop_state": {
+      "output_namespace_files": [
+        "teacher-plan.json",
+        "teacher-terminal-fault.json",
+        "teacher-work.jsonl"
+      ],
+      "yaneuraou_processes": 0,
+      "teacher_runner_processes": 0,
+      "bounded_stable_worker_processes": 0,
+      "teacher_receipt_present": false,
+      "verified_artifact_receipt_present": false,
+      "fit_output_present": false,
+      "tune_output_present": false,
+      "sealed_output_present": false
+    },
+    "authentication": {
+      "plan_identity_matches_work_header": true,
+      "plan_identity_matches_terminal_fault": true,
+      "run_fingerprint_matches_all_95_work_records_and_fault": true,
+      "fault_completed_parent_count_matches_distinct_work_parents": true,
+      "all_files_owner_only": true,
+      "all_json_and_jsonl_records_parse": true,
+      "all_files_have_one_terminal_lf": true,
+      "nul_bytes": 0
+    }
+  },
+  "confirmed_diagnosis": {
+    "reproduced_in_stress_wave": true,
+    "sampled_stalled_children": 167,
+    "sampled_stalled_children_at_same_wait": 167,
+    "stalled_file_descriptor": 3,
+    "stalled_operation": "source-pipe-readFileSync(3)-waiting-for-EOF",
+    "worker_source_pipe_end_observed_before_init": false,
+    "wasm_load_started": false,
+    "weights_load_started": false,
+    "classification": "source-pipe-completion-ordering-fault-before-engine-initialization",
+    "excluded_causes": {
+      "wasm_engine_or_weights": true,
+      "file_descriptor_leak": true,
+      "pool_wide_poison": true,
+      "specific_parent_49_position": true,
+      "stable_search_timeout_budget": true
+    }
+  },
+  "v3r3_recovery": {
+    "classification": "new-technical-recovery-not-v3r2-resume",
+    "requires_new_source_revision": true,
+    "requires_new_run_fingerprint": true,
+    "requires_new_output_namespace": true,
+    "authorized_change": "bounded-await-sourcePipe.end-completion-before-worker-init",
+    "timeout_extension_authorized": false,
+    "strength_contract_change_authorized": false,
+    "v3r2_completed_parents_reused": 0,
+    "v3r2_teacher_rows_reused": 0,
+    "strength_contract_unchanged": {
+      "authenticated_selection": true,
+      "stable_wasm_depth11_optional_with_fixed_20_second_budget": true,
+      "yaneuraou_depth16_multipv12_required": true,
+      "recorded_move_required": true,
+      "all_retained_moves_rescored_at_depth18": true,
+      "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate",
+      "epochs": 3,
+      "seeds": 1,
+      "promotion_gates": true
+    },
+    "teacher_generation_started": false,
+    "training_started": false,
+    "strength_claim_authorized": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

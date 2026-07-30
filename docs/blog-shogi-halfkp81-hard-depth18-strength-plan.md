@@ -91,6 +91,10 @@ v3r2を含むPR #669は全15 check成功後に通常mergeされた（merge `f0ae
 
 正式1,948行のうちstableがsourceとして現れたのは103行だが、やねうら王MultiPVと棋譜の手では得られないstable-onlyの一意な追加は8行、全体の0.41%だけだった。この小さい追加価値に対し、stable候補経路は探索・omission・worker交換という独立した故障面を残す。次は新しい`halfkp81-hard-depth18-yaneura-only-v1`とし、この機構全体を外す。やねうら王depth16 MultiPV 12と棋譜の手をdeduplicateし、全候補をdepth18で再評価する契約、8,192選抜、initializer、3 epoch・1 seed、棋力gateは変えない。timeout延長もせず、v3r3の親・教師行を再利用せず、新しいsource revision、run fingerprint、output namespaceで0から計算する。v3r3の証拠と判断境界は[機械可読メモ](./data/shogi-halfkp81-depth18-v3r3-terminal-fault-2026-07-30.json)に保存した。
 
+やねうら王専用実装を含むPR #671は通常mergeされた（merge `b75007ccdb202f76380d316feb0a7b3afd6b0e15`）。そのrevisionに結合したformal planは11,854 bytes、SHA-256 `6168b156a0ff7411a0019e82f8cbe8ef2fa16c80610955aa7a97f7444bfe3e32`である。512親のscratch preflightをone-shot LaunchAgentで起動したが、selection認証やengine起動より前に`teacher plan is not canonical JSON with one terminal LF`で停止した。Pythonの`json.dumps`が`300.0`などの整数値floatをその表記で保存した一方、TypeScript側の`canonicalJson`はparse後に`300`と直列化したため、意味が同じJSONに対するbyte比較が不一致になった。結果はpreflight完了0 / 512親、教師0行、やねうら王起動0、formal教師0親・0行であり、学習・対局・live weight変更も0である。これは棋力結果ではなく、planの数値表記規則だけのtechnical startup faultである。
+
+既存v1 planとoutput namespaceは保存し、その場で上書き・再開しない。後続の`halfkp81-hard-depth18-yaneura-only-v1r2`は、新しいtracked preregistration、merged source revision、run fingerprint、create-only namespaceへ結合する別のtechnical-recovery familyにする。変更するのはPythonとTypeScriptのcanonical number規則を一致させる点だけで、同じ認証済み8,192選抜、やねうら王depth16 MultiPV 12＋棋譜の手、全候補depth18再評価、initializer、3 epoch・1 seed、全strength gateは変えない。v1から再利用する完了親・教師行は0である。起動証拠と回復境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1-startup-fault-2026-07-30.json)に保存した。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

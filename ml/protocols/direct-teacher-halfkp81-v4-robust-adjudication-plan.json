@@ -1,0 +1,136 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v4-robust-adjudication-plan-v1",
+  "status": "prospective-not-executed-diagnostic-values-known",
+  "family": "direct-teacher-halfkp81-v4-frozen-candidate-robust-adjudication",
+  "claim_boundary": "This is a new frozen-candidate robust-adjudication family, not a v3 retry. Every diagnostic value below was known before preregistration; static success is safety evidence only, and the first playing-strength evidence requires the separately frozen fresh v4 paired56.",
+  "diagnosis_dependency": {
+    "pull_request": 661,
+    "merge_revision": "86b766a927bdd874fd3202613b025024db2a1f5c",
+    "memo": {
+      "path": "docs/data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json",
+      "bytes": 7508,
+      "sha256": "d7d9cc7612151e011bd98a38e38ca36f2ecd96fbe508ad4f4dcff056b0ebbbd6",
+      "schema": "shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-data-memo-v1"
+    },
+    "analyzer": {
+      "path": "ml/analyze_direct_teacher_halfkp81_v3_quantization.py",
+      "bytes": 32995,
+      "sha256": "1998bbe0f75f01019ab8e05a464808f8ea456203c30d3b6933ad1c993960e51f"
+    }
+  },
+  "source_v3": {
+    "family": "direct-teacher-halfkp81-v3-cpu",
+    "claim_status": "exclusive-v3-cpu-one-shot-claimed-no-retry",
+    "family_closed": true,
+    "static_result": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v3-cpu-one-shot-v1/trainer-output/static-sanity-result.json",
+      "bytes": 6435,
+      "sha256": "966b894e1ffa4947ec521d2588f559be3685cd88e2b9f285cf189a72b8bf7fdc",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-static-sanity-result-v1",
+      "status": "failed-one-or-more-checks-v3-cpu-family-closed"
+    }
+  },
+  "candidate": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v3-cpu-one-shot-v1/trainer-output/candidate-weights.bin",
+    "bytes": 94656708,
+    "sha256": "9ba78c70253d0f8ebfb6d0412f54532c53e5fbd495a585ae057f979c1633933a"
+  },
+  "diagnostic_values_known_before_preregistration": true,
+  "known_observations": {
+    "nearest_rank_p99_9_candidate_over_initializer_ratio_maximum": 1.0134990893119955,
+    "absolute_max_cp_delta_maximum": 238.4888916015625,
+    "deployed_int16_teacher_mae_cp_improvement_minimum": 7.54571533203125,
+    "deployed_int16_pair_accuracy_delta_minimum": 0.0004452720207253069,
+    "weight_int16_clipping_coordinates_maximum": 0,
+    "wasm_parity_mismatches_maximum": 0,
+    "research_runtime_search_slowdown_percent_maximum": 2.495517211805487
+  },
+  "calculation": {
+    "population": "all-22890-byte-authenticated-v3-validation-rows",
+    "percentile": "nearest-rank",
+    "percentile_probability": 0.999,
+    "nearest_rank_index": "ceil(0.999*n)-1-on-ascending-absolute-cp-deltas",
+    "ratio": "candidate-nearest-rank-p99.9-divided-by-initializer-nearest-rank-p99.9",
+    "absolute_tail": "candidate-maximum-absolute-float-vs-deployed-int16-cp-delta",
+    "teacher_metrics": "deployed-int16-candidate-minus-authenticated-initializer-on-identical-rows",
+    "runtime_metrics": "authenticated-frozen-v3-runtime-sanity-receipt"
+  },
+  "thresholds": {
+    "nearest_rank_p99_9_candidate_over_initializer_ratio_maximum": 1.05,
+    "absolute_max_cp_delta_maximum": 300.0,
+    "deployed_int16_teacher_mae_cp_improvement_minimum": 5.0,
+    "deployed_int16_pair_accuracy_delta_minimum": 0.0,
+    "weight_int16_clipping_coordinates_maximum": 0,
+    "wasm_parity_mismatches_maximum": 0,
+    "research_runtime_search_slowdown_percent_maximum": 5.0
+  },
+  "claim": {
+    "schema": "shogi-direct-teacher-halfkp81-v4-robust-adjudication-claim-v1",
+    "status": "exclusive-v4-robust-adjudication-claimed-no-threshold-drift",
+    "namespace": ".direct-teacher-halfkp81-v4-robust-adjudication-claims",
+    "directory": "/Users/yudaiyaguchi/.codex/shogi-runs/.direct-teacher-halfkp81-v4-robust-adjudication-claims",
+    "key": "single-family-claim.json-bound-to-exact-protocol-sha256",
+    "timing": "after-all-frozen-inputs-and-read-only-recomputation-reauthenticate;before-result-publication",
+    "result_path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v4-robust-adjudication-v1/result.json",
+    "additional_claim_authorized": false
+  },
+  "paired_screen": {
+    "authority": "only-a-passing-v4-result-may-authorize-this-new-screen;the-closed-v3-paired56-authority-is-never-reused",
+    "family": "direct-teacher-halfkp81-v4-fresh-opening-paired56",
+    "fresh_opening_selection": {
+      "pair_seed_scan_start": 1300001,
+      "pairs": 28,
+      "games_per_pair": 2,
+      "colors": [
+        "candidate-sente",
+        "candidate-gote"
+      ],
+      "prior_opening_fingerprint_overlap": 0,
+      "selection": "scan-upward-and-accept-the-first-28-color-swapped-opening-fingerprints-absent-from-the-complete-prior-opening-inventory",
+      "manifest_freeze": "before-candidate-inference-or-game-1",
+      "namespace": "direct-teacher-halfkp81-v4-robust-adjudication-fresh-paired56-v1"
+    },
+    "search": {
+      "milliseconds_per_move": 1500,
+      "opening_book": false,
+      "external_mate_solver": false,
+      "fallback": false,
+      "maximum_plies": 512,
+      "pair_workers": 12
+    },
+    "decision": {
+      "games": 56,
+      "score_unit": "candidate-halfpoints-win2-draw1-loss0",
+      "denominator_halfpoints": 112,
+      "minimum_candidate_halfpoints": 62,
+      "futility_stop": "allowed-only-when-current-plus-all-remaining-halfpoints-is-below-62",
+      "technical_faults_maximum": 0,
+      "all_moves_legal": true,
+      "pass_authorizes_only": "terminal-v4-paired-result-no-expanded-no-live",
+      "first_playing_strength_evidence": true
+    }
+  },
+  "forbidden": {
+    "v3_family_reopened": false,
+    "v3_claim_changed": false,
+    "old_v3_paired56_authorized": false,
+    "additional_optimizer_created": false,
+    "additional_training_rows": 0,
+    "additional_epoch_or_seed": false,
+    "candidate_weight_mutation": false,
+    "threshold_drift_after_known_diagnosis": false,
+    "expanded_stage_authorized": false,
+    "live_weight_write_authorized": false,
+    "playing_strength_claim_from_static": false
+  },
+  "current_state": {
+    "diagnosis_dependency_merged": true,
+    "diagnostic_values_known": true,
+    "v4_claim_created": false,
+    "adjudication_executed": false,
+    "fresh_v4_paired_games": 0,
+    "old_v3_paired_games": 0,
+    "expanded_stage_authorized": false,
+    "live_weights_changed": false
+  }
+}

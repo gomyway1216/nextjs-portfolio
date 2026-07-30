@@ -43,6 +43,17 @@ EXPECTED_PUBLIC_SURFACE_PROFILES: dict[
         678,
         "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
     ),
+    (
+        "Apple Swift version 6.3.3 "
+        "(swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+        SYMBOL_GRAPH_FORMAT_VERSION_0_6_0,
+        ARM64_MACOS_13_PLATFORM,
+    ): (
+        "xcode-26.5-swift-6.3.3-arm64-macos13",
+        575,
+        678,
+        "1c7cfd318999e04a46513d96895f6b345801b948937fdc01a7064fe42d16266a",
+    ),
 }
 CALLABLE_KINDS = {
     "swift.func",
@@ -363,9 +374,9 @@ def run_calibration_profile_self_checks() -> None:
             )
         approved_contexts.append((metadata, module, expected_profile))
 
-    if len(approved_contexts) != 2:
+    if len(approved_contexts) != 3:
         raise VerificationError(
-            "calibration profile self-check expected exactly two profiles"
+            "calibration profile self-check expected exactly three profiles"
         )
     baseline_metadata, baseline_module, _ = approved_contexts[0]
     unknown_generator_metadata = dict(baseline_metadata)

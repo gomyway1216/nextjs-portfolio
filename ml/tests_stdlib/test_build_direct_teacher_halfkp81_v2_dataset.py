@@ -90,6 +90,59 @@ def _role_groups() -> list[BUILDER.ParentGroup]:
     return groups
 
 
+def _source_records() -> list[dict]:
+    records = []
+    for game_number in (1, 2):
+        for rank, child_cp, sources in (
+            (1, -100, ["played"]),
+            (2, 100, ["teacher"]),
+        ):
+            parent_number = 100 + game_number
+            child_number = 200 + game_number * 2 + rank
+            records.append(
+                {
+                    "schema": "shogi-sibling-v1",
+                    "schema_version": 1,
+                    "split": "train",
+                    "game_id": _pid(game_number),
+                    "parent_id": _pid(parent_number),
+                    "position_id": _pid(parent_number + 1_000),
+                    "parent_sfen": "9/9/9/9/9/9/9/9/9 b - 1",
+                    "parent_ply": 1,
+                    "ply": 2,
+                    "move": f"5e5{rank}",
+                    "child_position_id": _pid(child_number),
+                    "child_sfen": "9/9/9/9/9/9/9/9/9 w - 2",
+                    "sfen": "9/9/9/9/9/9/9/9/9 w - 2",
+                    "cp": child_cp,
+                    "teacher_child_cp": child_cp,
+                    "teacher_parent_cp": -child_cp,
+                    "teacher_rank": rank,
+                    "teacher_score_kind": "cp",
+                    "sources": sources,
+                }
+            )
+    return records
+
+
+def _write_source(
+    directory: str, records: list[dict]
+) -> tuple[Path, dict]:
+    path = Path(directory) / "source.jsonl"
+    raw = b"".join(
+        PROTOCOL.canonical_json_bytes(record) for record in records
+    )
+    path.write_bytes(raw)
+    return path, {
+        "path": str(path),
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "rows": len(records),
+        "parents": len({record["parent_id"] for record in records}),
+        "games": len({record["game_id"] for record in records}),
+    }
+
+
 def _empty_exclusions() -> BUILDER.ExclusionInputs:
     return BUILDER.ExclusionInputs(
         spent_tune_parent_ids=frozenset(),
@@ -181,66 +234,78 @@ class DirectTeacherHalfkp81V2DatasetBuilderTests(unittest.TestCase):
                 )
 
     def test_source_loader_accepts_only_direct_child_cp_contract(self) -> None:
-        records = []
-        for game_number in (1, 2):
-            for rank, child_cp, sources in (
-                (1, -100, ["played"]),
-                (2, 100, ["teacher"]),
-            ):
-                parent_number = 100 + game_number
-                child_number = 200 + game_number * 2 + rank
-                records.append(
-                    {
-                        "schema": "shogi-sibling-v1",
-                        "schema_version": 1,
-                        "split": "train",
-                        "game_id": _pid(game_number),
-                        "parent_id": _pid(parent_number),
-                        "position_id": _pid(parent_number + 1_000),
-                        "parent_sfen": "9/9/9/9/9/9/9/9/9 b - 1",
-                        "parent_ply": 1,
-                        "ply": 2,
-                        "move": f"5e5{rank}",
-                        "child_position_id": _pid(child_number),
-                        "child_sfen": "9/9/9/9/9/9/9/9/9 w - 2",
-                        "sfen": "9/9/9/9/9/9/9/9/9 w - 2",
-                        "cp": child_cp,
-                        "teacher_child_cp": child_cp,
-                        "teacher_parent_cp": -child_cp,
-                        "teacher_rank": rank,
-                        "teacher_score_kind": "cp",
-                        "sources": sources,
-                    }
-                )
+        records = _source_records()
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "source.jsonl"
-            raw = b"".join(
-                PROTOCOL.canonical_json_bytes(record) for record in records
-            )
-            path.write_bytes(raw)
-            binding = {
-                "path": str(path),
-                "bytes": len(raw),
-                "sha256": hashlib.sha256(raw).hexdigest(),
-                "rows": 4,
-                "parents": 2,
-                "games": 2,
-            }
+            _path, binding = _write_source(temporary, records)
             groups = BUILDER._load_direct_source(binding, repo_root=temporary)
             self.assertEqual(len(groups), 2)
             self.assertEqual(sum(len(group.rows) for group in groups), 4)
             records[0]["teacher_score_kind"] = "wdl"
-            corrupt = b"".join(
-                PROTOCOL.canonical_json_bytes(record) for record in records
-            )
-            path.write_bytes(corrupt)
-            binding.update(
-                bytes=len(corrupt), sha256=hashlib.sha256(corrupt).hexdigest()
-            )
+            _path, binding = _write_source(temporary, records)
             with self.assertRaisesRegex(
-                PROTOCOL.DirectTeacherHalfkpV2Error, "wrong-role"
+                PROTOCOL.DirectTeacherHalfkpV2Error, "non-CP"
             ):
                 BUILDER._load_direct_source(binding, repo_root=temporary)
+
+    def test_source_loader_strictly_validates_canonical_mate_rows(self) -> None:
+        base = _source_records()
+        mate_cp = BUILDER.MATE_CP_SENTINEL - 4
+        base[1].update(
+            teacher_mate=-4,
+            teacher_mate_sign=-1,
+            teacher_score_kind="mate",
+            teacher_child_cp=mate_cp,
+            teacher_parent_cp=-mate_cp,
+            cp=mate_cp,
+        )
+        positive_mate_cp = -(BUILDER.MATE_CP_SENTINEL - 19)
+        base[2].update(
+            teacher_child_cp=-999_982,
+            teacher_parent_cp=999_982,
+            cp=-999_982,
+        )
+        base[3].update(
+            teacher_mate=19,
+            teacher_mate_sign=1,
+            teacher_score_kind="mate",
+            teacher_child_cp=positive_mate_cp,
+            teacher_parent_cp=-positive_mate_cp,
+            cp=positive_mate_cp,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            _path, binding = _write_source(temporary, base)
+            groups = BUILDER._load_direct_source(binding, repo_root=temporary)
+            self.assertEqual(groups[0].rows[1].teacher_child_cp, mate_cp)
+            self.assertEqual(
+                groups[1].rows[1].teacher_child_cp, positive_mate_cp
+            )
+
+            mutations = {
+                "missing-sign": lambda row: row.pop("teacher_mate_sign"),
+                "extra-field": lambda row: row.__setitem__("unexpected", 1),
+                "wrong-sign": lambda row: row.__setitem__("teacher_mate_sign", 1),
+                "wrong-kind": lambda row: row.__setitem__(
+                    "teacher_score_kind", "cp"
+                ),
+                "wrong-mapped-cp": lambda row: (
+                    row.__setitem__("teacher_child_cp", mate_cp - 1),
+                    row.__setitem__("teacher_parent_cp", -(mate_cp - 1)),
+                    row.__setitem__("cp", mate_cp - 1),
+                ),
+            }
+            for name, mutate in mutations.items():
+                with self.subTest(name=name):
+                    changed = copy.deepcopy(base)
+                    mutate(changed[1])
+                    _path, changed_binding = _write_source(
+                        temporary, changed
+                    )
+                    with self.assertRaises(
+                        PROTOCOL.DirectTeacherHalfkpV2Error
+                    ):
+                        BUILDER._load_direct_source(
+                            changed_binding, repo_root=temporary
+                        )
 
     def test_conflicting_duplicate_child_labels_stop_before_publication(self) -> None:
         groups = _role_groups()

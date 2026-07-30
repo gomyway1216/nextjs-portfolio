@@ -82,6 +82,12 @@ SOURCE_ROW_FIELDS = {
     "teacher_rank",
     "teacher_score_kind",
 }
+SOURCE_MATE_FIELDS = {"teacher_mate", "teacher_mate_sign"}
+SOURCE_ROW_KEYSETS = (
+    frozenset(SOURCE_ROW_FIELDS),
+    frozenset(SOURCE_ROW_FIELDS | SOURCE_MATE_FIELDS),
+)
+MATE_CP_SENTINEL = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -255,12 +261,14 @@ def _load_direct_source(
         path, label=source_label, expected=source_binding
     ):
         label = f"{source_label}:{line_number}"
-        _require_exact_keys(record, SOURCE_ROW_FIELDS, label)
+        row_fields = frozenset(record)
+        if row_fields not in SOURCE_ROW_KEYSETS:
+            raise _error(f"{label}: source row fields are not an allowed exact keyset")
+        has_mate_fields = row_fields == SOURCE_ROW_KEYSETS[1]
         if (
             record["schema"] != "shogi-sibling-v1"
             or record["schema_version"] != 1
             or record["split"] != "train"
-            or record["teacher_score_kind"] != "cp"
         ):
             raise _error(f"{label}: non-direct or wrong-role source row")
         for field in (
@@ -281,6 +289,24 @@ def _load_direct_source(
             or record["child_sfen"] != record["sfen"]
         ):
             raise _error(f"{label}: child CP target contract drift")
+        if has_mate_fields:
+            teacher_mate = record["teacher_mate"]
+            teacher_mate_sign = record["teacher_mate_sign"]
+            if (
+                type(teacher_mate) is not int
+                or teacher_mate == 0
+                or abs(teacher_mate) >= MATE_CP_SENTINEL
+                or type(teacher_mate_sign) is not int
+                or teacher_mate_sign not in (-1, 1)
+                or (1 if teacher_mate > 0 else -1) != teacher_mate_sign
+                or record["teacher_score_kind"] != "mate"
+                or record["teacher_child_cp"]
+                != -teacher_mate_sign
+                * (MATE_CP_SENTINEL - abs(teacher_mate))
+            ):
+                raise _error(f"{label}: mate flag/sign/CP contract drift")
+        elif record["teacher_score_kind"] != "cp":
+            raise _error(f"{label}: CP row has non-CP teacher_score_kind")
         if (
             type(record["teacher_rank"]) is not int
             or record["teacher_rank"] < 1

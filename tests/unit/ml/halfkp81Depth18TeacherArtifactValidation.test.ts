@@ -13,7 +13,9 @@ import {
   HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
   HALFKP81_DEPTH18_WRAPPER_DIGEST_DOMAIN,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
   canonicalHalfkp81Depth18Json,
   readHalfkp81Depth18PrivateArtifact,
   validateHalfkp81Depth18TeacherArtifactsCoreForTests,
@@ -99,7 +101,8 @@ type FixtureStableMode =
   | "bounded-v3-proposal"
   | "bounded-v3r2-omitted"
   | "bounded-v3r3-omitted"
-  | "yaneura-only-v1";
+  | "yaneura-only-v1"
+  | "yaneura-only-v1r2";
 
 afterEach(async () => {
   await Promise.all(
@@ -452,9 +455,9 @@ interface Fixture {
 async function generatedFixture(
   stableMode: FixtureStableMode = "required-v2",
 ): Promise<Fixture> {
-  const yaneuraOnly = stableMode === "yaneura-only-v1";
-  const boundedStableV3 =
-    stableMode !== "required-v2" && stableMode !== "yaneura-only-v1";
+  const yaneuraOnly =
+    stableMode === "yaneura-only-v1" || stableMode === "yaneura-only-v1r2";
+  const boundedStableV3 = stableMode !== "required-v2" && !yaneuraOnly;
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-depth18-artifact-"),
   );
@@ -583,7 +586,9 @@ async function generatedFixture(
   };
   const plan = {
     schema: yaneuraOnly
-      ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+      ? stableMode === "yaneura-only-v1r2"
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+        : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
       : stableMode === "bounded-v3r2-omitted" ||
           stableMode === "bounded-v3r3-omitted"
         ? stableMode === "bounded-v3r3-omitted"
@@ -1057,6 +1062,31 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         { fit: 1, tune: 1, sealed: 1 },
       ),
     ).toThrow(/teacher work line 2 fields are not exact/);
+  });
+
+  it("verifies isolated Yaneura-only v1r2 recovery schemas", async () => {
+    const fixture = await generatedFixture("yaneura-only-v1r2");
+    expect(fixture.stableFactoryCalls).toBe(0);
+    const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      fixture.request,
+      { fit: 1, tune: 1, sealed: 1 },
+    );
+    expect(result).toMatchObject({
+      completedParents: 3,
+      completedRows: 39,
+      receipt: {
+        teacher_plan: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
+        },
+        work: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
+        },
+        artifact_verification: {
+          stable_wasm_absence_recomputed: true,
+          row_bounds_2_through_13_recomputed: true,
+        },
+      },
+    });
   });
 
   it("rejects forged v3 outcomes and stable-source adoption drift", async () => {

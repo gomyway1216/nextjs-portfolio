@@ -65,7 +65,9 @@ teacher planを作る前にもselection manifestと8,192行JSONLをheld descript
 
 2026年7月30日、事前登録・選抜器・認証器を含むPR #665は通常mergeされた（merge `0ec6807c7d6c13f3e7caf4f08d45e87ce1ba005b`）。そのmerged revisionでsemantic-overlap 243,368行、合法手数付きpool 800,000行、hard parent 8,192行を正式生成・再認証した。選抜はfit 6,144、tune 1,024、sealed 1,024で、8,192件の`game_id`と`position_id`は全て一意、role間game重複は0、各roleの手番は50/50だった。
 
-Mac再起動後にも、この3成果物のサイズとSHA-256は変わっていなかった。depth18教師生成そのものはまだ0親・0行である。現在は、13並列計算を行単位でfsyncし再起動後に続行できる専用runner、depth11安定手の実証、raw receiptとは独立した全8,192親のartifact verifierを次のPRとして実装している。これを通常mergeし、clean mainからimmutable teacher planを発行して初めて8〜16時間の教師計算を始める。
+再開可能runnerとartifact verifierを含むPR #666も通常mergeされた（merge `eaa03e570e1ed687c3479a38eba377807be4cd9e`）。stable assetsを復元・再認証し、clean mainから6,306 bytes、SHA-256 `c0b4a4ab2bc0a4b4a685b06e65afb0d3194551c72ae4382a9021754188a725b0`のimmutable teacher planを発行してv1を実行した。しかし、やねうら王へ渡した`EvalDir`が実際の`nn.bin`を含む`.../eval/eval`ではなく、その1階層上の`.../eval`だった。workerは最初の親を処理する前のUSI初期化で終了したため、結果は完了`0 / 8,192`親、depth18教師`0`行、technical fault 1である。これは棋力やデータの失敗ではなく、engine pathの技術的失敗である。
+
+v1のterminal faultは消さずに保存し、v1 output directoryを閉じた。同じfamilyをその場で再開する権限はなく、既存の`teacher-work.jsonl`やteacher planを上書きもしない。次のv2は`halfkp81-hard-depth18-engine-evaldir-v2`という別のtechnical-recovery familyにする。認証済み8,192選抜は同じbytes/SHAのまま再利用する一方、v2修正を含む新しいmerged source revisionと、v1とは別のcreate-only output directoryへ結合する。変更するのは`EvalDir`を`nn.bin`が実在する`.../eval/eval`へ合わせる点だけで、選抜data、教師depth、閾値、3 epochs、1 seedは変更しない。したがって、v1の技術停止を見て条件を緩める再試行ではない。
 
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 

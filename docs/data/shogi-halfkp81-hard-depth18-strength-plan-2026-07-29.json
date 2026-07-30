@@ -1,7 +1,8 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "formal-selection-authenticated-teacher-runner-not-yet-merged-no-strength-claim",
+  "status": "v1-terminal-technical-fault-zero-parents-v2-technical-recovery-defined-no-strength-claim",
   "date": "2026-07-29",
+  "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
   "predecessor": {
     "family": "direct-teacher-halfkp81-v4-frozen-candidate-robust-adjudication",
@@ -212,6 +213,93 @@
     "minimum_rows_per_parent": 2,
     "incomplete_or_shallow_rows_are_fatal": true
   },
+  "teacher_execution": {
+    "v1": {
+      "family": "halfkp81-hard-depth18-strength-v1",
+      "pull_request": 666,
+      "merge_revision": "eaa03e570e1ed687c3479a38eba377807be4cd9e",
+      "output_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1",
+      "teacher_plan": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/teacher-plan.json",
+        "bytes": 6306,
+        "sha256": "c0b4a4ab2bc0a4b4a685b06e65afb0d3194551c72ae4382a9021754188a725b0",
+        "schema": "shogi-halfkp81-hard-depth18-teacher-plan-v1"
+      },
+      "stable_assets_restored_before_execution": true,
+      "stable_assets_reauthenticated_before_execution": true,
+      "attempt": {
+        "completed_parents": 0,
+        "total_parents": 8192,
+        "teacher_rows": 0,
+        "technical_faults": 1,
+        "failure_stage": "YaneuraOu-USI-worker-initialization-before-first-parent",
+        "failure_kind": "engine-evaldir-one-directory-too-high",
+        "configured_eval_dir_suffix": "eval",
+        "required_eval_dir_suffix": "eval/eval",
+        "eval_file_path": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-teacher-assets-v1/eval/eval/nn.bin",
+        "strength_or_data_result_observed": false
+      },
+      "work_ledger": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/teacher-work.jsonl",
+        "bytes": 4462,
+        "sha256": "d9ce1061ddf262595a6caf8abbc368ff9727a3b1e715f50f7d036dc062f38afb",
+        "completed_parent_records": 0,
+        "teacher_rows": 0,
+        "preserved": true
+      },
+      "terminal_fault": {
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/teacher-terminal-fault.json",
+        "bytes": 739,
+        "sha256": "e4b71885327d36747508551d923b1d5bd3e8987385acb3511f30aa7c46c48bac",
+        "status": "terminal-fault-family-stopped",
+        "preserved": true,
+        "same_family_resume_authorized": false
+      },
+      "output_overwrite_authorized": false,
+      "live_weights_changed": false,
+      "family_closed": true
+    },
+    "v2": {
+      "family": "halfkp81-hard-depth18-engine-evaldir-v2",
+      "classification": "technical-recovery-not-strength-retune",
+      "source_revision": null,
+      "source_revision_requirement": "new-v2-fix-regular-merge-clean-head-and-origin-main-not-v1-merge-eaa03e570e1ed687c3479a38eba377807be4cd9e",
+      "output_directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2",
+      "output_directory_distinct_from_v1": true,
+      "recovery_plan": {
+        "path": "ml/halfkp81-hard-depth18-engine-evaldir-v2-plan.json",
+        "bytes": 5889,
+        "sha256": "58410d65bb553486c51c2ab332abba21ddcc8ef743af27378208ffcb3ec8baf2",
+        "schema": "shogi-halfkp81-hard-depth18-engine-evaldir-recovery-plan-v2"
+      },
+      "selection": {
+        "reuse_exact_authenticated_selection": true,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+        "rows": 8192,
+        "bytes": 7268777,
+        "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+        "manifest_path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+        "manifest_bytes": 3234,
+        "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+      },
+      "technical_change": {
+        "only_intended_change": "YaneuraOu-EvalDir-parent-directory-containing-nn.bin",
+        "from_suffix": "eval",
+        "to_suffix": "eval/eval"
+      },
+      "unchanged_contract": {
+        "selection_data": true,
+        "proposal_depth": 16,
+        "rescore_depth": 18,
+        "promotion_thresholds": true,
+        "epochs": 3,
+        "seeds": 1,
+        "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate"
+      },
+      "same_family_resume": false,
+      "live_weight_write_authorized": false
+    }
+  },
   "training": {
     "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate",
     "representation": "HalfKP81",
@@ -293,11 +381,23 @@
     "pull_request_created": true,
     "merged": true,
     "teacher_runner_branch": "codex/shogi-hard-depth18-teacher-runner-v1",
-    "teacher_runner_pull_request_created": false
+    "teacher_runner_pull_request": 666,
+    "teacher_runner_pull_request_created": true,
+    "teacher_runner_merge_revision": "eaa03e570e1ed687c3479a38eba377807be4cd9e",
+    "teacher_runner_merged": true,
+    "v1_teacher_plan_published": true,
+    "v1_teacher_attempt_terminal_fault": true,
+    "v2_technical_recovery_branch": "codex/shogi-depth18-engine-evaldir-v2"
   },
   "authority": {
     "formal_selection_executed": true,
-    "teacher_generation_executed": false,
+    "teacher_generation_executed": true,
+    "teacher_generation_completed": false,
+    "teacher_completed_parents": 0,
+    "teacher_rows": 0,
+    "v1_same_family_resume_authorized": false,
+    "v2_technical_recovery_only": true,
+    "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,
     "strength_improvement_guaranteed": false,

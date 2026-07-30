@@ -1,0 +1,204 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v4-formal-paired56-result-data-memo-v1",
+  "status": "failed-strength-complete-v4-family-closed",
+  "date": "2026-07-29",
+  "predecessor": {
+    "diagnosis_memo": {
+      "path": "docs/data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json",
+      "bytes": 7508,
+      "sha256": "d7d9cc7612151e011bd98a38e38ca36f2ecd96fbe508ad4f4dcff056b0ebbbd6",
+      "immutable_after_v4_preregistration": true
+    },
+    "historical_accounting": {
+      "small_proxy_improvements_are_not_playing_strength": true,
+      "prior_approximately_one_percent_proxy_gain_did_not_establish_strength": true,
+      "work_without_direct_strength_contribution_was_overextended": true,
+      "retained_benefit": "a frozen candidate was tested on an authenticated fresh paired screen and rejected by the preregistered strength gate"
+    }
+  },
+  "formal_static_adjudication": {
+    "checks_passed": 7,
+    "checks_total": 7,
+    "result": {
+      "bytes": 3910,
+      "sha256": "a5e02de08ad116578937bf81a1d27f5d9a9ab197e84fadf7f42efb20affb5b7a"
+    },
+    "observations": {
+      "nearest_rank_p99_9_candidate_over_initializer_ratio": 1.0134990893119955,
+      "absolute_max_cp_delta": 238.4888916015625,
+      "deployed_int16_teacher_mae_cp_improvement": 7.54571533203125,
+      "deployed_int16_pair_accuracy_delta": 0.0004452720207253069,
+      "weight_int16_clipping_coordinates": 0,
+      "wasm_parity_mismatches": 0,
+      "research_runtime_search_slowdown_percent": 2.495517211805487
+    },
+    "authority": {
+      "fresh_v4_paired56_authorized": true,
+      "old_v3_paired56_authorized": false,
+      "expanded_stage_authorized": false,
+      "live_weight_write_authorized": false,
+      "playing_strength_claim_authorized": false
+    }
+  },
+  "fresh_openings": {
+    "complete_prior_union_fingerprints": 3302,
+    "new_fingerprints": 28,
+    "overlap_with_prior_union": 0,
+    "pairs": 28,
+    "games_per_pair": 2,
+    "games_total": 56,
+    "color_swapped": true
+  },
+  "independent_audit": {
+    "findings_fixed": 4,
+    "residual_p1": 0,
+    "residual_p2": 0,
+    "fixes": [
+      {
+        "id": "complete-tracked-opening-inventory",
+        "finding": "two tracked protocol opening fingerprints were absent from the prior union",
+        "resolution": "recursively scan every tracked protocol and bind the resulting 3302-fingerprint union"
+      },
+      {
+        "id": "authenticate-runtime-and-harness",
+        "finding": "Node, tsx, and harness execution were not fully authenticated and the log path was spoofable",
+        "resolution": "bind an exact root-owned Node executable and tracked standalone bundle, read with O_NOFOLLOW, execute through an anonymous fd, and fix the formal executor"
+      },
+      {
+        "id": "durable-fault-evidence",
+        "finding": "fault evidence bound only an exception-type hash",
+        "resolution": "bind stdout and stderr identities, create-only raw bytes, and a domain-separated fault receipt"
+      },
+      {
+        "id": "resolved-run-root",
+        "finding": "a noncanonical run root was described as the default run root",
+        "resolution": "record the actually resolved run root"
+      }
+    ],
+    "additional_hardening": {
+      "reject_zero_legal_moves_transcript": true
+    }
+  },
+  "implementation": {
+    "pull_request": 663,
+    "merge_commit": "bcf77714aee38ddf6f0f671e8c1d475a05dd2593",
+    "merge_strategy": "regular-merge-commit",
+    "formal_plan_sha256": "93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230"
+  },
+  "formal_paired56_result": {
+    "workers": 12,
+    "completed_pairs": 28,
+    "completed_games": 56,
+    "total_pairs": 28,
+    "total_games": 56,
+    "candidate_wins": 29,
+    "candidate_losses": 24,
+    "draws": 3,
+    "candidate_half_points": 61,
+    "available_half_points": 112,
+    "minimum_candidate_half_points": 62,
+    "shortfall_half_points": 1,
+    "technical_faults": 0,
+    "all_moves_legal": true,
+    "all_openings_unique": true,
+    "pair_receipts": 28,
+    "pair_logs": 28,
+    "terminal_result": {
+      "bytes": 2968,
+      "sha256": "c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21",
+      "embedded_domain_result_sha256": "5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090",
+      "status": "failed-strength-complete-v4-family-closed"
+    },
+    "first_playing_strength_evidence": true,
+    "candidate_stronger": false
+  },
+  "terminal_log_diagnosis": {
+    "color_split": {
+      "candidate_sente": {
+        "wins": 16,
+        "losses": 10,
+        "draws": 2,
+        "score": 17.0,
+        "games": 28,
+        "score_percent": 60.714285714285715
+      },
+      "candidate_gote": {
+        "wins": 13,
+        "losses": 14,
+        "draws": 1,
+        "score": 13.5,
+        "games": 28,
+        "score_percent": 48.214285714285715
+      },
+      "paired_zero_sum": true,
+      "candidate_minus_initializer_same_color_points": {
+        "sente": 2.5,
+        "gote": 2.5
+      },
+      "separate_older_epoch2_candidate_had_opposite_color_split": true,
+      "fixed_color_bug_evidence": false
+    },
+    "termination": {
+      "decisive_games": 53,
+      "decisive_checkmates": 53,
+      "draws": 3,
+      "draws_by_repetition": 3
+    },
+    "mean_ply": {
+      "candidate_wins": 113.9,
+      "candidate_losses": 123.8
+    },
+    "pair_half_point_score_distribution": {
+      "score_4_pairs": 9,
+      "score_3_pairs": 1,
+      "score_2_pairs": 10,
+      "score_1_pairs": 2,
+      "score_0_pairs": 6,
+      "sum_half_points": 61
+    },
+    "seed_order_diagnostic": {
+      "first_14_pair_match_score": 15.0,
+      "last_14_pair_match_score": 15.5,
+      "seed_order_trend_observed": false
+    },
+    "teacher_distribution_after_clamp": {
+      "training_row_count_side_balance": "approximately-50-50-b-vs-w",
+      "training": {
+        "b": {
+          "mean_cp": 630.9,
+          "positive_percent": 88.8
+        },
+        "w": {
+          "mean_cp": 388.6,
+          "positive_percent": 69.8
+        }
+      },
+      "validation": {
+        "b": {
+          "mean_cp": 573.6,
+          "positive_percent": 85.6
+        },
+        "w": {
+          "mean_cp": 381.4,
+          "positive_percent": 66.3
+        }
+      }
+    },
+    "root_cause_determined": false,
+    "next_independent_lane_hypothesis_test": {
+      "side_by_cp_by_rank_or_ply_stratification": true,
+      "same_color_validation": true,
+      "strength_improvement_guaranteed": false,
+      "v4_retry_authorized": false
+    }
+  },
+  "authority": {
+    "playing_strength_evidence_complete": true,
+    "playing_strength_decision": "strength-miss-candidate-not-adopted",
+    "same_v4_family_retry_authorized": false,
+    "live_weights_changed": false,
+    "public_flag_changed": false,
+    "expanded_stage_authorized": false,
+    "external_calibration_authorized": false
+  }
+}

@@ -8,27 +8,27 @@
 
 The v3 terminal state remains unchanged.
 
-| Authority or execution | Value |
-|---|---:|
-| v3 family | closed; no retry |
-| Training / optimizer during diagnosis | 0 rows / 0 |
-| Paired games | 0 |
-| paired56 / expanded / live write | all unauthorized |
+| Authority or execution                |            Value |
+| ------------------------------------- | ---------------: |
+| v3 family                             | closed; no retry |
+| Training / optimizer during diagnosis |       0 rows / 0 |
+| Paired games                          |                0 |
+| paired56 / expanded / live write      | all unauthorized |
 
 ## Only the extreme maximum is different
 
 Nearest-rank percentiles compare float-to-int16 CP deltas for the initializer and candidate.
 
 | Metric | Initializer | Candidate | Candidate / initializer |
-|---|---:|---:|---:|
-| mean | 26.821 | 26.866 | 1.00169 |
-| p90 | 60.148 | 58.816 | 0.97785 |
-| p95 | 76.336 | 74.036 | 0.96986 |
-| p99 | 109.996 | 107.564 | 0.97789 |
-| p99.5 | 123.326 | 120.987 | 0.98104 |
-| p99.9 | 155.019 | 157.112 | 1.01350 |
-| p99.99 | 192.710 | 224.414 | 1.16452 |
-| max | 203.278 | 238.489 | 1.17322 |
+| ------ | ----------: | --------: | ----------------------: |
+| mean   |      26.821 |    26.866 |                 1.00169 |
+| p90    |      60.148 |    58.816 |                 0.97785 |
+| p95    |      76.336 |    74.036 |                 0.96986 |
+| p99    |     109.996 |   107.564 |                 0.97789 |
+| p99.5  |     123.326 |   120.987 |                 0.98104 |
+| p99.9  |     155.019 |   157.112 |                 1.01350 |
+| p99.99 |     192.710 |   224.414 |                 1.16452 |
+| max    |     203.278 |   238.489 |                 1.17322 |
 
 The candidate is better from p90 through p99.5. Its p99.9 ratio also remains below the historical 1.05 ceiling; the miss is concentrated in roughly the highest 0.01%.
 
@@ -45,12 +45,12 @@ That parent has 12 child moves. The candidate's float and int16 evaluators selec
 
 The original teacher MAE and pair accuracy used the float model. Recomputing them through the deployed integer arithmetic on the same fixed validation set still favors the candidate.
 
-| Deployed int16 metric | Initializer | Candidate | Improvement |
-|---|---:|---:|---:|
-| Teacher MAE | 553.354 CP | 545.808 CP | +7.546 CP |
-| Pair accuracy | 0.583428 | 0.583873 | +0.000445 |
-| Pair correct / 123,520 | 72,065 | 72,120 | +55 |
-| Direct BCE | 0.690677 | 0.686873 | +0.003805 |
+| Deployed int16 metric  | Initializer |  Candidate | Improvement |
+| ---------------------- | ----------: | ---------: | ----------: |
+| Teacher MAE            |  553.354 CP | 545.808 CP |   +7.546 CP |
+| Pair accuracy          |    0.583428 |   0.583873 |   +0.000445 |
+| Pair correct / 123,520 |      72,065 |     72,120 |         +55 |
+| Direct BCE             |    0.690677 |   0.686873 |   +0.003805 |
 
 These are not playing-strength evidence. They do show that the float improvement did not disappear as a regression in the exported evaluator.
 
@@ -62,14 +62,72 @@ A cross-fit `float_cp ≈ a × int_cp + b` calibration used child-position SHA p
 
 ## Compare only three successor options
 
-| Option | Advantage | Cost or risk | Decision |
-|---|---|---|---|
-| Independently adjudicate the frozen candidate with a robust gate | Preserves the weights and reaches fresh games fastest | The diagnostic values are already known, so static success alone proves no strength | **Recommended** |
-| Exact-int16 STE QAT with an outlier penalty | Directly trains against the local tail | A new optimizer may erase the measured +7.546 CP; every gate repeats | Fallback after v4 |
-| Recalibrate output scale | Relatively small implementation | Cross-fit gained only 0.058 CP and does not match the cause | Reject |
+| Option                                                           | Advantage                                             | Cost or risk                                                                        | Decision          |
+| ---------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------- |
+| Independently adjudicate the frozen candidate with a robust gate | Preserves the weights and reaches fresh games fastest | The diagnostic values are already known, so static success alone proves no strength | **Recommended**   |
+| Exact-int16 STE QAT with an outlier penalty                      | Directly trains against the local tail                | A new optimizer may erase the measured +7.546 CP; every gate repeats                | Fallback after v4 |
+| Recalibrate output scale                                         | Relatively small implementation                       | Cross-fit gained only 0.058 CP and does not match the cause                         | Reject            |
 
 The proposed v4 is not a threshold edit or retry of v3. It is a new family, namespace, and protocol that takes the frozen candidate SHA as input and runs no optimizer. Candidate gates are nearest-rank p99.9 ratio `≤1.05`, absolute maximum `≤300 CP`, deployed-int16 teacher-MAE improvement `≥5 CP`, int16 pair delta `≥0`, zero clipped weights, zero WASM mismatches, and slowdown `≤5%`.
 
 Those diagnostic values are already observed, so passing them does not authorize a strength claim. It may authorize only a separately preregistered fresh-opening paired screen—not the old v3 paired56. That fresh screen is the first playing-strength evidence.
 
 The [machine-readable memo](./data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json) fixes the key values and proposal boundary.
+
+## 2026-07-29 update: v4 static passed 7/7; the fresh screen missed at 61/112
+
+The proposed v4 robust adjudication ran formally without changing the frozen candidate and passed all seven checks. The result JSON has SHA-256 `a5e02de08ad116578937bf81a1d27f5d9a9ab197e84fadf7f42efb20affb5b7a`.
+
+| Static check                           |   Observed | Requirement | Decision |
+| -------------------------------------- | ---------: | ----------: | -------: |
+| p99.9 candidate / initializer          |   1.013499 |       ≤1.05 |     PASS |
+| Absolute maximum CP delta              | 238.489 CP |     ≤300 CP |     PASS |
+| Deployed-int16 teacher MAE improvement |   7.546 CP |       ≥5 CP |     PASS |
+| Deployed-int16 pair-accuracy delta     |  +0.000445 |          ≥0 |     PASS |
+| Int16 clipping coordinates             |          0 |           0 |     PASS |
+| WASM parity mismatches                 |          0 |           0 |     PASS |
+| Runtime slowdown                       |     2.496% |         ≤5% |     PASS |
+
+This is a safety and reproducibility pass, not a strength result. In particular, the pair-accuracy delta of `+0.000445` is only `+0.0445 percentage point`; it must not be relabeled as “the engine got stronger.” The same applies to the small proxy gains previously summarized as “only about 1%.” This record does not retract the conclusion that training metrics were confused with playing strength or that too much time was spent on work with no direct strength contribution. The durable benefit is narrower: the frozen candidate was preserved and received a decisive fresh playing test.
+
+Fresh openings were selected outside a 3,302-fingerprint union of tracked protocol and private-run inventory. The first 28 eligible fingerprints were frozen, with zero overlap against the prior inventory. Four findings from an independent audit were fixed before merge:
+
+1. Two missing tracked-protocol fingerprints were corrected by recursively scanning every tracked protocol into the prior-opening union.
+2. Unauthenticated Node/tsx/harness execution and a spoofable-log path were replaced with an exact root-owned Node executable, a tracked standalone bundle, `O_NOFOLLOW` reads, anonymous-fd execution, and a fixed formal executor.
+3. Fault evidence that previously held only an exception-type hash now binds stdout/stderr identities, create-only raw bytes, and a domain-separated receipt.
+4. The builder now records the actually resolved run root instead of describing a noncanonical root as the default path.
+
+The runner also rejects transcripts with `legal_moves=0`. The follow-up audit found no remaining P1 or P2 finding. Implementation PR [#663](https://github.com/gomyway1216/nextjs-portfolio/pull/663) was merged with a regular merge commit, `bcf77714aee38ddf6f0f671e8c1d475a05dd2593`.
+
+That merged source froze the formal plan with SHA-256 `93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230`. Twelve workers completed all 28 color-swapped pairs and all 56 games.
+
+| Fresh paired56 result |                                       Value |
+| --------------------- | ------------------------------------------: |
+| Candidate W–L–D       |                                     29–24–3 |
+| Completion            |                    28/28 pairs; 56/56 games |
+| Half-point score      |                                      61/112 |
+| Preregistered minimum |                                      62/112 |
+| Shortfall             |                                1 half-point |
+| Technical faults      |                                           0 |
+| All moves legal       |                                        true |
+| All openings unique   |                                        true |
+| Decision              | **strength MISS; candidate stronger=false** |
+
+The candidate won more games than it lost, but finished one half-point below the preregistered acceptance line. The terminal status is `failed-strength-complete-v4-family-closed`; the same v4 family will not be rescued by changing the threshold or rerunning it. All 28 pair receipts and logs are present. These 56 games are the first playing-strength evidence, and their decision is not to adopt the candidate as a strength improvement.
+
+### What the terminal logs show
+
+| Split | Candidate record |           Score |
+| ----- | ---------------: | --------------: |
+| SENTE |       16W–10L–2D | 17.0/28 (60.7%) |
+| GOTE  |       13W–14L–1D | 13.5/28 (48.2%) |
+
+There is a visible color split, but the color-swapped pairs are zero-sum. Comparing candidate and initializer in the same color gives the candidate exactly `+2.5 points` as SENTE and `+2.5 points` as GOTE. A separate older epoch-2 candidate showed the opposite color split, so this result is not evidence of a fixed color bug.
+
+All 53 decisive games ended by checkmate, and all three draws were repetitions. Candidate wins averaged 113.9 plies; losses averaged 123.8 plies. At pair level, the half-point-score distribution was nine pairs scoring 4, one scoring 3, ten scoring 2, two scoring 1, and six scoring 0, summing to 61. The ordinary match scores for the first and last 14 pairs were `15.0 / 15.5`, with no seed-order trend.
+
+Training row counts were nearly 50/50 across b/w, but the post-clamp teacher distribution differed. Training b rows averaged `+630.9 CP` with `88.8%` positive, while w rows averaged `+388.6 CP` with `69.8%` positive. Validation showed the same direction: b `+573.6 CP` / `85.6%`, versus w `+381.4 CP` / `66.3%`. The distribution difference is real, but it is not yet an established cause of the strength miss. A future independent lane could preregister side × CP × rank/ply stratification plus same-color validation to test that hypothesis directly. This is neither a guarantee that another training run will improve strength nor authority to rerun v4.
+
+The terminal `result.json` is 2,968 bytes with SHA-256 `c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21`; its embedded domain-separated result SHA-256 is `5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090`. The expanded stage, live weights, and public flag all remain unchanged.
+
+The final milestone is stored in a separate [successor machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-result-2026-07-29.json). The v3 diagnosis memo linked above is an exact bytes/SHA input to the v4 preregistration, so it was intentionally not rewritten after the fact.

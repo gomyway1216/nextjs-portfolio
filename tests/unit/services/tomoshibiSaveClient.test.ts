@@ -11,9 +11,9 @@ vi.mock('@/lib/gameAuth', () => ({
   })),
 }));
 
-import { loadRammySave, saveRammySave } from '@/services/rammySaveClient';
+import { loadTomoshibiSave, saveTomoshibiSave } from '@/services/tomoshibiSaveClient';
 
-describe('rammySaveClient', () => {
+describe('tomoshibiSaveClient', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -32,13 +32,13 @@ describe('rammySaveClient', () => {
   });
 
   it('returns the stored save', async () => {
-    await expect(loadRammySave()).resolves.toBe('{"turns":42}');
+    await expect(loadTomoshibiSave()).resolves.toBe('{"turns":42}');
   });
 
   // fetchCloudFunction normalises init.headers into a Headers instance on its
   // way through, so this has to be read with get() rather than as a property.
   it('sends the caller ID token, so the save lands on the right user', async () => {
-    await loadRammySave();
+    await loadTomoshibiSave();
     const [, init] = fetchMock.mock.calls[0];
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-token');
   });
@@ -48,12 +48,12 @@ describe('rammySaveClient', () => {
   // here would stop the game from starting at all.
   it('returns an empty string when the request fails, rather than throwing', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    await expect(loadRammySave()).resolves.toBe('');
+    await expect(loadTomoshibiSave()).resolves.toBe('');
   });
 
   it('returns an empty string on a non-OK response', async () => {
     fetchMock.mockResolvedValue(new Response('nope', { status: 500 }));
-    await expect(loadRammySave()).resolves.toBe('');
+    await expect(loadTomoshibiSave()).resolves.toBe('');
   });
 
   it('returns an empty string when the body has no usable save', async () => {
@@ -63,11 +63,11 @@ describe('rammySaveClient', () => {
         status: 200,
       }),
     );
-    await expect(loadRammySave()).resolves.toBe('');
+    await expect(loadTomoshibiSave()).resolves.toBe('');
   });
 
   it('posts the save as-is', async () => {
-    await saveRammySave('{"turns":7}');
+    await saveTomoshibiSave('{"turns":7}');
     const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({ save: '{"turns":7}' });
@@ -76,7 +76,7 @@ describe('rammySaveClient', () => {
   // An empty string is how the game says the run is over, so it must reach the
   // backend rather than being treated as "nothing to send".
   it('posts an empty save, which is how a finished run is deleted', async () => {
-    await saveRammySave('');
+    await saveTomoshibiSave('');
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(init.body)).toEqual({ save: '' });
   });
@@ -85,6 +85,6 @@ describe('rammySaveClient', () => {
   // must not interrupt play.
   it('never throws when storing fails', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    await expect(saveRammySave('{"turns":1}')).resolves.toBeUndefined();
+    await expect(saveTomoshibiSave('{"turns":1}')).resolves.toBeUndefined();
   });
 });

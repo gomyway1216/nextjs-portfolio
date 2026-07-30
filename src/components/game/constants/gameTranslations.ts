@@ -547,9 +547,9 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
-  'rammy': {
+  'tomoshibi': {
     en: {
-      title: 'Rammy the Adventurer (homage)',
+      title: 'Tomoshibi — Ruins of the Lantern',
       description: 'A roguelike descent through ten floors. Keep the torch burning — in the dark you can barely see, and every hit hurts more.',
       longDescription: 'A homage to the Fujitsu GAMEPACK roguelike, rebuilt in Godot from what fan guides recorded of the original: the exact damage formulas, the level tables, all eleven monsters with their real stats, and the torch that burns one point a turn and turns the dungeon lethal when it runs out. Levelling matters more than loot — a level is worth six attack. Progress autosaves every turn, and signing in carries the run to another device.',
       howToPlay: [
@@ -568,7 +568,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
     ja: {
-      title: 'ラミィの大冒険(オマージュ)',
+      title: 'ともしびの遺跡',
       description: '地下10階を下るローグライク。たいまつを絶やすと視界が消え、受けるダメージも増える。',
       longDescription: '富士通GAMEPACKに入っていたローグライクへのオマージュを、有志の攻略サイトに残された記録からGodotで組み直したもの。ダメージ計算式、レベル表、敵11種の数値はすべて原作どおり。たいまつは1ターンに1減り、0になるとダンジョンが一気に危険になる。装備よりレベルが効く(1つ上がるごとに攻撃+6)。1手ごとに自動保存され、ログインすれば別の端末でも続きから遊べる。',
       howToPlay: [

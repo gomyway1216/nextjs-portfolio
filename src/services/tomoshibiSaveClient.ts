@@ -1,10 +1,10 @@
 /**
- * Client for the Rammy roguelike's cloud save.
+ * Client for the Tomoshibi roguelike's cloud save.
  *
  * See the matching backend handlers at:
- *   Yudai-new-portfolio-backend-ts:functions/src/game/rammySave.ts
+ *   Yudai-new-portfolio-backend-ts:functions/src/game/tomoshibiSave.ts
  *
- * Rammy is a Godot HTML5 build embedded from `public/games/rammy/`. The game
+ * Tomoshibi is a Godot HTML5 build embedded from `public/games/tomoshibi/`. The game
  * keeps its real save in the browser (Godot maps `user://` to IndexedDB) and
  * only mirrors it here, so this endpoint exists to let a run continue on
  * another machine — not to make the game playable. Every call here is
@@ -19,8 +19,8 @@ import { fetchCloudFunction } from '@/lib/cloudFunctionFetch';
 import { ensureGameSignIn } from '@/lib/gameAuth';
 import { getCloudFunctionUrl } from '@/app/api/constants';
 
-const SAVE_ENDPOINT = getCloudFunctionUrl('rammySaveGame');
-const LOAD_ENDPOINT = getCloudFunctionUrl('rammyLoadSave');
+const SAVE_ENDPOINT = getCloudFunctionUrl('tomoshibiSaveGame');
+const LOAD_ENDPOINT = getCloudFunctionUrl('tomoshibiLoadSave');
 
 async function authHeaders(): Promise<Record<string, string>> {
   const user = await ensureGameSignIn();
@@ -35,7 +35,7 @@ async function authHeaders(): Promise<Record<string, string>> {
  * Read the stored save. Returns '' when there is none, and also when anything
  * goes wrong — the game treats both the same and falls back to its local save.
  */
-export async function loadRammySave(): Promise<string> {
+export async function loadTomoshibiSave(): Promise<string> {
   try {
     const res = await fetchCloudFunction(LOAD_ENDPOINT, {
       method: 'GET',
@@ -45,7 +45,7 @@ export async function loadRammySave(): Promise<string> {
     const body = (await res.json()) as { save?: unknown };
     return typeof body.save === 'string' ? body.save : '';
   } catch (error) {
-    console.error('[rammy] loading the cloud save failed:', error);
+    console.error('[tomoshibi] loading the cloud save failed:', error);
     return '';
   }
 }
@@ -54,7 +54,7 @@ export async function loadRammySave(): Promise<string> {
  * Store a save, or delete it when `save` is ''. Never throws: the local save is
  * the real one, so a failure here must not interrupt play.
  */
-export async function saveRammySave(save: string): Promise<void> {
+export async function saveTomoshibiSave(save: string): Promise<void> {
   try {
     await fetchCloudFunction(SAVE_ENDPOINT, {
       method: 'POST',
@@ -62,6 +62,6 @@ export async function saveRammySave(save: string): Promise<void> {
       body: JSON.stringify({ save }),
     });
   } catch (error) {
-    console.error('[rammy] storing the cloud save failed:', error);
+    console.error('[tomoshibi] storing the cloud save failed:', error);
   }
 }

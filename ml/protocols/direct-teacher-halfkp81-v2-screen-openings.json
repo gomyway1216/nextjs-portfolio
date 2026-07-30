@@ -1,0 +1,66 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v2-screen-openings-v1",
+  "status": "prospective-frozen-before-training-or-paired-play",
+  "protocol": {
+    "path": "ml/protocols/direct-teacher-halfkp81-v2-plan.json",
+    "schema": "shogi-direct-teacher-halfkp81-v2-plan-v1",
+    "bytes": 9725,
+    "sha256": "ca9cdf06c38a7b4245d8d3934662dfcd60a5c6bdeb211c58141557633fdae49a"
+  },
+  "prior_opening_inventory": {
+    "path": "ml/protocols/bounded-quiet-history-existing-openings-v1.json",
+    "bytes": 278625,
+    "sha256": "093c504ec71192d35cc900daa74906d4c0205750f270ea157f08b3ba5948ac8d",
+    "fingerprints": 3198,
+    "canonical_list_sha256": "0dde79f19d21dbf671de9525dc87bd4e9c8a617e1a06e3a61f704f1dcbaed291"
+  },
+  "selection": {
+    "rule": "scan upward from 1200001 and accept the first 28 fingerprints absent from the complete prior-opening inventory and the current selection",
+    "pair_seed_scan_start": 1200001,
+    "pairs": 28,
+    "games_per_pair": 2,
+    "fingerprint_domain": "shogi-nnue-fixed-time-opening-v1\u0000",
+    "derived_seed_rule": "0x5eed00 + pair_seed * 15485863 + pair_index_within_harness * 104729",
+    "pair_index_within_harness": 0,
+    "skipped": [],
+    "pairs_selected": [
+      {"pair_index": 0, "seed": 1200001, "derived_seed": 18583057306919, "opening_fingerprint": "a40d252744e01947b04df8b5ce8a8bf059dacd6195708dd871548dcb0941cf35"},
+      {"pair_index": 1, "seed": 1200002, "derived_seed": 18583072792782, "opening_fingerprint": "d75bbea8fcc2f4955078493c90bd2fc246d3bf7fecc608c8bb6b631365b93931"},
+      {"pair_index": 2, "seed": 1200003, "derived_seed": 18583088278645, "opening_fingerprint": "4372e17053cbcbf6552527c65760e765916104619a11710d1fa1153b35c8e665"},
+      {"pair_index": 3, "seed": 1200004, "derived_seed": 18583103764508, "opening_fingerprint": "758f35736d7fdd2439913fe386884bec45252e7e9f781abd6c5c32d0d40aadda"},
+      {"pair_index": 4, "seed": 1200005, "derived_seed": 18583119250371, "opening_fingerprint": "3bb552f5da44af5bbbe1c15a40754f44a994d41dabaa04d15ab7b729cdf6dca2"},
+      {"pair_index": 5, "seed": 1200006, "derived_seed": 18583134736234, "opening_fingerprint": "2a47bd863d40d9a4bff677095b2e814a52f8786291257399c821755a222f174b"},
+      {"pair_index": 6, "seed": 1200007, "derived_seed": 18583150222097, "opening_fingerprint": "344eb2d101e6f9b535242e46aae18f28e32caab40e9198cb5fe73a3496f52971"},
+      {"pair_index": 7, "seed": 1200008, "derived_seed": 18583165707960, "opening_fingerprint": "3b6dde022bc13ce68185f92030e10b5e56afdb1b7e28521c55adcccc4176f44e"},
+      {"pair_index": 8, "seed": 1200009, "derived_seed": 18583181193823, "opening_fingerprint": "53a4bbb19d9b8985cd18929b9555ff3a77e340aeda1c05282129d9a0357f784d"},
+      {"pair_index": 9, "seed": 1200010, "derived_seed": 18583196679686, "opening_fingerprint": "d6c9f09a6296177b6751d557f4c16a08d28b494241ed5ef7cfcf1d760ff7ec93"},
+      {"pair_index": 10, "seed": 1200011, "derived_seed": 18583212165549, "opening_fingerprint": "c90d3bd38bfc6d0e9d9b3136d27f93ff0f2f160f15effa001f5691231bb78971"},
+      {"pair_index": 11, "seed": 1200012, "derived_seed": 18583227651412, "opening_fingerprint": "74b0b05c022735dbe659294df846ba314fc924d3a7086243dd83e13d3199a84e"},
+      {"pair_index": 12, "seed": 1200013, "derived_seed": 18583243137275, "opening_fingerprint": "6c1698db07fb322bdf563b4e23ec8fb773e6186e9f34bf5953fd430a1142aeb9"},
+      {"pair_index": 13, "seed": 1200014, "derived_seed": 18583258623138, "opening_fingerprint": "997bbb1590eecebde8de12d22f10eaab5a7a390407cf2a0d20e129a2ecf2fe9e"},
+      {"pair_index": 14, "seed": 1200015, "derived_seed": 18583274109001, "opening_fingerprint": "82bd6954c8b2abab9284cca79ccd9815165c9df098991f0fa9c0a08abc02a03e"},
+      {"pair_index": 15, "seed": 1200016, "derived_seed": 18583289594864, "opening_fingerprint": "20be46eb00031935ca417da7f58e88eccec3482255ad4488736ff1cf99fb73db"},
+      {"pair_index": 16, "seed": 1200017, "derived_seed": 18583305080727, "opening_fingerprint": "aa107f83a05cc6b1837a763844e678b74765f7b315e1bec841e82ffeb8fc69c8"},
+      {"pair_index": 17, "seed": 1200018, "derived_seed": 18583320566590, "opening_fingerprint": "272ebc4c3a11f5eae2664451ee71fee6f6eee079ec3c0bbf7d965ccc3fa096f7"},
+      {"pair_index": 18, "seed": 1200019, "derived_seed": 18583336052453, "opening_fingerprint": "4b6ed7efa995f56fd9cc338705af409ba10051344ae925bb3079bdd96a1f8b3b"},
+      {"pair_index": 19, "seed": 1200020, "derived_seed": 18583351538316, "opening_fingerprint": "4a39dea0bb53f98f665c00bba7d39b3a4f7045a319e9a1c28bb317a388874c44"},
+      {"pair_index": 20, "seed": 1200021, "derived_seed": 18583367024179, "opening_fingerprint": "98deb0b1c0a7446ffaa27b0764c5a050b83212b2b01a30e59e9c88ec5592e6d5"},
+      {"pair_index": 21, "seed": 1200022, "derived_seed": 18583382510042, "opening_fingerprint": "18b83a03e921f8d5cb9b65f5c6af64eef653e3d56544e485497d1ac8e9aef49f"},
+      {"pair_index": 22, "seed": 1200023, "derived_seed": 18583397995905, "opening_fingerprint": "400b1db624fdebb4a8fbda099400b4f695ba3178b33b0d67905a11551f7b41f3"},
+      {"pair_index": 23, "seed": 1200024, "derived_seed": 18583413481768, "opening_fingerprint": "348267f8f42717a7649239f631d90af5c15633209bb573489ec44d889bc59bf5"},
+      {"pair_index": 24, "seed": 1200025, "derived_seed": 18583428967631, "opening_fingerprint": "b05371138c8aaa8b0bc78eea013302a5d21343ec8763bd0b829b7743c5ae5c52"},
+      {"pair_index": 25, "seed": 1200026, "derived_seed": 18583444453494, "opening_fingerprint": "816519dd8f0f15ae1535fad2c9400da2ed041fc47dad8a3049315ad06fcbe4dd"},
+      {"pair_index": 26, "seed": 1200027, "derived_seed": 18583459939357, "opening_fingerprint": "e88497dd63b77663b0389c242c364105133725355f27c5dca8da80abf0ffe0ef"},
+      {"pair_index": 27, "seed": 1200028, "derived_seed": 18583475425220, "opening_fingerprint": "41e16f41397fdc9f3ffe648287e96a8e96f9687fbb905d4296278fd8fcc84474"}
+    ],
+    "opening_set_sha256": "d2f439ac68e1f531d193af8732a2f878738b8a7a5d5dfc82b611e24f65376507",
+    "prior_inventory_overlap": 0,
+    "within_selection_duplicates": 0
+  },
+  "authority": {
+    "candidate_inference_authorized": false,
+    "paired_play_authorized": false,
+    "expanded_stage_authorized": false,
+    "live_weight_write_authorized": false
+  }
+}

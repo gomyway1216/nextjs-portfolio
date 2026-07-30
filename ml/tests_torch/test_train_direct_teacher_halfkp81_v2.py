@@ -439,6 +439,28 @@ class DirectTeacherHalfkp81V2TrainerTests(unittest.TestCase):
         self.assertEqual(DIRECT.safe_ratio(0.0, 0.0), 1.0)
         self.assertEqual(DIRECT.safe_ratio(1.0, 0.0), sys.float_info.max)
 
+    def test_cli_exit_status_matches_static_gate_authority(self) -> None:
+        argv = [
+            "--execution-plan",
+            "/tmp/plan.json",
+            "--pipeline-revision",
+            "1" * 40,
+            "--out",
+            "/tmp/out",
+        ]
+        for authorized, expected_exit in ((True, 0), (False, 1)):
+            result = {
+                "schema": DIRECT.STATIC_RESULT_SCHEMA,
+                "status": "pass" if authorized else "fail",
+                "paired56_authorized": authorized,
+            }
+            with (
+                self.subTest(authorized=authorized),
+                mock.patch.object(DIRECT, "run", return_value=result),
+                mock.patch("builtins.print"),
+            ):
+                self.assertEqual(DIRECT.main(argv), expected_exit)
+
 
 if __name__ == "__main__":
     unittest.main()

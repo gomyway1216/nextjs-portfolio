@@ -38,11 +38,7 @@ import {
   verifyPipelineRevision,
   type PipelineProvenance,
 } from './pipeline-revision';
-import {
-  USI_TEACHER_ENGINE_CONTRACT,
-  UsiSearchTimeoutError,
-  UsiTeacherEngine,
-} from './usi-engine';
+import { USI_TEACHER_ENGINE_CONTRACT, UsiSearchTimeoutError, UsiTeacherEngine } from './usi-engine';
 import {
   MAX_NON_MATE_CP,
   UsiFixedDepthRanksIncompleteError,
@@ -687,9 +683,7 @@ export function siblingTeacherRunFingerprint(
     input.authenticated_fresh_final_binding,
   ].filter((binding) => binding !== undefined);
   if (authenticatedBindings.length !== 1) {
-    throw new Error(
-      'sibling teacher fingerprint requires exactly one authenticated role binding'
-    );
+    throw new Error('sibling teacher fingerprint requires exactly one authenticated role binding');
   }
   return sha256(
     canonicalJson({
@@ -697,16 +691,13 @@ export function siblingTeacherRunFingerprint(
       ...(input.authenticated_training_binding === undefined
         ? input.authenticated_fresh_selection_binding === undefined
           ? {
-              authenticated_fresh_final_binding:
-                input.authenticated_fresh_final_binding,
+              authenticated_fresh_final_binding: input.authenticated_fresh_final_binding,
             }
           : {
-            authenticated_fresh_selection_binding:
-              input.authenticated_fresh_selection_binding,
+              authenticated_fresh_selection_binding: input.authenticated_fresh_selection_binding,
             }
         : {
-            authenticated_training_binding:
-              input.authenticated_training_binding,
+            authenticated_training_binding: input.authenticated_training_binding,
           }),
       ...(input.authenticated_input_policy === undefined
         ? {}
@@ -729,8 +720,7 @@ export function siblingTeacherRunFingerprint(
         ? {}
         : {
             proposal_limit: input.proposal_limit,
-            proposal_incomplete_quarantine_policy:
-              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+            proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
           }),
       ...(input.proposal_incomplete_all_legal_fallback_max_moves === undefined
         ? {}
@@ -765,8 +755,7 @@ export function siblingTeacherRunFingerprint(
 
 interface FreshRoleSiblingTeacherRunFingerprintEvidence {
   readonly source:
-    | Readonly<FloodgateFreshSelectionRawIdentity>
-    | Readonly<FloodgateFreshFinalRawIdentity>;
+    Readonly<FloodgateFreshSelectionRawIdentity> | Readonly<FloodgateFreshFinalRawIdentity>;
   readonly sourceRows: readonly Readonly<FloodgateTrainingParent>[];
   readonly pipeline: Readonly<PipelineProvenance>;
   readonly engineBinSha256: string;
@@ -805,8 +794,7 @@ function freshRoleSiblingTeacherRunFingerprintFromEvidence(
     parentIds.some((parentId) => typeof parentId !== 'string' || parentId.length === 0) ||
     new Set(parentIds).size !== parentIds.length ||
     parentIds.some(
-      (parentId, index) =>
-        index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0
+      (parentId, index) => index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0
     ) ||
     evidence.source.parent_ids_sha256 !== floodgateIdentifierDigest(parentIds) ||
     evidence.source.games !== gameIds.size ||
@@ -827,9 +815,7 @@ function freshRoleSiblingTeacherRunFingerprintFromEvidence(
     engineReceipt.binary_sha256 !== evidence.engineBinSha256 ||
     engineReceipt.binary_bytes !== evidence.engineBinBytes
   ) {
-    throw new Error(
-      `${role} generation fingerprint engine receipt does not bind the engine`
-    );
+    throw new Error(`${role} generation fingerprint engine receipt does not bind the engine`);
   }
   return siblingTeacherRunFingerprint({
     ...(role === 'fresh_selection'
@@ -878,10 +864,7 @@ export function freshSelectionSiblingTeacherRunFingerprintFromEvidence(
     }
   >
 ): string {
-  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
-    'fresh_selection',
-    evidence
-  );
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence('fresh_selection', evidence);
 }
 
 export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
@@ -891,10 +874,7 @@ export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
     }
   >
 ): string {
-  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
-    'fresh_final_holdout',
-    evidence
-  );
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence('fresh_final_holdout', evidence);
 }
 
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
@@ -1035,17 +1015,11 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   }
   const proposalLimit: UsiSearchLimit = hasProposalNodes
     ? {
-        nodes: positiveInteger(
-          options.proposalNodes as number,
-          'proposalNodes'
-        ),
+        nodes: positiveInteger(options.proposalNodes as number, 'proposalNodes'),
       }
     : hasProposalDepth
       ? {
-          depth: positiveInteger(
-            options.proposalDepth as number,
-            'proposalDepth'
-          ),
+          depth: positiveInteger(options.proposalDepth as number, 'proposalDepth'),
         }
       : limit;
   const proposalIncompleteAllLegalFallbackMaxMoves =
@@ -1317,14 +1291,8 @@ function captureAuthenticatedFreshSelectionTeacherInput(
     games: positiveIntegerField(source.games, 'games'),
     game_ids_sha256: digestField(source.game_ids_sha256, 'game_ids_sha256'),
     parent_ids_sha256: digestField(source.parent_ids_sha256, 'parent_ids_sha256'),
-    position_ids_count: positiveIntegerField(
-      source.position_ids_count,
-      'position_ids_count'
-    ),
-    position_ids_sha256: digestField(
-      source.position_ids_sha256,
-      'position_ids_sha256'
-    ),
+    position_ids_count: positiveIntegerField(source.position_ids_count, 'position_ids_count'),
+    position_ids_sha256: digestField(source.position_ids_sha256, 'position_ids_sha256'),
   });
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
     throw new Error('fresh-selection rows must be a non-empty array');
@@ -1356,8 +1324,7 @@ function captureAuthenticatedFreshSelectionTeacherInput(
     positionIds.size !== capturedSource.position_ids_count ||
     floodgateIdentifierDigest(gameIds) !== capturedSource.game_ids_sha256 ||
     floodgateIdentifierDigest(parentIds) !== capturedSource.parent_ids_sha256 ||
-    floodgateIdentifierDigest(positionIds) !==
-      capturedSource.position_ids_sha256
+    floodgateIdentifierDigest(positionIds) !== capturedSource.position_ids_sha256
   ) {
     throw new Error('fresh-selection rows do not match their aggregate source');
   }
@@ -1409,14 +1376,8 @@ function captureAuthenticatedFreshFinalTeacherInput(
     games: positiveIntegerField(source.games, 'games'),
     game_ids_sha256: digestField(source.game_ids_sha256, 'game_ids_sha256'),
     parent_ids_sha256: digestField(source.parent_ids_sha256, 'parent_ids_sha256'),
-    position_ids_count: positiveIntegerField(
-      source.position_ids_count,
-      'position_ids_count'
-    ),
-    position_ids_sha256: digestField(
-      source.position_ids_sha256,
-      'position_ids_sha256'
-    ),
+    position_ids_count: positiveIntegerField(source.position_ids_count, 'position_ids_count'),
+    position_ids_sha256: digestField(source.position_ids_sha256, 'position_ids_sha256'),
   });
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
     throw new Error('fresh-final rows must be a non-empty array');
@@ -1448,8 +1409,7 @@ function captureAuthenticatedFreshFinalTeacherInput(
     positionIds.size !== capturedSource.position_ids_count ||
     floodgateIdentifierDigest(gameIds) !== capturedSource.game_ids_sha256 ||
     floodgateIdentifierDigest(parentIds) !== capturedSource.parent_ids_sha256 ||
-    floodgateIdentifierDigest(positionIds) !==
-      capturedSource.position_ids_sha256
+    floodgateIdentifierDigest(positionIds) !== capturedSource.position_ids_sha256
   ) {
     throw new Error('fresh-final rows do not match their aggregate source');
   }
@@ -1974,23 +1934,10 @@ async function searchWithTimeoutContext(
     return await engine.search(parent.parent_sfen, multipv, limit, searchmoves);
   } catch (error) {
     if (error instanceof UsiSearchTimeoutError) {
-      throw new SiblingTeacherSearchTimeoutError(
-        error,
-        phase,
-        multipv,
-        limit,
-        searchmoves
-      );
+      throw new SiblingTeacherSearchTimeoutError(error, phase, multipv, limit, searchmoves);
     }
-    if (
-      phase === 'proposal' &&
-      error instanceof UsiFixedDepthRanksIncompleteError
-    ) {
-      throw new SiblingTeacherProposalIncompleteError(
-        error,
-        multipv,
-        limit
-      );
+    if (phase === 'proposal' && error instanceof UsiFixedDepthRanksIncompleteError) {
+      throw new SiblingTeacherProposalIncompleteError(error, multipv, limit);
     }
     throw error;
   }
@@ -2004,7 +1951,8 @@ export async function labelSiblingParent(
   limit: UsiSearchLimit,
   legalMoves = legalMovesForParent(parent),
   proposalLimit: UsiSearchLimit = limit,
-  proposalIncompleteAllLegalFallbackMaxMoves?: number
+  proposalIncompleteAllLegalFallbackMaxMoves?: number,
+  stableMove?: string
 ): Promise<CompletedWorkEntry> {
   if (legalMoves.length < 2) {
     throw new Error(`parent ${parent.parent_id} has fewer than two legal moves`);
@@ -2070,15 +2018,10 @@ export async function labelSiblingParent(
       .sort((left, right) => right.cp - left.cp || compareBytewise(left.move, right.move))
       .map((line, index) => ({ ...line, multipv: index + 1 }));
     initial = {
-      depth:
-        proposalLimit.depth ??
-        Math.min(...fallbackResults.map((result) => result.depth)),
+      depth: proposalLimit.depth ?? Math.min(...fallbackResults.map((result) => result.depth)),
       lines: rankedFallbackLines,
       bestmove: rankedFallbackLines[0].move,
-      observedNodes: fallbackResults.reduce(
-        (sum, result) => sum + result.observedNodes,
-        0
-      ),
+      observedNodes: fallbackResults.reduce((sum, result) => sum + result.observedNodes, 0),
     };
     proposalFallback = {
       mode: FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
@@ -2107,11 +2050,24 @@ export async function labelSiblingParent(
 
   const candidateSet = new Set(initialMoves);
   candidateSet.add(parent.played_move);
-  if (
-    candidateSet.size !==
-    initialMoves.length + (initialMoves.includes(parent.played_move) ? 0 : 1)
-  ) {
+  const expectedAfterPlayed =
+    initialMoves.length + (initialMoves.includes(parent.played_move) ? 0 : 1);
+  if (candidateSet.size !== expectedAfterPlayed) {
     throw new Error(`candidate union contains duplicate moves for parent ${parent.parent_id}`);
+  }
+  if (stableMove !== undefined) {
+    if (!legalMoveSet.has(stableMove)) {
+      throw new Error(`stable move ${stableMove} is illegal for parent ${parent.parent_id}`);
+    }
+    candidateSet.add(stableMove);
+    const expectedAfterStable =
+      expectedAfterPlayed +
+      (initialMoves.includes(stableMove) || stableMove === parent.played_move ? 0 : 1);
+    if (candidateSet.size !== expectedAfterStable) {
+      throw new Error(
+        `stable candidate union contains duplicate moves for parent ${parent.parent_id}`
+      );
+    }
   }
   const candidateMoves = canonicalSortedMoves(candidateSet);
 
@@ -2163,6 +2119,7 @@ export async function labelSiblingParent(
       sources: [
         ...(score.move === parent.played_move ? ['played'] : []),
         ...(initialSet.has(score.move) ? ['teacher'] : []),
+        ...(score.move === stableMove ? ['stable'] : []),
       ],
       teacher_parent_cp: score.cp,
       teacher_rank: index + 1,
@@ -2191,9 +2148,7 @@ export async function labelSiblingParent(
     candidate_set_sha256: candidateSetSha256(candidateMoves),
     candidate_moves: candidateMoves,
     initial_search: searchMetadata(initial, proposalLimit),
-    ...(proposalFallback === undefined
-      ? {}
-      : { proposal_fallback: proposalFallback }),
+    ...(proposalFallback === undefined ? {} : { proposal_fallback: proposalFallback }),
     exact_search: exactSearch,
     records,
   };
@@ -2208,7 +2163,8 @@ export function validateWorkEntry(
   expectedLimit: UsiSearchLimit,
   expectedTimeoutMs: number,
   expectedProposalLimit: UsiSearchLimit = expectedLimit,
-  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number
+  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number,
+  expectedStableMove?: string
 ): WorkEntry {
   const context = typeof source === 'number' ? `work line ${source}` : source;
   if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
@@ -2266,8 +2222,7 @@ export function validateWorkEntry(
         incomplete.phase !== 'proposal' ||
         incomplete.requested_multipv !== expectedInitialMultipv ||
         !('depth' in normalizedProposalLimit) ||
-        canonicalJson(incomplete.requested_limit) !==
-          canonicalJson(normalizedProposalLimit) ||
+        canonicalJson(incomplete.requested_limit) !== canonicalJson(normalizedProposalLimit) ||
         !Number.isSafeInteger(incomplete.final_exact_ranks) ||
         incomplete.final_exact_ranks < 0 ||
         incomplete.final_exact_ranks >= expectedInitialMultipv ||
@@ -2275,8 +2230,7 @@ export function validateWorkEntry(
         incomplete.final_cp_ranks < 0 ||
         !Number.isSafeInteger(incomplete.final_mate_ranks) ||
         incomplete.final_mate_ranks < 0 ||
-        incomplete.final_cp_ranks + incomplete.final_mate_ranks !==
-          incomplete.final_exact_ranks ||
+        incomplete.final_cp_ranks + incomplete.final_mate_ranks !== incomplete.final_exact_ranks ||
         !Number.isSafeInteger(incomplete.missing_or_non_exact_ranks) ||
         incomplete.missing_or_non_exact_ranks !==
           expectedInitialMultipv - incomplete.final_exact_ranks ||
@@ -2353,9 +2307,9 @@ export function validateWorkEntry(
     }
     if (
       Object.keys(timeout).sort().join('\0') !==
-        ['phase', 'requested_limit', 'requested_multipv', 'searchmoves', 'timeout_ms']
-          .sort()
-          .join('\0')
+      ['phase', 'requested_limit', 'requested_multipv', 'searchmoves', 'timeout_ms']
+        .sort()
+        .join('\0')
     ) {
       throw new Error(`${context} search-timeout metadata has extra fields`);
     }
@@ -2386,33 +2340,29 @@ export function validateWorkEntry(
   }
   const moves = canonicalSortedMoves(entry.records.map((record) => record.move));
   const candidates = entry.candidate_moves.map((move) => requiredText(move, 'candidate move'));
-  const initialSearch = validateSearchMetadata(
-    entry.initial_search,
-    `${context} initial search`
-  );
+  const initialSearch = validateSearchMetadata(entry.initial_search, `${context} initial search`);
   const legalMoves = legalMovesForParent(parent);
   const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
   const normalizedExpectedLimit = normalizedSearchLimit(expectedLimit);
-  const normalizedExpectedProposalLimit =
-    normalizedSearchLimit(expectedProposalLimit);
+  const normalizedExpectedProposalLimit = normalizedSearchLimit(expectedProposalLimit);
   const fallbackValue = entry.proposal_fallback;
   let expectedCandidates: string[];
   if (fallbackValue === undefined) {
     expectedCandidates = canonicalSortedMoves(
-      new Set([...initialSearch.moves, parent.played_move])
+      new Set([
+        ...initialSearch.moves,
+        parent.played_move,
+        ...(expectedStableMove === undefined ? [] : [expectedStableMove]),
+      ])
     );
   } else {
     const fallback = fallbackValue as AllLegalProposalFallbackMetadata;
     const fallbackMoves = canonicalSortedMoves(legalMoves);
     if (
       Object.keys(fallback).sort().join('\0') !==
-        [
-          'legal_moves',
-          'mode',
-          'searches',
-          'synthesized_rank_order',
-          'trigger',
-        ].sort().join('\0') ||
+        ['legal_moves', 'mode', 'searches', 'synthesized_rank_order', 'trigger']
+          .sort()
+          .join('\0') ||
       !fallback.trigger ||
       Object.keys(fallback.trigger).sort().join('\0') !==
         [
@@ -2422,13 +2372,14 @@ export function validateWorkEntry(
           'missing_or_non_exact_ranks',
           'requested_limit',
           'requested_multipv',
-        ].sort().join('\0') ||
+        ]
+          .sort()
+          .join('\0') ||
       expectedProposalIncompleteAllLegalFallbackMaxMoves === undefined ||
       legalMoves.length > expectedMultipv ||
       legalMoves.length > expectedProposalIncompleteAllLegalFallbackMaxMoves ||
       fallback.mode !== FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE ||
-      fallback.synthesized_rank_order !==
-        'cp-descending-then-utf8-bytewise-move' ||
+      fallback.synthesized_rank_order !== 'cp-descending-then-utf8-bytewise-move' ||
       canonicalJson(fallback.legal_moves) !== canonicalJson(fallbackMoves) ||
       !Array.isArray(fallback.searches) ||
       fallback.searches.length !== fallbackMoves.length ||
@@ -2444,9 +2395,7 @@ export function validateWorkEntry(
       fallback.trigger.final_mate_ranks < 0 ||
       fallback.trigger.final_cp_ranks + fallback.trigger.final_mate_ranks !==
         fallback.trigger.final_exact_ranks ||
-      !Number.isSafeInteger(
-        fallback.trigger.missing_or_non_exact_ranks
-      ) ||
+      !Number.isSafeInteger(fallback.trigger.missing_or_non_exact_ranks) ||
       fallback.trigger.missing_or_non_exact_ranks < 1 ||
       fallback.trigger.missing_or_non_exact_ranks !==
         expectedInitialMultipv - fallback.trigger.final_exact_ranks
@@ -2454,19 +2403,14 @@ export function validateWorkEntry(
       throw new Error(`${context} has invalid all-legal proposal fallback metadata`);
     }
     const fallbackSearches = fallback.searches.map((search, index) =>
-      validateSearchMetadata(
-        search,
-        `${context} fallback proposal ${index + 1}`,
-        true
-      )
+      validateSearchMetadata(search, `${context} fallback proposal ${index + 1}`, true)
     );
     for (let index = 0; index < fallbackSearches.length; index++) {
       const search = fallbackSearches[index];
       const move = fallbackMoves[index];
       if (
         search.requested_multipv !== 1 ||
-        canonicalJson(search.requested_limit) !==
-          canonicalJson(normalizedExpectedProposalLimit) ||
+        canonicalJson(search.requested_limit) !== canonicalJson(normalizedExpectedProposalLimit) ||
         search.moves.length !== 1 ||
         search.moves[0] !== move ||
         search.bestmove !== move
@@ -2479,9 +2423,7 @@ export function validateWorkEntry(
       .sort(compareRankedScores);
     if (
       initialSearch.requested_multipv !== fallbackMoves.length ||
-      initialSearch.moves.some(
-        (move, index) => move !== synthesizedScores[index]?.move
-      ) ||
+      initialSearch.moves.some((move, index) => move !== synthesizedScores[index]?.move) ||
       initialSearch.scores.some((score, index) => {
         const expected = synthesizedScores[index];
         return (
@@ -2494,10 +2436,7 @@ export function validateWorkEntry(
         );
       }) ||
       initialSearch.observed_nodes !==
-        sumObservedNodes(
-          fallbackSearches,
-          `${context} all-legal proposal fallback`
-        )
+        sumObservedNodes(fallbackSearches, `${context} all-legal proposal fallback`)
     ) {
       throw new Error(`${context} all-legal proposal synthesis drifted`);
     }
@@ -2505,8 +2444,7 @@ export function validateWorkEntry(
   }
   const canonicalCandidates = canonicalSortedMoves(candidates);
   if (
-    (fallbackValue === undefined &&
-      initialSearch.requested_multipv !== expectedInitialMultipv) ||
+    (fallbackValue === undefined && initialSearch.requested_multipv !== expectedInitialMultipv) ||
     canonicalJson(initialSearch.requested_limit) !==
       canonicalJson(normalizedExpectedProposalLimit) ||
     new Set(candidates).size !== candidates.length ||
@@ -2538,6 +2476,15 @@ export function validateWorkEntry(
   if (playedRecords.length !== 1 || playedRecords[0].move !== parent.played_move) {
     throw new Error(`${context} does not preserve exactly one played move`);
   }
+  if (
+    expectedStableMove !== undefined &&
+    (!legalMoves.includes(expectedStableMove) ||
+      entry.records.filter((record) => record.sources.includes('stable')).length !== 1 ||
+      entry.records.find((record) => record.sources.includes('stable'))?.move !==
+        expectedStableMove)
+  ) {
+    throw new Error(`${context} does not preserve exactly one legal stable move`);
+  }
   const initialMoves = new Set(initialSearch.moves);
   for (let index = 0; index < entry.records.length; index++) {
     const record = entry.records[index];
@@ -2548,6 +2495,7 @@ export function validateWorkEntry(
     const expectedSources = [
       ...(record.move === parent.played_move ? ['played'] : []),
       ...(initialMoves.has(record.move) ? ['teacher'] : []),
+      ...(record.move === expectedStableMove ? ['stable'] : []),
     ];
     if (
       record.sources.length !== expectedSources.length ||
@@ -2665,10 +2613,7 @@ interface SiblingTeacherExecution {
     | 'strength-first-training-only'
     | 'fresh-selection-only'
     | 'fresh-final-only';
-  readonly recoverableSearchFailures:
-    | 'none'
-    | 'timeout-and-proposal-incomplete'
-    | 'timeout-only';
+  readonly recoverableSearchFailures: 'none' | 'timeout-and-proposal-incomplete' | 'timeout-only';
 }
 
 export interface StrengthFirstCorePrefixProgress {
@@ -2831,9 +2776,7 @@ async function runSiblingTeacherDatasetCore(
       capturedInput.source.records !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
       capturedInput.source.games !== FRESH_FINAL_TEACHER_GAME_COUNT)
   ) {
-    throw new Error(
-      'fresh-final finalization requires every authenticated fresh-final parent'
-    );
+    throw new Error('fresh-final finalization requires every authenticated fresh-final parent');
   }
   const selected = allParents.slice(0, execution.targetParents);
   const selectedParentIdsSha256 = sha256(allParents.map((parent) => parent.parent_id).join('\n'));
@@ -2902,7 +2845,7 @@ async function runSiblingTeacherDatasetCore(
           ? [options.work, options.outSelection]
           : execution.finalization === 'fresh-final-only'
             ? [options.work, options.outFinal]
-        : [options.work];
+            : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint =
     execution.finalization === 'fresh-final-only'
@@ -2924,63 +2867,62 @@ async function runSiblingTeacherDatasetCore(
             options.proposalIncompleteAllLegalFallbackMaxMoves as number,
         })
       : siblingTeacherRunFingerprint({
-    ...(capturedInput.role === 'training'
-      ? { authenticated_training_binding: capturedInput.binding }
-      : capturedInput.role === 'fresh_selection'
-        ? {
-          authenticated_fresh_selection_binding: {
-            schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
-            role: 'fresh_selection' as const,
-            source: capturedInput.source,
-          },
-          }
-        : {
-            authenticated_fresh_final_binding: {
-              schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-              role: 'fresh_final_holdout' as const,
-              source: capturedInput.source,
-            },
-          }),
-    ...(options.authenticatedInputPolicy === undefined
-      ? {}
-      : {
-          authenticated_input_policy: options.authenticatedInputPolicy,
-        }),
-    source_raw_sha256: sourceRawSha256,
-    selected_parent_ids_sha256: selectedParentIdsSha256,
-    pipeline,
-    engine_bin_sha256: engineDigest.sha256,
-    engine_args: options.engineArgs,
-    engine_arg_files: engineArgFiles,
-    engine_receipt_sha256: engineReceipt.file.sha256,
-    engine_receipt: engineReceipt.content,
-    eval_sha256: evalSha256,
-    multipv: options.multipv,
-    limit: options.limit,
-    ...(sameSearchLimit(options.proposalLimit, options.limit)
-      ? {}
-      : { proposal_limit: options.proposalLimit }),
-    ...(options.proposalIncompleteAllLegalFallbackMaxMoves === undefined
-      ? {}
-      : {
-          proposal_incomplete_all_legal_fallback_max_moves:
-            options.proposalIncompleteAllLegalFallbackMaxMoves,
-        }),
-    ...(execution.finalization === 'legacy-split'
-      ? {}
-      : {
-          engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
-        }),
-    parallel_engines: options.engines,
-    fv_scale: options.fvScale,
-    hash_mb_per_engine: options.hashMb,
-    timeout_ms: options.timeoutMs,
-    ...(options.testOnlyInitializationTimeoutMs === undefined
-      ? {}
-      : {
-          test_only_engine_initialization_timeout_ms:
-            options.testOnlyInitializationTimeoutMs,
-        }),
+          ...(capturedInput.role === 'training'
+            ? { authenticated_training_binding: capturedInput.binding }
+            : capturedInput.role === 'fresh_selection'
+              ? {
+                  authenticated_fresh_selection_binding: {
+                    schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
+                    role: 'fresh_selection' as const,
+                    source: capturedInput.source,
+                  },
+                }
+              : {
+                  authenticated_fresh_final_binding: {
+                    schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
+                    role: 'fresh_final_holdout' as const,
+                    source: capturedInput.source,
+                  },
+                }),
+          ...(options.authenticatedInputPolicy === undefined
+            ? {}
+            : {
+                authenticated_input_policy: options.authenticatedInputPolicy,
+              }),
+          source_raw_sha256: sourceRawSha256,
+          selected_parent_ids_sha256: selectedParentIdsSha256,
+          pipeline,
+          engine_bin_sha256: engineDigest.sha256,
+          engine_args: options.engineArgs,
+          engine_arg_files: engineArgFiles,
+          engine_receipt_sha256: engineReceipt.file.sha256,
+          engine_receipt: engineReceipt.content,
+          eval_sha256: evalSha256,
+          multipv: options.multipv,
+          limit: options.limit,
+          ...(sameSearchLimit(options.proposalLimit, options.limit)
+            ? {}
+            : { proposal_limit: options.proposalLimit }),
+          ...(options.proposalIncompleteAllLegalFallbackMaxMoves === undefined
+            ? {}
+            : {
+                proposal_incomplete_all_legal_fallback_max_moves:
+                  options.proposalIncompleteAllLegalFallbackMaxMoves,
+              }),
+          ...(execution.finalization === 'legacy-split'
+            ? {}
+            : {
+                engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
+              }),
+          parallel_engines: options.engines,
+          fv_scale: options.fvScale,
+          hash_mb_per_engine: options.hashMb,
+          timeout_ms: options.timeoutMs,
+          ...(options.testOnlyInitializationTimeoutMs === undefined
+            ? {}
+            : {
+                test_only_engine_initialization_timeout_ms: options.testOnlyInitializationTimeoutMs,
+              }),
         });
   const header: WorkHeader = {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
@@ -3020,8 +2962,7 @@ async function runSiblingTeacherDatasetCore(
   }
   if (
     (execution.recoverableSearchFailures === 'none' &&
-      (existingTimeoutSkipCount !== 0 ||
-        existingProposalIncompleteSkipCount !== 0)) ||
+      (existingTimeoutSkipCount !== 0 || existingProposalIncompleteSkipCount !== 0)) ||
     (execution.recoverableSearchFailures === 'timeout-only' &&
       existingProposalIncompleteSkipCount !== 0)
   ) {
@@ -3065,8 +3006,7 @@ async function runSiblingTeacherDatasetCore(
         ((entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
           execution.recoverableSearchFailures === 'none') ||
           (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON &&
-            execution.recoverableSearchFailures !==
-              'timeout-and-proposal-incomplete'))
+            execution.recoverableSearchFailures !== 'timeout-and-proposal-incomplete'))
       ) {
         checkpointFailure = new Error(
           `skip reason ${entry.reason} is forbidden by ${execution.recoverableSearchFailures}`
@@ -3149,8 +3089,7 @@ async function runSiblingTeacherDatasetCore(
           ...(options.testOnlyInitializationTimeoutMs === undefined
             ? {}
             : {
-                testOnlyInitializationTimeoutMs:
-                  options.testOnlyInitializationTimeoutMs,
+                testOnlyInitializationTimeoutMs: options.testOnlyInitializationTimeoutMs,
               }),
         });
         try {
@@ -3202,8 +3141,7 @@ async function runSiblingTeacherDatasetCore(
                 error.phase !== 'proposal-fallback' &&
                 execution.recoverableSearchFailures !== 'none') ||
               (error instanceof SiblingTeacherProposalIncompleteError &&
-                execution.recoverableSearchFailures ===
-                  'timeout-and-proposal-incomplete')
+                execution.recoverableSearchFailures === 'timeout-and-proposal-incomplete')
             ) {
               try {
                 await engine.quit();
@@ -3215,10 +3153,7 @@ async function runSiblingTeacherDatasetCore(
                           error.phase === 'proposal'
                             ? ([] as const)
                             : ([
-                                requiredText(
-                                  error.searchmoves[0],
-                                  'timed-out searchmove'
-                                ),
+                                requiredText(error.searchmoves[0], 'timed-out searchmove'),
                               ] as const);
                         return sealWorkEntry({
                           schema: SIBLING_TEACHER_WORK_SCHEMA,
@@ -3250,8 +3185,7 @@ async function runSiblingTeacherDatasetCore(
                           final_exact_ranks: error.finalExactRanks,
                           final_cp_ranks: error.finalCpRanks,
                           final_mate_ranks: error.finalMateRanks,
-                          missing_or_non_exact_ranks:
-                            error.missingOrNonExactRanks,
+                          missing_or_non_exact_ranks: error.missingOrNonExactRanks,
                         },
                       });
                 const validated = validateWorkEntry(
@@ -3361,9 +3295,7 @@ async function runSiblingTeacherDatasetCore(
     execution.finalization === 'fresh-final-only'
   ) {
     const freshRole =
-      execution.finalization === 'fresh-selection-only'
-        ? 'fresh-selection'
-        : 'fresh-final';
+      execution.finalization === 'fresh-selection-only' ? 'fresh-selection' : 'fresh-final';
     const skipReasons = forcedSkipReasonCounts(workEntries.values());
     const forcedParentsSkipped = skipped.length;
     const forcedParentIds = skipped.map((entry) => entry.parent_id);
@@ -3382,31 +3314,24 @@ async function runSiblingTeacherDatasetCore(
       records: 4_801 as const,
     };
     const parentAccounting = {
-      parent_ids_sha256: floodgateIdentifierDigest(
-        selected.map((parent) => parent.parent_id)
-      ),
+      parent_ids_sha256: floodgateIdentifierDigest(selected.map((parent) => parent.parent_id)),
       forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
       emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
       fewer_than_two_legal_moves_parent_ids_sha256: floodgateIdentifierDigest(
         fewerThanTwoLegalMoveParentIds
       ),
-      search_timeout_parent_ids_sha256: floodgateIdentifierDigest(
-        searchTimeoutParentIds
-      ),
+      search_timeout_parent_ids_sha256: floodgateIdentifierDigest(searchTimeoutParentIds),
     };
     if (
       (skipReasons.proposal_incomplete_no_label ?? 0) !== 0 ||
       skipReasons.search_timeout_no_label > recoverableSearchSkipLimit ||
-      skipReasons.fewer_than_two_legal_moves +
-        skipReasons.search_timeout_no_label !==
+      skipReasons.fewer_than_two_legal_moves + skipReasons.search_timeout_no_label !==
         forcedParentsSkipped ||
       completed.length + forcedParentsSkipped !== selected.length ||
       records.length < 2 * completed.length ||
       completed.length < 1
     ) {
-      throw new Error(
-        `${freshRole} completion has invalid forced-skip accounting`
-      );
+      throw new Error(`${freshRole} completion has invalid forced-skip accounting`);
     }
     const datasetJsonl = serializeCanonicalJsonl(records);
     const finalPipeline = await revisionVerifier(options.runnerRevision);
@@ -3415,9 +3340,7 @@ async function runSiblingTeacherDatasetCore(
     }
     await outputVerifier(outputPaths, protectedInputPaths);
     await atomicWrite(
-      execution.finalization === 'fresh-selection-only'
-        ? options.outSelection
-        : options.outFinal,
+      execution.finalization === 'fresh-selection-only' ? options.outSelection : options.outFinal,
       datasetJsonl
     );
     if (execution.finalization === 'fresh-final-only') {
@@ -3599,8 +3522,7 @@ async function runSiblingTeacherDatasetCore(
           ? {}
           : {
               proposal_limit: normalizedSearchLimit(options.proposalLimit),
-              proposal_incomplete_quarantine_policy:
-                PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+              proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
             }),
         parallel_engines: options.engines,
         fv_scale: options.fvScale,
@@ -3741,8 +3663,7 @@ async function runSiblingTeacherDatasetCore(
         ? {}
         : {
             proposal_limit: normalizedSearchLimit(options.proposalLimit),
-            proposal_incomplete_quarantine_policy:
-              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+            proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
           }),
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
@@ -3871,26 +3792,14 @@ export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
 async function advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StrengthFirstSiblingTeacherOptions,
-  engines:
-    | typeof STRENGTH_FIRST_PRODUCTION_ENGINES
-    | typeof STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
+  engines: typeof STRENGTH_FIRST_PRODUCTION_ENGINES | typeof STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
-  if (
-    Object.prototype.hasOwnProperty.call(
-      rawOptions,
-      'testOnlyInitializationTimeoutMs'
-    )
-  ) {
-    throw new Error(
-      'strength-first production generation rejects testOnlyInitializationTimeoutMs'
-    );
+  if (Object.prototype.hasOwnProperty.call(rawOptions, 'testOnlyInitializationTimeoutMs')) {
+    throw new Error('strength-first production generation rejects testOnlyInitializationTimeoutMs');
   }
   if (
-    Object.prototype.hasOwnProperty.call(
-      rawOptions,
-      'proposalIncompleteAllLegalFallbackMaxMoves'
-    )
+    Object.prototype.hasOwnProperty.call(rawOptions, 'proposalIncompleteAllLegalFallbackMaxMoves')
   ) {
     throw new Error(
       'strength-first training generation rejects the fresh-selection proposal fallback'
@@ -3939,12 +3848,7 @@ export async function generateFreshSelectionSiblingTeacherDataset(
   options: Readonly<FreshSelectionSiblingTeacherOptions>,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<Readonly<FreshSelectionSiblingTeacherOutcome>> {
-  if (
-    Object.prototype.hasOwnProperty.call(
-      options,
-      'testOnlyInitializationTimeoutMs'
-    )
-  ) {
+  if (Object.prototype.hasOwnProperty.call(options, 'testOnlyInitializationTimeoutMs')) {
     throw new Error(
       'fresh-selection production generation rejects testOnlyInitializationTimeoutMs'
     );
@@ -3979,8 +3883,7 @@ export async function generateFreshSelectionSiblingTeacherDataset(
   )) as FreshSelectionSiblingTeacherOutcome;
 }
 
-export type FreshFinalSiblingTeacherOptions =
-  FreshSelectionSiblingTeacherOptions;
+export type FreshFinalSiblingTeacherOptions = FreshSelectionSiblingTeacherOptions;
 
 /**
  * Production generator seam for the already-authenticated 4,800-parent
@@ -3993,15 +3896,8 @@ export async function generateFreshFinalSiblingTeacherDataset(
   options: Readonly<FreshFinalSiblingTeacherOptions>,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<Readonly<FreshFinalSiblingTeacherOutcome>> {
-  if (
-    Object.prototype.hasOwnProperty.call(
-      options,
-      'testOnlyInitializationTimeoutMs'
-    )
-  ) {
-    throw new Error(
-      'fresh-final production generation rejects testOnlyInitializationTimeoutMs'
-    );
+  if (Object.prototype.hasOwnProperty.call(options, 'testOnlyInitializationTimeoutMs')) {
+    throw new Error('fresh-final production generation rejects testOnlyInitializationTimeoutMs');
   }
   const captured = captureAuthenticatedFreshFinalTeacherInput(input);
   if (

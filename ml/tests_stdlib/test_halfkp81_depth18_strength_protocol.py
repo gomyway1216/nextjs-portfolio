@@ -15,9 +15,7 @@ if str(ML_DIR) not in sys.path:
 import halfkp81_depth18_strength_protocol as PROTOCOL  # noqa: E402
 
 
-TRACKED_PLAN = (
-    ML_DIR / "halfkp81-hard-depth18-strength-v1-plan.json"
-)
+TRACKED_PLAN = ML_DIR / "halfkp81-hard-depth18-strength-v1-plan.json"
 
 
 def _identity(path: str, *, schema: str | None = None) -> dict:
@@ -61,9 +59,7 @@ def _selection_evidence() -> PROTOCOL.AuthenticatedSelectionEvidence:
                     PROTOCOL.PHASE_PLAN_TO_SELECTION[name]: counts
                     for name, counts in PROTOCOL.EXPECTED_PHASE_SIDE_COUNTS.items()
                 },
-                "role_side_counts": copy.deepcopy(
-                    PROTOCOL.EXPECTED_ROLE_SIDE_COUNTS
-                ),
+                "role_side_counts": copy.deepcopy(PROTOCOL.EXPECTED_ROLE_SIDE_COUNTS),
                 "unique_game_ids": 8_192,
                 "unique_position_ids": 8_192,
                 "cross_role_game_id_overlap": 0,
@@ -93,12 +89,9 @@ def _teacher_plan(
         "schema": PROTOCOL.TEACHER_PLAN_SCHEMA,
         "status": "sealed-not-executed",
         "source_revision": SOURCE_REVISION,
-        "preregistration": copy.deepcopy(
-            PROTOCOL.EXPECTED_PREREGISTRATION_IDENTITY
-        ),
+        "preregistration": copy.deepcopy(PROTOCOL.EXPECTED_PREREGISTRATION_IDENTITY),
         "selection_manifest": {
-            key: manifest_identity[key]
-            for key in ("path", "bytes", "sha256", "schema")
+            key: manifest_identity[key] for key in ("path", "bytes", "sha256", "schema")
         },
         "selection_evidence": evidence_document,
         "selection_roles": copy.deepcopy(PROTOCOL.EXPECTED_ROLE_COUNTS),
@@ -110,7 +103,14 @@ def _teacher_plan(
             "fit_jsonl": "/tmp/depth18/fit.jsonl",
             "tune_jsonl": "/tmp/depth18/tune.jsonl",
             "sealed_jsonl": "/tmp/depth18/sealed.jsonl",
-            "receipt_json": "/tmp/depth18/receipt.json",
+            "work_jsonl": "/tmp/depth18/teacher-work.jsonl",
+            "milestone_100_json": "/tmp/depth18/teacher-milestone-100.json",
+            "milestone_500_json": "/tmp/depth18/teacher-milestone-500.json",
+            "terminal_fault_json": "/tmp/depth18/teacher-terminal-fault.json",
+            "receipt_json": "/tmp/depth18/teacher-receipt.json",
+            "verified_artifact_receipt_json": (
+                "/tmp/depth18/teacher-verified-artifact-receipt.json"
+            ),
         },
         "authority": {
             "may_execute_teacher": True,
@@ -118,7 +118,7 @@ def _teacher_plan(
             "may_play_formal_games": False,
             "may_write_live_weights": False,
         },
-}
+    }
 
 
 def _receipt(plan: dict) -> dict:
@@ -169,13 +169,17 @@ def _selection_jsonl() -> bytes:
         side_cursor = 0
         for phase, count in phase_counts.items():
             for _ in range(count):
-                game_id = "sha256:" + hashlib.sha256(
-                    f"selection-game-{serial}".encode()
-                ).hexdigest()
+                game_id = (
+                    "sha256:"
+                    + hashlib.sha256(f"selection-game-{serial}".encode()).hexdigest()
+                )
                 sfen = f"{serial + 10}/9/9/9/9/9/9/9/9 {side} - {phase_ply[phase] + 1}"
-                position_id = "sha256:" + hashlib.sha256(
-                    f"sfen-v1\0{' '.join(sfen.split()[:3])}".encode()
-                ).hexdigest()
+                position_id = (
+                    "sha256:"
+                    + hashlib.sha256(
+                        f"sfen-v1\0{' '.join(sfen.split()[:3])}".encode()
+                    ).hexdigest()
+                )
                 if side_cursor < 3_072:
                     role = "fit"
                 elif side_cursor < 3_584:
@@ -418,6 +422,20 @@ class Halfkp81Depth18StrengthProtocolTests(unittest.TestCase):
             "fault": lambda value: value.__setitem__("technical_faults", 1),
             "incomplete": lambda value: value.__setitem__("incomplete_parents", 1),
             "old-target": lambda value: value.__setitem__("old_depth12_targets", 1),
+            "rows-below-two-per-parent": lambda value: (
+                value.__setitem__("completed_rows", 16_383),
+                value.__setitem__(
+                    "role_rows",
+                    {"fit": 12_287, "tune": 2_048, "sealed": 2_048},
+                ),
+            ),
+            "role-rows-below-two-per-parent": lambda value: (
+                value.__setitem__("completed_rows", 95_191),
+                value.__setitem__(
+                    "role_rows",
+                    {"fit": 79_000, "tune": 2_047, "sealed": 14_144},
+                ),
+            ),
             "rows": lambda value: value.__setitem__("completed_rows", 114_689),
             "role-row-overflow": lambda value: (
                 value.__setitem__("completed_rows", 110_000),

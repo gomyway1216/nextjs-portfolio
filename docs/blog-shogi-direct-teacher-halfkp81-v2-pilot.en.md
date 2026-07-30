@@ -29,6 +29,8 @@ The train/validation assignment unit is the **whole game**, not a row. The datas
 
 The builder authenticates source bytes and SHA-256 before reconstructing the V9 fit membership, then emits only integer child-side `teacher_child_cp` targets. Repeated `child_position_id` values are reduced to one row only when SFEN and CP agree; any disagreement stops publication instead of averaging or voting. The manifest records SHA-256 digests for each role's game, parent, position, child, and semantic ID sets. A completion receipt binds the output files, manifest, generator source, phase-1 receipt, and spent-tune receipt. Existing directories are never overwritten, and the receipt is created last.
 
+The first real-data attempt stopped safely at source line 171. V9 contains 276,209 rows with the base keyset and 2,527 canonical mate rows that add `teacher_mate` and `teacher_mate_sign`; the first builder rejected the latter as unregistered fields. It created no output directory and did not consume the one-shot experiment. The fix permits only those two exact keysets. For mate rows it requires a nonzero integer mate value, a ±1 sign matching that value, `teacher_score_kind == "mate"`, and child-side CP equal to `-sign × (1,000,000 - |mate|)`. Any other field or inconsistency still stops publication.
+
 ## Two stop gates
 
 The pilot does not proceed directly from training to a long match. It must first pass every validation check:
@@ -48,7 +50,7 @@ Any miss closes this objective and pilot family. It forbids adding data, epochs,
 | Stage | Count | State |
 |---|---:|---|
 | Protocol / validator | one set | implemented and tested |
-| Create-only dataset builder | one set | implemented and tested; run after merge |
+| Create-only dataset builder | one set | rerun after the mate-keyset fix is tested and merged |
 | Pilot dataset | 0 rows | not generated |
 | Optimizer / epoch | 0 / 0 | not started |
 | Static sanity | 0 checks run | not executed |

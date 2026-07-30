@@ -29,6 +29,8 @@ train/validationの単位は行ではなく**局全体**である。さらに、
 
 生成器は入力元のbytes/SHA-256を照合してからV9 fit membershipを再構成し、`teacher_child_cp`だけを子局面側視点の整数CPとして出力する。同じ`child_position_id`が複数回現れた場合、SFENとCPが同一なら1行へ一意化し、どちらかが異なれば平均や多数決をせずSTOPする。train/validationごとにgame、parent、position、child、semantic ID集合のSHA-256をmanifestへ記録し、出力ファイル、manifest、実行コード、phase-1 receipt、spent-tune receiptを完了receiptで結ぶ。既存directoryは上書きせず、receiptを最後に作る。
 
+最初の実データ実行は171行目で安全に停止した。V9には通常keysetが276,209行、`teacher_mate`と`teacher_mate_sign`を加えた正規mate keysetが2,527行あり、初版は後者を未登録fieldとして拒否したためである。出力directoryは作成されず、one-shot実験も消費していない。修正版はこの2 keysetだけを許可し、mate値が非0整数、signが±1でmate値の符号と一致し、`teacher_score_kind == "mate"`、子側CPが`-sign × (1,000,000 - |mate|)`と一致することを検証する。それ以外のfieldや不整合は引き続きSTOPする。
+
 ## 二段階の停止条件
 
 学習後すぐ長い対局へ進めない。validationで次をすべて満たす必要がある。
@@ -48,7 +50,7 @@ train/validationの単位は行ではなく**局全体**である。さらに、
 | 工程 | 実数 | 状態 |
 |---|---:|---|
 | protocol / validator | 1式 | 実装・テスト済み |
-| create-only dataset生成器 | 1式 | 実装・テスト済み、merge後に実行 |
+| create-only dataset生成器 | 1式 | mate keyset修正版をテスト・統合後に再実行 |
 | pilot dataset | 0行 | 未生成 |
 | optimizer / epoch | 0 / 0 | 未開始 |
 | static sanity | 0件 | 未実行 |

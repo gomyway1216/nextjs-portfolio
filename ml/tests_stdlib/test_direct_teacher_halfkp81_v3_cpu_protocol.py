@@ -9,6 +9,7 @@ import unittest
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = ML_DIR.parent
 if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
@@ -18,6 +19,12 @@ import rebind_direct_teacher_halfkp81_v3_cpu_dataset as REBIND  # noqa: E402
 
 
 TRACKED_PROTOCOL = ML_DIR / "protocols" / "direct-teacher-halfkp81-v3-cpu-plan.json"
+TRACKED_RESULT_MEMO = (
+    REPO_ROOT
+    / "docs"
+    / "data"
+    / "shogi-direct-teacher-halfkp81-v3-cpu-result-2026-07-29.json"
+)
 
 
 def _metadata_manifest(
@@ -268,6 +275,49 @@ class DirectTeacherHalfkp81V3CpuProtocolTests(unittest.TestCase):
                 PROTOCOL.DirectTeacherHalfkpV3CpuError, "contract differs"
             ):
                 REBIND._actual_role_sets(str(path), role="training")
+
+    def test_tracked_result_memo_closes_the_single_failed_static_run(self) -> None:
+        memo = json.loads(TRACKED_RESULT_MEMO.read_text(encoding="utf-8"))
+        self.assertEqual(
+            memo["status"],
+            "static-fail-family-closed-no-paired-no-live",
+        )
+        self.assertEqual(
+            memo["implementation"]["pipeline_revision"],
+            "1f5e4a4a6b72c8a49b835edf3f330bb843655b12",
+        )
+        self.assertEqual(
+            memo["bindings"]["execution_plan"]["sha256"],
+            "70ffc491b9a25653a964dc6bc7e008435c957df3e630db30337c42f5daa0ad4f",
+        )
+        self.assertEqual(memo["training"]["rows"], 200944)
+        self.assertEqual(memo["training"]["optimizer_steps"], 99)
+        self.assertEqual(
+            memo["validation"]["teacher_mae_cp_improvement"],
+            8.0133056640625,
+        )
+        self.assertEqual(
+            memo["static_sanity"]["failed_checks"],
+            ["quantized_max_abs_cp_delta_ratio_maximum"],
+        )
+        self.assertEqual(
+            memo["static_sanity"]["failed_observed"],
+            1.1732157215750398,
+        )
+        self.assertEqual(memo["static_sanity"]["failed_requirement"], 1.05)
+        self.assertEqual(
+            memo["static_sanity"]["result"]["sha256"],
+            "966b894e1ffa4947ec521d2588f559be3685cd88e2b9f285cf189a72b8bf7fdc",
+        )
+        self.assertTrue(
+            memo["static_sanity"]["result"][
+                "fresh_read_only_reconstruction_equal"
+            ]
+        )
+        self.assertFalse(memo["decision"]["same_family_retry_authorized"])
+        self.assertEqual(memo["decision"]["paired_games_played"], 0)
+        self.assertFalse(memo["decision"]["live_weight_write_authorized"])
+        self.assertTrue(memo["artifacts"]["live_weights"]["byte_exact_unchanged"])
 
 
 if __name__ == "__main__":

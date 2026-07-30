@@ -1,0 +1,168 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v3-cpu-result-data-memo-v1",
+  "status": "static-fail-family-closed-no-paired-no-live",
+  "date": "2026-07-29",
+  "implementation": {
+    "pipeline_revision": "1f5e4a4a6b72c8a49b835edf3f330bb843655b12",
+    "tracked_tree_clean": true,
+    "device": "cpu",
+    "physical_cores": 14,
+    "torch_threads": 14,
+    "torch_interop_threads": 14,
+    "python_version": "3.9.6",
+    "torch_version": "2.2.1"
+  },
+  "bindings": {
+    "predecessor_terminal": {
+      "bytes": 2453,
+      "sha256": "8474df3f8590f4bb537ff261c049c2a59e0b71157161b66c8a6f58662b1226c3",
+      "schema": "shogi-direct-teacher-halfkp81-v2-technical-stop-v1"
+    },
+    "metadata_manifest": {
+      "bytes": 3070,
+      "sha256": "ef403ac23a478c10b48194e01e141ac6c2e07d1a78e08384286bd8a20dbf19d2",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-metadata-manifest-v1",
+      "source_rows_read": 223834,
+      "row_bytes_written": 0,
+      "cross_role_overlap_counts": {
+        "game_ids": 0,
+        "parent_ids": 0,
+        "position_ids": 0,
+        "child_position_ids": 0,
+        "semantic_position_ids": 0
+      }
+    },
+    "execution_plan": {
+      "bytes": 6338,
+      "sha256": "70ffc491b9a25653a964dc6bc7e008435c957df3e630db30337c42f5daa0ad4f",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-pilot-execution-plan-v1"
+    },
+    "capability_probe": {
+      "bytes": 2556,
+      "sha256": "fea7e25d504b10cf94205ab7f8f07cb71586639f4a68c7cff78b52cd430a0d9c",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-capability-probe-v1",
+      "status": "passed-real-cpu-forward-backward-before-claim",
+      "runs": 2,
+      "output_sha256": "64ff6dc816d491d8fd5c055b537e7cee62d0c38a75b370c86a3f4f3dd0deb1de",
+      "gradient_sha256": "b43290206b6327e9ddcc2c49cfb20dcbc452df550273694956756a0ec0dd0681",
+      "optimizer_created": false,
+      "parameter_step": false
+    },
+    "one_shot_claim": {
+      "bytes": 2174,
+      "sha256": "c4e938f7b8e282f98a0bc75bed85af0a4f858f479f73dcea333188a11db0b347",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-one-shot-claim-v1",
+      "status": "exclusive-v3-cpu-one-shot-claimed-no-retry",
+      "additional_run_authorized": false
+    }
+  },
+  "training": {
+    "epochs": 1,
+    "rows": 200944,
+    "batch": 2048,
+    "optimizer_batches": 99,
+    "optimizer_steps": 99,
+    "seconds": 7.917303707999999,
+    "direct_scalar_bce": 0.6786804360724129,
+    "optimizer": "AdamW",
+    "learning_rate": 0.000003,
+    "weight_decay": 0.0,
+    "seed": 42,
+    "parameter_scope": "all"
+  },
+  "validation": {
+    "rows": 22890,
+    "initializer": {
+      "direct_scalar_bce": 0.6914915442466736,
+      "teacher_mae_cp": 554.447021484375,
+      "pair_accuracy": 0.5855165155440415,
+      "pair_correct": 72323,
+      "pair_total": 123520
+    },
+    "candidate": {
+      "direct_scalar_bce": 0.6874398589134216,
+      "teacher_mae_cp": 546.4337158203125,
+      "pair_accuracy": 0.5856136658031088,
+      "pair_correct": 72335,
+      "pair_total": 123520
+    },
+    "teacher_mae_cp_improvement": 8.0133056640625,
+    "pair_accuracy_delta": 0.00009715025906731345
+  },
+  "quantization": {
+    "initializer": {
+      "mean_abs_cp_delta": 26.820775985717773,
+      "max_abs_cp_delta": 203.2779541015625
+    },
+    "candidate": {
+      "mean_abs_cp_delta": 26.86600112915039,
+      "max_abs_cp_delta": 238.4888916015625
+    },
+    "mean_abs_cp_delta_ratio": 1.0016861981717717,
+    "max_abs_cp_delta_ratio": 1.1732157215750398
+  },
+  "runtime": {
+    "technical_faults": 0,
+    "wasm_parity_tested": 512,
+    "wasm_parity_mismatches": 0,
+    "research_runtime_search_slowdown_percent": 2.495517211805487
+  },
+  "static_sanity": {
+    "passed": 8,
+    "total": 9,
+    "all_checks_passed": false,
+    "failed_checks": [
+      "quantized_max_abs_cp_delta_ratio_maximum"
+    ],
+    "failed_observed": 1.1732157215750398,
+    "failed_requirement": 1.05,
+    "result": {
+      "bytes": 6435,
+      "sha256": "966b894e1ffa4947ec521d2588f559be3685cd88e2b9f285cf189a72b8bf7fdc",
+      "schema": "shogi-direct-teacher-halfkp81-v3-cpu-static-sanity-result-v1",
+      "status": "failed-one-or-more-checks-v3-cpu-family-closed",
+      "mtime_ns": 1785382689457275687,
+      "mtime_utc": "2026-07-30T03:38:09.457276+00:00",
+      "mode": "0600",
+      "fresh_read_only_reconstruction_equal": true
+    }
+  },
+  "artifacts": {
+    "candidate_weights": {
+      "bytes": 94656708,
+      "sha256": "9ba78c70253d0f8ebfb6d0412f54532c53e5fbd495a585ae057f979c1633933a"
+    },
+    "final_checkpoint": {
+      "bytes": 191659516,
+      "sha256": "a0282411634940fdad93f6d4301e5cccbe311d83fabe03e76b996c583c35a46c"
+    },
+    "candidate_reference": {
+      "bytes": 139351,
+      "sha256": "9f82f0cf27628a843a58e4498396b4c5780b36cb43ae8f62b9f5d593c7ebcd1c",
+      "positions": 512
+    },
+    "trainer_result": {
+      "bytes": 7268,
+      "sha256": "9aebcdf8643fec75172734d41bbf385e557da7a07c84af118ab2155977d1e686"
+    },
+    "runtime_sanity": {
+      "bytes": 8339,
+      "sha256": "508ddec8ff04c2ed5a8dc716fe1c4b51d54713b68f1bb119b508b2febec498e2"
+    },
+    "live_weights": {
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "byte_exact_unchanged": true
+    }
+  },
+  "decision": {
+    "same_family_retry_authorized": false,
+    "additional_epoch_or_seed_authorized": false,
+    "paired56_authorized": false,
+    "paired_games_played": 0,
+    "expanded_stage_authorized": false,
+    "live_weight_write_authorized": false,
+    "playing_strength_claim_authorized": false,
+    "successor_requires_new_preregistered_family": true
+  }
+}

@@ -790,7 +790,7 @@ def acquire_one_shot_claim(
         not os.path.isdir(claim_root)
         or os.path.islink(claim_root)
         or claim_stat.st_uid != os.getuid()
-        or claim_stat.st_mode & 0o077
+        or claim_stat.st_mode & 0o777 != 0o700
     ):
         raise DirectTeacherTrainingError(
             "one-shot claim root must be an owned non-symlink 0700 directory"

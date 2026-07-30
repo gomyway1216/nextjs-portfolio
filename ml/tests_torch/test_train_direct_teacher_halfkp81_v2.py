@@ -415,6 +415,29 @@ class DirectTeacherHalfkp81V2TrainerTests(unittest.TestCase):
             self.assertIn(parent_inode, fsynced_inodes)
             self.assertTrue(Path(claim["identity"]["path"]).is_file())
 
+    def test_claim_root_rejects_permissions_other_than_exact_0700(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            claim_root = parent / "claims"
+            claim_root.mkdir()
+            claim_root.chmod(0o750)
+            plan = {
+                "path": str(parent / "execution-plan.json"),
+                "bytes": 321,
+                "sha256": "e" * 64,
+                "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
+            }
+            with self.assertRaisesRegex(
+                DIRECT.DirectTeacherTrainingError, "0700 directory"
+            ):
+                DIRECT.acquire_one_shot_claim(
+                    execution_plan=plan,
+                    implementation={"source_revision": "f" * 40},
+                    output_path=str(parent / "output"),
+                    claim_root=str(claim_root),
+                )
+            self.assertEqual(list(claim_root.iterdir()), [])
+
     def test_export_failure_never_publishes_partial_final_name(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "weights.bin"

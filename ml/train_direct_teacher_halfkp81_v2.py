@@ -25,8 +25,9 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 import time
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, BinaryIO, Callable, Iterable, Mapping, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -42,6 +43,7 @@ STATIC_RESULT_SCHEMA = "shogi-direct-teacher-halfkp81-v2-static-sanity-result-v1
 CHECKPOINT_SCHEMA = "shogi-direct-teacher-halfkp81-v2-final-checkpoint-v1"
 REFERENCE_SCHEMA = "shogi-direct-teacher-halfkp81-v2-int16-reference-v1"
 RUNTIME_SCHEMA = "shogi-direct-teacher-halfkp81-v2-runtime-sanity-v1"
+CLAIM_SCHEMA = "shogi-direct-teacher-halfkp81-v2-one-shot-claim-v1"
 FEATURES = "halfkp-factor"
 BUCKETS = 81
 K_SIGMOID = 600.0
@@ -95,6 +97,75 @@ def _identity(path: str, label: str) -> dict[str, Any]:
 
 def _identity_with_schema(path: str, label: str, schema: str) -> dict[str, Any]:
     return {**_identity(path, label), "schema": schema}
+
+
+def _atomic_publish_create_only(
+    path: str,
+    *,
+    label: str,
+    writer: Callable[[BinaryIO], None],
+    expected_bytes: int | None = None,
+) -> dict[str, Any]:
+    """Publish only a complete, fsynced same-directory temporary file."""
+
+    absolute = os.path.abspath(path)
+    directory = os.path.dirname(absolute)
+    if not os.path.isdir(directory):
+        raise DirectTeacherTrainingError(
+            f"{label} output directory does not exist: {directory}"
+        )
+    if os.path.lexists(absolute):
+        raise DirectTeacherTrainingError(f"refusing to overwrite {label}: {absolute}")
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b",
+            prefix=f".{os.path.basename(absolute)}.",
+            suffix=".tmp",
+            dir=directory,
+            delete=False,
+        ) as temporary:
+            temporary_path = temporary.name
+            writer(temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        temporary_identity = _identity(temporary_path, f"temporary {label}")
+        if (
+            expected_bytes is not None
+            and temporary_identity["bytes"] != expected_bytes
+        ):
+            raise DirectTeacherTrainingError(
+                f"{label} bytes differ before publication: "
+                f"{temporary_identity['bytes']} != {expected_bytes}"
+            )
+        try:
+            os.link(temporary_path, absolute)
+        except FileExistsError as error:
+            raise DirectTeacherTrainingError(
+                f"refusing to overwrite {label}: {absolute}"
+            ) from error
+        os.unlink(temporary_path)
+        temporary_path = None
+        directory_fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        final_identity = _identity(absolute, label)
+        if any(
+            final_identity[field] != temporary_identity[field]
+            for field in ("bytes", "sha256")
+        ):
+            raise DirectTeacherTrainingError(
+                f"{label} changed during atomic publication"
+            )
+        return final_identity
+    finally:
+        if temporary_path is not None:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
 
 
 def _require_exact_identity(
@@ -342,6 +413,52 @@ def load_bound_dataset(
     return tensors, rows, {**identity, **actual_counts, "row_schema": PROTOCOL.ROW_SCHEMA}
 
 
+def dataset_identifier_sets(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, set[str]]:
+    """Recompute every cross-role isolation set from parsed rows."""
+
+    games = {str(row["game_id"]) for row in rows}
+    parents = {str(row["parent_id"]) for row in rows}
+    positions = {str(row["position_id"]) for row in rows}
+    children = {str(row["child_position_id"]) for row in rows}
+    return {
+        "game_ids": games,
+        "parent_ids": parents,
+        "position_ids": positions,
+        "child_position_ids": children,
+        "semantic_position_ids": positions | children,
+    }
+
+
+def require_zero_cross_role_overlap(
+    training_rows: Sequence[Mapping[str, Any]],
+    validation_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Fail before optimizer creation if any actual ID set crosses roles."""
+
+    training_sets = dataset_identifier_sets(training_rows)
+    validation_sets = dataset_identifier_sets(validation_rows)
+    overlap_counts: dict[str, int] = {}
+    for label in (
+        "game_ids",
+        "parent_ids",
+        "position_ids",
+        "child_position_ids",
+        "semantic_position_ids",
+    ):
+        overlap = training_sets[label] & validation_sets[label]
+        overlap_counts[label] = len(overlap)
+        if overlap:
+            raise DirectTeacherTrainingError(
+                f"training/validation {label} overlap"
+            )
+    return {
+        "status": "verified-zero-cross-role-overlap",
+        "overlap_counts": overlap_counts,
+    }
+
+
 def direct_scalar_bce(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     if logits.shape != targets.shape:
         raise DirectTeacherTrainingError("direct BCE logits/targets shape mismatch")
@@ -437,7 +554,9 @@ def train_exactly_one_epoch(
     tensors: tuple[torch.Tensor, ...],
     *,
     device: torch.device,
+    one_shot_claim: Mapping[str, Any],
 ) -> dict[str, Any]:
+    reauthenticate_one_shot_claim(one_shot_claim)
     if any(not parameter.requires_grad for parameter in model.parameters()):
         raise DirectTeacherTrainingError("all model parameters must be trainable")
     parameters = tuple(model.parameters())
@@ -517,18 +636,17 @@ def export_quantized_weights(
     model: torch.nn.Module, path: str
 ) -> tuple[dict[str, torch.Tensor], dict[str, Any]]:
     qweights = quantize_model(model)
-    if os.path.lexists(path):
-        raise DirectTeacherTrainingError(f"refusing to overwrite export: {path}")
-    with open(path, "xb") as target:
+
+    def write_export(target: BinaryIO) -> None:
         for name, typecode in EXPORT_LAYOUT:
             _write_tensor(target, qweights[name], typecode)
-        target.flush()
-        os.fsync(target.fileno())
-    identity = _identity(path, "HalfKP81 research export")
-    if identity["bytes"] != EXPECTED_EXPORT_BYTES:
-        raise DirectTeacherTrainingError(
-            f"HalfKP81 export bytes differ: {identity['bytes']} != {EXPECTED_EXPORT_BYTES}"
-        )
+
+    identity = _atomic_publish_create_only(
+        path,
+        label="HalfKP81 research export",
+        writer=write_export,
+        expected_bytes=EXPECTED_EXPORT_BYTES,
+    )
     return qweights, {**identity, "buckets": BUCKETS}
 
 
@@ -630,13 +748,164 @@ def safe_ratio(candidate: float, initializer: float) -> float:
 
 def _canonical_create_only(path: str, value: Mapping[str, Any]) -> dict[str, Any]:
     raw = PROTOCOL.canonical_json_bytes(value)
-    if os.path.lexists(path):
-        raise DirectTeacherTrainingError(f"refusing to overwrite receipt: {path}")
-    with open(path, "xb") as target:
+
+    def write_receipt(target: BinaryIO) -> None:
         target.write(raw)
-        target.flush()
-        os.fsync(target.fileno())
-    return _identity(path, os.path.basename(path))
+
+    return _atomic_publish_create_only(
+        path,
+        label=os.path.basename(path),
+        writer=write_receipt,
+        expected_bytes=len(raw),
+    )
+
+
+def acquire_one_shot_claim(
+    *,
+    execution_plan: Mapping[str, Any],
+    implementation: Mapping[str, Any],
+    output_path: str,
+    claim_root: str,
+) -> dict[str, Any]:
+    """Atomically consume one global claim keyed only by execution-plan SHA."""
+
+    plan_sha256 = str(execution_plan["sha256"])
+    if SHA256_RE.fullmatch(plan_sha256) is None:
+        raise DirectTeacherTrainingError("execution plan SHA-256 is invalid for claim")
+    revision = implementation.get("source_revision")
+    if type(revision) is not str or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise DirectTeacherTrainingError("pipeline revision is invalid for claim")
+    requested_claim_root = os.path.abspath(claim_root)
+    if os.path.islink(requested_claim_root):
+        raise DirectTeacherTrainingError("one-shot claim root must not be a symlink")
+    claim_root = os.path.realpath(requested_claim_root)
+    try:
+        os.mkdir(claim_root, 0o700)
+    except FileExistsError:
+        pass
+    claim_stat = os.lstat(claim_root)
+    if (
+        not os.path.isdir(claim_root)
+        or os.path.islink(claim_root)
+        or claim_stat.st_uid != os.getuid()
+        or claim_stat.st_mode & 0o077
+    ):
+        raise DirectTeacherTrainingError(
+            "one-shot claim root must be an owned non-symlink 0700 directory"
+        )
+    claim_path = os.path.join(claim_root, f"{plan_sha256}.json")
+    owner = {
+        "kind": "direct-teacher-halfkp81-v2-one-shot-trainer",
+        "pid": os.getpid(),
+        "pipeline_revision": revision,
+    }
+    document = {
+        "schema": CLAIM_SCHEMA,
+        "status": "exclusive-one-shot-claimed-no-retry",
+        "owner": owner,
+        "execution_plan": dict(execution_plan),
+        "output_path": os.path.realpath(output_path),
+        "live_weight_write_authorized": False,
+    }
+    try:
+        identity = _canonical_create_only(claim_path, document)
+    except DirectTeacherTrainingError as error:
+        if os.path.lexists(claim_path):
+            raise DirectTeacherTrainingError(
+                "execution plan already has a one-shot claim; rerun refused"
+            ) from error
+        raise
+    observed, observed_identity = PROTOCOL.load_strict_json_file(
+        claim_path, "one-shot training claim"
+    )
+    if observed != document or any(
+        observed_identity[field] != identity[field] for field in ("bytes", "sha256")
+    ):
+        raise DirectTeacherTrainingError(
+            "one-shot claim changed during post-publication authentication"
+        )
+    return {
+        "identity": {**identity, "schema": CLAIM_SCHEMA},
+        "status": document["status"],
+        "owner": owner,
+        "execution_plan": dict(execution_plan),
+        "output_path": document["output_path"],
+        "live_weight_write_authorized": False,
+    }
+
+
+def validate_one_shot_claim_receipt(
+    value: Any,
+    *,
+    execution_plan: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    expected_keys = {
+        "identity",
+        "status",
+        "owner",
+        "execution_plan",
+        "output_path",
+        "live_weight_write_authorized",
+    }
+    if type(value) is not dict or set(value) != expected_keys:
+        raise DirectTeacherTrainingError("one-shot claim receipt fields are not exact")
+    _validate_public_identity(
+        value["identity"], label="one-shot claim", schema=CLAIM_SCHEMA
+    )
+    _validate_public_identity(
+        value["execution_plan"],
+        label="claimed execution plan",
+        schema=PROTOCOL.EXECUTION_PLAN_SCHEMA,
+    )
+    owner = value["owner"]
+    if (
+        type(owner) is not dict
+        or set(owner) != {"kind", "pid", "pipeline_revision"}
+        or owner["kind"] != "direct-teacher-halfkp81-v2-one-shot-trainer"
+        or type(owner["pid"]) is not int
+        or owner["pid"] <= 0
+        or type(owner["pipeline_revision"]) is not str
+        or re.fullmatch(r"[0-9a-f]{40}", owner["pipeline_revision"]) is None
+        or value["status"] != "exclusive-one-shot-claimed-no-retry"
+        or type(value["output_path"]) is not str
+        or not os.path.isabs(value["output_path"])
+        or value["live_weight_write_authorized"] is not False
+    ):
+        raise DirectTeacherTrainingError("one-shot claim receipt is invalid")
+    if execution_plan is not None and value["execution_plan"] != execution_plan:
+        raise DirectTeacherTrainingError(
+            "one-shot claim is not bound to the execution plan"
+        )
+    return dict(value)
+
+
+def reauthenticate_one_shot_claim(
+    value: Any,
+    *,
+    execution_plan: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    receipt = validate_one_shot_claim_receipt(
+        value, execution_plan=execution_plan
+    )
+    expected_document = {
+        "schema": CLAIM_SCHEMA,
+        "status": receipt["status"],
+        "owner": receipt["owner"],
+        "execution_plan": receipt["execution_plan"],
+        "output_path": receipt["output_path"],
+        "live_weight_write_authorized": False,
+    }
+    observed, observed_identity = PROTOCOL.load_strict_json_file(
+        receipt["identity"]["path"], "one-shot training claim"
+    )
+    if observed != expected_document or any(
+        observed_identity[field] != receipt["identity"][field]
+        for field in ("path", "bytes", "sha256")
+    ):
+        raise DirectTeacherTrainingError(
+            "one-shot claim bytes or binding changed after acquisition"
+        )
+    return receipt
 
 
 def build_reference(
@@ -837,6 +1106,7 @@ def validate_static_sanity_result(value: Any) -> dict[str, Any]:
         "dataset_manifest",
         "initializer",
         "live_weights",
+        "one_shot_claim",
         "trainer_result",
         "candidate_weights",
         "runtime_sanity",
@@ -866,6 +1136,9 @@ def validate_static_sanity_result(value: Any) -> dict[str, Any]:
     )
     _validate_public_identity(value["initializer"], label="static initializer")
     _validate_public_identity(value["live_weights"], label="static live weights")
+    validate_one_shot_claim_receipt(
+        value["one_shot_claim"], execution_plan=value["execution_plan"]
+    )
     _validate_public_identity(
         value["trainer_result"],
         label="static trainer result",
@@ -951,6 +1224,7 @@ def build_static_sanity_result(
     dataset_manifest: Mapping[str, Any],
     initializer: Mapping[str, Any],
     live_weights: Mapping[str, Any],
+    one_shot_claim: Mapping[str, Any],
     trainer_result: Mapping[str, Any],
     candidate_weights: Mapping[str, Any],
     runtime_sanity: Mapping[str, Any],
@@ -1044,6 +1318,9 @@ def build_static_sanity_result(
         "dataset_manifest": dict(dataset_manifest),
         "initializer": dict(initializer),
         "live_weights": dict(live_weights),
+        "one_shot_claim": validate_one_shot_claim_receipt(
+            one_shot_claim, execution_plan=execution_plan
+        ),
         "trainer_result": dict(trainer_result),
         "candidate_weights": {
             key: candidate_weights[key]
@@ -1093,6 +1370,14 @@ def run(
     live_path = str(plan["inputs"]["live_weights"]["path"])
     train_path = str(plan["inputs"]["training_dataset"]["path"])
     validation_path = str(plan["inputs"]["validation_dataset"]["path"])
+    claim_root = os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.realpath(str(plan["dataset_manifest"]["path"]))
+            )
+        ),
+        ".direct-teacher-halfkp81-v2-one-shot-claims",
+    )
     wasm_path = os.path.join(repo_root, RUNTIME_WASM)
     runtime_script = os.path.join(repo_root, RUNTIME_SCRIPT)
     input_paths = (
@@ -1122,17 +1407,16 @@ def run(
     validation_tensors, validation_rows, validation_identity = load_bound_dataset(
         validation_path, plan["inputs"]["validation_dataset"], role="validation"
     )
-    if {row["game_id"] for row in training_rows} & {
-        row["game_id"] for row in validation_rows
-    }:
-        raise DirectTeacherTrainingError("training/validation game overlap")
-    if {row["child_position_id"] for row in training_rows} & {
-        row["child_position_id"] for row in validation_rows
-    }:
-        raise DirectTeacherTrainingError("training/validation child overlap")
+    dataset_disjointness = require_zero_cross_role_overlap(
+        training_rows, validation_rows
+    )
 
     if not allow_cpu_for_tests and not torch.backends.mps.is_available():
         raise DirectTeacherTrainingError("fixed MPS device is unavailable")
+    execution_plan_receipt = {
+        **plan_identity,
+        "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
+    }
     device = torch.device("cpu" if allow_cpu_for_tests else "mps")
     torch.manual_seed(SEED)
     random.seed(SEED)
@@ -1161,6 +1445,15 @@ def run(
     train.require_finite_model_parameters(model, "exact HalfKP81 initializer")
     if any(not parameter.requires_grad for parameter in model.parameters()):
         raise DirectTeacherTrainingError("initializer is not all-parameter trainable")
+    one_shot_claim = acquire_one_shot_claim(
+        execution_plan=execution_plan_receipt,
+        implementation=implementation,
+        output_path=args.out,
+        claim_root=claim_root,
+    )
+    reauthenticate_one_shot_claim(
+        one_shot_claim, execution_plan=execution_plan_receipt
+    )
 
     os.mkdir(args.out, 0o700)
     initializer_weights_path = os.path.join(args.out, "initializer-weights.bin")
@@ -1188,7 +1481,10 @@ def run(
     del initializer_q
 
     training_receipt = train_exactly_one_epoch(
-        model, training_tensors, device=device
+        model,
+        training_tensors,
+        device=device,
+        one_shot_claim=one_shot_claim,
     )
     candidate_outputs = _model_outputs(model, validation_tensors, device=device)
     candidate_metrics = validation_metrics(
@@ -1204,10 +1500,8 @@ def run(
         "model": model.state_dict(),
         "arch": expected_arch,
         "training": dict(PROTOCOL.EXPECTED_TRAINING),
-        "execution_plan": {
-            **plan_identity,
-            "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
-        },
+        "execution_plan": execution_plan_receipt,
+        "one_shot_claim": one_shot_claim,
         "initializer": {
             **initializer_identity,
             "path": os.path.realpath(initializer_path),
@@ -1215,6 +1509,7 @@ def run(
         "datasets": {
             "training": training_identity,
             "validation": validation_identity,
+            "cross_role_disjointness": dataset_disjointness,
         },
         "selection": "final-epoch-1-only-no-best-selection",
         "live_weight_write_authorized": False,
@@ -1254,15 +1549,16 @@ def run(
     )
     if live_after_training != live_before:
         raise DirectTeacherTrainingError("live weights changed during training/export")
+    one_shot_claim = reauthenticate_one_shot_claim(
+        one_shot_claim, execution_plan=execution_plan_receipt
+    )
 
     trainer_result = {
         "schema": TRAINER_RESULT_SCHEMA,
         "status": "complete-final-epoch-frozen-static-pending",
         "implementation": implementation,
-        "execution_plan": {
-            **plan_identity,
-            "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
-        },
+        "execution_plan": execution_plan_receipt,
+        "one_shot_claim": one_shot_claim,
         "dataset_manifest": {
             **_identity(str(plan["dataset_manifest"]["path"]), "dataset manifest"),
             "schema": PROTOCOL.DATASET_MANIFEST_SCHEMA,
@@ -1346,11 +1642,13 @@ def run(
     ):
         raise DirectTeacherTrainingError("runtime exit status contradicts its receipt")
 
+    one_shot_claim = reauthenticate_one_shot_claim(
+        one_shot_claim, execution_plan=execution_plan_receipt
+    )
     static_result = build_static_sanity_result(
         protocol=dict(plan["protocol"]),
         execution_plan={
-            **plan_identity,
-            "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
+            **execution_plan_receipt,
         },
         dataset_manifest=dict(plan["dataset_manifest"]),
         initializer={
@@ -1358,6 +1656,7 @@ def run(
             "path": os.path.realpath(initializer_path),
         },
         live_weights=live_before,
+        one_shot_claim=one_shot_claim,
         trainer_result=trainer_result_identity,
         candidate_weights=candidate_weights,
         runtime_sanity={

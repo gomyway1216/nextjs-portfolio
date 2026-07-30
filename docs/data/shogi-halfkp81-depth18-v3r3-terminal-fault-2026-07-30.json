@@ -1,0 +1,216 @@
+{
+  "schema": "shogi-halfkp81-depth18-v3r3-terminal-fault-data-memo-v1",
+  "date": "2026-07-30",
+  "status": "v3r3-terminal-after-162-parents-generic-stable-startup-timeout-yaneura-only-v1-defined-no-strength-result",
+  "implementation": {
+    "pull_request": 670,
+    "merge_strategy": "regular-merge",
+    "merge_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa"
+  },
+  "formal_run": {
+    "family": "halfkp81-hard-depth18-bounded-stable-v3r3",
+    "output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3",
+    "source_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+    "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+    "tracked_preregistration": {
+      "path": "ml/halfkp81-hard-depth18-bounded-stable-v3r3-plan.json",
+      "bytes": 7815,
+      "sha256": "5e4e8157d5848fbeca9ecf959d68ed6eca51b0017eb8296ea8ea0ef5bdc24ac7",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r3"
+    },
+    "diagnostic_receipt": {
+      "path": "ml/halfkp81-depth18-bounded-stable-v3r3-diagnostic-receipt.json",
+      "bytes": 2299,
+      "sha256": "a6b6f5ed9b3305a51a66dda69bf1887313c9f87bcbc0a86d3ca2826fba23f51d"
+    },
+    "teacher_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-plan.json",
+      "bytes": 14247,
+      "sha256": "7d35f689043a0376618f892d57edcbc1ba017532799177f86176ee7a1f1476d2",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r3",
+      "published_at": "2026-07-30T07:08:46-07:00"
+    },
+    "work_ledger": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-work.jsonl",
+      "bytes": 2527193,
+      "sha256": "9e8980bf02b409197d0f4de5281f53c50ab51be9750659404605b4d737c63c89",
+      "records": 163,
+      "header_records": 1,
+      "completed_parent_records": 162,
+      "teacher_rows": 1948,
+      "created_at": "2026-07-30T07:09:15-07:00",
+      "closed_at": "2026-07-30T07:18:37-07:00"
+    },
+    "selection_progress": {
+      "completed_parents": 162,
+      "total_parents": 8192,
+      "contiguous_completed_prefix": 130,
+      "additional_completed_indices": {
+        "minimum": 132,
+        "maximum": 163,
+        "count": 32
+      },
+      "first_missing_index": 131,
+      "maximum_completed_index": 163
+    },
+    "stable_candidate_outcomes": {
+      "proposals": 103,
+      "proposal_completed_depth": {
+        "11": 103
+      },
+      "omissions": 59,
+      "omission_reason": {
+        "cooperative-deadline": 59
+      },
+      "omission_completed_depth": {
+        "7": 3,
+        "8": 6,
+        "9": 18,
+        "10": 32
+      },
+      "stable_appeared_in_teacher_rows": 103,
+      "stable_only_unique_rows": 8,
+      "stable_only_unique_rows_over_all_teacher_rows_percent": 0.41
+    },
+    "teacher_rows": {
+      "total": 1948,
+      "parents_with_6_rows": 1,
+      "parents_with_12_rows": 151,
+      "parents_with_13_rows": 10,
+      "all_initial_searches_depth16": true,
+      "all_exact_rescores_depth18": true
+    },
+    "milestone_100": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-milestone-100.json",
+      "bytes": 545,
+      "sha256": "045392502cc9f5718913231a3e6960b930ea3e54b948711ff34ccbf60df9dfeb",
+      "created_at": "2026-07-30T07:15:13-07:00",
+      "status": "durable-prefix-complete-not-training-authority",
+      "target_parents": 100,
+      "completed_rows": 1198,
+      "technical_faults_at_publication": 0,
+      "parent_ids_sha256": "db42c7ad26958a58e001e4a42595edcb0fb2593bda661d6a4ef7dade3b603008",
+      "work_entry_payloads_sha256": "7613e790870b9331ff19bad08461f4474787887c76dc13d62cb869593c964a8b",
+      "independently_recomputed_and_matched": true,
+      "training_authority": false,
+      "whole_run_pass": false
+    },
+    "fault_parent": {
+      "parent_id": "sha256:5ed636cc10e9712de90ff4a9d8401edb757687ffb5eab6b21b4c02fd79258639",
+      "selection_index_1_based": 131,
+      "role": "fit",
+      "phase": "opening",
+      "side_to_move": "b",
+      "ply": 38,
+      "legal_move_count": 10,
+      "recorded_move": "3i2h",
+      "game_id": "sha256:ed2e56d7bb90d36f9a0a01066fc7d7158eb4fb98e85b4c188c404c4e7959e93a",
+      "position_id": "sha256:1a738e8d6b954829285ceed8ec469ab998c31b2ee4d93feb7e5afa31937e376c",
+      "work_entry_present": false
+    },
+    "terminal_fault": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-terminal-fault.json",
+      "bytes": 885,
+      "sha256": "9c092b3f4ee324489a2d6408ffb21032b5f3057ee29c5e01aeebb2cb624fae01",
+      "created_at": "2026-07-30T07:18:37-07:00",
+      "completed_parents": 162,
+      "incomplete_parents": 8030,
+      "technical_faults": 1,
+      "message": "teacher labeling failed for parent sha256:5ed636cc10e9712de90ff4a9d8401edb757687ffb5eab6b21b4c02fd79258639: Floodgate production teacher asset authority failed: bounded stable worker startup timeout",
+      "same_family_resume_authorized": false,
+      "training_authorized": false,
+      "live_weight_write_authorized": false
+    },
+    "one_shot_launch": {
+      "label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3r3-ae0ab195",
+      "started_at_observed": "2026-07-30T07:09:13-07:00",
+      "stopped_at_observed": "2026-07-30T07:18:37-07:00",
+      "observed_elapsed_seconds": 564,
+      "plist": {
+        "bytes": 1500,
+        "sha256": "bc4b8122c80341f7f154fe735329a96a10ad9ca4217885312c31c751298a99f0"
+      },
+      "stderr": {
+        "bytes": 324,
+        "sha256": "9ae7a72282bb8b8d32d4d50588bb63d34ef91688343dfd9f1337f73e8fe0b5aa",
+        "records": ["durable-prefix-100", "terminal-stop"]
+      },
+      "stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "service_present_after_stop": false
+    },
+    "post_stop_processes": {
+      "yaneuraou": 0,
+      "teacher_runner": 0,
+      "bounded_stable_worker": 0
+    },
+    "formal_worker_telemetry": {
+      "source_transfer_milliseconds_persisted": false,
+      "source_completed_before_init_persisted": false,
+      "rss_or_cpu_at_failure_persisted": false,
+      "memory_pressure_at_failure_persisted": false
+    }
+  },
+  "same_parent_no_load_isolation": {
+    "parent_id": "sha256:5ed636cc10e9712de90ff4a9d8401edb757687ffb5eab6b21b4c02fd79258639",
+    "stable_outcome": "omitted",
+    "completed_depth": 10,
+    "elapsed_seconds": 20.103,
+    "replacement_startup_milliseconds": 57.37,
+    "faults": 0,
+    "proves": [
+      "the-position-does-not-deterministically-cause-worker-startup-failure",
+      "omission-and-replacement-can-complete-for-the-same-parent-without-load"
+    ],
+    "does_not_prove": [
+      "the-exact-formal-resource-or-concurrency-cause",
+      "the-failing-formal-worker-stage"
+    ]
+  },
+  "proof_boundary": {
+    "formal_terminal_message_class": "generic-bounded-stable-worker-startup-timeout",
+    "formal_stage_telemetry_absent": true,
+    "fd3_eof_wait_proved_for_v3r3_formal_failure": false,
+    "stdin_init_or_decode_wait_excluded_for_v3r3_formal_failure": false,
+    "resource_exhaustion_proved": false,
+    "resource_exhaustion_excluded": false,
+    "position_specific_failure_excluded_by_no_load_isolation": true,
+    "statement": "The formal artifacts prove a generic replacement-worker startup timeout after selection parent 131 entered omission/replacement. They do not persist enough stage data to distinguish fd3 EOF, stdin/init, decode, or another startup wait."
+  },
+  "decision": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1",
+    "classification": "new-strength-first-family-not-v3r3-resume",
+    "reason": "The stable path contributed only 8 unique stable-only rows among 1,948 formal teacher rows, 0.41 percent, while retaining a separate startup and replacement failure mechanism.",
+    "requires_new_source_revision": true,
+    "requires_new_run_fingerprint": true,
+    "requires_new_output_namespace": true,
+    "v3r3_completed_parents_reused": 0,
+    "v3r3_teacher_rows_reused": 0,
+    "same_family_resume_authorized": false,
+    "stable_candidate_path_present": false,
+    "candidate_policy": {
+      "yaneuraou_depth16_multipv": 12,
+      "recorded_move_required": true,
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "all_retained_moves_rescored_at_depth18": true
+    },
+    "unchanged_contract": {
+      "authenticated_selection": true,
+      "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate",
+      "epochs": 3,
+      "seeds": 1,
+      "promotion_gates": true
+    },
+    "timeout_extension_authorized": false,
+    "training_started": false,
+    "strength_claim_authorized": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

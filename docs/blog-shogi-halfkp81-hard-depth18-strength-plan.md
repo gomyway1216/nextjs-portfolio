@@ -85,6 +85,12 @@ v3r2を含むPR #669は全15 check成功後に通常mergeされた（merge `f0ae
 
 修正後preflightでは、13 CPU hogと13 × 512 MiB（合計6.5 GiB）のmemory hogを同時に置き、12 workerのomission・交換を4 wave、合計48 / 48件実行した。各waveは20.63〜20.79秒、fault 0だった。telemetry 60件は全てsource転送完了後にinitを開始し、source転送は24.67〜85.93 ms（平均41.05 ms）、startup全体は149.26〜344.17 ms（平均235.27 ms）だった。終了後はworker 60、CPU hog 13、memory hog 13のaliveが全て0になった。receiptは34,894 bytes、SHA-256 `8266fe89272f5888c35d94f65765a0a26edc8b95d12224cecae454f843b52580`である。これは起動順序修正のstress PASSであり、正式runはPR・CI・通常merge前なのでまだ開始していない。
 
+その後、v3r3を含むPR #670を通常mergeし（merge `ae0ab195b2c552df6e3364f6278fb1217f067baa`）、新しいnamespaceで正式実行した。結果は162 / 8,192親、depth18教師1,948行、stable proposal 103件、認証済みomission 59件である。prefix 100は1,198行、fault 0でdurable PASSし、parent IDとwork payloadのSHAも再計算一致した。しかしselection #131のstable omission・worker交換後に、同じgenericな`bounded stable worker startup timeout`が発生しterminal終了した。selection #1〜130と#132〜163はdurableだが、同family再開・学習は許可されず、1,948行を次familyへ流用もしない。
+
+同じ#131 parentを無負荷で隔離すると、depth10で20.103秒の正常omissionになり、交換workerも57.37 msで起動した。したがってこの局面自体が必ずstartup faultを起こすわけではない。一方、正式work/logにはworkerごとのstage telemetryが残っていないため、今回のgeneric timeoutがfd 3のEOF、stdin/init、decode、または別のstartup待ちのどこだったかは証明できない。v3r2で確定したfd 3原因がそのまま再発した、とも断定しない。
+
+正式1,948行のうちstableがsourceとして現れたのは103行だが、やねうら王MultiPVと棋譜の手では得られないstable-onlyの一意な追加は8行、全体の0.41%だけだった。この小さい追加価値に対し、stable候補経路は探索・omission・worker交換という独立した故障面を残す。次は新しい`halfkp81-hard-depth18-yaneura-only-v1`とし、この機構全体を外す。やねうら王depth16 MultiPV 12と棋譜の手をdeduplicateし、全候補をdepth18で再評価する契約、8,192選抜、initializer、3 epoch・1 seed、棋力gateは変えない。timeout延長もせず、v3r3の親・教師行を再利用せず、新しいsource revision、run fingerprint、output namespaceで0から計算する。v3r3の証拠と判断境界は[機械可読メモ](./data/shogi-halfkp81-depth18-v3r3-terminal-fault-2026-07-30.json)に保存した。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

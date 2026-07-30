@@ -20,13 +20,9 @@ TEACHER_RECEIPT_SCHEMA = "shogi-halfkp81-hard-depth18-teacher-receipt-v1"
 SELECTION_PLAN_SCHEMA = "shogi-halfkp81-hard-depth18-parent-selection-v1"
 SELECTION_MANIFEST_SCHEMA = "halfkp81-depth18-hard-parent-selection-manifest-v2"
 SELECTION_ROW_SCHEMA = "halfkp81-depth18-hard-parent-v2"
-SELECTION_EVIDENCE_SCHEMA = (
-    "shogi-halfkp81-depth18-authenticated-selection-evidence-v1"
-)
+SELECTION_EVIDENCE_SCHEMA = "shogi-halfkp81-depth18-authenticated-selection-evidence-v1"
 LEGAL_MANIFEST_SCHEMA = "shogi-halfkp81-depth18-legal-count-manifest-v1"
-LEGAL_MANIFEST_STATUS = (
-    "complete-research-data-only-not-deployment-authorization"
-)
+LEGAL_MANIFEST_STATUS = "complete-research-data-only-not-deployment-authorization"
 OVERLAP_MANIFEST_SCHEMA = (
     "shogi-halfkp81-depth18-semantic-overlap-inventory-manifest-v1"
 )
@@ -349,9 +345,7 @@ def _read_descriptor(descriptor: int) -> bytes:
         chunks.append(chunk)
 
 
-def _read_held_regular_file(
-    path: str, label: str
-) -> tuple[bytes, dict[str, Any]]:
+def _read_held_regular_file(path: str, label: str) -> tuple[bytes, dict[str, Any]]:
     candidate = Path(path)
     try:
         path_stat = candidate.lstat()
@@ -368,10 +362,9 @@ def _read_held_regular_file(
         raise Halfkp81Depth18StrengthError(f"{label} cannot be opened") from error
     try:
         before = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(before.st_mode)
-            or (before.st_dev, before.st_ino)
-            != (path_stat.st_dev, path_stat.st_ino)
+        if not stat.S_ISREG(before.st_mode) or (before.st_dev, before.st_ino) != (
+            path_stat.st_dev,
+            path_stat.st_ino,
         ):
             raise Halfkp81Depth18StrengthError(f"{label} changed during open")
         first = _read_descriptor(descriptor)
@@ -470,12 +463,10 @@ def _validate_selection_rows(raw: bytes) -> tuple[list[dict[str, Any]], dict[str
     game_ids: set[str] = set()
     position_ids: set[str] = set()
     phase_side = {
-        phase: {side: 0 for side in ("b", "w")}
-        for phase in SELECTION_PHASE_BOUNDS
+        phase: {side: 0 for side in ("b", "w")} for phase in SELECTION_PHASE_BOUNDS
     }
     role_side = {
-        role: {side: 0 for side in ("b", "w")}
-        for role in EXPECTED_ROLE_COUNTS
+        role: {side: 0 for side in ("b", "w")} for role in EXPECTED_ROLE_COUNTS
     }
     role_games = {role: [] for role in EXPECTED_ROLE_COUNTS}
     role_positions = {role: [] for role in EXPECTED_ROLE_COUNTS}
@@ -545,9 +536,12 @@ def _validate_selection_rows(raw: bytes) -> tuple[list[dict[str, Any]], dict[str
             raise Halfkp81Depth18StrengthError(
                 "selection SFEN move number is invalid"
             ) from error
-        computed_position_id = "sha256:" + hashlib.sha256(
-            f"sfen-v1\0{' '.join(fields[:3])}".encode("utf-8")
-        ).hexdigest()
+        computed_position_id = (
+            "sha256:"
+            + hashlib.sha256(
+                f"sfen-v1\0{' '.join(fields[:3])}".encode("utf-8")
+            ).hexdigest()
+        )
         phase = _selection_phase(ply)
         role = record["role"]
         if (
@@ -624,7 +618,9 @@ def _validate_selection_rows(raw: bytes) -> tuple[list[dict[str, Any]], dict[str
         for name, counts in EXPECTED_PHASE_SIDE_COUNTS.items()
     }
     if phase_side != expected_phase_side or role_side != EXPECTED_ROLE_SIDE_COUNTS:
-        raise Halfkp81Depth18StrengthError("selection phase/side or role/side quotas differ")
+        raise Halfkp81Depth18StrengthError(
+            "selection phase/side or role/side quotas differ"
+        )
     role_sets = {
         role: {
             "game_ids": _selection_set_digest(
@@ -699,16 +695,12 @@ def authenticate_selection_artifacts(
     ):
         raise Halfkp81Depth18StrengthError("selection source binding differs")
     output = manifest["output"]
-    if (
-        type(output) is not dict
-        or output
-        != {
-            "path": selection_held["path"],
-            "bytes": selection_held["bytes"],
-            "sha256": selection_held["sha256"],
-            "rows": len(records),
-        }
-    ):
+    if type(output) is not dict or output != {
+        "path": selection_held["path"],
+        "bytes": selection_held["bytes"],
+        "sha256": selection_held["sha256"],
+        "rows": len(records),
+    }:
         raise Halfkp81Depth18StrengthError("selection output identity differs")
     expected_short_phase_side = {
         PHASE_PLAN_TO_SELECTION[name]: counts
@@ -731,7 +723,10 @@ def authenticate_selection_artifacts(
         "mate_scores_excluded": True,
         "legal_move_count_required_and_at_least": 2,
     }
-    if manifest["selection"] != expected_selection or manifest["accounting"] != accounting:
+    if (
+        manifest["selection"] != expected_selection
+        or manifest["accounting"] != accounting
+    ):
         raise Halfkp81Depth18StrengthError(
             "selection manifest quotas/accounting differ from JSONL"
         )
@@ -762,10 +757,7 @@ def authenticate_selection_artifacts(
         or type(enriched_identity.get("sha256")) is not str
         or SHA256_RE.fullmatch(enriched_identity["sha256"]) is None
         or not os.path.isabs(str(enriched_identity.get("path")))
-        or {
-            key: overlap_identity.get(key)
-            for key in ("rows", "bytes", "sha256")
-        }
+        or {key: overlap_identity.get(key) for key in ("rows", "bytes", "sha256")}
         != OVERLAP_IDENTITY
         or manifest["complete_overlap_id_count"] != OVERLAP_IDENTITY["rows"]
     ):
@@ -928,9 +920,9 @@ def validate_preregistration_document(value: Any) -> dict[str, Any]:
         raise Halfkp81Depth18StrengthError("v4 terminal result memo differs")
     observed_rows = {
         "direct_replay_fit": source["direct_replay_fit"]["rows"],
-        "direct_preservation_validation": source[
-            "direct_preservation_validation"
-        ]["rows"],
+        "direct_preservation_validation": source["direct_preservation_validation"][
+            "rows"
+        ],
         "hard_parent_pool": source["hard_parent_pool"]["rows"],
     }
     for key, count in observed_rows.items():
@@ -1092,15 +1084,13 @@ def validate_teacher_plan(
         }
         or evidence["selection_jsonl"].get("rows") != 8_192
         or evidence["selection_jsonl"].get("schema") != SELECTION_ROW_SCHEMA
-        or evidence["selection_manifest"].get("schema")
-        != SELECTION_MANIFEST_SCHEMA
+        or evidence["selection_manifest"].get("schema") != SELECTION_MANIFEST_SCHEMA
         or evidence["accounting"].get("phase_side_counts")
         != {
             PHASE_PLAN_TO_SELECTION[name]: counts
             for name, counts in EXPECTED_PHASE_SIDE_COUNTS.items()
         }
-        or evidence["accounting"].get("role_side_counts")
-        != EXPECTED_ROLE_SIDE_COUNTS
+        or evidence["accounting"].get("role_side_counts") != EXPECTED_ROLE_SIDE_COUNTS
         or evidence["verification"]
         != {
             "held_descriptor_double_read": True,
@@ -1116,9 +1106,7 @@ def validate_teacher_plan(
             "authenticated selection evidence is invalid"
         )
     if value["selection_evidence"] != evidence:
-        raise Halfkp81Depth18StrengthError(
-            "teacher plan selection evidence differs"
-        )
+        raise Halfkp81Depth18StrengthError("teacher plan selection evidence differs")
     preregistration_identity = _identity(
         value["preregistration"],
         label="preregistration",
@@ -1135,10 +1123,7 @@ def validate_teacher_plan(
     )
     evidence_manifest = evidence["selection_manifest"]
     authenticated_selection_identity = _identity(
-        {
-            key: evidence_manifest[key]
-            for key in ("path", "bytes", "sha256", "schema")
-        },
+        {key: evidence_manifest[key] for key in ("path", "bytes", "sha256", "schema")},
         label="authenticated selection manifest",
         absolute=True,
         schema=SELECTION_MANIFEST_SCHEMA,
@@ -1165,7 +1150,12 @@ def validate_teacher_plan(
         "fit_jsonl",
         "tune_jsonl",
         "sealed_jsonl",
+        "work_jsonl",
+        "milestone_100_json",
+        "milestone_500_json",
+        "terminal_fault_json",
         "receipt_json",
+        "verified_artifact_receipt_json",
     }:
         raise Halfkp81Depth18StrengthError("teacher output fields differ")
     if not all(type(path) is str and os.path.isabs(path) for path in outputs.values()):
@@ -1178,7 +1168,12 @@ def validate_teacher_plan(
             "fit_jsonl",
             "tune_jsonl",
             "sealed_jsonl",
+            "work_jsonl",
+            "milestone_100_json",
+            "milestone_500_json",
+            "terminal_fault_json",
             "receipt_json",
+            "verified_artifact_receipt_json",
         )
     ]
     if (
@@ -1250,7 +1245,13 @@ def validate_teacher_receipt(
     if value["completed_parents"] != 8_192:
         raise Halfkp81Depth18StrengthError("teacher parent count differs")
     rows = value["completed_rows"]
-    if type(rows) is not int or not 8_192 <= rows <= EXPECTED_TEACHER["maximum_rows"]:
+    minimum_rows = (
+        value["completed_parents"] * EXPECTED_TEACHER["minimum_rows_per_parent"]
+    )
+    if (
+        type(rows) is not int
+        or not minimum_rows <= rows <= EXPECTED_TEACHER["maximum_rows"]
+    ):
         raise Halfkp81Depth18StrengthError("teacher row count is invalid")
     if value["role_parents"] != EXPECTED_ROLE_COUNTS:
         raise Halfkp81Depth18StrengthError("teacher role counts differ")
@@ -1260,10 +1261,10 @@ def validate_teacher_receipt(
         or set(role_rows) != set(EXPECTED_ROLE_COUNTS)
         or any(
             type(count) is not int
-            or count < EXPECTED_ROLE_COUNTS[role]
             or count
-            > EXPECTED_ROLE_COUNTS[role]
-            * EXPECTED_TEACHER["maximum_rows_per_parent"]
+            < EXPECTED_ROLE_COUNTS[role] * EXPECTED_TEACHER["minimum_rows_per_parent"]
+            or count
+            > EXPECTED_ROLE_COUNTS[role] * EXPECTED_TEACHER["maximum_rows_per_parent"]
             for role, count in role_rows.items()
         )
         or sum(role_rows.values()) != rows
@@ -1284,9 +1285,7 @@ def validate_teacher_receipt(
             outputs[role], label=f"{role} teacher output", absolute=True
         )
         if identity["path"] != expected_plan["outputs"][f"{role}_jsonl"]:
-            raise Halfkp81Depth18StrengthError(
-                f"{role} teacher output path differs"
-            )
+            raise Halfkp81Depth18StrengthError(f"{role} teacher output path differs")
     if len({outputs[role]["path"] for role in outputs}) != 3:
         raise Halfkp81Depth18StrengthError("teacher output paths are not distinct")
     if value["artifact_verification"] != {

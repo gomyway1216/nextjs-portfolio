@@ -310,9 +310,9 @@
     },
     {
       "path": "package.json",
-      "bytes": 8724,
-      "sha256": "396072922d0aa91ddf8888405722c7834b1d33299cc6a90a0eb71bf8b7b03ce5",
-      "git_blob": "07e8fcad5142d23a73b0531f014e95c35637f125",
+      "bytes": 9112,
+      "sha256": "2e147c9fc93c8068303aeac855f7431f447ef2c113a4cba20de82c0e50a9f727",
+      "git_blob": "07db7bbe97e640af531b6f1b31dc25c50533f411",
       "required_markers": [
         "\"shogi:floodgate-v7-local-clean-room-teacher\"",
         "ml/run-floodgate-v7-local-clean-room-teacher.ts"

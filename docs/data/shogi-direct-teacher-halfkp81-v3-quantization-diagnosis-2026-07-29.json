@@ -1,0 +1,212 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-data-memo-v1",
+  "status": "complete-read-only-diagnosis-v3-remains-closed-no-authority",
+  "date": "2026-07-29",
+  "bindings": {
+    "execution_plan": {
+      "bytes": 6338,
+      "sha256": "70ffc491b9a25653a964dc6bc7e008435c957df3e630db30337c42f5daa0ad4f"
+    },
+    "static_result": {
+      "bytes": 6435,
+      "sha256": "966b894e1ffa4947ec521d2588f559be3685cd88e2b9f285cf189a72b8bf7fdc",
+      "status": "failed-one-or-more-checks-v3-cpu-family-closed"
+    },
+    "trainer_result": {
+      "bytes": 7268,
+      "sha256": "9aebcdf8643fec75172734d41bbf385e557da7a07c84af118ab2155977d1e686"
+    },
+    "validation_dataset": {
+      "rows": 22890,
+      "bytes": 15058654,
+      "sha256": "bbac963c100fb42adfdd2d8fc8b885fa551672694471bd878038b564d7e804d1"
+    },
+    "initializer_weights": {
+      "bytes": 94656708,
+      "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c"
+    },
+    "candidate_weights": {
+      "bytes": 94656708,
+      "sha256": "9ba78c70253d0f8ebfb6d0412f54532c53e5fbd495a585ae057f979c1633933a"
+    },
+    "candidate_checkpoint": {
+      "bytes": 191659516,
+      "sha256": "a0282411634940fdad93f6d4301e5cccbe311d83fabe03e76b996c583c35a46c"
+    }
+  },
+  "formal_failure": {
+    "only_failed_check": "quantized_max_abs_cp_delta_ratio_maximum",
+    "observed": 1.1732157215750398,
+    "requirement": 1.05,
+    "same_family_retry_authorized": false
+  },
+  "distribution": {
+    "initializer_abs_cp_delta": {
+      "mean": 26.820778628260665,
+      "p90": 60.1475830078125,
+      "p95": 76.3363037109375,
+      "p99": 109.996337890625,
+      "p99_5": 123.3258056640625,
+      "p99_9": 155.0194091796875,
+      "p99_95": 171.84719848632812,
+      "p99_99": 192.709716796875,
+      "max": 203.2779541015625
+    },
+    "candidate_abs_cp_delta": {
+      "mean": 26.8659992773286,
+      "p90": 58.8155517578125,
+      "p95": 74.0357666015625,
+      "p99": 107.56414794921875,
+      "p99_5": 120.9871826171875,
+      "p99_9": 157.11203002929688,
+      "p99_95": 175.00872802734375,
+      "p99_99": 224.41360473632812,
+      "max": 238.4888916015625
+    },
+    "candidate_over_initializer_ratio": {
+      "mean": 1.0016860304353836,
+      "p90": 0.9778539521724924,
+      "p95": 0.9698631319891197,
+      "p99": 0.9778884462151395,
+      "p99_5": 0.9810370341042379,
+      "p99_9": 1.0134990893119955,
+      "p99_95": 1.0183973295396325,
+      "p99_99": 1.1645162914793263,
+      "max": 1.1732157215750398
+    }
+  },
+  "tail": {
+    "historical_relative_allowance_cp": 213.44185180664064,
+    "rows_above_historical_allowance": 3,
+    "unique_parents_above_historical_allowance": 1,
+    "unique_games_above_historical_allowance": 1,
+    "move_numbers_above_historical_allowance": [
+      121
+    ],
+    "driver_parent_id": "sha256:6b6238b777a6a47183217a0b35aaa190f0c9ac50f1714820fca48f0187b1429f",
+    "driver_parent_rows": 12,
+    "driver_parent_candidate_float_and_int16_best_equal": true,
+    "worst_position": {
+      "zero_based_index": 15265,
+      "child_position_id": "sha256:ab6c809a93b05417c64eef77bb219efee47fde6cea1d778d2a95e2fde5a00168",
+      "sfen": "lr5nl/4g2g1/2ps3p1/2k3S1p/Pp1pB4/8P/SP1P5/K2+n5/LN1b4L b 2GSN8Prp 121",
+      "float_cp": 1063.5111083984375,
+      "int16_cp": 1302,
+      "abs_delta_cp": 238.4888916015625
+    }
+  },
+  "deployed_int16_teacher_metrics": {
+    "initializer": {
+      "teacher_mae_cp": 553.3541870117188,
+      "pair_accuracy": 0.5834277849740933,
+      "pair_correct": 72065,
+      "direct_scalar_bce": 0.690677285194397
+    },
+    "candidate": {
+      "teacher_mae_cp": 545.8084716796875,
+      "pair_accuracy": 0.5838730569948186,
+      "pair_correct": 72120,
+      "direct_scalar_bce": 0.686872661113739
+    },
+    "candidate_improvement": {
+      "teacher_mae_cp": 7.54571533203125,
+      "pair_accuracy": 0.0004452720207253069,
+      "pair_correct": 55,
+      "direct_scalar_bce": 0.003804624080657959
+    }
+  },
+  "scale_and_clipping": {
+    "act_scale": 127,
+    "dense_weight_scale": 64,
+    "output_scale": 8128,
+    "candidate_weight_clipping": 0,
+    "candidate_scaled_extrema": {
+      "w1_board": [
+        -224.40907287597656,
+        216.7327117919922
+      ],
+      "w1_hand": [
+        -111.4316177368164,
+        61.56590270996094
+      ],
+      "w2": [
+        -105.28974151611328,
+        62.62030792236328
+      ],
+      "w3": [
+        -69.3492660522461,
+        79.11009979248047
+      ]
+    },
+    "crossfit_affine_candidate": {
+      "fit_rows": 11247,
+      "evaluation_rows": 11643,
+      "slope": 1.0003323904371202,
+      "intercept_cp": -7.3902229485502176,
+      "holdout_mean_cp_before": 27.03634776613879,
+      "holdout_mean_cp_after": 26.977899695223496,
+      "holdout_mean_cp_improvement": 0.05844807091529347
+    },
+    "global_scale_is_primary_cause": false,
+    "weight_clipping_is_cause": false
+  },
+  "candidate_comparison": [
+    {
+      "id": "robust-frozen-candidate-adjudication",
+      "changes_weights": false,
+      "uses_nearest_rank_p99_9_ratio": true,
+      "uses_absolute_max_cp_cap": true,
+      "estimated_shortest_path": true,
+      "main_risk": "the diagnostic values are already known, so static success is safety evidence only and requires a fresh paired screen"
+    },
+    {
+      "id": "qat-with-outlier-penalty",
+      "changes_weights": true,
+      "uses_existing_exact_int16_ste": true,
+      "estimated_shortest_path": false,
+      "main_risk": "a new optimizer run may erase the measured teacher gain and must repeat every static and playing-strength gate"
+    },
+    {
+      "id": "global-output-scale-recalibration",
+      "changes_runtime_scale": true,
+      "estimated_shortest_path": false,
+      "main_risk": "cross-fit found only 0.058448cp mean improvement, so it does not explain the local tail"
+    }
+  ],
+  "diagnosis": {
+    "classification": "max-only-relative-gate-design-problem-with-real-local-rounding-tail",
+    "broad_quantization_regression_observed": false,
+    "real_local_tail_observed": true
+  },
+  "recommendation": {
+    "selected": "independent-v4-frozen-candidate-robust-adjudication",
+    "proposal_only": true,
+    "diagnostic_observations_known_before_preregistration": true,
+    "new_family_and_claim_namespace_required": true,
+    "same_v3_family_retry": false,
+    "no_optimizer": true,
+    "frozen_candidate_sha256": "9ba78c70253d0f8ebfb6d0412f54532c53e5fbd495a585ae057f979c1633933a",
+    "proposed_static_checks": {
+      "nearest_rank_p99_9_candidate_over_initializer_ratio_maximum": 1.05,
+      "absolute_max_cp_delta_maximum": 300,
+      "deployed_int16_teacher_mae_cp_improvement_minimum": 5,
+      "deployed_int16_pair_accuracy_delta_minimum": 0,
+      "weight_int16_clipping_coordinates_maximum": 0,
+      "wasm_parity_mismatches_maximum": 0,
+      "research_runtime_search_slowdown_percent_maximum": 5
+    },
+    "pass_authorizes_only": "a separately preregistered fresh-opening paired screen, never the old v3 paired56",
+    "fresh_paired_screen_is_first_playing_strength_evidence": true,
+    "fallback_after_technical_or_strength_miss": "close v4 and preregister a separate exact-int16-STE QAT family; do not edit v4 thresholds"
+  },
+  "authority": {
+    "claim_opened_by_diagnosis": false,
+    "optimizer_created": false,
+    "training_rows": 0,
+    "paired_games": 0,
+    "paired56_authorized": false,
+    "expanded_stage_authorized": false,
+    "live_weight_write_authorized": false,
+    "playing_strength_claim_authorized": false
+  }
+}

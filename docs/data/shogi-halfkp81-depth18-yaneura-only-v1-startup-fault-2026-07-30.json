@@ -1,0 +1,141 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1-startup-fault-data-memo-v1",
+  "date": "2026-07-30",
+  "status": "technical-startup-fault-before-selection-authentication-or-engine-start-v1-closed-v1r2-required",
+  "implementation": {
+    "pull_request": 671,
+    "merge_revision": "b75007ccdb202f76380d316feb0a7b3afd6b0e15",
+    "merged": true
+  },
+  "v1": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1",
+    "formal_output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1",
+    "formal_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-plan.json",
+      "bytes": 11854,
+      "sha256": "6168b156a0ff7411a0019e82f8cbe8ef2fa16c80610955aa7a97f7444bfe3e32",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1",
+      "source_revision": "b75007ccdb202f76380d316feb0a7b3afd6b0e15",
+      "status": "preserved-create-only-plan-no-work-ledger"
+    },
+    "tracked_preregistration": {
+      "path": "ml/halfkp81-hard-depth18-yaneura-only-v1-plan.json",
+      "bytes": 11049,
+      "sha256": "b140ee6ec268708e596da6607742f784eaf16b5e9383f9722a36fd1c166a5472",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-plan-v1"
+    },
+    "selection": {
+      "rows": 8192,
+      "jsonl_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "jsonl_bytes": 7268777,
+      "jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+      "manifest_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "manifest_bytes": 3234,
+      "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    },
+    "preflight": {
+      "purpose": "fixed-512-parent-scratch-only-preflight",
+      "target_parents": 512,
+      "scratch_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1-preflight-512",
+      "service_label": "com.meetyudai.shogi.halfkp81-depth18-yaneura-preflight512-b75007cc",
+      "launch_policy": {
+        "keep_alive": false,
+        "launch_only_once": true
+      },
+      "launch_spec": {
+        "path": "$HOME/.codex/shogi-runs/launch-agents/halfkp81-depth18-yaneura-only-v1-preflight512-b75007cc/launch-spec.json",
+        "bytes": 991,
+        "sha256": "eb4b83d555f5e1a00def56e6c0f0f059a1a3a80580d4dee8c5f8b2a4da969da8"
+      },
+      "plist": {
+        "path": "$HOME/.codex/shogi-runs/launch-agents/halfkp81-depth18-yaneura-only-v1-preflight512-b75007cc/com.meetyudai.shogi.halfkp81-depth18-yaneura-preflight512-b75007cc.launch-agent.plist",
+        "bytes": 1540,
+        "sha256": "0866f89b7937522b1e7f8dc10ad8e9c54fc084a6270315d169d181541f63ff65"
+      },
+      "stderr": {
+        "path": "$HOME/.codex/shogi-runs/launch-agents/halfkp81-depth18-yaneura-only-v1-preflight512-b75007cc/com.meetyudai.shogi.halfkp81-depth18-yaneura-preflight512-b75007cc.stderr.log",
+        "bytes": 107,
+        "sha256": "e4bfc9671b3d2c66b139c45d8e3b7be321de2ab9ea6a16873ca2352315b2222d",
+        "message": "[halfkp81-depth18-yaneura-only-v1-preflight] STOP: teacher plan is not canonical JSON with one terminal LF"
+      },
+      "stdout": {
+        "path": "$HOME/.codex/shogi-runs/launch-agents/halfkp81-depth18-yaneura-only-v1-preflight512-b75007cc/com.meetyudai.shogi.halfkp81-depth18-yaneura-preflight512-b75007cc.stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "selection_authentication_completed": false,
+      "receipt_published": false,
+      "fault_artifact_published": false,
+      "completed_parents": 0,
+      "teacher_rows": 0,
+      "engine_starts": 0
+    },
+    "root_cause": {
+      "classification": "cross-language-canonical-number-encoding-mismatch",
+      "python_publisher": "json.dumps",
+      "typescript_verifier": "canonicalJson-after-JSON-parse",
+      "integer_valued_float_example": {
+        "python_bytes": "300.0",
+        "typescript_bytes": "300",
+        "semantic_value_equal": true,
+        "exact_bytes_equal": false
+      },
+      "terminal_lf_present": true,
+      "failure_scope": "teacher-plan-byte-canonicality-check-before-selection-authentication-and-engine-startup"
+    },
+    "terminal_accounting": {
+      "technical_faults": 1,
+      "preflight_completed_parents": 0,
+      "preflight_teacher_rows": 0,
+      "formal_completed_parents": 0,
+      "formal_teacher_rows": 0,
+      "yaneuraou_engine_starts": 0,
+      "training_runs": 0,
+      "formal_games": 0,
+      "live_weight_changes": 0,
+      "strength_result": "none"
+    },
+    "preservation": {
+      "same_family_resume_authorized": false,
+      "formal_plan_overwrite_authorized": false,
+      "formal_namespace_overwrite_authorized": false,
+      "completed_parents_reusable_by_successor": 0,
+      "teacher_rows_reusable_by_successor": 0
+    }
+  },
+  "v1r2_recovery": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r2",
+    "classification": "new-technical-recovery-not-v1-resume",
+    "only_contract_change": "make-python-and-typescript-canonical-number-serialization-identical",
+    "new_tracked_preregistration_required": true,
+    "new_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "new_create_only_output_namespace_required": true,
+    "reuse_exact_authenticated_selection": true,
+    "selection_jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+    "selection_manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187",
+    "candidate_policy_unchanged": true,
+    "teacher_depths_unchanged": true,
+    "initializer_unchanged": true,
+    "epochs_unchanged": true,
+    "seed_count_unchanged": true,
+    "strength_gates_unchanged": true,
+    "v1_completed_parents_reused": 0,
+    "v1_teacher_rows_reused": 0,
+    "status": "defined-not-implemented-or-executed"
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false,
+    "public_flag_changed": false
+  },
+  "claim_boundary": {
+    "startup_repair_is_strength_evidence": false,
+    "teacher_generation_completed": false,
+    "training_authorized": false,
+    "strength_claim_authorized": false,
+    "live_write_authorized": false
+  }
+}

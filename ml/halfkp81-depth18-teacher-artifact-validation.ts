@@ -74,8 +74,12 @@ export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3 =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r3" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r2" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r2" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -193,7 +197,8 @@ type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
   | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
   | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1;
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -236,7 +241,8 @@ export interface Halfkp81Depth18TeacherSelectionRow {
 export interface Halfkp81Depth18TeacherWorkHeader {
   readonly schema:
     | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18ArtifactIdentity>;
@@ -260,7 +266,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
 export interface Halfkp81Depth18TeacherWorkParent {
   readonly schema:
     | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -373,8 +380,23 @@ function isBoundedStablePlanSchema(
 
 function isYaneuraOnlyPlanSchema(
   schema: unknown,
-): schema is typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 {
-  return schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1;
+): schema is
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 {
+  return (
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 ||
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+  );
+}
+
+function yaneuraOnlyWorkSchema(
+  planSchema: TeacherPlanSchema,
+):
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 {
+  return planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+    ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
+    : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
 }
 
 function exactObject(
@@ -894,7 +916,7 @@ function validateWrapper(
   if (
     wrapper.schema !==
       (yaneuraOnly
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        ? yaneuraOnlyWorkSchema(planSchema)
         : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA) ||
     wrapper.kind !== "parent" ||
     wrapper.run_fingerprint !== fingerprint ||
@@ -1342,7 +1364,7 @@ function validatePlanAndHeader(
   if (
     header.schema !==
       (yaneuraOnly
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        ? yaneuraOnlyWorkSchema(planSchema)
         : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA) ||
     header.kind !== "header" ||
     typeof header.run_fingerprint !== "string" ||
@@ -1856,7 +1878,7 @@ function validateCore(
     work: identityFromSnapshot(
       request.work,
       yaneuraOnly
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
+        ? yaneuraOnlyWorkSchema(planSchema)
         : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
       expectedParents + 1,
     ),

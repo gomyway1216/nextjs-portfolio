@@ -1,0 +1,270 @@
+{
+  "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
+  "status": "prospective-corrected-after-independent-source-audit-no-strength-claim",
+  "date": "2026-07-29",
+  "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
+  "predecessor": {
+    "family": "direct-teacher-halfkp81-v4-frozen-candidate-robust-adjudication",
+    "terminal_result": {
+      "candidate_wins": 29,
+      "candidate_losses": 24,
+      "draws": 3,
+      "candidate_halfpoints": 61,
+      "available_halfpoints": 112,
+      "minimum_halfpoints": 62,
+      "technical_faults": 0,
+      "decision": "strength-miss-candidate-not-adopted-family-closed"
+    },
+    "deployed_int16_pair_accuracy_delta": 0.0004452720207253069,
+    "pair_accuracy_percentage_point_delta": 0.04452720207253069,
+    "proxy_is_playing_strength": false,
+    "same_candidate_continuation": false
+  },
+  "rejected_initial_source": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/selfplay-cycle0-prefix16255-dataset-v1/train.jsonl",
+    "bytes": 141971042,
+    "sha256": "cf47acf257068afd71fb2a26224a41ebac0587da8a2fa5acd22978cd7876d430",
+    "rows": 186634,
+    "side_to_move": {
+      "b": 186634,
+      "w": 0
+    },
+    "cause": "sample-every-4 retained one ply parity",
+    "decision": "rejected-before-formal-selection-or-teacher-compute",
+    "reason": "Using this pool would repeat a known one-sided training and validation defect."
+  },
+  "source_inputs": {
+    "hard_parent_pool": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl",
+      "bytes": 421952083,
+      "sha256": "c83241eb95f3568fe75a95d903e348591af49daf07d23db1db266e9be14a633d",
+      "rows": 800000,
+      "games": 14861,
+      "side_to_move": {
+        "b": 402090,
+        "w": 397910
+      },
+      "teacher_depth": 12,
+      "outcome_rows": {
+        "win": 393144,
+        "draw": 17708,
+        "loss": 389148
+      }
+    },
+    "hard_parent_pool_manifest": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/train.teacher.wdl.manifest.json",
+      "bytes": 2123,
+      "sha256": "900c60d5d8e4a3714e3c44ae91dc6f7d96c6dca1049ef70bb828bc76704b120b"
+    },
+    "direct_replay_fit": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v2-pilot-dataset/training.jsonl",
+      "bytes": 131814955,
+      "sha256": "2202971ba08cc1bf9be82050be53c6fada79f51f7e7c2a9763d0b57d64d71265",
+      "rows": 200944
+    },
+    "direct_preservation_validation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v2-pilot-dataset/validation.jsonl",
+      "bytes": 15058654,
+      "sha256": "bbac963c100fb42adfdd2d8fc8b885fa551672694471bd878038b564d7e804d1",
+      "rows": 22890
+    },
+    "initializer_checkpoint": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050.pt",
+      "bytes": 191656679,
+      "sha256": "ea36d0b9f0ecdf9543daf8f77fed42577ccc38deb6a964e8df78dc8549b6a8c4"
+    },
+    "initializer_export": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-epoch2-interpolation-v1/alpha-050-export/weights.bin",
+      "bytes": 94656708,
+      "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c"
+    },
+    "live_baseline": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+    }
+  },
+  "read_only_feasibility": {
+    "scan_seconds_approximate": 2.1,
+    "eligible_rows_by_phase": {
+      "opening_ply12_39": 175903,
+      "midgame_ply40_79": 298191,
+      "late_ply80_119": 197394
+    },
+    "eligible_distinct_games_by_phase": {
+      "opening_ply12_39": 11392,
+      "midgame_ply40_79": 13622,
+      "late_ply80_119": 11692
+    },
+    "post_ply120_side_defect": "only-b-in-this-source-preparation",
+    "post_ply120_used_in_fresh_hard_set": false,
+    "selection_supply_feasible_before-legal-and-overlap-filter": true
+  },
+  "selection": {
+    "parents": 8192,
+    "one_position_per_game": true,
+    "split_unit": "game_id-before-depth18-labels",
+    "roles": {
+      "fit": {
+        "total": 6144,
+        "b": 3072,
+        "w": 3072
+      },
+      "tune": {
+        "total": 1024,
+        "b": 512,
+        "w": 512
+      },
+      "sealed": {
+        "total": 1024,
+        "b": 512,
+        "w": 512
+      }
+    },
+    "phases": {
+      "opening_ply12_39": {
+        "total": 2048,
+        "b": 1024,
+        "w": 1024
+      },
+      "midgame_ply40_79": {
+        "total": 3072,
+        "b": 1536,
+        "w": 1536
+      },
+      "late_ply80_119": {
+        "total": 3072,
+        "b": 1536,
+        "w": 1536
+      }
+    },
+    "ranking": [
+      "depth12_cp_outcome_surprise_descending",
+      "minimum_player_rating_descending",
+      "sha256_ascending"
+    ],
+    "exclusions": {
+      "all_direct_parent_child_semantic_overlap": true,
+      "bound_selected_v2_v4_formal_opening_prefixes": 56,
+      "historical_fingerprint_only_openings_semantically_recoverable": false,
+      "historical_fingerprint_only_openings": {
+        "v2": 3198,
+        "v4": 3302
+      },
+      "mate_score": true,
+      "absolute_old_cp_above_1000": true,
+      "legal_move_count_at_most_one": true
+    },
+    "old_depth12_cp": "selection-only-never-teacher-target",
+    "central_heavy_diagnostic": "exploratory-only-not-sole-selector-condition",
+    "formal_artifact_created": false
+  },
+  "teacher": {
+    "engine": {
+      "id": "YaneuraOu NNUE 9.60git 64APPLEM1",
+      "source_revision": "9133c527791c8b2f5f378a32df29a5e3752bd41b",
+      "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
+      "eval_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782",
+      "eval_tree_sha256": "639397609565fc2f113242503483addaf812b39c43a4d813d51b9c68ca51d568"
+    },
+    "proposal_multipv": 12,
+    "proposal_depth": 16,
+    "also_include_recorded_move": true,
+    "also_include_fixed_depth11_stable_move": true,
+    "rescore_depth": 18,
+    "processes": 13,
+    "threads_per_process": 1,
+    "hash_mib_per_process": 512,
+    "timeout_seconds_per_parent": 600,
+    "expected_rows": 95191,
+    "maximum_rows": 114688,
+    "prefix_authentication_parents": [100, 500],
+    "minimum_rows_per_parent": 2,
+    "incomplete_or_shallow_rows_are_fatal": true
+  },
+  "training": {
+    "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate",
+    "representation": "HalfKP81",
+    "seeds": 1,
+    "epochs": 3,
+    "eligible_checkpoint": "final-epoch-only",
+    "parent_batch_mix": {
+      "old_direct_replay": 0.5,
+      "fresh_hard_depth18": 0.5
+    },
+    "objective": {
+      "direct_sigmoid_bce_k600": 0.5,
+      "groupwise_listnet_cp_over_600": 0.5
+    }
+  },
+  "promotion_gates": {
+    "tune_and_sealed_each": {
+      "top1_delta_percentage_points_minimum": 2.0,
+      "sibling_pair_delta_percentage_points_minimum": 1.0
+    },
+    "old_validation": {
+      "rows": 22890,
+      "teacher_mae_cp_improvement_minimum": 5.0,
+      "pair_delta_minimum": 0.0
+    },
+    "int16_and_runtime": {
+      "clipping_coordinates_maximum": 0,
+      "wasm_parity_mismatches_maximum": 0,
+      "nearest_rank_p99_9_ratio_maximum": 1.05,
+      "absolute_max_cp_delta_maximum": 300.0,
+      "runtime_slowdown_percent_maximum": 5.0
+    },
+    "fresh_screen": {
+      "games": 56,
+      "candidate_halfpoints_minimum": 62,
+      "available_halfpoints": 112,
+      "technical_faults_maximum": 0
+    }
+  },
+  "cost_projection": {
+    "prior_depth16_24000_parent_teacher_hours": 11.47,
+    "linear_depth16_8192_parent_hours": 3.91,
+    "depth18_teacher_hours_range": [8, 16],
+    "preparation_training_static_hours_maximum_estimate": 1,
+    "fresh_screen_minutes_range": [15, 25],
+    "total_m4_pro_hours_range": [9, 18],
+    "completion_time_guarantee": false
+  },
+  "implementation": {
+    "branch": "codex/shogi-hard-depth18-strength-v1",
+    "base_revision": "beb05a427155a3bbb39402095a839574f883aa16",
+    "preregistration_plan": {
+      "path": "ml/halfkp81-hard-depth18-strength-v1-plan.json",
+      "bytes": 5855,
+      "sha256": "fc25e155345cb61739e2ef5a9198511501b12340e8d05b56ee77ba267b232971",
+      "schema": "shogi-halfkp81-hard-depth18-strength-plan-v1"
+    },
+    "selector_create_only_publication_implemented": true,
+    "legal_count_enrichment_implemented": true,
+    "legal_count_tool_and_rules_closure_binding_implemented": true,
+    "selection_8192_content_authenticator_implemented": true,
+    "teacher_plan_requires_authenticated_merged_revision_and_selection_evidence": true,
+    "teacher_plan_and_structural_receipt_schema_implemented": true,
+    "teacher_artifact_content_verifier_implemented": false,
+    "structural_receipt_may_build_training_plan": false,
+    "overlap_inventory_builder_implemented": true,
+    "formal_immutable_overlap_inventory_built": false,
+    "overlap_inventory_dry_run": {
+      "rows": 243368,
+      "bytes": 21903120,
+      "sha256": "34ef162aabf044e6af28da32ce8add43384fa4070afb87b99e1dcefd527dc809"
+    },
+    "pull_request_created": false,
+    "merged": false
+  },
+  "authority": {
+    "formal_selection_executed": false,
+    "teacher_generation_executed": false,
+    "training_executed": false,
+    "formal_games": 0,
+    "strength_improvement_guaranteed": false,
+    "strength_claim_authorized": false,
+    "live_weight_write_authorized": false,
+    "public_flag_change_authorized": false
+  }
+}

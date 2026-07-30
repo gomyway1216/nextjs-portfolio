@@ -17,11 +17,15 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA,
   authenticateHalfkp81Depth18TeacherPlan,
+  initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests,
   parseExactPinnedHalfkp81Depth18JsonForTests,
   publishHalfkp81Depth18TeacherCreateOnlyCoreForTests,
   runHalfkp81Depth18TeacherCoreForTests,
@@ -160,6 +164,7 @@ async function fixture(
     earlyMate?: boolean;
     yaneuraOnly?: boolean;
     yaneuraV1R2?: boolean;
+    yaneuraV1R3?: boolean;
   }> = {},
 ): Promise<{
   authenticated: Halfkp81Depth18AuthenticatedTeacherPlan;
@@ -249,11 +254,13 @@ async function fixture(
     plan: Object.freeze({}),
     planIdentity: Object.freeze({
       ...identity(outputs.plan_json, planRaw),
-      schema: options.yaneuraV1R2
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
-        : options.yaneuraOnly
-          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
-          : "shogi-halfkp81-hard-depth18-teacher-plan-v2",
+      schema: options.yaneuraV1R3
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+        : options.yaneuraV1R2
+          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+          : options.yaneuraOnly
+            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+            : "shogi-halfkp81-hard-depth18-teacher-plan-v2",
     }),
     sourceRevision: SOURCE_REVISION,
     selectionIdentity: Object.freeze({
@@ -281,7 +288,7 @@ async function fixture(
       id: "YaneuraOu NNUE 9.60git 64APPLEM1",
     }),
     teacher:
-      options.yaneuraOnly || options.yaneuraV1R2
+      options.yaneuraOnly || options.yaneuraV1R2 || options.yaneuraV1R3
         ? yaneuraOnlyTeacherSettings()
         : teacherSettings(),
   } as unknown as Halfkp81Depth18AuthenticatedTeacherPlan;
@@ -418,7 +425,7 @@ async function fixture(
       },
     }),
     processes: Math.min(3, roles.length),
-    ...(options.yaneuraOnly || options.yaneuraV1R2
+    ...(options.yaneuraOnly || options.yaneuraV1R2 || options.yaneuraV1R3
       ? { stablePolicy: "yaneuraou-only-v1" as const }
       : {}),
   };
@@ -521,6 +528,38 @@ describe("HalfKP81 depth18 teacher runner", () => {
         timeout_extension_milliseconds: 0,
       },
     });
+
+    const yaneuraOnlyV1R3 = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../ml/halfkp81-hard-depth18-yaneura-only-v1r3-plan.json",
+      ),
+    );
+    expect(
+      parseExactPinnedHalfkp81Depth18JsonForTests(yaneuraOnlyV1R3, {
+        bytes: 21_235,
+        sha256:
+          "9474f94dc9f46ae4100f69680428e6171c0ac9200ddc53ed704369a97d6b10c7",
+      }),
+    ).toMatchObject({
+      schema: "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r3",
+      failed_v1r2: {
+        completed_parents: 0,
+        teacher_rows: 0,
+        work_ledger_created: false,
+      },
+      technical_recovery: {
+        scratch_preflight_directory: {
+          create_before_initialize_work: true,
+          creation_policy: "create-only-fail-if-target-exists",
+          mode: "0700",
+          require_empty_real_directory: true,
+          symlink_allowed: false,
+        },
+        strength_contract_changed: false,
+        timeout_extension_milliseconds: 0,
+      },
+    });
   });
 
   it("keeps the startup-faulted v3 family closed", async () => {
@@ -588,7 +627,24 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
     await expect(
       authenticateHalfkp81Depth18TeacherPlan(planPath),
-    ).rejects.toThrow(/v1 family closed.*use v1r2/);
+    ).rejects.toThrow(/v1 family closed.*use v1r3/);
+  });
+
+  it("keeps the zero-row missing-directory v1r2 family closed", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "halfkp81-closed-yaneura-v1r2-test-"),
+    );
+    tempRoots.push(root);
+    const planPath = path.join(root, "teacher-plan.json");
+    await fs.promises.writeFile(
+      planPath,
+      `${canonical({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
+      })}\n`,
+    );
+    await expect(
+      authenticateHalfkp81Depth18TeacherPlan(planPath),
+    ).rejects.toThrow(/v1r2 family closed.*use v1r3/);
   });
 
   it("isolates formal v2 output from the terminal-faulted v1 directory", () => {
@@ -1066,6 +1122,134 @@ describe("HalfKP81 depth18 teacher runner", () => {
     expect(work.every((entry) => !Object.hasOwn(entry, "stable_result"))).toBe(
       true,
     );
+  });
+
+  it("creates the v1r3 preflight directory once as private and empty", async () => {
+    const root = await fs.promises.realpath(
+      await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "halfkp81-yaneura-v1r3-directory-test-"),
+      ),
+    );
+    tempRoots.push(root);
+    const directory = path.join(root, "scratch");
+
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        directory,
+      ),
+    ).resolves.toBe(directory);
+    expect((await fs.promises.lstat(directory)).mode & 0o777).toBe(0o700);
+    expect(await fs.promises.readdir(directory)).toEqual([]);
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        directory,
+      ),
+    ).rejects.toThrow(/must be absent/);
+  });
+
+  it("fails closed on unsafe or raced v1r3 preflight directories", async () => {
+    const root = await fs.promises.realpath(
+      await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "halfkp81-yaneura-v1r3-unsafe-directory-test-"),
+      ),
+    );
+    tempRoots.push(root);
+
+    const nonPrivate = path.join(root, "non-private");
+    await fs.promises.mkdir(nonPrivate, { mode: 0o755 });
+    await fs.promises.chmod(nonPrivate, 0o755);
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        nonPrivate,
+      ),
+    ).rejects.toThrow(/mode must be 0700/);
+
+    const nonempty = path.join(root, "nonempty");
+    await fs.promises.mkdir(nonempty, { mode: 0o700 });
+    await fs.promises.writeFile(path.join(nonempty, "existing"), "evidence");
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        nonempty,
+      ),
+    ).rejects.toThrow(/must be empty/);
+
+    const realDirectory = path.join(root, "real");
+    const symlink = path.join(root, "symlink");
+    await fs.promises.mkdir(realDirectory, { mode: 0o700 });
+    await fs.promises.symlink(realDirectory, symlink);
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        symlink,
+      ),
+    ).rejects.toThrow(/must not be a symlink/);
+
+    const regularFile = path.join(root, "regular-file");
+    await fs.promises.writeFile(regularFile, "not a directory");
+    await expect(
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+        regularFile,
+      ),
+    ).rejects.toThrow(/existing non-directory/);
+
+    const raced = path.join(root, "raced");
+    const results = await Promise.allSettled([
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(raced),
+      initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(raced),
+    ]);
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+  });
+
+  it("isolates v1r3 preflight work without changing teacher semantics", async () => {
+    const roles = ["fit", "tune", "sealed"] as const;
+    const value = await fixture(roles, { yaneuraV1R3: true });
+    const preflightRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "halfkp81-yaneura-v1r3-preflight-test-"),
+    );
+    tempRoots.push(preflightRoot);
+    const result = await runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
+      value.authenticated,
+      preflightRoot,
+      value.dependencies,
+      { fit: 1, tune: 1, sealed: 1 },
+    );
+
+    expect(result.receipt).toMatchObject({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA,
+      selected_parents: 3,
+      completed_rows: 39,
+      row_bounds_per_parent: { minimum: 2, maximum: 13 },
+      candidate_generation:
+        HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+      verification: {
+        stable_runtime_factory_calls: 0,
+        stable_calls: 0,
+        stable_candidate_rows: 0,
+        initial_yaneuraou_depth16_multipv12: true,
+        every_candidate_exact_depth18: true,
+      },
+    });
+    expect(value.stableFactoryCalls.value).toBe(0);
+    const work = (
+      await fs.promises.readFile(
+        path.join(preflightRoot, "teacher-work.jsonl"),
+        "utf8",
+      )
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(
+      work.every(
+        (entry) =>
+          entry.schema ===
+          HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
+      ),
+    ).toBe(true);
   });
 
   it("treats a parent-level timeout as fatal and publishes no success receipt", async () => {

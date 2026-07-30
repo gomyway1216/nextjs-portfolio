@@ -95,6 +95,10 @@ v3r2を含むPR #669は全15 check成功後に通常mergeされた（merge `f0ae
 
 既存v1 planとoutput namespaceは保存し、その場で上書き・再開しない。後続の`halfkp81-hard-depth18-yaneura-only-v1r2`は、新しいtracked preregistration、merged source revision、run fingerprint、create-only namespaceへ結合する別のtechnical-recovery familyにする。変更するのはPythonとTypeScriptのcanonical number規則を一致させる点だけで、同じ認証済み8,192選抜、やねうら王depth16 MultiPV 12＋棋譜の手、全候補depth18再評価、initializer、3 epoch・1 seed、全strength gateは変えない。v1から再利用する完了親・教師行は0である。起動証拠と回復境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1-startup-fault-2026-07-30.json)に保存した。
 
+v1r2を含むPR #672は通常mergeされた（merge `20ec3fdf4ba81c89af4ba02bb7483b75945ebf4a`）。formal planは15,649 bytes、SHA-256 `e351e6cf07e68ac7047a453b88695af476bc7211bfc75a71bece774e044694ab`で、run fingerprintは`12e80cb27485ffa0f95dfa21e68117150652781c80c5dd54783cc3b89ca3ce3a`である。512親scratch preflightはplanとselection認証を通過したが、preflight output directoryが存在しない状態で`initializeWork`が`teacher-work.jsonl`を`open(..., "wx")`したため、`ENOENT`で停止した。やねうら王は一度も起動せず、完了0 / 512親・教師0行である。fault保存処理はその後directoryをmode `0700`で作り、497 bytes / SHA-256 `13643215a0f16726625938196fa2cc4cdadfeef2fc06ae0f87070104ba5456e7`のpreflight faultと、823 bytes / SHA-256 `6d21199a482ccfdeb53cce1e45b2c608916c0e9cd4db74cf3aa18c8bf2a410bc`のteacher faultをcreate-onlyで保存した。同じv1r2 runの再開・学習・行再利用は認めない。
+
+次の`halfkp81-hard-depth18-yaneura-only-v1r3`は別のtechnical-recovery familyとし、許可する変更は`initializeWork`より前にpreflight output directoryをmode `0700`でcreate-only準備する点だけである。新しいtracked preregistration、merged source revision、run fingerprint、create-only namespaceへ結合し、v1r2の親・教師行は0件だけ引き継ぐ。同じ8,192選抜、教師候補、depth16/18、600秒timeout、initializer、3 epoch・1 seed、全strength gateは変更しない。v1r2の全artifactと回復境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r2-preflight-fault-2026-07-30.json)に保存した。この修正も棋力向上の証拠ではない。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

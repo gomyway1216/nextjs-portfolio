@@ -20,6 +20,15 @@ import publish_halfkp81_depth18_yaneura_only_v1r2_plan as PUBLISHER  # noqa: E40
 
 NEW_REVISION = "a" * 40
 TRACKED_PLAN = ML_DIR / "halfkp81-hard-depth18-yaneura-only-v1r2-plan.json"
+FAILED_V1_PLAN = Path(
+    PROTOCOL.EXPECTED_FAILED_V1["teacher_plan"]["path"]
+)
+HAS_FAILED_V1_LOCAL_ARTIFACTS = (
+    FAILED_V1_PLAN.is_file()
+    and Path(
+        PROTOCOL.EXPECTED_FAILED_V1["preflight"]["namespace"]
+    ).is_dir()
+)
 
 
 def _selection_evidence() -> SELECTION_PROTOCOL.AuthenticatedSelectionEvidence:
@@ -115,13 +124,14 @@ class PublishYaneuraOnlyV1R2PlanTests(unittest.TestCase):
             int,
         )
 
+    @unittest.skipUnless(
+        HAS_FAILED_V1_LOCAL_ARTIFACTS,
+        "requires the private failed-v1 artifacts on the originating Mac",
+    )
     def test_failed_v1_real_projection_is_exactly_eight_integral_floats(
         self,
     ) -> None:
-        plan_path = Path(
-            PROTOCOL.EXPECTED_FAILED_V1["teacher_plan"]["path"]
-        )
-        raw = plan_path.read_bytes()
+        raw = FAILED_V1_PLAN.read_bytes()
         plan = json.loads(raw)
         projection = PROTOCOL.cross_runtime_canonical_json_bytes(plan)
         expected = PROTOCOL.EXPECTED_FAILED_V1[
@@ -135,6 +145,10 @@ class PublishYaneuraOnlyV1R2PlanTests(unittest.TestCase):
         self.assertIn(b":300", projection)
         self.assertNotIn(b":300.0", projection)
 
+    @unittest.skipUnless(
+        HAS_FAILED_V1_LOCAL_ARTIFACTS,
+        "requires the private failed-v1 artifacts on the originating Mac",
+    )
     def test_failed_v1_actual_artifacts_and_quiescence_authenticate(
         self,
     ) -> None:

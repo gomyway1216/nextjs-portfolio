@@ -1,6 +1,6 @@
 {
   "schema": "shogi-direct-teacher-halfkp81-v2-technical-stop-data-memo-v1",
-  "status": "authenticated-technical-stop-before-optimizer",
+  "status": "published-technical-stop-before-optimizer",
   "date": "2026-07-29",
   "attempt": {
     "execution_plan": {
@@ -58,7 +58,17 @@
     "schema": "shogi-direct-teacher-halfkp81-v2-technical-stop-v1",
     "status": "closed-technical-stop-before-optimizer-no-retry",
     "fixed_path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v2-technical-stop-v1/result.json",
-    "publication": "create-only-after-merged-terminalizer-authenticates-all-fixed-inputs",
+    "publication": {
+      "status": "published-create-only-and-read-only-verified",
+      "terminalizer_revision": "3034d3616f6279643847771617e654e7c4bc2afe",
+      "bytes": 2453,
+      "sha256": "8474df3f8590f4bb537ff261c049c2a59e0b71157161b66c8a6f58662b1226c3",
+      "mtime_ns": 1785381685324051497,
+      "mtime_utc": "2026-07-30T03:21:25.324051+00:00",
+      "mode": "0600",
+      "fresh_reauthentication_equal": true,
+      "protected_input_bytes_and_mtimes_unchanged": true
+    },
     "old_claim_mutation_authorized": false,
     "old_output_mutation_authorized": false
   },

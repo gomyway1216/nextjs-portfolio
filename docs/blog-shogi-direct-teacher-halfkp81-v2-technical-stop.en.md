@@ -42,6 +42,8 @@ Only after two identical authentications does it publish
 `~/.codex/shogi-runs/direct-teacher-halfkp81-v2-technical-stop-v1/result.json`
 once, using a same-directory temporary file, file `fsync`, create-only hard link, and directory `fsync`. The receipt never authorizes mutation of the old claim or output.
 
+The command was run from merged revision `3034d361…2afe` and published the 2,453-byte receipt create-only. Its SHA-256 is `8474df3f…b1226c3`, its mtime is `2026-07-30T03:21:25.324051+00:00`, and its mode is `0600`. Read-only post-publication verification completed a strict JSON load, schema validation, and an exact comparison with a fresh reauthentication. The claim, execution plan, failure log, initializer export, and live weights retained identical bytes and mtimes across publication, so neither the spent attempt nor live weights changed.
+
 ## Boundary for the next training run
 
 Because v2 exposed no candidate performance metric, choosing a technically viable device is not selection based on candidate results. The next run must nevertheless be an independently preregistered successor, not a v2 retry: a new CPU-fixed protocol, execution plan, and claim. Dataset bytes, initializer, seed, batch, learning rate, epoch count, and static thresholds remain unchanged, and an initializer-forward capability check occurs before claim acquisition.

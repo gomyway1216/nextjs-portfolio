@@ -195,7 +195,7 @@ jobs:
             --include-spi-symbols \
             --skip-synthesized-members
           /usr/bin/python3 \
-            native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph.py
+            native/floodgate-v7-external-trust-root-protocol/Tests/verify-public-api-symbol-graph-v2.py
           /usr/bin/python3 \
             native/floodgate-v7-external-trust-root-protocol/Tests/verify-remote-witness-service-core-boundary.py
 

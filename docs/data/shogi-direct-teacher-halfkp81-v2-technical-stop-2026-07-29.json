@@ -1,0 +1,74 @@
+{
+  "schema": "shogi-direct-teacher-halfkp81-v2-technical-stop-data-memo-v1",
+  "status": "authenticated-technical-stop-before-optimizer",
+  "date": "2026-07-29",
+  "attempt": {
+    "execution_plan": {
+      "bytes": 7131,
+      "sha256": "c6fd910efffd9a9d62925d7ba8b229c1fcb50264b3e82a5868b6a8f5c0e19751",
+      "schema": "shogi-direct-teacher-halfkp81-v2-pilot-execution-plan-v1"
+    },
+    "pipeline_revision": "34729b041e99d70865bf5e714f46dde35590e3cb",
+    "device": "mps",
+    "claim": {
+      "bytes": 688,
+      "sha256": "a39863b10138de37ee3b016806705d001322b9c7c5039baf928717d5457574f7",
+      "schema": "shogi-direct-teacher-halfkp81-v2-one-shot-claim-v1",
+      "status": "exclusive-one-shot-claimed-no-retry"
+    }
+  },
+  "failure": {
+    "phase": "initializer-baseline-inference-before-optimizer",
+    "operator": "aten::_embedding_bag",
+    "kind": "mps-operator-unavailable",
+    "log": {
+      "bytes": 465,
+      "sha256": "b8e81e9e84524c11fe5d90ac840cec901a31445c6f658e2e4e21d24b9ff7bd6c"
+    }
+  },
+  "observed_state": {
+    "optimizer_created": false,
+    "optimizer_steps": 0,
+    "training_batches": 0,
+    "training_rows": 0,
+    "training_metrics": 0,
+    "candidate_created": false,
+    "selection_metric_observed": false,
+    "playing_strength_evidence": false
+  },
+  "artifacts": {
+    "initializer_export": {
+      "bytes": 94656708,
+      "sha256": "2b91060fe98c13d57341bdf0c773094c6489b7e508d6d6afd4051565dfb9b47c"
+    },
+    "old_output_entries": [
+      "initializer-weights.bin"
+    ],
+    "candidate_weights_published": false,
+    "final_checkpoint_published": false,
+    "trainer_result_published": false,
+    "static_sanity_published": false,
+    "live_weights": {
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "byte_exact_unchanged": true
+    }
+  },
+  "terminalization": {
+    "schema": "shogi-direct-teacher-halfkp81-v2-technical-stop-v1",
+    "status": "closed-technical-stop-before-optimizer-no-retry",
+    "fixed_path": "/Users/yudaiyaguchi/.codex/shogi-runs/direct-teacher-halfkp81-v2-technical-stop-v1/result.json",
+    "publication": "create-only-after-merged-terminalizer-authenticates-all-fixed-inputs",
+    "old_claim_mutation_authorized": false,
+    "old_output_mutation_authorized": false
+  },
+  "decision": {
+    "old_execution_plan_retry_authorized": false,
+    "paired56_authorized": false,
+    "expanded_stage_authorized": false,
+    "live_weight_write_authorized": false,
+    "technical_successor_requires_new_protocol_and_execution_plan": true,
+    "technical_successor_may_reuse_authenticated_dataset_bytes": true,
+    "technical_successor_must_not_use_v2_performance_evidence": true
+  }
+}

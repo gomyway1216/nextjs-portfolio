@@ -1,0 +1,109 @@
+{
+  "schema": "shogi-halfkp81-depth18-v2-timeout-diagnostic-v1",
+  "date": "2026-07-30",
+  "status": "diagnostic-complete-v2-terminal-v3-implementation-authorized",
+  "formal_v2": {
+    "family": "halfkp81-hard-depth18-engine-evaldir-v2",
+    "source_revision": "551759a171ac7fed5cf4a5b7cc2279dc60eea6bd",
+    "pull_request": 667,
+    "same_family_resume_authorized": false,
+    "teacher_plan": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2/teacher-plan.json",
+      "bytes": 6617,
+      "sha256": "b9fbac546c6c77386c43b9318eb7639f3cf74882ff995fa4e117d82d092bacd1"
+    },
+    "work_ledger": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2/teacher-work.jsonl",
+      "bytes": 793176,
+      "sha256": "6b5682abe23c87cc5e9923808b904ebf41ce7b59030f32927988b7c5628d529e",
+      "completed_parents": 49,
+      "teacher_rows": 585,
+      "contiguous_completed_prefix": 3
+    },
+    "terminal_fault": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2/teacher-terminal-fault.json",
+      "bytes": 866,
+      "sha256": "f3c90ccfd165a84fcf5843c3cd6975ec8459791528d7ee9db7ac0b2bf7a0f4db",
+      "kind": "stable-wasm-search-timeout",
+      "timeout_milliseconds": 600000,
+      "technical_faults": 1
+    },
+    "launchd_removed": true,
+    "formal_processes_after_stop": 0
+  },
+  "diagnostic_scope": {
+    "purpose": "classify-the-v2-timeout-without-producing-training-data",
+    "selection_indices": [4, 9, 10, 20, 24, 31, 48, 52, 53, 55, 59, 61, 62],
+    "formal_artifacts_reused_as_training_data": false,
+    "formal_work_and_fault_unchanged": true,
+    "one_request_per_child": true
+  },
+  "cooperative_100_second_screen": {
+    "parents": 13,
+    "depth11_completed": 2,
+    "deadline_reached": 11,
+    "deadline_depth_histogram": {
+      "8": 1,
+      "9": 2,
+      "10": 8
+    },
+    "hangs": 0,
+    "transport_faults": 0
+  },
+  "exact_production_600_second_isolation": {
+    "parents": 13,
+    "depth11_completed": 9,
+    "search_timeouts": 4,
+    "completed_seconds_sorted": [
+      4.918, 19.942, 113.397, 138.268, 164.488, 265.056, 345.625, 514.222,
+      547.152
+    ],
+    "timeout_seconds_sorted": [600, 600, 600.001, 600.003],
+    "all_children_reaped": true,
+    "all_pools_closed": true,
+    "peak_parent_rss_mib": 322.6
+  },
+  "conclusion": {
+    "multiple_independent_depth11_long_tails_proved": true,
+    "single_parent_misattribution_rejected": true,
+    "pool_deadlock_observed": false,
+    "pool_wide_poison_amplified_the_failure": true,
+    "simple_timeout_extension_authorized": false,
+    "additional_same_family_diagnostic_authorized": false
+  },
+  "v3_boundary": {
+    "family": "halfkp81-hard-depth18-bounded-stable-v3",
+    "selection_reuse": {
+      "rows": 8192,
+      "bytes": 7268777,
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+      "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    },
+    "v2_completed_parents_reused": 0,
+    "v2_teacher_rows_reused": 0,
+    "stable_wasm": {
+      "role": "optional-candidate-source-only",
+      "requested_depth": 11,
+      "cooperative_budget_milliseconds": 20000,
+      "partial_result_policy": "discard",
+      "deadline_policy": "explicit-authenticated-omission",
+      "ordinary_deadline_poisons_pool": false,
+      "timed_out_worker_policy": "reap-and-replace"
+    },
+    "required_teacher": {
+      "proposal": "YaneuraOu-depth16-MultiPV12",
+      "also_include_recorded_move": true,
+      "final_rescore_depth": 18
+    },
+    "formal_launch": {
+      "keep_alive": false,
+      "launch_only_once": true
+    }
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

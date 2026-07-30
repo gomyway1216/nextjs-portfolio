@@ -27,6 +27,12 @@ import {
   type FloodgateProductionStableWasmRuntimeResult,
 } from "./floodgate-production-stable-wasm-runtime";
 import {
+  createFloodgateBoundedStableWasmRuntimeV3,
+  getFloodgateBoundedStableWasmRuntimeReceiptDigestV3,
+  validateFloodgateBoundedStableWasmOutcomeV3,
+  type FloodgateBoundedStableWasmOutcomeV3,
+} from "./floodgate-bounded-stable-wasm-runtime-v3";
+import {
   FLOODGATE_STABLE_MATE_SCORE_MAX,
   FLOODGATE_STABLE_MATE_SCORE_MIN,
   FLOODGATE_STABLE_REQUESTED_DEPTH,
@@ -48,6 +54,8 @@ import { UsiTeacherEngine, type UsiTeacherEngineOptions } from "./usi-engine";
 
 export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA =
+  "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
@@ -81,6 +89,10 @@ export const HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2" as const;
 export const HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_DEFAULT_PLAN_PATH =
+  `${HALFKP81_DEPTH18_BOUNDED_STABLE_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_RELATIVE_PATH =
   "ml/engine-receipts/yaneuraou-9133c527-applem1.json" as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_BYTES = 654 as const;
@@ -113,6 +125,12 @@ const EXPECTED_TECHNICAL_RECOVERY = Object.freeze({
   bytes: 5_889,
   sha256: "58410d65bb553486c51c2ab332abba21ddcc8ef743af27378208ffcb3ec8baf2",
   schema: "shogi-halfkp81-hard-depth18-engine-evaldir-recovery-plan-v2",
+});
+const EXPECTED_BOUNDED_STABLE_PREREGISTRATION = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-bounded-stable-v3-plan.json",
+  bytes: 8_607,
+  sha256: "e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1",
+  schema: "shogi-halfkp81-hard-depth18-bounded-stable-plan-v3",
 });
 
 const EXPECTED_TEACHER = Object.freeze({
@@ -189,7 +207,9 @@ export interface Halfkp81Depth18SelectionRow {
 export interface Halfkp81Depth18AuthenticatedTeacherPlan {
   readonly plan: Readonly<Record<string, unknown>>;
   readonly planIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity> & {
-    readonly schema: typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA;
+    readonly schema:
+      | typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
+      | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA;
   };
   readonly sourceRevision: string;
   readonly selectionIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity> & {
@@ -210,7 +230,7 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
     readonly source_revision: string;
     readonly id: string;
   }>;
-  readonly teacher: typeof EXPECTED_TEACHER;
+  readonly teacher: Readonly<Record<string, unknown>>;
 }
 
 export interface Halfkp81Depth18TeacherWorkHeader {
@@ -229,7 +249,7 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     readonly eval_file: Readonly<Halfkp81Depth18TeacherFileIdentity>;
     readonly receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
   }>;
-  readonly teacher: typeof EXPECTED_TEACHER;
+  readonly teacher: Readonly<Record<string, unknown>>;
   readonly stable_runtime: Readonly<{
     readonly receipt_sha256: string;
     readonly receipt: Readonly<Record<string, unknown>>;
@@ -243,7 +263,10 @@ export interface Halfkp81Depth18TeacherWorkEntry {
   readonly run_fingerprint: string;
   readonly parent_id: string;
   readonly role: Halfkp81Depth18TeacherRole;
-  readonly stable_result: Readonly<FloodgateProductionStableWasmRuntimeResult>;
+  readonly stable_result: Readonly<
+    | FloodgateProductionStableWasmRuntimeResult
+    | FloodgateBoundedStableWasmOutcomeV3
+  >;
   readonly teacher_entry: Readonly<CompletedWorkEntry>;
   readonly payload_sha256: string;
 }
@@ -253,7 +276,12 @@ export interface Halfkp81Depth18TeacherStableRuntime {
   readonly receiptDigest: string;
   readonly propose: (
     parent: Readonly<FloodgateTrainingParent>,
-  ) => Promise<Readonly<FloodgateProductionStableWasmRuntimeResult>>;
+  ) => Promise<
+    Readonly<
+      | FloodgateProductionStableWasmRuntimeResult
+      | FloodgateBoundedStableWasmOutcomeV3
+    >
+  >;
   readonly close: () => Promise<void>;
 }
 
@@ -281,7 +309,11 @@ export interface Halfkp81Depth18TeacherRunnerDependencies {
   readonly now?: () => number;
   readonly parentTimeoutMs?: number;
   readonly processes?: number;
+  readonly stablePolicy?: Halfkp81Depth18StablePolicy;
 }
+
+export type Halfkp81Depth18StablePolicy =
+  "required-depth11-v2" | "optional-bounded-depth11-v3";
 
 export interface Halfkp81Depth18TeacherCoreContract {
   readonly parentCount: number;
@@ -707,47 +739,128 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   const absolutePlanPath = path.resolve(planPath);
   const planRaw = await readHeldStableFile(absolutePlanPath, "teacher plan");
   const plan = parseCanonicalJson(planRaw, "teacher plan");
+  const boundedStableV3 =
+    plan.schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA;
   exactKeys(
     plan,
-    [
-      "schema",
-      "status",
-      "source_revision",
-      "preregistration",
-      "technical_recovery",
-      "selection_manifest",
-      "selection_evidence",
-      "selection_roles",
-      "engine",
-      "teacher",
-      "outputs",
-      "authority",
-    ],
+    boundedStableV3
+      ? [
+          "schema",
+          "status",
+          "source_revision",
+          "preregistration",
+          "predecessor_v2",
+          "selection_manifest",
+          "selection_evidence",
+          "selection_roles",
+          "engine",
+          "teacher",
+          "outputs",
+          "authority",
+        ]
+      : [
+          "schema",
+          "status",
+          "source_revision",
+          "preregistration",
+          "technical_recovery",
+          "selection_manifest",
+          "selection_evidence",
+          "selection_roles",
+          "engine",
+          "teacher",
+          "outputs",
+          "authority",
+        ],
     "teacher plan",
   );
+  let teacher: Readonly<Record<string, unknown>>;
+  let boundedStableExpectedOutputs:
+    Readonly<Record<string, unknown>> | undefined;
+  if (boundedStableV3) {
+    const repositoryRoot = path.resolve(__dirname, "..");
+    const preregistrationPath = path.join(
+      repositoryRoot,
+      EXPECTED_BOUNDED_STABLE_PREREGISTRATION.path,
+    );
+    const preregistrationRaw = await readHeldStableFile(
+      preregistrationPath,
+      "bounded stable v3 preregistration",
+    );
+    if (
+      preregistrationRaw.byteLength !==
+        EXPECTED_BOUNDED_STABLE_PREREGISTRATION.bytes ||
+      sha256(preregistrationRaw) !==
+        EXPECTED_BOUNDED_STABLE_PREREGISTRATION.sha256
+    ) {
+      throw new Error("bounded stable v3 preregistration identity differs");
+    }
+    const preregistration = parseCanonicalJson(
+      preregistrationRaw,
+      "bounded stable v3 preregistration",
+    );
+    if (
+      preregistration.schema !==
+        EXPECTED_BOUNDED_STABLE_PREREGISTRATION.schema ||
+      canonicalJson(plan.preregistration) !==
+        canonicalJson(EXPECTED_BOUNDED_STABLE_PREREGISTRATION) ||
+      canonicalJson(plan.predecessor_v2) !==
+        canonicalJson(preregistration.predecessor_v2) ||
+      canonicalJson(plan.teacher) !== canonicalJson(preregistration.teacher) ||
+      canonicalJson(plan.authority) !==
+        canonicalJson({
+          may_execute_teacher: true,
+          may_train: false,
+          may_play_formal_games: false,
+          may_write_live_weights: false,
+        })
+    ) {
+      throw new Error("bounded stable v3 fixed authority differs");
+    }
+    const outputNamespace = preregistration.output_namespace;
+    if (
+      !outputNamespace ||
+      typeof outputNamespace !== "object" ||
+      Array.isArray(outputNamespace)
+    ) {
+      throw new Error("bounded stable v3 output namespace is missing");
+    }
+    const { collision_policy: collisionPolicy, ...expectedOutputs } =
+      outputNamespace as Record<string, unknown>;
+    if (collisionPolicy !== "create-only-fail-if-any-target-exists") {
+      throw new Error("bounded stable v3 collision policy differs");
+    }
+    boundedStableExpectedOutputs = Object.freeze(expectedOutputs);
+    teacher = Object.freeze({
+      ...(plan.teacher as Readonly<Record<string, unknown>>),
+    });
+  } else {
+    teacher = teacherSettings(plan.teacher);
+  }
   if (
-    plan.schema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA ||
+    (!boundedStableV3 &&
+      plan.schema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA) ||
     plan.status !== "sealed-not-executed" ||
     typeof plan.source_revision !== "string" ||
     !REVISION_RE.test(plan.source_revision) ||
     plan.source_revision === "0".repeat(40) ||
     canonicalJson(plan.selection_roles) !==
       canonicalJson(HALFKP81_DEPTH18_TEACHER_ROLE_COUNTS) ||
-    canonicalJson(plan.preregistration) !==
-      canonicalJson(EXPECTED_PREREGISTRATION) ||
-    canonicalJson(plan.technical_recovery) !==
-      canonicalJson(EXPECTED_TECHNICAL_RECOVERY) ||
-    canonicalJson(plan.authority) !==
-      canonicalJson({
-        may_execute_teacher: true,
-        may_train: false,
-        may_play_formal_games: false,
-        may_write_live_weights: false,
-      })
+    (!boundedStableV3 &&
+      (canonicalJson(plan.preregistration) !==
+        canonicalJson(EXPECTED_PREREGISTRATION) ||
+        canonicalJson(plan.technical_recovery) !==
+          canonicalJson(EXPECTED_TECHNICAL_RECOVERY) ||
+        canonicalJson(plan.authority) !==
+          canonicalJson({
+            may_execute_teacher: true,
+            may_train: false,
+            may_play_formal_games: false,
+            may_write_live_weights: false,
+          })))
   ) {
     throw new Error("teacher plan authority or fixed accounting differs");
   }
-  const teacher = teacherSettings(plan.teacher);
   const engine = plan.engine as Record<string, unknown>;
   exactKeys(
     engine,
@@ -796,6 +909,13 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     EXPECTED_PLAN_OUTPUT_KEYS.length - 1
   ) {
     throw new Error("teacher output paths are not distinct");
+  }
+  if (
+    boundedStableExpectedOutputs !== undefined &&
+    canonicalJson(capturedOutputs) !==
+      canonicalJson(boundedStableExpectedOutputs)
+  ) {
+    throw new Error("bounded stable v3 output namespace differs");
   }
   if (capturedOutputs.plan_json !== absolutePlanPath) {
     throw new Error("teacher plan path differs from its sealed output path");
@@ -945,7 +1065,9 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     plan: Object.freeze({ ...plan }),
     planIdentity: Object.freeze({
       ...fileIdentity(absolutePlanPath, planRaw),
-      schema: HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+      schema: boundedStableV3
+        ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+        : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     }),
     sourceRevision: plan.source_revision,
     selectionIdentity: Object.freeze({
@@ -1049,12 +1171,31 @@ function parentPayloadDigest(
 }
 
 function validateStableResult(
-  result: Readonly<FloodgateProductionStableWasmRuntimeResult>,
+  result: Readonly<
+    | FloodgateProductionStableWasmRuntimeResult
+    | FloodgateBoundedStableWasmOutcomeV3
+  >,
   parent: Readonly<FloodgateTrainingParent>,
   header: Readonly<Halfkp81Depth18TeacherWorkHeader>,
-): void {
-  const row = result.row;
-  const binding = result.runtime_binding;
+  stablePolicy: Halfkp81Depth18StablePolicy,
+): string | undefined {
+  if (stablePolicy === "optional-bounded-depth11-v3") {
+    return validateFloodgateBoundedStableWasmOutcomeV3(
+      result,
+      parent,
+      header.stable_runtime.receipt_sha256,
+    );
+  }
+  if (
+    (result as Readonly<Record<string, unknown>>).schema !==
+    FLOODGATE_PRODUCTION_STABLE_WASM_RUNTIME_RESULT_SCHEMA
+  ) {
+    throw new Error(`stable depth11 evidence differs for ${parent.parent_id}`);
+  }
+  const requiredResult =
+    result as Readonly<FloodgateProductionStableWasmRuntimeResult>;
+  const row = requiredResult.row;
+  const binding = requiredResult.runtime_binding;
   const stableReceipt = header.stable_runtime.receipt as Record<
     string,
     unknown
@@ -1071,7 +1212,8 @@ function validateStableResult(
     row.search.raw_search_score >= FLOODGATE_STABLE_MATE_SCORE_MIN &&
     row.search.raw_search_score <= FLOODGATE_STABLE_MATE_SCORE_MAX;
   if (
-    result.schema !== FLOODGATE_PRODUCTION_STABLE_WASM_RUNTIME_RESULT_SCHEMA ||
+    requiredResult.schema !==
+      FLOODGATE_PRODUCTION_STABLE_WASM_RUNTIME_RESULT_SCHEMA ||
     row.schema !== FLOODGATE_STABLE_WASM_PROPOSAL_ROW_SCHEMA ||
     row.game_id !== parent.game_id ||
     row.parent_id !== parent.parent_id ||
@@ -1105,6 +1247,7 @@ function validateStableResult(
   ) {
     throw new Error(`stable depth11 evidence differs for ${parent.parent_id}`);
   }
+  return row.stable_move;
 }
 
 function validateFormalWorkEntry(
@@ -1112,6 +1255,7 @@ function validateFormalWorkEntry(
   header: Readonly<Halfkp81Depth18TeacherWorkHeader>,
   parents: ReadonlyMap<string, Readonly<FloodgateTrainingParent>>,
   roles: ReadonlyMap<string, Halfkp81Depth18TeacherRole>,
+  stablePolicy: Halfkp81Depth18StablePolicy,
   source: string,
 ): Halfkp81Depth18TeacherWorkEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -1150,7 +1294,12 @@ function validateFormalWorkEntry(
   ) {
     throw new Error(`${source} payload checksum differs`);
   }
-  validateStableResult(entry.stable_result, parent, header);
+  const stableMove = validateStableResult(
+    entry.stable_result,
+    parent,
+    header,
+    stablePolicy,
+  );
   const teacher = validateWorkEntry(
     entry.teacher_entry,
     header.run_fingerprint,
@@ -1161,17 +1310,19 @@ function validateFormalWorkEntry(
     HALFKP81_DEPTH18_TEACHER_PARENT_TIMEOUT_MS,
     { depth: HALFKP81_DEPTH18_TEACHER_PROPOSAL_DEPTH },
     undefined,
-    entry.stable_result.row.stable_move,
+    stableMove,
   );
   if (
     teacher.kind !== "parent" ||
     teacher.records.length < 2 ||
     teacher.records.length > 14 ||
-    !teacher.records.some(
-      (record) =>
-        record.move === entry.stable_result.row.stable_move &&
-        record.sources.includes("stable"),
-    ) ||
+    (stableMove !== undefined &&
+      !teacher.records.some(
+        (record) =>
+          record.move === stableMove && record.sources.includes("stable"),
+      )) ||
+    (stableMove === undefined &&
+      teacher.records.some((record) => record.sources.includes("stable"))) ||
     teacher.records.some(
       (record) =>
         Object.prototype.hasOwnProperty.call(record, "old_depth12_cp") ||
@@ -1188,6 +1339,7 @@ async function initializeWork(
   header: Readonly<Halfkp81Depth18TeacherWorkHeader>,
   parents: ReadonlyMap<string, Readonly<FloodgateTrainingParent>>,
   roles: ReadonlyMap<string, Halfkp81Depth18TeacherRole>,
+  stablePolicy: Halfkp81Depth18StablePolicy,
 ): Promise<Map<string, Halfkp81Depth18TeacherWorkEntry>> {
   let handle: fs.promises.FileHandle;
   try {
@@ -1225,6 +1377,7 @@ async function initializeWork(
         header,
         parents,
         roles,
+        stablePolicy,
         `work checkpoint line ${index + 1}`,
       );
       if (entries.has(entry.parent_id)) {
@@ -1344,6 +1497,18 @@ async function defaultStableRuntime(): Promise<Halfkp81Depth18TeacherStableRunti
       runtime.propose(parent) as Promise<
         Readonly<FloodgateProductionStableWasmRuntimeResult>
       >,
+    close: () => runtime.close(),
+  };
+}
+
+async function defaultBoundedStableRuntimeV3(): Promise<Halfkp81Depth18TeacherStableRuntime> {
+  const runtime = await createFloodgateBoundedStableWasmRuntimeV3();
+  return {
+    receipt: runtime.receipt as unknown as Readonly<Record<string, unknown>>,
+    receiptDigest: getFloodgateBoundedStableWasmRuntimeReceiptDigestV3(
+      runtime.receipt,
+    ),
+    propose: (parent) => runtime.propose(parent),
     close: () => runtime.close(),
   };
 }
@@ -1480,6 +1645,7 @@ async function runWorkers(
     dependencies.processes ?? HALFKP81_DEPTH18_TEACHER_PROCESSES;
   const parentTimeoutMs =
     dependencies.parentTimeoutMs ?? HALFKP81_DEPTH18_TEACHER_PARENT_TIMEOUT_MS;
+  const stablePolicy = dependencies.stablePolicy ?? "required-depth11-v2";
   let next = 0;
   let failure: Error | undefined;
   let appendTail: Promise<void> = Promise.resolve();
@@ -1529,7 +1695,12 @@ async function runWorkers(
             try {
               const operation = (async () => {
                 const stableResult = await stable.propose(parent);
-                validateStableResult(stableResult, parent, header);
+                const stableMove = validateStableResult(
+                  stableResult,
+                  parent,
+                  header,
+                  stablePolicy,
+                );
                 const legalMoves = rulesCompleteLegalMoves(
                   positionFromSfen(parent.parent_sfen).position,
                 ).map((entry) => entry.usi);
@@ -1541,7 +1712,7 @@ async function runWorkers(
                   legalMoves,
                   { depth: HALFKP81_DEPTH18_TEACHER_PROPOSAL_DEPTH },
                   undefined,
-                  stableResult.row.stable_move,
+                  stableMove,
                 );
                 const teacherEntry = sealTeacherEntry(
                   rawTeacher,
@@ -1567,6 +1738,7 @@ async function runWorkers(
                   header,
                   parentMap,
                   authenticated.roles,
+                  stablePolicy,
                   `runtime parent ${parent.parent_id}`,
                 );
               })();
@@ -1710,6 +1882,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
     maximumRows: EXPECTED_TEACHER.maximum_rows,
   },
 ): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  const stablePolicy = dependencies.stablePolicy ?? "required-depth11-v2";
   if (
     authenticated.parents.length !== contract.parentCount ||
     canonicalJson(
@@ -1807,6 +1980,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       header,
       parentMap,
       authenticated.roles,
+      stablePolicy,
     );
     const publishedMilestones = new Set<number>();
     await publishReadyMilestones(
@@ -1950,4 +2124,20 @@ export async function runHalfkp81Depth18Teacher(
 ): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
   const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
   return runHalfkp81Depth18TeacherCoreForTests(authenticated);
+}
+
+export async function runHalfkp81Depth18BoundedStableTeacherV3(
+  planPath = HALFKP81_DEPTH18_BOUNDED_STABLE_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
+  if (
+    authenticated.planIdentity.schema !==
+    HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+  ) {
+    throw new Error("bounded stable v3 runner rejects another plan family");
+  }
+  return runHalfkp81Depth18TeacherCoreForTests(authenticated, {
+    createStableRuntime: defaultBoundedStableRuntimeV3,
+    stablePolicy: "optional-bounded-depth11-v3",
+  });
 }

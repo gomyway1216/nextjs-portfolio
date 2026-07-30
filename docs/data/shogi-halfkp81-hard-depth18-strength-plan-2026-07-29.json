@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "v3-startup-serialization-fault-zero-parents-v3r2-required-no-strength-claim",
+  "status": "v3r3-post-fix-stress-pass-formal-not-started-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -386,13 +386,124 @@
     },
     "v3r2": {
       "classification": "new-technical-recovery-not-v3-resume",
-      "new_source_revision_required": true,
-      "new_run_fingerprint_required": true,
-      "new_output_namespace_required": true,
+      "pull_request": 669,
+      "pull_request_checks_passed": 15,
+      "merge_strategy": "regular-merge",
+      "merge_revision": "f0ae74c208d3934849864c05cc68219f1834ef83",
+      "source_revision": "f0ae74c208d3934849864c05cc68219f1834ef83",
+      "run_fingerprint": "9d62c01f51dc4ae5a8fb24fb7193c50e93f33c4cefecad164b06dc63c8a3706e",
       "v3_plan_reused": false,
       "v3_output_namespace_reused": false,
       "authorized_change": "authenticate-pinned-pretty-json-preregistration-by-exact-bytes-and-sha-without-second-canonical-one-line-condition",
       "strength_contract_unchanged": true,
+      "tracked_preregistration": {
+        "path": "ml/halfkp81-hard-depth18-bounded-stable-v3r2-plan.json",
+        "bytes": 5378,
+        "sha256": "a543e03804b9215abab25eb34f3937f5cc1fa212fc12af80b7a25e923665a7e5"
+      },
+      "teacher_plan": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-plan.json",
+        "bytes": 10827,
+        "sha256": "53e3aaabf2d08b9c440478e94dc1ccbdca58334618523dfcccf5d80ed3a072a9"
+      },
+      "formal_result": {
+        "completed_parents": 94,
+        "total_parents": 8192,
+        "teacher_rows": 1125,
+        "stable_proposals": 61,
+        "stable_omissions": 33,
+        "stable_omission_reason": "cooperative-deadline",
+        "technical_faults": 1,
+        "terminal_message": "teacher labeling failed for parent sha256:811a0ccd95e02dc2dc84676669d04f7a326b556aa24fe74e65d14c8f84c91579: Floodgate production teacher asset authority failed: bounded stable worker startup timeout",
+        "started_at": "2026-07-30T06:14:47-07:00",
+        "stopped_at": "2026-07-30T06:19:58-07:00",
+        "elapsed_seconds": 311,
+        "strength_result_observed": false
+      },
+      "work_ledger": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-work.jsonl",
+        "bytes": 1463884,
+        "sha256": "f182810f3629c6c57e81db759aca995eda4e4aa76787cd646a96295931856200"
+      },
+      "terminal_fault": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-terminal-fault.json",
+        "bytes": 884,
+        "sha256": "10cfd2bc38fab128c3c7eff54bd9a5c005d96bb097ae24f6e322d4521bd4c1e6"
+      },
+      "launch": {
+        "label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3r2-f0ae74c2",
+        "plist_bytes": 1500,
+        "plist_sha256": "458a1e87a53dbc03919970bf157816cc15a5b08716b3955ab299ed8daf572cea",
+        "stderr_bytes": 244,
+        "stderr_sha256": "bef63d5eb525f1dd0dd6a49b78cc33e852f6c142cc606af2058c343485fa27dc",
+        "stdout_bytes": 0,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "service_present_after_stop": false
+      },
+      "confirmed_diagnosis": {
+        "stress_wave_reproduced": true,
+        "sampled_stalled_children": 167,
+        "sampled_stalled_children_waiting_for_fd3_eof": 167,
+        "blocked_operation": "source-pipe-readFileSync(3)",
+        "stage": "before-wasm-or-weights-load",
+        "fd_leak": false,
+        "pool_poison": false,
+        "specific_parent_49_cause": false
+      },
+      "same_family_resume_authorized": false,
+      "training_authorized": false,
+      "rows_reusable_by_successor": 0,
+      "fault_memo": "docs/data/shogi-halfkp81-depth18-v3r2-worker-startup-fault-2026-07-30.json",
+      "strength_claim_authorized": false,
+      "status": "terminal-technical-fault-family-closed"
+    },
+    "v3r3": {
+      "classification": "new-technical-recovery-not-v3r2-resume",
+      "new_source_revision_required": true,
+      "new_run_fingerprint_required": true,
+      "new_output_namespace_required": true,
+      "authorized_change": "bounded-await-sourcePipe.end-completion-before-worker-init",
+      "timeout_extension_authorized": false,
+      "strength_contract_change_authorized": false,
+      "v3r2_completed_parents_reused": 0,
+      "v3r2_teacher_rows_reused": 0,
+      "strength_contract_unchanged": true,
+      "post_fix_stress": {
+        "status": "pass",
+        "cpu_hogs": 13,
+        "memory_hogs": 13,
+        "memory_mib_per_hog": 512,
+        "memory_gib_total": 6.5,
+        "simultaneous_omission_replacements_per_wave": 12,
+        "waves": 4,
+        "completed_replacements": 48,
+        "expected_replacements": 48,
+        "wave_seconds_minimum": 20.63,
+        "wave_seconds_maximum": 20.79,
+        "faults": 0,
+        "telemetry_records": 60,
+        "source_completed_before_init_records": 60,
+        "source_transfer_milliseconds": {
+          "minimum": 24.67,
+          "maximum": 85.93,
+          "average": 41.05
+        },
+        "total_startup_milliseconds": {
+          "minimum": 149.26,
+          "maximum": 344.17,
+          "average": 235.27
+        },
+        "cleanup_alive": {
+          "workers_out_of_60": 0,
+          "cpu_hogs_out_of_13": 0,
+          "memory_hogs_out_of_13": 0
+        },
+        "receipt": {
+          "path": "$HOME/.codex/shogi-runs/halfkp81-depth18-bounded-stable-v3r3-preflight/stress-receipt.json",
+          "bytes": 34894,
+          "sha256": "8266fe89272f5888c35d94f65765a0a26edc8b95d12224cecae454f843b52580"
+        }
+      },
       "teacher_generation_started": false,
       "strength_claim_authorized": false
     }
@@ -492,18 +603,25 @@
     "v3_merge_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09",
     "v3_implementation_merged": true,
     "v3_teacher_attempt_startup_fault": true,
-    "v3r2_technical_recovery_required": true
+    "v3r2_pull_request": 669,
+    "v3r2_merge_revision": "f0ae74c208d3934849864c05cc68219f1834ef83",
+    "v3r2_implementation_merged": true,
+    "v3r2_teacher_attempt_terminal_fault": true,
+    "v3r3_technical_recovery_required": true,
+    "v3r3_post_fix_stress_passed": true,
+    "v3r3_formal_run_started": false
   },
   "authority": {
     "formal_selection_executed": true,
     "teacher_generation_executed": true,
     "teacher_generation_completed": false,
-    "teacher_completed_parents": 49,
-    "teacher_rows": 585,
+    "teacher_completed_parents": 94,
+    "teacher_rows": 1125,
     "v1_same_family_resume_authorized": false,
     "v2_same_family_resume_authorized": false,
     "v3_same_family_resume_authorized": false,
-    "v3r2_technical_recovery_implementation_authorized": true,
+    "v3r2_same_family_resume_authorized": false,
+    "v3r3_technical_recovery_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

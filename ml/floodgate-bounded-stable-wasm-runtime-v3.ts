@@ -8,6 +8,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 import type { Writable } from "node:stream";
 
 import { withVerifiedPinnedFloodgateProductionStableRuntimeAssets } from "./floodgate-production-teacher-asset-authority";
@@ -44,6 +45,8 @@ export const FLOODGATE_BOUNDED_STABLE_WASM_OUTER_WATCHDOG_MS_V3 =
   25_000 as const;
 export const FLOODGATE_BOUNDED_STABLE_WASM_STARTUP_TIMEOUT_MS_V3 =
   120_000 as const;
+export const FLOODGATE_BOUNDED_STABLE_WASM_SOURCE_TRANSFER_TIMEOUT_MS_V3 =
+  FLOODGATE_BOUNDED_STABLE_WASM_STARTUP_TIMEOUT_MS_V3;
 export const FLOODGATE_BOUNDED_STABLE_WASM_CLOSE_TIMEOUT_MS_V3 = 5_000 as const;
 export const FLOODGATE_BOUNDED_STABLE_WASM_WORKERS_V3 = 12 as const;
 export const FLOODGATE_BOUNDED_STABLE_WASM_QUEUE_BOUND_V3 = 48 as const;
@@ -144,7 +147,36 @@ export interface FloodgateBoundedStableWasmRuntimeV3 {
   readonly propose: (
     parent: Readonly<FloodgateTrainingParent>,
   ) => Promise<Readonly<FloodgateBoundedStableWasmOutcomeV3>>;
+  readonly getWorkerStartupTelemetry: () => readonly Readonly<FloodgateBoundedStableWasmWorkerStartupTelemetryV3>[];
   readonly close: () => Promise<void>;
+}
+
+export interface FloodgateBoundedStableWasmWorkerStartupTelemetryV3 {
+  readonly worker_pid: number;
+  readonly source_bytes: typeof FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3;
+  readonly source_transfer_milliseconds: number;
+  readonly init_ready_milliseconds: number;
+  readonly total_milliseconds: number;
+  readonly source_transfer_completed_before_init: true;
+}
+
+export type FloodgateBoundedStableWasmSourceTransferFailureReasonV3 =
+  "timeout" | "stream-error" | "synchronous-write-error";
+
+export class FloodgateBoundedStableWasmSourceTransferErrorV3 extends Error {
+  readonly stage = "worker-source-transfer" as const;
+
+  constructor(
+    readonly reason: FloodgateBoundedStableWasmSourceTransferFailureReasonV3,
+    readonly elapsedMilliseconds: number,
+    options: Readonly<{ cause?: unknown }> = {},
+  ) {
+    super(
+      `bounded stable worker source transfer ${reason} after ${elapsedMilliseconds.toFixed(3)}ms`,
+      options.cause === undefined ? undefined : { cause: options.cause },
+    );
+    this.name = "FloodgateBoundedStableWasmSourceTransferErrorV3";
+  }
 }
 
 interface RawProposal {
@@ -170,6 +202,7 @@ export interface FloodgateBoundedStableWasmWorkerLaneV3 {
   readonly search: (
     request: Readonly<FloodgateStableWasmSearchRequest>,
   ) => Promise<Readonly<FloodgateBoundedStableWasmWorkerResultV3>>;
+  readonly startupTelemetry?: Readonly<FloodgateBoundedStableWasmWorkerStartupTelemetryV3>;
   readonly close: (force: boolean) => Promise<void>;
 }
 
@@ -230,6 +263,125 @@ function canonicalJson(value: unknown): string {
 function frozen<T extends object>(value: T): Readonly<T> {
   return Object.freeze(value);
 }
+
+interface FloodgateBoundedStableWasmSourceTransferTelemetryV3 {
+  readonly source_bytes: number;
+  readonly elapsed_milliseconds: number;
+  readonly completed: true;
+}
+
+function elapsedMilliseconds(startedAt: number): number {
+  return Math.max(0, performance.now() - startedAt);
+}
+
+async function transferWorkerSourceV3(
+  sourcePipe: Writable,
+  source: Uint8Array,
+  timeoutMilliseconds: number,
+): Promise<Readonly<FloodgateBoundedStableWasmSourceTransferTelemetryV3>> {
+  if (
+    !Number.isSafeInteger(timeoutMilliseconds) ||
+    timeoutMilliseconds < 1 ||
+    source.byteLength !== FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3
+  ) {
+    throw new Error("bounded stable source transfer options differ");
+  }
+  const startedAt = performance.now();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (
+      result:
+        | Readonly<FloodgateBoundedStableWasmSourceTransferTelemetryV3>
+        | FloodgateBoundedStableWasmSourceTransferErrorV3,
+    ): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (result instanceof FloodgateBoundedStableWasmSourceTransferErrorV3) {
+        reject(result);
+      } else {
+        resolve(result);
+      }
+    };
+    const fail = (
+      reason: FloodgateBoundedStableWasmSourceTransferFailureReasonV3,
+      cause?: unknown,
+    ): void => {
+      settle(
+        new FloodgateBoundedStableWasmSourceTransferErrorV3(
+          reason,
+          elapsedMilliseconds(startedAt),
+          { cause },
+        ),
+      );
+    };
+    const onError = (error: Error): void => fail("stream-error", error);
+    const timer = setTimeout(() => {
+      sourcePipe.destroy();
+      fail("timeout");
+    }, timeoutMilliseconds);
+    sourcePipe.once("error", onError);
+    try {
+      sourcePipe.end(source, (error?: Error | null) => {
+        if (error !== undefined && error !== null) {
+          fail("stream-error", error);
+          return;
+        }
+        settle(
+          frozen({
+            source_bytes: source.byteLength,
+            elapsed_milliseconds: elapsedMilliseconds(startedAt),
+            completed: true as const,
+          }),
+        );
+      });
+    } catch (error) {
+      sourcePipe.destroy();
+      fail("synchronous-write-error", error);
+    }
+  });
+}
+
+export const transferFloodgateBoundedStableWasmWorkerSourceV3CoreForTests =
+  transferWorkerSourceV3;
+
+async function completeWorkerStartupStagesV3<T>(
+  sourceTransfer: Promise<
+    Readonly<FloodgateBoundedStableWasmSourceTransferTelemetryV3>
+  >,
+  requestInit: (remainingMilliseconds: number) => Promise<T>,
+  totalBudgetMilliseconds = FLOODGATE_BOUNDED_STABLE_WASM_STARTUP_TIMEOUT_MS_V3,
+): Promise<
+  Readonly<{
+    ready: T;
+    sourceTransfer: Readonly<FloodgateBoundedStableWasmSourceTransferTelemetryV3>;
+    initReadyMilliseconds: number;
+    totalMilliseconds: number;
+  }>
+> {
+  const sourceTransferTelemetry = await sourceTransfer;
+  const remainingMilliseconds =
+    totalBudgetMilliseconds - sourceTransferTelemetry.elapsed_milliseconds;
+  if (remainingMilliseconds <= 0) {
+    throw new FloodgateBoundedStableWasmSourceTransferErrorV3(
+      "timeout",
+      sourceTransferTelemetry.elapsed_milliseconds,
+    );
+  }
+  const initStartedAt = performance.now();
+  const ready = await requestInit(remainingMilliseconds);
+  const initReadyMilliseconds = elapsedMilliseconds(initStartedAt);
+  return frozen({
+    ready,
+    sourceTransfer: sourceTransferTelemetry,
+    initReadyMilliseconds,
+    totalMilliseconds:
+      sourceTransferTelemetry.elapsed_milliseconds + initReadyMilliseconds,
+  });
+}
+
+export const completeFloodgateBoundedStableWasmWorkerStartupStagesV3CoreForTests =
+  completeWorkerStartupStagesV3;
 
 function parentPayload(
   parent: Readonly<FloodgateTrainingParent>,
@@ -704,10 +856,23 @@ async function createRuntime(
   const receiptDigest = sha256(
     `${RECEIPT_DIGEST_DOMAIN}${canonicalJson(receipt)}`,
   );
+  const startupTelemetry: FloodgateBoundedStableWasmWorkerStartupTelemetryV3[] =
+    [];
+  const createLane = async (): Promise<
+    Readonly<FloodgateBoundedStableWasmWorkerLaneV3>
+  > => {
+    const lane = await options.workerFactory.create();
+    if (lane.startupTelemetry !== undefined) {
+      startupTelemetry.push(
+        frozen({
+          ...lane.startupTelemetry,
+        }),
+      );
+    }
+    return lane;
+  };
   const initialLaneSettlements = await Promise.allSettled(
-    Array.from({ length: options.workers }, () =>
-      options.workerFactory.create(),
-    ),
+    Array.from({ length: options.workers }, () => createLane()),
   );
   const lanes: Readonly<FloodgateBoundedStableWasmWorkerLaneV3>[] = [];
   const initializationFailures: unknown[] = [];
@@ -738,7 +903,7 @@ async function createRuntime(
     const previous = lanes[index];
     await previous.close(true);
     if (closing) throw new Error("bounded stable runtime is closing");
-    lanes[index] = await options.workerFactory.create();
+    lanes[index] = await createLane();
   };
 
   const pump = (): void => {
@@ -839,6 +1004,11 @@ async function createRuntime(
         pump();
       });
     },
+    getWorkerStartupTelemetry() {
+      return Object.freeze(
+        startupTelemetry.map((entry) => frozen({ ...entry })),
+      );
+    },
     async close() {
       if (closing) return;
       closing = true;
@@ -860,6 +1030,9 @@ class OuterWatchdogError extends Error {}
 
 class ProductionWorkerLane implements FloodgateBoundedStableWasmWorkerLaneV3 {
   private readonly child: ChildProcessWithoutNullStreams;
+  private readonly sourceTransfer: Promise<
+    Readonly<FloodgateBoundedStableWasmSourceTransferTelemetryV3>
+  >;
   private stdout = "";
   private pending:
     | {
@@ -871,8 +1044,10 @@ class ProductionWorkerLane implements FloodgateBoundedStableWasmWorkerLaneV3 {
   private closed = false;
   private readonly closePromise: Promise<void>;
   private resolveClose!: () => void;
+  private startupTelemetryValue:
+    Readonly<FloodgateBoundedStableWasmWorkerStartupTelemetryV3> | undefined;
 
-  private constructor(source: Uint8Array) {
+  private constructor(source: Uint8Array, sourceTransferTimeoutMs: number) {
     this.closePromise = new Promise((resolve) => {
       this.resolveClose = resolve;
     });
@@ -900,7 +1075,11 @@ class ProductionWorkerLane implements FloodgateBoundedStableWasmWorkerLaneV3 {
     const sourcePipe = this.child.stdio[3] as Writable | null;
     if (sourcePipe === null)
       throw new Error("bounded stable source pipe missing");
-    sourcePipe.end(source);
+    this.sourceTransfer = transferWorkerSourceV3(
+      sourcePipe,
+      source,
+      sourceTransferTimeoutMs,
+    );
   }
 
   static async create(
@@ -909,18 +1088,31 @@ class ProductionWorkerLane implements FloodgateBoundedStableWasmWorkerLaneV3 {
       readonly weights: Uint8Array;
     }>,
     source: Uint8Array,
+    sourceTransferTimeoutMs = FLOODGATE_BOUNDED_STABLE_WASM_SOURCE_TRANSFER_TIMEOUT_MS_V3,
   ): Promise<Readonly<ProductionWorkerLane>> {
-    const lane = new ProductionWorkerLane(source);
-    const ready = await lane.request(
-      {
-        schema: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SCHEMA_V3,
-        type: "init",
-        wasm_base64: Buffer.from(assets.wasm).toString("base64"),
-        weights_base64: Buffer.from(assets.weights).toString("base64"),
-      },
-      FLOODGATE_BOUNDED_STABLE_WASM_STARTUP_TIMEOUT_MS_V3,
-      false,
-    );
+    const lane = new ProductionWorkerLane(source, sourceTransferTimeoutMs);
+    let stages: Awaited<ReturnType<typeof completeWorkerStartupStagesV3>>;
+    try {
+      stages = await completeWorkerStartupStagesV3(
+        lane.sourceTransfer,
+        (remainingMilliseconds) =>
+          lane.request(
+            {
+              schema: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SCHEMA_V3,
+              type: "init",
+              wasm_base64: Buffer.from(assets.wasm).toString("base64"),
+              weights_base64: Buffer.from(assets.weights).toString("base64"),
+            },
+            remainingMilliseconds,
+            false,
+          ),
+        FLOODGATE_BOUNDED_STABLE_WASM_STARTUP_TIMEOUT_MS_V3,
+      );
+    } catch (error) {
+      await lane.close(true).catch(() => undefined);
+      throw error;
+    }
+    const ready = stages.ready;
     if (
       ready.schema !== FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SCHEMA_V3 ||
       ready.type !== "ready" ||
@@ -931,7 +1123,20 @@ class ProductionWorkerLane implements FloodgateBoundedStableWasmWorkerLaneV3 {
       await lane.close(true);
       throw new Error("bounded stable worker ready receipt mismatch");
     }
+    lane.startupTelemetryValue = frozen({
+      worker_pid: lane.child.pid ?? -1,
+      source_bytes: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+      source_transfer_milliseconds: stages.sourceTransfer.elapsed_milliseconds,
+      init_ready_milliseconds: stages.initReadyMilliseconds,
+      total_milliseconds: stages.totalMilliseconds,
+      source_transfer_completed_before_init: true,
+    });
     return lane;
+  }
+
+  get startupTelemetry():
+    Readonly<FloodgateBoundedStableWasmWorkerStartupTelemetryV3> | undefined {
+    return this.startupTelemetryValue;
   }
 
   private fail(error: unknown): void {
@@ -1109,6 +1314,17 @@ function productionWorkerSource(): Uint8Array {
     throw new Error("bounded stable worker source identity mismatch");
   }
   return bytes;
+}
+
+export function createFloodgateBoundedStableWasmProductionWorkerLaneV3CoreForTests(
+  assets: Readonly<{
+    readonly wasm: Uint8Array;
+    readonly weights: Uint8Array;
+  }>,
+  source: Uint8Array,
+  sourceTransferTimeoutMs = FLOODGATE_BOUNDED_STABLE_WASM_SOURCE_TRANSFER_TIMEOUT_MS_V3,
+): Promise<Readonly<FloodgateBoundedStableWasmWorkerLaneV3>> {
+  return ProductionWorkerLane.create(assets, source, sourceTransferTimeoutMs);
 }
 
 export function createFloodgateBoundedStableWasmRuntimeV3(): Promise<

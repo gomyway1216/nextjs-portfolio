@@ -1,18 +1,27 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { Writable } from "node:stream";
 
 import { describe, expect, it } from "vitest";
 
 import {
+  FLOODGATE_BOUNDED_STABLE_WASM_SOURCE_TRANSFER_TIMEOUT_MS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
   FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
   FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+  FloodgateBoundedStableWasmSourceTransferErrorV3,
+  completeFloodgateBoundedStableWasmWorkerStartupStagesV3CoreForTests,
+  createFloodgateBoundedStableWasmProductionWorkerLaneV3CoreForTests,
   createFloodgateBoundedStableWasmRuntimeV3CoreForTests,
   getFloodgateBoundedStableWasmRuntimeReceiptDigestV3,
+  transferFloodgateBoundedStableWasmWorkerSourceV3CoreForTests,
   validateFloodgateBoundedStableWasmOutcomeV3,
   type FloodgateBoundedStableWasmWorkerFactoryV3,
   type FloodgateBoundedStableWasmWorkerLaneV3,
   type FloodgateBoundedStableWasmWorkerResultV3,
 } from "../../../ml/floodgate-bounded-stable-wasm-runtime-v3";
 import type { FloodgateTrainingParent } from "../../../ml/floodgate-training-row-consumer";
+import { SHOGI_WASM_BASE64 } from "../../../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
 
 const START_SFEN =
   "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -76,6 +85,14 @@ function factoryFromScripts(
       let closed = false;
       const script = scripts[index] ?? (async () => proposal());
       const lane: FloodgateBoundedStableWasmWorkerLaneV3 = {
+        startupTelemetry: Object.freeze({
+          worker_pid: index + 1,
+          source_bytes: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+          source_transfer_milliseconds: 1,
+          init_ready_milliseconds: 2,
+          total_milliseconds: 3,
+          source_transfer_completed_before_init: true,
+        }),
         async search() {
           events.push(`search:${index}`);
           return script();
@@ -95,6 +112,131 @@ function factoryFromScripts(
 }
 
 describe("bounded optional stable-WASM runtime v3", () => {
+  it("does not send init before the source end callback", async () => {
+    let finishSource!: () => void;
+    const sourcePipe = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+      final(callback) {
+        finishSource = callback;
+      },
+    });
+    const sourceTransfer =
+      transferFloodgateBoundedStableWasmWorkerSourceV3CoreForTests(
+        sourcePipe,
+        Buffer.alloc(FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3),
+        1_000,
+      );
+    const events: string[] = [];
+    let remainingMilliseconds = 0;
+    const startup =
+      completeFloodgateBoundedStableWasmWorkerStartupStagesV3CoreForTests(
+        sourceTransfer,
+        async (remaining) => {
+          remainingMilliseconds = remaining;
+          events.push("init");
+          return "ready";
+        },
+      );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(events).toEqual([]);
+
+    finishSource();
+    const result = await startup;
+    expect(result.ready).toBe("ready");
+    expect(result.sourceTransfer.completed).toBe(true);
+    expect(events).toEqual(["init"]);
+    expect(remainingMilliseconds).toBeGreaterThan(0);
+    expect(remainingMilliseconds).toBeLessThanOrEqual(120_000);
+  });
+
+  it("fails source transfer with typed stream and bounded timeout errors", async () => {
+    const failingPipe = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(new Error("synthetic source write failure"));
+      },
+    });
+    const streamFailure =
+      transferFloodgateBoundedStableWasmWorkerSourceV3CoreForTests(
+        failingPipe,
+        Buffer.alloc(FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3),
+        1_000,
+      ).catch((error: unknown) => error);
+    await expect(streamFailure).resolves.toMatchObject({
+      name: "FloodgateBoundedStableWasmSourceTransferErrorV3",
+      stage: "worker-source-transfer",
+      reason: "stream-error",
+    });
+
+    const stalledPipe = new Writable({
+      write() {
+        // Deliberately never acknowledge this bounded test write.
+      },
+    });
+    const timeout =
+      transferFloodgateBoundedStableWasmWorkerSourceV3CoreForTests(
+        stalledPipe,
+        Buffer.alloc(FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3),
+        10,
+      ).catch((error: unknown) => error);
+    const timeoutError = await timeout;
+    expect(timeoutError).toBeInstanceOf(
+      FloodgateBoundedStableWasmSourceTransferErrorV3,
+    );
+    expect(timeoutError).toMatchObject({
+      stage: "worker-source-transfer",
+      reason: "timeout",
+    });
+    expect(
+      (timeoutError as FloodgateBoundedStableWasmSourceTransferErrorV3)
+        .elapsedMilliseconds,
+    ).toBeGreaterThanOrEqual(5);
+  });
+
+  it("cold-starts twelve real workers after bounded source transfer", async () => {
+    const source = readFileSync(
+      new URL(
+        "../../../ml/floodgate-bounded-stable-wasm-worker-v3.mjs",
+        import.meta.url,
+      ),
+    );
+    const weights = readFileSync(
+      new URL("../../../public/shogi-nnue-weights.bin", import.meta.url),
+    );
+    const wasm = Buffer.from(SHOGI_WASM_BASE64, "base64");
+    const lanes = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        createFloodgateBoundedStableWasmProductionWorkerLaneV3CoreForTests(
+          { wasm, weights },
+          source,
+        ),
+      ),
+    );
+    try {
+      expect(FLOODGATE_BOUNDED_STABLE_WASM_SOURCE_TRANSFER_TIMEOUT_MS_V3).toBe(
+        120_000,
+      );
+      expect(lanes).toHaveLength(12);
+      for (const lane of lanes) {
+        expect(lane.startupTelemetry).toEqual(
+          expect.objectContaining({
+            source_bytes: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+            source_transfer_completed_before_init: true,
+          }),
+        );
+        expect(
+          lane.startupTelemetry?.source_transfer_milliseconds,
+        ).toBeGreaterThanOrEqual(0);
+        expect(lane.startupTelemetry?.init_ready_milliseconds).toBeGreaterThan(
+          0,
+        );
+      }
+    } finally {
+      await Promise.all(lanes.map((lane) => lane.close(true)));
+    }
+  });
+
   it("binds the fixed 20s cooperative budget into the runtime receipt", async () => {
     const events: string[] = [];
     const runtime = await createFloodgateBoundedStableWasmRuntimeV3CoreForTests(
@@ -224,6 +366,11 @@ describe("bounded optional stable-WASM runtime v3", () => {
     expect(events.indexOf("create:2")).toBeGreaterThan(
       events.indexOf("close:0:true"),
     );
+    expect(runtime.getWorkerStartupTelemetry()).toHaveLength(3);
+    expect(runtime.getWorkerStartupTelemetry().at(-1)).toMatchObject({
+      worker_pid: 3,
+      source_transfer_completed_before_init: true,
+    });
     await runtime.close();
   });
 

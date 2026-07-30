@@ -1,0 +1,51 @@
+{
+  "diagnosis": {
+    "causal_chain": [
+      "a-valid-cooperative-omission-required-worker-local-replacement",
+      "the-parent-ended-fd3-source-transfer-without-awaiting-its-end-callback",
+      "the-parent-started-the-stdin-init-request-before-fd3-eof-was-confirmed",
+      "under-formal-equivalent-load-one-child-blocked-in-worker-bootstrap-readfilesync-fd3-awaiting-eof",
+      "the-unchanged-120-second-startup-watchdog-expired"
+    ],
+    "confirmed_root_cause": "fd3-source-transfer-eof-was-not-confirmed-before-worker-init",
+    "failed_stage": "replacement-worker-startup-before-ready-receipt",
+    "stalled_child_count": 1,
+    "stalled_child_location": "WORKER_BOOTSTRAP-readFileSync(3)-awaiting-EOF",
+    "status": "root-cause-confirmed"
+  },
+  "excluded_causes": {
+    "file_descriptor_leak": false,
+    "parent_position_specific_failure": false,
+    "wasm_identity_or_content_failure": false,
+    "weights_identity_or_content_failure": false
+  },
+  "failed_v3r2_binding": {
+    "completed_parents": 94,
+    "fault_parent_id": "sha256:811a0ccd95e02dc2dc84676669d04f7a326b556aa24fe74e65d14c8f84c91579",
+    "run_fingerprint": "9d62c01f51dc4ae5a8fb24fb7193c50e93f33c4cefecad164b06dc63c8a3706e",
+    "teacher_rows": 1125,
+    "terminal_message": "teacher labeling failed for parent sha256:811a0ccd95e02dc2dc84676669d04f7a326b556aa24fe74e65d14c8f84c91579: Floodgate production teacher asset authority failed: bounded stable worker startup timeout"
+  },
+  "load_reproduction": {
+    "concurrent_replacement_wave": 12,
+    "high_cpu_load": true,
+    "result": "reproduced-one-fd3-eof-waiting-child",
+    "yaneuraou_hash_total_gib": 6.5
+  },
+  "permitted_recovery": {
+    "fd3_end_callback_must_complete_before_init": true,
+    "fd3_source_transfer_and_init_share_existing_startup_deadline": true,
+    "new_create_only_namespace": true,
+    "new_run_fingerprint": true,
+    "new_source_revision": true,
+    "startup_total_budget_milliseconds": 120000
+  },
+  "prohibited_changes": {
+    "change_candidate_policy": false,
+    "change_strength_gate": false,
+    "extend_startup_timeout": false,
+    "reuse_v3r2_parent_or_teacher_rows": false
+  },
+  "schema": "shogi-halfkp81-depth18-bounded-stable-fd3-diagnostic-receipt-v3r3",
+  "status": "confirmed-technical-root-cause-recovery-eligible"
+}

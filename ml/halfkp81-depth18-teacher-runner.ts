@@ -58,6 +58,8 @@ export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3" as const;
 export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2 =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r2" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3 =
+  "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r3" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
@@ -99,6 +101,10 @@ export const HALFKP81_DEPTH18_BOUNDED_STABLE_V3R2_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2" as const;
 export const HALFKP81_DEPTH18_BOUNDED_STABLE_V3R2_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_BOUNDED_STABLE_V3R2_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_V3R3_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_V3R3_DEFAULT_PLAN_PATH =
+  `${HALFKP81_DEPTH18_BOUNDED_STABLE_V3R3_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_RELATIVE_PATH =
   "ml/engine-receipts/yaneuraou-9133c527-applem1.json" as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_BYTES = 654 as const;
@@ -143,6 +149,18 @@ const EXPECTED_BOUNDED_STABLE_V3R2_PREREGISTRATION = Object.freeze({
   bytes: 5_378,
   sha256: "a543e03804b9215abab25eb34f3937f5cc1fa212fc12af80b7a25e923665a7e5",
   schema: "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r2",
+});
+const EXPECTED_BOUNDED_STABLE_V3R3_PREREGISTRATION = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-bounded-stable-v3r3-plan.json",
+  bytes: 7_815,
+  sha256: "5e4e8157d5848fbeca9ecf959d68ed6eca51b0017eb8296ea8ea0ef5bdc24ac7",
+  schema: "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r3",
+});
+const EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT = Object.freeze({
+  path: "ml/halfkp81-depth18-bounded-stable-v3r3-diagnostic-receipt.json",
+  bytes: 2_299,
+  sha256: "a6b6f5ed9b3305a51a66dda69bf1887313c9f87bcbc0a86d3ca2826fba23f51d",
+  schema: "shogi-halfkp81-depth18-bounded-stable-fd3-diagnostic-receipt-v3r3",
 });
 
 const EXPECTED_TEACHER = Object.freeze({
@@ -222,7 +240,8 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
     readonly schema:
       | typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
       | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
-      | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2;
+      | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
+      | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3;
   };
   readonly sourceRevision: string;
   readonly selectionIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity> & {
@@ -791,12 +810,19 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     plan.schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA;
   const boundedStableV3R2 =
     plan.schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2;
+  const boundedStableV3R3 =
+    plan.schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3;
   if (boundedStableV3) {
     throw new Error(
-      "bounded stable v3 family closed after startup fault; use v3r2",
+      "bounded stable v3 family closed after startup fault; use v3r3",
     );
   }
-  const boundedStable = boundedStableV3R2;
+  if (boundedStableV3R2) {
+    throw new Error(
+      "bounded stable v3r2 family closed after worker source transfer startup fault; use v3r3",
+    );
+  }
+  const boundedStable = boundedStableV3R3;
   exactKeys(
     plan,
     boundedStable
@@ -806,7 +832,9 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           "source_revision",
           "preregistration",
           "predecessor_v2",
-          ...(boundedStableV3R2 ? ["predecessor_v3"] : []),
+          "predecessor_v3",
+          "predecessor_v3r2",
+          "diagnostic_receipt",
           "selection_manifest",
           "selection_evidence",
           "selection_roles",
@@ -836,8 +864,8 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     Readonly<Record<string, unknown>> | undefined;
   if (boundedStable) {
     const expectedPreregistration =
-      EXPECTED_BOUNDED_STABLE_V3R2_PREREGISTRATION;
-    const preregistrationLabel = "bounded stable v3r2 preregistration";
+      EXPECTED_BOUNDED_STABLE_V3R3_PREREGISTRATION;
+    const preregistrationLabel = "bounded stable v3r3 preregistration";
     const repositoryRoot = path.resolve(__dirname, "..");
     const preregistrationPath = path.join(
       repositoryRoot,
@@ -865,23 +893,53 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       EXPECTED_BOUNDED_STABLE_PREREGISTRATION,
       "bounded stable v3 strength contract",
     );
+    const v3r2Path = path.join(
+      repositoryRoot,
+      EXPECTED_BOUNDED_STABLE_V3R2_PREREGISTRATION.path,
+    );
+    const v3r2Raw = await readHeldStableFile(
+      v3r2Path,
+      "bounded stable v3r2 preregistration",
+    );
+    const v3r2Preregistration = parseExactPinnedJson(
+      v3r2Raw,
+      EXPECTED_BOUNDED_STABLE_V3R2_PREREGISTRATION,
+      "bounded stable v3r2 preregistration",
+    );
+    const diagnosticPath = path.join(
+      repositoryRoot,
+      EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT.path,
+    );
+    const diagnosticRaw = await readHeldStableFile(
+      diagnosticPath,
+      "bounded stable v3r3 diagnostic receipt",
+    );
+    const diagnosticReceipt = parseExactPinnedJson(
+      diagnosticRaw,
+      EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT,
+      "bounded stable v3r3 diagnostic receipt",
+    );
     if (
       preregistration.schema !== expectedPreregistration.schema ||
+      diagnosticReceipt.schema !==
+        EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT.schema ||
       canonicalJson(plan.preregistration) !==
         canonicalJson(expectedPreregistration) ||
+      canonicalJson(plan.diagnostic_receipt) !==
+        canonicalJson(EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT) ||
       canonicalJson(plan.predecessor_v2) !==
         canonicalJson(strengthPreregistration.predecessor_v2) ||
-      (boundedStableV3R2 &&
-        canonicalJson(plan.predecessor_v3) !==
-          canonicalJson(preregistration.failed_v3)) ||
+      canonicalJson(plan.predecessor_v3) !==
+        canonicalJson(v3r2Preregistration.failed_v3) ||
+      canonicalJson(plan.predecessor_v3r2) !==
+        canonicalJson(preregistration.failed_v3r2) ||
       canonicalJson(plan.teacher) !==
         canonicalJson(strengthPreregistration.teacher) ||
-      (boundedStableV3R2 &&
-        plan.source_revision ===
-          (
-            preregistration.source_revision_policy as
-              Record<string, unknown> | undefined
-          )?.forbidden_failed_v3_revision) ||
+      plan.source_revision ===
+        (
+          preregistration.source_revision_policy as
+            Record<string, unknown> | undefined
+        )?.forbidden_failed_v3r2_revision ||
       canonicalJson(plan.authority) !==
         canonicalJson({
           may_execute_teacher: true,
@@ -1139,11 +1197,13 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     plan: Object.freeze({ ...plan }),
     planIdentity: Object.freeze({
       ...fileIdentity(absolutePlanPath, planRaw),
-      schema: boundedStableV3R2
-        ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
-        : boundedStableV3
-          ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
-          : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+      schema: boundedStableV3R3
+        ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
+        : boundedStableV3R2
+          ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
+          : boundedStableV3
+            ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+            : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     }),
     sourceRevision: plan.source_revision,
     selectionIdentity: Object.freeze({
@@ -2227,6 +2287,22 @@ export async function runHalfkp81Depth18BoundedStableTeacherV3R2(
     HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
   ) {
     throw new Error("bounded stable v3r2 runner rejects another plan family");
+  }
+  return runHalfkp81Depth18TeacherCoreForTests(authenticated, {
+    createStableRuntime: defaultBoundedStableRuntimeV3,
+    stablePolicy: "optional-bounded-depth11-v3",
+  });
+}
+
+export async function runHalfkp81Depth18BoundedStableTeacherV3R3(
+  planPath = HALFKP81_DEPTH18_BOUNDED_STABLE_V3R3_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
+  if (
+    authenticated.planIdentity.schema !==
+    HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
+  ) {
+    throw new Error("bounded stable v3r3 runner rejects another plan family");
   }
   return runHalfkp81Depth18TeacherCoreForTests(authenticated, {
     createStableRuntime: defaultBoundedStableRuntimeV3,

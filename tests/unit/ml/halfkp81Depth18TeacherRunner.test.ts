@@ -5,12 +5,15 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY,
   HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH,
   HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
+  authenticateHalfkp81Depth18TeacherPlan,
+  parseExactPinnedHalfkp81Depth18JsonForTests,
   publishHalfkp81Depth18TeacherCreateOnlyCoreForTests,
   runHalfkp81Depth18TeacherCoreForTests,
   validateHalfkp81Depth18SelectionRowsCoreForTests,
@@ -342,6 +345,48 @@ function coreContract(roles: readonly Halfkp81Depth18TeacherRole[]) {
 }
 
 describe("HalfKP81 depth18 teacher runner", () => {
+  it("accepts exact pinned pretty JSON only after byte authentication", () => {
+    const pretty = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../ml/halfkp81-hard-depth18-bounded-stable-v3r2-plan.json",
+      ),
+    );
+    const expected = {
+      bytes: 5_378,
+      sha256:
+        "a543e03804b9215abab25eb34f3937f5cc1fa212fc12af80b7a25e923665a7e5",
+    };
+    expect(
+      parseExactPinnedHalfkp81Depth18JsonForTests(pretty, expected),
+    ).toMatchObject({
+      schema: "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r2",
+    });
+
+    const sameLengthDrift = Buffer.from(pretty);
+    sameLengthDrift[1] = sameLengthDrift[1] === 0x0a ? 0x20 : 0x0a;
+    expect(() =>
+      parseExactPinnedHalfkp81Depth18JsonForTests(sameLengthDrift, expected),
+    ).toThrow(/identity differs/);
+  });
+
+  it("keeps the startup-faulted v3 family closed", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "halfkp81-closed-v3-test-"),
+    );
+    tempRoots.push(root);
+    const planPath = path.join(root, "teacher-plan.json");
+    await fs.promises.writeFile(
+      planPath,
+      `${canonical({
+        schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
+      })}\n`,
+    );
+    await expect(
+      authenticateHalfkp81Depth18TeacherPlan(planPath),
+    ).rejects.toThrow(/v3 family closed after startup fault; use v3r2/);
+  });
+
   it("isolates formal v2 output from the terminal-faulted v1 directory", () => {
     expect(HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY).toBe(
       "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2",

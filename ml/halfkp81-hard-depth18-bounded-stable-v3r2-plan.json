@@ -1,0 +1,104 @@
+{
+  "authority": {
+    "may_execute_teacher": false,
+    "may_play_formal_games": false,
+    "may_publish_teacher_plan_after_new_merged_source_authentication": true,
+    "may_train": false,
+    "may_write_live_weights": false
+  },
+  "change_control": {
+    "allowed_changes": [
+      "tracked-preregistration-parser-exact-identity-json-parse",
+      "new-clean-merged-main-source-revision",
+      "new-create-only-output-namespace"
+    ],
+    "failed_v3_parent_rows_reused": 0,
+    "failed_v3_teacher_rows_reused": 0,
+    "strength_contract": {
+      "bytes": 8607,
+      "path": "ml/halfkp81-hard-depth18-bounded-stable-v3-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-plan-v3",
+      "sha256": "e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1"
+    },
+    "strength_contract_must_equal_v3": true,
+    "v2_parent_rows_reused": 0,
+    "v2_teacher_rows_reused": 0
+  },
+  "failed_v3": {
+    "completed_parents": 0,
+    "family": "halfkp81-hard-depth18-bounded-stable-v3",
+    "formal_namespace": {
+      "directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3",
+      "exact_entries": [
+        "teacher-plan.json"
+      ],
+      "terminal_fault_artifact_present": false
+    },
+    "launch": {
+      "plist": {
+        "bytes": 1488,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3-28a3310a/com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a.launch-agent.plist",
+        "sha256": "1a9098cde06ea960f5132ddc9f42be452e323c5daaf266216f091ec7bc3837da"
+      },
+      "process_present": false,
+      "service_label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a",
+      "service_present": false,
+      "stderr": {
+        "bytes": 120,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3-28a3310a/com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a.stderr.log",
+        "sha256": "2ed0a84c5a4995b68a615649ade6607d41e7482fdcc80d3668648a39dc326e85"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3-28a3310a/com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "source_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09",
+    "status": "technical-launch-fault-family-stopped",
+    "teacher_plan": {
+      "bytes": 9103,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3/teacher-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3",
+      "sha256": "6b69cb61044df051999191e6204be098205aa2301690f2a1becc0730baf9eda5"
+    },
+    "teacher_rows": 0,
+    "terminal_fault_artifact_present": false
+  },
+  "family": "halfkp81-hard-depth18-bounded-stable-v3r2",
+  "live_baseline": {
+    "bytes": 1185988,
+    "path": "public/shogi-nnue-weights.bin",
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "output_namespace": {
+    "collision_policy": "create-only-fail-if-any-target-exists",
+    "directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2",
+    "fit_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/fit.jsonl",
+    "milestone_100_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-milestone-100.json",
+    "milestone_500_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-milestone-500.json",
+    "plan_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-plan.json",
+    "receipt_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-receipt.json",
+    "sealed_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/sealed.jsonl",
+    "terminal_fault_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-terminal-fault.json",
+    "tune_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/tune.jsonl",
+    "verified_artifact_receipt_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-verified-artifact-receipt.json",
+    "work_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r2/teacher-work.jsonl"
+  },
+  "schema": "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r2",
+  "source_revision_policy": {
+    "forbidden_failed_v3_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09",
+    "must_bind_new_clean_merged_main_revision": true,
+    "runtime_plan_source_revision_must_equal_authenticated_main_head": true,
+    "tracked_plan_must_be_merged_before_runtime_plan": true,
+    "uncommitted_changes_maximum": 0
+  },
+  "status": "prospective-technical-recovery-not-executed",
+  "tracked_preregistration_parser": {
+    "duplicate_key_policy": "safe-by-exact-pinned-bytes-and-sha256",
+    "format": "pretty-json-with-one-terminal-lf",
+    "parser": "json-parse-semantics",
+    "require_exact_bytes_and_sha256_before_parse": true,
+    "require_canonical-json-reencoding": false
+  }
+}

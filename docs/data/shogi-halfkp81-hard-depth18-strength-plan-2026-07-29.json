@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "v2-terminal-after-49-parents-depth11-long-tail-proved-v3-bounded-stable-defined-no-strength-claim",
+  "status": "v3-startup-serialization-fault-zero-parents-v3r2-required-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -327,6 +327,10 @@
       "family": "halfkp81-hard-depth18-bounded-stable-v3",
       "classification": "independent-strength-first-family-not-v2-resume",
       "branch": "codex/shogi-depth18-bounded-stable-v3",
+      "pull_request": 668,
+      "pull_request_checks_passed": 15,
+      "merge_strategy": "regular-merge",
+      "merge_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09",
       "tracked_preregistration": {
         "path": "ml/halfkp81-hard-depth18-bounded-stable-v3-plan.json",
         "bytes": 8607,
@@ -349,10 +353,48 @@
         "final_rescore_depth": 18
       },
       "formal_launch": {
+        "label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a",
         "keep_alive": false,
-        "launch_only_once": true
+        "launch_only_once": true,
+        "plist_bytes": 1488,
+        "plist_sha256": "1a9098cde06ea960f5132ddc9f42be452e323c5daaf266216f091ec7bc3837da",
+        "unloaded_after_stop": true
       },
-      "status": "implementation-in-progress-not-executed"
+      "teacher_plan": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3/teacher-plan.json",
+        "bytes": 9103,
+        "sha256": "6b69cb61044df051999191e6204be098205aa2301690f2a1becc0730baf9eda5"
+      },
+      "startup_result": {
+        "stop_message": "bounded stable v3 preregistration is not canonical JSON with one terminal LF",
+        "completed_parents": 0,
+        "teacher_rows": 0,
+        "stderr_bytes": 120,
+        "stderr_sha256": "2ed0a84c5a4995b68a615649ade6607d41e7482fdcc80d3668648a39dc326e85",
+        "stdout_bytes": 0,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "yaneuraou_processes_started": 0,
+        "stable_wasm_workers_started": 0,
+        "output_namespace_contains_only_plan": true,
+        "strength_result_observed": false
+      },
+      "root_cause": "tracked-preregistration-is-pinned-pretty-json-but-runner-required-canonical-one-line-json-with-one-terminal-lf",
+      "same_family_resume_authorized": false,
+      "output_overwrite_authorized": false,
+      "startup_fault_memo": "docs/data/shogi-halfkp81-depth18-v3-startup-fault-2026-07-30.json",
+      "status": "startup-technical-fault-family-closed"
+    },
+    "v3r2": {
+      "classification": "new-technical-recovery-not-v3-resume",
+      "new_source_revision_required": true,
+      "new_run_fingerprint_required": true,
+      "new_output_namespace_required": true,
+      "v3_plan_reused": false,
+      "v3_output_namespace_reused": false,
+      "authorized_change": "authenticate-pinned-pretty-json-preregistration-by-exact-bytes-and-sha-without-second-canonical-one-line-condition",
+      "strength_contract_unchanged": true,
+      "teacher_generation_started": false,
+      "strength_claim_authorized": false
     }
   },
   "training": {
@@ -446,7 +488,11 @@
     "v2_merge_revision": "551759a171ac7fed5cf4a5b7cc2279dc60eea6bd",
     "v2_teacher_attempt_terminal_fault": true,
     "v3_branch": "codex/shogi-depth18-bounded-stable-v3",
-    "v3_implementation_in_progress": true
+    "v3_pull_request": 668,
+    "v3_merge_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09",
+    "v3_implementation_merged": true,
+    "v3_teacher_attempt_startup_fault": true,
+    "v3r2_technical_recovery_required": true
   },
   "authority": {
     "formal_selection_executed": true,
@@ -456,7 +502,8 @@
     "teacher_rows": 585,
     "v1_same_family_resume_authorized": false,
     "v2_same_family_resume_authorized": false,
-    "v3_independent_family_implementation_authorized": true,
+    "v3_same_family_resume_authorized": false,
+    "v3r2_technical_recovery_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

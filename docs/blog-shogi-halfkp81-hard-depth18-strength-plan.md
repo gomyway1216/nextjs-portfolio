@@ -73,9 +73,11 @@ PR #667は全15 check成功後に通常mergeされ（merge `551759a171ac7fed5cf4
 
 隔離したexact production条件では9件が4.918〜547.152秒でdepth11へ到達し、4件はそれぞれ別workerで600.000〜600.003秒のtimeoutを再現した。全childとpoolは正常に終了し、formal work/faultも不変だった。したがって原因は単一の誤帰属やpool deadlockではなく、複数局面の本物のdepth11長尾と、それを全pool停止へ拡大する実装だった。timeoutをさらに延ばすだけでは完走上限を作れない。
 
-独立v3 `halfkp81-hard-depth18-bounded-stable-v3`は、同じ8,192選抜をbytes/SHA固定で再利用するが、v2の49親・585行は一切流用せず0から計算する。stable-WASMは20秒以内にdepth11へ完了した場合だけ候補手を一つ足し、未完partialは捨てる。通常deadlineはpool全体をpoisonせず、そのworkerだけを回収・交換する。正式起動も`KeepAlive=false`、`LaunchOnlyOnce=true`のone-shot LaunchAgentに変える。これらは結果を見て合格線を変える操作ではなく、弱い補助候補が強い教師生成全体を無期限停止させないための新しい事前登録familyである。診断の全実数は[機械可読メモ](./data/shogi-halfkp81-depth18-v2-timeout-diagnostic-2026-07-30.json)に保存した。
+独立v3 `halfkp81-hard-depth18-bounded-stable-v3`は、同じ8,192選抜をbytes/SHA固定で再利用するが、v2の49親・585行は一切流用せず0から計算する。stable-WASMは20秒以内にdepth11へ完了した場合だけ候補手を一つ足し、未完partialは捨てる。通常deadlineはpool全体をpoisonせず、そのworkerだけを回収・交換する。正式起動も`KeepAlive=false`、`LaunchOnlyOnce=true`のone-shot LaunchAgentに変えた。これらは結果を見て合格線を変える操作ではなく、弱い補助候補が強い教師生成全体を無期限停止させないための新しい事前登録familyである。診断の全実数は[機械可読メモ](./data/shogi-halfkp81-depth18-v2-timeout-diagnostic-2026-07-30.json)に保存した。
 
-v3のtracked preregistrationは8,607 bytes、SHA-256 `e72510d0e34a2904810591f12bc909c1ae9f770abb596195161ab9dd9d9375f1`に固定した。この段階ではまだteacher planを発行・実行しておらず、学習も棋力証明も0である。実装PRが通常mergeされたclean mainを再認証した後にだけ、別のimmutable teacher planをcreate-onlyで発行する。
+実装PR #668は全15 check成功後に通常mergeされた（merge `28a3310a9f16fafc4b192b090dcc3cdf2600de09`）。clean mainからv3のimmutable teacher plan（9,103 bytes、SHA-256 `6b69cb61044df051999191e6204be098205aa2301690f2a1becc0730baf9eda5`）をcreate-onlyで発行し、`com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a`としてone-shot起動した。しかしrunnerはworkerを作る前に`bounded stable v3 preregistration is not canonical JSON with one terminal LF`で停止した。tracked preregistrationは固定済みのpretty JSONなのに、runnerが同じbytesへcanonical 1行JSONという追加条件を誤って課していたのが原因である。出力namespaceに残ったのはteacher planだけで、完了は0 / 8,192親・0教師行、やねうら王とstable workerの起動も0だった。launchd jobはunload済みで、学習・棋力証明は進んでいない。
+
+v3のplanやnamespaceを上書きして再開はしない。修正版v3r2は新しいsource revision、run fingerprint、output namespaceへ結合する別のtechnical-recovery familyにする。変更するのは、pretty JSONのtracked preregistrationを既存のexact bytes/SHAで認証し、矛盾する1行化条件を外す点だけである。8,192選抜、stable-WASMの固定20秒上限、やねうら王depth16 MultiPV 12、全候補のdepth18再評価、3 epoch・1 seed、全棋力gateは変えない。v3 startup faultの証拠と境界は[機械可読メモ](./data/shogi-halfkp81-depth18-v3-startup-fault-2026-07-30.json)に保存した。
 
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 

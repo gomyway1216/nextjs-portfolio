@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
+  HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2,
   HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA,
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
@@ -89,7 +90,10 @@ const BOUNDED_OUTCOME_DOMAIN = "shogi-floodgate-bounded-stable-outcome-v3\0";
 const roots: string[] = [];
 
 type FixtureStableMode =
-  "required-v2" | "bounded-v3-omitted" | "bounded-v3-proposal";
+  | "required-v2"
+  | "bounded-v3-omitted"
+  | "bounded-v3-proposal"
+  | "bounded-v3r2-omitted";
 
 afterEach(async () => {
   await Promise.all(
@@ -534,9 +538,12 @@ async function generatedFixture(
     verification: {},
   };
   const plan = {
-    schema: boundedStableV3
-      ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
-      : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+    schema:
+      stableMode === "bounded-v3r2-omitted"
+        ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
+        : boundedStableV3
+          ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+          : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     source_revision: SOURCE_REVISION,
     selection_evidence: selectionEvidence,
     selection_manifest: identity(
@@ -616,7 +623,10 @@ async function generatedFixture(
         return boundedOutcome(
           parent,
           receiptDigest,
-          stableMode === "bounded-v3-omitted" ? "omitted" : "proposal",
+          stableMode === "bounded-v3-omitted" ||
+            stableMode === "bounded-v3r2-omitted"
+            ? "omitted"
+            : "proposal",
         );
       }
       const stableMove = "2g2f";
@@ -901,6 +911,23 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         teacher_plan: {
           schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
         },
+      },
+    });
+  });
+
+  it("preserves the actual v3r2 plan schema in the verified receipt", async () => {
+    const fixture = await generatedFixture("bounded-v3r2-omitted");
+    const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      fixture.request,
+      {
+        fit: 1,
+        tune: 1,
+        sealed: 1,
+      },
+    );
+    expect(result.receipt).toMatchObject({
+      teacher_plan: {
+        schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2,
       },
     });
   });

@@ -1,0 +1,98 @@
+{
+  "schema": "shogi-halfkp81-depth18-v3-startup-fault-data-memo-v1",
+  "date": "2026-07-30",
+  "status": "v3-closed-before-first-parent-v3r2-technical-recovery-required-no-strength-result",
+  "implementation": {
+    "pull_request": 668,
+    "checks_passed": 15,
+    "checks_failed": 0,
+    "merge_strategy": "regular-merge",
+    "merge_revision": "28a3310a9f16fafc4b192b090dcc3cdf2600de09"
+  },
+  "v3": {
+    "family": "halfkp81-hard-depth18-bounded-stable-v3",
+    "output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3",
+    "teacher_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3/teacher-plan.json",
+      "bytes": 9103,
+      "sha256": "6b69cb61044df051999191e6204be098205aa2301690f2a1becc0730baf9eda5"
+    },
+    "one_shot_launch": {
+      "label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3-28a3310a",
+      "plist": {
+        "bytes": 1488,
+        "sha256": "1a9098cde06ea960f5132ddc9f42be452e323c5daaf266216f091ec7bc3837da"
+      },
+      "keep_alive": false,
+      "launch_only_once": true,
+      "unloaded_after_stop": true
+    },
+    "startup_result": {
+      "stage": "runner-preregistration-authentication-before-worker-start",
+      "stop_message": "bounded stable v3 preregistration is not canonical JSON with one terminal LF",
+      "stderr": {
+        "bytes": 120,
+        "sha256": "2ed0a84c5a4995b68a615649ade6607d41e7482fdcc80d3668648a39dc326e85"
+      },
+      "stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "completed_parents": 0,
+      "teacher_rows": 0,
+      "yaneuraou_processes_started": 0,
+      "stable_wasm_workers_started": 0,
+      "strength_or_data_result_observed": false
+    },
+    "output_namespace_contents_after_stop": [
+      {
+        "kind": "teacher-plan",
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3/teacher-plan.json",
+        "bytes": 9103,
+        "sha256": "6b69cb61044df051999191e6204be098205aa2301690f2a1becc0730baf9eda5"
+      }
+    ],
+    "teacher_work_present": false,
+    "teacher_receipt_present": false,
+    "terminal_fault_artifact_present": false,
+    "same_family_resume_authorized": false,
+    "output_overwrite_authorized": false
+  },
+  "root_cause": {
+    "classification": "startup-contract-serialization-mismatch",
+    "tracked_preregistration_encoding": "pretty-printed-json",
+    "runner_required_encoding": "canonical-one-line-json-with-one-terminal-lf",
+    "engine_or_search_fault": false,
+    "data_or_strength_fault": false,
+    "explanation": "The publisher authenticated the pinned tracked preregistration as repository content, but the runner additionally required those same bytes to be canonical one-line JSON. The pinned document is intentionally pretty-printed, so startup stopped before either engine was created."
+  },
+  "v3r2_recovery": {
+    "classification": "new-technical-recovery-not-v3-resume",
+    "requires_new_source_revision": true,
+    "requires_new_run_fingerprint": true,
+    "requires_new_output_namespace": true,
+    "reuses_v3_output_namespace": false,
+    "reuses_v3_teacher_plan": false,
+    "strength_contract_unchanged": {
+      "authenticated_selection": true,
+      "stable_wasm_depth11_optional_with_fixed_20_second_budget": true,
+      "yaneuraou_depth16_multipv12_required": true,
+      "recorded_move_required": true,
+      "all_retained_moves_rescored_at_depth18": true,
+      "initializer": "original-alpha-050-not-failed-v3-or-v4-candidate",
+      "epochs": 3,
+      "seeds": 1,
+      "promotion_gates": true
+    },
+    "authorized_change": "accept-the-pinned-pretty-json-preregistration-by-exact-bytes-and-sha-without-imposing-a-second-canonical-one-line-encoding-contract",
+    "teacher_generation_started": false,
+    "training_started": false,
+    "strength_claim_authorized": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

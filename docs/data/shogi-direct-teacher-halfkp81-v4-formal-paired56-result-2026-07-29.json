@@ -1,6 +1,6 @@
 {
-  "schema": "shogi-direct-teacher-halfkp81-v4-formal-paired56-start-data-memo-v1",
-  "status": "formal-v4-static-pass-fresh-paired56-started-no-strength-decision",
+  "schema": "shogi-direct-teacher-halfkp81-v4-formal-paired56-result-data-memo-v1",
+  "status": "failed-strength-complete-v4-family-closed",
   "date": "2026-07-29",
   "predecessor": {
     "diagnosis_memo": {
@@ -13,7 +13,7 @@
       "small_proxy_improvements_are_not_playing_strength": true,
       "prior_approximately_one_percent_proxy_gain_did_not_establish_strength": true,
       "work_without_direct_strength_contribution_was_overextended": true,
-      "retained_benefit": "a frozen candidate and authenticated path to a decisive fresh paired screen"
+      "retained_benefit": "a frozen candidate was tested on an authenticated fresh paired screen and rejected by the preregistered strength gate"
     }
   },
   "formal_static_adjudication": {
@@ -85,18 +85,37 @@
     "merge_strategy": "regular-merge-commit",
     "formal_plan_sha256": "93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230"
   },
-  "start_snapshot": {
+  "formal_paired56_result": {
     "workers": 12,
-    "completed_pairs": 0,
-    "completed_games": 0,
+    "completed_pairs": 28,
+    "completed_games": 56,
     "total_pairs": 28,
     "total_games": 56,
+    "candidate_wins": 29,
+    "candidate_losses": 24,
+    "draws": 3,
+    "candidate_half_points": 61,
+    "available_half_points": 112,
+    "minimum_candidate_half_points": 62,
+    "shortfall_half_points": 1,
     "technical_faults": 0,
-    "snapshot_scope": "formal-run-start-not-a-live-progress-counter"
+    "all_moves_legal": true,
+    "all_openings_unique": true,
+    "pair_receipts": 28,
+    "pair_logs": 28,
+    "terminal_result": {
+      "bytes": 2968,
+      "sha256": "c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21",
+      "embedded_domain_result_sha256": "5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090",
+      "status": "failed-strength-complete-v4-family-closed"
+    },
+    "first_playing_strength_evidence": true,
+    "candidate_stronger": false
   },
   "authority": {
-    "playing_strength_evidence_at_start": false,
-    "playing_strength_decision": "pending-complete-56-game-result",
+    "playing_strength_evidence_complete": true,
+    "playing_strength_decision": "strength-miss-candidate-not-adopted",
+    "same_v4_family_retry_authorized": false,
     "live_weights_changed": false,
     "public_flag_changed": false,
     "expanded_stage_authorized": false,

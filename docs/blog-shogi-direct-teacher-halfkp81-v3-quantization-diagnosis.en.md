@@ -74,7 +74,7 @@ Those diagnostic values are already observed, so passing them does not authorize
 
 The [machine-readable memo](./data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json) fixes the key values and proposal boundary.
 
-## 2026-07-29 update: v4 static passed 7/7 and the fresh 56-game screen started
+## 2026-07-29 update: v4 static passed 7/7; the fresh screen missed at 61/112
 
 The proposed v4 robust adjudication ran formally without changing the frozen candidate and passed all seven checks. The result JSON has SHA-256 `a5e02de08ad116578937bf81a1d27f5d9a9ab197e84fadf7f42efb20affb5b7a`.
 
@@ -88,7 +88,7 @@ The proposed v4 robust adjudication ran formally without changing the frozen can
 | WASM parity mismatches                 |          0 |           0 |     PASS |
 | Runtime slowdown                       |     2.496% |         ≤5% |     PASS |
 
-This is a safety and reproducibility pass, not a strength result. In particular, the pair-accuracy delta of `+0.000445` is only `+0.0445 percentage point`; it must not be relabeled as “the engine got stronger.” The same applies to the small proxy gains previously summarized as “only about 1%.” This record does not retract the conclusion that training metrics were confused with playing strength or that too much time was spent on work with no direct strength contribution. The durable benefit is narrower: the frozen candidate was preserved and can now receive a short, decisive playing test.
+This is a safety and reproducibility pass, not a strength result. In particular, the pair-accuracy delta of `+0.000445` is only `+0.0445 percentage point`; it must not be relabeled as “the engine got stronger.” The same applies to the small proxy gains previously summarized as “only about 1%.” This record does not retract the conclusion that training metrics were confused with playing strength or that too much time was spent on work with no direct strength contribution. The durable benefit is narrower: the frozen candidate was preserved and received a decisive fresh playing test.
 
 Fresh openings were selected outside a 3,302-fingerprint union of tracked protocol and private-run inventory. The first 28 eligible fingerprints were frozen, with zero overlap against the prior inventory. Four findings from an independent audit were fixed before merge:
 
@@ -99,6 +99,22 @@ Fresh openings were selected outside a 3,302-fingerprint union of tracked protoc
 
 The runner also rejects transcripts with `legal_moves=0`. The follow-up audit found no remaining P1 or P2 finding. Implementation PR [#663](https://github.com/gomyway1216/nextjs-portfolio/pull/663) was merged with a regular merge commit, `bcf77714aee38ddf6f0f671e8c1d475a05dd2593`.
 
-That merged source froze the formal plan with SHA-256 `93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230`. The 28 color-swapped pairs, 56 games total, started with 12 workers. The start snapshot was `0/56` games and zero technical faults. Live weights and the public flag remain unchanged. No strength conclusion is allowed until the 56-game result is complete.
+That merged source froze the formal plan with SHA-256 `93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230`. Twelve workers completed all 28 color-swapped pairs and all 56 games.
 
-The start milestone is stored in a separate [successor machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-start-2026-07-29.json). The v3 diagnosis memo linked above is an exact bytes/SHA input to the v4 preregistration, so it was intentionally not rewritten after the fact.
+| Fresh paired56 result |                                       Value |
+| --------------------- | ------------------------------------------: |
+| Candidate W–L–D       |                                     29–24–3 |
+| Completion            |                    28/28 pairs; 56/56 games |
+| Half-point score      |                                      61/112 |
+| Preregistered minimum |                                      62/112 |
+| Shortfall             |                                1 half-point |
+| Technical faults      |                                           0 |
+| All moves legal       |                                        true |
+| All openings unique   |                                        true |
+| Decision              | **strength MISS; candidate stronger=false** |
+
+The candidate won more games than it lost, but finished one half-point below the preregistered acceptance line. The terminal status is `failed-strength-complete-v4-family-closed`; the same v4 family will not be rescued by changing the threshold or rerunning it. All 28 pair receipts and logs are present. These 56 games are the first playing-strength evidence, and their decision is not to adopt the candidate as a strength improvement.
+
+The terminal `result.json` is 2,968 bytes with SHA-256 `c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21`; its embedded domain-separated result SHA-256 is `5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090`. The expanded stage, live weights, and public flag all remain unchanged.
+
+The final milestone is stored in a separate [successor machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-result-2026-07-29.json). The v3 diagnosis memo linked above is an exact bytes/SHA input to the v4 preregistration, so it was intentionally not rewritten after the fact.

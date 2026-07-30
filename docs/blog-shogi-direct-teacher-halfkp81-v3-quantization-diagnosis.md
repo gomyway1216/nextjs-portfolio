@@ -74,7 +74,7 @@ child-position SHAの偶奇でfit/evaluationを分け、`float_cp ≈ a × int_c
 
 主要値とproposal境界は[machine-readable memo](./data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json)に固定した。
 
-## 2026-07-29追記：v4 static 7/7 PASS、fresh 56局を開始
+## 2026-07-29追記：v4 static 7/7 PASS、fresh 56局は61/112でstrength MISS
 
 提案したv4 robust adjudicationは、凍結候補を変更せず正式実行され、7項目すべてを通過した。結果JSONのSHA-256は`a5e02de08ad116578937bf81a1d27f5d9a9ab197e84fadf7f42efb20affb5b7a`である。
 
@@ -88,7 +88,7 @@ child-position SHAの偶奇でfit/evaluationを分け、`float_cp ≈ a × int_c
 | WASM parity mismatch           |          0 |       0 | PASS |
 | runtime slowdown               |     2.496% |     ≤5% | PASS |
 
-これは安全・再現性gateの通過であり、棋力向上ではない。とくにpair accuracy差`+0.000445`は`+0.0445 percentage point`にすぎず、ここを「強くなった」と言い換えない。過去に「約1%程度しか変わらなかった」と棚卸しした小幅なproxy改善も同じで、学習指標と実戦棋力を混同したこと、棋力に直接寄与しない作業へ時間を使いすぎたことは撤回しない。残った実利は、凍結候補を棄却せず、対局で短く決着を付けられる状態まで持ってきたことである。
+これは安全・再現性gateの通過であり、棋力向上ではない。とくにpair accuracy差`+0.000445`は`+0.0445 percentage point`にすぎず、ここを「強くなった」と言い換えない。過去に「約1%程度しか変わらなかった」と棚卸しした小幅なproxy改善も同じで、学習指標と実戦棋力を混同したこと、棋力に直接寄与しない作業へ時間を使いすぎたことは撤回しない。残った実利は、凍結候補を棄却せず、fresh対局で決着を付けられたことである。
 
 fresh openingは、既存protocolとprivate run inventoryを合わせた3,302 fingerprintから外れる最初の28件を固定し、過去openingとの重複は0だった。独立監査で見つかった4件もmerge前に修正した。
 
@@ -99,6 +99,22 @@ fresh openingは、既存protocolとprivate run inventoryを合わせた3,302 fi
 
 加えて`legal_moves=0`のtranscriptを拒否する。再監査で残存P1/P2は0だった。実装PR [#663](https://github.com/gomyway1216/nextjs-portfolio/pull/663)はregular mergeされ、merge commitは`bcf77714aee38ddf6f0f671e8c1d475a05dd2593`である。
 
-そのmerged sourceから、SHA-256 `93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230`の正式planを固定した。28 color-swapped pairs、計56局を12 workerで開始し、開始時snapshotは`0/56`、technical fault `0`だった。live weightと公開flagは変更していない。56局が終わるまで、候補が強くなったという結論は出さない。
+そのmerged sourceから、SHA-256 `93cdaa08039dd764a98bc61a9cbe9005cbbca1f925a072749937d6c16da7f230`の正式planを固定し、28 color-swapped pairs、計56局を12 workerで完走した。
 
-今回の開始記録は[後続machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-start-2026-07-29.json)に分離した。上で参照したv3診断memoはv4事前登録がbytes/SHAまで入力として固定しているため、後知恵で書き換えていない。
+| fresh paired56 result |                                          値 |
+| --------------------- | ------------------------------------------: |
+| candidate勝–負–分     |                                     29–24–3 |
+| 完了                  |                    28/28 pairs、56/56 games |
+| half-point score      |                                      61/112 |
+| 事前登録した最低値    |                                      62/112 |
+| 不足                  |                                1 half-point |
+| technical fault       |                                           0 |
+| 全着手legal           |                                        true |
+| 全opening unique      |                                        true |
+| 判定                  | **strength MISS、candidate stronger=false** |
+
+候補は勝数では上回ったが、事前登録した合格線に1 half-point届かなかった。結果は`failed-strength-complete-v4-family-closed`であり、同じv4 familyを閾値変更や再試行で救済しない。28個のpair receiptとlogはすべて揃い、この56局が初めてのplaying-strength evidenceになった。その証拠が出した結論は「強化候補として採用しない」である。
+
+terminal `result.json`は2,968 bytes、SHA-256 `c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21`で、内部のdomain-separated result SHA-256は`5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090`である。expanded stage、live weight、公開flagはすべて不変のままである。
+
+最終記録は[後続machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-result-2026-07-29.json)に分離した。上で参照したv3診断memoはv4事前登録がbytes/SHAまで入力として固定しているため、後知恵で書き換えていない。

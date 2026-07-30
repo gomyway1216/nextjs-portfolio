@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
   HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA,
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
@@ -15,6 +16,19 @@ import {
   type Halfkp81Depth18PrivateSnapshot,
   type Halfkp81Depth18ValidationRequest,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
+import {
+  FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_OUTER_WATCHDOG_MS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_QUEUE_BOUND_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_RUNTIME_CONTRACT_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKERS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SHA256_V3,
+  getFloodgateBoundedStableWasmRuntimeReceiptDigestV3,
+  type FloodgateBoundedStableWasmOutcomeV3,
+  type FloodgateBoundedStableWasmRuntimeReceiptV3,
+} from "../../../ml/floodgate-bounded-stable-wasm-runtime-v3";
 import {
   runHalfkp81Depth18TeacherCoreForTests,
   type Halfkp81Depth18AuthenticatedTeacherPlan,
@@ -70,7 +84,12 @@ const START =
 const STABLE_RECEIPT_DOMAIN =
   "shogi-floodgate-production-stable-runtime-receipt-v1\0";
 const STABLE_ROW_DOMAIN = "shogi-floodgate-production-stable-runtime-row-v1\0";
+const BOUNDED_PARENT_DOMAIN = "shogi-floodgate-bounded-stable-parent-v3\0";
+const BOUNDED_OUTCOME_DOMAIN = "shogi-floodgate-bounded-stable-outcome-v3\0";
 const roots: string[] = [];
+
+type FixtureStableMode =
+  "required-v2" | "bounded-v3-omitted" | "bounded-v3-proposal";
 
 afterEach(async () => {
   await Promise.all(
@@ -140,6 +159,173 @@ function teacherSettings() {
     maximum_rows_per_parent: 14,
     expected_rows_point: 95_191,
     maximum_rows: 114_688,
+  });
+}
+
+function boundedTeacherSettings() {
+  return Object.freeze({
+    candidate_policy: Object.freeze({
+      deduplication: "USI-move-exact-before-depth18-rescore",
+      recorded_move: Object.freeze({ required: true }),
+      stable_depth11: Object.freeze({
+        accept_partial_result: false,
+        budget_milliseconds: FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+        completed_move_requires_independent_depth18_rescore: true,
+        cooperative_deadline_required: true,
+        omission_must_be_explicit_in_parent_ledger: true,
+        optional: true,
+        pool_wide_poison_on_timeout: false,
+        requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+        timed_out_worker_replacement: "worker-local-clean-replacement",
+      }),
+      yaneuraou_depth16_multipv: Object.freeze({
+        depth: 16,
+        multipv: 12,
+        required: true,
+      }),
+    }),
+    engine: "YaneuraOu NNUE 9.60git 64APPLEM1",
+    expected_rows_point: 95_191,
+    hash_mib_per_process: 512,
+    maximum_rows: 114_688,
+    maximum_rows_per_parent: 14,
+    minimum_rows_per_parent: 2,
+    processes: 13,
+    rescore_policy: Object.freeze({
+      all_deduplicated_candidates_independently_rescored: true,
+      depth: 18,
+      old_depth6_or_depth12_cp_target_rows: 0,
+    }),
+    threads_per_process: 1,
+    timeout_seconds_per_parent: 600,
+  });
+}
+
+function boundedStableReceipt(): Readonly<FloodgateBoundedStableWasmRuntimeReceiptV3> {
+  return Object.freeze({
+    contract: FLOODGATE_BOUNDED_STABLE_WASM_RUNTIME_CONTRACT_V3,
+    status: "initialized-optional-bounded-stable-candidate-capability",
+    claim_boundary:
+      "candidate-or-authenticated-omission-only-not-teacher-label-training-holdout-or-playing-strength",
+    execution_boundary: "production-pinned-asset-authority",
+    asset_authority_receipt_sha256: digest("bounded-asset-authority"),
+    engine_assets: Object.freeze({
+      wasm: Object.freeze({
+        bytes: FLOODGATE_STABLE_WASM_BYTES,
+        sha256: FLOODGATE_STABLE_WASM_SHA256,
+      }),
+      weights: Object.freeze({
+        bytes: FLOODGATE_STABLE_WEIGHTS_BYTES,
+        sha256: FLOODGATE_STABLE_WEIGHTS_SHA256,
+      }),
+      worker_source: Object.freeze({
+        bytes: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+        sha256: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SHA256_V3,
+      }),
+    }),
+    search: Object.freeze({
+      requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+      quiescence_depth: FLOODGATE_STABLE_QUIESCENCE_DEPTH,
+      cooperative_deadline_ms:
+        FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+      partial_result_policy: "discard-entire-move-score-and-counters",
+      stable_candidate_role: "optional",
+    }),
+    operational: Object.freeze({
+      workers: FLOODGATE_BOUNDED_STABLE_WASM_WORKERS_V3,
+      queue_bound: FLOODGATE_BOUNDED_STABLE_WASM_QUEUE_BOUND_V3,
+      outer_watchdog_ms: FLOODGATE_BOUNDED_STABLE_WASM_OUTER_WATCHDOG_MS_V3,
+      omission_policy: "resolve-explicit-bound-outcome-no-pool-poison",
+      unexpected_failure_policy: "reap-replace-reject-parent-no-pool-poison",
+      replacement_policy:
+        "reap-omitted-or-failed-worker-before-fresh-replacement",
+    }),
+  });
+}
+
+function boundedOutcome(
+  parent: Readonly<FloodgateTrainingParent>,
+  receiptSha256: string,
+  outcome: "omitted" | "proposal",
+): Readonly<FloodgateBoundedStableWasmOutcomeV3> {
+  const parentPayload = {
+    schema_version: parent.schema_version,
+    game_id: parent.game_id,
+    parent_id: parent.parent_id,
+    position_id: parent.position_id,
+    parent_sfen: parent.parent_sfen,
+    ply: parent.ply,
+    played_move: parent.played_move,
+  };
+  const parentPayloadSha256 = digest(
+    `${BOUNDED_PARENT_DOMAIN}${canonicalHalfkp81Depth18Json(parentPayload)}`,
+  );
+  if (outcome === "omitted") {
+    const body = {
+      schema: FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
+      outcome: "omitted" as const,
+      row: null,
+      omission: {
+        reason: "cooperative-deadline" as const,
+        search_budget_ms: FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+        completed_depth: 9,
+        partial_result_adopted: false as const,
+        worker_reaped: true as const,
+        worker_replaced: true as const,
+      },
+    };
+    return Object.freeze({
+      ...body,
+      runtime_binding: Object.freeze({
+        runtime_receipt_sha256: receiptSha256,
+        parent_payload_sha256: parentPayloadSha256,
+        outcome_sha256: digest(
+          `${BOUNDED_OUTCOME_DOMAIN}${canonicalHalfkp81Depth18Json(body)}`,
+        ),
+      }),
+    });
+  }
+  const stableMove = "2g2f";
+  const childSfen = childSfenAfterUsi(parent.parent_sfen, stableMove);
+  const row = {
+    schema: FLOODGATE_STABLE_WASM_PROPOSAL_ROW_SCHEMA,
+    game_id: parent.game_id,
+    parent_id: parent.parent_id,
+    position_id: parent.position_id,
+    parent_payload_sha256: digest(
+      `shogi-floodgate-stable-parent-v1\0${canonicalHalfkp81Depth18Json(
+        parentPayload,
+      )}`,
+    ),
+    stable_move: stableMove,
+    child_sfen: childSfen,
+    child_position_id: positionKeyFromSfen(childSfen),
+    search: {
+      requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+      completed_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+      termination: "requested-depth-complete" as const,
+      raw_search_score: 10,
+      score_encoding: FLOODGATE_STABLE_WASM_SCORE_ENCODING,
+      nodes: 10,
+      leaves: 5,
+      root_tesu: parent.ply,
+    },
+  };
+  const body = {
+    schema: FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
+    outcome: "proposal" as const,
+    row,
+    omission: null,
+  };
+  return Object.freeze({
+    ...body,
+    runtime_binding: Object.freeze({
+      runtime_receipt_sha256: receiptSha256,
+      parent_payload_sha256: parentPayloadSha256,
+      outcome_sha256: digest(
+        `${BOUNDED_OUTCOME_DOMAIN}${canonicalHalfkp81Depth18Json(body)}`,
+      ),
+    }),
   });
 }
 
@@ -217,7 +403,10 @@ interface Fixture {
   readonly root: string;
 }
 
-async function generatedFixture(): Promise<Fixture> {
+async function generatedFixture(
+  stableMode: FixtureStableMode = "required-v2",
+): Promise<Fixture> {
+  const boundedStableV3 = stableMode !== "required-v2";
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-depth18-artifact-"),
   );
@@ -345,7 +534,9 @@ async function generatedFixture(): Promise<Fixture> {
     verification: {},
   };
   const plan = {
-    schema: HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+    schema: boundedStableV3
+      ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+      : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     source_revision: SOURCE_REVISION,
     selection_evidence: selectionEvidence,
     selection_manifest: identity(
@@ -360,7 +551,7 @@ async function generatedFixture(): Promise<Fixture> {
       source_revision: "9133c527791c8b2f5f378a32df29a5e3752bd41b",
       id: "YaneuraOu NNUE 9.60git 64APPLEM1",
     },
-    teacher: teacherSettings(),
+    teacher: boundedStableV3 ? boundedTeacherSettings() : teacherSettings(),
     outputs,
   };
   const planBytes = canonicalLine(plan);
@@ -383,7 +574,7 @@ async function generatedFixture(): Promise<Fixture> {
     plan: Object.freeze(plan),
     planIdentity: Object.freeze({
       ...identity(outputs.plan_json, planBytes),
-      schema: HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+      schema: plan.schema,
     }),
     sourceRevision: SOURCE_REVISION,
     selectionIdentity: Object.freeze({
@@ -403,18 +594,31 @@ async function generatedFixture(): Promise<Fixture> {
     roles: roleMap,
     outputs: Object.freeze(outputs),
     engine: Object.freeze(plan.engine),
-    teacher: teacherSettings(),
+    teacher: plan.teacher,
   } as unknown as Halfkp81Depth18AuthenticatedTeacherPlan;
 
   const poolDigest = digest("pool");
-  const receipt = stableReceipt(poolDigest);
-  const receiptDigest = digest(
-    `${STABLE_RECEIPT_DOMAIN}${canonicalHalfkp81Depth18Json(receipt)}`,
-  );
+  const receipt = boundedStableV3
+    ? boundedStableReceipt()
+    : stableReceipt(poolDigest);
+  const receiptDigest = boundedStableV3
+    ? getFloodgateBoundedStableWasmRuntimeReceiptDigestV3(
+        receipt as Readonly<FloodgateBoundedStableWasmRuntimeReceiptV3>,
+      )
+    : digest(
+        `${STABLE_RECEIPT_DOMAIN}${canonicalHalfkp81Depth18Json(receipt)}`,
+      );
   const stable: Halfkp81Depth18TeacherStableRuntime = {
     receipt,
     receiptDigest,
     propose: async (parent) => {
+      if (stableMode !== "required-v2") {
+        return boundedOutcome(
+          parent,
+          receiptDigest,
+          stableMode === "bounded-v3-omitted" ? "omitted" : "proposal",
+        );
+      }
       const stableMove = "2g2f";
       const parentPayload = {
         schema_version: parent.schema_version,
@@ -515,6 +719,9 @@ async function generatedFixture(): Promise<Fixture> {
       ),
     }),
     processes: 3,
+    stablePolicy: boundedStableV3
+      ? "optional-bounded-depth11-v3"
+      : "required-depth11-v2",
   };
   await runHalfkp81Depth18TeacherCoreForTests(authenticated, dependencies, {
     parentCount: roles.length,
@@ -579,6 +786,14 @@ function resealWrapper(wrapper: Record<string, unknown>): void {
       payload,
     )}`,
   );
+}
+
+function resealTeacherEntry(wrapper: Record<string, unknown>): void {
+  const teacher = wrapper.teacher_entry as Record<string, unknown>;
+  const payload = { ...teacher };
+  delete payload.payload_sha256;
+  teacher.payload_sha256 = digest(canonicalHalfkp81Depth18Json(payload));
+  resealWrapper(wrapper);
 }
 
 function resealStableWrapper(wrapper: Record<string, unknown>): void {
@@ -646,6 +861,100 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         { fit: 1, tune: 1, sealed: 1 },
       ),
     ).not.toThrow();
+  });
+
+  it("accepts authenticated v3 omission and proposal ledgers with schema-bound receipts", async () => {
+    const omitted = await generatedFixture("bounded-v3-omitted");
+    const omittedResult = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      omitted.request,
+      {
+        fit: 1,
+        tune: 1,
+        sealed: 1,
+      },
+    );
+    expect(omittedResult).toMatchObject({
+      completedParents: 3,
+      completedRows: 39,
+      roleRows: { fit: 13, tune: 13, sealed: 13 },
+      receipt: {
+        teacher_plan: {
+          schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
+        },
+      },
+    });
+
+    const proposed = await generatedFixture("bounded-v3-proposal");
+    const proposedResult = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      proposed.request,
+      {
+        fit: 1,
+        tune: 1,
+        sealed: 1,
+      },
+    );
+    expect(proposedResult).toMatchObject({
+      completedParents: 3,
+      completedRows: 42,
+      roleRows: { fit: 14, tune: 14, sealed: 14 },
+      receipt: {
+        teacher_plan: {
+          schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
+        },
+      },
+    });
+  });
+
+  it("rejects forged v3 outcomes and stable-source adoption drift", async () => {
+    const omitted = await generatedFixture("bounded-v3-omitted");
+    const forgedOutcome = cloneWork(omitted.request);
+    (
+      (forgedOutcome[1].stable_result as Record<string, unknown>)
+        .omission as Record<string, unknown>
+    ).completed_depth = 8;
+    resealWrapper(forgedOutcome[1]);
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(omitted.request, forgedOutcome),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/outcome digest/);
+
+    const leakedStableSource = cloneWork(omitted.request);
+    const omittedRecords = (
+      leakedStableSource[1].teacher_entry as Record<string, unknown>
+    ).records as Record<string, unknown>[];
+    omittedRecords[0].sources = [
+      ...(omittedRecords[0].sources as string[]),
+      "stable",
+    ];
+    resealTeacherEntry(leakedStableSource[1]);
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(omitted.request, leakedStableSource),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/stable|sources/);
+
+    const proposed = await generatedFixture("bounded-v3-proposal");
+    const missingStableSource = cloneWork(proposed.request);
+    const proposalRecords = (
+      missingStableSource[1].teacher_entry as Record<string, unknown>
+    ).records as Record<string, unknown>[];
+    const stableRecord = proposalRecords.find(
+      (record) => record.move === "2g2f",
+    );
+    expect(stableRecord).toBeDefined();
+    stableRecord!.sources = (stableRecord!.sources as string[]).filter(
+      (source) => source !== "stable",
+    );
+    resealTeacherEntry(missingStableSource[1]);
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(proposed.request, missingStableSource),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/stable|sources/);
   });
 
   it("rejects wrong role, stable depth/binding, and old depth12 target fields", async () => {

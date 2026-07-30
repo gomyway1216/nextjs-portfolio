@@ -36,6 +36,19 @@ import {
   type FloodgateProductionStableWasmRuntimeResult,
 } from "./floodgate-production-stable-wasm-runtime";
 import {
+  FLOODGATE_BOUNDED_STABLE_WASM_OUTER_WATCHDOG_MS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_QUEUE_BOUND_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_RUNTIME_CONTRACT_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKERS_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SHA256_V3,
+  getFloodgateBoundedStableWasmRuntimeReceiptDigestV3,
+  validateFloodgateBoundedStableWasmOutcomeV3,
+  type FloodgateBoundedStableWasmOutcomeV3,
+  type FloodgateBoundedStableWasmRuntimeReceiptV3,
+} from "./floodgate-bounded-stable-wasm-runtime-v3";
+import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CLAIM_BOUNDARY,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
   FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
@@ -53,6 +66,8 @@ export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA =
+  "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -82,11 +97,51 @@ const FORMAL_ROLE_COUNTS = Object.freeze({
   sealed: 1_024,
 });
 const ROLE_ORDER = Object.freeze(["fit", "tune", "sealed"] as const);
+const BOUNDED_STABLE_V3_TEACHER = Object.freeze({
+  candidate_policy: Object.freeze({
+    deduplication: "USI-move-exact-before-depth18-rescore",
+    recorded_move: Object.freeze({ required: true }),
+    stable_depth11: Object.freeze({
+      accept_partial_result: false,
+      budget_milliseconds: FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+      completed_move_requires_independent_depth18_rescore: true,
+      cooperative_deadline_required: true,
+      omission_must_be_explicit_in_parent_ledger: true,
+      optional: true,
+      pool_wide_poison_on_timeout: false,
+      requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+      timed_out_worker_replacement: "worker-local-clean-replacement",
+    }),
+    yaneuraou_depth16_multipv: Object.freeze({
+      depth: 16,
+      multipv: 12,
+      required: true,
+    }),
+  }),
+  engine: "YaneuraOu NNUE 9.60git 64APPLEM1",
+  expected_rows_point: 95_191,
+  hash_mib_per_process: 512,
+  maximum_rows: 114_688,
+  maximum_rows_per_parent: 14,
+  minimum_rows_per_parent: 2,
+  processes: 13,
+  rescore_policy: Object.freeze({
+    all_deduplicated_candidates_independently_rescored: true,
+    depth: 18,
+    old_depth6_or_depth12_cp_target_rows: 0,
+  }),
+  threads_per_process: 1,
+  timeout_seconds_per_parent: 600,
+});
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
   "old_outcome",
   "old_depth12_signals_usage",
 ]);
+
+type TeacherPlanSchema =
+  | typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -153,7 +208,10 @@ export interface Halfkp81Depth18TeacherWorkParent {
   readonly run_fingerprint: string;
   readonly parent_id: string;
   readonly role: TeacherRole;
-  readonly stable_result: Readonly<FloodgateProductionStableWasmRuntimeResult>;
+  readonly stable_result: Readonly<
+    | FloodgateProductionStableWasmRuntimeResult
+    | FloodgateBoundedStableWasmOutcomeV3
+  >;
   readonly teacher_entry: Readonly<CompletedWorkEntry>;
   readonly payload_sha256: string;
 }
@@ -723,8 +781,9 @@ function validateWrapper(
   value: unknown,
   expectedParent: Readonly<SelectionParent>,
   fingerprint: string,
+  planSchema: TeacherPlanSchema,
   stableRuntimeReceiptSha256: string,
-  stableReusablePoolReceiptSha256: string,
+  stableReusablePoolReceiptSha256: string | undefined,
   source: number,
 ): Readonly<Halfkp81Depth18TeacherWorkParent> {
   const label = `teacher work line ${source}`;
@@ -753,13 +812,23 @@ function validateWrapper(
   ) {
     throw new Error(`${label} wrapper identity/digest/role differs`);
   }
-  const stable = validateStableResult(
-    wrapper.stable_result,
-    expectedParent.parent,
-    stableRuntimeReceiptSha256,
-    stableReusablePoolReceiptSha256,
-    `${label}.stable_result`,
-  );
+  const stableMove =
+    planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+      ? validateFloodgateBoundedStableWasmOutcomeV3(
+          wrapper.stable_result,
+          expectedParent.parent,
+          stableRuntimeReceiptSha256,
+        )
+      : validateStableResult(
+          wrapper.stable_result,
+          expectedParent.parent,
+          stableRuntimeReceiptSha256,
+          requiredText(
+            stableReusablePoolReceiptSha256,
+            "stable reusable pool receipt SHA",
+          ),
+          `${label}.stable_result`,
+        ).row.stable_move;
   const teacherEntry = validateWorkEntry(
     wrapper.teacher_entry,
     fingerprint,
@@ -770,13 +839,25 @@ function validateWrapper(
     600_000,
     { depth: 16 },
     undefined,
-    stable.row.stable_move,
+    stableMove,
   );
   if (teacherEntry.kind !== "parent") {
     throw new Error(`${label} contains a fault/skip/incomplete parent`);
   }
   if (teacherEntry.records.length < 2 || teacherEntry.records.length > 14) {
     throw new Error(`${label} must contain 2 through 14 fresh target rows`);
+  }
+  const stableSourced = teacherEntry.records.filter((record) =>
+    record.sources.includes("stable"),
+  );
+  if (
+    (stableMove === undefined && stableSourced.length !== 0) ||
+    (stableMove !== undefined &&
+      (stableSourced.length !== 1 || stableSourced[0].move !== stableMove))
+  ) {
+    throw new Error(
+      `${label} stable source differs from its authenticated outcome`,
+    );
   }
   return wrapper as unknown as Readonly<Halfkp81Depth18TeacherWorkParent>;
 }
@@ -809,7 +890,7 @@ function validateEngineReceipt(
   }
 }
 
-function validateStableRuntime(
+function validateRequiredStableRuntimeV2(
   value: unknown,
 ): Readonly<Record<string, unknown>> {
   const row = exactObject(
@@ -992,12 +1073,130 @@ function validateStableRuntime(
   return row;
 }
 
+function validateBoundedStableRuntimeV3(
+  value: unknown,
+): Readonly<Record<string, unknown>> {
+  const row = exactObject(
+    value,
+    ["receipt_sha256", "receipt"],
+    "teacher work bounded stable runtime",
+  );
+  const receiptSha = requiredDigest(
+    row.receipt_sha256,
+    "teacher work bounded stable runtime receipt SHA",
+  );
+  const receipt = exactObject(
+    row.receipt,
+    [
+      "contract",
+      "status",
+      "claim_boundary",
+      "execution_boundary",
+      "asset_authority_receipt_sha256",
+      "engine_assets",
+      "search",
+      "operational",
+    ],
+    "teacher work bounded stable runtime receipt",
+  );
+  const assets = exactObject(
+    receipt.engine_assets,
+    ["wasm", "weights", "worker_source"],
+    "bounded stable runtime assets",
+  );
+  const search = exactObject(
+    receipt.search,
+    [
+      "requested_depth",
+      "quiescence_depth",
+      "cooperative_deadline_ms",
+      "partial_result_policy",
+      "stable_candidate_role",
+    ],
+    "bounded stable runtime search",
+  );
+  const operational = exactObject(
+    receipt.operational,
+    [
+      "workers",
+      "queue_bound",
+      "outer_watchdog_ms",
+      "omission_policy",
+      "unexpected_failure_policy",
+      "replacement_policy",
+    ],
+    "bounded stable runtime operational policy",
+  );
+  if (
+    receipt.contract !== FLOODGATE_BOUNDED_STABLE_WASM_RUNTIME_CONTRACT_V3 ||
+    receipt.status !==
+      "initialized-optional-bounded-stable-candidate-capability" ||
+    receipt.claim_boundary !==
+      "candidate-or-authenticated-omission-only-not-teacher-label-training-holdout-or-playing-strength" ||
+    receipt.execution_boundary !== "production-pinned-asset-authority" ||
+    typeof receipt.asset_authority_receipt_sha256 !== "string" ||
+    !SHA256_RE.test(receipt.asset_authority_receipt_sha256) ||
+    !sameJson(assets.wasm, {
+      bytes: FLOODGATE_STABLE_WASM_BYTES,
+      sha256: FLOODGATE_STABLE_WASM_SHA256,
+    }) ||
+    !sameJson(assets.weights, {
+      bytes: FLOODGATE_STABLE_WEIGHTS_BYTES,
+      sha256: FLOODGATE_STABLE_WEIGHTS_SHA256,
+    }) ||
+    !sameJson(assets.worker_source, {
+      bytes: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_BYTES_V3,
+      sha256: FLOODGATE_BOUNDED_STABLE_WASM_WORKER_SHA256_V3,
+    }) ||
+    !sameJson(search, {
+      requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
+      quiescence_depth: FLOODGATE_STABLE_QUIESCENCE_DEPTH,
+      cooperative_deadline_ms:
+        FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+      partial_result_policy: "discard-entire-move-score-and-counters",
+      stable_candidate_role: "optional",
+    }) ||
+    !sameJson(operational, {
+      workers: FLOODGATE_BOUNDED_STABLE_WASM_WORKERS_V3,
+      queue_bound: FLOODGATE_BOUNDED_STABLE_WASM_QUEUE_BOUND_V3,
+      outer_watchdog_ms: FLOODGATE_BOUNDED_STABLE_WASM_OUTER_WATCHDOG_MS_V3,
+      omission_policy: "resolve-explicit-bound-outcome-no-pool-poison",
+      unexpected_failure_policy: "reap-replace-reject-parent-no-pool-poison",
+      replacement_policy:
+        "reap-omitted-or-failed-worker-before-fresh-replacement",
+    }) ||
+    receiptSha !==
+      getFloodgateBoundedStableWasmRuntimeReceiptDigestV3(
+        receipt as unknown as FloodgateBoundedStableWasmRuntimeReceiptV3,
+      )
+  ) {
+    throw new Error("bounded stable runtime production receipt/assets differ");
+  }
+  return row;
+}
+
+function validateStableRuntime(
+  value: unknown,
+  planSchema: TeacherPlanSchema,
+): Readonly<Record<string, unknown>> {
+  return planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+    ? validateBoundedStableRuntimeV3(value)
+    : validateRequiredStableRuntimeV2(value);
+}
+
 function validatePlanAndHeader(
   request: Readonly<Halfkp81Depth18ValidationRequest>,
   plan: Readonly<Record<string, unknown>>,
   headerValue: unknown,
   selectionRows: readonly Readonly<SelectionParent>[],
 ): Readonly<Halfkp81Depth18TeacherWorkHeader> {
+  const planSchema = plan.schema;
+  if (
+    planSchema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA &&
+    planSchema !== HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+  ) {
+    throw new Error("teacher plan schema is unsupported");
+  }
   const header = exactObject(
     headerValue,
     [
@@ -1022,7 +1221,6 @@ function validatePlanAndHeader(
     !SHA256_RE.test(header.run_fingerprint) ||
     typeof header.source_revision !== "string" ||
     !REVISION_RE.test(header.source_revision) ||
-    plan.schema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA ||
     plan.source_revision !== header.source_revision
   ) {
     throw new Error("teacher work header fixed identity differs");
@@ -1131,7 +1329,7 @@ function validatePlanAndHeader(
     header.teacher_plan,
     request.plan,
     "teacher work teacher plan",
-    { schema: HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA },
+    { schema: planSchema },
   );
   validateDeclaredIdentity(
     header.selection_jsonl,
@@ -1190,10 +1388,17 @@ function validatePlanAndHeader(
   ) {
     throw new Error("teacher header engine differs from sealed plan");
   }
-  if (!sameJson(header.teacher, plan.teacher)) {
+  if (
+    !sameJson(header.teacher, plan.teacher) ||
+    (planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA &&
+      !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER))
+  ) {
     throw new Error("teacher work policy differs from sealed plan");
   }
-  const stableRuntime = validateStableRuntime(header.stable_runtime);
+  const stableRuntime = validateStableRuntime(
+    header.stable_runtime,
+    planSchema,
+  );
   if (header.label_policy !== SIBLING_TEACHER_LABEL_POLICY) {
     throw new Error("teacher work label policy differs");
   }
@@ -1264,7 +1469,7 @@ function validateRawReceipt(
     receipt.teacher_plan,
     request.plan,
     "raw receipt teacher plan",
-    { schema: HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA },
+    { schema: plan.schema as TeacherPlanSchema },
   );
   const outputs = exactObject(
     receipt.outputs,
@@ -1396,6 +1601,7 @@ function validateCore(
     selectionRows,
   );
   validateEngineReceipt(request.engineReceipt, request.engineBinary);
+  const planSchema = plan.schema as TeacherPlanSchema;
 
   const recordsByRole: Record<TeacherRole, SiblingRecord[]> = {
     fit: [],
@@ -1406,10 +1612,13 @@ function validateCore(
     string,
     unknown
   >;
-  const reusablePoolReceiptSha256 = requiredDigest(
-    stableOperational.reusable_pool_receipt_sha256,
-    "stable reusable pool receipt SHA",
-  );
+  const reusablePoolReceiptSha256 =
+    planSchema === HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
+      ? requiredDigest(
+          stableOperational.reusable_pool_receipt_sha256,
+          "stable reusable pool receipt SHA",
+        )
+      : undefined;
   const selectedByParentId = new Map(
     selectionRows.map(
       (selected) => [selected.parent.parent_id, selected] as const,
@@ -1437,6 +1646,7 @@ function validateCore(
       workValues[index],
       expected,
       header.run_fingerprint,
+      planSchema,
       header.stable_runtime.receipt_sha256,
       reusablePoolReceiptSha256,
       index + 1,
@@ -1491,10 +1701,7 @@ function validateCore(
   const receipt = Object.freeze({
     schema: HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA,
     status: "verified-artifacts-training-plan-eligible",
-    teacher_plan: identityFromSnapshot(
-      request.plan,
-      HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
-    ),
+    teacher_plan: identityFromSnapshot(request.plan, planSchema),
     selection_jsonl: identityFromSnapshot(
       request.selection,
       HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,

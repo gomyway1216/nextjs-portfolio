@@ -26,6 +26,10 @@ import {
   FLOODGATE_PRODUCTION_STABLE_WASM_RUNTIME_RESULT_SCHEMA,
 } from "../../../ml/floodgate-production-stable-wasm-runtime";
 import {
+  FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
+  FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+} from "../../../ml/floodgate-bounded-stable-wasm-runtime-v3";
+import {
   FLOODGATE_STABLE_WASM_PROPOSAL_ROW_SCHEMA,
   FLOODGATE_STABLE_WASM_SCORE_ENCODING,
 } from "../../../ml/floodgate-stable-wasm-proposer";
@@ -537,6 +541,105 @@ describe("HalfKP81 depth18 teacher runner", () => {
       technical_faults: 0,
       completed_parents: 1,
     });
+  });
+
+  it("records a bounded stable omission and still depth18-labels required YaneuraOu and recorded candidates", async () => {
+    const roles = ["fit"] as const;
+    const value = await fixture(roles);
+    const receiptDigest = digest("bounded-stable-v3-receipt");
+    const boundedDependencies: Halfkp81Depth18TeacherRunnerDependencies = {
+      ...value.dependencies,
+      stablePolicy: "optional-bounded-depth11-v3",
+      createStableRuntime: async () => ({
+        receipt: Object.freeze({
+          contract: "shogi-floodgate-bounded-stable-wasm-runtime-v3",
+        }),
+        receiptDigest,
+        propose: async (parent) => {
+          const parentPayload = {
+            schema_version: parent.schema_version,
+            game_id: parent.game_id,
+            parent_id: parent.parent_id,
+            position_id: parent.position_id,
+            parent_sfen: parent.parent_sfen,
+            ply: parent.ply,
+            played_move: parent.played_move,
+          };
+          const body = {
+            schema: FLOODGATE_BOUNDED_STABLE_WASM_OUTCOME_SCHEMA_V3,
+            outcome: "omitted" as const,
+            row: null,
+            omission: {
+              reason: "cooperative-deadline" as const,
+              search_budget_ms:
+                FLOODGATE_BOUNDED_STABLE_WASM_SEARCH_BUDGET_MS_V3,
+              completed_depth: 8,
+              partial_result_adopted: false as const,
+              worker_reaped: true as const,
+              worker_replaced: true as const,
+            },
+          };
+          return {
+            ...body,
+            runtime_binding: {
+              runtime_receipt_sha256: receiptDigest,
+              parent_payload_sha256: digest(
+                `shogi-floodgate-bounded-stable-parent-v3\0${canonical(parentPayload)}`,
+              ),
+              outcome_sha256: digest(
+                `shogi-floodgate-bounded-stable-outcome-v3\0${canonical(body)}`,
+              ),
+            },
+          };
+        },
+        close: async () => undefined,
+      }),
+    };
+
+    const result = await runHalfkp81Depth18TeacherCoreForTests(
+      value.authenticated,
+      boundedDependencies,
+      coreContract(roles),
+    );
+    expect(result.receipt).toMatchObject({
+      completed_parents: 1,
+      technical_faults: 0,
+    });
+    const [, entry] = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(entry.stable_result).toMatchObject({
+      outcome: "omitted",
+      row: null,
+      omission: {
+        reason: "cooperative-deadline",
+        partial_result_adopted: false,
+      },
+    });
+    expect(
+      entry.teacher_entry.records.some((record: { sources: string[] }) =>
+        record.sources.includes("stable"),
+      ),
+    ).toBe(false);
+    expect(entry.teacher_entry.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          move: "7g7f",
+          sources: expect.arrayContaining(["played"]),
+        }),
+      ]),
+    );
+    expect(entry.teacher_entry.exact_search.searches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moves: ["7g7f"],
+          requested_limit: { depth: 18 },
+        }),
+      ]),
+    );
   });
 
   it("treats a parent-level timeout as fatal and publishes no success receipt", async () => {

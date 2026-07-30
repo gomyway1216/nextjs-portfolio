@@ -13,6 +13,7 @@ import platform
 import random
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Mapping, Sequence
 
@@ -59,6 +60,57 @@ def _exact_identity(
     for field in ("bytes", "sha256"):
         if observed.get(field) != expected.get(field):
             raise DirectTeacherV3CpuTrainingError(f"{label} {field} differs")
+
+
+def _validate_public_identity(
+    value: Any,
+    *,
+    label: str,
+    schema: str | None = None,
+    buckets: int | None = None,
+) -> dict[str, Any]:
+    try:
+        return V2._validate_public_identity(
+            value,
+            label=label,
+            schema=schema,
+            buckets=buckets,
+        )
+    except V2.DirectTeacherTrainingError as error:
+        raise DirectTeacherV3CpuTrainingError(str(error)) from error
+
+
+def _load_matching_json_identity(
+    value: Any,
+    *,
+    label: str,
+    schema: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    identity = _validate_public_identity(value, label=label, schema=schema)
+    observed, observed_identity = PROTOCOL.load_strict_json_file(
+        identity["path"], label
+    )
+    if any(
+        observed_identity[field] != identity[field]
+        for field in ("path", "bytes", "sha256")
+    ):
+        raise DirectTeacherV3CpuTrainingError(f"{label} bytes/binding changed")
+    if type(observed) is not dict or observed.get("schema") != schema:
+        raise DirectTeacherV3CpuTrainingError(f"{label} schema differs")
+    return observed, observed_identity
+
+
+def _reauthenticate_plain_file_identity(
+    value: Any,
+    *,
+    label: str,
+    buckets: int | None = None,
+) -> dict[str, Any]:
+    identity = _validate_public_identity(value, label=label, buckets=buckets)
+    observed = _identity(identity["path"], label)
+    if any(observed[field] != identity[field] for field in ("path", "bytes", "sha256")):
+        raise DirectTeacherV3CpuTrainingError(f"{label} bytes/binding changed")
+    return identity
 
 
 def load_and_rebuild_execution_plan(
@@ -117,8 +169,7 @@ def validate_fixed_contract(plan: Mapping[str, Any]) -> None:
     if (
         plan["cpu_execution"] != PROTOCOL.EXPECTED_CPU_EXECUTION
         or plan["capability_probe"] != PROTOCOL.EXPECTED_CAPABILITY_PROBE
-        or plan["static_sanity"]["checks"]
-        != V2_PROTOCOL.EXPECTED_STATIC_SANITY["checks"]
+        or plan["static_sanity"] != PROTOCOL.EXPECTED_STATIC_SANITY
         or plan["paired_screen"] != V2_PROTOCOL.EXPECTED_PAIRED_SCREEN
     ):
         raise DirectTeacherV3CpuTrainingError("v3 runtime/probe/gate contract differs")
@@ -296,6 +347,98 @@ def run_capability_probe(
     }
 
 
+def validate_capability_probe(
+    value: Any,
+    *,
+    execution_plan: Mapping[str, Any],
+    terminal: Mapping[str, Any],
+    metadata_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_keys = {
+        "schema",
+        "status",
+        "execution_plan",
+        "predecessor_terminal",
+        "metadata_manifest",
+        "cpu_execution",
+        "selection",
+        "runs",
+        "optimizer_created",
+        "parameter_step",
+        "strength_metric_observed",
+        "live_weight_write_authorized",
+    }
+    if type(value) is not dict or set(value) != expected_keys:
+        raise DirectTeacherV3CpuTrainingError("v3 capability probe fields differ")
+    if (
+        value["schema"] != PROBE_SCHEMA
+        or value["status"] != "passed-real-cpu-forward-backward-before-claim"
+        or value["execution_plan"] != dict(execution_plan)
+        or value["predecessor_terminal"] != dict(terminal)
+        or value["metadata_manifest"] != dict(metadata_manifest)
+        or value["cpu_execution"]
+        != {**copy.deepcopy(PROTOCOL.EXPECTED_CPU_EXECUTION), "verified": True}
+        or value["optimizer_created"] is not False
+        or value["parameter_step"] is not False
+        or value["strength_metric_observed"] is not False
+        or value["live_weight_write_authorized"] is not False
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 capability probe binding/authority differs"
+        )
+    selection = value["selection"]
+    if (
+        type(selection) is not dict
+        or set(selection) != {"seed", "rows", "child_position_ids_sha256"}
+        or selection["seed"] != SEED
+        or selection["rows"] != BATCH
+        or type(selection["child_position_ids_sha256"]) is not str
+        or PROTOCOL.SHA256_RE.fullmatch(selection["child_position_ids_sha256"]) is None
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 capability probe selection differs")
+    runs = value["runs"]
+    run_keys = {
+        "output_sha256",
+        "gradient_sha256",
+        "parameter_sha256_before",
+        "parameter_sha256_after",
+        "finite_forward",
+        "finite_loss",
+        "finite_all_parameter_gradients",
+    }
+    if type(runs) is not list or len(runs) != 2:
+        raise DirectTeacherV3CpuTrainingError("v3 capability probe run count differs")
+    for run in runs:
+        if (
+            type(run) is not dict
+            or set(run) != run_keys
+            or any(
+                type(run[field]) is not str
+                or PROTOCOL.SHA256_RE.fullmatch(run[field]) is None
+                for field in (
+                    "output_sha256",
+                    "gradient_sha256",
+                    "parameter_sha256_before",
+                    "parameter_sha256_after",
+                )
+            )
+            or run["parameter_sha256_before"] != run["parameter_sha256_after"]
+            or run["finite_forward"] is not True
+            or run["finite_loss"] is not True
+            or run["finite_all_parameter_gradients"] is not True
+        ):
+            raise DirectTeacherV3CpuTrainingError("v3 capability probe run differs")
+    if (
+        runs[0]["output_sha256"] != runs[1]["output_sha256"]
+        or runs[0]["gradient_sha256"] != runs[1]["gradient_sha256"]
+        or runs[0]["parameter_sha256_before"] != runs[1]["parameter_sha256_before"]
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 capability probe two-run hashes differ"
+        )
+    return copy.deepcopy(value)
+
+
 def _secure_external_root(path: str) -> str:
     requested = os.path.abspath(path)
     if os.path.islink(requested):
@@ -396,7 +539,14 @@ def acquire_one_shot_claim(document: Mapping[str, Any], *, path: str) -> dict[st
     }
 
 
-def reauthenticate_claim(value: Mapping[str, Any]) -> dict[str, Any]:
+def reauthenticate_claim(
+    value: Mapping[str, Any],
+    *,
+    execution_plan: Mapping[str, Any] | None = None,
+    terminal: Mapping[str, Any] | None = None,
+    metadata_manifest: Mapping[str, Any] | None = None,
+    capability_probe: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     expected_keys = {
         "identity",
         "status",
@@ -413,7 +563,29 @@ def reauthenticate_claim(value: Mapping[str, Any]) -> dict[str, Any]:
     }
     if type(value) is not dict or set(value) != expected_keys:
         raise DirectTeacherV3CpuTrainingError("v3 claim receipt fields differ")
-    identity = value["identity"]
+    identity = _validate_public_identity(
+        value["identity"], label="v3 CPU one-shot claim", schema=CLAIM_SCHEMA
+    )
+    _validate_public_identity(
+        value["execution_plan"],
+        label="claimed v3 execution plan",
+        schema=PROTOCOL.EXECUTION_PLAN_SCHEMA,
+    )
+    _validate_public_identity(
+        value["predecessor_terminal"],
+        label="claimed v2 terminal",
+        schema=PROTOCOL.TERMINAL_SCHEMA,
+    )
+    _validate_public_identity(
+        value["metadata_manifest"],
+        label="claimed v3 metadata manifest",
+        schema=PROTOCOL.MANIFEST_SCHEMA,
+    )
+    _validate_public_identity(
+        value["capability_probe"],
+        label="claimed v3 capability probe",
+        schema=PROBE_SCHEMA,
+    )
     observed, observed_identity = PROTOCOL.load_strict_json_file(
         identity["path"], "v3 CPU one-shot claim"
     )
@@ -431,8 +603,31 @@ def reauthenticate_claim(value: Mapping[str, Any]) -> dict[str, Any]:
         or value["optimizer_creation_authorized"] is not True
         or value["additional_run_authorized"] is not False
         or value["live_weight_write_authorized"] is not False
+        or value["cpu_execution"]
+        != {**copy.deepcopy(PROTOCOL.EXPECTED_CPU_EXECUTION), "verified": True}
     ):
         raise DirectTeacherV3CpuTrainingError("v3 one-shot claim changed")
+    owner = value["owner"]
+    if (
+        type(owner) is not dict
+        or set(owner) != {"kind", "pid", "pipeline_revision"}
+        or owner["kind"] != "direct-teacher-halfkp81-v3-cpu-one-shot-trainer"
+        or type(owner["pid"]) is not int
+        or owner["pid"] <= 0
+        or type(owner["pipeline_revision"]) is not str
+        or PROTOCOL.REVISION_RE.fullmatch(owner["pipeline_revision"]) is None
+        or type(value["output_path"]) is not str
+        or not os.path.isabs(value["output_path"])
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 one-shot claim owner/output differs")
+    for observed_binding, expected_binding, label in (
+        (value["execution_plan"], execution_plan, "execution plan"),
+        (value["predecessor_terminal"], terminal, "terminal"),
+        (value["metadata_manifest"], metadata_manifest, "metadata manifest"),
+        (value["capability_probe"], capability_probe, "capability probe"),
+    ):
+        if expected_binding is not None and observed_binding != dict(expected_binding):
+            raise DirectTeacherV3CpuTrainingError(f"v3 claim {label} binding differs")
     return copy.deepcopy(value)
 
 
@@ -599,7 +794,9 @@ def build_static_result(
     }
 
 
-def validate_static_result(value: Any) -> dict[str, Any]:
+def validate_static_result(
+    value: Any, *, repo_root: str | None = None
+) -> dict[str, Any]:
     expected_keys = {
         "schema",
         "status",
@@ -625,6 +822,327 @@ def validate_static_result(value: Any) -> dict[str, Any]:
         raise DirectTeacherV3CpuTrainingError("v3 static result fields differ")
     if value["schema"] != STATIC_RESULT_SCHEMA:
         raise DirectTeacherV3CpuTrainingError("v3 static result schema differs")
+
+    protocol_raw, protocol_identity = _load_matching_json_identity(
+        value["protocol"],
+        label="v3 static protocol",
+        schema=PROTOCOL.PROTOCOL_SCHEMA,
+    )
+    protocol = PROTOCOL.validate_protocol_document(protocol_raw)
+    terminal_raw, terminal_identity = _load_matching_json_identity(
+        value["predecessor_terminal"],
+        label="v3 static predecessor terminal",
+        schema=PROTOCOL.TERMINAL_SCHEMA,
+    )
+    PROTOCOL.verify_terminal_evidence(terminal_raw, protocol=protocol)
+    manifest_raw, manifest_identity = _load_matching_json_identity(
+        value["metadata_manifest"],
+        label="v3 static metadata manifest",
+        schema=PROTOCOL.MANIFEST_SCHEMA,
+    )
+    PROTOCOL.validate_metadata_manifest(
+        manifest_raw,
+        protocol=protocol,
+        protocol_identity=protocol_identity,
+        terminal_identity=terminal_identity,
+    )
+    plan_raw, plan_identity = _load_matching_json_identity(
+        value["execution_plan"],
+        label="v3 static execution plan",
+        schema=PROTOCOL.EXECUTION_PLAN_SCHEMA,
+    )
+    plan = PROTOCOL.validate_execution_plan(plan_raw)
+    rebuilt_plan = PLAN.build_execution_plan(
+        protocol_path=value["protocol"]["path"],
+        metadata_manifest_path=value["metadata_manifest"]["path"],
+        repo_root=(
+            os.path.realpath(repo_root)
+            if repo_root is not None
+            else os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+        ),
+    )
+    if rebuilt_plan != plan:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 static execution plan differs from reconstruction"
+        )
+    for observed, expected, label in (
+        (plan["protocol"], value["protocol"], "protocol"),
+        (
+            plan["predecessor_terminal"],
+            value["predecessor_terminal"],
+            "terminal",
+        ),
+        (
+            plan["metadata_manifest"],
+            value["metadata_manifest"],
+            "metadata manifest",
+        ),
+    ):
+        if observed != expected:
+            raise DirectTeacherV3CpuTrainingError(
+                f"v3 static {label} plan binding differs"
+            )
+
+    probe_raw, _probe_file_identity = _load_matching_json_identity(
+        value["capability_probe"],
+        label="v3 static capability probe",
+        schema=PROBE_SCHEMA,
+    )
+    validate_capability_probe(
+        probe_raw,
+        execution_plan=value["execution_plan"],
+        terminal=value["predecessor_terminal"],
+        metadata_manifest=value["metadata_manifest"],
+    )
+    claim = reauthenticate_claim(
+        value["one_shot_claim"],
+        execution_plan=value["execution_plan"],
+        terminal=value["predecessor_terminal"],
+        metadata_manifest=value["metadata_manifest"],
+        capability_probe=value["capability_probe"],
+    )
+
+    initializer = _reauthenticate_plain_file_identity(
+        value["initializer"], label="v3 static initializer"
+    )
+    live_weights = _reauthenticate_plain_file_identity(
+        value["live_weights"], label="v3 static live weights"
+    )
+    for observed, expected, label in (
+        (initializer, plan["inputs"]["initializer"], "initializer"),
+        (live_weights, plan["inputs"]["live_weights"], "live weights"),
+    ):
+        _exact_identity(observed, expected, label)
+        if observed["path"] != expected["path"]:
+            raise DirectTeacherV3CpuTrainingError(f"{label} path differs")
+
+    trainer_raw, _trainer_file_identity = _load_matching_json_identity(
+        value["trainer_result"],
+        label="v3 static trainer result",
+        schema=TRAINER_RESULT_SCHEMA,
+    )
+    trainer_keys = {
+        "schema",
+        "status",
+        "implementation",
+        "execution_plan",
+        "predecessor_terminal",
+        "metadata_manifest",
+        "capability_probe",
+        "one_shot_claim",
+        "cpu_execution",
+        "training",
+        "epochs_completed",
+        "candidate_count",
+        "checkpoint_selection",
+        "best_checkpoint_selection",
+        "additional_epoch_or_seed",
+        "metrics",
+        "artifacts",
+        "export_roundtrip_mismatches",
+        "live_weights",
+        "paired56_authorized",
+        "expanded_stage_authorized",
+        "live_weight_write_authorized",
+    }
+    if type(trainer_raw) is not dict or set(trainer_raw) != trainer_keys:
+        raise DirectTeacherV3CpuTrainingError("v3 trainer result fields differ")
+    if (
+        trainer_raw["status"] != "complete-final-epoch-frozen-static-pending"
+        or trainer_raw["execution_plan"] != value["execution_plan"]
+        or trainer_raw["predecessor_terminal"] != value["predecessor_terminal"]
+        or trainer_raw["metadata_manifest"] != value["metadata_manifest"]
+        or trainer_raw["capability_probe"] != value["capability_probe"]
+        or trainer_raw["one_shot_claim"] != claim
+        or trainer_raw["cpu_execution"]
+        != {**copy.deepcopy(PROTOCOL.EXPECTED_CPU_EXECUTION), "verified": True}
+        or trainer_raw["epochs_completed"] != 1
+        or trainer_raw["candidate_count"] != 1
+        or trainer_raw["checkpoint_selection"] != "final-epoch-1-only"
+        or trainer_raw["best_checkpoint_selection"] is not False
+        or trainer_raw["additional_epoch_or_seed"] is not False
+        or trainer_raw["paired56_authorized"] is not False
+        or trainer_raw["expanded_stage_authorized"] is not False
+        or trainer_raw["live_weight_write_authorized"] is not False
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 trainer result binding/authority differs"
+        )
+    implementation = trainer_raw["implementation"]
+    if (
+        type(implementation) is not dict
+        or implementation.get("tracked_tree_clean") is not True
+        or type(implementation.get("source_revision")) is not str
+        or PROTOCOL.REVISION_RE.fullmatch(implementation["source_revision"]) is None
+        or implementation["source_revision"] != claim["owner"]["pipeline_revision"]
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 trainer implementation binding differs"
+        )
+    training = trainer_raw["training"]
+    expected_training_keys = {
+        "epoch",
+        "rows",
+        "direct_scalar_bce",
+        "seconds",
+        "optimizer",
+        "scheduler",
+        "learning_rate",
+        "weight_decay",
+        "batch",
+        "seed",
+        "parameter_scope",
+        "device",
+    }
+    if (
+        type(training) is not dict
+        or set(training) != expected_training_keys
+        or training["epoch"] != 1
+        or training["rows"] != plan["inputs"]["training_dataset"]["rows"]
+        or type(training["direct_scalar_bce"]) not in (int, float)
+        or not math.isfinite(float(training["direct_scalar_bce"]))
+        or type(training["seconds"]) not in (int, float)
+        or not math.isfinite(float(training["seconds"]))
+        or float(training["seconds"]) <= 0
+        or training["optimizer"] != "AdamW"
+        or training["scheduler"] != "constant-none"
+        or training["learning_rate"] != LEARNING_RATE
+        or training["weight_decay"] != WEIGHT_DECAY
+        or training["batch"] != BATCH
+        or training["seed"] != SEED
+        or training["parameter_scope"] != "all"
+        or training["device"] != "cpu"
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 training receipt differs")
+    metrics = trainer_raw["metrics"]
+    if type(metrics) is not dict or set(metrics) != {
+        "initializer",
+        "candidate",
+        "initializer_quantization",
+        "candidate_quantization",
+    }:
+        raise DirectTeacherV3CpuTrainingError("v3 trainer metrics differ")
+    for role in ("initializer", "candidate"):
+        metric = metrics[role]
+        if (
+            type(metric) is not dict
+            or metric.get("rows") != plan["inputs"]["validation_dataset"]["rows"]
+            or any(
+                type(metric.get(field)) not in (int, float)
+                or not math.isfinite(float(metric[field]))
+                for field in (
+                    "direct_scalar_bce",
+                    "teacher_mae_cp",
+                    "pair_accuracy",
+                )
+            )
+        ):
+            raise DirectTeacherV3CpuTrainingError(f"v3 {role} metrics differ")
+    for role in ("initializer_quantization", "candidate_quantization"):
+        metric = metrics[role]
+        if (
+            type(metric) is not dict
+            or set(metric) != {"mean_abs_cp_delta", "max_abs_cp_delta"}
+            or any(
+                type(metric[field]) not in (int, float)
+                or not math.isfinite(float(metric[field]))
+                or float(metric[field]) < 0
+                for field in metric
+            )
+        ):
+            raise DirectTeacherV3CpuTrainingError(f"v3 {role} metrics differ")
+    mismatches = trainer_raw["export_roundtrip_mismatches"]
+    if type(mismatches) is not int or mismatches < 0:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 export roundtrip mismatch count differs"
+        )
+
+    artifacts = trainer_raw["artifacts"]
+    if type(artifacts) is not dict or set(artifacts) != {
+        "final_checkpoint",
+        "initializer_weights",
+        "candidate_weights",
+        "candidate_reference",
+    }:
+        raise DirectTeacherV3CpuTrainingError("v3 trainer artifacts differ")
+    final_checkpoint = _validate_public_identity(
+        artifacts["final_checkpoint"],
+        label="v3 final checkpoint",
+        schema=CHECKPOINT_SCHEMA,
+    )
+    _exact_identity(
+        _identity(final_checkpoint["path"], "v3 final checkpoint"),
+        final_checkpoint,
+        "v3 final checkpoint",
+    )
+    initializer_weights = _reauthenticate_plain_file_identity(
+        artifacts["initializer_weights"],
+        label="v3 exported initializer weights",
+        buckets=BUCKETS,
+    )
+    candidate_weights = _reauthenticate_plain_file_identity(
+        artifacts["candidate_weights"],
+        label="v3 candidate weights",
+        buckets=BUCKETS,
+    )
+    if candidate_weights != value["candidate_weights"]:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 static candidate/trainer binding differs"
+        )
+    candidate_reference = artifacts["candidate_reference"]
+    if (
+        type(candidate_reference) is not dict
+        or set(candidate_reference)
+        != {"path", "bytes", "sha256", "schema", "positions"}
+        or candidate_reference["schema"] != V2.REFERENCE_SCHEMA
+        or type(candidate_reference["positions"]) is not int
+        or candidate_reference["positions"] < 1
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 candidate reference identity differs")
+    reference_raw, reference_identity = PROTOCOL.load_strict_json_file(
+        candidate_reference["path"], "v3 candidate reference"
+    )
+    if (
+        type(reference_raw) is not dict
+        or any(
+            reference_identity[field] != candidate_reference[field]
+            for field in ("path", "bytes", "sha256")
+        )
+        or reference_raw.get("schema") != V2.REFERENCE_SCHEMA
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 candidate reference bytes differ")
+    if reference_raw.get("n") != candidate_reference["positions"]:
+        raise DirectTeacherV3CpuTrainingError("v3 candidate reference count differs")
+
+    trainer_live = trainer_raw["live_weights"]
+    if (
+        type(trainer_live) is not dict
+        or set(trainer_live) != {"before", "after", "byte_exact_unchanged"}
+        or trainer_live["before"] != live_weights
+        or trainer_live["after"] != live_weights
+        or trainer_live["byte_exact_unchanged"] is not True
+    ):
+        raise DirectTeacherV3CpuTrainingError("v3 trainer live-weight binding differs")
+
+    runtime_raw, runtime_identity = _load_matching_json_identity(
+        value["runtime_sanity"],
+        label="v3 static runtime sanity",
+        schema=V2.RUNTIME_SCHEMA,
+    )
+    wasm_identity = _identity(plan["inputs"]["runtime_wasm"]["path"], "v3 runtime WASM")
+    _exact_identity(wasm_identity, plan["inputs"]["runtime_wasm"], "v3 runtime WASM")
+    try:
+        runtime_receipt = V2.validate_runtime_receipt(
+            runtime_raw,
+            initializer_weights=initializer_weights,
+            candidate_weights=candidate_weights,
+            reference=reference_raw,
+            reference_identity=reference_identity,
+            wasm_identity=wasm_identity,
+        )
+    except V2.DirectTeacherTrainingError as error:
+        raise DirectTeacherV3CpuTrainingError(str(error)) from error
+
     contract = V2_PROTOCOL.EXPECTED_STATIC_SANITY["checks"]
     checks = value["checks"]
     if type(checks) is not dict or set(checks) != set(contract):
@@ -681,12 +1199,93 @@ def validate_static_result(value: Any) -> dict[str, Any]:
     )
     if value["status"] != expected_status:
         raise DirectTeacherV3CpuTrainingError("v3 static status contradicts checks")
-    reauthenticate_claim(value["one_shot_claim"])
+    rebuilt_static = build_static_result(
+        protocol=value["protocol"],
+        execution_plan=value["execution_plan"],
+        terminal=value["predecessor_terminal"],
+        metadata_manifest=value["metadata_manifest"],
+        capability_probe=value["capability_probe"],
+        claim=claim,
+        initializer=initializer,
+        live_weights=live_weights,
+        trainer_result=value["trainer_result"],
+        candidate_weights=candidate_weights,
+        runtime_sanity={
+            **runtime_identity,
+            "schema": V2.RUNTIME_SCHEMA,
+        },
+        baseline_metrics=metrics["initializer"],
+        candidate_metrics=metrics["candidate"],
+        initializer_quantization=metrics["initializer_quantization"],
+        candidate_quantization=metrics["candidate_quantization"],
+        runtime_receipt=runtime_receipt,
+        export_roundtrip_mismatches=mismatches,
+    )
+    if rebuilt_static != value:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 static result differs from authenticated reconstruction"
+        )
     return copy.deepcopy(value)
 
 
 def _external_run_root(metadata_manifest_path: str) -> str:
     return os.path.dirname(os.path.dirname(os.path.realpath(metadata_manifest_path)))
+
+
+def preflight_output_slot(path: str) -> str:
+    requested = os.path.abspath(path)
+    if os.path.lexists(requested):
+        raise DirectTeacherV3CpuTrainingError("v3 output slot already exists")
+    requested_parent = os.path.dirname(requested)
+    if os.path.islink(requested_parent):
+        raise DirectTeacherV3CpuTrainingError("v3 output parent must not be a symlink")
+    parent = os.path.realpath(requested_parent)
+    try:
+        info = os.lstat(parent)
+    except FileNotFoundError as error:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 output parent does not exist"
+        ) from error
+    if (
+        not os.path.isdir(parent)
+        or os.path.islink(parent)
+        or info.st_uid != os.getuid()
+        or not os.access(parent, os.W_OK | os.X_OK)
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 output parent must be an owned writable non-symlink directory"
+        )
+    temporary = tempfile.mkdtemp(
+        dir=parent, prefix=".direct-teacher-halfkp81-v3-cpu-output-preflight-"
+    )
+    try:
+        temporary_info = os.lstat(temporary)
+        if (
+            not os.path.isdir(temporary)
+            or os.path.islink(temporary)
+            or temporary_info.st_uid != os.getuid()
+            or temporary_info.st_mode & 0o777 != 0o700
+        ):
+            raise DirectTeacherV3CpuTrainingError(
+                "v3 output parent cannot create a private directory"
+            )
+        parent_descriptor = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        os.rmdir(temporary)
+        parent_descriptor = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    if os.path.lexists(requested):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 output slot appeared during parent preflight"
+        )
+    return os.path.realpath(requested)
 
 
 def run(
@@ -717,10 +1316,18 @@ def run(
         **terminal_identity,
         "schema": PROTOCOL.TERMINAL_SCHEMA,
     }
+    if terminal_receipt != plan["predecessor_terminal"]:
+        raise DirectTeacherV3CpuTrainingError(
+            "v2 terminal identity differs from v3 execution plan"
+        )
     manifest_receipt = {
         **_identity(plan["metadata_manifest"]["path"], "v3 metadata manifest"),
         "schema": PROTOCOL.MANIFEST_SCHEMA,
     }
+    if manifest_receipt != plan["metadata_manifest"]:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 metadata manifest identity differs from execution plan"
+        )
     initializer_path = str(plan["inputs"]["initializer"]["path"])
     live_path = str(plan["inputs"]["live_weights"]["path"])
     training_path = str(plan["inputs"]["training_dataset"]["path"])
@@ -739,12 +1346,11 @@ def run(
         wasm_path,
         runtime_script,
     )
+    out_path = preflight_output_slot(args.out)
     try:
-        V2._assert_path_isolation(args.out, input_paths, live_path)
+        V2._assert_path_isolation(out_path, input_paths, live_path)
     except V2.DirectTeacherTrainingError as error:
         raise DirectTeacherV3CpuTrainingError(str(error)) from error
-    if os.path.lexists(args.out):
-        raise DirectTeacherV3CpuTrainingError("v3 output slot already exists")
 
     live_before = _identity(live_path, "immutable live weights before v3")
     _exact_identity(live_before, plan["inputs"]["live_weights"], "live weights")
@@ -817,9 +1423,46 @@ def run(
         metadata_manifest=manifest_receipt,
         cpu_runtime=cpu_runtime,
     )
+    validate_capability_probe(
+        capability_probe,
+        execution_plan=execution_plan_receipt,
+        terminal=terminal_receipt,
+        metadata_manifest=manifest_receipt,
+    )
     capability_probe_identity = _publish_or_validate_probe(
         capability_probe, path=probe_path
     )
+    observed_probe, _observed_probe_identity = _load_matching_json_identity(
+        capability_probe_identity,
+        label="published v3 CPU capability probe",
+        schema=PROBE_SCHEMA,
+    )
+    validate_capability_probe(
+        observed_probe,
+        execution_plan=execution_plan_receipt,
+        terminal=terminal_receipt,
+        metadata_manifest=manifest_receipt,
+    )
+
+    (
+        preclaim_plan,
+        preclaim_plan_identity,
+        preclaim_protocol,
+        preclaim_manifest,
+    ) = load_and_rebuild_execution_plan(args.execution_plan, repo_root=repo_root)
+    if (
+        preclaim_plan != plan
+        or preclaim_plan_identity != plan_identity
+        or preclaim_protocol != protocol
+        or preclaim_manifest != manifest
+    ):
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 plan/terminal/manifest tuple changed before claim"
+        )
+    if preflight_output_slot(out_path) != out_path:
+        raise DirectTeacherV3CpuTrainingError(
+            "v3 output slot identity changed before claim"
+        )
 
     claim_document = _claim_document(
         execution_plan=execution_plan_receipt,
@@ -828,21 +1471,27 @@ def run(
         capability_probe=capability_probe_identity,
         cpu_runtime=cpu_runtime,
         implementation=implementation,
-        output_path=args.out,
+        output_path=out_path,
     )
     claim = acquire_one_shot_claim(claim_document, path=claim_path)
-    reauthenticate_claim(claim)
+    reauthenticate_claim(
+        claim,
+        execution_plan=execution_plan_receipt,
+        terminal=terminal_receipt,
+        metadata_manifest=manifest_receipt,
+        capability_probe=capability_probe_identity,
+    )
     if terminal["decision"]["old_execution_plan_retry_authorized"] is not False:
         raise DirectTeacherV3CpuTrainingError("old v2 retry boundary changed")
 
-    os.mkdir(args.out, 0o700)
-    initializer_weights_path = os.path.join(args.out, "initializer-weights.bin")
-    candidate_weights_path = os.path.join(args.out, "candidate-weights.bin")
-    checkpoint_path = os.path.join(args.out, "final-epoch-001.pt")
-    reference_path = os.path.join(args.out, "candidate-reference.json")
-    runtime_path = os.path.join(args.out, "runtime-sanity.json")
-    trainer_result_path = os.path.join(args.out, "trainer-result.json")
-    static_result_path = os.path.join(args.out, "static-sanity-result.json")
+    os.mkdir(out_path, 0o700)
+    initializer_weights_path = os.path.join(out_path, "initializer-weights.bin")
+    candidate_weights_path = os.path.join(out_path, "candidate-weights.bin")
+    checkpoint_path = os.path.join(out_path, "final-epoch-001.pt")
+    reference_path = os.path.join(out_path, "candidate-reference.json")
+    runtime_path = os.path.join(out_path, "runtime-sanity.json")
+    trainer_result_path = os.path.join(out_path, "trainer-result.json")
+    static_result_path = os.path.join(out_path, "static-sanity-result.json")
 
     try:
         initializer_q, initializer_weights = V2.export_quantized_weights(
@@ -938,7 +1587,13 @@ def run(
         raise DirectTeacherV3CpuTrainingError(
             "live weights changed during v3 training/export"
         )
-    claim = reauthenticate_claim(claim)
+    claim = reauthenticate_claim(
+        claim,
+        execution_plan=execution_plan_receipt,
+        terminal=terminal_receipt,
+        metadata_manifest=manifest_receipt,
+        capability_probe=capability_probe_identity,
+    )
     trainer_result = {
         "schema": TRAINER_RESULT_SCHEMA,
         "status": "complete-final-epoch-frozen-static-pending",
@@ -971,6 +1626,7 @@ def run(
                 "positions": reference["n"],
             },
         },
+        "export_roundtrip_mismatches": export_roundtrip_mismatches,
         "live_weights": {
             "before": live_before,
             "after": live_after_training,
@@ -1033,7 +1689,13 @@ def run(
             "runtime exit status contradicts its receipt"
         )
 
-    claim = reauthenticate_claim(claim)
+    claim = reauthenticate_claim(
+        claim,
+        execution_plan=execution_plan_receipt,
+        terminal=terminal_receipt,
+        metadata_manifest=manifest_receipt,
+        capability_probe=capability_probe_identity,
+    )
     static_result = build_static_result(
         protocol=dict(plan["protocol"]),
         execution_plan=execution_plan_receipt,
@@ -1059,7 +1721,7 @@ def run(
         runtime_receipt=runtime_receipt,
         export_roundtrip_mismatches=export_roundtrip_mismatches,
     )
-    validate_static_result(static_result)
+    validate_static_result(static_result, repo_root=repo_root)
     V2._canonical_create_only(static_result_path, static_result)
     live_final = _identity(live_path, "immutable live weights after v3 static")
     if live_final != live_before:

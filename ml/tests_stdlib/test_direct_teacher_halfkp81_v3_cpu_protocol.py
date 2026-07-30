@@ -115,11 +115,21 @@ class DirectTeacherHalfkp81V3CpuProtocolTests(unittest.TestCase):
             "static": lambda value: value["static_sanity"]["checks"].__setitem__(
                 "teacher_mae_cp_improvement_minimum", 0
             ),
+            "static-claim": lambda value: value["static_sanity"].__setitem__(
+                "claim", "playing-strength-evidence"
+            ),
+            "static-continue": lambda value: value["static_sanity"].__setitem__(
+                "any_miss", "continue and retry"
+            ),
             "paired": lambda value: value["paired_screen"]["decision"].__setitem__(
                 "minimum_candidate_halfpoints", 61
             ),
             "state": lambda value: value["current_state"].__setitem__(
                 "training_started", True
+            ),
+            "empty-state": lambda value: value.__setitem__("current_state", {}),
+            "stop-rules": lambda value: value.__setitem__(
+                "stop_rules", ["continue"] * 5
             ),
         }
         for label, mutate in mutations.items():

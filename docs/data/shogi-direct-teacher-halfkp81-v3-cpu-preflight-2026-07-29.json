@@ -55,9 +55,21 @@
     "total_seconds": 8.986126582999999,
     "peak_rss_bytes": 2294382592
   },
+  "post_audit_hardening_recheck": {
+    "status": "passed-read-only-premerge-unbound-no-claim-after-hardening",
+    "dataset_rows": 200944,
+    "output_sha256": "64ff6dc816d491d8fd5c055b537e7cee62d0c38a75b370c86a3f4f3dd0deb1de",
+    "gradient_sha256": "b43290206b6327e9ddcc2c49cfb20dcbc452df550273694956756a0ec0dd0681",
+    "two_run_output_and_gradient_equal": true,
+    "capability_receipt_validator_passed": true,
+    "optimizer_created": false,
+    "parameter_step": false,
+    "total_seconds": 9.392303416,
+    "peak_rss_bytes": 2291400704
+  },
   "tests": {
     "new_stdlib_tests_passed": 6,
-    "new_torch_tests_passed": 6,
+    "new_torch_tests_passed": 8,
     "full_stdlib_tests_passed": 590,
     "full_stdlib_tests_failed": 0,
     "full_stdlib_tests_skipped_existing": 3

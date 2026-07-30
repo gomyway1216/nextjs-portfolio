@@ -60,6 +60,49 @@ EXPECTED_CAPABILITY_PROBE = {
         "no-strength-metric",
     ],
 }
+EXPECTED_STATIC_SANITY = {
+    "claim": "catastrophic-regression-screen-only-not-playing-strength-evidence",
+    "all_checks_required": True,
+    "checks": copy.deepcopy(V2.EXPECTED_STATIC_SANITY["checks"]),
+    "reference": (
+        "exact frozen alpha-0.50 initializer on the unchanged validation bytes"
+    ),
+    "any_miss": "STOP before paired play and close the v3 CPU family",
+}
+EXPECTED_STOP_RULES = [
+    "The consumed v2 claim, output, and execution plan are immutable and never retried.",
+    (
+        "STOP before v3 manifest publication unless the exact v2 terminal "
+        "result and every nested evidence identity reauthenticate."
+    ),
+    (
+        "STOP before v3 claim unless metadata-only dataset rebinding, "
+        "five-set isolation, CPU environment, initializer, and real "
+        "forward/backward capability probe all pass."
+    ),
+    (
+        "After a v3 miss, do not add data, epochs, seeds, checkpoints, "
+        "retries, device fallbacks, or change a threshold."
+    ),
+    (
+        "No v3 state authorizes a write to public/shogi-nnue-weights.bin "
+        "or any live flag."
+    ),
+]
+EXPECTED_CURRENT_STATE = {
+    "predecessor_terminal_bound": False,
+    "metadata_manifest_published": False,
+    "execution_plan_published": False,
+    "capability_probe_passed": False,
+    "claim_created": False,
+    "optimizer_created": False,
+    "training_started": False,
+    "checkpoint_frozen": False,
+    "static_sanity_executed": False,
+    "paired_games": 0,
+    "expanded_stage_authorized": False,
+    "live_weights_changed": False,
+}
 EXPECTED_TERMINAL_OBSERVED = {
     "failure_phase": "initializer-baseline-inference-before-optimizer",
     "failure_operator": "aten::_embedding_bag",
@@ -193,7 +236,7 @@ def validate_protocol_document(value: Any) -> dict[str, Any]:
     if value["capability_probe"] != EXPECTED_CAPABILITY_PROBE:
         raise DirectTeacherHalfkpV3CpuError("v3 capability probe differs")
     if (
-        value["static_sanity"]["checks"] != V2.EXPECTED_STATIC_SANITY["checks"]
+        value["static_sanity"] != EXPECTED_STATIC_SANITY
         or value["paired_screen"] != V2.EXPECTED_PAIRED_SCREEN
     ):
         raise DirectTeacherHalfkpV3CpuError(
@@ -297,15 +340,8 @@ def validate_protocol_document(value: Any) -> dict[str, Any]:
         ):
             raise DirectTeacherHalfkpV3CpuError(f"{label} is invalid")
     if (
-        type(value["stop_rules"]) is not list
-        or len(value["stop_rules"]) != 5
-        or any(type(item) is not str or not item for item in value["stop_rules"])
-        or type(value["current_state"]) is not dict
-        or any(
-            type(item) is not bool and type(item) is not int
-            for item in value["current_state"].values()
-        )
-        or any(value["current_state"].values())
+        value["stop_rules"] != EXPECTED_STOP_RULES
+        or value["current_state"] != EXPECTED_CURRENT_STATE
     ):
         raise DirectTeacherHalfkpV3CpuError("v3 stop/current state differs")
     return copy.deepcopy(value)
@@ -529,7 +565,7 @@ def validate_execution_plan(value: Any) -> dict[str, Any]:
         or value["training"] != EXPECTED_TRAINING
         or value["cpu_execution"] != EXPECTED_CPU_EXECUTION
         or value["capability_probe"] != EXPECTED_CAPABILITY_PROBE
-        or value["static_sanity"]["checks"] != V2.EXPECTED_STATIC_SANITY["checks"]
+        or value["static_sanity"] != EXPECTED_STATIC_SANITY
         or value["paired_screen"] != V2.EXPECTED_PAIRED_SCREEN
     ):
         raise DirectTeacherHalfkpV3CpuError("v3 execution plan contract differs")

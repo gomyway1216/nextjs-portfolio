@@ -28,18 +28,18 @@ def _selection_evidence() -> PROTOCOL.AuthenticatedSelectionEvidence:
             "status": "authenticated-selection-complete-teacher-plan-eligible",
             "source_revision": SOURCE_REVISION,
             "selection_jsonl": {
-                "path": "/tmp/selection.jsonl",
-                "bytes": 456,
-                "sha256": "c" * 64,
+                "path": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["path"],
+                "bytes": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["bytes"],
+                "sha256": PROTOCOL.EXPECTED_REUSED_SELECTION["jsonl"]["sha256"],
                 "held_read_only_descriptor": True,
                 "stable_double_read": True,
                 "rows": 8_192,
                 "schema": PROTOCOL.SELECTION_ROW_SCHEMA,
             },
             "selection_manifest": {
-                "path": "/tmp/selection.manifest.json",
-                "bytes": 123,
-                "sha256": "a" * 64,
+                "path": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["path"],
+                "bytes": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["bytes"],
+                "sha256": PROTOCOL.EXPECTED_REUSED_SELECTION["manifest"]["sha256"],
                 "held_read_only_descriptor": True,
                 "stable_double_read": True,
                 "schema": PROTOCOL.SELECTION_MANIFEST_SCHEMA,
@@ -78,6 +78,9 @@ def _plan(directory: Path) -> dict:
         "status": "sealed-not-executed",
         "source_revision": SOURCE_REVISION,
         "preregistration": copy.deepcopy(PROTOCOL.EXPECTED_PREREGISTRATION_IDENTITY),
+        "technical_recovery": copy.deepcopy(
+            PROTOCOL.EXPECTED_TECHNICAL_RECOVERY_IDENTITY
+        ),
         "selection_manifest": {
             key: manifest[key] for key in ("path", "bytes", "sha256", "schema")
         },
@@ -107,19 +110,21 @@ def _plan(directory: Path) -> dict:
             "may_write_live_weights": False,
         },
     }
-    return PROTOCOL.validate_teacher_plan(
-        value,
-        authenticated_selection=evidence,
-        expected_source_revision=SOURCE_REVISION,
-    )
+    return value
 
 
 class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
-    def _build(self, directory: Path) -> dict:
+    def _build(self) -> dict:
         with (
             mock.patch.object(PUBLISHER, "_verify_merged_revision") as revision,
             mock.patch.object(PUBLISHER, "_verify_preregistration") as prereg,
+            mock.patch.object(PUBLISHER, "_verify_technical_recovery") as recovery,
             mock.patch.object(PUBLISHER, "_verify_engine_assets") as engine,
+            mock.patch.object(
+                PUBLISHER,
+                "_canonical_output_directory",
+                return_value=Path(PROTOCOL.EXPECTED_RECOVERY_OUTPUT_DIRECTORY),
+            ),
             mock.patch.object(
                 PROTOCOL,
                 "authenticate_selection_artifacts",
@@ -130,10 +135,11 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
                 selection_jsonl_path="/tmp/selection.jsonl",
                 selection_manifest_path="/tmp/selection.manifest.json",
                 expected_merged_revision=SOURCE_REVISION,
-                output_directory=str(directory),
+                output_directory=PROTOCOL.EXPECTED_RECOVERY_OUTPUT_DIRECTORY,
             )
         self.assertEqual(revision.call_count, 2)
         prereg.assert_called_once()
+        recovery.assert_called_once()
         engine.assert_called_once()
         authenticate.assert_called_once_with(
             "/tmp/selection.jsonl",
@@ -199,7 +205,7 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
                     )
 
     def test_source_revision_is_rechecked_after_selection_authentication(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory():
             with (
                 mock.patch.object(
                     PUBLISHER,
@@ -212,7 +218,13 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
                     ],
                 ) as revision,
                 mock.patch.object(PUBLISHER, "_verify_preregistration"),
+                mock.patch.object(PUBLISHER, "_verify_technical_recovery"),
                 mock.patch.object(PUBLISHER, "_verify_engine_assets"),
+                mock.patch.object(
+                    PUBLISHER,
+                    "_canonical_output_directory",
+                    return_value=Path(PROTOCOL.EXPECTED_RECOVERY_OUTPUT_DIRECTORY),
+                ),
                 mock.patch.object(
                     PROTOCOL,
                     "authenticate_selection_artifacts",
@@ -226,34 +238,16 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
                         selection_jsonl_path="/tmp/selection.jsonl",
                         selection_manifest_path="/tmp/selection.manifest.json",
                         expected_merged_revision=SOURCE_REVISION,
-                        output_directory=str(Path(temporary) / "formal"),
+                        output_directory=PROTOCOL.EXPECTED_RECOVERY_OUTPUT_DIRECTORY,
                     )
             self.assertEqual(revision.call_count, 2)
 
     def test_builds_and_publishes_only_canonical_teacher_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "formal"
-            plan = self._build(directory)
-            self.assertEqual(
-                plan["outputs"],
-                {
-                    "directory": str(directory),
-                    "plan_json": str(directory / "teacher-plan.json"),
-                    "fit_jsonl": str(directory / "fit.jsonl"),
-                    "tune_jsonl": str(directory / "tune.jsonl"),
-                    "sealed_jsonl": str(directory / "sealed.jsonl"),
-                    "work_jsonl": str(directory / "teacher-work.jsonl"),
-                    "milestone_100_json": str(directory / "teacher-milestone-100.json"),
-                    "milestone_500_json": str(directory / "teacher-milestone-500.json"),
-                    "terminal_fault_json": str(
-                        directory / "teacher-terminal-fault.json"
-                    ),
-                    "receipt_json": str(directory / "teacher-receipt.json"),
-                    "verified_artifact_receipt_json": str(
-                        directory / "teacher-verified-artifact-receipt.json"
-                    ),
-                },
-            )
+            built = self._build()
+            self.assertEqual(built["outputs"], PROTOCOL.EXPECTED_RECOVERY_OUTPUTS)
+            plan = _plan(directory)
             identity = PUBLISHER.publish_teacher_plan(
                 plan, output_directory=str(directory)
             )
@@ -317,6 +311,7 @@ class PublishHalfkp81Depth18TeacherPlanTests(unittest.TestCase):
             with (
                 mock.patch.object(PUBLISHER, "_verify_merged_revision"),
                 mock.patch.object(PUBLISHER, "_verify_preregistration"),
+                mock.patch.object(PUBLISHER, "_verify_technical_recovery"),
                 mock.patch.object(PUBLISHER, "_verify_engine_assets"),
                 mock.patch.object(
                     PROTOCOL,

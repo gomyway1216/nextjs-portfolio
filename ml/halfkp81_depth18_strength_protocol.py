@@ -15,7 +15,11 @@ from typing import Any, Mapping
 
 
 PREREGISTRATION_SCHEMA = "shogi-halfkp81-hard-depth18-strength-plan-v1"
-TEACHER_PLAN_SCHEMA = "shogi-halfkp81-hard-depth18-teacher-plan-v1"
+TECHNICAL_RECOVERY_PLAN_SCHEMA = (
+    "shogi-halfkp81-hard-depth18-engine-evaldir-recovery-plan-v2"
+)
+V1_TEACHER_PLAN_SCHEMA = "shogi-halfkp81-hard-depth18-teacher-plan-v1"
+TEACHER_PLAN_SCHEMA = "shogi-halfkp81-hard-depth18-teacher-plan-v2"
 TEACHER_RECEIPT_SCHEMA = "shogi-halfkp81-hard-depth18-teacher-receipt-v1"
 SELECTION_PLAN_SCHEMA = "shogi-halfkp81-hard-depth18-parent-selection-v1"
 SELECTION_MANIFEST_SCHEMA = "halfkp81-depth18-hard-parent-selection-manifest-v2"
@@ -53,6 +57,100 @@ EXPECTED_PREREGISTRATION_IDENTITY = {
     "bytes": 5_855,
     "sha256": "fc25e155345cb61739e2ef5a9198511501b12340e8d05b56ee77ba267b232971",
     "schema": PREREGISTRATION_SCHEMA,
+}
+EXPECTED_TECHNICAL_RECOVERY_IDENTITY = {
+    "path": "ml/halfkp81-hard-depth18-engine-evaldir-v2-plan.json",
+    "bytes": 5_889,
+    "sha256": "58410d65bb553486c51c2ab332abba21ddcc8ef743af27378208ffcb3ec8baf2",
+    "schema": TECHNICAL_RECOVERY_PLAN_SCHEMA,
+}
+EXPECTED_V1_MERGE_REVISION = "eaa03e570e1ed687c3479a38eba377807be4cd9e"
+EXPECTED_V1_TEACHER_PLAN_IDENTITY = {
+    "path": (
+        "/Users/yudaiyaguchi/.codex/shogi-runs/"
+        "halfkp81-hard-depth18-strength-v1/teacher-plan.json"
+    ),
+    "bytes": 6_306,
+    "sha256": "c0b4a4ab2bc0a4b4a685b06e65afb0d3194551c72ae4382a9021754188a725b0",
+    "schema": V1_TEACHER_PLAN_SCHEMA,
+}
+EXPECTED_V1_RUN_FINGERPRINT = (
+    "3cb9637f21acafb7ad9fd1ab2f504b1011638a1c98e67e7772830e51b0228c01"
+)
+EXPECTED_V1_TERMINAL_FAULT = {
+    "path": (
+        "/Users/yudaiyaguchi/.codex/shogi-runs/"
+        "halfkp81-hard-depth18-strength-v1/teacher-terminal-fault.json"
+    ),
+    "bytes": 739,
+    "sha256": "e4b71885327d36747508551d923b1d5bd3e8987385acb3511f30aa7c46c48bac",
+    "schema": "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+    "status": "terminal-fault-family-stopped",
+    "completed_parents": 0,
+    "teacher_rows": 0,
+    "technical_faults": 1,
+    "run_fingerprint": EXPECTED_V1_RUN_FINGERPRINT,
+}
+EXPECTED_V1_WORK_LEDGER = {
+    "path": (
+        "/Users/yudaiyaguchi/.codex/shogi-runs/"
+        "halfkp81-hard-depth18-strength-v1/teacher-work.jsonl"
+    ),
+    "bytes": 4_462,
+    "sha256": "d9ce1061ddf262595a6caf8abbc368ff9727a3b1e715f50f7d036dc062f38afb",
+    "schema": "shogi-halfkp81-hard-depth18-teacher-work-v1",
+    "records": 1,
+    "header_records": 1,
+    "parent_records": 0,
+    "teacher_rows": 0,
+    "run_fingerprint": EXPECTED_V1_RUN_FINGERPRINT,
+}
+EXPECTED_REUSED_SELECTION = {
+    "jsonl": {
+        "path": (
+            "/Users/yudaiyaguchi/.codex/shogi-runs/"
+            "halfkp81-hard-depth18-strength-v1/hard-parents.jsonl"
+        ),
+        "bytes": 7_268_777,
+        "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+        "rows": 8_192,
+        "schema": SELECTION_ROW_SCHEMA,
+    },
+    "manifest": {
+        "path": (
+            "/Users/yudaiyaguchi/.codex/shogi-runs/"
+            "halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json"
+        ),
+        "bytes": 3_234,
+        "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187",
+        "schema": SELECTION_MANIFEST_SCHEMA,
+    },
+}
+EXPECTED_RECOVERY_OUTPUT_DIRECTORY = (
+    "/Users/yudaiyaguchi/.codex/shogi-runs/"
+    "halfkp81-hard-depth18-engine-evaldir-v2"
+)
+EXPECTED_RECOVERY_OUTPUTS = {
+    "directory": EXPECTED_RECOVERY_OUTPUT_DIRECTORY,
+    "plan_json": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-plan.json",
+    "fit_jsonl": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/fit.jsonl",
+    "tune_jsonl": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/tune.jsonl",
+    "sealed_jsonl": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/sealed.jsonl",
+    "work_jsonl": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-work.jsonl",
+    "milestone_100_json": (
+        f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-milestone-100.json"
+    ),
+    "milestone_500_json": (
+        f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-milestone-500.json"
+    ),
+    "terminal_fault_json": (
+        f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-terminal-fault.json"
+    ),
+    "receipt_json": f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/teacher-receipt.json",
+    "verified_artifact_receipt_json": (
+        f"{EXPECTED_RECOVERY_OUTPUT_DIRECTORY}/"
+        "teacher-verified-artifact-receipt.json"
+    ),
 }
 EXPECTED_PHASE_COUNTS = {
     "opening-ply12-39": 2_048,
@@ -1003,6 +1101,92 @@ def validate_preregistration_document(value: Any) -> dict[str, Any]:
     return copy.deepcopy(value)
 
 
+def validate_technical_recovery_plan(value: Any) -> dict[str, Any]:
+    fields = {
+        "schema",
+        "status",
+        "family",
+        "predecessor",
+        "reused_selection",
+        "live_baseline",
+        "source_revision_policy",
+        "output_namespace",
+        "technical_change",
+        "unchanged_contract",
+        "authority",
+    }
+    if type(value) is not dict or set(value) != fields:
+        raise Halfkp81Depth18StrengthError("technical recovery fields differ")
+    _exact(value, "schema", TECHNICAL_RECOVERY_PLAN_SCHEMA)
+    _exact(value, "status", "prospective-technical-recovery-not-executed")
+    _exact(value, "family", "halfkp81-hard-depth18-engine-evaldir-v2")
+    expected_predecessor = {
+        "family": "halfkp81-hard-depth18-strength-v1",
+        "run_fingerprint": EXPECTED_V1_RUN_FINGERPRINT,
+        "same_family_resume_authorized": False,
+        "teacher_plan": EXPECTED_V1_TEACHER_PLAN_IDENTITY,
+        "terminal_fault": EXPECTED_V1_TERMINAL_FAULT,
+        "work_ledger": EXPECTED_V1_WORK_LEDGER,
+    }
+    if value["predecessor"] != expected_predecessor:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery predecessor evidence differs"
+        )
+    if value["reused_selection"] != EXPECTED_REUSED_SELECTION:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery selection differs"
+        )
+    if value["live_baseline"] != EXPECTED_SOURCE_IDENTITIES["live_baseline"]:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery live baseline differs"
+        )
+    if value["source_revision_policy"] != {
+        "must_bind_new_clean_merged_main_revision": True,
+        "v1_merge_revision_forbidden": EXPECTED_V1_MERGE_REVISION,
+    }:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery source revision policy differs"
+        )
+    if value["output_namespace"] != EXPECTED_RECOVERY_OUTPUTS:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery output namespace differs"
+        )
+    eval_file = EXPECTED_ENGINE["eval_file"]
+    expected_eval_dir = os.path.dirname(eval_file["path"])
+    if value["technical_change"] != {
+        "changed_field": "YaneuraOu-EvalDir",
+        "from": os.path.dirname(expected_eval_dir),
+        "only_authorized_change": (
+            "set-EvalDir-to-parent-directory-containing-pinned-nn.bin"
+        ),
+        "pinned_eval_file": eval_file,
+        "to": expected_eval_dir,
+    }:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery EvalDir change differs"
+        )
+    if value["unchanged_contract"] != {
+        "data_and_selection": True,
+        "gates": EXPECTED_GATES,
+        "teacher": EXPECTED_TEACHER,
+        "training": EXPECTED_TRAINING,
+    }:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery strength contract differs"
+        )
+    if value["authority"] != {
+        "may_execute_teacher": False,
+        "may_publish_teacher_plan_after_new_merged_source_authentication": True,
+        "may_train": False,
+        "may_play_formal_games": False,
+        "may_write_live_weights": False,
+    }:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery authority differs"
+        )
+    return copy.deepcopy(value)
+
+
 def validate_teacher_plan(
     value: Any,
     *,
@@ -1014,6 +1198,7 @@ def validate_teacher_plan(
         "status",
         "source_revision",
         "preregistration",
+        "technical_recovery",
         "selection_manifest",
         "selection_evidence",
         "selection_roles",
@@ -1030,6 +1215,7 @@ def validate_teacher_plan(
         type(expected_source_revision) is not str
         or REVISION_RE.fullmatch(expected_source_revision) is None
         or expected_source_revision == "0" * 40
+        or expected_source_revision == EXPECTED_V1_MERGE_REVISION
         or value["source_revision"] != expected_source_revision
     ):
         raise Halfkp81Depth18StrengthError(
@@ -1107,6 +1293,21 @@ def validate_teacher_plan(
         )
     if value["selection_evidence"] != evidence:
         raise Halfkp81Depth18StrengthError("teacher plan selection evidence differs")
+    if (
+        {
+            key: evidence["selection_jsonl"][key]
+            for key in ("path", "bytes", "sha256", "rows", "schema")
+        }
+        != EXPECTED_REUSED_SELECTION["jsonl"]
+        or {
+            key: evidence["selection_manifest"][key]
+            for key in ("path", "bytes", "sha256", "schema")
+        }
+        != EXPECTED_REUSED_SELECTION["manifest"]
+    ):
+        raise Halfkp81Depth18StrengthError(
+            "teacher plan does not reuse the exact v1 selection"
+        )
     preregistration_identity = _identity(
         value["preregistration"],
         label="preregistration",
@@ -1115,6 +1316,16 @@ def validate_teacher_plan(
     )
     if preregistration_identity != EXPECTED_PREREGISTRATION_IDENTITY:
         raise Halfkp81Depth18StrengthError("preregistration identity differs")
+    technical_recovery_identity = _identity(
+        value["technical_recovery"],
+        label="technical recovery preregistration",
+        absolute=False,
+        schema=TECHNICAL_RECOVERY_PLAN_SCHEMA,
+    )
+    if technical_recovery_identity != EXPECTED_TECHNICAL_RECOVERY_IDENTITY:
+        raise Halfkp81Depth18StrengthError(
+            "technical recovery preregistration identity differs"
+        )
     selection_manifest_identity = _identity(
         value["selection_manifest"],
         label="selection manifest",
@@ -1177,7 +1388,8 @@ def validate_teacher_plan(
         )
     ]
     if (
-        os.path.normpath(directory) != directory
+        outputs != EXPECTED_RECOVERY_OUTPUTS
+        or os.path.normpath(directory) != directory
         or any(os.path.normpath(path) != path for path in artifact_paths)
         or any(os.path.dirname(path) != directory for path in artifact_paths)
         or len(set(artifact_paths)) != len(artifact_paths)

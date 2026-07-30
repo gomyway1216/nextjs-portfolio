@@ -47,7 +47,7 @@ import {
 import { UsiTeacherEngine, type UsiTeacherEngineOptions } from "./usi-engine";
 
 export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
-  "shogi-halfkp81-hard-depth18-teacher-plan-v1" as const;
+  "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
@@ -78,7 +78,7 @@ export const HALFKP81_DEPTH18_TEACHER_HASH_MIB = 512 as const;
 export const HALFKP81_DEPTH18_TEACHER_PARENT_TIMEOUT_MS = 600_000 as const;
 
 export const HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2" as const;
 export const HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_RELATIVE_PATH =
@@ -107,6 +107,12 @@ const EXPECTED_PREREGISTRATION = Object.freeze({
   bytes: 5_855,
   sha256: "fc25e155345cb61739e2ef5a9198511501b12340e8d05b56ee77ba267b232971",
   schema: "shogi-halfkp81-hard-depth18-strength-plan-v1",
+});
+const EXPECTED_TECHNICAL_RECOVERY = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-engine-evaldir-v2-plan.json",
+  bytes: 5_889,
+  sha256: "58410d65bb553486c51c2ab332abba21ddcc8ef743af27378208ffcb3ec8baf2",
+  schema: "shogi-halfkp81-hard-depth18-engine-evaldir-recovery-plan-v2",
 });
 
 const EXPECTED_TEACHER = Object.freeze({
@@ -708,6 +714,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       "status",
       "source_revision",
       "preregistration",
+      "technical_recovery",
       "selection_manifest",
       "selection_evidence",
       "selection_roles",
@@ -728,6 +735,8 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       canonicalJson(HALFKP81_DEPTH18_TEACHER_ROLE_COUNTS) ||
     canonicalJson(plan.preregistration) !==
       canonicalJson(EXPECTED_PREREGISTRATION) ||
+    canonicalJson(plan.technical_recovery) !==
+      canonicalJson(EXPECTED_TECHNICAL_RECOVERY) ||
     canonicalJson(plan.authority) !==
       canonicalJson({
         may_execute_teacher: true,
@@ -1504,9 +1513,7 @@ async function runWorkers(
           await fs.promises.mkdir(cwd, { mode: 0o700 });
           return createEngine({
             engineBin: authenticated.engine.binary.path,
-            evalDir: path.dirname(
-              path.dirname(authenticated.engine.eval_file.path),
-            ),
+            evalDir: path.dirname(authenticated.engine.eval_file.path),
             cwd,
             env: engineEnvironment(cwd),
             fvScale: 20,

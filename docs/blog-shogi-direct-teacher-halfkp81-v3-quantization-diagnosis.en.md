@@ -115,6 +115,19 @@ That merged source froze the formal plan with SHA-256 `93cdaa08039dd764a98bc61a9
 
 The candidate won more games than it lost, but finished one half-point below the preregistered acceptance line. The terminal status is `failed-strength-complete-v4-family-closed`; the same v4 family will not be rescued by changing the threshold or rerunning it. All 28 pair receipts and logs are present. These 56 games are the first playing-strength evidence, and their decision is not to adopt the candidate as a strength improvement.
 
+### What the terminal logs show
+
+| Split | Candidate record |           Score |
+| ----- | ---------------: | --------------: |
+| SENTE |       16W–10L–2D | 17.0/28 (60.7%) |
+| GOTE  |       13W–14L–1D | 13.5/28 (48.2%) |
+
+There is a visible color split, but the color-swapped pairs are zero-sum. Comparing candidate and initializer in the same color gives the candidate exactly `+2.5 points` as SENTE and `+2.5 points` as GOTE. A separate older epoch-2 candidate showed the opposite color split, so this result is not evidence of a fixed color bug.
+
+All 53 decisive games ended by checkmate, and all three draws were repetitions. Candidate wins averaged 113.9 plies; losses averaged 123.8 plies. At pair level, the half-point-score distribution was nine pairs scoring 4, one scoring 3, ten scoring 2, two scoring 1, and six scoring 0, summing to 61. The ordinary match scores for the first and last 14 pairs were `15.0 / 15.5`, with no seed-order trend.
+
+Training row counts were nearly 50/50 across b/w, but the post-clamp teacher distribution differed. Training b rows averaged `+630.9 CP` with `88.8%` positive, while w rows averaged `+388.6 CP` with `69.8%` positive. Validation showed the same direction: b `+573.6 CP` / `85.6%`, versus w `+381.4 CP` / `66.3%`. The distribution difference is real, but it is not yet an established cause of the strength miss. A future independent lane could preregister side × CP × rank/ply stratification plus same-color validation to test that hypothesis directly. This is neither a guarantee that another training run will improve strength nor authority to rerun v4.
+
 The terminal `result.json` is 2,968 bytes with SHA-256 `c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21`; its embedded domain-separated result SHA-256 is `5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090`. The expanded stage, live weights, and public flag all remain unchanged.
 
 The final milestone is stored in a separate [successor machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-result-2026-07-29.json). The v3 diagnosis memo linked above is an exact bytes/SHA input to the v4 preregistration, so it was intentionally not rewritten after the fact.

@@ -112,6 +112,86 @@
     "first_playing_strength_evidence": true,
     "candidate_stronger": false
   },
+  "terminal_log_diagnosis": {
+    "color_split": {
+      "candidate_sente": {
+        "wins": 16,
+        "losses": 10,
+        "draws": 2,
+        "score": 17.0,
+        "games": 28,
+        "score_percent": 60.714285714285715
+      },
+      "candidate_gote": {
+        "wins": 13,
+        "losses": 14,
+        "draws": 1,
+        "score": 13.5,
+        "games": 28,
+        "score_percent": 48.214285714285715
+      },
+      "paired_zero_sum": true,
+      "candidate_minus_initializer_same_color_points": {
+        "sente": 2.5,
+        "gote": 2.5
+      },
+      "separate_older_epoch2_candidate_had_opposite_color_split": true,
+      "fixed_color_bug_evidence": false
+    },
+    "termination": {
+      "decisive_games": 53,
+      "decisive_checkmates": 53,
+      "draws": 3,
+      "draws_by_repetition": 3
+    },
+    "mean_ply": {
+      "candidate_wins": 113.9,
+      "candidate_losses": 123.8
+    },
+    "pair_half_point_score_distribution": {
+      "score_4_pairs": 9,
+      "score_3_pairs": 1,
+      "score_2_pairs": 10,
+      "score_1_pairs": 2,
+      "score_0_pairs": 6,
+      "sum_half_points": 61
+    },
+    "seed_order_diagnostic": {
+      "first_14_pair_match_score": 15.0,
+      "last_14_pair_match_score": 15.5,
+      "seed_order_trend_observed": false
+    },
+    "teacher_distribution_after_clamp": {
+      "training_row_count_side_balance": "approximately-50-50-b-vs-w",
+      "training": {
+        "b": {
+          "mean_cp": 630.9,
+          "positive_percent": 88.8
+        },
+        "w": {
+          "mean_cp": 388.6,
+          "positive_percent": 69.8
+        }
+      },
+      "validation": {
+        "b": {
+          "mean_cp": 573.6,
+          "positive_percent": 85.6
+        },
+        "w": {
+          "mean_cp": 381.4,
+          "positive_percent": 66.3
+        }
+      }
+    },
+    "root_cause_determined": false,
+    "next_independent_lane_hypothesis_test": {
+      "side_by_cp_by_rank_or_ply_stratification": true,
+      "same_color_validation": true,
+      "strength_improvement_guaranteed": false,
+      "v4_retry_authorized": false
+    }
+  },
   "authority": {
     "playing_strength_evidence_complete": true,
     "playing_strength_decision": "strength-miss-candidate-not-adopted",

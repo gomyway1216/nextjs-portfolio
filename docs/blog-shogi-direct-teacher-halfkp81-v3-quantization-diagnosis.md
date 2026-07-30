@@ -115,6 +115,19 @@ fresh openingは、既存protocolとprivate run inventoryを合わせた3,302 fi
 
 候補は勝数では上回ったが、事前登録した合格線に1 half-point届かなかった。結果は`failed-strength-complete-v4-family-closed`であり、同じv4 familyを閾値変更や再試行で救済しない。28個のpair receiptとlogはすべて揃い、この56局が初めてのplaying-strength evidenceになった。その証拠が出した結論は「強化候補として採用しない」である。
 
+### terminal logから分かったこと
+
+| 内訳  | candidate成績 |            score |
+| ----- | ------------: | ---------------: |
+| SENTE |   16勝10敗2分 | 17.0/28（60.7%） |
+| GOTE  |   13勝14敗1分 | 13.5/28（48.2%） |
+
+見かけ上は先後差がある。しかしcolor-swapped pairはzero-sumなので、candidateとinitializerを同じ色同士で比較すると、SENTEもGOTEもcandidateが`+2.5 points`だった。別familyの旧epoch-2 candidateは逆向きのcolor splitを示しており、今回の値だけから固定色bugとは判断できない。
+
+53局の決着はすべてcheckmate、3分はすべてrepetitionだった。candidate勝局の平均は113.9 ply、負局は123.8 ply。pair単位のhalf-point scoreは、4点が9 pair、3点が1、2点が10、1点が2、0点が6で、合計61になった。前半14 pairと後半14 pairの通常match scoreは`15.0 / 15.5`で、seed順のtrendも見えなかった。
+
+訓練row数はb/wでほぼ50/50だったが、clamp後teacher CPは訓練b rowが平均`+630.9 CP`・positive `88.8%`、w rowが`+388.6 CP`・`69.8%`だった。validationでもbは`+573.6 CP`・`85.6%`、wは`+381.4 CP`・`66.3%`だった。この分布差は実在するが、今回のstrength MISSの原因だとはまだ断定できない。次の独立laneを作るなら、事前登録したside × CP × rank/ply stratificationと同色validationで、この仮説を直接検証する候補になる。これは次の学習が強くなるという保証や、v4再試行の許可ではない。
+
 terminal `result.json`は2,968 bytes、SHA-256 `c99da7b4aebae24d7cf8ee23c689d95200fe73ae2e219ff8bce001f28f244b21`で、内部のdomain-separated result SHA-256は`5ae126674935a32ff8822a96eadd7d653e7c7a2fff61df06624b0da98568e090`である。expanded stage、live weight、公開flagはすべて不変のままである。
 
 最終記録は[後続machine-readable memo](./data/shogi-direct-teacher-halfkp81-v4-formal-paired56-result-2026-07-29.json)に分離した。上で参照したv3診断memoはv4事前登録がbytes/SHAまで入力として固定しているため、後知恵で書き換えていない。

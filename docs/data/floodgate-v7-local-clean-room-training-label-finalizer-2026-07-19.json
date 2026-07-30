@@ -102,9 +102,9 @@
     "package_identity_refreshed": true,
     "current_package_manifest": {
       "path": "package.json",
-      "bytes": 8520,
-      "sha256": "4bd8c6e20b22ed04fe8ea08bfb95e05058bfb9f988e03a6d724d51ebcfe0bcf9",
-      "git_blob": "b526dc0e7d96f4b5bce06ddbf790a6d1c6cd1bda",
+      "bytes": 8724,
+      "sha256": "396072922d0aa91ddf8888405722c7834b1d33299cc6a90a0eb71bf8b7b03ce5",
+      "git_blob": "07e8fcad5142d23a73b0531f014e95c35637f125",
       "required_markers": [
         "\"shogi:floodgate-v7-local-clean-room-teacher\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-teacher.ts\"",
         "\"shogi:floodgate-v7-local-clean-room-training-label-finalizer\": \"node -r tsx/cjs ml/run-floodgate-v7-local-clean-room-training-label-finalizer.ts\"",

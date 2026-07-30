@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "prospective-corrected-after-independent-source-audit-no-strength-claim",
+  "status": "formal-selection-authenticated-teacher-runner-not-yet-merged-no-strength-claim",
   "date": "2026-07-29",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
   "predecessor": {
@@ -157,7 +157,37 @@
     },
     "old_depth12_cp": "selection-only-never-teacher-target",
     "central_heavy_diagnostic": "exploratory-only-not-sole-selector-condition",
-    "formal_artifact_created": false
+    "formal_artifact_created": true,
+    "formal_artifacts": {
+      "source_revision": "0ec6807c7d6c13f3e7caf4f08d45e87ce1ba005b",
+      "semantic_overlap": {
+        "rows": 243368,
+        "bytes": 21903120,
+        "sha256": "34ef162aabf044e6af28da32ce8add43384fa4070afb87b99e1dcefd527dc809"
+      },
+      "legal_count_pool": {
+        "rows": 800000,
+        "bytes": 438216938,
+        "sha256": "b434743eeb724e45dfbec074e4ee9386e7d0a74ca52262562b44257241f1d0be",
+        "side_to_move": {
+          "b": 402090,
+          "w": 397910
+        },
+        "zero_legal_moves": 0,
+        "exactly_one_legal_move": 4647
+      },
+      "hard_parents": {
+        "rows": 8192,
+        "bytes": 7268777,
+        "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+        "manifest_bytes": 3234,
+        "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187",
+        "unique_game_ids": 8192,
+        "unique_position_ids": 8192,
+        "cross_role_game_overlap": 0
+      },
+      "post_restart_identity_recheck": "unchanged"
+    }
   },
   "teacher": {
     "engine": {
@@ -233,6 +263,7 @@
   "implementation": {
     "branch": "codex/shogi-hard-depth18-strength-v1",
     "base_revision": "beb05a427155a3bbb39402095a839574f883aa16",
+    "merge_revision": "0ec6807c7d6c13f3e7caf4f08d45e87ce1ba005b",
     "preregistration_plan": {
       "path": "ml/halfkp81-hard-depth18-strength-v1-plan.json",
       "bytes": 5855,
@@ -245,20 +276,27 @@
     "selection_8192_content_authenticator_implemented": true,
     "teacher_plan_requires_authenticated_merged_revision_and_selection_evidence": true,
     "teacher_plan_and_structural_receipt_schema_implemented": true,
-    "teacher_artifact_content_verifier_implemented": false,
+    "teacher_artifact_content_verifier_implemented": true,
+    "resumable_depth18_teacher_runner_implemented": true,
+    "teacher_runner_completion_order_checkpoint_datasync": true,
+    "teacher_runner_parent_timeout_seconds": 600,
+    "teacher_runner_processes": 13,
+    "verified_receipt_may_build_training_plan_only": true,
     "structural_receipt_may_build_training_plan": false,
     "overlap_inventory_builder_implemented": true,
-    "formal_immutable_overlap_inventory_built": false,
+    "formal_immutable_overlap_inventory_built": true,
     "overlap_inventory_dry_run": {
       "rows": 243368,
       "bytes": 21903120,
       "sha256": "34ef162aabf044e6af28da32ce8add43384fa4070afb87b99e1dcefd527dc809"
     },
-    "pull_request_created": false,
-    "merged": false
+    "pull_request_created": true,
+    "merged": true,
+    "teacher_runner_branch": "codex/shogi-hard-depth18-teacher-runner-v1",
+    "teacher_runner_pull_request_created": false
   },
   "authority": {
-    "formal_selection_executed": false,
+    "formal_selection_executed": true,
     "teacher_generation_executed": false,
     "training_executed": false,
     "formal_games": 0,

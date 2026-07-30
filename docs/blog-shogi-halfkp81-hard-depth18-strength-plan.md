@@ -63,6 +63,10 @@ teacher planを作る前にもselection manifestと8,192行JSONLをheld descript
 
 過去の実測では24,000親のdepth16教師が約11.47時間だった。8,192親なら単純換算約3.91時間だが、今回はdepth18なので保守的に8〜16時間を見込む。80万局面の合法手付与・選抜、学習、static gateは1時間未満、56局screenは15〜25分が目安で、合計9〜18時間である。これはM4 Pro上の範囲予測で、保証時刻ではない。
 
-現在は修正済み事前登録、決定的セレクタ、合法手付与器、教師plan/receipt schema、単体テストを実装中で、正式教師計算はまだ始めていない。PRが通常mergeされ、merged sourceとplanのbytes/SHAが固定されてから選抜とdepth18計算を開始する。ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`に固定し、公開flagも変更していない。
+2026年7月30日、事前登録・選抜器・認証器を含むPR #665は通常mergeされた（merge `0ec6807c7d6c13f3e7caf4f08d45e87ce1ba005b`）。そのmerged revisionでsemantic-overlap 243,368行、合法手数付きpool 800,000行、hard parent 8,192行を正式生成・再認証した。選抜はfit 6,144、tune 1,024、sealed 1,024で、8,192件の`game_id`と`position_id`は全て一意、role間game重複は0、各roleの手番は50/50だった。
+
+Mac再起動後にも、この3成果物のサイズとSHA-256は変わっていなかった。depth18教師生成そのものはまだ0親・0行である。現在は、13並列計算を行単位でfsyncし再起動後に続行できる専用runner、depth11安定手の実証、raw receiptとは独立した全8,192親のartifact verifierを次のPRとして実装している。これを通常mergeし、clean mainからimmutable teacher planを発行して初めて8〜16時間の教師計算を始める。
+
+ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

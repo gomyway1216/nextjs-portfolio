@@ -83,6 +83,8 @@ v3r2を含むPR #669は全15 check成功後に通常mergeされた（merge `f0ae
 
 同じstartup timeoutはstress waveで再現した。停止childをsampleした167 / 167件が、worker sourceを渡すfd 3の`readFileSync(3)`でEOFを待っていた。停止点はWASMやweightsを読む前であり、FD leak、pool poison、特定のparent 49、探索timeoutの長さは原因ではなかった。v3r3は新しいsource revision、run fingerprint、output namespaceを使い、親が`sourcePipe.end()`の完了を上限付きで待ってからworker initへ進むようにする。timeoutの延長、教師・学習・合格線の変更、v3r2行の再利用はしない。実行・診断の全実数は[機械可読メモ](./data/shogi-halfkp81-depth18-v3r2-worker-startup-fault-2026-07-30.json)に保存した。この修正もまだ棋力向上の証拠ではない。
 
+修正後preflightでは、13 CPU hogと13 × 512 MiB（合計6.5 GiB）のmemory hogを同時に置き、12 workerのomission・交換を4 wave、合計48 / 48件実行した。各waveは20.63〜20.79秒、fault 0だった。telemetry 60件は全てsource転送完了後にinitを開始し、source転送は24.67〜85.93 ms（平均41.05 ms）、startup全体は149.26〜344.17 ms（平均235.27 ms）だった。終了後はworker 60、CPU hog 13、memory hog 13のaliveが全て0になった。receiptは34,894 bytes、SHA-256 `8266fe89272f5888c35d94f65765a0a26edc8b95d12224cecae454f843b52580`である。これは起動順序修正のstress PASSであり、正式runはPR・CI・通常merge前なのでまだ開始していない。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

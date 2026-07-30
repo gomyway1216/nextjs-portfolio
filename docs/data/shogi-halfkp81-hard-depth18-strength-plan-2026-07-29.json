@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "v3r2-terminal-after-94-parents-source-pipe-eof-fault-v3r3-required-no-strength-claim",
+  "status": "v3r3-post-fix-stress-pass-formal-not-started-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -468,6 +468,42 @@
       "v3r2_completed_parents_reused": 0,
       "v3r2_teacher_rows_reused": 0,
       "strength_contract_unchanged": true,
+      "post_fix_stress": {
+        "status": "pass",
+        "cpu_hogs": 13,
+        "memory_hogs": 13,
+        "memory_mib_per_hog": 512,
+        "memory_gib_total": 6.5,
+        "simultaneous_omission_replacements_per_wave": 12,
+        "waves": 4,
+        "completed_replacements": 48,
+        "expected_replacements": 48,
+        "wave_seconds_minimum": 20.63,
+        "wave_seconds_maximum": 20.79,
+        "faults": 0,
+        "telemetry_records": 60,
+        "source_completed_before_init_records": 60,
+        "source_transfer_milliseconds": {
+          "minimum": 24.67,
+          "maximum": 85.93,
+          "average": 41.05
+        },
+        "total_startup_milliseconds": {
+          "minimum": 149.26,
+          "maximum": 344.17,
+          "average": 235.27
+        },
+        "cleanup_alive": {
+          "workers_out_of_60": 0,
+          "cpu_hogs_out_of_13": 0,
+          "memory_hogs_out_of_13": 0
+        },
+        "receipt": {
+          "path": "$HOME/.codex/shogi-runs/halfkp81-depth18-bounded-stable-v3r3-preflight/stress-receipt.json",
+          "bytes": 34894,
+          "sha256": "8266fe89272f5888c35d94f65765a0a26edc8b95d12224cecae454f843b52580"
+        }
+      },
       "teacher_generation_started": false,
       "strength_claim_authorized": false
     }
@@ -571,7 +607,9 @@
     "v3r2_merge_revision": "f0ae74c208d3934849864c05cc68219f1834ef83",
     "v3r2_implementation_merged": true,
     "v3r2_teacher_attempt_terminal_fault": true,
-    "v3r3_technical_recovery_required": true
+    "v3r3_technical_recovery_required": true,
+    "v3r3_post_fix_stress_passed": true,
+    "v3r3_formal_run_started": false
   },
   "authority": {
     "formal_selection_executed": true,

@@ -1,6 +1,6 @@
 # Direct-teacher HalfKP81 v3: isolate the MPS failure in a new fixed-CPU one-shot experiment
 
-> As of July 29, 2026, v2 ended in a technical stop before training because an MPS operation was unsupported. Optimizer steps, trained rows, candidates, and strength observations are all zero. v3 does not retry v2: it is a separate family that preserves the training recipe and changes only the device to CPU. A read-only actual-data CPU probe passed, but training and measured strength gain remain zero, and the live weights are unchanged. [日本語](./blog-shogi-direct-teacher-halfkp81-v3-cpu-successor.md)
+> On July 29, 2026, v3 completed its formal fixed-CPU epoch. It trained 200,944 rows in 99 batches and 7.917 seconds, and passed eight of nine static gates. It failed because the quantized maximum CP-delta ratio was 1.1732 against a 1.05 ceiling, so the family is closed. It played zero of the 56 screen games, and the live weights remain unchanged. [日本語](./blog-shogi-direct-teacher-halfkp81-v3-cpu-successor.md)
 
 ## What happened to v2
 
@@ -60,18 +60,49 @@ While the formal terminal receipt remained pending, the new probe implementation
 
 The output SHA-256 was `64ff6dc816d491d8fd5c055b537e7cee62d0c38a75b370c86a3f4f3dd0deb1de`; the gradient SHA-256 was `b43290206b6327e9ddcc2c49cfb20dcbc452df550273694956756a0ec0dd0681`. This is a technical CPU-capability observation, not an authoritative execution receipt or playing-strength result. The measurements are recorded in [`docs/data/shogi-direct-teacher-halfkp81-v3-cpu-preflight-2026-07-29.json`](./data/shogi-direct-teacher-halfkp81-v3-cpu-preflight-2026-07-29.json).
 
-## Current state and sequence
+## Formal execution result
 
-| Stage | Current value | Authority |
+After the implementation and v2 terminal receipt reached main, the formal v3 run started exactly once from clean main revision `1f5e4a4a`. The metadata rebind rescanned all 223,834 train and validation rows. It proved zero cross-role overlap for the game, parent, position, child-position, and semantic-position ID sets. It copied, regenerated, and hard-linked zero JSONL files.
+
+The formal CPU probe reproduced the preflight output and gradient hashes in both isolated runs. It passed before any optimizer existed. Only then did the runner acquire the v3 claim and execute the frozen epoch.
+
+| Training measurement | Value |
+|---|---:|
+| Train rows / batch | 200,944 / 2,048 |
+| Optimizer batches / steps | 99 / 99 |
+| Epoch time | 7.917 s |
+| Train direct scalar BCE | 0.6786804361 |
+| Validation rows | 22,890 |
+| Candidate checkpoint | 191,659,516 bytes |
+| Candidate weights | 94,656,708 bytes |
+
+The static gates produced the following result.
+
+| Static check | Observed | Requirement | Result |
+|---|---:|---:|---|
+| Finite training / inference | true | true | PASS |
+| Technical faults | 0 | at most 0 | PASS |
+| Float export mismatches | 0 | at most 0 | PASS |
+| WASM parity mismatches | 0 / 512 | at most 0 | PASS |
+| Teacher MAE improvement | +8.0133 CP | at least +5 CP | PASS |
+| Pair-accuracy delta | +0.0000972 | at least -0.002 | PASS |
+| Quantized mean CP-delta ratio | 1.001686 | at most 1.05 | PASS |
+| Quantized max CP-delta ratio | 1.173216 | at most 1.05 | **FAIL** |
+| Runtime slowdown | 2.4955% | at most 5% | PASS |
+
+The sole failure was a 17.32% increase, relative to the initializer, in the worst single quantization CP delta. Mean quantization error, WASM parity, runtime, teacher MAE, and pair accuracy passed. Teacher MAE and pair accuracy are validation proxies, however, not playing strength. Because one of the preregistered nine gates failed, the candidate did not enter the 56-game screen and v3 does not support a “stronger” claim.
+
+The formal result and every artifact identity are pinned in [`docs/data/shogi-direct-teacher-halfkp81-v3-cpu-result-2026-07-29.json`](./data/shogi-direct-teacher-halfkp81-v3-cpu-result-2026-07-29.json).
+
+## Terminal state and the next valid branch
+
+| Stage | Final value | Authority |
 |---|---:|---|
-| v2 training | 0 batches / 0 rows | technical stop; retry forbidden |
-| v2 terminal receipt | fixed slot pending | mandatory v3 input |
-| v3 metadata rebind | implemented, unpublished | only after terminal |
-| v3 execution plan | implemented, unpublished | only after rebind |
-| Actual-data CPU preflight | PASS | no claim or training authority |
-| v3 optimizer / epoch | 0 / 0 | only after merge, formal plan, and probe |
-| Static gates | 0 / 9 | only after the epoch |
-| Paired screen | 0 / 56 games | only after 9/9 static pass |
-| Live-weight change | 0 bytes | forbidden |
+| Formal v3 probe | PASS; 2 / 2 hashes equal | claim acquired |
+| v3 training | 1 epoch; 99 steps | complete; retry forbidden |
+| Static gates | 8 / 9 PASS | family closed |
+| Paired screen | 0 / 56 games | not authorized |
+| Expanded stage | 0 games | not authorized |
+| Live-weight change | 0 bytes | forbidden and byte-exact unchanged |
 
-Next, publish the v2 technical-stop receipt in its fixed slot, metadata-rebind the same dataset bytes, and create the formal v3 execution plan. After this implementation and its CI are merged, rerun the real CPU probe under that plan. Only a pass can consume the one claim and run the frozen epoch. A static or 56-game failure closes this family; it does not justify retrospectively changing the seed, epoch count, learning rate, or threshold.
+The v3 seed, epoch count, learning rate, and threshold must not be changed retrospectively and rerun. A useful next experiment would preregister a separate family that directly controls the worst quantized outlier. Candidate approaches are quantization-aware fine-tuning, quantization-range regularization, or clipping before export. The new plan should first bind the technical hypothesis that it will keep the teacher-MAE gain while reducing the maximum CP-delta ratio to at most 1.05. Only a result that passes all nine static gates should enter the 56-game screen.

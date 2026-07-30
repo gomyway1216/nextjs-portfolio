@@ -1086,16 +1086,35 @@ def _verify_published_file(
 
 
 def _rollback_published_file(published: PublishedFile, label: str) -> None:
+    expected_inode = (published.device, published.inode)
     try:
-        observed = os.stat(published.path, follow_symlinks=False)
+        before = os.stat(published.path, follow_symlinks=False)
     except FileNotFoundError:
         return
     except OSError as error:
         raise SelectionError(f"{label}: cannot inspect rollback target: {error}") from error
     if (
-        not stat.S_ISREG(observed.st_mode)
-        or (observed.st_dev, observed.st_ino)
-        != (published.device, published.inode)
+        not stat.S_ISREG(before.st_mode)
+        or (before.st_dev, before.st_ino) != expected_inode
+    ):
+        raise SelectionError(f"{label}: refusing to roll back a replaced destination")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(published.path, flags)
+        with os.fdopen(descriptor, "rb") as source:
+            opened = os.fstat(source.fileno())
+            observed_raw = source.read()
+        after = os.stat(published.path, follow_symlinks=False)
+    except OSError as error:
+        raise SelectionError(
+            f"{label}: cannot authenticate rollback target: {error}"
+        ) from error
+    if (
+        not stat.S_ISREG(opened.st_mode)
+        or (opened.st_dev, opened.st_ino) != expected_inode
+        or (after.st_dev, after.st_ino) != expected_inode
+        or len(observed_raw) != published.bytes
+        or _sha256(observed_raw) != published.sha256
     ):
         raise SelectionError(f"{label}: refusing to roll back a replaced destination")
     try:

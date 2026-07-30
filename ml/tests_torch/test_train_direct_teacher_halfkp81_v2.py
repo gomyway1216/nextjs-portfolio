@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -385,6 +386,34 @@ class DirectTeacherHalfkp81V2TrainerTests(unittest.TestCase):
                         one_shot_claim=claim,
                     )
                 optimizer.assert_not_called()
+
+    def test_new_claim_root_is_parent_fsynced_before_claim_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            claim_root = parent / "claims"
+            plan = {
+                "path": str(parent / "execution-plan.json"),
+                "bytes": 321,
+                "sha256": "c" * 64,
+                "schema": PROTOCOL.EXECUTION_PLAN_SCHEMA,
+            }
+            parent_inode = os.stat(parent).st_ino
+            fsynced_inodes: list[int] = []
+            real_fsync = os.fsync
+
+            def record_fsync(descriptor: int) -> None:
+                fsynced_inodes.append(os.fstat(descriptor).st_ino)
+                real_fsync(descriptor)
+
+            with mock.patch.object(os, "fsync", side_effect=record_fsync):
+                claim = DIRECT.acquire_one_shot_claim(
+                    execution_plan=plan,
+                    implementation={"source_revision": "d" * 40},
+                    output_path=str(parent / "output"),
+                    claim_root=str(claim_root),
+                )
+            self.assertIn(parent_inode, fsynced_inodes)
+            self.assertTrue(Path(claim["identity"]["path"]).is_file())
 
     def test_export_failure_never_publishes_partial_final_name(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -779,8 +779,10 @@ def acquire_one_shot_claim(
     if os.path.islink(requested_claim_root):
         raise DirectTeacherTrainingError("one-shot claim root must not be a symlink")
     claim_root = os.path.realpath(requested_claim_root)
+    claim_root_created = False
     try:
         os.mkdir(claim_root, 0o700)
+        claim_root_created = True
     except FileExistsError:
         pass
     claim_stat = os.lstat(claim_root)
@@ -793,6 +795,12 @@ def acquire_one_shot_claim(
         raise DirectTeacherTrainingError(
             "one-shot claim root must be an owned non-symlink 0700 directory"
         )
+    if claim_root_created:
+        parent_fd = os.open(os.path.dirname(claim_root), os.O_RDONLY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
     claim_path = os.path.join(claim_root, f"{plan_sha256}.json")
     owner = {
         "kind": "direct-teacher-halfkp81-v2-one-shot-trainer",

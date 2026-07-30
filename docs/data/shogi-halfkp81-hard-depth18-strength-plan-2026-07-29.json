@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "v3r3-post-fix-stress-pass-formal-not-started-no-strength-claim",
+  "status": "v3r3-terminal-after-162-parents-yaneura-only-v1-defined-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -504,6 +504,69 @@
           "sha256": "8266fe89272f5888c35d94f65765a0a26edc8b95d12224cecae454f843b52580"
         }
       },
+      "formal_result": {
+        "source_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+        "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+        "completed_parents": 162,
+        "total_parents": 8192,
+        "teacher_rows": 1948,
+        "stable_proposals": 103,
+        "stable_omissions": 59,
+        "stable_appeared_rows": 103,
+        "stable_only_unique_rows": 8,
+        "stable_only_unique_rows_over_all_teacher_rows_percent": 0.41,
+        "milestone_100": {
+          "status": "pass-not-training-authority",
+          "parents": 100,
+          "teacher_rows": 1198,
+          "technical_faults_at_publication": 0,
+          "sha_recomputation_matches": true
+        },
+        "fault_selection_index_1_based": 131,
+        "technical_faults": 1,
+        "terminal_message": "teacher labeling failed for parent sha256:5ed636cc10e9712de90ff4a9d8401edb757687ffb5eab6b21b4c02fd79258639: Floodgate production teacher asset authority failed: bounded stable worker startup timeout",
+        "same_family_resume_authorized": false,
+        "training_authorized": false,
+        "rows_reusable_by_successor": 0,
+        "fault_memo": "docs/data/shogi-halfkp81-depth18-v3r3-terminal-fault-2026-07-30.json"
+      },
+      "same_parent_no_load_isolation": {
+        "selection_index_1_based": 131,
+        "stable_outcome": "omitted",
+        "completed_depth": 10,
+        "elapsed_seconds": 20.103,
+        "replacement_startup_milliseconds": 57.37,
+        "faults": 0
+      },
+      "proof_boundary": {
+        "formal_worker_stage_telemetry_persisted": false,
+        "fd3_eof_wait_recurrence_proved": false,
+        "stdin_init_or_decode_wait_excluded": false,
+        "position_specific_failure_excluded": true
+      },
+      "teacher_generation_started": true,
+      "teacher_generation_completed": false,
+      "strength_claim_authorized": false,
+      "status": "terminal-technical-fault-family-closed"
+    },
+    "yaneura_only_v1": {
+      "family": "halfkp81-hard-depth18-yaneura-only-v1",
+      "classification": "new-strength-first-family-not-v3r3-resume",
+      "stable_candidate_path_present": false,
+      "reason": "stable-only unique contribution was 8 of 1948 formal rows, 0.41 percent, while the path retained an independent startup and replacement failure surface",
+      "candidate_policy": {
+        "yaneuraou_depth16_multipv": 12,
+        "recorded_move": true,
+        "deduplication": "USI-move-exact-before-depth18-rescore",
+        "final_rescore_depth": 18
+      },
+      "new_source_revision_required": true,
+      "new_run_fingerprint_required": true,
+      "new_output_namespace_required": true,
+      "v3r3_completed_parents_reused": 0,
+      "v3r3_teacher_rows_reused": 0,
+      "timeout_extension_authorized": false,
+      "strength_contract_unchanged": true,
       "teacher_generation_started": false,
       "strength_claim_authorized": false
     }
@@ -609,19 +672,25 @@
     "v3r2_teacher_attempt_terminal_fault": true,
     "v3r3_technical_recovery_required": true,
     "v3r3_post_fix_stress_passed": true,
-    "v3r3_formal_run_started": false
+    "v3r3_pull_request": 670,
+    "v3r3_merge_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+    "v3r3_implementation_merged": true,
+    "v3r3_formal_run_started": true,
+    "v3r3_teacher_attempt_terminal_fault": true,
+    "yaneura_only_v1_decision_recorded": true
   },
   "authority": {
     "formal_selection_executed": true,
     "teacher_generation_executed": true,
     "teacher_generation_completed": false,
-    "teacher_completed_parents": 94,
-    "teacher_rows": 1125,
+    "teacher_completed_parents": 162,
+    "teacher_rows": 1948,
     "v1_same_family_resume_authorized": false,
     "v2_same_family_resume_authorized": false,
     "v3_same_family_resume_authorized": false,
     "v3r2_same_family_resume_authorized": false,
-    "v3r3_technical_recovery_implementation_authorized": true,
+    "v3r3_same_family_resume_authorized": false,
+    "yaneura_only_v1_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

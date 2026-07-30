@@ -12,6 +12,8 @@ import {
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
   HALFKP81_DEPTH18_WRAPPER_DIGEST_DOMAIN,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   canonicalHalfkp81Depth18Json,
   readHalfkp81Depth18PrivateArtifact,
   validateHalfkp81Depth18TeacherArtifactsCoreForTests,
@@ -32,6 +34,7 @@ import {
   type FloodgateBoundedStableWasmRuntimeReceiptV3,
 } from "../../../ml/floodgate-bounded-stable-wasm-runtime-v3";
 import {
+  HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
   runHalfkp81Depth18TeacherCoreForTests,
   type Halfkp81Depth18AuthenticatedTeacherPlan,
   type Halfkp81Depth18TeacherEngine,
@@ -95,7 +98,8 @@ type FixtureStableMode =
   | "bounded-v3-omitted"
   | "bounded-v3-proposal"
   | "bounded-v3r2-omitted"
-  | "bounded-v3r3-omitted";
+  | "bounded-v3r3-omitted"
+  | "yaneura-only-v1";
 
 afterEach(async () => {
   await Promise.all(
@@ -195,6 +199,41 @@ function boundedTeacherSettings() {
     hash_mib_per_process: 512,
     maximum_rows: 114_688,
     maximum_rows_per_parent: 14,
+    minimum_rows_per_parent: 2,
+    processes: 13,
+    rescore_policy: Object.freeze({
+      all_deduplicated_candidates_independently_rescored: true,
+      depth: 18,
+      old_depth6_or_depth12_cp_target_rows: 0,
+    }),
+    threads_per_process: 1,
+    timeout_seconds_per_parent: 600,
+  });
+}
+
+function yaneuraOnlyTeacherSettings() {
+  return Object.freeze({
+    candidate_policy: Object.freeze({
+      deduplication: "USI-move-exact-before-depth18-rescore",
+      recorded_move: Object.freeze({ required: true }),
+      stable_wasm: Object.freeze({
+        allowed: false,
+        calls_per_parent: 0,
+        candidate_rows: 0,
+        worker_processes: 0,
+      }),
+      yaneuraou_depth16_multipv: Object.freeze({
+        depth: 16,
+        multipv: 12,
+        required: true,
+      }),
+    }),
+    engine: "YaneuraOu NNUE 9.60git 64APPLEM1",
+    hash_mib_per_process: 512,
+    ledger_candidate_generation:
+      HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+    maximum_rows: 106_496,
+    maximum_rows_per_parent: 13,
     minimum_rows_per_parent: 2,
     processes: 13,
     rescore_policy: Object.freeze({
@@ -407,12 +446,15 @@ function stableReceipt(poolDigest: string): Readonly<Record<string, unknown>> {
 interface Fixture {
   readonly request: Readonly<Halfkp81Depth18ValidationRequest>;
   readonly root: string;
+  readonly stableFactoryCalls: number;
 }
 
 async function generatedFixture(
   stableMode: FixtureStableMode = "required-v2",
 ): Promise<Fixture> {
-  const boundedStableV3 = stableMode !== "required-v2";
+  const yaneuraOnly = stableMode === "yaneura-only-v1";
+  const boundedStableV3 =
+    stableMode !== "required-v2" && stableMode !== "yaneura-only-v1";
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-depth18-artifact-"),
   );
@@ -540,9 +582,10 @@ async function generatedFixture(
     verification: {},
   };
   const plan = {
-    schema:
-      stableMode === "bounded-v3r2-omitted" ||
-      stableMode === "bounded-v3r3-omitted"
+    schema: yaneuraOnly
+      ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+      : stableMode === "bounded-v3r2-omitted" ||
+          stableMode === "bounded-v3r3-omitted"
         ? stableMode === "bounded-v3r3-omitted"
           ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
           : HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
@@ -563,7 +606,11 @@ async function generatedFixture(
       source_revision: "9133c527791c8b2f5f378a32df29a5e3752bd41b",
       id: "YaneuraOu NNUE 9.60git 64APPLEM1",
     },
-    teacher: boundedStableV3 ? boundedTeacherSettings() : teacherSettings(),
+    teacher: yaneuraOnly
+      ? yaneuraOnlyTeacherSettings()
+      : boundedStableV3
+        ? boundedTeacherSettings()
+        : teacherSettings(),
     outputs,
   };
   const planBytes = canonicalLine(plan);
@@ -722,8 +769,12 @@ async function generatedFixture(
       };
     }
   }
+  let stableFactoryCalls = 0;
   const dependencies: Halfkp81Depth18TeacherRunnerDependencies = {
-    createStableRuntime: async () => stable,
+    createStableRuntime: async () => {
+      stableFactoryCalls += 1;
+      return stable;
+    },
     createEngine: async () => new FakeEngine(),
     authenticateFixedAssets: async () => ({
       binary: identity(enginePath, engineBytes),
@@ -735,18 +786,21 @@ async function generatedFixture(
       ),
     }),
     processes: 3,
-    stablePolicy: boundedStableV3
-      ? "optional-bounded-depth11-v3"
-      : "required-depth11-v2",
+    stablePolicy: yaneuraOnly
+      ? "yaneuraou-only-v1"
+      : boundedStableV3
+        ? "optional-bounded-depth11-v3"
+        : "required-depth11-v2",
   };
   await runHalfkp81Depth18TeacherCoreForTests(authenticated, dependencies, {
     parentCount: roles.length,
     roleCounts: { fit: 1, tune: 1, sealed: 1 },
     milestones: [],
-    maximumRows: roles.length * 14,
+    maximumRows: roles.length * (yaneuraOnly ? 13 : 14),
   });
   return {
     root,
+    stableFactoryCalls,
     request: Object.freeze({
       label: "test depth18 teacher",
       plan: await snapshot(outputs.plan_json),
@@ -953,6 +1007,56 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3,
       },
     });
+  });
+
+  it("verifies Yaneura-only v1 ledgers and recomputes stable-WASM absence", async () => {
+    const fixture = await generatedFixture("yaneura-only-v1");
+    expect(fixture.stableFactoryCalls).toBe(0);
+    const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      fixture.request,
+      {
+        fit: 1,
+        tune: 1,
+        sealed: 1,
+      },
+    );
+    expect(result).toMatchObject({
+      completedParents: 3,
+      completedRows: 39,
+      roleRows: { fit: 13, tune: 13, sealed: 13 },
+      receipt: {
+        teacher_plan: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1,
+        },
+        work: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
+        },
+        artifact_verification: {
+          stable_wasm_absence_recomputed: true,
+          yaneura_only_candidate_generation_recomputed: true,
+          row_bounds_2_through_13_recomputed: true,
+        },
+      },
+    });
+
+    const stableHeaderForgery = cloneWork(fixture.request);
+    stableHeaderForgery[0].stable_runtime = { forbidden: true };
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(fixture.request, stableHeaderForgery),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/teacher work header fields are not exact/);
+
+    const stableParentForgery = cloneWork(fixture.request);
+    stableParentForgery[1].stable_result = { forbidden: true };
+    resealWrapper(stableParentForgery[1]);
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(fixture.request, stableParentForgery),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/teacher work line 2 fields are not exact/);
   });
 
   it("rejects forged v3 outcomes and stable-source adoption drift", async () => {

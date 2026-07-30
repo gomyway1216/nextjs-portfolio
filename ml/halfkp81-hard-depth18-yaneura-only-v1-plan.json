@@ -1,0 +1,248 @@
+{
+  "authority": {
+    "may_execute_teacher": false,
+    "may_play_formal_games": false,
+    "may_publish_teacher_plan_after_new_merged_source_authentication": true,
+    "may_train": false,
+    "may_write_live_weights": false
+  },
+  "change_control": {
+    "allowed_changes": [
+      "remove-optional-stable-wasm-candidate-source",
+      "maximum-rows-per-parent-from-14-to-13",
+      "new-independent-strength-family",
+      "new-clean-merged-main-source-revision",
+      "new-run-fingerprint",
+      "new-create-only-output-namespace"
+    ],
+    "downstream_gates_must_equal_v3r3": true,
+    "failed_v3r3_parent_rows_reused": 0,
+    "failed_v3r3_teacher_rows_reused": 0,
+    "fixed_epochs": 3,
+    "fixed_seeds": 1,
+    "independent_family": true,
+    "stable_timeout_extension_milliseconds": 0,
+    "training_contract_must_equal_v3r3": true
+  },
+  "downstream_gates": {
+    "absolute_max_cp_delta_maximum": 300.0,
+    "fresh_screen_games": 56,
+    "fresh_screen_halfpoints_denominator": 112,
+    "fresh_screen_halfpoints_minimum": 62,
+    "fresh_screen_technical_faults_maximum": 0,
+    "int16_clipping_coordinates_maximum": 0,
+    "nearest_rank_p99_9_ratio_maximum": 1.05,
+    "old_validation_pair_delta_minimum": 0.0,
+    "old_validation_rows": 22890,
+    "old_validation_teacher_mae_cp_improvement_minimum": 5.0,
+    "runtime_slowdown_percent_maximum": 5.0,
+    "sealed_parents": 1024,
+    "sealed_sibling_pair_delta_percentage_points_minimum": 1.0,
+    "sealed_top1_delta_percentage_points_minimum": 2.0,
+    "teacher_authentication_prefixes": [
+      100,
+      500
+    ],
+    "tune_parents": 1024,
+    "tune_sibling_pair_delta_percentage_points_minimum": 1.0,
+    "tune_top1_delta_percentage_points_minimum": 2.0,
+    "wasm_parity_mismatches_maximum": 0
+  },
+  "failed_v3r3": {
+    "completed_parents": 162,
+    "family": "halfkp81-hard-depth18-bounded-stable-v3r3",
+    "formal_namespace": {
+      "directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3",
+      "exact_entries": [
+        "teacher-milestone-100.json",
+        "teacher-plan.json",
+        "teacher-terminal-fault.json",
+        "teacher-work.jsonl"
+      ]
+    },
+    "launch": {
+      "plist": {
+        "bytes": 1500,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3r3-ae0ab195/com.meetyudai.shogi.halfkp81-depth18-bounded-v3r3-ae0ab195.launch-agent.plist",
+        "sha256": "bc4b8122c80341f7f154fe735329a96a10ad9ca4217885312c31c751298a99f0"
+      },
+      "process_present": false,
+      "service_label": "com.meetyudai.shogi.halfkp81-depth18-bounded-v3r3-ae0ab195",
+      "service_present": false,
+      "stderr": {
+        "bytes": 324,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3r3-ae0ab195/com.meetyudai.shogi.halfkp81-depth18-bounded-v3r3-ae0ab195.stderr.log",
+        "sha256": "9ae7a72282bb8b8d32d4d50588bb63d34ef91688343dfd9f1337f73e8fe0b5aa"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/launch-agents/halfkp81-depth18-bounded-stable-v3r3-ae0ab195/com.meetyudai.shogi.halfkp81-depth18-bounded-v3r3-ae0ab195.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "milestone_100": {
+      "bytes": 545,
+      "completed_rows": 1198,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-milestone-100.json",
+      "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+      "schema": "shogi-halfkp81-hard-depth18-teacher-milestone-v1",
+      "sha256": "045392502cc9f5718913231a3e6960b930ea3e54b948711ff34ccbf60df9dfeb",
+      "status": "durable-prefix-complete-not-training-authority",
+      "target_parents": 100,
+      "technical_faults": 0
+    },
+    "reuse_completed_parents": 0,
+    "reuse_teacher_rows": 0,
+    "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+    "same_family_resume_authorized": false,
+    "source_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+    "status": "terminal-fault-family-stopped",
+    "teacher_plan": {
+      "bytes": 14247,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r3",
+      "sha256": "7d35f689043a0376618f892d57edcbc1ba017532799177f86176ee7a1f1476d2"
+    },
+    "terminal_fault": {
+      "bytes": 885,
+      "completed_parents": 162,
+      "incomplete_parents": 8030,
+      "message": "teacher labeling failed for parent sha256:5ed636cc10e9712de90ff4a9d8401edb757687ffb5eab6b21b4c02fd79258639: Floodgate production teacher asset authority failed: bounded stable worker startup timeout",
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-terminal-fault.json",
+      "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+      "schema": "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+      "sha256": "9c092b3f4ee324489a2d6408ffb21032b5f3057ee29c5e01aeebb2cb624fae01",
+      "status": "terminal-fault-family-stopped",
+      "technical_faults": 1
+    },
+    "tracked_preregistration": {
+      "bytes": 7815,
+      "path": "ml/halfkp81-hard-depth18-bounded-stable-v3r3-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r3",
+      "sha256": "5e4e8157d5848fbeca9ecf959d68ed6eca51b0017eb8296ea8ea0ef5bdc24ac7"
+    },
+    "work_ledger": {
+      "bytes": 2527193,
+      "header_records": 1,
+      "parent_records": 162,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-bounded-stable-v3r3/teacher-work.jsonl",
+      "records": 163,
+      "run_fingerprint": "21a821b962669063b0f15236afd7a80f957839cc247668b368ae320de123ff5b",
+      "schema": "shogi-halfkp81-hard-depth18-teacher-work-v1",
+      "sha256": "9e8980bf02b409197d0f4de5281f53c50ab51be9750659404605b4d737c63c89",
+      "teacher_rows": 1948
+    }
+  },
+  "family": "halfkp81-hard-depth18-yaneura-only-v1",
+  "live_baseline": {
+    "bytes": 1185988,
+    "path": "public/shogi-nnue-weights.bin",
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "output_namespace": {
+    "collision_policy": "create-only-fail-if-any-target-exists",
+    "directory": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1",
+    "fit_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/fit.jsonl",
+    "milestone_100_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-milestone-100.json",
+    "milestone_500_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-milestone-500.json",
+    "plan_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-plan.json",
+    "receipt_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-receipt.json",
+    "sealed_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/sealed.jsonl",
+    "terminal_fault_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-terminal-fault.json",
+    "tune_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/tune.jsonl",
+    "verified_artifact_receipt_json": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-verified-artifact-receipt.json",
+    "work_jsonl": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1/teacher-work.jsonl"
+  },
+  "reused_selection": {
+    "jsonl": {
+      "bytes": 7268777,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "rows": 8192,
+      "schema": "halfkp81-depth18-hard-parent-v2",
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "manifest": {
+      "bytes": 3234,
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "schema": "halfkp81-depth18-hard-parent-selection-manifest-v2",
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "schema": "shogi-halfkp81-hard-depth18-yaneura-only-plan-v1",
+  "selection_roles": {
+    "fit": 6144,
+    "sealed": 1024,
+    "tune": 1024
+  },
+  "source_revision_policy": {
+    "forbidden_failed_v3r3_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+    "must_bind_new_clean_merged_main_revision": true,
+    "new_run_fingerprint_must_differ_from_v3r3": true,
+    "runtime_plan_source_revision_must_equal_authenticated_main_head": true,
+    "tracked_plan_must_be_merged_before_runtime_plan": true,
+    "uncommitted_changes_maximum": 0
+  },
+  "status": "prospective-independent-strength-family-not-executed",
+  "teacher": {
+    "candidate_policy": {
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "recorded_move": {
+        "required": true
+      },
+      "stable_wasm": {
+        "allowed": false,
+        "calls_per_parent": 0,
+        "candidate_rows": 0,
+        "worker_processes": 0
+      },
+      "yaneuraou_depth16_multipv": {
+        "depth": 16,
+        "multipv": 12,
+        "required": true
+      }
+    },
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "hash_mib_per_process": 512,
+    "ledger_candidate_generation": {
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "maximum_rows_per_parent": 13,
+      "mode": "yaneuraou-depth16-multipv12-plus-recorded-only",
+      "proposal_depth": 16,
+      "proposal_multipv": 12,
+      "recorded_move_required": true,
+      "rescore_depth": 18,
+      "stable_wasm": "not-instantiated-or-called"
+    },
+    "maximum_rows": 106496,
+    "maximum_rows_per_parent": 13,
+    "minimum_rows_per_parent": 2,
+    "processes": 13,
+    "rescore_policy": {
+      "all_deduplicated_candidates_independently_rescored": true,
+      "depth": 18,
+      "old_depth6_or_depth12_cp_target_rows": 0
+    },
+    "threads_per_process": 1,
+    "timeout_seconds_per_parent": 600
+  },
+  "tracked_preregistration_parser": {
+    "duplicate_key_policy": "safe-by-exact-pinned-bytes-and-sha256",
+    "format": "pretty-json-with-one-terminal-lf",
+    "parser": "json-parse-semantics",
+    "require_canonical-json-reencoding": false,
+    "require_exact_bytes_and_sha256_before_parse": true
+  },
+  "training": {
+    "checkpoint_selection": "final-epoch-only",
+    "direct_loss": "sigmoid-bce-k600",
+    "direct_loss_fraction": 0.5,
+    "epochs": 3,
+    "groupwise_loss": "listnet-cp-over-600",
+    "groupwise_loss_fraction": 0.5,
+    "initializer": "original-alpha-050-not-v3-or-v4-candidate",
+    "parent_batch_fraction_direct_replay": 0.5,
+    "parent_batch_fraction_fresh_hard": 0.5,
+    "representation": "HalfKP81",
+    "seeds": 1
+  }
+}

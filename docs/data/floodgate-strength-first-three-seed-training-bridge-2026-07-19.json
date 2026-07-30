@@ -126,8 +126,8 @@
   },
   "package_json_identity": {
     "path": "package.json",
-    "bytes": 8724,
-    "sha256": "396072922d0aa91ddf8888405722c7834b1d33299cc6a90a0eb71bf8b7b03ce5",
+    "bytes": 9112,
+    "sha256": "2e147c9fc93c8068303aeac855f7431f447ef2c113a4cba20de82c0e50a9f727",
     "changed_by_bridge": false,
     "strength_first_training_script_present": false
   },

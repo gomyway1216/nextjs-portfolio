@@ -1,7 +1,7 @@
 {
   "schema": "shogi-halfkp81-depth18-v3r2-worker-startup-fault-data-memo-v1",
   "date": "2026-07-30",
-  "status": "v3r2-terminal-after-94-parents-source-pipe-eof-fault-v3r3-required-no-strength-result",
+  "status": "v3r2-preserved-v3r3-also-terminal-yaneura-only-v1-defined-no-strength-result",
   "implementation": {
     "pull_request": 669,
     "checks_passed": 15,
@@ -212,7 +212,40 @@
       },
       "claim_boundary": "startup-ordering-repair-stress-only-not-teacher-data-training-or-playing-strength"
     },
-    "teacher_generation_started": false,
+    "formal_result": {
+      "source_revision": "ae0ab195b2c552df6e3364f6278fb1217f067baa",
+      "completed_parents": 162,
+      "teacher_rows": 1948,
+      "stable_proposals": 103,
+      "stable_omissions": 59,
+      "stable_only_unique_rows": 8,
+      "stable_only_unique_rows_over_all_teacher_rows_percent": 0.41,
+      "milestone_100_parents": 100,
+      "milestone_100_teacher_rows": 1198,
+      "fault_selection_index_1_based": 131,
+      "terminal_fault": "bounded-stable-worker-startup-timeout",
+      "same_family_resume_authorized": false,
+      "training_authorized": false
+    },
+    "formal_proof_boundary": {
+      "per_worker_stage_telemetry_persisted": false,
+      "fd3_eof_wait_recurrence_proved": false,
+      "stdin_init_or_decode_wait_excluded": false,
+      "same_parent_no_load_omission_depth": 10,
+      "same_parent_no_load_elapsed_seconds": 20.103,
+      "same_parent_no_load_replacement_startup_milliseconds": 57.37
+    },
+    "successor_decision": {
+      "family": "halfkp81-hard-depth18-yaneura-only-v1",
+      "stable_candidate_path_present": false,
+      "v3r3_completed_parents_reused": 0,
+      "v3r3_teacher_rows_reused": 0,
+      "timeout_extension_authorized": false,
+      "strength_contract_unchanged": true
+    },
+    "status": "v3r3-terminal-family-closed-yaneura-only-v1-required",
+    "teacher_generation_started": true,
+    "teacher_generation_completed": false,
     "training_started": false,
     "strength_claim_authorized": false
   },

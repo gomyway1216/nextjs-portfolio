@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA,
+  HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2,
   HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
   HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY,
   HALFKP81_DEPTH18_TEACHER_DEFAULT_PLAN_PATH,
@@ -349,18 +350,18 @@ describe("HalfKP81 depth18 teacher runner", () => {
     const pretty = fs.readFileSync(
       path.resolve(
         __dirname,
-        "../../../ml/halfkp81-hard-depth18-bounded-stable-v3r2-plan.json",
+        "../../../ml/halfkp81-hard-depth18-bounded-stable-v3r3-plan.json",
       ),
     );
     const expected = {
-      bytes: 5_378,
+      bytes: 7_815,
       sha256:
-        "a543e03804b9215abab25eb34f3937f5cc1fa212fc12af80b7a25e923665a7e5",
+        "5e4e8157d5848fbeca9ecf959d68ed6eca51b0017eb8296ea8ea0ef5bdc24ac7",
     };
     expect(
       parseExactPinnedHalfkp81Depth18JsonForTests(pretty, expected),
     ).toMatchObject({
-      schema: "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r2",
+      schema: "shogi-halfkp81-hard-depth18-bounded-stable-recovery-plan-v3r3",
     });
 
     const sameLengthDrift = Buffer.from(pretty);
@@ -384,7 +385,26 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
     await expect(
       authenticateHalfkp81Depth18TeacherPlan(planPath),
-    ).rejects.toThrow(/v3 family closed after startup fault; use v3r2/);
+    ).rejects.toThrow(/v3 family closed after startup fault; use v3r3/);
+  });
+
+  it("keeps the source-transfer-faulted v3r2 family closed", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "halfkp81-closed-v3r2-test-"),
+    );
+    tempRoots.push(root);
+    const planPath = path.join(root, "teacher-plan.json");
+    await fs.promises.writeFile(
+      planPath,
+      `${canonical({
+        schema: HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2,
+      })}\n`,
+    );
+    await expect(
+      authenticateHalfkp81Depth18TeacherPlan(planPath),
+    ).rejects.toThrow(
+      /v3r2 family closed after worker source transfer startup fault; use v3r3/,
+    );
   });
 
   it("isolates formal v2 output from the terminal-faulted v1 directory", () => {

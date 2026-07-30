@@ -1,0 +1,75 @@
+# HalfKP81 v3量子化診断：全体悪化ではなく、1親局面に集中した実在tailだった
+
+> v3のstatic失敗を、凍結済みcheckpointと22,890 validation局面からread-onlyで再計算した。p90〜p99.5の量子化誤差はinitializerより小さく、旧上限を超えた3行はすべて同じ親局面・同じ121手目だった。weight clippingは0で、global scale補正もほぼ効かない。結論は「最大値だけの相対gate設計が主因。ただし局所tail自体は実在する」である。[English](./blog-shogi-direct-teacher-halfkp81-v3-quantization-diagnosis.en.md)
+
+## 何を読み、何をしなかったか
+
+`ml/analyze_direct_teacher_halfkp81_v3_quantization.py`は正式execution plan、static/trainer result、initializer/candidate checkpoint、export済みint16 weights、固定validationだけを認証して読む。旧claimを開かず、optimizerを作らず、対局もファイル書込みも行わない。
+
+v3の終了状態は変わらない。
+
+| 権限・実行 | 値 |
+|---|---:|
+| v3 family | closed、再試行禁止 |
+| 診断中のtraining / optimizer | 0行 / 0 |
+| paired game | 0 |
+| paired56 / expanded / live write | すべて未許可 |
+
+## 最大値だけが違う
+
+nearest-rank percentileでinitializerとcandidateのfloat対int16 CP差を比較した。
+
+| 指標 | initializer | candidate | candidate / initializer |
+|---|---:|---:|---:|
+| mean | 26.821 | 26.866 | 1.00169 |
+| p90 | 60.148 | 58.816 | 0.97785 |
+| p95 | 76.336 | 74.036 | 0.96986 |
+| p99 | 109.996 | 107.564 | 0.97789 |
+| p99.5 | 123.326 | 120.987 | 0.98104 |
+| p99.9 | 155.019 | 157.112 | 1.01350 |
+| p99.99 | 192.710 | 224.414 | 1.16452 |
+| max | 203.278 | 238.489 | 1.17322 |
+
+p90からp99.5まではcandidateの方が良い。p99.9も旧比率上限1.05内で、失敗は最上位0.01%付近に集中する。
+
+旧gateが許した絶対値は`203.277954 × 1.05 = 213.441852 CP`だった。これを超えたのは22,890行中3行だけで、3行とも同じgame、同じparent、121手目である。最大行は次だった。
+
+- child ID: `sha256:ab6c809a…a00168`
+- float: `1063.5111 CP`
+- int16: `1302 CP`
+- 差: `238.4889 CP`
+
+この親には12候補手がある。candidateのfloat版とint16版は同じ候補手を最上位にしたため、最大誤差cluster自身はtop moveを変えていない。これはtailを無害と証明しないが、「独立した3局面で広く壊れた」という解釈は誤りである。
+
+## 実際に動くint16候補の代理指標
+
+従来のteacher MAEとpair accuracyはfloat modelで測っていた。実際に配布するint16演算でも同じ固定validationを測ると、candidateはinitializerより改善していた。
+
+| deployed int16指標 | initializer | candidate | 改善 |
+|---|---:|---:|---:|
+| teacher MAE | 553.354 CP | 545.808 CP | +7.546 CP |
+| pair accuracy | 0.583428 | 0.583873 | +0.000445 |
+| pair correct / 123,520 | 72,065 | 72,120 | +55 |
+| direct BCE | 0.690677 | 0.686873 | +0.003805 |
+
+これは棋力証拠ではない。しかし「floatだけ改善し、int16では退化した」という反証は得られなかった。
+
+## clippingでもglobal scaleでもない
+
+int16 endpointへclipされたweight座標は全tensorで0だった。最大scaled weightでも`w1_board=-224.41〜216.73`、`w2=-105.29〜62.62`で、int16限界から非常に遠い。
+
+child-position SHAの偶奇でfit/evaluationを分け、`float_cp ≈ a × int_cp + b`をcross-fitした。candidateの`a=1.000332`、`b=-7.390 CP`で、holdout mean errorは`27.0363 → 26.9779 CP`、改善はわずか`0.0584 CP`だった。したがってweight clippingとglobal scaleのずれは主因ではない。残る証拠が示すのは局所的な固定小数点・丸めtailまでであり、activation境界など、より細かな原因の特定には追加計測が必要である。
+
+## 次の独立familyを3案だけ比較する
+
+| 案 | 長所 | 短所 | 判定 |
+|---|---|---|---|
+| frozen候補をrobust gateで独立再審査 | weightを変えず最短でfresh対局へ進める | 数値を既に見ているためstatic PASS自体は棋力証拠にならない | **推奨** |
+| exact-int16 STEのQAT + outlier penalty | 局所tailを学習で直接抑えられる | 新optimizerで既存の+7.546 CPを失う可能性、全gateやり直し | v4失敗時の次案 |
+| output scale再校正 | 実装は比較的軽い | cross-fit効果が0.058 CPで原因に合わない | 見送り |
+
+推奨するv4はv3の閾値変更や再試行ではない。新family、新namespace、新protocolとして、凍結candidate SHAを入力にしたoptimizerなしの技術再審査にする。候補gateはnearest-rank p99.9比`≤1.05`、絶対max`≤300 CP`、deployed int16 teacher MAE改善`≥5 CP`、int16 pair delta`≥0`、weight clipping 0、WASM mismatch 0、slowdown`≤5%`である。
+
+これらの診断値は既に観測済みなので、通過しても棋力を主張しない。通過が許可するのは、旧v3 paired56ではなく、別途事前登録したfresh openingのpaired screenだけである。そこで初めて対局上の改善を測る。
+
+主要値とproposal境界は[machine-readable memo](./data/shogi-direct-teacher-halfkp81-v3-quantization-diagnosis-2026-07-29.json)に固定した。

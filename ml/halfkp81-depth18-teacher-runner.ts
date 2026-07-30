@@ -64,6 +64,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r2" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r3" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
@@ -72,6 +74,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r2" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r3" as const;
 export const HALFKP81_DEPTH18_TEACHER_MILESTONE_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-milestone-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA =
@@ -131,6 +135,14 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r2-preflight" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-yaneura-only-preflight-receipt-v1r2" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r3" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_DEFAULT_PLAN_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r3-preflight" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA =
+  "shogi-halfkp81-hard-depth18-yaneura-only-preflight-receipt-v1r3" as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_RELATIVE_PATH =
   "ml/engine-receipts/yaneuraou-9133c527-applem1.json" as const;
 export const HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_BYTES = 654 as const;
@@ -188,11 +200,11 @@ const EXPECTED_BOUNDED_STABLE_V3R3_DIAGNOSTIC_RECEIPT = Object.freeze({
   sha256: "a6b6f5ed9b3305a51a66dda69bf1887313c9f87bcbc0a86d3ca2826fba23f51d",
   schema: "shogi-halfkp81-depth18-bounded-stable-fd3-diagnostic-receipt-v3r3",
 });
-const EXPECTED_YANEURA_ONLY_V1R2_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r2-plan.json",
-  bytes: 15_414,
-  sha256: "40baa5fa1978f81eaa2a3e4034321d4297d27c2a5e485bc9f754f55b4c00a5e0",
-  schema: "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r2",
+const EXPECTED_YANEURA_ONLY_V1R3_PREREGISTRATION = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r3-plan.json",
+  bytes: 21_235,
+  sha256: "9474f94dc9f46ae4100f69680428e6171c0ac9200ddc53ed704369a97d6b10c7",
+  schema: "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r3",
 });
 
 const EXPECTED_TEACHER = Object.freeze({
@@ -287,7 +299,8 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
       | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
       | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R3
       | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
-      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2;
+      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3;
   };
   readonly sourceRevision: string;
   readonly selectionIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity> & {
@@ -315,7 +328,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
   readonly schema:
     | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
@@ -343,7 +357,8 @@ export interface Halfkp81Depth18TeacherWorkEntry {
   readonly schema:
     | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -417,10 +432,15 @@ function yaneuraOnlyWorkSchema(
   planSchema: Halfkp81Depth18AuthenticatedTeacherPlan["planIdentity"]["schema"],
 ):
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 {
-  return planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
-    ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
-    : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3 {
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3;
+  }
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2;
+  }
+  return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1;
 }
 
 function compareBytewise(left: string, right: string): number {
@@ -887,12 +907,19 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
 ): Promise<Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>> {
   const absolutePlanPath = path.resolve(planPath);
   const planRaw = await readHeldStableFile(absolutePlanPath, "teacher plan");
+  const peekedPlanSchema = peekJsonObjectSchema(planRaw, "teacher plan");
   if (
-    peekJsonObjectSchema(planRaw, "teacher plan") ===
-    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+    peekedPlanSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
   ) {
     throw new Error(
-      "Yaneura-only v1 family closed after cross-runtime canonical JSON preflight fault; use v1r2",
+      "Yaneura-only v1 family closed after cross-runtime canonical JSON preflight fault; use v1r3",
+    );
+  }
+  if (
+    peekedPlanSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+  ) {
+    throw new Error(
+      "Yaneura-only v1r2 family closed after missing preflight output directory startup fault; use v1r3",
     );
   }
   const plan = parseCanonicalJson(planRaw, "teacher plan");
@@ -914,12 +941,12 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   }
   if (boundedStableV3R3) {
     throw new Error(
-      "bounded stable v3r3 family closed after worker replacement startup fault; use Yaneura-only v1",
+      "bounded stable v3r3 family closed after worker replacement startup fault; use Yaneura-only v1r3",
     );
   }
-  const yaneuraOnlyV1R2 =
-    plan.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2;
-  const yaneuraOnly = yaneuraOnlyV1R2;
+  const yaneuraOnlyV1R3 =
+    plan.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3;
+  const yaneuraOnly = yaneuraOnlyV1R3;
   const boundedStable = boundedStableV3R3;
   exactKeys(
     plan,
@@ -930,6 +957,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           "engine",
           "outputs",
           "predecessor_v1",
+          "predecessor_v1r2",
           "predecessor_v3r3",
           "preregistration",
           "schema",
@@ -982,26 +1010,28 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     const repositoryRoot = path.resolve(__dirname, "..");
     const preregistrationPath = path.join(
       repositoryRoot,
-      EXPECTED_YANEURA_ONLY_V1R2_PREREGISTRATION.path,
+      EXPECTED_YANEURA_ONLY_V1R3_PREREGISTRATION.path,
     );
     const preregistrationRaw = await readHeldStableFile(
       preregistrationPath,
-      "Yaneura-only v1r2 preregistration",
+      "Yaneura-only v1r3 preregistration",
     );
     const preregistration = parseExactPinnedJson(
       preregistrationRaw,
-      EXPECTED_YANEURA_ONLY_V1R2_PREREGISTRATION,
-      "Yaneura-only v1r2 preregistration",
+      EXPECTED_YANEURA_ONLY_V1R3_PREREGISTRATION,
+      "Yaneura-only v1r3 preregistration",
     );
     const sourceRevisionPolicy = preregistration.source_revision_policy as
       Record<string, unknown> | undefined;
     if (
       preregistration.schema !==
-        EXPECTED_YANEURA_ONLY_V1R2_PREREGISTRATION.schema ||
+        EXPECTED_YANEURA_ONLY_V1R3_PREREGISTRATION.schema ||
       canonicalJson(plan.preregistration) !==
-        canonicalJson(EXPECTED_YANEURA_ONLY_V1R2_PREREGISTRATION) ||
+        canonicalJson(EXPECTED_YANEURA_ONLY_V1R3_PREREGISTRATION) ||
       canonicalJson(plan.predecessor_v1) !==
-        canonicalJson(preregistration.failed_v1) ||
+        canonicalJson(preregistration.predecessor_v1) ||
+      canonicalJson(plan.predecessor_v1r2) !==
+        canonicalJson(preregistration.failed_v1r2) ||
       canonicalJson(plan.predecessor_v3r3) !==
         canonicalJson(preregistration.predecessor_v3r3) ||
       canonicalJson(plan.technical_recovery) !==
@@ -1014,7 +1044,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       canonicalJson(plan.selection_roles) !==
         canonicalJson(preregistration.selection_roles) ||
       plan.source_revision ===
-        sourceRevisionPolicy?.forbidden_failed_v1_revision ||
+        sourceRevisionPolicy?.forbidden_failed_v1r2_revision ||
       canonicalJson(plan.authority) !==
         canonicalJson({
           may_execute_teacher: true,
@@ -1023,7 +1053,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           may_write_live_weights: false,
         })
     ) {
-      throw new Error("Yaneura-only v1r2 fixed authority differs");
+      throw new Error("Yaneura-only v1r3 fixed authority differs");
     }
     const stableWasm = (
       (plan.teacher as Record<string, unknown>).candidate_policy as
@@ -1042,7 +1072,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       canonicalJson(ledgerCandidateGeneration) !==
         canonicalJson(HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1)
     ) {
-      throw new Error("Yaneura-only v1r2 stable-WASM absence contract differs");
+      throw new Error("Yaneura-only v1r3 stable-WASM absence contract differs");
     }
     const outputNamespace = preregistration.output_namespace;
     if (
@@ -1050,12 +1080,12 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       typeof outputNamespace !== "object" ||
       Array.isArray(outputNamespace)
     ) {
-      throw new Error("Yaneura-only v1r2 output namespace is missing");
+      throw new Error("Yaneura-only v1r3 output namespace is missing");
     }
     const { collision_policy: collisionPolicy, ...expectedOutputs } =
       outputNamespace as Record<string, unknown>;
     if (collisionPolicy !== "create-only-fail-if-any-target-exists") {
-      throw new Error("Yaneura-only v1r2 collision policy differs");
+      throw new Error("Yaneura-only v1r3 collision policy differs");
     }
     familyExpectedOutputs = Object.freeze(expectedOutputs);
     teacher = Object.freeze({
@@ -1405,7 +1435,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           : boundedStableV3
             ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
             : yaneuraOnly
-              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
               : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     }),
     sourceRevision: plan.source_revision,
@@ -2723,6 +2753,84 @@ export interface Halfkp81Depth18YaneuraOnlyPreflightResult {
   readonly receiptIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity>;
 }
 
+async function initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3(
+  outputDirectory: string,
+  effectiveUserId = typeof process.getuid === "function"
+    ? process.getuid()
+    : undefined,
+): Promise<string> {
+  const directory = path.resolve(outputDirectory);
+  if (!path.isAbsolute(outputDirectory) || directory !== outputDirectory) {
+    throw new Error(
+      "v1r3 preflight output directory must be a normalized absolute path",
+    );
+  }
+  try {
+    const existing = await fs.promises.lstat(directory);
+    if (existing.isSymbolicLink()) {
+      throw new Error("v1r3 preflight output directory must not be a symlink");
+    }
+    if (!existing.isDirectory()) {
+      throw new Error(
+        "v1r3 preflight output directory must not be an existing non-directory",
+      );
+    }
+    if ((existing.mode & 0o777) !== 0o700) {
+      throw new Error(
+        "v1r3 preflight output directory existing mode must be 0700",
+      );
+    }
+    if (effectiveUserId !== undefined && existing.uid !== effectiveUserId) {
+      throw new Error("v1r3 preflight output directory existing owner differs");
+    }
+    if ((await fs.promises.readdir(directory)).length !== 0) {
+      throw new Error(
+        "v1r3 preflight output directory existing directory must be empty",
+      );
+    }
+    throw new Error(
+      "v1r3 preflight output directory must be absent before create-only initialization",
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  try {
+    await fs.promises.mkdir(directory, { mode: 0o700 });
+  } catch (error) {
+    throw new Error(
+      `v1r3 preflight output directory create-only initialization failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  const created = await fs.promises.lstat(directory);
+  if (
+    created.isSymbolicLink() ||
+    !created.isDirectory() ||
+    (created.mode & 0o777) !== 0o700 ||
+    (effectiveUserId !== undefined && created.uid !== effectiveUserId) ||
+    (await fs.promises.realpath(directory)) !== directory ||
+    (await fs.promises.readdir(directory)).length !== 0
+  ) {
+    throw new Error(
+      "v1r3 preflight output directory failed post-create authentication",
+    );
+  }
+  return directory;
+}
+
+export async function initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3ForTests(
+  outputDirectory: string,
+  effectiveUserId = typeof process.getuid === "function"
+    ? process.getuid()
+    : undefined,
+): Promise<string> {
+  return initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3(
+    outputDirectory,
+    effectiveUserId,
+  );
+}
+
 export async function runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
   formal: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
   outputDirectory: string,
@@ -2734,10 +2842,14 @@ export async function runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
   const recoveryV1R2 =
     formal.planIdentity.schema ===
     HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2;
+  const recoveryV1R3 =
+    formal.planIdentity.schema ===
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3;
   if (
     formal.planIdentity.schema !==
       HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 &&
-    !recoveryV1R2
+    !recoveryV1R2 &&
+    !recoveryV1R3
   ) {
     throw new Error("Yaneura-only preflight rejects another plan family");
   }
@@ -2836,9 +2948,11 @@ export async function runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
       (parent) => parent.parent_id,
     );
     const receipt = Object.freeze({
-      schema: recoveryV1R2
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA
-        : HALFKP81_DEPTH18_YANEURA_ONLY_V1_PREFLIGHT_RECEIPT_SCHEMA,
+      schema: recoveryV1R3
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA
+        : recoveryV1R2
+          ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA
+          : HALFKP81_DEPTH18_YANEURA_ONLY_V1_PREFLIGHT_RECEIPT_SCHEMA,
       status: "scratch-preflight-passed-no-formal-authority",
       scope: "scratch-only-never-formal-training-data",
       formal_teacher_plan: formal.planIdentity,
@@ -2886,9 +3000,11 @@ export async function runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
     return Object.freeze({ receipt, receiptIdentity });
   } catch (error) {
     const fault = {
-      schema: recoveryV1R2
-        ? "shogi-halfkp81-hard-depth18-yaneura-only-preflight-terminal-fault-v1r2"
-        : "shogi-halfkp81-hard-depth18-yaneura-only-preflight-terminal-fault-v1",
+      schema: recoveryV1R3
+        ? "shogi-halfkp81-hard-depth18-yaneura-only-preflight-terminal-fault-v1r3"
+        : recoveryV1R2
+          ? "shogi-halfkp81-hard-depth18-yaneura-only-preflight-terminal-fault-v1r2"
+          : "shogi-halfkp81-hard-depth18-yaneura-only-preflight-terminal-fault-v1",
       status: "scratch-preflight-failed-no-formal-authority",
       message: error instanceof Error ? error.message : String(error),
       selected_parents: selection.parents.length,
@@ -2933,6 +3049,25 @@ export async function runHalfkp81Depth18YaneuraOnlyPreflightV1R2(
   return runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
     authenticated,
     HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_DIRECTORY,
+  );
+}
+
+export async function runHalfkp81Depth18YaneuraOnlyPreflightV1R3(
+  planPath = HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18YaneuraOnlyPreflightResult>> {
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
+  if (
+    authenticated.planIdentity.schema !==
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+  ) {
+    throw new Error("Yaneura-only v1r3 preflight rejects another plan family");
+  }
+  await initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R3(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_DIRECTORY,
+  );
+  return runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests(
+    authenticated,
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_DIRECTORY,
   );
 }
 
@@ -3024,6 +3159,30 @@ export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R2(
     HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
   ) {
     throw new Error("Yaneura-only v1r2 runner rejects another plan family");
+  }
+  return runHalfkp81Depth18TeacherCoreForTests(
+    authenticated,
+    {
+      stablePolicy: "yaneuraou-only-v1",
+    },
+    {
+      parentCount: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT,
+      roleCounts: HALFKP81_DEPTH18_TEACHER_ROLE_COUNTS,
+      milestones: HALFKP81_DEPTH18_TEACHER_MILESTONES,
+      maximumRows: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT * 13,
+    },
+  );
+}
+
+export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R3(
+  planPath = HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
+  if (
+    authenticated.planIdentity.schema !==
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+  ) {
+    throw new Error("Yaneura-only v1r3 runner rejects another plan family");
   }
   return runHalfkp81Depth18TeacherCoreForTests(
     authenticated,

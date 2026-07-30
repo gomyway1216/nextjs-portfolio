@@ -68,6 +68,8 @@ export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
 export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3" as const;
+export const HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2 =
+  "shogi-halfkp81-hard-depth18-bounded-stable-teacher-plan-v3r2" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -141,7 +143,8 @@ const FORBIDDEN_OLD_TARGET_KEYS = new Set([
 
 type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA
-  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA;
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -297,6 +300,17 @@ function canonicalDocumentBytes(value: unknown): Buffer {
 function sameJson(left: unknown, right: unknown): boolean {
   return (
     canonicalHalfkp81Depth18Json(left) === canonicalHalfkp81Depth18Json(right)
+  );
+}
+
+function isBoundedStablePlanSchema(
+  schema: unknown,
+): schema is
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+  | typeof HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2 {
+  return (
+    schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA ||
+    schema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
   );
 }
 
@@ -812,23 +826,22 @@ function validateWrapper(
   ) {
     throw new Error(`${label} wrapper identity/digest/role differs`);
   }
-  const stableMove =
-    planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
-      ? validateFloodgateBoundedStableWasmOutcomeV3(
-          wrapper.stable_result,
-          expectedParent.parent,
-          stableRuntimeReceiptSha256,
-        )
-      : validateStableResult(
-          wrapper.stable_result,
-          expectedParent.parent,
-          stableRuntimeReceiptSha256,
-          requiredText(
-            stableReusablePoolReceiptSha256,
-            "stable reusable pool receipt SHA",
-          ),
-          `${label}.stable_result`,
-        ).row.stable_move;
+  const stableMove = isBoundedStablePlanSchema(planSchema)
+    ? validateFloodgateBoundedStableWasmOutcomeV3(
+        wrapper.stable_result,
+        expectedParent.parent,
+        stableRuntimeReceiptSha256,
+      )
+    : validateStableResult(
+        wrapper.stable_result,
+        expectedParent.parent,
+        stableRuntimeReceiptSha256,
+        requiredText(
+          stableReusablePoolReceiptSha256,
+          "stable reusable pool receipt SHA",
+        ),
+        `${label}.stable_result`,
+      ).row.stable_move;
   const teacherEntry = validateWorkEntry(
     wrapper.teacher_entry,
     fingerprint,
@@ -1179,7 +1192,7 @@ function validateStableRuntime(
   value: unknown,
   planSchema: TeacherPlanSchema,
 ): Readonly<Record<string, unknown>> {
-  return planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+  return isBoundedStablePlanSchema(planSchema)
     ? validateBoundedStableRuntimeV3(value)
     : validateRequiredStableRuntimeV2(value);
 }
@@ -1193,7 +1206,7 @@ function validatePlanAndHeader(
   const planSchema = plan.schema;
   if (
     planSchema !== HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA &&
-    planSchema !== HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
+    !isBoundedStablePlanSchema(planSchema)
   ) {
     throw new Error("teacher plan schema is unsupported");
   }
@@ -1390,7 +1403,7 @@ function validatePlanAndHeader(
   }
   if (
     !sameJson(header.teacher, plan.teacher) ||
-    (planSchema === HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA &&
+    (isBoundedStablePlanSchema(planSchema) &&
       !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER))
   ) {
     throw new Error("teacher work policy differs from sealed plan");

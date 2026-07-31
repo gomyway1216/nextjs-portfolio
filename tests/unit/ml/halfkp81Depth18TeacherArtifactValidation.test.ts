@@ -15,9 +15,11 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4,
   canonicalHalfkp81Depth18Json,
   readHalfkp81Depth18PrivateArtifact,
   validateHalfkp81Depth18TeacherArtifacts,
@@ -106,7 +108,8 @@ type FixtureStableMode =
   | "bounded-v3r3-omitted"
   | "yaneura-only-v1"
   | "yaneura-only-v1r2"
-  | "yaneura-only-v1r3";
+  | "yaneura-only-v1r3"
+  | "yaneura-only-v1r4";
 
 afterEach(async () => {
   await Promise.all(
@@ -462,7 +465,8 @@ async function generatedFixture(
   const yaneuraOnly =
     stableMode === "yaneura-only-v1" ||
     stableMode === "yaneura-only-v1r2" ||
-    stableMode === "yaneura-only-v1r3";
+    stableMode === "yaneura-only-v1r3" ||
+    stableMode === "yaneura-only-v1r4";
   const boundedStableV3 = stableMode !== "required-v2" && !yaneuraOnly;
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-depth18-artifact-"),
@@ -592,11 +596,13 @@ async function generatedFixture(
   };
   const plan = {
     schema: yaneuraOnly
-      ? stableMode === "yaneura-only-v1r3"
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
-        : stableMode === "yaneura-only-v1r2"
-          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
-          : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+      ? stableMode === "yaneura-only-v1r4"
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+        : stableMode === "yaneura-only-v1r3"
+          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+          : stableMode === "yaneura-only-v1r2"
+            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+            : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
       : stableMode === "bounded-v3r2-omitted" ||
           stableMode === "bounded-v3r3-omitted"
         ? stableMode === "bounded-v3r3-omitted"
@@ -1097,8 +1103,8 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
     });
   });
 
-  it("verifies isolated Yaneura-only v1r3 recovery schemas", async () => {
-    const fixture = await generatedFixture("yaneura-only-v1r3");
+  it("verifies isolated Yaneura-only v1r4 recovery schemas", async () => {
+    const fixture = await generatedFixture("yaneura-only-v1r4");
     expect(fixture.stableFactoryCalls).toBe(0);
     const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
       fixture.request,
@@ -1109,10 +1115,10 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
       completedRows: 39,
       receipt: {
         teacher_plan: {
-          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3,
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4,
         },
         work: {
-          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4,
         },
         artifact_verification: {
           stable_wasm_absence_recomputed: true,
@@ -1122,12 +1128,16 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
     });
   });
 
-  it("keeps closed Yaneura-only v1 and v1r2 artifacts from production authority", async () => {
-    for (const family of ["yaneura-only-v1", "yaneura-only-v1r2"] as const) {
+  it("keeps closed Yaneura-only v1, v1r2, and v1r3 artifacts from production authority", async () => {
+    for (const family of [
+      "yaneura-only-v1",
+      "yaneura-only-v1r2",
+      "yaneura-only-v1r3",
+    ] as const) {
       const fixture = await generatedFixture(family);
       expect(() =>
         validateHalfkp81Depth18TeacherArtifacts(fixture.request),
-      ).toThrow(/closed Yaneura-only v1\/v1r2 family.*use v1r3/);
+      ).toThrow(/closed Yaneura-only v1\/v1r2\/v1r3 family.*use v1r4/);
     }
   });
 

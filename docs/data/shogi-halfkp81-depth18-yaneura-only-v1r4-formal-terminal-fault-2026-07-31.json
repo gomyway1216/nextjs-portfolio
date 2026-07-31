@@ -1,0 +1,208 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r4-formal-terminal-fault-data-memo-v1",
+  "date": "2026-07-31",
+  "status": "v1r4-formal-parent-timeout-after-2762-parents-v1r5-required-no-strength-result",
+  "implementation": {
+    "pull_request": 674,
+    "merge_revision": "28d113dbe6bff8ec7d21beb823058c8aae6c0bf4",
+    "merged": true
+  },
+  "v1r4": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r4",
+    "formal_output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r4",
+    "tracked_preregistration": {
+      "path": "ml/halfkp81-hard-depth18-yaneura-only-v1r4-plan.json",
+      "bytes": 29943,
+      "sha256": "29d3356139d7df173150374fa30d117ce01cd5d40cce960be1fe812cc2ce1d7b",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r4"
+    },
+    "formal_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r4/teacher-plan.json",
+      "bytes": 27958,
+      "sha256": "87f84b161e462eec56d586ed7f69f3b37427217b10aa7b44c18f7b009a4e47d9",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r4",
+      "source_revision": "28d113dbe6bff8ec7d21beb823058c8aae6c0bf4"
+    },
+    "selection": {
+      "rows": 8192,
+      "jsonl_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "jsonl_bytes": 7268777,
+      "jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+      "manifest_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "manifest_bytes": 3234,
+      "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    },
+    "preflight": {
+      "target_parents": 512,
+      "completed_parents": 512,
+      "teacher_rows": 6134,
+      "technical_faults": 0,
+      "status": "scratch-preflight-passed-no-formal-authority",
+      "receipt": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r4-preflight/preflight-receipt.json",
+        "bytes": 2383,
+        "sha256": "9e8feda68f5d66efadfda006a835bb450d767cfe5d262abf0b8fc0cadaf97ab3"
+      },
+      "conclusion": "the v1r3 legal-move MultiPV validator repair passed before formal execution"
+    },
+    "formal_run": {
+      "service_label": "com.meetyudai.shogi.halfkp81-depth18-yaneura-v1r4-formal8192-28d113db",
+      "run_fingerprint": "5aa95fb93f1770b1c12c1ae2016cde0e52efa1fc8c8773de94b3b085d3fad9b8",
+      "configured_processes": 13,
+      "threads_per_process": 1,
+      "hash_mib_per_process": 512,
+      "timeout_milliseconds_per_parent": 600000,
+      "completed_parents": 2762,
+      "incomplete_parents": 5430,
+      "completion_fraction": 0.337158203125,
+      "teacher_rows": 32710,
+      "completed_role_parents": {
+        "fit": 2762,
+        "tune": 0,
+        "sealed": 0
+      },
+      "completed_role_rows": {
+        "fit": 32710,
+        "tune": 0,
+        "sealed": 0
+      },
+      "durable_prefixes": [
+        {
+          "parents": 100,
+          "teacher_rows": 1195,
+          "technical_faults": 0,
+          "receipt_bytes": 545,
+          "receipt_sha256": "f1ab9567ff872dbda5bd7aaa5866dcc883550cf0d01de911a458f43e81f010a3"
+        },
+        {
+          "parents": 500,
+          "teacher_rows": 5986,
+          "technical_faults": 0,
+          "receipt_bytes": 545,
+          "receipt_sha256": "dc38c61b92bbedebca8f2acb25c9b4198cf80711c4102f7c9a250af3b2c11009"
+        }
+      ],
+      "work": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r4/teacher-work.jsonl",
+        "bytes": 40619255,
+        "sha256": "d21adef5fe9154b836fd336a30ab9a7b210a4e9e390961eb8b28ae759f066a7d",
+        "physical_lines": 2763,
+        "header_lines": 1,
+        "parent_lines": 2762
+      },
+      "terminal_fault": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r4/teacher-terminal-fault.json",
+        "bytes": 827,
+        "sha256": "6b4b4b476832dc905bbd6e665a2de9d6f9955b8cdf51c2d8b6208f81c54f284b",
+        "schema": "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+        "status": "terminal-fault-family-stopped",
+        "technical_faults": 1,
+        "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+        "message": "parent-level timeout after 600000ms"
+      },
+      "post_stop_cleanup": {
+        "runner_processes": 0,
+        "yaneuraou_processes": 0,
+        "launchd_service_present": false
+      }
+    },
+    "isolated_fault_parent_diagnosis": {
+      "scope": "scratch-only-never-training-data",
+      "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+      "proposal_depth16": {
+        "elapsed_seconds": 56.274,
+        "observed_nodes": 78043847
+      },
+      "independent_depth18_rescores": {
+        "searches": 12,
+        "elapsed_seconds_total": 423.887,
+        "observed_nodes_total": 513257095,
+        "longest_moves": [
+          {
+            "move": "7c6d",
+            "elapsed_seconds": 217.877
+          },
+          {
+            "move": "7c8c",
+            "elapsed_seconds": 118.089
+          }
+        ]
+      },
+      "parent_total": {
+        "elapsed_seconds": 480.161,
+        "observed_nodes": 591300942
+      },
+      "formal_timeout_seconds": 600,
+      "isolated_total_below_formal_timeout": true,
+      "causal_conclusion": "multiple legitimate long-tail searches multiplied across 13 concurrent engine processes saturated shared compute and pushed parent wall time beyond the formal 600-second limit",
+      "teacher_policy_fault": false,
+      "strength_result": false
+    },
+    "preservation": {
+      "same_family_resume_authorized": false,
+      "same_run_training_authorized": false,
+      "same_run_formal_games_authorized": false,
+      "formal_plan_overwrite_authorized": false,
+      "formal_namespace_overwrite_authorized": false,
+      "completed_parents_reusable_by_successor": 0,
+      "teacher_rows_reusable_by_successor": 0
+    }
+  },
+  "v1r5_preregistration": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r5",
+    "classification": "new-resource-saturation-recovery-not-v1r4-resume",
+    "new_tracked_preregistration_required": true,
+    "new_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "new_create_only_output_namespace_required": true,
+    "reuse_exact_authenticated_selection": true,
+    "selection_jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+    "selection_manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187",
+    "resource_contract_changes": {
+      "engine_processes_from": 13,
+      "engine_processes_to": 4,
+      "aggregate_parent_deadline_seconds_from": 600,
+      "aggregate_parent_deadline_to": "removed",
+      "timeout_seconds_per_usi_search": 3600,
+      "threads_per_process": 1,
+      "hash_mib_per_process": 512,
+      "publish_policy": "whole-parent-success-only",
+      "search_timeout_policy": "family-terminal-fault"
+    },
+    "fault_parent_sentinel_preflight": {
+      "required_before_formal_run": true,
+      "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+      "must_use_v1r5_process_and_per_search_timeout_contract": true,
+      "must_complete_depth16_proposal_and_every_depth18_rescore": true,
+      "training_authority": false,
+      "formal_row_reuse": false
+    },
+    "candidate_policy_unchanged": true,
+    "proposal_depth_unchanged": true,
+    "proposal_multipv_unchanged": true,
+    "rescore_depth_unchanged": true,
+    "initializer_unchanged": true,
+    "epochs_unchanged": true,
+    "seed_count_unchanged": true,
+    "strength_gates_unchanged": true,
+    "v1r4_completed_parents_reused": 0,
+    "v1r4_teacher_rows_reused": 0,
+    "status": "preregistered-awaiting-implementation-pr-ci-merge-not-executed"
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false,
+    "public_flag_changed": false
+  },
+  "claim_boundary": {
+    "partial_teacher_rows_are_strength_evidence": false,
+    "resource_recovery_is_strength_evidence": false,
+    "formal_teacher_generation_completed": false,
+    "training_authorized": false,
+    "formal_games_authorized": false,
+    "strength_claim_authorized": false,
+    "live_write_authorized": false
+  }
+}

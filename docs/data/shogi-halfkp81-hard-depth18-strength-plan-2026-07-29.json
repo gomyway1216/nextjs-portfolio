@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "yaneura-only-v1r3-preflight-validator-fault-after-scratch-teacher-completion-v1r4-required-no-strength-claim",
+  "status": "yaneura-only-v1r4-formal-parent-timeout-after-2762-parents-v1r5-preregistered-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -772,9 +772,110 @@
       "strength_gates_unchanged": true,
       "v1r3_completed_parents_reused": 0,
       "v1r3_teacher_rows_reused": 0,
+      "implementation": {
+        "pull_request": 674,
+        "merge_revision": "28d113dbe6bff8ec7d21beb823058c8aae6c0bf4",
+        "merged": true
+      },
+      "formal_plan": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r4/teacher-plan.json",
+        "bytes": 27958,
+        "sha256": "87f84b161e462eec56d586ed7f69f3b37427217b10aa7b44c18f7b009a4e47d9",
+        "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r4",
+        "source_revision": "28d113dbe6bff8ec7d21beb823058c8aae6c0bf4"
+      },
+      "preflight": {
+        "completed_parents": 512,
+        "teacher_rows": 6134,
+        "technical_faults": 0,
+        "receipt_bytes": 2383,
+        "receipt_sha256": "9e8feda68f5d66efadfda006a835bb450d767cfe5d262abf0b8fc0cadaf97ab3",
+        "status": "scratch-preflight-passed-no-formal-authority"
+      },
+      "formal_run": {
+        "run_fingerprint": "5aa95fb93f1770b1c12c1ae2016cde0e52efa1fc8c8773de94b3b085d3fad9b8",
+        "configured_processes": 13,
+        "timeout_milliseconds_per_parent": 600000,
+        "completed_parents": 2762,
+        "incomplete_parents": 5430,
+        "teacher_rows": 32710,
+        "durable_prefixes": [
+          {
+            "parents": 100,
+            "teacher_rows": 1195,
+            "technical_faults": 0
+          },
+          {
+            "parents": 500,
+            "teacher_rows": 5986,
+            "technical_faults": 0
+          }
+        ],
+        "work_bytes": 40619255,
+        "work_sha256": "d21adef5fe9154b836fd336a30ab9a7b210a4e9e390961eb8b28ae759f066a7d",
+        "fault_parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+        "fault_message": "parent-level timeout after 600000ms",
+        "fault_bytes": 827,
+        "fault_sha256": "6b4b4b476832dc905bbd6e665a2de9d6f9955b8cdf51c2d8b6208f81c54f284b",
+        "technical_faults": 1,
+        "post_stop_runner_processes": 0,
+        "post_stop_yaneuraou_processes": 0
+      },
+      "isolated_fault_parent_diagnosis": {
+        "proposal_elapsed_seconds": 56.274,
+        "proposal_nodes": 78043847,
+        "depth18_rescore_searches": 12,
+        "depth18_rescore_elapsed_seconds_total": 423.887,
+        "depth18_rescore_nodes_total": 513257095,
+        "parent_elapsed_seconds_total": 480.161,
+        "parent_nodes_total": 591300942,
+        "move_7c6d_elapsed_seconds": 217.877,
+        "move_7c8c_elapsed_seconds": 118.089,
+        "conclusion": "long-tail-searches-times-13-concurrent-processes-saturated-shared-compute"
+      },
+      "same_family_resume_authorized": false,
+      "same_run_training_authorized": false,
+      "same_run_rows_reusable": 0,
+      "teacher_generation_started": true,
+      "teacher_generation_completed": false,
+      "technical_faults": 1,
+      "fault_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r4-formal-terminal-fault-2026-07-31.json",
+      "strength_claim_authorized": false,
+      "status": "formal-parent-timeout-technical-fault-family-closed"
+    },
+    "yaneura_only_v1r5": {
+      "family": "halfkp81-hard-depth18-yaneura-only-v1r5",
+      "classification": "new-resource-saturation-recovery-not-yaneura-only-v1r4-resume",
+      "new_tracked_preregistration_required": true,
+      "new_merged_source_revision_required": true,
+      "new_run_fingerprint_required": true,
+      "new_create_only_output_namespace_required": true,
+      "same_authenticated_selection_required": true,
+      "candidate_policy_unchanged": true,
+      "proposal_depth_unchanged": true,
+      "rescore_depth_unchanged": true,
+      "training_contract_unchanged": true,
+      "strength_gates_unchanged": true,
+      "resource_contract": {
+        "engine_processes": 4,
+        "threads_per_process": 1,
+        "hash_mib_per_process": 512,
+        "aggregate_parent_deadline": "removed",
+        "timeout_seconds_per_usi_search": 3600,
+        "publish_policy": "whole-parent-success-only",
+        "search_timeout_policy": "family-terminal-fault"
+      },
+      "fault_parent_sentinel_preflight": {
+        "required_before_formal_run": true,
+        "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+        "training_authority": false,
+        "formal_rows_reusable": 0
+      },
+      "v1r4_completed_parents_reused": 0,
+      "v1r4_teacher_rows_reused": 0,
       "teacher_generation_started": false,
       "strength_claim_authorized": false,
-      "status": "recovery-defined-not-executed"
+      "status": "preregistered-not-executed"
     }
   },
   "training": {
@@ -902,14 +1003,22 @@
     "yaneura_only_v1r3_formal_plan_published": true,
     "yaneura_only_v1r3_scratch_teacher_completed": true,
     "yaneura_only_v1r3_preflight_validator_terminal_fault": true,
-    "yaneura_only_v1r4_technical_recovery_required": true
+    "yaneura_only_v1r4_technical_recovery_required": true,
+    "yaneura_only_v1r4_pull_request": 674,
+    "yaneura_only_v1r4_merge_revision": "28d113dbe6bff8ec7d21beb823058c8aae6c0bf4",
+    "yaneura_only_v1r4_implementation_merged": true,
+    "yaneura_only_v1r4_preflight_passed": true,
+    "yaneura_only_v1r4_formal_plan_published": true,
+    "yaneura_only_v1r4_formal_teacher_started": true,
+    "yaneura_only_v1r4_formal_parent_timeout_terminal_fault": true,
+    "yaneura_only_v1r5_resource_recovery_preregistered": true
   },
   "authority": {
     "formal_selection_executed": true,
     "teacher_generation_executed": true,
     "teacher_generation_completed": false,
-    "teacher_completed_parents": 162,
-    "teacher_rows": 1948,
+    "teacher_completed_parents": 2762,
+    "teacher_rows": 32710,
     "v1_same_family_resume_authorized": false,
     "v2_same_family_resume_authorized": false,
     "v3_same_family_resume_authorized": false,
@@ -919,7 +1028,9 @@
     "yaneura_only_v1r2_same_family_resume_authorized": false,
     "yaneura_only_v1r3_same_family_resume_authorized": false,
     "yaneura_only_v1r3_implementation_authorized": false,
-    "yaneura_only_v1r4_implementation_authorized": true,
+    "yaneura_only_v1r4_same_family_resume_authorized": false,
+    "yaneura_only_v1r4_implementation_authorized": false,
+    "yaneura_only_v1r5_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

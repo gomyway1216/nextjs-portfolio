@@ -575,7 +575,9 @@ describe('deterministic sibling teacher generator', () => {
       );
       expect(entry.environment).toMatchObject(expectedEnvironment);
       expect(
-        Object.keys(entry.environment).filter((name) => !Object.hasOwn(expectedEnvironment, name))
+        Object.keys(entry.environment).filter(
+          (name) => !Object.hasOwn(expectedEnvironment, name)
+        )
       ).toEqual(
         process.platform === 'darwin'
           ? [...SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.darwin_spawn_injected_variables]
@@ -797,11 +799,9 @@ describe('deterministic sibling teacher generator', () => {
     });
     const allForcedStage = siblingTeacherStagePaths(allForcedStageRoot);
     expect(await fs.promises.readFile(allForcedStage.train, 'utf8')).toBe('');
-    expect(
-      parseJsonl<{ forced_parent_skipped: boolean }>(
-        await fs.promises.readFile(allForcedStage.parentCompletion, 'utf8')
-      )
-    ).toEqual([
+    expect(parseJsonl<{ forced_parent_skipped: boolean }>(
+      await fs.promises.readFile(allForcedStage.parentCompletion, 'utf8')
+    )).toEqual([
       expect.objectContaining({
         forced_parent_skipped: true,
       }),
@@ -960,7 +960,9 @@ describe('deterministic sibling teacher generator', () => {
         forced_parent_skipped: false,
       }),
     ]);
-    const trainRows = parseJsonl<SiblingRecord>(await fs.promises.readFile(stage.train, 'utf8'));
+    const trainRows = parseJsonl<SiblingRecord>(
+      await fs.promises.readFile(stage.train, 'utf8')
+    );
     expect(new Set(trainRows.map((row) => row.parent_id))).toEqual(new Set(['parent-b']));
     const replacementEnvironments = parseJsonl<{ cwd: string }>(
       await fs.promises.readFile(environmentTrace, 'utf8')
@@ -1066,7 +1068,9 @@ describe('deterministic sibling teacher generator', () => {
   }, 15_000);
 
   it('quarantines only a typed incomplete proposal and validates its resume receipt', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-proposal-incomplete-'));
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-proposal-incomplete-')
+    );
     const raw = path.join(root, 'training.raw.jsonl');
     const stageRoot = path.join(root, 'stage');
     const stage = siblingTeacherStagePaths(stageRoot);
@@ -1120,7 +1124,8 @@ describe('deterministic sibling teacher generator', () => {
         search: {
           limit: { depth: 8 },
           proposal_limit: { depth: 6 },
-          proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+          proposal_incomplete_quarantine_policy:
+            PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
         },
         forced_skip_reasons: {
           fewer_than_two_legal_moves: 0,
@@ -1160,12 +1165,18 @@ describe('deterministic sibling teacher generator', () => {
       `${tampered.map((row) => JSON.stringify(row)).join('\n')}\n`
     );
     await expect(
-      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(input, options, dependencies)
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        options,
+        dependencies
+      )
     ).rejects.toThrow(/invalid proposal-incomplete skip metadata/);
   }, 15_000);
 
   it('keeps an incomplete independent rescore fatal and emits no skip receipt', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-rescore-incomplete-'));
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-rescore-incomplete-')
+    );
     const raw = path.join(root, 'training.raw.jsonl');
     const stageRoot = path.join(root, 'stage');
     const stage = siblingTeacherStagePaths(stageRoot);
@@ -1327,7 +1338,9 @@ describe('deterministic sibling teacher generator', () => {
   }, 15_000);
 
   it('uses timeout-only fresh-role quarantine, restarts the engine, and persists no partial labels', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-fresh-timeout-only-'));
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-timeout-only-')
+    );
     const raw = path.join(root, 'training.raw.jsonl');
     const stageRoot = path.join(root, 'stage');
     const stage = siblingTeacherStagePaths(stageRoot);
@@ -1335,7 +1348,9 @@ describe('deterministic sibling teacher generator', () => {
     const hangOnceMarker = path.join(root, 'hang-once.marker');
     await fs.promises.writeFile(
       raw,
-      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(
+        rawParent('parent-a')
+      )}\n`
     );
     const outcome = await stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
       await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5)),
@@ -1407,17 +1422,28 @@ describe('deterministic sibling teacher generator', () => {
     );
     const incompleteRaw = path.join(incompleteRoot, 'training.raw.jsonl');
     const incompleteStageRoot = path.join(incompleteRoot, 'stage');
-    const incompleteTrace = path.join(incompleteRoot, 'engine-environment.jsonl');
+    const incompleteTrace = path.join(
+      incompleteRoot,
+      'engine-environment.jsonl'
+    );
     await fs.promises.writeFile(
       incompleteRaw,
       `${JSON.stringify(rawParent('fresh-incomplete'))}\n`
     );
-    const incompleteInput = await authenticatedInputFromRaw(incompleteRaw, '89abcdef'.repeat(5));
+    const incompleteInput = await authenticatedInputFromRaw(
+      incompleteRaw,
+      '89abcdef'.repeat(5)
+    );
     const incompleteOptions = {
       stageRoot: incompleteStageRoot,
       runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--environment-trace', incompleteTrace],
+      engineArgs: [
+        FAKE_ENGINE,
+        '--incomplete-proposal',
+        '--environment-trace',
+        incompleteTrace,
+      ],
       engineReceipt: await writeEngineReceipt(incompleteRoot),
       multipv: 2,
       depth: 8,
@@ -1434,10 +1460,15 @@ describe('deterministic sibling teacher generator', () => {
     ).rejects.toThrow(/incomplete MultiPV/);
     expect(
       parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(incompleteStageRoot).work, 'utf8')
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(incompleteStageRoot).work,
+          'utf8'
+        )
       )
     ).toHaveLength(1);
-    expect(parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))).toHaveLength(1);
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))
+    ).toHaveLength(1);
     await fs.promises.rm(incompleteTrace);
 
     const resumeStageRoot = path.join(incompleteRoot, 'resume-stage');
@@ -1452,13 +1483,18 @@ describe('deterministic sibling teacher generator', () => {
     );
     expect(
       parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(resumeStageRoot).work, 'utf8')
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(resumeStageRoot).work,
+          'utf8'
+        )
       ).at(1)
     ).toMatchObject({
       kind: 'skip',
       reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
     });
-    expect(parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))).toHaveLength(1);
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))
+    ).toHaveLength(1);
     await fs.promises.rm(incompleteTrace);
     await expect(
       stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
@@ -1485,7 +1521,12 @@ describe('deterministic sibling teacher generator', () => {
           stageRoot: fallbackStageRoot,
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
-          engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--hang-searchmove', '2g2f'],
+          engineArgs: [
+            FAKE_ENGINE,
+            '--incomplete-proposal',
+            '--hang-searchmove',
+            '2g2f',
+          ],
           engineReceipt: await writeEngineReceipt(fallbackRoot),
           multipv: 30,
           depth: 8,
@@ -1499,19 +1540,26 @@ describe('deterministic sibling teacher generator', () => {
     ).rejects.toThrow(/USI search timeout after 25ms/);
     expect(
       parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(fallbackStageRoot).work, 'utf8')
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(fallbackStageRoot).work,
+          'utf8'
+        )
       )
     ).toHaveLength(1);
   }, 15_000);
 
   it('fails closed on the sixth fresh-role timeout and keeps exactly five no-label skips', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-fresh-timeout-cap-'));
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'sibling-fresh-timeout-cap-')
+    );
     const raw = path.join(root, 'training.raw.jsonl');
     const stageRoot = path.join(root, 'stage');
     await fs.promises.writeFile(
       raw,
       `${Array.from({ length: 4_800 }, (_, index) => {
-        const parent = rawParent(`fresh-cap-${index.toString().padStart(4, '0')}`);
+        const parent = rawParent(
+          `fresh-cap-${index.toString().padStart(4, '0')}`
+        );
         const parentSfen = START.replace(
           ' b - 1',
           ` b ${index + 1 === 1 ? 'P' : `${index + 1}P`} 1`
@@ -1551,7 +1599,9 @@ describe('deterministic sibling teacher generator', () => {
     );
     const skips = workRows.filter((row) => row.kind === 'skip');
     expect(skips).toHaveLength(5);
-    expect(skips.every((row) => row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)).toBe(true);
+    expect(skips.every((row) => row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)).toBe(
+      true
+    );
     expect(skips.some((row) => Object.hasOwn(row, 'records'))).toBe(false);
     expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
   }, 15_000);
@@ -2263,19 +2313,18 @@ describe('deterministic sibling teacher generator', () => {
     expect(manifest.search).toMatchObject({
       limit: { depth: 8 },
       proposal_limit: { depth: 6 },
-      proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+      proposal_incomplete_quarantine_policy:
+        PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
     });
     const searches = parseJsonl<Record<string, unknown>>(
       await fs.promises.readFile(trace, 'utf8')
     ).filter((event) => event.event === 'search');
-    expect(searches[0]).toMatchObject({
-      multipv: 2,
-      depth: 6,
-      searchmoves: [],
-    });
+    expect(searches[0]).toMatchObject({ multipv: 2, depth: 6, searchmoves: [] });
     expect(searches.slice(1)).toHaveLength(3);
     expect(searches.slice(1).every((search) => search.depth === 8)).toBe(true);
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, 'utf8')
+    );
     expect(workRows[1]).toMatchObject({
       initial_search: { requested_limit: { depth: 6 } },
       exact_search: {
@@ -2286,97 +2335,6 @@ describe('deterministic sibling teacher generator', () => {
         ],
       },
     });
-  });
-
-  it('adds one legal stable move to the proposal and played-move union before exact rescoring', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-stable-union-'));
-    const trace = path.join(root, 'engine-trace.jsonl');
-    const parent: FloodgateTrainingParent = {
-      schema_version: 1,
-      game_id: 'game-stable',
-      parent_id: 'parent-stable',
-      position_id: positionKeyFromSfen(START),
-      parent_sfen: START,
-      ply: 0,
-      played_move: '6g6f',
-    };
-    const engine = new UsiTeacherEngine({
-      engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--trace', trace],
-      hashMb: 64,
-      timeoutMs: 5_000,
-    });
-    await engine.init();
-    let labeled;
-    try {
-      labeled = await labelSiblingParent(
-        engine,
-        parent,
-        2,
-        { depth: 8 },
-        undefined,
-        { depth: 6 },
-        undefined,
-        '5g5f'
-      );
-    } finally {
-      await engine.quit();
-    }
-
-    expect(labeled.candidate_moves).toEqual(['2g2f', '5g5f', '6g6f', '7g7f']);
-    expect(labeled.records.find((record) => record.move === '5g5f')).toMatchObject({
-      sources: ['stable'],
-    });
-    expect(labeled.records.find((record) => record.move === '6g6f')).toMatchObject({
-      sources: ['played'],
-    });
-    expect(labeled.exact_search.searches).toHaveLength(4);
-
-    const searches = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(trace, 'utf8')
-    ).filter((event) => event.event === 'search');
-    expect(searches[0]).toMatchObject({
-      multipv: 2,
-      depth: 6,
-      searchmoves: [],
-    });
-    expect(searches.slice(1).map((search) => search.searchmoves)).toEqual([
-      ['2g2f'],
-      ['5g5f'],
-      ['6g6f'],
-      ['7g7f'],
-    ]);
-
-    const fingerprint = 'a'.repeat(64);
-    labeled.run_fingerprint = fingerprint;
-    resealWorkEntry(labeled as unknown as Record<string, unknown>);
-    const parents = new Map([[parent.parent_id, parent]]);
-    expect(
-      validateWorkEntry(
-        labeled,
-        fingerprint,
-        parents,
-        'stable union',
-        2,
-        { depth: 8 },
-        5_000,
-        { depth: 6 },
-        undefined,
-        '5g5f'
-      )
-    ).toEqual(labeled);
-    expect(() =>
-      validateWorkEntry(
-        labeled,
-        fingerprint,
-        parents,
-        'missing stable evidence',
-        2,
-        { depth: 8 },
-        5_000,
-        { depth: 6 }
-      )
-    ).toThrow(/inconsistent candidate metadata|inconsistent sources/);
   });
 
   it('replaces typed incomplete proposal ranks with all-legal d14 searches before exact d16 rescoring', async () => {

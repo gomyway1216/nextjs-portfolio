@@ -19,8 +19,6 @@ const englishArticleRelative =
   "docs/blog-shogi-floodgate-v7-runtime-policy-preimages.en.md";
 const workflowRelative = ".github/workflows/ci.yml";
 const symbolGraphVerifierRelative = `${moduleRelative}/Tests/verify-public-api-symbol-graph.py`;
-const activeSymbolGraphVerifierRelative =
-  `${moduleRelative}/Tests/verify-public-api-symbol-graph-v2.py`;
 const serviceCoreBoundaryVerifierRelative = `${moduleRelative}/Tests/verify-remote-witness-service-core-boundary.py`;
 const protocolSymbolGraphPath = `${moduleRelative}/.build/**/symbolgraph/FloodgateV7ExternalTrustRootProtocol*.symbols.json`;
 const serviceCoreSymbolGraphPath = `${moduleRelative}/.build/**/symbolgraph/FloodgateV7RemoteWitnessServiceCore*.symbols.json`;
@@ -233,7 +231,7 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     "            --include-spi-symbols \\",
     "            --skip-synthesized-members",
     "          /usr/bin/python3 \\",
-    `            ${activeSymbolGraphVerifierRelative}`,
+    `            ${symbolGraphVerifierRelative}`,
     "          /usr/bin/python3 \\",
     `            ${serviceCoreBoundaryVerifierRelative}`,
     "",
@@ -355,7 +353,7 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     "            --include-spi-symbols \\",
     "            --skip-synthesized-members",
     "          /usr/bin/python3 \\",
-    `            ${activeSymbolGraphVerifierRelative}`,
+    `            ${symbolGraphVerifierRelative}`,
     "          /usr/bin/python3 \\",
     `            ${serviceCoreBoundaryVerifierRelative}`,
   ].join("\n");
@@ -365,7 +363,7 @@ function assertExternalTrustRootProtocolJob(job: string, workflow = job): void {
     );
   }
   assertSubstringCount(job, "/usr/bin/python3", 2);
-  assertSubstringCount(job, activeSymbolGraphVerifierRelative, 1);
+  assertSubstringCount(job, symbolGraphVerifierRelative, 1);
   assertSubstringCount(job, serviceCoreBoundaryVerifierRelative, 1);
   assertSingleCalibrationArtifactUpload(job, workflow);
 }
@@ -777,8 +775,8 @@ describe("Floodgate v7 runtime policy canonical preimage evidence", () => {
     ).toThrow();
     for (const [safePath, unsafePath] of [
       [
-        activeSymbolGraphVerifierRelative,
-        `/tmp/unsafe.py # ${activeSymbolGraphVerifierRelative}`,
+        symbolGraphVerifierRelative,
+        `/tmp/unsafe.py # ${symbolGraphVerifierRelative}`,
       ],
       [
         serviceCoreBoundaryVerifierRelative,

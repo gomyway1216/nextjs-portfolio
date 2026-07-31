@@ -547,6 +547,46 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
+  'tomoshibi': {
+    en: {
+      title: 'Tomoshibi — Ruins of the Lantern',
+      description: 'A roguelike descent through ten floors. Keep the torch burning — in the dark you can barely see, and every hit hurts more.',
+      longDescription: 'A homage to the Fujitsu GAMEPACK roguelike, rebuilt in Godot from what fan guides recorded of the original: the exact damage formulas, the level tables, all eleven monsters with their real stats, and the torch that burns one point a turn and turns the dungeon lethal when it runs out. Levelling matters more than loot — a level is worth six attack. Progress autosaves every turn, and signing in carries the run to another device.',
+      howToPlay: [
+        'Arrow keys or WASD to move — hold to keep walking',
+        'Space attacks whatever you are facing (it can miss)',
+        'I opens the bag: read, use, drop or throw',
+        'Cards do their work when thrown, sutras when read',
+        'Keep the torch above zero and reach the last cave',
+      ],
+      features: [
+        'The original\'s damage formulas and level tables',
+        'Eleven monsters, each with its own special attack',
+        'Torch as the hunger clock, with real penalties at zero',
+        'Autosave every turn; cloud save across devices',
+        'Permadeath — dying keeps only the record',
+      ],
+    },
+    ja: {
+      title: 'ともしびの遺跡',
+      description: '地下10階を下るローグライク。たいまつを絶やすと視界が消え、受けるダメージも増える。',
+      longDescription: '富士通GAMEPACKに入っていたローグライクへのオマージュを、有志の攻略サイトに残された記録からGodotで組み直したもの。ダメージ計算式、レベル表、敵11種の数値はすべて原作どおり。たいまつは1ターンに1減り、0になるとダンジョンが一気に危険になる。装備よりレベルが効く(1つ上がるごとに攻撃+6)。1手ごとに自動保存され、ログインすれば別の端末でも続きから遊べる。',
+      howToPlay: [
+        '矢印キー / WASD で移動(押しっぱなしで歩き続ける)',
+        'スペースで向いている方向を斬る(空振りもある)',
+        'I で持ち物 — よむ / つかう / おく / なげる',
+        'カードは投げて使う。経典は読んで使う',
+        'たいまつを絶やさず、最後の洞窟まで潜る',
+      ],
+      features: [
+        '原作のダメージ計算式とレベル表を再現',
+        '敵11種。それぞれ固有の特殊攻撃を持つ',
+        'たいまつが空腹度の役。0でのペナルティも再現',
+        '毎ターン自動保存。端末をまたいだクラウドセーブ',
+        'ローグライクなので、死ぬと記録だけが残る',
+      ],
+    },
+  },
   'breakout': {
     en: {
       title: 'Breakout',

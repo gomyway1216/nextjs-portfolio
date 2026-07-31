@@ -80,6 +80,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r3" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r4" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r5" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 =
@@ -88,6 +90,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r3" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r4" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r5" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -194,6 +198,23 @@ const YANEURA_ONLY_V1_TEACHER = Object.freeze({
   threads_per_process: 1,
   timeout_seconds_per_parent: 600,
 });
+const YANEURA_ONLY_V1R5_TEACHER = Object.freeze({
+  candidate_policy: YANEURA_ONLY_V1_TEACHER.candidate_policy,
+  engine: YANEURA_ONLY_V1_TEACHER.engine,
+  hash_mib_per_process: 512,
+  ledger_candidate_generation: YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+  maximum_rows: 106_496,
+  maximum_rows_per_parent: 13,
+  minimum_rows_per_parent: 2,
+  parent_deadline_policy: "per-search-only-no-aggregate-parent-race",
+  persistent_engine_processes: true,
+  processes: 4,
+  rescore_policy: YANEURA_ONLY_V1_TEACHER.rescore_policy,
+  search_timeout_milliseconds: 3_600_000,
+  threads_per_process: 1,
+  whole_parent_publication:
+    "durable-only-after-proposal-and-all-depth18-rescores-pass",
+});
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
   "old_outcome",
@@ -208,7 +229,8 @@ type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4;
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -254,7 +276,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18ArtifactIdentity>;
@@ -281,7 +304,8 @@ export interface Halfkp81Depth18TeacherWorkParent {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -398,12 +422,14 @@ function isYaneuraOnlyPlanSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 {
   return (
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3 ||
-    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 ||
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
   );
 }
 
@@ -413,7 +439,11 @@ function yaneuraOnlyWorkSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5 {
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
+  }
   if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4) {
     return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4;
   }
@@ -989,7 +1019,9 @@ function validateWrapper(
     `${label}.teacher_entry`,
     12,
     { depth: 18 },
-    600_000,
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+      ? 3_600_000
+      : 600_000,
     { depth: 16 },
     undefined,
     stableMove,
@@ -1569,7 +1601,13 @@ function validatePlanAndHeader(
     !sameJson(header.teacher, plan.teacher) ||
     (isBoundedStablePlanSchema(planSchema) &&
       !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER)) ||
-    (yaneuraOnly && !sameJson(plan.teacher, YANEURA_ONLY_V1_TEACHER)) ||
+    (yaneuraOnly &&
+      !sameJson(
+        plan.teacher,
+        planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+          ? YANEURA_ONLY_V1R5_TEACHER
+          : YANEURA_ONLY_V1_TEACHER,
+      )) ||
     (yaneuraOnly &&
       !sameJson(
         header.candidate_generation,

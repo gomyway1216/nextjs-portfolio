@@ -103,6 +103,10 @@ v1r3を含むPR #673は通常mergeされた（merge `6b4c5d13f628f14ea1836a08f36
 
 後続の`halfkp81-hard-depth18-yaneura-only-v1r4`は、新しいsource revision、fingerprint、create-only namespaceへ結合する別familyにする。許可する機能差はvalidatorも要求MultiPVを`min(12, 合法手数)`として検証する一点だけである。同じ8,192選抜、やねうら王depth16候補と全候補depth18再評価、600秒timeout、initializer、3 epoch・1 seed、全strength gateは固定し、v1r3から再利用する親・教師行は0にする。実測artifactと停止境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r3-preflight-fault-2026-07-30.json)に保存した。scratch教師の完走やvalidator修正だけでは棋力向上を主張しない。
 
+v1r4を含むPR #674は通常mergeされた（merge `28d113dbe6bff8ec7d21beb823058c8aae6c0bf4`）。512親preflightは6,134行・fault 0で通過し、v1r3のMultiPV validator修正が機能することを確認した。formal runもdurable prefix 100親・1,195行と500親・5,986行をfault 0で保存し、2,762 / 8,192親・depth18教師32,710行まで進んだが、親`sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae`が600,000 msのparent-level timeoutに達し、technical fault 1で正式終了した。fault artifactは827 bytes、SHA-256 `6b4b4b476832dc905bbd6e665a2de9d6f9955b8cdf51c2d8b6208f81c54f284b`である。停止後はrunner・やねうら王processとも0で、launchd jobも存在しない。同familyの再開・学習・2,762親/32,710行の再利用は禁止し、これは棋力結果として数えない。
+
+fault親を隔離して計測すると、depth16 proposalは56.274秒・78,043,847 nodes、12件のdepth18個別再評価は合計423.887秒・513,257,095 nodes、親全体は480.161秒・591,300,942 nodesだった。特に`7c6d`が217.877秒、`7c8c`が118.089秒を使った。単独では600秒以内だが、正式条件の13 processでは複数の正当な長尾探索が同時進行してshared computeを飽和させ、親のwall timeを600秒超へ押し上げた。そこで独立したv1r5はprocessを13から4へ固定し、旧aggregate parent deadlineを廃止して、depth16 proposalと各depth18再評価それぞれのUSI search timeoutを3,600秒にする。親の全探索が成功した場合だけledgerへpublishし、どれか1探索でもtimeoutならfamily全体をterminal faultで閉じる。fault親だけのsentinel preflightも正式実行前に必須にする。新しいsource revision、fingerprint、create-only namespaceから開始し、v1r4の親・行は0件だけ引き継ぐ。選抜、教師候補、depth16/18、initializer、3 epoch・1 seed、全strength gateは変えない。実数と事前登録境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r4-formal-terminal-fault-2026-07-31.json)に保存した。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

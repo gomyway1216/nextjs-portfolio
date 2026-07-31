@@ -1,6 +1,6 @@
 {
   "schema": "shogi-halfkp81-hard-depth18-strength-plan-data-memo-v1",
-  "status": "yaneura-only-v1r2-preflight-output-directory-fault-v1r3-required-no-strength-claim",
+  "status": "yaneura-only-v1r3-preflight-validator-fault-after-scratch-teacher-completion-v1r4-required-no-strength-claim",
   "date": "2026-07-29",
   "last_updated": "2026-07-30",
   "objective": "Select balanced hard positions from authenticated high-rated games, replace old depth12 selection metadata with fresh YaneuraOu depth18 sibling targets, retain broad direct-teacher replay, and require direct-play evidence before promotion.",
@@ -683,6 +683,95 @@
       "strength_gates_unchanged": true,
       "v1r2_completed_parents_reused": 0,
       "v1r2_teacher_rows_reused": 0,
+      "implementation": {
+        "pull_request": 673,
+        "merge_revision": "6b4c5d13f628f14ea1836a08f36d9ad9dd05e266",
+        "merged": true
+      },
+      "formal_plan": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r3/teacher-plan.json",
+        "bytes": 20689,
+        "sha256": "9d8c62455ed9c58de226c95039786a956fbb891bcc25292fdc05d5a9733eef1d",
+        "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r3",
+        "source_revision": "6b4c5d13f628f14ea1836a08f36d9ad9dd05e266"
+      },
+      "preflight": {
+        "target_parents": 512,
+        "service_label": "com.meetyudai.shogi.halfkp81-depth18-yaneura-v1r3-preflight512-6b4c5d13",
+        "run_fingerprint": "81bb70e785f8973fd04200385559e2fb738abaafe31dcecef5da242dbfa30643",
+        "completed_parents": 512,
+        "teacher_rows": 6134,
+        "role_parents": {
+          "fit": 384,
+          "tune": 64,
+          "sealed": 64
+        },
+        "role_rows": {
+          "fit": 4605,
+          "tune": 771,
+          "sealed": 758
+        },
+        "engine_starts": 13,
+        "engine_quits": 13,
+        "active_engines_at_fault": 0,
+        "teacher_technical_faults": 0,
+        "teacher_receipt": {
+          "bytes": 1622,
+          "sha256": "f18731c07b37bd89c4f037ca3275b42544718ce187ab00eda2fa52a5a2950d37",
+          "status": "structurally-complete-awaiting-artifact-verification"
+        },
+        "preflight_fault": {
+          "bytes": 481,
+          "sha256": "5129add99dea903a446c4098bd19e500b3740debf2d29d7c184e55890883d1d2",
+          "status": "scratch-preflight-failed-no-formal-authority"
+        }
+      },
+      "candidate_distribution": {
+        "requested_multipv_parent_counts": {
+          "2": 1,
+          "6": 1,
+          "10": 1,
+          "12": 509
+        },
+        "candidate_and_record_counts_aligned_for_all_parents": true
+      },
+      "root_cause": {
+        "classification": "preflight-validator-fixed-multipv12-vs-legal-move-bound",
+        "failing_parent_id": "sha256:dc6230929aad5c53291c283200c456e2d178abcac1aec6537cf27aefcdb36a7f",
+        "legal_moves": 6,
+        "generator_requested_multipv": 6,
+        "generator_rule": "Math.min(12, legalMoves.length)",
+        "validator_required_multipv": 12,
+        "candidate_count": 6,
+        "record_count": 6
+      },
+      "same_family_resume_authorized": false,
+      "same_run_formal_generation_authorized": false,
+      "same_run_training_authorized": false,
+      "same_run_rows_reusable": 0,
+      "teacher_generation_started": true,
+      "teacher_generation_completed": true,
+      "artifact_verification_completed": false,
+      "technical_faults": 1,
+      "fault_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r3-preflight-fault-2026-07-30.json",
+      "strength_claim_authorized": false,
+      "status": "scratch-teacher-complete-preflight-validator-technical-fault-family-closed"
+    },
+    "yaneura_only_v1r4": {
+      "family": "halfkp81-hard-depth18-yaneura-only-v1r4",
+      "classification": "new-technical-recovery-not-yaneura-only-v1r3-resume",
+      "only_functional_change": "validate-requested-multipv-as-min-12-and-legal-move-count",
+      "new_tracked_preregistration_required": true,
+      "new_merged_source_revision_required": true,
+      "new_run_fingerprint_required": true,
+      "new_create_only_output_namespace_required": true,
+      "same_authenticated_selection_required": true,
+      "candidate_policy_unchanged": true,
+      "teacher_timeouts_unchanged": true,
+      "training_contract_unchanged": true,
+      "strength_gates_unchanged": true,
+      "v1r3_completed_parents_reused": 0,
+      "v1r3_teacher_rows_reused": 0,
       "teacher_generation_started": false,
       "strength_claim_authorized": false,
       "status": "recovery-defined-not-executed"
@@ -806,7 +895,14 @@
     "yaneura_only_v1r2_implementation_merged": true,
     "yaneura_only_v1r2_formal_plan_published": true,
     "yaneura_only_v1r2_preflight_terminal_fault": true,
-    "yaneura_only_v1r3_technical_recovery_required": true
+    "yaneura_only_v1r3_technical_recovery_required": true,
+    "yaneura_only_v1r3_pull_request": 673,
+    "yaneura_only_v1r3_merge_revision": "6b4c5d13f628f14ea1836a08f36d9ad9dd05e266",
+    "yaneura_only_v1r3_implementation_merged": true,
+    "yaneura_only_v1r3_formal_plan_published": true,
+    "yaneura_only_v1r3_scratch_teacher_completed": true,
+    "yaneura_only_v1r3_preflight_validator_terminal_fault": true,
+    "yaneura_only_v1r4_technical_recovery_required": true
   },
   "authority": {
     "formal_selection_executed": true,
@@ -821,7 +917,9 @@
     "v3r3_same_family_resume_authorized": false,
     "yaneura_only_v1_same_family_resume_authorized": false,
     "yaneura_only_v1r2_same_family_resume_authorized": false,
-    "yaneura_only_v1r3_implementation_authorized": true,
+    "yaneura_only_v1r3_same_family_resume_authorized": false,
+    "yaneura_only_v1r3_implementation_authorized": false,
+    "yaneura_only_v1r4_implementation_authorized": true,
     "live_weights_changed": false,
     "training_executed": false,
     "formal_games": 0,

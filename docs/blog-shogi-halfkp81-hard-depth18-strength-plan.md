@@ -99,6 +99,10 @@ v1r2を含むPR #672は通常mergeされた（merge `20ec3fdf4ba81c89af4ba02bb74
 
 次の`halfkp81-hard-depth18-yaneura-only-v1r3`は別のtechnical-recovery familyとし、許可する変更は`initializeWork`より前にpreflight output directoryをmode `0700`でcreate-only準備する点だけである。新しいtracked preregistration、merged source revision、run fingerprint、create-only namespaceへ結合し、v1r2の親・教師行は0件だけ引き継ぐ。同じ8,192選抜、教師候補、depth16/18、600秒timeout、initializer、3 epoch・1 seed、全strength gateは変更しない。v1r2の全artifactと回復境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r2-preflight-fault-2026-07-30.json)に保存した。この修正も棋力向上の証拠ではない。
 
+v1r3を含むPR #673は通常mergeされた（merge `6b4c5d13f628f14ea1836a08f36d9ad9dd05e266`）。scratch preflightの教師計算は512 / 512親・depth18教師6,134行をfault 0で完了し、fit 384親・4,605行、tune 64親・771行、sealed 64親・758行へ分割した。13個のやねうら王processも13個すべてquitし、active 0を確認した。teacher receiptは構造上完了したが、その後のvalidatorが`sha256:dc6230929aad5c53291c283200c456e2d178abcac1aec6537cf27aefcdb36a7f`で停止した。この局面の合法手は6手で、generatorは仕様どおり`Math.min(12, legalMoves.length)`を使いMultiPV 6を要求し、候補6件・record 6件は一致していた。一方validatorは常にMultiPV 12を要求しており、正しい短い出力を不一致と誤判定した。512親の要求値分布も12が509親、10・6・2が各1親で、candidateとrecordの件数不一致は0だった。これは教師探索やtimeoutの故障ではないが、artifact verificationと学習権限の前に起きたtechnical faultなので、v1r3の同family再開・正式生成・学習・6,134行の再利用は認めない。
+
+後続の`halfkp81-hard-depth18-yaneura-only-v1r4`は、新しいsource revision、fingerprint、create-only namespaceへ結合する別familyにする。許可する機能差はvalidatorも要求MultiPVを`min(12, 合法手数)`として検証する一点だけである。同じ8,192選抜、やねうら王depth16候補と全候補depth18再評価、600秒timeout、initializer、3 epoch・1 seed、全strength gateは固定し、v1r3から再利用する親・教師行は0にする。実測artifactと停止境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r3-preflight-fault-2026-07-30.json)に保存した。scratch教師の完走やvalidator修正だけでは棋力向上を主張しない。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

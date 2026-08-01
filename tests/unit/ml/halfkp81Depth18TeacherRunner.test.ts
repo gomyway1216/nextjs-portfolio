@@ -49,6 +49,7 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PROCESSES,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY,
   authenticateHalfkp81Depth18TeacherPlan,
   expectedHalfkp81Depth18YaneuraOnlyInitialMultipv,
   initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R4ForTests,
@@ -687,6 +688,26 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
     expect(digest(bytes)).toBe(
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY.sha256,
+    );
+    expect(JSON.parse(bytes.toString("utf8")).schema).toBe(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY.schema,
+    );
+  });
+
+  it("pins the exact tracked v1r10 recovery preregistration bytes and schema", () => {
+    const file = path.resolve(
+      __dirname,
+      `../../../${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY.path}`,
+    );
+    const bytes = fs.readFileSync(file);
+    expect(bytes.byteLength).toBe(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY.bytes,
+    );
+    expect(digest(bytes)).toBe(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY.sha256,
+    );
+    expect(JSON.parse(bytes.toString("utf8")).schema).toBe(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY.schema,
     );
   });
 

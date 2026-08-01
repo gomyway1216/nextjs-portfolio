@@ -59,6 +59,10 @@
     "shogi:halfkp81-depth18-yaneura-only-v1r4-plan-authenticate": "node -r tsx/cjs ml/authenticate-halfkp81-depth18-yaneura-only-v1r4-plan.ts",
     "shogi:halfkp81-depth18-yaneura-only-v1r4-teacher": "node -r tsx/cjs ml/run-halfkp81-depth18-yaneura-only-v1r4-teacher.ts",
     "shogi:halfkp81-depth18-yaneura-only-v1r4-verify": "node -r tsx/cjs ml/verify-halfkp81-depth18-yaneura-only-v1r4-teacher-artifacts.ts",
+    "shogi:halfkp81-depth18-yaneura-only-v1r9-plan-publish": "node -r tsx/cjs ml/publish-halfkp81-depth18-yaneura-only-v1r9-plan.ts",
+    "shogi:halfkp81-depth18-yaneura-only-v1r9-plan-authenticate": "node -r tsx/cjs ml/authenticate-halfkp81-depth18-yaneura-only-v1r9-plan.ts",
+    "shogi:halfkp81-depth18-yaneura-only-v1r9-teacher": "node -r tsx/cjs ml/run-halfkp81-depth18-yaneura-only-v1r9-teacher.ts",
+    "shogi:halfkp81-depth18-yaneura-only-v1r9-verify": "node -r tsx/cjs ml/verify-halfkp81-depth18-yaneura-only-v1r9-teacher-artifacts.ts",
     "shogi:formal-ab-v2-local": "python3 ml/formal_paired_ab_local_launcher.py",
     "shogi:floodgate-summarize": "node -r tsx/cjs ml/summarize-floodgate-acquisition.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"

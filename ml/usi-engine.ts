@@ -272,10 +272,25 @@ export class UsiTeacherEngine {
       return Promise.reject(
         new Error("USI engine already has a pending operation"),
       );
+    const dualBound = limit.depth !== undefined && limit.nodes !== undefined;
+    if (
+      dualBound &&
+      (multipv !== 1 ||
+        searchmoves.length !== 1 ||
+        limit.minimumCompletedDepth === undefined)
+    ) {
+      return Promise.reject(
+        new Error(
+          "dual depth/node search is restricted to one forced MultiPV=1 rescore with minimumCompletedDepth",
+        ),
+      );
+    }
     const requiredDepth = limit.depth;
     const accumulator = new UsiMultiPvAccumulator({
       multipv,
       requiredDepth,
+      nodeCap: dualBound ? limit.nodes : undefined,
+      minimumCompletedDepth: limit.minimumCompletedDepth,
       allowTerminalMateBeforeRequiredDepth:
         requiredDepth !== undefined &&
         multipv === 1 &&

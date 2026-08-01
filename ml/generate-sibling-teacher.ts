@@ -7,10 +7,10 @@
  * by cp descending with a bytewise move tie-break.
  */
 
-import * as crypto from 'node:crypto';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import {
   SIBLING_MANIFEST_SCHEMA,
@@ -19,120 +19,139 @@ import {
   splitSiblingDataset,
   validateParentGroups,
   type SiblingRecord,
-} from './sibling-data';
+} from "./sibling-data";
 import {
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingInputBinding,
   type FloodgateTrainingParent,
-} from './floodgate-training-row-consumer';
+} from "./floodgate-training-row-consumer";
 import type {
   FloodgateFreshFinalRawIdentity,
   FloodgateFreshSelectionRawIdentity,
-} from './floodgate-training-row-validation';
-import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from './floodgate-role-bundle';
-import { floodgateIdentifierDigest } from './floodgate-roles';
-import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from './shogi-sfen';
+} from "./floodgate-training-row-validation";
+import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from "./floodgate-role-bundle";
+import { floodgateIdentifierDigest } from "./floodgate-roles";
+import {
+  childSfenAfterUsi,
+  positionFromSfen,
+  rulesCompleteLegalMoves,
+} from "./shogi-sfen";
 import {
   verifyPipelineOutputPaths,
   verifyPipelineRevision,
   type PipelineProvenance,
-} from './pipeline-revision';
-import { USI_TEACHER_ENGINE_CONTRACT, UsiSearchTimeoutError, UsiTeacherEngine } from './usi-engine';
+} from "./pipeline-revision";
+import {
+  USI_TEACHER_ENGINE_CONTRACT,
+  UsiResetForParentTimeoutError,
+  UsiSearchTimeoutError,
+  UsiTeacherEngine,
+} from "./usi-engine";
 import {
   MAX_NON_MATE_CP,
   UsiFixedDepthRanksIncompleteError,
   mateToCp,
+  type UsiDualBoundResultMetadata,
   type UsiMultiPvResult,
   type UsiSearchLimit,
-} from './usi-multipv';
+} from "./usi-multipv";
 
-export const SIBLING_TEACHER_MANIFEST_SCHEMA = 'shogi-sibling-teacher-manifest-v2' as const;
-export const SIBLING_TEACHER_WORK_SCHEMA = 'shogi-sibling-teacher-work-v2' as const;
-export const TEACHER_ENGINE_RECEIPT_SCHEMA = 'shogi-teacher-engine-receipt-v1' as const;
+export const SIBLING_TEACHER_MANIFEST_SCHEMA =
+  "shogi-sibling-teacher-manifest-v2" as const;
+export const SIBLING_TEACHER_WORK_SCHEMA =
+  "shogi-sibling-teacher-work-v2" as const;
+export const TEACHER_ENGINE_RECEIPT_SCHEMA =
+  "shogi-teacher-engine-receipt-v1" as const;
 export const STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA =
-  'shogi-strength-first-sibling-teacher-manifest-v1' as const;
+  "shogi-strength-first-sibling-teacher-manifest-v1" as const;
 export const STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA =
-  'shogi-strength-first-sibling-teacher-result-v1' as const;
+  "shogi-strength-first-sibling-teacher-result-v1" as const;
 export const STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA =
-  'shogi-floodgate-fresh-qat-parent-completion-v2' as const;
+  "shogi-floodgate-fresh-qat-parent-completion-v2" as const;
 export const STRENGTH_FIRST_PARENT_COMPLETION_FORMAT =
-  'shogi-floodgate-fresh-qat-parent-completion-jsonl-v2' as const;
+  "shogi-floodgate-fresh-qat-parent-completion-jsonl-v2" as const;
 export const STRENGTH_FIRST_TRAIN_FORMAT =
-  'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+  "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const FRESH_SELECTION_TEACHER_INPUT_SCHEMA =
-  'shogi-authenticated-floodgate-fresh-selection-rows-v1' as const;
+  "shogi-authenticated-floodgate-fresh-selection-rows-v1" as const;
 export const FRESH_SELECTION_TEACHER_DATASET_SCHEMA =
-  'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+  "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const FRESH_SELECTION_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_SELECTION_TEACHER_GAME_COUNT = 200 as const;
 export const FRESH_FINAL_TEACHER_INPUT_SCHEMA =
-  'shogi-authenticated-floodgate-fresh-final-rows-v1' as const;
+  "shogi-authenticated-floodgate-fresh-final-rows-v1" as const;
 export const FRESH_FINAL_TEACHER_DATASET_SCHEMA =
-  'canonical-shogi-sibling-v1-jsonl-one-lf-per-row' as const;
+  "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const FRESH_FINAL_TEACHER_PARENT_COUNT = 4_800 as const;
 export const FRESH_FINAL_TEACHER_GAME_COUNT = 200 as const;
 export const FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE =
-  'typed-incomplete-then-all-legal-single-move-proposals-v1' as const;
-export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([100, 500, 24_000] as const);
+  "typed-incomplete-then-all-legal-single-move-proposals-v1" as const;
+export const STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS = Object.freeze([
+  100, 500, 24_000,
+] as const);
 export const STRENGTH_FIRST_PRODUCTION_ENGINES = 12 as const;
 export const STRENGTH_FIRST_V9_PRODUCTION_ENGINES = 13 as const;
 export const STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR = 1_000 as const;
-export const STRENGTH_FIRST_TIMEOUT_SKIP_REASON = 'search-timeout-no-label' as const;
+export const STRENGTH_FIRST_TIMEOUT_SKIP_REASON =
+  "search-timeout-no-label" as const;
 export const STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON =
-  'proposal-incomplete-no-label' as const;
+  "proposal-incomplete-no-label" as const;
 export const PROPOSAL_INCOMPLETE_QUARANTINE_POLICY =
-  'proposal-only-typed-fixed-depth-incomplete-ranks-no-label-v1' as const;
+  "proposal-only-typed-fixed-depth-incomplete-ranks-no-label-v1" as const;
 export const SIBLING_TEACHER_LABEL_POLICY =
-  'initial-multipv-plus-played-independent-single-move-rescore-final-mate-v7-timeout-quarantine' as const;
-export const INDEPENDENT_EXACT_RESCORE_MODE = 'independent-single-move' as const;
-const PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN = '<private-worker-cwd>' as const;
+  "initial-multipv-plus-played-independent-single-move-rescore-final-mate-v7-timeout-quarantine" as const;
+export const INDEPENDENT_EXACT_RESCORE_MODE =
+  "independent-single-move" as const;
+const PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN = "<private-worker-cwd>" as const;
 
 export function strengthFirstTimeoutSkipLimit(targetParents: number): number {
   if (!Number.isSafeInteger(targetParents) || targetParents <= 0) {
-    throw new Error('timeout-skip target must be a positive safe integer');
+    throw new Error("timeout-skip target must be a positive safe integer");
   }
   return Math.ceil(targetParents / STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR);
 }
 
 export const SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT = Object.freeze({
   inherited_environment: false,
-  darwin_spawn_injected_variables: Object.freeze(['__CF_USER_TEXT_ENCODING'] as const),
+  darwin_spawn_injected_variables: Object.freeze([
+    "__CF_USER_TEXT_ENCODING",
+  ] as const),
   variables: Object.freeze({
     HOME: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
     TMPDIR: PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN,
-    PATH: '/usr/bin:/bin',
-    LANG: 'C',
-    LC_ALL: 'C',
-    TZ: 'UTC',
-    OMP_NUM_THREADS: '1',
-    OMP_THREAD_LIMIT: '1',
-    OPENBLAS_NUM_THREADS: '1',
-    MKL_NUM_THREADS: '1',
-    VECLIB_MAXIMUM_THREADS: '1',
-    NUMEXPR_NUM_THREADS: '1',
-    BLIS_NUM_THREADS: '1',
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    TZ: "UTC",
+    OMP_NUM_THREADS: "1",
+    OMP_THREAD_LIMIT: "1",
+    OPENBLAS_NUM_THREADS: "1",
+    MKL_NUM_THREADS: "1",
+    VECLIB_MAXIMUM_THREADS: "1",
+    NUMEXPR_NUM_THREADS: "1",
+    BLIS_NUM_THREADS: "1",
   }),
 } as const);
 export const SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT = {
   engine_binary: true,
-  engine_argument_files: 'snapshotted-and-substituted',
-  eval_tree: 'snapshotted',
-  eval_options_file: 'rejected',
+  engine_argument_files: "snapshotted-and-substituted",
+  eval_tree: "snapshotted",
+  eval_options_file: "rejected",
   private_working_directory: true,
 } as const;
 
 type RawParentOccurrence = FloodgateTrainingParent;
 
 export const SIBLING_TEACHER_STAGE_FILENAMES = Object.freeze({
-  train: 'train.jsonl',
-  val: 'val.jsonl',
-  selection: 'selection.jsonl',
-  final: 'final.jsonl',
-  manifest: 'manifest.json',
-  work: 'work.jsonl',
-  parentCompletion: 'parent-completion.jsonl',
-  stagedResult: 'staged-result.json',
+  train: "train.jsonl",
+  val: "val.jsonl",
+  selection: "selection.jsonl",
+  final: "final.jsonl",
+  manifest: "manifest.json",
+  work: "work.jsonl",
+  parentCompletion: "parent-completion.jsonl",
+  stagedResult: "staged-result.json",
 } as const);
 
 export interface SiblingTeacherStagePaths {
@@ -147,8 +166,10 @@ export interface SiblingTeacherStagePaths {
   readonly stagedResult: string;
 }
 
-export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTeacherStagePaths> {
-  const root = path.resolve(requiredText(stageRoot, 'stageRoot'));
+export function siblingTeacherStagePaths(
+  stageRoot: string,
+): Readonly<SiblingTeacherStagePaths> {
+  const root = path.resolve(requiredText(stageRoot, "stageRoot"));
   return Object.freeze({
     root,
     train: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.train),
@@ -157,7 +178,10 @@ export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTea
     final: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.final),
     manifest: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.manifest),
     work: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.work),
-    parentCompletion: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.parentCompletion),
+    parentCompletion: path.join(
+      root,
+      SIBLING_TEACHER_STAGE_FILENAMES.parentCompletion,
+    ),
     stagedResult: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.stagedResult),
   });
 }
@@ -187,14 +211,14 @@ export interface StageSiblingTeacherCoreForTestsOptions {
 
 export interface AuthenticatedFloodgateFreshSelectionRows {
   readonly schema: typeof FRESH_SELECTION_TEACHER_INPUT_SCHEMA;
-  readonly role: 'fresh_selection';
+  readonly role: "fresh_selection";
   readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
   readonly rows: readonly Readonly<FloodgateTrainingParent>[];
 }
 
 export interface AuthenticatedFloodgateFreshFinalRows {
   readonly schema: typeof FRESH_FINAL_TEACHER_INPUT_SCHEMA;
-  readonly role: 'fresh_final_holdout';
+  readonly role: "fresh_final_holdout";
   readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
   readonly rows: readonly Readonly<FloodgateTrainingParent>[];
 }
@@ -237,16 +261,41 @@ export interface FileDigest {
 interface SearchScoreMetadata {
   move: string;
   cp: number;
-  score_kind: 'cp' | 'mate';
+  score_kind: "cp" | "mate";
   mate?: number;
   mate_sign?: 1 | -1;
 }
 
+type NormalizedSearchLimit =
+  | { nodes: number }
+  | { depth: number }
+  | { depth: number; nodes: number; minimum_completed_depth: number };
+
+interface DualBoundSearchMetadata {
+  termination_reason: "depth" | "node-cap" | "terminal-mate";
+  requested_depth: number;
+  node_cap: number;
+  minimum_completed_depth: number;
+  deepest_complete_exact_depth: number;
+  selected_snapshot_nodes: number;
+  maximum_observed_nodes: number;
+  maximum_observed_depth: number;
+  selected_snapshot_bound: "exact";
+  discarded_at_or_above_node_cap_updates: number;
+  observed_lowerbound_updates: number;
+  observed_upperbound_updates: number;
+  cap_witness_depth: number | null;
+  cap_witness_nodes: number | null;
+  selected_precedes_witness: boolean;
+  completed_iteration_witness_depth: number;
+}
+
 interface SearchMetadata {
   requested_multipv: number;
-  requested_limit: { nodes: number } | { depth: number };
+  requested_limit: NormalizedSearchLimit;
   depth: number;
   observed_nodes: number;
+  dual_bound?: DualBoundSearchMetadata;
   bestmove: string;
   moves: string[];
   scores: SearchScoreMetadata[];
@@ -264,7 +313,7 @@ interface IndependentExactSearchMetadata {
   total_observed_nodes: number;
 }
 
-interface AllLegalProposalFallbackMetadata {
+export interface AllLegalProposalFallbackMetadata {
   readonly mode: typeof FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE;
   readonly trigger: Readonly<{
     readonly requested_multipv: number;
@@ -276,12 +325,12 @@ interface AllLegalProposalFallbackMetadata {
   }>;
   readonly legal_moves: readonly string[];
   readonly searches: readonly SearchMetadata[];
-  readonly synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move';
+  readonly synthesized_rank_order: "cp-descending-then-utf8-bytewise-move";
 }
 
 export interface WorkHeader {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
-  kind: 'header';
+  kind: "header";
   run_fingerprint: string;
   source_raw_sha256: string;
   selected_parent_ids_sha256: string;
@@ -291,7 +340,7 @@ export interface WorkHeader {
 
 export interface CompletedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
-  kind: 'parent';
+  kind: "parent";
   run_fingerprint: string;
   payload_sha256: string;
   parent_id: string;
@@ -305,26 +354,26 @@ export interface CompletedWorkEntry {
 
 export interface ForcedLegalMoveSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
-  kind: 'skip';
+  kind: "skip";
   run_fingerprint: string;
   payload_sha256: string;
   parent_id: string;
-  reason: 'fewer-than-two-legal-moves';
+  reason: "fewer-than-two-legal-moves";
   legal_moves: number;
 }
 
 export interface SearchTimeoutSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
-  kind: 'skip';
+  kind: "skip";
   run_fingerprint: string;
   payload_sha256: string;
   parent_id: string;
   reason: typeof STRENGTH_FIRST_TIMEOUT_SKIP_REASON;
   legal_moves: number;
   timeout: Readonly<{
-    phase: 'proposal' | 'independent-rescore';
+    phase: "proposal" | "independent-rescore";
     requested_multipv: number;
-    requested_limit: { nodes: number } | { depth: number };
+    requested_limit: NormalizedSearchLimit;
     searchmoves: readonly [] | readonly [string];
     timeout_ms: number;
   }>;
@@ -332,14 +381,14 @@ export interface SearchTimeoutSkippedWorkEntry {
 
 export interface ProposalIncompleteSkippedWorkEntry {
   schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
-  kind: 'skip';
+  kind: "skip";
   run_fingerprint: string;
   payload_sha256: string;
   parent_id: string;
   reason: typeof STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON;
   legal_moves: number;
   incomplete: Readonly<{
-    phase: 'proposal';
+    phase: "proposal";
     requested_multipv: number;
     requested_limit: { depth: number };
     final_exact_ranks: number;
@@ -383,8 +432,8 @@ export interface SiblingTeacherManifest {
   };
   search: {
     multipv: number;
-    limit: { nodes: number } | { depth: number };
-    proposal_limit?: { nodes: number } | { depth: number };
+    limit: NormalizedSearchLimit;
+    proposal_limit?: NormalizedSearchLimit;
     proposal_incomplete_quarantine_policy?: typeof PROPOSAL_INCOMPLETE_QUARANTINE_POLICY;
     parallel_engines: number;
     fv_scale: number;
@@ -394,10 +443,10 @@ export interface SiblingTeacherManifest {
     label_policy: typeof SIBLING_TEACHER_LABEL_POLICY;
     tt_reset_before_proposal: true;
     tt_reset_before_each_candidate: true;
-    search_state_reset_before_proposal: 'isready';
-    search_state_reset_before_each_candidate: 'isready';
-    candidate_execution_order: 'utf8-bytewise-ascending';
-    synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move';
+    search_state_reset_before_proposal: "isready";
+    search_state_reset_before_each_candidate: "isready";
+    candidate_execution_order: "utf8-bytewise-ascending";
+    synthesized_rank_order: "cp-descending-then-utf8-bytewise-move";
     engine_options: typeof USI_TEACHER_ENGINE_CONTRACT;
   };
   candidate_sets: {
@@ -416,7 +465,7 @@ export interface SiblingTeacherManifest {
     skipped_parents: number;
     sha256: string;
   };
-  split: ReturnType<typeof splitSiblingDataset>['manifest'];
+  split: ReturnType<typeof splitSiblingDataset>["manifest"];
   outputs: {
     train_sha256: string;
     val_sha256: string;
@@ -441,21 +490,23 @@ export interface StrengthFirstForcedSkipReasonCounts {
 }
 
 function forcedSkipReasonCounts(
-  entries: Iterable<WorkEntry>
+  entries: Iterable<WorkEntry>,
 ): Readonly<StrengthFirstForcedSkipReasonCounts> {
   let fewerThanTwoLegalMoves = 0;
   let searchTimeoutNoLabel = 0;
   let proposalIncompleteNoLabel = 0;
   for (const entry of entries) {
-    if (entry.kind !== 'skip') continue;
-    if (entry.reason === 'fewer-than-two-legal-moves') {
+    if (entry.kind !== "skip") continue;
+    if (entry.reason === "fewer-than-two-legal-moves") {
       fewerThanTwoLegalMoves += 1;
     } else if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
       searchTimeoutNoLabel += 1;
-    } else if (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+    } else if (
+      entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON
+    ) {
       proposalIncompleteNoLabel += 1;
     } else {
-      throw new Error('unsupported forced skip reason');
+      throw new Error("unsupported forced skip reason");
     }
   }
   return Object.freeze({
@@ -490,7 +541,7 @@ export interface StrengthFirstTrainBinding extends StrengthFirstFileBinding {
 
 export interface StrengthFirstSiblingTeacherManifest {
   readonly schema: typeof STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA;
-  readonly status: 'complete-training-only';
+  readonly status: "complete-training-only";
   readonly run_fingerprint: string;
   readonly pipeline: PipelineProvenance;
   readonly authenticated_input: Readonly<{
@@ -504,13 +555,13 @@ export interface StrengthFirstSiblingTeacherManifest {
     readonly selected_parents: number;
     readonly selected_parent_ids_sha256: string;
   }>;
-  readonly teacher: SiblingTeacherManifest['teacher'] &
+  readonly teacher: SiblingTeacherManifest["teacher"] &
     Readonly<{
       readonly engine_environment: typeof SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT;
     }>;
-  readonly search: SiblingTeacherManifest['search'];
-  readonly candidate_sets: SiblingTeacherManifest['candidate_sets'];
-  readonly progress_checkpoint: SiblingTeacherManifest['progress_checkpoint'] & {
+  readonly search: SiblingTeacherManifest["search"];
+  readonly candidate_sets: SiblingTeacherManifest["candidate_sets"];
+  readonly progress_checkpoint: SiblingTeacherManifest["progress_checkpoint"] & {
     readonly entries: number;
   };
   readonly forced_skip_reasons: StrengthFirstForcedSkipReasonCounts;
@@ -526,7 +577,7 @@ export interface StrengthFirstSiblingTeacherManifest {
 
 export interface StrengthFirstSiblingTeacherResult {
   readonly schema: typeof STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA;
-  readonly status: 'complete-training-only';
+  readonly status: "complete-training-only";
   readonly run_fingerprint: string;
   readonly runner_revision: string;
   readonly bundle_verifier_revision: string;
@@ -551,7 +602,7 @@ export interface StrengthFirstSiblingTeacherResult {
 }
 
 export interface StrengthFirstSiblingTeacherPrefixProgress {
-  readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
+  readonly status: "local-work-prefix-complete-not-an-authentication-receipt";
   readonly authentication_receipt: false;
   readonly target_parents: 100 | 500;
   readonly completed_parents: 100 | 500;
@@ -562,7 +613,7 @@ export interface StrengthFirstSiblingTeacherPrefixProgress {
   readonly work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
     readonly records: number;
-    readonly binding_scope: 'canonical-target-prefix-projection';
+    readonly binding_scope: "canonical-target-prefix-projection";
   };
   readonly current_work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
@@ -573,7 +624,7 @@ export interface StrengthFirstSiblingTeacherPrefixProgress {
 export type StrengthFirstSiblingTeacherAdvance =
   | StrengthFirstSiblingTeacherPrefixProgress
   | Readonly<{
-      readonly status: 'complete-training-only';
+      readonly status: "complete-training-only";
       readonly authentication_receipt: false;
       readonly target_parents: 24_000;
       readonly completed_parents: 24_000;
@@ -584,11 +635,11 @@ export type StrengthFirstSiblingTeacherAdvance =
 
 export interface StrengthFirstSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  | 'engines'
-  | 'proposalIncompleteAllLegalFallbackMaxMoves'
-  | 'seed'
-  | 'testOnlyInitializationTimeoutMs'
-  | 'valRatio'
+  | "engines"
+  | "proposalIncompleteAllLegalFallbackMaxMoves"
+  | "seed"
+  | "testOnlyInitializationTimeoutMs"
+  | "valRatio"
 > {
   readonly targetParents: StrengthFirstProductionParentTarget;
 }
@@ -597,40 +648,47 @@ export interface GenerateSiblingTeacherDependencies {
   verifyRevision?: (revision: string) => Promise<PipelineProvenance>;
   verifyOutputPaths?: (
     outputPaths: readonly string[],
-    inputPaths: readonly string[]
+    inputPaths: readonly string[],
   ) => Promise<void>;
 }
 
 function sha256(input: string | Uint8Array): string {
-  return crypto.createHash('sha256').update(input).digest('hex');
+  return crypto.createHash("sha256").update(input).digest("hex");
 }
 
-async function sha256File(filePath: string): Promise<{ bytes: number; sha256: string }> {
-  const hash = crypto.createHash('sha256');
+async function sha256File(
+  filePath: string,
+): Promise<{ bytes: number; sha256: string }> {
+  const hash = crypto.createHash("sha256");
   let bytes = 0;
   for await (const chunk of fs.createReadStream(filePath)) {
     const data = chunk as Buffer;
     bytes += data.byteLength;
     hash.update(data);
   }
-  return { bytes, sha256: hash.digest('hex') };
+  return { bytes, sha256: hash.digest("hex") };
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return JSON.stringify(value);
   }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('cannot canonicalize a non-finite number');
+  if (typeof value === "number") {
+    if (!Number.isFinite(value))
+      throw new Error("cannot canonicalize a non-finite number");
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (typeof value === 'object') {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (typeof value === "object") {
     const object = value as Record<string, unknown>;
     return `{${Object.keys(object)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
-      .join(',')}}`;
+      .join(",")}}`;
   }
   throw new Error(`cannot canonicalize ${typeof value}`);
 }
@@ -639,12 +697,12 @@ export interface SiblingTeacherRunFingerprintInput {
   readonly authenticated_training_binding?: Readonly<FloodgateTrainingInputBinding>;
   readonly authenticated_fresh_selection_binding?: Readonly<{
     readonly schema: typeof FRESH_SELECTION_TEACHER_INPUT_SCHEMA;
-    readonly role: 'fresh_selection';
+    readonly role: "fresh_selection";
     readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
   }>;
   readonly authenticated_fresh_final_binding?: Readonly<{
     readonly schema: typeof FRESH_FINAL_TEACHER_INPUT_SCHEMA;
-    readonly role: 'fresh_final_holdout';
+    readonly role: "fresh_final_holdout";
     readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
   }>;
   readonly source_raw_sha256: string;
@@ -675,7 +733,7 @@ export interface SiblingTeacherRunFingerprintInput {
  * provenance.
  */
 export function siblingTeacherRunFingerprint(
-  input: Readonly<SiblingTeacherRunFingerprintInput>
+  input: Readonly<SiblingTeacherRunFingerprintInput>,
 ): string {
   const authenticatedBindings = [
     input.authenticated_training_binding,
@@ -683,7 +741,9 @@ export function siblingTeacherRunFingerprint(
     input.authenticated_fresh_final_binding,
   ].filter((binding) => binding !== undefined);
   if (authenticatedBindings.length !== 1) {
-    throw new Error('sibling teacher fingerprint requires exactly one authenticated role binding');
+    throw new Error(
+      "sibling teacher fingerprint requires exactly one authenticated role binding",
+    );
   }
   return sha256(
     canonicalJson({
@@ -691,13 +751,16 @@ export function siblingTeacherRunFingerprint(
       ...(input.authenticated_training_binding === undefined
         ? input.authenticated_fresh_selection_binding === undefined
           ? {
-              authenticated_fresh_final_binding: input.authenticated_fresh_final_binding,
+              authenticated_fresh_final_binding:
+                input.authenticated_fresh_final_binding,
             }
           : {
-              authenticated_fresh_selection_binding: input.authenticated_fresh_selection_binding,
+              authenticated_fresh_selection_binding:
+                input.authenticated_fresh_selection_binding,
             }
         : {
-            authenticated_training_binding: input.authenticated_training_binding,
+            authenticated_training_binding:
+              input.authenticated_training_binding,
           }),
       ...(input.authenticated_input_policy === undefined
         ? {}
@@ -720,7 +783,8 @@ export function siblingTeacherRunFingerprint(
         ? {}
         : {
             proposal_limit: input.proposal_limit,
-            proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+            proposal_incomplete_quarantine_policy:
+              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
           }),
       ...(input.proposal_incomplete_all_legal_fallback_max_moves === undefined
         ? {}
@@ -731,9 +795,9 @@ export function siblingTeacherRunFingerprint(
               FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
           }),
       exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
-      candidate_execution_order: 'utf8-bytewise-ascending',
-      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
-      search_state_reset: 'isready',
+      candidate_execution_order: "utf8-bytewise-ascending",
+      synthesized_rank_order: "cp-descending-then-utf8-bytewise-move",
+      search_state_reset: "isready",
       runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
       ...(input.engine_environment === undefined
         ? {}
@@ -749,13 +813,14 @@ export function siblingTeacherRunFingerprint(
               input.test_only_engine_initialization_timeout_ms,
           }),
       engine_options: USI_TEACHER_ENGINE_CONTRACT,
-    })
+    }),
   );
 }
 
 interface FreshRoleSiblingTeacherRunFingerprintEvidence {
   readonly source:
-    Readonly<FloodgateFreshSelectionRawIdentity> | Readonly<FloodgateFreshFinalRawIdentity>;
+    | Readonly<FloodgateFreshSelectionRawIdentity>
+    | Readonly<FloodgateFreshFinalRawIdentity>;
   readonly sourceRows: readonly Readonly<FloodgateTrainingParent>[];
   readonly pipeline: Readonly<PipelineProvenance>;
   readonly engineBinSha256: string;
@@ -772,11 +837,11 @@ interface FreshRoleSiblingTeacherRunFingerprintEvidence {
 }
 
 function freshRoleSiblingTeacherRunFingerprintFromEvidence(
-  role: 'fresh_selection' | 'fresh_final_holdout',
-  evidence: Readonly<FreshRoleSiblingTeacherRunFingerprintEvidence>
+  role: "fresh_selection" | "fresh_final_holdout",
+  evidence: Readonly<FreshRoleSiblingTeacherRunFingerprintEvidence>,
 ): string {
   const expectedParents =
-    role === 'fresh_selection'
+    role === "fresh_selection"
       ? FRESH_SELECTION_TEACHER_PARENT_COUNT
       : FRESH_FINAL_TEACHER_PARENT_COUNT;
   if (
@@ -789,52 +854,66 @@ function freshRoleSiblingTeacherRunFingerprintFromEvidence(
   }
   const parentIds = evidence.sourceRows.map((row) => row.parent_id);
   const gameIds = new Set(evidence.sourceRows.map((row) => row.game_id));
-  const positionIds = new Set(evidence.sourceRows.map((row) => row.position_id));
+  const positionIds = new Set(
+    evidence.sourceRows.map((row) => row.position_id),
+  );
   if (
-    parentIds.some((parentId) => typeof parentId !== 'string' || parentId.length === 0) ||
+    parentIds.some(
+      (parentId) => typeof parentId !== "string" || parentId.length === 0,
+    ) ||
     new Set(parentIds).size !== parentIds.length ||
     parentIds.some(
-      (parentId, index) => index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0
+      (parentId, index) =>
+        index > 0 && compareBytewise(parentIds[index - 1], parentId) >= 0,
     ) ||
-    evidence.source.parent_ids_sha256 !== floodgateIdentifierDigest(parentIds) ||
+    evidence.source.parent_ids_sha256 !==
+      floodgateIdentifierDigest(parentIds) ||
     evidence.source.games !== gameIds.size ||
     evidence.source.game_ids_sha256 !== floodgateIdentifierDigest(gameIds) ||
     evidence.source.position_ids_count !== positionIds.size ||
-    evidence.source.position_ids_sha256 !== floodgateIdentifierDigest(positionIds)
+    evidence.source.position_ids_sha256 !==
+      floodgateIdentifierDigest(positionIds)
   ) {
     throw new Error(`${role} generation fingerprint parent IDs are invalid`);
   }
   let receiptValue: unknown;
   try {
-    receiptValue = JSON.parse(Buffer.from(evidence.engineReceiptBytes).toString('utf8'));
+    receiptValue = JSON.parse(
+      Buffer.from(evidence.engineReceiptBytes).toString("utf8"),
+    );
   } catch {
-    throw new Error(`${role} generation fingerprint engine receipt is not JSON`);
+    throw new Error(
+      `${role} generation fingerprint engine receipt is not JSON`,
+    );
   }
   const engineReceipt = validateEngineReceipt(receiptValue);
   if (
     engineReceipt.binary_sha256 !== evidence.engineBinSha256 ||
     engineReceipt.binary_bytes !== evidence.engineBinBytes
   ) {
-    throw new Error(`${role} generation fingerprint engine receipt does not bind the engine`);
+    throw new Error(
+      `${role} generation fingerprint engine receipt does not bind the engine`,
+    );
   }
   return siblingTeacherRunFingerprint({
-    ...(role === 'fresh_selection'
+    ...(role === "fresh_selection"
       ? {
           authenticated_fresh_selection_binding: {
             schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
-            role: 'fresh_selection' as const,
-            source: evidence.source as Readonly<FloodgateFreshSelectionRawIdentity>,
+            role: "fresh_selection" as const,
+            source:
+              evidence.source as Readonly<FloodgateFreshSelectionRawIdentity>,
           },
         }
       : {
           authenticated_fresh_final_binding: {
             schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-            role: 'fresh_final_holdout' as const,
+            role: "fresh_final_holdout" as const,
             source: evidence.source as Readonly<FloodgateFreshFinalRawIdentity>,
           },
         }),
     source_raw_sha256: evidence.source.sha256,
-    selected_parent_ids_sha256: sha256(parentIds.join('\n')),
+    selected_parent_ids_sha256: sha256(parentIds.join("\n")),
     pipeline: evidence.pipeline,
     engine_bin_sha256: evidence.engineBinSha256,
     engine_args: [],
@@ -859,33 +938,43 @@ function freshRoleSiblingTeacherRunFingerprintFromEvidence(
 
 export function freshSelectionSiblingTeacherRunFingerprintFromEvidence(
   evidence: Readonly<
-    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, "source"> & {
       readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
     }
-  >
+  >,
 ): string {
-  return freshRoleSiblingTeacherRunFingerprintFromEvidence('fresh_selection', evidence);
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    "fresh_selection",
+    evidence,
+  );
 }
 
 export function freshFinalSiblingTeacherRunFingerprintFromEvidence(
   evidence: Readonly<
-    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, 'source'> & {
+    Omit<FreshRoleSiblingTeacherRunFingerprintEvidence, "source"> & {
       readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
     }
-  >
+  >,
 ): string {
-  return freshRoleSiblingTeacherRunFingerprintFromEvidence('fresh_final_holdout', evidence);
+  return freshRoleSiblingTeacherRunFingerprintFromEvidence(
+    "fresh_final_holdout",
+    evidence,
+  );
 }
 
 function siblingTeacherEngineEnvironment(workerCwd: string): NodeJS.ProcessEnv {
   const privateWorkerCwd = fs.realpathSync.native(workerCwd);
   const environment = Object.freeze(
     Object.fromEntries(
-      Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(([name, value]) => [
-        name,
-        value === PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN ? privateWorkerCwd : value,
-      ])
-    )
+      Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(
+        ([name, value]) => [
+          name,
+          value === PRIVATE_WORKER_CWD_ENVIRONMENT_TOKEN
+            ? privateWorkerCwd
+            : value,
+        ],
+      ),
+    ),
   );
   // The web app augments ProcessEnv with required deployment keys. This
   // deliberately hermetic engine environment omits all of them.
@@ -899,85 +988,107 @@ function workEntryPayloadSha256(entry: WorkEntry): string {
 }
 
 function sealWorkEntry(value: Record<string, unknown>): WorkEntry {
-  const entry = { ...value, payload_sha256: '' } as WorkEntry;
+  const entry = { ...value, payload_sha256: "" } as WorkEntry;
   entry.payload_sha256 = workEntryPayloadSha256(entry);
   return entry;
 }
 
 function requiredText(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value.trim() === '')
+  if (typeof value !== "string" || value.trim() === "")
     throw new Error(`${name} must not be empty`);
   return value.trim();
 }
 
 function validateEngineReceipt(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('engine receipt must contain a JSON object');
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("engine receipt must contain a JSON object");
   }
   const receipt = value as Record<string, unknown>;
   const expectedKeys = [
-    'binary_bytes',
-    'binary_sha256',
-    'build_command',
-    'build_directory',
-    'compiler',
-    'compiler_target',
-    'engine_id',
-    'schema',
-    'source_commit',
-    'source_commit_date',
-    'source_repository',
+    "binary_bytes",
+    "binary_sha256",
+    "build_command",
+    "build_directory",
+    "compiler",
+    "compiler_target",
+    "engine_id",
+    "schema",
+    "source_commit",
+    "source_commit_date",
+    "source_repository",
   ];
   const actualKeys = Object.keys(receipt).sort();
   if (
     actualKeys.length !== expectedKeys.length ||
     expectedKeys.some((key, index) => key !== actualKeys[index])
   ) {
-    throw new Error('engine receipt must contain exactly the v1 keys');
+    throw new Error("engine receipt must contain exactly the v1 keys");
   }
   if (receipt.schema !== TEACHER_ENGINE_RECEIPT_SCHEMA) {
-    throw new Error(`engine receipt schema must be ${TEACHER_ENGINE_RECEIPT_SCHEMA}`);
+    throw new Error(
+      `engine receipt schema must be ${TEACHER_ENGINE_RECEIPT_SCHEMA}`,
+    );
   }
   for (const field of [
-    'source_repository',
-    'source_commit_date',
-    'build_directory',
-    'build_command',
-    'compiler',
-    'compiler_target',
-    'engine_id',
+    "source_repository",
+    "source_commit_date",
+    "build_directory",
+    "build_command",
+    "compiler",
+    "compiler_target",
+    "engine_id",
   ]) {
     const canonical = requiredText(receipt[field], `engine receipt ${field}`);
     if (receipt[field] !== canonical) {
-      throw new Error(`engine receipt ${field} must not have surrounding whitespace`);
+      throw new Error(
+        `engine receipt ${field} must not have surrounding whitespace`,
+      );
     }
   }
   const repository = receipt.source_repository as string;
   try {
     const url = new URL(repository);
-    if (url.protocol !== 'https:' || !url.hostname) throw new Error('not HTTPS');
+    if (url.protocol !== "https:" || !url.hostname)
+      throw new Error("not HTTPS");
   } catch {
-    throw new Error('engine receipt source_repository must be an absolute HTTPS URL');
-  }
-  if (typeof receipt.source_commit !== 'string' || !/^[0-9a-f]{40}$/.test(receipt.source_commit)) {
-    throw new Error('engine receipt source_commit must be a lowercase 40-digit Git commit');
+    throw new Error(
+      "engine receipt source_repository must be an absolute HTTPS URL",
+    );
   }
   if (
-    typeof receipt.source_commit_date !== 'string' ||
+    typeof receipt.source_commit !== "string" ||
+    !/^[0-9a-f]{40}$/.test(receipt.source_commit)
+  ) {
+    throw new Error(
+      "engine receipt source_commit must be a lowercase 40-digit Git commit",
+    );
+  }
+  if (
+    typeof receipt.source_commit_date !== "string" ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
-      receipt.source_commit_date
+      receipt.source_commit_date,
     ) ||
     !Number.isFinite(Date.parse(receipt.source_commit_date))
   ) {
     throw new Error(
-      'engine receipt source_commit_date must be an ISO-8601 timestamp with timezone'
+      "engine receipt source_commit_date must be an ISO-8601 timestamp with timezone",
     );
   }
-  if (!Number.isSafeInteger(receipt.binary_bytes) || (receipt.binary_bytes as number) <= 0) {
-    throw new Error('engine receipt binary_bytes must be a positive safe integer');
+  if (
+    !Number.isSafeInteger(receipt.binary_bytes) ||
+    (receipt.binary_bytes as number) <= 0
+  ) {
+    throw new Error(
+      "engine receipt binary_bytes must be a positive safe integer",
+    );
   }
-  if (typeof receipt.binary_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(receipt.binary_sha256)) {
-    throw new Error('engine receipt binary_sha256 must be a lowercase SHA-256 digest');
+  if (
+    typeof receipt.binary_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(receipt.binary_sha256)
+  ) {
+    throw new Error(
+      "engine receipt binary_sha256 must be a lowercase SHA-256 digest",
+    );
   }
   return {
     schema: receipt.schema,
@@ -1001,25 +1112,36 @@ function positiveInteger(value: number, name: string): number {
   return value;
 }
 
-function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): NormalizedOptions {
+function normalizeOptions(
+  options: StageSiblingTeacherCoreForTestsOptions,
+): NormalizedOptions {
   const hasNodes = options.nodes !== undefined;
   const hasDepth = options.depth !== undefined;
-  if (hasNodes === hasDepth) throw new Error('exactly one of nodes or depth must be specified');
+  if (hasNodes === hasDepth)
+    throw new Error("exactly one of nodes or depth must be specified");
   const limit: UsiSearchLimit = hasNodes
-    ? { nodes: positiveInteger(options.nodes as number, 'nodes') }
-    : { depth: positiveInteger(options.depth as number, 'depth') };
+    ? { nodes: positiveInteger(options.nodes as number, "nodes") }
+    : { depth: positiveInteger(options.depth as number, "depth") };
   const hasProposalNodes = options.proposalNodes !== undefined;
   const hasProposalDepth = options.proposalDepth !== undefined;
   if (hasProposalNodes && hasProposalDepth) {
-    throw new Error('at most one of proposalNodes or proposalDepth may be specified');
+    throw new Error(
+      "at most one of proposalNodes or proposalDepth may be specified",
+    );
   }
   const proposalLimit: UsiSearchLimit = hasProposalNodes
     ? {
-        nodes: positiveInteger(options.proposalNodes as number, 'proposalNodes'),
+        nodes: positiveInteger(
+          options.proposalNodes as number,
+          "proposalNodes",
+        ),
       }
     : hasProposalDepth
       ? {
-          depth: positiveInteger(options.proposalDepth as number, 'proposalDepth'),
+          depth: positiveInteger(
+            options.proposalDepth as number,
+            "proposalDepth",
+          ),
         }
       : limit;
   const proposalIncompleteAllLegalFallbackMaxMoves =
@@ -1027,7 +1149,7 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
       ? undefined
       : positiveInteger(
           options.proposalIncompleteAllLegalFallbackMaxMoves,
-          'proposalIncompleteAllLegalFallbackMaxMoves'
+          "proposalIncompleteAllLegalFallbackMaxMoves",
         );
   const valRatio = options.valRatio ?? 0.1;
   if (!(valRatio > 0 && valRatio < 1)) {
@@ -1036,26 +1158,28 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   const stage = siblingTeacherStagePaths(options.stageRoot);
   const normalized: NormalizedOptions = {
     stageRoot: stage.root,
-    engineBin: path.resolve(requiredText(options.engineBin, 'engineBin')),
-    runnerRevision: requiredText(options.runnerRevision, 'runnerRevision'),
+    engineBin: path.resolve(requiredText(options.engineBin, "engineBin")),
+    runnerRevision: requiredText(options.runnerRevision, "runnerRevision"),
     engineArgs: [...(options.engineArgs ?? [])],
-    engineReceipt: path.resolve(requiredText(options.engineReceipt, 'engineReceipt')),
+    engineReceipt: path.resolve(
+      requiredText(options.engineReceipt, "engineReceipt"),
+    ),
     ...(options.authenticatedInputPolicy === undefined
       ? {}
       : {
           authenticatedInputPolicy: requiredText(
             options.authenticatedInputPolicy,
-            'authenticatedInputPolicy'
+            "authenticatedInputPolicy",
           ),
         }),
-    multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
+    multipv: positiveInteger(options.multipv ?? 12, "multipv"),
     limit,
     proposalLimit,
     ...(proposalIncompleteAllLegalFallbackMaxMoves === undefined
       ? {}
       : { proposalIncompleteAllLegalFallbackMaxMoves }),
-    engines: positiveInteger(options.engines ?? 1, 'engines'),
-    seed: String(options.seed ?? '42'),
+    engines: positiveInteger(options.engines ?? 1, "engines"),
+    seed: String(options.seed ?? "42"),
     valRatio,
     outTrain: stage.train,
     outVal: stage.val,
@@ -1065,19 +1189,19 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
     work: stage.work,
     parentCompletion: stage.parentCompletion,
     stagedResult: stage.stagedResult,
-    fvScale: positiveInteger(options.fvScale ?? 20, 'fvScale'),
-    hashMb: positiveInteger(options.hashMb ?? 128, 'hashMb'),
-    timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
+    fvScale: positiveInteger(options.fvScale ?? 20, "fvScale"),
+    hashMb: positiveInteger(options.hashMb ?? 128, "hashMb"),
+    timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, "timeoutMs"),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
   if (options.testOnlyInitializationTimeoutMs !== undefined) {
     normalized.testOnlyInitializationTimeoutMs = positiveInteger(
       options.testOnlyInitializationTimeoutMs,
-      'testOnlyInitializationTimeoutMs'
+      "testOnlyInitializationTimeoutMs",
     );
   }
   if (!/^[0-9a-f]{40}$/.test(normalized.runnerRevision)) {
-    throw new Error('runnerRevision must be a lowercase 40-digit Git commit');
+    throw new Error("runnerRevision must be a lowercase 40-digit Git commit");
   }
 
   const outputPaths = [
@@ -1092,26 +1216,36 @@ function normalizeOptions(options: StageSiblingTeacherCoreForTestsOptions): Norm
   ];
   if (new Set(outputPaths).size !== outputPaths.length) {
     throw new Error(
-      'train, val, selection, final, manifest, work, parent-completion, and result output paths must all be different'
+      "train, val, selection, final, manifest, work, parent-completion, and result output paths must all be different",
     );
   }
   const inputPaths = [normalized.engineBin, normalized.engineReceipt];
   if (outputPaths.some((output) => inputPaths.includes(output))) {
-    throw new Error('stage outputs must not overwrite engineBin or engineReceipt inputs');
+    throw new Error(
+      "stage outputs must not overwrite engineBin or engineReceipt inputs",
+    );
   }
   return normalized;
 }
 
 function validateRawParent(value: unknown, line: number): RawParentOccurrence {
-  if (!value || typeof value !== 'object') throw new Error(`raw line ${line} must be an object`);
+  if (!value || typeof value !== "object")
+    throw new Error(`raw line ${line} must be an object`);
   const row = value as Partial<RawParentOccurrence>;
-  if (row.schema_version !== 1) throw new Error(`raw line ${line} has unsupported schema_version`);
+  if (row.schema_version !== 1)
+    throw new Error(`raw line ${line} has unsupported schema_version`);
   const gameId = requiredText(row.game_id, `raw line ${line} game_id`);
   const parentId = requiredText(row.parent_id, `raw line ${line} parent_id`);
-  const parentSfen = requiredText(row.parent_sfen, `raw line ${line} parent_sfen`)
+  const parentSfen = requiredText(
+    row.parent_sfen,
+    `raw line ${line} parent_sfen`,
+  )
     .split(/\s+/)
-    .join(' ');
-  const positionId = requiredText(row.position_id, `raw line ${line} position_id`);
+    .join(" ");
+  const positionId = requiredText(
+    row.position_id,
+    `raw line ${line} position_id`,
+  );
   if (positionId !== positionKeyFromSfen(parentSfen)) {
     throw new Error(`raw line ${line} position_id does not match parent_sfen`);
   }
@@ -1130,19 +1264,19 @@ function validateRawParent(value: unknown, line: number): RawParentOccurrence {
 }
 
 interface CapturedTrainingTeacherInput {
-  readonly role: 'training';
+  readonly role: "training";
   readonly binding: Readonly<FloodgateTrainingInputBinding>;
   readonly parents: readonly RawParentOccurrence[];
 }
 
 interface CapturedFreshSelectionTeacherInput {
-  readonly role: 'fresh_selection';
+  readonly role: "fresh_selection";
   readonly source: Readonly<FloodgateFreshSelectionRawIdentity>;
   readonly parents: readonly RawParentOccurrence[];
 }
 
 interface CapturedFreshFinalTeacherInput {
-  readonly role: 'fresh_final_holdout';
+  readonly role: "fresh_final_holdout";
   readonly source: Readonly<FloodgateFreshFinalRawIdentity>;
   readonly parents: readonly RawParentOccurrence[];
 }
@@ -1153,66 +1287,92 @@ type CapturedTeacherInput =
   | CapturedFreshFinalTeacherInput;
 
 function captureAuthenticatedTrainingTeacherInput(
-  input: Readonly<AuthenticatedFloodgateTrainingRows>
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
 ): Readonly<CapturedTrainingTeacherInput> {
-  if (!input || typeof input !== 'object') {
-    throw new Error('authenticated training input must be an object');
+  if (!input || typeof input !== "object") {
+    throw new Error("authenticated training input must be an object");
   }
-  if (input.schema !== FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA || input.role !== 'training') {
-    throw new Error('authenticated training input schema or role is invalid');
+  if (
+    input.schema !== FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA ||
+    input.role !== "training"
+  ) {
+    throw new Error("authenticated training input schema or role is invalid");
   }
   const source = input.binding;
-  if (!source || typeof source !== 'object') {
-    throw new Error('authenticated training input binding must be an object');
+  if (!source || typeof source !== "object") {
+    throw new Error("authenticated training input binding must be an object");
   }
   const positiveBindingInteger = (value: unknown, name: string): number => {
     if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-      throw new Error(`authenticated training binding ${name} must be a positive safe integer`);
+      throw new Error(
+        `authenticated training binding ${name} must be a positive safe integer`,
+      );
     }
     return value as number;
   };
   const digest = (value: unknown, name: string): string => {
-    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
-      throw new Error(`authenticated training binding ${name} must be a lowercase SHA-256`);
+    if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
+      throw new Error(
+        `authenticated training binding ${name} must be a lowercase SHA-256`,
+      );
     }
     return value;
   };
   const revision = (value: unknown, name: string): string => {
-    if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) {
-      throw new Error(`authenticated training binding ${name} must be a lowercase revision`);
+    if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
+      throw new Error(
+        `authenticated training binding ${name} must be a lowercase revision`,
+      );
     }
     return value;
   };
   if (source.raw_format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT) {
-    throw new Error('authenticated training binding raw_format is unsupported');
+    throw new Error("authenticated training binding raw_format is unsupported");
   }
   const binding: FloodgateTrainingInputBinding = Object.freeze({
     result_receipt_bytes: positiveBindingInteger(
       source.result_receipt_bytes,
-      'result_receipt_bytes'
+      "result_receipt_bytes",
     ),
-    result_receipt_sha256: digest(source.result_receipt_sha256, 'result_receipt_sha256'),
+    result_receipt_sha256: digest(
+      source.result_receipt_sha256,
+      "result_receipt_sha256",
+    ),
     bundle_manifest_bytes: positiveBindingInteger(
       source.bundle_manifest_bytes,
-      'bundle_manifest_bytes'
+      "bundle_manifest_bytes",
     ),
-    bundle_manifest_sha256: digest(source.bundle_manifest_sha256, 'bundle_manifest_sha256'),
-    bundle_producer_revision: revision(source.bundle_producer_revision, 'bundle_producer_revision'),
-    verifier_revision: revision(source.verifier_revision, 'verifier_revision'),
+    bundle_manifest_sha256: digest(
+      source.bundle_manifest_sha256,
+      "bundle_manifest_sha256",
+    ),
+    bundle_producer_revision: revision(
+      source.bundle_producer_revision,
+      "bundle_producer_revision",
+    ),
+    verifier_revision: revision(source.verifier_revision, "verifier_revision"),
     raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
-    raw_bytes: positiveBindingInteger(source.raw_bytes, 'raw_bytes'),
-    raw_sha256: digest(source.raw_sha256, 'raw_sha256'),
-    records: positiveBindingInteger(source.records, 'records'),
-    games: positiveBindingInteger(source.games, 'games'),
-    game_ids_sha256: digest(source.game_ids_sha256, 'game_ids_sha256'),
-    parent_ids_sha256: digest(source.parent_ids_sha256, 'parent_ids_sha256'),
-    position_ids_count: positiveBindingInteger(source.position_ids_count, 'position_ids_count'),
-    position_ids_sha256: digest(source.position_ids_sha256, 'position_ids_sha256'),
+    raw_bytes: positiveBindingInteger(source.raw_bytes, "raw_bytes"),
+    raw_sha256: digest(source.raw_sha256, "raw_sha256"),
+    records: positiveBindingInteger(source.records, "records"),
+    games: positiveBindingInteger(source.games, "games"),
+    game_ids_sha256: digest(source.game_ids_sha256, "game_ids_sha256"),
+    parent_ids_sha256: digest(source.parent_ids_sha256, "parent_ids_sha256"),
+    position_ids_count: positiveBindingInteger(
+      source.position_ids_count,
+      "position_ids_count",
+    ),
+    position_ids_sha256: digest(
+      source.position_ids_sha256,
+      "position_ids_sha256",
+    ),
   });
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
-    throw new Error('authenticated training rows must be a non-empty array');
+    throw new Error("authenticated training rows must be a non-empty array");
   }
-  const parents = input.rows.map((row, index) => validateRawParent(row, index + 1));
+  const parents = input.rows.map((row, index) =>
+    validateRawParent(row, index + 1),
+  );
   const gameIds = new Set<string>();
   const parentIds = new Set<string>();
   const positionIds = new Set<string>();
@@ -1222,11 +1382,15 @@ function captureAuthenticatedTrainingTeacherInput(
       previousParentId !== undefined &&
       compareBytewise(previousParentId, parent.parent_id) >= 0
     ) {
-      throw new Error('authenticated training rows are not in strict parent_id byte order');
+      throw new Error(
+        "authenticated training rows are not in strict parent_id byte order",
+      );
     }
     previousParentId = parent.parent_id;
     if (positionIds.has(parent.position_id)) {
-      throw new Error(`duplicate authenticated position_id: ${parent.position_id}`);
+      throw new Error(
+        `duplicate authenticated position_id: ${parent.position_id}`,
+      );
     }
     gameIds.add(parent.game_id);
     parentIds.add(parent.parent_id);
@@ -1241,63 +1405,78 @@ function captureAuthenticatedTrainingTeacherInput(
     floodgateIdentifierDigest(parentIds) !== binding.parent_ids_sha256 ||
     floodgateIdentifierDigest(positionIds) !== binding.position_ids_sha256
   ) {
-    throw new Error('authenticated training rows do not match their aggregate binding');
+    throw new Error(
+      "authenticated training rows do not match their aggregate binding",
+    );
   }
   return Object.freeze({
-    role: 'training',
+    role: "training",
     binding,
     parents: Object.freeze(parents),
   });
 }
 
 function captureAuthenticatedFreshSelectionTeacherInput(
-  input: Readonly<AuthenticatedFloodgateFreshSelectionRows>
+  input: Readonly<AuthenticatedFloodgateFreshSelectionRows>,
 ): Readonly<CapturedFreshSelectionTeacherInput> {
   if (
     !input ||
-    typeof input !== 'object' ||
+    typeof input !== "object" ||
     input.schema !== FRESH_SELECTION_TEACHER_INPUT_SCHEMA ||
-    input.role !== 'fresh_selection' ||
+    input.role !== "fresh_selection" ||
     !input.source ||
-    typeof input.source !== 'object'
+    typeof input.source !== "object"
   ) {
-    throw new Error('authenticated fresh-selection input is invalid');
+    throw new Error("authenticated fresh-selection input is invalid");
   }
   const source = input.source;
   const positiveIntegerField = (value: unknown, name: string): number => {
     if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-      throw new Error(`fresh-selection source ${name} must be a positive safe integer`);
+      throw new Error(
+        `fresh-selection source ${name} must be a positive safe integer`,
+      );
     }
     return value as number;
   };
   const digestField = (value: unknown, name: string): string => {
-    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+    if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
       throw new Error(`fresh-selection source ${name} must be a SHA-256`);
     }
     return value;
   };
   if (
-    source.path !== 'fresh-selection.raw.jsonl' ||
+    source.path !== "fresh-selection.raw.jsonl" ||
     source.format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT
   ) {
-    throw new Error('fresh-selection source path or format is invalid');
+    throw new Error("fresh-selection source path or format is invalid");
   }
   const capturedSource: FloodgateFreshSelectionRawIdentity = Object.freeze({
-    path: 'fresh-selection.raw.jsonl',
+    path: "fresh-selection.raw.jsonl",
     format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
-    bytes: positiveIntegerField(source.bytes, 'bytes'),
-    sha256: digestField(source.sha256, 'sha256'),
-    records: positiveIntegerField(source.records, 'records'),
-    games: positiveIntegerField(source.games, 'games'),
-    game_ids_sha256: digestField(source.game_ids_sha256, 'game_ids_sha256'),
-    parent_ids_sha256: digestField(source.parent_ids_sha256, 'parent_ids_sha256'),
-    position_ids_count: positiveIntegerField(source.position_ids_count, 'position_ids_count'),
-    position_ids_sha256: digestField(source.position_ids_sha256, 'position_ids_sha256'),
+    bytes: positiveIntegerField(source.bytes, "bytes"),
+    sha256: digestField(source.sha256, "sha256"),
+    records: positiveIntegerField(source.records, "records"),
+    games: positiveIntegerField(source.games, "games"),
+    game_ids_sha256: digestField(source.game_ids_sha256, "game_ids_sha256"),
+    parent_ids_sha256: digestField(
+      source.parent_ids_sha256,
+      "parent_ids_sha256",
+    ),
+    position_ids_count: positiveIntegerField(
+      source.position_ids_count,
+      "position_ids_count",
+    ),
+    position_ids_sha256: digestField(
+      source.position_ids_sha256,
+      "position_ids_sha256",
+    ),
   });
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
-    throw new Error('fresh-selection rows must be a non-empty array');
+    throw new Error("fresh-selection rows must be a non-empty array");
   }
-  const parents = input.rows.map((row, index) => validateRawParent(row, index + 1));
+  const parents = input.rows.map((row, index) =>
+    validateRawParent(row, index + 1),
+  );
   const gameIds = new Set<string>();
   const parentIds = new Set<string>();
   const positionIds = new Set<string>();
@@ -1307,11 +1486,15 @@ function captureAuthenticatedFreshSelectionTeacherInput(
       previousParentId !== undefined &&
       compareBytewise(previousParentId, parent.parent_id) >= 0
     ) {
-      throw new Error('fresh-selection rows are not in strict parent_id byte order');
+      throw new Error(
+        "fresh-selection rows are not in strict parent_id byte order",
+      );
     }
     previousParentId = parent.parent_id;
     if (positionIds.has(parent.position_id)) {
-      throw new Error(`duplicate fresh-selection position_id: ${parent.position_id}`);
+      throw new Error(
+        `duplicate fresh-selection position_id: ${parent.position_id}`,
+      );
     }
     gameIds.add(parent.game_id);
     parentIds.add(parent.parent_id);
@@ -1324,65 +1507,79 @@ function captureAuthenticatedFreshSelectionTeacherInput(
     positionIds.size !== capturedSource.position_ids_count ||
     floodgateIdentifierDigest(gameIds) !== capturedSource.game_ids_sha256 ||
     floodgateIdentifierDigest(parentIds) !== capturedSource.parent_ids_sha256 ||
-    floodgateIdentifierDigest(positionIds) !== capturedSource.position_ids_sha256
+    floodgateIdentifierDigest(positionIds) !==
+      capturedSource.position_ids_sha256
   ) {
-    throw new Error('fresh-selection rows do not match their aggregate source');
+    throw new Error("fresh-selection rows do not match their aggregate source");
   }
   return Object.freeze({
-    role: 'fresh_selection',
+    role: "fresh_selection",
     source: capturedSource,
     parents: Object.freeze(parents),
   });
 }
 
 function captureAuthenticatedFreshFinalTeacherInput(
-  input: Readonly<AuthenticatedFloodgateFreshFinalRows>
+  input: Readonly<AuthenticatedFloodgateFreshFinalRows>,
 ): Readonly<CapturedFreshFinalTeacherInput> {
   if (
     !input ||
-    typeof input !== 'object' ||
+    typeof input !== "object" ||
     input.schema !== FRESH_FINAL_TEACHER_INPUT_SCHEMA ||
-    input.role !== 'fresh_final_holdout' ||
+    input.role !== "fresh_final_holdout" ||
     !input.source ||
-    typeof input.source !== 'object'
+    typeof input.source !== "object"
   ) {
-    throw new Error('authenticated fresh-final input is invalid');
+    throw new Error("authenticated fresh-final input is invalid");
   }
   const source = input.source;
   const positiveIntegerField = (value: unknown, name: string): number => {
     if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-      throw new Error(`fresh-final source ${name} must be a positive safe integer`);
+      throw new Error(
+        `fresh-final source ${name} must be a positive safe integer`,
+      );
     }
     return value as number;
   };
   const digestField = (value: unknown, name: string): string => {
-    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+    if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
       throw new Error(`fresh-final source ${name} must be a SHA-256`);
     }
     return value;
   };
   if (
-    source.path !== 'fresh-final-holdout.raw.jsonl' ||
+    source.path !== "fresh-final-holdout.raw.jsonl" ||
     source.format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT
   ) {
-    throw new Error('fresh-final source path or format is invalid');
+    throw new Error("fresh-final source path or format is invalid");
   }
   const capturedSource: FloodgateFreshFinalRawIdentity = Object.freeze({
-    path: 'fresh-final-holdout.raw.jsonl',
+    path: "fresh-final-holdout.raw.jsonl",
     format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
-    bytes: positiveIntegerField(source.bytes, 'bytes'),
-    sha256: digestField(source.sha256, 'sha256'),
-    records: positiveIntegerField(source.records, 'records'),
-    games: positiveIntegerField(source.games, 'games'),
-    game_ids_sha256: digestField(source.game_ids_sha256, 'game_ids_sha256'),
-    parent_ids_sha256: digestField(source.parent_ids_sha256, 'parent_ids_sha256'),
-    position_ids_count: positiveIntegerField(source.position_ids_count, 'position_ids_count'),
-    position_ids_sha256: digestField(source.position_ids_sha256, 'position_ids_sha256'),
+    bytes: positiveIntegerField(source.bytes, "bytes"),
+    sha256: digestField(source.sha256, "sha256"),
+    records: positiveIntegerField(source.records, "records"),
+    games: positiveIntegerField(source.games, "games"),
+    game_ids_sha256: digestField(source.game_ids_sha256, "game_ids_sha256"),
+    parent_ids_sha256: digestField(
+      source.parent_ids_sha256,
+      "parent_ids_sha256",
+    ),
+    position_ids_count: positiveIntegerField(
+      source.position_ids_count,
+      "position_ids_count",
+    ),
+    position_ids_sha256: digestField(
+      source.position_ids_sha256,
+      "position_ids_sha256",
+    ),
   });
   if (!Array.isArray(input.rows) || input.rows.length === 0) {
-    throw new Error('fresh-final rows must be a non-empty array');
+    throw new Error("fresh-final rows must be a non-empty array");
   }
-  const parents = input.rows.map((row, index) => validateRawParent(row, index + 1));
+  const parents = input.rows.map((row, index) =>
+    validateRawParent(row, index + 1),
+  );
   const gameIds = new Set<string>();
   const parentIds = new Set<string>();
   const positionIds = new Set<string>();
@@ -1392,11 +1589,15 @@ function captureAuthenticatedFreshFinalTeacherInput(
       previousParentId !== undefined &&
       compareBytewise(previousParentId, parent.parent_id) >= 0
     ) {
-      throw new Error('fresh-final rows are not in strict parent_id byte order');
+      throw new Error(
+        "fresh-final rows are not in strict parent_id byte order",
+      );
     }
     previousParentId = parent.parent_id;
     if (positionIds.has(parent.position_id)) {
-      throw new Error(`duplicate fresh-final position_id: ${parent.position_id}`);
+      throw new Error(
+        `duplicate fresh-final position_id: ${parent.position_id}`,
+      );
     }
     gameIds.add(parent.game_id);
     parentIds.add(parent.parent_id);
@@ -1409,12 +1610,13 @@ function captureAuthenticatedFreshFinalTeacherInput(
     positionIds.size !== capturedSource.position_ids_count ||
     floodgateIdentifierDigest(gameIds) !== capturedSource.game_ids_sha256 ||
     floodgateIdentifierDigest(parentIds) !== capturedSource.parent_ids_sha256 ||
-    floodgateIdentifierDigest(positionIds) !== capturedSource.position_ids_sha256
+    floodgateIdentifierDigest(positionIds) !==
+      capturedSource.position_ids_sha256
   ) {
-    throw new Error('fresh-final rows do not match their aggregate source');
+    throw new Error("fresh-final rows do not match their aggregate source");
   }
   return Object.freeze({
-    role: 'fresh_final_holdout',
+    role: "fresh_final_holdout",
     source: capturedSource,
     parents: Object.freeze(parents),
   });
@@ -1424,22 +1626,23 @@ function captureAuthenticatedTeacherInput(
   input:
     | Readonly<AuthenticatedFloodgateTrainingRows>
     | Readonly<AuthenticatedFloodgateFreshSelectionRows>
-    | Readonly<AuthenticatedFloodgateFreshFinalRows>
+    | Readonly<AuthenticatedFloodgateFreshFinalRows>,
 ): Readonly<CapturedTeacherInput> {
-  if (input.role === 'fresh_selection') {
+  if (input.role === "fresh_selection") {
     return captureAuthenticatedFreshSelectionTeacherInput(input);
   }
-  if (input.role === 'fresh_final_holdout') {
+  if (input.role === "fresh_final_holdout") {
     return captureAuthenticatedFreshFinalTeacherInput(input);
   }
   return captureAuthenticatedTrainingTeacherInput(
-    input as Readonly<AuthenticatedFloodgateTrainingRows>
+    input as Readonly<AuthenticatedFloodgateTrainingRows>,
   );
 }
 
 async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
   const rootStat = await fs.promises.stat(root);
-  if (!rootStat.isDirectory()) throw new Error(`evalDir is not a directory: ${root}`);
+  if (!rootStat.isDirectory())
+    throw new Error(`evalDir is not a directory: ${root}`);
   const files: FileDigest[] = [];
   const visit = async (directory: string, prefix: string): Promise<void> => {
     const entries = await fs.promises.readdir(directory, {
@@ -1449,7 +1652,8 @@ async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isSymbolicLink()) throw new Error(`evalDir contains a symbolic link: ${relative}`);
+      if (entry.isSymbolicLink())
+        throw new Error(`evalDir contains a symbolic link: ${relative}`);
       if (entry.isDirectory()) await visit(absolute, relative);
       else if (entry.isFile()) {
         const digest = await sha256File(absolute);
@@ -1459,12 +1663,14 @@ async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
       }
     }
   };
-  await visit(root, '');
+  await visit(root, "");
   if (files.length === 0) throw new Error(`evalDir contains no files: ${root}`);
   return files;
 }
 
-async function collectArgumentFileDigests(args: readonly string[]): Promise<FileDigest[]> {
+async function collectArgumentFileDigests(
+  args: readonly string[],
+): Promise<FileDigest[]> {
   const files: FileDigest[] = [];
   for (const argument of args) {
     const absolute = path.resolve(argument);
@@ -1474,7 +1680,7 @@ async function collectArgumentFileDigests(args: readonly string[]): Promise<File
       const digest = await sha256File(absolute);
       files.push({ path: argument, ...digest });
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
   return files;
@@ -1491,10 +1697,14 @@ interface RuntimeSnapshot {
 async function copyVerifiedFile(
   source: string,
   destination: string,
-  expected: { bytes: number; sha256: string }
+  expected: { bytes: number; sha256: string },
 ): Promise<void> {
   await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-  await fs.promises.copyFile(source, destination, fs.constants.COPYFILE_FICLONE);
+  await fs.promises.copyFile(
+    source,
+    destination,
+    fs.constants.COPYFILE_FICLONE,
+  );
   const copied = await sha256File(destination);
   if (copied.bytes !== expected.bytes || copied.sha256 !== expected.sha256) {
     throw new Error(`runtime snapshot changed while copying ${source}`);
@@ -1507,36 +1717,46 @@ async function createRuntimeSnapshot(
   options: NormalizedOptions,
   engineDigest: { bytes: number; sha256: string },
   engineArgFiles: readonly FileDigest[],
-  evalFiles: readonly FileDigest[]
+  evalFiles: readonly FileDigest[],
 ): Promise<RuntimeSnapshot> {
-  const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'shogi-teacher-runtime-'));
+  const root = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), "shogi-teacher-runtime-"),
+  );
   try {
-    const engineBin = path.join(root, 'engine', path.basename(options.engineBin));
+    const engineBin = path.join(
+      root,
+      "engine",
+      path.basename(options.engineBin),
+    );
     await copyVerifiedFile(options.engineBin, engineBin, engineDigest);
-    const cwd = path.join(root, 'cwd');
+    const cwd = path.join(root, "cwd");
     await fs.promises.mkdir(cwd, { mode: 0o700 });
 
     const argumentDigests = new Map(
-      engineArgFiles.map((file) => [path.resolve(file.path), file] as const)
+      engineArgFiles.map((file) => [path.resolve(file.path), file] as const),
     );
     const engineArgs = [...options.engineArgs];
     for (let index = 0; index < engineArgs.length; index++) {
       const absolute = path.resolve(engineArgs[index]);
       const digest = argumentDigests.get(absolute);
       if (!digest) continue;
-      const destination = path.join(root, 'args', `${index}-${path.basename(absolute)}`);
+      const destination = path.join(
+        root,
+        "args",
+        `${index}-${path.basename(absolute)}`,
+      );
       await copyVerifiedFile(absolute, destination, digest);
       engineArgs[index] = destination;
     }
 
     let evalDir: string | undefined;
     if (options.evalDir) {
-      evalDir = path.join(root, 'eval');
+      evalDir = path.join(root, "eval");
       for (const file of evalFiles) {
         await copyVerifiedFile(
           path.join(options.evalDir, file.path),
-          path.join(evalDir, ...file.path.split('/')),
-          file
+          path.join(evalDir, ...file.path.split("/")),
+          file,
         );
       }
     }
@@ -1555,15 +1775,19 @@ async function createRuntimeSnapshot(
 
 function serializeJsonl(records: readonly SiblingRecord[]): string {
   return records.length === 0
-    ? ''
-    : `${records.map((record) => JSON.stringify(record)).join('\n')}\n`;
+    ? ""
+    : `${records.map((record) => JSON.stringify(record)).join("\n")}\n`;
 }
 
 function serializeCanonicalJsonl(records: readonly unknown[]): string {
-  return records.length === 0 ? '' : `${records.map(canonicalJson).join('\n')}\n`;
+  return records.length === 0
+    ? ""
+    : `${records.map(canonicalJson).join("\n")}\n`;
 }
 
-async function fileBinding(filePath: string): Promise<StrengthFirstFileBinding> {
+async function fileBinding(
+  filePath: string,
+): Promise<StrengthFirstFileBinding> {
   const identity = await sha256File(filePath);
   return {
     path: path.basename(filePath),
@@ -1577,18 +1801,18 @@ async function atomicWrite(filePath: string, contents: string): Promise<void> {
   await fs.promises.mkdir(directory, { recursive: true });
   const temporary = path.join(
     directory,
-    `.${path.basename(filePath)}.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`
+    `.${path.basename(filePath)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`,
   );
   let temporaryHandle: fs.promises.FileHandle | undefined;
   try {
-    temporaryHandle = await fs.promises.open(temporary, 'wx', 0o600);
-    await temporaryHandle.writeFile(contents, 'utf8');
+    temporaryHandle = await fs.promises.open(temporary, "wx", 0o600);
+    await temporaryHandle.writeFile(contents, "utf8");
     await temporaryHandle.sync();
     await temporaryHandle.close();
     temporaryHandle = undefined;
     await fs.promises.rename(temporary, filePath);
-    if (process.platform !== 'win32') {
-      const directoryHandle = await fs.promises.open(directory, 'r');
+    if (process.platform !== "win32") {
+      const directoryHandle = await fs.promises.open(directory, "r");
       try {
         await directoryHandle.sync();
       } finally {
@@ -1604,7 +1828,7 @@ async function atomicWrite(filePath: string, contents: string): Promise<void> {
 }
 
 function compareBytewise(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function canonicalSortedMoves(moves: Iterable<string>): string[] {
@@ -1612,55 +1836,133 @@ function canonicalSortedMoves(moves: Iterable<string>): string[] {
 }
 
 function candidateSetSha256(moves: readonly string[]): string {
-  return sha256(`candidate-set-v1\0${canonicalSortedMoves(moves).join('\n')}`);
+  return sha256(`candidate-set-v1\0${canonicalSortedMoves(moves).join("\n")}`);
 }
 
-function normalizedSearchLimit(limit: UsiSearchLimit): { nodes: number } | { depth: number } {
-  return limit.nodes !== undefined ? { nodes: limit.nodes } : { depth: limit.depth as number };
+function normalizedSearchLimit(limit: UsiSearchLimit): NormalizedSearchLimit {
+  if (limit.nodes !== undefined && limit.depth !== undefined) {
+    if (
+      !Number.isSafeInteger(limit.minimumCompletedDepth) ||
+      (limit.minimumCompletedDepth as number) <= 0 ||
+      (limit.minimumCompletedDepth as number) > limit.depth
+    ) {
+      throw new Error(
+        "dual depth/node search requires a valid minimumCompletedDepth",
+      );
+    }
+    return {
+      depth: limit.depth,
+      nodes: limit.nodes,
+      minimum_completed_depth: limit.minimumCompletedDepth as number,
+    };
+  }
+  return limit.nodes !== undefined
+    ? { nodes: limit.nodes }
+    : { depth: limit.depth as number };
 }
 
 function sameSearchLimit(left: UsiSearchLimit, right: UsiSearchLimit): boolean {
-  return canonicalJson(normalizedSearchLimit(left)) === canonicalJson(normalizedSearchLimit(right));
+  return (
+    canonicalJson(normalizedSearchLimit(left)) ===
+    canonicalJson(normalizedSearchLimit(right))
+  );
 }
 
-function searchMetadata(result: UsiMultiPvResult, limit: UsiSearchLimit): SearchMetadata {
+function searchMetadata(
+  result: UsiMultiPvResult,
+  limit: UsiSearchLimit,
+): SearchMetadata {
+  const normalizedLimit = normalizedSearchLimit(limit);
+  const expectsDualBound =
+    "depth" in normalizedLimit && "nodes" in normalizedLimit;
+  if (expectsDualBound !== (result.dualBound !== undefined)) {
+    throw new Error(
+      "USI result dual-bound metadata does not match its requested limit",
+    );
+  }
   return {
     requested_multipv: result.lines.length,
-    requested_limit: normalizedSearchLimit(limit),
+    requested_limit: normalizedLimit,
     depth: result.depth,
     observed_nodes: result.observedNodes,
+    ...(result.dualBound === undefined
+      ? {}
+      : {
+          dual_bound: {
+            termination_reason: result.dualBound.terminationReason,
+            requested_depth: result.dualBound.requestedDepth,
+            node_cap: result.dualBound.nodeCap,
+            minimum_completed_depth: result.dualBound.minimumCompletedDepth,
+            deepest_complete_exact_depth:
+              result.dualBound.deepestCompleteExactDepth,
+            selected_snapshot_nodes: result.dualBound.selectedSnapshotNodes,
+            maximum_observed_nodes: result.dualBound.maximumObservedNodes,
+            maximum_observed_depth: result.dualBound.maximumObservedDepth,
+            selected_snapshot_bound: result.dualBound.selectedSnapshotBound,
+            discarded_at_or_above_node_cap_updates:
+              result.dualBound.discardedAtOrAboveNodeCapUpdates,
+            observed_lowerbound_updates:
+              result.dualBound.observedLowerboundUpdates,
+            observed_upperbound_updates:
+              result.dualBound.observedUpperboundUpdates,
+            cap_witness_depth: result.dualBound.capWitnessDepth,
+            cap_witness_nodes: result.dualBound.capWitnessNodes,
+            selected_precedes_witness: result.dualBound.selectedPrecedesWitness,
+            completed_iteration_witness_depth:
+              result.dualBound.completedIterationWitnessDepth,
+          },
+        }),
     bestmove: result.bestmove,
     moves: result.lines.map((line) => line.move),
     scores: result.lines.map((line) => ({
       move: line.move,
       cp: line.cp,
       score_kind: line.scoreKind,
-      ...(line.scoreKind === 'mate'
+      ...(line.scoreKind === "mate"
         ? { mate: line.mate as number, mate_sign: line.mateSign as 1 | -1 }
         : {}),
     })),
   };
 }
 
-function compareRankedScores(left: SearchScoreMetadata, right: SearchScoreMetadata): number {
+function compareRankedScores(
+  left: SearchScoreMetadata,
+  right: SearchScoreMetadata,
+): number {
   return right.cp - left.cp || compareBytewise(left.move, right.move);
 }
 
-function sumObservedNodes(searches: readonly SearchMetadata[], label: string): number {
-  const total = searches.reduce((sum, search) => sum + search.observed_nodes, 0);
+function sumObservedNodes(
+  searches: readonly SearchMetadata[],
+  label: string,
+): number {
+  const total = searches.reduce(
+    (sum, search) => sum + search.observed_nodes,
+    0,
+  );
   if (!Number.isSafeInteger(total) || total < 0) {
-    throw new Error(`${label} total_observed_nodes exceeds the safe integer range`);
+    throw new Error(
+      `${label} total_observed_nodes exceeds the safe integer range`,
+    );
   }
   return total;
 }
 
-function validateSearchScore(value: unknown, label: string): SearchScoreMetadata {
-  if (!value || typeof value !== 'object') throw new Error(`${label} score metadata is missing`);
+function validateSearchScore(
+  value: unknown,
+  label: string,
+): SearchScoreMetadata {
+  if (!value || typeof value !== "object")
+    throw new Error(`${label} score metadata is missing`);
   const row = value as Partial<SearchScoreMetadata>;
   const move = requiredText(row.move, `${label} score move`);
-  if (!Number.isSafeInteger(row.cp)) throw new Error(`${label} score cp must be an integer`);
-  if (row.score_kind === 'mate') {
-    if (!Number.isSafeInteger(row.mate) || (row.mate_sign !== 1 && row.mate_sign !== -1)) {
+  if (!Number.isSafeInteger(row.cp))
+    throw new Error(`${label} score cp must be an integer`);
+  if (row.score_kind === "mate") {
+    if (
+      !Number.isSafeInteger(row.mate) ||
+      (row.mate_sign !== 1 && row.mate_sign !== -1)
+    ) {
       throw new Error(`${label} has incomplete mate metadata`);
     }
     if (
@@ -1672,7 +1974,7 @@ function validateSearchScore(value: unknown, label: string): SearchScoreMetadata
     if (row.cp !== mateToCp(row.mate as number, row.mate_sign)) {
       throw new Error(`${label} mate metadata does not match mapped cp`);
     }
-  } else if (row.score_kind === 'cp') {
+  } else if (row.score_kind === "cp") {
     if (Math.abs(row.cp as number) > MAX_NON_MATE_CP) {
       throw new Error(`${label} cp score enters the reserved mate band`);
     }
@@ -1686,7 +1988,7 @@ function validateSearchScore(value: unknown, label: string): SearchScoreMetadata
     move,
     cp: row.cp as number,
     score_kind: row.score_kind,
-    ...(row.score_kind === 'mate'
+    ...(row.score_kind === "mate"
       ? { mate: row.mate as number, mate_sign: row.mate_sign as 1 | -1 }
       : {}),
   };
@@ -1695,9 +1997,10 @@ function validateSearchScore(value: unknown, label: string): SearchScoreMetadata
 function validateSearchMetadata(
   value: unknown,
   label: string,
-  allowTerminalMateBeforeRequestedDepth = false
+  allowTerminalMateBeforeRequestedDepth = false,
 ): SearchMetadata {
-  if (!value || typeof value !== 'object') throw new Error(`${label} metadata is missing`);
+  if (!value || typeof value !== "object")
+    throw new Error(`${label} metadata is missing`);
   const row = value as Partial<SearchMetadata>;
   if (
     !Number.isSafeInteger(row.requested_multipv) ||
@@ -1712,13 +2015,17 @@ function validateSearchMetadata(
     throw new Error(`${label} metadata has invalid numeric fields`);
   }
   const moves = row.moves.map((move) => requiredText(move, `${label} move`));
-  if (moves.length !== row.requested_multipv || new Set(moves).size !== moves.length) {
+  if (
+    moves.length !== row.requested_multipv ||
+    new Set(moves).size !== moves.length
+  ) {
     throw new Error(`${label} metadata has inconsistent MultiPV moves`);
   }
   const bestmove = requiredText(row.bestmove, `${label} bestmove`);
-  if (bestmove !== moves[0]) throw new Error(`${label} bestmove does not match PV1`);
+  if (bestmove !== moves[0])
+    throw new Error(`${label} bestmove does not match PV1`);
   const scores = row.scores.map((score, index) =>
-    validateSearchScore(score, `${label} rank ${index + 1}`)
+    validateSearchScore(score, `${label} rank ${index + 1}`),
   );
   if (
     scores.length !== moves.length ||
@@ -1726,18 +2033,189 @@ function validateSearchMetadata(
   ) {
     throw new Error(`${label} scores do not match MultiPV moves`);
   }
-  if (!row.requested_limit || typeof row.requested_limit !== 'object') {
+  if (!row.requested_limit || typeof row.requested_limit !== "object") {
     throw new Error(`${label} requested_limit is missing`);
   }
-  const requestedLimit = row.requested_limit as UsiSearchLimit;
+  const requestedLimit = row.requested_limit as Record<string, unknown>;
   const hasNodes = requestedLimit.nodes !== undefined;
   const hasDepth = requestedLimit.depth !== undefined;
-  if (hasNodes === hasDepth) throw new Error(`${label} requested_limit must have one mode`);
-  const requestedValue = hasNodes ? requestedLimit.nodes : requestedLimit.depth;
-  if (!Number.isSafeInteger(requestedValue) || (requestedValue as number) <= 0) {
+  if (!hasNodes && !hasDepth)
+    throw new Error(`${label} requested_limit has no mode`);
+  const requestedValues = [
+    ...(hasNodes ? [requestedLimit.nodes] : []),
+    ...(hasDepth ? [requestedLimit.depth] : []),
+  ];
+  if (
+    requestedValues.some(
+      (value) => !Number.isSafeInteger(value) || (value as number) <= 0,
+    )
+  ) {
     throw new Error(`${label} requested_limit must be a positive safe integer`);
   }
-  if (hasDepth) {
+  const dualLimit = hasNodes && hasDepth;
+  const expectedLimitKeys = dualLimit
+    ? ["depth", "minimum_completed_depth", "nodes"]
+    : [hasNodes ? "nodes" : "depth"];
+  if (
+    Object.keys(requestedLimit).sort().join("\0") !==
+    expectedLimitKeys.sort().join("\0")
+  ) {
+    throw new Error(`${label} requested_limit has unexpected fields`);
+  }
+  let normalizedRequestedLimit: NormalizedSearchLimit;
+  let dualBoundMetadata: DualBoundSearchMetadata | undefined;
+  if (dualLimit) {
+    if (
+      !Number.isSafeInteger(requestedLimit.minimum_completed_depth) ||
+      (requestedLimit.minimum_completed_depth as number) <= 0 ||
+      (requestedLimit.minimum_completed_depth as number) >
+        (requestedLimit.depth as number)
+    ) {
+      throw new Error(
+        `${label} dual requested_limit has invalid minimum_completed_depth`,
+      );
+    }
+    normalizedRequestedLimit = {
+      depth: requestedLimit.depth as number,
+      nodes: requestedLimit.nodes as number,
+      minimum_completed_depth: requestedLimit.minimum_completed_depth as number,
+    };
+    if (!row.dual_bound || typeof row.dual_bound !== "object") {
+      throw new Error(`${label} dual_bound metadata is missing`);
+    }
+    const dual = row.dual_bound as Partial<DualBoundSearchMetadata>;
+    const expectedDualKeys = [
+      "cap_witness_depth",
+      "cap_witness_nodes",
+      "completed_iteration_witness_depth",
+      "deepest_complete_exact_depth",
+      "discarded_at_or_above_node_cap_updates",
+      "maximum_observed_depth",
+      "maximum_observed_nodes",
+      "minimum_completed_depth",
+      "node_cap",
+      "observed_lowerbound_updates",
+      "observed_upperbound_updates",
+      "requested_depth",
+      "selected_precedes_witness",
+      "selected_snapshot_bound",
+      "selected_snapshot_nodes",
+      "termination_reason",
+    ].sort();
+    if (
+      Object.keys(row.dual_bound as object)
+        .sort()
+        .join("\0") !== expectedDualKeys.join("\0")
+    ) {
+      throw new Error(`${label} dual_bound metadata has unexpected fields`);
+    }
+    const nonNegativeIntegers = [
+      dual.selected_snapshot_nodes,
+      dual.maximum_observed_nodes,
+      dual.discarded_at_or_above_node_cap_updates,
+      dual.observed_lowerbound_updates,
+      dual.observed_upperbound_updates,
+    ];
+    const positiveIntegers = [
+      dual.requested_depth,
+      dual.node_cap,
+      dual.minimum_completed_depth,
+      dual.deepest_complete_exact_depth,
+      dual.maximum_observed_depth,
+      dual.completed_iteration_witness_depth,
+    ];
+    if (
+      row.requested_multipv !== 1 ||
+      nonNegativeIntegers.some(
+        (value) => !Number.isSafeInteger(value) || (value as number) < 0,
+      ) ||
+      positiveIntegers.some(
+        (value) => !Number.isSafeInteger(value) || (value as number) <= 0,
+      ) ||
+      dual.requested_depth !== normalizedRequestedLimit.depth ||
+      dual.node_cap !== normalizedRequestedLimit.nodes ||
+      dual.minimum_completed_depth !==
+        normalizedRequestedLimit.minimum_completed_depth ||
+      dual.deepest_complete_exact_depth !== row.depth ||
+      dual.selected_snapshot_nodes !== row.observed_nodes ||
+      (dual.deepest_complete_exact_depth as number) <
+        normalizedRequestedLimit.minimum_completed_depth ||
+      (dual.deepest_complete_exact_depth as number) >
+        normalizedRequestedLimit.depth ||
+      (dual.selected_snapshot_nodes as number) >=
+        normalizedRequestedLimit.nodes ||
+      (dual.maximum_observed_nodes as number) <
+        (dual.selected_snapshot_nodes as number) ||
+      (dual.maximum_observed_depth as number) <
+        (dual.deepest_complete_exact_depth as number) ||
+      (dual.maximum_observed_depth as number) >
+        normalizedRequestedLimit.depth ||
+      dual.selected_snapshot_bound !== "exact" ||
+      typeof dual.selected_precedes_witness !== "boolean"
+    ) {
+      throw new Error(`${label} dual_bound metadata is inconsistent`);
+    }
+    if (dual.termination_reason === "depth") {
+      if (
+        dual.deepest_complete_exact_depth !== normalizedRequestedLimit.depth ||
+        (dual.maximum_observed_nodes as number) >=
+          normalizedRequestedLimit.nodes
+      ) {
+        throw new Error(
+          `${label} depth termination contradicts dual-bound evidence`,
+        );
+      }
+    } else if (dual.termination_reason === "node-cap") {
+      if (
+        (dual.maximum_observed_nodes as number) <
+          normalizedRequestedLimit.nodes ||
+        (dual.discarded_at_or_above_node_cap_updates as number) < 1 ||
+        !Number.isSafeInteger(dual.cap_witness_depth) ||
+        !Number.isSafeInteger(dual.cap_witness_nodes) ||
+        (dual.cap_witness_depth as number) <=
+          (dual.deepest_complete_exact_depth as number) ||
+        (dual.cap_witness_nodes as number) < normalizedRequestedLimit.nodes ||
+        (dual.maximum_observed_nodes as number) <
+          (dual.cap_witness_nodes as number) ||
+        (dual.maximum_observed_depth as number) <
+          (dual.cap_witness_depth as number) ||
+        dual.selected_precedes_witness !== true ||
+        dual.completed_iteration_witness_depth !==
+          dual.deepest_complete_exact_depth
+      ) {
+        throw new Error(`${label} node-cap termination lacks cap telemetry`);
+      }
+    } else if (dual.termination_reason === "terminal-mate") {
+      if (
+        (dual.maximum_observed_nodes as number) >=
+          normalizedRequestedLimit.nodes ||
+        scores.some((score) => score.score_kind !== "mate")
+      ) {
+        throw new Error(`${label} terminal-mate termination is inconsistent`);
+      }
+    } else {
+      throw new Error(`${label} has invalid dual-bound termination reason`);
+    }
+    if (
+      dual.termination_reason !== "node-cap" &&
+      (dual.cap_witness_depth !== null ||
+        dual.cap_witness_nodes !== null ||
+        dual.selected_precedes_witness !== false ||
+        dual.completed_iteration_witness_depth !==
+          dual.deepest_complete_exact_depth)
+    ) {
+      throw new Error(`${label} non-cap termination has cap witness metadata`);
+    }
+    dualBoundMetadata = dual as DualBoundSearchMetadata;
+  } else {
+    normalizedRequestedLimit = hasNodes
+      ? { nodes: requestedLimit.nodes as number }
+      : { depth: requestedLimit.depth as number };
+    if (row.dual_bound !== undefined) {
+      throw new Error(`${label} single-bound search has dual_bound metadata`);
+    }
+  }
+  if (hasDepth && !dualLimit) {
     if ((row.depth as number) > (requestedLimit.depth as number)) {
       throw new Error(`${label} completed beyond its requested depth`);
     }
@@ -1745,17 +2223,22 @@ function validateSearchMetadata(
       if (
         !allowTerminalMateBeforeRequestedDepth ||
         row.requested_multipv !== 1 ||
-        scores.some((score) => score.score_kind !== 'mate')
+        scores.some((score) => score.score_kind !== "mate")
       ) {
-        throw new Error(`${label} ended before requested depth without a terminal mate`);
+        throw new Error(
+          `${label} ended before requested depth without a terminal mate`,
+        );
       }
     }
   }
   return {
     requested_multipv: row.requested_multipv as number,
-    requested_limit: normalizedSearchLimit(requestedLimit),
+    requested_limit: normalizedRequestedLimit,
     depth: row.depth as number,
     observed_nodes: row.observed_nodes as number,
+    ...(dualBoundMetadata === undefined
+      ? {}
+      : { dual_bound: dualBoundMetadata }),
     bestmove,
     moves,
     scores,
@@ -1765,47 +2248,65 @@ function validateSearchMetadata(
 function validateIndependentExactSearch(
   value: unknown,
   candidates: readonly string[],
-  expectedLimit: { nodes: number } | { depth: number },
-  label: string
+  expectedLimit: NormalizedSearchLimit,
+  label: string,
 ): IndependentExactSearchMetadata {
-  if (!value || typeof value !== 'object') throw new Error(`${label} metadata is missing`);
+  if (!value || typeof value !== "object")
+    throw new Error(`${label} metadata is missing`);
   const row = value as Partial<IndependentExactSearchMetadata>;
   if (row.mode !== INDEPENDENT_EXACT_RESCORE_MODE) {
     throw new Error(`${label} mode must be ${INDEPENDENT_EXACT_RESCORE_MODE}`);
   }
-  if (!Number.isSafeInteger(row.candidate_count) || row.candidate_count !== candidates.length) {
+  if (
+    !Number.isSafeInteger(row.candidate_count) ||
+    row.candidate_count !== candidates.length
+  ) {
     throw new Error(`${label} candidate_count does not match candidate_moves`);
   }
-  if (!Array.isArray(row.moves) || !Array.isArray(row.scores) || !Array.isArray(row.searches)) {
+  if (
+    !Array.isArray(row.moves) ||
+    !Array.isArray(row.scores) ||
+    !Array.isArray(row.searches)
+  ) {
     throw new Error(`${label} is missing ranked moves, scores, or searches`);
   }
-  const moves = row.moves.map((move, index) => requiredText(move, `${label} move ${index + 1}`));
+  const moves = row.moves.map((move, index) =>
+    requiredText(move, `${label} move ${index + 1}`),
+  );
   const scores = row.scores.map((score, index) =>
-    validateSearchScore(score, `${label} ranked score ${index + 1}`)
+    validateSearchScore(score, `${label} ranked score ${index + 1}`),
   );
   if (
     moves.length !== candidates.length ||
     new Set(moves).size !== moves.length ||
     scores.length !== moves.length ||
     scores.some((score, index) => score.move !== moves[index]) ||
-    canonicalSortedMoves(moves).some((move, index) => move !== candidates[index])
+    canonicalSortedMoves(moves).some(
+      (move, index) => move !== candidates[index],
+    )
   ) {
-    throw new Error(`${label} ranked moves or scores do not match candidate_moves`);
+    throw new Error(
+      `${label} ranked moves or scores do not match candidate_moves`,
+    );
   }
   const expectedRanked = [...scores].sort(compareRankedScores);
   if (expectedRanked.some((score, index) => score.move !== moves[index])) {
-    throw new Error(`${label} rank order is not cp-descending with bytewise move tie-break`);
+    throw new Error(
+      `${label} rank order is not cp-descending with bytewise move tie-break`,
+    );
   }
   const synthesizedRank1Move = requiredText(
     row.synthesized_rank1_move,
-    `${label} synthesized_rank1_move`
+    `${label} synthesized_rank1_move`,
   );
   if (synthesizedRank1Move !== moves[0]) {
-    throw new Error(`${label} synthesized_rank1_move does not match synthesized rank 1`);
+    throw new Error(
+      `${label} synthesized_rank1_move does not match synthesized rank 1`,
+    );
   }
 
   const searches = row.searches.map((search, index) =>
-    validateSearchMetadata(search, `${label} single search ${index + 1}`, true)
+    validateSearchMetadata(search, `${label} single search ${index + 1}`, true),
   );
   if (searches.length !== candidates.length) {
     throw new Error(`${label} searches length does not match candidate_count`);
@@ -1821,17 +2322,27 @@ function validateIndependentExactSearch(
       search.moves[0] !== candidate ||
       search.scores[0].move !== candidate
     ) {
-      throw new Error(`${label} single searches are not in canonical candidate order`);
+      throw new Error(
+        `${label} single searches are not in canonical candidate order`,
+      );
     }
-    if (canonicalJson(search.requested_limit) !== canonicalJson(expectedLimit)) {
-      throw new Error(`${label} single search requested_limit differs from the proposal/run limit`);
+    if (
+      canonicalJson(search.requested_limit) !== canonicalJson(expectedLimit)
+    ) {
+      throw new Error(
+        `${label} single search requested_limit differs from the proposal/run limit`,
+      );
     }
   }
   const totalObservedNodes = sumObservedNodes(searches, label);
   if (row.total_observed_nodes !== totalObservedNodes) {
-    throw new Error(`${label} total_observed_nodes does not equal the single-search sum`);
+    throw new Error(
+      `${label} total_observed_nodes does not equal the single-search sum`,
+    );
   }
-  const scoresByMove = new Map(searches.map((search) => [search.scores[0].move, search.scores[0]]));
+  const scoresByMove = new Map(
+    searches.map((search) => [search.scores[0].move, search.scores[0]]),
+  );
   for (const score of scores) {
     const single = scoresByMove.get(score.move);
     if (
@@ -1841,7 +2352,9 @@ function validateIndependentExactSearch(
       score.mate !== single.mate ||
       score.mate_sign !== single.mate_sign
     ) {
-      throw new Error(`${label} ranked score ${score.move} disagrees with its single search`);
+      throw new Error(
+        `${label} ranked score ${score.move} disagrees with its single search`,
+      );
     }
   }
   return {
@@ -1859,16 +2372,20 @@ function legalMovesForParent(parent: RawParentOccurrence): string[] {
   const { position } = positionFromSfen(parent.parent_sfen);
   const moves = rulesCompleteLegalMoves(position).map((entry) => entry.usi);
   if (new Set(moves).size !== moves.length) {
-    throw new Error(`legal move generator returned duplicates for parent ${parent.parent_id}`);
+    throw new Error(
+      `legal move generator returned duplicates for parent ${parent.parent_id}`,
+    );
   }
   if (!moves.includes(parent.played_move)) {
-    throw new Error(`played_move ${parent.played_move} is illegal for parent ${parent.parent_id}`);
+    throw new Error(
+      `played_move ${parent.played_move} is illegal for parent ${parent.parent_id}`,
+    );
   }
   return moves;
 }
 
 class SiblingTeacherSearchTimeoutError extends Error {
-  readonly phase: 'proposal' | 'proposal-fallback' | 'independent-rescore';
+  readonly phase: "proposal" | "proposal-fallback" | "independent-rescore";
   readonly requestedMultipv: number;
   readonly requestedLimit: { nodes: number } | { depth: number };
   readonly searchmoves: readonly string[];
@@ -1876,13 +2393,13 @@ class SiblingTeacherSearchTimeoutError extends Error {
 
   constructor(
     cause: UsiSearchTimeoutError,
-    phase: 'proposal' | 'proposal-fallback' | 'independent-rescore',
+    phase: "proposal" | "proposal-fallback" | "independent-rescore",
     requestedMultipv: number,
     requestedLimit: UsiSearchLimit,
-    searchmoves: readonly string[]
+    searchmoves: readonly string[],
   ) {
     super(cause.message, { cause });
-    this.name = 'SiblingTeacherSearchTimeoutError';
+    this.name = "SiblingTeacherSearchTimeoutError";
     this.phase = phase;
     this.requestedMultipv = requestedMultipv;
     this.requestedLimit = normalizedSearchLimit(requestedLimit);
@@ -1902,16 +2419,18 @@ class SiblingTeacherProposalIncompleteError extends Error {
   constructor(
     cause: UsiFixedDepthRanksIncompleteError,
     requestedMultipv: number,
-    requestedLimit: UsiSearchLimit
+    requestedLimit: UsiSearchLimit,
   ) {
     super(cause.message, { cause });
-    this.name = 'SiblingTeacherProposalIncompleteError';
+    this.name = "SiblingTeacherProposalIncompleteError";
     if (
       requestedLimit.depth === undefined ||
       requestedLimit.depth !== cause.requiredDepth ||
       requestedMultipv !== cause.requestedRanks
     ) {
-      throw new Error('typed proposal-incomplete metadata disagrees with its request');
+      throw new Error(
+        "typed proposal-incomplete metadata disagrees with its request",
+      );
     }
     this.requestedMultipv = requestedMultipv;
     this.requestedLimit = { depth: requestedLimit.depth };
@@ -1928,34 +2447,109 @@ async function searchWithTimeoutContext(
   multipv: number,
   limit: UsiSearchLimit,
   searchmoves: readonly string[],
-  phase: 'proposal' | 'proposal-fallback' | 'independent-rescore'
+  phase: "proposal" | "proposal-fallback" | "independent-rescore",
 ): Promise<UsiMultiPvResult> {
   try {
     return await engine.search(parent.parent_sfen, multipv, limit, searchmoves);
   } catch (error) {
     if (error instanceof UsiSearchTimeoutError) {
-      throw new SiblingTeacherSearchTimeoutError(error, phase, multipv, limit, searchmoves);
+      throw new SiblingTeacherSearchTimeoutError(
+        error,
+        phase,
+        multipv,
+        limit,
+        searchmoves,
+      );
     }
-    if (phase === 'proposal' && error instanceof UsiFixedDepthRanksIncompleteError) {
+    if (
+      phase === "proposal" &&
+      error instanceof UsiFixedDepthRanksIncompleteError
+    ) {
       throw new SiblingTeacherProposalIncompleteError(error, multipv, limit);
     }
     throw error;
   }
 }
 
-/** Label one parent with a proposal search and independent single-move re-searches. */
-export async function labelSiblingParent(
+export interface PreparedSiblingParentLabel {
+  readonly parentId: string;
+  readonly initial: UsiMultiPvResult;
+  readonly initialMoves: readonly string[];
+  readonly candidateMoves: readonly string[];
+  readonly proposalLimit: UsiSearchLimit;
+  readonly proposalFallback?: AllLegalProposalFallbackMetadata;
+  readonly stableMove?: string;
+}
+
+export type SiblingTeacherNodeCapPolicy =
+  "accept-conservative-result" | "route-whole-parent";
+
+/** Routing signal that deliberately carries no score or PV from the capped search. */
+export class SiblingTeacherNodeCapRoutingError extends Error {
+  readonly phase = "independent-rescore-node-cap-route" as const;
+  readonly parentId: string;
+  readonly move: string;
+  readonly candidateIndex: number;
+  readonly candidateCount: number;
+  readonly completedSearchesDiscarded: number;
+  readonly cap: Readonly<UsiDualBoundResultMetadata>;
+
+  constructor(
+    parentId: string,
+    move: string,
+    candidateIndex: number,
+    candidateCount: number,
+    cap: Readonly<UsiDualBoundResultMetadata>,
+  ) {
+    super(
+      `node cap routed whole parent ${parentId} at candidate ${candidateIndex + 1}/${candidateCount}`,
+    );
+    this.name = "SiblingTeacherNodeCapRoutingError";
+    this.parentId = parentId;
+    this.move = move;
+    this.candidateIndex = candidateIndex;
+    this.candidateCount = candidateCount;
+    this.completedSearchesDiscarded = candidateIndex;
+    this.cap = Object.freeze({ ...cap });
+  }
+}
+
+/** Adds candidate-local accounting while remaining eligible for typed reset recovery. */
+export class SiblingTeacherRescoreResetTimeoutError extends UsiResetForParentTimeoutError {
+  readonly parentId: string;
+  readonly candidateIndex: number;
+  readonly candidateCount: number;
+  readonly completedSearchesDiscarded: number;
+
+  constructor(
+    cause: Readonly<UsiResetForParentTimeoutError>,
+    parentId: string,
+    candidateIndex: number,
+    candidateCount: number,
+  ) {
+    super(cause.timeoutMs);
+    this.name = "SiblingTeacherRescoreResetTimeoutError";
+    this.parentId = parentId;
+    this.candidateIndex = candidateIndex;
+    this.candidateCount = candidateCount;
+    this.completedSearchesDiscarded = candidateIndex;
+  }
+}
+
+/** Run proposal/candidate selection without producing any teacher target rows. */
+export async function prepareSiblingParentLabel(
   engine: UsiTeacherEngine,
   parent: RawParentOccurrence,
   multipv: number,
-  limit: UsiSearchLimit,
+  proposalLimit: UsiSearchLimit,
   legalMoves = legalMovesForParent(parent),
-  proposalLimit: UsiSearchLimit = limit,
   proposalIncompleteAllLegalFallbackMaxMoves?: number,
-  stableMove?: string
-): Promise<CompletedWorkEntry> {
+  stableMove?: string,
+): Promise<PreparedSiblingParentLabel> {
   if (legalMoves.length < 2) {
-    throw new Error(`parent ${parent.parent_id} has fewer than two legal moves`);
+    throw new Error(
+      `parent ${parent.parent_id} has fewer than two legal moves`,
+    );
   }
   // Rebuild all pinned-engine search state before the proposal so results are
   // independent of worker assignment and resume history.
@@ -1970,7 +2564,7 @@ export async function labelSiblingParent(
       initialMultiPv,
       proposalLimit,
       [],
-      'proposal'
+      "proposal",
     );
   } catch (error) {
     if (
@@ -1992,7 +2586,7 @@ export async function labelSiblingParent(
         1,
         proposalLimit,
         [move],
-        'proposal-fallback'
+        "proposal-fallback",
       );
       if (
         result.lines.length !== 1 ||
@@ -2001,7 +2595,7 @@ export async function labelSiblingParent(
         result.lines[0].move !== move
       ) {
         throw new Error(
-          `all-legal proposal fallback did not return exactly ${move} for ${parent.parent_id}`
+          `all-legal proposal fallback did not return exactly ${move} for ${parent.parent_id}`,
         );
       }
       fallbackResults.push(result);
@@ -2009,19 +2603,27 @@ export async function labelSiblingParent(
         validateSearchMetadata(
           searchMetadata(result, proposalLimit),
           `parent ${parent.parent_id} fallback proposal ${move}`,
-          true
-        )
+          true,
+        ),
       );
     }
     const rankedFallbackLines = fallbackResults
       .map((result) => result.lines[0])
-      .sort((left, right) => right.cp - left.cp || compareBytewise(left.move, right.move))
+      .sort(
+        (left, right) =>
+          right.cp - left.cp || compareBytewise(left.move, right.move),
+      )
       .map((line, index) => ({ ...line, multipv: index + 1 }));
     initial = {
-      depth: proposalLimit.depth ?? Math.min(...fallbackResults.map((result) => result.depth)),
+      depth:
+        proposalLimit.depth ??
+        Math.min(...fallbackResults.map((result) => result.depth)),
       lines: rankedFallbackLines,
       bestmove: rankedFallbackLines[0].move,
-      observedNodes: fallbackResults.reduce((sum, result) => sum + result.observedNodes, 0),
+      observedNodes: fallbackResults.reduce(
+        (sum, result) => sum + result.observedNodes,
+        0,
+      ),
     };
     proposalFallback = {
       mode: FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
@@ -2035,7 +2637,7 @@ export async function labelSiblingParent(
       },
       legal_moves: canonicalLegalMoves,
       searches: fallbackSearches,
-      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+      synthesized_rank_order: "cp-descending-then-utf8-bytewise-move",
     };
   }
   const initialMoves = initial.lines.map((line) => line.move);
@@ -2043,7 +2645,7 @@ export async function labelSiblingParent(
   for (const move of initialMoves) {
     if (!legalMoveSet.has(move)) {
       throw new Error(
-        `teacher returned illegal initial move ${move} for parent ${parent.parent_id}`
+        `teacher returned illegal initial move ${move} for parent ${parent.parent_id}`,
       );
     }
   }
@@ -2053,37 +2655,95 @@ export async function labelSiblingParent(
   const expectedAfterPlayed =
     initialMoves.length + (initialMoves.includes(parent.played_move) ? 0 : 1);
   if (candidateSet.size !== expectedAfterPlayed) {
-    throw new Error(`candidate union contains duplicate moves for parent ${parent.parent_id}`);
+    throw new Error(
+      `candidate union contains duplicate moves for parent ${parent.parent_id}`,
+    );
   }
   if (stableMove !== undefined) {
     if (!legalMoveSet.has(stableMove)) {
-      throw new Error(`stable move ${stableMove} is illegal for parent ${parent.parent_id}`);
+      throw new Error(
+        `stable move ${stableMove} is illegal for parent ${parent.parent_id}`,
+      );
     }
     candidateSet.add(stableMove);
     const expectedAfterStable =
       expectedAfterPlayed +
-      (initialMoves.includes(stableMove) || stableMove === parent.played_move ? 0 : 1);
+      (initialMoves.includes(stableMove) || stableMove === parent.played_move
+        ? 0
+        : 1);
     if (candidateSet.size !== expectedAfterStable) {
       throw new Error(
-        `stable candidate union contains duplicate moves for parent ${parent.parent_id}`
+        `stable candidate union contains duplicate moves for parent ${parent.parent_id}`,
       );
     }
   }
   const candidateMoves = canonicalSortedMoves(candidateSet);
 
+  return Object.freeze({
+    parentId: parent.parent_id,
+    initial,
+    initialMoves: Object.freeze([...initialMoves]),
+    candidateMoves: Object.freeze([...candidateMoves]),
+    proposalLimit: Object.freeze({ ...proposalLimit }),
+    ...(proposalFallback === undefined ? {} : { proposalFallback }),
+    ...(stableMove === undefined ? {} : { stableMove }),
+  });
+}
+
+/** Rescore one fixed candidate set; no partial result escapes if this throws. */
+export async function rescorePreparedSiblingParent(
+  engine: UsiTeacherEngine,
+  parent: RawParentOccurrence,
+  prepared: Readonly<PreparedSiblingParentLabel>,
+  limit: UsiSearchLimit,
+  nodeCapPolicy: SiblingTeacherNodeCapPolicy = "accept-conservative-result",
+): Promise<CompletedWorkEntry> {
+  if (prepared.parentId !== parent.parent_id) {
+    throw new Error(
+      `prepared candidate parent differs from ${parent.parent_id}`,
+    );
+  }
+  const candidateMoves = [...prepared.candidateMoves];
+  const initialMoves = [...prepared.initialMoves];
+  const stableMove = prepared.stableMove;
+
   // Every candidate gets freshly rebuilt engine search state and a one-move
   // context. Canonical order makes output independent of proposal/PV ordering.
   const searches: SearchMetadata[] = [];
-  for (const move of candidateMoves) {
-    await engine.resetForParent();
+  for (const [candidateIndex, move] of candidateMoves.entries()) {
+    try {
+      await engine.resetForParent();
+    } catch (error) {
+      if (error instanceof UsiResetForParentTimeoutError) {
+        throw new SiblingTeacherRescoreResetTimeoutError(
+          error,
+          parent.parent_id,
+          candidateIndex,
+          candidateMoves.length,
+        );
+      }
+      throw error;
+    }
     const result = await searchWithTimeoutContext(
       engine,
       parent,
       1,
       limit,
       [move],
-      'independent-rescore'
+      "independent-rescore",
     );
+    if (
+      result.dualBound?.terminationReason === "node-cap" &&
+      nodeCapPolicy === "route-whole-parent"
+    ) {
+      throw new SiblingTeacherNodeCapRoutingError(
+        parent.parent_id,
+        move,
+        candidateIndex,
+        candidateMoves.length,
+        result.dualBound,
+      );
+    }
     if (
       result.lines.length !== 1 ||
       result.bestmove !== move ||
@@ -2091,20 +2751,22 @@ export async function labelSiblingParent(
       result.lines[0].move !== move
     ) {
       throw new Error(
-        `single-move re-search did not return exactly ${move} for ${parent.parent_id}`
+        `single-move re-search did not return exactly ${move} for ${parent.parent_id}`,
       );
     }
     searches.push(
       validateSearchMetadata(
         searchMetadata(result, limit),
         `parent ${parent.parent_id} single search ${move}`,
-        true
-      )
+        true,
+      ),
     );
   }
 
   const initialSet = new Set(initialMoves);
-  const rankedScores = searches.map((search) => search.scores[0]).sort(compareRankedScores);
+  const rankedScores = searches
+    .map((search) => search.scores[0])
+    .sort(compareRankedScores);
   const records = buildSiblingGroup(
     {
       game_id: parent.game_id,
@@ -2117,16 +2779,16 @@ export async function labelSiblingParent(
       move: score.move,
       child_sfen: childSfenAfterUsi(parent.parent_sfen, score.move),
       sources: [
-        ...(score.move === parent.played_move ? ['played'] : []),
-        ...(initialSet.has(score.move) ? ['teacher'] : []),
-        ...(score.move === stableMove ? ['stable'] : []),
+        ...(score.move === parent.played_move ? ["played"] : []),
+        ...(initialSet.has(score.move) ? ["teacher"] : []),
+        ...(score.move === stableMove ? ["stable"] : []),
       ],
       teacher_parent_cp: score.cp,
       teacher_rank: index + 1,
       teacher_score_kind: score.score_kind,
       teacher_mate: score.mate,
       teacher_mate_sign: score.mate_sign,
-    }))
+    })),
   );
 
   const exactSearch: IndependentExactSearchMetadata = {
@@ -2136,22 +2798,50 @@ export async function labelSiblingParent(
     moves: rankedScores.map((score) => score.move),
     scores: rankedScores,
     searches,
-    total_observed_nodes: sumObservedNodes(searches, `parent ${parent.parent_id} exact search`),
+    total_observed_nodes: sumObservedNodes(
+      searches,
+      `parent ${parent.parent_id} exact search`,
+    ),
   };
 
   return {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
-    kind: 'parent',
-    run_fingerprint: '',
-    payload_sha256: '',
+    kind: "parent",
+    run_fingerprint: "",
+    payload_sha256: "",
     parent_id: parent.parent_id,
     candidate_set_sha256: candidateSetSha256(candidateMoves),
     candidate_moves: candidateMoves,
-    initial_search: searchMetadata(initial, proposalLimit),
-    ...(proposalFallback === undefined ? {} : { proposal_fallback: proposalFallback }),
+    initial_search: searchMetadata(prepared.initial, prepared.proposalLimit),
+    ...(prepared.proposalFallback === undefined
+      ? {}
+      : { proposal_fallback: prepared.proposalFallback }),
     exact_search: exactSearch,
     records,
   };
+}
+
+/** Label one parent with a proposal search and independent single-move re-searches. */
+export async function labelSiblingParent(
+  engine: UsiTeacherEngine,
+  parent: RawParentOccurrence,
+  multipv: number,
+  limit: UsiSearchLimit,
+  legalMoves = legalMovesForParent(parent),
+  proposalLimit: UsiSearchLimit = limit,
+  proposalIncompleteAllLegalFallbackMaxMoves?: number,
+  stableMove?: string,
+): Promise<CompletedWorkEntry> {
+  const prepared = await prepareSiblingParentLabel(
+    engine,
+    parent,
+    multipv,
+    proposalLimit,
+    legalMoves,
+    proposalIncompleteAllLegalFallbackMaxMoves,
+    stableMove,
+  );
+  return rescorePreparedSiblingParent(engine, parent, prepared, limit);
 }
 
 export function validateWorkEntry(
@@ -2164,21 +2854,26 @@ export function validateWorkEntry(
   expectedTimeoutMs: number,
   expectedProposalLimit: UsiSearchLimit = expectedLimit,
   expectedProposalIncompleteAllLegalFallbackMaxMoves?: number,
-  expectedStableMove?: string
+  expectedStableMove?: string,
 ): WorkEntry {
-  const context = typeof source === 'number' ? `work line ${source}` : source;
-  if (!value || typeof value !== 'object') throw new Error(`${context} must be an object`);
+  const context = typeof source === "number" ? `work line ${source}` : source;
+  if (!value || typeof value !== "object")
+    throw new Error(`${context} must be an object`);
   const row = value as Partial<WorkEntry>;
-  if (row.schema !== SIBLING_TEACHER_WORK_SCHEMA || row.run_fingerprint !== fingerprint) {
+  if (
+    row.schema !== SIBLING_TEACHER_WORK_SCHEMA ||
+    row.run_fingerprint !== fingerprint
+  ) {
     throw new Error(`${context} belongs to a different generator run`);
   }
   const parentId = requiredText(row.parent_id, `${context} parent_id`);
   const parent = parents.get(parentId);
-  if (!parent) throw new Error(`${context} references an unselected parent: ${parentId}`);
+  if (!parent)
+    throw new Error(`${context} references an unselected parent: ${parentId}`);
 
-  if (row.kind === 'skip') {
+  if (row.kind === "skip") {
     const actualLegalMoves = legalMovesForParent(parent).length;
-    if (row.reason === 'fewer-than-two-legal-moves') {
+    if (row.reason === "fewer-than-two-legal-moves") {
       if (
         !Number.isSafeInteger(row.legal_moves) ||
         (row.legal_moves as number) < 0 ||
@@ -2191,38 +2886,46 @@ export function validateWorkEntry(
         throw new Error(`${context} payload checksum mismatch`);
       }
       if (entry.legal_moves !== actualLegalMoves) {
-        throw new Error(`${context} skip legal_moves does not match its raw parent`);
+        throw new Error(
+          `${context} skip legal_moves does not match its raw parent`,
+        );
       }
       return entry;
     }
     if (row.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
       const entry = row as ProposalIncompleteSkippedWorkEntry;
       const incomplete = entry.incomplete;
-      const expectedInitialMultipv = Math.min(expectedMultipv, actualLegalMoves);
-      const normalizedProposalLimit = normalizedSearchLimit(expectedProposalLimit);
+      const expectedInitialMultipv = Math.min(
+        expectedMultipv,
+        actualLegalMoves,
+      );
+      const normalizedProposalLimit = normalizedSearchLimit(
+        expectedProposalLimit,
+      );
       if (
-        Object.keys(entry).sort().join('\0') !==
+        Object.keys(entry).sort().join("\0") !==
           [
-            'incomplete',
-            'kind',
-            'legal_moves',
-            'parent_id',
-            'payload_sha256',
-            'reason',
-            'run_fingerprint',
-            'schema',
+            "incomplete",
+            "kind",
+            "legal_moves",
+            "parent_id",
+            "payload_sha256",
+            "reason",
+            "run_fingerprint",
+            "schema",
           ]
             .sort()
-            .join('\0') ||
+            .join("\0") ||
         !Number.isSafeInteger(entry.legal_moves) ||
         entry.legal_moves < 2 ||
         entry.legal_moves !== actualLegalMoves ||
         !incomplete ||
-        typeof incomplete !== 'object' ||
-        incomplete.phase !== 'proposal' ||
+        typeof incomplete !== "object" ||
+        incomplete.phase !== "proposal" ||
         incomplete.requested_multipv !== expectedInitialMultipv ||
-        !('depth' in normalizedProposalLimit) ||
-        canonicalJson(incomplete.requested_limit) !== canonicalJson(normalizedProposalLimit) ||
+        !("depth" in normalizedProposalLimit) ||
+        canonicalJson(incomplete.requested_limit) !==
+          canonicalJson(normalizedProposalLimit) ||
         !Number.isSafeInteger(incomplete.final_exact_ranks) ||
         incomplete.final_exact_ranks < 0 ||
         incomplete.final_exact_ranks >= expectedInitialMultipv ||
@@ -2230,24 +2933,27 @@ export function validateWorkEntry(
         incomplete.final_cp_ranks < 0 ||
         !Number.isSafeInteger(incomplete.final_mate_ranks) ||
         incomplete.final_mate_ranks < 0 ||
-        incomplete.final_cp_ranks + incomplete.final_mate_ranks !== incomplete.final_exact_ranks ||
+        incomplete.final_cp_ranks + incomplete.final_mate_ranks !==
+          incomplete.final_exact_ranks ||
         !Number.isSafeInteger(incomplete.missing_or_non_exact_ranks) ||
         incomplete.missing_or_non_exact_ranks !==
           expectedInitialMultipv - incomplete.final_exact_ranks ||
-        Object.keys(incomplete).sort().join('\0') !==
+        Object.keys(incomplete).sort().join("\0") !==
           [
-            'final_cp_ranks',
-            'final_exact_ranks',
-            'final_mate_ranks',
-            'missing_or_non_exact_ranks',
-            'phase',
-            'requested_limit',
-            'requested_multipv',
+            "final_cp_ranks",
+            "final_exact_ranks",
+            "final_mate_ranks",
+            "missing_or_non_exact_ranks",
+            "phase",
+            "requested_limit",
+            "requested_multipv",
           ]
             .sort()
-            .join('\0')
+            .join("\0")
       ) {
-        throw new Error(`${context} has invalid proposal-incomplete skip metadata`);
+        throw new Error(
+          `${context} has invalid proposal-incomplete skip metadata`,
+        );
       }
       if (entry.payload_sha256 !== workEntryPayloadSha256(entry)) {
         throw new Error(`${context} payload checksum mismatch`);
@@ -2260,25 +2966,26 @@ export function validateWorkEntry(
     const entry = row as SearchTimeoutSkippedWorkEntry;
     const timeout = entry.timeout;
     if (
-      Object.keys(entry).sort().join('\0') !==
+      Object.keys(entry).sort().join("\0") !==
         [
-          'kind',
-          'legal_moves',
-          'parent_id',
-          'payload_sha256',
-          'reason',
-          'run_fingerprint',
-          'schema',
-          'timeout',
+          "kind",
+          "legal_moves",
+          "parent_id",
+          "payload_sha256",
+          "reason",
+          "run_fingerprint",
+          "schema",
+          "timeout",
         ]
           .sort()
-          .join('\0') ||
+          .join("\0") ||
       !Number.isSafeInteger(entry.legal_moves) ||
       entry.legal_moves < 2 ||
       entry.legal_moves !== actualLegalMoves ||
       !timeout ||
-      typeof timeout !== 'object' ||
-      (timeout.phase !== 'proposal' && timeout.phase !== 'independent-rescore') ||
+      typeof timeout !== "object" ||
+      (timeout.phase !== "proposal" &&
+        timeout.phase !== "independent-rescore") ||
       !Number.isSafeInteger(timeout.requested_multipv) ||
       timeout.requested_multipv <= 0 ||
       !Array.isArray(timeout.searchmoves) ||
@@ -2287,18 +2994,20 @@ export function validateWorkEntry(
       canonicalJson(timeout.requested_limit) !==
         canonicalJson(
           normalizedSearchLimit(
-            timeout.phase === 'proposal' ? expectedProposalLimit : expectedLimit
-          )
+            timeout.phase === "proposal"
+              ? expectedProposalLimit
+              : expectedLimit,
+          ),
         )
     ) {
       throw new Error(`${context} has invalid search-timeout skip metadata`);
     }
     const expectedInitialMultipv = Math.min(expectedMultipv, actualLegalMoves);
     if (
-      (timeout.phase === 'proposal' &&
+      (timeout.phase === "proposal" &&
         (timeout.requested_multipv !== expectedInitialMultipv ||
           timeout.searchmoves.length !== 0)) ||
-      (timeout.phase === 'independent-rescore' &&
+      (timeout.phase === "independent-rescore" &&
         (timeout.requested_multipv !== 1 ||
           timeout.searchmoves.length !== 1 ||
           !legalMovesForParent(parent).includes(timeout.searchmoves[0])))
@@ -2306,10 +3015,16 @@ export function validateWorkEntry(
       throw new Error(`${context} search-timeout context is inconsistent`);
     }
     if (
-      Object.keys(timeout).sort().join('\0') !==
-      ['phase', 'requested_limit', 'requested_multipv', 'searchmoves', 'timeout_ms']
+      Object.keys(timeout).sort().join("\0") !==
+      [
+        "phase",
+        "requested_limit",
+        "requested_multipv",
+        "searchmoves",
+        "timeout_ms",
+      ]
         .sort()
-        .join('\0')
+        .join("\0")
     ) {
       throw new Error(`${context} search-timeout metadata has extra fields`);
     }
@@ -2318,7 +3033,11 @@ export function validateWorkEntry(
     }
     return entry;
   }
-  if (row.kind !== 'parent' || !Array.isArray(row.records) || !Array.isArray(row.candidate_moves)) {
+  if (
+    row.kind !== "parent" ||
+    !Array.isArray(row.records) ||
+    !Array.isArray(row.candidate_moves)
+  ) {
     throw new Error(`${context} has an unsupported kind or missing records`);
   }
   const entry = row as CompletedWorkEntry;
@@ -2338,13 +3057,22 @@ export function validateWorkEntry(
   ) {
     throw new Error(`${context} does not match its raw parent`);
   }
-  const moves = canonicalSortedMoves(entry.records.map((record) => record.move));
-  const candidates = entry.candidate_moves.map((move) => requiredText(move, 'candidate move'));
-  const initialSearch = validateSearchMetadata(entry.initial_search, `${context} initial search`);
+  const moves = canonicalSortedMoves(
+    entry.records.map((record) => record.move),
+  );
+  const candidates = entry.candidate_moves.map((move) =>
+    requiredText(move, "candidate move"),
+  );
+  const initialSearch = validateSearchMetadata(
+    entry.initial_search,
+    `${context} initial search`,
+  );
   const legalMoves = legalMovesForParent(parent);
   const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
   const normalizedExpectedLimit = normalizedSearchLimit(expectedLimit);
-  const normalizedExpectedProposalLimit = normalizedSearchLimit(expectedProposalLimit);
+  const normalizedExpectedProposalLimit = normalizedSearchLimit(
+    expectedProposalLimit,
+  );
   const fallbackValue = entry.proposal_fallback;
   let expectedCandidates: string[];
   if (fallbackValue === undefined) {
@@ -2353,33 +3081,34 @@ export function validateWorkEntry(
         ...initialSearch.moves,
         parent.played_move,
         ...(expectedStableMove === undefined ? [] : [expectedStableMove]),
-      ])
+      ]),
     );
   } else {
     const fallback = fallbackValue as AllLegalProposalFallbackMetadata;
     const fallbackMoves = canonicalSortedMoves(legalMoves);
     if (
-      Object.keys(fallback).sort().join('\0') !==
-        ['legal_moves', 'mode', 'searches', 'synthesized_rank_order', 'trigger']
+      Object.keys(fallback).sort().join("\0") !==
+        ["legal_moves", "mode", "searches", "synthesized_rank_order", "trigger"]
           .sort()
-          .join('\0') ||
+          .join("\0") ||
       !fallback.trigger ||
-      Object.keys(fallback.trigger).sort().join('\0') !==
+      Object.keys(fallback.trigger).sort().join("\0") !==
         [
-          'final_cp_ranks',
-          'final_exact_ranks',
-          'final_mate_ranks',
-          'missing_or_non_exact_ranks',
-          'requested_limit',
-          'requested_multipv',
+          "final_cp_ranks",
+          "final_exact_ranks",
+          "final_mate_ranks",
+          "missing_or_non_exact_ranks",
+          "requested_limit",
+          "requested_multipv",
         ]
           .sort()
-          .join('\0') ||
+          .join("\0") ||
       expectedProposalIncompleteAllLegalFallbackMaxMoves === undefined ||
       legalMoves.length > expectedMultipv ||
       legalMoves.length > expectedProposalIncompleteAllLegalFallbackMaxMoves ||
       fallback.mode !== FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE ||
-      fallback.synthesized_rank_order !== 'cp-descending-then-utf8-bytewise-move' ||
+      fallback.synthesized_rank_order !==
+        "cp-descending-then-utf8-bytewise-move" ||
       canonicalJson(fallback.legal_moves) !== canonicalJson(fallbackMoves) ||
       !Array.isArray(fallback.searches) ||
       fallback.searches.length !== fallbackMoves.length ||
@@ -2400,22 +3129,31 @@ export function validateWorkEntry(
       fallback.trigger.missing_or_non_exact_ranks !==
         expectedInitialMultipv - fallback.trigger.final_exact_ranks
     ) {
-      throw new Error(`${context} has invalid all-legal proposal fallback metadata`);
+      throw new Error(
+        `${context} has invalid all-legal proposal fallback metadata`,
+      );
     }
     const fallbackSearches = fallback.searches.map((search, index) =>
-      validateSearchMetadata(search, `${context} fallback proposal ${index + 1}`, true)
+      validateSearchMetadata(
+        search,
+        `${context} fallback proposal ${index + 1}`,
+        true,
+      ),
     );
     for (let index = 0; index < fallbackSearches.length; index++) {
       const search = fallbackSearches[index];
       const move = fallbackMoves[index];
       if (
         search.requested_multipv !== 1 ||
-        canonicalJson(search.requested_limit) !== canonicalJson(normalizedExpectedProposalLimit) ||
+        canonicalJson(search.requested_limit) !==
+          canonicalJson(normalizedExpectedProposalLimit) ||
         search.moves.length !== 1 ||
         search.moves[0] !== move ||
         search.bestmove !== move
       ) {
-        throw new Error(`${context} all-legal proposal fallback search drifted`);
+        throw new Error(
+          `${context} all-legal proposal fallback search drifted`,
+        );
       }
     }
     const synthesizedScores = fallbackSearches
@@ -2423,7 +3161,9 @@ export function validateWorkEntry(
       .sort(compareRankedScores);
     if (
       initialSearch.requested_multipv !== fallbackMoves.length ||
-      initialSearch.moves.some((move, index) => move !== synthesizedScores[index]?.move) ||
+      initialSearch.moves.some(
+        (move, index) => move !== synthesizedScores[index]?.move,
+      ) ||
       initialSearch.scores.some((score, index) => {
         const expected = synthesizedScores[index];
         return (
@@ -2436,7 +3176,10 @@ export function validateWorkEntry(
         );
       }) ||
       initialSearch.observed_nodes !==
-        sumObservedNodes(fallbackSearches, `${context} all-legal proposal fallback`)
+        sumObservedNodes(
+          fallbackSearches,
+          `${context} all-legal proposal fallback`,
+        )
     ) {
       throw new Error(`${context} all-legal proposal synthesis drifted`);
     }
@@ -2444,7 +3187,8 @@ export function validateWorkEntry(
   }
   const canonicalCandidates = canonicalSortedMoves(candidates);
   if (
-    (fallbackValue === undefined && initialSearch.requested_multipv !== expectedInitialMultipv) ||
+    (fallbackValue === undefined &&
+      initialSearch.requested_multipv !== expectedInitialMultipv) ||
     canonicalJson(initialSearch.requested_limit) !==
       canonicalJson(normalizedExpectedProposalLimit) ||
     new Set(candidates).size !== candidates.length ||
@@ -2462,7 +3206,7 @@ export function validateWorkEntry(
     entry.exact_search,
     candidates,
     normalizedExpectedLimit,
-    `${context} exact search`
+    `${context} exact search`,
   );
   const rankedMoves = entry.records.map((record) => record.move);
   if (
@@ -2472,36 +3216,50 @@ export function validateWorkEntry(
   ) {
     throw new Error(`${context} records do not match synthesized exact ranks`);
   }
-  const playedRecords = entry.records.filter((record) => record.sources.includes('played'));
-  if (playedRecords.length !== 1 || playedRecords[0].move !== parent.played_move) {
+  const playedRecords = entry.records.filter((record) =>
+    record.sources.includes("played"),
+  );
+  if (
+    playedRecords.length !== 1 ||
+    playedRecords[0].move !== parent.played_move
+  ) {
     throw new Error(`${context} does not preserve exactly one played move`);
   }
   if (
     expectedStableMove !== undefined &&
     (!legalMoves.includes(expectedStableMove) ||
-      entry.records.filter((record) => record.sources.includes('stable')).length !== 1 ||
-      entry.records.find((record) => record.sources.includes('stable'))?.move !==
-        expectedStableMove)
+      entry.records.filter((record) => record.sources.includes("stable"))
+        .length !== 1 ||
+      entry.records.find((record) => record.sources.includes("stable"))
+        ?.move !== expectedStableMove)
   ) {
-    throw new Error(`${context} does not preserve exactly one legal stable move`);
+    throw new Error(
+      `${context} does not preserve exactly one legal stable move`,
+    );
   }
   const initialMoves = new Set(initialSearch.moves);
   for (let index = 0; index < entry.records.length; index++) {
     const record = entry.records[index];
     const expectedChild = childSfenAfterUsi(parent.parent_sfen, record.move);
     if (record.child_sfen !== expectedChild || record.sfen !== expectedChild) {
-      throw new Error(`${context} move ${record.move} has a non-derived child SFEN`);
+      throw new Error(
+        `${context} move ${record.move} has a non-derived child SFEN`,
+      );
     }
     const expectedSources = [
-      ...(record.move === parent.played_move ? ['played'] : []),
-      ...(initialMoves.has(record.move) ? ['teacher'] : []),
-      ...(record.move === expectedStableMove ? ['stable'] : []),
+      ...(record.move === parent.played_move ? ["played"] : []),
+      ...(initialMoves.has(record.move) ? ["teacher"] : []),
+      ...(record.move === expectedStableMove ? ["stable"] : []),
     ];
     if (
       record.sources.length !== expectedSources.length ||
-      record.sources.some((source, sourceIndex) => source !== expectedSources[sourceIndex])
+      record.sources.some(
+        (source, sourceIndex) => source !== expectedSources[sourceIndex],
+      )
     ) {
-      throw new Error(`${context} move ${record.move} has inconsistent sources`);
+      throw new Error(
+        `${context} move ${record.move} has inconsistent sources`,
+      );
     }
     const score = exactSearch.scores[index];
     if (
@@ -2511,15 +3269,22 @@ export function validateWorkEntry(
       record.teacher_mate !== score.mate ||
       record.teacher_mate_sign !== score.mate_sign
     ) {
-      throw new Error(`${context} move ${record.move} disagrees with exact score metadata`);
+      throw new Error(
+        `${context} move ${record.move} disagrees with exact score metadata`,
+      );
     }
   }
   return entry;
 }
 
-function serializeWork(header: WorkHeader, entries: Iterable<WorkEntry>): string {
-  const sorted = [...entries].sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
-  return `${[header, ...sorted].map((row) => JSON.stringify(row)).join('\n')}\n`;
+function serializeWork(
+  header: WorkHeader,
+  entries: Iterable<WorkEntry>,
+): string {
+  const sorted = [...entries].sort((a, b) =>
+    compareBytewise(a.parent_id, b.parent_id),
+  );
+  return `${[header, ...sorted].map((row) => JSON.stringify(row)).join("\n")}\n`;
 }
 
 async function loadWork(
@@ -2530,19 +3295,19 @@ async function loadWork(
   expectedLimit: UsiSearchLimit,
   expectedTimeoutMs: number,
   expectedProposalLimit: UsiSearchLimit = expectedLimit,
-  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number
+  expectedProposalIncompleteAllLegalFallbackMaxMoves?: number,
 ): Promise<Map<string, WorkEntry>> {
-  let text = '';
+  let text = "";
   try {
-    text = await fs.promises.readFile(workPath, 'utf8');
+    text = await fs.promises.readFile(workPath, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   const entries = new Map<string, WorkEntry>();
-  if (text.trim() !== '') {
-    const hadTrailingNewline = text.endsWith('\n');
-    const lines = text.split('\n');
-    if (lines.at(-1) === '') lines.pop();
+  if (text.trim() !== "") {
+    const hadTrailingNewline = text.endsWith("\n");
+    const lines = text.split("\n");
+    if (lines.at(-1) === "") lines.pop();
     let parsedHeader = false;
     for (let index = 0; index < lines.length; index++) {
       let value: unknown;
@@ -2551,7 +3316,7 @@ async function loadWork(
       } catch {
         if (!hadTrailingNewline && index === lines.length - 1) {
           process.stderr.write(
-            `Discarding incomplete trailing work checkpoint line ${index + 1}.\n`
+            `Discarding incomplete trailing work checkpoint line ${index + 1}.\n`,
           );
           break;
         }
@@ -2561,14 +3326,17 @@ async function loadWork(
         const candidate = value as Partial<WorkHeader>;
         if (
           candidate.schema !== header.schema ||
-          candidate.kind !== 'header' ||
+          candidate.kind !== "header" ||
           candidate.run_fingerprint !== header.run_fingerprint ||
           candidate.source_raw_sha256 !== header.source_raw_sha256 ||
-          candidate.selected_parent_ids_sha256 !== header.selected_parent_ids_sha256 ||
+          candidate.selected_parent_ids_sha256 !==
+            header.selected_parent_ids_sha256 ||
           candidate.label_policy !== header.label_policy ||
           canonicalJson(candidate.pipeline) !== canonicalJson(header.pipeline)
         ) {
-          throw new Error('work checkpoint header does not match this generator run');
+          throw new Error(
+            "work checkpoint header does not match this generator run",
+          );
         }
         parsedHeader = true;
         continue;
@@ -2582,42 +3350,50 @@ async function loadWork(
         expectedLimit,
         expectedTimeoutMs,
         expectedProposalLimit,
-        expectedProposalIncompleteAllLegalFallbackMaxMoves
+        expectedProposalIncompleteAllLegalFallbackMaxMoves,
       );
       if (entries.has(entry.parent_id)) {
-        throw new Error(`duplicate parent in work checkpoint: ${entry.parent_id}`);
+        throw new Error(
+          `duplicate parent in work checkpoint: ${entry.parent_id}`,
+        );
       }
       entries.set(entry.parent_id, entry);
     }
-    if (!parsedHeader) throw new Error('work checkpoint has no valid header');
+    if (!parsedHeader) throw new Error("work checkpoint has no valid header");
   }
   await atomicWrite(workPath, serializeWork(header, entries.values()));
   return entries;
 }
 
-async function appendWorkEntry(handle: fs.promises.FileHandle, entry: WorkEntry): Promise<void> {
-  await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf8');
+async function appendWorkEntry(
+  handle: fs.promises.FileHandle,
+  entry: WorkEntry,
+): Promise<void> {
+  await handle.appendFile(`${JSON.stringify(entry)}\n`, "utf8");
   await handle.datasync();
 }
 
 function firstError(error: unknown, parentId: string): Error {
   const message = error instanceof Error ? error.message : String(error);
-  return new Error(`teacher labeling failed for parent ${parentId}: ${message}`);
+  return new Error(
+    `teacher labeling failed for parent ${parentId}: ${message}`,
+  );
 }
 
 interface SiblingTeacherExecution {
   readonly targetParents: number;
   readonly finalization:
-    | 'legacy-split'
-    | 'none'
-    | 'strength-first-training-only'
-    | 'fresh-selection-only'
-    | 'fresh-final-only';
-  readonly recoverableSearchFailures: 'none' | 'timeout-and-proposal-incomplete' | 'timeout-only';
+    | "legacy-split"
+    | "none"
+    | "strength-first-training-only"
+    | "fresh-selection-only"
+    | "fresh-final-only";
+  readonly recoverableSearchFailures:
+    "none" | "timeout-and-proposal-incomplete" | "timeout-only";
 }
 
 export interface StrengthFirstCorePrefixProgress {
-  readonly status: 'local-work-prefix-complete-not-an-authentication-receipt';
+  readonly status: "local-work-prefix-complete-not-an-authentication-receipt";
   readonly authentication_receipt: false;
   readonly target_parents: number;
   readonly completed_parents: number;
@@ -2628,7 +3404,7 @@ export interface StrengthFirstCorePrefixProgress {
   readonly work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
     readonly records: number;
-    readonly binding_scope: 'canonical-target-prefix-projection';
+    readonly binding_scope: "canonical-target-prefix-projection";
   };
   readonly current_work: StrengthFirstFileBinding & {
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
@@ -2637,7 +3413,7 @@ export interface StrengthFirstCorePrefixProgress {
 }
 
 interface StrengthFirstCoreFinal {
-  readonly status: 'complete-training-only';
+  readonly status: "complete-training-only";
   readonly authentication_receipt: false;
   readonly target_parents: number;
   readonly completed_parents: number;
@@ -2647,7 +3423,7 @@ interface StrengthFirstCoreFinal {
 }
 
 export interface FreshSelectionSiblingTeacherOutcome {
-  readonly status: 'complete-fresh-selection-only';
+  readonly status: "complete-fresh-selection-only";
   readonly generation_run_fingerprint: string;
   readonly completed_parents: 4_800;
   readonly forced_parents_skipped: number;
@@ -2656,7 +3432,7 @@ export interface FreshSelectionSiblingTeacherOutcome {
     readonly search_timeout_no_label: number;
   }>;
   readonly work: Readonly<{
-    readonly path: 'work.jsonl';
+    readonly path: "work.jsonl";
     readonly bytes: number;
     readonly sha256: string;
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
@@ -2674,7 +3450,7 @@ export interface FreshSelectionSiblingTeacherOutcome {
 }
 
 export interface FreshFinalSiblingTeacherOutcome {
-  readonly status: 'complete-fresh-final-only';
+  readonly status: "complete-fresh-final-only";
   readonly generation_run_fingerprint: string;
   readonly completed_parents: 4_800;
   readonly forced_parents_skipped: number;
@@ -2683,7 +3459,7 @@ export interface FreshFinalSiblingTeacherOutcome {
     readonly search_timeout_no_label: number;
   }>;
   readonly work: Readonly<{
-    readonly path: 'work.jsonl';
+    readonly path: "work.jsonl";
     readonly bytes: number;
     readonly sha256: string;
     readonly schema: typeof SIBLING_TEACHER_WORK_SCHEMA;
@@ -2714,7 +3490,7 @@ async function runSiblingTeacherDatasetCore(
     | Readonly<AuthenticatedFloodgateFreshFinalRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
   execution: Readonly<SiblingTeacherExecution>,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<
   | SiblingTeacherManifest
   | StrengthFirstCorePrefixProgress
@@ -2724,10 +3500,11 @@ async function runSiblingTeacherDatasetCore(
 > {
   const capturedInput = captureAuthenticatedTeacherInput(input);
   const options = normalizeOptions(rawOptions);
-  const repositoryDirectory = path.resolve(__dirname, '..');
+  const repositoryDirectory = path.resolve(__dirname, "..");
   const revisionVerifier =
     dependencies.verifyRevision ??
-    ((revision: string) => verifyPipelineRevision(revision, { repositoryDirectory }));
+    ((revision: string) =>
+      verifyPipelineRevision(revision, { repositoryDirectory }));
   const outputVerifier =
     dependencies.verifyOutputPaths ??
     ((outputs: readonly string[], inputs: readonly string[]) =>
@@ -2743,44 +3520,54 @@ async function runSiblingTeacherDatasetCore(
     execution.targetParents > allParents.length
   ) {
     throw new Error(
-      `targetParents must be between 1 and the ${allParents.length} authenticated parents`
+      `targetParents must be between 1 and the ${allParents.length} authenticated parents`,
     );
   }
   if (
-    execution.finalization === 'strength-first-training-only' &&
+    execution.finalization === "strength-first-training-only" &&
     execution.targetParents !== allParents.length
   ) {
-    throw new Error('strength-first finalization requires every authenticated parent');
+    throw new Error(
+      "strength-first finalization requires every authenticated parent",
+    );
   }
   if (
-    execution.finalization === 'strength-first-training-only' &&
-    capturedInput.role !== 'training'
+    execution.finalization === "strength-first-training-only" &&
+    capturedInput.role !== "training"
   ) {
-    throw new Error('strength-first training finalization requires the training role');
+    throw new Error(
+      "strength-first training finalization requires the training role",
+    );
   }
   if (
-    execution.finalization === 'fresh-selection-only' &&
-    (capturedInput.role !== 'fresh_selection' ||
+    execution.finalization === "fresh-selection-only" &&
+    (capturedInput.role !== "fresh_selection" ||
       execution.targetParents !== allParents.length ||
       capturedInput.source.records !== FRESH_SELECTION_TEACHER_PARENT_COUNT ||
       capturedInput.source.games !== FRESH_SELECTION_TEACHER_GAME_COUNT)
   ) {
     throw new Error(
-      'fresh-selection finalization requires every authenticated fresh-selection parent'
+      "fresh-selection finalization requires every authenticated fresh-selection parent",
     );
   }
   if (
-    execution.finalization === 'fresh-final-only' &&
-    (capturedInput.role !== 'fresh_final_holdout' ||
+    execution.finalization === "fresh-final-only" &&
+    (capturedInput.role !== "fresh_final_holdout" ||
       execution.targetParents !== allParents.length ||
       capturedInput.source.records !== FRESH_FINAL_TEACHER_PARENT_COUNT ||
       capturedInput.source.games !== FRESH_FINAL_TEACHER_GAME_COUNT)
   ) {
-    throw new Error('fresh-final finalization requires every authenticated fresh-final parent');
+    throw new Error(
+      "fresh-final finalization requires every authenticated fresh-final parent",
+    );
   }
   const selected = allParents.slice(0, execution.targetParents);
-  const selectedParentIdsSha256 = sha256(allParents.map((parent) => parent.parent_id).join('\n'));
-  const parentMap = new Map(allParents.map((parent) => [parent.parent_id, parent]));
+  const selectedParentIdsSha256 = sha256(
+    allParents.map((parent) => parent.parent_id).join("\n"),
+  );
+  const parentMap = new Map(
+    allParents.map((parent) => [parent.parent_id, parent]),
+  );
 
   const engineStat = await fs.promises.stat(options.engineBin);
   if (!engineStat.isFile())
@@ -2789,18 +3576,22 @@ async function runSiblingTeacherDatasetCore(
   const receiptBytes = await fs.promises.readFile(options.engineReceipt);
   let receiptValue: unknown;
   try {
-    receiptValue = JSON.parse(receiptBytes.toString('utf8'));
+    receiptValue = JSON.parse(receiptBytes.toString("utf8"));
   } catch {
-    throw new Error(`engine receipt is not valid JSON: ${options.engineReceipt}`);
+    throw new Error(
+      `engine receipt is not valid JSON: ${options.engineReceipt}`,
+    );
   }
   const receipt = validateEngineReceipt(receiptValue);
   if (
     receipt.binary_sha256 !== engineDigest.sha256 ||
     receipt.binary_bytes !== engineDigest.bytes
   ) {
-    throw new Error('engine receipt binary hash/size does not match --engine-bin');
+    throw new Error(
+      "engine receipt binary hash/size does not match --engine-bin",
+    );
   }
-  const engineReceipt: SiblingTeacherManifest['teacher']['engine_receipt'] = {
+  const engineReceipt: SiblingTeacherManifest["teacher"]["engine_receipt"] = {
     file: {
       path: path.basename(options.engineReceipt),
       bytes: receiptBytes.byteLength,
@@ -2809,17 +3600,25 @@ async function runSiblingTeacherDatasetCore(
     content: receipt,
   };
   const engineArgFiles = await collectArgumentFileDigests(options.engineArgs);
-  const evalFiles = options.evalDir ? await collectDirectoryDigests(options.evalDir) : [];
-  if (evalFiles.some((file) => path.basename(file.path).toLowerCase() === 'eval_options.txt')) {
+  const evalFiles = options.evalDir
+    ? await collectDirectoryDigests(options.evalDir)
+    : [];
+  if (
+    evalFiles.some(
+      (file) => path.basename(file.path).toLowerCase() === "eval_options.txt",
+    )
+  ) {
     throw new Error(
-      'evalDir must not contain eval_options.txt because it can override fixed options'
+      "evalDir must not contain eval_options.txt because it can override fixed options",
     );
   }
   const evalSha256 = options.evalDir
-    ? sha256(`eval-tree-v1\0${evalFiles.map((file) => canonicalJson(file)).join('\n')}`)
+    ? sha256(
+        `eval-tree-v1\0${evalFiles.map((file) => canonicalJson(file)).join("\n")}`,
+      )
     : null;
   const sourceRawSha256 =
-    capturedInput.role === 'training'
+    capturedInput.role === "training"
       ? capturedInput.binding.raw_sha256
       : capturedInput.source.sha256;
   const protectedInputPaths = [
@@ -2831,9 +3630,9 @@ async function runSiblingTeacherDatasetCore(
       : []),
   ];
   const outputPaths =
-    execution.finalization === 'legacy-split'
+    execution.finalization === "legacy-split"
       ? [options.outTrain, options.outVal, options.manifest, options.work]
-      : execution.finalization === 'strength-first-training-only'
+      : execution.finalization === "strength-first-training-only"
         ? [
             options.work,
             options.outTrain,
@@ -2841,16 +3640,17 @@ async function runSiblingTeacherDatasetCore(
             options.manifest,
             options.stagedResult,
           ]
-        : execution.finalization === 'fresh-selection-only'
+        : execution.finalization === "fresh-selection-only"
           ? [options.work, options.outSelection]
-          : execution.finalization === 'fresh-final-only'
+          : execution.finalization === "fresh-final-only"
             ? [options.work, options.outFinal]
             : [options.work];
   await outputVerifier(outputPaths, protectedInputPaths);
   const runFingerprint =
-    execution.finalization === 'fresh-final-only'
+    execution.finalization === "fresh-final-only"
       ? freshFinalSiblingTeacherRunFingerprintFromEvidence({
-          source: capturedInput.source as Readonly<FloodgateFreshFinalRawIdentity>,
+          source:
+            capturedInput.source as Readonly<FloodgateFreshFinalRawIdentity>,
           sourceRows: allParents,
           pipeline,
           engineBinSha256: engineDigest.sha256,
@@ -2867,20 +3667,20 @@ async function runSiblingTeacherDatasetCore(
             options.proposalIncompleteAllLegalFallbackMaxMoves as number,
         })
       : siblingTeacherRunFingerprint({
-          ...(capturedInput.role === 'training'
+          ...(capturedInput.role === "training"
             ? { authenticated_training_binding: capturedInput.binding }
-            : capturedInput.role === 'fresh_selection'
+            : capturedInput.role === "fresh_selection"
               ? {
                   authenticated_fresh_selection_binding: {
                     schema: FRESH_SELECTION_TEACHER_INPUT_SCHEMA,
-                    role: 'fresh_selection' as const,
+                    role: "fresh_selection" as const,
                     source: capturedInput.source,
                   },
                 }
               : {
                   authenticated_fresh_final_binding: {
                     schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-                    role: 'fresh_final_holdout' as const,
+                    role: "fresh_final_holdout" as const,
                     source: capturedInput.source,
                   },
                 }),
@@ -2909,7 +3709,7 @@ async function runSiblingTeacherDatasetCore(
                 proposal_incomplete_all_legal_fallback_max_moves:
                   options.proposalIncompleteAllLegalFallbackMaxMoves,
               }),
-          ...(execution.finalization === 'legacy-split'
+          ...(execution.finalization === "legacy-split"
             ? {}
             : {
                 engine_environment: SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT,
@@ -2921,12 +3721,13 @@ async function runSiblingTeacherDatasetCore(
           ...(options.testOnlyInitializationTimeoutMs === undefined
             ? {}
             : {
-                test_only_engine_initialization_timeout_ms: options.testOnlyInitializationTimeoutMs,
+                test_only_engine_initialization_timeout_ms:
+                  options.testOnlyInitializationTimeoutMs,
               }),
         });
   const header: WorkHeader = {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
-    kind: 'header',
+    kind: "header",
     run_fingerprint: runFingerprint,
     source_raw_sha256: sourceRawSha256,
     selected_parent_ids_sha256: selectedParentIdsSha256,
@@ -2941,54 +3742,59 @@ async function runSiblingTeacherDatasetCore(
     options.limit,
     options.timeoutMs,
     options.proposalLimit,
-    options.proposalIncompleteAllLegalFallbackMaxMoves
+    options.proposalIncompleteAllLegalFallbackMaxMoves,
   );
   const recoverableSearchSkipLimit =
-    execution.recoverableSearchFailures === 'none'
+    execution.recoverableSearchFailures === "none"
       ? 0
       : strengthFirstTimeoutSkipLimit(selected.length);
-  const selectedParentIdSet = new Set(selected.map((parent) => parent.parent_id));
+  const selectedParentIdSet = new Set(
+    selected.map((parent) => parent.parent_id),
+  );
   let existingTimeoutSkipCount = 0;
   let existingProposalIncompleteSkipCount = 0;
   for (const entry of workEntries.values()) {
-    if (!selectedParentIdSet.has(entry.parent_id) || entry.kind !== 'skip') {
+    if (!selectedParentIdSet.has(entry.parent_id) || entry.kind !== "skip") {
       continue;
     }
     if (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON) {
       existingTimeoutSkipCount += 1;
-    } else if (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) {
+    } else if (
+      entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON
+    ) {
       existingProposalIncompleteSkipCount += 1;
     }
   }
   if (
-    (execution.recoverableSearchFailures === 'none' &&
-      (existingTimeoutSkipCount !== 0 || existingProposalIncompleteSkipCount !== 0)) ||
-    (execution.recoverableSearchFailures === 'timeout-only' &&
+    (execution.recoverableSearchFailures === "none" &&
+      (existingTimeoutSkipCount !== 0 ||
+        existingProposalIncompleteSkipCount !== 0)) ||
+    (execution.recoverableSearchFailures === "timeout-only" &&
       existingProposalIncompleteSkipCount !== 0)
   ) {
     throw new Error(
-      `work checkpoint contains a skip reason forbidden by ${execution.recoverableSearchFailures}`
+      `work checkpoint contains a skip reason forbidden by ${execution.recoverableSearchFailures}`,
     );
   }
   let recoverableSearchSkipCount =
     existingTimeoutSkipCount +
-    (execution.recoverableSearchFailures === 'timeout-and-proposal-incomplete'
+    (execution.recoverableSearchFailures === "timeout-and-proposal-incomplete"
       ? existingProposalIncompleteSkipCount
       : 0);
   if (recoverableSearchSkipCount > recoverableSearchSkipLimit) {
     throw new Error(
-      `recoverable search skip count ${recoverableSearchSkipCount} exceeds target ${selected.length} limit ${recoverableSearchSkipLimit}`
+      `recoverable search skip count ${recoverableSearchSkipCount} exceeds target ${selected.length} limit ${recoverableSearchSkipLimit}`,
     );
   }
   const runtimeSnapshot = await createRuntimeSnapshot(
     options,
     engineDigest,
     engineArgFiles,
-    evalFiles
+    evalFiles,
   );
   let workHandle: fs.promises.FileHandle;
   try {
-    workHandle = await fs.promises.open(options.work, 'a', 0o600);
+    workHandle = await fs.promises.open(options.work, "a", 0o600);
   } catch (error) {
     await fs.promises.rm(runtimeSnapshot.root, {
       recursive: true,
@@ -3002,37 +3808,39 @@ async function runSiblingTeacherDatasetCore(
     const operation = appendTail.then(async () => {
       if (checkpointFailure) throw checkpointFailure;
       if (
-        entry.kind === 'skip' &&
+        entry.kind === "skip" &&
         ((entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON &&
-          execution.recoverableSearchFailures === 'none') ||
+          execution.recoverableSearchFailures === "none") ||
           (entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON &&
-            execution.recoverableSearchFailures !== 'timeout-and-proposal-incomplete'))
+            execution.recoverableSearchFailures !==
+              "timeout-and-proposal-incomplete"))
       ) {
         checkpointFailure = new Error(
-          `skip reason ${entry.reason} is forbidden by ${execution.recoverableSearchFailures}`
+          `skip reason ${entry.reason} is forbidden by ${execution.recoverableSearchFailures}`,
         );
         throw checkpointFailure;
       }
       if (
-        entry.kind === 'skip' &&
+        entry.kind === "skip" &&
         (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
           entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON) &&
         recoverableSearchSkipCount >= recoverableSearchSkipLimit
       ) {
         checkpointFailure = new Error(
-          `recoverable search skip limit ${recoverableSearchSkipLimit} exhausted for target ${selected.length}`
+          `recoverable search skip limit ${recoverableSearchSkipLimit} exhausted for target ${selected.length}`,
         );
         throw checkpointFailure;
       }
       try {
         await appendWorkEntry(workHandle, entry);
       } catch (error) {
-        checkpointFailure = error instanceof Error ? error : new Error(String(error));
+        checkpointFailure =
+          error instanceof Error ? error : new Error(String(error));
         throw checkpointFailure;
       }
       workEntries.set(entry.parent_id, entry);
       if (
-        entry.kind === 'skip' &&
+        entry.kind === "skip" &&
         (entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON ||
           entry.reason === STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON)
       ) {
@@ -3044,7 +3852,8 @@ async function runSiblingTeacherDatasetCore(
   };
 
   let failure: Error | null = null;
-  const pending: Array<{ parent: RawParentOccurrence; legalMoves: string[] }> = [];
+  const pending: Array<{ parent: RawParentOccurrence; legalMoves: string[] }> =
+    [];
   try {
     for (const parent of selected) {
       if (workEntries.has(parent.parent_id)) continue;
@@ -3053,12 +3862,12 @@ async function runSiblingTeacherDatasetCore(
         await persist(
           sealWorkEntry({
             schema: SIBLING_TEACHER_WORK_SCHEMA,
-            kind: 'skip',
+            kind: "skip",
             run_fingerprint: runFingerprint,
             parent_id: parent.parent_id,
-            reason: 'fewer-than-two-legal-moves',
+            reason: "fewer-than-two-legal-moves",
             legal_moves: legalMoves.length,
-          })
+          }),
         );
       } else {
         pending.push({ parent, legalMoves });
@@ -3067,158 +3876,173 @@ async function runSiblingTeacherDatasetCore(
 
     let next = 0;
     const workerCount = Math.min(options.engines, pending.length);
-    const workers = Array.from({ length: workerCount }, async (_, workerIndex) => {
-      const workerCwd = path.join(runtimeSnapshot.cwd, `worker-${workerIndex}`);
-      await fs.promises.mkdir(workerCwd, { mode: 0o700 });
-      let engineGeneration = 0;
-      const startEngine = async (): Promise<UsiTeacherEngine> => {
-        const engineCwd = path.join(workerCwd, `engine-${engineGeneration}`);
-        engineGeneration += 1;
-        await fs.promises.mkdir(engineCwd, { mode: 0o700 });
-        const started = new UsiTeacherEngine({
-          engineBin: runtimeSnapshot.engineBin,
-          engineArgs: runtimeSnapshot.engineArgs,
-          evalDir: runtimeSnapshot.evalDir,
-          cwd: engineCwd,
-          ...(execution.finalization === 'legacy-split'
-            ? {}
-            : { env: siblingTeacherEngineEnvironment(engineCwd) }),
-          fvScale: options.fvScale,
-          hashMb: options.hashMb,
-          timeoutMs: options.timeoutMs,
-          ...(options.testOnlyInitializationTimeoutMs === undefined
-            ? {}
-            : {
-                testOnlyInitializationTimeoutMs: options.testOnlyInitializationTimeoutMs,
-              }),
-        });
-        try {
-          await started.init();
-          return started;
-        } catch (error) {
+    const workers = Array.from(
+      { length: workerCount },
+      async (_, workerIndex) => {
+        const workerCwd = path.join(
+          runtimeSnapshot.cwd,
+          `worker-${workerIndex}`,
+        );
+        await fs.promises.mkdir(workerCwd, { mode: 0o700 });
+        let engineGeneration = 0;
+        const startEngine = async (): Promise<UsiTeacherEngine> => {
+          const engineCwd = path.join(workerCwd, `engine-${engineGeneration}`);
+          engineGeneration += 1;
+          await fs.promises.mkdir(engineCwd, { mode: 0o700 });
+          const started = new UsiTeacherEngine({
+            engineBin: runtimeSnapshot.engineBin,
+            engineArgs: runtimeSnapshot.engineArgs,
+            evalDir: runtimeSnapshot.evalDir,
+            cwd: engineCwd,
+            ...(execution.finalization === "legacy-split"
+              ? {}
+              : { env: siblingTeacherEngineEnvironment(engineCwd) }),
+            fvScale: options.fvScale,
+            hashMb: options.hashMb,
+            timeoutMs: options.timeoutMs,
+            ...(options.testOnlyInitializationTimeoutMs === undefined
+              ? {}
+              : {
+                  testOnlyInitializationTimeoutMs:
+                    options.testOnlyInitializationTimeoutMs,
+                }),
+          });
           try {
-            await started.quit();
-          } catch {
-            // Preserve the initialization failure; cleanup is best-effort.
-          }
-          throw error;
-        }
-      };
-      let engine: UsiTeacherEngine | null = null;
-      try {
-        engine = await startEngine();
-        while (!failure) {
-          const index = next++;
-          const job = pending[index];
-          if (!job || !engine) break;
-          try {
-            const result = await labelSiblingParent(
-              engine,
-              job.parent,
-              options.multipv,
-              options.limit,
-              job.legalMoves,
-              options.proposalLimit,
-              options.proposalIncompleteAllLegalFallbackMaxMoves
-            );
-            result.run_fingerprint = runFingerprint;
-            const sealed = sealWorkEntry(result as unknown as Record<string, unknown>);
-            const validated = validateWorkEntry(
-              sealed,
-              runFingerprint,
-              parentMap,
-              `runtime parent ${job.parent.parent_id}`,
-              options.multipv,
-              options.limit,
-              options.timeoutMs,
-              options.proposalLimit,
-              options.proposalIncompleteAllLegalFallbackMaxMoves
-            );
-            await persist(validated);
+            await started.init();
+            return started;
           } catch (error) {
-            if (
-              (error instanceof SiblingTeacherSearchTimeoutError &&
-                error.phase !== 'proposal-fallback' &&
-                execution.recoverableSearchFailures !== 'none') ||
-              (error instanceof SiblingTeacherProposalIncompleteError &&
-                execution.recoverableSearchFailures === 'timeout-and-proposal-incomplete')
-            ) {
-              try {
-                await engine.quit();
-                engine = null;
-                const sealed =
-                  error instanceof SiblingTeacherSearchTimeoutError
-                    ? (() => {
-                        const searchmoves =
-                          error.phase === 'proposal'
-                            ? ([] as const)
-                            : ([
-                                requiredText(error.searchmoves[0], 'timed-out searchmove'),
-                              ] as const);
-                        return sealWorkEntry({
+            try {
+              await started.quit();
+            } catch {
+              // Preserve the initialization failure; cleanup is best-effort.
+            }
+            throw error;
+          }
+        };
+        let engine: UsiTeacherEngine | null = null;
+        try {
+          engine = await startEngine();
+          while (!failure) {
+            const index = next++;
+            const job = pending[index];
+            if (!job || !engine) break;
+            try {
+              const result = await labelSiblingParent(
+                engine,
+                job.parent,
+                options.multipv,
+                options.limit,
+                job.legalMoves,
+                options.proposalLimit,
+                options.proposalIncompleteAllLegalFallbackMaxMoves,
+              );
+              result.run_fingerprint = runFingerprint;
+              const sealed = sealWorkEntry(
+                result as unknown as Record<string, unknown>,
+              );
+              const validated = validateWorkEntry(
+                sealed,
+                runFingerprint,
+                parentMap,
+                `runtime parent ${job.parent.parent_id}`,
+                options.multipv,
+                options.limit,
+                options.timeoutMs,
+                options.proposalLimit,
+                options.proposalIncompleteAllLegalFallbackMaxMoves,
+              );
+              await persist(validated);
+            } catch (error) {
+              if (
+                (error instanceof SiblingTeacherSearchTimeoutError &&
+                  error.phase !== "proposal-fallback" &&
+                  execution.recoverableSearchFailures !== "none") ||
+                (error instanceof SiblingTeacherProposalIncompleteError &&
+                  execution.recoverableSearchFailures ===
+                    "timeout-and-proposal-incomplete")
+              ) {
+                try {
+                  await engine.quit();
+                  engine = null;
+                  const sealed =
+                    error instanceof SiblingTeacherSearchTimeoutError
+                      ? (() => {
+                          const searchmoves =
+                            error.phase === "proposal"
+                              ? ([] as const)
+                              : ([
+                                  requiredText(
+                                    error.searchmoves[0],
+                                    "timed-out searchmove",
+                                  ),
+                                ] as const);
+                          return sealWorkEntry({
+                            schema: SIBLING_TEACHER_WORK_SCHEMA,
+                            kind: "skip",
+                            run_fingerprint: runFingerprint,
+                            parent_id: job.parent.parent_id,
+                            reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+                            legal_moves: job.legalMoves.length,
+                            timeout: {
+                              phase: error.phase,
+                              requested_multipv: error.requestedMultipv,
+                              requested_limit: error.requestedLimit,
+                              searchmoves,
+                              timeout_ms: error.timeoutMs,
+                            },
+                          });
+                        })()
+                      : sealWorkEntry({
                           schema: SIBLING_TEACHER_WORK_SCHEMA,
-                          kind: 'skip',
+                          kind: "skip",
                           run_fingerprint: runFingerprint,
                           parent_id: job.parent.parent_id,
-                          reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+                          reason:
+                            STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
                           legal_moves: job.legalMoves.length,
-                          timeout: {
-                            phase: error.phase,
+                          incomplete: {
+                            phase: "proposal",
                             requested_multipv: error.requestedMultipv,
                             requested_limit: error.requestedLimit,
-                            searchmoves,
-                            timeout_ms: error.timeoutMs,
+                            final_exact_ranks: error.finalExactRanks,
+                            final_cp_ranks: error.finalCpRanks,
+                            final_mate_ranks: error.finalMateRanks,
+                            missing_or_non_exact_ranks:
+                              error.missingOrNonExactRanks,
                           },
                         });
-                      })()
-                    : sealWorkEntry({
-                        schema: SIBLING_TEACHER_WORK_SCHEMA,
-                        kind: 'skip',
-                        run_fingerprint: runFingerprint,
-                        parent_id: job.parent.parent_id,
-                        reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
-                        legal_moves: job.legalMoves.length,
-                        incomplete: {
-                          phase: 'proposal',
-                          requested_multipv: error.requestedMultipv,
-                          requested_limit: error.requestedLimit,
-                          final_exact_ranks: error.finalExactRanks,
-                          final_cp_ranks: error.finalCpRanks,
-                          final_mate_ranks: error.finalMateRanks,
-                          missing_or_non_exact_ranks: error.missingOrNonExactRanks,
-                        },
-                      });
-                const validated = validateWorkEntry(
-                  sealed,
-                  runFingerprint,
-                  parentMap,
-                  `runtime recoverable search quarantine ${job.parent.parent_id}`,
-                  options.multipv,
-                  options.limit,
-                  options.timeoutMs,
-                  options.proposalLimit,
-                  options.proposalIncompleteAllLegalFallbackMaxMoves
-                );
-                await persist(validated);
-                if (!failure && next < pending.length) {
-                  engine = await startEngine();
+                  const validated = validateWorkEntry(
+                    sealed,
+                    runFingerprint,
+                    parentMap,
+                    `runtime recoverable search quarantine ${job.parent.parent_id}`,
+                    options.multipv,
+                    options.limit,
+                    options.timeoutMs,
+                    options.proposalLimit,
+                    options.proposalIncompleteAllLegalFallbackMaxMoves,
+                  );
+                  await persist(validated);
+                  if (!failure && next < pending.length) {
+                    engine = await startEngine();
+                  }
+                } catch (recoveryError) {
+                  failure ??= firstError(recoveryError, job.parent.parent_id);
                 }
-              } catch (recoveryError) {
-                failure ??= firstError(recoveryError, job.parent.parent_id);
+              } else {
+                failure ??= firstError(error, job.parent.parent_id);
               }
-            } else {
-              failure ??= firstError(error, job.parent.parent_id);
             }
           }
+        } catch (error) {
+          failure ??= new Error(
+            `USI worker initialization failed: ${error instanceof Error ? error.message : error}`,
+          );
+        } finally {
+          await engine?.quit();
         }
-      } catch (error) {
-        failure ??= new Error(
-          `USI worker initialization failed: ${error instanceof Error ? error.message : error}`
-        );
-      } finally {
-        await engine?.quit();
-      }
-    });
+      },
+    );
     await Promise.all(workers);
     await appendTail;
   } finally {
@@ -3237,24 +4061,29 @@ async function runSiblingTeacherDatasetCore(
   const canonicalWork = serializeWork(header, workEntries.values());
   await atomicWrite(options.work, canonicalWork);
   const completed = [...workEntries.values()]
-    .filter((entry): entry is CompletedWorkEntry => entry.kind === 'parent')
+    .filter((entry): entry is CompletedWorkEntry => entry.kind === "parent")
     .sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
-  const skipped = [...workEntries.values()].filter((entry) => entry.kind === 'skip');
-  const missingTargetParent = selected.find((parent) => !workEntries.has(parent.parent_id));
+  const skipped = [...workEntries.values()].filter(
+    (entry) => entry.kind === "skip",
+  );
+  const missingTargetParent = selected.find(
+    (parent) => !workEntries.has(parent.parent_id),
+  );
   if (missingTargetParent !== undefined) {
     throw new Error(
-      `work checkpoint is incomplete for target ${selected.length}: ${missingTargetParent.parent_id}`
+      `work checkpoint is incomplete for target ${selected.length}: ${missingTargetParent.parent_id}`,
     );
   }
-  if (execution.finalization === 'none') {
+  if (execution.finalization === "none") {
     const finalPipeline = await revisionVerifier(options.runnerRevision);
     if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
-      throw new Error('pipeline provenance changed during teacher generation');
+      throw new Error("pipeline provenance changed during teacher generation");
     }
     await outputVerifier(outputPaths, protectedInputPaths);
     const targetEntries = selected.map((parent) => {
       const entry = workEntries.get(parent.parent_id);
-      if (!entry) throw new Error(`missing target prefix entry for ${parent.parent_id}`);
+      if (!entry)
+        throw new Error(`missing target prefix entry for ${parent.parent_id}`);
       return entry;
     });
     const prefixForcedSkipReasons = forcedSkipReasonCounts(targetEntries);
@@ -3265,7 +4094,7 @@ async function runSiblingTeacherDatasetCore(
     const canonicalTargetWork = serializeWork(header, targetEntries);
     const currentWork = await fileBinding(options.work);
     return {
-      status: 'local-work-prefix-complete-not-an-authentication-receipt',
+      status: "local-work-prefix-complete-not-an-authentication-receipt",
       authentication_receipt: false,
       target_parents: selected.length,
       completed_parents: selected.length,
@@ -3279,7 +4108,7 @@ async function runSiblingTeacherDatasetCore(
         sha256: sha256(canonicalTargetWork),
         schema: SIBLING_TEACHER_WORK_SCHEMA,
         records: selected.length + 1,
-        binding_scope: 'canonical-target-prefix-projection',
+        binding_scope: "canonical-target-prefix-projection",
       },
       current_work: {
         ...currentWork,
@@ -3291,61 +4120,74 @@ async function runSiblingTeacherDatasetCore(
   const records = completed.flatMap((entry) => entry.records);
   validateParentGroups(records);
   if (
-    execution.finalization === 'fresh-selection-only' ||
-    execution.finalization === 'fresh-final-only'
+    execution.finalization === "fresh-selection-only" ||
+    execution.finalization === "fresh-final-only"
   ) {
     const freshRole =
-      execution.finalization === 'fresh-selection-only' ? 'fresh-selection' : 'fresh-final';
+      execution.finalization === "fresh-selection-only"
+        ? "fresh-selection"
+        : "fresh-final";
     const skipReasons = forcedSkipReasonCounts(workEntries.values());
     const forcedParentsSkipped = skipped.length;
     const forcedParentIds = skipped.map((entry) => entry.parent_id);
     const fewerThanTwoLegalMoveParentIds = skipped
-      .filter((entry) => entry.reason === 'fewer-than-two-legal-moves')
+      .filter((entry) => entry.reason === "fewer-than-two-legal-moves")
       .map((entry) => entry.parent_id);
     const searchTimeoutParentIds = skipped
       .filter((entry) => entry.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)
       .map((entry) => entry.parent_id);
     const emittedParentIds = completed.map((entry) => entry.parent_id);
     const work = {
-      path: 'work.jsonl' as const,
+      path: "work.jsonl" as const,
       bytes: Buffer.byteLength(canonicalWork),
       sha256: sha256(canonicalWork),
       schema: SIBLING_TEACHER_WORK_SCHEMA,
       records: 4_801 as const,
     };
     const parentAccounting = {
-      parent_ids_sha256: floodgateIdentifierDigest(selected.map((parent) => parent.parent_id)),
+      parent_ids_sha256: floodgateIdentifierDigest(
+        selected.map((parent) => parent.parent_id),
+      ),
       forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
       emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
       fewer_than_two_legal_moves_parent_ids_sha256: floodgateIdentifierDigest(
-        fewerThanTwoLegalMoveParentIds
+        fewerThanTwoLegalMoveParentIds,
       ),
-      search_timeout_parent_ids_sha256: floodgateIdentifierDigest(searchTimeoutParentIds),
+      search_timeout_parent_ids_sha256: floodgateIdentifierDigest(
+        searchTimeoutParentIds,
+      ),
     };
     if (
       (skipReasons.proposal_incomplete_no_label ?? 0) !== 0 ||
       skipReasons.search_timeout_no_label > recoverableSearchSkipLimit ||
-      skipReasons.fewer_than_two_legal_moves + skipReasons.search_timeout_no_label !==
+      skipReasons.fewer_than_two_legal_moves +
+        skipReasons.search_timeout_no_label !==
         forcedParentsSkipped ||
       completed.length + forcedParentsSkipped !== selected.length ||
       records.length < 2 * completed.length ||
       completed.length < 1
     ) {
-      throw new Error(`${freshRole} completion has invalid forced-skip accounting`);
+      throw new Error(
+        `${freshRole} completion has invalid forced-skip accounting`,
+      );
     }
     const datasetJsonl = serializeCanonicalJsonl(records);
     const finalPipeline = await revisionVerifier(options.runnerRevision);
     if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
-      throw new Error(`pipeline provenance changed during ${freshRole} generation`);
+      throw new Error(
+        `pipeline provenance changed during ${freshRole} generation`,
+      );
     }
     await outputVerifier(outputPaths, protectedInputPaths);
     await atomicWrite(
-      execution.finalization === 'fresh-selection-only' ? options.outSelection : options.outFinal,
-      datasetJsonl
+      execution.finalization === "fresh-selection-only"
+        ? options.outSelection
+        : options.outFinal,
+      datasetJsonl,
     );
-    if (execution.finalization === 'fresh-final-only') {
+    if (execution.finalization === "fresh-final-only") {
       return {
-        status: 'complete-fresh-final-only',
+        status: "complete-fresh-final-only",
         generation_run_fingerprint: runFingerprint,
         completed_parents: FRESH_FINAL_TEACHER_PARENT_COUNT,
         forced_parents_skipped: forcedParentsSkipped,
@@ -3360,7 +4202,7 @@ async function runSiblingTeacherDatasetCore(
       };
     }
     return {
-      status: 'complete-fresh-selection-only',
+      status: "complete-fresh-selection-only",
       generation_run_fingerprint: runFingerprint,
       completed_parents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
       forced_parents_skipped: forcedParentsSkipped,
@@ -3374,12 +4216,16 @@ async function runSiblingTeacherDatasetCore(
       dataset_records: records.length,
     };
   }
-  if (execution.finalization === 'strength-first-training-only') {
-    if (capturedInput.role !== 'training') {
-      throw new Error('strength-first training input role changed before finalization');
+  if (execution.finalization === "strength-first-training-only") {
+    if (capturedInput.role !== "training") {
+      throw new Error(
+        "strength-first training input role changed before finalization",
+      );
     }
     const entryByParent = new Map(
-      [...workEntries.values()].map((entry) => [entry.parent_id, entry] as const)
+      [...workEntries.values()].map(
+        (entry) => [entry.parent_id, entry] as const,
+      ),
     );
     const trainingGroups = new Map<string, readonly SiblingRecord[]>();
     const trainingRecords: SiblingRecord[] = [];
@@ -3388,10 +4234,10 @@ async function runSiblingTeacherDatasetCore(
       if (!entry) {
         throw new Error(`missing completed work entry for ${parent.parent_id}`);
       }
-      if (entry.kind === 'skip') continue;
+      if (entry.kind === "skip") continue;
       const group = entry.records.map((record) => ({
         ...record,
-        split: 'train' as const,
+        split: "train" as const,
       }));
       validateParentGroups(group);
       trainingGroups.set(parent.parent_id, group);
@@ -3405,14 +4251,14 @@ async function runSiblingTeacherDatasetCore(
         throw new Error(`missing completion evidence for ${parent.parent_id}`);
       }
       const group = trainingGroups.get(parent.parent_id);
-      const groupJsonl = group ? serializeCanonicalJsonl(group) : '';
+      const groupJsonl = group ? serializeCanonicalJsonl(group) : "";
       return {
         schema: STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
         game_id: parent.game_id,
         parent_id: parent.parent_id,
         position_id: parent.position_id,
         completed_parent_sha256: entry.payload_sha256,
-        forced_parent_skipped: entry.kind === 'skip',
+        forced_parent_skipped: entry.kind === "skip",
         train_group_records: group?.length ?? 0,
         train_group_sha256: group ? sha256(groupJsonl) : null,
       };
@@ -3427,9 +4273,10 @@ async function runSiblingTeacherDatasetCore(
     const forcedSkipReasons = forcedSkipReasonCounts(
       selected.map((parent) => {
         const entry = entryByParent.get(parent.parent_id);
-        if (!entry) throw new Error(`missing skip accounting for ${parent.parent_id}`);
+        if (!entry)
+          throw new Error(`missing skip accounting for ${parent.parent_id}`);
         return entry;
-      })
+      }),
     );
     if (
       forcedSkipReasons.fewer_than_two_legal_moves +
@@ -3440,12 +4287,19 @@ async function runSiblingTeacherDatasetCore(
         (forcedSkipReasons.proposal_incomplete_no_label ?? 0) >
         recoverableSearchSkipLimit
     ) {
-      throw new Error('forced skip reason accounting is inconsistent');
+      throw new Error("forced skip reason accounting is inconsistent");
     }
-    const trainGameIds = new Set(trainingRecords.map((record) => record.game_id));
-    const trainParentIds = new Set(trainingRecords.map((record) => record.parent_id));
+    const trainGameIds = new Set(
+      trainingRecords.map((record) => record.game_id),
+    );
+    const trainParentIds = new Set(
+      trainingRecords.map((record) => record.parent_id),
+    );
     const trainPositionIds = new Set(
-      trainingRecords.flatMap((record) => [record.position_id, record.child_position_id])
+      trainingRecords.flatMap((record) => [
+        record.position_id,
+        record.child_position_id,
+      ]),
     );
     const train: StrengthFirstTrainBinding = {
       path: path.basename(options.outTrain),
@@ -3468,20 +4322,24 @@ async function runSiblingTeacherDatasetCore(
       records: completionRows.length,
       forced_parents_skipped: forcedParentIds.length,
       emitted_parent_groups: emittedParentIds.length,
-      parent_ids_sha256: floodgateIdentifierDigest(selected.map((parent) => parent.parent_id)),
+      parent_ids_sha256: floodgateIdentifierDigest(
+        selected.map((parent) => parent.parent_id),
+      ),
       forced_parent_ids_sha256: floodgateIdentifierDigest(forcedParentIds),
       emitted_parent_ids_sha256: floodgateIdentifierDigest(emittedParentIds),
     };
-    const candidateCounts = completed.map((entry) => entry.candidate_moves.length);
+    const candidateCounts = completed.map(
+      (entry) => entry.candidate_moves.length,
+    );
     const candidateLock = completed
       .map(
         (entry) =>
-          `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`
+          `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`,
       )
-      .join('\n');
+      .join("\n");
     const manifest: StrengthFirstSiblingTeacherManifest = {
       schema: STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
-      status: 'complete-training-only',
+      status: "complete-training-only",
       run_fingerprint: runFingerprint,
       pipeline,
       authenticated_input: {
@@ -3515,14 +4373,15 @@ async function runSiblingTeacherDatasetCore(
       search: {
         multipv: options.multipv,
         limit:
-          'nodes' in options.limit
+          "nodes" in options.limit
             ? { nodes: options.limit.nodes as number }
             : { depth: options.limit.depth as number },
         ...(sameSearchLimit(options.proposalLimit, options.limit)
           ? {}
           : {
               proposal_limit: normalizedSearchLimit(options.proposalLimit),
-              proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+              proposal_incomplete_quarantine_policy:
+                PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
             }),
         parallel_engines: options.engines,
         fv_scale: options.fvScale,
@@ -3532,18 +4391,20 @@ async function runSiblingTeacherDatasetCore(
         label_policy: SIBLING_TEACHER_LABEL_POLICY,
         tt_reset_before_proposal: true,
         tt_reset_before_each_candidate: true,
-        search_state_reset_before_proposal: 'isready',
-        search_state_reset_before_each_candidate: 'isready',
-        candidate_execution_order: 'utf8-bytewise-ascending',
-        synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+        search_state_reset_before_proposal: "isready",
+        search_state_reset_before_each_candidate: "isready",
+        candidate_execution_order: "utf8-bytewise-ascending",
+        synthesized_rank_order: "cp-descending-then-utf8-bytewise-move",
         engine_options: USI_TEACHER_ENGINE_CONTRACT,
       },
       candidate_sets: {
         sha256: sha256(`candidate-sets-v1\0${candidateLock}`),
         parents: completed.length,
         candidates: candidateCounts.reduce((sum, count) => sum + count, 0),
-        min_candidates: candidateCounts.length === 0 ? 0 : Math.min(...candidateCounts),
-        max_candidates: candidateCounts.length === 0 ? 0 : Math.max(...candidateCounts),
+        min_candidates:
+          candidateCounts.length === 0 ? 0 : Math.min(...candidateCounts),
+        max_candidates:
+          candidateCounts.length === 0 ? 0 : Math.max(...candidateCounts),
         skipped_parents: skipped.length,
       },
       progress_checkpoint: {
@@ -3564,7 +4425,7 @@ async function runSiblingTeacherDatasetCore(
     };
     const finalPipeline = await revisionVerifier(options.runnerRevision);
     if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
-      throw new Error('pipeline provenance changed during teacher generation');
+      throw new Error("pipeline provenance changed during teacher generation");
     }
     await outputVerifier(outputPaths, protectedInputPaths);
     const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
@@ -3576,7 +4437,7 @@ async function runSiblingTeacherDatasetCore(
     } as const;
     const result: StrengthFirstSiblingTeacherResult = {
       schema: STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
-      status: 'complete-training-only',
+      status: "complete-training-only",
       run_fingerprint: runFingerprint,
       runner_revision: options.runnerRevision,
       bundle_verifier_revision: capturedInput.binding.verifier_revision,
@@ -3603,9 +4464,12 @@ async function runSiblingTeacherDatasetCore(
     await atomicWrite(options.outTrain, trainJsonl);
     await atomicWrite(options.parentCompletion, completionJsonl);
     await atomicWrite(options.manifest, manifestJson);
-    await atomicWrite(options.stagedResult, `${JSON.stringify(result, null, 2)}\n`);
+    await atomicWrite(
+      options.stagedResult,
+      `${JSON.stringify(result, null, 2)}\n`,
+    );
     return {
-      status: 'complete-training-only',
+      status: "complete-training-only",
       authentication_receipt: false,
       target_parents: selected.length,
       completed_parents: workEntries.size,
@@ -3614,20 +4478,23 @@ async function runSiblingTeacherDatasetCore(
       staged_result: result,
     };
   }
-  if (completed.length === 0) throw new Error('no parent produced a sibling group');
+  if (completed.length === 0)
+    throw new Error("no parent produced a sibling group");
   const split = splitSiblingDataset(records, {
     seed: options.seed,
     valRatio: options.valRatio,
   });
   const trainJsonl = serializeJsonl(split.train);
   const valJsonl = serializeJsonl(split.val);
-  const candidateCounts = completed.map((entry) => entry.candidate_moves.length);
+  const candidateCounts = completed.map(
+    (entry) => entry.candidate_moves.length,
+  );
   const candidateLock = completed
     .map(
       (entry) =>
-        `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`
+        `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`,
     )
-    .join('\n');
+    .join("\n");
 
   const manifest: SiblingTeacherManifest = {
     schema: SIBLING_TEACHER_MANIFEST_SCHEMA,
@@ -3656,14 +4523,15 @@ async function runSiblingTeacherDatasetCore(
     search: {
       multipv: options.multipv,
       limit:
-        'nodes' in options.limit
+        "nodes" in options.limit
           ? { nodes: options.limit.nodes as number }
           : { depth: options.limit.depth as number },
       ...(sameSearchLimit(options.proposalLimit, options.limit)
         ? {}
         : {
             proposal_limit: normalizedSearchLimit(options.proposalLimit),
-            proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+            proposal_incomplete_quarantine_policy:
+              PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
           }),
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
@@ -3673,10 +4541,10 @@ async function runSiblingTeacherDatasetCore(
       label_policy: SIBLING_TEACHER_LABEL_POLICY,
       tt_reset_before_proposal: true,
       tt_reset_before_each_candidate: true,
-      search_state_reset_before_proposal: 'isready',
-      search_state_reset_before_each_candidate: 'isready',
-      candidate_execution_order: 'utf8-bytewise-ascending',
-      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+      search_state_reset_before_proposal: "isready",
+      search_state_reset_before_each_candidate: "isready",
+      candidate_execution_order: "utf8-bytewise-ascending",
+      synthesized_rank_order: "cp-descending-then-utf8-bytewise-move",
       engine_options: USI_TEACHER_ENGINE_CONTRACT,
     },
     candidate_sets: {
@@ -3707,7 +4575,7 @@ async function runSiblingTeacherDatasetCore(
   // Re-check immediately before committing the candidate staging generation.
   const finalPipeline = await revisionVerifier(options.runnerRevision);
   if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
-    throw new Error('pipeline provenance changed during teacher generation');
+    throw new Error("pipeline provenance changed during teacher generation");
   }
   await outputVerifier(outputPaths, protectedInputPaths);
   // These are candidate staging files only; a future postflight publisher must own final output.
@@ -3720,7 +4588,7 @@ async function runSiblingTeacherDatasetCore(
 export async function stageSiblingTeacherDatasetCoreForTests(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<SiblingTeacherManifest> {
   const targetParents = Array.isArray(input.rows) ? input.rows.length : 0;
   return (await runSiblingTeacherDatasetCore(
@@ -3728,10 +4596,10 @@ export async function stageSiblingTeacherDatasetCoreForTests(
     rawOptions,
     {
       targetParents,
-      finalization: 'legacy-split',
-      recoverableSearchFailures: 'none',
+      finalization: "legacy-split",
+      recoverableSearchFailures: "none",
     },
-    dependencies
+    dependencies,
   )) as SiblingTeacherManifest;
 }
 
@@ -3739,7 +4607,7 @@ export async function stageSiblingTeacherDatasetCoreForTests(
 export async function stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StageSiblingTeacherCoreForTestsOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<StrengthFirstCorePrefixProgress> {
   const targetParents = Array.isArray(input.rows) ? input.rows.length : 0;
   return (await runSiblingTeacherDatasetCore(
@@ -3747,10 +4615,10 @@ export async function stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreFo
     rawOptions,
     {
       targetParents,
-      finalization: 'none',
-      recoverableSearchFailures: 'timeout-only',
+      finalization: "none",
+      recoverableSearchFailures: "timeout-only",
     },
-    dependencies
+    dependencies,
   )) as StrengthFirstCorePrefixProgress;
 }
 
@@ -3768,7 +4636,7 @@ export interface AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions extends S
 export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: AdvanceStrengthFirstSiblingTeacherCoreForTestsOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal> {
   const { targetParents, finalize, ...options } = rawOptions;
   return (await runSiblingTeacherDatasetCore(
@@ -3776,10 +4644,10 @@ export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
     options,
     {
       targetParents,
-      finalization: finalize ? 'strength-first-training-only' : 'none',
-      recoverableSearchFailures: 'timeout-and-proposal-incomplete',
+      finalization: finalize ? "strength-first-training-only" : "none",
+      recoverableSearchFailures: "timeout-and-proposal-incomplete",
     },
-    dependencies
+    dependencies,
   )) as StrengthFirstCorePrefixProgress | StrengthFirstCoreFinal;
 }
 
@@ -3792,26 +4660,45 @@ export async function advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
 async function advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StrengthFirstSiblingTeacherOptions,
-  engines: typeof STRENGTH_FIRST_PRODUCTION_ENGINES | typeof STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  engines:
+    | typeof STRENGTH_FIRST_PRODUCTION_ENGINES
+    | typeof STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
-  if (Object.prototype.hasOwnProperty.call(rawOptions, 'testOnlyInitializationTimeoutMs')) {
-    throw new Error('strength-first production generation rejects testOnlyInitializationTimeoutMs');
-  }
   if (
-    Object.prototype.hasOwnProperty.call(rawOptions, 'proposalIncompleteAllLegalFallbackMaxMoves')
+    Object.prototype.hasOwnProperty.call(
+      rawOptions,
+      "testOnlyInitializationTimeoutMs",
+    )
   ) {
     throw new Error(
-      'strength-first training generation rejects the fresh-selection proposal fallback'
+      "strength-first production generation rejects testOnlyInitializationTimeoutMs",
+    );
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawOptions,
+      "proposalIncompleteAllLegalFallbackMaxMoves",
+    )
+  ) {
+    throw new Error(
+      "strength-first training generation rejects the fresh-selection proposal fallback",
     );
   }
   const capturedInput = captureAuthenticatedTeacherInput(input);
-  if (capturedInput.parents.length !== 24_000 || capturedInput.binding.records !== 24_000) {
-    throw new Error('strength-first production generation requires exactly 24000 parents');
+  if (
+    capturedInput.parents.length !== 24_000 ||
+    capturedInput.binding.records !== 24_000
+  ) {
+    throw new Error(
+      "strength-first production generation requires exactly 24000 parents",
+    );
   }
   const { targetParents, ...options } = rawOptions;
   if (!STRENGTH_FIRST_PRODUCTION_PARENT_TARGETS.includes(targetParents)) {
-    throw new Error('strength-first targetParents must be exactly 100, 500, or 24000');
+    throw new Error(
+      "strength-first targetParents must be exactly 100, 500, or 24000",
+    );
   }
   const outcome = await runSiblingTeacherDatasetCore(
     input,
@@ -3821,17 +4708,18 @@ async function advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
     },
     {
       targetParents,
-      finalization: targetParents === 24_000 ? 'strength-first-training-only' : 'none',
-      recoverableSearchFailures: 'timeout-and-proposal-incomplete',
+      finalization:
+        targetParents === 24_000 ? "strength-first-training-only" : "none",
+      recoverableSearchFailures: "timeout-and-proposal-incomplete",
     },
-    dependencies
+    dependencies,
   );
   return outcome as StrengthFirstSiblingTeacherAdvance;
 }
 
 export interface FreshSelectionSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'seed' | 'testOnlyInitializationTimeoutMs' | 'valRatio'
+  "seed" | "testOnlyInitializationTimeoutMs" | "valRatio"
 > {
   readonly engines: number;
   readonly proposalIncompleteAllLegalFallbackMaxMoves: number;
@@ -3846,11 +4734,16 @@ export interface FreshSelectionSiblingTeacherOptions extends Omit<
 export async function generateFreshSelectionSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshSelectionRows>,
   options: Readonly<FreshSelectionSiblingTeacherOptions>,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<Readonly<FreshSelectionSiblingTeacherOutcome>> {
-  if (Object.prototype.hasOwnProperty.call(options, 'testOnlyInitializationTimeoutMs')) {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      options,
+      "testOnlyInitializationTimeoutMs",
+    )
+  ) {
     throw new Error(
-      'fresh-selection production generation rejects testOnlyInitializationTimeoutMs'
+      "fresh-selection production generation rejects testOnlyInitializationTimeoutMs",
     );
   }
   const captured = captureAuthenticatedFreshSelectionTeacherInput(input);
@@ -3860,7 +4753,7 @@ export async function generateFreshSelectionSiblingTeacherDataset(
     captured.source.games !== FRESH_SELECTION_TEACHER_GAME_COUNT
   ) {
     throw new Error(
-      'fresh-selection production generation requires exactly 4800 parents and 200 games'
+      "fresh-selection production generation requires exactly 4800 parents and 200 games",
     );
   }
   if (
@@ -3868,7 +4761,7 @@ export async function generateFreshSelectionSiblingTeacherDataset(
     options.engines > Math.min(32, os.availableParallelism())
   ) {
     throw new Error(
-      'fresh-selection fallback must equal MultiPV and engines must fit local parallelism'
+      "fresh-selection fallback must equal MultiPV and engines must fit local parallelism",
     );
   }
   return (await runSiblingTeacherDatasetCore(
@@ -3876,14 +4769,15 @@ export async function generateFreshSelectionSiblingTeacherDataset(
     options,
     {
       targetParents: FRESH_SELECTION_TEACHER_PARENT_COUNT,
-      finalization: 'fresh-selection-only',
-      recoverableSearchFailures: 'timeout-only',
+      finalization: "fresh-selection-only",
+      recoverableSearchFailures: "timeout-only",
     },
-    dependencies
+    dependencies,
   )) as FreshSelectionSiblingTeacherOutcome;
 }
 
-export type FreshFinalSiblingTeacherOptions = FreshSelectionSiblingTeacherOptions;
+export type FreshFinalSiblingTeacherOptions =
+  FreshSelectionSiblingTeacherOptions;
 
 /**
  * Production generator seam for the already-authenticated 4,800-parent
@@ -3894,10 +4788,17 @@ export type FreshFinalSiblingTeacherOptions = FreshSelectionSiblingTeacherOption
 export async function generateFreshFinalSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateFreshFinalRows>,
   options: Readonly<FreshFinalSiblingTeacherOptions>,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<Readonly<FreshFinalSiblingTeacherOutcome>> {
-  if (Object.prototype.hasOwnProperty.call(options, 'testOnlyInitializationTimeoutMs')) {
-    throw new Error('fresh-final production generation rejects testOnlyInitializationTimeoutMs');
+  if (
+    Object.prototype.hasOwnProperty.call(
+      options,
+      "testOnlyInitializationTimeoutMs",
+    )
+  ) {
+    throw new Error(
+      "fresh-final production generation rejects testOnlyInitializationTimeoutMs",
+    );
   }
   const captured = captureAuthenticatedFreshFinalTeacherInput(input);
   if (
@@ -3906,7 +4807,7 @@ export async function generateFreshFinalSiblingTeacherDataset(
     captured.source.games !== FRESH_FINAL_TEACHER_GAME_COUNT
   ) {
     throw new Error(
-      'fresh-final production generation requires exactly 4800 parents and 200 games'
+      "fresh-final production generation requires exactly 4800 parents and 200 games",
     );
   }
   if (
@@ -3914,7 +4815,7 @@ export async function generateFreshFinalSiblingTeacherDataset(
     options.engines > Math.min(32, os.availableParallelism())
   ) {
     throw new Error(
-      'fresh-final fallback must equal MultiPV and engines must fit local parallelism'
+      "fresh-final fallback must equal MultiPV and engines must fit local parallelism",
     );
   }
   return (await runSiblingTeacherDatasetCore(
@@ -3922,23 +4823,23 @@ export async function generateFreshFinalSiblingTeacherDataset(
     options,
     {
       targetParents: FRESH_FINAL_TEACHER_PARENT_COUNT,
-      finalization: 'fresh-final-only',
-      recoverableSearchFailures: 'timeout-only',
+      finalization: "fresh-final-only",
+      recoverableSearchFailures: "timeout-only",
     },
-    dependencies
+    dependencies,
   )) as FreshFinalSiblingTeacherOutcome;
 }
 
 export function advanceStrengthFirstSiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StrengthFirstSiblingTeacherOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
   return advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
     input,
     rawOptions,
     STRENGTH_FIRST_PRODUCTION_ENGINES,
-    dependencies
+    dependencies,
   );
 }
 
@@ -3946,18 +4847,18 @@ export function advanceStrengthFirstSiblingTeacherDataset(
 export function advanceStrengthFirstV9SiblingTeacherDataset(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
   rawOptions: StrengthFirstSiblingTeacherOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ): Promise<StrengthFirstSiblingTeacherAdvance> {
   return advanceStrengthFirstSiblingTeacherDatasetWithFixedEngines(
     input,
     rawOptions,
     STRENGTH_FIRST_V9_PRODUCTION_ENGINES,
-    dependencies
+    dependencies,
   );
 }
 
 export const REMOVED_SIBLING_TEACHER_CLI_MESSAGE =
-  'raw-path sibling teacher CLI removed; authenticated Floodgate runner is not yet available';
+  "raw-path sibling teacher CLI removed; authenticated Floodgate runner is not yet available";
 
 if (require.main === module) {
   process.stderr.write(`${REMOVED_SIBLING_TEACHER_CLI_MESSAGE}\n`);

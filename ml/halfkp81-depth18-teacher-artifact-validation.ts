@@ -85,6 +85,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r5" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r6" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r9" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 =
@@ -97,6 +99,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r5" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r6" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r9" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -222,6 +226,40 @@ const YANEURA_ONLY_V1R5_TEACHER = Object.freeze({
 });
 const YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY =
   "recycle-engine-retry-parent-once" as const;
+const YANEURA_ONLY_V1R9_CANDIDATE_GENERATION = Object.freeze({
+  mode: "yaneuraou-depth16-multipv12-plus-recorded-only-hash-fallback-v1",
+  stable_wasm: "not-instantiated-or-called",
+  proposal_depth: 16,
+  proposal_multipv: 12,
+  recorded_move_required: true,
+  deduplication: "USI-move-exact-before-depth18-rescore",
+  normal_rescore: Object.freeze({
+    depth: 18,
+    node_cap: 2_000_000_000,
+    minimum_completed_depth_for_routing: 1,
+    hash_mib: 512,
+    node_cap_result: "route-whole-parent-never-label",
+  }),
+  fallback_rescore: Object.freeze({
+    depth: 18,
+    hash_mib: 8_192,
+    all_fixed_candidates_recomputed: true,
+    normal_rescore_rows_reused: 0,
+    candidate_omissions: 0,
+    maximum_concurrency: 2,
+  }),
+  maximum_rows_per_parent: 13,
+} as const);
+const V1R9_FALLBACK_PARENT_BUDGET = Object.freeze({
+  fit: 6,
+  tune: 1,
+  sealed: 1,
+});
+const V1R9_FALLBACK_SEARCH_BUDGET = Object.freeze({
+  fit: 78,
+  tune: 13,
+  sealed: 13,
+});
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
   "old_outcome",
@@ -238,7 +276,8 @@ type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6;
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -286,7 +325,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18ArtifactIdentity>;
@@ -303,7 +343,9 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     readonly receipt_sha256: string;
     readonly receipt: Readonly<Record<string, unknown>>;
   }>;
-  readonly candidate_generation?: typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1;
+  readonly candidate_generation?:
+    | typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1
+    | typeof YANEURA_ONLY_V1R9_CANDIDATE_GENERATION;
   readonly label_policy: string;
 }
 
@@ -315,7 +357,8 @@ export interface Halfkp81Depth18TeacherWorkParent {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -324,7 +367,10 @@ export interface Halfkp81Depth18TeacherWorkParent {
     | FloodgateProductionStableWasmRuntimeResult
     | FloodgateBoundedStableWasmOutcomeV3
   >;
-  readonly candidate_generation?: typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1;
+  readonly candidate_generation?:
+    | typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1
+    | typeof YANEURA_ONLY_V1R9_CANDIDATE_GENERATION;
+  readonly rescore_route?: Readonly<Record<string, unknown>>;
   readonly reset_timeout_recovery?: Readonly<{
     readonly policy: typeof YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY;
     readonly retries_used: 0 | 1;
@@ -445,14 +491,16 @@ function isYaneuraOnlyPlanSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 {
   return (
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
-    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 ||
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
   );
 }
 
@@ -464,7 +512,11 @@ function yaneuraOnlyWorkSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 {
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
+  }
   if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6) {
     return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
   }
@@ -960,6 +1012,197 @@ function wrapperPayloadSha256(
   );
 }
 
+function validateV1R9Route(
+  value: unknown,
+  label: string,
+): Readonly<Record<string, unknown>> {
+  const tentative = value as Record<string, unknown> | undefined;
+  const fallbackMode = tentative?.mode === "hash8192-parent-fallback";
+  const route = exactObject(
+    value,
+    fallbackMode
+      ? [
+          "mode",
+          "normal_hash_mib",
+          "normal_limit",
+          "trigger",
+          "normal_engine_reaped_before_fallback",
+          "fallback",
+        ]
+      : ["mode", "normal_hash_mib", "normal_limit", "fallback"],
+    `${label}.rescore_route`,
+  );
+  const normalLimit = exactObject(
+    route.normal_limit,
+    ["depth", "nodes", "minimum_completed_depth"],
+    `${label}.rescore_route.normal_limit`,
+  );
+  if (
+    route.normal_hash_mib !== 512 ||
+    !sameJson(normalLimit, {
+      depth: 18,
+      nodes: 2_000_000_000,
+      minimum_completed_depth: 1,
+    })
+  ) {
+    throw new Error(`${label} v1r9 normal route binding differs`);
+  }
+  if (!fallbackMode) {
+    if (route.mode !== "normal-depth18" || route.fallback !== null) {
+      throw new Error(`${label} v1r9 normal route differs`);
+    }
+    return route;
+  }
+  const trigger = exactObject(
+    route.trigger,
+    [
+      "move",
+      "candidate_index_zero_based",
+      "candidate_count",
+      "completed_normal_rescores_discarded",
+      "cap",
+    ],
+    `${label}.rescore_route.trigger`,
+  );
+  const cap = exactObject(
+    trigger.cap,
+    [
+      "termination_reason",
+      "requested_depth",
+      "node_cap",
+      "minimum_completed_depth",
+      "deepest_complete_exact_depth",
+      "selected_snapshot_nodes",
+      "maximum_observed_nodes",
+      "maximum_observed_depth",
+      "selected_snapshot_bound",
+      "discarded_at_or_above_node_cap_updates",
+      "observed_lowerbound_updates",
+      "observed_upperbound_updates",
+      "cap_witness_depth",
+      "cap_witness_nodes",
+      "selected_precedes_witness",
+      "completed_iteration_witness_depth",
+    ],
+    `${label}.rescore_route.trigger.cap`,
+  );
+  const fallback = exactObject(
+    route.fallback,
+    [
+      "hash_mib",
+      "depth",
+      "timeout_ms",
+      "semaphore_limit",
+      "all_candidates_recomputed",
+      "candidate_count",
+      "fallback_reset_retries_used",
+      "discarded_completed_rescores_before_retry",
+      "searches_executed",
+      "normal_rescore_rows_reused",
+      "candidate_omissions",
+      "engine_quit_before_semaphore_release",
+    ],
+    `${label}.rescore_route.fallback`,
+  );
+  const index = requiredInteger(
+    trigger.candidate_index_zero_based,
+    `${label}.trigger.candidate_index_zero_based`,
+    0,
+  );
+  const count = requiredInteger(
+    trigger.candidate_count,
+    `${label}.trigger.candidate_count`,
+    2,
+  );
+  const deepest = requiredInteger(
+    cap.deepest_complete_exact_depth,
+    `${label}.trigger.cap.deepest_complete_exact_depth`,
+    1,
+  );
+  const selectedNodes = requiredInteger(
+    cap.selected_snapshot_nodes,
+    `${label}.trigger.cap.selected_snapshot_nodes`,
+    0,
+  );
+  const maxNodes = requiredInteger(
+    cap.maximum_observed_nodes,
+    `${label}.trigger.cap.maximum_observed_nodes`,
+    0,
+  );
+  const maxDepth = requiredInteger(
+    cap.maximum_observed_depth,
+    `${label}.trigger.cap.maximum_observed_depth`,
+    1,
+  );
+  const witnessDepth = requiredInteger(
+    cap.cap_witness_depth,
+    `${label}.trigger.cap.cap_witness_depth`,
+    1,
+  );
+  const witnessNodes = requiredInteger(
+    cap.cap_witness_nodes,
+    `${label}.trigger.cap.cap_witness_nodes`,
+    0,
+  );
+  if (
+    route.normal_engine_reaped_before_fallback !== true ||
+    typeof trigger.move !== "string" ||
+    index >= count ||
+    trigger.completed_normal_rescores_discarded !== index ||
+    cap.termination_reason !== "node-cap" ||
+    cap.requested_depth !== 18 ||
+    cap.node_cap !== 2_000_000_000 ||
+    cap.minimum_completed_depth !== 1 ||
+    deepest >= 18 ||
+    selectedNodes >= 2_000_000_000 ||
+    maxNodes < witnessNodes ||
+    maxDepth < witnessDepth ||
+    maxDepth > 18 ||
+    witnessDepth <= deepest ||
+    witnessDepth > 18 ||
+    witnessNodes < 2_000_000_000 ||
+    cap.selected_snapshot_bound !== "exact" ||
+    cap.selected_precedes_witness !== true ||
+    cap.completed_iteration_witness_depth !== deepest ||
+    requiredInteger(
+      cap.discarded_at_or_above_node_cap_updates,
+      `${label}.trigger.cap.discarded`,
+      1,
+    ) < 1 ||
+    requiredInteger(
+      cap.observed_lowerbound_updates,
+      `${label}.trigger.cap.lower`,
+      0,
+    ) < 0 ||
+    requiredInteger(
+      cap.observed_upperbound_updates,
+      `${label}.trigger.cap.upper`,
+      0,
+    ) < 0 ||
+    fallback.hash_mib !== 8_192 ||
+    fallback.depth !== 18 ||
+    fallback.timeout_ms !== 14_400_000 ||
+    fallback.semaphore_limit !== 2 ||
+    fallback.all_candidates_recomputed !== true ||
+    fallback.candidate_count !== count ||
+    (fallback.fallback_reset_retries_used !== 0 &&
+      fallback.fallback_reset_retries_used !== 1) ||
+    !Number.isSafeInteger(fallback.discarded_completed_rescores_before_retry) ||
+    (fallback.discarded_completed_rescores_before_retry as number) < 0 ||
+    (fallback.discarded_completed_rescores_before_retry as number) >= count ||
+    fallback.searches_executed !==
+      count + (fallback.discarded_completed_rescores_before_retry as number) ||
+    fallback.normal_rescore_rows_reused !== 0 ||
+    fallback.candidate_omissions !== 0 ||
+    fallback.engine_quit_before_semaphore_release !== true
+  ) {
+    throw new Error(`${label} v1r9 fallback route evidence differs`);
+  }
+  return route;
+}
+
+export const validateHalfkp81Depth18V1R9RouteCoreForTests = validateV1R9Route;
+
 function validateWrapper(
   value: unknown,
   expectedParent: Readonly<SelectionParent>,
@@ -974,6 +1217,8 @@ function validateWrapper(
   const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
   const resetTimeoutRecovery =
     planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6;
+  const hashFallbackV1R9 =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9;
   const wrapper = exactObject(
     value,
     yaneuraOnly
@@ -984,7 +1229,10 @@ function validateWrapper(
           "parent_id",
           "role",
           "candidate_generation",
-          ...(resetTimeoutRecovery ? ["reset_timeout_recovery"] : []),
+          ...(resetTimeoutRecovery || hashFallbackV1R9
+            ? ["reset_timeout_recovery"]
+            : []),
+          ...(hashFallbackV1R9 ? ["rescore_route"] : []),
           "teacher_entry",
           "payload_sha256",
         ]
@@ -1013,7 +1261,9 @@ function validateWrapper(
     (yaneuraOnly &&
       !sameJson(
         wrapper.candidate_generation,
-        YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+        hashFallbackV1R9
+          ? YANEURA_ONLY_V1R9_CANDIDATE_GENERATION
+          : YANEURA_ONLY_CANDIDATE_GENERATION_V1,
       ))
   ) {
     throw new Error(`${label} wrapper identity/digest/role differs`);
@@ -1059,6 +1309,70 @@ function validateWrapper(
       }
     }
   }
+  let v1r9Route: Readonly<Record<string, unknown>> | undefined;
+  let v1r9FallbackRetries = 0;
+  if (hashFallbackV1R9) {
+    const recovery = exactObject(
+      wrapper.reset_timeout_recovery,
+      [
+        "policy",
+        "normal_retries_used",
+        "fallback_retries_used",
+        "engine_recycles",
+        "events",
+      ],
+      `${label}.reset_timeout_recovery`,
+    );
+    const normalRetries = requiredInteger(
+      recovery.normal_retries_used,
+      `${label}.normal_retries_used`,
+      0,
+    );
+    const fallbackRetries = requiredInteger(
+      recovery.fallback_retries_used,
+      `${label}.fallback_retries_used`,
+      0,
+    );
+    v1r9FallbackRetries = fallbackRetries;
+    if (
+      recovery.policy !== YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY ||
+      normalRetries > 1 ||
+      fallbackRetries > 1 ||
+      recovery.engine_recycles !== normalRetries + fallbackRetries ||
+      !Array.isArray(recovery.events) ||
+      recovery.events.length !== normalRetries + fallbackRetries
+    ) {
+      throw new Error(`${label} v1r9 reset recovery differs`);
+    }
+    const counts = { normal: 0, fallback: 0 };
+    for (const [index, value] of recovery.events.entries()) {
+      const event = exactObject(
+        value,
+        ["route", "attempt", "error_name", "phase", "timeout_ms"],
+        `${label}.reset_timeout_recovery.events[${index}]`,
+      );
+      if (
+        (event.route !== "normal" && event.route !== "fallback") ||
+        event.attempt !== 1 ||
+        event.error_name !== "UsiResetForParentTimeoutError" ||
+        event.phase !== "reset-for-parent" ||
+        event.timeout_ms !== USI_RESET_FOR_PARENT_TIMEOUT_MS
+      ) {
+        throw new Error(`${label} v1r9 reset event differs`);
+      }
+      counts[event.route] += 1;
+    }
+    if (
+      counts.normal !== normalRetries ||
+      counts.fallback !== fallbackRetries
+    ) {
+      throw new Error(`${label} v1r9 reset route accounting differs`);
+    }
+    v1r9Route = validateV1R9Route(wrapper.rescore_route, label);
+    if (v1r9Route.mode === "normal-depth18" && fallbackRetries !== 0) {
+      throw new Error(`${label} normal route contains fallback retry evidence`);
+    }
+  }
   const stableMove = yaneuraOnly
     ? undefined
     : isBoundedStablePlanSchema(planSchema)
@@ -1083,23 +1397,67 @@ function validateWrapper(
           ),
           `${label}.stable_result`,
         ).row.stable_move;
+  const normalV1R9 = v1r9Route?.mode === "normal-depth18";
   const teacherEntry = validateWorkEntry(
     wrapper.teacher_entry,
     fingerprint,
     new Map([[expectedParent.parent.parent_id, expectedParent.parent]]),
     `${label}.teacher_entry`,
     12,
-    { depth: 18 },
+    normalV1R9
+      ? { depth: 18, nodes: 2_000_000_000, minimumCompletedDepth: 1 }
+      : { depth: 18 },
     planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
       planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
       ? 3_600_000
-      : 600_000,
+      : hashFallbackV1R9
+        ? 14_400_000
+        : 600_000,
     { depth: 16 },
     undefined,
     stableMove,
   );
   if (teacherEntry.kind !== "parent") {
     throw new Error(`${label} contains a fault/skip/incomplete parent`);
+  }
+  if (hashFallbackV1R9 && v1r9Route !== undefined) {
+    if (v1r9Route.mode === "normal-depth18") {
+      if (
+        teacherEntry.exact_search.searches.some(
+          (search) =>
+            search.dual_bound === undefined ||
+            (search.dual_bound.termination_reason !== "depth" &&
+              search.dual_bound.termination_reason !== "terminal-mate") ||
+            (search.dual_bound.termination_reason === "depth" &&
+              search.dual_bound.deepest_complete_exact_depth !== 18),
+        )
+      ) {
+        throw new Error(
+          `${label} contains a capped or incomplete normal-lane label`,
+        );
+      }
+    } else {
+      const trigger = v1r9Route.trigger as Record<string, unknown>;
+      const fallback = v1r9Route.fallback as Record<string, unknown>;
+      const index = trigger.candidate_index_zero_based as number;
+      if (
+        trigger.candidate_count !== teacherEntry.candidate_moves.length ||
+        fallback.candidate_count !== teacherEntry.candidate_moves.length ||
+        trigger.move !== teacherEntry.candidate_moves[index] ||
+        teacherEntry.exact_search.searches.length !==
+          teacherEntry.candidate_moves.length ||
+        teacherEntry.exact_search.searches.some(
+          (search) => search.dual_bound !== undefined,
+        ) ||
+        fallback.fallback_reset_retries_used !== v1r9FallbackRetries ||
+        (v1r9FallbackRetries === 0 &&
+          fallback.discarded_completed_rescores_before_retry !== 0)
+      ) {
+        throw new Error(
+          `${label} fallback evidence is not bound to all fixed candidates`,
+        );
+      }
+    }
   }
   if (
     teacherEntry.records.length < 2 ||
@@ -1461,6 +1819,105 @@ function validatePlanAndHeader(
   ) {
     throw new Error("teacher plan schema is unsupported");
   }
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9) {
+    const teacher = exactObject(
+      plan.teacher,
+      [
+        "candidate_policy",
+        "engine",
+        "engine_identity",
+        "fallback_lane",
+        "maximum_rows",
+        "maximum_rows_per_parent",
+        "minimum_rows_per_parent",
+        "normal_lane",
+        "old_depth6_or_depth12_cp_target_rows",
+        "parent_publication",
+        "persistent_normal_engine_processes",
+        "reset_timeout_recovery",
+      ],
+      "v1r9 teacher",
+    );
+    const normal = exactObject(
+      teacher.normal_lane,
+      [
+        "capped_label_publication_allowed",
+        "depth",
+        "hash_mib_per_process",
+        "minimum_completed_depth",
+        "minimum_completed_depth_purpose",
+        "node_cap",
+        "node_cap_result",
+        "processes",
+        "routing_condition",
+        "routing_scope",
+        "search_timeout_milliseconds",
+        "threads_per_process",
+        "whole_parent_discard_before_fallback",
+      ],
+      "v1r9 normal lane",
+    );
+    const fallback = exactObject(
+      teacher.fallback_lane,
+      [
+        "candidate_set",
+        "capped_label_publication_allowed",
+        "depth",
+        "engine_lifetime",
+        "fifo_queue",
+        "fallback_hash_downgrade_allowed",
+        "forbidden_hash_mib_substitutions",
+        "hash_mib_per_process",
+        "hash_mib_must_equal",
+        "maximum_concurrent_processes",
+        "node_cap",
+        "partial_or_normal_lane_rescore_reuse_allowed",
+        "publication",
+        "rescore_all_candidates_from_zero",
+        "search_timeout_milliseconds",
+        "threads_per_process",
+      ],
+      "v1r9 fallback lane",
+    );
+    if (
+      !sameJson(normal, {
+        capped_label_publication_allowed: false,
+        depth: 18,
+        hash_mib_per_process: 512,
+        minimum_completed_depth: 1,
+        minimum_completed_depth_purpose: "routing-only-not-label-quality-floor",
+        node_cap: 2_000_000_000,
+        node_cap_result: "route-whole-parent-never-label",
+        processes: 8,
+        routing_condition:
+          "any-independent-rescore-terminates-at-node-cap-before-exact-depth18",
+        routing_scope: "whole-parent",
+        search_timeout_milliseconds: 14_400_000,
+        threads_per_process: 1,
+        whole_parent_discard_before_fallback: true,
+      }) ||
+      !sameJson(fallback, {
+        candidate_set: "reuse-fixed-normal-proposal-candidate-order-and-digest",
+        capped_label_publication_allowed: false,
+        depth: 18,
+        engine_lifetime: "fresh-engine-per-escalated-parent",
+        fifo_queue: true,
+        fallback_hash_downgrade_allowed: false,
+        forbidden_hash_mib_substitutions: [2_048, 4_096],
+        hash_mib_per_process: 8_192,
+        hash_mib_must_equal: 8_192,
+        maximum_concurrent_processes: 2,
+        node_cap: null,
+        partial_or_normal_lane_rescore_reuse_allowed: false,
+        publication: "only-after-all-candidates-complete-exact-depth18",
+        rescore_all_candidates_from_zero: true,
+        search_timeout_milliseconds: 14_400_000,
+        threads_per_process: 1,
+      })
+    ) {
+      throw new Error("v1r9 sealed teacher lane contract differs");
+    }
+  }
   const header = exactObject(
     headerValue,
     yaneuraOnly
@@ -1674,6 +2131,7 @@ function validatePlanAndHeader(
     (isBoundedStablePlanSchema(planSchema) &&
       !sameJson(header.teacher, BOUNDED_STABLE_V3_TEACHER)) ||
     (yaneuraOnly &&
+      planSchema !== HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 &&
       !sameJson(
         plan.teacher,
         planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
@@ -1684,7 +2142,9 @@ function validatePlanAndHeader(
     (yaneuraOnly &&
       !sameJson(
         header.candidate_generation,
-        YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+        planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+          ? YANEURA_ONLY_V1R9_CANDIDATE_GENERATION
+          : YANEURA_ONLY_CANDIDATE_GENERATION_V1,
       ))
   ) {
     throw new Error("teacher work policy differs from sealed plan");
@@ -1729,6 +2189,7 @@ function validateRawReceipt(
   completedRows: number,
   roleRows: Readonly<Record<TeacherRole, number>>,
   roleCounts: Readonly<Record<TeacherRole, number>>,
+  v1r9FallbackRecount?: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   const receipt = parseCanonicalDocument(
     request.rawReceipt,
@@ -1746,6 +2207,7 @@ function validateRawReceipt(
     "technical_faults",
     "incomplete_parents",
     "old_depth12_targets",
+    ...(v1r9FallbackRecount === undefined ? [] : ["hash8192_fallback_recount"]),
     "outputs",
     "artifact_verification",
     "authority",
@@ -1765,6 +2227,14 @@ function validateRawReceipt(
     receipt.old_depth12_targets !== 0
   ) {
     throw new Error("raw teacher receipt accounting differs from held work");
+  }
+  if (
+    v1r9FallbackRecount !== undefined &&
+    !sameJson(receipt.hash8192_fallback_recount, v1r9FallbackRecount)
+  ) {
+    throw new Error(
+      "raw teacher receipt v1r9 fallback recount differs from held work",
+    );
   }
   validateDeclaredIdentity(
     receipt.teacher_plan,
@@ -1957,6 +2427,53 @@ function validateCore(
   if (wrapperIds.size !== expectedParents) {
     throw new Error("teacher work parent coverage is incomplete");
   }
+  const v1r9FallbackParents = { fit: 0, tune: 0, sealed: 0 };
+  const v1r9CapTriggerSearches = { fit: 0, tune: 0, sealed: 0 };
+  const v1r9FallbackRows = { fit: 0, tune: 0, sealed: 0 };
+  const v1r9FallbackSearches = { fit: 0, tune: 0, sealed: 0 };
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9) {
+    for (const wrapper of wrappers.values()) {
+      if (wrapper.rescore_route?.mode !== "hash8192-parent-fallback") continue;
+      const fallback = wrapper.rescore_route.fallback as Record<
+        string,
+        unknown
+      >;
+      const candidateCount = requiredInteger(
+        fallback.candidate_count,
+        `v1r9 ${wrapper.parent_id} fallback candidate count`,
+        2,
+      );
+      v1r9FallbackParents[wrapper.role] += 1;
+      v1r9CapTriggerSearches[wrapper.role] += 1;
+      v1r9FallbackRows[wrapper.role] += candidateCount;
+      v1r9FallbackSearches[wrapper.role] += requiredInteger(
+        fallback.searches_executed,
+        `v1r9 ${wrapper.parent_id} fallback searches executed`,
+        candidateCount,
+      );
+    }
+    const totalParents = ROLE_ORDER.reduce(
+      (sum, role) => sum + v1r9FallbackParents[role],
+      0,
+    );
+    const totalSearches = ROLE_ORDER.reduce(
+      (sum, role) => sum + v1r9FallbackSearches[role],
+      0,
+    );
+    if (
+      totalParents > 8 ||
+      totalSearches > 104 ||
+      ROLE_ORDER.some(
+        (role) =>
+          v1r9FallbackParents[role] > V1R9_FALLBACK_PARENT_BUDGET[role] ||
+          v1r9FallbackSearches[role] > V1R9_FALLBACK_SEARCH_BUDGET[role],
+      )
+    ) {
+      throw new Error(
+        "v1r9 Hash8192 fallback recount exceeds its sealed budget",
+      );
+    }
+  }
   // Worker completion order is intentionally not authority-bearing.  Formal
   // role artifacts are reconstructed in the authenticated selection order.
   for (const selected of selectionRows) {
@@ -1998,7 +2515,40 @@ function validateCore(
     (sum, role) => sum + roleRows[role],
     0,
   );
-  validateRawReceipt(request, plan, completedRows, roleRows, bounds.roleCounts);
+  const v1r9FallbackRecount =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+      ? Object.freeze({
+          fallback_parents_by_role: Object.freeze(v1r9FallbackParents),
+          cap_trigger_searches_by_role: Object.freeze(v1r9CapTriggerSearches),
+          fallback_rows_by_role: Object.freeze(v1r9FallbackRows),
+          fallback_searches_by_role: Object.freeze(v1r9FallbackSearches),
+          fallback_parents: ROLE_ORDER.reduce(
+            (sum, role) => sum + v1r9FallbackParents[role],
+            0,
+          ),
+          cap_trigger_searches: ROLE_ORDER.reduce(
+            (sum, role) => sum + v1r9CapTriggerSearches[role],
+            0,
+          ),
+          fallback_rows: ROLE_ORDER.reduce(
+            (sum, role) => sum + v1r9FallbackRows[role],
+            0,
+          ),
+          fallback_searches: ROLE_ORDER.reduce(
+            (sum, role) => sum + v1r9FallbackSearches[role],
+            0,
+          ),
+          capped_teacher_labels: 0,
+        })
+      : undefined;
+  validateRawReceipt(
+    request,
+    plan,
+    completedRows,
+    roleRows,
+    bounds.roleCounts,
+    v1r9FallbackRecount,
+  );
   const resetRecoveredParentIds =
     planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
       ? selectionRows
@@ -2042,6 +2592,11 @@ function validateCore(
     technical_faults: 0,
     incomplete_parents: 0,
     old_depth12_targets: 0,
+    ...(planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+      ? {
+          hash8192_fallback_recount: v1r9FallbackRecount,
+        }
+      : {}),
     ...(planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
       ? {
           reset_timeout_recovery: Object.freeze({
@@ -2083,6 +2638,14 @@ function validateCore(
             ...(planSchema ===
             HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
               ? { reset_timeout_recovery_evidence_recomputed: true }
+              : {}),
+            ...(planSchema ===
+            HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+              ? {
+                  hash8192_route_evidence_recomputed: true,
+                  fallback_budgets_recomputed: true,
+                  capped_teacher_labels_recomputed_zero: true,
+                }
               : {}),
           }
         : { stable_depth11_parent_runtime_binding_recomputed: true }),

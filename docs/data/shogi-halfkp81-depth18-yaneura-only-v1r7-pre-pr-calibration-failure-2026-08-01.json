@@ -1,0 +1,142 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r7-pre-pr-calibration-failure-data-memo-v1",
+  "date": "2026-08-01",
+  "status": "v1r7-pre-pr-calibration-failed-family-stopped-no-strength-result",
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r7",
+  "contract": {
+    "new_limit": {
+      "minimum_completed_depth": 15,
+      "multipv": 1,
+      "node_cap": 100000000,
+      "requested_depth": 18
+    },
+    "sample": {
+      "moves": 10,
+      "parents": 8,
+      "selection_rule": "all-independent-depth18-rescores-with-observed_nodes-strictly-greater-than-100000000",
+      "source_work_ledger": {
+        "bytes": 48118137,
+        "parent_records": 3262,
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6/teacher-work.jsonl",
+        "sha256": "ee66fd5a2cab03e8318564923af82ad723d2dccd1379685324abc87d66fb1fa5",
+        "teacher_rows": 38393
+      }
+    },
+    "thresholds_fixed_before_results": {
+      "absolute_cp_delta_maximum": 300,
+      "capped_move_parent_rank_displacement_maximum": 1,
+      "minimum_completed_depth": 15,
+      "minimum_completed_depth_must_pass_all_moves": true,
+      "parent_top1_move_changes_maximum": 0,
+      "sign_flips_maximum": 0
+    },
+    "on_miss": "stop-v1r7-before-ready-pr-no-threshold-change"
+  },
+  "receipt": {
+    "bytes": 7391,
+    "path": "$HOME/.codex/shogi-runs/halfkp81-v1r7-100m-cap-calibration-scratch/calibration-receipt.json",
+    "sha256": "118d6cd1cbd8abf1beab89e7ce88e09a2f154f80503b22dda944bb677f8d11b9",
+    "status": "scratch-v1r7-cap-calibration-failed-no-formal-authority"
+  },
+  "observed": {
+    "absolute_cp_delta_maximum": 33989,
+    "capped_move_parent_rank_displacement_maximum": 4,
+    "minimum_completed_depth": 15,
+    "moves": 10,
+    "parent_top1_move_changes": 0,
+    "parents": 8,
+    "sign_flips": 0
+  },
+  "gate_results": {
+    "absolute_cp_delta": "fail-33989-greater-than-300",
+    "capped_move_parent_rank_displacement": "fail-4-greater-than-1",
+    "minimum_completed_depth": "pass-15-equals-15",
+    "overall": "fail",
+    "parent_top1_move_changes": "pass-0-equals-0",
+    "sign_flips": "pass-0-equals-0"
+  },
+  "cp_delta_breaches": [
+    {
+      "absolute_cp_delta": 466,
+      "move": "6a7a",
+      "old_depth18_cp": -3224,
+      "parent_id": "sha256:64eb0e5a8c045e1145c7951374b00ea6683d8a18c877afc157f0b0a0525f67c5",
+      "selected_cp": -2758,
+      "selected_depth": 17
+    },
+    {
+      "absolute_cp_delta": 408,
+      "move": "6a7b",
+      "old_depth18_cp": -3453,
+      "parent_id": "sha256:64eb0e5a8c045e1145c7951374b00ea6683d8a18c877afc157f0b0a0525f67c5",
+      "selected_cp": -3045,
+      "selected_depth": 16
+    },
+    {
+      "absolute_cp_delta": 33989,
+      "move": "2a1c",
+      "old_depth18_cp": -35281,
+      "parent_id": "sha256:b70979181f66fc8960a5817a271f9422d659f0cac1213c431ef9d76bd8a25726",
+      "selected_cp": -1292,
+      "selected_depth": 15
+    }
+  ],
+  "rank_displacement_breaches": [
+    {
+      "displacement": 3,
+      "move": "P*6f",
+      "new_rank": 6,
+      "old_rank": 9,
+      "parent_id": "sha256:1dc09755551f89d26b24b761360d3745c7b0ace0cbfed17f9ccaba9d4c6a93ac"
+    },
+    {
+      "displacement": 2,
+      "move": "7c6d",
+      "new_rank": 10,
+      "old_rank": 12,
+      "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae"
+    },
+    {
+      "displacement": 4,
+      "move": "2a1c",
+      "new_rank": 8,
+      "old_rank": 12,
+      "parent_id": "sha256:b70979181f66fc8960a5817a271f9422d659f0cac1213c431ef9d76bd8a25726"
+    }
+  ],
+  "decision": {
+    "explanation": "The node cap bounded runtime but did not preserve the preregistered depth-18 label fidelity. The 100M family is stopped rather than relaxing its rank or CP thresholds.",
+    "formal_like_prefix_authorized": false,
+    "formal_teacher_authorized": false,
+    "pathological_sentinel_authorized": false,
+    "ready_pr_authorized": false,
+    "same_family_resume_authorized": false,
+    "same_family_threshold_change_authorized": false,
+    "training_authorized": false
+  },
+  "next_investigation": {
+    "new_family_preregistration_created": false,
+    "two_billion_node_probe": {
+      "elapsed_milliseconds": 1924243,
+      "maximum_observed_nodes": 2000000532,
+      "receipt_bytes": 995,
+      "receipt_sha256": "90551c3a1c543d43afce2e58ff9324a66ddb8a2d608088cb4203837d6b8a7c7c",
+      "selected_cp": -3360,
+      "selected_depth": 15,
+      "selected_nodes": 95168959,
+      "status": "complete-floor16-failed"
+    },
+    "v1r8_floor16_failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r8-floor16-diagnostic-failure-2026-08-01.json",
+    "v1r8_floor16_status": "diagnostic-failed-closed-before-preregistration",
+    "v1r9_preregistration_created": false,
+    "pending_probe": "Hash-2-4-8-GiB-exact-depth16-G*6a-scratch",
+    "strength_or_formal_authority": false
+  },
+  "live_baseline": {
+    "bytes": 1185988,
+    "changed": false,
+    "path": "public/shogi-nnue-weights.bin",
+    "public_flag_changed": false,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  }
+}

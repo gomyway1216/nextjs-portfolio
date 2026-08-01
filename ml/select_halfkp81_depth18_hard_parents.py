@@ -38,8 +38,8 @@ LEGAL_RULES_CLOSURE_EXPECTATIONS = {
         "sha256": "485657debcf5a150130c29217d22c964bc91616a8a152809591461fcb3808bdd",
     },
     "ml/usi-multipv.ts": {
-        "bytes": 19_608,
-        "sha256": "8e619926ffe64cbbb644316dea0e8ed48dfd70bf9142ca3f5d9ac6864f8d5f60",
+        "bytes": 28_993,
+        "sha256": "f7c0618e3aeedd18486c661aff6f05855d25933aecae0678eeab4a3161145f21",
     },
     "ml/shogi-sfen.ts": {
         "bytes": 7_033,

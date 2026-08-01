@@ -1,0 +1,133 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r8-floor16-diagnostic-failure-data-memo-v1",
+  "date": "2026-08-01",
+  "status": "v1r8-floor16-diagnostic-failed-closed-before-preregistration",
+  "classification": "scratch-only-node-cap-feasibility-failure-no-strength-result",
+  "candidate_family": "halfkp81-hard-depth18-yaneura-only-v1r8",
+  "objective": "Test whether raising the cap as high as two billion nodes can preserve a conservative exact completed depth-16 floor for the known G*6a long tail.",
+  "position": {
+    "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+    "searchmove": "G*6a",
+    "sfen": "l1R3s2/4k1g2/2gpp1p1b/p4R1p1/7n1/P4P3/2+nPPSP2/1B+p1K4/L1S2G1N1 w S4Pgn2l3p 68"
+  },
+  "engine_contract": {
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "hash_mib": 512,
+    "multipv": 1,
+    "requested_depth": 18,
+    "threads": 1
+  },
+  "high_node_ladder": [
+    {
+      "elapsed_milliseconds": 413819,
+      "maximum_observed_nodes": 500000172,
+      "node_cap": 500000000,
+      "receipt_bytes": 991,
+      "receipt_sha256": "37ef4b1df8b7f2022fee6898d5ca730b0cd500e2c3e2d7b73a56041683bd5ebb",
+      "selected_cp": -3360,
+      "selected_depth": 15,
+      "selected_nodes": 95168959,
+      "transcript_bytes": 4242,
+      "transcript_sha256": "e9c18d6e7bc39b564bf169e56eaaec0ccadfb1891ba62a5c1d8f1f3f652ce233"
+    },
+    {
+      "elapsed_milliseconds": 986923,
+      "maximum_observed_nodes": 1000000199,
+      "node_cap": 1000000000,
+      "receipt_bytes": 994,
+      "receipt_sha256": "b54da9354b9ea53b245af50e8c46a9012bafd0299c2e2c5af8c5a949d9287f4c",
+      "selected_cp": -3360,
+      "selected_depth": 15,
+      "selected_nodes": 95168959,
+      "transcript_bytes": 4243,
+      "transcript_sha256": "3ba221fb2d51089bee12ca2f54fc455a91b8ad561adc975bca6db1429f727866"
+    },
+    {
+      "elapsed_milliseconds": 1924243,
+      "maximum_observed_nodes": 2000000532,
+      "node_cap": 2000000000,
+      "receipt_bytes": 995,
+      "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-g6a-high-node-ladder-scratch/nodes-2000000000/diagnostic-receipt.json",
+      "receipt_sha256": "90551c3a1c543d43afce2e58ff9324a66ddb8a2d608088cb4203837d6b8a7c7c",
+      "selected_cp": -3360,
+      "selected_depth": 15,
+      "selected_nodes": 95168959,
+      "transcript_bytes": 4244,
+      "transcript_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-g6a-high-node-ladder-scratch/nodes-2000000000/usi-transcript.txt",
+      "transcript_sha256": "403fdce32ac1b95a9bdfb325fdebdb67de91cc72fe360d5ac183c83bf8e3cba3"
+    }
+  ],
+  "two_billion_node_transcript_interpretation": {
+    "completed_depth16": false,
+    "depth16_first_line": {
+      "bound": "upperbound",
+      "cp": -4108,
+      "hashfull": 1000,
+      "nodes": 402219590
+    },
+    "depth16_terminal_line": {
+      "bound": "upperbound",
+      "cp": -4108,
+      "hashfull": 1000,
+      "nodes": 2000000532
+    },
+    "selected_completed_iteration": {
+      "cp": -3360,
+      "depth": 15,
+      "nodes": 95168959
+    },
+    "reason": "Every depth-16 line remained an upper bound, so none is an exact completed depth-16 result."
+  },
+  "gate": {
+    "observed_completed_depth": 15,
+    "required_completed_depth_minimum": 16,
+    "result": "fail"
+  },
+  "decision": {
+    "explanation": "Increasing the node cap from 100 million through two billion did not advance the conservative completed result beyond depth 15. The floor-16 candidate family is closed before preregistration rather than increasing the cap again.",
+    "formal_teacher_authorized": false,
+    "preregistration_created": false,
+    "ready_pr_authorized": false,
+    "same_candidate_family_extension_authorized": false,
+    "strength_claim_authorized": false,
+    "training_authorized": false
+  },
+  "next_investigation": {
+    "candidate_explanation": "The depth-16 upper bound first appeared with hashfull 1000 and remained incomplete at two billion nodes, motivating a bounded transposition-table-size diagnosis without asserting causality.",
+    "hash_mib_values": [2048, 4096, 8192],
+    "probe": "exact-depth18-G*6a-with-larger-Hash",
+    "scope": "scratch-only-no-strength-or-formal-authority",
+    "status": "complete-all-three-reached-exact-depth18",
+    "results": [
+      {
+        "cp": -3325,
+        "elapsed_milliseconds": 280702,
+        "hash_mib": 2048,
+        "nodes": 456368061,
+        "receipt_sha256": "0047c046c49ddb361c716daf722b94c19bb1465446b51104b54ee02daded7556"
+      },
+      {
+        "cp": -35281,
+        "elapsed_milliseconds": 214189,
+        "hash_mib": 4096,
+        "nodes": 370179475,
+        "receipt_sha256": "fe0699735b39f47189ebd183677199785c822726f584ed06231b942c10d015a2"
+      },
+      {
+        "cp": -35281,
+        "elapsed_milliseconds": 256113,
+        "hash_mib": 8192,
+        "nodes": 433851102,
+        "receipt_sha256": "5e334cb4334fe079f2ee58b29687f7748ad65ffa8e63fcd6be902565d4e0fd58"
+      }
+    ],
+    "v1r9_preregistration": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r9-preregistration-2026-08-01.json"
+  },
+  "live_baseline": {
+    "bytes": 1185988,
+    "changed": false,
+    "path": "public/shogi-nnue-weights.bin",
+    "public_flag_changed": false,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  }
+}

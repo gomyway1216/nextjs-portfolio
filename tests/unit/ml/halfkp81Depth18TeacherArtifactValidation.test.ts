@@ -26,6 +26,7 @@ import {
   readHalfkp81Depth18PrivateArtifact,
   validateHalfkp81Depth18TeacherArtifacts,
   validateHalfkp81Depth18TeacherArtifactsCoreForTests,
+  validateHalfkp81Depth18V1R9RouteCoreForTests,
   type Halfkp81Depth18PrivateSnapshot,
   type Halfkp81Depth18ValidationRequest,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
@@ -1433,5 +1434,80 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
     await expect(
       readHalfkp81Depth18PrivateArtifact(file, root, uid, "artifact"),
     ).rejects.toThrow(/single-link/);
+  });
+
+  it("independently rejects forged v1r9 Hash8192 route evidence", () => {
+    const route = {
+      mode: "hash8192-parent-fallback",
+      normal_hash_mib: 512,
+      normal_limit: {
+        depth: 18,
+        nodes: 2_000_000_000,
+        minimum_completed_depth: 1,
+      },
+      trigger: {
+        move: "7g7f",
+        candidate_index_zero_based: 0,
+        candidate_count: 13,
+        completed_normal_rescores_discarded: 0,
+        cap: {
+          termination_reason: "node-cap",
+          requested_depth: 18,
+          node_cap: 2_000_000_000,
+          minimum_completed_depth: 1,
+          deepest_complete_exact_depth: 17,
+          selected_snapshot_nodes: 1_900_000_000,
+          maximum_observed_nodes: 2_000_000_000,
+          maximum_observed_depth: 18,
+          selected_snapshot_bound: "exact",
+          discarded_at_or_above_node_cap_updates: 1,
+          observed_lowerbound_updates: 0,
+          observed_upperbound_updates: 0,
+          cap_witness_depth: 18,
+          cap_witness_nodes: 2_000_000_000,
+          selected_precedes_witness: true,
+          completed_iteration_witness_depth: 17,
+        },
+      },
+      normal_engine_reaped_before_fallback: true,
+      fallback: {
+        hash_mib: 8_192,
+        depth: 18,
+        timeout_ms: 14_400_000,
+        semaphore_limit: 2,
+        all_candidates_recomputed: true,
+        candidate_count: 13,
+        fallback_reset_retries_used: 0,
+        discarded_completed_rescores_before_retry: 0,
+        searches_executed: 13,
+        normal_rescore_rows_reused: 0,
+        candidate_omissions: 0,
+        engine_quit_before_semaphore_release: true,
+      },
+    };
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(route, "route"),
+    ).not.toThrow();
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        {
+          ...route,
+          fallback: { ...route.fallback, hash_mib: 4_096 },
+        },
+        "route",
+      ),
+    ).toThrow(/fallback route evidence differs/);
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        {
+          ...route,
+          trigger: {
+            ...route.trigger,
+            cap: { ...route.trigger.cap, maximum_observed_depth: 19 },
+          },
+        },
+        "route",
+      ),
+    ).toThrow(/fallback route evidence differs/);
   });
 });

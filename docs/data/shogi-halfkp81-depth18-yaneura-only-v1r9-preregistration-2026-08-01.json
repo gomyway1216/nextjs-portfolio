@@ -1,0 +1,237 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r9-preregistration-data-memo-v1",
+  "date": "2026-08-01",
+  "status": "prospective-conditional-hash8192-parent-fallback-not-executed",
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r9",
+  "objective": "Keep ordinary parents on eight Hash-512-MiB engines, but route any whole parent whose independent rescore reaches two billion nodes before exact depth 18 to a bounded FIFO of fresh Hash-8-GiB engines that recompute every fixed candidate to exact depth 18.",
+  "closed_predecessors": {
+    "v1r7": {
+      "failure": "100m-cap-label-fidelity-calibration-failed",
+      "maximum_absolute_cp_delta": 33989,
+      "maximum_rank_displacement": 4,
+      "status": "family-stopped-before-ready-pr"
+    },
+    "v1r8": {
+      "failure": "Hash512-two-billion-node-cap-left-G*6a-at-completed-depth15",
+      "maximum_observed_nodes": 2000000532,
+      "status": "diagnostic-failed-closed-before-preregistration"
+    },
+    "reuse_completed_parents": 0,
+    "reuse_teacher_rows": 0,
+    "reuse_scratch_rows": 0
+  },
+  "large_hash_depth18_evidence": {
+    "scope": "scratch-only-operational-evidence-never-training-data-or-strength-result",
+    "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+    "searchmove": "G*6a",
+    "trials": [
+      {
+        "cp": -3325,
+        "depth": 18,
+        "elapsed_milliseconds": 280702,
+        "hash_mib": 2048,
+        "maximum_observed_hashfull": 796,
+        "nodes": 456368061,
+        "receipt_bytes": 932,
+        "receipt_sha256": "0047c046c49ddb361c716daf722b94c19bb1465446b51104b54ee02daded7556"
+      },
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 214189,
+        "hash_mib": 4096,
+        "maximum_observed_hashfull": 368,
+        "nodes": 370179475,
+        "receipt_bytes": 913,
+        "receipt_sha256": "fe0699735b39f47189ebd183677199785c822726f584ed06231b942c10d015a2"
+      },
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 256113,
+        "hash_mib": 8192,
+        "maximum_observed_hashfull": 229,
+        "nodes": 433851102,
+        "receipt_bytes": 864,
+        "receipt_sha256": "5e334cb4334fe079f2ee58b29687f7748ad65ffa8e63fcd6be902565d4e0fd58"
+      }
+    ],
+    "hash8192_replication": {
+      "cp": -35281,
+      "cp_pv_and_nodes_all_identical": true,
+      "depth": 18,
+      "initial_plus_replicas": 3,
+      "nodes": 433851102,
+      "replica_receipts": [
+        {
+          "bytes": 886,
+          "elapsed_milliseconds": 251029,
+          "sha256": "f8b8b8b9627cd549742bd3a5b5d040e9882b1a29a4de3256c3dc6db89d2adac3"
+        },
+        {
+          "bytes": 886,
+          "elapsed_milliseconds": 251141,
+          "sha256": "0c4f90b692d2634e10fe52b8d8cd2aa5bbd3948b18461d4bd460386cc76157c2"
+        }
+      ]
+    },
+    "hash4096_is_not_hash8192_teacher_function": {
+      "cp_identical_for_this_probe": true,
+      "nodes_identical": false,
+      "pv_identical": false,
+      "reason": "The Hash4096 and Hash8192 probes returned the same cp but different node counts and principal variations, so Hash4096 is not an equivalent substitute for the preregistered Hash8192 teacher function."
+    }
+  },
+  "identity_contract": {
+    "new_create_only_output_namespace_required": true,
+    "new_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "new_tracked_preregistration_required": true,
+    "same_authenticated_selection_required": true,
+    "selection_jsonl": {
+      "bytes": 7268777,
+      "rows": 8192,
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "selection_manifest": {
+      "bytes": 3234,
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "teacher_contract": {
+    "candidate_generation": {
+      "candidate_set_and_order_fixed_before_rescore": true,
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "recorded_move_required": true,
+      "stable_wasm_allowed": false,
+      "yaneuraou_proposal_depth": 16,
+      "yaneuraou_proposal_multipv": 12
+    },
+    "normal_lane": {
+      "capped_teacher_label_allowed": false,
+      "hash_mib_per_engine": 512,
+      "minimum_completed_depth": 1,
+      "minimum_completed_depth_purpose": "routing-only-not-label-quality-floor",
+      "processes": 8,
+      "node_cap_result": "route-whole-parent-never-label",
+      "rescore_limit": "depth18-or-2000000000-nodes-whichever-first",
+      "routing_condition": "any-candidate-reaches-node-cap-before-exact-depth18",
+      "routing_scope": "whole-parent",
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_engine": 1
+    },
+    "fallback_lane": {
+      "candidate_omission_allowed": false,
+      "candidate_set": "same-fixed-order-and-digest-from-normal-proposal",
+      "fifo": true,
+      "fallback_hash_downgrade_allowed": false,
+      "forbidden_hash_mib_substitutions": [2048, 4096],
+      "fresh_engine_per_parent": true,
+      "hash_mib_per_engine": 8192,
+      "hash_mib_must_equal": 8192,
+      "maximum_concurrent_engines": 2,
+      "node_cap": null,
+      "normal_or_partial_rescore_reuse_allowed": false,
+      "publication": "whole-parent-only-after-every-candidate-completes-exact-depth18",
+      "rescore_all_candidates_from_zero": true,
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_engine": 1
+    },
+    "reset_recovery": {
+      "first_reset_timeout": "terminate-reap-replace-and-recompute-whole-unpublished-parent-once",
+      "first_attempt_partial_reuse": 0,
+      "maximum_whole_parent_retries": 1,
+      "search_timeout_retry_allowed": false,
+      "second_reset_timeout_or_replacement_failure": "family-terminal-fault"
+    },
+    "published_rows": {
+      "all_candidates_exact_depth18_required": true,
+      "capped_labels": 0,
+      "old_or_failed-family_rows_reused": 0,
+      "partial_parent_rows": 0
+    }
+  },
+  "escalation_budgets": {
+    "fallback_parents_maximum": 8,
+    "fallback_parents_maximum_by_role": {
+      "fit": 6,
+      "sealed": 1,
+      "tune": 1
+    },
+    "fallback_searches_maximum": 104,
+    "fallback_searches_maximum_by_role": {
+      "fit": 78,
+      "sealed": 13,
+      "tune": 13
+    },
+    "fallback_searches_maximum_per_parent": 13,
+    "runtime_and_artifact_verifier_must_recount": [
+      "actual-cap-parent-count-by-role",
+      "actual-cap-trigger-search-count-by-role",
+      "actual-fallback-row-count-by-role",
+      "capped-teacher-label-count"
+    ],
+    "threshold_exceeded_policy": "immediate-family-terminal-fault-no-threshold-relaxation"
+  },
+  "required_gates": {
+    "artifact_verifier_implementation_tests": "the independent artifact-verifier implementation and unit tests must pass before preformal or formal execution; this is not verification of not-yet-generated formal artifacts",
+    "candidate_order": "fixed candidate set, order, and digest must survive normal-to-fallback routing unchanged",
+    "known10_probe": "all ten preserved v1r6 exact depth18 searches above 100m nodes must complete identically before the 2b normal-lane cap",
+    "pathological_fallback": "G*6a must route without partial publication and the Hash8192 fallback must reproduce the fixed exact result",
+    "mixed_load": "eight Hash512 normal engines plus two Hash8192 fallback engines must complete with zero technical faults",
+    "formal_like_512": "512 parents under the formal contract plus independent artifact verification must pass with zero technical faults",
+    "required_order": [
+      "ready-pr",
+      "all-required-ci-success",
+      "regular-merge",
+      "clean-main-authentication",
+      "artifact-verifier-implementation-tests-pass",
+      "candidate-order",
+      "known10-probe",
+      "pathological-fallback",
+      "mixed-load",
+      "formal-like-512",
+      "formal-teacher"
+    ]
+  },
+  "required_post_formal_gate": {
+    "independent_artifact_verifier_pass": "after formal teacher completion, independently verify the completed formal plan, ledger, rows, receipts, hashes, ordering, exact-depth labels, and escalation budgets before training",
+    "status": "not-applicable-formal-teacher-not-complete"
+  },
+  "training_contract": {
+    "checkpoint_selection": "final-epoch-only",
+    "direct_loss": "sigmoid-bce-k600",
+    "direct_loss_fraction": 0.5,
+    "epochs": 3,
+    "groupwise_loss": "listnet-cp-over-600",
+    "groupwise_loss_fraction": 0.5,
+    "initializer": "original-alpha-050-not-v3-or-v4-candidate",
+    "parent_batch_fraction_direct_replay": 0.5,
+    "parent_batch_fraction_fresh_hard": 0.5,
+    "representation": "HalfKP81",
+    "seeds": 1
+  },
+  "strength_contract": {
+    "all_published_rows_exact_depth18": true,
+    "downstream_gates_unchanged": true,
+    "hash_option_differs_only_for_escalated_parents": true,
+    "risk": "Hash size can change an exact depth-18 search tree and score; v1r9 therefore limits escalation, verifies deterministic Hash8192 evidence, and retains every existing downstream strength gate.",
+    "strength_improvement_claimed": false
+  },
+  "authority": {
+    "all_execution_authority": false,
+    "formal_games_authorized": false,
+    "formal_teacher_authorized": false,
+    "preformal_gates_authorized": false,
+    "runtime_plan_publication_authorized": false,
+    "training_authorized": false,
+    "unlock_condition": "ready-pr-all-required-ci-regular-merge-clean-main-authentication-and-artifact-verifier-implementation-tests-pass",
+    "write_live_weights_authorized": false
+  },
+  "live_baseline": {
+    "bytes": 1185988,
+    "changed": false,
+    "path": "public/shogi-nnue-weights.bin",
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  }
+}

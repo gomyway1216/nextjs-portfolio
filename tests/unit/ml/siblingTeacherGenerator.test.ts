@@ -1,10 +1,10 @@
-import * as crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
+import * as crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   advanceStrengthFirstSiblingTeacherDataset,
@@ -39,29 +39,36 @@ import {
   type AuthenticatedFloodgateFreshFinalRows,
   type StageSiblingTeacherCoreForTestsOptions,
   type StrengthFirstSiblingTeacherOptions,
-} from '../../../ml/generate-sibling-teacher';
-import { UsiTeacherEngine } from '../../../ml/usi-engine';
+} from "../../../ml/generate-sibling-teacher";
+import { UsiTeacherEngine } from "../../../ml/usi-engine";
 import {
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
-} from '../../../ml/floodgate-training-row-consumer';
-import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from '../../../ml/floodgate-role-bundle';
-import { floodgateIdentifierDigest } from '../../../ml/floodgate-roles';
-import { positionKeyFromSfen, type SiblingRecord } from '../../../ml/sibling-data';
+} from "../../../ml/floodgate-training-row-consumer";
+import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from "../../../ml/floodgate-role-bundle";
+import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
+import {
+  positionKeyFromSfen,
+  type SiblingRecord,
+} from "../../../ml/sibling-data";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FAKE_ENGINE = path.resolve(HERE, '../../fixtures/ml/fake-usi-engine.mjs');
-const GENERATOR_SOURCE = path.resolve(HERE, '../../../ml/generate-sibling-teacher.ts');
-const START = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
-const TWO_LEGAL = 'ln4nn1/2r3gk1/3p2gp1/2s1R3S/p1p2P2p/3P2PL1/P+pSS1G1L1/1K7/LN6+b b G5Pb3p 119';
+const FAKE_ENGINE = path.resolve(HERE, "../../fixtures/ml/fake-usi-engine.mjs");
+const GENERATOR_SOURCE = path.resolve(
+  HERE,
+  "../../../ml/generate-sibling-teacher.ts",
+);
+const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+const TWO_LEGAL =
+  "ln4nn1/2r3gk1/3p2gp1/2s1R3S/p1p2P2p/3P2PL1/P+pSS1G1L1/1K7/LN6+b b G5Pb3p 119";
 const ONE_LEGAL =
-  '1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107';
-const PIPELINE_REVISION = '0123456789abcdef0123456789abcdef01234567';
+  "1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107";
+const PIPELINE_REVISION = "0123456789abcdef0123456789abcdef01234567";
 
 interface GenerateSiblingTeacherOptions extends Omit<
   StageSiblingTeacherCoreForTestsOptions,
-  'stageRoot' | 'runnerRevision'
+  "stageRoot" | "runnerRevision"
 > {
   raw: string;
   pipelineRevision: string;
@@ -73,13 +80,13 @@ interface GenerateSiblingTeacherOptions extends Omit<
 
 async function authenticatedInputFromRaw(
   rawPath: string,
-  verifierRevision: string
+  verifierRevision: string,
 ): Promise<Readonly<AuthenticatedFloodgateTrainingRows>> {
   const rawBytes = await fs.promises.readFile(rawPath);
   const sourceRows = rawBytes
-    .toString('utf8')
+    .toString("utf8")
     .trim()
-    .split('\n')
+    .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line) as Record<string, unknown>);
   const rows: FloodgateTrainingParent[] = sourceRows.map((row) => ({
@@ -92,19 +99,23 @@ async function authenticatedInputFromRaw(
     played_move: row.played_move as string,
   }));
   rows.sort((left, right) =>
-    left.parent_id < right.parent_id ? -1 : left.parent_id > right.parent_id ? 1 : 0
+    left.parent_id < right.parent_id
+      ? -1
+      : left.parent_id > right.parent_id
+        ? 1
+        : 0,
   );
   const gameIds = new Set(rows.map((row) => row.game_id));
   const parentIds = new Set(rows.map((row) => row.parent_id));
   const positionIds = new Set(rows.map((row) => row.position_id));
   return Object.freeze({
     schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
-    role: 'training' as const,
+    role: "training" as const,
     binding: Object.freeze({
       result_receipt_bytes: 1,
-      result_receipt_sha256: sha256('test-result-receipt'),
+      result_receipt_sha256: sha256("test-result-receipt"),
       bundle_manifest_bytes: 1,
-      bundle_manifest_sha256: sha256('test-bundle-manifest'),
+      bundle_manifest_sha256: sha256("test-bundle-manifest"),
       bundle_producer_revision: PIPELINE_REVISION,
       verifier_revision: verifierRevision,
       raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
@@ -123,9 +134,17 @@ async function authenticatedInputFromRaw(
 
 async function generateSiblingTeacherDataset(
   options: GenerateSiblingTeacherOptions,
-  dependencies: GenerateSiblingTeacherDependencies = {}
+  dependencies: GenerateSiblingTeacherDependencies = {},
 ) {
-  const { raw, pipelineRevision, outTrain, outVal, manifest, work, ...stageOptions } = options;
+  const {
+    raw,
+    pipelineRevision,
+    outTrain,
+    outVal,
+    manifest,
+    work,
+    ...stageOptions
+  } = options;
   const stageRoot = path.dirname(work);
   const stage = siblingTeacherStagePaths(stageRoot);
   if (
@@ -134,19 +153,21 @@ async function generateSiblingTeacherDataset(
     path.resolve(manifest) !== stage.manifest ||
     path.resolve(work) !== stage.work
   ) {
-    throw new Error('test outputs must use the fixed sibling teacher stage filenames');
+    throw new Error(
+      "test outputs must use the fixed sibling teacher stage filenames",
+    );
   }
   return stageSiblingTeacherDatasetCoreForTests(
     await authenticatedInputFromRaw(raw, pipelineRevision),
     { ...stageOptions, stageRoot, runnerRevision: pipelineRevision },
-    dependencies
+    dependencies,
   );
 }
 
 async function generateForTest(
-  options: Omit<GenerateSiblingTeacherOptions, 'pipelineRevision'> & {
+  options: Omit<GenerateSiblingTeacherOptions, "pipelineRevision"> & {
     pipelineRevision?: string;
-  }
+  },
 ) {
   return generateSiblingTeacherDataset(
     { pipelineRevision: PIPELINE_REVISION, ...options },
@@ -156,29 +177,34 @@ async function generateForTest(
         tracked_tree_clean: true,
       }),
       verifyOutputPaths: async () => undefined,
-    }
+    },
   );
 }
 
 function sha256(input: string | Buffer): string {
-  return crypto.createHash('sha256').update(input).digest('hex');
+  return crypto.createHash("sha256").update(input).digest("hex");
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return JSON.stringify(value);
   }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('cannot canonicalize non-finite number');
+  if (typeof value === "number") {
+    if (!Number.isFinite(value))
+      throw new Error("cannot canonicalize non-finite number");
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (typeof value === 'object') {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (typeof value === "object") {
     const object = value as Record<string, unknown>;
     return `{${Object.keys(object)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
-      .join(',')}}`;
+      .join(",")}}`;
   }
   throw new Error(`cannot canonicalize ${typeof value}`);
 }
@@ -189,53 +215,56 @@ function resealWorkEntry(entry: Record<string, unknown>): void {
   entry.payload_sha256 = sha256(canonicalJson(payload));
 }
 
-async function writeEngineReceipt(root: string, engineBin = process.execPath): Promise<string> {
+async function writeEngineReceipt(
+  root: string,
+  engineBin = process.execPath,
+): Promise<string> {
   const bytes = await fs.promises.readFile(engineBin);
-  const receipt = path.join(root, 'engine-receipt.json');
+  const receipt = path.join(root, "engine-receipt.json");
   await fs.promises.writeFile(
     receipt,
     `${JSON.stringify({
-      schema: 'shogi-teacher-engine-receipt-v1',
-      source_repository: 'https://example.test/teacher-engine.git',
-      source_commit: '0123456789abcdef0123456789abcdef01234567',
-      source_commit_date: '2026-07-02T13:41:06+09:00',
-      build_directory: 'source',
-      build_command: 'test build',
-      compiler: 'test compiler',
-      compiler_target: 'test-target',
-      engine_id: 'fake test engine',
+      schema: "shogi-teacher-engine-receipt-v1",
+      source_repository: "https://example.test/teacher-engine.git",
+      source_commit: "0123456789abcdef0123456789abcdef01234567",
+      source_commit_date: "2026-07-02T13:41:06+09:00",
+      build_directory: "source",
+      build_command: "test build",
+      compiler: "test compiler",
+      compiler_target: "test-target",
+      engine_id: "fake test engine",
       binary_bytes: bytes.byteLength,
       binary_sha256: sha256(bytes),
-    })}\n`
+    })}\n`,
   );
   return receipt;
 }
 
 function rawParent(parentId: string): Record<string, unknown> {
   const parentSfen =
-    parentId === 'parent-b'
-      ? 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/1PPPPPPPP/1B5R1/LNSGKGSNL b - 1'
+    parentId === "parent-b"
+      ? "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/1PPPPPPPP/1B5R1/LNSGKGSNL b - 1"
       : START;
   return {
     schema_version: 1,
-    source: 'wcsc',
-    site: '第36回世界コンピュータ将棋選手権',
-    start_time: '2026/05/05 09:00:00',
-    end_time: '2026/05/05 09:01:00',
-    time_control: '900+5',
-    game_id: 'game-shared',
+    source: "wcsc",
+    site: "第36回世界コンピュータ将棋選手権",
+    start_time: "2026/05/05 09:00:00",
+    end_time: "2026/05/05 09:01:00",
+    time_control: "900+5",
+    game_id: "game-shared",
     parent_id: parentId,
     position_id: positionKeyFromSfen(parentSfen),
     parent_sfen: parentSfen,
     ply: 0,
-    played_move: '6g6f',
+    played_move: "6g6f",
   };
 }
 
 function parseJsonl<T>(text: string): T[] {
   return text
     .trim()
-    .split('\n')
+    .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line) as T);
 }
@@ -245,7 +274,7 @@ function processIsRunning(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
     throw error;
   }
 }
@@ -254,72 +283,86 @@ function expectExactKeys(value: object, expected: readonly string[]): void {
   expect(Object.keys(value).sort()).toEqual([...expected].sort());
 }
 
-describe('deterministic sibling teacher generator', () => {
-  it('fails closed when an obsolete raw-path CLI job invokes the module directly', async () => {
+describe("deterministic sibling teacher generator", () => {
+  it("fails closed when an obsolete raw-path CLI job invokes the module directly", async () => {
     type RemovedOptionKeys = Extract<
       keyof StageSiblingTeacherCoreForTestsOptions,
-      'raw' | 'maxParents' | 'pipelineRevision' | 'outTrain' | 'outVal' | 'manifest' | 'work'
+      | "raw"
+      | "maxParents"
+      | "pipelineRevision"
+      | "outTrain"
+      | "outVal"
+      | "manifest"
+      | "work"
     >;
-    const removedFromPublicType: RemovedOptionKeys extends never ? true : false = true;
+    const removedFromPublicType: RemovedOptionKeys extends never
+      ? true
+      : false = true;
     expect(removedFromPublicType).toBe(true);
     type ProductionTestOnlyKeys = Extract<
       keyof StrengthFirstSiblingTeacherOptions,
-      'testOnlyInitializationTimeoutMs'
+      "testOnlyInitializationTimeoutMs"
     >;
-    const testOverrideExcludedFromProduction: ProductionTestOnlyKeys extends never ? true : false =
-      true;
+    const testOverrideExcludedFromProduction: ProductionTestOnlyKeys extends never
+      ? true
+      : false = true;
     expect(testOverrideExcludedFromProduction).toBe(true);
     type ProductionFreshFallbackKeys = Extract<
       keyof StrengthFirstSiblingTeacherOptions,
-      'proposalIncompleteAllLegalFallbackMaxMoves'
+      "proposalIncompleteAllLegalFallbackMaxMoves"
     >;
     const freshFallbackExcludedFromTraining: ProductionFreshFallbackKeys extends never
       ? true
       : false = true;
     expect(freshFallbackExcludedFromTraining).toBe(true);
 
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cli-tombstone-'));
-    const sentinel = path.join(root, 'train.jsonl');
-    await fs.promises.writeFile(sentinel, 'unchanged\n');
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-cli-tombstone-"),
+    );
+    const sentinel = path.join(root, "train.jsonl");
+    await fs.promises.writeFile(sentinel, "unchanged\n");
     const result = spawnSync(
       process.execPath,
       [
-        '-r',
-        'tsx/cjs',
+        "-r",
+        "tsx/cjs",
         GENERATOR_SOURCE,
-        '--raw',
-        path.join(root, 'missing.raw.jsonl'),
-        '--out-train',
+        "--raw",
+        path.join(root, "missing.raw.jsonl"),
+        "--out-train",
         sentinel,
       ],
       {
-        cwd: path.resolve(HERE, '../../..'),
-        encoding: 'utf8',
-      }
+        cwd: path.resolve(HERE, "../../.."),
+        encoding: "utf8",
+      },
     );
 
     expect(result.status).toBe(2);
-    expect(result.stdout).toBe('');
+    expect(result.stdout).toBe("");
     expect(result.stderr).toContain(REMOVED_SIBLING_TEACHER_CLI_MESSAGE);
-    expect(await fs.promises.readFile(sentinel, 'utf8')).toBe('unchanged\n');
-    expect(await fs.promises.readdir(root)).toEqual(['train.jsonl']);
+    expect(await fs.promises.readFile(sentinel, "utf8")).toBe("unchanged\n");
+    expect(await fs.promises.readdir(root)).toEqual(["train.jsonl"]);
   });
 
-  it('rejects a runtime test-only initialization timeout at the production seam before spawn', async () => {
+  it("rejects a runtime test-only initialization timeout at the production seam before spawn", async () => {
     const root = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'sibling-production-test-timeout-rejection-')
+      path.join(os.tmpdir(), "sibling-production-test-timeout-rejection-"),
     );
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
-    const environmentTrace = path.join(root, 'engine-environment.jsonl');
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
+    const environmentTrace = path.join(root, "engine-environment.jsonl");
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-a"))}\n`,
+    );
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     const unsafeRuntimeOptions = {
       stageRoot,
       runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--environment-trace', environmentTrace],
-      engineReceipt: path.join(root, 'must-not-be-read.json'),
+      engineArgs: [FAKE_ENGINE, "--environment-trace", environmentTrace],
+      engineReceipt: path.join(root, "must-not-be-read.json"),
       multipv: 2,
       depth: 8,
       timeoutMs: 25,
@@ -328,26 +371,31 @@ describe('deterministic sibling teacher generator', () => {
     } as unknown as StrengthFirstSiblingTeacherOptions;
 
     await expect(
-      advanceStrengthFirstSiblingTeacherDataset(input, unsafeRuntimeOptions)
+      advanceStrengthFirstSiblingTeacherDataset(input, unsafeRuntimeOptions),
     ).rejects.toThrow(
-      'strength-first production generation rejects testOnlyInitializationTimeoutMs'
+      "strength-first production generation rejects testOnlyInitializationTimeoutMs",
     );
     await expect(fs.promises.access(environmentTrace)).rejects.toThrow();
     await expect(fs.promises.access(stageRoot)).rejects.toThrow();
-    expect((await fs.promises.readdir(root)).sort()).toEqual(['training.raw.jsonl']);
+    expect((await fs.promises.readdir(root)).sort()).toEqual([
+      "training.raw.jsonl",
+    ]);
   });
 
-  it('stages from authenticated rows without retaining a raw pathname and binds every receipt field', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-pathless-'));
-    const raw = path.join(root, 'source.raw.jsonl');
-    const rawText = `${JSON.stringify(rawParent('parent-pathless'))}\n`;
+  it("stages from authenticated rows without retaining a raw pathname and binds every receipt field", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-pathless-"),
+    );
+    const raw = path.join(root, "source.raw.jsonl");
+    const rawText = `${JSON.stringify(rawParent("parent-pathless"))}\n`;
     await fs.promises.writeFile(raw, rawText);
     const input = await authenticatedInputFromRaw(raw, PIPELINE_REVISION);
     await fs.promises.rm(raw);
-    const stageRoot = path.join(root, 'stage');
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
     const verifyOutputPaths = vi.fn(
-      async (_outputs: readonly string[], _inputs: readonly string[]) => undefined
+      async (_outputs: readonly string[], _inputs: readonly string[]) =>
+        undefined,
     );
     const options: StageSiblingTeacherCoreForTestsOptions = {
       stageRoot,
@@ -368,21 +416,30 @@ describe('deterministic sibling teacher generator', () => {
       verifyOutputPaths,
     };
 
-    const manifest = await stageSiblingTeacherDatasetCoreForTests(input, options, dependencies);
+    const manifest = await stageSiblingTeacherDatasetCoreForTests(
+      input,
+      options,
+      dependencies,
+    );
     expect(manifest.source).toMatchObject({
       raw_sha256: sha256(rawText),
       raw_records: 1,
       selected_parents: 1,
     });
     expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
-      'manifest.json',
-      'train.jsonl',
-      'val.jsonl',
-      'work.jsonl',
+      "manifest.json",
+      "train.jsonl",
+      "val.jsonl",
+      "work.jsonl",
     ]);
     expect(verifyOutputPaths).toHaveBeenCalledTimes(2);
     for (const [outputs, inputs] of verifyOutputPaths.mock.calls) {
-      expect(outputs).toEqual([stage.train, stage.val, stage.manifest, stage.work]);
+      expect(outputs).toEqual([
+        stage.train,
+        stage.val,
+        stage.manifest,
+        stage.work,
+      ]);
       expect(inputs).not.toContain(raw);
     }
 
@@ -390,43 +447,66 @@ describe('deterministic sibling teacher generator', () => {
       ...input,
       binding: Object.freeze({
         ...input.binding,
-        parent_ids_sha256: sha256('wrong-parent-set'),
+        parent_ids_sha256: sha256("wrong-parent-set"),
       }),
     });
     await expect(
-      stageSiblingTeacherDatasetCoreForTests(mismatchedRows, options, dependencies)
+      stageSiblingTeacherDatasetCoreForTests(
+        mismatchedRows,
+        options,
+        dependencies,
+      ),
     ).rejects.toThrow(/aggregate binding/);
 
     const changedInput = Object.freeze({
       ...input,
       binding: Object.freeze({
         ...input.binding,
-        result_receipt_sha256: sha256('different-result-receipt'),
+        result_receipt_sha256: sha256("different-result-receipt"),
       }),
     });
     await expect(
-      stageSiblingTeacherDatasetCoreForTests(changedInput, options, dependencies)
+      stageSiblingTeacherDatasetCoreForTests(
+        changedInput,
+        options,
+        dependencies,
+      ),
     ).rejects.toThrow(/checkpoint header does not match/);
     await expect(
-      stageSiblingTeacherDatasetCoreForTests(input, { ...options, timeoutMs: 6_000 }, dependencies)
+      stageSiblingTeacherDatasetCoreForTests(
+        input,
+        { ...options, timeoutMs: 6_000 },
+        dependencies,
+      ),
     ).rejects.toThrow(/checkpoint header does not match/);
     await expect(
-      stageSiblingTeacherDatasetCoreForTests(input, { ...options, engines: 2 }, dependencies)
+      stageSiblingTeacherDatasetCoreForTests(
+        input,
+        { ...options, engines: 2 },
+        dependencies,
+      ),
     ).rejects.toThrow(/checkpoint header does not match/);
   });
 
-  it('advances one target-independent run, keeps prefixes work-only, and binds final training completion', async () => {
-    type ProductionEngineOption = Extract<keyof StrengthFirstSiblingTeacherOptions, 'engines'>;
-    const productionEngineIsFixed: ProductionEngineOption extends never ? true : false = true;
+  it("advances one target-independent run, keeps prefixes work-only, and binds final training completion", async () => {
+    type ProductionEngineOption = Extract<
+      keyof StrengthFirstSiblingTeacherOptions,
+      "engines"
+    >;
+    const productionEngineIsFixed: ProductionEngineOption extends never
+      ? true
+      : false = true;
     expect(productionEngineIsFixed).toBe(true);
     expect(STRENGTH_FIRST_PRODUCTION_ENGINES).toBe(12);
     expect(STRENGTH_FIRST_V9_PRODUCTION_ENGINES).toBe(13);
 
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-strength-first-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-strength-first-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    const environmentTrace = path.join(root, 'engine-environment.jsonl');
+    const environmentTrace = path.join(root, "engine-environment.jsonl");
     const engineEnvironmentEntries: Array<{
       environment: Record<string, string>;
       cwd: string;
@@ -434,40 +514,43 @@ describe('deterministic sibling teacher generator', () => {
     const captureEngineEnvironment = async (): Promise<void> => {
       let trace: string;
       try {
-        trace = await fs.promises.readFile(environmentTrace, 'utf8');
+        trace = await fs.promises.readFile(environmentTrace, "utf8");
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
         throw error;
       }
       engineEnvironmentEntries.push(
-        ...parseJsonl<{ environment: Record<string, string>; cwd: string }>(trace)
+        ...parseJsonl<{ environment: Record<string, string>; cwd: string }>(
+          trace,
+        ),
       );
       await fs.promises.unlink(environmentTrace);
     };
     const forcedParent = {
-      ...rawParent('parent-a'),
+      ...rawParent("parent-a"),
       position_id: positionKeyFromSfen(ONE_LEGAL),
       parent_sfen: ONE_LEGAL,
       ply: 106,
-      played_move: '8h5h',
+      played_move: "8h5h",
     };
-    const rawText = `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(forcedParent)}\n`;
+    const rawText = `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(forcedParent)}\n`;
     await fs.promises.writeFile(raw, rawText);
-    const bundleVerifierRevision = '89abcdef'.repeat(5);
+    const bundleVerifierRevision = "89abcdef".repeat(5);
     const input = await authenticatedInputFromRaw(raw, bundleVerifierRevision);
     const verifyRevision = vi.fn(async (revision: string) => ({
       source_revision: revision,
       tracked_tree_clean: true as const,
     }));
     const verifyOutputPaths = vi.fn(
-      async (_outputs: readonly string[], _inputs: readonly string[]) => undefined
+      async (_outputs: readonly string[], _inputs: readonly string[]) =>
+        undefined,
     );
     const dependencies = { verifyRevision, verifyOutputPaths };
     const baseOptions = {
       stageRoot,
       runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--environment-trace', environmentTrace],
+      engineArgs: [FAKE_ENGINE, "--environment-trace", environmentTrace],
       engineReceipt: await writeEngineReceipt(root),
       multipv: 2,
       depth: 8,
@@ -478,14 +561,17 @@ describe('deterministic sibling teacher generator', () => {
     const prefix = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
       input,
       { ...baseOptions, targetParents: 1, finalize: false },
-      dependencies
+      dependencies,
     );
     await captureEngineEnvironment();
-    if (prefix.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
-      throw new Error('expected strength-first prefix');
+    if (
+      prefix.status !==
+      "local-work-prefix-complete-not-an-authentication-receipt"
+    ) {
+      throw new Error("expected strength-first prefix");
     }
     expect(prefix).toMatchObject({
-      status: 'local-work-prefix-complete-not-an-authentication-receipt',
+      status: "local-work-prefix-complete-not-an-authentication-receipt",
       authentication_receipt: false,
       target_parents: 1,
       completed_parents: 1,
@@ -496,18 +582,20 @@ describe('deterministic sibling teacher generator', () => {
       },
       emitted_parent_groups: 0,
       work: {
-        path: 'work.jsonl',
+        path: "work.jsonl",
         schema: SIBLING_TEACHER_WORK_SCHEMA,
         records: 2,
-        binding_scope: 'canonical-target-prefix-projection',
+        binding_scope: "canonical-target-prefix-projection",
       },
       current_work: {
-        path: 'work.jsonl',
+        path: "work.jsonl",
         schema: SIBLING_TEACHER_WORK_SCHEMA,
         records: 2,
       },
     });
-    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
+      "work.jsonl",
+    ]);
     expect((await fs.promises.stat(stage.work)).mode & 0o777).toBe(0o600);
     expect(verifyRevision).toHaveBeenLastCalledWith(PIPELINE_REVISION);
     expect(verifyRevision).not.toHaveBeenCalledWith(bundleVerifierRevision);
@@ -516,20 +604,21 @@ describe('deterministic sibling teacher generator', () => {
       [stage.work],
     ]);
 
-    const finalized = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-      input,
-      { ...baseOptions, targetParents: 2, finalize: true },
-      dependencies
-    );
+    const finalized =
+      await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        { ...baseOptions, targetParents: 2, finalize: true },
+        dependencies,
+      );
     await captureEngineEnvironment();
-    expect(finalized.status).toBe('complete-training-only');
-    if (finalized.status !== 'complete-training-only') {
-      throw new Error('expected strength-first finalization');
+    expect(finalized.status).toBe("complete-training-only");
+    if (finalized.status !== "complete-training-only") {
+      throw new Error("expected strength-first finalization");
     }
     expect(finalized.run_fingerprint).toBe(prefix.run_fingerprint);
     expect(finalized.manifest).toMatchObject({
       schema: STRENGTH_FIRST_SIBLING_TEACHER_MANIFEST_SCHEMA,
-      status: 'complete-training-only',
+      status: "complete-training-only",
       run_fingerprint: prefix.run_fingerprint,
       pipeline: {
         source_revision: PIPELINE_REVISION,
@@ -556,7 +645,7 @@ describe('deterministic sibling teacher generator', () => {
         search_timeout_no_label: 0,
       },
       parent_completion: {
-        path: 'parent-completion.jsonl',
+        path: "parent-completion.jsonl",
         records: 2,
         forced_parents_skipped: 1,
         emitted_parent_groups: 1,
@@ -569,25 +658,32 @@ describe('deterministic sibling teacher generator', () => {
     expect(engineEnvironmentEntries).toHaveLength(1);
     for (const entry of engineEnvironmentEntries) {
       const expectedEnvironment = Object.fromEntries(
-        Object.entries(SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables).map(
-          ([name, value]) => [name, value === '<private-worker-cwd>' ? entry.cwd : value]
-        )
+        Object.entries(
+          SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.variables,
+        ).map(([name, value]) => [
+          name,
+          value === "<private-worker-cwd>" ? entry.cwd : value,
+        ]),
       );
       expect(entry.environment).toMatchObject(expectedEnvironment);
       expect(
-        Object.keys(entry.environment).filter((name) => !Object.hasOwn(expectedEnvironment, name))
+        Object.keys(entry.environment).filter(
+          (name) => !Object.hasOwn(expectedEnvironment, name),
+        ),
       ).toEqual(
-        process.platform === 'darwin'
-          ? [...SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.darwin_spawn_injected_variables]
-          : []
+        process.platform === "darwin"
+          ? [
+              ...SIBLING_TEACHER_ENGINE_ENVIRONMENT_CONTRACT.darwin_spawn_injected_variables,
+            ]
+          : [],
       );
-      expect(entry.environment).not.toHaveProperty('USER');
+      expect(entry.environment).not.toHaveProperty("USER");
       expect(entry.environment.HOME).toBe(entry.cwd);
       expect(entry.environment.TMPDIR).toBe(entry.cwd);
     }
     expect(finalized.staged_result).toMatchObject({
       schema: STRENGTH_FIRST_SIBLING_TEACHER_RESULT_SCHEMA,
-      status: 'complete-training-only',
+      status: "complete-training-only",
       runner_revision: PIPELINE_REVISION,
       bundle_verifier_revision: bundleVerifierRevision,
       input_parents: 2,
@@ -599,7 +695,7 @@ describe('deterministic sibling teacher generator', () => {
       },
       emitted_parent_groups: 1,
       work: {
-        path: 'work.jsonl',
+        path: "work.jsonl",
         records: 3,
       },
       publication: {
@@ -608,33 +704,42 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
-      'manifest.json',
-      'parent-completion.jsonl',
-      'staged-result.json',
-      'train.jsonl',
-      'work.jsonl',
+      "manifest.json",
+      "parent-completion.jsonl",
+      "staged-result.json",
+      "train.jsonl",
+      "work.jsonl",
     ]);
     await expect(fs.promises.access(stage.val)).rejects.toThrow();
 
-    const trainText = await fs.promises.readFile(stage.train, 'utf8');
-    const trainLines = trainText.trim().split('\n');
+    const trainText = await fs.promises.readFile(stage.train, "utf8");
+    const trainLines = trainText.trim().split("\n");
     const trainRows = parseJsonl<SiblingRecord>(trainText);
     expect(trainRows).toHaveLength(3);
-    expect(trainRows.every((row) => row.split === 'train')).toBe(true);
-    expect(trainRows.map((row) => row.parent_id)).toEqual(['parent-b', 'parent-b', 'parent-b']);
-    expect(trainLines.every((line) => line === canonicalJson(JSON.parse(line)))).toBe(true);
+    expect(trainRows.every((row) => row.split === "train")).toBe(true);
+    expect(trainRows.map((row) => row.parent_id)).toEqual([
+      "parent-b",
+      "parent-b",
+      "parent-b",
+    ]);
+    expect(
+      trainLines.every((line) => line === canonicalJson(JSON.parse(line))),
+    ).toBe(true);
     const semanticPositionIds = new Set(
-      trainRows.flatMap((row) => [row.position_id, row.child_position_id])
+      trainRows.flatMap((row) => [row.position_id, row.child_position_id]),
     );
     expect(finalized.staged_result.train.semantic_position_ids_count).toBe(
-      semanticPositionIds.size
+      semanticPositionIds.size,
     );
     expect(finalized.staged_result.train.semantic_position_ids_sha256).toBe(
-      floodgateIdentifierDigest(semanticPositionIds)
+      floodgateIdentifierDigest(semanticPositionIds),
     );
 
-    const completionText = await fs.promises.readFile(stage.parentCompletion, 'utf8');
-    const completionLines = completionText.trim().split('\n');
+    const completionText = await fs.promises.readFile(
+      stage.parentCompletion,
+      "utf8",
+    );
+    const completionLines = completionText.trim().split("\n");
     const completionRows = parseJsonl<{
       schema: string;
       parent_id: string;
@@ -643,127 +748,170 @@ describe('deterministic sibling teacher generator', () => {
       train_group_records: number;
       train_group_sha256: string | null;
     }>(completionText);
-    expect(completionLines.every((line) => line === canonicalJson(JSON.parse(line)))).toBe(true);
+    expect(
+      completionLines.every((line) => line === canonicalJson(JSON.parse(line))),
+    ).toBe(true);
     expect(completionRows.map((row) => row.schema)).toEqual([
       STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
       STRENGTH_FIRST_PARENT_COMPLETION_RECORD_SCHEMA,
     ]);
-    for (const row of completionLines.map((line) => JSON.parse(line) as object)) {
+    for (const row of completionLines.map(
+      (line) => JSON.parse(line) as object,
+    )) {
       expectExactKeys(row, [
-        'schema',
-        'game_id',
-        'parent_id',
-        'position_id',
-        'completed_parent_sha256',
-        'forced_parent_skipped',
-        'train_group_records',
-        'train_group_sha256',
+        "schema",
+        "game_id",
+        "parent_id",
+        "position_id",
+        "completed_parent_sha256",
+        "forced_parent_skipped",
+        "train_group_records",
+        "train_group_sha256",
       ]);
     }
     for (const row of completionRows) {
       const groupLines = trainLines.filter(
-        (line) => (JSON.parse(line) as SiblingRecord).parent_id === row.parent_id
+        (line) =>
+          (JSON.parse(line) as SiblingRecord).parent_id === row.parent_id,
       );
       expect(row.completed_parent_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(row.train_group_records).toBe(groupLines.length);
       if (row.forced_parent_skipped) {
-        expect(row.parent_id).toBe('parent-a');
+        expect(row.parent_id).toBe("parent-a");
         expect(row.train_group_records).toBe(0);
         expect(row.train_group_sha256).toBeNull();
       } else {
-        expect(row.parent_id).toBe('parent-b');
-        expect(row.train_group_sha256).toBe(sha256(`${groupLines.join('\n')}\n`));
+        expect(row.parent_id).toBe("parent-b");
+        expect(row.train_group_sha256).toBe(
+          sha256(`${groupLines.join("\n")}\n`),
+        );
       }
     }
-    expect(finalized.staged_result.train).toEqual(finalized.manifest.outputs.train);
-    expect(finalized.staged_result.parent_completion).toEqual(finalized.manifest.parent_completion);
+    expect(finalized.staged_result.train).toEqual(
+      finalized.manifest.outputs.train,
+    );
+    expect(finalized.staged_result.parent_completion).toEqual(
+      finalized.manifest.parent_completion,
+    );
     expect(finalized.staged_result.train.sha256).toBe(sha256(trainText));
-    expect(finalized.staged_result.parent_completion.sha256).toBe(sha256(completionText));
-    const manifestText = await fs.promises.readFile(stage.manifest, 'utf8');
+    expect(finalized.staged_result.parent_completion.sha256).toBe(
+      sha256(completionText),
+    );
+    const manifestText = await fs.promises.readFile(stage.manifest, "utf8");
     expect(finalized.staged_result.manifest).toMatchObject({
       bytes: Buffer.byteLength(manifestText),
       sha256: sha256(manifestText),
     });
-    expect(JSON.parse(await fs.promises.readFile(stage.stagedResult, 'utf8'))).toEqual(
-      finalized.staged_result
-    );
+    expect(
+      JSON.parse(await fs.promises.readFile(stage.stagedResult, "utf8")),
+    ).toEqual(finalized.staged_result);
 
     const stagedFinalArtifactsBeforeReplay = await Promise.all(
-      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
-        fs.promises.readFile(file)
-      )
+      [
+        stage.train,
+        stage.parentCompletion,
+        stage.manifest,
+        stage.stagedResult,
+      ].map((file) => fs.promises.readFile(file)),
     );
-    const replayedPrefix = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-      input,
-      { ...baseOptions, targetParents: 1, finalize: false },
-      dependencies
+    const replayedPrefix =
+      await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        { ...baseOptions, targetParents: 1, finalize: false },
+        dependencies,
+      );
+    expect(replayedPrefix.status).toBe(
+      "local-work-prefix-complete-not-an-authentication-receipt",
     );
-    expect(replayedPrefix.status).toBe('local-work-prefix-complete-not-an-authentication-receipt');
-    if (replayedPrefix.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
-      throw new Error('expected replayed prefix');
+    if (
+      replayedPrefix.status !==
+      "local-work-prefix-complete-not-an-authentication-receipt"
+    ) {
+      throw new Error("expected replayed prefix");
     }
     expect(replayedPrefix.run_fingerprint).toBe(prefix.run_fingerprint);
     expect(replayedPrefix.work).toEqual(prefix.work);
     expect(replayedPrefix.current_work.records).toBe(3);
     const stagedFinalArtifactsAfterReplay = await Promise.all(
-      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
-        fs.promises.readFile(file)
-      )
+      [
+        stage.train,
+        stage.parentCompletion,
+        stage.manifest,
+        stage.stagedResult,
+      ].map((file) => fs.promises.readFile(file)),
     );
-    expect(stagedFinalArtifactsAfterReplay).toEqual(stagedFinalArtifactsBeforeReplay);
+    expect(stagedFinalArtifactsAfterReplay).toEqual(
+      stagedFinalArtifactsBeforeReplay,
+    );
 
     const completedWorkRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     const preservedLaterParent = completedWorkRows.find(
-      (row) => row.kind === 'parent' && row.parent_id === 'parent-b'
+      (row) => row.kind === "parent" && row.parent_id === "parent-b",
     );
-    if (!preservedLaterParent) throw new Error('missing later completed parent');
+    if (!preservedLaterParent)
+      throw new Error("missing later completed parent");
     await fs.promises.writeFile(
       stage.work,
-      `${JSON.stringify(completedWorkRows[0])}\n${JSON.stringify(preservedLaterParent)}\n`
+      `${JSON.stringify(completedWorkRows[0])}\n${JSON.stringify(preservedLaterParent)}\n`,
     );
-    const repairedHole = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-      input,
-      { ...baseOptions, targetParents: 2, finalize: false },
-      dependencies
-    );
-    if (repairedHole.status !== 'local-work-prefix-complete-not-an-authentication-receipt') {
-      throw new Error('expected repaired target prefix');
+    const repairedHole =
+      await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        { ...baseOptions, targetParents: 2, finalize: false },
+        dependencies,
+      );
+    if (
+      repairedHole.status !==
+      "local-work-prefix-complete-not-an-authentication-receipt"
+    ) {
+      throw new Error("expected repaired target prefix");
     }
     const repairedRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     expect(repairedRows.map((row) => row.parent_id).filter(Boolean)).toEqual([
-      'parent-a',
-      'parent-b',
+      "parent-a",
+      "parent-b",
     ]);
     expect(
-      repairedRows.find((row) => row.kind === 'parent' && row.parent_id === 'parent-b')
+      repairedRows.find(
+        (row) => row.kind === "parent" && row.parent_id === "parent-b",
+      ),
     ).toEqual(preservedLaterParent);
     expect(repairedHole.work.sha256).toBe(finalized.staged_result.work.sha256);
     const stagedFinalArtifactsAfterHoleRepair = await Promise.all(
-      [stage.train, stage.parentCompletion, stage.manifest, stage.stagedResult].map((file) =>
-        fs.promises.readFile(file)
-      )
+      [
+        stage.train,
+        stage.parentCompletion,
+        stage.manifest,
+        stage.stagedResult,
+      ].map((file) => fs.promises.readFile(file)),
     );
-    expect(stagedFinalArtifactsAfterHoleRepair).toEqual(stagedFinalArtifactsBeforeReplay);
+    expect(stagedFinalArtifactsAfterHoleRepair).toEqual(
+      stagedFinalArtifactsBeforeReplay,
+    );
 
-    const allForcedRaw = path.join(root, 'all-forced.raw.jsonl');
-    const allForcedStageRoot = path.join(root, 'all-forced-stage');
-    await fs.promises.writeFile(allForcedRaw, `${JSON.stringify(forcedParent)}\n`);
-    const allForced = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-      await authenticatedInputFromRaw(allForcedRaw, bundleVerifierRevision),
-      {
-        ...baseOptions,
-        stageRoot: allForcedStageRoot,
-        targetParents: 1,
-        finalize: true,
-      },
-      dependencies
+    const allForcedRaw = path.join(root, "all-forced.raw.jsonl");
+    const allForcedStageRoot = path.join(root, "all-forced-stage");
+    await fs.promises.writeFile(
+      allForcedRaw,
+      `${JSON.stringify(forcedParent)}\n`,
     );
-    if (allForced.status !== 'complete-training-only') {
-      throw new Error('expected accountable all-forced completion');
+    const allForced =
+      await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        await authenticatedInputFromRaw(allForcedRaw, bundleVerifierRevision),
+        {
+          ...baseOptions,
+          stageRoot: allForcedStageRoot,
+          targetParents: 1,
+          finalize: true,
+        },
+        dependencies,
+      );
+    if (allForced.status !== "complete-training-only") {
+      throw new Error("expected accountable all-forced completion");
     }
     expect(allForced).toMatchObject({
       completed_parents: 1,
@@ -796,11 +944,11 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     const allForcedStage = siblingTeacherStagePaths(allForcedStageRoot);
-    expect(await fs.promises.readFile(allForcedStage.train, 'utf8')).toBe('');
+    expect(await fs.promises.readFile(allForcedStage.train, "utf8")).toBe("");
     expect(
       parseJsonl<{ forced_parent_skipped: boolean }>(
-        await fs.promises.readFile(allForcedStage.parentCompletion, 'utf8')
-      )
+        await fs.promises.readFile(allForcedStage.parentCompletion, "utf8"),
+      ),
     ).toEqual([
       expect.objectContaining({
         forced_parent_skipped: true,
@@ -811,7 +959,7 @@ describe('deterministic sibling teacher generator', () => {
       advanceStrengthFirstSiblingTeacherDataset(
         input,
         {
-          stageRoot: path.join(root, 'production-stage'),
+          stageRoot: path.join(root, "production-stage"),
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
           engineArgs: [FAKE_ENGINE],
@@ -820,14 +968,14 @@ describe('deterministic sibling teacher generator', () => {
           depth: 8,
           targetParents: 100,
         },
-        dependencies
-      )
+        dependencies,
+      ),
     ).rejects.toThrow(/exactly 24000 parents/);
     await expect(
       advanceStrengthFirstV9SiblingTeacherDataset(
         input,
         {
-          stageRoot: path.join(root, 'v9-production-stage'),
+          stageRoot: path.join(root, "v9-production-stage"),
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
           engineArgs: [FAKE_ENGINE],
@@ -836,28 +984,30 @@ describe('deterministic sibling teacher generator', () => {
           depth: 8,
           targetParents: 100,
         },
-        dependencies
-      )
+        dependencies,
+      ),
     ).rejects.toThrow(/exactly 24000 parents/);
   }, 15_000);
 
-  it('quarantines one typed search timeout without labels, replaces the engine, and binds exact accounting', async () => {
+  it("quarantines one typed search timeout without labels, replaces the engine, and binds exact accounting", async () => {
     expect(STRENGTH_FIRST_TIMEOUT_SKIP_DIVISOR).toBe(1_000);
     expect(strengthFirstTimeoutSkipLimit(100)).toBe(1);
     expect(strengthFirstTimeoutSkipLimit(500)).toBe(1);
     expect(strengthFirstTimeoutSkipLimit(24_000)).toBe(24);
 
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-timeout-skip-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-timeout-skip-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    const environmentTrace = path.join(root, 'engine-environment.jsonl');
-    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    const environmentTrace = path.join(root, "engine-environment.jsonl");
+    const hangOnceMarker = path.join(root, "hang-once.marker");
     await fs.promises.writeFile(
       raw,
-      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+      `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(rawParent("parent-a"))}\n`,
     );
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     const dependencies = {
       verifyRevision: async (revision: string) => ({
         source_revision: revision,
@@ -871,11 +1021,11 @@ describe('deterministic sibling teacher generator', () => {
       engineBin: process.execPath,
       engineArgs: [
         FAKE_ENGINE,
-        '--environment-trace',
+        "--environment-trace",
         environmentTrace,
-        '--hang-searchmove',
-        '2g2f',
-        '--hang-once-marker',
+        "--hang-searchmove",
+        "2g2f",
+        "--hang-once-marker",
         hangOnceMarker,
       ],
       engineReceipt: await writeEngineReceipt(root),
@@ -890,10 +1040,10 @@ describe('deterministic sibling teacher generator', () => {
     const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
       input,
       options,
-      dependencies
+      dependencies,
     );
-    if (outcome.status !== 'complete-training-only') {
-      throw new Error('expected timeout-quarantined completion');
+    if (outcome.status !== "complete-training-only") {
+      throw new Error("expected timeout-quarantined completion");
     }
     expect(outcome).toMatchObject({
       completed_parents: 2,
@@ -919,27 +1069,29 @@ describe('deterministic sibling teacher generator', () => {
     });
 
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     const timeoutSkip = workRows.find(
-      (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+      (row) =>
+        row.kind === "skip" &&
+        row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
     );
     expect(timeoutSkip).toMatchObject({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
-      kind: 'skip',
-      parent_id: 'parent-a',
+      kind: "skip",
+      parent_id: "parent-a",
       reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
       timeout: {
-        phase: 'independent-rescore',
+        phase: "independent-rescore",
         requested_multipv: 1,
         requested_limit: { depth: 8 },
-        searchmoves: ['2g2f'],
+        searchmoves: ["2g2f"],
         timeout_ms: 25,
       },
     });
-    expect(timeoutSkip).not.toHaveProperty('records');
-    expect(timeoutSkip).not.toHaveProperty('initial_search');
-    expect(timeoutSkip).not.toHaveProperty('exact_search');
+    expect(timeoutSkip).not.toHaveProperty("records");
+    expect(timeoutSkip).not.toHaveProperty("initial_search");
+    expect(timeoutSkip).not.toHaveProperty("exact_search");
     expect(timeoutSkip?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
 
     const completionRows = parseJsonl<{
@@ -947,23 +1099,27 @@ describe('deterministic sibling teacher generator', () => {
       forced_parent_skipped: boolean;
       train_group_records: number;
       train_group_sha256: string | null;
-    }>(await fs.promises.readFile(stage.parentCompletion, 'utf8'));
+    }>(await fs.promises.readFile(stage.parentCompletion, "utf8"));
     expect(completionRows).toEqual([
       expect.objectContaining({
-        parent_id: 'parent-a',
+        parent_id: "parent-a",
         forced_parent_skipped: true,
         train_group_records: 0,
         train_group_sha256: null,
       }),
       expect.objectContaining({
-        parent_id: 'parent-b',
+        parent_id: "parent-b",
         forced_parent_skipped: false,
       }),
     ]);
-    const trainRows = parseJsonl<SiblingRecord>(await fs.promises.readFile(stage.train, 'utf8'));
-    expect(new Set(trainRows.map((row) => row.parent_id))).toEqual(new Set(['parent-b']));
+    const trainRows = parseJsonl<SiblingRecord>(
+      await fs.promises.readFile(stage.train, "utf8"),
+    );
+    expect(new Set(trainRows.map((row) => row.parent_id))).toEqual(
+      new Set(["parent-b"]),
+    );
     const replacementEnvironments = parseJsonl<{ cwd: string }>(
-      await fs.promises.readFile(environmentTrace, 'utf8')
+      await fs.promises.readFile(environmentTrace, "utf8"),
     );
     expect(replacementEnvironments).toHaveLength(2);
     expect(replacementEnvironments.map((entry) => entry.cwd)).toEqual([
@@ -973,7 +1129,9 @@ describe('deterministic sibling teacher generator', () => {
 
     const tamperedRows = workRows.map((row) => ({ ...row }));
     const tamperedSkip = tamperedRows.find(
-      (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
+      (row) =>
+        row.kind === "skip" &&
+        row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
     ) as Record<string, unknown>;
     tamperedSkip.timeout = {
       ...(tamperedSkip.timeout as Record<string, unknown>),
@@ -982,29 +1140,38 @@ describe('deterministic sibling teacher generator', () => {
     resealWorkEntry(tamperedSkip);
     await fs.promises.writeFile(
       stage.work,
-      `${tamperedRows.map((row) => JSON.stringify(row)).join('\n')}\n`
+      `${tamperedRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
     );
     await fs.promises.rm(environmentTrace, { force: true });
     await fs.promises.rm(hangOnceMarker, { force: true });
     await expect(
-      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(input, options, dependencies)
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        options,
+        dependencies,
+      ),
     ).rejects.toThrow(/invalid search-timeout skip metadata/);
   }, 15_000);
 
-  it('records proposal-timeout context without emitting any partial label', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-proposal-timeout-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+  it("records proposal-timeout context without emitting any partial label", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-proposal-timeout-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-a"))}\n`,
+    );
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
       input,
       {
         stageRoot,
         runnerRevision: PIPELINE_REVISION,
         engineBin: process.execPath,
-        engineArgs: [FAKE_ENGINE, '--hang-go'],
+        engineArgs: [FAKE_ENGINE, "--hang-go"],
         engineReceipt: await writeEngineReceipt(root),
         multipv: 2,
         depth: 8,
@@ -1019,10 +1186,10 @@ describe('deterministic sibling teacher generator', () => {
           tracked_tree_clean: true,
         }),
         verifyOutputPaths: async () => undefined,
-      }
+      },
     );
-    if (outcome.status !== 'complete-training-only') {
-      throw new Error('expected proposal-timeout quarantine completion');
+    if (outcome.status !== "complete-training-only") {
+      throw new Error("expected proposal-timeout quarantine completion");
     }
     expect(outcome).toMatchObject({
       completed_parents: 1,
@@ -1046,32 +1213,37 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     expect(workRows).toHaveLength(2);
     expect(workRows[1]).toMatchObject({
-      kind: 'skip',
-      parent_id: 'parent-a',
+      kind: "skip",
+      parent_id: "parent-a",
       reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
       timeout: {
-        phase: 'proposal',
+        phase: "proposal",
         requested_multipv: 2,
         requested_limit: { depth: 8 },
         searchmoves: [],
         timeout_ms: 25,
       },
     });
-    expect(workRows[1]).not.toHaveProperty('records');
-    expect(await fs.promises.readFile(stage.train, 'utf8')).toBe('');
+    expect(workRows[1]).not.toHaveProperty("records");
+    expect(await fs.promises.readFile(stage.train, "utf8")).toBe("");
   }, 15_000);
 
-  it('quarantines only a typed incomplete proposal and validates its resume receipt', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-proposal-incomplete-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+  it("quarantines only a typed incomplete proposal and validates its resume receipt", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-proposal-incomplete-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-a"))}\n`,
+    );
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     const dependencies = {
       verifyRevision: async (revision: string) => ({
         source_revision: revision,
@@ -1083,9 +1255,9 @@ describe('deterministic sibling teacher generator', () => {
       stageRoot,
       runnerRevision: PIPELINE_REVISION,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--incomplete-proposal'],
+      engineArgs: [FAKE_ENGINE, "--incomplete-proposal"],
       engineReceipt: await writeEngineReceipt(root),
-      authenticatedInputPolicy: 'fast-held-fd-v1',
+      authenticatedInputPolicy: "fast-held-fd-v1",
       multipv: 2,
       depth: 8,
       proposalDepth: 6,
@@ -1097,10 +1269,10 @@ describe('deterministic sibling teacher generator', () => {
     const outcome = await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
       input,
       options,
-      dependencies
+      dependencies,
     );
-    if (outcome.status !== 'complete-training-only') {
-      throw new Error('expected incomplete-proposal quarantine completion');
+    if (outcome.status !== "complete-training-only") {
+      throw new Error("expected incomplete-proposal quarantine completion");
     }
     expect(outcome).toMatchObject({
       completed_parents: 1,
@@ -1115,12 +1287,13 @@ describe('deterministic sibling teacher generator', () => {
       },
       manifest: {
         authenticated_input: {
-          runtime_policy: 'fast-held-fd-v1',
+          runtime_policy: "fast-held-fd-v1",
         },
         search: {
           limit: { depth: 8 },
           proposal_limit: { depth: 6 },
-          proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+          proposal_incomplete_quarantine_policy:
+            PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
         },
         forced_skip_reasons: {
           fewer_than_two_legal_moves: 0,
@@ -1130,16 +1303,16 @@ describe('deterministic sibling teacher generator', () => {
       },
     });
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     expect(workRows).toHaveLength(2);
     expect(workRows[1]).toMatchObject({
-      kind: 'skip',
-      parent_id: 'parent-a',
+      kind: "skip",
+      parent_id: "parent-a",
       reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
       legal_moves: 30,
       incomplete: {
-        phase: 'proposal',
+        phase: "proposal",
         requested_multipv: 2,
         requested_limit: { depth: 6 },
         final_exact_ranks: 1,
@@ -1148,8 +1321,8 @@ describe('deterministic sibling teacher generator', () => {
         missing_or_non_exact_ranks: 1,
       },
     });
-    expect(workRows[1]).not.toHaveProperty('records');
-    expect(await fs.promises.readFile(stage.train, 'utf8')).toBe('');
+    expect(workRows[1]).not.toHaveProperty("records");
+    expect(await fs.promises.readFile(stage.train, "utf8")).toBe("");
 
     const tampered = workRows.map((row) => ({ ...row }));
     const incomplete = tampered[1].incomplete as Record<string, unknown>;
@@ -1157,20 +1330,29 @@ describe('deterministic sibling teacher generator', () => {
     resealWorkEntry(tampered[1]);
     await fs.promises.writeFile(
       stage.work,
-      `${tampered.map((row) => JSON.stringify(row)).join('\n')}\n`
+      `${tampered.map((row) => JSON.stringify(row)).join("\n")}\n`,
     );
     await expect(
-      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(input, options, dependencies)
+      advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+        input,
+        options,
+        dependencies,
+      ),
     ).rejects.toThrow(/invalid proposal-incomplete skip metadata/);
   }, 15_000);
 
-  it('keeps an incomplete independent rescore fatal and emits no skip receipt', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-rescore-incomplete-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+  it("keeps an incomplete independent rescore fatal and emits no skip receipt", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-rescore-incomplete-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-a"))}\n`,
+    );
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     await expect(
       advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
         input,
@@ -1178,7 +1360,7 @@ describe('deterministic sibling teacher generator', () => {
           stageRoot,
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
-          engineArgs: [FAKE_ENGINE, '--incomplete-rescore'],
+          engineArgs: [FAKE_ENGINE, "--incomplete-rescore"],
           engineReceipt: await writeEngineReceipt(root),
           multipv: 2,
           depth: 8,
@@ -1194,31 +1376,31 @@ describe('deterministic sibling teacher generator', () => {
             tracked_tree_clean: true,
           }),
           verifyOutputPaths: async () => undefined,
-        }
-      )
+        },
+      ),
     ).rejects.toThrow(/wanted 1 ranks at depth 8; observed depths: 7/);
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     expect(workRows).toHaveLength(1);
-    expect(workRows[0]).toMatchObject({ kind: 'header' });
+    expect(workRows[0]).toMatchObject({ kind: "header" });
     await expect(fs.promises.access(stage.stagedResult)).rejects.toThrow();
   }, 15_000);
 
-  it('kills a replacement whose initialization times out and fails without another skip or result', async () => {
+  it("kills a replacement whose initialization times out and fails without another skip or result", async () => {
     const root = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'sibling-replacement-init-timeout-')
+      path.join(os.tmpdir(), "sibling-replacement-init-timeout-"),
     );
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    const environmentTrace = path.join(root, 'engine-environment.jsonl');
-    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    const environmentTrace = path.join(root, "engine-environment.jsonl");
+    const hangOnceMarker = path.join(root, "hang-once.marker");
     await fs.promises.writeFile(
       raw,
-      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+      `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(rawParent("parent-a"))}\n`,
     );
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     await expect(
       advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
         input,
@@ -1228,13 +1410,13 @@ describe('deterministic sibling teacher generator', () => {
           engineBin: process.execPath,
           engineArgs: [
             FAKE_ENGINE,
-            '--environment-trace',
+            "--environment-trace",
             environmentTrace,
-            '--hang-searchmove',
-            '2g2f',
-            '--hang-once-marker',
+            "--hang-searchmove",
+            "2g2f",
+            "--hang-once-marker",
             hangOnceMarker,
-            '--hang-usi-after-marker',
+            "--hang-usi-after-marker",
             hangOnceMarker,
           ],
           engineReceipt: await writeEngineReceipt(root),
@@ -1252,24 +1434,26 @@ describe('deterministic sibling teacher generator', () => {
             tracked_tree_clean: true,
           }),
           verifyOutputPaths: async () => undefined,
-        }
-      )
+        },
+      ),
     ).rejects.toThrow(/USI timeout after 3000ms/);
 
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
     expect(
       workRows.filter(
-        (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
-      )
+        (row) =>
+          row.kind === "skip" &&
+          row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      ),
     ).toHaveLength(1);
-    expect(workRows.some((row) => row.parent_id === 'parent-b')).toBe(false);
+    expect(workRows.some((row) => row.parent_id === "parent-b")).toBe(false);
     await expect(fs.promises.access(stage.stagedResult)).rejects.toThrow();
     await expect(fs.promises.access(stage.train)).rejects.toThrow();
 
     const processes = parseJsonl<{ cwd: string; pid: number }>(
-      await fs.promises.readFile(environmentTrace, 'utf8')
+      await fs.promises.readFile(environmentTrace, "utf8"),
     );
     expect(processes.map((entry) => entry.cwd)).toEqual([
       expect.stringMatching(/\/cwd\/worker-0\/engine-0$/),
@@ -1278,15 +1462,17 @@ describe('deterministic sibling teacher generator', () => {
     expect(processes.every((entry) => !processIsRunning(entry.pid))).toBe(true);
   }, 15_000);
 
-  it('fails closed before recording a search timeout beyond the bounded prefix budget', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-timeout-cap-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+  it("fails closed before recording a search timeout beyond the bounded prefix budget", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-timeout-cap-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     await fs.promises.writeFile(
       raw,
-      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+      `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(rawParent("parent-a"))}\n`,
     );
-    const input = await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5));
+    const input = await authenticatedInputFromRaw(raw, "89abcdef".repeat(5));
     await expect(
       advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
         input,
@@ -1294,7 +1480,7 @@ describe('deterministic sibling teacher generator', () => {
           stageRoot,
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
-          engineArgs: [FAKE_ENGINE, '--hang-searchmove', '2g2f'],
+          engineArgs: [FAKE_ENGINE, "--hang-searchmove", "2g2f"],
           engineReceipt: await writeEngineReceipt(root),
           multipv: 2,
           depth: 8,
@@ -1309,228 +1495,57 @@ describe('deterministic sibling teacher generator', () => {
             tracked_tree_clean: true,
           }),
           verifyOutputPaths: async () => undefined,
-        }
-      )
+        },
+      ),
     ).rejects.toThrow(/recoverable search skip limit 1 exhausted/);
 
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(siblingTeacherStagePaths(stageRoot).work, 'utf8')
+      await fs.promises.readFile(
+        siblingTeacherStagePaths(stageRoot).work,
+        "utf8",
+      ),
     );
     expect(
       workRows.filter(
-        (row) => row.kind === 'skip' && row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON
-      )
+        (row) =>
+          row.kind === "skip" &&
+          row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      ),
     ).toHaveLength(1);
     await expect(
-      fs.promises.access(siblingTeacherStagePaths(stageRoot).stagedResult)
+      fs.promises.access(siblingTeacherStagePaths(stageRoot).stagedResult),
     ).rejects.toThrow();
   }, 15_000);
 
-  it('uses timeout-only fresh-role quarantine, restarts the engine, and persists no partial labels', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-fresh-timeout-only-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
+  it("uses timeout-only fresh-role quarantine, restarts the engine, and persists no partial labels", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-fresh-timeout-only-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
     const stage = siblingTeacherStagePaths(stageRoot);
-    const environmentTrace = path.join(root, 'engine-environment.jsonl');
-    const hangOnceMarker = path.join(root, 'hang-once.marker');
+    const environmentTrace = path.join(root, "engine-environment.jsonl");
+    const hangOnceMarker = path.join(root, "hang-once.marker");
     await fs.promises.writeFile(
       raw,
-      `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`
+      `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(rawParent("parent-a"))}\n`,
     );
-    const outcome = await stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
-      await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5)),
-      {
-        stageRoot,
-        runnerRevision: PIPELINE_REVISION,
-        engineBin: process.execPath,
-        engineArgs: [
-          FAKE_ENGINE,
-          '--environment-trace',
-          environmentTrace,
-          '--hang-searchmove',
-          '2g2f',
-          '--hang-once-marker',
-          hangOnceMarker,
-        ],
-        engineReceipt: await writeEngineReceipt(root),
-        multipv: 2,
-        depth: 8,
-        engines: 1,
-        timeoutMs: 25,
-      },
-      {
-        verifyRevision: async (revision) => ({
-          source_revision: revision,
-          tracked_tree_clean: true,
-        }),
-        verifyOutputPaths: async () => undefined,
-      }
-    );
-    expect(outcome).toMatchObject({
-      status: 'local-work-prefix-complete-not-an-authentication-receipt',
-      completed_parents: 2,
-      forced_parents_skipped: 1,
-      forced_skip_reasons: {
-        fewer_than_two_legal_moves: 0,
-        search_timeout_no_label: 1,
-      },
-      emitted_parent_groups: 1,
-    });
-    const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(stage.work, 'utf8')
-    );
-    const skip = workRows.find((row) => row.kind === 'skip');
-    expect(skip).toMatchObject({
-      reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
-      timeout: { phase: 'independent-rescore', searchmoves: ['2g2f'] },
-    });
-    expect(skip).not.toHaveProperty('records');
-    expect(skip).not.toHaveProperty('initial_search');
-    expect(skip).not.toHaveProperty('exact_search');
-    expect(
-      parseJsonl<{ cwd: string }>(await fs.promises.readFile(environmentTrace, 'utf8'))
-    ).toHaveLength(2);
-    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
-  }, 15_000);
-
-  it('keeps proposal incomplete and proposal-fallback timeout fatal in timeout-only fresh lanes', async () => {
-    const dependencies = {
-      verifyRevision: async (revision: string) => ({
-        source_revision: revision,
-        tracked_tree_clean: true as const,
-      }),
-      verifyOutputPaths: async () => undefined,
-    };
-
-    const incompleteRoot = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'sibling-fresh-proposal-incomplete-')
-    );
-    const incompleteRaw = path.join(incompleteRoot, 'training.raw.jsonl');
-    const incompleteStageRoot = path.join(incompleteRoot, 'stage');
-    const incompleteTrace = path.join(incompleteRoot, 'engine-environment.jsonl');
-    await fs.promises.writeFile(
-      incompleteRaw,
-      `${JSON.stringify(rawParent('fresh-incomplete'))}\n`
-    );
-    const incompleteInput = await authenticatedInputFromRaw(incompleteRaw, '89abcdef'.repeat(5));
-    const incompleteOptions = {
-      stageRoot: incompleteStageRoot,
-      runnerRevision: PIPELINE_REVISION,
-      engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--environment-trace', incompleteTrace],
-      engineReceipt: await writeEngineReceipt(incompleteRoot),
-      multipv: 2,
-      depth: 8,
-      proposalDepth: 6,
-      engines: 1,
-      timeoutMs: 5_000,
-    };
-    await expect(
-      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
-        incompleteInput,
-        incompleteOptions,
-        dependencies
-      )
-    ).rejects.toThrow(/incomplete MultiPV/);
-    expect(
-      parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(incompleteStageRoot).work, 'utf8')
-      )
-    ).toHaveLength(1);
-    expect(parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))).toHaveLength(1);
-    await fs.promises.rm(incompleteTrace);
-
-    const resumeStageRoot = path.join(incompleteRoot, 'resume-stage');
-    const resumeOptions = {
-      ...incompleteOptions,
-      stageRoot: resumeStageRoot,
-    };
-    await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
-      incompleteInput,
-      { ...resumeOptions, targetParents: 1, finalize: false },
-      dependencies
-    );
-    expect(
-      parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(resumeStageRoot).work, 'utf8')
-      ).at(1)
-    ).toMatchObject({
-      kind: 'skip',
-      reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
-    });
-    expect(parseJsonl(await fs.promises.readFile(incompleteTrace, 'utf8'))).toHaveLength(1);
-    await fs.promises.rm(incompleteTrace);
-    await expect(
-      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
-        incompleteInput,
-        resumeOptions,
-        dependencies
-      )
-    ).rejects.toThrow(/forbidden by timeout-only/);
-    await expect(fs.promises.access(incompleteTrace)).rejects.toThrow();
-
-    const fallbackRoot = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'sibling-fresh-proposal-fallback-timeout-')
-    );
-    const fallbackRaw = path.join(fallbackRoot, 'training.raw.jsonl');
-    const fallbackStageRoot = path.join(fallbackRoot, 'stage');
-    await fs.promises.writeFile(
-      fallbackRaw,
-      `${JSON.stringify(rawParent('fresh-fallback-timeout'))}\n`
-    );
-    await expect(
-      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
-        await authenticatedInputFromRaw(fallbackRaw, '89abcdef'.repeat(5)),
-        {
-          stageRoot: fallbackStageRoot,
-          runnerRevision: PIPELINE_REVISION,
-          engineBin: process.execPath,
-          engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--hang-searchmove', '2g2f'],
-          engineReceipt: await writeEngineReceipt(fallbackRoot),
-          multipv: 30,
-          depth: 8,
-          proposalDepth: 6,
-          proposalIncompleteAllLegalFallbackMaxMoves: 30,
-          engines: 1,
-          timeoutMs: 25,
-        },
-        dependencies
-      )
-    ).rejects.toThrow(/USI search timeout after 25ms/);
-    expect(
-      parseJsonl<Record<string, unknown>>(
-        await fs.promises.readFile(siblingTeacherStagePaths(fallbackStageRoot).work, 'utf8')
-      )
-    ).toHaveLength(1);
-  }, 15_000);
-
-  it('fails closed on the sixth fresh-role timeout and keeps exactly five no-label skips', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-fresh-timeout-cap-'));
-    const raw = path.join(root, 'training.raw.jsonl');
-    const stageRoot = path.join(root, 'stage');
-    await fs.promises.writeFile(
-      raw,
-      `${Array.from({ length: 4_800 }, (_, index) => {
-        const parent = rawParent(`fresh-cap-${index.toString().padStart(4, '0')}`);
-        const parentSfen = START.replace(
-          ' b - 1',
-          ` b ${index + 1 === 1 ? 'P' : `${index + 1}P`} 1`
-        );
-        return JSON.stringify({
-          ...parent,
-          position_id: positionKeyFromSfen(parentSfen),
-          parent_sfen: parentSfen,
-        });
-      }).join('\n')}\n`
-    );
-    await expect(
-      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
-        await authenticatedInputFromRaw(raw, '89abcdef'.repeat(5)),
+    const outcome =
+      await stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        await authenticatedInputFromRaw(raw, "89abcdef".repeat(5)),
         {
           stageRoot,
           runnerRevision: PIPELINE_REVISION,
           engineBin: process.execPath,
-          engineArgs: [FAKE_ENGINE, '--hang-go'],
+          engineArgs: [
+            FAKE_ENGINE,
+            "--environment-trace",
+            environmentTrace,
+            "--hang-searchmove",
+            "2g2f",
+            "--hang-once-marker",
+            hangOnceMarker,
+          ],
           engineReceipt: await writeEngineReceipt(root),
           multipv: 2,
           depth: 8,
@@ -1543,29 +1558,254 @@ describe('deterministic sibling teacher generator', () => {
             tracked_tree_clean: true,
           }),
           verifyOutputPaths: async () => undefined,
-        }
-      )
-    ).rejects.toThrow(/recoverable search skip limit 5 exhausted/);
+        },
+      );
+    expect(outcome).toMatchObject({
+      status: "local-work-prefix-complete-not-an-authentication-receipt",
+      completed_parents: 2,
+      forced_parents_skipped: 1,
+      forced_skip_reasons: {
+        fewer_than_two_legal_moves: 0,
+        search_timeout_no_label: 1,
+      },
+      emitted_parent_groups: 1,
+    });
     const workRows = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(siblingTeacherStagePaths(stageRoot).work, 'utf8')
+      await fs.promises.readFile(stage.work, "utf8"),
     );
-    const skips = workRows.filter((row) => row.kind === 'skip');
-    expect(skips).toHaveLength(5);
-    expect(skips.every((row) => row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON)).toBe(true);
-    expect(skips.some((row) => Object.hasOwn(row, 'records'))).toBe(false);
-    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual(['work.jsonl']);
+    const skip = workRows.find((row) => row.kind === "skip");
+    expect(skip).toMatchObject({
+      reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
+      timeout: { phase: "independent-rescore", searchmoves: ["2g2f"] },
+    });
+    expect(skip).not.toHaveProperty("records");
+    expect(skip).not.toHaveProperty("initial_search");
+    expect(skip).not.toHaveProperty("exact_search");
+    expect(
+      parseJsonl<{ cwd: string }>(
+        await fs.promises.readFile(environmentTrace, "utf8"),
+      ),
+    ).toHaveLength(2);
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
+      "work.jsonl",
+    ]);
   }, 15_000);
 
-  it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-teacher-'));
-    const raw = path.join(root, 'parents.raw.jsonl');
-    const outTrain = path.join(root, 'train.jsonl');
-    const outVal = path.join(root, 'val.jsonl');
-    const manifest = path.join(root, 'manifest.json');
-    const work = path.join(root, 'work.jsonl');
+  it("keeps proposal incomplete and proposal-fallback timeout fatal in timeout-only fresh lanes", async () => {
+    const dependencies = {
+      verifyRevision: async (revision: string) => ({
+        source_revision: revision,
+        tracked_tree_clean: true as const,
+      }),
+      verifyOutputPaths: async () => undefined,
+    };
+
+    const incompleteRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-fresh-proposal-incomplete-"),
+    );
+    const incompleteRaw = path.join(incompleteRoot, "training.raw.jsonl");
+    const incompleteStageRoot = path.join(incompleteRoot, "stage");
+    const incompleteTrace = path.join(
+      incompleteRoot,
+      "engine-environment.jsonl",
+    );
+    await fs.promises.writeFile(
+      incompleteRaw,
+      `${JSON.stringify(rawParent("fresh-incomplete"))}\n`,
+    );
+    const incompleteInput = await authenticatedInputFromRaw(
+      incompleteRaw,
+      "89abcdef".repeat(5),
+    );
+    const incompleteOptions = {
+      stageRoot: incompleteStageRoot,
+      runnerRevision: PIPELINE_REVISION,
+      engineBin: process.execPath,
+      engineArgs: [
+        FAKE_ENGINE,
+        "--incomplete-proposal",
+        "--environment-trace",
+        incompleteTrace,
+      ],
+      engineReceipt: await writeEngineReceipt(incompleteRoot),
+      multipv: 2,
+      depth: 8,
+      proposalDepth: 6,
+      engines: 1,
+      timeoutMs: 5_000,
+    };
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        incompleteInput,
+        incompleteOptions,
+        dependencies,
+      ),
+    ).rejects.toThrow(/incomplete MultiPV/);
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(incompleteStageRoot).work,
+          "utf8",
+        ),
+      ),
+    ).toHaveLength(1);
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, "utf8")),
+    ).toHaveLength(1);
+    await fs.promises.rm(incompleteTrace);
+
+    const resumeStageRoot = path.join(incompleteRoot, "resume-stage");
+    const resumeOptions = {
+      ...incompleteOptions,
+      stageRoot: resumeStageRoot,
+    };
+    await advanceStrengthFirstSiblingTeacherDatasetCoreForTests(
+      incompleteInput,
+      { ...resumeOptions, targetParents: 1, finalize: false },
+      dependencies,
+    );
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(resumeStageRoot).work,
+          "utf8",
+        ),
+      ).at(1),
+    ).toMatchObject({
+      kind: "skip",
+      reason: STRENGTH_FIRST_PROPOSAL_INCOMPLETE_SKIP_REASON,
+    });
+    expect(
+      parseJsonl(await fs.promises.readFile(incompleteTrace, "utf8")),
+    ).toHaveLength(1);
+    await fs.promises.rm(incompleteTrace);
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        incompleteInput,
+        resumeOptions,
+        dependencies,
+      ),
+    ).rejects.toThrow(/forbidden by timeout-only/);
+    await expect(fs.promises.access(incompleteTrace)).rejects.toThrow();
+
+    const fallbackRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-fresh-proposal-fallback-timeout-"),
+    );
+    const fallbackRaw = path.join(fallbackRoot, "training.raw.jsonl");
+    const fallbackStageRoot = path.join(fallbackRoot, "stage");
+    await fs.promises.writeFile(
+      fallbackRaw,
+      `${JSON.stringify(rawParent("fresh-fallback-timeout"))}\n`,
+    );
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        await authenticatedInputFromRaw(fallbackRaw, "89abcdef".repeat(5)),
+        {
+          stageRoot: fallbackStageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [
+            FAKE_ENGINE,
+            "--incomplete-proposal",
+            "--hang-searchmove",
+            "2g2f",
+          ],
+          engineReceipt: await writeEngineReceipt(fallbackRoot),
+          multipv: 30,
+          depth: 8,
+          proposalDepth: 6,
+          proposalIncompleteAllLegalFallbackMaxMoves: 30,
+          engines: 1,
+          timeoutMs: 25,
+        },
+        dependencies,
+      ),
+    ).rejects.toThrow(/USI search timeout after 25ms/);
+    expect(
+      parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(
+          siblingTeacherStagePaths(fallbackStageRoot).work,
+          "utf8",
+        ),
+      ),
+    ).toHaveLength(1);
+  }, 15_000);
+
+  it("fails closed on the sixth fresh-role timeout and keeps exactly five no-label skips", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-fresh-timeout-cap-"),
+    );
+    const raw = path.join(root, "training.raw.jsonl");
+    const stageRoot = path.join(root, "stage");
+    await fs.promises.writeFile(
+      raw,
+      `${Array.from({ length: 4_800 }, (_, index) => {
+        const parent = rawParent(
+          `fresh-cap-${index.toString().padStart(4, "0")}`,
+        );
+        const parentSfen = START.replace(
+          " b - 1",
+          ` b ${index + 1 === 1 ? "P" : `${index + 1}P`} 1`,
+        );
+        return JSON.stringify({
+          ...parent,
+          position_id: positionKeyFromSfen(parentSfen),
+          parent_sfen: parentSfen,
+        });
+      }).join("\n")}\n`,
+    );
+    await expect(
+      stageSiblingTeacherDatasetWithFreshTimeoutQuarantineCoreForTests(
+        await authenticatedInputFromRaw(raw, "89abcdef".repeat(5)),
+        {
+          stageRoot,
+          runnerRevision: PIPELINE_REVISION,
+          engineBin: process.execPath,
+          engineArgs: [FAKE_ENGINE, "--hang-go"],
+          engineReceipt: await writeEngineReceipt(root),
+          multipv: 2,
+          depth: 8,
+          engines: 1,
+          timeoutMs: 25,
+        },
+        {
+          verifyRevision: async (revision) => ({
+            source_revision: revision,
+            tracked_tree_clean: true,
+          }),
+          verifyOutputPaths: async () => undefined,
+        },
+      ),
+    ).rejects.toThrow(/recoverable search skip limit 5 exhausted/);
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(
+        siblingTeacherStagePaths(stageRoot).work,
+        "utf8",
+      ),
+    );
+    const skips = workRows.filter((row) => row.kind === "skip");
+    expect(skips).toHaveLength(5);
+    expect(
+      skips.every((row) => row.reason === STRENGTH_FIRST_TIMEOUT_SKIP_REASON),
+    ).toBe(true);
+    expect(skips.some((row) => Object.hasOwn(row, "records"))).toBe(false);
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
+      "work.jsonl",
+    ]);
+  }, 15_000);
+
+  it("re-scores played moves outside top-N, resumes deterministically, and emits no duplicates", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-teacher-"),
+    );
+    const raw = path.join(root, "parents.raw.jsonl");
+    const outTrain = path.join(root, "train.jsonl");
+    const outVal = path.join(root, "val.jsonl");
+    const manifest = path.join(root, "manifest.json");
+    const work = path.join(root, "work.jsonl");
     const engineReceipt = await writeEngineReceipt(root);
     // Intentionally reverse parent order; all final artifacts must sort parent_id.
-    const rawText = `${JSON.stringify(rawParent('parent-b'))}\n${JSON.stringify(rawParent('parent-a'))}\n`;
+    const rawText = `${JSON.stringify(rawParent("parent-b"))}\n${JSON.stringify(rawParent("parent-a"))}\n`;
     await fs.promises.writeFile(raw, rawText);
 
     const options = {
@@ -1576,7 +1816,7 @@ describe('deterministic sibling teacher generator', () => {
       multipv: 2,
       depth: 8,
       engines: 2,
-      seed: 'resume-seed',
+      seed: "resume-seed",
       valRatio: 0.25,
       outTrain,
       outVal,
@@ -1597,7 +1837,9 @@ describe('deterministic sibling teacher generator', () => {
     expect(verifyRevision).toHaveBeenCalledTimes(2);
     expect(verifyOutputPaths).toHaveBeenCalledTimes(2);
     const firstArtifacts = await Promise.all(
-      [outTrain, outVal, manifest, work].map((file) => fs.promises.readFile(file, 'utf8'))
+      [outTrain, outVal, manifest, work].map((file) =>
+        fs.promises.readFile(file, "utf8"),
+      ),
     );
     const allRecords = [
       ...parseJsonl<SiblingRecord>(firstArtifacts[0]),
@@ -1607,143 +1849,155 @@ describe('deterministic sibling teacher generator', () => {
     expect(firstManifest.schema).toBe(SIBLING_TEACHER_MANIFEST_SCHEMA);
     expect(Object.keys(firstManifest).sort()).toEqual(
       [
-        'schema',
-        'record_manifest_schema',
-        'pipeline',
-        'source',
-        'teacher',
-        'search',
-        'candidate_sets',
-        'progress_checkpoint',
-        'split',
-        'outputs',
-      ].sort()
+        "schema",
+        "record_manifest_schema",
+        "pipeline",
+        "source",
+        "teacher",
+        "search",
+        "candidate_sets",
+        "progress_checkpoint",
+        "split",
+        "outputs",
+      ].sort(),
     );
     expect(Object.keys(firstManifest.source).sort()).toEqual(
-      ['raw_sha256', 'raw_records', 'selected_parents', 'selected_parent_ids_sha256'].sort()
+      [
+        "raw_sha256",
+        "raw_records",
+        "selected_parents",
+        "selected_parent_ids_sha256",
+      ].sort(),
     );
     expect(Object.keys(firstManifest.teacher).sort()).toEqual(
       [
-        'engine_bin_sha256',
-        'engine_bin_bytes',
-        'engine_args',
-        'engine_arg_files',
-        'engine_receipt',
-        'eval_sha256',
-        'eval_files',
-        'runtime_snapshot',
-      ].sort()
+        "engine_bin_sha256",
+        "engine_bin_bytes",
+        "engine_args",
+        "engine_arg_files",
+        "engine_receipt",
+        "eval_sha256",
+        "eval_files",
+        "runtime_snapshot",
+      ].sort(),
     );
     expect(Object.keys(firstManifest.search).sort()).toEqual(
       [
-        'multipv',
-        'limit',
-        'parallel_engines',
-        'fv_scale',
-        'hash_mb_per_engine',
-        'timeout_ms',
-        'exact_rescore_mode',
-        'label_policy',
-        'tt_reset_before_proposal',
-        'tt_reset_before_each_candidate',
-        'search_state_reset_before_proposal',
-        'search_state_reset_before_each_candidate',
-        'candidate_execution_order',
-        'synthesized_rank_order',
-        'engine_options',
-      ].sort()
+        "multipv",
+        "limit",
+        "parallel_engines",
+        "fv_scale",
+        "hash_mb_per_engine",
+        "timeout_ms",
+        "exact_rescore_mode",
+        "label_policy",
+        "tt_reset_before_proposal",
+        "tt_reset_before_each_candidate",
+        "search_state_reset_before_proposal",
+        "search_state_reset_before_each_candidate",
+        "candidate_execution_order",
+        "synthesized_rank_order",
+        "engine_options",
+      ].sort(),
     );
-    expectExactKeys(firstManifest.pipeline, ['source_revision', 'tracked_tree_clean']);
-    expectExactKeys(firstManifest.teacher.engine_receipt, ['file', 'content']);
-    expectExactKeys(firstManifest.teacher.engine_receipt.file, ['path', 'bytes', 'sha256']);
+    expectExactKeys(firstManifest.pipeline, [
+      "source_revision",
+      "tracked_tree_clean",
+    ]);
+    expectExactKeys(firstManifest.teacher.engine_receipt, ["file", "content"]);
+    expectExactKeys(firstManifest.teacher.engine_receipt.file, [
+      "path",
+      "bytes",
+      "sha256",
+    ]);
     for (const file of [
       ...firstManifest.teacher.engine_arg_files,
       ...firstManifest.teacher.eval_files,
     ]) {
-      expectExactKeys(file, ['path', 'bytes', 'sha256']);
+      expectExactKeys(file, ["path", "bytes", "sha256"]);
     }
     expectExactKeys(firstManifest.teacher.engine_receipt.content, [
-      'schema',
-      'source_repository',
-      'source_commit',
-      'source_commit_date',
-      'build_directory',
-      'build_command',
-      'compiler',
-      'compiler_target',
-      'engine_id',
-      'binary_bytes',
-      'binary_sha256',
+      "schema",
+      "source_repository",
+      "source_commit",
+      "source_commit_date",
+      "build_directory",
+      "build_command",
+      "compiler",
+      "compiler_target",
+      "engine_id",
+      "binary_bytes",
+      "binary_sha256",
     ]);
     expectExactKeys(firstManifest.teacher.runtime_snapshot, [
-      'engine_binary',
-      'engine_argument_files',
-      'eval_tree',
-      'eval_options_file',
-      'private_working_directory',
-      'engine_argument_file_count',
-      'eval_tree_present',
+      "engine_binary",
+      "engine_argument_files",
+      "eval_tree",
+      "eval_options_file",
+      "private_working_directory",
+      "engine_argument_file_count",
+      "eval_tree_present",
     ]);
-    expectExactKeys(firstManifest.search.limit, ['depth']);
+    expectExactKeys(firstManifest.search.limit, ["depth"]);
     expectExactKeys(firstManifest.search.engine_options, [
-      'threads',
-      'usi_own_book',
-      'book_file',
-      'network_delay_ms',
-      'network_delay2_ms',
-      'search_state_reset_trigger',
+      "threads",
+      "usi_own_book",
+      "book_file",
+      "network_delay_ms",
+      "network_delay2_ms",
+      "search_state_reset_trigger",
     ]);
     expectExactKeys(firstManifest.candidate_sets, [
-      'sha256',
-      'parents',
-      'candidates',
-      'min_candidates',
-      'max_candidates',
-      'skipped_parents',
+      "sha256",
+      "parents",
+      "candidates",
+      "min_candidates",
+      "max_candidates",
+      "skipped_parents",
     ]);
     expectExactKeys(firstManifest.progress_checkpoint, [
-      'schema',
-      'run_fingerprint',
-      'entries',
-      'completed_parents',
-      'skipped_parents',
-      'sha256',
+      "schema",
+      "run_fingerprint",
+      "entries",
+      "completed_parents",
+      "skipped_parents",
+      "sha256",
     ]);
     expectExactKeys(firstManifest.split, [
-      'schema',
-      'record_schema',
-      'schema_version',
-      'split_seed',
-      'val_ratio',
-      'train_game_ids_sha256',
-      'val_game_ids_sha256',
-      'stats',
+      "schema",
+      "record_schema",
+      "schema_version",
+      "split_seed",
+      "val_ratio",
+      "train_game_ids_sha256",
+      "val_game_ids_sha256",
+      "stats",
     ]);
     expectExactKeys(firstManifest.split.stats, [
-      'input_records',
-      'output_records',
-      'input_parents',
-      'output_parents',
-      'input_games',
-      'train_records',
-      'val_records',
-      'train_parents',
-      'val_parents',
-      'train_games',
-      'val_games',
-      'val_position_priority_dropped_records',
-      'val_position_priority_dropped_parents',
-      'val_child_position_priority_dropped_records',
-      'val_child_position_priority_dropped_parents',
-      'game_overlap',
-      'position_overlap',
-      'child_position_overlap',
+      "input_records",
+      "output_records",
+      "input_parents",
+      "output_parents",
+      "input_games",
+      "train_records",
+      "val_records",
+      "train_parents",
+      "val_parents",
+      "train_games",
+      "val_games",
+      "val_position_priority_dropped_records",
+      "val_position_priority_dropped_parents",
+      "val_child_position_priority_dropped_records",
+      "val_child_position_priority_dropped_parents",
+      "game_overlap",
+      "position_overlap",
+      "child_position_overlap",
     ]);
     expectExactKeys(firstManifest.outputs, [
-      'train_sha256',
-      'val_sha256',
-      'train_bytes',
-      'val_bytes',
+      "train_sha256",
+      "val_sha256",
+      "train_bytes",
+      "val_bytes",
     ]);
     expect(firstManifest.pipeline).toEqual({
       source_revision: PIPELINE_REVISION,
@@ -1756,9 +2010,9 @@ describe('deterministic sibling teacher generator', () => {
     expect(firstManifest.teacher.eval_sha256).toBeNull();
     expect(firstManifest.teacher.runtime_snapshot).toEqual({
       engine_binary: true,
-      engine_argument_files: 'snapshotted-and-substituted',
-      eval_tree: 'snapshotted',
-      eval_options_file: 'rejected',
+      engine_argument_files: "snapshotted-and-substituted",
+      eval_tree: "snapshotted",
+      eval_options_file: "rejected",
       private_working_directory: true,
       engine_argument_file_count: 1,
       eval_tree_present: false,
@@ -1771,8 +2025,8 @@ describe('deterministic sibling teacher generator', () => {
       label_policy: SIBLING_TEACHER_LABEL_POLICY,
       tt_reset_before_proposal: true,
       tt_reset_before_each_candidate: true,
-      search_state_reset_before_proposal: 'isready',
-      search_state_reset_before_each_candidate: 'isready',
+      search_state_reset_before_proposal: "isready",
+      search_state_reset_before_each_candidate: "isready",
     });
     expect(firstManifest.candidate_sets).toMatchObject({
       parents: 2,
@@ -1782,52 +2036,63 @@ describe('deterministic sibling teacher generator', () => {
       skipped_parents: 0,
     });
     expect(allRecords.map((record) => record.parent_id)).toEqual([
-      'parent-a',
-      'parent-a',
-      'parent-a',
-      'parent-b',
-      'parent-b',
-      'parent-b',
+      "parent-a",
+      "parent-a",
+      "parent-a",
+      "parent-b",
+      "parent-b",
+      "parent-b",
     ]);
-    for (const parentId of ['parent-a', 'parent-b']) {
-      const group = allRecords.filter((record) => record.parent_id === parentId);
-      expect(group.map((record) => record.move)).toEqual(['7g7f', '2g2f', '6g6f']);
+    for (const parentId of ["parent-a", "parent-b"]) {
+      const group = allRecords.filter(
+        (record) => record.parent_id === parentId,
+      );
+      expect(group.map((record) => record.move)).toEqual([
+        "7g7f",
+        "2g2f",
+        "6g6f",
+      ]);
       expect(new Set(group.map((record) => record.move)).size).toBe(3);
-      expect(group.find((record) => record.move === '6g6f')).toMatchObject({
-        sources: ['played'],
+      expect(group.find((record) => record.move === "6g6f")).toMatchObject({
+        sources: ["played"],
         teacher_rank: 3,
         teacher_parent_cp: 220,
       });
-      expect(group.filter((record) => record.sources.includes('teacher'))).toHaveLength(2);
+      expect(
+        group.filter((record) => record.sources.includes("teacher")),
+      ).toHaveLength(2);
     }
 
     const workRows = parseJsonl<Record<string, unknown>>(firstArtifacts[3]);
     expect(workRows[0]).toMatchObject({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
-      kind: 'header',
+      kind: "header",
       pipeline: {
         source_revision: PIPELINE_REVISION,
         tracked_tree_clean: true,
       },
     });
-    expect(workRows.slice(1).map((row) => row.parent_id)).toEqual(['parent-a', 'parent-b']);
+    expect(workRows.slice(1).map((row) => row.parent_id)).toEqual([
+      "parent-a",
+      "parent-b",
+    ]);
     expect(workRows[1]).toMatchObject({
-      candidate_moves: ['2g2f', '6g6f', '7g7f'],
-      initial_search: { requested_multipv: 2, moves: ['7g7f', '2g2f'] },
+      candidate_moves: ["2g2f", "6g6f", "7g7f"],
+      initial_search: { requested_multipv: 2, moves: ["7g7f", "2g2f"] },
       exact_search: {
         mode: INDEPENDENT_EXACT_RESCORE_MODE,
         candidate_count: 3,
-        synthesized_rank1_move: '7g7f',
-        moves: ['7g7f', '2g2f', '6g6f'],
+        synthesized_rank1_move: "7g7f",
+        moves: ["7g7f", "2g2f", "6g6f"],
         scores: [
-          { move: '7g7f', cp: 260 },
-          { move: '2g2f', cp: 220 },
-          { move: '6g6f', cp: 220 },
+          { move: "7g7f", cp: 260 },
+          { move: "2g2f", cp: 220 },
+          { move: "6g6f", cp: 220 },
         ],
         searches: [
-          { requested_multipv: 1, bestmove: '2g2f', moves: ['2g2f'] },
-          { requested_multipv: 1, bestmove: '6g6f', moves: ['6g6f'] },
-          { requested_multipv: 1, bestmove: '7g7f', moves: ['7g7f'] },
+          { requested_multipv: 1, bestmove: "2g2f", moves: ["2g2f"] },
+          { requested_multipv: 1, bestmove: "6g6f", moves: ["6g6f"] },
+          { requested_multipv: 1, bestmove: "7g7f", moves: ["7g7f"] },
         ],
         total_observed_nodes: 192,
       },
@@ -1836,100 +2101,117 @@ describe('deterministic sibling teacher generator', () => {
     // Simulate an interruption: retain one completed parent and a torn final append.
     await fs.promises.writeFile(
       work,
-      `${JSON.stringify(workRows[0])}\n${JSON.stringify(workRows[1])}\n{"schema":`
+      `${JSON.stringify(workRows[0])}\n${JSON.stringify(workRows[1])}\n{"schema":`,
     );
     const secondManifest = await generateSiblingTeacherDataset(boundOptions, {
       verifyRevision,
       verifyOutputPaths,
     });
     const secondArtifacts = await Promise.all(
-      [outTrain, outVal, manifest, work].map((file) => fs.promises.readFile(file, 'utf8'))
+      [outTrain, outVal, manifest, work].map((file) =>
+        fs.promises.readFile(file, "utf8"),
+      ),
     );
 
     expect(secondManifest).toEqual(firstManifest);
     expect(secondArtifacts).toEqual(firstArtifacts);
   });
 
-  it('resets before every candidate and executes independent searches in canonical order', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-independent-'));
-    const raw = path.join(root, 'parents.raw.jsonl');
-    const work = path.join(root, 'work.jsonl');
-    const trace = path.join(root, 'engine-trace.jsonl');
+  it("resets before every candidate and executes independent searches in canonical order", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-independent-"),
+    );
+    const raw = path.join(root, "parents.raw.jsonl");
+    const work = path.join(root, "work.jsonl");
+    const trace = path.join(root, "engine-trace.jsonl");
     const engineReceipt = await writeEngineReceipt(root);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-only'))}\n`);
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-only"))}\n`,
+    );
 
     const manifest = await generateForTest({
       raw,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--trace', trace],
+      engineArgs: [FAKE_ENGINE, "--trace", trace],
       engineReceipt,
       multipv: 2,
       depth: 8,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     });
 
-    const events = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(trace, 'utf8'));
-    const searches = events.filter((event) => event.event === 'search');
-    expect(events.filter((event) => event.event === 'ready')).toHaveLength(5);
+    const events = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(trace, "utf8"),
+    );
+    const searches = events.filter((event) => event.event === "search");
+    expect(events.filter((event) => event.event === "ready")).toHaveLength(5);
     expect(searches).toHaveLength(4);
     expect(searches[0]).toMatchObject({ multipv: 2, searchmoves: [] });
     expect(searches.slice(1).map((event) => event.searchmoves)).toEqual([
-      ['2g2f'],
-      ['6g6f'],
-      ['7g7f'],
+      ["2g2f"],
+      ["6g6f"],
+      ["7g7f"],
     ]);
     for (let index = 1; index < events.length; index++) {
-      if (events[index].event === 'search' && searches.indexOf(events[index]) > 0) {
-        expect(events[index - 1]).toMatchObject({ event: 'ready' });
+      if (
+        events[index].event === "search" &&
+        searches.indexOf(events[index]) > 0
+      ) {
+        expect(events[index - 1]).toMatchObject({ event: "ready" });
       }
     }
 
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     expect(workRows[1]).toMatchObject({
-      candidate_moves: ['2g2f', '6g6f', '7g7f'],
+      candidate_moves: ["2g2f", "6g6f", "7g7f"],
       exact_search: {
         mode: INDEPENDENT_EXACT_RESCORE_MODE,
-        moves: ['7g7f', '2g2f', '6g6f'],
+        moves: ["7g7f", "2g2f", "6g6f"],
         total_observed_nodes: 192,
       },
       records: [
-        { move: '7g7f', teacher_rank: 1, teacher_parent_cp: 260 },
-        { move: '2g2f', teacher_rank: 2, teacher_parent_cp: 220 },
-        { move: '6g6f', teacher_rank: 3, teacher_parent_cp: 220 },
+        { move: "7g7f", teacher_rank: 1, teacher_parent_cp: 260 },
+        { move: "2g2f", teacher_rank: 2, teacher_parent_cp: 220 },
+        { move: "6g6f", teacher_rank: 3, teacher_parent_cp: 220 },
       ],
     });
     expect(manifest.search).toMatchObject({
       exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
       tt_reset_before_each_candidate: true,
-      search_state_reset_before_each_candidate: 'isready',
+      search_state_reset_before_each_candidate: "isready",
     });
-    expect(manifest.search).not.toHaveProperty('exact_rescore');
-    expect(manifest.search).not.toHaveProperty('tt_reset_before_exact_rescore');
+    expect(manifest.search).not.toHaveProperty("exact_rescore");
+    expect(manifest.search).not.toHaveProperty("tt_reset_before_exact_rescore");
   });
 
-  it('rejects resealed resume entries with corrupt independent-search derivations', async () => {
+  it("rejects resealed resume entries with corrupt independent-search derivations", async () => {
     const cases: Array<{
       name: string;
       mutate: (entry: Record<string, unknown>) => void;
       error: RegExp;
     }> = [
       {
-        name: 'execution order',
+        name: "execution order",
         mutate: (entry) => {
           const exact = entry.exact_search as {
             searches: Record<string, unknown>[];
           };
-          [exact.searches[0], exact.searches[1]] = [exact.searches[1], exact.searches[0]];
+          [exact.searches[0], exact.searches[1]] = [
+            exact.searches[1],
+            exact.searches[0],
+          ];
         },
         error: /canonical candidate order/,
       },
       {
-        name: 'total nodes',
+        name: "total nodes",
         mutate: (entry) => {
           const exact = entry.exact_search as { total_observed_nodes: number };
           exact.total_observed_nodes++;
@@ -1937,7 +2219,7 @@ describe('deterministic sibling teacher generator', () => {
         error: /total_observed_nodes/,
       },
       {
-        name: 'tie rank',
+        name: "tie rank",
         mutate: (entry) => {
           const records = entry.records as Array<Record<string, unknown>>;
           records[1].teacher_rank = 3;
@@ -1946,7 +2228,7 @@ describe('deterministic sibling teacher generator', () => {
         error: /disagrees with exact score metadata/,
       },
       {
-        name: 'proposal limit',
+        name: "proposal limit",
         mutate: (entry) => {
           const initial = entry.initial_search as Record<string, unknown>;
           initial.requested_limit = { depth: 7 };
@@ -1962,7 +2244,7 @@ describe('deterministic sibling teacher generator', () => {
         error: /inconsistent candidate metadata/,
       },
       {
-        name: 'proposal multipv',
+        name: "proposal multipv",
         mutate: (entry) => {
           const initial = entry.initial_search as {
             requested_multipv: number;
@@ -1979,12 +2261,15 @@ describe('deterministic sibling teacher generator', () => {
 
     for (const testCase of cases) {
       const root = await fs.promises.mkdtemp(
-        path.join(os.tmpdir(), `sibling-resume-${testCase.name}-`)
+        path.join(os.tmpdir(), `sibling-resume-${testCase.name}-`),
       );
-      const raw = path.join(root, 'parents.raw.jsonl');
-      const work = path.join(root, 'work.jsonl');
+      const raw = path.join(root, "parents.raw.jsonl");
+      const work = path.join(root, "work.jsonl");
       const engineReceipt = await writeEngineReceipt(root);
-      await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-resume'))}\n`);
+      await fs.promises.writeFile(
+        raw,
+        `${JSON.stringify(rawParent("parent-resume"))}\n`,
+      );
       const options = {
         raw,
         engineBin: process.execPath,
@@ -1993,28 +2278,40 @@ describe('deterministic sibling teacher generator', () => {
         multipv: 2,
         depth: 8,
         engines: 1,
-        outTrain: path.join(root, 'train.jsonl'),
-        outVal: path.join(root, 'val.jsonl'),
-        manifest: path.join(root, 'manifest.json'),
+        outTrain: path.join(root, "train.jsonl"),
+        outVal: path.join(root, "val.jsonl"),
+        manifest: path.join(root, "manifest.json"),
         work,
         timeoutMs: 5_000,
       };
       await generateForTest(options);
-      const rows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+      const rows = parseJsonl<Record<string, unknown>>(
+        await fs.promises.readFile(work, "utf8"),
+      );
       testCase.mutate(rows[1]);
       resealWorkEntry(rows[1]);
-      await fs.promises.writeFile(work, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`);
+      await fs.promises.writeFile(
+        work,
+        `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+      );
 
-      await expect(generateForTest(options), testCase.name).rejects.toThrow(testCase.error);
+      await expect(generateForTest(options), testCase.name).rejects.toThrow(
+        testCase.error,
+      );
     }
   }, 15_000);
 
-  it('rejects a resealed false skip for a parent with multiple legal moves', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-false-skip-'));
-    const raw = path.join(root, 'parents.raw.jsonl');
-    const work = path.join(root, 'work.jsonl');
+  it("rejects a resealed false skip for a parent with multiple legal moves", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-false-skip-"),
+    );
+    const raw = path.join(root, "parents.raw.jsonl");
+    const work = path.join(root, "work.jsonl");
     const engineReceipt = await writeEngineReceipt(root);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-false-skip'))}\n`);
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-false-skip"))}\n`,
+    );
     const options = {
       raw,
       engineBin: process.execPath,
@@ -2023,89 +2320,101 @@ describe('deterministic sibling teacher generator', () => {
       multipv: 2,
       depth: 8,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     };
     await generateForTest(options);
-    const rows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const rows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     const falseSkip: Record<string, unknown> = {
       schema: rows[1].schema,
-      kind: 'skip',
+      kind: "skip",
       run_fingerprint: rows[1].run_fingerprint,
-      payload_sha256: '',
+      payload_sha256: "",
       parent_id: rows[1].parent_id,
-      reason: 'fewer-than-two-legal-moves',
+      reason: "fewer-than-two-legal-moves",
       legal_moves: 1,
     };
     resealWorkEntry(falseSkip);
-    await fs.promises.writeFile(work, `${JSON.stringify(rows[0])}\n${JSON.stringify(falseSkip)}\n`);
+    await fs.promises.writeFile(
+      work,
+      `${JSON.stringify(rows[0])}\n${JSON.stringify(falseSkip)}\n`,
+    );
 
     await expect(generateForTest(options)).rejects.toThrow(
-      /skip legal_moves does not match its raw parent/
+      /skip legal_moves does not match its raw parent/,
     );
   });
 
-  it('requires one and only one deterministic search limit', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-limit-'));
-    const raw = path.join(root, 'raw.jsonl');
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-limit'))}\n`);
+  it("requires one and only one deterministic search limit", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-limit-"),
+    );
+    const raw = path.join(root, "raw.jsonl");
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-limit"))}\n`,
+    );
     const base = {
       raw,
       engineBin: process.execPath,
-      engineReceipt: path.join(root, 'receipt.json'),
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
-      work: path.join(root, 'work.jsonl'),
+      engineReceipt: path.join(root, "receipt.json"),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
+      work: path.join(root, "work.jsonl"),
     };
-    await expect(generateForTest(base)).rejects.toThrow(/exactly one of nodes or depth/);
-    await expect(generateForTest({ ...base, nodes: 100, depth: 8 })).rejects.toThrow(
-      /exactly one of nodes or depth/
+    await expect(generateForTest(base)).rejects.toThrow(
+      /exactly one of nodes or depth/,
     );
+    await expect(
+      generateForTest({ ...base, nodes: 100, depth: 8 }),
+    ).rejects.toThrow(/exactly one of nodes or depth/);
     await expect(
       generateForTest({
         ...base,
         depth: 8,
         proposalNodes: 100,
         proposalDepth: 6,
-      })
+      }),
     ).rejects.toThrow(/at most one of proposalNodes or proposalDepth/);
   });
 
-  it('keeps the legacy run fingerprint stable and binds a distinct proposal limit only when selected', () => {
+  it("keeps the legacy run fingerprint stable and binds a distinct proposal limit only when selected", () => {
     const legacy = {
       authenticated_training_binding: {
         result_receipt_bytes: 1,
-        result_receipt_sha256: '1'.repeat(64),
+        result_receipt_sha256: "1".repeat(64),
         bundle_manifest_bytes: 2,
-        bundle_manifest_sha256: '2'.repeat(64),
-        bundle_producer_revision: '3'.repeat(40),
-        verifier_revision: '4'.repeat(40),
-        raw_format: 'jsonl',
+        bundle_manifest_sha256: "2".repeat(64),
+        bundle_producer_revision: "3".repeat(40),
+        verifier_revision: "4".repeat(40),
+        raw_format: "jsonl",
         raw_bytes: 3,
-        raw_sha256: '5'.repeat(64),
+        raw_sha256: "5".repeat(64),
         records: 1,
         games: 1,
-        game_ids_sha256: '6'.repeat(64),
-        parent_ids_sha256: '7'.repeat(64),
+        game_ids_sha256: "6".repeat(64),
+        parent_ids_sha256: "7".repeat(64),
         position_ids_count: 1,
-        position_ids_sha256: '8'.repeat(64),
+        position_ids_sha256: "8".repeat(64),
       },
-      source_raw_sha256: '5'.repeat(64),
-      selected_parent_ids_sha256: '7'.repeat(64),
+      source_raw_sha256: "5".repeat(64),
+      selected_parent_ids_sha256: "7".repeat(64),
       pipeline: {
-        source_revision: '9'.repeat(40),
+        source_revision: "9".repeat(40),
         tracked_tree_clean: true,
       },
-      engine_bin_sha256: 'a'.repeat(64),
+      engine_bin_sha256: "a".repeat(64),
       engine_args: [],
       engine_arg_files: [],
-      engine_receipt_sha256: 'b'.repeat(64),
-      engine_receipt: { schema: 'fixture' },
-      eval_sha256: 'c'.repeat(64),
+      engine_receipt_sha256: "b".repeat(64),
+      engine_receipt: { schema: "fixture" },
+      eval_sha256: "c".repeat(64),
       multipv: 12,
       limit: { depth: 16 },
       parallel_engines: 12,
@@ -2115,55 +2424,57 @@ describe('deterministic sibling teacher generator', () => {
     } as unknown as Parameters<typeof siblingTeacherRunFingerprint>[0];
 
     expect(siblingTeacherRunFingerprint(legacy)).toBe(
-      '3de9aa8a45954f040e2e886259d439eef6e3eddf07a55be629cd44730bd542a7'
+      "3de9aa8a45954f040e2e886259d439eef6e3eddf07a55be629cd44730bd542a7",
     );
     expect(
       siblingTeacherRunFingerprint({
         ...legacy,
         proposal_limit: { depth: 14 },
-      })
+      }),
     ).not.toBe(siblingTeacherRunFingerprint(legacy));
     expect(
       siblingTeacherRunFingerprint({
         ...legacy,
-        authenticated_input_policy: 'fast-held-fd-v1',
-      })
+        authenticated_input_policy: "fast-held-fd-v1",
+      }),
     ).not.toBe(siblingTeacherRunFingerprint(legacy));
   });
 
-  it('binds fresh-final provenance separately and reserves the exact final.jsonl stage path', () => {
-    const stage = siblingTeacherStagePaths('/tmp/fresh-final-stage');
-    expect(path.basename(stage.final)).toBe('final.jsonl');
-    expect(new Set(Object.values(stage)).size).toBe(Object.values(stage).length);
+  it("binds fresh-final provenance separately and reserves the exact final.jsonl stage path", () => {
+    const stage = siblingTeacherStagePaths("/tmp/fresh-final-stage");
+    expect(path.basename(stage.final)).toBe("final.jsonl");
+    expect(new Set(Object.values(stage)).size).toBe(
+      Object.values(stage).length,
+    );
 
     const finalOnly = {
-      source_raw_sha256: '1'.repeat(64),
-      selected_parent_ids_sha256: '2'.repeat(64),
+      source_raw_sha256: "1".repeat(64),
+      selected_parent_ids_sha256: "2".repeat(64),
       authenticated_fresh_final_binding: {
         schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-        role: 'fresh_final_holdout' as const,
+        role: "fresh_final_holdout" as const,
         source: {
-          path: 'fresh-final-holdout.raw.jsonl' as const,
+          path: "fresh-final-holdout.raw.jsonl" as const,
           format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
           bytes: 1,
-          sha256: '1'.repeat(64),
+          sha256: "1".repeat(64),
           records: 4_800,
           games: 200,
-          game_ids_sha256: '3'.repeat(64),
-          parent_ids_sha256: '4'.repeat(64),
+          game_ids_sha256: "3".repeat(64),
+          parent_ids_sha256: "4".repeat(64),
           position_ids_count: 4_800,
-          position_ids_sha256: '5'.repeat(64),
+          position_ids_sha256: "5".repeat(64),
         },
       },
       pipeline: {
-        source_revision: '6'.repeat(40),
+        source_revision: "6".repeat(40),
         tracked_tree_clean: true,
       },
-      engine_bin_sha256: '7'.repeat(64),
+      engine_bin_sha256: "7".repeat(64),
       engine_args: [],
       engine_arg_files: [],
-      engine_receipt_sha256: '8'.repeat(64),
-      engine_receipt: { schema: 'fixture' },
+      engine_receipt_sha256: "8".repeat(64),
+      engine_receipt: { schema: "fixture" },
       eval_sha256: null,
       multipv: 12,
       limit: { depth: 16 },
@@ -2179,38 +2490,38 @@ describe('deterministic sibling teacher generator', () => {
         ...finalOnly,
         authenticated_training_binding: {
           result_receipt_bytes: 1,
-          result_receipt_sha256: '9'.repeat(64),
+          result_receipt_sha256: "9".repeat(64),
           bundle_manifest_bytes: 1,
-          bundle_manifest_sha256: 'a'.repeat(64),
-          bundle_producer_revision: 'b'.repeat(40),
-          verifier_revision: 'c'.repeat(40),
+          bundle_manifest_sha256: "a".repeat(64),
+          bundle_producer_revision: "b".repeat(40),
+          verifier_revision: "c".repeat(40),
           raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
           raw_bytes: 1,
-          raw_sha256: 'd'.repeat(64),
+          raw_sha256: "d".repeat(64),
           records: 1,
           games: 1,
-          game_ids_sha256: 'e'.repeat(64),
-          parent_ids_sha256: 'f'.repeat(64),
+          game_ids_sha256: "e".repeat(64),
+          parent_ids_sha256: "f".repeat(64),
           position_ids_count: 1,
-          position_ids_sha256: '0'.repeat(64),
+          position_ids_sha256: "0".repeat(64),
         },
-      })
+      }),
     ).toThrow(/exactly one authenticated role binding/);
   });
 
-  it('rejects a non-4,800 fresh-final input before reading engine assets or creating output', async () => {
+  it("rejects a non-4,800 fresh-final input before reading engine assets or creating output", async () => {
     const root = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'fresh-final-generator-cardinality-')
+      path.join(os.tmpdir(), "fresh-final-generator-cardinality-"),
     );
-    const row = rawParent('parent-final') as unknown as FloodgateTrainingParent;
+    const row = rawParent("parent-final") as unknown as FloodgateTrainingParent;
     const input: AuthenticatedFloodgateFreshFinalRows = Object.freeze({
       schema: FRESH_FINAL_TEACHER_INPUT_SCHEMA,
-      role: 'fresh_final_holdout',
+      role: "fresh_final_holdout",
       source: Object.freeze({
-        path: 'fresh-final-holdout.raw.jsonl',
+        path: "fresh-final-holdout.raw.jsonl",
         format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
         bytes: 1,
-        sha256: '1'.repeat(64),
+        sha256: "1".repeat(64),
         records: 1,
         games: 1,
         game_ids_sha256: floodgateIdentifierDigest([row.game_id]),
@@ -2223,39 +2534,46 @@ describe('deterministic sibling teacher generator', () => {
 
     await expect(
       generateFreshFinalSiblingTeacherDataset(input, {
-        stageRoot: path.join(root, 'stage'),
+        stageRoot: path.join(root, "stage"),
         runnerRevision: PIPELINE_REVISION,
-        engineBin: path.join(root, 'must-not-be-read'),
-        engineReceipt: path.join(root, 'must-not-be-read-receipt'),
+        engineBin: path.join(root, "must-not-be-read"),
+        engineReceipt: path.join(root, "must-not-be-read-receipt"),
         multipv: 2,
         depth: 8,
         proposalIncompleteAllLegalFallbackMaxMoves: 2,
         engines: 1,
-      })
+      }),
     ).rejects.toThrow(/requires exactly 4800 parents and 200 games/);
-    await expect(fs.promises.access(path.join(root, 'stage'))).rejects.toThrow();
+    await expect(
+      fs.promises.access(path.join(root, "stage")),
+    ).rejects.toThrow();
     expect(await fs.promises.readdir(root)).toEqual([]);
   });
 
-  it('uses the split proposal limit while retaining the independent-rescore limit', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-split-limit-'));
-    const raw = path.join(root, 'parents.raw.jsonl');
-    const trace = path.join(root, 'engine-trace.jsonl');
-    const work = path.join(root, 'work.jsonl');
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-split'))}\n`);
+  it("uses the split proposal limit while retaining the independent-rescore limit", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-split-limit-"),
+    );
+    const raw = path.join(root, "parents.raw.jsonl");
+    const trace = path.join(root, "engine-trace.jsonl");
+    const work = path.join(root, "work.jsonl");
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-split"))}\n`,
+    );
 
     const manifest = await generateForTest({
       raw,
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--trace', trace],
+      engineArgs: [FAKE_ENGINE, "--trace", trace],
       engineReceipt: await writeEngineReceipt(root),
       multipv: 2,
       depth: 8,
       proposalDepth: 6,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     });
@@ -2263,11 +2581,12 @@ describe('deterministic sibling teacher generator', () => {
     expect(manifest.search).toMatchObject({
       limit: { depth: 8 },
       proposal_limit: { depth: 6 },
-      proposal_incomplete_quarantine_policy: PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
+      proposal_incomplete_quarantine_policy:
+        PROPOSAL_INCOMPLETE_QUARANTINE_POLICY,
     });
     const searches = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(trace, 'utf8')
-    ).filter((event) => event.event === 'search');
+      await fs.promises.readFile(trace, "utf8"),
+    ).filter((event) => event.event === "search");
     expect(searches[0]).toMatchObject({
       multipv: 2,
       depth: 6,
@@ -2275,7 +2594,9 @@ describe('deterministic sibling teacher generator', () => {
     });
     expect(searches.slice(1)).toHaveLength(3);
     expect(searches.slice(1).every((search) => search.depth === 8)).toBe(true);
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     expect(workRows[1]).toMatchObject({
       initial_search: { requested_limit: { depth: 6 } },
       exact_search: {
@@ -2288,21 +2609,181 @@ describe('deterministic sibling teacher generator', () => {
     });
   });
 
-  it('adds one legal stable move to the proposal and played-move union before exact rescoring', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-stable-union-'));
-    const trace = path.join(root, 'engine-trace.jsonl');
+  it("records and fail-closed validates dual-bound metadata for every forced rescore", async () => {
     const parent: FloodgateTrainingParent = {
       schema_version: 1,
-      game_id: 'game-stable',
-      parent_id: 'parent-stable',
+      game_id: "game-dual-bound",
+      parent_id: "parent-dual-bound",
       position_id: positionKeyFromSfen(START),
       parent_sfen: START,
       ply: 0,
-      played_move: '6g6f',
+      played_move: "6g6f",
+    };
+    const proposal = {
+      depth: 16,
+      bestmove: "7g7f",
+      observedNodes: 2_000,
+      lines: [
+        {
+          depth: 16,
+          multipv: 1,
+          cp: 30,
+          nodes: 2_000,
+          move: "7g7f",
+          pv: ["7g7f"],
+          scoreKind: "cp" as const,
+        },
+        {
+          depth: 16,
+          multipv: 2,
+          cp: 20,
+          nodes: 2_000,
+          move: "2g2f",
+          pv: ["2g2f"],
+          scoreKind: "cp" as const,
+        },
+      ],
+    };
+    const resultForMove = (move: string) => {
+      const capped = move === "2g2f";
+      const depth = capped ? 15 : 18;
+      const selectedNodes = capped ? 95_000_000 : 3_000_000;
+      return {
+        depth,
+        bestmove: move,
+        observedNodes: selectedNodes,
+        lines: [
+          {
+            depth,
+            multipv: 1,
+            cp: move === "7g7f" ? 40 : move === "6g6f" ? 25 : 10,
+            nodes: selectedNodes,
+            move,
+            pv: [move],
+            scoreKind: "cp" as const,
+          },
+        ],
+        dualBound: {
+          terminationReason: capped
+            ? ("node-cap" as const)
+            : ("depth" as const),
+          requestedDepth: 18,
+          nodeCap: 100_000_000,
+          minimumCompletedDepth: 15,
+          deepestCompleteExactDepth: depth,
+          selectedSnapshotNodes: selectedNodes,
+          maximumObservedNodes: capped ? 100_000_011 : selectedNodes,
+          maximumObservedDepth: capped ? 16 : 18,
+          selectedSnapshotBound: "exact" as const,
+          discardedAtOrAboveNodeCapUpdates: capped ? 1 : 0,
+          observedLowerboundUpdates: 0,
+          observedUpperboundUpdates: 0,
+          capWitnessDepth: capped ? 16 : null,
+          capWitnessNodes: capped ? 100_000_011 : null,
+          selectedPrecedesWitness: capped,
+          completedIterationWitnessDepth: depth,
+        },
+      };
+    };
+    const engine = {
+      resetForParent: vi.fn(async () => undefined),
+      search: vi.fn(
+        async (
+          _sfen: string,
+          _multipv: number,
+          _limit: unknown,
+          searchmoves: readonly string[],
+        ) =>
+          searchmoves.length === 0 ? proposal : resultForMove(searchmoves[0]),
+      ),
+    };
+    const limit = {
+      depth: 18,
+      nodes: 100_000_000,
+      minimumCompletedDepth: 15,
+    } as const;
+    const labeled = await labelSiblingParent(
+      engine as unknown as UsiTeacherEngine,
+      parent,
+      2,
+      limit,
+      ["2g2f", "6g6f", "7g7f"],
+      { depth: 16 },
+    );
+    expect(labeled.exact_search.searches).toMatchObject([
+      {
+        requested_limit: {
+          depth: 18,
+          nodes: 100_000_000,
+          minimum_completed_depth: 15,
+        },
+        dual_bound: {
+          termination_reason: "node-cap",
+          cap_witness_depth: 16,
+          selected_precedes_witness: true,
+        },
+      },
+      { dual_bound: { termination_reason: "depth" } },
+      { dual_bound: { termination_reason: "depth" } },
+    ]);
+
+    const fingerprint = "d".repeat(64);
+    labeled.run_fingerprint = fingerprint;
+    resealWorkEntry(labeled as unknown as Record<string, unknown>);
+    const parents = new Map([[parent.parent_id, parent]]);
+    expect(
+      validateWorkEntry(
+        labeled,
+        fingerprint,
+        parents,
+        "dual-bound fixture",
+        2,
+        limit,
+        3_600_000,
+        { depth: 16 },
+      ),
+    ).toEqual(labeled);
+
+    const tampered = structuredClone(labeled) as unknown as Record<
+      string,
+      unknown
+    >;
+    const exactSearch = tampered.exact_search as {
+      searches: Array<{ dual_bound: { selected_precedes_witness: boolean } }>;
+    };
+    exactSearch.searches[0].dual_bound.selected_precedes_witness = false;
+    resealWorkEntry(tampered);
+    expect(() =>
+      validateWorkEntry(
+        tampered,
+        fingerprint,
+        parents,
+        "tampered dual bound",
+        2,
+        limit,
+        3_600_000,
+        { depth: 16 },
+      ),
+    ).toThrow(/node-cap termination lacks cap telemetry/);
+  });
+
+  it("adds one legal stable move to the proposal and played-move union before exact rescoring", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-stable-union-"),
+    );
+    const trace = path.join(root, "engine-trace.jsonl");
+    const parent: FloodgateTrainingParent = {
+      schema_version: 1,
+      game_id: "game-stable",
+      parent_id: "parent-stable",
+      position_id: positionKeyFromSfen(START),
+      parent_sfen: START,
+      ply: 0,
+      played_move: "6g6f",
     };
     const engine = new UsiTeacherEngine({
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--trace', trace],
+      engineArgs: [FAKE_ENGINE, "--trace", trace],
       hashMb: 64,
       timeoutMs: 5_000,
     });
@@ -2317,37 +2798,41 @@ describe('deterministic sibling teacher generator', () => {
         undefined,
         { depth: 6 },
         undefined,
-        '5g5f'
+        "5g5f",
       );
     } finally {
       await engine.quit();
     }
 
-    expect(labeled.candidate_moves).toEqual(['2g2f', '5g5f', '6g6f', '7g7f']);
-    expect(labeled.records.find((record) => record.move === '5g5f')).toMatchObject({
-      sources: ['stable'],
+    expect(labeled.candidate_moves).toEqual(["2g2f", "5g5f", "6g6f", "7g7f"]);
+    expect(
+      labeled.records.find((record) => record.move === "5g5f"),
+    ).toMatchObject({
+      sources: ["stable"],
     });
-    expect(labeled.records.find((record) => record.move === '6g6f')).toMatchObject({
-      sources: ['played'],
+    expect(
+      labeled.records.find((record) => record.move === "6g6f"),
+    ).toMatchObject({
+      sources: ["played"],
     });
     expect(labeled.exact_search.searches).toHaveLength(4);
 
     const searches = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(trace, 'utf8')
-    ).filter((event) => event.event === 'search');
+      await fs.promises.readFile(trace, "utf8"),
+    ).filter((event) => event.event === "search");
     expect(searches[0]).toMatchObject({
       multipv: 2,
       depth: 6,
       searchmoves: [],
     });
     expect(searches.slice(1).map((search) => search.searchmoves)).toEqual([
-      ['2g2f'],
-      ['5g5f'],
-      ['6g6f'],
-      ['7g7f'],
+      ["2g2f"],
+      ["5g5f"],
+      ["6g6f"],
+      ["7g7f"],
     ]);
 
-    const fingerprint = 'a'.repeat(64);
+    const fingerprint = "a".repeat(64);
     labeled.run_fingerprint = fingerprint;
     resealWorkEntry(labeled as unknown as Record<string, unknown>);
     const parents = new Map([[parent.parent_id, parent]]);
@@ -2356,46 +2841,46 @@ describe('deterministic sibling teacher generator', () => {
         labeled,
         fingerprint,
         parents,
-        'stable union',
+        "stable union",
         2,
         { depth: 8 },
         5_000,
         { depth: 6 },
         undefined,
-        '5g5f'
-      )
+        "5g5f",
+      ),
     ).toEqual(labeled);
     expect(() =>
       validateWorkEntry(
         labeled,
         fingerprint,
         parents,
-        'missing stable evidence',
+        "missing stable evidence",
         2,
         { depth: 8 },
         5_000,
-        { depth: 6 }
-      )
+        { depth: 6 },
+      ),
     ).toThrow(/inconsistent candidate metadata|inconsistent sources/);
   });
 
-  it('replaces typed incomplete proposal ranks with all-legal d14 searches before exact d16 rescoring', async () => {
+  it("replaces typed incomplete proposal ranks with all-legal d14 searches before exact d16 rescoring", async () => {
     const root = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'sibling-all-legal-proposal-fallback-')
+      path.join(os.tmpdir(), "sibling-all-legal-proposal-fallback-"),
     );
-    const trace = path.join(root, 'engine-trace.jsonl');
+    const trace = path.join(root, "engine-trace.jsonl");
     const parent: FloodgateTrainingParent = {
       schema_version: 1,
-      game_id: 'game-fallback',
-      parent_id: 'parent-fallback',
+      game_id: "game-fallback",
+      parent_id: "parent-fallback",
       position_id: positionKeyFromSfen(TWO_LEGAL),
       parent_sfen: TWO_LEGAL,
       ply: 118,
-      played_move: '8h7i',
+      played_move: "8h7i",
     };
     const engine = new UsiTeacherEngine({
       engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE, '--incomplete-proposal', '--trace', trace],
+      engineArgs: [FAKE_ENGINE, "--incomplete-proposal", "--trace", trace],
       hashMb: 64,
       timeoutMs: 5_000,
     });
@@ -2409,13 +2894,13 @@ describe('deterministic sibling teacher generator', () => {
         { depth: 16 },
         undefined,
         { depth: 14 },
-        6
+        6,
       );
     } finally {
       await engine.quit();
     }
 
-    expect(labeled.candidate_moves).toEqual(['8h7i', '8h8g']);
+    expect(labeled.candidate_moves).toEqual(["8h7i", "8h8g"]);
     expect(labeled.proposal_fallback).toMatchObject({
       mode: FRESH_SELECTION_ALL_LEGAL_PROPOSAL_FALLBACK_MODE,
       trigger: {
@@ -2426,17 +2911,17 @@ describe('deterministic sibling teacher generator', () => {
         final_mate_ranks: 0,
         missing_or_non_exact_ranks: 1,
       },
-      legal_moves: ['8h7i', '8h8g'],
+      legal_moves: ["8h7i", "8h8g"],
       searches: [
         {
           requested_multipv: 1,
           requested_limit: { depth: 14 },
-          moves: ['8h7i'],
+          moves: ["8h7i"],
         },
         {
           requested_multipv: 1,
           requested_limit: { depth: 14 },
-          moves: ['8h8g'],
+          moves: ["8h8g"],
         },
       ],
     });
@@ -2447,18 +2932,18 @@ describe('deterministic sibling teacher generator', () => {
         {
           requested_multipv: 1,
           requested_limit: { depth: 16 },
-          moves: ['8h7i'],
+          moves: ["8h7i"],
         },
         {
           requested_multipv: 1,
           requested_limit: { depth: 16 },
-          moves: ['8h8g'],
+          moves: ["8h8g"],
         },
       ],
     });
     const searches = parseJsonl<Record<string, unknown>>(
-      await fs.promises.readFile(trace, 'utf8')
-    ).filter((event) => event.event === 'search');
+      await fs.promises.readFile(trace, "utf8"),
+    ).filter((event) => event.event === "search");
     expect(searches).toHaveLength(5);
     expect(searches[0]).toMatchObject({
       multipv: 2,
@@ -2466,15 +2951,15 @@ describe('deterministic sibling teacher generator', () => {
       searchmoves: [],
     });
     expect(searches.slice(1, 3)).toMatchObject([
-      { multipv: 1, depth: 14, searchmoves: ['8h7i'] },
-      { multipv: 1, depth: 14, searchmoves: ['8h8g'] },
+      { multipv: 1, depth: 14, searchmoves: ["8h7i"] },
+      { multipv: 1, depth: 14, searchmoves: ["8h8g"] },
     ]);
     expect(searches.slice(3)).toMatchObject([
-      { multipv: 1, depth: 16, searchmoves: ['8h7i'] },
-      { multipv: 1, depth: 16, searchmoves: ['8h8g'] },
+      { multipv: 1, depth: 16, searchmoves: ["8h7i"] },
+      { multipv: 1, depth: 16, searchmoves: ["8h8g"] },
     ]);
 
-    const fingerprint = 'f'.repeat(64);
+    const fingerprint = "f".repeat(64);
     const sealed = {
       ...labeled,
       run_fingerprint: fingerprint,
@@ -2485,16 +2970,16 @@ describe('deterministic sibling teacher generator', () => {
         sealed,
         fingerprint,
         new Map([[parent.parent_id, parent]]),
-        'fresh fallback receipt',
+        "fresh fallback receipt",
         6,
         { depth: 16 },
         5_000,
         { depth: 14 },
-        6
-      )
+        6,
+      ),
     ).toMatchObject({
       parent_id: parent.parent_id,
-      candidate_moves: ['8h7i', '8h8g'],
+      candidate_moves: ["8h7i", "8h8g"],
     });
 
     const tampered = structuredClone(sealed);
@@ -2509,19 +2994,21 @@ describe('deterministic sibling teacher generator', () => {
         tampered,
         fingerprint,
         new Map([[parent.parent_id, parent]]),
-        'tampered fresh fallback receipt',
+        "tampered fresh fallback receipt",
         6,
         { depth: 16 },
         5_000,
         { depth: 14 },
-        6
-      )
+        6,
+      ),
     ).toThrow(/invalid all-legal proposal fallback metadata/);
   }, 15_000);
 
-  it('caps initial MultiPV to legal moves, resets TT at the parent boundary, and skips forced moves', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cap-'));
-    const engine = path.join(root, 'cap-fake-engine.mjs');
+  it("caps initial MultiPV to legal moves, resets TT at the parent boundary, and skips forced moves", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-cap-"),
+    );
+    const engine = path.join(root, "cap-fake-engine.mjs");
     await fs.promises.writeFile(
       engine,
       `import readline from 'node:readline';
@@ -2547,31 +3034,34 @@ rl.on('line', (line) => {
   ));
   console.log(\`bestmove \${moves[0]}\`);
 });
-`
+`,
     );
-    const raw = path.join(root, 'raw.jsonl');
+    const raw = path.join(root, "raw.jsonl");
     const rows = [
       {
         schema_version: 1,
-        game_id: 'game-forced',
-        parent_id: 'parent-forced',
+        game_id: "game-forced",
+        parent_id: "parent-forced",
         position_id: positionKeyFromSfen(ONE_LEGAL),
         parent_sfen: ONE_LEGAL,
         ply: 106,
-        played_move: '8h5h',
+        played_move: "8h5h",
       },
       {
         schema_version: 1,
-        game_id: 'game-two',
-        parent_id: 'parent-two',
+        game_id: "game-two",
+        parent_id: "parent-two",
         position_id: positionKeyFromSfen(TWO_LEGAL),
         parent_sfen: TWO_LEGAL,
         ply: 118,
-        played_move: '8h7i',
+        played_move: "8h7i",
       },
     ];
-    await fs.promises.writeFile(raw, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`);
-    const work = path.join(root, 'work.jsonl');
+    await fs.promises.writeFile(
+      raw,
+      `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+    );
+    const work = path.join(root, "work.jsonl");
     const engineReceipt = await writeEngineReceipt(root);
     const result = await generateForTest({
       raw,
@@ -2581,9 +3071,9 @@ rl.on('line', (line) => {
       multipv: 12,
       depth: 4,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     });
@@ -2595,34 +3085,38 @@ rl.on('line', (line) => {
       max_candidates: 2,
       skipped_parents: 1,
     });
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     expect(workRows[1]).toMatchObject({
-      kind: 'skip',
-      parent_id: 'parent-forced',
-      reason: 'fewer-than-two-legal-moves',
+      kind: "skip",
+      parent_id: "parent-forced",
+      reason: "fewer-than-two-legal-moves",
       legal_moves: 1,
     });
     expect(workRows[2]).toMatchObject({
-      kind: 'parent',
-      parent_id: 'parent-two',
-      candidate_moves: ['8h7i', '8h8g'],
+      kind: "parent",
+      parent_id: "parent-two",
+      candidate_moves: ["8h7i", "8h8g"],
       initial_search: { requested_multipv: 2 },
       exact_search: {
         mode: INDEPENDENT_EXACT_RESCORE_MODE,
         candidate_count: 2,
-        moves: ['8h7i', '8h8g'],
+        moves: ["8h7i", "8h8g"],
         searches: [
-          { requested_multipv: 1, moves: ['8h7i'] },
-          { requested_multipv: 1, moves: ['8h8g'] },
+          { requested_multipv: 1, moves: ["8h7i"] },
+          { requested_multipv: 1, moves: ["8h8g"] },
         ],
         total_observed_nodes: 20,
       },
     });
   });
 
-  it('treats optional bishop non-promotion as a rules-complete legal sibling candidate', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-decline-'));
-    const engine = path.join(root, 'decline-fake-engine.mjs');
+  it("treats optional bishop non-promotion as a rules-complete legal sibling candidate", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-decline-"),
+    );
+    const engine = path.join(root, "decline-fake-engine.mjs");
     await fs.promises.writeFile(
       engine,
       `import readline from 'node:readline';
@@ -2642,20 +3136,20 @@ rl.on('line', (line) => {
   ));
   console.log(\`bestmove \${requested[0]}\`);
 });
-`
+`,
     );
-    const parentSfen = '4k4/9/9/9/4B4/9/9/9/K8 b - 1';
-    const raw = path.join(root, 'raw.jsonl');
+    const parentSfen = "4k4/9/9/9/4B4/9/9/9/K8 b - 1";
+    const raw = path.join(root, "raw.jsonl");
     await fs.promises.writeFile(
       raw,
       `${JSON.stringify({
-        ...rawParent('parent-decline'),
+        ...rawParent("parent-decline"),
         position_id: positionKeyFromSfen(parentSfen),
         parent_sfen: parentSfen,
-        played_move: '5e3c',
-      })}\n`
+        played_move: "5e3c",
+      })}\n`,
     );
-    const work = path.join(root, 'work.jsonl');
+    const work = path.join(root, "work.jsonl");
     const result = await generateForTest({
       raw,
       engineBin: process.execPath,
@@ -2664,9 +3158,9 @@ rl.on('line', (line) => {
       multipv: 2,
       depth: 4,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     });
@@ -2678,34 +3172,40 @@ rl.on('line', (line) => {
       max_candidates: 2,
       skipped_parents: 0,
     });
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     expect(workRows[1]).toMatchObject({
-      candidate_moves: ['5e3c', '5e3c+'],
-      records: [{ move: '5e3c' }, { move: '5e3c+' }],
+      candidate_moves: ["5e3c", "5e3c+"],
+      records: [{ move: "5e3c" }, { move: "5e3c+" }],
     });
   });
 
-  it('requires a schema-valid receipt tied to the exact engine binary', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-receipt-'));
-    const raw = path.join(root, 'raw.jsonl');
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
+  it("requires a schema-valid receipt tied to the exact engine binary", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-receipt-"),
+    );
+    const raw = path.join(root, "raw.jsonl");
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-a"))}\n`,
+    );
     const engineReceipt = await writeEngineReceipt(root);
-    const receipt = JSON.parse(await fs.promises.readFile(engineReceipt, 'utf8')) as Record<
-      string,
-      unknown
-    >;
+    const receipt = JSON.parse(
+      await fs.promises.readFile(engineReceipt, "utf8"),
+    ) as Record<string, unknown>;
     const options = {
       raw,
       engineBin: process.execPath,
       engineArgs: [FAKE_ENGINE],
       engineReceipt,
       depth: 8,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
-      work: path.join(root, 'work.jsonl'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
+      work: path.join(root, "work.jsonl"),
     };
-    receipt.source_commit = 'not-a-full-git-id';
+    receipt.source_commit = "not-a-full-git-id";
     await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
 
     await expect(generateForTest(options)).rejects.toThrow(/source_commit/);
@@ -2713,26 +3213,32 @@ rl.on('line', (line) => {
     receipt.source_commit = PIPELINE_REVISION;
     receipt.unexpected = true;
     await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
-    await expect(generateForTest(options)).rejects.toThrow(/exactly the v1 keys/);
+    await expect(generateForTest(options)).rejects.toThrow(
+      /exactly the v1 keys/,
+    );
 
     delete receipt.unexpected;
-    receipt.compiler = ' test compiler ';
+    receipt.compiler = " test compiler ";
     await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
-    await expect(generateForTest(options)).rejects.toThrow(/surrounding whitespace/);
+    await expect(generateForTest(options)).rejects.toThrow(
+      /surrounding whitespace/,
+    );
   });
 
-  it('runs workers only from immutable engine, argument-file, and eval snapshots', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-runtime-snapshot-'));
-    const engineScript = path.join(root, 'snapshot-engine.mjs');
-    const scoreFile = path.join(root, 'score.txt');
-    const evalDir = path.join(root, 'eval');
-    const evalFile = path.join(evalDir, 'weights.txt');
-    const trace = path.join(root, 'trace.jsonl');
+  it("runs workers only from immutable engine, argument-file, and eval snapshots", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-runtime-snapshot-"),
+    );
+    const engineScript = path.join(root, "snapshot-engine.mjs");
+    const scoreFile = path.join(root, "score.txt");
+    const evalDir = path.join(root, "eval");
+    const evalFile = path.join(evalDir, "weights.txt");
+    const trace = path.join(root, "trace.jsonl");
     await fs.promises.mkdir(evalDir);
-    await fs.promises.writeFile(scoreFile, '100\n');
-    await fs.promises.writeFile(evalFile, '1\n');
-    await fs.promises.writeFile(path.join(evalDir, 'z.bin'), 'z');
-    await fs.promises.writeFile(path.join(evalDir, 'é.bin'), 'accent');
+    await fs.promises.writeFile(scoreFile, "100\n");
+    await fs.promises.writeFile(evalFile, "1\n");
+    await fs.promises.writeFile(path.join(evalDir, "z.bin"), "z");
+    await fs.promises.writeFile(path.join(evalDir, "é.bin"), "accent");
     await fs.promises.writeFile(
       engineScript,
       `import fs from 'node:fs';
@@ -2780,11 +3286,14 @@ rl.on('line', (line) => {
   ));
   console.log(\`bestmove \${moves[0]}\`);
 });
-`
+`,
     );
-    const raw = path.join(root, 'raw.jsonl');
-    const work = path.join(root, 'work.jsonl');
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-snapshot'))}\n`);
+    const raw = path.join(root, "raw.jsonl");
+    const work = path.join(root, "work.jsonl");
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-snapshot"))}\n`,
+    );
     const engineReceipt = await writeEngineReceipt(root);
 
     const manifest = await generateForTest({
@@ -2802,15 +3311,15 @@ rl.on('line', (line) => {
       multipv: 2,
       depth: 8,
       engines: 1,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
+      outTrain: path.join(root, "train.jsonl"),
+      outVal: path.join(root, "val.jsonl"),
+      manifest: path.join(root, "manifest.json"),
       work,
       timeoutMs: 5_000,
     });
 
-    expect(await fs.promises.readFile(scoreFile, 'utf8')).toBe('900\n');
-    expect(await fs.promises.readFile(evalFile, 'utf8')).toBe('900\n');
+    expect(await fs.promises.readFile(scoreFile, "utf8")).toBe("900\n");
+    expect(await fs.promises.readFile(evalFile, "utf8")).toBe("900\n");
     const events = parseJsonl<{
       engine_bin: string;
       engine_script: string;
@@ -2819,16 +3328,24 @@ rl.on('line', (line) => {
       cwd: string;
       write_bits: number[];
       cp: number;
-    }>(await fs.promises.readFile(trace, 'utf8'));
+    }>(await fs.promises.readFile(trace, "utf8"));
     expect(events).toHaveLength(4);
     expect(events.every((event) => event.cp === 101)).toBe(true);
-    for (const field of ['engine_bin', 'engine_script', 'score_file', 'eval_dir', 'cwd'] as const) {
-      expect(events[0][field]).toContain('shogi-teacher-runtime-');
+    for (const field of [
+      "engine_bin",
+      "engine_script",
+      "score_file",
+      "eval_dir",
+      "cwd",
+    ] as const) {
+      expect(events[0][field]).toContain("shogi-teacher-runtime-");
     }
     expect(events[0].cwd).toMatch(/\/cwd\/worker-0\/engine-0$/);
     expect(events[0].write_bits).toEqual([0, 0, 0, 0]);
     await expect(fs.promises.access(events[0].engine_bin)).rejects.toThrow();
-    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    const workRows = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(work, "utf8"),
+    );
     const exact = workRows[1].exact_search as { scores: Array<{ cp: number }> };
     expect(exact.scores.every((score) => score.cp === 101)).toBe(true);
     expect(manifest.teacher.runtime_snapshot).toMatchObject({
@@ -2836,23 +3353,34 @@ rl.on('line', (line) => {
       eval_tree_present: true,
     });
     expect(manifest.teacher.eval_files.map((file) => file.path)).toEqual([
-      'weights.txt',
-      'z.bin',
-      'é.bin',
+      "weights.txt",
+      "z.bin",
+      "é.bin",
     ]);
-    for (const file of [...manifest.teacher.engine_arg_files, ...manifest.teacher.eval_files]) {
-      expectExactKeys(file, ['path', 'bytes', 'sha256']);
+    for (const file of [
+      ...manifest.teacher.engine_arg_files,
+      ...manifest.teacher.eval_files,
+    ]) {
+      expectExactKeys(file, ["path", "bytes", "sha256"]);
     }
   });
 
-  it('rejects eval_options.txt instead of allowing mutable option overrides', async () => {
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-eval-options-'));
-    const raw = path.join(root, 'raw.jsonl');
-    const evalDir = path.join(root, 'eval');
+  it("rejects eval_options.txt instead of allowing mutable option overrides", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "sibling-eval-options-"),
+    );
+    const raw = path.join(root, "raw.jsonl");
+    const evalDir = path.join(root, "eval");
     await fs.promises.mkdir(evalDir);
-    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-eval-options'))}\n`);
-    await fs.promises.writeFile(path.join(evalDir, 'nn.bin'), 'weights');
-    await fs.promises.writeFile(path.join(evalDir, 'eval_options.txt'), 'Threads=8\n');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify(rawParent("parent-eval-options"))}\n`,
+    );
+    await fs.promises.writeFile(path.join(evalDir, "nn.bin"), "weights");
+    await fs.promises.writeFile(
+      path.join(evalDir, "eval_options.txt"),
+      "Threads=8\n",
+    );
     const engineReceipt = await writeEngineReceipt(root);
 
     await expect(
@@ -2863,11 +3391,11 @@ rl.on('line', (line) => {
         engineReceipt,
         evalDir,
         depth: 8,
-        outTrain: path.join(root, 'train.jsonl'),
-        outVal: path.join(root, 'val.jsonl'),
-        manifest: path.join(root, 'manifest.json'),
-        work: path.join(root, 'work.jsonl'),
-      })
+        outTrain: path.join(root, "train.jsonl"),
+        outVal: path.join(root, "val.jsonl"),
+        manifest: path.join(root, "manifest.json"),
+        work: path.join(root, "work.jsonl"),
+      }),
     ).rejects.toThrow(/eval_options\.txt/);
   });
 });

@@ -100,6 +100,37 @@ describe("USI teacher engine subprocess contract", () => {
     }
   });
 
+  it("restricts a dual depth/node bound to one forced independent rescore", async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE],
+    });
+    const sfen =
+      "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+    const limit = {
+      depth: 18,
+      nodes: 100_000_000,
+      minimumCompletedDepth: 15,
+    } as const;
+    await expect(engine.search(sfen, 12, limit, [])).rejects.toThrow(
+      /restricted to one forced MultiPV=1 rescore/,
+    );
+    await expect(engine.search(sfen, 1, limit, [])).rejects.toThrow(
+      /restricted to one forced MultiPV=1 rescore/,
+    );
+    await expect(
+      engine.search(sfen, 1, { depth: 18, nodes: 100_000_000 }, ["7g7f"]),
+    ).rejects.toThrow(/minimumCompletedDepth/);
+    await expect(
+      engine.search(sfen, 1, { depth: 18, minimumCompletedDepth: 15 }, [
+        "7g7f",
+      ]),
+    ).rejects.toThrow(/requires both depth and nodes/);
+    await expect(
+      engine.search(sfen, 0, { depth: 18 }, ["7g7f"]),
+    ).rejects.toThrow(/multipv must be a positive integer/);
+  });
+
   it("rejects a parent reset deadline with a distinct typed timeout signal", async () => {
     const engine = new UsiTeacherEngine({
       engineBin: process.execPath,

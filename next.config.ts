@@ -109,6 +109,17 @@ const nextConfig: NextConfig = {
       // That was the real cause of the historical freeze (NOT a Lazy SMP
       // deadlock — it reproduced even single-thread). Hence COEP:require-corp on
       // /_next/* below, alongside CORP so the isolated document can embed them.
+      // The Tomoshibi roguelike is a Godot HTML5 build served from
+      // public/games/tomoshibi/. index.wasm is the Godot engine template - the same
+      // 38MB for every export unless the engine version changes - so it is
+      // worth caching hard. index.pck holds the game itself and changes on
+      // every update, so it is deliberately NOT in this rule.
+      {
+        source: '/games/tomoshibi/index.wasm',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
       {
         source: '/games/shogi',
         headers: [

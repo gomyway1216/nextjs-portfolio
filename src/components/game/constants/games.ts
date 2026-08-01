@@ -86,6 +86,15 @@ export const games: Game[] = [
     category: 'RPG',
   },
   {
+    id: 'tomoshibi',
+    title: 'Tomoshibi',
+    description: 'Descend ten floors of a roguelike homage. Keep your torch lit — in the dark you see almost nothing and every hit lands harder.',
+    thumbnail: '🗡️',
+    path: '/games/tomoshibi',
+    difficulty: 'Hard',
+    category: 'RPG',
+  },
+  {
     id: 'breakout',
     title: 'Breakout',
     description: 'Move the paddle, break every brick, and catch power-ups to extend the run.',

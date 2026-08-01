@@ -1,0 +1,327 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r7-preregistration-data-memo-v1",
+  "date": "2026-08-01",
+  "status": "pre-pr-dual-limit-calibration-failed-family-stopped",
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r7",
+  "classification": "new-bounded-search-teacher-family-not-v1r6-resume",
+  "objective": "Preserve every depth-16 MultiPV 12 plus recorded candidate while bounding each independent rescore with a uniform depth-18-or-100,000,000-node rule and accepting a node-capped score only from the last pre-cap completed iteration at depth 15 or greater.",
+  "predecessor": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r6",
+    "formal_plan": {
+      "bytes": 12678,
+      "sha256": "deb8097134c1ec166b1c1e0729ba495d34c007ee8084745ba646f07ae25f5725"
+    },
+    "source_revision": "df1c3f53c4c0e086e7f9f8ffedba7d1aecc05b44",
+    "completed_parents": 3262,
+    "teacher_rows": 38393,
+    "terminal_fault": {
+      "bytes": 1030,
+      "fault_class": "independent-rescore-depth18-wall-timeout",
+      "forced_move": "G*6a",
+      "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+      "sha256": "99677994fec8fd1b941d0546bef92347255914819b7112f27613e6efc5d609cf",
+      "timeout_milliseconds": 3600000
+    },
+    "same_family_resume_authorized": false,
+    "completed_parents_reused": 0,
+    "teacher_rows_reused": 0,
+    "evidence_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r6-formal-terminal-fault-2026-08-01.json"
+  },
+  "identity_contract": {
+    "new_tracked_preregistration_required": true,
+    "new_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "new_create_only_output_namespace_required": true,
+    "same_authenticated_selection_required": true,
+    "selection_jsonl": {
+      "rows": 8192,
+      "bytes": 7268777,
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "selection_manifest": {
+      "bytes": 3234,
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "teacher_contract": {
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "processes": 8,
+    "persistent_engine_processes": true,
+    "threads_per_process": 1,
+    "hash_mib_per_process": 512,
+    "candidate_generation": {
+      "yaneuraou_proposal_depth": 16,
+      "proposal_multipv": 12,
+      "depth18_or_node_cap_rule_applies": false,
+      "node_cap": null,
+      "recorded_move_required": true,
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "stable_wasm_allowed": false,
+      "changed_from_v1r6": false
+    },
+    "rescore": {
+      "all_deduplicated_candidates_independently_rescored": true,
+      "all_candidates_retained": true,
+      "depth": 18,
+      "limit_applies_only_to": "independent-multipv1-rescore",
+      "multipv": 1,
+      "node_cap": 100000000,
+      "termination": "depth18-or-node-cap-whichever-first",
+      "node_cap_result_source": "last-info-line-with-observed-nodes-strictly-less-than-node-cap",
+      "node_cap_completed_depth_minimum": 15,
+      "node_cap_completed_depth_minimum_must_be_explicit": true,
+      "node_cap_completed_depth_minimum_omission_policy": "reject-no-default",
+      "cap_reaching_info_line": "discard-as-incomplete-iteration-telemetry-only",
+      "cap_acceptance_witness": {
+        "cap_witness_depth_must_exceed_selected_depth": true,
+        "cap_witness_multipv_must_equal_selected_multipv": true,
+        "cap_witness_must_follow_selected_in_transcript": true,
+        "completed_iteration_witness_depth_equals_selected_depth": true,
+        "required_published_metadata": [
+          "cap_witness_depth",
+          "cap_witness_nodes",
+          "selected_precedes_witness",
+          "completed_iteration_witness_depth",
+          "selected_completed_nodes",
+          "actual_max_observed_nodes"
+        ]
+      },
+      "partial_result_allowed": false,
+      "old_depth6_or_depth12_cp_target_rows": 0
+    },
+    "aggregate_parent_deadline": "none",
+    "timeout_seconds_per_usi_search": 3600,
+    "whole_parent_publication": "durable-only-after-proposal-and-all-depth18-or-node-cap-rescores-pass"
+  },
+  "node_cap_budget": {
+    "formal_parent_count_maximum": 32,
+    "formal_parent_count_maximum_by_role": {
+      "fit": 24,
+      "sealed": 4,
+      "tune": 4
+    },
+    "formal_teacher_move_count_maximum": 64,
+    "formal_teacher_move_count_maximum_by_role": {
+      "fit": 48,
+      "sealed": 8,
+      "tune": 8
+    },
+    "formal_teacher_move_count_maximum_per_parent": 2,
+    "parent_definition": "at-least-one-retained-rescore-terminated-by-node-cap",
+    "teacher_move_definition": "one-retained-rescore-terminated-by-node-cap",
+    "enforcement": {
+      "artifact_final_recount_required": true,
+      "formal_generation_checks_after_every_completed_candidate": true,
+      "runtime_budget_exceeded_policy": "immediate-family-terminal-fault",
+      "validator_budget_mismatch_policy": "artifact-verification-fail-closed"
+    },
+    "on_budget_exceeded": "immediate-family-terminal-fault-no-threshold-change",
+    "on_completed_depth_below_15": "family-terminal-fault-no-candidate-drop",
+    "observed_v1r6_depth18_searches_above_100m": {
+      "parents": 8,
+      "teacher_moves": 10,
+      "sample_completed_parents": 3262,
+      "sample_teacher_rows": 38393
+    },
+    "simple_linear_extrapolation_to_8192": {
+      "parents": 20.092,
+      "teacher_moves": 25.112,
+      "status": "planning-estimate-not-guarantee"
+    }
+  },
+  "node_accounting": {
+    "actual_max_observed_nodes": "maximum-node-count-observed-before-bestmove-for-one-search",
+    "actual_max_observed_nodes_total": "sum-of-actual-max-observed-nodes-across-searches",
+    "selected_completed_nodes": "node-count-on-the-selected-pre-cap-completed-iteration",
+    "selected_completed_nodes_total": "sum-of-selected-completed-nodes-across-searches",
+    "substitution_between_selected_and_actual_totals_allowed": false
+  },
+  "node_ladder_basis": {
+    "scope": "scratch-only-operational-feasibility-never-training-data-or-strength-evidence",
+    "forced_move": "G*6a",
+    "conservative_results": [
+      {
+        "node_cap": 1000000,
+        "last_pre_cap_completed_depth": 11,
+        "last_pre_cap_nodes": 761593,
+        "cp": -2401
+      },
+      {
+        "node_cap": 5000000,
+        "last_pre_cap_completed_depth": 13,
+        "last_pre_cap_nodes": 4207737,
+        "cp": -2774
+      },
+      {
+        "node_cap": 20000000,
+        "last_pre_cap_completed_depth": 13,
+        "last_pre_cap_nodes": 4207737,
+        "cp": -2774
+      },
+      {
+        "node_cap": 100000000,
+        "last_pre_cap_completed_depth": 15,
+        "last_pre_cap_nodes": 95168959,
+        "cp": -3360,
+        "elapsed_milliseconds": 57901
+      }
+    ],
+    "interpretation": "A cap-reaching depth label is not proof that that iteration completed. v1r7 must discard it and use only the last pre-cap completed iteration."
+  },
+  "pre_pr_dual_limit_calibration": {
+    "required_before_ready_pr": true,
+    "scope": "scratch-only-never-training-data",
+    "sample": "all-10-v1r6-exact-depth18-searches-above-100m-nodes-across-8-parents",
+    "sample_selection_rule": "all-independent-depth18-rescores-with-observed_nodes-strictly-greater-than-100000000",
+    "sample_source_work_ledger": {
+      "bytes": 48118137,
+      "parent_records": 3262,
+      "sha256": "ee66fd5a2cab03e8318564923af82ad723d2dccd1379685324abc87d66fb1fa5",
+      "teacher_rows": 38393
+    },
+    "comparison": "new-dual-limit-selected-result-versus-v1r6-exact-depth18-result",
+    "parent_ranking_comparison": "replace-all-sample-moves-in-each-parent-with-new-dual-results-while-retaining-that-parents-other-v1r6-exact-depth18-results",
+    "preregistered_pass_criteria": {
+      "absolute_cp_delta_maximum": 300,
+      "capped_move_parent_rank_delta_maximum": 1,
+      "parent_top1_move_changes_maximum": 0,
+      "selected_depth_minimum": 15,
+      "selected_depth_minimum_must_pass_all_moves": true,
+      "sign_flips_maximum": 0
+    },
+    "sign_flip_definition": "old_cp_times_new_cp_is-negative",
+    "thresholds_fixed_before_results": true,
+    "on_miss": "stop-v1r7-before-ready-pr-no-threshold-change",
+    "result": {
+      "decision": "fail",
+      "gate_breaches": [
+        "capped-move-parent-rank-displacement",
+        "absolute-cp-delta"
+      ],
+      "observed": {
+        "absolute_cp_delta_maximum": 33989,
+        "capped_move_parent_rank_displacement_maximum": 4,
+        "minimum_completed_depth": 15,
+        "parent_top1_move_changes": 0,
+        "sign_flips": 0,
+        "target_moves": 10,
+        "target_parents": 8
+      },
+      "receipt": {
+        "bytes": 7391,
+        "path": "$HOME/.codex/shogi-runs/halfkp81-v1r7-100m-cap-calibration-scratch/calibration-receipt.json",
+        "sha256": "118d6cd1cbd8abf1beab89e7ce88e09a2f154f80503b22dda944bb677f8d11b9",
+        "status": "scratch-v1r7-cap-calibration-failed-no-formal-authority"
+      },
+      "worst_case": {
+        "absolute_cp_delta": 33989,
+        "move": "2a1c",
+        "new_parent_rank": 8,
+        "old_depth18_cp": -35281,
+        "old_parent_rank": 12,
+        "parent_id": "sha256:b70979181f66fc8960a5817a271f9422d659f0cac1213c431ef9d76bd8a25726",
+        "selected_cp": -1292,
+        "selected_depth": 15
+      }
+    }
+  },
+  "mandatory_preflight": {
+    "required_after_ready_pr_ci_regular_merge": true,
+    "pathological_sentinel": {
+      "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+      "parallel_replicas": 8,
+      "completed_replicas_required": 8,
+      "technical_faults_maximum": 0,
+      "scope": "scratch-only-never-training-data"
+    },
+    "formal_like_prefix": {
+      "parents": 512,
+      "processes": 8,
+      "teacher_contract_must_equal_formal": true,
+      "artifact_verification_required": true,
+      "technical_faults_maximum": 0,
+      "scope": "scratch-only-never-training-data"
+    }
+  },
+  "training_contract": {
+    "representation": "HalfKP81",
+    "initializer": "original-alpha-050-not-v3-or-v4-candidate",
+    "epochs": 3,
+    "seeds": 1,
+    "checkpoint_selection": "final-epoch-only",
+    "parent_batch_fraction_direct_replay": 0.5,
+    "parent_batch_fraction_fresh_hard": 0.5,
+    "direct_loss": "sigmoid-bce-k600",
+    "direct_loss_fraction": 0.5,
+    "groupwise_loss": "listnet-cp-over-600",
+    "groupwise_loss_fraction": 0.5
+  },
+  "strength_gates": {
+    "downstream_numeric_thresholds_unchanged_from_v1r6": true,
+    "population_policy": {
+      "sealed": {
+        "all_parent_metrics_must_pass": true,
+        "uncapped_only_metrics_must_pass": true
+      },
+      "tune": {
+        "all_parent_metrics_must_pass": true,
+        "uncapped_only_metrics_must_pass": true
+      }
+    },
+    "stop_at_first_failed_gate": true,
+    "extra_epoch_or_seed": false,
+    "qat_or_distillation": false,
+    "threshold_change_after_results": false
+  },
+  "strength_contract": {
+    "changed_from_v1r6": true,
+    "risk": "A node-capped depth-15-or-greater score can differ in sign, rank, top move, or magnitude from an exact depth-18 result and can introduce mixed-depth label bias.",
+    "risk_control": "pre-pr-calibration-plus-all-parent-and-uncapped-only-downstream-gates",
+    "strength_improvement_claimed": false
+  },
+  "reuse_contract": {
+    "v1r6_completed_parents_reused": 0,
+    "v1r6_teacher_rows_reused": 0,
+    "v1r6_partial_parent_state_reused": false,
+    "decision_final": true
+  },
+  "authority": {
+    "may_implement_on_new_source_revision": false,
+    "may_resume_v1r6": false,
+    "may_resume_v1r7": false,
+    "may_run_scratch_pre_pr_dual_limit_calibration": false,
+    "may_execute_v1r7_before_ready_pr_all_ci_regular_merge": false,
+    "may_execute_formal_teacher_before_both_preflights_pass": false,
+    "may_train": false,
+    "may_play_formal_games": false,
+    "may_write_live_weights": false,
+    "strength_claim_authorized": false
+  },
+  "closure": {
+    "evidence_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r7-pre-pr-calibration-failure-2026-08-01.json",
+    "formal_like_prefix_run": false,
+    "formal_teacher_run": false,
+    "pathological_eight_replica_sentinel_run": false,
+    "ready_pr_authorized": false,
+    "same_family_threshold_change_authorized": false,
+    "successor_family_preregistered": false,
+    "two_billion_node_diagnostic": {
+      "elapsed_milliseconds": 1924243,
+      "maximum_observed_nodes": 2000000532,
+      "receipt_bytes": 995,
+      "receipt_sha256": "90551c3a1c543d43afce2e58ff9324a66ddb8a2d608088cb4203837d6b8a7c7c",
+      "selected_cp": -3360,
+      "selected_depth": 15,
+      "selected_nodes": 95168959,
+      "status": "complete-floor16-failed"
+    },
+    "v1r8_floor16_status": "diagnostic-failed-closed-before-preregistration",
+    "v1r9_preregistered": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

@@ -1,0 +1,324 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r6-formal-terminal-fault-data-memo-v1",
+  "date": "2026-08-01",
+  "status": "v1r6-formal-depth18-wall-timeout-after-3262-parents-v1r7-required-no-strength-result",
+  "v1r6": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r6",
+    "formal_output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6",
+    "formal_plan": {
+      "bytes": 12678,
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6/teacher-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r6",
+      "sha256": "deb8097134c1ec166b1c1e0729ba495d34c007ee8084745ba646f07ae25f5725",
+      "source_revision": "df1c3f53c4c0e086e7f9f8ffedba7d1aecc05b44"
+    },
+    "tracked_preregistration": {
+      "bytes": 10346,
+      "path": "ml/halfkp81-hard-depth18-yaneura-only-v1r6-plan.json",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r6",
+      "sha256": "13e6cff20208057e2f23f1811b4698a7e2b085063ef0ed672bb6a788cf3a622b"
+    },
+    "selection": {
+      "jsonl_bytes": 7268777,
+      "jsonl_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+      "manifest_bytes": 3234,
+      "manifest_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187",
+      "rows": 8192
+    },
+    "formal_run": {
+      "completed_parents": 3262,
+      "configured_processes": 4,
+      "hash_mib_per_process": 512,
+      "incomplete_parents": 4930,
+      "persistent_engine_processes": true,
+      "run_fingerprint": "da5573300809e50851233518e9e5368464ad54c5a065dcd05a920a189ea59cdb",
+      "teacher_rows": 38393,
+      "threads_per_process": 1,
+      "work": {
+        "bytes": 48118137,
+        "header_lines": 1,
+        "parent_lines": 3262,
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6/teacher-work.jsonl",
+        "physical_lines": 3263,
+        "sha256": "ee66fd5a2cab03e8318564923af82ad723d2dccd1379685324abc87d66fb1fa5"
+      },
+      "terminal_fault": {
+        "bytes": 1030,
+        "fault_stage": "independent-rescore",
+        "forced_move": "G*6a",
+        "message": "USI search timeout after 3600000ms",
+        "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6/teacher-terminal-fault.json",
+        "requested_depth": 18,
+        "requested_multipv": 1,
+        "schema": "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+        "sfen": "l1R3s2/4k1g2/2gpp1p1b/p4R1p1/7n1/P4P3/2+nPPSP2/1B+p1K4/L1S2G1N1 w S4Pgn2l3p 68",
+        "sha256": "99677994fec8fd1b941d0546bef92347255914819b7112f27613e6efc5d609cf",
+        "status": "terminal-fault-family-stopped",
+        "technical_faults": 1,
+        "timeout_milliseconds": 3600000
+      }
+    },
+    "isolated_wall_timeout_diagnosis": {
+      "authority": "scratch-only-never-training-data",
+      "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+      "searchmove": "G*6a",
+      "wall_timeout_reproductions": [
+        {
+          "artifact_bytes": 802,
+          "artifact_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-depth16-scratch/diagnostic-fault.json",
+          "artifact_sha256": "95959a6e34bec3a73e281aa3c22b03c62d65258c94141e42aed53c7c1d937acc",
+          "depth": 16,
+          "elapsed_milliseconds": 600622,
+          "timeout_milliseconds": 600000
+        },
+        {
+          "artifact_bytes": 805,
+          "artifact_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-depth17-scratch/diagnostic-fault.json",
+          "artifact_sha256": "4f6fe71ffdff584668151592a845522cb86a81f928e28dedd8f83db5f271994b",
+          "depth": 17,
+          "elapsed_milliseconds": 1800642,
+          "timeout_milliseconds": 1800000
+        },
+        {
+          "artifact_bytes": 805,
+          "artifact_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-depth18-scratch/diagnostic-fault.json",
+          "artifact_sha256": "b37b431ae4b9a90aed0aa73ca41a5a1e60a9374a8675013dfb9ef3bd27f9422d",
+          "depth": 18,
+          "elapsed_milliseconds": 3600622,
+          "timeout_milliseconds": 3600000
+        }
+      ],
+      "conclusion": "the-same-forced-move-is-a-real-depth16-through-depth18-wall-time-long-tail"
+    },
+    "node_ladder_diagnosis": {
+      "authority": "scratch-only-never-training-data",
+      "conservative_exact_result_rule": "discard-every-info-line-at-or-above-node-cap-and-use-only-the-last-info-line-with-nodes-strictly-less-than-cap",
+      "ladder": [
+        {
+          "cap_reaching_line_discarded": {
+            "claimed_depth": 11,
+            "multipv": 1,
+            "nodes": 1000343
+          },
+          "completed_iteration_witness_depth": 11,
+          "conservative_completed_cp": -2401,
+          "conservative_completed_depth": 11,
+          "conservative_completed_nodes": 761593,
+          "elapsed_milliseconds": 1264,
+          "node_cap": 1000000,
+          "selected_precedes_witness": true,
+          "v1r7_acceptance": false,
+          "v1r7_rejection_reason": "cap-witness-depth-does-not-exceed-selected-depth-and-selected-depth-below-15",
+          "receipt_bytes": 1028,
+          "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-1000000/diagnostic-receipt.json",
+          "receipt_sha256": "c0be77981e0ceb036a8a3912328be8a5da33146861690eef71bc7c136ef6c0c9",
+          "transcript_bytes": 3322,
+          "transcript_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-1000000/usi-transcript.txt",
+          "transcript_sha256": "7ac70d5379332b132474bbb91a676fa693d093ba6f728945d9793e8974943a4f"
+        },
+        {
+          "cap_reaching_line_discarded": {
+            "claimed_depth": 14,
+            "multipv": 1,
+            "nodes": 5000377
+          },
+          "completed_iteration_witness_depth": 13,
+          "conservative_completed_cp": -2774,
+          "conservative_completed_depth": 13,
+          "conservative_completed_nodes": 4207737,
+          "elapsed_milliseconds": 3783,
+          "node_cap": 5000000,
+          "selected_precedes_witness": true,
+          "v1r7_acceptance": false,
+          "v1r7_rejection_reason": "selected-depth-below-15",
+          "receipt_bytes": 1046,
+          "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-5000000/diagnostic-receipt.json",
+          "receipt_sha256": "08e4146fed4c2c2c05d3a66e2a1b478931ffae103e904c4e67d54b31b821d71d",
+          "transcript_bytes": 3698,
+          "transcript_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-5000000/usi-transcript.txt",
+          "transcript_sha256": "1bd14e5617562435f6935d465c2fee48120157a8325c46e347d8f5cd71eab51b"
+        },
+        {
+          "cap_reaching_line_discarded": {
+            "claimed_depth": 14,
+            "multipv": 1,
+            "nodes": 20000548
+          },
+          "completed_iteration_witness_depth": 13,
+          "conservative_completed_cp": -2774,
+          "conservative_completed_depth": 13,
+          "conservative_completed_nodes": 4207737,
+          "elapsed_milliseconds": 11760,
+          "node_cap": 20000000,
+          "selected_precedes_witness": true,
+          "v1r7_acceptance": false,
+          "v1r7_rejection_reason": "selected-depth-below-15",
+          "receipt_bytes": 1051,
+          "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-20000000/diagnostic-receipt.json",
+          "receipt_sha256": "43e4ef94269e61a968caafa25ab00f6b69103160d7e96689018ee20e4fccb1ca",
+          "transcript_bytes": 3701,
+          "transcript_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-20000000/usi-transcript.txt",
+          "transcript_sha256": "7dc7e594289bf95cb0b8fc5c3af1a90276aaf86ee06405408196f1896bc715ce"
+        },
+        {
+          "cap_reaching_line_discarded": {
+            "claimed_depth": 16,
+            "multipv": 1,
+            "nodes": 100000012
+          },
+          "completed_iteration_witness_depth": 15,
+          "conservative_completed_cp": -3360,
+          "conservative_completed_depth": 15,
+          "conservative_completed_nodes": 95168959,
+          "elapsed_milliseconds": 57901,
+          "node_cap": 100000000,
+          "selected_precedes_witness": true,
+          "v1r7_acceptance": true,
+          "receipt_bytes": 1133,
+          "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-100000000/diagnostic-receipt.json",
+          "receipt_sha256": "6a8da2f1d851794143142cb9d6851cd97c23f59267caa436e3ee32e63b0e80d3",
+          "transcript_bytes": 4223,
+          "transcript_path": "$HOME/.codex/shogi-runs/halfkp81-v1r6-fault-parent-node-ladder-v2-scratch/nodes-100000000/usi-transcript.txt",
+          "transcript_sha256": "23855864ecc938669ddd090ae8c5eb91ab7a16999cd01baa09a5386f39a8b5f5"
+        }
+      ],
+      "minimum_safe_completed_depth_for_v1r7": 15,
+      "v1r7_cap_acceptance_witness": {
+        "cap_witness_depth_must_exceed_selected_depth": true,
+        "cap_witness_multipv_must_equal_selected_multipv": true,
+        "cap_witness_must_follow_selected_in_transcript": true,
+        "completed_iteration_witness_depth_equals_selected_depth": true,
+        "minimum_completed_depth_must_be_explicit": true,
+        "minimum_completed_depth_omission_policy": "reject-no-default",
+        "required_published_metadata": [
+          "cap_witness_depth",
+          "cap_witness_nodes",
+          "selected_precedes_witness",
+          "completed_iteration_witness_depth",
+          "selected_completed_nodes",
+          "actual_max_observed_nodes"
+        ],
+        "selected_nodes_must_be_strictly_less_than_cap": true
+      },
+      "parser_correction": "the-diagnostic-receipts-deepest_complete_exact-field-used-the-cap-reaching-line-and-is-not-authoritative-for-v1r7-exact-completion",
+      "node_accounting_rule": "selected-completed-nodes-and-actual-maximum-observed-nodes-must-be-recorded-and-aggregated-separately",
+      "result": "100m-node-cap-bounds-the-known-hour-long-tail-in-57.901-seconds-and-preserves-a-conservative-pre-cap-depth15-result"
+    },
+    "observed_tail_prevalence": {
+      "completed_parent_sample": 3262,
+      "completed_teacher_row_sample": 38393,
+      "parents_with_at_least_one_depth18_search_above_100m_nodes": 8,
+      "searches_above_100m_nodes": 10,
+      "searches": [
+        {
+          "move": "7c6d",
+          "observed_nodes": 271896277,
+          "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae"
+        },
+        {
+          "move": "7c8c",
+          "observed_nodes": 133484979,
+          "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae"
+        },
+        {
+          "move": "2a2b",
+          "observed_nodes": 209708969,
+          "parent_id": "sha256:8ce4ae0bd8bf7c9f92d3514e61b39034700c278ea41b5ac258b336cc5d37c464"
+        },
+        {
+          "move": "5b6a",
+          "observed_nodes": 115883149,
+          "parent_id": "sha256:c8d465ad0ca1b48a9deb79ca69d78ddc3ce0ef798dae926f8983c566e1253548"
+        },
+        {
+          "move": "6b7a",
+          "observed_nodes": 182646685,
+          "parent_id": "sha256:b5166b8310d17084f74e91f32abf22d12e1c918a0d03ec00badb484e6816d16b"
+        },
+        {
+          "move": "P*6f",
+          "observed_nodes": 126628563,
+          "parent_id": "sha256:1dc09755551f89d26b24b761360d3745c7b0ace0cbfed17f9ccaba9d4c6a93ac"
+        },
+        {
+          "move": "8e8i+",
+          "observed_nodes": 160771360,
+          "parent_id": "sha256:683f77dc262696d3e637592a47525c51a3c03e2e2e3137c41b87eee8e388e7c6"
+        },
+        {
+          "move": "2a1c",
+          "observed_nodes": 699096938,
+          "parent_id": "sha256:b70979181f66fc8960a5817a271f9422d659f0cac1213c431ef9d76bd8a25726"
+        },
+        {
+          "move": "6a7a",
+          "observed_nodes": 391910345,
+          "parent_id": "sha256:64eb0e5a8c045e1145c7951374b00ea6683d8a18c877afc157f0b0a0525f67c5"
+        },
+        {
+          "move": "6a7b",
+          "observed_nodes": 1513852309,
+          "parent_id": "sha256:64eb0e5a8c045e1145c7951374b00ea6683d8a18c877afc157f0b0a0525f67c5"
+        }
+      ],
+      "simple_linear_extrapolation_to_8192": {
+        "expected_parents": 20.092,
+        "expected_teacher_moves": 25.112
+      },
+      "v1r7_preregistered_maximum_parents": 32,
+      "v1r7_preregistered_maximum_teacher_moves": 64
+    },
+    "v1r7_pre_pr_calibration_basis": {
+      "moves": 10,
+      "parents": 8,
+      "requirement": "rerun-all-ten-with-the-new-dual-limit-and-compare-against-the-preserved-v1r6-exact-depth18-results-before-ready-pr",
+      "scope": "scratch-only-never-training-data",
+      "thresholds": {
+        "absolute_cp_delta_maximum": 300,
+        "capped_move_parent_rank_delta_maximum": 1,
+        "parent_top1_move_changes_maximum": 0,
+        "selected_depth_minimum": 15,
+        "selected_depth_minimum_must_pass_all_moves": true,
+        "sign_flips_maximum": 0
+      }
+    },
+    "preservation": {
+      "completed_parents_reusable_by_successor": 0,
+      "formal_namespace_overwrite_authorized": false,
+      "formal_plan_overwrite_authorized": false,
+      "same_family_resume_authorized": false,
+      "same_run_formal_games_authorized": false,
+      "same_run_training_authorized": false,
+      "teacher_rows_reusable_by_successor": 0
+    }
+  },
+  "v1r7_preregistration": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r7",
+    "path": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r7-preregistration-2026-08-01.json",
+    "pre_pr_calibration_failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r7-pre-pr-calibration-failure-2026-08-01.json",
+    "status": "pre-pr-dual-limit-calibration-failed-family-stopped",
+    "v1r8_floor16_failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r8-floor16-diagnostic-failure-2026-08-01.json",
+    "v1r8_floor16_status": "diagnostic-failed-closed-before-preregistration",
+    "v1r9_preregistered": false
+  },
+  "live_baseline": {
+    "bytes": 1185988,
+    "changed": false,
+    "path": "public/shogi-nnue-weights.bin",
+    "public_flag_changed": false,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "claim_boundary": {
+    "formal_teacher_generation_completed": false,
+    "formal_games_authorized": false,
+    "node_ladder_is_strength_evidence": false,
+    "partial_teacher_rows_are_strength_evidence": false,
+    "strength_claim_authorized": false,
+    "v1r7_strength_contract_changed": true,
+    "training_authorized": false,
+    "live_write_authorized": false
+  }
+}

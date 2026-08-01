@@ -1,0 +1,179 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r5-formal-terminal-fault-data-memo-v1",
+  "date": "2026-07-31",
+  "status": "v1r5-formal-persistent-engine-reset-timeout-after-776-parents-v1r6-required-no-strength-result",
+  "implementation": {
+    "pull_request": 677,
+    "merge_revision": "3b3f85cc7ead5eeda637a76a63d07b98e10aa1c4",
+    "merged": true
+  },
+  "v1r5": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r5",
+    "formal_output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r5",
+    "tracked_preregistration": {
+      "path": "ml/halfkp81-hard-depth18-yaneura-only-v1r5-plan.json",
+      "bytes": 9663,
+      "sha256": "c97892bbc76280490d7f04d867f5c5a86d335bc1868438c31bb74cc4a3e7a595",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r5"
+    },
+    "formal_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r5/teacher-plan.json",
+      "bytes": 11614,
+      "sha256": "b6fe56d1193357269e06f7a3d555ec43ae47f2112ebe182018262276bac38950",
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r5",
+      "source_revision": "3b3f85cc7ead5eeda637a76a63d07b98e10aa1c4"
+    },
+    "selection": {
+      "rows": 8192,
+      "jsonl_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "jsonl_bytes": 7268777,
+      "jsonl_sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4",
+      "manifest_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "manifest_bytes": 3234,
+      "manifest_sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    },
+    "pathological_preflight": {
+      "parent_id": "sha256:5a0784bfa36f2961049c1eae3ca13fe041d089abad1228f9d935f48723826dae",
+      "parallel_replicas": 4,
+      "completed_replicas": 4,
+      "duration_milliseconds_range": {
+        "minimum": 614975,
+        "maximum": 615744
+      },
+      "technical_faults": 0,
+      "status": "pathological-four-way-scratch-preflight-passed",
+      "receipt": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r5-pathological-preflight/pathological-preflight-receipt.json",
+        "bytes": 2631,
+        "sha256": "fb3a23494fd33b031fc55cc7cfa86e1ae970876af41c238b92840e83562e3f60"
+      },
+      "authority": "scratch-only-never-formal-training-data"
+    },
+    "formal_run": {
+      "run_fingerprint": "59aa47820f358d4c9695e3ad7feaa3ebd9102b2ace2e2b726547ec75bf5cc2d1",
+      "configured_processes": 4,
+      "persistent_engine_processes": true,
+      "threads_per_process": 1,
+      "hash_mib_per_process": 512,
+      "aggregate_parent_deadline": "none",
+      "search_timeout_milliseconds": 3600000,
+      "whole_parent_publication": "only-after-proposal-and-all-depth18-rescores-pass",
+      "completed_parents": 776,
+      "incomplete_parents": 7416,
+      "completion_fraction": 0.0947265625,
+      "teacher_rows": 9301,
+      "completed_role_parents": {
+        "fit": 776,
+        "tune": 0,
+        "sealed": 0
+      },
+      "completed_role_rows": {
+        "fit": 9301,
+        "tune": 0,
+        "sealed": 0
+      },
+      "durable_prefixes": [
+        {
+          "parents": 100,
+          "teacher_rows": 1195,
+          "technical_faults": 0,
+          "receipt_bytes": 545,
+          "receipt_sha256": "9ebb442a54b6f8c4bfb06f128670983f1429cd13f678ea2997c969c5eb053354"
+        },
+        {
+          "parents": 500,
+          "teacher_rows": 5986,
+          "technical_faults": 0,
+          "receipt_bytes": 545,
+          "receipt_sha256": "a315361e30c052de67b61e00d31a3fd8f573503e5bbb76b7be19ed69d4aafd85"
+        }
+      ],
+      "work": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r5/teacher-work.jsonl",
+        "bytes": 11524585,
+        "sha256": "c8414f6669e53115c7d321638e9f61c1d3ce46a1c80e3076029faf47a7459bba",
+        "physical_lines": 777,
+        "header_lines": 1,
+        "parent_lines": 776
+      },
+      "terminal_fault": {
+        "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r5/teacher-terminal-fault.json",
+        "bytes": 851,
+        "sha256": "e4327ed8b5552199a564084ea117edf9804272ed43894f25b09b13bb5f5e6002",
+        "schema": "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+        "status": "terminal-fault-family-stopped",
+        "technical_faults": 1,
+        "selection_index_reported": 775,
+        "parent_id": "sha256:2253ddad6fd346433f7a98962235105fae9f431a5487be32c6e27f8c5afaa9fa",
+        "message": "USI timeout after 120000ms",
+        "fault_stage": "persistent-engine-reset"
+      },
+      "post_stop_cleanup": {
+        "runner_processes": 0,
+        "yaneuraou_processes": 0,
+        "launchd_service_present": false
+      }
+    },
+    "isolated_fault_parent_diagnosis": {
+      "scope": "scratch-only-never-training-data",
+      "parent_id": "sha256:2253ddad6fd346433f7a98962235105fae9f431a5487be32c6e27f8c5afaa9fa",
+      "fresh_engine_initialization_milliseconds": 364,
+      "successful_reset_operations": 13,
+      "reset_elapsed_milliseconds_range": {
+        "minimum": 118,
+        "maximum": 227
+      },
+      "proposal_depth16": {
+        "elapsed_milliseconds": 2104,
+        "completed": true
+      },
+      "independent_depth18_rescores": {
+        "searches": 12,
+        "completed": 12
+      },
+      "whole_parent_elapsed_milliseconds": 10950,
+      "search_timeout_milliseconds": 3600000,
+      "position_long_tail_excluded": true,
+      "causal_conclusion": "transient-liveness-failure-while-resetting-a-persistent-engine-between-parents",
+      "teacher_search_timeout": false,
+      "strength_result": false
+    },
+    "preservation": {
+      "same_family_resume_authorized": false,
+      "same_run_training_authorized": false,
+      "same_run_formal_games_authorized": false,
+      "formal_plan_overwrite_authorized": false,
+      "formal_namespace_overwrite_authorized": false,
+      "reuse_audit": {
+        "durable_parent_records_checked": 776,
+        "mismatches": 0,
+        "safe_rebind_importer_estimated_hours_minimum": 4,
+        "safe_rebind_importer_estimated_hours_maximum": 8,
+        "estimated_recompute_hours_avoided": 6,
+        "decision": "do-not-add-importer-complexity-recompute-v1r6-from-zero"
+      },
+      "completed_parents_reusable_by_successor": 0,
+      "teacher_rows_reusable_by_successor": 0
+    }
+  },
+  "v1r6_preregistration": {
+    "path": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r6-preregistration-2026-07-31.json",
+    "status": "prospective-persistent-engine-reset-liveness-recovery-not-executed"
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false,
+    "public_flag_changed": false
+  },
+  "claim_boundary": {
+    "partial_teacher_rows_are_strength_evidence": false,
+    "reset_liveness_recovery_is_strength_evidence": false,
+    "formal_teacher_generation_completed": false,
+    "training_authorized": false,
+    "formal_games_authorized": false,
+    "strength_claim_authorized": false,
+    "live_write_authorized": false
+  }
+}

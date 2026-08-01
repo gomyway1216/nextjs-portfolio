@@ -16,10 +16,12 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6,
   canonicalHalfkp81Depth18Json,
   readHalfkp81Depth18PrivateArtifact,
   validateHalfkp81Depth18TeacherArtifacts,
@@ -42,6 +44,9 @@ import {
 } from "../../../ml/floodgate-bounded-stable-wasm-runtime-v3";
 import {
   HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
   runHalfkp81Depth18TeacherCoreForTests,
   type Halfkp81Depth18AuthenticatedTeacherPlan,
   type Halfkp81Depth18TeacherEngine,
@@ -89,6 +94,10 @@ import {
   rulesCompleteLegalMoves,
 } from "../../../ml/shogi-sfen";
 import { positionKeyFromSfen } from "../../../ml/sibling-data";
+import {
+  USI_RESET_FOR_PARENT_TIMEOUT_MS,
+  UsiResetForParentTimeoutError,
+} from "../../../ml/usi-engine";
 
 const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
 const START =
@@ -109,7 +118,8 @@ type FixtureStableMode =
   | "yaneura-only-v1"
   | "yaneura-only-v1r2"
   | "yaneura-only-v1r3"
-  | "yaneura-only-v1r4";
+  | "yaneura-only-v1r4"
+  | "yaneura-only-v1r6";
 
 afterEach(async () => {
   await Promise.all(
@@ -253,6 +263,28 @@ function yaneuraOnlyTeacherSettings() {
     }),
     threads_per_process: 1,
     timeout_seconds_per_parent: 600,
+  });
+}
+
+function yaneuraOnlyV1r6TeacherSettings() {
+  const base = yaneuraOnlyTeacherSettings();
+  return Object.freeze({
+    candidate_policy: base.candidate_policy,
+    engine: base.engine,
+    hash_mib_per_process: 512,
+    ledger_candidate_generation:
+      HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+    maximum_rows: 106_496,
+    maximum_rows_per_parent: 13,
+    minimum_rows_per_parent: 2,
+    parent_deadline_policy: "per-search-only-no-aggregate-parent-race",
+    persistent_engine_processes: true,
+    processes: 4,
+    rescore_policy: base.rescore_policy,
+    search_timeout_milliseconds: 3_600_000,
+    threads_per_process: 1,
+    whole_parent_publication:
+      "durable-only-after-proposal-and-all-depth18-rescores-pass",
   });
 }
 
@@ -466,7 +498,8 @@ async function generatedFixture(
     stableMode === "yaneura-only-v1" ||
     stableMode === "yaneura-only-v1r2" ||
     stableMode === "yaneura-only-v1r3" ||
-    stableMode === "yaneura-only-v1r4";
+    stableMode === "yaneura-only-v1r4" ||
+    stableMode === "yaneura-only-v1r6";
   const boundedStableV3 = stableMode !== "required-v2" && !yaneuraOnly;
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-depth18-artifact-"),
@@ -596,13 +629,15 @@ async function generatedFixture(
   };
   const plan = {
     schema: yaneuraOnly
-      ? stableMode === "yaneura-only-v1r4"
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
-        : stableMode === "yaneura-only-v1r3"
-          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
-          : stableMode === "yaneura-only-v1r2"
-            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
-            : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+      ? stableMode === "yaneura-only-v1r6"
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+        : stableMode === "yaneura-only-v1r4"
+          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+          : stableMode === "yaneura-only-v1r3"
+            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+            : stableMode === "yaneura-only-v1r2"
+              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+              : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
       : stableMode === "bounded-v3r2-omitted" ||
           stableMode === "bounded-v3r3-omitted"
         ? stableMode === "bounded-v3r3-omitted"
@@ -626,7 +661,9 @@ async function generatedFixture(
       id: "YaneuraOu NNUE 9.60git 64APPLEM1",
     },
     teacher: yaneuraOnly
-      ? yaneuraOnlyTeacherSettings()
+      ? stableMode === "yaneura-only-v1r6"
+        ? yaneuraOnlyV1r6TeacherSettings()
+        : yaneuraOnlyTeacherSettings()
       : boundedStableV3
         ? boundedTeacherSettings()
         : teacherSettings(),
@@ -758,8 +795,16 @@ async function generatedFixture(
     },
     close: async () => undefined,
   };
+  let resetTimeoutPending = stableMode === "yaneura-only-v1r6";
   class FakeEngine implements Halfkp81Depth18TeacherEngine {
-    async resetForParent(): Promise<void> {}
+    async resetForParent(): Promise<void> {
+      if (resetTimeoutPending) {
+        resetTimeoutPending = false;
+        throw new UsiResetForParentTimeoutError(
+          USI_RESET_FOR_PARENT_TIMEOUT_MS,
+        );
+      }
+    }
     async quit(): Promise<void> {}
     async search(
       sfen: string,
@@ -804,7 +849,18 @@ async function generatedFixture(
         "shogi-teacher-engine-receipt-v1",
       ),
     }),
-    processes: 3,
+    processes:
+      stableMode === "yaneura-only-v1r6"
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES
+        : 3,
+    ...(stableMode === "yaneura-only-v1r6"
+      ? {
+          parentDeadlinePolicy: "per-search-only" as const,
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        }
+      : {}),
     stablePolicy: yaneuraOnly
       ? "yaneuraou-only-v1"
       : boundedStableV3
@@ -1126,6 +1182,70 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         },
       },
     });
+  });
+
+  it("verifies v1r6 reset recovery evidence and binds it into the verified receipt", async () => {
+    const fixture = await generatedFixture("yaneura-only-v1r6");
+    expect(fixture.stableFactoryCalls).toBe(0);
+    const work = cloneWork(fixture.request);
+    const recoveredWrapper = work
+      .slice(1)
+      .find(
+        (wrapper) =>
+          (
+            wrapper.reset_timeout_recovery as
+              Record<string, unknown> | undefined
+          )?.retries_used === 1,
+      ) as Record<string, unknown>;
+    const recoveredParentId = recoveredWrapper.parent_id;
+    const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+      fixture.request,
+      { fit: 1, tune: 1, sealed: 1 },
+    );
+    expect(result).toMatchObject({
+      completedParents: 3,
+      completedRows: 39,
+      receipt: {
+        teacher_plan: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6,
+        },
+        work: {
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6,
+        },
+        reset_timeout_recovery: {
+          policy: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+          recovered_parents: 1,
+          engine_recycles: 1,
+          parent_ids: [recoveredParentId],
+        },
+        artifact_verification: {
+          reset_timeout_recovery_evidence_recomputed: true,
+        },
+      },
+    });
+
+    const forged = cloneWork(fixture.request);
+    const forgedRecovered = forged
+      .slice(1)
+      .find(
+        (wrapper) =>
+          (
+            wrapper.reset_timeout_recovery as
+              Record<string, unknown> | undefined
+          )?.retries_used === 1,
+      ) as Record<string, unknown>;
+    const recovery = forgedRecovered.reset_timeout_recovery as Record<
+      string,
+      unknown
+    >;
+    recovery.engine_recycles = 0;
+    resealWrapper(forgedRecovered);
+    expect(() =>
+      validateHalfkp81Depth18TeacherArtifactsCoreForTests(
+        withWorkRows(fixture.request, forged),
+        { fit: 1, tune: 1, sealed: 1 },
+      ),
+    ).toThrow(/reset timeout recovery evidence differs/);
   });
 
   it("keeps closed Yaneura-only v1, v1r2, and v1r3 artifacts from production authority", async () => {

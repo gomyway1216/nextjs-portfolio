@@ -1,0 +1,139 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r6-preregistration-data-memo-v1",
+  "date": "2026-07-31",
+  "status": "prospective-persistent-engine-reset-liveness-recovery-not-executed",
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r6",
+  "classification": "new-technical-recovery-not-v1r5-resume",
+  "objective": "Recover only a transient persistent-engine reset timeout by replacing that engine and recomputing the entire unpublished parent once, without changing teacher, training, or strength gates.",
+  "predecessor": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r5",
+    "source_revision": "3b3f85cc7ead5eeda637a76a63d07b98e10aa1c4",
+    "formal_plan": {
+      "bytes": 11614,
+      "sha256": "b6fe56d1193357269e06f7a3d555ec43ae47f2112ebe182018262276bac38950"
+    },
+    "completed_parents": 776,
+    "teacher_rows": 9301,
+    "terminal_fault": {
+      "bytes": 851,
+      "sha256": "e4327ed8b5552199a564084ea117edf9804272ed43894f25b09b13bb5f5e6002",
+      "parent_id": "sha256:2253ddad6fd346433f7a98962235105fae9f431a5487be32c6e27f8c5afaa9fa",
+      "fault_class": "persistent-engine-reset-timeout",
+      "timeout_milliseconds": 120000
+    },
+    "same_family_resume_authorized": false,
+    "completed_parents_reused": 0,
+    "teacher_rows_reused": 0,
+    "evidence_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r5-formal-terminal-fault-2026-07-31.json"
+  },
+  "identity_contract": {
+    "new_tracked_preregistration_required": true,
+    "new_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "new_create_only_output_namespace_required": true,
+    "same_authenticated_selection_required": true,
+    "selection_jsonl": {
+      "rows": 8192,
+      "bytes": 7268777,
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "selection_manifest": {
+      "bytes": 3234,
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "teacher_contract": {
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "processes": 4,
+    "persistent_engine_processes": true,
+    "threads_per_process": 1,
+    "hash_mib_per_process": 512,
+    "candidate_generation": {
+      "yaneuraou_proposal_depth": 16,
+      "proposal_multipv": 12,
+      "recorded_move_required": true,
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "stable_wasm_allowed": false
+    },
+    "rescore": {
+      "depth": 18,
+      "all_deduplicated_candidates_independently_rescored": true,
+      "old_depth6_or_depth12_cp_target_rows": 0
+    },
+    "aggregate_parent_deadline": "none",
+    "timeout_seconds_per_usi_search": 3600,
+    "whole_parent_publication": "durable-only-after-proposal-and-all-depth18-rescores-pass"
+  },
+  "reset_timeout_recovery": {
+    "eligible_fault_class": "persistent-engine-reset-timeout-only",
+    "reset_timeout_milliseconds": 120000,
+    "maximum_retries_per_parent": 1,
+    "on_first_reset_timeout": [
+      "discard-all-unpublished-parent-state",
+      "terminate-and-reap-the-timed-out-engine",
+      "create-and-authenticate-a-replacement-engine",
+      "rerun-the-whole-parent-from-the-depth16-proposal"
+    ],
+    "retry_uses_fresh_parent_state": true,
+    "retry_may_reuse_first_attempt_proposal_or_rescores": false,
+    "retry_publication_policy": "publish-exactly-one-parent-only-after-complete-retry-success",
+    "second_reset_timeout_policy": "family-terminal-fault",
+    "replacement_or_retry_failure_policy": "family-terminal-fault"
+  },
+  "forbidden_retries": {
+    "usi_search_timeout_retry": true,
+    "depth16_proposal_timeout_retry": true,
+    "depth18_rescore_timeout_retry": true,
+    "non_reset_fault_retry": true,
+    "more_than_one_whole_parent_retry": true
+  },
+  "training_contract": {
+    "representation": "HalfKP81",
+    "initializer": "original-alpha-050-not-v3-or-v4-candidate",
+    "epochs": 3,
+    "seeds": 1,
+    "checkpoint_selection": "final-epoch-only",
+    "parent_batch_fraction_direct_replay": 0.5,
+    "parent_batch_fraction_fresh_hard": 0.5,
+    "direct_loss": "sigmoid-bce-k600",
+    "direct_loss_fraction": 0.5,
+    "groupwise_loss": "listnet-cp-over-600",
+    "groupwise_loss_fraction": 0.5
+  },
+  "strength_gates": {
+    "unchanged_from_v1r5": true,
+    "stop_at_first_failed_gate": true,
+    "extra_epoch_or_seed": false,
+    "qat_or_distillation": false,
+    "threshold_change_after_results": false
+  },
+  "reuse_contract": {
+    "audit": {
+      "v1r5_durable_parent_records_checked": 776,
+      "mismatches": 0,
+      "new_fingerprint_schema_digest_rebind_importer_estimated_hours_minimum": 4,
+      "new_fingerprint_schema_digest_rebind_importer_estimated_hours_maximum": 8,
+      "estimated_recompute_hours_avoided": 6,
+      "economic_decision": "recompute-is-simpler-than-building-and-verifying-the-importer"
+    },
+    "v1r5_completed_parents_reused": 0,
+    "v1r5_teacher_rows_reused": 0,
+    "v1r5_partial_parent_state_reused": false,
+    "decision_final": true
+  },
+  "authority": {
+    "may_implement_on_new_source_revision": true,
+    "may_resume_v1r5": false,
+    "may_execute_v1r6_before_pr_ci_regular_merge": false,
+    "may_train": false,
+    "may_play_formal_games": false,
+    "may_write_live_weights": false,
+    "strength_claim_authorized": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false
+  }
+}

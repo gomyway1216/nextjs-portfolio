@@ -20,11 +20,13 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA,
@@ -36,12 +38,18 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PATHOLOGICAL_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PROCESSES,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_DEFAULT_DIRECTORY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_DEFAULT_PLAN_PATH,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
   authenticateHalfkp81Depth18TeacherPlan,
   expectedHalfkp81Depth18YaneuraOnlyInitialMultipv,
   initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R4ForTests,
   parseExactPinnedHalfkp81Depth18JsonForTests,
   publishHalfkp81Depth18TeacherCreateOnlyCoreForTests,
   runHalfkp81Depth18TeacherCoreForTests,
+  runHalfkp81Depth18YaneuraOnlyTeacherV1R5,
   runHalfkp81Depth18YaneuraOnlyPathologicalPreflightCoreV1R5ForTests,
   runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests,
   validateHalfkp81Depth18SelectionRowsCoreForTests,
@@ -74,6 +82,8 @@ import {
 } from "../../../ml/shogi-sfen";
 import { positionKeyFromSfen } from "../../../ml/sibling-data";
 import {
+  USI_RESET_FOR_PARENT_TIMEOUT_MS,
+  UsiResetForParentTimeoutError,
   UsiSearchTimeoutError,
   type UsiTeacherEngineOptions,
 } from "../../../ml/usi-engine";
@@ -186,7 +196,11 @@ async function fixture(
     yaneuraV1R3?: boolean;
     yaneuraV1R4?: boolean;
     yaneuraV1R5?: boolean;
+    yaneuraV1R6?: boolean;
     failSearchAt?: number;
+    resetTimeoutFailures?: number;
+    resetTimeoutAtCalls?: readonly number[];
+    unknownResetFailures?: number;
     searchDelayMs?: number;
     parents?: readonly Readonly<{
       parentId?: string;
@@ -202,6 +216,13 @@ async function fixture(
   stableFactoryCalls: { value: number };
   stableCloseCalls: { value: number };
   engineOptions: UsiTeacherEngineOptions[];
+  engineStats: Array<{
+    resetCalls: number;
+    searchCalls: number;
+    quitCalls: number;
+  }>;
+  engineActivity: { active: number; maximum: number };
+  engineEvents: string[];
 }> {
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "halfkp81-runner-test-"),
@@ -290,17 +311,19 @@ async function fixture(
     plan: Object.freeze({}),
     planIdentity: Object.freeze({
       ...identity(outputs.plan_json, planRaw),
-      schema: options.yaneuraV1R5
-        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
-        : options.yaneuraV1R4
-          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
-          : options.yaneuraV1R3
-            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
-            : options.yaneuraV1R2
-              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
-              : options.yaneuraOnly
-                ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
-                : "shogi-halfkp81-hard-depth18-teacher-plan-v2",
+      schema: options.yaneuraV1R6
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+        : options.yaneuraV1R5
+          ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+          : options.yaneuraV1R4
+            ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
+            : options.yaneuraV1R3
+              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
+              : options.yaneuraV1R2
+                ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
+                : options.yaneuraOnly
+                  ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1
+                  : "shogi-halfkp81-hard-depth18-teacher-plan-v2",
     }),
     sourceRevision: SOURCE_REVISION,
     selectionIdentity: Object.freeze({
@@ -332,7 +355,8 @@ async function fixture(
       options.yaneuraV1R2 ||
       options.yaneuraV1R3 ||
       options.yaneuraV1R4 ||
-      options.yaneuraV1R5
+      options.yaneuraV1R5 ||
+      options.yaneuraV1R6
         ? yaneuraOnlyTeacherSettings()
         : teacherSettings(),
   } as unknown as Halfkp81Depth18AuthenticatedTeacherPlan;
@@ -349,6 +373,17 @@ async function fixture(
   const proposeCalls = { value: 0 };
   const stableFactoryCalls = { value: 0 };
   const stableCloseCalls = { value: 0 };
+  const resetTimeoutFailures = { value: options.resetTimeoutFailures ?? 0 };
+  const resetTimeoutAtCalls = new Set(options.resetTimeoutAtCalls ?? []);
+  const globalResetCalls = { value: 0 };
+  const unknownResetFailures = { value: options.unknownResetFailures ?? 0 };
+  const engineStats: Array<{
+    resetCalls: number;
+    searchCalls: number;
+    quitCalls: number;
+  }> = [];
+  const engineActivity = { active: 0, maximum: 0 };
+  const engineEvents: string[] = [];
   const stableRuntime: Halfkp81Depth18TeacherStableRuntime = {
     receipt: stableReceipt,
     receiptDigest,
@@ -421,18 +456,60 @@ async function fixture(
     },
   };
   class FakeEngine implements Halfkp81Depth18TeacherEngine {
-    private searchCalls = 0;
+    private readonly stats = {
+      resetCalls: 0,
+      searchCalls: 0,
+      quitCalls: 0,
+    };
+    private closed = false;
+    private readonly engineIndex: number;
 
-    async resetForParent(): Promise<void> {}
-    async quit(): Promise<void> {}
+    constructor() {
+      this.engineIndex = engineStats.length;
+      engineStats.push(this.stats);
+      engineEvents.push(`start:${this.engineIndex}`);
+      engineActivity.active += 1;
+      engineActivity.maximum = Math.max(
+        engineActivity.maximum,
+        engineActivity.active,
+      );
+    }
+
+    async resetForParent(): Promise<void> {
+      this.stats.resetCalls += 1;
+      globalResetCalls.value += 1;
+      if (
+        resetTimeoutFailures.value > 0 ||
+        resetTimeoutAtCalls.delete(globalResetCalls.value)
+      ) {
+        resetTimeoutFailures.value = Math.max(
+          0,
+          resetTimeoutFailures.value - 1,
+        );
+        throw new UsiResetForParentTimeoutError(
+          USI_RESET_FOR_PARENT_TIMEOUT_MS,
+        );
+      }
+      if (unknownResetFailures.value > 0) {
+        unknownResetFailures.value -= 1;
+        throw new Error("synthetic unknown reset failure");
+      }
+    }
+    async quit(): Promise<void> {
+      if (this.closed) return;
+      this.closed = true;
+      this.stats.quitCalls += 1;
+      engineEvents.push(`quit:${this.engineIndex}`);
+      engineActivity.active -= 1;
+    }
     async search(
       sfen: string,
       multipv: number,
       limit: { depth?: number },
       searchmoves: readonly string[],
     ) {
-      this.searchCalls += 1;
-      if (this.searchCalls === options.failSearchAt) {
+      this.stats.searchCalls += 1;
+      if (this.stats.searchCalls === options.failSearchAt) {
         throw new UsiSearchTimeoutError(
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
         );
@@ -486,7 +563,8 @@ async function fixture(
     options.yaneuraV1R2 ||
     options.yaneuraV1R3 ||
     options.yaneuraV1R4 ||
-    options.yaneuraV1R5
+    options.yaneuraV1R5 ||
+    options.yaneuraV1R6
       ? { stablePolicy: "yaneuraou-only-v1" as const }
       : {}),
   };
@@ -498,6 +576,9 @@ async function fixture(
     stableFactoryCalls,
     stableCloseCalls,
     engineOptions,
+    engineStats,
+    engineActivity,
+    engineEvents,
   };
 }
 
@@ -685,6 +766,50 @@ describe("HalfKP81 depth18 teacher runner", () => {
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
       },
     });
+
+    const yaneuraOnlyV1R6 = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../ml/halfkp81-hard-depth18-yaneura-only-v1r6-plan.json",
+      ),
+    );
+    expect(
+      parseExactPinnedHalfkp81Depth18JsonForTests(yaneuraOnlyV1R6, {
+        bytes: 10_346,
+        sha256:
+          "13e6cff20208057e2f23f1811b4698a7e2b085063ef0ed672bb6a788cf3a622b",
+      }),
+    ).toMatchObject({
+      family: "halfkp81-hard-depth18-yaneura-only-v1r6",
+      schema: "shogi-halfkp81-hard-depth18-yaneura-only-recovery-plan-v1r6",
+      predecessor_v1r5: {
+        completed_parents: 776,
+        reuse_completed_parents: 0,
+        reuse_teacher_rows: 0,
+      },
+      technical_recovery: {
+        reset_timeout_recovery_policy:
+          HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        whole_parent_retry_limit: 1,
+      },
+      teacher: {
+        processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+        search_timeout_milliseconds:
+          HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+      },
+    });
+  });
+
+  it("pins the isolated v1r6 namespace and closes the v1r5 public runner", async () => {
+    expect(HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_DEFAULT_DIRECTORY).toBe(
+      "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6",
+    );
+    expect(HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_DEFAULT_PLAN_PATH).toBe(
+      `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_DEFAULT_DIRECTORY}/teacher-plan.json`,
+    );
+    await expect(runHalfkp81Depth18YaneuraOnlyTeacherV1R5()).rejects.toThrow(
+      /v1r5 formal runner is closed.*use v1r6/,
+    );
   });
 
   it("pins the v1r5 resource-recovery namespace and pathological sentinel", () => {
@@ -2024,6 +2149,274 @@ describe("HalfKP81 depth18 teacher runner", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it.each([
+    [1, 0],
+    [4, 3],
+  ] as const)(
+    "recycles only the affected v1r6 engine and retries the whole parent after reset call %i",
+    async (resetTimeoutAtCall, discardedSearches) => {
+      const value = await fixture(["fit"], {
+        yaneuraV1R6: true,
+        resetTimeoutAtCalls: [resetTimeoutAtCall],
+        searchDelayMs: 2,
+      });
+      const execution = runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          parentDeadlinePolicy: "per-search-only",
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+          processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        },
+        coreContract(["fit"], 13),
+      );
+      while (value.engineStats.length < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
+      const duringRetry = (
+        await fs.promises.readFile(
+          value.authenticated.outputs.work_jsonl,
+          "utf8",
+        )
+      )
+        .trimEnd()
+        .split("\n");
+      expect(duringRetry).toHaveLength(1);
+      await expect(execution).resolves.toMatchObject({
+        receipt: { completed_parents: 1, technical_faults: 0 },
+      });
+
+      expect(value.engineStats).toHaveLength(2);
+      expect(value.engineEvents.slice(0, 3)).toEqual([
+        "start:0",
+        "quit:0",
+        "start:1",
+      ]);
+      expect(value.engineStats[0]).toEqual({
+        resetCalls: resetTimeoutAtCall,
+        searchCalls: discardedSearches,
+        quitCalls: 1,
+      });
+      expect(value.engineStats[1]).toMatchObject({
+        searchCalls: 14,
+        quitCalls: 1,
+      });
+      expect(value.engineActivity).toEqual({ active: 0, maximum: 1 });
+      const work = (
+        await fs.promises.readFile(
+          value.authenticated.outputs.work_jsonl,
+          "utf8",
+        )
+      )
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(work).toHaveLength(2);
+      expect(work[1]).toMatchObject({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6,
+        kind: "parent",
+        reset_timeout_recovery: {
+          policy: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+          retries_used: 1,
+          engine_recycles: 1,
+          events: [
+            {
+              attempt: 1,
+              error_name: "UsiResetForParentTimeoutError",
+              phase: "reset-for-parent",
+              timeout_ms: USI_RESET_FOR_PARENT_TIMEOUT_MS,
+            },
+          ],
+        },
+      });
+    },
+  );
+
+  it("rejects reset-timeout recycling outside the isolated v1r6 schema", async () => {
+    const value = await fixture(["fit"], { yaneuraV1R5: true });
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          parentDeadlinePolicy: "per-search-only",
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
+          processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PROCESSES,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        },
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(/authorized only for Yaneura-only v1r6/);
+    await expect(
+      fs.promises.lstat(value.authenticated.outputs.work_jsonl),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps the normalized v1r6 teacher payload identical after a reset recycle", async () => {
+    const baseline = await fixture(["fit"], { yaneuraV1R6: true });
+    const recovered = await fixture(["fit"], {
+      yaneuraV1R6: true,
+      resetTimeoutAtCalls: [4],
+    });
+    const execute = async (
+      value: Awaited<ReturnType<typeof fixture>>,
+    ): Promise<Record<string, unknown>> => {
+      await runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          parentDeadlinePolicy: "per-search-only",
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+          processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        },
+        coreContract(["fit"], 13),
+      );
+      return JSON.parse(
+        (
+          await fs.promises.readFile(
+            value.authenticated.outputs.work_jsonl,
+            "utf8",
+          )
+        )
+          .trimEnd()
+          .split("\n")[1],
+      ) as Record<string, unknown>;
+    };
+    const baselineEntry = await execute(baseline);
+    const recoveredEntry = await execute(recovered);
+    const normalizedTeacher = (value: unknown): Record<string, unknown> => {
+      const teacher = structuredClone(value) as Record<string, unknown>;
+      delete teacher.run_fingerprint;
+      delete teacher.payload_sha256;
+      return teacher;
+    };
+    expect(normalizedTeacher(recoveredEntry.teacher_entry)).toEqual(
+      normalizedTeacher(baselineEntry.teacher_entry),
+    );
+    expect(recoveredEntry.candidate_generation).toEqual(
+      baselineEntry.candidate_generation,
+    );
+  });
+
+  it("fails v1r6 terminally after the second reset timeout without publishing the parent", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R6: true,
+      resetTimeoutFailures: 2,
+    });
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          parentDeadlinePolicy: "per-search-only",
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+          processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        },
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(
+      /recovery exhausted after two timeouts and one engine recycle/,
+    );
+    expect(value.engineStats).toHaveLength(2);
+    expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
+      true,
+    );
+    expect(value.engineActivity).toEqual({ active: 0, maximum: 1 });
+    const work = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trimEnd()
+      .split("\n");
+    expect(work).toHaveLength(1);
+    const fault = JSON.parse(
+      await fs.promises.readFile(
+        value.authenticated.outputs.terminal_fault_json,
+        "utf8",
+      ),
+    ) as { message: string };
+    expect(fault.message).toContain(
+      '"error_name":"UsiResetForParentRecoveryExhaustedError"',
+    );
+    expect(fault.message).toContain('"phase":"reset-for-parent"');
+  });
+
+  it.each([
+    ["search timeout", { failSearchAt: 1 }, /USI search timeout/],
+    [
+      "unknown reset failure",
+      { unknownResetFailures: 1 },
+      /synthetic unknown reset failure/,
+    ],
+  ] as const)(
+    "does not recycle a v1r6 engine after %s",
+    async (_label, failureOptions, expected) => {
+      const value = await fixture(["fit"], {
+        yaneuraV1R6: true,
+        ...failureOptions,
+      });
+      await expect(
+        runHalfkp81Depth18TeacherCoreForTests(
+          value.authenticated,
+          {
+            ...value.dependencies,
+            parentDeadlinePolicy: "per-search-only",
+            parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+            processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+            resetTimeoutRecoveryPolicy:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+          },
+          coreContract(["fit"], 13),
+        ),
+      ).rejects.toThrow(expected);
+      expect(value.engineStats).toHaveLength(1);
+      expect(value.engineStats[0].quitCalls).toBe(1);
+      expect(value.engineActivity).toEqual({ active: 0, maximum: 1 });
+      expect(
+        (
+          await fs.promises.readFile(
+            value.authenticated.outputs.work_jsonl,
+            "utf8",
+          )
+        )
+          .trimEnd()
+          .split("\n"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("never exceeds four active engines while v1r6 recycles timed-out workers", async () => {
+    const roles = ["fit", "fit", "fit", "fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R6: true,
+      resetTimeoutAtCalls: [1],
+    });
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          parentDeadlinePolicy: "per-search-only",
+          parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+          processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
+          resetTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+        },
+        coreContract(roles, 13),
+      ),
+    ).resolves.toMatchObject({
+      receipt: { completed_parents: 4, technical_faults: 0 },
+    });
+    expect(value.engineActivity.active).toBe(0);
+    expect(value.engineActivity.maximum).toBeLessThanOrEqual(4);
   });
 
   it("publishes create-only with idempotent equality and rejects a different raced value", async () => {

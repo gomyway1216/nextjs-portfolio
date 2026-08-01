@@ -217,6 +217,10 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r9" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PATHOLOGICAL_PREFLIGHT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r5-pathological-preflight" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PATHOLOGICAL_PREFLIGHT_RECEIPT_SCHEMA =
@@ -308,10 +312,18 @@ const EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION = Object.freeze({
   path: "ml/halfkp81-hard-depth18-yaneura-only-v1r9-plan.json",
   bytes: 15_598,
   sha256: "63d819028f4aea646f4bc9af22b90d23aedeb50f6470bbef8753937ad80b4827",
-  schema: "shogi-halfkp81-depth18-yaneura-only-parent-fallback-plan-v1r9",
+  schema: "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-plan-v1r9",
 });
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION;
+const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r10-plan.json",
+  bytes: 16_121,
+  sha256: "0d60b491f55078969ffc483902dc65aad2db4878e3dfd62e247e02de3470d0dc",
+  schema: "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-plan-v1r10",
+});
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
+  EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 
 const EXPECTED_TEACHER = Object.freeze({
   engine: EXPECTED_ENGINE_ID,
@@ -1324,21 +1336,32 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   let familyExpectedOutputs: Readonly<Record<string, unknown>> | undefined;
   if (yaneuraOnly) {
     const repositoryRoot = path.resolve(__dirname, "..");
-    const expectedPreregistration = yaneuraOnlyV1R9
-      ? EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION
-      : EXPECTED_YANEURA_ONLY_V1R6_PREREGISTRATION;
+    const v1r10Recovery =
+      yaneuraOnlyV1R9 &&
+      canonicalJson(plan.preregistration) ===
+        canonicalJson(EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION);
+    const expectedPreregistration = v1r10Recovery
+      ? EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION
+      : yaneuraOnlyV1R9
+        ? EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION
+        : EXPECTED_YANEURA_ONLY_V1R6_PREREGISTRATION;
+    const yaneuraOnlyLabel = v1r10Recovery
+      ? "v1r10"
+      : yaneuraOnlyV1R9
+        ? "v1r9"
+        : "v1r6";
     const preregistrationPath = path.join(
       repositoryRoot,
       expectedPreregistration.path,
     );
     const preregistrationRaw = await readHeldStableFile(
       preregistrationPath,
-      `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} preregistration`,
+      `Yaneura-only ${yaneuraOnlyLabel} preregistration`,
     );
     const preregistration = parseExactPinnedJson(
       preregistrationRaw,
       expectedPreregistration,
-      `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} preregistration`,
+      `Yaneura-only ${yaneuraOnlyLabel} preregistration`,
     );
     const sourceRevisionPolicy = preregistration.source_revision_policy as
       Record<string, unknown> | undefined;
@@ -1387,7 +1410,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
         })
     ) {
       throw new Error(
-        `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} fixed authority differs`,
+        `Yaneura-only ${yaneuraOnlyLabel} fixed authority differs`,
       );
     }
     const stableWasm = (
@@ -1409,7 +1432,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           canonicalJson(HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1))
     ) {
       throw new Error(
-        `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} stable-WASM absence contract differs`,
+        `Yaneura-only ${yaneuraOnlyLabel} stable-WASM absence contract differs`,
       );
     }
     const outputNamespace = preregistration.output_namespace;
@@ -1419,14 +1442,14 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       Array.isArray(outputNamespace)
     ) {
       throw new Error(
-        `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} output namespace is missing`,
+        `Yaneura-only ${yaneuraOnlyLabel} output namespace is missing`,
       );
     }
     const { collision_policy: collisionPolicy, ...expectedOutputs } =
       outputNamespace as Record<string, unknown>;
     if (collisionPolicy !== "create-only-fail-if-any-target-exists") {
       throw new Error(
-        `Yaneura-only ${yaneuraOnlyV1R9 ? "v1r9" : "v1r6"} collision policy differs`,
+        `Yaneura-only ${yaneuraOnlyLabel} collision policy differs`,
       );
     }
     familyExpectedOutputs = Object.freeze(expectedOutputs);
@@ -2128,10 +2151,15 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R6(): Promis
   });
 }
 
-/** Create-only publication of the sealed v1r9 Hash8192-fallback runtime plan. */
-export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promise<
-  Readonly<Halfkp81Depth18TeacherFileIdentity>
-> {
+/** Shared create-only publication for the sealed Hash8192-fallback protocol. */
+async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
+  options: Readonly<{
+    familyLabel: "v1r9" | "v1r10";
+    preregistration: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    outputDirectory: string;
+    outputPlanPath: string;
+  }>,
+): Promise<Readonly<Halfkp81Depth18TeacherFileIdentity>> {
   const repositoryRoot = path.resolve(__dirname, "..");
   const capturedRevision =
     await captureFloodgateGitExactCleanRevision(repositoryRoot);
@@ -2152,16 +2180,18 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
     status !== "" ||
     !REVISION_RE.test(sourceRevision)
   ) {
-    throw new Error("v1r9 plan publication requires clean merged local main");
+    throw new Error(
+      `${options.familyLabel} plan publication requires clean merged local main`,
+    );
   }
   const preregistrationRaw = await readHeldStableFile(
-    path.join(repositoryRoot, EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION.path),
-    "v1r9 tracked preregistration",
+    path.join(repositoryRoot, options.preregistration.path),
+    `${options.familyLabel} tracked preregistration`,
   );
   const preregistration = parseExactPinnedJson(
     preregistrationRaw,
-    EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION,
-    "v1r9 tracked preregistration",
+    options.preregistration,
+    `${options.familyLabel} tracked preregistration`,
   );
   const predecessorPlanPath =
     "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r6/teacher-plan.json";
@@ -2178,7 +2208,9 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
     predecessorIdentity.sha256 !==
       "deb8097134c1ec166b1c1e0729ba495d34c007ee8084745ba646f07ae25f5725"
   ) {
-    throw new Error("v1r9 predecessor v1r6 teacher plan identity differs");
+    throw new Error(
+      `${options.familyLabel} predecessor v1r6 teacher plan identity differs`,
+    );
   }
   const predecessor = parseCanonicalJson(
     predecessorRaw,
@@ -2240,6 +2272,29 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
   ) {
     throw new Error("v1r6 terminal fault/work accounting differs");
   }
+  if (options.familyLabel === "v1r10") {
+    await authenticateFixedFile(
+      {
+        path: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH,
+        bytes: 16_406,
+        sha256:
+          "c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19",
+      },
+      "v1r9 unauthenticated runtime-plan publication failure",
+    );
+    const v1r9Files = await fs.promises.readdir(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY,
+    );
+    if (
+      v1r9Files.length !== 1 ||
+      v1r9Files[0] !==
+        path.basename(HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH)
+    ) {
+      throw new Error(
+        "v1r9 failed namespace contains teacher execution artifacts",
+      );
+    }
+  }
   const selectionEvidence = {
     ...(predecessor.selection_evidence as Record<string, unknown>),
     source_revision: sourceRevision,
@@ -2251,17 +2306,18 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
   const { collision_policy: collisionPolicy, ...outputs } = outputNamespace;
   if (
     collisionPolicy !== "create-only-fail-if-any-target-exists" ||
-    outputs.directory !==
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY ||
-    outputs.plan_json !== HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH
+    outputs.directory !== options.outputDirectory ||
+    outputs.plan_json !== options.outputPlanPath
   ) {
-    throw new Error("v1r9 output namespace differs before publication");
+    throw new Error(
+      `${options.familyLabel} output namespace differs before publication`,
+    );
   }
   try {
-    await fs.promises.lstat(
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY,
+    await fs.promises.lstat(options.outputDirectory);
+    throw new Error(
+      `${options.familyLabel} formal output directory already exists`,
     );
-    throw new Error("v1r9 formal output directory already exists");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -2279,7 +2335,7 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
     large_hash_evidence: preregistration.large_hash_evidence,
     outputs,
     predecessor_failures: preregistration.predecessor_failures,
-    preregistration: EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION,
+    preregistration: options.preregistration,
     required_preformal_gates: preregistration.required_preformal_gates,
     reused_selection: preregistration.reused_selection,
     schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
@@ -2293,22 +2349,48 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promis
     training: preregistration.training,
   });
   const planIdentity = await publishCreateOnly(
-    HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH,
+    options.outputPlanPath,
     canonicalJsonLine(plan),
   );
   const authenticated = await authenticateHalfkp81Depth18TeacherPlan(
-    HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH,
+    options.outputPlanPath,
   );
   if (
     authenticated.planIdentity.schema !==
       HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 ||
     authenticated.planIdentity.sha256 !== planIdentity.sha256
   ) {
-    throw new Error("published v1r9 plan failed self-authentication");
+    throw new Error(
+      `published ${options.familyLabel} plan failed self-authentication`,
+    );
   }
   return Object.freeze({
     ...planIdentity,
     schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+  });
+}
+
+/** Create-only publication of the sealed v1r9 Hash8192-fallback runtime plan. */
+export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9(): Promise<
+  Readonly<Halfkp81Depth18TeacherFileIdentity>
+> {
+  return publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol({
+    familyLabel: "v1r9",
+    preregistration: EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION,
+    outputDirectory: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_DIRECTORY,
+    outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_DEFAULT_PLAN_PATH,
+  });
+}
+
+/** Create-only v1r10 recovery after v1r9 failed post-write self-authentication. */
+export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R10(): Promise<
+  Readonly<Halfkp81Depth18TeacherFileIdentity>
+> {
+  return publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol({
+    familyLabel: "v1r10",
+    preregistration: EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION,
+    outputDirectory: HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY,
+    outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH,
   });
 }
 
@@ -5571,6 +5653,21 @@ export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R9(
       maximumRows: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT * 13,
     },
   );
+}
+
+export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R10(
+  planPath = HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(planPath);
+  if (
+    authenticated.planIdentity.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 ||
+    canonicalJson(authenticated.plan.preregistration) !==
+      canonicalJson(EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION)
+  ) {
+    throw new Error("Yaneura-only v1r10 runner rejects another plan family");
+  }
+  return runHalfkp81Depth18YaneuraOnlyTeacherV1R9(planPath);
 }
 
 export function validateHalfkp81Depth18V1R9FormalSourceAuthorityForTests(

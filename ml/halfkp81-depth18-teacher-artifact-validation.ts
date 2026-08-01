@@ -61,6 +61,7 @@ import {
   rulesCompleteLegalMoves,
 } from "./shogi-sfen";
 import { positionKeyFromSfen, type SiblingRecord } from "./sibling-data";
+import { USI_RESET_FOR_PARENT_TIMEOUT_MS } from "./usi-engine";
 
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-work-v1" as const;
@@ -82,6 +83,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r4" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r5" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r6" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2 =
@@ -92,6 +95,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r4" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r5" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r6" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
 export const HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA =
@@ -215,6 +220,8 @@ const YANEURA_ONLY_V1R5_TEACHER = Object.freeze({
   whole_parent_publication:
     "durable-only-after-proposal-and-all-depth18-rescores-pass",
 });
+const YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY =
+  "recycle-engine-retry-parent-once" as const;
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
   "old_outcome",
@@ -230,7 +237,8 @@ type TeacherPlanSchema =
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5;
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6;
 
 type TeacherRole = (typeof ROLE_ORDER)[number];
 
@@ -277,7 +285,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18ArtifactIdentity>;
@@ -305,7 +314,8 @@ export interface Halfkp81Depth18TeacherWorkParent {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -315,6 +325,17 @@ export interface Halfkp81Depth18TeacherWorkParent {
     | FloodgateBoundedStableWasmOutcomeV3
   >;
   readonly candidate_generation?: typeof YANEURA_ONLY_CANDIDATE_GENERATION_V1;
+  readonly reset_timeout_recovery?: Readonly<{
+    readonly policy: typeof YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY;
+    readonly retries_used: 0 | 1;
+    readonly engine_recycles: 0 | 1;
+    readonly events: readonly Readonly<{
+      readonly attempt: 1;
+      readonly error_name: "UsiResetForParentTimeoutError";
+      readonly phase: "reset-for-parent";
+      readonly timeout_ms: number;
+    }>[];
+  }>;
   readonly teacher_entry: Readonly<CompletedWorkEntry>;
   readonly payload_sha256: string;
 }
@@ -423,13 +444,15 @@ function isYaneuraOnlyPlanSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 {
   return (
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R2 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R3 ||
     schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4 ||
-    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
+    schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
   );
 }
 
@@ -440,7 +463,11 @@ function yaneuraOnlyWorkSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6 {
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
+  }
   if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5) {
     return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5;
   }
@@ -945,6 +972,8 @@ function validateWrapper(
   const label = `teacher work line ${source}`;
   assertNoOldTeacherTargetFields(value, label);
   const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
+  const resetTimeoutRecovery =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6;
   const wrapper = exactObject(
     value,
     yaneuraOnly
@@ -955,6 +984,7 @@ function validateWrapper(
           "parent_id",
           "role",
           "candidate_generation",
+          ...(resetTimeoutRecovery ? ["reset_timeout_recovery"] : []),
           "teacher_entry",
           "payload_sha256",
         ]
@@ -988,6 +1018,47 @@ function validateWrapper(
   ) {
     throw new Error(`${label} wrapper identity/digest/role differs`);
   }
+  if (resetTimeoutRecovery) {
+    const recovery = exactObject(
+      wrapper.reset_timeout_recovery,
+      ["policy", "retries_used", "engine_recycles", "events"],
+      `${label}.reset_timeout_recovery`,
+    );
+    const retriesUsed = requiredInteger(
+      recovery.retries_used,
+      `${label}.reset_timeout_recovery.retries_used`,
+      0,
+    );
+    const engineRecycles = requiredInteger(
+      recovery.engine_recycles,
+      `${label}.reset_timeout_recovery.engine_recycles`,
+      0,
+    );
+    if (
+      recovery.policy !== YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY ||
+      retriesUsed > 1 ||
+      engineRecycles !== retriesUsed ||
+      !Array.isArray(recovery.events) ||
+      recovery.events.length !== retriesUsed
+    ) {
+      throw new Error(`${label} reset timeout recovery evidence differs`);
+    }
+    for (const [index, eventValue] of recovery.events.entries()) {
+      const event = exactObject(
+        eventValue,
+        ["attempt", "error_name", "phase", "timeout_ms"],
+        `${label}.reset_timeout_recovery.events[${index}]`,
+      );
+      if (
+        event.attempt !== 1 ||
+        event.error_name !== "UsiResetForParentTimeoutError" ||
+        event.phase !== "reset-for-parent" ||
+        event.timeout_ms !== USI_RESET_FOR_PARENT_TIMEOUT_MS
+      ) {
+        throw new Error(`${label} reset timeout recovery event differs`);
+      }
+    }
+  }
   const stableMove = yaneuraOnly
     ? undefined
     : isBoundedStablePlanSchema(planSchema)
@@ -1019,7 +1090,8 @@ function validateWrapper(
     `${label}.teacher_entry`,
     12,
     { depth: 18 },
-    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
+      planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
       ? 3_600_000
       : 600_000,
     { depth: 16 },
@@ -1604,7 +1676,8 @@ function validatePlanAndHeader(
     (yaneuraOnly &&
       !sameJson(
         plan.teacher,
-        planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
+        planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5 ||
+          planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
           ? YANEURA_ONLY_V1R5_TEACHER
           : YANEURA_ONLY_V1_TEACHER,
       )) ||
@@ -1926,6 +1999,16 @@ function validateCore(
     0,
   );
   validateRawReceipt(request, plan, completedRows, roleRows, bounds.roleCounts);
+  const resetRecoveredParentIds =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+      ? selectionRows
+          .map(({ parent }) => wrappers.get(parent.parent_id))
+          .filter(
+            (wrapper): wrapper is Readonly<Halfkp81Depth18TeacherWorkParent> =>
+              wrapper?.reset_timeout_recovery?.retries_used === 1,
+          )
+          .map((wrapper) => wrapper.parent_id)
+      : [];
 
   const receipt = Object.freeze({
     schema: HALFKP81_DEPTH18_VERIFIED_ARTIFACT_RECEIPT_SCHEMA,
@@ -1959,6 +2042,17 @@ function validateCore(
     technical_faults: 0,
     incomplete_parents: 0,
     old_depth12_targets: 0,
+    ...(planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+      ? {
+          reset_timeout_recovery: Object.freeze({
+            policy: YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+            recovered_parents: resetRecoveredParentIds.length,
+            engine_recycles: resetRecoveredParentIds.length,
+            parent_ids: Object.freeze(resetRecoveredParentIds),
+            parent_ids_sha256: sha256(resetRecoveredParentIds.join("\n")),
+          }),
+        }
+      : {}),
     outputs: Object.freeze({
       fit: identityFromSnapshot(
         request.fit,
@@ -1986,6 +2080,10 @@ function validateCore(
         ? {
             stable_wasm_absence_recomputed: true,
             yaneura_only_candidate_generation_recomputed: true,
+            ...(planSchema ===
+            HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+              ? { reset_timeout_recovery_evidence_recomputed: true }
+              : {}),
           }
         : { stable_depth11_parent_runtime_binding_recomputed: true }),
       proposal_depth16_exact_depth18_recomputed: true,

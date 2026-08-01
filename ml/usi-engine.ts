@@ -1,11 +1,11 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
 import {
   UsiMultiPvAccumulator,
   buildGo,
   type UsiMultiPvResult,
   type UsiSearchLimit,
-} from './usi-multipv';
+} from "./usi-multipv";
 
 export interface UsiTeacherEngineOptions {
   engineBin: string;
@@ -16,6 +16,8 @@ export interface UsiTeacherEngineOptions {
   timeoutMs?: number;
   /** Focused-test override; production callers must use the fixed defaults. */
   testOnlyInitializationTimeoutMs?: number;
+  /** Focused-test override; production resetForParent always uses 120 seconds. */
+  testOnlyResetForParentTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
 }
@@ -24,11 +26,13 @@ export interface UsiTeacherEngineOptions {
 export const USI_TEACHER_ENGINE_CONTRACT = {
   threads: 1,
   usi_own_book: false,
-  book_file: 'no_book',
+  book_file: "no_book",
   network_delay_ms: 0,
   network_delay2_ms: 0,
-  search_state_reset_trigger: 'isready',
+  search_state_reset_trigger: "isready",
 } as const;
+
+export const USI_RESET_FOR_PARENT_TIMEOUT_MS = 120_000 as const;
 
 /** Exact, machine-readable signal for the configured wall-clock search bound. */
 export class UsiSearchTimeoutError extends Error {
@@ -36,7 +40,19 @@ export class UsiSearchTimeoutError extends Error {
 
   constructor(timeoutMs: number) {
     super(`USI search timeout after ${timeoutMs}ms`);
-    this.name = 'UsiSearchTimeoutError';
+    this.name = "UsiSearchTimeoutError";
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/** Exact signal for an `isready` timeout while resetting one parent search. */
+export class UsiResetForParentTimeoutError extends Error {
+  readonly phase = "reset-for-parent" as const;
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`USI resetForParent timeout after ${timeoutMs}ms`);
+    this.name = "UsiResetForParentTimeoutError";
     this.timeoutMs = timeoutMs;
   }
 }
@@ -57,8 +73,8 @@ export class UsiTeacherEngine {
   private static readonly STDERR_TAIL_LIMIT = 8_192;
   private readonly options: UsiTeacherEngineOptions;
   private process: ChildProcessWithoutNullStreams | null = null;
-  private buffer = '';
-  private stderrTail = '';
+  private buffer = "";
+  private stderrTail = "";
   private lineHandler: ((line: string) => void) | null = null;
   private abortPending: ((error: Error) => void) | null = null;
 
@@ -67,28 +83,32 @@ export class UsiTeacherEngine {
   }
 
   private spawn(): void {
-    const child = spawn(this.options.engineBin, [...(this.options.engineArgs ?? [])], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: this.options.env ?? process.env,
-      cwd: this.options.cwd,
-    });
+    const child = spawn(
+      this.options.engineBin,
+      [...(this.options.engineArgs ?? [])],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: this.options.env ?? process.env,
+        cwd: this.options.cwd,
+      },
+    );
     this.process = child;
-    this.buffer = '';
-    this.stderrTail = '';
+    this.buffer = "";
+    this.stderrTail = "";
     // Always consume stderr so a verbose engine cannot fill the pipe and block.
     // Retain only a bounded tail for actionable initialization/search failures.
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr.on("data", (chunk: Buffer) => {
       if (this.process !== child) return;
-      this.stderrTail = `${this.stderrTail}${chunk.toString('utf8')}`.slice(
-        -UsiTeacherEngine.STDERR_TAIL_LIMIT
+      this.stderrTail = `${this.stderrTail}${chunk.toString("utf8")}`.slice(
+        -UsiTeacherEngine.STDERR_TAIL_LIMIT,
       );
     });
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout.on("data", (chunk: Buffer) => {
       if (this.process !== child) return;
-      this.buffer += chunk.toString('utf8');
+      this.buffer += chunk.toString("utf8");
       let newline: number;
-      while ((newline = this.buffer.indexOf('\n')) >= 0) {
-        const line = this.buffer.slice(0, newline).replace(/\r$/, '');
+      while ((newline = this.buffer.indexOf("\n")) >= 0) {
+        const line = this.buffer.slice(0, newline).replace(/\r$/, "");
         this.buffer = this.buffer.slice(newline + 1);
         this.lineHandler?.(line);
       }
@@ -106,8 +126,10 @@ export class UsiTeacherEngine {
         finalized = true;
         const stderr = this.stderrTail.trim();
         if (this.process === child) this.process = null;
-        this.buffer = '';
-        reject?.(new Error(stderr ? `${message}; stderr tail: ${stderr}` : message));
+        this.buffer = "";
+        reject?.(
+          new Error(stderr ? `${message}; stderr tail: ${stderr}` : message),
+        );
       };
 
       // A stdin/process error does not prove that the OS process exited. Kill
@@ -119,9 +141,9 @@ export class UsiTeacherEngine {
         child.exitCode === null &&
         child.signalCode === null
       ) {
-        child.once('close', finalize);
+        child.once("close", finalize);
         try {
-          if (!child.kill('SIGKILL')) finalize();
+          if (!child.kill("SIGKILL")) finalize();
         } catch {
           finalize();
         }
@@ -129,29 +151,38 @@ export class UsiTeacherEngine {
       }
       finalize();
     };
-    child.on('error', (error) => fail(`USI process error: ${error.message}`, true));
+    child.on("error", (error) =>
+      fail(`USI process error: ${error.message}`, true),
+    );
     // `close` follows `exit` only after stdio closes, so diagnostics include
     // all stderr bytes emitted before process termination.
-    child.on('close', (code, signal) =>
-      fail(`USI process exited (code=${code}, signal=${signal})`)
+    child.on("close", (code, signal) =>
+      fail(`USI process exited (code=${code}, signal=${signal})`),
     );
-    child.stdin.on('error', (error) => fail(`USI stdin error: ${error.message}`, true));
+    child.stdin.on("error", (error) =>
+      fail(`USI stdin error: ${error.message}`, true),
+    );
   }
 
   private send(command: string): void {
     const child = this.process;
     if (!child || child.stdin.destroyed || !child.stdin.writable) {
-      throw new Error(`USI process is not writable (${command.split(' ')[0]})`);
+      throw new Error(`USI process is not writable (${command.split(" ")[0]})`);
     }
     child.stdin.write(`${command}\n`);
   }
 
-  private waitFor(predicate: (line: string) => boolean, timeoutMs: number): Promise<void> {
+  private waitFor(
+    predicate: (line: string) => boolean,
+    timeoutMs: number,
+    timeoutError: () => Error = () =>
+      new Error(`USI timeout after ${timeoutMs}ms`),
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.lineHandler = null;
         this.abortPending = null;
-        reject(new Error(`USI timeout after ${timeoutMs}ms`));
+        reject(timeoutError());
       }, timeoutMs);
       this.abortPending = (error) => {
         clearTimeout(timer);
@@ -168,25 +199,28 @@ export class UsiTeacherEngine {
   }
 
   async init(): Promise<void> {
-    if (this.process) throw new Error('USI engine is already initialized');
+    if (this.process) throw new Error("USI engine is already initialized");
     const testTimeout = this.options.testOnlyInitializationTimeoutMs;
     if (
       testTimeout !== undefined &&
       (!Number.isSafeInteger(testTimeout) || testTimeout <= 0)
     ) {
-      throw new Error('testOnlyInitializationTimeoutMs must be a positive safe integer');
+      throw new Error(
+        "testOnlyInitializationTimeoutMs must be a positive safe integer",
+      );
     }
     try {
       this.spawn();
-      this.send('usi');
-      await this.waitFor((line) => line === 'usiok', testTimeout ?? 15_000);
-      if (this.options.evalDir) this.send(`setoption name EvalDir value ${this.options.evalDir}`);
+      this.send("usi");
+      await this.waitFor((line) => line === "usiok", testTimeout ?? 15_000);
+      if (this.options.evalDir)
+        this.send(`setoption name EvalDir value ${this.options.evalDir}`);
       this.send(`setoption name FV_SCALE value ${this.options.fvScale ?? 20}`);
       this.send(`setoption name USI_Hash value ${this.options.hashMb ?? 128}`);
       for (const command of fixedUsiOptionCommands()) this.send(command);
-      this.send('isready');
-      await this.waitFor((line) => line === 'readyok', testTimeout ?? 120_000);
-      this.send('usinewgame');
+      this.send("isready");
+      await this.waitFor((line) => line === "readyok", testTimeout ?? 120_000);
+      this.send("usinewgame");
     } catch (error) {
       try {
         await this.quit();
@@ -208,26 +242,44 @@ export class UsiTeacherEngine {
    * was searched immediately before the current one.
    */
   async resetForParent(): Promise<void> {
-    if (!this.process) throw new Error('USI engine is not initialized');
-    if (this.lineHandler) throw new Error('cannot reset USI engine during a pending operation');
-    this.send('isready');
-    await this.waitFor((line) => line === 'readyok', 120_000);
-    this.send('usinewgame');
+    if (!this.process) throw new Error("USI engine is not initialized");
+    if (this.lineHandler)
+      throw new Error("cannot reset USI engine during a pending operation");
+    const timeoutMs =
+      this.options.testOnlyResetForParentTimeoutMs ??
+      USI_RESET_FOR_PARENT_TIMEOUT_MS;
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+      throw new Error(
+        "testOnlyResetForParentTimeoutMs must be a positive safe integer",
+      );
+    }
+    this.send("isready");
+    await this.waitFor(
+      (line) => line === "readyok",
+      timeoutMs,
+      () => new UsiResetForParentTimeoutError(timeoutMs),
+    );
+    this.send("usinewgame");
   }
 
   search(
     sfen: string,
     multipv: number,
     limit: UsiSearchLimit,
-    searchmoves: readonly string[] = []
+    searchmoves: readonly string[] = [],
   ): Promise<UsiMultiPvResult> {
-    if (this.lineHandler) return Promise.reject(new Error('USI engine already has a pending operation'));
+    if (this.lineHandler)
+      return Promise.reject(
+        new Error("USI engine already has a pending operation"),
+      );
     const requiredDepth = limit.depth;
     const accumulator = new UsiMultiPvAccumulator({
       multipv,
       requiredDepth,
       allowTerminalMateBeforeRequiredDepth:
-        requiredDepth !== undefined && multipv === 1 && searchmoves.length === 1,
+        requiredDepth !== undefined &&
+        multipv === 1 &&
+        searchmoves.length === 1,
     });
     const timeoutMs = this.options.timeoutMs ?? 120_000;
 
@@ -244,7 +296,7 @@ export class UsiTeacherEngine {
       };
       this.lineHandler = (line) => {
         accumulator.push(`${line}\n`);
-        if (!line.startsWith('bestmove')) return;
+        if (!line.startsWith("bestmove")) return;
         clearTimeout(timer);
         this.lineHandler = null;
         this.abortPending = null;
@@ -274,23 +326,23 @@ export class UsiTeacherEngine {
     this.lineHandler = null;
     const reject = this.abortPending;
     this.abortPending = null;
-    reject?.(new Error('USI engine terminated'));
+    reject?.(new Error("USI engine terminated"));
     if (!child) return;
     await new Promise<void>((resolve) => {
       if (child.exitCode !== null || child.signalCode !== null) {
         resolve();
         return;
       }
-      const forceKill = setTimeout(() => child.kill('SIGKILL'), 500);
-      child.once('close', () => {
+      const forceKill = setTimeout(() => child.kill("SIGKILL"), 500);
+      child.once("close", () => {
         clearTimeout(forceKill);
         resolve();
       });
       try {
-        child.stdin.write('quit\n');
+        child.stdin.write("quit\n");
         child.stdin.end();
       } catch {
-        child.kill('SIGKILL');
+        child.kill("SIGKILL");
       }
     });
   }

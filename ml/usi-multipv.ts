@@ -108,7 +108,7 @@ function isCanonicalUsiMove(value: string): boolean {
   return CANONICAL_USI_MOVE.test(value);
 }
 
-/** Build a deterministic USI go command, including an explicitly floored dual bound. */
+/** Build a deterministic USI go command, including dual depth/node limits. */
 export function buildGo(
   limit: UsiSearchLimit,
   searchmoves: readonly string[] = [],

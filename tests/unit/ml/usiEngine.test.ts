@@ -121,6 +121,14 @@ describe("USI teacher engine subprocess contract", () => {
     await expect(
       engine.search(sfen, 1, { depth: 18, nodes: 100_000_000 }, ["7g7f"]),
     ).rejects.toThrow(/minimumCompletedDepth/);
+    await expect(
+      engine.search(sfen, 1, { depth: 18, minimumCompletedDepth: 15 }, [
+        "7g7f",
+      ]),
+    ).rejects.toThrow(/requires both depth and nodes/);
+    await expect(
+      engine.search(sfen, 0, { depth: 18 }, ["7g7f"]),
+    ).rejects.toThrow(/multipv must be a positive integer/);
   });
 
   it("rejects a parent reset deadline with a distinct typed timeout signal", async () => {

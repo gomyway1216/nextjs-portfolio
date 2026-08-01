@@ -273,6 +273,13 @@ export class UsiTeacherEngine {
         new Error("USI engine already has a pending operation"),
       );
     const dualBound = limit.depth !== undefined && limit.nodes !== undefined;
+    if (limit.minimumCompletedDepth !== undefined && !dualBound) {
+      return Promise.reject(
+        new Error(
+          "minimumCompletedDepth requires both depth and nodes for a dual-bound search",
+        ),
+      );
+    }
     if (
       dualBound &&
       (multipv !== 1 ||
@@ -286,16 +293,21 @@ export class UsiTeacherEngine {
       );
     }
     const requiredDepth = limit.depth;
-    const accumulator = new UsiMultiPvAccumulator({
-      multipv,
-      requiredDepth,
-      nodeCap: dualBound ? limit.nodes : undefined,
-      minimumCompletedDepth: limit.minimumCompletedDepth,
-      allowTerminalMateBeforeRequiredDepth:
-        requiredDepth !== undefined &&
-        multipv === 1 &&
-        searchmoves.length === 1,
-    });
+    let accumulator: UsiMultiPvAccumulator;
+    try {
+      accumulator = new UsiMultiPvAccumulator({
+        multipv,
+        requiredDepth,
+        nodeCap: dualBound ? limit.nodes : undefined,
+        minimumCompletedDepth: limit.minimumCompletedDepth,
+        allowTerminalMateBeforeRequiredDepth:
+          requiredDepth !== undefined &&
+          multipv === 1 &&
+          searchmoves.length === 1,
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const timeoutMs = this.options.timeoutMs ?? 120_000;
 
     return new Promise((resolve, reject) => {

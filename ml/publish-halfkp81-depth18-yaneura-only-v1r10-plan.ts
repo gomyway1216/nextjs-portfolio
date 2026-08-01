@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env -S npx tsx
 
 import { publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R10 } from "./halfkp81-depth18-teacher-runner";
 

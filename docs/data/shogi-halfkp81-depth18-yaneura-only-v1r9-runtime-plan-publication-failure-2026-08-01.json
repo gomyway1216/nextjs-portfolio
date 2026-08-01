@@ -17,7 +17,7 @@
     "teacher_rows": 0
   },
   "invalid_runtime_plan": {
-    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r9/teacher-plan.json",
+    "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r9/teacher-plan.json",
     "bytes": 16406,
     "sha256": "c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19"
   },

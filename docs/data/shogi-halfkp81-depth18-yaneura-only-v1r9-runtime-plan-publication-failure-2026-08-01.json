@@ -1,0 +1,41 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r9-runtime-plan-publication-failure-v1",
+  "date": "2026-08-01",
+  "status": "terminal-failed-before-formal-teacher-execution",
+  "merged_source_revision": "141e4e39e79c1772a18dc79dbb4bbf480bfe4a53",
+  "pull_request": 679,
+  "pull_request_required_checks": {
+    "passed": 15,
+    "total": 15
+  },
+  "failure": {
+    "message": "Yaneura-only v1r9 fixed authority differs",
+    "cause": "The tracked preregistration schema contains the hard-depth18 family qualifier, while the sealed EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION schema constant omitted hard. The create-only runtime plan was written before self-authentication detected the mismatch.",
+    "formal_teacher_started": false,
+    "teacher_processes_started": 0,
+    "completed_parents": 0,
+    "teacher_rows": 0
+  },
+  "invalid_runtime_plan": {
+    "path": "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r9/teacher-plan.json",
+    "bytes": 16406,
+    "sha256": "c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19"
+  },
+  "authority": {
+    "may_authenticate_v1r9_runtime_plan": false,
+    "may_execute_v1r9_formal_teacher": false,
+    "may_republish_into_v1r9_namespace": false,
+    "may_reuse_v1r9_rows": false,
+    "may_train": false,
+    "may_write_live_weights": false
+  },
+  "recovery": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r10",
+    "new_tracked_preregistration_required": true,
+    "new_merged_source_revision_required": true,
+    "new_create_only_namespace_required": true,
+    "teacher_contract_changes": 0,
+    "selection_changes": 0,
+    "training_or_strength_gate_changes": 0
+  }
+}

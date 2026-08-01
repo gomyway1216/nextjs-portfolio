@@ -127,6 +127,8 @@ Hashを増やして同じ`G*6a`をexact depth18まで走らせると、2 GiBは2
 
 fallback上限は全体8親（fit 6 / tune 1 / sealed 1）、exact fallback search 104件（fit 78 / tune 13 / sealed 13）、1親13件である。超過は即family terminalで、runtimeとartifact verifierがrole別actual cap parent・trigger search・fallback rowとcap label 0を独立再集計する。formal前にはcandidate order、既存100M超10手、既知`G*6a` routing、8 normal＋2 fallbackのmixed load、512親formal-like preflightを全て通す。選抜8,192、initializer、3 epoch・1 seed、下流gateは不変で、v1r6〜v1r8の親・行は0件だけ引き継ぐ。ready PR、全required CI、通常merge、clean main認証、artifact verifier実装test PASSが揃うまで全実行権限はfalseである。formal教師の完走後には、生成済みformal artifactに対する別の独立artifact verifier PASSが学習前に必要であり、これは実行前の実装test gateとは同一ではない。固定契約は[v1r9事前登録](./data/shogi-halfkp81-depth18-yaneura-only-v1r9-preregistration-2026-08-01.json)に保存した。
 
+PR #679は15 / 15 check成功後に通常mergeされた（merge `141e4e39e79c1772a18dc79dbb4bbf480bfe4a53`）。しかしclean mainからv1r9 runtime planをcreate-only発行した直後のself-authenticationが`Yaneura-only v1r9 fixed authority differs`で停止した。tracked preregistrationのschemaには`hard-depth18`が含まれる一方、runtimeに固定した期待schemaから`hard`だけが欠落していた。やねうら王process、formal親、教師行は全て0である。書き込み済みの16,406 bytes / SHA-256 `c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19`のplanとv1r9 namespaceは削除・再利用しない。後続v1r10は同じselection、教師、Hash routing、学習、棋力gateを保ち、schema identityの一致、別のtracked preregistration、merged source、fingerprint、create-only namespaceだけを新しくする。この境界は[機械可読メモ](./data/shogi-halfkp81-depth18-yaneura-only-v1r9-runtime-plan-publication-failure-2026-08-01.json)に保存した。
+
 ライブ基準は`public/shogi-nnue-weights.bin`の1,185,988 bytes、SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`のままである。選抜の完了は棋力向上の証拠ではなく、公開flagも変更していない。
 
 機械可読の条件と実測値は[データメモ](./data/shogi-halfkp81-hard-depth18-strength-plan-2026-07-29.json)へ分離する。

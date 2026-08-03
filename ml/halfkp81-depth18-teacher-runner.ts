@@ -253,7 +253,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
@@ -261,7 +261,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -400,9 +400,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
-  bytes: 149_809,
-  sha256: "efb1c16356929b9fb630534128bb3ad5f94faeb506975cffe71984850ece8d36",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-plan.json",
+  bytes: 150_392,
+  sha256: "50c22cacc6afd6a3b0890026ddc89135fd608777b2c20f8b372d7dfe3a87bdfc",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });

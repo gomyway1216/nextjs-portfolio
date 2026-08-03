@@ -28,8 +28,12 @@ export interface V1R11HeldIdentityGuard {
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const V1R11_PRODUCTION_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority";
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority";
 const V1R11_PRODUCTION_TEACHER_PLAN_PATH =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-plan.json";
+const V1R11_FAILED_PRODUCTION_AUTHORITY_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority";
+const V1R11_FAILED_PRODUCTION_TEACHER_PLAN_PATH =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11/teacher-plan.json";
 
 export interface Halfkp81V1R11ScratchNamespaceCapabilityForTests {
@@ -72,6 +76,8 @@ export function createHalfkp81V1R11ScratchNamespaceCapabilityForTests(
     !pathInside(scratchRoot, teacherPlanPath) ||
     authorityDirectory === V1R11_PRODUCTION_AUTHORITY_DIRECTORY ||
     teacherPlanPath === V1R11_PRODUCTION_TEACHER_PLAN_PATH ||
+    authorityDirectory === V1R11_FAILED_PRODUCTION_AUTHORITY_DIRECTORY ||
+    teacherPlanPath === V1R11_FAILED_PRODUCTION_TEACHER_PLAN_PATH ||
     !path.isAbsolute(teacherPlanPath) ||
     request.scratchRoot !== scratchRoot ||
     request.authorityDirectory !== authorityDirectory ||

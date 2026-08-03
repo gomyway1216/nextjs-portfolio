@@ -1,0 +1,2968 @@
+{
+  "authority": {
+    "may_execute_candidate_order_gate": false,
+    "may_execute_formal_teacher": false,
+    "may_execute_known10_probe": false,
+    "may_execute_mixed_load_gate": false,
+    "may_execute_pathological_fallback_probe": false,
+    "may_execute_preflight512": false,
+    "may_play_formal_games": false,
+    "may_publish_runtime_plan": false,
+    "may_train": false,
+    "may_write_live_weights": false,
+    "unlock_condition": "stable-head-commit-and-minimal_formal_start_gate-runtime-blocking-requirements-pass-CI-and-formal-may-then-run-in-parallel",
+    "may_resume_v1r6_v1r7_v1r8_v1r9_or_v1r10": false
+  },
+  "minimal_formal_start_gate": {
+    "status": "prospective-outcome-first-start-gate-not-yet-run",
+    "precedence": "This object is the sole blocking formal-start contract for v1r11 and supersedes every earlier requirement that made the complete thirteen-stage public lifecycle E2E or its receipts a prerequisite to starting the formal teacher. Existing thirteen-stage artifacts remain non-authorizing P2 hardening.",
+    "strength_contract_change": false,
+    "minimal_formal_entrypoint": {
+      "path": "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
+      "bytes": 14491,
+      "sha256": "c4ca06487f0b9fcfbb8216df4344a481f1f81af2c6997ffb60b0531a4813b7ce",
+      "schema": "text/typescript-utf8-exact-source"
+    },
+    "v1r10_durable_completed_set_import": {
+      "classification": "new-family-create-only-import-after-independent-verifier-pass-not-same-family-resume",
+      "source_family": "halfkp81-hard-depth18-yaneura-only-v1r10",
+      "source_work": {
+        "bytes": 91081134,
+        "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
+      },
+      "import_verifier_receipt_identity": "required-create-only-full-file-identity-path-bytes-sha256-schema",
+      "completed_parent_id_set_size": 4196,
+      "completed_teacher_rows": 49190,
+      "fallback_parents": 5,
+      "fallback_searches": 60,
+      "recovery_parents": 1,
+      "capped_teacher_labels": 0,
+      "partial_or_inflight_state_imported": 0,
+      "terminal_fault_rows_imported": 0,
+      "authenticated_selection_rows": 8192,
+      "selection_index_base": 0,
+      "contiguous_selection_prefix_length": 3890,
+      "missing_selection_indices_below_4196": [3890, 4135, 4191],
+      "completed_selection_indices_at_or_above_4196": [4196, 4197, 4198],
+      "maximum_completed_selection_index": 4198,
+      "remaining_parent_id_set_difference_size": 3996,
+      "canonical_import_order": "authenticated-selection-order-over-the-exact-completed-parent-ID-set",
+      "duplicate_parent_ids": 0,
+      "omitted_completed_parent_ids": 0,
+      "source_work_must_remain_immutable": true,
+      "independent_semantic_verifier": "reconstruct-and-validate-the-exact-4196-completed-parent-ID-set-and-49190-rows-against-the-authenticated-8192-selection-including-membership-canonical-selection-order-parent-and-candidate-order-legality-exact-depth18-role-fallback-recovery-cap-counts-duplicate0-and-omission0-before-import",
+      "new_family_rebinding": "write-create-only-v1r11-imported-completed-set-in-authenticated-selection-order-with-new-v1r11-schema-run-fingerprint-parent-and-row-digests-without-mutating-v1r10-source",
+      "import_receipt_must_bind": [
+        "immutable-v1r10-source-work-full-identity",
+        "independent-verifier-full-identity-and-semantic-summary",
+        "v1r11-plan-source-revision-run-fingerprint-selection-and-strength-identities",
+        "create-only-v1r11-imported-work-full-identity"
+      ],
+      "source_family_resume_or_write": false,
+      "strength_contract_must_remain_identical": true
+    },
+    "blocking_requirements": [
+      "stable-head-commit-and-clean-working-tree-source-identity-pass",
+      "source-revision-engine-eval-selection-and-unchanged-strength-contract-full-identities-pass",
+      "one-parent-actual-production-teacher-core-scratch-smoke-pass",
+      "the-same-independent-artifact-verifier-passes-the-scratch-smoke-artifact",
+      "AC-battery-and-no-sleep-power-guardian-admission-pass",
+      "focused-regression-and-dedicated-ML-typechecks-pass"
+    ],
+    "identity_gate": {
+      "source_revision": "exact-stable-head-commit-40-lowercase-hex",
+      "engine_binary_eval_and_engine_receipt": "held-full-file-identities",
+      "selection_jsonl_and_manifest": "held-authenticated-8192-row-selection-identities",
+      "strength_contract": "teacher-candidate-generation-whole-parent-fallback-escalation-budgets-training-and-downstream-gates-deep-exact-to-this-plan-and-unchanged-from-v1r10"
+    },
+    "short_real_teacher_smoke": {
+      "authority": "scratch-only-never-training-data-or-strength-result",
+      "selection_prefix_parents": 1,
+      "selection_index_zero_based": 0,
+      "parent_id": "sha256:5ef4d6bbe4d6cae683c29e050264a0d9624114e815a23bbbb5175e1ec280b5f6",
+      "expected_candidate_rows": 12,
+      "expected_fallback": null,
+      "expected_candidate_moves": [
+        "1e4b+",
+        "3f3e",
+        "4c4d",
+        "4g4f",
+        "4i4h",
+        "6h5i",
+        "6h7h",
+        "7f7e",
+        "7g6f",
+        "9g9f",
+        "P*2c",
+        "P*2d"
+      ],
+      "entrypoint": "actual-production-teacher-core",
+      "engine_and_eval": "exact-identities-from-identity-gate",
+      "candidate_contract": "all-candidates-for-the-fixed-parent-under-the-unchanged-production-candidate-generation-contract",
+      "required_result": {
+        "terminal_faults": 0,
+        "illegal_moves": 0,
+        "partial_candidate_rows": 0,
+        "capped_teacher_labels": 0,
+        "every_published_candidate_depth_exact": 18
+      },
+      "whole_parent_fallback_policy_must_remain_enabled": true,
+      "same_independent_artifact_verifier_must_pass": true,
+      "scratch_artifacts_reusable_for_formal_or_training": false
+    },
+    "power_gate": {
+      "power_source": "AC Power",
+      "battery_percentage_minimum": 80,
+      "no_sleep_darkwake_wake_or_hibernate_during_smoke": true,
+      "node_direct_runner_and_direct_child_caffeinate_minus_dimsu_minus_w_runner_pid": true,
+      "guardian_required_for_formal_run": true
+    },
+    "focused_regressions": [
+      "Stage-A-real-producer-import-and-direct-path",
+      "Stage-B-real-result-scoreKind-parser-and-typed-path",
+      "one-parent-actual-production-teacher-core-smoke",
+      "same-independent-artifact-verifier-on-smoke-output",
+      "node-direct-command-only-process-topology",
+      "AC-and-no-sleep-guardian"
+    ],
+    "nonblocking_p2": [
+      "complete-thirteen-stage-public-production-outer-lifecycle-E2E",
+      "expanded-receipt-orchestration-and-generalized-OS-filesystem-time-fake-framework"
+    ],
+    "parallel_execution_policy": {
+      "stable_head_commit_required": true,
+      "CI_and_formal_teacher_may_start_in_parallel_from_the_same_stable_head": true,
+      "formal_start_requires_ready_PR_CI_or_merge_completion": false,
+      "CI_failure_or_tree_mismatch_policy": "stop-formal-family-fail-closed-and-do-not-train",
+      "ready_PR_required_CI_regular_merge_and_clean-main-tree-identity_required_before_training_or-promotion": true
+    },
+    "schedule": {
+      "preparation_target_minutes": 60,
+      "formal_launch_target": "2026-08-02T22:30:00-07:00",
+      "formal_completion_target": "2026-08-03T09:00:00-07:00",
+      "formal_completion_upper_bound": "2026-08-03T11:00:00-07:00"
+    },
+    "formal_teacher_unlock_rule": "The formal v1r11 teacher may start from the stable head commit after the one-parent real smoke, identical artifact verifier, identity, focused-regression, and AC/no-sleep gates pass, while PR CI and merge proceed in parallel. Training games and live-weight writes remain locked until CI, regular merge, clean-main tree identity, and existing strength gates pass.",
+    "formal_execution_started": false,
+    "formal_parents": 0,
+    "formal_teacher_rows": 0
+  },
+  "downstream_gates": {
+    "absolute_max_cp_delta_maximum": 300,
+    "fresh_screen_games": 56,
+    "fresh_screen_halfpoints_denominator": 112,
+    "fresh_screen_halfpoints_minimum": 62,
+    "fresh_screen_technical_faults_maximum": 0,
+    "int16_clipping_coordinates_maximum": 0,
+    "nearest_rank_p99_9_ratio_maximum": 1.05,
+    "old_validation_pair_delta_minimum": 0,
+    "old_validation_rows": 22890,
+    "old_validation_teacher_mae_cp_improvement_minimum": 5,
+    "runtime_slowdown_percent_maximum": 5,
+    "sealed_parents": 1024,
+    "sealed_sibling_pair_delta_percentage_points_minimum": 1,
+    "sealed_top1_delta_percentage_points_minimum": 2,
+    "teacher_authentication_prefixes": [100, 500],
+    "tune_parents": 1024,
+    "tune_sibling_pair_delta_percentage_points_minimum": 1,
+    "tune_top1_delta_percentage_points_minimum": 2,
+    "wasm_parity_mismatches_maximum": 0
+  },
+  "escalation_budgets": {
+    "actual_cap_parent_counts_by_role_required": true,
+    "actual_cap_trigger_search_counts_by_role_required": true,
+    "actual_fallback_rows_by_role_required": true,
+    "artifact_verifier_recount_required": true,
+    "capped_teacher_labels_maximum": 0,
+    "fallback_parent_count_maximum": 8,
+    "fallback_parent_count_maximum_by_role": {
+      "fit": 6,
+      "sealed": 1,
+      "tune": 1
+    },
+    "fallback_search_count_maximum": 104,
+    "fallback_search_count_maximum_by_role": {
+      "fit": 78,
+      "sealed": 13,
+      "tune": 13
+    },
+    "fallback_search_count_maximum_per_parent": 13,
+    "runtime_recount_after_every_routing_and_fallback_publication": true,
+    "threshold_change_after_results": false,
+    "threshold_exceeded_policy": "immediate-family-terminal-fault"
+  },
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r11",
+  "large_hash_evidence": {
+    "authority": "scratch-only-operational-evidence-never-training-data-or-strength-result",
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+    "searchmove": "G*6a",
+    "threads": 1,
+    "trials": [
+      {
+        "cp": -3325,
+        "depth": 18,
+        "elapsed_milliseconds": 280702,
+        "hash_mib": 2048,
+        "maximum_observed_hashfull": 796,
+        "nodes": 456368061,
+        "receipt_bytes": 932,
+        "receipt_sha256": "0047c046c49ddb361c716daf722b94c19bb1465446b51104b54ee02daded7556",
+        "transcript_bytes": 5793,
+        "transcript_sha256": "b8414047f97f8df701d66f9353698d626d3873ee4ddeaee70634b024e2bedbfa"
+      },
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 214189,
+        "hash_mib": 4096,
+        "maximum_observed_hashfull": 368,
+        "nodes": 370179475,
+        "receipt_bytes": 913,
+        "receipt_sha256": "fe0699735b39f47189ebd183677199785c822726f584ed06231b942c10d015a2",
+        "transcript_bytes": 5536,
+        "transcript_sha256": "150f1d3642b25e89acd1b72ef71f551e1fdaac28f0e463b09e0761fde58d76c2"
+      },
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 256113,
+        "hash_mib": 8192,
+        "maximum_observed_hashfull": 229,
+        "nodes": 433851102,
+        "receipt_bytes": 864,
+        "receipt_sha256": "5e334cb4334fe079f2ee58b29687f7748ad65ffa8e63fcd6be902565d4e0fd58",
+        "transcript_bytes": 5474,
+        "transcript_sha256": "d8e0a9a74e54306e168f5213c15893bee4a645509d24d8eed6716ab2ec137e86"
+      }
+    ],
+    "hash8192_replication": {
+      "cp_pv_and_nodes_all_identical": true,
+      "initial_plus_replicas": 3,
+      "result": {
+        "cp": -35281,
+        "depth": 18,
+        "nodes": 433851102,
+        "pv": [
+          "G*6a",
+          "4d4a+",
+          "5b4a",
+          "7a6a+",
+          "4a4b",
+          "S*5b",
+          "R*1h",
+          "4g3h",
+          "5c5d",
+          "G*4d",
+          "1h3h+",
+          "4i3h",
+          "7g6g",
+          "5h6g",
+          "N*7e",
+          "6g5h",
+          "7e6g+"
+        ]
+      },
+      "replicas": [
+        {
+          "elapsed_milliseconds": 251029,
+          "receipt_bytes": 886,
+          "receipt_sha256": "f8b8b8b9627cd549742bd3a5b5d040e9882b1a29a4de3256c3dc6db89d2adac3",
+          "transcript_bytes": 5473,
+          "transcript_sha256": "202ea6c77fc23b8447b22e93f0a0c3474404c58b26658512517dd0c4abbd802c"
+        },
+        {
+          "elapsed_milliseconds": 251141,
+          "receipt_bytes": 886,
+          "receipt_sha256": "0c4f90b692d2634e10fe52b8d8cd2aa5bbd3948b18461d4bd460386cc76157c2",
+          "transcript_bytes": 5473,
+          "transcript_sha256": "89ead1dcca6293a861427ea49eca15a0dced09d1bfc64b825738f75e1bdeb2c8"
+        }
+      ]
+    },
+    "hash4096_is_not_hash8192_teacher_function": {
+      "cp_identical_for_this_probe": true,
+      "nodes_identical": false,
+      "pv_identical": false,
+      "reason": "The Hash4096 and Hash8192 probes returned the same cp but different node counts and principal variations, so Hash4096 is not an equivalent substitute for the preregistered Hash8192 teacher function."
+    }
+  },
+  "output_namespace": {
+    "collision_policy": "create-only-fail-if-any-target-exists",
+    "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1",
+    "fit_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/fit.jsonl",
+    "milestone_100_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-milestone-100.json",
+    "milestone_500_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-milestone-500.json",
+    "plan_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-plan.json",
+    "receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-receipt.json",
+    "sealed_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/sealed.jsonl",
+    "terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-terminal-fault.json",
+    "tune_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/tune.jsonl",
+    "verified_artifact_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-verified-artifact-receipt.json",
+    "work_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-work.jsonl",
+    "power_continuity_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity.jsonl",
+    "power_continuity_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity-receipt.json",
+    "environment_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/environment-process-cleanup-evidence.json"
+  },
+  "authority_output_namespace": {
+    "initial_directory_collision_policy": "create-only-fail-if-authority-directory-already-exists",
+    "artifact_collision_policy": "create-only-fail-if-specific-target-exists",
+    "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority",
+    "directory_mode_octal": "0700",
+    "directory_dev_ino_owner_and_realpath_must_be_fixed_at_creation_and_revalidated_before_each_publish": true,
+    "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates",
+    "preformal_authority_ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
+    "preformal_engine_gate_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
+    "preformal_authority_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-receipt.json",
+    "preformal_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-verified-receipt.json",
+    "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
+    "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
+    "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.txt",
+    "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.stderr.txt",
+    "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
+    "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stdout.txt",
+    "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stderr.txt",
+    "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-authority-evidence.json"
+  },
+  "preformal_authority": {
+    "classification": "trusted-semantic-preformal-authority-no-teacher-training-or-strength-contract-change",
+    "status": "not-run-formal-locked-until-implementation-tests-and-create-only-verified-receipt-pass",
+    "schemas": {
+      "gate_evidence_pattern": "shogi-halfkp81-depth18-yaneura-only-v1r11-${gate}-evidence-v1",
+      "gate_primary_source_pattern": "shogi-halfkp81-depth18-yaneura-only-v1r11-${gate}-primary-source-${source-kind}-v1",
+      "gate_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11",
+      "ledger": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11",
+      "engine_gate_verified_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-engine-gate-authority-verified-receipt-v1r11",
+      "raw_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-receipt-v1r11",
+      "verified_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-verified-receipt-v1r11",
+      "preformal_terminal_fault": "shogi-halfkp81-depth18-yaneura-only-preformal-terminal-fault-v1r11",
+      "process_cleanup_evidence": "shogi-halfkp81-depth18-yaneura-only-process-cleanup-evidence-v1r11",
+      "launchagent_authority_evidence": "shogi-halfkp81-depth18-yaneura-only-launchagent-authority-evidence-v1r11",
+      "power_continuity_ledger": "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+      "power_continuity_receipt": "shogi-halfkp81-depth18-power-continuity-receipt-v1r11",
+      "teacher_work_ledger": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+      "raw_teacher_receipt": "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11",
+      "verified_artifact_receipt": "shogi-halfkp81-hard-depth18-teacher-verified-artifact-receipt-v1r11",
+      "environment_terminal_fault": "shogi-halfkp81-hard-depth18-yaneura-only-environment-terminal-fault-v1r11"
+    },
+    "schema_required_fields": {
+      "file_identity": ["path", "bytes", "sha256", "schema"],
+      "implementation_identity": [
+        "source_revision",
+        "entrypoint",
+        "dependency_closure"
+      ],
+      "dependency_closure_entry": ["path", "bytes", "sha256"],
+      "gate_evidence": [
+        "schema",
+        "status",
+        "gate",
+        "sequence",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "producer",
+        "primary_sources",
+        "payload",
+        "produced_at_utc"
+      ],
+      "gate_receipt": [
+        "schema",
+        "status",
+        "gate",
+        "sequence",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "previous_gate_receipt_sha256",
+        "evidence",
+        "producer",
+        "authority"
+      ],
+      "ledger_row": [
+        "schema",
+        "sequence",
+        "gate",
+        "previous_entry_sha256",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "gate_evidence",
+        "gate_receipt",
+        "status",
+        "producer",
+        "entry_sha256"
+      ],
+      "raw_receipt": [
+        "schema",
+        "status",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "required_order",
+        "ledger",
+        "gates",
+        "launchagent_authority",
+        "finalizer",
+        "authority"
+      ],
+      "engine_gate_verified_receipt": [
+        "schema",
+        "status",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "ledger_prefix",
+        "verified_gates",
+        "verifier",
+        "authority"
+      ],
+      "verified_receipt": [
+        "schema",
+        "status",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "required_order",
+        "ledger",
+        "raw_receipt",
+        "gates",
+        "launchagent_authority",
+        "verifier",
+        "authority"
+      ],
+      "launchagent_authority_evidence": [
+        "schema",
+        "status",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "observed_at_utc",
+        "uid",
+        "xpc_service_name",
+        "label",
+        "runner_pid",
+        "working_directory",
+        "stdout_path",
+        "stderr_path",
+        "program_arguments",
+        "runner_utility_argv",
+        "caffeinate_holder",
+        "required_assertions",
+        "launchctl_command",
+        "launchctl_exit_code",
+        "launchctl_print",
+        "launchctl_stderr",
+        "plist_source",
+        "plist_snapshot",
+        "ps_command",
+        "ps_exit_code",
+        "ps_stdout",
+        "ps_stderr",
+        "runner_process",
+        "assertion_holder_process",
+        "observed_process_group_rows",
+        "observed_yaneuraou_engine_rows",
+        "producer"
+      ],
+      "process_cleanup_evidence": [
+        "schema",
+        "status",
+        "scope",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "launchagent",
+        "runner_identity",
+        "pre_cleanup_ps",
+        "pre_cleanup_process_rows",
+        "ordered_cleanup_commands",
+        "service_absence",
+        "pid_reuse_rejection",
+        "final_ps_first",
+        "final_ps_second",
+        "remaining_process_rows",
+        "remaining_process_group_rows",
+        "process_cleanup",
+        "producer",
+        "captured_at_utc",
+        "authority"
+      ],
+      "preformal_terminal_fault": [
+        "schema",
+        "status",
+        "phase",
+        "gate",
+        "sequence",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "authority_directory",
+        "ledger_prefix",
+        "last_gate_receipt",
+        "engine_gate_verified_receipt",
+        "launchagent_authority",
+        "error",
+        "process_cleanup_evidence",
+        "process_cleanup",
+        "faulted_at_utc",
+        "producer",
+        "authority"
+      ]
+    },
+    "status_values": {
+      "gate_evidence": "pass",
+      "gate_receipt": "pass-no-formal-authority",
+      "ledger_row": "pass-no-formal-authority",
+      "engine_gate_verified_receipt": "control-plane-gates-independently-verified-preformal-engine-only-authority",
+      "raw_receipt": "all-required-preformal-gates-semantically-finalized-no-formal-authority",
+      "verified_receipt": "all-required-preformal-gates-independently-verified-formal-only-authority",
+      "launchagent_authority_evidence": "live-one-shot-LaunchAgent-semantics-verified-no-standalone-formal-authority",
+      "process_cleanup_evidence": "cleanup-independently-recomputable-no-authority",
+      "preformal_terminal_fault": "preformal-terminal-fault-family-closed-no-authority"
+    },
+    "paths": {
+      "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates",
+      "ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
+      "engine_gate_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
+      "raw_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-receipt.json",
+      "verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-verified-receipt.json",
+      "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
+      "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
+      "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.txt",
+      "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.stderr.txt",
+      "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
+      "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stdout.txt",
+      "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stderr.txt",
+      "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-authority-evidence.json"
+    },
+    "gate_artifact_path_rule": {
+      "gate_order_is_exact_required_preformal_order_without_formal_teacher": true,
+      "sequence_format": "two-digit-zero-padded-decimal-01-through-13",
+      "gate_token_must_equal_exact_required_order_entry": true,
+      "primary_source_sequence_format": "two-digit-zero-padded-decimal-starting-at-01-with-no-gaps",
+      "primary_source_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.source-${source-sequence-two-digits}.bin",
+      "evidence_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.evidence.json",
+      "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.receipt.json",
+      "directory_mode_octal": "0700",
+      "file_mode_octal": "0600",
+      "all_paths_must_be_create_only_private_single_link_regular_files": true,
+      "unexpected_gate_artifacts_forbidden": true
+    },
+    "trusted_producer": {
+      "implementation_must_be_part_of_authenticated_merged_source_revision": true,
+      "entrypoint_and_dependency_closure_identity_must_bind_runtime_plan_and_run_fingerprint": true,
+      "fixed_gate_executors_must_collect_primary_evidence_directly": true,
+      "primary_source_raw_bytes_must_be_published_create_only_before_gate_evidence": true,
+      "primary_source_identities_must_have_contiguous_path_ordinals_and_gate_specific_content_schemas": true,
+      "caller_supplied_status_payload_or_file_identity_accepted": false,
+      "user_authored_receipt_accepted": false,
+      "every_gate_evidence_must_bind_teacher_plan_source_revision_run_fingerprint_producer_identity_and_primary_source_identities": true,
+      "every_gate_receipt_must_bind_exact_gate_evidence_bytes_sha256_schema_and_previous_receipt_sha256": true,
+      "ledger_is_append_only_hash_chained_canonical_jsonl": true,
+      "one_pass_row_per_gate_in_exact_order": true,
+      "unexpected_producer_fault_or_incomplete_handoff_closes_namespace_without_formal_authority": true
+    },
+    "implementation_identity_contract": {
+      "entrypoint_path": "repository-relative-posix-path-with-no-dot-dot-symlink-or-absolute-component",
+      "dependency_closure_type": "array-of-dependency_closure_entry",
+      "dependency_closure_order": "entrypoint-is-index-0-then-all-remaining-entries-are-strict-ascending-UTF8-byte-order-by-repository-relative-path-with-no-duplicates-and-entrypoint-is-not-repeated",
+      "dependency_closure_digest": "sha256-of-canonical-json-array-of-exact-path-bytes-sha256-entries",
+      "dependency_closure_membership": "complete-static-and-dynamic-production-module-closure-from-fixed-entrypoint-at-authenticated-source-revision",
+      "entrypoint_must_be_first_dependency_entry": true,
+      "producer_finalizer_and_verifier_entrypoints_must_be-distinct": true,
+      "independent_verifier_must_not_import-call-or-share-producer-or-finalizer-semantic-validation-helper": true,
+      "independent_verifier_may_share_only-canonical-json-sha256-and-held-descriptor-io-primitives": true
+    },
+    "staged_authority": {
+      "stage_a_control_plane_gates": [
+        "ready-pr",
+        "all-required-ci-success",
+        "regular-merge",
+        "clean-main-source-authentication",
+        "preformal-authority-implementation-tests-pass",
+        "artifact-verifier-implementation-tests-pass",
+        "power-guardian-implementation-tests-pass"
+      ],
+      "stage_a_verified_receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
+      "stage_a_ledger_prefix_contract": {
+        "identity_fields": ["path", "bytes", "sha256", "schema"],
+        "path_must_equal": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
+        "schema_must_equal": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11",
+        "rows": 7,
+        "terminal_gate": "power-guardian-implementation-tests-pass",
+        "meaning_at_stage_a_publication": "bytes-and-sha256-identify-the-entire-ledger-file-as-it-exists-immediately-after-the-seventh-fsynced-canonical-JSONL-row",
+        "meaning_after_append": "bytes-is-an-immutable-prefix-length-and-sha256-is-the-digest-of-exactly-the-first-bytes-octets-at-the-same-path-not-the-identity-of-the-later-whole-file",
+        "stage_a_verification": "before-any-stage-B-engine-the-held-descriptor-file-size-must-equal-ledger_prefix.bytes-and-the-entire-file-must-hash-to-ledger_prefix.sha256",
+        "final_verification": "after-gates-8-through-13-append-the-held-descriptor-file-size-must-be-greater-than-ledger_prefix.bytes-the-first-ledger_prefix.bytes-octets-must-hash-to-ledger_prefix.sha256-and-parse-as-exactly-the-first-seven-valid-hash-chained-rows-then-the-suffix-must-begin-at-that-byte-offset-with-gate-8",
+        "terminal_lf_at_prefix_boundary_required": true,
+        "immutable_snapshot_file_required": false,
+        "later-whole-ledger-identity-must-be-separate": true
+      },
+      "stage_a_authority": {
+        "may_execute_preformal_engine_gates": true,
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "stage_b_engine_gates": [
+        "candidate-order-gate",
+        "known10-probe",
+        "pathological-fallback-probe",
+        "mixed-load-gate",
+        "formal-like-512"
+      ],
+      "stage_b_requires_stage_a_verified_receipt": true,
+      "stage_b_power_contract": "same-fail-closed-power-semantics-thresholds-assertions-pmset-and-process-reaping-as-formal; run-specific-LaunchAgent-PIDs-paths-timestamps-output-identities-and-final-formal-receipt-identity-are-explicitly-not-byte-equal",
+      "stage_b_epoch_namespace_rule": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.stage-b-epoch",
+      "stage_b_epoch_namespace_kind": "deterministic-logical-sealed-namespace-identifier-only-no-unlisted-files-or-directories-created",
+      "stage_b_run_fingerprint_rule": "sha256-canonical-json-of-domain-gate-sequence-teacher-plan-full-identity-source-revision-formal-run-fingerprint-stage-A-verified-receipt-full-identity-stage-B-epoch-namespace-and-source-02-source-03-paths",
+      "stage_b_run_fingerprint_must-differ-from-formal-run-fingerprint-and-every-other-stage-B-gate": true,
+      "stage_b_launchagent_evidence_schema_pattern": "shogi-halfkp81-depth18-yaneura-only-v1r11-${gate}-stage-b-launchagent-evidence-v1",
+      "stage_b_launchagent_evidence_status": "preformal-engine-gate-live-LaunchAgent-semantics-verified-no-standalone-authority",
+      "stage_b_launchagent_evidence_required_fields": [
+        "schema",
+        "status",
+        "gate",
+        "stage_b_run_fingerprint",
+        "stage_b_epoch_namespace",
+        "stage_a_verified_receipt",
+        "label",
+        "uid",
+        "xpc_service_name",
+        "runner_pid",
+        "working_directory",
+        "stdout_path",
+        "stderr_path",
+        "program_arguments",
+        "runner_utility_argv",
+        "caffeinate_holder",
+        "required_assertions",
+        "launchctl_command",
+        "launchctl_exit_code",
+        "launchctl_stdout_base64",
+        "launchctl_stderr_base64",
+        "plist_source",
+        "plist_snapshot_base64",
+        "authority"
+      ],
+      "stage_b_launchagent_evidence_authority": {
+        "may_execute_preformal_engine_gates": false,
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "stage_b_identity_forbidden_equalities": [
+        "stage_b_run_fingerprint-equals-formal-run_fingerprint",
+        "stage_b_epoch_namespace-equals-formal-output-or-authority-namespace",
+        "stage_b_launchagent_evidence-equals-final-formal-launchagent-authority-evidence",
+        "stage_a_verified_receipt-equals-final-preformal-authority-verified-receipt",
+        "stage_b_power_ledger-or-receipt-equals-final-formal-power-ledger-or-receipt"
+      ],
+      "stage_b_power_ledger_source_required_fields": [
+        "schema",
+        "status",
+        "gate",
+        "stage_b_run_fingerprint",
+        "stage_b_epoch_namespace",
+        "stage_a_verified_receipt",
+        "launchagent_evidence",
+        "admission_entry",
+        "samples",
+        "final_entry",
+        "previous_entry_hash_chain_verified"
+      ],
+      "stage_b_power_ledger_status": "preformal-engine-gate-power-continuity-complete-no-formal-authority",
+      "stage_b_power_receipt_source_required_fields": [
+        "schema",
+        "status",
+        "gate",
+        "stage_b_run_fingerprint",
+        "stage_b_epoch_namespace",
+        "stage_a_verified_receipt",
+        "stage_b_power_ledger",
+        "launchagent_evidence",
+        "all_engines_reaped",
+        "pmset_interval",
+        "verifier",
+        "authority"
+      ],
+      "stage_b_power_receipt_status": "preformal-engine-gate-power-continuity-independently-verified-no-formal-authority",
+      "stage_b_power_receipt_authority": {
+        "may_execute_preformal_engine_gates": false,
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "stage_b_never_accepts_final_verified_receipt_as-bootstrap": true,
+      "stage_c_final_gate": "ac-power-start-admission-pass",
+      "stage_c_runs_inside_final-formal-one-shot-LaunchAgent": true,
+      "stage_c_closes-and-verifies-all-13-gates-before-first-formal-8192-parent-engine": true,
+      "planned_handoff_rule": "allowed-only-after-current-gate-receipt-and-ledger-prefix-are-held-descriptor-verified-and-fsynced-all-engines-and-children-are-reaped-and-the-next-one-shot-job-has-not-started",
+      "planned_handoff_is_not_partial_chain_fault": true,
+      "crash-missing-prefix-unreaped-process-or-incomplete-next-stage-admission_is_preformal_terminal_fault": true,
+      "first_engine_wording_scope": "finalizer-verifier-and-final-LaunchAgent-evidence requirements that say before first engine mean before first formal 8192-parent teacher engine; stage-B preformal probe engines are authorized only by the stage-A receipt"
+    },
+    "cross_gate_equations": [
+      "ready-pr.payload.head_revision == all-required-ci-success.payload.head_revision == regular-merge.payload.authenticated_pr_head_revision == regular-merge.payload.second_parent_revision",
+      "ready-pr.payload.base_revision == regular-merge.payload.authenticated_base_revision == regular-merge.payload.first_parent_revision",
+      "ready-pr.payload.merge_revision == regular-merge.payload.merge_revision == common.source_revision",
+      "ready-pr.payload.pr_number == all-required-ci-success.payload.pr_number",
+      "ready-pr.payload.base_branch == regular-merge.payload.base_branch == clean-main-source-authentication.payload.branch == main",
+      "clean-main-source-authentication.payload.head_revision_before == clean-main-source-authentication.payload.main_revision == clean-main-source-authentication.payload.head_revision_after == common.source_revision",
+      "every all-required-ci-success.payload.required_checks entry.head_revision == all-required-ci-success.payload.head_revision",
+      "every gate evidence/receipt/ledger row teacher_plan == common.teacher_plan and run_fingerprint == common.run_fingerprint and source_revision == common.source_revision",
+      "gate sequence, gate token, primary-source sequence/kind/schema, receipt previous hash, and ledger previous hash exactly follow required_order with no gap duplicate or alternate branch"
+    ],
+    "cross_gate_equation_validation": "trusted-finalizer-and-independent-verifier-each-recompute-all-equations-from-held-descriptor-primary-source-bytes-not-from-producer-claims",
+    "github_primary_source_provenance_contract": {
+      "repository": {
+        "host": "github.com",
+        "owner": "gomyway1216",
+        "name": "nextjs-portfolio",
+        "name_with_owner": "gomyway1216/nextjs-portfolio",
+        "github_repository_database_id": 1102298330,
+        "github_repository_node_id": "R_kgDOQbO82g",
+        "canonical_url": "https://github.com/gomyway1216/nextjs-portfolio",
+        "canonical_origin_fetch_url": "https://github.com/gomyway1216/nextjs-portfolio.git",
+        "default_branch": "main"
+      },
+      "collector": {
+        "argv_prefix": ["/usr/bin/env", "gh", "api"],
+        "resolved_executable_identity_required_fields": [
+          "invoked_path",
+          "realpath",
+          "bytes",
+          "sha256",
+          "uid",
+          "mode",
+          "version_stdout_sha256"
+        ],
+        "authenticated_viewer_required_fields": ["login", "database_id"],
+        "token-secret-or-environment-value-must-never-be-recorded": true,
+        "all-request-argv-stdin-response-stdout-stderr-exit-code-and-observed-time-must-be-in-primary-source-envelope": true
+      },
+      "origin_fixed_command": ["git", "remote", "get-url", "origin"],
+      "viewer_fixed_command": [
+        "/usr/bin/env",
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "user",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28"
+      ],
+      "viewer_raw_response_required_fields": ["login", "id", "node_id"],
+      "ready_pr_fixed_command": [
+        "/usr/bin/env",
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/gomyway1216/nextjs-portfolio/pulls/${pr_number}",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28"
+      ],
+      "ready_pr_raw_response_required_fields": [
+        "id",
+        "node_id",
+        "number",
+        "html_url",
+        "state",
+        "draft",
+        "merged",
+        "merged_at",
+        "merge_commit_sha",
+        "head.sha",
+        "head.repo.id",
+        "head.repo.node_id",
+        "head.repo.full_name",
+        "base.sha",
+        "base.ref",
+        "base.repo.id",
+        "base.repo.node_id",
+        "base.repo.full_name"
+      ],
+      "regular_merge_git_cat_file_fixed_command": [
+        "git",
+        "cat-file",
+        "-p",
+        "${merge_revision}^{commit}"
+      ],
+      "regular_merge_pr_fixed_command_must_equal_ready_pr_fixed_command": true,
+      "regular_merge_git_commit_raw_parser_contract": {
+        "stdout_is_exact_uncompressed_git_commit_object_payload": true,
+        "recompute_object_id_from_exact_bytes_with_repository_object_format_and_require_merge_revision": true,
+        "header_parser": "parse-contiguous-header-lines-through-first-empty-line-with-no-normalization",
+        "required_tree_header_count": 1,
+        "required_parent_header_count": 2,
+        "parent_order": "first-parent-line-is-authenticated-base-revision-and-second-parent-line-is-authenticated-PR-head-revision",
+        "third-or-additional-parent-rejected": true,
+        "malformed-duplicate-or-out-of-order-required-header-rejected": true,
+        "github_pr_response_must_be-reparsed-from-raw-bytes-and-match-ready-pr-full-identity": true
+      },
+      "ci_fixed_command": [
+        "/usr/bin/env",
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/gomyway1216/nextjs-portfolio/commits/${head_revision}/check-runs?per_page=100&filter=latest",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28"
+      ],
+      "branch_protection_fixed_command": [
+        "/usr/bin/env",
+        "gh",
+        "api",
+        "--method",
+        "GET",
+        "repos/gomyway1216/nextjs-portfolio/branches/main/protection/required_status_checks",
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28"
+      ],
+      "branch_protection_raw_response_required_fields": [
+        "url",
+        "strict",
+        "contexts",
+        "contexts_url",
+        "checks"
+      ],
+      "branch_protection_required_contexts_exact": [
+        { "context": "Test and build", "app_id": 15368 },
+        { "context": "npm audit", "app_id": 15368 }
+      ],
+      "branch_protection_rules": [
+        "raw-response-repository-and-branch-URL-must-equal-fixed-repository-main",
+        "contexts-and-checks-must-canonicalize-to-the-exact-two-required-contexts-with-no-extra-duplicate-or-missing-entry",
+        "strict-must-equal-false-as-preregistered-and-any-change-requires-a-new-family",
+        "both-required-contexts-must-also-appear-successful-in-the-exact-fifteen-check-manifest"
+      ],
+      "workflow_manifest_fixed_commands": [
+        ["git", "show", "${head_revision}:.github/workflows/ci.yml"],
+        ["git", "show", "${head_revision}:.github/workflows/security.yml"]
+      ],
+      "multi_command_transcript_bundle": {
+        "encoding": "UTF8-canonical-JSON-array-with-exactly-one-terminal-LF",
+        "entry_required_fields": [
+          "sequence",
+          "argv",
+          "stdin_base64",
+          "stdin_bytes",
+          "stdin_sha256",
+          "stdout_base64",
+          "stdout_bytes",
+          "stdout_sha256",
+          "stderr_base64",
+          "stderr_bytes",
+          "stderr_sha256",
+          "exit_code",
+          "started_at_utc",
+          "completed_at_utc"
+        ],
+        "ready_pr_exact_command_order": [
+          "origin_fixed_command",
+          "viewer_fixed_command",
+          "ready_pr_fixed_command",
+          "origin_fixed_command"
+        ],
+        "ci_exact_command_order": [
+          "origin_fixed_command",
+          "viewer_fixed_command",
+          "ci_fixed_command",
+          "branch_protection_fixed_command",
+          "workflow_manifest_fixed_commands[0]",
+          "workflow_manifest_fixed_commands[1]",
+          "origin_fixed_command"
+        ],
+        "regular_merge_exact_command_order": [
+          "origin_fixed_command",
+          "viewer_fixed_command",
+          "regular_merge_git_cat_file_fixed_command",
+          "ready_pr_fixed_command",
+          "origin_fixed_command"
+        ],
+        "all-exit-codes-must-equal-zero": true,
+        "two-origin-stdout-values-must-equal-canonical-origin": true,
+        "finalizer-and-independent-verifier-must-decode-rehash-and-reparse-each-entry": true
+      },
+      "workflow_manifest_required_fields": [
+        "repository_relative_path",
+        "git_blob_oid",
+        "bytes",
+        "sha256",
+        "parsed_workflow_name",
+        "parsed_pull_request_base_branches",
+        "expanded_check_names"
+      ],
+      "workflow_manifest_paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/security.yml"
+      ],
+      "required_check_manifest_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-required-check-manifest-v1",
+      "required_check_manifest_status": "exact-fifteen-head-checks-required",
+      "expected_check_count": 15,
+      "expected_check_contexts": [
+        { "workflow": "", "check_name": "Vercel", "app_slug": "vercel" },
+        {
+          "workflow": "",
+          "check_name": "Vercel Preview Comments",
+          "app_slug": "vercel"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "AWS witness adapter contract (source only)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Core quality and build",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Darwin exclusive directory rename",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "E2E smoke tests",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k Teacher checkpoint",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k scanner (authority)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k scanner (cleanup)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k scanner (mutation)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k scanner (production)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Exact-24k scanner (replay)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "External trust-root protocol (source only)",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "CI",
+          "check_name": "Test and build",
+          "app_slug": "github-actions"
+        },
+        {
+          "workflow": "Security Audit",
+          "check_name": "npm audit",
+          "app_slug": "github-actions"
+        }
+      ],
+      "check_run_raw_required_fields": [
+        "id",
+        "node_id",
+        "name",
+        "head_sha",
+        "status",
+        "conclusion",
+        "details_url",
+        "external_id",
+        "started_at",
+        "completed_at",
+        "app.id",
+        "app.slug"
+      ],
+      "repository_binding_rules": [
+        "ready-PR-head-and-base-repo-node-id-and-full-name-must-equal-the-fixed-repository",
+        "origin-fetch-url-must-equal-the-fixed-canonical-origin-before-and-after-collection",
+        "every-check-run-head_sha-must-equal-the-ready-PR-head-revision",
+        "workflow-manifest-git-blob-must-be-read-from-the-ready-PR-head-revision-not-working-tree-or-merge-revision",
+        "required-check-manifest-must-exactly-equal-the-fixed-fifteen-contexts-and-the-two-authenticated-workflow-manifest-expansions",
+        "missing-extra-duplicate-neutral-skipped-cancelled-timed-out-action-required-or-non-success-context-fails-closed"
+      ]
+    },
+    "semantic_gate_requirements": {
+      "ready-pr": "authenticated-GitHub-PR-record-is-merged-not-draft-and-binds-PR-head-merge-revision-number-and-url",
+      "all-required-ci-success": "authenticated-required-check-set-is-complete-with-zero-failed-or-pending-and-binds-the-same-PR-head",
+      "regular-merge": "source-revision-is-a-two-parent-regular-merge-commit-whose-second-parent-is-the-PR-head",
+      "clean-main-source-authentication": "branch-head-main-and-double-captured-clean-revision-all-equal-source-revision-with-empty-status",
+      "preformal-authority-implementation-tests-pass": "fixed-tests-prove-trusted-direct-evidence-production-semantic-finalization-independent-verification-create-only-chain-and-durable-LaunchAgent-binding",
+      "artifact-verifier-implementation-tests-pass": "fixed-test-command-and-test-file-set-exit-zero-with-zero-failures-and-bound-stdout-stderr",
+      "power-guardian-implementation-tests-pass": "fixed-test-command-covers-every-preregistered-fail-closed-case-and-exits-zero-with-zero-failures",
+      "candidate-order-gate": "producer-recomputes-candidate-set-digest-and-normal-fallback-publication-order-with-zero-mismatch-or-fault",
+      "known10-probe": "all-eight-parents-and-ten-moves-match-the-fixed-exact-depth18-identities-with-zero-mismatch-or-fault",
+      "pathological-fallback-probe": "fixed-parent-routes-with-zero-normal-partial-or-capped-publication-and-matches-Hash8192-exact-depth18",
+      "mixed-load-gate": "measured-concurrency-and-Hash-values-stay-within-eight-Hash512-normal-and-two-Hash8192-fallback-engines-with-zero-fault",
+      "formal-like-512": "all-512-parents-complete-under-identical-teacher-contract-and-semantically-identical-fail-closed-power-policy-with-run-specific-identities-excluded-and-independent-artifact-verification-passes",
+      "ac-power-start-admission-pass": "fresh-AC-battery-caffeinate-assertion-and-exact-live-final-LaunchAgent-semantic-evidence-passes-before-first-formal-8192-parent-engine"
+    },
+    "gate_contracts": {
+      "primary_source_rule": "each gate publishes exactly primary_source_count create-only sources at contiguous source ordinals 01 through count under the fixed gate_artifact_path_rule; kinds and schemas occur in the exact listed order and nested artifact references are full file identities",
+      "primary_source_encoding": "UTF8-canonical-JSON-object-with-exactly-one-terminal-LF-no-BOM-no-extra-bytes",
+      "primary_source_envelope_required_fields": [
+        "schema",
+        "status",
+        "gate",
+        "sequence",
+        "source_sequence",
+        "source_kind",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "producer",
+        "content",
+        "captured_at_utc"
+      ],
+      "primary_source_status": "captured-primary-source-no-authority",
+      "primary_source_envelope_rules": {
+        "schema_gate_kind_and-source_sequence_must-equal-gate-contract": true,
+        "teacher_plan-source_revision-run_fingerprint-and-producer-must-equal-ledger-context": true,
+        "content_keys_must-equal-the-applicable-content-contract": true,
+        "finalizer-and-independent-verifier-must-reparse-embedded-raw-bytes-with-distinct-fixed-parsers-and-recompute-parsed_canonical_json-and-gate-payload": true,
+        "embedded-raw-bytes-are-base64-RFC4648-canonical-with-decoded-byte-count-and-sha256": true,
+        "caller-supplied-parsed_canonical_json-or-status-without-raw-byte-recomputation-has-no-authority": true
+      },
+      "primary_source_content_contracts": {
+        "command_or_response_bundle": {
+          "applies_to_source_sequence": 1,
+          "required_fields": [
+            "collector",
+            "request_or_command",
+            "exit_code",
+            "stdout_base64",
+            "stdout_bytes",
+            "stdout_sha256",
+            "stderr_base64",
+            "stderr_bytes",
+            "stderr_sha256",
+            "parsed_canonical_json"
+          ],
+          "status_rule": "exit_code-and-parsed-result-must-satisfy-the-per-gate-payload-contract"
+        },
+        "stage_b_power_ledger": {
+          "applies_to_source_sequence": 2,
+          "required_fields": [
+            "schema",
+            "status",
+            "gate",
+            "stage_b_run_fingerprint",
+            "stage_b_epoch_namespace",
+            "stage_a_verified_receipt",
+            "launchagent_evidence",
+            "admission_entry",
+            "samples",
+            "final_entry",
+            "previous_entry_hash_chain_verified"
+          ]
+        },
+        "stage_b_power_receipt": {
+          "applies_to_source_sequence": 3,
+          "required_fields": [
+            "schema",
+            "status",
+            "gate",
+            "stage_b_run_fingerprint",
+            "stage_b_epoch_namespace",
+            "stage_a_verified_receipt",
+            "stage_b_power_ledger",
+            "launchagent_evidence",
+            "all_engines_reaped",
+            "pmset_interval",
+            "verifier",
+            "authority"
+          ]
+        }
+      },
+      "ready-pr": {
+        "sequence": 1,
+        "primary_source_count": 1,
+        "primary_source_kind": "github-pr-rest-response",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-ready-pr-primary-source-github-pr-rest-response-v1",
+        "fixed_command_must_equal-github_primary_source_provenance_contract.ready_pr_fixed_command": true,
+        "fixed_command_sequence_must_equal-github_primary_source_provenance_contract.multi_command_transcript_bundle.ready_pr_exact_command_order": true,
+        "payload_required_fields": [
+          "repository",
+          "collector_executable_identity",
+          "authenticated_viewer",
+          "pr_number",
+          "pr_url",
+          "head_revision",
+          "base_revision",
+          "merge_revision",
+          "base_branch",
+          "is_draft",
+          "state",
+          "observed_at_utc"
+        ]
+      },
+      "all-required-ci-success": {
+        "sequence": 2,
+        "primary_source_count": 1,
+        "primary_source_kind": "github-check-rollup-and-branch-protection-response",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-all-required-ci-success-primary-source-github-check-rollup-and-branch-protection-response-v1",
+        "fixed_command_must_equal-github_primary_source_provenance_contract.ci_fixed_command": true,
+        "branch_protection_command_must_equal-github_primary_source_provenance_contract.branch_protection_fixed_command": true,
+        "workflow_manifest_commands_must_equal-github_primary_source_provenance_contract.workflow_manifest_fixed_commands": true,
+        "fixed_command_sequence_must_equal-github_primary_source_provenance_contract.multi_command_transcript_bundle.ci_exact_command_order": true,
+        "payload_required_fields": [
+          "repository",
+          "collector_executable_identity",
+          "authenticated_viewer",
+          "pr_number",
+          "head_revision",
+          "branch_protection_manifest",
+          "workflow_manifests",
+          "required_check_manifest",
+          "required_checks",
+          "required_check_count",
+          "successful_check_count",
+          "failed_check_count",
+          "pending_check_count",
+          "conclusion",
+          "observed_at_utc"
+        ],
+        "required_checks_entry_fields": [
+          "workflow_name",
+          "job_name",
+          "check_name",
+          "check_run_id",
+          "details_url",
+          "head_revision",
+          "app_id",
+          "app_slug",
+          "external_id",
+          "started_at",
+          "completed_at",
+          "status",
+          "conclusion"
+        ],
+        "required_checks_order": "strict-ascending-by-workflow_name-job_name-check_name-check_run_id",
+        "required_check_names_source": "exact-github_primary_source_provenance_contract.expected_check_contexts-recomputed-from-authenticated-PR-head-workflow-manifests-plus-fixed-Vercel-contexts-and-preserved-in-required_check_manifest",
+        "required_check_count_exact": 15,
+        "set_equality": "required_checks-must-be-exactly-the-authenticated-required-context-set-with-one-successful-completed-check-run-on-the-PR-head-for-each-context-and-no-duplicate-context"
+      },
+      "regular-merge": {
+        "sequence": 3,
+        "primary_source_count": 1,
+        "primary_source_kind": "git-cat-file-commit-and-github-pr-response",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-regular-merge-primary-source-git-cat-file-commit-and-github-pr-response-v1",
+        "git_commit_fixed_command_must_equal-github_primary_source_provenance_contract.regular_merge_git_cat_file_fixed_command": true,
+        "github_pr_fixed_command_must_equal-github_primary_source_provenance_contract.ready_pr_fixed_command": true,
+        "fixed_command_sequence_must_equal-github_primary_source_provenance_contract.multi_command_transcript_bundle.regular_merge_exact_command_order": true,
+        "raw_parser_must_equal-github_primary_source_provenance_contract.regular_merge_git_commit_raw_parser_contract": true,
+        "payload_required_fields": [
+          "merge_revision",
+          "parent_count",
+          "first_parent_revision",
+          "second_parent_revision",
+          "authenticated_base_revision",
+          "authenticated_pr_head_revision",
+          "strategy",
+          "base_branch"
+        ],
+        "cross_binding": "recomputed-git-object-id-equals-merge_revision-first_parent_revision-equals-authenticated_base_revision-second_parent_revision-equals-authenticated_pr_head_revision-and-reparsed-github-PR-full-identity-equals-ready-pr"
+      },
+      "clean-main-source-authentication": {
+        "sequence": 4,
+        "primary_source_count": 1,
+        "primary_source_kind": "fixed-git-command-transcript-bundle",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-clean-main-source-authentication-primary-source-fixed-git-command-transcript-bundle-v1",
+        "fixed_commands": [
+          ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+          ["git", "rev-parse", "HEAD"],
+          ["git", "rev-parse", "main"],
+          ["git", "status", "--porcelain=v1", "-z"],
+          ["git", "rev-parse", "HEAD"]
+        ],
+        "payload_required_fields": [
+          "branch",
+          "head_revision_before",
+          "main_revision",
+          "status_porcelain_bytes",
+          "status_porcelain_sha256",
+          "head_revision_after"
+        ]
+      },
+      "preformal-authority-implementation-tests-pass": {
+        "sequence": 5,
+        "primary_source_count": 1,
+        "primary_source_kind": "fixed-vitest-transcript-bundle",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-preformal-authority-implementation-tests-pass-primary-source-fixed-vitest-transcript-bundle-v1",
+        "fixed_command": [
+          "npx",
+          "vitest",
+          "run",
+          "tests/unit/ml/halfkp81Depth18V1R11StagedAuthorityE2E.test.ts",
+          "--reporter=json"
+        ],
+        "fixed_test_files": [
+          "tests/unit/ml/halfkp81Depth18V1R11StagedAuthorityE2E.test.ts"
+        ],
+        "replaces_old_single-stage-fixed-gate5-test": "tests/unit/ml/halfkp81Depth18V1R11PreformalAuthority.test.ts",
+        "e2e_required_scenarios": [
+          "produce-and-independently-verify-exact-seven-row-stage-A-prefix-and-engine-only-authority",
+          "reject-stage-A-receipt-for-formal-teacher-training-games-or-live-write",
+          "reject-stage-B-gate-without-stage-A-receipt-or-with-mutated-prefix",
+          "execute-all-five-stage-B-gate-contracts-with-distinct-epoch-fingerprint-LaunchAgent-and-power-identities-and-reap-each-epoch",
+          "append-gates-8-through-12-with-fsynced-handoffs-while-revalidating-the-stage-A-prefix",
+          "run-gate-13-final-LaunchAgent-capture-then-finalize-and-independently-verify-all-thirteen-gates",
+          "unlock-only-the-formal-teacher-after-final-verified-receipt-plus-official-formal-power-admission",
+          "reject-stage-B-power-or-LaunchAgent-identity-as-formal-identity",
+          "inject-producer-finalizer-verifier-handoff-stage-B-power-and-final-AC-faults-and-require-preformal-terminal-fault-with-all-authority-false",
+          "reject-noncanonical-primary-source-caller-authored-parsed-result-cross-gate-equation-mismatch-and-direct-core-bypass"
+        ],
+        "payload_required_fields": [
+          "command",
+          "test_files",
+          "tests_passed",
+          "tests_failed",
+          "exit_code",
+          "stdout_sha256",
+          "stderr_sha256"
+        ]
+      },
+      "artifact-verifier-implementation-tests-pass": {
+        "sequence": 6,
+        "primary_source_count": 1,
+        "primary_source_kind": "fixed-vitest-transcript-bundle",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-artifact-verifier-implementation-tests-pass-primary-source-fixed-vitest-transcript-bundle-v1",
+        "fixed_command": [
+          "npx",
+          "vitest",
+          "run",
+          "tests/unit/ml/halfkp81Depth18TeacherArtifactValidation.test.ts",
+          "--reporter=json"
+        ],
+        "payload_required_fields": [
+          "command",
+          "test_files",
+          "tests_passed",
+          "tests_failed",
+          "exit_code",
+          "stdout_sha256",
+          "stderr_sha256"
+        ]
+      },
+      "power-guardian-implementation-tests-pass": {
+        "sequence": 7,
+        "primary_source_count": 1,
+        "primary_source_kind": "fixed-vitest-transcript-bundle",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-power-guardian-implementation-tests-pass-primary-source-fixed-vitest-transcript-bundle-v1",
+        "fixed_command": [
+          "npx",
+          "vitest",
+          "run",
+          "tests/unit/ml/halfkp81Depth18V1R11PowerContinuity.test.ts",
+          "tests/unit/ml/halfkp81Depth18TeacherRunner.test.ts",
+          "tests/unit/ml/halfkp81Depth18OneShotLaunchAgent.test.ts",
+          "--reporter=json"
+        ],
+        "payload_required_fields": [
+          "command",
+          "test_files",
+          "tests_passed",
+          "tests_failed",
+          "exit_code",
+          "stdout_sha256",
+          "stderr_sha256"
+        ]
+      },
+      "candidate-order-gate": {
+        "sequence": 8,
+        "primary_source_count": 3,
+        "primary_source_kinds": [
+          "candidate-order-receipt-and-transcript-bundle",
+          "stage-b-power-ledger",
+          "stage-b-power-receipt"
+        ],
+        "primary_source_schemas": [
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-candidate-order-gate-primary-source-candidate-order-receipt-and-transcript-bundle-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-candidate-order-gate-primary-source-stage-b-power-ledger-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-candidate-order-gate-primary-source-stage-b-power-receipt-v1"
+        ],
+        "payload_required_fields": [
+          "parents",
+          "candidate_set",
+          "normal_candidate_order_digest",
+          "fallback_candidate_order_digest",
+          "publication_order_digest",
+          "mismatches",
+          "technical_faults",
+          "stage_a_verified_receipt",
+          "stage_b_power_ledger",
+          "stage_b_power_receipt"
+        ]
+      },
+      "known10-probe": {
+        "sequence": 9,
+        "primary_source_count": 3,
+        "primary_source_kinds": [
+          "known10-probe-receipt-and-transcript-bundle",
+          "stage-b-power-ledger",
+          "stage-b-power-receipt"
+        ],
+        "primary_source_schemas": [
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-known10-probe-primary-source-known10-probe-receipt-and-transcript-bundle-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-known10-probe-primary-source-stage-b-power-ledger-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-known10-probe-primary-source-stage-b-power-receipt-v1"
+        ],
+        "payload_required_fields": [
+          "parents",
+          "moves",
+          "fixed_expected_identities",
+          "actual_exact_depth18_identities",
+          "mismatches",
+          "technical_faults",
+          "stage_a_verified_receipt",
+          "stage_b_power_ledger",
+          "stage_b_power_receipt"
+        ]
+      },
+      "pathological-fallback-probe": {
+        "sequence": 10,
+        "primary_source_count": 3,
+        "primary_source_kinds": [
+          "pathological-probe-receipt-and-transcript-bundle",
+          "stage-b-power-ledger",
+          "stage-b-power-receipt"
+        ],
+        "primary_source_schemas": [
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-pathological-fallback-probe-primary-source-pathological-probe-receipt-and-transcript-bundle-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-pathological-fallback-probe-primary-source-stage-b-power-ledger-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-pathological-fallback-probe-primary-source-stage-b-power-receipt-v1"
+        ],
+        "payload_required_fields": [
+          "parent_id",
+          "normal_partial_rows_published",
+          "capped_rows_published",
+          "fallback_exact_depth18_identity",
+          "fixed_hash8192_identity",
+          "technical_faults",
+          "stage_a_verified_receipt",
+          "stage_b_power_ledger",
+          "stage_b_power_receipt"
+        ]
+      },
+      "mixed-load-gate": {
+        "sequence": 11,
+        "primary_source_count": 3,
+        "primary_source_kinds": [
+          "mixed-load-receipt-and-transcript-bundle",
+          "stage-b-power-ledger",
+          "stage-b-power-receipt"
+        ],
+        "primary_source_schemas": [
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-mixed-load-gate-primary-source-mixed-load-receipt-and-transcript-bundle-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-mixed-load-gate-primary-source-stage-b-power-ledger-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-mixed-load-gate-primary-source-stage-b-power-receipt-v1"
+        ],
+        "payload_required_fields": [
+          "normal_engines",
+          "normal_hash_mib_each",
+          "fallback_engines",
+          "fallback_hash_mib_each",
+          "maximum_normal_active",
+          "maximum_fallback_active",
+          "process_observations",
+          "technical_faults",
+          "stage_a_verified_receipt",
+          "stage_b_power_ledger",
+          "stage_b_power_receipt"
+        ]
+      },
+      "formal-like-512": {
+        "sequence": 12,
+        "primary_source_count": 3,
+        "primary_source_kinds": [
+          "formal-like-512-verified-receipt-and-transcript-bundle",
+          "stage-b-power-ledger",
+          "stage-b-power-receipt"
+        ],
+        "primary_source_schemas": [
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-formal-like-512-primary-source-formal-like-512-verified-receipt-and-transcript-bundle-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-formal-like-512-primary-source-stage-b-power-ledger-v1",
+          "shogi-halfkp81-depth18-yaneura-only-v1r11-formal-like-512-primary-source-stage-b-power-receipt-v1"
+        ],
+        "payload_required_fields": [
+          "parents",
+          "completed_parents",
+          "technical_faults",
+          "teacher_contract_equal_formal",
+          "power_semantics_equal_formal",
+          "run_specific_identity_fields_excluded_from_equality",
+          "artifact_verified_receipt",
+          "stage_a_verified_receipt",
+          "stage_b_power_ledger",
+          "stage_b_power_receipt"
+        ]
+      },
+      "ac-power-start-admission-pass": {
+        "sequence": 13,
+        "primary_source_count": 1,
+        "primary_source_kind": "formal-launchagent-power-admission-bundle",
+        "primary_source_schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-ac-power-start-admission-pass-primary-source-formal-launchagent-power-admission-bundle-v1",
+        "payload_required_fields": [
+          "power_source",
+          "battery_percentage",
+          "required_assertions",
+          "assertion_owner_matches_caffeinate_pid",
+          "launchagent_authority",
+          "power_admission_preimage",
+          "observed_at_utc"
+        ]
+      }
+    },
+    "semantic_finalizer": {
+      "implementation_must_be_part_of_authenticated_merged_source_revision": true,
+      "must_reread_every_gate_evidence_and_receipt_by_held_descriptor": true,
+      "must_recompute_each_gate_schema_payload_semantics_order_hash_chain_and_cross_gate_revision_bindings": true,
+      "finalizer_entrypoint_and_dependency_closure_identity_must_bind_raw_receipt": true,
+      "independent_verifier_entrypoint_and_dependency_closure_identity_must_bind_verified_receipt": true,
+      "producer_finalizer_and_independent_verifier_must_be_distinct_fixed_entrypoints": true,
+      "finalizer_and_independent_verifier_must_each_requery_live_launchagent_and_match_sealed_raw_evidence_before_first_formal_8192_parent_engine": true,
+      "identity_only_existence_or_status_pass_check_is_insufficient": true,
+      "raw_receipt_must_bind_closed_ledger_all_gate_evidence_and_receipt_identities_teacher_plan_source_revision_run_fingerprint_and_launchagent_evidence": true,
+      "raw_receipt_alone_may_execute_formal_teacher": false,
+      "independent_verified_receipt_must_recompute_raw_receipt_and_all_semantics": true,
+      "verified_receipt_is_only_preformal_artifact_that_may_execute_formal_teacher": true,
+      "every_production_v1r11_formal_entrypoint_must_require_verified_receipt_and_no_direct_core_bypass": true,
+      "verified_receipt_may_train_play_or_write_live": false,
+      "raw_receipt_authority": {
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "verified_receipt_authority": {
+        "may_execute_formal_teacher": true,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      }
+    },
+    "preformal_fault_contract": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
+      "applies_before_final_verified_receipt_and-official-formal-power-admission": true,
+      "fault_triggers": [
+        "producer-fault",
+        "semantic-finalizer-fault",
+        "independent-verifier-fault",
+        "stage-a-or-stage-b-power-fault",
+        "planned-handoff-contract-violation",
+        "final-ac-gate-fault"
+      ],
+      "nullable_full_identity_fields": [
+        "ledger_prefix",
+        "last_gate_receipt",
+        "engine_gate_verified_receipt",
+        "launchagent_authority"
+      ],
+      "ledger_prefix_identity_semantics": "ledger_prefix-obeys-staged_authority.stage_a_ledger_prefix_contract-after-row-7-it-is-an-immutable-prefix-identity-at-the-same-append-only-path-not-a-later-whole-file-identity",
+      "null_means": "artifact-was-not-yet-created-and-is-therefore-not-required-to-be-bound",
+      "process_cleanup_required_fields": [
+        "scheduling_stopped",
+        "engines_terminated",
+        "engines_reaped",
+        "remaining_engine_pids"
+      ],
+      "process_cleanup_evidence_full_identity_required": true,
+      "process_cleanup_summary_must_be_independently_recomputed_from-held-evidence": true,
+      "fault_publication_without-valid-cleanup-evidence_forbidden": true,
+      "error_required_fields": ["kind", "message", "exit_code", "signal"],
+      "authority": {
+        "may_execute_preformal_engine_gates": false,
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "create_only_and_namespace_closing": true,
+      "same_namespace_or-family_resume": false,
+      "sole_fault_publisher_entrypoint": "ml/run-halfkp81-depth18-v1r11-preformal-orchestrator.ts",
+      "fault_publication_must-follow-valid-rich-cleanup-evidence-for-runner-null-and-runner-active": true,
+      "post_guardian_environment_fault_is_separate": "after-final-verified-receipt-and-official-formal-power-admission-use-environment_terminal_fault-which-must-bind-final-verified-receipt-and-formal-LaunchAgent-evidence"
+    },
+    "outer_orchestrator_contract": {
+      "entrypoint_exact": "ml/run-halfkp81-depth18-v1r11-production-outer.ts",
+      "preformal_component_entrypoint_exact": "ml/run-halfkp81-depth18-v1r11-preformal-orchestrator.ts",
+      "formal_child_entrypoint_exact": "ml/run-halfkp81-depth18-v1r11-formal-child.ts",
+      "postformal_component_entrypoint_exact": "ml/run-halfkp81-depth18-v1r11-postformal-supervisor.ts",
+      "ownership_interval": "before-first-Stage-A-operation-through-final-runner-terminal-observation-rich-cleanup-and-independent-success-artifact-or-environment-fault-verification-or-create-only-preformal-terminal-fault",
+      "sole-owner-of-all-preformal-fault-publication": true,
+      "inner-stage-a-stage-b-stage-c-finalizer-and-independent-verifier-components_may_publish-preformal-fault-or-cleanup-evidence": false,
+      "inner_components_must-propagate-typed-failures-only": true,
+      "typed_failure_required_fields": [
+        "phase",
+        "gate",
+        "sequence",
+        "runner_state",
+        "error",
+        "artifacts"
+      ],
+      "typed_failure_runner_state_values": ["not-created", "active"],
+      "typed_failure_error_required_fields": [
+        "kind",
+        "message",
+        "exit_code",
+        "signal"
+      ],
+      "typed_failure_artifacts_required_fields": [
+        "ledgerPrefix",
+        "lastGateReceipt",
+        "engineGateVerifiedReceipt",
+        "launchAgentAuthority",
+        "activeLaunchAgent",
+        "runnerIdentity",
+        "partialArtifacts"
+      ],
+      "typed_failure_active_launchagent_required_fields": [
+        "label",
+        "plistSnapshot"
+      ],
+      "typed_failure_runner_identity_required_fields": ["pid", "pgid", "lstart"],
+      "typed_failure_artifact_branch_contract": {
+        "not-created": "runnerIdentity-null;activeLaunchAgent-null;outer-planned-descriptor-is-the-only-cleanup-LaunchAgent-binding",
+        "active": "runnerIdentity-and-activeLaunchAgent-both-nonnull;cleanup-input-must-exactly-equal-both;activeLaunchAgent.plistSnapshot-and-all-nonnull-artifact-identities-must-be-held-read-before-cleanup",
+        "launchAgentAuthority": "nullable-before-final-Stage-C-evidence;when-nonnull-it-must-be-held-read-and-semantically-cross-bound-to-activeLaunchAgent-label-and-plistSnapshot",
+        "partialArtifacts": "exact-array-of-full-file-identities;every-entry-held-read-before-cleanup-and-fault-publication"
+      },
+      "fault_finalization_order": [
+        "catch-exact-typed-inner-failure",
+        "stop-all-new-stage-and-engine-scheduling",
+        "invoke-fixed-rich-process-cleanup-evidence-producer-with-held-runner-identity-or-explicit-null",
+        "fsync-and-stable-reread-create-only-private-process-cleanup-evidence",
+        "independently-recompute-process_cleanup-and-reject-any-cleanup-evidence-mismatch",
+        "publish-create-only-preformal-terminal-fault-binding-cleanup-evidence-full-identity-and-exact-summary",
+        "close-family-and-never-resume-or-rewrite-namespace"
+      ],
+      "runner_null_policy": "allowed-only-for-bound-not-created-state-before-runner-admission-and-still-requires-rich-cleanup-evidence-before-fault-publication",
+      "runner_null_launchagent_binding": {
+        "descriptor_owner": "outer-orchestrator",
+        "creation_time": "before-first-Stage-A-operation",
+        "label": "deterministic-final-formal-one-shot-label-derived-from-family-and-source-revision",
+        "plist_snapshot": "create-only-private-held-planned-formal-one-shot-plist-snapshot-created-before-Stage-A",
+        "plist_snapshot_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
+        "stage_c_reuse_policy": "do-not-rewrite;held-reread-the-same-planned-snapshot-and-require-exact-byte-equality-with-the-live-source-plist-before-final-LaunchAgent-evidence",
+        "live-launchagent-authority-evidence-required": false,
+        "may_claim-live-runner-or-formal-authority": false,
+        "cleanup_use": "bootout-planned-label-then-held-service-absence-and-process-absence-with-runner_identity-null"
+      },
+      "runner_active_policy": "requires-full-pid-pgid-lstart-identity-ordered-bootout-TERM-conditional-KILL-service-absence-pid-reuse-rejection-and-dual-final-ps-before-fault-publication",
+      "runner_active_launchagent_binding": "exact-active-phase-LaunchAgent-label-and-held-plist-snapshot-owned-by-the-outer-orchestrator;Stage-B-Stage-C-or-formal-as-applicable;never-substitute-the-planned-runner-null-descriptor-for-an-active-runner",
+      "legacy-direct-inner-fault-publication-accepted": false,
+      "producer_required_fields": [
+        "source_revision",
+        "entrypoint",
+        "dependency_closure"
+      ],
+      "producer_dependency_closure_entry_required_fields": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "dependency_closure_order": "entrypoint-first-then-complete-recursive-repository-relative-paths-in-utf8-byte-order",
+      "tests_required": [
+        "runner-null-Stage-A-failure-publishes-rich-cleanup-evidence-before-one-fault",
+        "runner-active-Stage-B-or-Stage-C-failure-publishes-rich-cleanup-evidence-before-one-fault",
+        "inner-direct-fault-or-cleanup-publication-is-rejected",
+        "untyped-or-caller-authored-failure-is-rejected",
+        "cleanup-publication-or-semantic-verification-failure-prevents-fault-publication",
+        "outer-orchestrator-producer-entrypoint-and-recursive-closure-mismatch-is-rejected"
+      ]
+    },
+    "process_cleanup_evidence_contract": {
+      "schema": "shogi-halfkp81-depth18-yaneura-only-process-cleanup-evidence-v1r11",
+      "status": "cleanup-independently-recomputable-no-authority",
+      "scopes": {
+        "preformal": {
+          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
+          "bound_by": "preformal_terminal_fault.process_cleanup_evidence"
+        },
+        "post-formal-environment": {
+          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/environment-process-cleanup-evidence.json",
+          "bound_by": "environment_terminal_fault.process_cleanup_evidence"
+        }
+      },
+      "evidence_required_fields": [
+        "schema",
+        "status",
+        "scope",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "launchagent",
+        "runner_identity",
+        "pre_cleanup_ps",
+        "pre_cleanup_process_rows",
+        "ordered_cleanup_commands",
+        "service_absence",
+        "pid_reuse_rejection",
+        "final_ps_first",
+        "final_ps_second",
+        "remaining_process_rows",
+        "remaining_process_group_rows",
+        "process_cleanup",
+        "producer",
+        "captured_at_utc",
+        "authority"
+      ],
+      "additional_top_level_fields_allowed": false,
+      "nested_additional_fields_allowed": {
+        "file_identity": false,
+        "launchagent": false,
+        "runner_identity": false,
+        "raw_transcript": false,
+        "ps_capture": false,
+        "process_row": false,
+        "process_group_row": false,
+        "cleanup_command": false,
+        "service_absence": false,
+        "pid_reuse_rejection": false,
+        "process_cleanup": false,
+        "producer": false,
+        "producer_dependency_closure_entry": false,
+        "authority": false
+      },
+      "scope_values": ["preformal", "post-formal-environment"],
+      "fault_binding_identity_required_fields": ["path", "bytes", "sha256", "schema"],
+      "identity_binding_equations": {
+        "scope_path": "preformal-uses-only-scopes.preformal.path-and-post-formal-environment-uses-only-scopes.post-formal-environment.path",
+        "fault_process_cleanup_evidence": "exact-path-bytes-sha256-schema-of-the-held-create-only-evidence-file-with-schema-equal-to-this-contract.schema",
+        "teacher_plan": "exact-full-file-identity-equal-to-the-binding-fault-teacher_plan",
+        "source_revision": "exact-string-equal-to-binding-fault-plan-and-clean-merged-source",
+        "run_fingerprint": "exact-sha256-equal-to-binding-fault-and-runtime-plan",
+        "launchagent.label": "runner-null-exact-outer-owned-planned-formal-one-shot-label-created-before-Stage-A;runner-active-exact-active-phase-LaunchAgent-label",
+        "launchagent.plist_snapshot": "runner-null-exact-create-only-held-planned-formal-one-shot-plist-snapshot-created-before-Stage-A;runner-active-exact-held-active-phase-LaunchAgent-plist-snapshot"
+      },
+      "publication_order": [
+        "stop-new-scheduling",
+        "capture-pre-cleanup-launchagent-and-process-identities",
+        "execute-and-capture-ordered-bootout-TERM-and-conditional-KILL-commands",
+        "capture-service-absence-and-two-final-ps-snapshots",
+        "reject-pid-reuse-and-recompute-remaining-process-and-group-rows",
+        "publish-create-only-private-cleanup-evidence-and-fsync-file-and-parent-directory",
+        "stable-reread-and-authenticate-full-cleanup-evidence-identity",
+        "publish-fault-binding-that-full-identity-and-the-recomputed-four-field-summary"
+      ],
+      "file_policy": {
+        "create_only": true,
+        "mode_octal": "0600",
+        "regular_file_single_link_current_euid_required": true,
+        "symlink_hardlink_alias_or_preexisting_target_forbidden": true,
+        "stable_held_descriptor_double_read_required": true,
+        "file_and_parent_directory_fsync_required_before_fault_publication": true
+      },
+      "launchagent_required_fields": ["label", "plist_snapshot"],
+      "launchagent_field_contract": {
+        "label": "exact-nonempty-LaunchAgent-label-bound-by-fault-scope",
+        "plist_snapshot": "held-create-only-file-identity-with-exact-path-bytes-sha256-schema"
+      },
+      "runner_identity_required_fields": ["pid", "pgid", "lstart"],
+      "runner_identity_null_policy": {
+        "allowed_only_before-any-runner-admission": true,
+        "requires-bound-fault-phase-before-any-runner-admission": true,
+        "fault-phase-must-be-derived-from-fixed-producer-state-machine-not-caller": true,
+        "requires-pre-cleanup-ps-proof-of-no-matching-runner-or-process-group": true,
+        "requires-bootout-and-post-cleanup-service-absence-proof": true,
+        "requires-both-final-ps-proofs": true,
+        "caller-asserted-not-started-accepted": false
+      },
+      "raw_transcript_required_fields": [
+        "schema",
+        "encoding",
+        "base64",
+        "decoded_bytes",
+        "sha256"
+      ],
+      "raw_transcript_contract": {
+        "encoding": "base64",
+        "canonical_base64_required": true,
+        "decoded_bytes_and_sha256_must-be-recomputed-from-base64": true,
+        "caller-parsed-text-without-held-raw-bytes-accepted": false
+      },
+      "ps_capture_required_fields": [
+        "command",
+        "started_at_utc",
+        "finished_at_utc",
+        "started_monotonic_ns",
+        "finished_monotonic_ns",
+        "exit_code",
+        "signal",
+        "stdout",
+        "stderr",
+        "parsed_process_rows"
+      ],
+      "ps_capture_contract": {
+        "command_must_equal-final_ps_command_exact": true,
+        "monotonic_clock": "node-process.hrtime.bigint-monotonic-nanoseconds",
+        "utc_timestamp_format": "canonical-YYYY-MM-DDTHH:mm:ss.sssZ",
+        "monotonic_ns_json_type": "unsigned-decimal-string",
+        "finished_monotonic_ns_must-be-at-or-after-started_monotonic_ns": true,
+        "finished_at_utc_must-be-at-or-after-started_at_utc": true,
+        "exit_code_required": 0,
+        "signal_required": null,
+        "stdout_and_stderr_must-match-raw_transcript_required_fields": true,
+        "parsed_process_rows_must-be-recomputed-from-held-stdout-bytes": true,
+        "parsed_process_rows_are-exact-filtered-target-and-pid-reuse-rows-not-caller-selected": true,
+        "ambiguous-malformed-or-unparsed-ps-row-accepted": false
+      },
+      "ps_stdout_parse_contract": "parse-each-held-line-as-decimal-pid-ppid-pgid-then-the-fixed-five-token-lstart-field-then-the-unmodified-command-remainder-under-LC_ALL=C;derive-executable-as-command-argv0;reconstruct-the-full-process-table-before-filtering;reject-any-ambiguous-target-descendant-group-or-reuse-row",
+      "process_row_required_fields": [
+        "pid",
+        "ppid",
+        "pgid",
+        "lstart",
+        "executable",
+        "argv",
+        "role"
+      ],
+      "process_row_order": "strict-pid-ascending-then-role-utf8-byte-order-with-no-duplicates",
+      "process_row_field_types": {
+        "pid": "positive-safe-integer",
+        "ppid": "nonnegative-safe-integer",
+        "pgid": "positive-safe-integer",
+        "lstart": "exact-nonempty-ps-lstart-field-string",
+        "executable": "exact-nonempty-command-argv0-derived-from-the-held-ps-command-field",
+        "argv": "exact-nonempty-ps-command-field-string",
+        "role": "one-of-process_row_role_values"
+      },
+      "process_row_role_values": [
+        "runner",
+        "assertion-holder",
+        "power-guardian",
+        "stage-b-supervisor",
+        "yaneuraou-engine",
+        "other-target-descendant",
+        "target-process-group-member",
+        "pid-reuse-nontarget"
+      ],
+      "process_role_derivation": {
+        "runner": "exact-pid-pgid-lstart-runner_identity-and-executable-argv-recomputed-from-held-LaunchAgent-plist-ProgramArguments",
+        "assertion-holder": "exact-PID-PPID-executable-argv-topology-recomputed-from-held-LaunchAgent-authority-and-plist-caffeinate-contract",
+        "power-guardian": "transitive-runner-descendant-whose-executable-and-argv-exactly-match-the-fixed-merged-power-guardian-entrypoint",
+        "stage-b-supervisor": "preformal-scope-transitive-runner-descendant-whose-executable-and-argv-exactly-match-the-fixed-merged-Stage-B-supervisor-entrypoint",
+        "yaneuraou-engine": "transitive-runner-descendant-whose-executable-and-argv-exactly-match-the-teacher-plan-engine-binary-and-fixed-USI-spawn-contract",
+        "other-target-descendant": "remaining-transitive-PPID-descendant-of-the-exact-runner",
+        "target-process-group-member": "remaining-row-with-exact-runner-pgid",
+        "pid-reuse-nontarget": "same-pid-as-a-held-target-with-a-different-pgid-lstart-or-executable-and-therefore-never-a-signal-target",
+        "unknown-mislabeled-or-omitted-target-descendant-or-group-row-accepted": false,
+        "caller-authored-role-accepted-without-recomputation": false
+      },
+      "fixed_role_entrypoints": {
+        "power-guardian": "ml/halfkp81-depth18-power-continuity-guardian.ts",
+        "stage-b-supervisor": "ml/halfkp81-depth18-v1r11-stage-b-launchagent-supervisor.ts",
+        "yaneuraou-engine": "teacher-plan.engine.binary.path-plus-fixed-USI-spawn-argv"
+      },
+      "process_group_row_required_fields": ["pgid", "member_identities"],
+      "process_group_row_contract": {
+        "order": "strict-pgid-ascending-with-no-duplicates",
+        "member_identities": "nonempty-process_row_required_fields-rows-in-process_row_order"
+      },
+      "cleanup_command_required_fields": [
+        "sequence",
+        "phase",
+        "argv",
+        "target_pid",
+        "target_pgid",
+        "target_lstart",
+        "started_at_utc",
+        "finished_at_utc",
+        "started_monotonic_ns",
+        "finished_monotonic_ns",
+        "exit_code",
+        "signal",
+        "disposition",
+        "stdout",
+        "stderr",
+        "absence_probe"
+      ],
+      "ordered_command_policy": {
+        "exact_phase_sequence": ["bootout", "TERM", "KILL"],
+        "bootout_first_argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/${uid}/${label}"
+        ],
+        "term_after_bootout_argv": [
+          "/bin/kill",
+          "-TERM",
+          "--",
+          "-${pgid}"
+        ],
+        "kill_after-bounded-term-grace-only-if-same-pgid-lstart-survives_argv": [
+          "/bin/kill",
+          "-KILL",
+          "--",
+          "-${pgid}"
+        ],
+        "bootout_disposition": "executed",
+        "timestamp_contract": {
+          "utc_timestamp_format": "canonical-YYYY-MM-DDTHH:mm:ss.sssZ",
+          "monotonic_ns_json_type": "unsigned-decimal-string",
+          "each-finished_monotonic_ns-at-or-after-started_monotonic_ns": true,
+          "each-finished_at_utc-at-or-after-started_at_utc": true
+        },
+        "executed-command-monotonic-order": "each-started_monotonic_ns-is-at-or-after-the-previous-executed-command-finished_monotonic_ns-and-finish-is-at-or-after-start",
+        "utc-order-must-match-monotonic-order": true,
+        "term_required_condition": "runner_identity-is-nonnull-and-an-exact-same-pid-pgid-lstart-runner-or-same-pgid-member-identity-survives-the-held-post-bootout-absence-probe",
+        "term_not_required_disposition": "not-required-after-held-post-bootout-absence-probe",
+        "term_not_required_requires-full-identity-absence-probe": true,
+        "kill_not_required_disposition": "not-required-after-held-absence-probe",
+        "kill_not_required_requires_full-identity-absence-probe": true,
+        "not-executed-TERM-or-KILL-row_contract": {
+          "started_and_finished-timestamps": "the-held-branch-decision-interval-with-finish-at-or-after-start",
+          "exit_code": null,
+          "signal": null,
+          "stdout": null,
+          "stderr": null,
+          "absence_probe_must-match-ps_capture_required_fields": true
+        },
+        "executed-command-stdout-and-stderr-must-match-raw_transcript_required_fields": true,
+        "missing-reordered-or-caller-authored-command-row-accepted": false
+      },
+      "command_target_null_policy": {
+        "runner_identity-null": "TERM-and-KILL-target_pid-target_pgid-target_lstart-are-null-and-both-rows-use-not-required-disposition-with-held-absence-probes",
+        "runner_identity-nonnull": "all-command-target_pid-target_pgid-target_lstart-equal-the-held-runner-identity-unless-a-PID-reuse-row-proves-that-target-must-not-be-signaled"
+      },
+      "service_absence_required_fields": [
+        "command",
+        "started_at_utc",
+        "finished_at_utc",
+        "started_monotonic_ns",
+        "finished_monotonic_ns",
+        "exit_code",
+        "signal",
+        "stdout",
+        "stderr",
+        "parsed_service_absent"
+      ],
+      "service_absence_command_exact": [
+        "/bin/launchctl",
+        "print",
+        "gui/${uid}/${label}"
+      ],
+      "service_absence_success_semantics": {
+        "utc_timestamp_format": "canonical-YYYY-MM-DDTHH:mm:ss.sssZ",
+        "monotonic_ns_json_type": "unsigned-decimal-string",
+        "finished_monotonic_ns_must-be-at-or-after-started_monotonic_ns": true,
+        "finished_at_utc_must-be-at-or-after-started_at_utc": true,
+        "must-start-at-or-after-bootout-finished_monotonic_ns": true,
+        "must-finish-at-or-before-final_ps_first.started_monotonic_ns": true,
+        "exit_code_exact": 113,
+        "signal_exact": null,
+        "stdout_decoded_bytes_exact_utf8": "",
+        "stderr_decoded_bytes_exact_utf8_template": "Bad request.\nCould not find service \"${label}\" in domain for user gui: ${uid}\n",
+        "stdout_and_stderr_must-match-raw_transcript_required_fields": true,
+        "parsed_service_absent_must-be-recomputed-from-exact-command-exit-signal-and-held-bytes": true
+      },
+      "service_absence_cross_binding": "the-single-top-level-service_absence-object-is-the-exact-held-capture-used-by-scheduling_stopped-and-every-command-branch-that-requires-service-absence-no-copy-or-earlier-probe-is-accepted",
+      "arbitrary-nonzero-launchctl-exit-accepted-as-service-absent": false,
+      "pid_reuse_rejection_required_fields": [
+        "identity_tuple_fields",
+        "checked_pids",
+        "rejected_reuse_rows",
+        "all_reuse_rejected"
+      ],
+      "pid_identity_tuple_fields": ["pid", "pgid", "lstart", "executable"],
+      "pid_reuse_recomputed_fields": [
+        "checked_pids",
+        "rejected_reuse_rows",
+        "all_reuse_rejected"
+      ],
+      "same-pid-with-different-pgid-lstart-or-executable-is-pid-reuse-not-target-survival": true,
+      "pid-reuse-must-never-be-signaled-or-counted-as-cleaned-target": true,
+      "raw_identity_schemas": {
+        "command_stdout": "text/plain-exact-command-stdout",
+        "command_stderr": "text/plain-exact-command-stderr",
+        "pre_cleanup_ps_stdout": "text/plain-exact-pre-cleanup-ps-stdout",
+        "pre_cleanup_ps_stderr": "text/plain-exact-pre-cleanup-ps-stderr",
+        "final_ps_stdout": "text/plain-exact-final-ps-stdout",
+        "final_ps_stderr": "text/plain-exact-final-ps-stderr"
+      },
+      "final_ps_command_exact": [
+        "/bin/ps",
+        "-ww",
+        "-axo",
+        "pid=,ppid=,pgid=,lstart=,command="
+      ],
+      "pre_cleanup_ps_command_must_equal-final_ps_command": true,
+      "dual_final_ps_policy": {
+        "two-independent-command-executions-required": true,
+        "first-and-second-must-each-match-ps_capture_required_fields": true,
+        "separation_recomputation": "final_ps_second.started_monotonic_ns-minus-final_ps_first.finished_monotonic_ns",
+        "minimum-separation-milliseconds": 1000,
+        "maximum-separation-milliseconds": 10000,
+        "utc-order-must-match-monotonic-order": true,
+        "both-parses-must-produce-identical-empty-target-and-group-sets": true
+      },
+      "row_binding_equations": {
+        "pre_cleanup_process_rows": "exact-process_row_order-set-recomputed-from-pre_cleanup_ps.parsed_process_rows-containing-the-exact-runner-all-transitive-runner-descendants-all-exact-runner-pgid-members-and-no-unrelated-row-with-every-role-recomputed-by-process_role_derivation",
+        "remaining_process_rows": "exact-process_row_order-union-of-target-identities-and-same-pgid-members-recomputed-from-both-final-ps-parses",
+        "remaining_process_group_rows": "exact-process_group_row_contract-groups-recomputed-from-remaining_process_rows-and-both-final-ps-parses",
+        "pid_reuse_rejection.checked_pids": "strict-ascending-unique-pids-from-pre_cleanup_process_rows-runner_identity-and-command-targets",
+        "pid_reuse_rejection.all_reuse_rejected": "recomputed-true-only-when-every-same-pid-different-identity-row-is-excluded-from-signal-targets-and-cleaned-counts"
+      },
+      "phase_absence_probe_binding": {
+        "bootout": "bootout-row.absence_probe-is-a-ps_capture-starting-after-bootout-finish-and-finishing-before-TERM-row-start-and-is-the-only-input-to-the-TERM-required-condition",
+        "TERM": "TERM-row.absence_probe-is-a-ps_capture-starting-after-the-TERM-grace-or-not-required-decision-and-finishing-before-KILL-row-start-and-is-the-only-input-to-the-KILL-required-condition",
+        "KILL": "KILL-row.absence_probe-is-a-ps_capture-starting-after-KILL-finish-or-not-required-decision-and-finishing-before-service_absence.start-and-must-show-no-exact-target-or-target-group-survivor",
+        "probe_target_set": "exact-runner-all-transitive-runner-descendants-and-all-exact-runner-pgid-members-recomputed-from-the-immediately-preceding-held-ps-capture",
+        "earlier-replayed-self-referential-or-cross-phase-probe-accepted": false
+      },
+      "full_timeline_equation": "pre_cleanup_ps.finished_monotonic_ns<=bootout.started_monotonic_ns<=bootout.finished_monotonic_ns<=bootout.absence_probe.started_monotonic_ns<=bootout.absence_probe.finished_monotonic_ns<=TERM.started_monotonic_ns<=TERM.finished_monotonic_ns<=TERM.absence_probe.started_monotonic_ns<=TERM.absence_probe.finished_monotonic_ns<=KILL.started_monotonic_ns<=KILL.finished_monotonic_ns<=KILL.absence_probe.started_monotonic_ns<=KILL.absence_probe.finished_monotonic_ns<=service_absence.started_monotonic_ns<=service_absence.finished_monotonic_ns<=final_ps_first.started_monotonic_ns<=final_ps_first.finished_monotonic_ns<final_ps_second.started_monotonic_ns<=final_ps_second.finished_monotonic_ns-with-the-final-gap-1000-to-10000-ms-and-all-UTC-order-matching",
+      "process_cleanup_required_fields": [
+        "scheduling_stopped",
+        "engines_terminated",
+        "engines_reaped",
+        "remaining_engine_pids"
+      ],
+      "process_cleanup_field_types": {
+        "scheduling_stopped": "boolean",
+        "engines_terminated": "nonnegative-safe-integer",
+        "engines_reaped": "nonnegative-safe-integer",
+        "remaining_engine_pids": "strict-ascending-unique-positive-safe-integer-array"
+      },
+      "summary_recomputation": {
+        "scheduling_stopped": "true-only-when-bootout-is-ordered-first-and-service_absence-is-recomputed-true-from-the-exact-accepted-command-exit-signal-and-held-raw-bytes",
+        "engines_terminated": "nonnegative-count-of-distinct-pre_cleanup-engine-identities-proven-absent-from-both-final-ps-snapshots-with-no-same-identity-process-group-remaining",
+        "engines_reaped": "nonnegative-count-of-distinct-pre_cleanup-engine-identities-proven-absent-with-no-target-or-zombie-row-in-both-final-ps-snapshots-and-service-absence-recomputed-true",
+        "remaining_engine_pids": "strict-ascending-unique-engine-pids-recomputed-from-remaining_process_rows-and-remaining_process_group_rows",
+        "required_success_summary": {
+          "scheduling_stopped": true,
+          "engines_terminated": "equals-distinct-pre_cleanup-engine-identity-count",
+          "engines_reaped": "equals-distinct-pre_cleanup-engine-identity-count",
+          "remaining_engine_pids": []
+        }
+      },
+      "fault_publication_gate": "fault-publication-is-forbidden-unless-the-held-create-only-cleanup-evidence-file-revalidates-and-its-full-path-bytes-sha256-schema-identity-recomputes-the-exact-process_cleanup-summary",
+      "producer_required_fields": [
+        "source_revision",
+        "entrypoint",
+        "dependency_closure"
+      ],
+      "producer_dependency_closure_entry_required_fields": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "producer_contract": {
+        "entrypoint_exact": "ml/produce-halfkp81-depth18-v1r11-process-cleanup-evidence.ts",
+        "source_revision_must-equal-evidence-fault-plan-and-clean-merged-source": true,
+        "dependency_closure_must-be-complete-recursive-and-held": true,
+        "dependency_closure_order": "entrypoint-first-then-remaining-repository-relative-paths-in-utf8-byte-order",
+        "each-entry-bytes-and-sha256-must-be-recomputed-from-exact-source_revision": true,
+        "caller-supplied-or-partial-closure-accepted": false
+      },
+      "authority_required_fields": [
+        "may_execute_preformal_engine_gates",
+        "may_execute_formal_teacher",
+        "may_train",
+        "may_play_formal_games",
+        "may_write_live_weights"
+      ],
+      "authority_exact": {
+        "may_execute_preformal_engine_gates": false,
+        "may_execute_formal_teacher": false,
+        "may_train": false,
+        "may_play_formal_games": false,
+        "may_write_live_weights": false
+      },
+      "captured_at_utc_contract": "canonical-YYYY-MM-DDTHH:mm:ss.sssZ-at-or-after-final_ps_second.finished_at_utc-and-before-create-only-publication",
+      "tests_required": [
+        "accept-valid-preformal-cleanup-evidence-and-recompute-all-four-summary-fields",
+        "accept-valid-post-formal-environment-cleanup-evidence-and-recompute-all-four-summary-fields",
+        "reject-fault-publication-when-cleanup-evidence-is-missing-preexisting-nonprivate-or-not-durable",
+        "reject-label-plist-runner-pid-pgid-or-lstart-mismatch",
+        "reject-bootout-TERM-KILL-command-order-argv-transcript-or-full-identity-mismatch",
+        "reject-arbitrary-launchctl-error-as-service-absence",
+        "reject-service-absence-caller-boolean-or-exit-signal-stdout-stderr-template-mismatch",
+        "reject-pid-reuse-as-target-survival-or-cleanup-success",
+        "reject-one-final-ps-snapshot-tampered-raw-transcript-or-unprovable-out-of-range-monotonic-separation",
+        "reject-nonempty-remaining-process-or-group-rows-and-summary-mismatch",
+        "accept-runner-null-only-with-bootout-then-explicit-TERM-and-KILL-not-required-rows-backed-by-held-absence-probes",
+        "reject-runner-null-or-runner-present-TERM-branch-disposition-mismatch",
+        "reject-caller-authored-process_cleanup-booleans-without-independent-recomputation",
+        "reject-cleanup-evidence-top-level-or-nested-key-set-mismatch",
+        "reject-cleanup-command-ps-or-service-timestamp-type-order-or-full-timeline-mismatch",
+        "reject-replayed-cross-phase-or-self-referential-absence-probe-and-branch-decision-mismatch",
+        "reject-unknown-mislabeled-or-omitted-runner-descendant-process-group-or-yaneuraou-row",
+        "reject-ambiguous-ps-parse-unrelated-row-inclusion-or-target-row-omission",
+        "reject-cleanup-evidence-producer-entrypoint-source-revision-closure-order-or-recursive-dependency-closure-mismatch"
+      ]
+    },
+    "launchagent_evidence": {
+      "capture_time": "after-preliminary-live-final-formal-one-shot-LaunchAgent-process-and-caffeinate-assertion-observation-before-final-preformal-verification-and-before-first-formal-8192-parent-engine",
+      "preliminary_observation_has_formal_engine_authority": false,
+      "official_formal_power_guardian_admission_occurs_only_after-final-preformal-verified-receipt-and-binds-that-receipt-plus-this-evidence": true,
+      "launchctl_command_exact": [
+        "/bin/launchctl",
+        "print",
+        "gui/${uid}/${label}"
+      ],
+      "launchctl_exit_code_required": 0,
+      "launchctl_print_and_plist_must_be_captured_from_held_stable_descriptors": true,
+      "ps_command_exact": [
+        "/bin/ps",
+        "-ww",
+        "-axo",
+        "pid=,ppid=,pgid=,lstart=,command="
+      ],
+      "ps_exit_code_required": 0,
+      "ps_stdout_and_stderr_must_be-held-create-only-full-file-identities": true,
+      "process_row_required_fields": [
+        "pid",
+        "ppid",
+        "pgid",
+        "lstart",
+        "executable",
+        "argv",
+        "role"
+      ],
+      "process_row_role_values": ["runner", "assertion-holder"],
+      "runner_process_binding": "exact-runner_pid-PPID-PGID-lstart-executable-argv-row-recomputed-from-held-ps_stdout-and-LaunchAgent-ProgramArguments",
+      "assertion_holder_process_binding": "exact-caffeinate_holder.pid-with-PPID-equal-runner_pid-and-PGID-equal-runner_process.pgid-plus-fixed-caffeinate-executable-argv-recomputed-from-held-ps_stdout",
+      "observed_process_group_rows_exact": [
+        "runner_process",
+        "assertion_holder_process"
+      ],
+      "observed_yaneuraou_engine_rows_exact": [],
+      "unknown-mislabeled-omitted-or-extra-process-row-accepted": false,
+      "raw_captures_must_be_create_only_private_single_link_regular_files": true,
+      "evidence_json_must_bind_raw_capture_bytes_sha256_paths-and-content-types": true,
+      "raw_capture_content_types": {
+        "launchagent_launchctl_print_txt": "text/plain-utf8-exact-command-stdout",
+        "launchagent_launchctl_print_stderr_txt": "text/plain-utf8-exact-command-stderr",
+        "launchagent_plist_snapshot": "application/x-apple-aspen-config-exact-bytes",
+        "launchagent_ps_stdout_txt": "text/plain-exact-launchagent-ps-stdout",
+        "launchagent_ps_stderr_txt": "text/plain-exact-launchagent-ps-stderr"
+      },
+      "producer_contract": {
+        "required_fields": [
+          "source_revision",
+          "entrypoint",
+          "dependency_closure"
+        ],
+        "dependency_closure_entry_required_fields": [
+          "path",
+          "bytes",
+          "sha256"
+        ],
+        "entrypoint_exact": "ml/halfkp81-depth18-v1r11-stage-c-live-evidence.ts",
+        "source_revision_must-equal-plan-and-clean-merged-source": true,
+        "dependency_closure_order": "entrypoint-first-then-complete-recursive-repository-relative-paths-in-utf8-byte-order",
+        "held-source-bytes-and-sha256-must-be-independently-recomputed": true
+      },
+      "plist_source_metadata_required_fields": [
+        "plist_path",
+        "realpath",
+        "dev",
+        "ino",
+        "uid",
+        "mode",
+        "nlink",
+        "bytes",
+        "sha256"
+      ],
+      "plist_source_path": "$HOME/Library/LaunchAgents/${label}.plist",
+      "plist_source_must_be-owned-private-single-link-regular-file-and-match-snapshot-bytes": true,
+      "required_semantics": [
+        "gui-uid-and-XPC-service-name-exact",
+        "label-source-revision-suffix-exact",
+        "state-running-and-runner-pid-exact",
+        "working-directory-stdout-stderr-and-private-plist-path-exact",
+        "LaunchAgent-ProgramArguments-deep-equals-runner_utility_argv",
+        "caffeinate_argv-deep-equals-/usr/bin/caffeinate--dimsu--w-runner_pid",
+        "plist-bytes-equal-deterministic-one-shot-KeepAlive-false-LaunchOnlyOnce-true-policy",
+        "runner-child-caffeinate-holder-topology-and-assertion-owner-exact",
+        "held-command-only-ps-command-exit-stdout-stderr-and-full-runner-holder-rows-exact-with-executable-derived-from-command-argv0-and-truncated-ucomm-or-comm-never-used",
+        "observed-process-group-is-exactly-runner-then-holder-and-yaneuraou-engine-row-count-is-zero"
+      ],
+      "durable_binding": {
+        "ac_gate_evidence_and_preformal_ledger_must_bind_launchagent_evidence_identity": true,
+        "preformal_raw_and_verified_receipts_must_bind_launchagent_raw_captures_evidence_and-ledger-identities": true,
+        "power_continuity_admission_final_entry_and_receipt_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+        "teacher_work_ledger_header_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+        "raw_teacher_receipt_must_bind_launchagent_evidence_preformal_ledger_raw-and-verified-receipts": true,
+        "verified_artifact_receipt_must_independently_recompute_and_bind_the_same_launchagent_and-preformal-chain": true,
+        "environment_terminal_fault_must_bind_launchagent_evidence_and_preformal_verified_receipt": true,
+        "preformal_and_environment_terminal_faults_must-bind-create-only-process-cleanup-evidence-full-identity": true,
+        "preformal_terminal_fault_before-final-verification-uses-nullable-available-prefix-identities-and-never-claims-final-receipt": true
+      },
+      "tests_required": [
+        "accept-held-ps-and-exact-runner-holder-process-group-with-zero-yaneuraou",
+        "reject-ps-command-exit-stdout-stderr-identity-mismatch",
+        "reject-runner-or-holder-pid-ppid-pgid-lstart-executable-argv-role-mismatch",
+        "reject-extra-missing-reordered-process-group-row-or-any-yaneuraou-row",
+        "reject-launchagent-evidence-producer-entrypoint-or-recursive-closure-mismatch"
+      ]
+    },
+    "downstream_binding_contracts": {
+      "full_file_identity_required_everywhere": [
+        "path",
+        "bytes",
+        "sha256",
+        "schema"
+      ],
+      "power_ledger_entry": {
+        "schema": "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+        "status_values": [
+          "admission-pass",
+          "sample-pass",
+          "final-pass",
+          "environment-fault"
+        ],
+        "required_fields": [
+          "schema",
+          "status",
+          "entry_kind",
+          "timestamp_utc",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "launchagent_authority_evidence",
+          "preformal_authority_verified_receipt",
+          "observation",
+          "environment_fault",
+          "previous_entry_sha256",
+          "entry_sha256"
+        ]
+      },
+      "power_receipt": {
+        "schema": "shogi-halfkp81-depth18-power-continuity-receipt-v1r11",
+        "status_values": [
+          "power-continuity-verified",
+          "environment-fault-closed"
+        ],
+        "required_fields": [
+          "schema",
+          "status",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "power_ledger",
+          "admission_entry",
+          "final_entry",
+          "launchagent_authority_evidence",
+          "preformal_authority_verified_receipt",
+          "pmset_start_anchor",
+          "pmset_end_anchor",
+          "environment_fault_preimage_sha256",
+          "producer"
+        ]
+      },
+      "teacher_work_header": {
+        "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+        "status_values": ["formal-work-ledger-open"],
+        "required_fields": [
+          "schema",
+          "status",
+          "record_kind",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "launchagent_authority_evidence",
+          "preformal_authority_verified_receipt",
+          "power_admission_entry",
+          "opened_at_utc"
+        ]
+      },
+      "raw_teacher_receipt": {
+        "schema": "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11",
+        "status_values": ["complete-unverified-no-training-authority"],
+        "required_fields": [
+          "schema",
+          "status",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "teacher_work",
+          "teacher_output",
+          "preformal_authority_ledger",
+          "preformal_authority_raw_receipt",
+          "preformal_authority_verified_receipt",
+          "launchagent_authority_evidence",
+          "power_continuity_ledger",
+          "power_continuity_receipt",
+          "finalizer",
+          "authority"
+        ]
+      },
+      "verified_artifact_receipt": {
+        "schema": "shogi-halfkp81-hard-depth18-teacher-verified-artifact-receipt-v1r11",
+        "status_values": [
+          "teacher-artifacts-and-authority-chain-independently-verified-training-only-authority"
+        ],
+        "required_fields": [
+          "schema",
+          "status",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "raw_teacher_receipt",
+          "teacher_work",
+          "teacher_output",
+          "preformal_authority_ledger",
+          "preformal_authority_raw_receipt",
+          "preformal_authority_verified_receipt",
+          "launchagent_authority_evidence",
+          "power_continuity_ledger",
+          "power_continuity_receipt",
+          "verifier",
+          "authority"
+        ]
+      },
+      "environment_terminal_fault": {
+        "schema": "shogi-halfkp81-hard-depth18-yaneura-only-environment-terminal-fault-v1r11",
+        "status_values": ["environment-continuity-fault-family-closed"],
+        "required_fields": [
+          "schema",
+          "status",
+          "teacher_plan",
+          "source_revision",
+          "run_fingerprint",
+          "preformal_authority_verified_receipt",
+          "launchagent_authority_evidence",
+          "power_continuity_ledger",
+          "power_continuity_receipt",
+          "fault_preimage_sha256",
+          "fault",
+          "process_cleanup_evidence",
+          "process_cleanup",
+          "faulted_at_utc",
+          "authority"
+        ]
+      },
+      "authority_values": {
+        "raw_teacher_receipt": {
+          "may_train": false,
+          "may_play_formal_games": false,
+          "may_write_live_weights": false
+        },
+        "verified_artifact_receipt": {
+          "may_train_fixed_v1r11_candidate": true,
+          "may_play_formal_games": false,
+          "may_write_live_weights": false
+        },
+        "environment_terminal_fault": {
+          "may_train": false,
+          "may_play_formal_games": false,
+          "may_write_live_weights": false
+        }
+      },
+      "formal_like_power_epoch_separation": {
+        "stage_b_power_ledger_and_receipt_have-distinct-path-schema-and-run_fingerprint-from-formal-power-ledger": true,
+        "stage_b_verified_receipt_cannot-satisfy-formal-power-admission": true,
+        "final_preformal_verified_receipt_cannot-reference-stage_b-power-identity-as-final-formal-power-identity": true
+      }
+    },
+    "finalization_order": [
+      "trusted-producer-executes-each-fixed-gate-and-publishes-create-only-evidence-and-gate-receipt",
+      "append-and-fsync-one-hash-chained-ledger-row-per-gate",
+      "after-gates-1-through-7-publish-stage-A-independent-verified-receipt-with-preformal-engine-only-authority",
+      "execute-gates-8-through-12-in-one-shot-power-epochs-bound-to-stage-A-receipt-with-fsynced-reaped-handoffs",
+      "capture-and-seal-live-final-formal-LaunchAgent-raw-files-and-authority-evidence-during-final-AC-gate",
+      "close-and-authenticate-preformal-ledger",
+      "trusted-semantic-finalizer-revalidates-all-gates-and-publishes-create-only-raw-receipt",
+      "independent-semantic-verifier-revalidates-ledger-raw-receipt-gates-and-LaunchAgent-evidence",
+      "publish-create-only-verified-receipt-with-formal-only-authority",
+      "power-guardian-admission-binds-verified-preformal-and-LaunchAgent-identities",
+      "only-then-start-first-formal-8192-parent-yaneuraou-engine"
+    ],
+    "implementation_tests_required": [
+      "reject-caller-authored-pass-payload-or-receipt",
+      "reject-identity-only-gate-evidence-without-semantic-validation",
+      "reject-wrong-gate-schema-order-duplicate-gap-or-hash-chain",
+      "reject-source-plan-fingerprint-or-cross-gate-revision-mismatch",
+      "reject-non-create-only-symlink-multilink-wrong-mode-or-namespace-escape",
+      "reject-launchctl-or-plist-raw-capture-tamper",
+      "reject-missing-LaunchAgent-binding-in-ledger-raw-or-verified-receipt",
+      "reject-raw-preformal-receipt-without-independent-verified-receipt",
+      "reject-direct-formal-core-or-alternate-entrypoint-without-verified-receipt",
+      "reject-missing-LaunchAgent-binding-in-power-work-raw-teacher-or-verified-artifact-receipt",
+      "producer-finalizer-verifier-handoff-or-final-AC-fault-publishes-preformal-terminal-fault-keeps-all-authority-false-and-closes-namespace",
+      "reject-stage-B-engine-gate-without-stage-A-verified-receipt",
+      "reject-stage-A-receipt-for-formal-teacher-or-training",
+      "reject-formal-like-byte-equality-claim-that-includes-run-specific-power-identities"
+    ]
+  },
+  "predecessor_failures": {
+    "v1r6": {
+      "completed_parents": 3262,
+      "completed_teacher_rows": 38393,
+      "failure": "Hash512-G*6a-depth18-wall-timeout",
+      "reuse_completed_parents": 0,
+      "reuse_teacher_rows": 0,
+      "same_family_resume_authorized": false,
+      "teacher_plan_sha256": "deb8097134c1ec166b1c1e0729ba495d34c007ee8084745ba646f07ae25f5725"
+    },
+    "v1r7": {
+      "failure": "100m-cap-pre-pr-label-fidelity-calibration-failed",
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r7-pre-pr-calibration-failure-2026-08-01.json",
+      "maximum_absolute_cp_delta": 33989,
+      "maximum_rank_displacement": 4,
+      "reuse_rows": 0,
+      "same_family_resume_authorized": false
+    },
+    "v1r8": {
+      "failure": "2b-cap-did-not-complete-depth16-at-Hash512",
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r8-floor16-diagnostic-failure-2026-08-01.json",
+      "maximum_observed_nodes": 2000000532,
+      "reuse_rows": 0,
+      "same_family_resume_authorized": false,
+      "selected_completed_depth": 15
+    },
+    "v1r9": {
+      "failure": "post-merge-runtime-plan-self-authentication-schema-identity-mismatch",
+      "formal_teacher_started": false,
+      "invalid_runtime_plan_bytes": 16406,
+      "invalid_runtime_plan_sha256": "c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19",
+      "invalid_runtime_plan_source_revision": "141e4e39e79c1772a18dc79dbb4bbf480bfe4a53",
+      "reuse_completed_parents": 0,
+      "reuse_teacher_rows": 0,
+      "same_namespace_republication_authorized": false
+    },
+    "v1r10": {
+      "classification": "low-power-sleep-contaminated-formal-search-timeout-technical-fault",
+      "completed_parents": 4196,
+      "completed_teacher_rows": 49190,
+      "fallback_parents": 5,
+      "formal_source_revision": "f75184f41533cb2fb93f54ca723056bc9c813d29",
+      "formal_run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
+      "teacher_plan": {
+        "bytes": 16859,
+        "sha256": "9f56b8ab252ce96a4ee0675252e7b54be6cdb26d294dde08d896dce9b7c60b15"
+      },
+      "teacher_work": {
+        "bytes": 91081134,
+        "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
+      },
+      "terminal_fault": {
+        "bytes": 1084,
+        "sha256": "436e9c6dfe5d8824cf89b1616ed82e082bfdafe67e7e8ed6870bb5e2d5539997"
+      },
+      "new_family_import_completed_parents_after_independent_verifier_pass": 4196,
+      "new_family_import_teacher_rows_after_independent_verifier_pass": 49190,
+      "reuse_partial_or_inflight_state": 0,
+      "same_family_resume_authorized": false,
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r10-low-power-sleep-terminal-fault-2026-08-02.json",
+      "reuse_scratch_rows": 0,
+      "reuse_v1r10_milestones": 0,
+      "reuse_preformal_gate_evidence": false,
+      "import_contract": "minimal_formal_start_gate.v1r10_durable_completed_set_import"
+    }
+  },
+  "required_preformal_gates": {
+    "artifact_verifier_implementation_tests": {
+      "meaning": "Tests the independent artifact-verifier implementation before any preformal or formal execution; this is not the verifier PASS over completed formal artifacts.",
+      "status": "not-run"
+    },
+    "preformal_authority_implementation_tests": {
+      "meaning": "Runs the fixed Stage-A/B/C end-to-end test over the trusted semantic producer, seven-row Stage-A prefix receipt, five distinct Stage-B power epochs, gate-13 finalization, independent verification, fault closure, and durable LaunchAgent bindings; the old single-stage test, identity-only evidence, and caller-authored pass artifacts have no gate-5 authority.",
+      "must_cover_preformal_authority_contract_implementation_tests_required": true,
+      "technical_faults_maximum": 0,
+      "status": "not-run"
+    },
+    "candidate_order": {
+      "candidate_set_digest_must_be_fixed_before_rescore": true,
+      "fallback_must_retain_identical_candidate_order_and_digest": true,
+      "normal_and_fallback_publication_order_must_be_canonical": true,
+      "status": "not-run"
+    },
+    "formal_like_512": {
+      "artifact_verifier_must_pass": true,
+      "parents": 512,
+      "technical_faults_maximum": 0,
+      "teacher_contract_must_equal_formal": true,
+      "status": "not-run",
+      "power_continuity_semantics_must_equal_formal": true,
+      "run_specific_power_and_launchagent_identities_must_differ_from_formal": true,
+      "authorized_by_stage_a_verified_receipt_not-final-preformal-receipt": true
+    },
+    "known10_probe": {
+      "exact_depth18_result_identity_required": true,
+      "moves": 10,
+      "parents": 8,
+      "source": "all-v1r6-successful-independent-depth18-rescores-above-100m-nodes",
+      "status": "not-run"
+    },
+    "mixed_load": {
+      "fallback_engines": 2,
+      "fallback_hash_mib_each": 8192,
+      "normal_engines": 8,
+      "normal_hash_mib_each": 512,
+      "technical_faults_maximum": 0,
+      "status": "not-run"
+    },
+    "pathological_fallback": {
+      "fallback_exact_depth18_must_match_hash8192_evidence": true,
+      "normal_lane_must_route_without_publishing_partial_or_capped_rows": true,
+      "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+      "status": "not-run"
+    },
+    "required_order": [
+      "ready-pr",
+      "all-required-ci-success",
+      "regular-merge",
+      "clean-main-source-authentication",
+      "preformal-authority-implementation-tests-pass",
+      "artifact-verifier-implementation-tests-pass",
+      "power-guardian-implementation-tests-pass",
+      "candidate-order-gate",
+      "known10-probe",
+      "pathological-fallback-probe",
+      "mixed-load-gate",
+      "formal-like-512",
+      "ac-power-start-admission-pass",
+      "formal-teacher"
+    ],
+    "power_guardian_implementation_tests": {
+      "injected_ac_loss_must_fail_closed": true,
+      "injected_assertion_loss_must_fail_closed": true,
+      "injected_boot_change_must_fail_closed": true,
+      "injected_sleep_darkwake_hibernate_must_fail_closed": true,
+      "injected_heartbeat_gap_over_90000ms_must_fail_closed": true,
+      "status": "not-run",
+      "unrelated_process_assertions_must_not_satisfy_gate": true,
+      "pmset_anchor_truncation_reset_or_parse_ambiguity_must_fail_closed": true,
+      "guardian_coverage_and_finalization_order_must_be_verified": true,
+      "portable_home_expansion_and_symlink_rejection_must_be_verified": true,
+      "caffeinate_assertion_holder_parent_not_exact_runner_pid_must_fail_closed": true,
+      "assertion_owner_not_exact_caffeinate_pid_must_fail_closed": true,
+      "caffeinate_executable_or_argv_mismatch_must_fail_closed": true,
+      "wrong_but_absolute_environment_home_must_be_rejected": true,
+      "injected_environment_fault_must_cross_bind_power_ledger_receipt_and_terminal_fault": true
+    },
+    "ac_power_start_admission": {
+      "battery_percentage_minimum": 80,
+      "caffeinate_assertions_required": true,
+      "power_source_must_equal": "AC Power",
+      "status": "not-run"
+    }
+  },
+  "required_post_formal_gate": {
+    "independent_artifact_verifier_pass": {
+      "meaning": "After the formal teacher completes, independently verify the completed formal plan, ledger, rows, receipts, hashes, ordering, exact-depth labels, escalation budgets, trusted preformal ledger/raw/verified chain, and durable LaunchAgent evidence bindings before training.",
+      "required_before_training": true,
+      "status": "not-applicable-formal-teacher-not-complete"
+    },
+    "power_continuity_verifier_pass": {
+      "meaning": "Independently verify create-only formal power evidence covers before the first formal 8192-parent engine through after every formal engine is reaped; the runner is the original utility job PID and its exact direct-child caffeinate assertion-holder PID owns every required assertion under the fixed executable and argv; canonical pmset anchors are intact with zero Sleep, DarkWake, Wake, or Hibernate; AC, boot identity, cadence, finalization order, ledger bytes/SHA, verified preformal authority, persistent LaunchAgent evidence, and raw/verified teacher-receipt bindings all pass. On an environment-fault path, the verifier also requires the terminal fault and create-only power ledger/receipt to cross-bind under the non-circular preimage rule.",
+      "required_before_training": true,
+      "status": "not-applicable-formal-teacher-not-complete"
+    }
+  },
+  "reused_selection": {
+    "jsonl": {
+      "bytes": 7268777,
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "rows": 8192,
+      "schema": "halfkp81-depth18-hard-parent-v2",
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "manifest": {
+      "bytes": 3234,
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "schema": "halfkp81-depth18-hard-parent-selection-manifest-v2",
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "schema": "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
+  "selection_roles": {
+    "fit": 6144,
+    "sealed": 1024,
+    "tune": 1024
+  },
+  "source_revision_policy": {
+    "must_bind_new_clean_merged_main_revision": true,
+    "new_run_fingerprint_required": true,
+    "ready_pull_request_and_all_required_ci_must_precede_regular_merge": true,
+    "runtime_plan_source_revision_must_equal_authenticated_main_head": true,
+    "tracked_plan_must_be_merged_before_runtime_plan": true,
+    "uncommitted_changes_maximum": 0,
+    "power_guardian_contract_must_be_merged_before_runtime_plan": true,
+    "trusted_semantic_preformal_contract_must_be_merged_before_runtime_plan": true,
+    "formal_and_authority_output_namespaces_must_be_disjoint_and_absent_before_create_only_publication": true
+  },
+  "status": "prospective-v1r10-low-power-sleep-recovery-not-executed",
+  "teacher": {
+    "candidate_policy": {
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "recorded_move": {
+        "required": true
+      },
+      "stable_wasm": {
+        "allowed": false,
+        "calls_per_parent": 0,
+        "candidate_rows": 0,
+        "worker_processes": 0
+      },
+      "yaneuraou_depth16_multipv": {
+        "depth": 16,
+        "multipv": 12,
+        "node_cap": null,
+        "required": true
+      }
+    },
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "engine_identity": {
+      "binary_bytes": 700048,
+      "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
+      "eval_bytes": 64217066,
+      "eval_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782",
+      "receipt_bytes": 654,
+      "receipt_sha256": "a448c6be4229216665a34dbc13edf89f486364a57958ba1adad76a7b206f9c4e",
+      "source_commit": "9133c527791c8b2f5f378a32df29a5e3752bd41b"
+    },
+    "fallback_lane": {
+      "candidate_set": "reuse-fixed-normal-proposal-candidate-order-and-digest",
+      "capped_label_publication_allowed": false,
+      "depth": 18,
+      "engine_lifetime": "fresh-engine-per-escalated-parent",
+      "fifo_queue": true,
+      "fallback_hash_downgrade_allowed": false,
+      "forbidden_hash_mib_substitutions": [2048, 4096],
+      "hash_mib_per_process": 8192,
+      "hash_mib_must_equal": 8192,
+      "maximum_concurrent_processes": 2,
+      "node_cap": null,
+      "partial_or_normal_lane_rescore_reuse_allowed": false,
+      "publication": "only-after-all-candidates-complete-exact-depth18",
+      "rescore_all_candidates_from_zero": true,
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_process": 1
+    },
+    "maximum_rows": 106496,
+    "maximum_rows_per_parent": 13,
+    "minimum_rows_per_parent": 2,
+    "normal_lane": {
+      "capped_label_publication_allowed": false,
+      "depth": 18,
+      "hash_mib_per_process": 512,
+      "minimum_completed_depth": 1,
+      "minimum_completed_depth_purpose": "routing-only-not-label-quality-floor",
+      "node_cap": 2000000000,
+      "node_cap_result": "route-whole-parent-never-label",
+      "processes": 8,
+      "routing_condition": "any-independent-rescore-terminates-at-node-cap-before-exact-depth18",
+      "routing_scope": "whole-parent",
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_process": 1,
+      "whole_parent_discard_before_fallback": true
+    },
+    "old_depth6_or_depth12_cp_target_rows": 0,
+    "parent_publication": {
+      "candidate_omission_allowed": false,
+      "capped_teacher_rows": 0,
+      "exact_depth18_required_for_every_published_candidate": true,
+      "fallback_partial_parent_publication_allowed": false,
+      "normal_partial_parent_publication_allowed": false,
+      "published_candidate_count_must_equal_fixed_candidate_count": true
+    },
+    "persistent_normal_engine_processes": true,
+    "reset_timeout_recovery": {
+      "eligible_fault_class": "persistent-engine-reset-timeout-only",
+      "first_attempt_partial_reuse": 0,
+      "maximum_whole_parent_retries": 1,
+      "on_first_reset_timeout": "terminate-reap-replace-and-recompute-whole-unpublished-parent-once",
+      "replacement_or_retry_failure_policy": "family-terminal-fault",
+      "search_timeout_retry_allowed": false,
+      "second_reset_timeout_policy": "family-terminal-fault"
+    }
+  },
+  "training": {
+    "checkpoint_selection": "final-epoch-only",
+    "direct_loss": "sigmoid-bce-k600",
+    "direct_loss_fraction": 0.5,
+    "epochs": 3,
+    "groupwise_loss": "listnet-cp-over-600",
+    "groupwise_loss_fraction": 0.5,
+    "initializer": "original-alpha-050-not-v3-or-v4-candidate",
+    "parent_batch_fraction_direct_replay": 0.5,
+    "parent_batch_fraction_fresh_hard": 0.5,
+    "representation": "HalfKP81",
+    "seeds": 1
+  },
+  "run_identity": {
+    "new_clean_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "runtime_fingerprint_status": "not-issued-before-clean-merged-v1r11-source",
+    "must_differ_from_v1r10_run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
+    "formal_run_intent_v2": {
+      "schema": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "status": "prospective-runtime-formula-migration-required-before-any-preformal-or-formal-execution",
+      "purpose": "Compute one stable formal run fingerprint only from artifacts and contracts that exist before the fingerprint; bind later authority receipts without feeding their fingerprint-bearing identities back into the hash.",
+      "domain_utf8_without_separator": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "domain_separator_hex": "00",
+      "canonicalization": "utf8-of-canonical-json-with-object-keys-in-utf8-byte-order-no-insignificant-whitespace-and-no-terminal-lf",
+      "formula": "sha256(utf8(domain_utf8_without_separator) || 0x00 || utf8(canonical_json(payload)))",
+      "payload_required_fields": [
+        "schema",
+        "teacher_plan",
+        "selection_jsonl",
+        "selection_manifest",
+        "source_revision",
+        "engine",
+        "teacher",
+        "candidate_generation",
+        "planned_final_launchagent_descriptor"
+      ],
+      "payload_additional_fields_allowed": false,
+      "payload_schema_value": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "full_file_identity_required_fields": ["path", "bytes", "sha256", "schema"],
+      "selection_jsonl_identity_required_fields": ["path", "bytes", "sha256", "rows", "schema"],
+      "engine_required_fields": ["binary", "eval_file", "receipt"],
+      "payload_bindings": {
+        "teacher_plan": "exact-held-runtime-teacher-plan-full-file-identity",
+        "selection_jsonl": "exact-held-authenticated-8192-row-selection-full-identity",
+        "selection_manifest": "exact-held-authenticated-selection-manifest-full-file-identity",
+        "source_revision": "exact-clean-merged-main-40-lowercase-hex-revision-bound-by-teacher-plan",
+        "engine.binary": "exact-held-YaneuraOu-binary-full-file-identity",
+        "engine.eval_file": "exact-held-pinned-eval-full-file-identity",
+        "engine.receipt": "exact-held-engine-receipt-full-file-identity",
+        "teacher": "deep-exact-runtime-teacher-contract-from-the-authenticated-plan",
+        "candidate_generation": "deep-exact-runtime-candidate-generation-contract-from-the-authenticated-plan",
+        "planned_final_launchagent_descriptor": "exact-held-create-only-planned-final-one-shot-launchagent-plist-snapshot-full-file-identity-created-before-Stage-A-and-before-fingerprint-computation"
+      },
+      "planned_descriptor_constraints": {
+        "must_exist_and-be-held-reauthenticated-before-fingerprint": true,
+        "bytes_must_not-contain-or-depend-on-run_fingerprint": true,
+        "bytes_must_not-contain-or-depend-on-preformal-receipt-identities": true,
+        "Stage-C-live-evidence-plist-snapshot-must-deep-equal-this-identity": true,
+        "Stage-C-may-rewrite-planned-descriptor": false
+      },
+      "forbidden_fingerprint_inputs": [
+        "launchagent_authority_evidence",
+        "preformal_authority_ledger",
+        "preformal_authority_raw_receipt",
+        "preformal_authority_verified_receipt",
+        "power_continuity_ledger",
+        "power_continuity_receipt",
+        "raw_teacher_receipt",
+        "verified_artifact_receipt",
+        "environment_terminal_fault",
+        "process_cleanup_evidence"
+      ],
+      "self_reference_rule": "No identity whose bytes contain run_fingerprint may be an input to formal_run_intent_v2; in particular live LaunchAgent evidence and raw or verified preformal receipt identities are categorically excluded.",
+      "post_fingerprint_cross_bindings": {
+        "preformal_gate_evidence_ledger_raw_and_verified_receipts": "bind teacher_plan source_revision and the already-computed run_fingerprint but are never hash inputs",
+        "launchagent_authority_evidence": "bind the already-computed run_fingerprint and exact planned_final_launchagent_descriptor identity plus live process evidence but is never a hash input",
+        "teacher_work_header": "bind the already-computed run_fingerprint and full identities of launchagent_authority_evidence and preformal_authority_verified_receipt",
+        "power_continuity_ledger_and_receipt": "bind the already-computed run_fingerprint plus the same LaunchAgent and verified-preformal identities",
+        "raw_teacher_receipt": "bind the already-computed run_fingerprint and full preformal-ledger raw-preformal verified-preformal LaunchAgent work power-ledger and power-receipt identities",
+        "verified_artifact_receipt": "independently reauthenticate and bind the same post-fingerprint chain before training handoff"
+      },
+      "runtime_formula_migration": {
+        "required_before-any-preformal-or-formal-execution": true,
+        "old_formula_status": "forbidden-self-referential-v1r11-implementation",
+        "old_formula_forbidden_inputs": ["launchagent_authority", "preformal_authority"],
+        "outer_orchestrator_must-create-and-reauthenticate-planned-descriptor-before-computing-fingerprint": true,
+        "outer_orchestrator_must-compute-not-accept-caller-authored-fingerprint": true,
+        "formal_runner_must-recompute-v2-from-the-same-held-planned-descriptor-not-from-live-evidence-or-preformal-receipt": true,
+        "independent_artifact_verifier_must-recompute-the-identical-v2-payload": true,
+        "required_implementation_migrations": [
+          "replace-v1r11-fingerprintBase-in-ml/halfkp81-depth18-teacher-runner.ts",
+          "replace-expectedV1R11RunFingerprint-in-ml/halfkp81-depth18-teacher-artifact-validation.ts",
+          "compute-v2-after-planned-descriptor-publication-inside-ml/run-halfkp81-depth18-v1r11-preformal-orchestrator.ts",
+          "propagate-planned-descriptor-full-identity-through-the-formal-runner-and-independent-verifier",
+          "remove-caller-supplied-runFingerprint-as-an-authority-source"
+        ],
+        "required_negative_tests": [
+          "launchagent-evidence-identity-in-payload-rejected",
+          "raw-or-verified-preformal-receipt-identity-in-payload-rejected",
+          "planned-descriptor-containing-run-fingerprint-rejected",
+          "planned-descriptor-identity-tamper-rejected",
+          "caller-authored-fingerprint-rejected",
+          "old-self-referential-formula-rejected",
+          "runner-and-independent-verifier-v2-recomputation-mismatch-rejected"
+        ],
+        "existing-preformal-or-formal-artifacts-under-old-formula-reusable": false,
+        "hard_lock_until-migration-and-tests-pass": true
+      }
+    },
+    "training_implementation_boundary": {
+      "decision": "option-A-adopted",
+      "current_change_scope": "create-only-verified-artifact-training-handoff-only",
+      "handoff_entrypoint": "ml/prepare_halfkp81_depth18_v1r11_training.py",
+      "handoff_must-reauthenticate-verified-artifact-receipt-and-all-bound-inputs": true,
+      "handoff_must-enforce-alpha-050-initializer-and-replay-bindings": true,
+      "optimizer_authority": false,
+      "formal_training_authorized": false,
+      "compatible-existing-exact-trainer-entrypoints": [],
+      "separate-prospective-ready-pr-required-before-formal-training": true,
+      "separate-pr-must-freeze": [
+        "exact-sigmoid-bce-k600-implementation",
+        "exact-listnet-cp-over-600-implementation",
+        "seed",
+        "batch-size-and-parent-mix",
+        "learning-rate-and-schedule",
+        "optimizer-and-all-hyperparameters",
+        "device-and-determinism-contract"
+      ],
+      "training-runs-authorized-by-this-change": 0,
+      "live-weight-writes-authorized-by-this-change": 0
+    }
+  },
+  "power_continuity": {
+    "classification": "environment-only-no-teacher-training-or-strength-contract-change",
+    "caffeinate_topology_evidence": {
+      "manual_contract": "LaunchAgent-starts-the-node-runner-directly-and-the-runner-spawns-caffeinate--dimsu--w-runner_pid-as-its-direct-assertion-holder-child",
+      "scratch_probe_authority": "implementation-topology-only-no-teacher-training-or-strength-authority",
+      "real_mac_regression_test": "spawn-an-absolute-node-runner-as-process-group-leader-spawn-/usr/bin/caffeinate--dimsu--w-runner_pid-as-direct-child-capture-command-only-ps-and-pmset-assertions-and-require-exact-parent-process-group-argv-and-owner",
+      "prior-caffeinate-utility-wrapper-probe-authoritative-for-final-topology": false,
+      "ps_executable_derivation": "drop-truncated-ucomm-and-comm-fields-derive-executable-as-command-argv0-then-require-exact-fixed-absolute-argv",
+      "conclusion": "launchd-pid-is-the-node-runner-process-group-leader-and-assertion-holder-caffeinate--dimsu--w-runner_pid-is-its-exact-direct-child-in-the-same-process-group"
+    },
+    "start_admission": {
+      "power_source_must_equal": "AC Power",
+      "battery_percentage_minimum": 80,
+      "caffeinate_required": true,
+      "caffeinate_executable": "/usr/bin/caffeinate",
+      "caffeinate_flags": "-dimsu",
+      "caffeinate_argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
+      "required_assertions": [
+        "PreventSystemSleep",
+        "PreventUserIdleSystemSleep",
+        "PreventUserIdleDisplaySleep"
+      ],
+      "boot_session_identity_required": true,
+      "status": "not-run",
+      "runner_pid_required": true,
+      "runner_pid_must_equal_launched_utility_job_pid": true,
+      "launchagent_authority_evidence_identity_required": true,
+      "preformal_authority_verified_receipt_identity_required": true,
+      "raw_preformal_authority_receipt_alone_accepted": false,
+      "assertions_must_be_owned_by_exact_caffeinate_pid": true,
+      "unrelated_system_wide_assertions_must_not_satisfy_gate": true,
+      "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
+      "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
+    },
+    "guardian": {
+      "implementation": "independent-process-not-chat-session",
+      "append_only": true,
+      "create_only": true,
+      "jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity.jsonl",
+      "sample_interval_milliseconds_maximum": 30000,
+      "maximum_heartbeat_gap_milliseconds": 90000,
+      "required_observations": [
+        "timestamp_utc",
+        "power_source",
+        "battery_percentage",
+        "runner_pid",
+        "guardian_pid",
+        "caffeinate_assertion_holder_pid",
+        "caffeinate_assertion_holder_parent_runner_pid",
+        "caffeinate_executable",
+        "caffeinate_argv",
+        "runner_utility_argv",
+        "launchagent_authority_evidence",
+        "preformal_authority_verified_receipt",
+        "assertion_owner_caffeinate_pid",
+        "required_assertions",
+        "boot_session_identity",
+        "pmset_start_anchor",
+        "pmset_current_cursor"
+      ],
+      "fail_closed_on": [
+        "power-source-not-AC-Power",
+        "required-caffeinate-assertion-missing",
+        "caffeinate-assertion-holder-parent-pid-not-exact-runner-pid",
+        "caffeinate-executable-or-argv-mismatch",
+        "assertion-owner-caffeinate-pid-mismatch",
+        "boot-session-identity-change",
+        "Sleep",
+        "DarkWake",
+        "Wake",
+        "Hibernate",
+        "pmset-anchor-missing-truncated-reset-or-ambiguous",
+        "heartbeat-gap-greater-than-90000ms"
+      ],
+      "fault_policy": "stop-scheduling-terminate-reap-all-engines-discard-unpublished-parents-and-close-family-with-environment-continuity-fault",
+      "same_family_resume_after_fault": false,
+      "final_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity-receipt.json",
+      "coverage": {
+        "guardian_admission_must_complete_before_first_formal_8192_parent_yaneuraou_start": true,
+        "guardian_must_remain_active_until_all_yaneuraou_processes_are_reaped": true,
+        "final_guardian_entry_must_follow_last_engine_reap": true
+      },
+      "caffeinate_identity": {
+        "executable_must_equal": "/usr/bin/caffeinate",
+        "flags_must_equal": "-dimsu",
+        "argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
+        "caffeinate_argv_must_not_equal_launchd_program_arguments": true,
+        "runner_utility_argv_must_deep_equal_full_launchd_program_arguments": true,
+        "node_direct_topology": "LaunchAgent-PID-is-node-runner-and-exact-assertion-holder-caffeinate--dimsu--w-runner_pid-is-direct-child-in-the-same-process-group",
+        "assertions_must_be_owned_by_exact_caffeinate_pid": true,
+        "unrelated_process_assertions_accepted": false,
+        "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
+        "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
+      },
+      "observation_value_schema": {
+        "caffeinate_executable": "absolute-string-exact-/usr/bin/caffeinate",
+        "caffeinate_argv": "string-array-deep-equal-to-/usr/bin/caffeinate--dimsu--w-runner_pid",
+        "runner_utility_argv": "string-array-deep-equal-to-full-launchd-ProgramArguments-and-begins-with-the-exact-node-executable",
+        "launchagent_authority_evidence": "full-file-identity-path-bytes-sha256-schema",
+        "preformal_authority_verified_receipt": "full-file-identity-path-bytes-sha256-schema"
+      },
+      "pmset_interval": {
+        "start_anchor": "captured-after-guardian-and-caffeinate-admission-before-first-formal-8192-parent-yaneuraou-start",
+        "end_anchor": "captured-after-all-yaneuraou-processes-reaped-before-ledger-close",
+        "anchor_required_fields": [
+          "boot_session_identity",
+          "timestamp_utc",
+          "timezone_offset",
+          "pmset_event_ordinal",
+          "last_raw_event_line_sha256"
+        ],
+        "canonical_event_classes": {
+          "Sleep": "pmset-event-column-exactly-Sleep",
+          "DarkWake": "pmset-event-column-exactly-DarkWake",
+          "Wake": "pmset-event-column-exactly-Wake-and-message-does-not-contain-Wake-from-Hibernate",
+          "Hibernate": "pmset-event-column-exactly-Wake-and-message-contains-Wake-from-Hibernate-takes-precedence-over-Wake"
+        },
+        "reject_on": [
+          "start-anchor-not-found-at-end",
+          "end-ordinal-before-start-ordinal",
+          "boot-session-change",
+          "timestamp-regression",
+          "raw-line-digest-mismatch",
+          "log-truncation-or-reset",
+          "parse-error-or-ambiguous-event-class"
+        ]
+      },
+      "finalization_order": [
+        "all-yaneuraou-processes-reaped",
+        "append-final-guardian-entry",
+        "close-power-continuity-jsonl",
+        "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
+        "create-raw-teacher-receipt-binding-power-ledger-power-receipt-preformal-chain-and-LaunchAgent-evidence-identities",
+        "run-independent-artifact-and-power-continuity-verifier",
+        "create-verified-artifact-receipt-binding-the-independently-recomputed-preformal-and-LaunchAgent-chain"
+      ],
+      "environment_fault_finalization_order": [
+        "stop-scheduling-new-parents",
+        "terminate-and-reap-all-yaneuraou-processes",
+        "append-final-environment-fault-guardian-entry",
+        "close-power-continuity-jsonl",
+        "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
+        "runner-exits-nonzero-without-publishing-terminal-fault",
+        "outer-supervisor-observes-runner-and-service-exit",
+        "create-and-fsync-process-cleanup-evidence-from-ordered-cleanup-transcripts-service-absence-pid-reuse-rejection-and-dual-final-ps",
+        "stable-reread-cleanup-evidence-and-independently-recompute-process_cleanup",
+        "outer-supervisor-independently-recomputes-the-final-guardian-environment-fault-intent-and-held-power-chain",
+        "create-terminal-fault-binding-power-ledger-power-receipt-preformal-verified-receipt-LaunchAgent-and-process-cleanup-evidence-identities"
+      ],
+      "environment_fault_binding": {
+        "terminal_fault_must_bind_power_continuity_jsonl_bytes_and_sha256": true,
+        "terminal_fault_must_bind_power_continuity_receipt_bytes_and_sha256": true,
+        "power_final_row_and_receipt_must_bind_runner_environment_fault_intent_digest": true,
+        "runner_may_publish_terminal_fault": false,
+        "outer_supervisor_is_sole_terminal_fault_publisher_after-rich-cleanup": true,
+        "terminal_fault_must_bind_preformal_verified_receipt_and_launchagent_evidence_identities": true,
+        "terminal_fault_must_bind_process_cleanup_evidence_full_identity": true,
+        "fault_process_cleanup_summary_must_recompute_from_cleanup_evidence": true,
+        "fault_publication_without_cleanup_evidence_is-forbidden": true,
+        "circular_identity_binding_forbidden": true,
+        "binding_rule": "The final guardian row and power receipt bind the canonical runner environment-fault intent (plan, run, verified preformal receipt, LaunchAgent evidence and fault reason; no cleanup claim). After runner/service exit, the same outer supervisor proves rich cleanup, independently recomputes that intent and the held power chain, then alone publishes the final terminal fault binding exact power-ledger, power-receipt and cleanup identities."
+      }
+    },
+    "timeout_semantics": {
+      "search_timeout_milliseconds": 14400000,
+      "unchanged_from_v1r10": true,
+      "sleep_time_subtraction_adopted": false,
+      "sleep_or_power_fault_precedes_search_timeout_classification": true,
+      "yaneuraou_process_resume_across_sleep_allowed": false
+    },
+    "post_formal_verification": {
+      "pmset_interval_event_maximum": {
+        "Sleep": 0,
+        "DarkWake": 0,
+        "Wake": 0,
+        "Hibernate": 0
+      },
+      "all_guardian_samples_must_report_ac_power": true,
+      "all_guardian_samples_must_retain_required_assertions": true,
+      "boot_session_identity_changes_maximum": 0,
+      "heartbeat_gap_milliseconds_maximum": 90000,
+      "independent_verifier_pass_required_before_training": true,
+      "assertions_must_be_owned_by_exact_launched_caffeinate_pid": true,
+      "unrelated_system_wide_assertions_accepted": false,
+      "pmset_start_and_end_anchors_must_validate_without_truncation_or_reset": true,
+      "coverage_must_begin_before-first-formal-8192-parent-engine-and-end-after-last-engine-reap": true,
+      "power_continuity_receipt_must_bind_closed_ledger_bytes_and_sha256": true,
+      "raw_teacher_receipt_must_bind_power_ledger_and_receipt_identities": true,
+      "power_receipt_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+      "teacher_work_ledger_header_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+      "raw_teacher_receipt_must_bind_preformal_ledger_raw_verified_and_launchagent_identities": true,
+      "verified_artifact_receipt_must_bind_independently_recomputed_preformal_and_launchagent_chain": true,
+      "caffeinate_assertion_holder_parent_pid_must_equal_exact_runner_pid": true,
+      "environment_fault_artifact_verification_required": true,
+      "environment_terminal_fault_must_cross_bind_power_evidence": true
+    },
+    "sleep_aware_timeout_rejection": {
+      "adopted": false,
+      "reason": "The isolated v1r10 G*2a search reached the unchanged normal node cap in 1108533ms and Hash8192 exact depth18 in 9490ms, leaving large margin under 14400000ms. Subtracting sleep would add clock and hibernated-USI-state semantics without improving teacher strength or fixing engine continuity.",
+      "future_family_only_if_reconsidered": true,
+      "in_place_hibernated_engine_resume_forbidden": true
+    }
+  },
+  "live_baseline": {
+    "bytes": 1185988,
+    "changed": false,
+    "path": "public/shogi-nnue-weights.bin",
+    "public_flag_changed": false,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "portable_home_path_binding": {
+    "placeholder": "$HOME",
+    "expansion_time": "runtime-plan-publication-before-fingerprint",
+    "expansion_source": "canonical-home-directory-from-getpwuid-current-euid-user-record",
+    "expanded_runtime_paths_must_be_absolute": true,
+    "expanded_runtime_paths_must_be_lexically_canonical": true,
+    "symlink_or_alias_component_allowed": false,
+    "existing_ancestor_realpath_must_equal_lexical_path": true,
+    "unexpanded_placeholder_allowed_in_runtime_plan": false,
+    "expansion_identity_must_be_bound_by_runtime_plan_and_run_fingerprint": true,
+    "tests_required": [
+      "canonical-euid-user-record-expansion-success",
+      "unexpanded-placeholder-rejected",
+      "relative-HOME-rejected",
+      "wrong-but-absolute-environment-HOME-rejected",
+      "symlink-or-alias-component-rejected",
+      "runtime-path-outside-expanded-formal-or-authority-namespaces-rejected",
+      "formal-and-authority-namespaces-overlap-rejected"
+    ],
+    "current_euid_must_be_bound": true,
+    "process_environment_home_if_present_must_equal_user_record_home": true,
+    "caller_supplied_home_accepted": false,
+    "formal_and_authority_namespaces_must_be_disjoint": true
+  }
+}

@@ -79,7 +79,7 @@ import type {
   V1R11AuthorityFileIdentity,
 } from "./halfkp81-depth18-v1r11-authority-io";
 import type { IndependentFormalRunIntentInput } from "./verify-halfkp81-depth18-v1r11-staged-authority";
-import { importHalfkp81Depth18V1R11MinimalR3CompletedSetIntoR4 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
+import { importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
 const HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA =
   "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11" as const;
 
@@ -254,7 +254,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
@@ -262,7 +262,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -401,9 +401,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4-plan.json",
-  bytes: 153_088,
-  sha256: "e8fcd748df5cb66ddf6a8978d84012e1fc02a52a8229762c2d4aae89d76af99a",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5-plan.json",
+  bytes: 155_210,
+  sha256: "7395cfac643b5023ee3deda30d13067676861514a4716908161e7a25f9d9761f",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });
@@ -1849,6 +1849,31 @@ function systemText(executable: string, args: readonly string[]): string {
   });
 }
 
+export const HALFKP81_DEPTH18_PMSET_LOG_TAIL_ROWS = 4_096;
+
+export function halfkp81Depth18BoundedPmsetLogCommandForTests(): Readonly<{
+  executable: string;
+  args: readonly string[];
+}> {
+  return Object.freeze({
+    executable: "/bin/sh",
+    args: Object.freeze([
+      "-c",
+      [
+        "set -o pipefail",
+        "/usr/bin/pmset -g log |",
+        "/usr/bin/awk '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9][[:space:]]/' |",
+        `/usr/bin/tail -n ${HALFKP81_DEPTH18_PMSET_LOG_TAIL_ROWS}`,
+      ].join("\n"),
+    ]),
+  });
+}
+
+function boundedSystemPmsetLogText(): string {
+  const command = halfkp81Depth18BoundedPmsetLogCommandForTests();
+  return systemText(command.executable, command.args);
+}
+
 export function parseHalfkp81Depth18PmsetLogRowsForTests(
   raw: string,
 ): readonly string[] {
@@ -1899,13 +1924,16 @@ export function parseHalfkp81Depth18CaffeinateAssertionsForTests(
 function initialPmsetCursor(
   rows: readonly string[],
 ): Halfkp81Depth18PmsetCursor {
-  const rawLine = rows[rows.length - 1]!;
+  const ownedRows = Object.freeze(
+    rows.map((row) => Buffer.from(row, "utf8").toString("utf8")),
+  );
+  const rawLine = ownedRows[ownedRows.length - 1]!;
   return Object.freeze({
     anchorRawLine: rawLine,
     anchorOrdinal: rows.length,
     previousRawLine: rawLine,
     previousOrdinal: rows.length,
-    rows: Object.freeze([...rows]),
+    rows: ownedRows,
   });
 }
 
@@ -1936,8 +1964,12 @@ export function advanceHalfkp81Depth18PmsetCursorForTests(
       "pmset-anchor-missing-truncated-reset-or-ambiguous",
     );
   }
-  const newRows = Object.freeze(rows.slice(matches[0]! + 1));
-  const currentRawLine = rows[rows.length - 1]!;
+  const newRows = Object.freeze(
+    rows
+      .slice(matches[0]! + 1)
+      .map((row) => Buffer.from(row, "utf8").toString("utf8")),
+  );
+  const currentRawLine = newRows.at(-1) ?? cursor.previousRawLine;
   return Object.freeze({
     cursor: Object.freeze({
       anchorRawLine: cursor.anchorRawLine,
@@ -2029,7 +2061,7 @@ async function captureSystemPowerContinuityObservation(
     systemText("/usr/sbin/sysctl", ["-n", "kern.bootuuid"]),
   );
   const rows = parseHalfkp81Depth18PmsetLogRowsForTests(
-    systemText("/usr/bin/pmset", ["-g", "log"]),
+    boundedSystemPmsetLogText(),
   );
   const advanced = advanceHalfkp81Depth18PmsetCursorForTests(rows, cursor);
   const prior = cursor ?? advanced.cursor;
@@ -2950,6 +2982,17 @@ function waitForGuardianMessage(
   predicate: (message: Readonly<Record<string, unknown>>) => boolean,
   timeoutMs = 60_000,
 ): Promise<Readonly<Record<string, unknown>>> {
+  if (
+    !child.connected ||
+    child.exitCode !== null ||
+    child.signalCode !== null
+  ) {
+    return Promise.reject(
+      new Halfkp81Depth18EnvironmentContinuityError(
+        `guardian-exited:${child.exitCode ?? "signal"}:${child.signalCode ?? "none"}`,
+      ),
+    );
+  }
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
@@ -3170,6 +3213,9 @@ export async function startHalfkp81Depth18V1R11PowerContinuitySession(
       fail(`guardian-exited:${code ?? "signal"}:${signal ?? "none"}`);
     }
   });
+  child.on("error", (error) => {
+    if (!finalized) fail(`guardian-ipc-error:${error.message}`);
+  });
   let ready: Readonly<Record<string, unknown>>;
   try {
     ready = await waitForGuardianMessage(
@@ -3224,6 +3270,10 @@ export async function startHalfkp81Depth18V1R11PowerContinuitySession(
   const assertHealthy = async (fresh = false): Promise<void> => {
     if (failureError !== undefined) throw failureError;
     if (!fresh) return;
+    if (!child.connected) {
+      fail("guardian-ipc-channel-closed");
+      throw failureError;
+    }
     const id = ++requestId;
     child.send?.({
       schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
@@ -3302,6 +3352,10 @@ export async function startHalfkp81Depth18V1R11PowerContinuitySession(
             terminal_fault_preimage_sha256:
               terminalFaultPreimageSha256 as string,
           };
+    if (!child.connected) {
+      fail("guardian-ipc-channel-closed");
+      throw failureError;
+    }
     child.send?.({
       schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
       type,
@@ -7639,7 +7693,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       ),
     );
     if (recoveryV1R11) {
-      await importHalfkp81Depth18V1R11MinimalR3CompletedSetIntoR4({
+      await importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5({
         repositoryRoot,
         targetWorkPath: authenticated.outputs.work_jsonl,
         targetHeader: header as unknown as Readonly<Record<string, unknown>>,
@@ -9185,43 +9239,29 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
     planned_launchagent_descriptor: liveLaunch.plistSnapshot,
     live_launchagent_evidence: liveLaunch.evidence,
     fixed_evidence: Object.freeze({
-      import_receipt: Object.freeze({
-        path: "/private/tmp/v1r11-import-scratch.2bRuAT/authority/v1r10-import-receipt.json",
-        bytes: 3_532,
+      minimal_r4_source_work: Object.freeze({
+        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4/teacher-work.jsonl",
+        bytes: 93_992_032,
         sha256:
-          "575edc92fd7438c8f26a2ed3270d79dd28ca2076304184463eb308d52bed7a98",
-        schema: "shogi-halfkp81-depth18-v1r11-v1r10-import-receipt-v1",
-      }),
-      source_verifier_receipt: Object.freeze({
-        path: "/private/tmp/v1r11-import-scratch.2bRuAT/authority/v1r10-import-source-verification-receipt.json",
-        bytes: 2_497,
-        sha256:
-          "094067c4586920782065ef62e981b7bd128a4691f0389c64d20ede8e21450939",
-        schema: "shogi-halfkp81-depth18-v1r10-importable-set-verification-v1",
-      }),
-      minimal_r3_source_work: Object.freeze({
-        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r3/teacher-work.jsonl",
-        bytes: 91_935_777,
-        sha256:
-          "e084552b4c532688e19c663394e7041ea789552bdfc28ed5421088072d550eea",
+          "cb9477d310d8d611fb294d91680f9d8c529bb8e8f5a158bfe6709bb0b7fdb0a2",
         schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
       }),
-      minimal_r3_terminal_fault: Object.freeze({
-        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r3/teacher-terminal-fault.json",
-        bytes: 883,
+      minimal_r4_failure_log: Object.freeze({
+        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4/formal-launchagent.stderr.log",
+        bytes: 6_156,
         sha256:
-          "a557ce8aec3aef627fb282a077f720c555ec979df11517ed67ea1a8dd33f4772",
-        schema: "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+          "fac7c9577e25e32b7f1a2632145f30666ef86697efa0fc0af9d59164d608227d",
+        schema: "text/plain-utf8-node-stderr-v1",
       }),
       smoke_receipt: fixedSmokeReceipt,
       power_ledger: fixedPowerLedger,
       power_receipt: fixedPowerReceipt,
     }),
     verification: Object.freeze({
-      exact_imported_parents: 4_238,
-      exact_imported_teacher_rows: 49_643,
-      exact_remaining_parents: 3_954,
-      minimal_r3_completed_set_independently_verified: true,
+      exact_imported_parents: 4_336,
+      exact_imported_teacher_rows: 50_746,
+      exact_remaining_parents: 3_856,
+      minimal_r4_completed_set_independently_verified: true,
       smoke_exact_depth18_rows: 12,
       power_ledger_independently_verified: true,
       engine_processes_before_launch: 0,
@@ -9348,7 +9388,7 @@ export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForT
 }
 
 const V1R11_LAUNCHD_LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r4-" as const;
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r5-" as const;
 
 export interface Halfkp81Depth18V1R11LaunchdAuthority {
   readonly label: string;

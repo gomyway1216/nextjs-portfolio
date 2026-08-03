@@ -7,9 +7,13 @@ import {
   validateHalfkp81Depth18V1R10ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR2ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR3ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR4ImportableSet,
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
-import { importHalfkp81Depth18V1R10CompletedSetIntoV1R11 } from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
+import {
+  importHalfkp81Depth18V1R10CompletedSetIntoV1R11,
+  importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5,
+} from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
 
 function snapshot(name: string): Readonly<Halfkp81Depth18PrivateSnapshot> {
   const bytes = Buffer.from("{}\n", "utf8");
@@ -64,6 +68,40 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
     ).toThrow("minimal-r3 source plan identity differs");
   });
 
+  it("rejects an unpinned minimal-r4 successor source before parsing it", () => {
+    const invalid = snapshot("invalid-r4.json");
+    expect(() =>
+      validateHalfkp81Depth18V1R11MinimalR4ImportableSet({
+        plan: invalid,
+        selection: invalid,
+        work: invalid,
+        failureLog: invalid,
+      }),
+    ).toThrow("minimal-r4 source plan identity differs");
+  });
+
+  it("rejects reusing the minimal-r4 fingerprint for the r5 target", async () => {
+    const fingerprint =
+      "d8837f1ff01002bd5c770f9231532f8d5cfc0d7c6fb2d2b53fe55a93080e9fab";
+    await expect(
+      importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5({
+        repositoryRoot: "/private/tmp/does-not-exist",
+        targetWorkPath: "/private/tmp/never-created-r5/work.jsonl",
+        targetHeader: Object.freeze({
+          schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+          run_fingerprint: fingerprint,
+        }),
+        targetRunFingerprint: fingerprint,
+        selectionOrderedParentIds: Array.from(
+          { length: 8_192 },
+          (_, index) => `parent-${index}`,
+        ),
+        authorityDirectory: "/private/tmp/never-created-r5/authority",
+      }),
+    ).rejects.toThrow("minimal-r5 import target identity differs");
+    expect(fs.existsSync("/private/tmp/never-created-r5")).toBe(false);
+  });
+
   it("rejects a target before reading the immutable source", async () => {
     await expect(
       importHalfkp81Depth18V1R10CompletedSetIntoV1R11({
@@ -114,5 +152,15 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
       "validateHalfkp81Depth18V1R11MinimalR4ImportedSet",
     );
     expect(source).toContain("if (imported.length !== 4_238)");
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR4ImportableSet",
+    );
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR5ImportedSet",
+    );
+    expect(source).toContain("if (imported.length !== 4_336)");
+    expect(source).toContain(
+      '"minimal-r4-import-source-verification-receipt.json"',
+    );
   });
 });

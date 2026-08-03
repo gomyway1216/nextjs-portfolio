@@ -4707,6 +4707,30 @@ const V1R11_MINIMAL_R3_COMPLETED_SET = Object.freeze({
   fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
 });
 
+const V1R11_MINIMAL_R4_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 121_665,
+    sha256: "9ca50336ebfb50149c95af531017dbafc150a8d0617ec4210305a65d5fed2507",
+  }),
+  work: Object.freeze({
+    bytes: 93_992_032,
+    sha256: "cb9477d310d8d611fb294d91680f9d8c529bb8e8f5a158bfe6709bb0b7fdb0a2",
+  }),
+  failureLog: Object.freeze({
+    bytes: 6_156,
+    sha256: "fac7c9577e25e32b7f1a2632145f30666ef86697efa0fc0af9d59164d608227d",
+  }),
+  runFingerprint:
+    "d8837f1ff01002bd5c770f9231532f8d5cfc0d7c6fb2d2b53fe55a93080e9fab",
+  completedParents: 4_336,
+  completedRows: 50_746,
+  selectionOrderParentIdsSha256:
+    "6b3e37ec1c7db5ca216e2556d94f3363d43ccffd4f94f18d726013aed501498b",
+  selectionIndexesSha256:
+    "232c2c4da52bb7fe43e6bba316a9b53d322971f695ee3fea8503dd5abeba3ae6",
+  fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -4861,6 +4885,16 @@ export function validateHalfkp81Depth18V1R11MinimalR4ImportedSet(
   return validateHalfkp81Depth18V1R11CompletedSet(
     request,
     V1R11_MINIMAL_R3_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR5ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R4_COMPLETED_SET,
     true,
   );
 }
@@ -5041,6 +5075,112 @@ export function validateHalfkp81Depth18V1R11MinimalR3ImportableSet(
     "minimal-r3",
     "boot-session-identity-change",
   );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR4ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    failureLog: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R4_COMPLETED_SET.plan,
+    "minimal-r4 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r4 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R4_COMPLETED_SET.work,
+    "minimal-r4 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.failureLog,
+    V1R11_MINIMAL_R4_COMPLETED_SET.failureLog,
+    "minimal-r4 source failure log",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r4 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r4 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R4_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R4_COMPLETED_SET,
+    false,
+  );
+  const failureText = Buffer.from(request.failureLog.bytes).toString("utf8");
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R4_COMPLETED_SET.runFingerprint ||
+    !failureText.includes(
+      "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory",
+    ) ||
+    !failureText.includes("Error [ERR_IPC_CHANNEL_CLOSED]: Channel closed")
+  ) {
+    throw new Error("minimal-r4 import failure closure differs");
+  }
+  return Object.freeze({
+    schema:
+      "shogi-halfkp81-depth18-v1r11-minimal-r4-importable-set-verification-v1",
+    status: "source-set-independently-verified-import-eligible-new-family-only",
+    source: Object.freeze({
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+        workValues.length,
+      ),
+      failure_log: identityFromSnapshot(
+        request.failureLog,
+        "text/plain-utf8-node-stderr-v1",
+      ),
+      run_fingerprint: V1R11_MINIMAL_R4_COMPLETED_SET.runFingerprint,
+    }),
+    completed: Object.freeze({
+      parents: V1R11_MINIMAL_R4_COMPLETED_SET.completedParents,
+      rows: V1R11_MINIMAL_R4_COMPLETED_SET.completedRows,
+      selection_order_parent_ids_sha256:
+        V1R11_MINIMAL_R4_COMPLETED_SET.selectionOrderParentIdsSha256,
+      selection_indexes_sha256:
+        V1R11_MINIMAL_R4_COMPLETED_SET.selectionIndexesSha256,
+    }),
+    target_semantic_verification: verification,
+    authority: Object.freeze({
+      may_resume_minimal_r4: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
 }
 
 export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(

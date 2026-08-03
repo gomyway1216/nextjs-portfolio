@@ -11,8 +11,9 @@ import {
 } from "./halfkp81-depth18-v1r11-authority-io";
 
 const SNAPSHOT_SCHEMA = "application/x-apple-aspen-config-exact-bytes";
-const LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r2-";
+const LEGACY_LABEL_PREFIX =
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-";
+const LEGACY_RUN_DIRECTORY_NAME = "halfkp81-hard-depth18-yaneura-only-v1r11";
 export const HALFKP81_V1R11_FORMAL_CHILD_ENTRYPOINT =
   "ml/run-halfkp81-depth18-v1r11-formal-child.ts" as const;
 
@@ -261,6 +262,8 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     nodePath: string;
     sourceRevision: string;
     entrypointPath?: string;
+    labelPrefix?: string;
+    runDirectoryName?: string;
   }>,
 ): Promise<Readonly<Halfkp81V1R11PlannedLaunchAgentDescriptor>> {
   if (
@@ -273,14 +276,23 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     path.normalize(input.nodePath) !== input.nodePath ||
     (input.entrypointPath !== undefined &&
       (!path.isAbsolute(input.entrypointPath) ||
-        path.normalize(input.entrypointPath) !== input.entrypointPath))
+        path.normalize(input.entrypointPath) !== input.entrypointPath)) ||
+    (input.labelPrefix !== undefined &&
+      !/^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-(?:minimal-r\d+-)?$/u.test(
+        input.labelPrefix,
+      )) ||
+    (input.runDirectoryName !== undefined &&
+      !/^halfkp81-hard-depth18-yaneura-only-v1r11(?:-minimal-r\d+)?$/u.test(
+        input.runDirectoryName,
+      ))
   ) {
     throw new Error("planned LaunchAgent context differs");
   }
-  const label = `${LABEL_PREFIX}${input.sourceRevision.slice(0, 8)}`;
+  const label = `${input.labelPrefix ?? LEGACY_LABEL_PREFIX}${input.sourceRevision.slice(0, 8)}`;
   const runDirectory = path.join(
     input.homeDirectory,
-    ".codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2",
+    ".codex/shogi-runs",
+    input.runDirectoryName ?? LEGACY_RUN_DIRECTORY_NAME,
   );
   const launchAgentsDirectory = path.join(
     input.homeDirectory,

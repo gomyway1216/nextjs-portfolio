@@ -14,13 +14,57 @@ const roots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) =>
-      fs.promises.rm(root, { recursive: true, force: true }),
-    ),
+    roots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { recursive: true, force: true })),
   );
 });
 
 describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
+  it("keeps the legacy descriptor default and scopes recovery overrides to its caller", async () => {
+    const root = await fs.promises.realpath(
+      await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "halfkp81-v1r11-descriptor-scope-"),
+      ),
+    );
+    roots.push(root);
+    const legacyAuthority = await createV1R11AuthorityDirectory(
+      path.join(root, "legacy-authority"),
+    );
+    const recoveryAuthority = await createV1R11AuthorityDirectory(
+      path.join(root, "recovery-authority"),
+    );
+    const common = {
+      repositoryRoot: path.join(root, "repository"),
+      homeDirectory: path.join(root, "home"),
+      nodePath: process.execPath,
+      sourceRevision: "d".repeat(40),
+    } as const;
+    const legacy = await prepareHalfkp81V1R11PlannedLaunchAgentForTests({
+      ...common,
+      authorityDirectory: legacyAuthority,
+    });
+    const recovery = await prepareHalfkp81V1R11PlannedLaunchAgentForTests({
+      ...common,
+      authorityDirectory: recoveryAuthority,
+      labelPrefix:
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r3-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r3",
+    });
+    expect(legacy.label).toBe(
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-dddddddd",
+    );
+    expect(legacy.stdoutPath).toContain(
+      "/halfkp81-hard-depth18-yaneura-only-v1r11/",
+    );
+    expect(recovery.label).toBe(
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r3-dddddddd",
+    );
+    expect(recovery.stdoutPath).toContain(
+      "/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r3/",
+    );
+  });
+
   it("reauthenticates exact bytes then uses print→bootstrap→kickstart", async () => {
     const root = await fs.promises.realpath(
       await fs.promises.mkdtemp(
@@ -39,20 +83,16 @@ describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
       sourceRevision: "a".repeat(40),
     });
     const calls: readonly string[][] = [];
-    await bootstrapHalfkp81V1R11PlannedLaunchAgentForTests(
-      descriptor,
-      501,
-      {
-        run(arguments_) {
-          (calls as string[][]).push([...arguments_]);
-          return {
-            exitCode: arguments_[0] === "print" ? 113 : 0,
-            stdout: Buffer.alloc(0),
-            stderr: Buffer.alloc(0),
-          };
-        },
+    await bootstrapHalfkp81V1R11PlannedLaunchAgentForTests(descriptor, 501, {
+      run(arguments_) {
+        (calls as string[][]).push([...arguments_]);
+        return {
+          exitCode: arguments_[0] === "print" ? 113 : 0,
+          stdout: Buffer.alloc(0),
+          stderr: Buffer.alloc(0),
+        };
       },
-    );
+    });
     const service = `gui/501/${descriptor.label}`;
     expect(calls).toEqual([
       ["print", service],
@@ -84,7 +124,11 @@ describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
       bootstrapHalfkp81V1R11PlannedLaunchAgentForTests(descriptor, 501, {
         run() {
           called = true;
-          return { exitCode: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+          return {
+            exitCode: 0,
+            stdout: Buffer.alloc(0),
+            stderr: Buffer.alloc(0),
+          };
         },
       }),
     ).rejects.toThrow(/source changed before bootstrap/u);
@@ -114,7 +158,11 @@ describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
       bootstrapHalfkp81V1R11PlannedLaunchAgentForTests(descriptor, 501, {
         run() {
           called = true;
-          return { exitCode: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+          return {
+            exitCode: 0,
+            stdout: Buffer.alloc(0),
+            stderr: Buffer.alloc(0),
+          };
         },
       }),
     ).rejects.toThrow(/differ/u);

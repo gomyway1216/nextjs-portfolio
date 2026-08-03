@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   validateHalfkp81Depth18V1R10ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR2ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR3ImportableSet,
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
 import { importHalfkp81Depth18V1R10CompletedSetIntoV1R11 } from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
@@ -51,6 +52,18 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
     ).toThrow("minimal-r2 source plan identity differs");
   });
 
+  it("rejects an unpinned minimal-r3 successor source before parsing it", () => {
+    const invalid = snapshot("invalid-r3.json");
+    expect(() =>
+      validateHalfkp81Depth18V1R11MinimalR3ImportableSet({
+        plan: invalid,
+        selection: invalid,
+        work: invalid,
+        terminalFault: invalid,
+      }),
+    ).toThrow("minimal-r3 source plan identity differs");
+  });
+
   it("rejects a target before reading the immutable source", async () => {
     await expect(
       importHalfkp81Depth18V1R10CompletedSetIntoV1R11({
@@ -94,5 +107,12 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
     expect(source).toContain(
       '"minimal-r2-import-source-verification-receipt.json"',
     );
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR3ImportableSet",
+    );
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR4ImportedSet",
+    );
+    expect(source).toContain("if (imported.length !== 4_238)");
   });
 });

@@ -29,6 +29,7 @@ import {
   appendHalfkp81Depth18PowerContinuityObservationForTests,
   classifyHalfkp81Depth18PmsetEventLineForTests,
   closeHalfkp81Depth18GuardianChildForTests,
+  deriveHalfkp81Depth18DarwinBootIdentityForTests,
   halfkp81Depth18PowerContinuityFailureReasonForTests,
   parseHalfkp81Depth18CaffeinateAssertionsForTests,
   parseHalfkp81Depth18PmsetBatteryForTests,
@@ -226,6 +227,37 @@ function reasonFor(
 }
 
 describe("HalfKP81 v1r11 power continuity", () => {
+  it("binds boot continuity to exact Darwin boot UUIDs, never rendered boot time", () => {
+    const session = "1411A860-0A2C-49AB-8971-21E8129978FE";
+    const boot = "465728A0-2A1A-4F50-AE5A-B700727B1EB9";
+    const identity = deriveHalfkp81Depth18DarwinBootIdentityForTests(
+      `${session}\n`,
+      `${boot}\n`,
+    );
+    expect(identity).toMatch(/^[0-9a-f]{64}$/u);
+    expect(
+      deriveHalfkp81Depth18DarwinBootIdentityForTests(
+        `${session}\n`,
+        `${boot}\n`,
+      ),
+    ).toBe(identity);
+    expect(
+      deriveHalfkp81Depth18DarwinBootIdentityForTests(
+        `${session}\n`,
+        "565728A0-2A1A-4F50-AE5A-B700727B1EB9\n",
+      ),
+    ).not.toBe(identity);
+    for (const [left, right] of [
+      ["", `${boot}\n`],
+      [`${session}\n`, "not-a-uuid\n"],
+      [` ${session}\n`, `${boot}\n`],
+    ] as const) {
+      expect(() =>
+        deriveHalfkp81Depth18DarwinBootIdentityForTests(left, right),
+      ).toThrow("boot-session-identity-missing-or-malformed");
+    }
+  });
+
   it("continues from one unique rolling pmset row after prefix truncation", () => {
     const initial = advanceHalfkp81Depth18PmsetCursorForTests(
       ["old-a", "old-b", "rolling-anchor"],
@@ -504,7 +536,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
     const sourceRevision = "b".repeat(40);
     const repositoryRoot = "/private/repository";
     const label =
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r3-bbbbbbbb";
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r4-bbbbbbbb";
     const runnerUtilityArgv = [
       process.execPath,
       "-r",

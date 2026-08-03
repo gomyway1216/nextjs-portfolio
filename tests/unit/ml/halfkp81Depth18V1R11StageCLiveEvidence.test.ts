@@ -64,11 +64,7 @@ function mismatchedFormalRunIntent(
         "application/x-mach-o-executable-exact-bytes",
         "3",
       ),
-      evalFile: identity(
-        "nn.bin",
-        "application/octet-stream-exact-bytes",
-        "4",
-      ),
+      evalFile: identity("nn.bin", "application/octet-stream-exact-bytes", "4"),
       receipt: identity("receipt.json", "engine-receipt-v1", "5"),
     },
     teacherContract: { depth: 18 },
@@ -112,19 +108,14 @@ function fixture() {
     `${repositoryRoot}/ml/run-halfkp81-depth18-v1r11-formal-child.ts`,
   ];
   const programArguments = runnerUtilityArgv;
-  const holderArguments = [
-    "/usr/bin/caffeinate",
-    "-dimsu",
-    "-w",
-    "700",
-  ];
+  const holderArguments = ["/usr/bin/caffeinate", "-dimsu", "-w", "700"];
   const plist = buildHalfkp81V1R11PlannedLaunchAgentPlistForTests({
-      label,
-      repositoryRoot,
-      nodePath: expectedNodePath,
-      stdoutPath,
-      stderrPath,
-    }).bytes;
+    label,
+    repositoryRoot,
+    nodePath: expectedNodePath,
+    stdoutPath,
+    stderrPath,
+  }).bytes;
   const launchctl = [
     `gui/${uid}/${label} = {`,
     "\tactive count = 1",
@@ -201,11 +192,7 @@ function fixture() {
       argv: holderArguments,
     },
     required_assertions: HALFKP81_V1R11_REQUIRED_ASSERTIONS,
-    launchctl_command: [
-      "/bin/launchctl",
-      "print",
-      `gui/${uid}/${label}`,
-    ],
+    launchctl_command: ["/bin/launchctl", "print", `gui/${uid}/${label}`],
     launchctl_exit_code: 0,
     launchctl_print: identity(
       `${authorityDirectory}/launchagent-launchctl-print.txt`,
@@ -233,12 +220,7 @@ function fixture() {
       plist,
       "application/x-apple-aspen-config-exact-bytes",
     ),
-    ps_command: [
-      "/bin/ps",
-      "-ww",
-      "-axo",
-      "pid=,ppid=,pgid=,lstart=,command=",
-    ],
+    ps_command: ["/bin/ps", "-ww", "-axo", "pid=,ppid=,pgid=,lstart=,command="],
     ps_exit_code: 0,
     ps_stdout: identity(
       `${authorityDirectory}/launchagent-ps.stdout.txt`,
@@ -294,7 +276,10 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       mode: 0o700,
     });
     fs.mkdirSync(repositoryRoot, { mode: 0o700 });
-    const authorityDirectory = await createV1R11AuthorityDirectory(authorityPath);
+    const authorityDirectory =
+      await createV1R11AuthorityDirectory(authorityPath);
+    const uid = Number(process.geteuid?.());
+    expect(Number.isSafeInteger(uid)).toBe(true);
     const sourceRevision = "b".repeat(40);
     const label =
       "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-bbbbbbbb";
@@ -336,9 +321,7 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       teacherPlan,
       plannedPlist,
     );
-    const runFingerprint = halfkp81V1R11FormalRunFingerprintV2(
-      formalRunIntent,
-    );
+    const runFingerprint = halfkp81V1R11FormalRunFingerprintV2(formalRunIntent);
     const runnerArgv = [
       nodePath,
       "-r",
@@ -349,7 +332,7 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
     const holderArguments = ["/usr/bin/caffeinate", "-dimsu", "-w", "700"];
     const launchctlStdout = Buffer.from(
       [
-        `gui/501/${label} = {`,
+        `gui/${uid}/${label} = {`,
         "\tactive count = 1",
         `\tpath = ${plistPath}`,
         "\ttype = LaunchAgent",
@@ -392,7 +375,7 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       repositoryRoot,
       authorityDirectory,
       homeDirectory,
-      uid: 501,
+      uid,
       nodePath,
       runnerPid: 700,
       xpcServiceName: label,
@@ -462,8 +445,7 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       path: path.join(root, "plan.json"),
       bytes: 1,
       sha256: "1".repeat(64),
-      schema:
-        "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
+      schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
     });
     const stageA = Object.freeze({
       path: path.join(root, "stage-a.json"),
@@ -518,7 +500,11 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       source_revision: "a".repeat(40),
       run_fingerprint: "b".repeat(64),
       producer,
-      primary_sources: Object.freeze([artifactReceipt, powerLedger, powerReceipt]),
+      primary_sources: Object.freeze([
+        artifactReceipt,
+        powerLedger,
+        powerReceipt,
+      ]),
       payload: Object.freeze({
         parents: 512,
         completed_parents: 512,
@@ -618,7 +604,9 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
     const row11 = row(11, "mixed-load-gate", previous, priorReceipt);
     const row12 = row(12, "formal-like-512", row11.entry_sha256, receipt);
     rows.push(row11, row12);
-    const ledgerRaw = Buffer.concat(rows.map((value) => v1r11CanonicalLine(value)));
+    const ledgerRaw = Buffer.concat(
+      rows.map((value) => v1r11CanonicalLine(value)),
+    );
     const ledger = fileIdentity(
       path.join(root, "ledger.jsonl"),
       ledgerRaw,
@@ -702,18 +690,24 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       "   pid 701(caffeinate): [0x00000003] 00:00:01 PreventUserIdleSystemSleep named: 'caffeinate command-line tool'",
       "   pid 701(caffeinate): [0x00000004] 00:00:01 PreventUserIdleDisplaySleep named: 'caffeinate command-line tool'",
     ].join("\n");
-    expect(
-      parseHalfkp81V1R11StageCAssertionsForTests(assertions, 701),
-    ).toEqual(HALFKP81_V1R11_REQUIRED_ASSERTIONS);
+    expect(parseHalfkp81V1R11StageCAssertionsForTests(assertions, 701)).toEqual(
+      HALFKP81_V1R11_REQUIRED_ASSERTIONS,
+    );
     expect(() =>
       parseHalfkp81V1R11StageCAssertionsForTests(
-        assertions.replace("PreventSystemSleep             1", "PreventSystemSleep             0"),
+        assertions.replace(
+          "PreventSystemSleep             1",
+          "PreventSystemSleep             0",
+        ),
         701,
       ),
     ).toThrow(/PreventSystemSleep differs/u);
     expect(() =>
       parseHalfkp81V1R11StageCAssertionsForTests(
-        assertions.replace("pid 701(caffeinate): [0x00000004]", "pid 999(caffeinate): [0x00000004]"),
+        assertions.replace(
+          "pid 701(caffeinate): [0x00000004]",
+          "pid 999(caffeinate): [0x00000004]",
+        ),
         701,
       ),
     ).toThrow(/PreventUserIdleDisplaySleep differs/u);
@@ -826,12 +820,14 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       evidence,
       { mode: 0o600 },
     );
-    const recovered =
-      await recoverHalfkp81V1R11StageCArtifactProgressForTests(root, {
+    const recovered = await recoverHalfkp81V1R11StageCArtifactProgressForTests(
+      root,
+      {
         source: null,
         evidence: null,
         receipt: null,
-      });
+      },
+    );
     expect(recovered.source).toMatchObject({
       bytes: source.byteLength,
       sha256: v1r11Sha256(source),
@@ -859,11 +855,10 @@ describe("HalfKP81 v1r11 Stage C live evidence", () => {
       receipt,
       { mode: 0o600 },
     );
-    const complete =
-      await recoverHalfkp81V1R11StageCArtifactProgressForTests(
-        root,
-        recovered,
-      );
+    const complete = await recoverHalfkp81V1R11StageCArtifactProgressForTests(
+      root,
+      recovered,
+    );
     const previous = {
       path: `${root}/12-formal-like-512.receipt.json`,
       bytes: 1,

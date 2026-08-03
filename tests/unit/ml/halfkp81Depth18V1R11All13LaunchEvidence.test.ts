@@ -47,11 +47,7 @@ function mismatchedFormalRunIntent(
         "application/x-mach-o-executable-exact-bytes",
         "3",
       ),
-      evalFile: identity(
-        "nn.bin",
-        "application/octet-stream-exact-bytes",
-        "4",
-      ),
+      evalFile: identity("nn.bin", "application/octet-stream-exact-bytes", "4"),
       receipt: identity("receipt.json", "engine-receipt-v1", "5"),
     },
     teacherContract: { depth: 18 },
@@ -80,19 +76,14 @@ function fixture() {
     `${repositoryRoot}/ml/run-halfkp81-depth18-v1r11-formal-child.ts`,
   ];
   const programArguments = runnerUtilityArgv;
-  const holderArguments = [
-    "/usr/bin/caffeinate",
-    "-dimsu",
-    "-w",
-    "700",
-  ];
+  const holderArguments = ["/usr/bin/caffeinate", "-dimsu", "-w", "700"];
   const plist = buildHalfkp81V1R11PlannedLaunchAgentPlistForTests({
-      label,
-      repositoryRoot,
-      nodePath: expectedNodePath,
-      stdoutPath,
-      stderrPath,
-    }).bytes;
+    label,
+    repositoryRoot,
+    nodePath: expectedNodePath,
+    stdoutPath,
+    stderrPath,
+  }).bytes;
   const launchctl = Buffer.from(
     [
       `gui/${uid}/${label} = {`,
@@ -288,7 +279,11 @@ describe("HalfKP81 v1r11 all-13 independent LaunchAgent verifier", () => {
       evidence.plist_snapshot,
     );
     const runFingerprint = halfkp81V1R11FormalRunFingerprintV2(intent);
-    const exactContext = { ...context, runFingerprint, formalRunIntent: intent };
+    const exactContext = {
+      ...context,
+      runFingerprint,
+      formalRunIntent: intent,
+    };
     const exactEvidence = { ...evidence, run_fingerprint: runFingerprint };
     expect(() =>
       verifyHalfkp81V1R11All13LaunchEvidenceForTests(
@@ -346,22 +341,25 @@ describe("HalfKP81 v1r11 all-13 independent LaunchAgent verifier", () => {
     ).toThrow(/circular authority input/u);
   });
 
-  it("derives HOME from the effective-uid passwd record and rejects env drift", () => {
-    const uid = process.geteuid?.();
-    expect(Number.isSafeInteger(uid)).toBe(true);
-    const original = process.env.HOME;
-    try {
-      const canonical = resolveHalfkp81V1R11PasswdHomeForTests(Number(uid));
-      expect(canonical).toBe(original);
-      process.env.HOME = "/tmp";
-      expect(() =>
-        resolveHalfkp81V1R11PasswdHomeForTests(Number(uid)),
-      ).toThrow(/HOME differs/u);
-    } finally {
-      if (original === undefined) delete process.env.HOME;
-      else process.env.HOME = original;
-    }
-  });
+  it.runIf(process.platform === "darwin")(
+    "derives HOME from the effective-uid passwd record and rejects env drift",
+    () => {
+      const uid = process.geteuid?.();
+      expect(Number.isSafeInteger(uid)).toBe(true);
+      const original = process.env.HOME;
+      try {
+        const canonical = resolveHalfkp81V1R11PasswdHomeForTests(Number(uid));
+        expect(canonical).toBe(original);
+        process.env.HOME = "/tmp";
+        expect(() =>
+          resolveHalfkp81V1R11PasswdHomeForTests(Number(uid)),
+        ).toThrow(/HOME differs/u);
+      } finally {
+        if (original === undefined) delete process.env.HOME;
+        else process.env.HOME = original;
+      }
+    },
+  );
 
   it("accepts only the exact running one-shot service and plist policy", () => {
     const { context, evidence, launchctl, plist, ps, sealedPs } = fixture();
@@ -555,10 +553,9 @@ describe("HalfKP81 v1r11 all-13 independent LaunchAgent verifier", () => {
     expect(signals).toEqual(["700:SIGTERM"]);
 
     const reused = Buffer.from(
-      ps.toString("utf8").replace(
-        "Sun Aug  2 12:00:00 2026",
-        "Sun Aug  2 12:00:02 2026",
-      ),
+      ps
+        .toString("utf8")
+        .replace("Sun Aug  2 12:00:00 2026", "Sun Aug  2 12:00:02 2026"),
       "utf8",
     );
     const reuseSignals: string[] = [];
@@ -751,8 +748,7 @@ describe("HalfKP81 v1r11 all-13 scratch boundary", () => {
     },
     teacherPlan: {
       path: "/private/tmp/v1r11-scratch/teacher-plan.json",
-      schema:
-        "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
+      schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
     },
   }) as never;
 

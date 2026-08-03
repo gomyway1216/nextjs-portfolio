@@ -703,10 +703,10 @@ describe("HalfKP81 depth18 teacher runner", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6-plan.json",
-      bytes: 155_507,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7-plan.json",
+      bytes: 156_094,
       sha256:
-        "7b7ccd7e917993d9a483d4cea21c1d812fb1b103c99446e825a8d161eaafb78b",
+        "fdd851362531173202fb9b37e639983bf510d7f6a1046e81976ad567bafefddf",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -718,6 +718,10 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
     expect(JSON.parse(bytes.toString("utf8"))).toMatchObject({
       schema: identity.schema,
+      teacher: {
+        fallback_lane: { search_timeout_milliseconds: 86_400_000 },
+        normal_lane: { search_timeout_milliseconds: 14_400_000 },
+      },
     });
   });
 

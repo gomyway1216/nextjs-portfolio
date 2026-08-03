@@ -12,10 +12,12 @@ import {
   validateHalfkp81Depth18V1R11MinimalR3ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR4ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR5ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR6ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR3ImportedSet,
   validateHalfkp81Depth18V1R11MinimalR4ImportedSet,
   validateHalfkp81Depth18V1R11MinimalR5ImportedSet,
   validateHalfkp81Depth18V1R11MinimalR6ImportedSet,
+  validateHalfkp81Depth18V1R11MinimalR7ImportedSet,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 
 const SOURCE_ROOT =
@@ -34,6 +36,8 @@ const MINIMAL_R4_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4";
 const MINIMAL_R5_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5";
+const MINIMAL_R6_SOURCE_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6";
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -927,6 +931,181 @@ export async function importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6(
   });
   await publishCreateOnly(
     path.join(request.authorityDirectory, "minimal-r5-import-receipt.json"),
+    canonicalLine(receipt),
+  );
+  return receipt;
+}
+
+async function readMinimalR6SourceSnapshots() {
+  const uid = process.getuid?.() ?? -1;
+  const read = (
+    file: string,
+    root: string,
+    label: string,
+    maximumBytes: number,
+  ) => readHalfkp81Depth18PrivateArtifact(file, root, uid, label, maximumBytes);
+  const [plan, selection, work, terminalFault, powerLedger, powerReceipt] =
+    await Promise.all([
+    read(
+      path.join(MINIMAL_R6_SOURCE_ROOT, "teacher-plan.json"),
+      MINIMAL_R6_SOURCE_ROOT,
+      "minimal-r6 import plan",
+      122_673,
+    ),
+    read(
+      path.join(SELECTION_ROOT, "hard-parents.jsonl"),
+      SELECTION_ROOT,
+      "minimal-r6 import selection",
+      7_268_777,
+    ),
+    read(
+      path.join(MINIMAL_R6_SOURCE_ROOT, "teacher-work.jsonl"),
+      MINIMAL_R6_SOURCE_ROOT,
+      "minimal-r6 import work",
+      105_333_287,
+    ),
+    read(
+      path.join(MINIMAL_R6_SOURCE_ROOT, "teacher-terminal-fault.json"),
+      MINIMAL_R6_SOURCE_ROOT,
+      "minimal-r6 import terminal fault",
+      2_316,
+    ),
+    read(
+      path.join(MINIMAL_R6_SOURCE_ROOT, "power-continuity.jsonl"),
+      MINIMAL_R6_SOURCE_ROOT,
+      "minimal-r6 import power ledger",
+      3_628_882,
+    ),
+    read(
+      path.join(MINIMAL_R6_SOURCE_ROOT, "power-continuity-receipt.json"),
+      MINIMAL_R6_SOURCE_ROOT,
+      "minimal-r6 import power receipt",
+      17_859,
+    ),
+  ]);
+  return Object.freeze({
+    plan,
+    selection,
+    work,
+    terminalFault,
+    powerLedger,
+    powerReceipt,
+  });
+}
+
+export async function importHalfkp81Depth18V1R11MinimalR6CompletedSetIntoR7(
+  request: Readonly<Halfkp81Depth18V1R11ImportRequest>,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (
+    !/^[0-9a-f]{64}$/u.test(request.targetRunFingerprint) ||
+    request.targetRunFingerprint ===
+      "549fb51196fffc91841bffb53a253deaf42cc5dfd8b3037353648723ca1ff7e8" ||
+    request.targetHeader.run_fingerprint !== request.targetRunFingerprint ||
+    request.targetHeader.schema !== V1R11_WORK_SCHEMA ||
+    request.selectionOrderedParentIds.length !== 8_192 ||
+    new Set(request.selectionOrderedParentIds).size !== 8_192
+  ) {
+    throw new Error("minimal-r7 import target identity differs");
+  }
+  const source = await readMinimalR6SourceSnapshots();
+  const sourceVerification =
+    validateHalfkp81Depth18V1R11MinimalR6ImportableSet(source);
+  const verifierReceiptIdentity = await publishCreateOnly(
+    path.join(
+      request.authorityDirectory,
+      "minimal-r6-import-source-verification-receipt.json",
+    ),
+    canonicalLine(sourceVerification),
+  );
+  const sourceLines = Buffer.from(source.work.bytes)
+    .toString("utf8")
+    .trimEnd()
+    .split("\n")
+    .slice(1)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const sourceByParentId = new Map(
+    sourceLines.map((entry) => [String(entry.parent_id), entry] as const),
+  );
+  const imported: Record<string, unknown>[] = [];
+  for (const parentId of request.selectionOrderedParentIds) {
+    const sourceEntry = sourceByParentId.get(parentId);
+    if (sourceEntry === undefined) continue;
+    const sourceTeacher = sourceEntry.teacher_entry as Record<string, unknown>;
+    const teacherEntry: Record<string, unknown> = {
+      ...sourceTeacher,
+      run_fingerprint: request.targetRunFingerprint,
+    };
+    delete teacherEntry.payload_sha256;
+    teacherEntry.payload_sha256 = sha256(
+      canonicalHalfkp81Depth18Json(teacherEntry),
+    );
+    const withoutDigest: Record<string, unknown> = {
+      ...sourceEntry,
+      schema: V1R11_WORK_SCHEMA,
+      run_fingerprint: request.targetRunFingerprint,
+      teacher_entry: teacherEntry,
+    };
+    delete withoutDigest.payload_sha256;
+    imported.push({
+      ...withoutDigest,
+      payload_sha256: sha256(
+        `${HALFKP81_DEPTH18_WRAPPER_DIGEST_DOMAIN}${canonicalHalfkp81Depth18Json(withoutDigest)}`,
+      ),
+    });
+  }
+  if (imported.length !== 4_881) {
+    throw new Error("minimal-r7 transformed parent count differs");
+  }
+  const targetBytes = Buffer.concat([
+    canonicalLine(request.targetHeader),
+    ...imported.map(canonicalLine),
+  ]);
+  const targetWorkIdentity = await publishCreateOnly(
+    request.targetWorkPath,
+    targetBytes,
+  );
+  const targetWork = await readHalfkp81Depth18PrivateArtifact(
+    request.targetWorkPath,
+    path.dirname(request.targetWorkPath),
+    process.getuid?.() ?? -1,
+    "minimal-r7 imported target work",
+    targetBytes.byteLength,
+  );
+  const targetVerification = validateHalfkp81Depth18V1R11MinimalR7ImportedSet({
+    selection: source.selection,
+    targetWork,
+    expectedHeader: request.targetHeader,
+    targetRunFingerprint: request.targetRunFingerprint,
+  });
+  const receipt = Object.freeze({
+    schema: "shogi-halfkp81-depth18-v1r11-minimal-r6-to-r7-import-receipt-v1",
+    status: "new-family-create-only-exact-set-imported",
+    source_verification_receipt: Object.freeze({
+      ...verifierReceiptIdentity,
+      schema: String(sourceVerification.schema),
+    }),
+    source: sourceVerification,
+    target_verification: targetVerification,
+    target: Object.freeze({
+      run_fingerprint: request.targetRunFingerprint,
+      work: Object.freeze({
+        ...targetWorkIdentity,
+        schema: V1R11_WORK_SCHEMA,
+        rows: imported.length + 1,
+      }),
+      imported_parents: imported.length,
+      imported_rows: 56_831,
+      remaining_parent_id_set_difference: 8_192 - imported.length,
+    }),
+    authority: Object.freeze({
+      may_resume_minimal_r6: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+  await publishCreateOnly(
+    path.join(request.authorityDirectory, "minimal-r6-import-receipt.json"),
     canonicalLine(receipt),
   );
   return receipt;

@@ -3836,6 +3836,7 @@ function wrapperPayloadSha256(
 function validateV1R9Route(
   value: unknown,
   label: string,
+  allowedFallbackTimeouts: readonly number[] = [14_400_000],
 ): Readonly<Record<string, unknown>> {
   const tentative = value as Record<string, unknown> | undefined;
   const fallbackMode = tentative?.mode === "hash8192-parent-fallback";
@@ -4002,7 +4003,7 @@ function validateV1R9Route(
     ) < 0 ||
     fallback.hash_mib !== 8_192 ||
     fallback.depth !== 18 ||
-    fallback.timeout_ms !== 14_400_000 ||
+    !allowedFallbackTimeouts.includes(fallback.timeout_ms as number) ||
     fallback.semaphore_limit !== 2 ||
     fallback.all_candidates_recomputed !== true ||
     fallback.candidate_count !== count ||
@@ -4032,6 +4033,7 @@ function validateWrapper(
   stableRuntimeReceiptSha256: string | undefined,
   stableReusablePoolReceiptSha256: string | undefined,
   source: number,
+  allowedFallbackTimeouts: readonly number[] = [14_400_000],
 ): Readonly<Halfkp81Depth18TeacherWorkParent> {
   const label = `teacher work line ${source}`;
   assertNoOldTeacherTargetFields(value, label);
@@ -4190,7 +4192,11 @@ function validateWrapper(
     ) {
       throw new Error(`${label} v1r9 reset route accounting differs`);
     }
-    v1r9Route = validateV1R9Route(wrapper.rescore_route, label);
+    v1r9Route = validateV1R9Route(
+      wrapper.rescore_route,
+      label,
+      allowedFallbackTimeouts,
+    );
     if (v1r9Route.mode === "normal-depth18" && fallbackRetries !== 0) {
       throw new Error(`${label} normal route contains fallback retry evidence`);
     }
@@ -4233,7 +4239,11 @@ function validateWrapper(
       planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
       ? 3_600_000
       : hashFallbackV1R9
-        ? 14_400_000
+        ? v1r9Route?.mode === "hash8192-parent-fallback"
+          ? ((v1r9Route.fallback as Readonly<{ timeout_ms: number }>).timeout_ms as
+              | 14_400_000
+              | 86_400_000)
+          : 14_400_000
         : 600_000,
     { depth: 16 },
     undefined,
@@ -4647,6 +4657,12 @@ interface Halfkp81Depth18V1R11CompletedSetContract {
     rows: number;
     searches: number;
   }>;
+  readonly allowedFallbackTimeouts?: readonly number[];
+  readonly reset?: Readonly<{
+    fallbackRetries: number;
+    engineRecycles: number;
+    normalRetries: number;
+  }>;
 }
 
 const V1R11_V1R10_REBOUND_COMPLETED_SET = Object.freeze({
@@ -4755,6 +4771,44 @@ const V1R11_MINIMAL_R5_COMPLETED_SET = Object.freeze({
   fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
 });
 
+const V1R11_MINIMAL_R6_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 122_673,
+    sha256: "43d4bc8b992367e1b432fa8bfdeb55e88e874ba3d8b2dd85a7041370c5aff1c2",
+  }),
+  work: Object.freeze({
+    bytes: 105_333_287,
+    sha256: "74c887374e3e9c26401f8da2850b9d0cbf2695ad08f474cb3f5962e26dd22b94",
+  }),
+  terminalFault: Object.freeze({
+    bytes: 2_316,
+    sha256: "c6717518a7aab00c7eaeb5a74791076bf69e9c957caa888c3a0a287669f76b8a",
+  }),
+  powerLedger: Object.freeze({
+    bytes: 3_628_882,
+    sha256: "4338bea0f5f14b3cff799fa6d073a02f7a758c9c45d59fac8234cc5e7e4598e7",
+  }),
+  powerReceipt: Object.freeze({
+    bytes: 17_859,
+    sha256: "cba2f1f4b08328d2072e38418bff6ce662a0d670046f41cd16e1e5e23c3331a5",
+  }),
+  runFingerprint:
+    "549fb51196fffc91841bffb53a253deaf42cc5dfd8b3037353648723ca1ff7e8",
+  completedParents: 4_881,
+  completedRows: 56_831,
+  selectionOrderParentIdsSha256:
+    "0c24f772e9fb00fc261d7beff6dd29765ba615072885e7f7059023356af5012e",
+  selectionIndexesSha256:
+    "9fba93ab565d6148c29eb1ac3b78c6a3c511bb015d24894312f4ab8d484af5a1",
+  fallback: Object.freeze({ parents: 9, rows: 91, searches: 100 }),
+  allowedFallbackTimeouts: Object.freeze([14_400_000]),
+  reset: Object.freeze({
+    fallbackRetries: 1,
+    engineRecycles: 1,
+    normalRetries: 0,
+  }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -4803,6 +4857,7 @@ function validateHalfkp81Depth18V1R11CompletedSet(
   const seen = new Set<string>();
   let rows = 0;
   const fallback = { parents: 0, rows: 0, searches: 0 };
+  const reset = { fallbackRetries: 0, engineRecycles: 0, normalRetries: 0 };
   for (let offset = 1; offset < workValues.length; offset += 1) {
     const value = workValues[offset] as Record<string, unknown>;
     const parentId = requiredText(
@@ -4821,12 +4876,21 @@ function validateHalfkp81Depth18V1R11CompletedSet(
       undefined,
       undefined,
       offset + 1,
+      contract.allowedFallbackTimeouts,
     );
     seen.add(parentId);
     indexes.push(indexed.index);
     ids.push(parentId);
     const parentRows = wrapper.teacher_entry.records.length;
     rows += parentRows;
+    const resetEvidence = wrapper.reset_timeout_recovery as unknown as Readonly<{
+      fallback_retries_used: number;
+      engine_recycles: number;
+      normal_retries_used: number;
+    }>;
+    reset.fallbackRetries += resetEvidence.fallback_retries_used;
+    reset.engineRecycles += resetEvidence.engine_recycles;
+    reset.normalRetries += resetEvidence.normal_retries_used;
     if (wrapper.rescore_route?.mode === "hash8192-parent-fallback") {
       const fallbackEvidence = wrapper.rescore_route.fallback as Readonly<{
         searches_executed: number;
@@ -4851,7 +4915,8 @@ function validateHalfkp81Depth18V1R11CompletedSet(
       contract.selectionOrderParentIdsSha256 ||
     sha256(canonicalHalfkp81Depth18Json(canonicalIndexes)) !==
       contract.selectionIndexesSha256 ||
-    !sameJson(fallback, contract.fallback)
+    !sameJson(fallback, contract.fallback) ||
+    (contract.reset !== undefined && !sameJson(reset, contract.reset))
   ) {
     throw new Error("v1r11 imported target semantic accounting differs");
   }
@@ -4872,6 +4937,7 @@ function validateHalfkp81Depth18V1R11CompletedSet(
       canonicalHalfkp81Depth18Json(canonicalIndexes),
     ),
     fallback_recount: Object.freeze(fallback),
+    reset_recount: Object.freeze(reset),
     verification: Object.freeze({
       canonical_selection_order: requireCanonicalSelectionOrder,
       canonical_selection_order_reconstructed_for_set_digests: true,
@@ -4929,6 +4995,16 @@ export function validateHalfkp81Depth18V1R11MinimalR6ImportedSet(
   return validateHalfkp81Depth18V1R11CompletedSet(
     request,
     V1R11_MINIMAL_R5_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR7ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R6_COMPLETED_SET,
     true,
   );
 }
@@ -5349,6 +5425,164 @@ export function validateHalfkp81Depth18V1R11MinimalR5ImportableSet(
     terminalFault.teacher_plan,
     request.plan,
     "minimal-r5 import terminal fault teacher plan",
+    { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
+  );
+  return verification;
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR6ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    terminalFault: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerLedger: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerReceipt: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R6_COMPLETED_SET.plan,
+    "minimal-r6 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r6 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R6_COMPLETED_SET.work,
+    "minimal-r6 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.terminalFault,
+    V1R11_MINIMAL_R6_COMPLETED_SET.terminalFault,
+    "minimal-r6 source terminal fault",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerLedger,
+    V1R11_MINIMAL_R6_COMPLETED_SET.powerLedger,
+    "minimal-r6 source power ledger",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerReceipt,
+    V1R11_MINIMAL_R6_COMPLETED_SET.powerReceipt,
+    "minimal-r6 source power receipt",
+  );
+  const workValues = parseExactJsonl(request.work.bytes, "minimal-r6 source work");
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r6 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R6_COMPLETED_SET,
+    false,
+  );
+  const terminalFault = exactObject(
+    parseCanonicalDocument(request.terminalFault, "minimal-r6 source terminal fault"),
+    [
+      "authority",
+      "completed_parents",
+      "incomplete_parents",
+      "message",
+      "power_continuity",
+      "run_fingerprint",
+      "schema",
+      "status",
+      "teacher_plan",
+      "technical_faults",
+    ],
+    "minimal-r6 source terminal fault",
+  );
+  const authority = exactObject(
+    terminalFault.authority,
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
+    "minimal-r6 source terminal fault authority",
+  );
+  const powerContinuity = exactObject(
+    terminalFault.power_continuity,
+    ["launchagent_authority", "ledger", "preformal_authority", "receipt"],
+    "minimal-r6 source terminal fault power continuity",
+  );
+  validateDeclaredIdentity(
+    powerContinuity.ledger,
+    request.powerLedger,
+    "minimal-r6 source terminal fault power ledger",
+    { schema: "shogi-halfkp81-depth18-power-continuity-ledger-v1r11" },
+  );
+  validateDeclaredIdentity(
+    powerContinuity.receipt,
+    request.powerReceipt,
+    "minimal-r6 source terminal fault power receipt",
+    { schema: "shogi-halfkp81-depth18-power-continuity-receipt-v1r11" },
+  );
+  const faultParentId =
+    "sha256:0814860747fab666f5952af696810598e8ffaa7a4ed9d9eadd8e8d95a2f87d5b";
+  const faultParentSelected = parseExactJsonl(
+    request.selection.bytes,
+    "minimal-r6 source selection",
+    false,
+  )
+    .map(parseSelectionRow)
+    .map(selectionParent)
+    .some((selected) => selected.parent.parent_id === faultParentId);
+  const faultParentImported = workValues
+    .slice(1)
+    .some(
+      (value) =>
+        (value as Readonly<Record<string, unknown>>).parent_id === faultParentId,
+    );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint ||
+    terminalFault.run_fingerprint !== V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !== "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.status !== "terminal-fault-family-stopped" ||
+    terminalFault.completed_parents !== 4_881 ||
+    terminalFault.incomplete_parents !== 3_311 ||
+    terminalFault.technical_faults !== 1 ||
+    !String(terminalFault.message).includes(
+      'USI search timeout after 14400000ms; stage={"error_name":"SiblingTeacherSearchTimeoutError"',
+    ) ||
+    !String(terminalFault.message).includes('"searchmoves":["8h7i"]') ||
+    !faultParentSelected ||
+    faultParentImported ||
+    !sameJson(authority, {
+      may_play_formal_games: false,
+      may_resume_same_family: false,
+      may_train: false,
+      may_write_live_weights: false,
+    })
+  ) {
+    throw new Error("minimal-r6 import terminal closure differs");
+  }
+  validateDeclaredIdentity(
+    terminalFault.teacher_plan,
+    request.plan,
+    "minimal-r6 import terminal fault teacher plan",
     { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
   );
   return verification;
@@ -6124,9 +6358,13 @@ function validatePlanAndHeader(
         partial_or_normal_lane_rescore_reuse_allowed: false,
         publication: "only-after-all-candidates-complete-exact-depth18",
         rescore_all_candidates_from_zero: true,
-        search_timeout_milliseconds: 14_400_000,
+        search_timeout_milliseconds: fallback.search_timeout_milliseconds,
         threads_per_process: 1,
-      })
+      }) ||
+      (fallback.search_timeout_milliseconds !== 14_400_000 &&
+        (planSchema !==
+          HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 ||
+          fallback.search_timeout_milliseconds !== 86_400_000))
     ) {
       throw new Error("v1r9 sealed teacher lane contract differs");
     }
@@ -7587,6 +7825,15 @@ function validateCore(
   validateEngineReceipt(request.engineReceipt, request.engineBinary);
   const planSchema = plan.schema as TeacherPlanSchema;
   const yaneuraOnly = isYaneuraOnlyPlanSchema(planSchema);
+  const configuredFallbackTimeout = (
+    (plan.teacher as Readonly<Record<string, unknown>> | undefined)
+      ?.fallback_lane as Readonly<Record<string, unknown>> | undefined
+  )?.search_timeout_milliseconds;
+  const allowedFallbackTimeouts =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 &&
+    configuredFallbackTimeout === 86_400_000
+      ? ([14_400_000, 86_400_000] as const)
+      : ([14_400_000] as const);
 
   const recordsByRole: Record<TeacherRole, SiblingRecord[]> = {
     fit: [],
@@ -7633,6 +7880,7 @@ function validateCore(
       header.stable_runtime?.receipt_sha256,
       reusablePoolReceiptSha256,
       index + 1,
+      allowedFallbackTimeouts,
     );
     wrapperIds.add(wrapper.parent_id);
     wrappers.set(wrapper.parent_id, wrapper);

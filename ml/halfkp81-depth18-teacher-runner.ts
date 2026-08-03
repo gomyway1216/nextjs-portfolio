@@ -828,6 +828,9 @@ export interface Halfkp81Depth18V1R11FormalAuthorityCapability {
 }
 
 const trustedV1R11FormalAuthorities = new WeakSet<object>();
+const V1R11_MINIMAL_FORMAL_CAPABILITY = Symbol(
+  "halfkp81-v1r11-minimal-formal-capability",
+);
 
 export interface Halfkp81Depth18PowerContinuitySession {
   readonly failure: Promise<never>;
@@ -1939,8 +1942,7 @@ async function captureSystemPowerContinuityObservation(
       "runner-utility-argv-mismatch",
     );
   }
-  const expectedCaffeinateCommand =
-    `/usr/bin/caffeinate -dimsu -w ${String(config.runnerPid)}`;
+  const expectedCaffeinateCommand = `/usr/bin/caffeinate -dimsu -w ${String(config.runnerPid)}`;
   const processRows = parsedProcessRows.filter(
     (match) =>
       Number(match[2]) === config.runnerPid &&
@@ -7017,7 +7019,9 @@ function v1r11EnvironmentFaultPreimage(
     !Array.isArray(cleanup.remaining_engine_pids) ||
     cleanup.remaining_engine_pids.length !== 0
   ) {
-    throw new Error("v1r11 rich cleanup evidence is required before environment fault");
+    throw new Error(
+      "v1r11 rich cleanup evidence is required before environment fault",
+    );
   }
   return Object.freeze({
     schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA,
@@ -7071,8 +7075,7 @@ export function buildHalfkp81Depth18V1R11EnvironmentFaultIntentForTests(
     throw new Error("v1r11 environment fault intent differs");
   }
   return Object.freeze({
-    schema:
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_ENVIRONMENT_FAULT_INTENT_SCHEMA,
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_ENVIRONMENT_FAULT_INTENT_SCHEMA,
     status: "runner-closed-power-fault-awaiting-outer-cleanup",
     teacher_plan: value.teacherPlan,
     source_revision: value.sourceRevision,
@@ -7503,16 +7506,12 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
         })();
     const effectiveRunFingerprint = recoveryV1R11
       ? halfkp81V1R11FormalRunFingerprintV2({
-          teacherPlan: authenticated.planIdentity as Required<
-            Halfkp81Depth18TeacherFileIdentity
-          >,
-          selectionJsonl: authenticated.selectionIdentity as Required<
-            Halfkp81Depth18TeacherFileIdentity
-          >,
+          teacherPlan:
+            authenticated.planIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
+          selectionJsonl:
+            authenticated.selectionIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
           selectionManifest:
-            authenticated.selectionManifestIdentity as Required<
-              Halfkp81Depth18TeacherFileIdentity
-            >,
+            authenticated.selectionManifestIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
           sourceRevision: authenticated.sourceRevision,
           engine: {
             binary: Object.freeze({
@@ -7523,15 +7522,14 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
               ...evalFile,
               schema: HALFKP81_V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
             }),
-            receipt: engineReceipt as Required<Halfkp81Depth18TeacherFileIdentity>,
+            receipt:
+              engineReceipt as Required<Halfkp81Depth18TeacherFileIdentity>,
           },
           teacherContract: authenticated.teacher,
           candidateContract:
             HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9,
-          plannedFinalDescriptor:
-            v1r11Authority!.plannedFinalDescriptor as Required<
-              Halfkp81Depth18TeacherFileIdentity
-            >,
+          plannedFinalDescriptor: v1r11Authority!
+            .plannedFinalDescriptor as Required<Halfkp81Depth18TeacherFileIdentity>,
         })
       : sha256(
           `${WORK_FINGERPRINT_DOMAIN}${canonicalJson(fingerprintPayload)}`,
@@ -9058,6 +9056,172 @@ export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R10(
   return runHalfkp81Depth18YaneuraOnlyTeacherV1R9(planPath);
 }
 
+/**
+ * Outcome-first v1r11 formal path. This deliberately does not call the legacy
+ * thirteen-gate/preformal orchestrator. Its process-local capability is minted
+ * only after the fixed smoke/import/power evidence has been reauthenticated.
+ */
+export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promise<
+  Readonly<Halfkp81Depth18TeacherRunResult>
+> {
+  const repositoryRoot = path.resolve(__dirname, "..");
+  const fixedGate = await import("./run-halfkp81-depth18-v1r11-minimal-formal");
+  const gate =
+    await fixedGate.verifyHalfkp81Depth18V1R11MinimalFormalFixedGate();
+  if (gate.status !== "minimal-formal-fixed-gate-pass") {
+    throw new Error("v1r11 minimal formal fixed gate did not pass");
+  }
+  if (!fs.existsSync(HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH)) {
+    await publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11();
+  }
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
+  );
+  const captured = await captureFloodgateGitExactCleanRevision(repositoryRoot);
+  const head = repositoryGitText(repositoryRoot, ["rev-parse", "HEAD"]);
+  if (
+    authenticated.planIdentity.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 ||
+    repositoryGitText(repositoryRoot, ["branch", "--show-current"]) !==
+      "main" ||
+    repositoryGitText(repositoryRoot, ["rev-parse", "main"]) !== head ||
+    repositoryGitText(repositoryRoot, ["status", "--porcelain"]) !== "" ||
+    captured !== head ||
+    authenticated.sourceRevision !== head
+  ) {
+    throw new Error(
+      "v1r11 minimal formal requires the exact clean merged main plan source",
+    );
+  }
+  const fixedPowerLedger = Object.freeze({
+    path: "/private/tmp/v1r11-power-smoke-final4-05b81a1e/power-continuity.jsonl",
+    bytes: 6_838,
+    sha256: "6080244f2920c59d3de6ceab483249593a00f1bb9ee6ca71728b1e46cb081fd0",
+    schema: "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+  });
+  const fixedPowerReceipt = Object.freeze({
+    path: "/private/tmp/v1r11-power-smoke-final4-05b81a1e/power-continuity-receipt.json",
+    bytes: 1_868,
+    sha256: "3564c9041c1021b33b0a16aed69428ba358c6b7d2e844b631d2ac649aa6ca102",
+    schema: "shogi-halfkp81-depth18-power-continuity-receipt-v1r11",
+  });
+  const fixedSmokeReceipt = Object.freeze({
+    path: "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB/teacher-receipt.json",
+    bytes: 1_831,
+    sha256: "c4090f40cf611dffa438ba560c7b70fa0cea16e530280a15677648797eda5883",
+    schema: HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
+  });
+  const fixedTrackedPlan = Object.freeze({
+    path: path.join(
+      repositoryRoot,
+      "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+    ),
+    bytes: 149_544,
+    sha256: "b1d733189685af964ae7f6ffba58ac6475e53b2c7a9cea3be5b9408fe0b6b0ca",
+    schema: "application/json-exact-bytes",
+  });
+  const minimalAuthorityPayload = Object.freeze({
+    schema: "shogi-halfkp81-depth18-v1r11-minimal-formal-authority-v1",
+    status: "fixed-minimal-start-gate-reauthenticated",
+    source_revision: authenticated.sourceRevision,
+    teacher_plan: authenticated.planIdentity,
+    tracked_minimal_start_plan: fixedTrackedPlan,
+    fixed_evidence: Object.freeze({
+      import_receipt: Object.freeze({
+        path: "/private/tmp/v1r11-import-scratch.2bRuAT/authority/v1r10-import-receipt.json",
+        bytes: 3_532,
+        sha256:
+          "575edc92fd7438c8f26a2ed3270d79dd28ca2076304184463eb308d52bed7a98",
+        schema: "shogi-halfkp81-depth18-v1r11-v1r10-import-receipt-v1",
+      }),
+      source_verifier_receipt: Object.freeze({
+        path: "/private/tmp/v1r11-import-scratch.2bRuAT/authority/v1r10-import-source-verification-receipt.json",
+        bytes: 2_497,
+        sha256:
+          "094067c4586920782065ef62e981b7bd128a4691f0389c64d20ede8e21450939",
+        schema: "shogi-halfkp81-depth18-v1r10-importable-set-verification-v1",
+      }),
+      smoke_receipt: fixedSmokeReceipt,
+      power_ledger: fixedPowerLedger,
+      power_receipt: fixedPowerReceipt,
+    }),
+    verification: Object.freeze({
+      exact_imported_parents: 4_196,
+      exact_remaining_parents: 3_996,
+      smoke_exact_depth18_rows: 12,
+      power_ledger_independently_verified: true,
+      engine_processes_before_launch: 0,
+      legacy_thirteen_gate_authority_used: false,
+    }),
+  });
+  const minimalAuthorityBase = await publishCreateOnly(
+    path.join(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
+      "minimal-formal-authority.json",
+    ),
+    canonicalJsonLine(minimalAuthorityPayload),
+  );
+  const minimalAuthority = Object.freeze({
+    ...minimalAuthorityBase,
+    schema: String(minimalAuthorityPayload.schema),
+  });
+  const capability = Object.freeze({
+    [V1R11_MINIMAL_FORMAL_CAPABILITY]: true,
+    launchAgentEvidence: minimalAuthority,
+    plannedFinalDescriptor: fixedTrackedPlan,
+    preformalLedger: minimalAuthority,
+    preformalRawReceipt: minimalAuthority,
+    verifiedPreformalAuthority: minimalAuthority,
+  });
+  trustedV1R11FormalAuthorities.add(capability);
+  const engineReceipt = authenticated.engine
+    .receipt as Required<Halfkp81Depth18TeacherFileIdentity>;
+  const expectedFingerprint = halfkp81V1R11FormalRunFingerprintV2({
+    teacherPlan:
+      authenticated.planIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
+    selectionJsonl:
+      authenticated.selectionIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
+    selectionManifest:
+      authenticated.selectionManifestIdentity as Required<Halfkp81Depth18TeacherFileIdentity>,
+    sourceRevision: authenticated.sourceRevision,
+    engine: {
+      binary: Object.freeze({
+        ...authenticated.engine.binary,
+        schema: HALFKP81_V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
+      }),
+      evalFile: Object.freeze({
+        ...authenticated.engine.eval_file,
+        schema: HALFKP81_V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
+      }),
+      receipt: engineReceipt,
+    },
+    teacherContract: authenticated.teacher,
+    candidateContract: HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9,
+    plannedFinalDescriptor: fixedTrackedPlan,
+  });
+  return runHalfkp81Depth18TeacherCoreForTests(
+    authenticated,
+    {
+      stablePolicy: "yaneuraou-only-v1",
+      processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PROCESSES,
+      parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS,
+      parentDeadlinePolicy: "per-search-only",
+      resetTimeoutRecoveryPolicy:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+      startPowerContinuity: (context) =>
+        startHalfkp81Depth18V1R11PowerContinuitySession(context),
+      v1r11FormalAuthority: capability,
+      expectedV1R11RunFingerprint: expectedFingerprint,
+    },
+    {
+      parentCount: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT,
+      roleCounts: HALFKP81_DEPTH18_TEACHER_ROLE_COUNTS,
+      milestones: HALFKP81_DEPTH18_TEACHER_MILESTONES,
+      maximumRows: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT * 13,
+    },
+  );
+}
+
 const V1R11_PREFORMAL_GATE_NAMES = Object.freeze([
   "ready-pr",
   "all-required-ci-success",
@@ -9626,12 +9790,9 @@ export async function runHalfkp81Depth18V1R11FromModernVerifiedAuthority(
     ],
     "modern v1r11 verified authority request",
   );
-  const authorityIo = await import(
-    "./halfkp81-depth18-v1r11-authority-io"
-  );
-  const stagedAuthority = await import(
-    "./verify-halfkp81-depth18-v1r11-staged-authority"
-  );
+  const authorityIo = await import("./halfkp81-depth18-v1r11-authority-io");
+  const stagedAuthority =
+    await import("./verify-halfkp81-depth18-v1r11-staged-authority");
   await authorityIo.readV1R11HeldIdentity(
     request.plannedFinalDescriptor,
     "application/x-apple-aspen-config-exact-bytes",

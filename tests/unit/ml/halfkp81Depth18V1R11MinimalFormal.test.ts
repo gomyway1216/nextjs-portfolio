@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -10,21 +11,40 @@ import { HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS } from "../../../ml/ha
 const ROOT = path.resolve(__dirname, "../../..");
 
 describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
+  it("resolves the formal gate through the actual tsx/cjs module boundary", () => {
+    const preload = execFileSync(
+      process.execPath,
+      ["-p", "require.resolve('tsx/cjs')"],
+      { cwd: ROOT, encoding: "utf8" },
+    ).trim();
+    const output = execFileSync(
+      process.execPath,
+      [
+        "-r",
+        preload,
+        "-e",
+        "const m=require('./ml/halfkp81-depth18-teacher-runner.ts'); const g=m.loadHalfkp81Depth18V1R11MinimalFormalModuleForTests(); if(typeof g.verifyHalfkp81Depth18V1R11MinimalFormalFixedGate!=='function') process.exit(2); process.stdout.write('pass')",
+      ],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(output).toBe("pass");
+  });
+
   it("accepts every output sealed by the tracked v1r11 namespace", () => {
     const trackedPlan = JSON.parse(
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-plan.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-plan.json",
         ),
         "utf8",
       ),
     ) as { output_namespace: Record<string, unknown> };
     const { collision_policy: _collisionPolicy, ...outputs } =
       trackedPlan.output_namespace;
-    expect([...HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS].sort()).toEqual(
-      Object.keys(outputs).sort(),
-    );
+    expect(
+      [...HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS].sort(),
+    ).toEqual(Object.keys(outputs).sort());
   });
 
   it("accepts an exact receipt identity and rejects one-byte tampering", () => {
@@ -74,7 +94,7 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-plan.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-plan.json",
         ),
         "utf8",
       ),
@@ -83,7 +103,7 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r11-minimal-r1-preregistration-2026-08-02.json",
+          "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r11-minimal-r2-preregistration-2026-08-02.json",
         ),
         "utf8",
       ),

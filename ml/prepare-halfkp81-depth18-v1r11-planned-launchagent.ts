@@ -12,7 +12,7 @@ import {
 
 const SNAPSHOT_SCHEMA = "application/x-apple-aspen-config-exact-bytes";
 const LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r1-";
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r2-";
 export const HALFKP81_V1R11_FORMAL_CHILD_ENTRYPOINT =
   "ml/run-halfkp81-depth18-v1r11-formal-child.ts" as const;
 
@@ -280,7 +280,7 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
   const label = `${LABEL_PREFIX}${input.sourceRevision.slice(0, 8)}`;
   const runDirectory = path.join(
     input.homeDirectory,
-    ".codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1",
+    ".codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2",
   );
   const launchAgentsDirectory = path.join(
     input.homeDirectory,

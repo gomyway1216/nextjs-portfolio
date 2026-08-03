@@ -28,13 +28,17 @@ export interface V1R11HeldIdentityGuard {
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const V1R11_PRODUCTION_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority";
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority";
 const V1R11_PRODUCTION_TEACHER_PLAN_PATH =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-plan.json";
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-plan.json";
 const V1R11_FAILED_PRODUCTION_AUTHORITY_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority";
 const V1R11_FAILED_PRODUCTION_TEACHER_PLAN_PATH =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11/teacher-plan.json";
+const V1R11_FAILED_MINIMAL_R1_AUTHORITY_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority";
+const V1R11_FAILED_MINIMAL_R1_TEACHER_PLAN_PATH =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-plan.json";
 
 export interface Halfkp81V1R11ScratchNamespaceCapabilityForTests {
   readonly __halfkp81V1R11ScratchNamespaceCapability: never;
@@ -53,8 +57,12 @@ const v1r11ScratchNamespaceCapabilities = new WeakMap<
 
 function pathInside(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return relative.length > 0 && !relative.startsWith(`..${path.sep}`) &&
-    relative !== ".." && !path.isAbsolute(relative);
+  return (
+    relative.length > 0 &&
+    !relative.startsWith(`..${path.sep}`) &&
+    relative !== ".." &&
+    !path.isAbsolute(relative)
+  );
 }
 
 /**
@@ -66,9 +74,7 @@ export function createHalfkp81V1R11ScratchNamespaceCapabilityForTests(
 ): Readonly<Halfkp81V1R11ScratchNamespaceCapabilityForTests> {
   const scratchRoot = fs.realpathSync.native(request.scratchRoot);
   const temporaryRoot = fs.realpathSync.native(os.tmpdir());
-  const authorityDirectory = fs.realpathSync.native(
-    request.authorityDirectory,
-  );
+  const authorityDirectory = fs.realpathSync.native(request.authorityDirectory);
   const teacherPlanPath = path.normalize(request.teacherPlanPath);
   if (
     !pathInside(temporaryRoot, scratchRoot) ||
@@ -78,6 +84,8 @@ export function createHalfkp81V1R11ScratchNamespaceCapabilityForTests(
     teacherPlanPath === V1R11_PRODUCTION_TEACHER_PLAN_PATH ||
     authorityDirectory === V1R11_FAILED_PRODUCTION_AUTHORITY_DIRECTORY ||
     teacherPlanPath === V1R11_FAILED_PRODUCTION_TEACHER_PLAN_PATH ||
+    authorityDirectory === V1R11_FAILED_MINIMAL_R1_AUTHORITY_DIRECTORY ||
+    teacherPlanPath === V1R11_FAILED_MINIMAL_R1_TEACHER_PLAN_PATH ||
     !path.isAbsolute(teacherPlanPath) ||
     request.scratchRoot !== scratchRoot ||
     request.authorityDirectory !== authorityDirectory ||

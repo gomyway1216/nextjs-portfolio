@@ -1,268 +1,330 @@
 {
-  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r11-preregistration-data-memo-v1",
-  "date": "2026-08-02",
-  "status": "prospective-ac-power-continuity-recovery-not-executed",
+  "authority": {
+    "may_execute_candidate_order_gate": false,
+    "may_execute_formal_teacher": false,
+    "may_execute_known10_probe": false,
+    "may_execute_mixed_load_gate": false,
+    "may_execute_pathological_fallback_probe": false,
+    "may_execute_preflight512": false,
+    "may_play_formal_games": false,
+    "may_publish_runtime_plan": false,
+    "may_train": false,
+    "may_write_live_weights": false,
+    "unlock_condition": "stable-head-commit-and-minimal_formal_start_gate-runtime-blocking-requirements-pass-CI-and-formal-may-then-run-in-parallel",
+    "may_resume_v1r6_v1r7_v1r8_v1r9_or_v1r10": false
+  },
+  "minimal_formal_start_gate": {
+    "status": "prospective-outcome-first-start-gate-not-yet-run",
+    "precedence": "This object is the sole blocking formal-start contract for v1r11 and supersedes every earlier requirement that made the complete thirteen-stage public lifecycle E2E or its receipts a prerequisite to starting the formal teacher. Existing thirteen-stage artifacts remain non-authorizing P2 hardening.",
+    "strength_contract_change": false,
+    "minimal_formal_entrypoint": {
+      "path": "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
+      "bytes": 14491,
+      "sha256": "070630f1d2252820996b29f9a4f5821d97c525f6d70d4feef8a713d3482f29a7",
+      "schema": "text/typescript-utf8-exact-source"
+    },
+    "v1r10_durable_completed_set_import": {
+      "classification": "new-family-create-only-import-after-independent-verifier-pass-not-same-family-resume",
+      "source_family": "halfkp81-hard-depth18-yaneura-only-v1r10",
+      "source_work": {
+        "bytes": 91081134,
+        "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
+      },
+      "import_verifier_receipt_identity": "required-create-only-full-file-identity-path-bytes-sha256-schema",
+      "completed_parent_id_set_size": 4196,
+      "completed_teacher_rows": 49190,
+      "fallback_parents": 5,
+      "fallback_searches": 60,
+      "recovery_parents": 1,
+      "capped_teacher_labels": 0,
+      "partial_or_inflight_state_imported": 0,
+      "terminal_fault_rows_imported": 0,
+      "authenticated_selection_rows": 8192,
+      "selection_index_base": 0,
+      "contiguous_selection_prefix_length": 3890,
+      "missing_selection_indices_below_4196": [3890, 4135, 4191],
+      "completed_selection_indices_at_or_above_4196": [4196, 4197, 4198],
+      "maximum_completed_selection_index": 4198,
+      "remaining_parent_id_set_difference_size": 3996,
+      "canonical_import_order": "authenticated-selection-order-over-the-exact-completed-parent-ID-set",
+      "duplicate_parent_ids": 0,
+      "omitted_completed_parent_ids": 0,
+      "source_work_must_remain_immutable": true,
+      "independent_semantic_verifier": "reconstruct-and-validate-the-exact-4196-completed-parent-ID-set-and-49190-rows-against-the-authenticated-8192-selection-including-membership-canonical-selection-order-parent-and-candidate-order-legality-exact-depth18-role-fallback-recovery-cap-counts-duplicate0-and-omission0-before-import",
+      "new_family_rebinding": "write-create-only-v1r11-imported-completed-set-in-authenticated-selection-order-with-new-v1r11-schema-run-fingerprint-parent-and-row-digests-without-mutating-v1r10-source",
+      "import_receipt_must_bind": [
+        "immutable-v1r10-source-work-full-identity",
+        "independent-verifier-full-identity-and-semantic-summary",
+        "v1r11-plan-source-revision-run-fingerprint-selection-and-strength-identities",
+        "create-only-v1r11-imported-work-full-identity"
+      ],
+      "source_family_resume_or_write": false,
+      "strength_contract_must_remain_identical": true
+    },
+    "blocking_requirements": [
+      "stable-head-commit-and-clean-working-tree-source-identity-pass",
+      "source-revision-engine-eval-selection-and-unchanged-strength-contract-full-identities-pass",
+      "one-parent-actual-production-teacher-core-scratch-smoke-pass",
+      "the-same-independent-artifact-verifier-passes-the-scratch-smoke-artifact",
+      "AC-battery-and-no-sleep-power-guardian-admission-pass",
+      "focused-regression-and-dedicated-ML-typechecks-pass"
+    ],
+    "identity_gate": {
+      "source_revision": "exact-stable-head-commit-40-lowercase-hex",
+      "engine_binary_eval_and_engine_receipt": "held-full-file-identities",
+      "selection_jsonl_and_manifest": "held-authenticated-8192-row-selection-identities",
+      "strength_contract": "teacher-candidate-generation-whole-parent-fallback-escalation-budgets-training-and-downstream-gates-deep-exact-to-this-plan-and-unchanged-from-v1r10"
+    },
+    "short_real_teacher_smoke": {
+      "authority": "scratch-only-never-training-data-or-strength-result",
+      "selection_prefix_parents": 1,
+      "selection_index_zero_based": 0,
+      "parent_id": "sha256:5ef4d6bbe4d6cae683c29e050264a0d9624114e815a23bbbb5175e1ec280b5f6",
+      "expected_candidate_rows": 12,
+      "expected_fallback": null,
+      "expected_candidate_moves": [
+        "1e4b+",
+        "3f3e",
+        "4c4d",
+        "4g4f",
+        "4i4h",
+        "6h5i",
+        "6h7h",
+        "7f7e",
+        "7g6f",
+        "9g9f",
+        "P*2c",
+        "P*2d"
+      ],
+      "entrypoint": "actual-production-teacher-core",
+      "engine_and_eval": "exact-identities-from-identity-gate",
+      "candidate_contract": "all-candidates-for-the-fixed-parent-under-the-unchanged-production-candidate-generation-contract",
+      "required_result": {
+        "terminal_faults": 0,
+        "illegal_moves": 0,
+        "partial_candidate_rows": 0,
+        "capped_teacher_labels": 0,
+        "every_published_candidate_depth_exact": 18
+      },
+      "whole_parent_fallback_policy_must_remain_enabled": true,
+      "same_independent_artifact_verifier_must_pass": true,
+      "scratch_artifacts_reusable_for_formal_or_training": false
+    },
+    "power_gate": {
+      "power_source": "AC Power",
+      "battery_percentage_minimum": 80,
+      "no_sleep_darkwake_wake_or_hibernate_during_smoke": true,
+      "node_direct_runner_and_direct_child_caffeinate_minus_dimsu_minus_w_runner_pid": true,
+      "guardian_required_for_formal_run": true
+    },
+    "focused_regressions": [
+      "Stage-A-real-producer-import-and-direct-path",
+      "Stage-B-real-result-scoreKind-parser-and-typed-path",
+      "one-parent-actual-production-teacher-core-smoke",
+      "same-independent-artifact-verifier-on-smoke-output",
+      "node-direct-command-only-process-topology",
+      "AC-and-no-sleep-guardian"
+    ],
+    "nonblocking_p2": [
+      "complete-thirteen-stage-public-production-outer-lifecycle-E2E",
+      "expanded-receipt-orchestration-and-generalized-OS-filesystem-time-fake-framework"
+    ],
+    "parallel_execution_policy": {
+      "stable_head_commit_required": true,
+      "CI_and_formal_teacher_may_start_in_parallel_from_the_same_stable_head": true,
+      "formal_start_requires_ready_PR_CI_or_merge_completion": false,
+      "CI_failure_or_tree_mismatch_policy": "stop-formal-family-fail-closed-and-do-not-train",
+      "ready_PR_required_CI_regular_merge_and_clean-main-tree-identity_required_before_training_or-promotion": true
+    },
+    "schedule": {
+      "preparation_target_minutes": 60,
+      "formal_launch_target": "2026-08-02T22:30:00-07:00",
+      "formal_completion_target": "2026-08-03T09:00:00-07:00",
+      "formal_completion_upper_bound": "2026-08-03T11:00:00-07:00"
+    },
+    "formal_teacher_unlock_rule": "The formal v1r11 teacher may start from the stable head commit after the one-parent real smoke, identical artifact verifier, identity, focused-regression, and AC/no-sleep gates pass, while PR CI and merge proceed in parallel. Training games and live-weight writes remain locked until CI, regular merge, clean-main tree identity, and existing strength gates pass.",
+    "formal_execution_started": false,
+    "formal_parents": 0,
+    "formal_teacher_rows": 0
+  },
+  "downstream_gates": {
+    "absolute_max_cp_delta_maximum": 300,
+    "fresh_screen_games": 56,
+    "fresh_screen_halfpoints_denominator": 112,
+    "fresh_screen_halfpoints_minimum": 62,
+    "fresh_screen_technical_faults_maximum": 0,
+    "int16_clipping_coordinates_maximum": 0,
+    "nearest_rank_p99_9_ratio_maximum": 1.05,
+    "old_validation_pair_delta_minimum": 0,
+    "old_validation_rows": 22890,
+    "old_validation_teacher_mae_cp_improvement_minimum": 5,
+    "runtime_slowdown_percent_maximum": 5,
+    "sealed_parents": 1024,
+    "sealed_sibling_pair_delta_percentage_points_minimum": 1,
+    "sealed_top1_delta_percentage_points_minimum": 2,
+    "teacher_authentication_prefixes": [100, 500],
+    "tune_parents": 1024,
+    "tune_sibling_pair_delta_percentage_points_minimum": 1,
+    "tune_top1_delta_percentage_points_minimum": 2,
+    "wasm_parity_mismatches_maximum": 0
+  },
+  "escalation_budgets": {
+    "actual_cap_parent_counts_by_role_required": true,
+    "actual_cap_trigger_search_counts_by_role_required": true,
+    "actual_fallback_rows_by_role_required": true,
+    "artifact_verifier_recount_required": true,
+    "capped_teacher_labels_maximum": 0,
+    "fallback_parent_count_maximum": 8,
+    "fallback_parent_count_maximum_by_role": {
+      "fit": 6,
+      "sealed": 1,
+      "tune": 1
+    },
+    "fallback_search_count_maximum": 104,
+    "fallback_search_count_maximum_by_role": {
+      "fit": 78,
+      "sealed": 13,
+      "tune": 13
+    },
+    "fallback_search_count_maximum_per_parent": 13,
+    "runtime_recount_after_every_routing_and_fallback_publication": true,
+    "threshold_change_after_results": false,
+    "threshold_exceeded_policy": "immediate-family-terminal-fault"
+  },
   "family": "halfkp81-hard-depth18-yaneura-only-v1r11",
-  "objective": "Repeat the identical v1r10 teacher, training, and strength contract from zero in a new namespace while failing closed on any AC, caffeinate-assertion, boot-session, sleep, DarkWake, Hibernate, or guardian-cadence discontinuity.",
-  "v1r10_terminal_evidence": {
-    "classification": "low-power-sleep-contaminated-formal-search-timeout-no-strength-result",
-    "source_revision": "f75184f41533cb2fb93f54ca723056bc9c813d29",
-    "run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
-    "completed_parents": 4196,
-    "completed_teacher_rows": 49190,
-    "fallback_parents": 5,
-    "teacher_plan": {
-      "bytes": 16859,
-      "sha256": "9f56b8ab252ce96a4ee0675252e7b54be6cdb26d294dde08d896dce9b7c60b15"
-    },
-    "teacher_work": {
-      "bytes": 91081134,
-      "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
-    },
-    "terminal_fault": {
-      "bytes": 1084,
-      "sha256": "436e9c6dfe5d8824cf89b1616ed82e082bfdafe67e7e8ed6870bb5e2d5539997"
-    },
-    "sleep": {
-      "start": "2026-08-02T01:12:11-07:00",
-      "wake": "2026-08-02T09:00:57-07:00",
-      "duration_seconds": 28126,
-      "start_power_source": "Battery",
-      "start_battery_percentage": 1,
-      "wake_kind": "Wake from Hibernate"
-    },
-    "new_family_import_completed_parents_after_independent_verifier_pass": 4196,
-    "new_family_import_teacher_rows_after_independent_verifier_pass": 49190,
-    "reuse_partial_or_inflight_state": 0,
-    "same_family_resume_authorized": false,
-    "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r10-low-power-sleep-terminal-fault-2026-08-02.json",
-    "reuse_scratch_rows": 0,
-    "reuse_v1r10_milestones": 0,
-    "reuse_preformal_gate_evidence": false,
-      "import_contract": "minimal_formal_start_gate.v1r10_durable_completed_set_import"
-  },
-  "isolated_same_search_evidence": {
-    "authority": "scratch-only-no-training-or-strength-authority",
-    "normal_hash512": {
-      "receipt_bytes": 1774,
-      "receipt_sha256": "21e16a29636b29d9894c12ca0298c44dd4282f81f29d11c144b7c6bf99148d9e",
-      "elapsed_milliseconds": 1108533,
-      "result": "two-billion-node-cap",
-      "maximum_observed_nodes": 2000000877,
-      "selected_completed_depth": 16
-    },
-    "fallback_hash8192": {
-      "receipt_bytes": 1174,
-      "receipt_sha256": "bd71d8062af41ab57a96927e8a6fe8fbbe4e0cf3b8a945a801de4707797e49a3",
-      "elapsed_milliseconds": 9490,
-      "result": "exact-depth18",
-      "cp": -35281,
-      "nodes": 8944292
-    },
-    "search_timeout_milliseconds": 14400000,
-    "timeout_change_authorized": false,
-    "conclusion": "The unchanged timeout has approximately 13x normal-lane and 1517x fallback headroom for this isolated position; v1r11 changes only the environment continuity boundary."
-  },
-  "identity_contract": {
-    "schema": "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
-    "new_tracked_preregistration_required": true,
-    "new_clean_merged_source_revision_required": true,
-    "new_run_fingerprint_required": true,
-    "run_fingerprint_status": "not-issued-before-clean-merged-v1r11-source",
-    "must_differ_from_v1r10_run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
-    "formal_run_intent_v2": {
-      "schema": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
-      "status": "prospective-runtime-formula-migration-required-before-any-preformal-or-formal-execution",
-      "purpose": "Compute one stable formal run fingerprint only from artifacts and contracts that exist before the fingerprint; bind later authority receipts without feeding their fingerprint-bearing identities back into the hash.",
-      "domain_utf8_without_separator": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
-      "domain_separator_hex": "00",
-      "canonicalization": "utf8-of-canonical-json-with-object-keys-in-utf8-byte-order-no-insignificant-whitespace-and-no-terminal-lf",
-      "formula": "sha256(utf8(domain_utf8_without_separator) || 0x00 || utf8(canonical_json(payload)))",
-      "payload_required_fields": [
-        "schema",
-        "teacher_plan",
-        "selection_jsonl",
-        "selection_manifest",
-        "source_revision",
-        "engine",
-        "teacher",
-        "candidate_generation",
-        "planned_final_launchagent_descriptor"
-      ],
-      "payload_additional_fields_allowed": false,
-      "payload_schema_value": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
-      "full_file_identity_required_fields": ["path", "bytes", "sha256", "schema"],
-      "selection_jsonl_identity_required_fields": ["path", "bytes", "sha256", "rows", "schema"],
-      "engine_required_fields": ["binary", "eval_file", "receipt"],
-      "payload_bindings": {
-        "teacher_plan": "exact-held-runtime-teacher-plan-full-file-identity",
-        "selection_jsonl": "exact-held-authenticated-8192-row-selection-full-identity",
-        "selection_manifest": "exact-held-authenticated-selection-manifest-full-file-identity",
-        "source_revision": "exact-clean-merged-main-40-lowercase-hex-revision-bound-by-teacher-plan",
-        "engine.binary": "exact-held-YaneuraOu-binary-full-file-identity",
-        "engine.eval_file": "exact-held-pinned-eval-full-file-identity",
-        "engine.receipt": "exact-held-engine-receipt-full-file-identity",
-        "teacher": "deep-exact-runtime-teacher-contract-from-the-authenticated-plan",
-        "candidate_generation": "deep-exact-runtime-candidate-generation-contract-from-the-authenticated-plan",
-        "planned_final_launchagent_descriptor": "exact-held-create-only-planned-final-one-shot-launchagent-plist-snapshot-full-file-identity-created-before-Stage-A-and-before-fingerprint-computation"
+  "large_hash_evidence": {
+    "authority": "scratch-only-operational-evidence-never-training-data-or-strength-result",
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "parent_id": "sha256:622377e74345bfcbe509b903ae89e37dfec48e493db0331780b5423382d926a1",
+    "searchmove": "G*6a",
+    "threads": 1,
+    "trials": [
+      {
+        "cp": -3325,
+        "depth": 18,
+        "elapsed_milliseconds": 280702,
+        "hash_mib": 2048,
+        "maximum_observed_hashfull": 796,
+        "nodes": 456368061,
+        "receipt_bytes": 932,
+        "receipt_sha256": "0047c046c49ddb361c716daf722b94c19bb1465446b51104b54ee02daded7556",
+        "transcript_bytes": 5793,
+        "transcript_sha256": "b8414047f97f8df701d66f9353698d626d3873ee4ddeaee70634b024e2bedbfa"
       },
-      "planned_descriptor_constraints": {
-        "must_exist_and-be-held-reauthenticated-before-fingerprint": true,
-        "bytes_must_not-contain-or-depend-on-run_fingerprint": true,
-        "bytes_must_not-contain-or-depend-on-preformal-receipt-identities": true,
-        "Stage-C-live-evidence-plist-snapshot-must-deep-equal-this-identity": true,
-        "Stage-C-may-rewrite-planned-descriptor": false
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 214189,
+        "hash_mib": 4096,
+        "maximum_observed_hashfull": 368,
+        "nodes": 370179475,
+        "receipt_bytes": 913,
+        "receipt_sha256": "fe0699735b39f47189ebd183677199785c822726f584ed06231b942c10d015a2",
+        "transcript_bytes": 5536,
+        "transcript_sha256": "150f1d3642b25e89acd1b72ef71f551e1fdaac28f0e463b09e0761fde58d76c2"
       },
-      "forbidden_fingerprint_inputs": [
-        "launchagent_authority_evidence",
-        "preformal_authority_ledger",
-        "preformal_authority_raw_receipt",
-        "preformal_authority_verified_receipt",
-        "power_continuity_ledger",
-        "power_continuity_receipt",
-        "raw_teacher_receipt",
-        "verified_artifact_receipt",
-        "environment_terminal_fault",
-        "process_cleanup_evidence"
-      ],
-      "self_reference_rule": "No identity whose bytes contain run_fingerprint may be an input to formal_run_intent_v2; in particular live LaunchAgent evidence and raw or verified preformal receipt identities are categorically excluded.",
-      "post_fingerprint_cross_bindings": {
-        "preformal_gate_evidence_ledger_raw_and_verified_receipts": "bind teacher_plan source_revision and the already-computed run_fingerprint but are never hash inputs",
-        "launchagent_authority_evidence": "bind the already-computed run_fingerprint and exact planned_final_launchagent_descriptor identity plus live process evidence but is never a hash input",
-        "teacher_work_header": "bind the already-computed run_fingerprint and full identities of launchagent_authority_evidence and preformal_authority_verified_receipt",
-        "power_continuity_ledger_and_receipt": "bind the already-computed run_fingerprint plus the same LaunchAgent and verified-preformal identities",
-        "raw_teacher_receipt": "bind the already-computed run_fingerprint and full preformal-ledger raw-preformal verified-preformal LaunchAgent work power-ledger and power-receipt identities",
-        "verified_artifact_receipt": "independently reauthenticate and bind the same post-fingerprint chain before training handoff"
-      },
-      "runtime_formula_migration": {
-        "required_before-any-preformal-or-formal-execution": true,
-        "old_formula_status": "forbidden-self-referential-v1r11-implementation",
-        "old_formula_forbidden_inputs": ["launchagent_authority", "preformal_authority"],
-        "outer_orchestrator_must-create-and-reauthenticate-planned-descriptor-before-computing-fingerprint": true,
-        "outer_orchestrator_must-compute-not-accept-caller-authored-fingerprint": true,
-        "formal_runner_must-recompute-v2-from-the-same-held-planned-descriptor-not-from-live-evidence-or-preformal-receipt": true,
-        "independent_artifact_verifier_must-recompute-the-identical-v2-payload": true,
-        "required_implementation_migrations": [
-          "replace-v1r11-fingerprintBase-in-ml/halfkp81-depth18-teacher-runner.ts",
-          "replace-expectedV1R11RunFingerprint-in-ml/halfkp81-depth18-teacher-artifact-validation.ts",
-          "compute-v2-after-planned-descriptor-publication-inside-ml/run-halfkp81-depth18-v1r11-preformal-orchestrator.ts",
-          "propagate-planned-descriptor-full-identity-through-the-formal-runner-and-independent-verifier",
-          "remove-caller-supplied-runFingerprint-as-an-authority-source"
-        ],
-        "required_negative_tests": [
-          "launchagent-evidence-identity-in-payload-rejected",
-          "raw-or-verified-preformal-receipt-identity-in-payload-rejected",
-          "planned-descriptor-containing-run-fingerprint-rejected",
-          "planned-descriptor-identity-tamper-rejected",
-          "caller-authored-fingerprint-rejected",
-          "old-self-referential-formula-rejected",
-          "runner-and-independent-verifier-v2-recomputation-mismatch-rejected"
-        ],
-        "existing-preformal-or-formal-artifacts-under-old-formula-reusable": false,
-        "hard_lock_until-migration-and-tests-pass": true
+      {
+        "cp": -35281,
+        "depth": 18,
+        "elapsed_milliseconds": 256113,
+        "hash_mib": 8192,
+        "maximum_observed_hashfull": 229,
+        "nodes": 433851102,
+        "receipt_bytes": 864,
+        "receipt_sha256": "5e334cb4334fe079f2ee58b29687f7748ad65ffa8e63fcd6be902565d4e0fd58",
+        "transcript_bytes": 5474,
+        "transcript_sha256": "d8e0a9a74e54306e168f5213c15893bee4a645509d24d8eed6716ab2ec137e86"
       }
+    ],
+    "hash8192_replication": {
+      "cp_pv_and_nodes_all_identical": true,
+      "initial_plus_replicas": 3,
+      "result": {
+        "cp": -35281,
+        "depth": 18,
+        "nodes": 433851102,
+        "pv": [
+          "G*6a",
+          "4d4a+",
+          "5b4a",
+          "7a6a+",
+          "4a4b",
+          "S*5b",
+          "R*1h",
+          "4g3h",
+          "5c5d",
+          "G*4d",
+          "1h3h+",
+          "4i3h",
+          "7g6g",
+          "5h6g",
+          "N*7e",
+          "6g5h",
+          "7e6g+"
+        ]
+      },
+      "replicas": [
+        {
+          "elapsed_milliseconds": 251029,
+          "receipt_bytes": 886,
+          "receipt_sha256": "f8b8b8b9627cd549742bd3a5b5d040e9882b1a29a4de3256c3dc6db89d2adac3",
+          "transcript_bytes": 5473,
+          "transcript_sha256": "202ea6c77fc23b8447b22e93f0a0c3474404c58b26658512517dd0c4abbd802c"
+        },
+        {
+          "elapsed_milliseconds": 251141,
+          "receipt_bytes": 886,
+          "receipt_sha256": "0c4f90b692d2634e10fe52b8d8cd2aa5bbd3948b18461d4bd460386cc76157c2",
+          "transcript_bytes": 5473,
+          "transcript_sha256": "89ead1dcca6293a861427ea49eca15a0dced09d1bfc64b825738f75e1bdeb2c8"
+        }
+      ]
     },
-    "training_implementation_boundary": {
-      "decision": "option-A-adopted",
-      "current_change_scope": "create-only-verified-artifact-training-handoff-only",
-      "handoff_entrypoint": "ml/prepare_halfkp81_depth18_v1r11_training.py",
-      "handoff_must-reauthenticate-verified-artifact-receipt-and-all-bound-inputs": true,
-      "handoff_must-enforce-alpha-050-initializer-and-replay-bindings": true,
-      "optimizer_authority": false,
-      "formal_training_authorized": false,
-      "compatible-existing-exact-trainer-entrypoints": [],
-      "separate-prospective-ready-pr-required-before-formal-training": true,
-      "separate-pr-must-freeze": [
-        "exact-sigmoid-bce-k600-implementation",
-        "exact-listnet-cp-over-600-implementation",
-        "seed",
-        "batch-size-and-parent-mix",
-        "learning-rate-and-schedule",
-        "optimizer-and-all-hyperparameters",
-        "device-and-determinism-contract"
-      ],
-      "training-runs-authorized-by-this-change": 0,
-      "live-weight-writes-authorized-by-this-change": 0
-    },
-    "create_only_output_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1",
-    "output_collision_policy": "create-only-fail-if-any-target-exists",
-    "same_authenticated_selection_required": true,
-    "selection_jsonl": {
-      "bytes": 7268777,
-      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
-      "rows": 8192,
-      "schema": "halfkp81-depth18-hard-parent-v2",
-      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
-    },
-    "selection_manifest": {
-      "bytes": 3234,
-      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
-      "schema": "halfkp81-depth18-hard-parent-selection-manifest-v2",
-      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
-    },
-    "sealed_output_paths": {
-      "collision_policy": "create-only-fail-if-any-target-exists",
-      "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1",
-      "fit_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/fit.jsonl",
-      "milestone_100_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-milestone-100.json",
-      "milestone_500_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-milestone-500.json",
-      "plan_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-plan.json",
-      "receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-receipt.json",
-      "sealed_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/sealed.jsonl",
-      "terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-terminal-fault.json",
-      "tune_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/tune.jsonl",
-      "verified_artifact_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-verified-artifact-receipt.json",
-      "work_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/teacher-work.jsonl",
-      "power_continuity_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity.jsonl",
-      "power_continuity_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity-receipt.json",
-      "environment_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/environment-process-cleanup-evidence.json"
-    },
-    "authority_output_namespace": {
-      "initial_directory_collision_policy": "create-only-fail-if-authority-directory-already-exists",
-      "artifact_collision_policy": "create-only-fail-if-specific-target-exists",
-      "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority",
-      "directory_mode_octal": "0700",
-      "directory_dev_ino_owner_and_realpath_must_be_fixed_at_creation_and_revalidated_before_each_publish": true,
-      "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates",
-      "preformal_authority_ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
-      "preformal_engine_gate_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
-      "preformal_authority_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-receipt.json",
-      "preformal_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-verified-receipt.json",
-      "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
-      "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
-      "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.txt",
-      "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.stderr.txt",
-      "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
-      "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stdout.txt",
-      "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stderr.txt",
-      "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-authority-evidence.json"
-    },
-    "portable_home_path_binding": {
-      "placeholder": "$HOME",
-      "expansion_time": "runtime-plan-publication-before-fingerprint",
-      "expansion_source": "canonical-home-directory-from-getpwuid-current-euid-user-record",
-      "expanded_runtime_paths_must_be_absolute": true,
-      "expanded_runtime_paths_must_be_lexically_canonical": true,
-      "symlink_or_alias_component_allowed": false,
-      "existing_ancestor_realpath_must_equal_lexical_path": true,
-      "unexpanded_placeholder_allowed_in_runtime_plan": false,
-      "expansion_identity_must_be_bound_by_runtime_plan_and_run_fingerprint": true,
-      "tests_required": [
-        "canonical-euid-user-record-expansion-success",
-        "unexpanded-placeholder-rejected",
-        "relative-HOME-rejected",
-        "wrong-but-absolute-environment-HOME-rejected",
-        "symlink-or-alias-component-rejected",
-        "runtime-path-outside-expanded-formal-or-authority-namespaces-rejected",
-        "formal-and-authority-namespaces-overlap-rejected"
-      ],
-      "current_euid_must_be_bound": true,
-      "process_environment_home_if_present_must_equal_user_record_home": true,
-      "caller_supplied_home_accepted": false,
-      "formal_and_authority_namespaces_must_be_disjoint": true
+    "hash4096_is_not_hash8192_teacher_function": {
+      "cp_identical_for_this_probe": true,
+      "nodes_identical": false,
+      "pv_identical": false,
+      "reason": "The Hash4096 and Hash8192 probes returned the same cp but different node counts and principal variations, so Hash4096 is not an equivalent substitute for the preregistered Hash8192 teacher function."
     }
   },
-  "preformal_authority_contract": {
+  "output_namespace": {
+    "collision_policy": "create-only-fail-if-any-target-exists",
+    "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2",
+    "fit_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/fit.jsonl",
+    "milestone_100_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-milestone-100.json",
+    "milestone_500_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-milestone-500.json",
+    "plan_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-plan.json",
+    "receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-receipt.json",
+    "sealed_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/sealed.jsonl",
+    "terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-terminal-fault.json",
+    "tune_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/tune.jsonl",
+    "verified_artifact_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-verified-artifact-receipt.json",
+    "work_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/teacher-work.jsonl",
+    "power_continuity_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/power-continuity.jsonl",
+    "power_continuity_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/power-continuity-receipt.json",
+    "environment_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/environment-process-cleanup-evidence.json"
+  },
+  "authority_output_namespace": {
+    "initial_directory_collision_policy": "create-only-fail-if-authority-directory-already-exists",
+    "artifact_collision_policy": "create-only-fail-if-specific-target-exists",
+    "directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority",
+    "directory_mode_octal": "0700",
+    "directory_dev_ino_owner_and_realpath_must_be_fixed_at_creation_and_revalidated_before_each_publish": true,
+    "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates",
+    "preformal_authority_ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-ledger.jsonl",
+    "preformal_engine_gate_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-engine-gate-authority-verified-receipt.json",
+    "preformal_authority_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-receipt.json",
+    "preformal_authority_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-verified-receipt.json",
+    "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-terminal-fault.json",
+    "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-process-cleanup-evidence.json",
+    "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-launchctl-print.txt",
+    "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-launchctl-print.stderr.txt",
+    "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent.plist.snapshot",
+    "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-ps.stdout.txt",
+    "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-ps.stderr.txt",
+    "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-authority-evidence.json"
+  },
+  "preformal_authority": {
     "classification": "trusted-semantic-preformal-authority-no-teacher-training-or-strength-contract-change",
     "status": "not-run-formal-locked-until-implementation-tests-and-create-only-verified-receipt-pass",
     "schemas": {
@@ -460,28 +522,28 @@
       "preformal_terminal_fault": "preformal-terminal-fault-family-closed-no-authority"
     },
     "paths": {
-      "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates",
-      "ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
-      "engine_gate_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
-      "raw_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-receipt.json",
-      "verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-verified-receipt.json",
-      "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
-      "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
-      "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.txt",
-      "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-launchctl-print.stderr.txt",
-      "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
-      "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stdout.txt",
-      "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-ps.stderr.txt",
-      "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent-authority-evidence.json"
+      "gate_artifact_directory": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates",
+      "ledger_jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-ledger.jsonl",
+      "engine_gate_verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-engine-gate-authority-verified-receipt.json",
+      "raw_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-receipt.json",
+      "verified_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-verified-receipt.json",
+      "preformal_terminal_fault_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-terminal-fault.json",
+      "preformal_process_cleanup_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-process-cleanup-evidence.json",
+      "launchagent_launchctl_print_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-launchctl-print.txt",
+      "launchagent_launchctl_print_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-launchctl-print.stderr.txt",
+      "launchagent_plist_snapshot": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent.plist.snapshot",
+      "launchagent_ps_stdout_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-ps.stdout.txt",
+      "launchagent_ps_stderr_txt": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-ps.stderr.txt",
+      "launchagent_authority_evidence_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent-authority-evidence.json"
     },
     "gate_artifact_path_rule": {
       "gate_order_is_exact_required_preformal_order_without_formal_teacher": true,
       "sequence_format": "two-digit-zero-padded-decimal-01-through-13",
       "gate_token_must_equal_exact_required_order_entry": true,
       "primary_source_sequence_format": "two-digit-zero-padded-decimal-starting-at-01-with-no-gaps",
-      "primary_source_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.source-${source-sequence-two-digits}.bin",
-      "evidence_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.evidence.json",
-      "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.receipt.json",
+      "primary_source_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates/${sequence-two-digits}-${gate}.source-${source-sequence-two-digits}.bin",
+      "evidence_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates/${sequence-two-digits}-${gate}.evidence.json",
+      "receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates/${sequence-two-digits}-${gate}.receipt.json",
       "directory_mode_octal": "0700",
       "file_mode_octal": "0600",
       "all_paths_must_be_create_only_private_single_link_regular_files": true,
@@ -522,10 +584,10 @@
         "artifact-verifier-implementation-tests-pass",
         "power-guardian-implementation-tests-pass"
       ],
-      "stage_a_verified_receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-engine-gate-authority-verified-receipt.json",
+      "stage_a_verified_receipt_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-engine-gate-authority-verified-receipt.json",
       "stage_a_ledger_prefix_contract": {
         "identity_fields": ["path", "bytes", "sha256", "schema"],
-        "path_must_equal": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-authority-ledger.jsonl",
+        "path_must_equal": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-authority-ledger.jsonl",
         "schema_must_equal": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11",
         "rows": 7,
         "terminal_gate": "power-guardian-implementation-tests-pass",
@@ -553,7 +615,7 @@
       ],
       "stage_b_requires_stage_a_verified_receipt": true,
       "stage_b_power_contract": "same-fail-closed-power-semantics-thresholds-assertions-pmset-and-process-reaping-as-formal; run-specific-LaunchAgent-PIDs-paths-timestamps-output-identities-and-final-formal-receipt-identity-are-explicitly-not-byte-equal",
-      "stage_b_epoch_namespace_rule": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-gates/${sequence-two-digits}-${gate}.stage-b-epoch",
+      "stage_b_epoch_namespace_rule": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-gates/${sequence-two-digits}-${gate}.stage-b-epoch",
       "stage_b_epoch_namespace_kind": "deterministic-logical-sealed-namespace-identifier-only-no-unlisted-files-or-directories-created",
       "stage_b_run_fingerprint_rule": "sha256-canonical-json-of-domain-gate-sequence-teacher-plan-full-identity-source-revision-formal-run-fingerprint-stage-A-verified-receipt-full-identity-stage-B-epoch-namespace-and-source-02-source-03-paths",
       "stage_b_run_fingerprint_must-differ-from-formal-run-fingerprint-and-every-other-stage-B-gate": true,
@@ -1408,7 +1470,7 @@
       }
     },
     "preformal_fault_contract": {
-      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-terminal-fault.json",
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-terminal-fault.json",
       "applies_before_final_verified_receipt_and-official-formal-power-admission": true,
       "fault_triggers": [
         "producer-fault",
@@ -1508,7 +1570,7 @@
         "creation_time": "before-first-Stage-A-operation",
         "label": "deterministic-final-formal-one-shot-label-derived-from-family-and-source-revision",
         "plist_snapshot": "create-only-private-held-planned-formal-one-shot-plist-snapshot-created-before-Stage-A",
-        "plist_snapshot_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/launchagent.plist.snapshot",
+        "plist_snapshot_path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/launchagent.plist.snapshot",
         "stage_c_reuse_policy": "do-not-rewrite;held-reread-the-same-planned-snapshot-and-require-exact-byte-equality-with-the-live-source-plist-before-final-LaunchAgent-evidence",
         "live-launchagent-authority-evidence-required": false,
         "may_claim-live-runner-or-formal-authority": false,
@@ -1542,11 +1604,11 @@
       "status": "cleanup-independently-recomputable-no-authority",
       "scopes": {
         "preformal": {
-          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority/preformal-process-cleanup-evidence.json",
+          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority/preformal-process-cleanup-evidence.json",
           "bound_by": "preformal_terminal_fault.process_cleanup_evidence"
         },
         "post-formal-environment": {
-          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/environment-process-cleanup-evidence.json",
+          "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/environment-process-cleanup-evidence.json",
           "bound_by": "environment_terminal_fault.process_cleanup_evidence"
         }
       },
@@ -2086,11 +2148,11 @@
           "teacher_plan",
           "source_revision",
           "run_fingerprint",
-        "launchagent_authority_evidence",
-        "preformal_authority_verified_receipt",
-        "observation",
-        "environment_fault",
-        "previous_entry_sha256",
+          "launchagent_authority_evidence",
+          "preformal_authority_verified_receipt",
+          "observation",
+          "environment_fault",
+          "previous_entry_sha256",
           "entry_sha256"
         ]
       },
@@ -2252,316 +2314,71 @@
       "reject-formal-like-byte-equality-claim-that-includes-run-specific-power-identities"
     ]
   },
-  "power_continuity_contract": {
-    "classification": "environment-only-no-teacher-training-or-strength-contract-change",
-    "caffeinate_topology_evidence": {
-      "manual_contract": "LaunchAgent-starts-the-node-runner-directly-and-the-runner-spawns-caffeinate--dimsu--w-runner_pid-as-its-direct-assertion-holder-child",
-      "scratch_probe_authority": "implementation-topology-only-no-teacher-training-or-strength-authority",
-      "real_mac_regression_test": "spawn-an-absolute-node-runner-as-process-group-leader-spawn-/usr/bin/caffeinate--dimsu--w-runner_pid-as-direct-child-capture-command-only-ps-and-pmset-assertions-and-require-exact-parent-process-group-argv-and-owner",
-      "prior-caffeinate-utility-wrapper-probe-authoritative-for-final-topology": false,
-      "ps_executable_derivation": "drop-truncated-ucomm-and-comm-fields-derive-executable-as-command-argv0-then-require-exact-fixed-absolute-argv",
-      "conclusion": "launchd-pid-is-the-node-runner-process-group-leader-and-assertion-holder-caffeinate--dimsu--w-runner_pid-is-its-exact-direct-child-in-the-same-process-group"
+  "predecessor_failures": {
+    "v1r6": {
+      "completed_parents": 3262,
+      "completed_teacher_rows": 38393,
+      "failure": "Hash512-G*6a-depth18-wall-timeout",
+      "reuse_completed_parents": 0,
+      "reuse_teacher_rows": 0,
+      "same_family_resume_authorized": false,
+      "teacher_plan_sha256": "deb8097134c1ec166b1c1e0729ba495d34c007ee8084745ba646f07ae25f5725"
     },
-    "start_admission": {
-      "power_source_must_equal": "AC Power",
-      "battery_percentage_minimum": 80,
-      "caffeinate_required": true,
-      "caffeinate_executable": "/usr/bin/caffeinate",
-      "caffeinate_flags": "-dimsu",
-      "caffeinate_argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
-      "required_assertions": [
-        "PreventSystemSleep",
-        "PreventUserIdleSystemSleep",
-        "PreventUserIdleDisplaySleep"
-      ],
-      "boot_session_identity_required": true,
-      "status": "not-run",
-      "runner_pid_required": true,
-      "runner_pid_must_equal_launched_utility_job_pid": true,
-      "launchagent_authority_evidence_identity_required": true,
-      "preformal_authority_verified_receipt_identity_required": true,
-      "raw_preformal_authority_receipt_alone_accepted": false,
-      "assertions_must_be_owned_by_exact_caffeinate_pid": true,
-      "unrelated_system_wide_assertions_must_not_satisfy_gate": true,
-      "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
-      "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
+    "v1r7": {
+      "failure": "100m-cap-pre-pr-label-fidelity-calibration-failed",
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r7-pre-pr-calibration-failure-2026-08-01.json",
+      "maximum_absolute_cp_delta": 33989,
+      "maximum_rank_displacement": 4,
+      "reuse_rows": 0,
+      "same_family_resume_authorized": false
     },
-    "guardian": {
-      "implementation": "independent-process-not-chat-session",
-      "append_only": true,
-      "create_only": true,
-      "jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity.jsonl",
-      "sample_interval_milliseconds_maximum": 30000,
-      "maximum_heartbeat_gap_milliseconds": 90000,
-      "required_observations": [
-        "timestamp_utc",
-        "power_source",
-        "battery_percentage",
-        "runner_pid",
-        "guardian_pid",
-        "caffeinate_assertion_holder_pid",
-        "caffeinate_assertion_holder_parent_runner_pid",
-        "caffeinate_executable",
-        "caffeinate_argv",
-        "runner_utility_argv",
-        "launchagent_authority_evidence",
-        "preformal_authority_verified_receipt",
-        "assertion_owner_caffeinate_pid",
-        "required_assertions",
-        "boot_session_identity",
-        "pmset_start_anchor",
-        "pmset_current_cursor"
-      ],
-      "fail_closed_on": [
-        "power-source-not-AC-Power",
-        "required-caffeinate-assertion-missing",
-        "caffeinate-assertion-holder-parent-pid-not-exact-runner-pid",
-        "caffeinate-executable-or-argv-mismatch",
-        "assertion-owner-caffeinate-pid-mismatch",
-        "boot-session-identity-change",
-        "Sleep",
-        "DarkWake",
-        "Wake",
-        "Hibernate",
-        "pmset-anchor-missing-truncated-reset-or-ambiguous",
-        "heartbeat-gap-greater-than-90000ms"
-      ],
-      "fault_policy": "stop-scheduling-terminate-reap-all-engines-discard-unpublished-parents-and-close-family-with-environment-continuity-fault",
-      "same_family_resume_after_fault": false,
-      "final_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1/power-continuity-receipt.json",
-      "coverage": {
-        "guardian_admission_must_complete_before_first_formal_8192_parent_yaneuraou_start": true,
-        "guardian_must_remain_active_until_all_yaneuraou_processes_are_reaped": true,
-        "final_guardian_entry_must_follow_last_engine_reap": true
-      },
-      "caffeinate_identity": {
-        "executable_must_equal": "/usr/bin/caffeinate",
-        "flags_must_equal": "-dimsu",
-        "argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
-        "caffeinate_argv_must_not_equal_launchd_program_arguments": true,
-        "runner_utility_argv_must_deep_equal_full_launchd_program_arguments": true,
-        "node_direct_topology": "LaunchAgent-PID-is-node-runner-and-exact-assertion-holder-caffeinate--dimsu--w-runner_pid-is-direct-child-in-the-same-process-group",
-        "assertions_must_be_owned_by_exact_caffeinate_pid": true,
-        "unrelated_process_assertions_accepted": false,
-        "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
-        "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
-      },
-      "observation_value_schema": {
-        "caffeinate_executable": "absolute-string-exact-/usr/bin/caffeinate",
-        "caffeinate_argv": "string-array-deep-equal-to-/usr/bin/caffeinate--dimsu--w-runner_pid",
-        "runner_utility_argv": "string-array-deep-equal-to-full-launchd-ProgramArguments-and-begins-with-the-exact-node-executable",
-        "launchagent_authority_evidence": "full-file-identity-path-bytes-sha256-schema",
-        "preformal_authority_verified_receipt": "full-file-identity-path-bytes-sha256-schema"
-      },
-      "pmset_interval": {
-        "start_anchor": "captured-after-guardian-and-caffeinate-admission-before-first-formal-8192-parent-yaneuraou-start",
-        "end_anchor": "captured-after-all-yaneuraou-processes-reaped-before-ledger-close",
-        "anchor_required_fields": [
-          "boot_session_identity",
-          "timestamp_utc",
-          "timezone_offset",
-          "pmset_event_ordinal",
-          "last_raw_event_line_sha256"
-        ],
-        "canonical_event_classes": {
-          "Sleep": "pmset-event-column-exactly-Sleep",
-          "DarkWake": "pmset-event-column-exactly-DarkWake",
-          "Wake": "pmset-event-column-exactly-Wake-and-message-does-not-contain-Wake-from-Hibernate",
-          "Hibernate": "pmset-event-column-exactly-Wake-and-message-contains-Wake-from-Hibernate-takes-precedence-over-Wake"
-        },
-        "reject_on": [
-          "start-anchor-not-found-at-end",
-          "end-ordinal-before-start-ordinal",
-          "boot-session-change",
-          "timestamp-regression",
-          "raw-line-digest-mismatch",
-          "log-truncation-or-reset",
-          "parse-error-or-ambiguous-event-class"
-        ]
-      },
-      "finalization_order": [
-        "all-yaneuraou-processes-reaped",
-        "append-final-guardian-entry",
-        "close-power-continuity-jsonl",
-        "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
-        "create-raw-teacher-receipt-binding-power-ledger-power-receipt-preformal-chain-and-LaunchAgent-evidence-identities",
-        "run-independent-artifact-and-power-continuity-verifier",
-        "create-verified-artifact-receipt-binding-the-independently-recomputed-preformal-and-LaunchAgent-chain"
-      ],
-      "environment_fault_finalization_order": [
-        "stop-scheduling-new-parents",
-        "terminate-and-reap-all-yaneuraou-processes",
-      "append-final-environment-fault-guardian-entry",
-      "close-power-continuity-jsonl",
-      "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
-      "runner-exits-nonzero-without-publishing-terminal-fault",
-      "outer-supervisor-observes-runner-and-service-exit",
-      "create-and-fsync-process-cleanup-evidence-from-ordered-cleanup-transcripts-service-absence-pid-reuse-rejection-and-dual-final-ps",
-      "stable-reread-cleanup-evidence-and-independently-recompute-process_cleanup",
-      "outer-supervisor-independently-recomputes-the-final-guardian-environment-fault-intent-and-held-power-chain",
-      "create-terminal-fault-binding-power-ledger-power-receipt-preformal-verified-receipt-LaunchAgent-and-process-cleanup-evidence-identities"
-      ],
-      "environment_fault_binding": {
-        "terminal_fault_must_bind_power_continuity_jsonl_bytes_and_sha256": true,
-        "terminal_fault_must_bind_power_continuity_receipt_bytes_and_sha256": true,
-      "power_final_row_and_receipt_must_bind_runner_environment_fault_intent_digest": true,
-      "runner_may_publish_terminal_fault": false,
-      "outer_supervisor_is_sole_terminal_fault_publisher_after-rich-cleanup": true,
-        "terminal_fault_must_bind_preformal_verified_receipt_and_launchagent_evidence_identities": true,
-        "terminal_fault_must_bind_process_cleanup_evidence_full_identity": true,
-        "fault_process_cleanup_summary_must_recompute_from_cleanup_evidence": true,
-        "fault_publication_without_cleanup_evidence_is-forbidden": true,
-        "circular_identity_binding_forbidden": true,
-      "binding_rule": "The final guardian row and power receipt bind the canonical runner environment-fault intent (plan, run, verified preformal receipt, LaunchAgent evidence and fault reason; no cleanup claim). After runner/service exit, the same outer supervisor proves rich cleanup, independently recomputes that intent and the held power chain, then alone publishes the final terminal fault binding exact power-ledger, power-receipt and cleanup identities."
-      }
+    "v1r8": {
+      "failure": "2b-cap-did-not-complete-depth16-at-Hash512",
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r8-floor16-diagnostic-failure-2026-08-01.json",
+      "maximum_observed_nodes": 2000000532,
+      "reuse_rows": 0,
+      "same_family_resume_authorized": false,
+      "selected_completed_depth": 15
     },
-    "timeout_semantics": {
-      "search_timeout_milliseconds": 14400000,
-      "unchanged_from_v1r10": true,
-      "sleep_time_subtraction_adopted": false,
-      "sleep_or_power_fault_precedes_search_timeout_classification": true,
-      "yaneuraou_process_resume_across_sleep_allowed": false
+    "v1r9": {
+      "failure": "post-merge-runtime-plan-self-authentication-schema-identity-mismatch",
+      "formal_teacher_started": false,
+      "invalid_runtime_plan_bytes": 16406,
+      "invalid_runtime_plan_sha256": "c42b47efa41293f8170fe3792bcfb21798b9dd287226c67face6eb49e163ea19",
+      "invalid_runtime_plan_source_revision": "141e4e39e79c1772a18dc79dbb4bbf480bfe4a53",
+      "reuse_completed_parents": 0,
+      "reuse_teacher_rows": 0,
+      "same_namespace_republication_authorized": false
     },
-    "post_formal_verification": {
-      "pmset_interval_event_maximum": {
-        "Sleep": 0,
-        "DarkWake": 0,
-        "Wake": 0,
-        "Hibernate": 0
+    "v1r10": {
+      "classification": "low-power-sleep-contaminated-formal-search-timeout-technical-fault",
+      "completed_parents": 4196,
+      "completed_teacher_rows": 49190,
+      "fallback_parents": 5,
+      "formal_source_revision": "f75184f41533cb2fb93f54ca723056bc9c813d29",
+      "formal_run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
+      "teacher_plan": {
+        "bytes": 16859,
+        "sha256": "9f56b8ab252ce96a4ee0675252e7b54be6cdb26d294dde08d896dce9b7c60b15"
       },
-      "all_guardian_samples_must_report_ac_power": true,
-      "all_guardian_samples_must_retain_required_assertions": true,
-      "boot_session_identity_changes_maximum": 0,
-      "heartbeat_gap_milliseconds_maximum": 90000,
-      "independent_verifier_pass_required_before_training": true,
-      "assertions_must_be_owned_by_exact_launched_caffeinate_pid": true,
-      "unrelated_system_wide_assertions_accepted": false,
-      "pmset_start_and_end_anchors_must_validate_without_truncation_or_reset": true,
-      "coverage_must_begin_before-first-formal-8192-parent-engine-and-end-after-last-engine-reap": true,
-      "power_continuity_receipt_must_bind_closed_ledger_bytes_and_sha256": true,
-      "raw_teacher_receipt_must_bind_power_ledger_and_receipt_identities": true,
-      "power_receipt_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
-      "teacher_work_ledger_header_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
-      "raw_teacher_receipt_must_bind_preformal_ledger_raw_verified_and_launchagent_identities": true,
-      "verified_artifact_receipt_must_bind_independently_recomputed_preformal_and_launchagent_chain": true,
-      "caffeinate_assertion_holder_parent_pid_must_equal_exact_runner_pid": true,
-      "environment_fault_artifact_verification_required": true,
-      "environment_terminal_fault_must_cross_bind_power_evidence": true
-    },
-    "sleep_aware_timeout_rejection": {
-      "adopted": false,
-      "reason": "The isolated v1r10 G*2a search reached the unchanged normal node cap in 1108533ms and Hash8192 exact depth18 in 9490ms, leaving large margin under 14400000ms. Subtracting sleep would add clock and hibernated-USI-state semantics without improving teacher strength or fixing engine continuity.",
-      "future_family_only_if_reconsidered": true,
-      "in_place_hibernated_engine_resume_forbidden": true
+      "teacher_work": {
+        "bytes": 91081134,
+        "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
+      },
+      "terminal_fault": {
+        "bytes": 1084,
+        "sha256": "436e9c6dfe5d8824cf89b1616ed82e082bfdafe67e7e8ed6870bb5e2d5539997"
+      },
+      "new_family_import_completed_parents_after_independent_verifier_pass": 4196,
+      "new_family_import_teacher_rows_after_independent_verifier_pass": 49190,
+      "reuse_partial_or_inflight_state": 0,
+      "same_family_resume_authorized": false,
+      "failure_memo": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r10-low-power-sleep-terminal-fault-2026-08-02.json",
+      "reuse_scratch_rows": 0,
+      "reuse_v1r10_milestones": 0,
+      "reuse_preformal_gate_evidence": false,
+      "import_contract": "minimal_formal_start_gate.v1r10_durable_completed_set_import"
     }
-  },
-  "teacher_contract": {
-    "candidate_policy": {
-      "deduplication": "USI-move-exact-before-depth18-rescore",
-      "recorded_move": {
-        "required": true
-      },
-      "stable_wasm": {
-        "allowed": false,
-        "calls_per_parent": 0,
-        "candidate_rows": 0,
-        "worker_processes": 0
-      },
-      "yaneuraou_depth16_multipv": {
-        "depth": 16,
-        "multipv": 12,
-        "node_cap": null,
-        "required": true
-      }
-    },
-    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
-    "engine_identity": {
-      "binary_bytes": 700048,
-      "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
-      "eval_bytes": 64217066,
-      "eval_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782",
-      "receipt_bytes": 654,
-      "receipt_sha256": "a448c6be4229216665a34dbc13edf89f486364a57958ba1adad76a7b206f9c4e",
-      "source_commit": "9133c527791c8b2f5f378a32df29a5e3752bd41b"
-    },
-    "fallback_lane": {
-      "candidate_set": "reuse-fixed-normal-proposal-candidate-order-and-digest",
-      "capped_label_publication_allowed": false,
-      "depth": 18,
-      "engine_lifetime": "fresh-engine-per-escalated-parent",
-      "fifo_queue": true,
-      "fallback_hash_downgrade_allowed": false,
-      "forbidden_hash_mib_substitutions": [2048, 4096],
-      "hash_mib_per_process": 8192,
-      "hash_mib_must_equal": 8192,
-      "maximum_concurrent_processes": 2,
-      "node_cap": null,
-      "partial_or_normal_lane_rescore_reuse_allowed": false,
-      "publication": "only-after-all-candidates-complete-exact-depth18",
-      "rescore_all_candidates_from_zero": true,
-      "search_timeout_milliseconds": 14400000,
-      "threads_per_process": 1
-    },
-    "maximum_rows": 106496,
-    "maximum_rows_per_parent": 13,
-    "minimum_rows_per_parent": 2,
-    "normal_lane": {
-      "capped_label_publication_allowed": false,
-      "depth": 18,
-      "hash_mib_per_process": 512,
-      "minimum_completed_depth": 1,
-      "minimum_completed_depth_purpose": "routing-only-not-label-quality-floor",
-      "node_cap": 2000000000,
-      "node_cap_result": "route-whole-parent-never-label",
-      "processes": 8,
-      "routing_condition": "any-independent-rescore-terminates-at-node-cap-before-exact-depth18",
-      "routing_scope": "whole-parent",
-      "search_timeout_milliseconds": 14400000,
-      "threads_per_process": 1,
-      "whole_parent_discard_before_fallback": true
-    },
-    "old_depth6_or_depth12_cp_target_rows": 0,
-    "parent_publication": {
-      "candidate_omission_allowed": false,
-      "capped_teacher_rows": 0,
-      "exact_depth18_required_for_every_published_candidate": true,
-      "fallback_partial_parent_publication_allowed": false,
-      "normal_partial_parent_publication_allowed": false,
-      "published_candidate_count_must_equal_fixed_candidate_count": true
-    },
-    "persistent_normal_engine_processes": true,
-    "reset_timeout_recovery": {
-      "eligible_fault_class": "persistent-engine-reset-timeout-only",
-      "first_attempt_partial_reuse": 0,
-      "maximum_whole_parent_retries": 1,
-      "on_first_reset_timeout": "terminate-reap-replace-and-recompute-whole-unpublished-parent-once",
-      "replacement_or_retry_failure_policy": "family-terminal-fault",
-      "search_timeout_retry_allowed": false,
-      "second_reset_timeout_policy": "family-terminal-fault"
-    }
-  },
-  "escalation_budgets": {
-    "actual_cap_parent_counts_by_role_required": true,
-    "actual_cap_trigger_search_counts_by_role_required": true,
-    "actual_fallback_rows_by_role_required": true,
-    "artifact_verifier_recount_required": true,
-    "capped_teacher_labels_maximum": 0,
-    "fallback_parent_count_maximum": 8,
-    "fallback_parent_count_maximum_by_role": {
-      "fit": 6,
-      "sealed": 1,
-      "tune": 1
-    },
-    "fallback_search_count_maximum": 104,
-    "fallback_search_count_maximum_by_role": {
-      "fit": 78,
-      "sealed": 13,
-      "tune": 13
-    },
-    "fallback_search_count_maximum_per_parent": 13,
-    "runtime_recount_after_every_routing_and_fallback_publication": true,
-    "threshold_change_after_results": false,
-    "threshold_exceeded_policy": "immediate-family-terminal-fault"
   },
   "required_preformal_gates": {
     "artifact_verifier_implementation_tests": {
@@ -2651,7 +2468,7 @@
       "status": "not-run"
     }
   },
-  "required_post_formal_gates": {
+  "required_post_formal_gate": {
     "independent_artifact_verifier_pass": {
       "meaning": "After the formal teacher completes, independently verify the completed formal plan, ledger, rows, receipts, hashes, ordering, exact-depth labels, escalation budgets, trusted preformal ledger/raw/verified chain, and durable LaunchAgent evidence bindings before training.",
       "required_before_training": true,
@@ -2663,7 +2480,125 @@
       "status": "not-applicable-formal-teacher-not-complete"
     }
   },
-  "training_contract": {
+  "reused_selection": {
+    "jsonl": {
+      "bytes": 7268777,
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.jsonl",
+      "rows": 8192,
+      "schema": "halfkp81-depth18-hard-parent-v2",
+      "sha256": "e591aa6d90ca3640b4b0e5963de53e92da0b2541434aaa100f9e5ea7ab83f4e4"
+    },
+    "manifest": {
+      "bytes": 3234,
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1/hard-parents.manifest.json",
+      "schema": "halfkp81-depth18-hard-parent-selection-manifest-v2",
+      "sha256": "6823b77be9171fe63cb30cbd2955bd871474cf8ebf662fc203824c673aa3e187"
+    }
+  },
+  "schema": "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
+  "selection_roles": {
+    "fit": 6144,
+    "sealed": 1024,
+    "tune": 1024
+  },
+  "source_revision_policy": {
+    "must_bind_new_clean_merged_main_revision": true,
+    "new_run_fingerprint_required": true,
+    "ready_pull_request_and_all_required_ci_must_precede_regular_merge": true,
+    "runtime_plan_source_revision_must_equal_authenticated_main_head": true,
+    "tracked_plan_must_be_merged_before_runtime_plan": true,
+    "uncommitted_changes_maximum": 0,
+    "power_guardian_contract_must_be_merged_before_runtime_plan": true,
+    "trusted_semantic_preformal_contract_must_be_merged_before_runtime_plan": true,
+    "formal_and_authority_output_namespaces_must_be_disjoint_and_absent_before_create_only_publication": true
+  },
+  "status": "prospective-v1r10-low-power-sleep-recovery-not-executed",
+  "teacher": {
+    "candidate_policy": {
+      "deduplication": "USI-move-exact-before-depth18-rescore",
+      "recorded_move": {
+        "required": true
+      },
+      "stable_wasm": {
+        "allowed": false,
+        "calls_per_parent": 0,
+        "candidate_rows": 0,
+        "worker_processes": 0
+      },
+      "yaneuraou_depth16_multipv": {
+        "depth": 16,
+        "multipv": 12,
+        "node_cap": null,
+        "required": true
+      }
+    },
+    "engine": "YaneuraOu NNUE 9.60git 64APPLEM1",
+    "engine_identity": {
+      "binary_bytes": 700048,
+      "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
+      "eval_bytes": 64217066,
+      "eval_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782",
+      "receipt_bytes": 654,
+      "receipt_sha256": "a448c6be4229216665a34dbc13edf89f486364a57958ba1adad76a7b206f9c4e",
+      "source_commit": "9133c527791c8b2f5f378a32df29a5e3752bd41b"
+    },
+    "fallback_lane": {
+      "candidate_set": "reuse-fixed-normal-proposal-candidate-order-and-digest",
+      "capped_label_publication_allowed": false,
+      "depth": 18,
+      "engine_lifetime": "fresh-engine-per-escalated-parent",
+      "fifo_queue": true,
+      "fallback_hash_downgrade_allowed": false,
+      "forbidden_hash_mib_substitutions": [2048, 4096],
+      "hash_mib_per_process": 8192,
+      "hash_mib_must_equal": 8192,
+      "maximum_concurrent_processes": 2,
+      "node_cap": null,
+      "partial_or_normal_lane_rescore_reuse_allowed": false,
+      "publication": "only-after-all-candidates-complete-exact-depth18",
+      "rescore_all_candidates_from_zero": true,
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_process": 1
+    },
+    "maximum_rows": 106496,
+    "maximum_rows_per_parent": 13,
+    "minimum_rows_per_parent": 2,
+    "normal_lane": {
+      "capped_label_publication_allowed": false,
+      "depth": 18,
+      "hash_mib_per_process": 512,
+      "minimum_completed_depth": 1,
+      "minimum_completed_depth_purpose": "routing-only-not-label-quality-floor",
+      "node_cap": 2000000000,
+      "node_cap_result": "route-whole-parent-never-label",
+      "processes": 8,
+      "routing_condition": "any-independent-rescore-terminates-at-node-cap-before-exact-depth18",
+      "routing_scope": "whole-parent",
+      "search_timeout_milliseconds": 14400000,
+      "threads_per_process": 1,
+      "whole_parent_discard_before_fallback": true
+    },
+    "old_depth6_or_depth12_cp_target_rows": 0,
+    "parent_publication": {
+      "candidate_omission_allowed": false,
+      "capped_teacher_rows": 0,
+      "exact_depth18_required_for_every_published_candidate": true,
+      "fallback_partial_parent_publication_allowed": false,
+      "normal_partial_parent_publication_allowed": false,
+      "published_candidate_count_must_equal_fixed_candidate_count": true
+    },
+    "persistent_normal_engine_processes": true,
+    "reset_timeout_recovery": {
+      "eligible_fault_class": "persistent-engine-reset-timeout-only",
+      "first_attempt_partial_reuse": 0,
+      "maximum_whole_parent_retries": 1,
+      "on_first_reset_timeout": "terminate-reap-replace-and-recompute-whole-unpublished-parent-once",
+      "replacement_or_retry_failure_policy": "family-terminal-fault",
+      "search_timeout_retry_allowed": false,
+      "second_reset_timeout_policy": "family-terminal-fault"
+    }
+  },
+  "training": {
     "checkpoint_selection": "final-epoch-only",
     "direct_loss": "sigmoid-bce-k600",
     "direct_loss_fraction": 0.5,
@@ -2676,185 +2611,328 @@
     "representation": "HalfKP81",
     "seeds": 1
   },
-  "strength_contract": {
-    "downstream_gates": {
-      "absolute_max_cp_delta_maximum": 300,
-      "fresh_screen_games": 56,
-      "fresh_screen_halfpoints_denominator": 112,
-      "fresh_screen_halfpoints_minimum": 62,
-      "fresh_screen_technical_faults_maximum": 0,
-      "int16_clipping_coordinates_maximum": 0,
-      "nearest_rank_p99_9_ratio_maximum": 1.05,
-      "old_validation_pair_delta_minimum": 0,
-      "old_validation_rows": 22890,
-      "old_validation_teacher_mae_cp_improvement_minimum": 5,
-      "runtime_slowdown_percent_maximum": 5,
-      "sealed_parents": 1024,
-      "sealed_sibling_pair_delta_percentage_points_minimum": 1,
-      "sealed_top1_delta_percentage_points_minimum": 2,
-      "teacher_authentication_prefixes": [100, 500],
-      "tune_parents": 1024,
-      "tune_sibling_pair_delta_percentage_points_minimum": 1,
-      "tune_top1_delta_percentage_points_minimum": 2,
-      "wasm_parity_mismatches_maximum": 0
+  "run_identity": {
+    "new_clean_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "runtime_fingerprint_status": "not-issued-before-clean-merged-v1r11-source",
+    "must_differ_from_v1r10_run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
+    "formal_run_intent_v2": {
+      "schema": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "status": "prospective-runtime-formula-migration-required-before-any-preformal-or-formal-execution",
+      "purpose": "Compute one stable formal run fingerprint only from artifacts and contracts that exist before the fingerprint; bind later authority receipts without feeding their fingerprint-bearing identities back into the hash.",
+      "domain_utf8_without_separator": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "domain_separator_hex": "00",
+      "canonicalization": "utf8-of-canonical-json-with-object-keys-in-utf8-byte-order-no-insignificant-whitespace-and-no-terminal-lf",
+      "formula": "sha256(utf8(domain_utf8_without_separator) || 0x00 || utf8(canonical_json(payload)))",
+      "payload_required_fields": [
+        "schema",
+        "teacher_plan",
+        "selection_jsonl",
+        "selection_manifest",
+        "source_revision",
+        "engine",
+        "teacher",
+        "candidate_generation",
+        "planned_final_launchagent_descriptor"
+      ],
+      "payload_additional_fields_allowed": false,
+      "payload_schema_value": "shogi-halfkp81-depth18-yaneura-only-formal-run-intent-v2",
+      "full_file_identity_required_fields": ["path", "bytes", "sha256", "schema"],
+      "selection_jsonl_identity_required_fields": ["path", "bytes", "sha256", "rows", "schema"],
+      "engine_required_fields": ["binary", "eval_file", "receipt"],
+      "payload_bindings": {
+        "teacher_plan": "exact-held-runtime-teacher-plan-full-file-identity",
+        "selection_jsonl": "exact-held-authenticated-8192-row-selection-full-identity",
+        "selection_manifest": "exact-held-authenticated-selection-manifest-full-file-identity",
+        "source_revision": "exact-clean-merged-main-40-lowercase-hex-revision-bound-by-teacher-plan",
+        "engine.binary": "exact-held-YaneuraOu-binary-full-file-identity",
+        "engine.eval_file": "exact-held-pinned-eval-full-file-identity",
+        "engine.receipt": "exact-held-engine-receipt-full-file-identity",
+        "teacher": "deep-exact-runtime-teacher-contract-from-the-authenticated-plan",
+        "candidate_generation": "deep-exact-runtime-candidate-generation-contract-from-the-authenticated-plan",
+        "planned_final_launchagent_descriptor": "exact-held-create-only-planned-final-one-shot-launchagent-plist-snapshot-full-file-identity-created-before-Stage-A-and-before-fingerprint-computation"
+      },
+      "planned_descriptor_constraints": {
+        "must_exist_and-be-held-reauthenticated-before-fingerprint": true,
+        "bytes_must_not-contain-or-depend-on-run_fingerprint": true,
+        "bytes_must_not-contain-or-depend-on-preformal-receipt-identities": true,
+        "Stage-C-live-evidence-plist-snapshot-must-deep-equal-this-identity": true,
+        "Stage-C-may-rewrite-planned-descriptor": false
+      },
+      "forbidden_fingerprint_inputs": [
+        "launchagent_authority_evidence",
+        "preformal_authority_ledger",
+        "preformal_authority_raw_receipt",
+        "preformal_authority_verified_receipt",
+        "power_continuity_ledger",
+        "power_continuity_receipt",
+        "raw_teacher_receipt",
+        "verified_artifact_receipt",
+        "environment_terminal_fault",
+        "process_cleanup_evidence"
+      ],
+      "self_reference_rule": "No identity whose bytes contain run_fingerprint may be an input to formal_run_intent_v2; in particular live LaunchAgent evidence and raw or verified preformal receipt identities are categorically excluded.",
+      "post_fingerprint_cross_bindings": {
+        "preformal_gate_evidence_ledger_raw_and_verified_receipts": "bind teacher_plan source_revision and the already-computed run_fingerprint but are never hash inputs",
+        "launchagent_authority_evidence": "bind the already-computed run_fingerprint and exact planned_final_launchagent_descriptor identity plus live process evidence but is never a hash input",
+        "teacher_work_header": "bind the already-computed run_fingerprint and full identities of launchagent_authority_evidence and preformal_authority_verified_receipt",
+        "power_continuity_ledger_and_receipt": "bind the already-computed run_fingerprint plus the same LaunchAgent and verified-preformal identities",
+        "raw_teacher_receipt": "bind the already-computed run_fingerprint and full preformal-ledger raw-preformal verified-preformal LaunchAgent work power-ledger and power-receipt identities",
+        "verified_artifact_receipt": "independently reauthenticate and bind the same post-fingerprint chain before training handoff"
+      },
+      "runtime_formula_migration": {
+        "required_before-any-preformal-or-formal-execution": true,
+        "old_formula_status": "forbidden-self-referential-v1r11-implementation",
+        "old_formula_forbidden_inputs": ["launchagent_authority", "preformal_authority"],
+        "outer_orchestrator_must-create-and-reauthenticate-planned-descriptor-before-computing-fingerprint": true,
+        "outer_orchestrator_must-compute-not-accept-caller-authored-fingerprint": true,
+        "formal_runner_must-recompute-v2-from-the-same-held-planned-descriptor-not-from-live-evidence-or-preformal-receipt": true,
+        "independent_artifact_verifier_must-recompute-the-identical-v2-payload": true,
+        "required_implementation_migrations": [
+          "replace-v1r11-fingerprintBase-in-ml/halfkp81-depth18-teacher-runner.ts",
+          "replace-expectedV1R11RunFingerprint-in-ml/halfkp81-depth18-teacher-artifact-validation.ts",
+          "compute-v2-after-planned-descriptor-publication-inside-ml/run-halfkp81-depth18-v1r11-preformal-orchestrator.ts",
+          "propagate-planned-descriptor-full-identity-through-the-formal-runner-and-independent-verifier",
+          "remove-caller-supplied-runFingerprint-as-an-authority-source"
+        ],
+        "required_negative_tests": [
+          "launchagent-evidence-identity-in-payload-rejected",
+          "raw-or-verified-preformal-receipt-identity-in-payload-rejected",
+          "planned-descriptor-containing-run-fingerprint-rejected",
+          "planned-descriptor-identity-tamper-rejected",
+          "caller-authored-fingerprint-rejected",
+          "old-self-referential-formula-rejected",
+          "runner-and-independent-verifier-v2-recomputation-mismatch-rejected"
+        ],
+        "existing-preformal-or-formal-artifacts-under-old-formula-reusable": false,
+        "hard_lock_until-migration-and-tests-pass": true
+      }
     },
-    "thresholds_identical_to_v1r10": true,
-    "teacher_contract_identical_to_v1r10": true,
-    "training_contract_identical_to_v1r10": true,
-    "fallback_budgets_identical_to_v1r10": true,
-    "timeout_identical_to_v1r10": true,
-    "extra_epoch_seed_qat_distillation_or_threshold_change_allowed": false,
-    "strength_improvement_claimed": false
+    "training_implementation_boundary": {
+      "decision": "option-A-adopted",
+      "current_change_scope": "create-only-verified-artifact-training-handoff-only",
+      "handoff_entrypoint": "ml/prepare_halfkp81_depth18_v1r11_training.py",
+      "handoff_must-reauthenticate-verified-artifact-receipt-and-all-bound-inputs": true,
+      "handoff_must-enforce-alpha-050-initializer-and-replay-bindings": true,
+      "optimizer_authority": false,
+      "formal_training_authorized": false,
+      "compatible-existing-exact-trainer-entrypoints": [],
+      "separate-prospective-ready-pr-required-before-formal-training": true,
+      "separate-pr-must-freeze": [
+        "exact-sigmoid-bce-k600-implementation",
+        "exact-listnet-cp-over-600-implementation",
+        "seed",
+        "batch-size-and-parent-mix",
+        "learning-rate-and-schedule",
+        "optimizer-and-all-hyperparameters",
+        "device-and-determinism-contract"
+      ],
+      "training-runs-authorized-by-this-change": 0,
+      "live-weight-writes-authorized-by-this-change": 0
+    }
   },
-  "minimal_formal_start_gate": {
-    "status": "prospective-outcome-first-start-gate-not-yet-run",
-    "precedence": "This object is the sole blocking formal-start contract for v1r11 and supersedes every earlier requirement that made the complete thirteen-stage public lifecycle E2E or its receipts a prerequisite to starting the formal teacher. Existing thirteen-stage artifacts remain non-authorizing P2 hardening.",
-    "strength_contract_change": false,
-    "minimal_formal_entrypoint": {
-      "path": "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
-      "bytes": 14491,
-      "sha256": "c4ca06487f0b9fcfbb8216df4344a481f1f81af2c6997ffb60b0531a4813b7ce",
-      "schema": "text/typescript-utf8-exact-source"
+  "power_continuity": {
+    "classification": "environment-only-no-teacher-training-or-strength-contract-change",
+    "caffeinate_topology_evidence": {
+      "manual_contract": "LaunchAgent-starts-the-node-runner-directly-and-the-runner-spawns-caffeinate--dimsu--w-runner_pid-as-its-direct-assertion-holder-child",
+      "scratch_probe_authority": "implementation-topology-only-no-teacher-training-or-strength-authority",
+      "real_mac_regression_test": "spawn-an-absolute-node-runner-as-process-group-leader-spawn-/usr/bin/caffeinate--dimsu--w-runner_pid-as-direct-child-capture-command-only-ps-and-pmset-assertions-and-require-exact-parent-process-group-argv-and-owner",
+      "prior-caffeinate-utility-wrapper-probe-authoritative-for-final-topology": false,
+      "ps_executable_derivation": "drop-truncated-ucomm-and-comm-fields-derive-executable-as-command-argv0-then-require-exact-fixed-absolute-argv",
+      "conclusion": "launchd-pid-is-the-node-runner-process-group-leader-and-assertion-holder-caffeinate--dimsu--w-runner_pid-is-its-exact-direct-child-in-the-same-process-group"
     },
-    "v1r10_durable_completed_set_import": {
-      "classification": "new-family-create-only-import-after-independent-verifier-pass-not-same-family-resume",
-      "source_family": "halfkp81-hard-depth18-yaneura-only-v1r10",
-      "source_work": {
-        "bytes": 91081134,
-        "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
-      },
-      "import_verifier_receipt_identity": "required-create-only-full-file-identity-path-bytes-sha256-schema",
-      "completed_parent_id_set_size": 4196,
-      "completed_teacher_rows": 49190,
-      "fallback_parents": 5,
-      "fallback_searches": 60,
-      "recovery_parents": 1,
-      "capped_teacher_labels": 0,
-      "partial_or_inflight_state_imported": 0,
-      "terminal_fault_rows_imported": 0,
-      "authenticated_selection_rows": 8192,
-      "selection_index_base": 0,
-      "contiguous_selection_prefix_length": 3890,
-      "missing_selection_indices_below_4196": [3890, 4135, 4191],
-      "completed_selection_indices_at_or_above_4196": [4196, 4197, 4198],
-      "maximum_completed_selection_index": 4198,
-      "remaining_parent_id_set_difference_size": 3996,
-      "canonical_import_order": "authenticated-selection-order-over-the-exact-completed-parent-ID-set",
-      "duplicate_parent_ids": 0,
-      "omitted_completed_parent_ids": 0,
-      "source_work_must_remain_immutable": true,
-      "independent_semantic_verifier": "reconstruct-and-validate-the-exact-4196-completed-parent-ID-set-and-49190-rows-against-the-authenticated-8192-selection-including-membership-canonical-selection-order-parent-and-candidate-order-legality-exact-depth18-role-fallback-recovery-cap-counts-duplicate0-and-omission0-before-import",
-      "new_family_rebinding": "write-create-only-v1r11-imported-completed-set-in-authenticated-selection-order-with-new-v1r11-schema-run-fingerprint-parent-and-row-digests-without-mutating-v1r10-source",
-      "import_receipt_must_bind": [
-        "immutable-v1r10-source-work-full-identity",
-        "independent-verifier-full-identity-and-semantic-summary",
-        "v1r11-plan-source-revision-run-fingerprint-selection-and-strength-identities",
-        "create-only-v1r11-imported-work-full-identity"
-      ],
-      "source_family_resume_or_write": false,
-      "strength_contract_must_remain_identical": true
-    },
-    "blocking_requirements": [
-      "stable-head-commit-and-clean-working-tree-source-identity-pass",
-      "source-revision-engine-eval-selection-and-unchanged-strength-contract-full-identities-pass",
-      "one-parent-actual-production-teacher-core-scratch-smoke-pass",
-      "the-same-independent-artifact-verifier-passes-the-scratch-smoke-artifact",
-      "AC-battery-and-no-sleep-power-guardian-admission-pass",
-      "focused-regression-and-dedicated-ML-typechecks-pass"
-    ],
-    "identity_gate": {
-      "source_revision": "exact-stable-head-commit-40-lowercase-hex",
-      "engine_binary_eval_and_engine_receipt": "held-full-file-identities",
-      "selection_jsonl_and_manifest": "held-authenticated-8192-row-selection-identities",
-      "strength_contract": "teacher-candidate-generation-whole-parent-fallback-escalation-budgets-training-and-downstream-gates-deep-exact-to-this-plan-and-unchanged-from-v1r10"
-    },
-    "short_real_teacher_smoke": {
-      "authority": "scratch-only-never-training-data-or-strength-result",
-      "selection_prefix_parents": 1,
-      "selection_index_zero_based": 0,
-      "parent_id": "sha256:5ef4d6bbe4d6cae683c29e050264a0d9624114e815a23bbbb5175e1ec280b5f6",
-      "expected_candidate_rows": 12,
-      "expected_fallback": null,
-      "expected_candidate_moves": [
-        "1e4b+",
-        "3f3e",
-        "4c4d",
-        "4g4f",
-        "4i4h",
-        "6h5i",
-        "6h7h",
-        "7f7e",
-        "7g6f",
-        "9g9f",
-        "P*2c",
-        "P*2d"
-      ],
-      "entrypoint": "actual-production-teacher-core",
-      "engine_and_eval": "exact-identities-from-identity-gate",
-      "candidate_contract": "all-candidates-for-the-fixed-parent-under-the-unchanged-production-candidate-generation-contract",
-      "required_result": {
-        "terminal_faults": 0,
-        "illegal_moves": 0,
-        "partial_candidate_rows": 0,
-        "capped_teacher_labels": 0,
-        "every_published_candidate_depth_exact": 18
-      },
-      "whole_parent_fallback_policy_must_remain_enabled": true,
-      "same_independent_artifact_verifier_must_pass": true,
-      "scratch_artifacts_reusable_for_formal_or_training": false
-    },
-    "power_gate": {
-      "power_source": "AC Power",
+    "start_admission": {
+      "power_source_must_equal": "AC Power",
       "battery_percentage_minimum": 80,
-      "no_sleep_darkwake_wake_or_hibernate_during_smoke": true,
-      "node_direct_runner_and_direct_child_caffeinate_minus_dimsu_minus_w_runner_pid": true,
-      "guardian_required_for_formal_run": true
+      "caffeinate_required": true,
+      "caffeinate_executable": "/usr/bin/caffeinate",
+      "caffeinate_flags": "-dimsu",
+      "caffeinate_argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
+      "required_assertions": [
+        "PreventSystemSleep",
+        "PreventUserIdleSystemSleep",
+        "PreventUserIdleDisplaySleep"
+      ],
+      "boot_session_identity_required": true,
+      "status": "not-run",
+      "runner_pid_required": true,
+      "runner_pid_must_equal_launched_utility_job_pid": true,
+      "launchagent_authority_evidence_identity_required": true,
+      "preformal_authority_verified_receipt_identity_required": true,
+      "raw_preformal_authority_receipt_alone_accepted": false,
+      "assertions_must_be_owned_by_exact_caffeinate_pid": true,
+      "unrelated_system_wide_assertions_must_not_satisfy_gate": true,
+      "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
+      "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
     },
-    "focused_regressions": [
-      "Stage-A-real-producer-import-and-direct-path",
-      "Stage-B-real-result-scoreKind-parser-and-typed-path",
-      "one-parent-actual-production-teacher-core-smoke",
-      "same-independent-artifact-verifier-on-smoke-output",
-      "node-direct-command-only-process-topology",
-      "AC-and-no-sleep-guardian"
-    ],
-    "nonblocking_p2": [
-      "complete-thirteen-stage-public-production-outer-lifecycle-E2E",
-      "expanded-receipt-orchestration-and-generalized-OS-filesystem-time-fake-framework"
-    ],
-    "parallel_execution_policy": {
-      "stable_head_commit_required": true,
-      "CI_and_formal_teacher_may_start_in_parallel_from_the_same_stable_head": true,
-      "formal_start_requires_ready_PR_CI_or_merge_completion": false,
-      "CI_failure_or_tree_mismatch_policy": "stop-formal-family-fail-closed-and-do-not-train",
-      "ready_PR_required_CI_regular_merge_and_clean-main-tree-identity_required_before_training_or-promotion": true
+    "guardian": {
+      "implementation": "independent-process-not-chat-session",
+      "append_only": true,
+      "create_only": true,
+      "jsonl": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/power-continuity.jsonl",
+      "sample_interval_milliseconds_maximum": 30000,
+      "maximum_heartbeat_gap_milliseconds": 90000,
+      "required_observations": [
+        "timestamp_utc",
+        "power_source",
+        "battery_percentage",
+        "runner_pid",
+        "guardian_pid",
+        "caffeinate_assertion_holder_pid",
+        "caffeinate_assertion_holder_parent_runner_pid",
+        "caffeinate_executable",
+        "caffeinate_argv",
+        "runner_utility_argv",
+        "launchagent_authority_evidence",
+        "preformal_authority_verified_receipt",
+        "assertion_owner_caffeinate_pid",
+        "required_assertions",
+        "boot_session_identity",
+        "pmset_start_anchor",
+        "pmset_current_cursor"
+      ],
+      "fail_closed_on": [
+        "power-source-not-AC-Power",
+        "required-caffeinate-assertion-missing",
+        "caffeinate-assertion-holder-parent-pid-not-exact-runner-pid",
+        "caffeinate-executable-or-argv-mismatch",
+        "assertion-owner-caffeinate-pid-mismatch",
+        "boot-session-identity-change",
+        "Sleep",
+        "DarkWake",
+        "Wake",
+        "Hibernate",
+        "pmset-anchor-missing-truncated-reset-or-ambiguous",
+        "heartbeat-gap-greater-than-90000ms"
+      ],
+      "fault_policy": "stop-scheduling-terminate-reap-all-engines-discard-unpublished-parents-and-close-family-with-environment-continuity-fault",
+      "same_family_resume_after_fault": false,
+      "final_receipt_json": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2/power-continuity-receipt.json",
+      "coverage": {
+        "guardian_admission_must_complete_before_first_formal_8192_parent_yaneuraou_start": true,
+        "guardian_must_remain_active_until_all_yaneuraou_processes_are_reaped": true,
+        "final_guardian_entry_must_follow_last_engine_reap": true
+      },
+      "caffeinate_identity": {
+        "executable_must_equal": "/usr/bin/caffeinate",
+        "flags_must_equal": "-dimsu",
+        "argv_must_equal_template": ["/usr/bin/caffeinate", "-dimsu", "-w", "${runner_pid}"],
+        "caffeinate_argv_must_not_equal_launchd_program_arguments": true,
+        "runner_utility_argv_must_deep_equal_full_launchd_program_arguments": true,
+        "node_direct_topology": "LaunchAgent-PID-is-node-runner-and-exact-assertion-holder-caffeinate--dimsu--w-runner_pid-is-direct-child-in-the-same-process-group",
+        "assertions_must_be_owned_by_exact_caffeinate_pid": true,
+        "unrelated_process_assertions_accepted": false,
+        "caffeinate_assertion_holder_parent_pid_must_equal_runner_pid": true,
+        "caffeinate_assertion_holder_pid_must_differ_from_runner_pid": true
+      },
+      "observation_value_schema": {
+        "caffeinate_executable": "absolute-string-exact-/usr/bin/caffeinate",
+        "caffeinate_argv": "string-array-deep-equal-to-/usr/bin/caffeinate--dimsu--w-runner_pid",
+        "runner_utility_argv": "string-array-deep-equal-to-full-launchd-ProgramArguments-and-begins-with-the-exact-node-executable",
+        "launchagent_authority_evidence": "full-file-identity-path-bytes-sha256-schema",
+        "preformal_authority_verified_receipt": "full-file-identity-path-bytes-sha256-schema"
+      },
+      "pmset_interval": {
+        "start_anchor": "captured-after-guardian-and-caffeinate-admission-before-first-formal-8192-parent-yaneuraou-start",
+        "end_anchor": "captured-after-all-yaneuraou-processes-reaped-before-ledger-close",
+        "anchor_required_fields": [
+          "boot_session_identity",
+          "timestamp_utc",
+          "timezone_offset",
+          "pmset_event_ordinal",
+          "last_raw_event_line_sha256"
+        ],
+        "canonical_event_classes": {
+          "Sleep": "pmset-event-column-exactly-Sleep",
+          "DarkWake": "pmset-event-column-exactly-DarkWake",
+          "Wake": "pmset-event-column-exactly-Wake-and-message-does-not-contain-Wake-from-Hibernate",
+          "Hibernate": "pmset-event-column-exactly-Wake-and-message-contains-Wake-from-Hibernate-takes-precedence-over-Wake"
+        },
+        "reject_on": [
+          "start-anchor-not-found-at-end",
+          "end-ordinal-before-start-ordinal",
+          "boot-session-change",
+          "timestamp-regression",
+          "raw-line-digest-mismatch",
+          "log-truncation-or-reset",
+          "parse-error-or-ambiguous-event-class"
+        ]
+      },
+      "finalization_order": [
+        "all-yaneuraou-processes-reaped",
+        "append-final-guardian-entry",
+        "close-power-continuity-jsonl",
+        "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
+        "create-raw-teacher-receipt-binding-power-ledger-power-receipt-preformal-chain-and-LaunchAgent-evidence-identities",
+        "run-independent-artifact-and-power-continuity-verifier",
+        "create-verified-artifact-receipt-binding-the-independently-recomputed-preformal-and-LaunchAgent-chain"
+      ],
+      "environment_fault_finalization_order": [
+        "stop-scheduling-new-parents",
+        "terminate-and-reap-all-yaneuraou-processes",
+        "append-final-environment-fault-guardian-entry",
+        "close-power-continuity-jsonl",
+        "create-power-continuity-receipt-binding-ledger-bytes-and-sha256",
+        "runner-exits-nonzero-without-publishing-terminal-fault",
+        "outer-supervisor-observes-runner-and-service-exit",
+        "create-and-fsync-process-cleanup-evidence-from-ordered-cleanup-transcripts-service-absence-pid-reuse-rejection-and-dual-final-ps",
+        "stable-reread-cleanup-evidence-and-independently-recompute-process_cleanup",
+        "outer-supervisor-independently-recomputes-the-final-guardian-environment-fault-intent-and-held-power-chain",
+        "create-terminal-fault-binding-power-ledger-power-receipt-preformal-verified-receipt-LaunchAgent-and-process-cleanup-evidence-identities"
+      ],
+      "environment_fault_binding": {
+        "terminal_fault_must_bind_power_continuity_jsonl_bytes_and_sha256": true,
+        "terminal_fault_must_bind_power_continuity_receipt_bytes_and_sha256": true,
+        "power_final_row_and_receipt_must_bind_runner_environment_fault_intent_digest": true,
+        "runner_may_publish_terminal_fault": false,
+        "outer_supervisor_is_sole_terminal_fault_publisher_after-rich-cleanup": true,
+        "terminal_fault_must_bind_preformal_verified_receipt_and_launchagent_evidence_identities": true,
+        "terminal_fault_must_bind_process_cleanup_evidence_full_identity": true,
+        "fault_process_cleanup_summary_must_recompute_from_cleanup_evidence": true,
+        "fault_publication_without_cleanup_evidence_is-forbidden": true,
+        "circular_identity_binding_forbidden": true,
+        "binding_rule": "The final guardian row and power receipt bind the canonical runner environment-fault intent (plan, run, verified preformal receipt, LaunchAgent evidence and fault reason; no cleanup claim). After runner/service exit, the same outer supervisor proves rich cleanup, independently recomputes that intent and the held power chain, then alone publishes the final terminal fault binding exact power-ledger, power-receipt and cleanup identities."
+      }
     },
-    "schedule": {
-      "preparation_target_minutes": 60,
-      "formal_launch_target": "2026-08-02T22:30:00-07:00",
-      "formal_completion_target": "2026-08-03T09:00:00-07:00",
-      "formal_completion_upper_bound": "2026-08-03T11:00:00-07:00"
+    "timeout_semantics": {
+      "search_timeout_milliseconds": 14400000,
+      "unchanged_from_v1r10": true,
+      "sleep_time_subtraction_adopted": false,
+      "sleep_or_power_fault_precedes_search_timeout_classification": true,
+      "yaneuraou_process_resume_across_sleep_allowed": false
     },
-    "formal_teacher_unlock_rule": "The formal v1r11 teacher may start from the stable head commit after the one-parent real smoke, identical artifact verifier, identity, focused-regression, and AC/no-sleep gates pass, while PR CI and merge proceed in parallel. Training games and live-weight writes remain locked until CI, regular merge, clean-main tree identity, and existing strength gates pass.",
-    "formal_execution_started": false,
-    "formal_parents": 0,
-    "formal_teacher_rows": 0
-  },
-  "sleep_aware_timeout_decision": {
-    "adopted": false,
-    "timeout_milliseconds_remains": 14400000,
-    "hibernated_yaneuraou_process_resume_allowed": false,
-    "reason": "A sleep-aware timer would add new clock and process-resume semantics despite measured timeout headroom. Any sleep discontinuity instead terminates the family; reconsideration requires a separate future preregistered family."
-  },
-  "authority": {
-    "all_execution_authority": false,
-    "runtime_plan_publication_authorized": false,
-    "preformal_gates_authorized": false,
-    "formal_teacher_authorized": false,
-    "training_authorized": false,
-    "formal_games_authorized": false,
-    "write_live_weights_authorized": false,
-    "unlock_condition": "stable-head-commit-and-minimal_formal_start_gate-runtime-blocking-requirements-pass-CI-and-formal-may-then-run-in-parallel"
+    "post_formal_verification": {
+      "pmset_interval_event_maximum": {
+        "Sleep": 0,
+        "DarkWake": 0,
+        "Wake": 0,
+        "Hibernate": 0
+      },
+      "all_guardian_samples_must_report_ac_power": true,
+      "all_guardian_samples_must_retain_required_assertions": true,
+      "boot_session_identity_changes_maximum": 0,
+      "heartbeat_gap_milliseconds_maximum": 90000,
+      "independent_verifier_pass_required_before_training": true,
+      "assertions_must_be_owned_by_exact_launched_caffeinate_pid": true,
+      "unrelated_system_wide_assertions_accepted": false,
+      "pmset_start_and_end_anchors_must_validate_without_truncation_or_reset": true,
+      "coverage_must_begin_before-first-formal-8192-parent-engine-and-end-after-last-engine-reap": true,
+      "power_continuity_receipt_must_bind_closed_ledger_bytes_and_sha256": true,
+      "raw_teacher_receipt_must_bind_power_ledger_and_receipt_identities": true,
+      "power_receipt_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+      "teacher_work_ledger_header_must_bind_launchagent_evidence_and_verified_preformal_receipt_identities": true,
+      "raw_teacher_receipt_must_bind_preformal_ledger_raw_verified_and_launchagent_identities": true,
+      "verified_artifact_receipt_must_bind_independently_recomputed_preformal_and_launchagent_chain": true,
+      "caffeinate_assertion_holder_parent_pid_must_equal_exact_runner_pid": true,
+      "environment_fault_artifact_verification_required": true,
+      "environment_terminal_fault_must_cross_bind_power_evidence": true
+    },
+    "sleep_aware_timeout_rejection": {
+      "adopted": false,
+      "reason": "The isolated v1r10 G*2a search reached the unchanged normal node cap in 1108533ms and Hash8192 exact depth18 in 9490ms, leaving large margin under 14400000ms. Subtracting sleep would add clock and hibernated-USI-state semantics without improving teacher strength or fixing engine continuity.",
+      "future_family_only_if_reconsidered": true,
+      "in_place_hibernated_engine_resume_forbidden": true
+    }
   },
   "live_baseline": {
     "bytes": 1185988,
@@ -2862,5 +2940,29 @@
     "path": "public/shogi-nnue-weights.bin",
     "public_flag_changed": false,
     "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc"
+  },
+  "portable_home_path_binding": {
+    "placeholder": "$HOME",
+    "expansion_time": "runtime-plan-publication-before-fingerprint",
+    "expansion_source": "canonical-home-directory-from-getpwuid-current-euid-user-record",
+    "expanded_runtime_paths_must_be_absolute": true,
+    "expanded_runtime_paths_must_be_lexically_canonical": true,
+    "symlink_or_alias_component_allowed": false,
+    "existing_ancestor_realpath_must_equal_lexical_path": true,
+    "unexpanded_placeholder_allowed_in_runtime_plan": false,
+    "expansion_identity_must_be_bound_by_runtime_plan_and_run_fingerprint": true,
+    "tests_required": [
+      "canonical-euid-user-record-expansion-success",
+      "unexpanded-placeholder-rejected",
+      "relative-HOME-rejected",
+      "wrong-but-absolute-environment-HOME-rejected",
+      "symlink-or-alias-component-rejected",
+      "runtime-path-outside-expanded-formal-or-authority-namespaces-rejected",
+      "formal-and-authority-namespaces-overlap-rejected"
+    ],
+    "current_euid_must_be_bound": true,
+    "process_environment_home_if_present_must_equal_user_record_home": true,
+    "caller_supplied_home_accepted": false,
+    "formal_and_authority_namespaces_must_be_disjoint": true
   }
 }

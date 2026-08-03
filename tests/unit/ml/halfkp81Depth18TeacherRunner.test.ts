@@ -703,10 +703,10 @@ describe("HalfKP81 depth18 teacher runner", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-plan.json",
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-plan.json",
       bytes: 150_392,
       sha256:
-        "50c22cacc6afd6a3b0890026ddc89135fd608777b2c20f8b372d7dfe3a87bdfc",
+        "8d17c4f26201ed764272e573150c15b528ca27d1874dad6ba6ab3d72d16aad05",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });

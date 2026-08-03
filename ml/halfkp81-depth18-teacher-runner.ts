@@ -10,6 +10,7 @@
 import * as crypto from "node:crypto";
 import { execFileSync, fork, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -253,7 +254,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
@@ -261,7 +262,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -400,9 +401,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r1-plan.json",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r2-plan.json",
   bytes: 150_392,
-  sha256: "50c22cacc6afd6a3b0890026ddc89135fd608777b2c20f8b372d7dfe3a87bdfc",
+  sha256: "8d17c4f26201ed764272e573150c15b528ca27d1874dad6ba6ab3d72d16aad05",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });
@@ -9072,7 +9073,7 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
   Readonly<Halfkp81Depth18TeacherRunResult>
 > {
   const repositoryRoot = path.resolve(__dirname, "..");
-  const fixedGate = await import("./run-halfkp81-depth18-v1r11-minimal-formal");
+  const fixedGate = loadHalfkp81Depth18V1R11MinimalFormalModuleForTests();
   const gate =
     await fixedGate.verifyHalfkp81Depth18V1R11MinimalFormalFixedGate();
   if (gate.status !== "minimal-formal-fixed-gate-pass") {
@@ -9232,6 +9233,12 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
   );
 }
 
+export function loadHalfkp81Depth18V1R11MinimalFormalModuleForTests(): typeof import("./run-halfkp81-depth18-v1r11-minimal-formal") {
+  return createRequire(__filename)(
+    "./run-halfkp81-depth18-v1r11-minimal-formal.ts",
+  ) as typeof import("./run-halfkp81-depth18-v1r11-minimal-formal");
+}
+
 const V1R11_PREFORMAL_GATE_NAMES = Object.freeze([
   "ready-pr",
   "all-required-ci-success",
@@ -9278,7 +9285,7 @@ export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForT
 }
 
 const V1R11_LAUNCHD_LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r1-" as const;
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r2-" as const;
 
 export interface Halfkp81Depth18V1R11LaunchdAuthority {
   readonly label: string;

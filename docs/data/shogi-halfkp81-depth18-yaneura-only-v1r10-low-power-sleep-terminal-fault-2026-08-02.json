@@ -1,0 +1,156 @@
+{
+  "schema": "shogi-halfkp81-depth18-yaneura-only-v1r10-low-power-sleep-terminal-fault-data-memo-v1",
+  "date": "2026-08-02",
+  "status": "v1r10-terminal-technical-fault-family-closed",
+  "classification": "low-power-sleep-contaminated-formal-search-timeout-no-strength-result",
+  "family": "halfkp81-hard-depth18-yaneura-only-v1r10",
+  "formal_identity": {
+    "source_revision": "f75184f41533cb2fb93f54ca723056bc9c813d29",
+    "run_fingerprint": "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7",
+    "teacher_plan": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10/teacher-plan.json",
+      "bytes": 16859,
+      "schema": "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r9",
+      "sha256": "9f56b8ab252ce96a4ee0675252e7b54be6cdb26d294dde08d896dce9b7c60b15"
+    }
+  },
+  "durable_formal_output": {
+    "completed_parents": 4196,
+    "incomplete_parents": 3996,
+    "completed_teacher_rows": 49190,
+    "fallback_parents": 5,
+    "roles": {
+      "fit": {
+        "parents": 4196,
+        "teacher_rows": 49190
+      },
+      "tune": {
+        "parents": 0,
+        "teacher_rows": 0
+      },
+      "sealed": {
+        "parents": 0,
+        "teacher_rows": 0
+      }
+    },
+    "teacher_work": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10/teacher-work.jsonl",
+      "bytes": 91081134,
+      "lines_including_header": 4197,
+      "sha256": "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff"
+    }
+  },
+  "terminal_fault": {
+    "path": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10/teacher-terminal-fault.json",
+    "bytes": 1084,
+    "sha256": "436e9c6dfe5d8824cf89b1616ed82e082bfdafe67e7e8ed6870bb5e2d5539997",
+    "completed_parents": 4196,
+    "incomplete_parents": 3996,
+    "technical_faults": 1,
+    "parent_id": "sha256:d61858477e3e1ae61a68f3c42a5f830f25f3018baaf9729093b2db554ad6b303",
+    "selection_index_one_based": 4136,
+    "searchmove": "G*2a",
+    "error_name": "SiblingTeacherSearchTimeoutError",
+    "phase": "independent-rescore",
+    "requested_limit": {
+      "depth": 18,
+      "minimum_completed_depth": 1,
+      "nodes": 2000000000
+    },
+    "hash_mib": 512,
+    "timeout_milliseconds": 14400000,
+    "status": "terminal-fault-family-stopped"
+  },
+  "power_discontinuity": {
+    "last_durable_work_mtime": "2026-08-02T01:12:06-07:00",
+    "sleep": {
+      "occurred_at": "2026-08-02T01:12:11-07:00",
+      "pmset_reason": "Low Power Sleep",
+      "power_source": "Battery",
+      "battery_percentage": 1,
+      "duration_seconds": 28126
+    },
+    "wake": {
+      "occurred_at": "2026-08-02T09:00:57-07:00",
+      "pmset_reason": "Wake from Hibernate",
+      "power_source": "AC",
+      "battery_percentage": 8
+    },
+    "exact_gap_seconds": 28126,
+    "exact_gap_hms": "07:48:46",
+    "interpretation": "Low Power Sleep at one percent battery overrode the existing keep-awake assertions. The formal timing and USI-process continuity were therefore not an uninterrupted search environment.",
+    "caffeinate_keep_awake_evidence": {
+      "configured_and_visible_in_pmset_operational_log": true,
+      "exact_caffeinate_pid_owned_assertion_snapshot_receipt_available": false,
+      "evidence_strength": "operational-log-inference-not-sealed-standalone-snapshot",
+      "interpretation": "The pmset log summarized caffeinate assertions immediately before sleep, but no separate create-only assertion snapshot receipt was captured; do not treat this as a sealed PID-ownership proof."
+    }
+  },
+  "isolated_same_search_diagnostics": {
+    "authority": "scratch-only-causality-evidence-never-training-data-or-strength-result",
+    "normal_hash512": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-v1r10-sleep-fault-g2a-normal-scratch/diagnostic-receipt.json",
+      "bytes": 1774,
+      "sha256": "21e16a29636b29d9894c12ca0298c44dd4282f81f29d11c144b7c6bf99148d9e",
+      "elapsed_milliseconds": 1108533,
+      "termination_reason": "node-cap",
+      "requested_depth": 18,
+      "node_cap": 2000000000,
+      "maximum_observed_nodes": 2000000877,
+      "selected_completed_depth": 16,
+      "selected_cp": -3030,
+      "selected_nodes": 2478428,
+      "timeout_headroom_ratio": 12.99
+    },
+    "fallback_hash8192": {
+      "path": "$HOME/.codex/shogi-runs/halfkp81-v1r10-sleep-fault-g2a-fallback-scratch/diagnostic-receipt.json",
+      "bytes": 1174,
+      "sha256": "bd71d8062af41ab57a96927e8a6fe8fbbe4e0cf3b8a945a801de4707797e49a3",
+      "elapsed_milliseconds": 9490,
+      "completed_depth": 18,
+      "cp": -35281,
+      "nodes": 8944292,
+      "timeout_headroom_ratio": 1517.39
+    },
+    "conclusion": "On an uninterrupted awake system the normal lane reached its preregistered routing cap in 18m28.533s and the Hash8192 fallback reached exact depth18 in 9.490s. The four-hour threshold does not need expansion."
+  },
+  "causal_decision": {
+    "search_timeout_threshold_change_authorized": false,
+    "sleep_aware_timeout_adopted": false,
+    "sleep_aware_timeout_rejection": "Subtracting sleep time would add clock semantics and would risk continuing a hibernated USI process. v1r11 instead keeps the identical timeout and rejects any run with power or sleep discontinuity.",
+    "v1r10_strength_result_valid": false,
+    "same_family_resume_authorized": false,
+    "reuse_completed_parents": 0,
+    "reuse_teacher_rows": 0,
+    "reuse_partial_or_inflight_state": 0,
+    "v1r10_artifacts_must_remain_immutable": true,
+    "reuse_scratch_rows": 0,
+    "reuse_v1r10_milestones": 0,
+    "reuse_preformal_gate_evidence": false
+  },
+  "successor_boundary": {
+    "family": "halfkp81-hard-depth18-yaneura-only-v1r11",
+    "preregistration": "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r11-preregistration-2026-08-02.json",
+    "tracked_plan": "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+    "new_schema_required": true,
+    "new_clean_merged_source_revision_required": true,
+    "new_run_fingerprint_required": true,
+    "create_only_namespace": "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11",
+    "identical_teacher_training_and_strength_gates_required": true,
+    "environment_change_only": "fail-closed-ac-and-sleep-continuity",
+    "portable_home_expansion": "At runtime-plan publication, expand leading $HOME from the canonical getpwuid record for the current EUID, bind that EUID and canonical home, and require any environment HOME to match exactly; reject relative or wrong-but-absolute HOME, symlink or alias components, unexpanded placeholders, and paths outside the sealed v1r11 namespace."
+  },
+  "authority": {
+    "may_resume_v1r10": false,
+    "may_train": false,
+    "may_play_formal_games": false,
+    "may_write_live_weights": false
+  },
+  "live_baseline": {
+    "path": "public/shogi-nnue-weights.bin",
+    "bytes": 1185988,
+    "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+    "changed": false,
+    "public_flag_changed": false
+  }
+}

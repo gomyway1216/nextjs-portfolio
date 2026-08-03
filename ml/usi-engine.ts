@@ -20,6 +20,8 @@ export interface UsiTeacherEngineOptions {
   testOnlyResetForParentTimeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
+  /** Synchronous spawn registration used by fail-closed process supervisors. */
+  onSpawn?: (identity: Readonly<{ pid: number }>) => void;
 }
 
 /** Fixed engine settings that are both executed and recorded in manifests. */
@@ -95,6 +97,16 @@ export class UsiTeacherEngine {
     this.process = child;
     this.buffer = "";
     this.stderrTail = "";
+    if (child.pid === undefined || !Number.isSafeInteger(child.pid)) {
+      child.kill("SIGKILL");
+      throw new Error("USI process PID is unavailable at spawn");
+    }
+    try {
+      this.options.onSpawn?.(Object.freeze({ pid: child.pid }));
+    } catch (error) {
+      child.kill("SIGKILL");
+      throw error;
+    }
     // Always consume stderr so a verbose engine cannot fill the pipe and block.
     // Retain only a bounded tail for actionable initialization/search failures.
     child.stderr.on("data", (chunk: Buffer) => {

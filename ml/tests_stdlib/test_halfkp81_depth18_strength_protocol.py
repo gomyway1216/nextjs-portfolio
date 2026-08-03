@@ -347,6 +347,7 @@ class Halfkp81Depth18StrengthProtocolTests(unittest.TestCase):
                 with self.assertRaises(PROTOCOL.Halfkp81Depth18StrengthError):
                     PROTOCOL.validate_preregistration_document(changed)
 
+
     def test_strict_json_rejects_noncanonical_and_nonfinite_documents(self) -> None:
         import tempfile
 
@@ -536,6 +537,103 @@ class Halfkp81Depth18StrengthProtocolTests(unittest.TestCase):
                 changed["source_inputs"][source]["rows"] = 1
                 with self.assertRaises(PROTOCOL.Halfkp81Depth18StrengthError):
                     PROTOCOL.validate_preregistration_document(changed)
+
+
+class Halfkp81Depth18V1R11VerifiedTrainingConsumerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.plan = _identity(
+            "/private/tmp/v1r11/teacher-plan.json",
+            schema="shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
+        )
+        self.work = _identity(
+            "/private/tmp/v1r11/teacher-work.jsonl",
+            schema="shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+        )
+        self.outputs = {
+            role: _identity(
+                f"/private/tmp/v1r11/teacher-{role}.jsonl",
+                schema=PROTOCOL.V1R11_DATASET_SCHEMA,
+            )
+            for role in ("fit", "tune", "sealed")
+        }
+        schemas = {
+            "raw_teacher_receipt": "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11",
+            "preformal_authority_ledger": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11",
+            "preformal_authority_raw_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-receipt-v1r11",
+            "preformal_authority_verified_receipt": "shogi-halfkp81-depth18-yaneura-only-preformal-authority-verified-receipt-v1r11",
+            "launchagent_authority_evidence": "shogi-halfkp81-depth18-yaneura-only-launchagent-authority-evidence-v1r11",
+            "power_continuity_ledger": "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+            "power_continuity_receipt": "shogi-halfkp81-depth18-power-continuity-receipt-v1r11",
+        }
+        self.chain = {
+            field: _identity(f"/private/tmp/v1r11/{field}", schema=schema)
+            for field, schema in schemas.items()
+        }
+        self.verifier = {
+            "source_revision": SOURCE_REVISION,
+            "entrypoint": "ml/verify-halfkp81-depth18-yaneura-only-v1r11-teacher-artifacts.ts",
+            "dependency_closure": [
+                {
+                    "path": "ml/verify-halfkp81-depth18-yaneura-only-v1r11-teacher-artifacts.ts",
+                    "bytes": 123,
+                    "sha256": "1" * 64,
+                }
+            ],
+        }
+        self.receipt = {
+            "schema": PROTOCOL.V1R11_VERIFIED_TEACHER_RECEIPT_SCHEMA,
+            "status": "teacher-artifacts-and-authority-chain-independently-verified-training-only-authority",
+            "teacher_plan": copy.deepcopy(self.plan),
+            "source_revision": SOURCE_REVISION,
+            "run_fingerprint": "2" * 64,
+            **copy.deepcopy(self.chain),
+            "teacher_work": copy.deepcopy(self.work),
+            "teacher_output": copy.deepcopy(self.outputs),
+            "verifier": copy.deepcopy(self.verifier),
+            "authority": {
+                "may_train_fixed_v1r11_candidate": True,
+                "may_play_formal_games": False,
+                "may_write_live_weights": False,
+            },
+        }
+
+    def validate(self, value: dict) -> dict:
+        return PROTOCOL.validate_v1r11_verified_training_receipt(
+            value,
+            expected_plan_identity=self.plan,
+            expected_source_revision=SOURCE_REVISION,
+            expected_run_fingerprint="2" * 64,
+            expected_teacher_work=self.work,
+            expected_teacher_outputs=self.outputs,
+            expected_authority_chain=self.chain,
+            expected_verifier=self.verifier,
+        )
+
+    def test_only_verified_receipt_grants_fixed_candidate_training(self) -> None:
+        self.assertEqual(
+            self.validate(copy.deepcopy(self.receipt))["authority"],
+            {
+                "may_train_fixed_v1r11_candidate": True,
+                "may_play_formal_games": False,
+                "may_write_live_weights": False,
+            },
+        )
+
+    def test_raw_receipt_and_forged_chain_cannot_reach_optimizer(self) -> None:
+        raw = copy.deepcopy(self.receipt)
+        raw["schema"] = "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11"
+        raw["status"] = "complete-unverified-no-training-authority"
+        raw["authority"] = {
+            "may_train": False,
+            "may_play_formal_games": False,
+            "may_write_live_weights": False,
+        }
+        with self.assertRaises(PROTOCOL.Halfkp81Depth18StrengthError):
+            self.validate(raw)
+        forged = copy.deepcopy(self.receipt)
+        forged["power_continuity_receipt"]["sha256"] = "f" * 64
+        with self.assertRaises(PROTOCOL.Halfkp81Depth18StrengthError):
+            self.validate(forged)
 
 
 if __name__ == "__main__":

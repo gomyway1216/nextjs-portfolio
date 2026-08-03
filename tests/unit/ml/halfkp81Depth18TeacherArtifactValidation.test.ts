@@ -1510,4 +1510,27 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
       ),
     ).toThrow(/fallback route evidence differs/);
   });
+
+  it("keeps independent power semantics out of the producer/runner dependency closure", () => {
+    const artifactVerifier = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../ml/halfkp81-depth18-teacher-artifact-validation.ts",
+      ),
+      "utf8",
+    );
+    const powerVerifier = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../ml/halfkp81-depth18-v1r11-independent-power-verifier.ts",
+      ),
+      "utf8",
+    );
+    expect(artifactVerifier).not.toContain(
+      'from "./halfkp81-depth18-teacher-runner"',
+    );
+    expect(powerVerifier).not.toContain("halfkp81-depth18-teacher-runner");
+    expect(powerVerifier).not.toContain("v1r11-preformal-authority");
+    expect(powerVerifier).not.toContain("v1r11-preformal-gates");
+  });
 });

@@ -11,8 +11,7 @@ import {
 } from "./halfkp81-depth18-v1r11-authority-io";
 
 const SNAPSHOT_SCHEMA = "application/x-apple-aspen-config-exact-bytes";
-const LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-";
+const LABEL_PREFIX = "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-";
 export const HALFKP81_V1R11_FORMAL_CHILD_ENTRYPOINT =
   "ml/run-halfkp81-depth18-v1r11-formal-child.ts" as const;
 
@@ -54,12 +53,20 @@ export function buildHalfkp81V1R11PlannedLaunchAgentPlistForTests(
     nodePath: string;
     stdoutPath: string;
     stderrPath: string;
+    entrypointPath?: string;
   }>,
 ): Readonly<{ bytes: Buffer; programArguments: readonly string[] }> {
   if (
     JSON.stringify(Object.keys(input).sort()) !==
     JSON.stringify(
-      ["label", "repositoryRoot", "nodePath", "stdoutPath", "stderrPath"].sort(),
+      [
+        "label",
+        "repositoryRoot",
+        "nodePath",
+        "stdoutPath",
+        "stderrPath",
+        ...(input.entrypointPath === undefined ? [] : ["entrypointPath"]),
+      ].sort(),
     )
   ) {
     throw new Error("planned LaunchAgent input keys differ");
@@ -68,10 +75,8 @@ export function buildHalfkp81V1R11PlannedLaunchAgentPlistForTests(
     input.nodePath,
     "-r",
     path.join(input.repositoryRoot, "node_modules/tsx/dist/cjs/index.cjs"),
-    path.join(
-      input.repositoryRoot,
-      HALFKP81_V1R11_FORMAL_CHILD_ENTRYPOINT,
-    ),
+    input.entrypointPath ??
+      path.join(input.repositoryRoot, HALFKP81_V1R11_FORMAL_CHILD_ENTRYPOINT),
   ]);
   // launchd must own the Node formal child PID. The child starts a separate
   // `caffeinate -dimsu -w <runner-pid>` assertion holder after it enters the
@@ -79,41 +84,43 @@ export function buildHalfkp81V1R11PlannedLaunchAgentPlistForTests(
   // parent/child topology and make launchctl's PID differ from the runner PID.
   const programArguments = runnerUtilityArgv;
   const bytes = Buffer.from(
-      [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
-        '<plist version="1.0">',
-        "<dict>",
-        "  <key>Label</key>",
-        plistString(input.label),
-        "  <key>ProgramArguments</key>",
-        "  <array>",
-        ...programArguments.map(plistString),
-        "  </array>",
-        "  <key>WorkingDirectory</key>",
-        plistString(input.repositoryRoot),
-        "  <key>StandardOutPath</key>",
-        plistString(input.stdoutPath),
-        "  <key>StandardErrorPath</key>",
-        plistString(input.stderrPath),
-        "  <key>RunAtLoad</key>",
-        "  <true/>",
-        "  <key>KeepAlive</key>",
-        "  <false/>",
-        "  <key>LaunchOnlyOnce</key>",
-        "  <true/>",
-        "  <key>Umask</key>",
-        "  <integer>63</integer>",
-        "  <key>AbandonProcessGroup</key>",
-        "  <false/>",
-        "</dict>",
-        "</plist>",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+    [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+      '<plist version="1.0">',
+      "<dict>",
+      "  <key>Label</key>",
+      plistString(input.label),
+      "  <key>ProgramArguments</key>",
+      "  <array>",
+      ...programArguments.map(plistString),
+      "  </array>",
+      "  <key>WorkingDirectory</key>",
+      plistString(input.repositoryRoot),
+      "  <key>StandardOutPath</key>",
+      plistString(input.stdoutPath),
+      "  <key>StandardErrorPath</key>",
+      plistString(input.stderrPath),
+      "  <key>RunAtLoad</key>",
+      "  <true/>",
+      "  <key>KeepAlive</key>",
+      "  <false/>",
+      "  <key>LaunchOnlyOnce</key>",
+      "  <true/>",
+      "  <key>Umask</key>",
+      "  <integer>63</integer>",
+      "  <key>AbandonProcessGroup</key>",
+      "  <false/>",
+      "</dict>",
+      "</plist>",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
   if (/[0-9a-f]{64}/u.test(bytes.toString("utf8"))) {
-    throw new Error("planned LaunchAgent contains a run-fingerprint-shaped value");
+    throw new Error(
+      "planned LaunchAgent contains a run-fingerprint-shaped value",
+    );
   }
   return Object.freeze({
     bytes,
@@ -179,7 +186,9 @@ export async function bootstrapHalfkp81V1R11PlannedLaunchAgentForTests(
   const service = `${domain}/${descriptor.label}`;
   const before = boundary.run(["print", service]);
   if (before.exitCode !== 113) {
-    throw new Error("formal LaunchAgent service already exists or is ambiguous");
+    throw new Error(
+      "formal LaunchAgent service already exists or is ambiguous",
+    );
   }
   const bootstrap = boundary.run([
     "bootstrap",
@@ -250,6 +259,7 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     homeDirectory: string;
     nodePath: string;
     sourceRevision: string;
+    entrypointPath?: string;
   }>,
 ): Promise<Readonly<Halfkp81V1R11PlannedLaunchAgentDescriptor>> {
   if (
@@ -259,7 +269,10 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     !path.isAbsolute(input.homeDirectory) ||
     path.normalize(input.homeDirectory) !== input.homeDirectory ||
     !path.isAbsolute(input.nodePath) ||
-    path.normalize(input.nodePath) !== input.nodePath
+    path.normalize(input.nodePath) !== input.nodePath ||
+    (input.entrypointPath !== undefined &&
+      (!path.isAbsolute(input.entrypointPath) ||
+        path.normalize(input.entrypointPath) !== input.entrypointPath))
   ) {
     throw new Error("planned LaunchAgent context differs");
   }
@@ -268,7 +281,10 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     input.homeDirectory,
     ".codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11",
   );
-  const launchAgentsDirectory = path.join(input.homeDirectory, "Library/LaunchAgents");
+  const launchAgentsDirectory = path.join(
+    input.homeDirectory,
+    "Library/LaunchAgents",
+  );
   fs.mkdirSync(runDirectory, { recursive: true, mode: 0o700 });
   fs.chmodSync(runDirectory, 0o700);
   fs.mkdirSync(launchAgentsDirectory, { recursive: true, mode: 0o700 });
@@ -281,6 +297,9 @@ export async function prepareHalfkp81V1R11PlannedLaunchAgentForTests(
     nodePath: input.nodePath,
     stdoutPath,
     stderrPath,
+    ...(input.entrypointPath === undefined
+      ? {}
+      : { entrypointPath: input.entrypointPath }),
   });
   publishPrivateCreateOnly(plistPath, planned.bytes);
   const snapshot = await publishV1R11CreateOnlyBytes(

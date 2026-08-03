@@ -1,29 +1,28 @@
 import * as fs from "node:fs";
+import { createHash } from "node:crypto";
 import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { verifyHalfkp81Depth18V1R11FixedEvidenceBytesForTests } from "../../../ml/run-halfkp81-depth18-v1r11-minimal-formal";
+import { verifyHalfkp81Depth18V1R11ReceiptIdentityForTests } from "../../../ml/run-halfkp81-depth18-v1r11-minimal-formal";
 
 const ROOT = path.resolve(__dirname, "../../..");
 
 describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
-  it("accepts the pinned committed minimal-start plan and rejects one-byte tampering", () => {
-    const raw = fs.readFileSync(
-      path.join(ROOT, "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json"),
-    );
+  it("accepts an exact receipt identity and rejects one-byte tampering", () => {
+    const raw = Buffer.from('{"schema":"test-receipt","status":"pass"}\n');
+    const expected = {
+      bytes: raw.byteLength,
+      sha256: createHash("sha256").update(raw).digest("hex"),
+    };
     expect(
-      verifyHalfkp81Depth18V1R11FixedEvidenceBytesForTests("tracked-plan", raw)
-        .minimal_formal_start_gate,
-    ).toBeDefined();
+      verifyHalfkp81Depth18V1R11ReceiptIdentityForTests(raw, expected),
+    ).toBe(true);
     const tampered = Buffer.from(raw);
     tampered[tampered.length - 2] ^= 1;
-    expect(() =>
-      verifyHalfkp81Depth18V1R11FixedEvidenceBytesForTests(
-        "tracked-plan",
-        tampered,
-      ),
-    ).toThrow("fixed tracked-plan receipt identity differs");
+    expect(
+      verifyHalfkp81Depth18V1R11ReceiptIdentityForTests(tampered, expected),
+    ).toBe(false);
   });
 
   it("has no dependency on the legacy all-13/preformal orchestration path", () => {

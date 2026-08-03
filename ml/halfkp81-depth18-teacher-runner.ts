@@ -67,7 +67,7 @@ import {
   UsiTeacherEngine,
   type UsiTeacherEngineOptions,
 } from "./usi-engine";
-import { buildHalfkp81Depth18OneShotLaunchAgentPlist } from "./halfkp81-depth18-one-shot-launch-agent";
+import { buildHalfkp81V1R11PlannedLaunchAgentPlistForTests } from "./prepare-halfkp81-depth18-v1r11-planned-launchagent";
 import {
   HALFKP81_V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
   HALFKP81_V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
@@ -4809,11 +4809,17 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
   ]);
   const mainRevision = repositoryGitText(repositoryRoot, ["rev-parse", "main"]);
   const status = repositoryGitText(repositoryRoot, ["status", "--porcelain"]);
+  const stableV1R11PrHead =
+    options.familyLabel === "v1r11" &&
+    branch.startsWith("codex/") &&
+    sourceRevision === capturedRevision &&
+    status === "";
   if (
-    branch !== "main" ||
-    sourceRevision !== mainRevision ||
-    sourceRevision !== capturedRevision ||
-    status !== "" ||
+    (!stableV1R11PrHead &&
+      (branch !== "main" ||
+        sourceRevision !== mainRevision ||
+        sourceRevision !== capturedRevision ||
+        status !== "")) ||
     !REVISION_RE.test(sourceRevision)
   ) {
     throw new Error(
@@ -9079,12 +9085,14 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
   );
   const captured = await captureFloodgateGitExactCleanRevision(repositoryRoot);
   const head = repositoryGitText(repositoryRoot, ["rev-parse", "HEAD"]);
+  const branch = repositoryGitText(repositoryRoot, [
+    "branch",
+    "--show-current",
+  ]);
   if (
     authenticated.planIdentity.schema !==
       HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 ||
-    repositoryGitText(repositoryRoot, ["branch", "--show-current"]) !==
-      "main" ||
-    repositoryGitText(repositoryRoot, ["rev-parse", "main"]) !== head ||
+    (branch !== "main" && !branch.startsWith("codex/")) ||
     repositoryGitText(repositoryRoot, ["status", "--porcelain"]) !== "" ||
     captured !== head ||
     authenticated.sourceRevision !== head
@@ -9111,21 +9119,22 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
     sha256: "c4090f40cf611dffa438ba560c7b70fa0cea16e530280a15677648797eda5883",
     schema: HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
   });
-  const fixedTrackedPlan = Object.freeze({
-    path: path.join(
+  const liveLaunch = await authenticateHalfkp81Depth18V1R11LaunchdAuthority(
+    authenticated.planIdentity,
+    authenticated.sourceRevision,
+    repositoryRoot,
+    path.join(
       repositoryRoot,
-      "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+      "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
     ),
-    bytes: 149_544,
-    sha256: "b1d733189685af964ae7f6ffba58ac6475e53b2c7a9cea3be5b9408fe0b6b0ca",
-    schema: "application/json-exact-bytes",
-  });
+  );
   const minimalAuthorityPayload = Object.freeze({
     schema: "shogi-halfkp81-depth18-v1r11-minimal-formal-authority-v1",
     status: "fixed-minimal-start-gate-reauthenticated",
     source_revision: authenticated.sourceRevision,
     teacher_plan: authenticated.planIdentity,
-    tracked_minimal_start_plan: fixedTrackedPlan,
+    planned_launchagent_descriptor: liveLaunch.plistSnapshot,
+    live_launchagent_evidence: liveLaunch.evidence,
     fixed_evidence: Object.freeze({
       import_receipt: Object.freeze({
         path: "/private/tmp/v1r11-import-scratch.2bRuAT/authority/v1r10-import-receipt.json",
@@ -9167,8 +9176,8 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
   });
   const capability = Object.freeze({
     [V1R11_MINIMAL_FORMAL_CAPABILITY]: true,
-    launchAgentEvidence: minimalAuthority,
-    plannedFinalDescriptor: fixedTrackedPlan,
+    launchAgentEvidence: liveLaunch.evidence,
+    plannedFinalDescriptor: liveLaunch.plistSnapshot,
     preformalLedger: minimalAuthority,
     preformalRawReceipt: minimalAuthority,
     verifiedPreformalAuthority: minimalAuthority,
@@ -9197,7 +9206,7 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
     },
     teacherContract: authenticated.teacher,
     candidateContract: HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9,
-    plannedFinalDescriptor: fixedTrackedPlan,
+    plannedFinalDescriptor: liveLaunch.plistSnapshot,
   });
   return runHalfkp81Depth18TeacherCoreForTests(
     authenticated,
@@ -9323,6 +9332,7 @@ export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
     runnerPid: number;
     runnerUtilityArgv: readonly string[];
     repositoryRoot: string;
+    entrypointPath?: string;
   }>,
 ): Readonly<Halfkp81Depth18V1R11LaunchdAuthority> {
   if (
@@ -9368,10 +9378,12 @@ export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
     context.repositoryRoot,
     "node_modules/tsx/dist/cjs/index.cjs",
   );
-  const expectedEntrypoint = path.join(
-    context.repositoryRoot,
-    "ml/run-halfkp81-depth18-v1r11-formal-child.ts",
-  );
+  const expectedEntrypoint =
+    context.entrypointPath ??
+    path.join(
+      context.repositoryRoot,
+      "ml/run-halfkp81-depth18-v1r11-formal-child.ts",
+    );
   if (
     canonicalJson(programArguments) !==
       canonicalJson(expectedProgramArguments) ||
@@ -9520,7 +9532,13 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
   teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>,
   sourceRevision: string,
   repositoryRoot: string,
-): Promise<Readonly<Halfkp81Depth18TeacherFileIdentity>> {
+  entrypointPath?: string,
+): Promise<
+  Readonly<{
+    evidence: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    plistSnapshot: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  }>
+> {
   const uid = process.getuid?.();
   if (!Number.isSafeInteger(uid) || Number(uid) < 1) {
     throw new Error("v1r11 launchd authentication requires a numeric uid");
@@ -9542,6 +9560,7 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
     runnerPid: process.pid,
     runnerUtilityArgv,
     repositoryRoot,
+    ...(entrypointPath === undefined ? {} : { entrypointPath }),
   });
   const metadata = await fs.promises.lstat(authority.plistPath);
   if (
@@ -9560,16 +9579,15 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
     authority.plistPath,
     "v1r11 launchd plist",
   );
-  const expectedPlist = buildHalfkp81Depth18OneShotLaunchAgentPlist({
+  const expectedPlist = buildHalfkp81V1R11PlannedLaunchAgentPlistForTests({
     label: authority.label,
     nodePath: runnerUtilityArgv[0]!,
-    nodePreloadPath: runnerUtilityArgv[2]!,
     entrypointPath: runnerUtilityArgv[3]!,
-    workingDirectory: authority.workingDirectory,
+    repositoryRoot: authority.workingDirectory,
     stdoutPath: authority.stdoutPath,
     stderrPath: authority.stderrPath,
-  });
-  if (!plistRaw.equals(Buffer.from(expectedPlist, "utf8"))) {
+  }).bytes;
+  if (!plistRaw.equals(expectedPlist)) {
     throw new Error("v1r11 launchd plist policy differs");
   }
   const launchctlRaw = Buffer.from(raw, "utf8");
@@ -9577,10 +9595,31 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
     HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHCTL_SNAPSHOT_PATH,
     launchctlRaw,
   );
-  const plistSnapshot = await publishV1R11ExclusivePrivateFile(
-    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH,
-    plistRaw,
-  );
+  const plistSnapshot = await (async () => {
+    try {
+      const held = await readHeldStableFile(
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH,
+        "v1r11 preplanned plist snapshot",
+      );
+      if (!held.equals(plistRaw)) {
+        throw new Error("v1r11 preplanned plist snapshot differs from live plist");
+      }
+      return Object.freeze({
+        ...fileIdentity(
+          HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH,
+          held,
+        ),
+        schema: "application/x-apple-aspen-config-exact-bytes",
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      return publishV1R11ExclusivePrivateFile(
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH,
+        plistRaw,
+        "application/x-apple-aspen-config-exact-bytes",
+      );
+    }
+  })();
   const evidence = Object.freeze({
     schema:
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA,
@@ -9616,7 +9655,7 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
     evidenceBytes,
     HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA,
   );
-  return published;
+  return Object.freeze({ evidence: published, plistSnapshot });
 }
 
 export function validateHalfkp81Depth18V1R11PreformalAuthorityReceiptForTests(

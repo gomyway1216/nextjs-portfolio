@@ -10,13 +10,20 @@ import {
   validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 import {
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
+  publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11,
   runHalfkp81Depth18V1R11MinimalFormalFromFixedGate,
   verifyHalfkp81Depth18PowerContinuityLedgerForTests,
   type Halfkp81Depth18PowerContinuityLedgerEntry,
 } from "./halfkp81-depth18-teacher-runner";
+import { createV1R11AuthorityDirectory } from "./halfkp81-depth18-v1r11-authority-io";
+import {
+  bootstrapHalfkp81V1R11PlannedLaunchAgent,
+  prepareHalfkp81V1R11PlannedLaunchAgentForTests,
+} from "./prepare-halfkp81-depth18-v1r11-planned-launchagent";
 
 type FixedEvidenceName =
-  | "tracked-plan"
   | "import-receipt"
   | "source-verifier-receipt"
   | "smoke-receipt"
@@ -36,14 +43,6 @@ const SMOKE_ROOT = "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB";
 const POWER_ROOT = "/private/tmp/v1r11-power-smoke-final4-05b81a1e";
 
 const FIXED = Object.freeze({
-  "tracked-plan": Object.freeze({
-    path: path.join(
-      REPOSITORY_ROOT,
-      "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
-    ),
-    bytes: 149_544,
-    sha256: "b1d733189685af964ae7f6ffba58ac6475e53b2c7a9cea3be5b9408fe0b6b0ca",
-  }),
   "import-receipt": Object.freeze({
     path: path.join(IMPORT_ROOT, "authority/v1r10-import-receipt.json"),
     bytes: 3_532,
@@ -164,18 +163,13 @@ export function verifyHalfkp81Depth18V1R11FixedEvidenceBytesForTests(
 ): Readonly<Record<string, unknown>> {
   const expected = FIXED[name];
   const bytes = Buffer.from(raw);
-  if (
-    bytes.byteLength !== expected.bytes ||
-    sha256(bytes) !== expected.sha256
-  ) {
+  if (!verifyHalfkp81Depth18V1R11ReceiptIdentityForTests(bytes, expected)) {
     throw new Error(`fixed ${name} receipt identity differs`);
   }
   if (name === "power-ledger")
     return Object.freeze({ status: "identity-pass" });
   const value = JSON.parse(bytes.toString("utf8")) as Record<string, unknown>;
   const semanticPass =
-    (name === "tracked-plan" &&
-      value.minimal_formal_start_gate !== undefined) ||
     (name === "import-receipt" &&
       value.schema === "shogi-halfkp81-depth18-v1r11-v1r10-import-receipt-v1" &&
       value.status === "new-family-create-only-exact-set-imported") ||
@@ -197,6 +191,16 @@ export function verifyHalfkp81Depth18V1R11FixedEvidenceBytesForTests(
       value.status === "real-mac-v1r11-power-smoke-pass");
   if (!semanticPass) throw new Error(`fixed ${name} receipt semantics differ`);
   return Object.freeze(value);
+}
+
+export function verifyHalfkp81Depth18V1R11ReceiptIdentityForTests(
+  raw: Uint8Array,
+  expected: Readonly<{ bytes: number; sha256: string }>,
+): boolean {
+  const bytes = Buffer.from(raw);
+  return (
+    bytes.byteLength === expected.bytes && sha256(bytes) === expected.sha256
+  );
 }
 
 async function privateSnapshot(
@@ -387,6 +391,39 @@ async function stopChild(child: ChildProcess): Promise<void> {
 async function main(): Promise<void> {
   if (process.argv.length !== 2)
     throw new Error("the minimal formal entrypoint accepts no arguments");
+  const launched =
+    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-[0-9a-f]{8}$/u.test(
+      process.env.XPC_SERVICE_NAME ?? "",
+    );
+  if (!launched) {
+    if (!fs.existsSync(HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH)) {
+      await publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11();
+    }
+    const sourceRevision = execFileSync(
+      "/usr/bin/git",
+      ["-C", REPOSITORY_ROOT, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+    const authorityDirectory = await createV1R11AuthorityDirectory(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
+    );
+    const descriptor = await prepareHalfkp81V1R11PlannedLaunchAgentForTests({
+      authorityDirectory,
+      repositoryRoot: REPOSITORY_ROOT,
+      homeDirectory: process.env.HOME ?? "/Users/yudaiyaguchi",
+      nodePath: process.execPath,
+      sourceRevision,
+      entrypointPath: path.join(
+        REPOSITORY_ROOT,
+        "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
+      ),
+    });
+    await bootstrapHalfkp81V1R11PlannedLaunchAgent(descriptor);
+    process.stdout.write(
+      `${JSON.stringify({ status: "minimal-formal-one-shot-launchagent-bootstrapped", label: descriptor.label, stdout: descriptor.stdoutPath, stderr: descriptor.stderrPath })}\n`,
+    );
+    return;
+  }
   const holder = spawn(
     "/usr/bin/caffeinate",
     ["-dimsu", "-w", String(process.pid)],

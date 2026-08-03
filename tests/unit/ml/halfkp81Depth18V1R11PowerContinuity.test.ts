@@ -447,7 +447,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
     const sourceRevision = "b".repeat(40);
     const repositoryRoot = "/private/repository";
     const label =
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-bbbbbbbb";
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r1-bbbbbbbb";
     const runnerUtilityArgv = [
       process.execPath,
       "-r",

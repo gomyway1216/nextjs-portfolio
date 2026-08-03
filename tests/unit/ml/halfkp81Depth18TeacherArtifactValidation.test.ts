@@ -1488,6 +1488,54 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
     expect(() =>
       validateHalfkp81Depth18V1R9RouteCoreForTests(route, "route"),
     ).not.toThrow();
+    const recoveredRoute = {
+      ...route,
+      fallback: {
+        ...route.fallback,
+        timeout_ms: 86_400_000,
+        search_timeout_deferrals_used: 1,
+        discarded_completed_rescores_before_timeout_retry: 2,
+        timed_out_searchmoves: ["2g2f"],
+        searches_executed: 16,
+      },
+    };
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        recoveredRoute,
+        "route",
+        [14_400_000, 86_400_000],
+        true,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        recoveredRoute,
+        "route",
+        [14_400_000, 86_400_000],
+      ),
+    ).toThrow(/fallback route evidence differs/);
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        {
+          ...recoveredRoute,
+          fallback: { ...recoveredRoute.fallback, timeout_ms: 14_400_000 },
+        },
+        "route",
+        [14_400_000, 86_400_000],
+        true,
+      ),
+    ).toThrow(/fallback route evidence differs/);
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        {
+          ...recoveredRoute,
+          fallback: { ...recoveredRoute.fallback, searches_executed: 15 },
+        },
+        "route",
+        [14_400_000, 86_400_000],
+        true,
+      ),
+    ).toThrow(/fallback route evidence differs/);
     expect(() =>
       validateHalfkp81Depth18V1R9RouteCoreForTests(
         {

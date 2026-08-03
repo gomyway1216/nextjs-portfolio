@@ -54,17 +54,22 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
   authenticateHalfkp81Depth18TeacherPlan,
   expectedHalfkp81Depth18YaneuraOnlyInitialMultipv,
   initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R4ForTests,
   parseExactPinnedHalfkp81Depth18JsonForTests,
   publishHalfkp81Depth18TeacherCreateOnlyCoreForTests,
+  runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests,
   runHalfkp81Depth18TeacherCoreForTests,
   runHalfkp81Depth18YaneuraOnlyTeacherV1R5,
   runHalfkp81Depth18YaneuraOnlyPathologicalPreflightCoreV1R5ForTests,
   runHalfkp81Depth18YaneuraOnlyPreflightCoreForTests,
   validateHalfkp81Depth18SelectionRowsCoreForTests,
   validateHalfkp81Depth18V1R9FormalSourceAuthorityForTests,
+  v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests,
   validateHalfkp81Depth18YaneuraOnlyPreflightWorkCoreForTests,
   verifyHalfkp81Depth18YaneuraOnlyPathologicalPreflightV1R5,
   type Halfkp81Depth18AuthenticatedTeacherPlan,
@@ -212,6 +217,10 @@ async function fixture(
     yaneuraV1R6?: boolean;
     yaneuraV1R9?: boolean;
     v1r9NodeCapCandidateIndex?: number;
+    v1r9NodeCapRouteLimit?: number;
+    fallbackSearchTimeouts?: number;
+    fallbackTimeoutAtSearchCalls?: readonly number[];
+    fallbackTimeoutDelayMs?: number;
     failSearchAt?: number;
     resetTimeoutFailures?: number;
     resetTimeoutAtCalls?: readonly number[];
@@ -397,6 +406,16 @@ async function fixture(
   const resetTimeoutAtCalls = new Set(options.resetTimeoutAtCalls ?? []);
   const globalResetCalls = { value: 0 };
   const unknownResetFailures = { value: options.unknownResetFailures ?? 0 };
+  const fallbackSearchTimeouts = {
+    value: options.fallbackSearchTimeouts ?? 0,
+  };
+  const fallbackTimeoutAtSearchCalls = new Set(
+    options.fallbackTimeoutAtSearchCalls ?? [],
+  );
+  const globalFallbackSearchCalls = { value: 0 };
+  const v1r9NodeCapRoutes = {
+    value: options.v1r9NodeCapRouteLimit,
+  };
   const engineStats: Array<{
     resetCalls: number;
     searchCalls: number;
@@ -487,6 +506,7 @@ async function fixture(
     private closed = false;
     private readonly engineIndex: number;
     private readonly hashMb: number;
+    private readonly timeoutMs: number;
 
     constructor(engineOptions: Readonly<UsiTeacherEngineOptions>) {
       this.stats = {
@@ -495,6 +515,7 @@ async function fixture(
         quitCalls: 0,
       };
       this.hashMb = engineOptions.hashMb;
+      this.timeoutMs = engineOptions.timeoutMs;
       this.engineIndex = engineStats.length;
       engineStats.push(this.stats);
       engineEvents.push(`start:${this.engineIndex}`);
@@ -549,6 +570,23 @@ async function fixture(
       searchmoves: readonly string[],
     ) {
       this.stats.searchCalls += 1;
+      if (this.hashMb === 8_192) globalFallbackSearchCalls.value += 1;
+      if (
+        this.hashMb === 8_192 &&
+        (fallbackSearchTimeouts.value > 0 ||
+          fallbackTimeoutAtSearchCalls.delete(globalFallbackSearchCalls.value))
+      ) {
+        fallbackSearchTimeouts.value = Math.max(
+          0,
+          fallbackSearchTimeouts.value - 1,
+        );
+        if (options.fallbackTimeoutDelayMs !== undefined) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.fallbackTimeoutDelayMs),
+          );
+        }
+        throw new UsiSearchTimeoutError(this.timeoutMs);
+      }
       if (this.stats.searchCalls === options.failSearchAt) {
         throw new UsiSearchTimeoutError(
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
@@ -569,7 +607,11 @@ async function fixture(
         this.hashMb === 512 &&
         limit.nodes === 2_000_000_000 &&
         searchmoves.length === 1 &&
-        this.normalCandidateIndex++ === options.v1r9NodeCapCandidateIndex;
+        this.normalCandidateIndex++ === options.v1r9NodeCapCandidateIndex &&
+        (v1r9NodeCapRoutes.value === undefined || v1r9NodeCapRoutes.value > 0);
+      if (routedCap && v1r9NodeCapRoutes.value !== undefined) {
+        v1r9NodeCapRoutes.value -= 1;
+      }
       const depth = routedCap ? 17 : (limit.depth as number);
       return {
         depth,
@@ -723,6 +765,52 @@ describe("HalfKP81 depth18 teacher runner", () => {
         normal_lane: { search_timeout_milliseconds: 14_400_000 },
       },
     });
+  });
+
+  it("keeps timeout deferral disabled unless a future frozen plan authorizes the exact policy", () => {
+    const currentPlan = JSON.parse(
+      fs.readFileSync(
+        path.resolve(
+          __dirname,
+          `../../../${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY.path}`,
+        ),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(currentPlan),
+    ).toBe(false);
+
+    const futurePlan = structuredClone(currentPlan) as {
+      escalation_budgets: Record<string, unknown>;
+      teacher: {
+        fallback_lane: Record<string, unknown>;
+        reset_timeout_recovery: Record<string, unknown>;
+      };
+    };
+    futurePlan.teacher.reset_timeout_recovery.search_timeout_retry_allowed = true;
+    futurePlan.teacher.fallback_lane.search_timeout_recovery =
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN;
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
+    ).toBe(false);
+    futurePlan.escalation_budgets =
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS;
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
+    ).toBe(true);
+    futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 14_400_000;
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
+    ).toBe(false);
+    futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 86_400_000;
+    futurePlan.teacher.fallback_lane.search_timeout_recovery = {
+      ...HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
+      second_timeout: "retry-forever",
+    };
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
+    ).toBe(false);
   });
 
   it("pins the exact tracked v1r10 recovery preregistration bytes and schema", () => {
@@ -1552,6 +1640,148 @@ describe("HalfKP81 depth18 teacher runner", () => {
         capped_teacher_labels: 0,
       },
     });
+  });
+
+  it("defers one timed-out Hash8192 parent, publishes other work, then recomputes the whole parent", async () => {
+    const roles = ["fit", "fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      v1r9NodeCapCandidateIndex: 0,
+      v1r9NodeCapRouteLimit: 1,
+      fallbackTimeoutAtSearchCalls: [3],
+      fallbackTimeoutDelayMs: 30,
+      searchDelayMs: 1,
+    });
+
+    await runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests(
+      value.authenticated,
+      value.dependencies,
+      coreContract(roles, 13),
+    );
+
+    const work = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(work).toHaveLength(3);
+    expect(work[1].parent_id).toBe(value.authenticated.parents[1].parent_id);
+    expect(work[2].parent_id).toBe(value.authenticated.parents[0].parent_id);
+    const teacher = work[2].teacher_entry as { candidate_moves: string[] };
+    expect(work[2]).toMatchObject({
+      rescore_route: {
+        mode: "hash8192-parent-fallback",
+        fallback: {
+          all_candidates_recomputed: true,
+          search_timeout_deferrals_used: 1,
+          discarded_completed_rescores_before_timeout_retry: 2,
+          timed_out_searchmoves: [teacher.candidate_moves[2]],
+          searches_executed: teacher.candidate_moves.length + 3,
+          normal_rescore_rows_reused: 0,
+          candidate_omissions: 0,
+        },
+      },
+    });
+    const fallbackStarts = value.engineHashEvents.filter(
+      (event) => event.startsWith("start") && event.endsWith("hash8192"),
+    );
+    const fallbackQuits = value.engineHashEvents.filter(
+      (event) => event.startsWith("quit") && event.endsWith("hash8192"),
+    );
+    expect(fallbackStarts).toHaveLength(2);
+    expect(fallbackQuits).toHaveLength(2);
+    expect(value.engineActivity.active).toBe(0);
+  });
+
+  it("keeps production v1r9 fatal unless an exact prospective v1r11 plan authorizes recovery", async () => {
+    const value = await fixture(["fit"], { yaneuraV1R9: true });
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        {
+          ...value.dependencies,
+          fallbackTimeoutRecoveryPolicy:
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+        },
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(/authorized only/);
+  });
+
+  it("preserves legacy fatal timeout telemetry when deferral is not authorized", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R9: true,
+      v1r9NodeCapCandidateIndex: 0,
+      fallbackSearchTimeouts: 1,
+    });
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        value.dependencies,
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(/SiblingTeacherSearchTimeoutError/);
+    const fault = JSON.parse(
+      await fs.promises.readFile(
+        value.authenticated.outputs.terminal_fault_json,
+        "utf8",
+      ),
+    ) as { message: string };
+    expect(fault.message).toContain(
+      '"error_name":"SiblingTeacherSearchTimeoutError"',
+    );
+  });
+
+  it("remains fail-closed after a second Hash8192 timeout without publishing a partial parent", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R9: true,
+      v1r9NodeCapCandidateIndex: 0,
+      resetTimeoutAtCalls: [4],
+      fallbackTimeoutAtSearchCalls: [2, 3],
+    });
+
+    await expect(
+      runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests(
+        value.authenticated,
+        value.dependencies,
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(/fallback exact-rescore timeout recovery exhausted/);
+
+    const work = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trim()
+      .split("\n");
+    expect(work).toHaveLength(1);
+    const fault = JSON.parse(
+      await fs.promises.readFile(
+        value.authenticated.outputs.terminal_fault_json,
+        "utf8",
+      ),
+    ) as { message: string };
+    const stage = JSON.parse(fault.message.split("; stage=").at(-1)!) as {
+      fallback_timeout_recovery: Record<string, unknown>;
+    };
+    expect(stage.fallback_timeout_recovery).toMatchObject({
+      deferrals_used: 1,
+      first_timeout: {
+        completed_rescores_discarded: 0,
+        searches_discarded: 1,
+      },
+      second_timeout: {
+        completed_rescores_discarded: 0,
+        searches_discarded: 1,
+      },
+      reset_retry_searches_discarded: 1,
+      timeout_searches_discarded: 2,
+      total_discarded_searches: 3,
+    });
+    expect(value.engineActivity.active).toBe(0);
+    expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
+      true,
+    );
   });
 
   it("keeps a complete v1r9 parent on the Hash512 normal lane", async () => {

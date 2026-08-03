@@ -405,6 +405,41 @@ const YANEURA_ONLY_V1R5_TEACHER = Object.freeze({
 });
 const YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY =
   "recycle-engine-retry-parent-once" as const;
+const YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN = Object.freeze({
+  policy: "defer-once-then-retry-whole-parent",
+  maximum_deferrals_per_parent: 1,
+  queue_position: "tail-after-primary-queue",
+  retry_engine: "fresh-hash8192",
+  retry_candidate_scope: "whole-fixed-parent-from-zero",
+  partial_results_reused: false,
+  search_budget_accounting:
+    "all-final-reset-retry-and-timeout-attempts-counted",
+  maximum_searches_executed_per_parent: 38,
+  second_timeout: "terminal-fault",
+} as const);
+const YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS = Object.freeze({
+  actual_cap_parent_counts_by_role_required: true,
+  actual_cap_trigger_search_counts_by_role_required: true,
+  actual_fallback_rows_by_role_required: true,
+  artifact_verifier_recount_required: true,
+  capped_teacher_labels_maximum: 0,
+  fallback_parent_count_maximum: 8_192,
+  fallback_parent_count_maximum_by_role: Object.freeze({
+    fit: 6_144,
+    sealed: 1_024,
+    tune: 1_024,
+  }),
+  fallback_search_count_maximum: 311_296,
+  fallback_search_count_maximum_by_role: Object.freeze({
+    fit: 233_472,
+    sealed: 38_912,
+    tune: 38_912,
+  }),
+  fallback_search_count_maximum_per_parent: 38,
+  runtime_recount_after_every_routing_and_fallback_publication: true,
+  threshold_change_after_results: false,
+  threshold_exceeded_policy: "immediate-family-terminal-fault",
+} as const);
 const YANEURA_ONLY_V1R9_CANDIDATE_GENERATION = Object.freeze({
   mode: "yaneuraou-depth16-multipv12-plus-recorded-only-hash-fallback-v1",
   stable_wasm: "not-instantiated-or-called",
@@ -692,6 +727,49 @@ function canonicalDocumentBytes(value: unknown): Buffer {
 function sameJson(left: unknown, right: unknown): boolean {
   return (
     canonicalHalfkp81Depth18Json(left) === canonicalHalfkp81Depth18Json(right)
+  );
+}
+
+function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
+  plan: Readonly<Record<string, unknown>>,
+): boolean {
+  const teacher = plan.teacher;
+  if (teacher === null || typeof teacher !== "object" || Array.isArray(teacher)) {
+    return false;
+  }
+  const teacherRecord = teacher as Readonly<Record<string, unknown>>;
+  const fallbackLane = teacherRecord.fallback_lane;
+  const normalLane = teacherRecord.normal_lane;
+  const resetRecovery = teacherRecord.reset_timeout_recovery;
+  if (
+    fallbackLane === null ||
+    typeof fallbackLane !== "object" ||
+    Array.isArray(fallbackLane) ||
+    normalLane === null ||
+    typeof normalLane !== "object" ||
+    Array.isArray(normalLane) ||
+    resetRecovery === null ||
+    typeof resetRecovery !== "object" ||
+    Array.isArray(resetRecovery)
+  ) {
+    return false;
+  }
+  return (
+    (fallbackLane as Readonly<Record<string, unknown>>)
+      .search_timeout_milliseconds === 86_400_000 &&
+    (normalLane as Readonly<Record<string, unknown>>)
+      .search_timeout_milliseconds === 14_400_000 &&
+    sameJson(
+      plan.escalation_budgets,
+      YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS,
+    ) &&
+    (resetRecovery as Readonly<Record<string, unknown>>)
+      .search_timeout_retry_allowed === true &&
+    sameJson(
+      (fallbackLane as Readonly<Record<string, unknown>>)
+        .search_timeout_recovery,
+      YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
+    )
   );
 }
 
@@ -3837,6 +3915,7 @@ function validateV1R9Route(
   value: unknown,
   label: string,
   allowedFallbackTimeouts: readonly number[] = [14_400_000],
+  allowFallbackTimeoutRecovery = false,
 ): Readonly<Record<string, unknown>> {
   const tentative = value as Record<string, unknown> | undefined;
   const fallbackMode = tentative?.mode === "hash8192-parent-fallback";
@@ -3908,6 +3987,18 @@ function validateV1R9Route(
     ],
     `${label}.rescore_route.trigger.cap`,
   );
+  if (
+    route.fallback === null ||
+    typeof route.fallback !== "object" ||
+    Array.isArray(route.fallback)
+  ) {
+    throw new Error(`${label}.rescore_route.fallback is not an object`);
+  }
+  const fallbackValue = route.fallback as Record<string, unknown>;
+  const timeoutRecoveryEvidence = Object.prototype.hasOwnProperty.call(
+    fallbackValue,
+    "search_timeout_deferrals_used",
+  );
   const fallback = exactObject(
     route.fallback,
     [
@@ -3923,6 +4014,13 @@ function validateV1R9Route(
       "normal_rescore_rows_reused",
       "candidate_omissions",
       "engine_quit_before_semaphore_release",
+      ...(timeoutRecoveryEvidence
+        ? [
+            "search_timeout_deferrals_used",
+            "discarded_completed_rescores_before_timeout_retry",
+            "timed_out_searchmoves",
+          ]
+        : []),
     ],
     `${label}.rescore_route.fallback`,
   );
@@ -4012,8 +4110,30 @@ function validateV1R9Route(
     !Number.isSafeInteger(fallback.discarded_completed_rescores_before_retry) ||
     (fallback.discarded_completed_rescores_before_retry as number) < 0 ||
     (fallback.discarded_completed_rescores_before_retry as number) >= count ||
-    fallback.searches_executed !==
-      count + (fallback.discarded_completed_rescores_before_retry as number) ||
+    (timeoutRecoveryEvidence
+      ? !allowFallbackTimeoutRecovery ||
+        fallback.timeout_ms !== 86_400_000 ||
+        fallback.search_timeout_deferrals_used !== 1 ||
+        !Number.isSafeInteger(
+          fallback.discarded_completed_rescores_before_timeout_retry,
+        ) ||
+        (fallback.discarded_completed_rescores_before_timeout_retry as number) <
+          0 ||
+        (fallback.discarded_completed_rescores_before_timeout_retry as number) >=
+          count ||
+        !Array.isArray(fallback.timed_out_searchmoves) ||
+        fallback.timed_out_searchmoves.length !== 1 ||
+        typeof fallback.timed_out_searchmoves[0] !== "string" ||
+        fallback.searches_executed !==
+          count +
+            (fallback.discarded_completed_rescores_before_retry as number) +
+            (fallback.discarded_completed_rescores_before_timeout_retry as number) +
+            1 ||
+        (fallback.searches_executed as number) >
+          YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum_per_parent
+      : fallback.searches_executed !==
+        count +
+          (fallback.discarded_completed_rescores_before_retry as number)) ||
     fallback.normal_rescore_rows_reused !== 0 ||
     fallback.candidate_omissions !== 0 ||
     fallback.engine_quit_before_semaphore_release !== true
@@ -4034,6 +4154,7 @@ function validateWrapper(
   stableReusablePoolReceiptSha256: string | undefined,
   source: number,
   allowedFallbackTimeouts: readonly number[] = [14_400_000],
+  allowFallbackTimeoutRecovery = false,
 ): Readonly<Halfkp81Depth18TeacherWorkParent> {
   const label = `teacher work line ${source}`;
   assertNoOldTeacherTargetFields(value, label);
@@ -4196,6 +4317,7 @@ function validateWrapper(
       wrapper.rescore_route,
       label,
       allowedFallbackTimeouts,
+      allowFallbackTimeoutRecovery,
     );
     if (v1r9Route.mode === "normal-depth18" && fallbackRetries !== 0) {
       throw new Error(`${label} normal route contains fallback retry evidence`);
@@ -4240,9 +4362,8 @@ function validateWrapper(
       ? 3_600_000
       : hashFallbackV1R9
         ? v1r9Route?.mode === "hash8192-parent-fallback"
-          ? ((v1r9Route.fallback as Readonly<{ timeout_ms: number }>).timeout_ms as
-              | 14_400_000
-              | 86_400_000)
+          ? ((v1r9Route.fallback as Readonly<{ timeout_ms: number }>)
+              .timeout_ms as 14_400_000 | 86_400_000)
           : 14_400_000
         : 600_000,
     { depth: 16 },
@@ -4281,6 +4402,15 @@ function validateWrapper(
         teacherEntry.exact_search.searches.some(
           (search) => search.dual_bound !== undefined,
         ) ||
+        (Object.prototype.hasOwnProperty.call(
+          fallback,
+          "search_timeout_deferrals_used",
+        ) &&
+          (!Array.isArray(fallback.timed_out_searchmoves) ||
+            fallback.timed_out_searchmoves[0] !==
+              teacherEntry.candidate_moves[
+                fallback.discarded_completed_rescores_before_timeout_retry as number
+              ])) ||
         fallback.fallback_reset_retries_used !== v1r9FallbackRetries ||
         (v1r9FallbackRetries === 0 &&
           fallback.discarded_completed_rescores_before_retry !== 0)
@@ -7834,6 +7964,9 @@ function validateCore(
     configuredFallbackTimeout === 86_400_000
       ? ([14_400_000, 86_400_000] as const)
       : ([14_400_000] as const);
+  const allowFallbackTimeoutRecovery =
+    planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 &&
+    v1r11FallbackTimeoutRecoveryPlanIsAuthorized(plan);
 
   const recordsByRole: Record<TeacherRole, SiblingRecord[]> = {
     fit: [],
@@ -7881,6 +8014,7 @@ function validateCore(
       reusablePoolReceiptSha256,
       index + 1,
       allowedFallbackTimeouts,
+      allowFallbackTimeoutRecovery,
     );
     wrapperIds.add(wrapper.parent_id);
     wrappers.set(wrapper.parent_id, wrapper);
@@ -7892,6 +8026,12 @@ function validateCore(
   const v1r9CapTriggerSearches = { fit: 0, tune: 0, sealed: 0 };
   const v1r9FallbackRows = { fit: 0, tune: 0, sealed: 0 };
   const v1r9FallbackSearches = { fit: 0, tune: 0, sealed: 0 };
+  const fallbackSearchBudgetByRole = allowFallbackTimeoutRecovery
+    ? YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum_by_role
+    : V1R9_FALLBACK_SEARCH_BUDGET;
+  const fallbackSearchBudgetTotal = allowFallbackTimeoutRecovery
+    ? YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum
+    : 106_496;
   if (
     planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 ||
     planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
@@ -7910,11 +8050,21 @@ function validateCore(
       v1r9FallbackParents[wrapper.role] += 1;
       v1r9CapTriggerSearches[wrapper.role] += 1;
       v1r9FallbackRows[wrapper.role] += candidateCount;
-      v1r9FallbackSearches[wrapper.role] += requiredInteger(
+      const searchesExecuted = requiredInteger(
         fallback.searches_executed,
         `v1r9 ${wrapper.parent_id} fallback searches executed`,
         candidateCount,
       );
+      if (
+        allowFallbackTimeoutRecovery &&
+        searchesExecuted >
+          YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum_per_parent
+      ) {
+        throw new Error(
+          `v1r9 ${wrapper.parent_id} fallback searches exceed the recovery per-parent budget`,
+        );
+      }
+      v1r9FallbackSearches[wrapper.role] += searchesExecuted;
     }
     const totalParents = ROLE_ORDER.reduce(
       (sum, role) => sum + v1r9FallbackParents[role],
@@ -7926,11 +8076,11 @@ function validateCore(
     );
     if (
       totalParents > 8_192 ||
-      totalSearches > 106_496 ||
+      totalSearches > fallbackSearchBudgetTotal ||
       ROLE_ORDER.some(
         (role) =>
           v1r9FallbackParents[role] > V1R9_FALLBACK_PARENT_BUDGET[role] ||
-          v1r9FallbackSearches[role] > V1R9_FALLBACK_SEARCH_BUDGET[role],
+          v1r9FallbackSearches[role] > fallbackSearchBudgetByRole[role],
       )
     ) {
       throw new Error(

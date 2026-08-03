@@ -430,14 +430,14 @@ const YANEURA_ONLY_V1R9_CANDIDATE_GENERATION = Object.freeze({
   maximum_rows_per_parent: 13,
 } as const);
 const V1R9_FALLBACK_PARENT_BUDGET = Object.freeze({
-  fit: 6,
-  tune: 1,
-  sealed: 1,
+  fit: 6_144,
+  tune: 1_024,
+  sealed: 1_024,
 });
 const V1R9_FALLBACK_SEARCH_BUDGET = Object.freeze({
-  fit: 78,
-  tune: 13,
-  sealed: 13,
+  fit: 79_872,
+  tune: 13_312,
+  sealed: 13_312,
 });
 const FORBIDDEN_OLD_TARGET_KEYS = new Set([
   "old_depth12_cp",
@@ -4731,6 +4731,30 @@ const V1R11_MINIMAL_R4_COMPLETED_SET = Object.freeze({
   fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
 });
 
+const V1R11_MINIMAL_R5_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 122_649,
+    sha256: "f7419761410156a8da51a0b8b4e815782dc189d1c0065637193c508055bc8872",
+  }),
+  work: Object.freeze({
+    bytes: 95_771_371,
+    sha256: "81e7cd11791e0806fabb99f5cf58a144e78bc16c7511ce5ac353e80f541917a6",
+  }),
+  terminalFault: Object.freeze({
+    bytes: 2_179,
+    sha256: "308f31c842482af91ef04d244975a03c9e7a80d0c7858f55ac8f17d30aa01f46",
+  }),
+  runFingerprint:
+    "37691a15085bb5cd3231346f025edbad42ac334c59077f22f30bf75669d3f3e1",
+  completedParents: 4_419,
+  completedRows: 51_702,
+  selectionOrderParentIdsSha256:
+    "785aa1afd7bb281e72b1012b42fe7ac48f9df92ec2b6a2ccd032c2446a47b7e9",
+  selectionIndexesSha256:
+    "00626fbbba5f60dad830bea65241514558e0095012e8bc71af35771c02ce1a94",
+  fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -4895,6 +4919,16 @@ export function validateHalfkp81Depth18V1R11MinimalR5ImportedSet(
   return validateHalfkp81Depth18V1R11CompletedSet(
     request,
     V1R11_MINIMAL_R4_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR6ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R5_COMPLETED_SET,
     true,
   );
 }
@@ -5181,6 +5215,143 @@ export function validateHalfkp81Depth18V1R11MinimalR4ImportableSet(
       may_write_live_weights: false,
     }),
   });
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR5ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    terminalFault: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R5_COMPLETED_SET.plan,
+    "minimal-r5 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r5 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R5_COMPLETED_SET.work,
+    "minimal-r5 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.terminalFault,
+    V1R11_MINIMAL_R5_COMPLETED_SET.terminalFault,
+    "minimal-r5 source terminal fault",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r5 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r5 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R5_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R5_COMPLETED_SET,
+    false,
+  );
+  const terminalFault = exactObject(
+    parseCanonicalDocument(
+      request.terminalFault,
+      "minimal-r5 source terminal fault",
+    ),
+    [
+      "authority",
+      "completed_parents",
+      "incomplete_parents",
+      "message",
+      "power_continuity",
+      "run_fingerprint",
+      "schema",
+      "status",
+      "teacher_plan",
+      "technical_faults",
+    ],
+    "minimal-r5 source terminal fault",
+  );
+  const authority = exactObject(
+    terminalFault.authority,
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
+    "minimal-r5 source terminal fault authority",
+  );
+  const faultParentId =
+    "sha256:e0bb3bbd3cafe92ea0d66948aa327ab38eb15e2ce3bd2aaace28480adcd82b8f";
+  const faultParentSelected = parseExactJsonl(
+    request.selection.bytes,
+    "minimal-r5 source selection",
+    false,
+  )
+    .map(parseSelectionRow)
+    .map(selectionParent)
+    .some((selected) => selected.parent.parent_id === faultParentId);
+  const faultParentImported = workValues
+    .slice(1)
+    .some(
+      (value) =>
+        (value as Readonly<Record<string, unknown>>).parent_id ===
+        faultParentId,
+    );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R5_COMPLETED_SET.runFingerprint ||
+    terminalFault.run_fingerprint !==
+      V1R11_MINIMAL_R5_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.status !== "terminal-fault-family-stopped" ||
+    terminalFault.completed_parents !== 4_419 ||
+    terminalFault.incomplete_parents !== 3_773 ||
+    terminalFault.technical_faults !== 1 ||
+    !String(terminalFault.message).includes(
+      "Hash8192 fallback budget exceeded for fit: parents=7, searches=84",
+    ) ||
+    !faultParentSelected ||
+    faultParentImported ||
+    !sameJson(authority, {
+      may_play_formal_games: false,
+      may_resume_same_family: false,
+      may_train: false,
+      may_write_live_weights: false,
+    })
+  ) {
+    throw new Error("minimal-r5 import terminal closure differs");
+  }
+  validateDeclaredIdentity(
+    terminalFault.teacher_plan,
+    request.plan,
+    "minimal-r5 import terminal fault teacher plan",
+    { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
+  );
+  return verification;
 }
 
 export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(
@@ -7506,8 +7677,8 @@ function validateCore(
       0,
     );
     if (
-      totalParents > 8 ||
-      totalSearches > 104 ||
+      totalParents > 8_192 ||
+      totalSearches > 106_496 ||
       ROLE_ORDER.some(
         (role) =>
           v1r9FallbackParents[role] > V1R9_FALLBACK_PARENT_BUDGET[role] ||

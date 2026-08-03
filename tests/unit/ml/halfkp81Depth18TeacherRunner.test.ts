@@ -703,7 +703,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5-plan.json",
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6-plan.json",
       bytes: 155_210,
       sha256:
         "7395cfac643b5023ee3deda30d13067676861514a4716908161e7a25f9d9761f",

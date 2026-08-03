@@ -79,7 +79,7 @@ import type {
   V1R11AuthorityFileIdentity,
 } from "./halfkp81-depth18-v1r11-authority-io";
 import type { IndependentFormalRunIntentInput } from "./verify-halfkp81-depth18-v1r11-staged-authority";
-import { importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
+import { importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
 const HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA =
   "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11" as const;
 
@@ -183,9 +183,9 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_CONCURRENCY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS =
   14_400_000 as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_PARENT_BUDGET =
-  Object.freeze({ fit: 6, tune: 1, sealed: 1 } as const);
+  Object.freeze({ fit: 6_144, tune: 1_024, sealed: 1_024 } as const);
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET =
-  Object.freeze({ fit: 78, tune: 13, sealed: 13 } as const);
+  Object.freeze({ fit: 79_872, tune: 13_312, sealed: 13_312 } as const);
 
 export const HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2" as const;
@@ -254,7 +254,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
@@ -262,7 +262,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -401,9 +401,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5-plan.json",
-  bytes: 155_210,
-  sha256: "7395cfac643b5023ee3deda30d13067676861514a4716908161e7a25f9d9761f",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6-plan.json",
+  bytes: 155_507,
+  sha256: "7b7ccd7e917993d9a483d4cea21c1d812fb1b103c99446e825a8d161eaafb78b",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });
@@ -6351,8 +6351,8 @@ async function runWorkers(
       0,
     );
     if (
-      resumedParents > 8 ||
-      resumedSearches > 104 ||
+      resumedParents > 8_192 ||
+      resumedSearches > 106_496 ||
       (["fit", "tune", "sealed"] as const).some(
         (role) =>
           fallbackParentsByRole[role] >
@@ -6383,13 +6383,13 @@ async function runWorkers(
         0,
       ) +
         1 >
-        8 ||
+        8_192 ||
       Object.values(fallbackSearchesByRole).reduce(
         (sum, value) => sum + value,
         0,
       ) +
         candidateCount >
-        104
+        106_496
     ) {
       throw new Error(
         `v1r9 Hash8192 fallback budget exceeded for ${role}: parents=${fallbackParentsByRole[role] + 1}, searches=${fallbackSearchesByRole[role] + candidateCount}`,
@@ -6415,7 +6415,7 @@ async function runWorkers(
         0,
       ) +
         completedSearchesDiscarded >
-        104
+        106_496
     ) {
       throw new Error(
         `v1r9 Hash8192 fallback retry search budget exceeded for ${role}`,
@@ -7693,7 +7693,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       ),
     );
     if (recoveryV1R11) {
-      await importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5({
+      await importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6({
         repositoryRoot,
         targetWorkPath: authenticated.outputs.work_jsonl,
         targetHeader: header as unknown as Readonly<Record<string, unknown>>,
@@ -9239,29 +9239,29 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
     planned_launchagent_descriptor: liveLaunch.plistSnapshot,
     live_launchagent_evidence: liveLaunch.evidence,
     fixed_evidence: Object.freeze({
-      minimal_r4_source_work: Object.freeze({
-        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4/teacher-work.jsonl",
-        bytes: 93_992_032,
+      minimal_r5_source_work: Object.freeze({
+        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5/teacher-work.jsonl",
+        bytes: 95_771_371,
         sha256:
-          "cb9477d310d8d611fb294d91680f9d8c529bb8e8f5a158bfe6709bb0b7fdb0a2",
+          "81e7cd11791e0806fabb99f5cf58a144e78bc16c7511ce5ac353e80f541917a6",
         schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
       }),
-      minimal_r4_failure_log: Object.freeze({
-        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4/formal-launchagent.stderr.log",
-        bytes: 6_156,
+      minimal_r5_terminal_fault: Object.freeze({
+        path: "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5/teacher-terminal-fault.json",
+        bytes: 2_179,
         sha256:
-          "fac7c9577e25e32b7f1a2632145f30666ef86697efa0fc0af9d59164d608227d",
-        schema: "text/plain-utf8-node-stderr-v1",
+          "308f31c842482af91ef04d244975a03c9e7a80d0c7858f55ac8f17d30aa01f46",
+        schema: "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
       }),
       smoke_receipt: fixedSmokeReceipt,
       power_ledger: fixedPowerLedger,
       power_receipt: fixedPowerReceipt,
     }),
     verification: Object.freeze({
-      exact_imported_parents: 4_336,
-      exact_imported_teacher_rows: 50_746,
-      exact_remaining_parents: 3_856,
-      minimal_r4_completed_set_independently_verified: true,
+      exact_imported_parents: 4_419,
+      exact_imported_teacher_rows: 51_702,
+      exact_remaining_parents: 3_773,
+      minimal_r5_completed_set_independently_verified: true,
       smoke_exact_depth18_rows: 12,
       power_ledger_independently_verified: true,
       engine_processes_before_launch: 0,
@@ -9388,7 +9388,7 @@ export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForT
 }
 
 const V1R11_LAUNCHD_LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r5-" as const;
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r6-" as const;
 
 export interface Halfkp81Depth18V1R11LaunchdAuthority {
   readonly label: string;

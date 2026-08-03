@@ -8,11 +8,13 @@ import {
   validateHalfkp81Depth18V1R11MinimalR2ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR3ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR4ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR5ImportableSet,
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
 import {
   importHalfkp81Depth18V1R10CompletedSetIntoV1R11,
   importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5,
+  importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6,
 } from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
 
 function snapshot(name: string): Readonly<Halfkp81Depth18PrivateSnapshot> {
@@ -102,6 +104,37 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
     expect(fs.existsSync("/private/tmp/never-created-r5")).toBe(false);
   });
 
+  it("pins the r5 source before allowing a distinct create-only r6 target", async () => {
+    const invalid = snapshot("invalid-r5.json");
+    expect(() =>
+      validateHalfkp81Depth18V1R11MinimalR5ImportableSet({
+        plan: invalid,
+        selection: invalid,
+        work: invalid,
+        terminalFault: invalid,
+      }),
+    ).toThrow("minimal-r5 source plan identity differs");
+    const fingerprint =
+      "37691a15085bb5cd3231346f025edbad42ac334c59077f22f30bf75669d3f3e1";
+    await expect(
+      importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6({
+        repositoryRoot: "/private/tmp/does-not-exist",
+        targetWorkPath: "/private/tmp/never-created-r6/work.jsonl",
+        targetHeader: Object.freeze({
+          schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+          run_fingerprint: fingerprint,
+        }),
+        targetRunFingerprint: fingerprint,
+        selectionOrderedParentIds: Array.from(
+          { length: 8_192 },
+          (_, index) => `parent-${index}`,
+        ),
+        authorityDirectory: "/private/tmp/never-created-r6/authority",
+      }),
+    ).rejects.toThrow("minimal-r6 import target identity differs");
+    expect(fs.existsSync("/private/tmp/never-created-r6")).toBe(false);
+  });
+
   it("rejects a target before reading the immutable source", async () => {
     await expect(
       importHalfkp81Depth18V1R10CompletedSetIntoV1R11({
@@ -161,6 +194,16 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
     expect(source).toContain("if (imported.length !== 4_336)");
     expect(source).toContain(
       '"minimal-r4-import-source-verification-receipt.json"',
+    );
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR5ImportableSet",
+    );
+    expect(source).toContain(
+      "validateHalfkp81Depth18V1R11MinimalR6ImportedSet",
+    );
+    expect(source).toContain("if (imported.length !== 4_419)");
+    expect(source).toContain(
+      '"minimal-r5-import-source-verification-receipt.json"',
     );
   });
 });

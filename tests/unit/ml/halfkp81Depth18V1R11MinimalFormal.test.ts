@@ -5,10 +5,28 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { verifyHalfkp81Depth18V1R11ReceiptIdentityForTests } from "../../../ml/run-halfkp81-depth18-v1r11-minimal-formal";
+import { HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS } from "../../../ml/halfkp81-depth18-teacher-runner";
 
 const ROOT = path.resolve(__dirname, "../../..");
 
 describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
+  it("accepts every output sealed by the tracked v1r11 namespace", () => {
+    const trackedPlan = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          ROOT,
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+        ),
+        "utf8",
+      ),
+    ) as { output_namespace: Record<string, unknown> };
+    const { collision_policy: _collisionPolicy, ...outputs } =
+      trackedPlan.output_namespace;
+    expect([...HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS].sort()).toEqual(
+      Object.keys(outputs).sort(),
+    );
+  });
+
   it("accepts an exact receipt identity and rejects one-byte tampering", () => {
     const raw = Buffer.from('{"schema":"test-receipt","status":"pass"}\n');
     const expected = {

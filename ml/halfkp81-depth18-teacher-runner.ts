@@ -489,10 +489,11 @@ const EXPECTED_PLAN_OUTPUT_KEYS = Object.freeze([
   "receipt_json",
   "verified_artifact_receipt_json",
 ] as const);
-const EXPECTED_PLAN_OUTPUT_KEYS_V1R11 = Object.freeze([
+export const HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS = Object.freeze([
   ...EXPECTED_PLAN_OUTPUT_KEYS,
   "power_continuity_jsonl",
   "power_continuity_receipt_json",
+  "environment_process_cleanup_evidence_json",
 ] as const);
 const SHA256_RE = /^[0-9a-f]{64}$/u;
 const SEMANTIC_ID_RE = /^sha256:[0-9a-f]{64}$/u;
@@ -4242,7 +4243,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   }
   const outputs = plan.outputs as Record<string, unknown>;
   const expectedOutputKeys = yaneuraOnlyV1R11
-    ? EXPECTED_PLAN_OUTPUT_KEYS_V1R11
+    ? HALFKP81_DEPTH18_V1R11_EXPECTED_PLAN_OUTPUT_KEYS
     : EXPECTED_PLAN_OUTPUT_KEYS;
   exactKeys(outputs, expectedOutputKeys, "teacher outputs");
   const directory = outputs.directory;

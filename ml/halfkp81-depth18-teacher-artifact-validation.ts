@@ -1294,10 +1294,7 @@ interface V1R11CleanupPsCapture {
   readonly rawRows: readonly Omit<V1R11CleanupProcessRow, "role">[];
 }
 
-function validateV1R11CleanupMonotonic(
-  value: unknown,
-  label: string,
-): bigint {
+function validateV1R11CleanupMonotonic(value: unknown, label: string): bigint {
   if (typeof value !== "string" || !/^(?:0|[1-9]\d*)$/u.test(value)) {
     throw new Error(`${label} is not an unsigned decimal string`);
   }
@@ -1343,12 +1340,15 @@ function parseV1R11CleanupPsRows(
     throw new Error(`${label} is not UTF-8`);
   }
   if (text.length === 0) return Object.freeze([]);
-  const rows = text.endsWith("\n") ? text.slice(0, -1).split("\n") : text.split("\n");
+  const rows = text.endsWith("\n")
+    ? text.slice(0, -1).split("\n")
+    : text.split("\n");
   return Object.freeze(
     rows.map((line, index) => {
-      const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s+(.+)$/u.exec(
-        line,
-      );
+      const match =
+        /^\s*(\d+)\s+(\d+)\s+(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s+(.+)$/u.exec(
+          line,
+        );
       if (match === null) {
         throw new Error(`${label} row ${index + 1} is ambiguous`);
       }
@@ -1428,7 +1428,8 @@ function validateV1R11CleanupProcessRows(
         raw.executable === typed.executable &&
         raw.argv === typed.argv,
     );
-    if (!matchingRaw) throw new Error(`${label} row ${index + 1} is not in held ps bytes`);
+    if (!matchingRaw)
+      throw new Error(`${label} row ${index + 1} is not in held ps bytes`);
     return Object.freeze({ ...typed });
   });
   return Object.freeze(rows);
@@ -1532,7 +1533,9 @@ function parseV1R11PlistProgramArguments(
   const arguments_ = matches.map((match, index) => {
     const encoded = match[1]!;
     if (/&(?!amp;|lt;|gt;|quot;|apos;)/u.test(encoded)) {
-      throw new Error(`${label} ProgramArguments row ${index + 1} entity differs`);
+      throw new Error(
+        `${label} ProgramArguments row ${index + 1} entity differs`,
+      );
     }
     const decoded = encoded.replace(
       /&(amp|lt|gt|quot|apos);/gu,
@@ -1581,7 +1584,9 @@ function validateV1R11FinalLaunchctlTopology(
     .split("\n")
     .map((line) => /^\t\t(.+)$/u.exec(line)?.[1] ?? "");
   if (
-    !text.startsWith(`gui/${String(launch.uid)}/${String(launch.label)} = {\n`) ||
+    !text.startsWith(
+      `gui/${String(launch.uid)}/${String(launch.label)} = {\n`,
+    ) ||
     !sameJson(arguments_, launch.runner_utility_argv) ||
     !sameJson(launch.program_arguments, launch.runner_utility_argv) ||
     value("program") !== launch.runner_utility_argv[0] ||
@@ -1604,7 +1609,8 @@ function deriveV1R11PreCleanupRows(
       row.pgid === runner.pgid &&
       row.lstart === runner.lstart,
   );
-  if (runnerRaw === undefined) throw new Error("v1r11 cleanup runner is absent from pre-cleanup ps");
+  if (runnerRaw === undefined)
+    throw new Error("v1r11 cleanup runner is absent from pre-cleanup ps");
   const targetPids = new Set<number>([runner.pid]);
   let changed = true;
   while (changed) {
@@ -1617,11 +1623,15 @@ function deriveV1R11PreCleanupRows(
     }
   }
   const engine =
-    plan.engine !== null && typeof plan.engine === "object" && !Array.isArray(plan.engine)
+    plan.engine !== null &&
+    typeof plan.engine === "object" &&
+    !Array.isArray(plan.engine)
       ? (plan.engine as Readonly<Record<string, unknown>>)
       : undefined;
   const binary =
-    engine?.binary !== null && typeof engine?.binary === "object" && !Array.isArray(engine.binary)
+    engine?.binary !== null &&
+    typeof engine?.binary === "object" &&
+    !Array.isArray(engine.binary)
       ? (engine.binary as Readonly<Record<string, unknown>>)
       : undefined;
   const enginePath = typeof binary?.path === "string" ? binary.path : undefined;
@@ -1639,9 +1649,15 @@ function deriveV1R11PreCleanupRows(
       if (row.pid === runner.pid) role = "runner";
       else if (Number.isSafeInteger(holderPid) && row.pid === holderPid)
         role = "assertion-holder";
-      else if (row.argv.includes("ml/halfkp81-depth18-power-continuity-guardian.ts"))
+      else if (
+        row.argv.includes("ml/halfkp81-depth18-power-continuity-guardian.ts")
+      )
         role = "power-guardian";
-      else if (row.argv.includes("ml/halfkp81-depth18-v1r11-stage-b-launchagent-supervisor.ts"))
+      else if (
+        row.argv.includes(
+          "ml/halfkp81-depth18-v1r11-stage-b-launchagent-supervisor.ts",
+        )
+      )
         role = "stage-b-supervisor";
       else if (
         enginePath !== undefined &&
@@ -1654,7 +1670,11 @@ function deriveV1R11PreCleanupRows(
       else role = "target-process-group-member";
       return Object.freeze({ ...row, role });
     })
-    .sort((left, right) => left.pid - right.pid || Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)));
+    .sort(
+      (left, right) =>
+        left.pid - right.pid ||
+        Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)),
+    );
   return Object.freeze(rows);
 }
 
@@ -1665,14 +1685,24 @@ function deriveV1R11LaterCleanupRows(
 ): readonly V1R11CleanupProcessRow[] {
   const rows: V1R11CleanupProcessRow[] = [];
   for (const raw of rawRows) {
-    const exact = preRows.find((row) => sameV1R11CleanupProcessIdentity(row, raw));
-    if (exact !== undefined) rows.push(Object.freeze({ ...raw, role: exact.role }));
-    else if (preRows.some((row) => row.pid === raw.pid) || raw.pid === runner?.pid)
+    const exact = preRows.find((row) =>
+      sameV1R11CleanupProcessIdentity(row, raw),
+    );
+    if (exact !== undefined)
+      rows.push(Object.freeze({ ...raw, role: exact.role }));
+    else if (
+      preRows.some((row) => row.pid === raw.pid) ||
+      raw.pid === runner?.pid
+    )
       rows.push(Object.freeze({ ...raw, role: "pid-reuse-nontarget" }));
     else if (runner !== null && raw.pgid === runner.pgid)
       rows.push(Object.freeze({ ...raw, role: "target-process-group-member" }));
   }
-  rows.sort((left, right) => left.pid - right.pid || Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)));
+  rows.sort(
+    (left, right) =>
+      left.pid - right.pid ||
+      Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)),
+  );
   return Object.freeze(rows);
 }
 
@@ -1696,7 +1726,10 @@ function validateV1R11ProcessCleanupEvidence(
   if (path.basename(snapshot.identity.path) !== expectedBasename) {
     throw new Error("v1r11 process cleanup evidence path differs");
   }
-  const evidence = parseCanonicalDocument(snapshot, "v1r11 process cleanup evidence");
+  const evidence = parseCanonicalDocument(
+    snapshot,
+    "v1r11 process cleanup evidence",
+  );
   exactObject(
     evidence,
     HALFKP81_V1R11_PROCESS_CLEANUP_EVIDENCE_FIELDS,
@@ -1733,7 +1766,10 @@ function validateV1R11ProcessCleanupEvidence(
     context.launchAgentAuthority,
     "v1r11 cleanup held LaunchAgent authority",
   );
-  if (launch.label !== launchAuthority.label || typeof launch.label !== "string") {
+  if (
+    launch.label !== launchAuthority.label ||
+    typeof launch.label !== "string"
+  ) {
     throw new Error("v1r11 cleanup LaunchAgent label differs");
   }
   validateV1R11FullIdentity(
@@ -1830,7 +1866,8 @@ function validateV1R11ProcessCleanupEvidence(
   ) {
     throw new Error("v1r11 cleanup held LaunchAgent process topology differs");
   }
-  let runner: Readonly<{ pid: number; pgid: number; lstart: string }> | null = null;
+  let runner: Readonly<{ pid: number; pgid: number; lstart: string }> | null =
+    null;
   if (evidence.runner_identity !== null) {
     const untrusted = exactObject(
       evidence.runner_identity,
@@ -1857,7 +1894,9 @@ function validateV1R11ProcessCleanupEvidence(
     });
   }
   if (context.scope === "post-formal-environment" && runner === null) {
-    throw new Error("v1r11 post-formal cleanup requires an active runner identity");
+    throw new Error(
+      "v1r11 post-formal cleanup requires an active runner identity",
+    );
   }
   const pre = validateV1R11CleanupPsCapture(
     evidence.pre_cleanup_ps,
@@ -1898,17 +1937,32 @@ function validateV1R11ProcessCleanupEvidence(
   if (!sameJson(declaredPreRows, expectedPreRows)) {
     throw new Error("v1r11 pre-cleanup process rows differ");
   }
-  if (!Array.isArray(evidence.ordered_cleanup_commands) || evidence.ordered_cleanup_commands.length !== 3) {
+  if (
+    !Array.isArray(evidence.ordered_cleanup_commands) ||
+    evidence.ordered_cleanup_commands.length !== 3
+  ) {
     throw new Error("v1r11 cleanup command sequence differs");
   }
   const commands = evidence.ordered_cleanup_commands.map((untrusted, index) =>
-    exactObject(untrusted, HALFKP81_V1R11_CLEANUP_COMMAND_FIELDS, `v1r11 cleanup command ${index + 1}`),
+    exactObject(
+      untrusted,
+      HALFKP81_V1R11_CLEANUP_COMMAND_FIELDS,
+      `v1r11 cleanup command ${index + 1}`,
+    ),
   );
   const phases = ["bootout", "TERM", "KILL"] as const;
   const expectedArgv = [
-    ["/bin/launchctl", "bootout", `gui/${String(launchAuthority.uid)}/${String(launch.label)}`],
-    runner === null ? ["/bin/kill", "-TERM", "--"] : ["/bin/kill", "-TERM", "--", `-${runner.pgid}`],
-    runner === null ? ["/bin/kill", "-KILL", "--"] : ["/bin/kill", "-KILL", "--", `-${runner.pgid}`],
+    [
+      "/bin/launchctl",
+      "bootout",
+      `gui/${String(launchAuthority.uid)}/${String(launch.label)}`,
+    ],
+    runner === null
+      ? ["/bin/kill", "-TERM", "--"]
+      : ["/bin/kill", "-TERM", "--", `-${runner.pgid}`],
+    runner === null
+      ? ["/bin/kill", "-KILL", "--"]
+      : ["/bin/kill", "-KILL", "--", `-${runner.pgid}`],
   ];
   const captures: V1R11CleanupPsCapture[] = [];
   const commandTimes: Readonly<{ started: bigint; finished: bigint }>[] = [];
@@ -1920,26 +1974,60 @@ function validateV1R11ProcessCleanupEvidence(
     ) {
       throw new Error(`v1r11 cleanup command ${index + 1} order/argv differs`);
     }
-    validateV1R11IsoUtc(command.started_at_utc, `v1r11 cleanup command ${index + 1} start`);
-    validateV1R11IsoUtc(command.finished_at_utc, `v1r11 cleanup command ${index + 1} finish`);
-    const started = validateV1R11CleanupMonotonic(command.started_monotonic_ns, `v1r11 cleanup command ${index + 1} started_monotonic_ns`);
-    const finished = validateV1R11CleanupMonotonic(command.finished_monotonic_ns, `v1r11 cleanup command ${index + 1} finished_monotonic_ns`);
-    if (finished < started || Date.parse(String(command.finished_at_utc)) < Date.parse(String(command.started_at_utc))) {
-      throw new Error(`v1r11 cleanup command ${index + 1} timestamp order differs`);
+    validateV1R11IsoUtc(
+      command.started_at_utc,
+      `v1r11 cleanup command ${index + 1} start`,
+    );
+    validateV1R11IsoUtc(
+      command.finished_at_utc,
+      `v1r11 cleanup command ${index + 1} finish`,
+    );
+    const started = validateV1R11CleanupMonotonic(
+      command.started_monotonic_ns,
+      `v1r11 cleanup command ${index + 1} started_monotonic_ns`,
+    );
+    const finished = validateV1R11CleanupMonotonic(
+      command.finished_monotonic_ns,
+      `v1r11 cleanup command ${index + 1} finished_monotonic_ns`,
+    );
+    if (
+      finished < started ||
+      Date.parse(String(command.finished_at_utc)) <
+        Date.parse(String(command.started_at_utc))
+    ) {
+      throw new Error(
+        `v1r11 cleanup command ${index + 1} timestamp order differs`,
+      );
     }
     commandTimes.push(Object.freeze({ started, finished }));
     const executed = command.disposition === "executed";
     if (executed) {
-      if (command.exit_code !== 0 || command.signal !== null) throw new Error(`v1r11 cleanup command ${index + 1} outcome differs`);
-      validateV1R11CleanupRawTranscript(command.stdout, "text/plain-exact-command-stdout", `v1r11 cleanup command ${index + 1} stdout`);
-      validateV1R11CleanupRawTranscript(command.stderr, "text/plain-exact-command-stderr", `v1r11 cleanup command ${index + 1} stderr`);
+      if (command.exit_code !== 0 || command.signal !== null)
+        throw new Error(`v1r11 cleanup command ${index + 1} outcome differs`);
+      validateV1R11CleanupRawTranscript(
+        command.stdout,
+        "text/plain-exact-command-stdout",
+        `v1r11 cleanup command ${index + 1} stdout`,
+      );
+      validateV1R11CleanupRawTranscript(
+        command.stderr,
+        "text/plain-exact-command-stderr",
+        `v1r11 cleanup command ${index + 1} stderr`,
+      );
     } else if (
-      !["not-required-after-held-post-bootout-absence-probe", "not-required-after-held-absence-probe"].includes(String(command.disposition)) ||
-      command.exit_code !== null || command.signal !== null || command.stdout !== null || command.stderr !== null
+      ![
+        "not-required-after-held-post-bootout-absence-probe",
+        "not-required-after-held-absence-probe",
+      ].includes(String(command.disposition)) ||
+      command.exit_code !== null ||
+      command.signal !== null ||
+      command.stdout !== null ||
+      command.stderr !== null
     ) {
       throw new Error(`v1r11 cleanup command ${index + 1} disposition differs`);
     }
-    if (index === 0 && !executed) throw new Error("v1r11 cleanup bootout was not executed");
+    if (index === 0 && !executed)
+      throw new Error("v1r11 cleanup bootout was not executed");
     const targetDiffers =
       runner === null
         ? command.target_pid !== null ||
@@ -1959,7 +2047,9 @@ function validateV1R11ProcessCleanupEvidence(
         (index === 2 &&
           command.disposition !== "not-required-after-held-absence-probe"))
     ) {
-      throw new Error(`v1r11 cleanup command ${index + 1} branch disposition differs`);
+      throw new Error(
+        `v1r11 cleanup command ${index + 1} branch disposition differs`,
+      );
     }
     const capture = validateV1R11CleanupPsCapture(
       command.absence_probe,
@@ -1967,11 +2057,19 @@ function validateV1R11ProcessCleanupEvidence(
       "text/plain-exact-final-ps-stderr",
       `v1r11 cleanup command ${index + 1} absence probe`,
     );
-    const derived = deriveV1R11LaterCleanupRows(capture.rawRows, expectedPreRows, runner);
-    if (!sameJson(capture.rows, derived)) throw new Error(`v1r11 cleanup command ${index + 1} absence probe rows differ`);
+    const derived = deriveV1R11LaterCleanupRows(
+      capture.rawRows,
+      expectedPreRows,
+      runner,
+    );
+    if (!sameJson(capture.rows, derived))
+      throw new Error(
+        `v1r11 cleanup command ${index + 1} absence probe rows differ`,
+      );
     captures.push(capture);
   }
-  const hasTarget = (capture: V1R11CleanupPsCapture) => capture.rows.some((row) => row.role !== "pid-reuse-nontarget");
+  const hasTarget = (capture: V1R11CleanupPsCapture) =>
+    capture.rows.some((row) => row.role !== "pid-reuse-nontarget");
   const hasSignalGroupTarget = (capture: V1R11CleanupPsCapture) =>
     runner !== null &&
     capture.rows.some(
@@ -1980,8 +2078,7 @@ function validateV1R11ProcessCleanupEvidence(
   const hasUnsafeGroupReuse = (capture: V1R11CleanupPsCapture) =>
     runner !== null &&
     capture.rows.some(
-      (row) =>
-        row.role === "pid-reuse-nontarget" && row.pgid === runner.pgid,
+      (row) => row.role === "pid-reuse-nontarget" && row.pgid === runner.pgid,
     );
   if (
     (commands[1]!.disposition === "executed") !==
@@ -1996,31 +2093,94 @@ function validateV1R11ProcessCleanupEvidence(
   }
   const service = exactObject(
     evidence.service_absence,
-    ["command", "started_at_utc", "finished_at_utc", "started_monotonic_ns", "finished_monotonic_ns", "exit_code", "signal", "stdout", "stderr", "parsed_service_absent"],
+    [
+      "command",
+      "started_at_utc",
+      "finished_at_utc",
+      "started_monotonic_ns",
+      "finished_monotonic_ns",
+      "exit_code",
+      "signal",
+      "stdout",
+      "stderr",
+      "parsed_service_absent",
+    ],
     "v1r11 cleanup service absence",
   );
-  validateV1R11IsoUtc(service.started_at_utc, "v1r11 cleanup service absence start");
-  validateV1R11IsoUtc(service.finished_at_utc, "v1r11 cleanup service absence finish");
-  const serviceStarted = validateV1R11CleanupMonotonic(service.started_monotonic_ns, "v1r11 cleanup service absence started_monotonic_ns");
-  const serviceFinished = validateV1R11CleanupMonotonic(service.finished_monotonic_ns, "v1r11 cleanup service absence finished_monotonic_ns");
-  const serviceStdout = validateV1R11CleanupRawTranscript(service.stdout, "text/plain-exact-command-stdout", "v1r11 cleanup service absence stdout");
-  const serviceStderr = validateV1R11CleanupRawTranscript(service.stderr, "text/plain-exact-command-stderr", "v1r11 cleanup service absence stderr");
-  const expectedServiceStderr = Buffer.from(`Bad request.\nCould not find service "${String(launch.label)}" in domain for user gui: ${String(launchAuthority.uid)}\n`, "utf8");
+  validateV1R11IsoUtc(
+    service.started_at_utc,
+    "v1r11 cleanup service absence start",
+  );
+  validateV1R11IsoUtc(
+    service.finished_at_utc,
+    "v1r11 cleanup service absence finish",
+  );
+  const serviceStarted = validateV1R11CleanupMonotonic(
+    service.started_monotonic_ns,
+    "v1r11 cleanup service absence started_monotonic_ns",
+  );
+  const serviceFinished = validateV1R11CleanupMonotonic(
+    service.finished_monotonic_ns,
+    "v1r11 cleanup service absence finished_monotonic_ns",
+  );
+  const serviceStdout = validateV1R11CleanupRawTranscript(
+    service.stdout,
+    "text/plain-exact-command-stdout",
+    "v1r11 cleanup service absence stdout",
+  );
+  const serviceStderr = validateV1R11CleanupRawTranscript(
+    service.stderr,
+    "text/plain-exact-command-stderr",
+    "v1r11 cleanup service absence stderr",
+  );
+  const expectedServiceStderr = Buffer.from(
+    `Bad request.\nCould not find service "${String(launch.label)}" in domain for user gui: ${String(launchAuthority.uid)}\n`,
+    "utf8",
+  );
   if (
-    !sameJson(service.command, ["/bin/launchctl", "print", `gui/${String(launchAuthority.uid)}/${String(launch.label)}`]) ||
-    service.exit_code !== 113 || service.signal !== null || service.parsed_service_absent !== true ||
+    !sameJson(service.command, [
+      "/bin/launchctl",
+      "print",
+      `gui/${String(launchAuthority.uid)}/${String(launch.label)}`,
+    ]) ||
+    service.exit_code !== 113 ||
+    service.signal !== null ||
+    service.parsed_service_absent !== true ||
     serviceStdout.byteLength !== 0 ||
     serviceStderr.byteLength !== expectedServiceStderr.byteLength ||
     !timingSafeEqual(serviceStderr, expectedServiceStderr) ||
-    serviceFinished < serviceStarted || Date.parse(String(service.finished_at_utc)) < Date.parse(String(service.started_at_utc))
+    serviceFinished < serviceStarted ||
+    Date.parse(String(service.finished_at_utc)) <
+      Date.parse(String(service.started_at_utc))
   ) {
     throw new Error("v1r11 cleanup service absence differs");
   }
-  const first = validateV1R11CleanupPsCapture(evidence.final_ps_first, "text/plain-exact-final-ps-stdout", "text/plain-exact-final-ps-stderr", "v1r11 cleanup final ps first");
-  const second = validateV1R11CleanupPsCapture(evidence.final_ps_second, "text/plain-exact-final-ps-stdout", "text/plain-exact-final-ps-stderr", "v1r11 cleanup final ps second");
-  const firstDerived = deriveV1R11LaterCleanupRows(first.rawRows, expectedPreRows, runner);
-  const secondDerived = deriveV1R11LaterCleanupRows(second.rawRows, expectedPreRows, runner);
-  if (!sameJson(first.rows, firstDerived) || !sameJson(second.rows, secondDerived)) {
+  const first = validateV1R11CleanupPsCapture(
+    evidence.final_ps_first,
+    "text/plain-exact-final-ps-stdout",
+    "text/plain-exact-final-ps-stderr",
+    "v1r11 cleanup final ps first",
+  );
+  const second = validateV1R11CleanupPsCapture(
+    evidence.final_ps_second,
+    "text/plain-exact-final-ps-stdout",
+    "text/plain-exact-final-ps-stderr",
+    "v1r11 cleanup final ps second",
+  );
+  const firstDerived = deriveV1R11LaterCleanupRows(
+    first.rawRows,
+    expectedPreRows,
+    runner,
+  );
+  const secondDerived = deriveV1R11LaterCleanupRows(
+    second.rawRows,
+    expectedPreRows,
+    runner,
+  );
+  if (
+    !sameJson(first.rows, firstDerived) ||
+    !sameJson(second.rows, secondDerived)
+  ) {
     throw new Error("v1r11 cleanup final ps rows differ");
   }
   const timeline = [
@@ -2044,7 +2204,9 @@ function validateV1R11ProcessCleanupEvidence(
     second.started,
     second.finished,
   ];
-  if (timeline.some((value, index) => index > 0 && value < timeline[index - 1]!)) {
+  if (
+    timeline.some((value, index) => index > 0 && value < timeline[index - 1]!)
+  ) {
     throw new Error("v1r11 cleanup monotonic timeline differs");
   }
   const wallTimeline = [
@@ -2089,19 +2251,51 @@ function validateV1R11ProcessCleanupEvidence(
   ) {
     throw new Error("v1r11 cleanup final ps separation differs");
   }
-  const remainingFirst = firstDerived.filter((row) => row.role !== "pid-reuse-nontarget");
-  const remainingSecond = secondDerived.filter((row) => row.role !== "pid-reuse-nontarget");
-  const remainingRows = validateV1R11CleanupProcessRows(evidence.remaining_process_rows, second.rawRows, "v1r11 cleanup remaining process rows");
-  if (remainingFirst.length !== 0 || remainingSecond.length !== 0 || remainingRows.length !== 0) {
+  const remainingFirst = firstDerived.filter(
+    (row) => row.role !== "pid-reuse-nontarget",
+  );
+  const remainingSecond = secondDerived.filter(
+    (row) => row.role !== "pid-reuse-nontarget",
+  );
+  const remainingRows = validateV1R11CleanupProcessRows(
+    evidence.remaining_process_rows,
+    second.rawRows,
+    "v1r11 cleanup remaining process rows",
+  );
+  if (
+    remainingFirst.length !== 0 ||
+    remainingSecond.length !== 0 ||
+    remainingRows.length !== 0
+  ) {
     throw new Error("v1r11 cleanup remaining process rows differ");
   }
-  if (!Array.isArray(evidence.remaining_process_group_rows) || evidence.remaining_process_group_rows.length !== 0) {
+  if (
+    !Array.isArray(evidence.remaining_process_group_rows) ||
+    evidence.remaining_process_group_rows.length !== 0
+  ) {
     throw new Error("v1r11 cleanup remaining process groups differ");
   }
-  const reuse = exactObject(evidence.pid_reuse_rejection, ["identity_tuple_fields", "checked_pids", "rejected_reuse_rows", "all_reuse_rejected"], "v1r11 cleanup PID reuse rejection");
-  const checkedPids = [...new Set(expectedPreRows.map((row) => row.pid).concat(runner === null ? [] : [runner.pid]))].sort((a, b) => a - b);
+  const reuse = exactObject(
+    evidence.pid_reuse_rejection,
+    [
+      "identity_tuple_fields",
+      "checked_pids",
+      "rejected_reuse_rows",
+      "all_reuse_rejected",
+    ],
+    "v1r11 cleanup PID reuse rejection",
+  );
+  const checkedPids = [
+    ...new Set(
+      expectedPreRows
+        .map((row) => row.pid)
+        .concat(runner === null ? [] : [runner.pid]),
+    ),
+  ].sort((a, b) => a - b);
   const reuseCandidates = captures
-    .flatMap((capture) => deriveV1R11LaterCleanupRows(capture.rawRows, expectedPreRows, runner))
+    .flatMap((capture) =>
+      deriveV1R11LaterCleanupRows(capture.rawRows, expectedPreRows, runner),
+    )
     .concat(firstDerived, secondDerived)
     .filter((row) => row.role === "pid-reuse-nontarget");
   const reuseByIdentity = new Map<string, V1R11CleanupProcessRow>();
@@ -2117,15 +2311,31 @@ function validateV1R11ProcessCleanupEvidence(
       Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)),
   );
   if (
-    !sameJson(reuse.identity_tuple_fields, ["pid", "pgid", "lstart", "executable"]) ||
+    !sameJson(reuse.identity_tuple_fields, [
+      "pid",
+      "pgid",
+      "lstart",
+      "executable",
+    ]) ||
     !sameJson(reuse.checked_pids, checkedPids) ||
     !sameJson(reuse.rejected_reuse_rows, rejectedReuseRows) ||
     reuse.all_reuse_rejected !== true
   ) {
     throw new Error("v1r11 cleanup PID reuse rejection differs");
   }
-  const engineCount = expectedPreRows.filter((row) => row.role === "yaneuraou-engine").length;
-  const summary = exactObject(evidence.process_cleanup, ["scheduling_stopped", "engines_terminated", "engines_reaped", "remaining_engine_pids"], "v1r11 cleanup summary");
+  const engineCount = expectedPreRows.filter(
+    (row) => row.role === "yaneuraou-engine",
+  ).length;
+  const summary = exactObject(
+    evidence.process_cleanup,
+    [
+      "scheduling_stopped",
+      "engines_terminated",
+      "engines_reaped",
+      "remaining_engine_pids",
+    ],
+    "v1r11 cleanup summary",
+  );
   if (
     summary.scheduling_stopped !== true ||
     summary.engines_terminated !== engineCount ||
@@ -2134,15 +2344,33 @@ function validateV1R11ProcessCleanupEvidence(
   ) {
     throw new Error("v1r11 cleanup summary recomputation differs");
   }
-  validateV1R11IsoUtc(evidence.captured_at_utc, "v1r11 cleanup captured_at_utc");
-  if (Date.parse(String(evidence.captured_at_utc)) < Date.parse(String(second.value.finished_at_utc))) {
+  validateV1R11IsoUtc(
+    evidence.captured_at_utc,
+    "v1r11 cleanup captured_at_utc",
+  );
+  if (
+    Date.parse(String(evidence.captured_at_utc)) <
+    Date.parse(String(second.value.finished_at_utc))
+  ) {
     throw new Error("v1r11 cleanup captured_at_utc order differs");
   }
   if (context.verifyTrackedProducer) {
-    validateV1R11TrackedImplementationIdentity(evidence.producer, context.sourceRevision, "v1r11 cleanup producer", "ml/produce-halfkp81-depth18-v1r11-process-cleanup-evidence.ts");
+    validateV1R11TrackedImplementationIdentity(
+      evidence.producer,
+      context.sourceRevision,
+      "v1r11 cleanup producer",
+      "ml/produce-halfkp81-depth18-v1r11-process-cleanup-evidence.ts",
+    );
   } else {
-    validateV1R11ImplementationIdentity(evidence.producer, context.sourceRevision, "v1r11 cleanup producer");
-    if ((evidence.producer as Readonly<Record<string, unknown>>).entrypoint !== "ml/produce-halfkp81-depth18-v1r11-process-cleanup-evidence.ts") {
+    validateV1R11ImplementationIdentity(
+      evidence.producer,
+      context.sourceRevision,
+      "v1r11 cleanup producer",
+    );
+    if (
+      (evidence.producer as Readonly<Record<string, unknown>>).entrypoint !==
+      "ml/produce-halfkp81-depth18-v1r11-process-cleanup-evidence.ts"
+    ) {
       throw new Error("v1r11 cleanup producer entrypoint differs");
     }
   }
@@ -2161,7 +2389,10 @@ export function validateHalfkp81Depth18V1R11ProcessCleanupEvidenceForTests(
     scope: "preformal" | "post-formal-environment";
   }>,
 ): Readonly<Record<string, unknown>> {
-  const planValue = parseCanonicalDocument(request.plan, "v1r11 cleanup test plan");
+  const planValue = parseCanonicalDocument(
+    request.plan,
+    "v1r11 cleanup test plan",
+  );
   return validateV1R11ProcessCleanupEvidence(request.evidence, {
     plan: request.plan,
     planValue,
@@ -2397,9 +2628,7 @@ function validateV1R11FrozenDownstreamPlanContract(
       "$HOME/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority/launchagent.plist.snapshot" ||
     nullBinding.stage_c_reuse_policy !==
       "do-not-rewrite;held-reread-the-same-planned-snapshot-and-require-exact-byte-equality-with-the-live-source-plist-before-final-LaunchAgent-evidence" ||
-    nullBinding[
-      "live-launchagent-authority-evidence-required"
-    ] !== false ||
+    nullBinding["live-launchagent-authority-evidence-required"] !== false ||
     nullBinding["may_claim-live-runner-or-formal-authority"] !== false ||
     nullBinding.cleanup_use !==
       "bootout-planned-label-then-held-service-absence-and-process-absence-with-runner_identity-null" ||
@@ -2880,7 +3109,9 @@ function validateV1R11LaunchAgentProcessEvidence(
         raw.argv === typed.argv,
     );
     if (matches.length !== 1) {
-      throw new Error(`${label} is not uniquely recomputed from held ps stdout`);
+      throw new Error(
+        `${label} is not uniquely recomputed from held ps stdout`,
+      );
     }
     return Object.freeze({ ...typed });
   };
@@ -2974,11 +3205,19 @@ function validateV1R11LaunchAgentProcessEvidence(
   ) {
     throw new Error("v1r11 LaunchAgent observed process group differs");
   }
-  if (plan.engine === null || typeof plan.engine !== "object" || Array.isArray(plan.engine)) {
+  if (
+    plan.engine === null ||
+    typeof plan.engine !== "object" ||
+    Array.isArray(plan.engine)
+  ) {
     throw new Error("v1r11 engine differs");
   }
   const engine = plan.engine as Readonly<Record<string, unknown>>;
-  const binary = exactObject(engine.binary, ["path", "bytes", "sha256"], "v1r11 engine binary");
+  const binary = exactObject(
+    engine.binary,
+    ["path", "bytes", "sha256"],
+    "v1r11 engine binary",
+  );
   const enginePath = requiredText(binary.path, "v1r11 engine binary path");
   const engineRows = rawRows.filter(
     (row) =>
@@ -2986,8 +3225,13 @@ function validateV1R11LaunchAgentProcessEvidence(
       row.argv === enginePath ||
       row.argv.startsWith(`${enginePath} `),
   );
-  if (!sameJson(launch.observed_yaneuraou_engine_rows, []) || engineRows.length !== 0) {
-    throw new Error("v1r11 LaunchAgent preliminary observation contains an engine");
+  if (
+    !sameJson(launch.observed_yaneuraou_engine_rows, []) ||
+    engineRows.length !== 0
+  ) {
+    throw new Error(
+      "v1r11 LaunchAgent preliminary observation contains an engine",
+    );
   }
 }
 
@@ -3061,7 +3305,9 @@ export function validateHalfkp81Depth18V1R11FinalLaunchAgentTopologyForTests(
       launch.runner_utility_argv,
     )
   ) {
-    throw new Error("v1r11 test final LaunchAgent node ProgramArguments differ");
+    throw new Error(
+      "v1r11 test final LaunchAgent node ProgramArguments differ",
+    );
   }
   validateV1R11FinalLaunchctlTopology(request.launchctlPrint.bytes, launch);
   const plan = parseCanonicalDocument(request.plan, "v1r11 test teacher plan");
@@ -4123,7 +4369,11 @@ function assertV1R10ImportSourceIdentity(
 export function validateHalfkp81Depth18V1R10ImportableSet(
   request: Readonly<Halfkp81Depth18V1R10ImportSetValidationRequest>,
 ): Readonly<Record<string, unknown>> {
-  assertV1R10ImportSourceIdentity(request.plan, V1R10_IMPORT_SOURCE.plan, "plan");
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R10_IMPORT_SOURCE.plan,
+    "plan",
+  );
   assertV1R10ImportSourceIdentity(
     request.selection,
     V1R10_IMPORT_SOURCE.selection,
@@ -4134,7 +4384,11 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
     V1R10_IMPORT_SOURCE.selectionManifest,
     "selection manifest",
   );
-  assertV1R10ImportSourceIdentity(request.work, V1R10_IMPORT_SOURCE.work, "work");
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R10_IMPORT_SOURCE.work,
+    "work",
+  );
   assertV1R10ImportSourceIdentity(
     request.terminalFault,
     V1R10_IMPORT_SOURCE.terminalFault,
@@ -4159,7 +4413,8 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   if (workValues.length !== V1R10_IMPORT_SOURCE.completedParents + 1) {
     throw new Error("v1r10 import work row count differs");
   }
-  const verifierRequest = request as unknown as Halfkp81Depth18ValidationRequest;
+  const verifierRequest =
+    request as unknown as Halfkp81Depth18ValidationRequest;
   const header = validatePlanAndHeader(
     verifierRequest,
     plan,
@@ -4172,7 +4427,10 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   }
 
   const selectedByParentId = new Map(
-    selectionRows.map((selected, index) => [selected.parent.parent_id, { selected, index }] as const),
+    selectionRows.map(
+      (selected, index) =>
+        [selected.parent.parent_id, { selected, index }] as const,
+    ),
   );
   const completed = new Map<
     string,
@@ -4184,10 +4442,15 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   const fallback = { parents: 0, rows: 0, searches: 0 };
   for (let offset = 1; offset < workValues.length; offset += 1) {
     const value = workValues[offset] as Record<string, unknown>;
-    const parentId = requiredText(value.parent_id, `v1r10 import work line ${offset + 1}.parent_id`);
+    const parentId = requiredText(
+      value.parent_id,
+      `v1r10 import work line ${offset + 1}.parent_id`,
+    );
     const indexed = selectedByParentId.get(parentId);
     if (indexed === undefined || completed.has(parentId)) {
-      throw new Error(`v1r10 import work line ${offset + 1} parent membership differs`);
+      throw new Error(
+        `v1r10 import work line ${offset + 1} parent membership differs`,
+      );
     }
     const wrapper = validateWrapper(
       value,
@@ -4227,7 +4490,8 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
     orderedParentIds.push(selected.parent.parent_id);
   }
   let contiguousPrefix = 0;
-  while (orderedIndexes[contiguousPrefix] === contiguousPrefix) contiguousPrefix += 1;
+  while (orderedIndexes[contiguousPrefix] === contiguousPrefix)
+    contiguousPrefix += 1;
   const holesBeforeNominalBoundary = Array.from(
     { length: V1R10_IMPORT_SOURCE.completedParents },
     (_, index) => index,
@@ -4250,7 +4514,10 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   }
 
   const terminalFault = exactObject(
-    parseCanonicalDocument(request.terminalFault, "v1r10 import terminal fault"),
+    parseCanonicalDocument(
+      request.terminalFault,
+      "v1r10 import terminal fault",
+    ),
     [
       "authority",
       "completed_parents",
@@ -4266,17 +4533,30 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   );
   const authority = exactObject(
     terminalFault.authority,
-    ["may_play_formal_games", "may_resume_same_family", "may_train", "may_write_live_weights"],
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
     "v1r10 import terminal fault authority",
   );
-  const message = requiredText(terminalFault.message, "v1r10 import terminal fault message");
-  const faultParent = /^teacher labeling failed for parent (sha256:[0-9a-f]{64}):/u.exec(message)?.[1];
+  const message = requiredText(
+    terminalFault.message,
+    "v1r10 import terminal fault message",
+  );
+  const faultParent =
+    /^teacher labeling failed for parent (sha256:[0-9a-f]{64}):/u.exec(
+      message,
+    )?.[1];
   if (
-    terminalFault.schema !== "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
     terminalFault.status !== "terminal-fault-family-stopped" ||
     terminalFault.run_fingerprint !== V1R10_IMPORT_SOURCE.runFingerprint ||
     terminalFault.completed_parents !== completed.size ||
-    terminalFault.incomplete_parents !== selectionRows.length - completed.size ||
+    terminalFault.incomplete_parents !==
+      selectionRows.length - completed.size ||
     terminalFault.technical_faults !== 1 ||
     faultParent === undefined ||
     completed.has(faultParent) ||
@@ -4301,11 +4581,28 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
     schema: "shogi-halfkp81-depth18-v1r10-importable-set-verification-v1",
     status: "source-set-independently-verified-import-eligible-new-family-only",
     source: Object.freeze({
-      plan: identityFromSnapshot(request.plan, HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9),
-      selection: identityFromSnapshot(request.selection, HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA, 8_192),
-      selection_manifest: identityFromSnapshot(request.selectionManifest, HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA),
-      work: identityFromSnapshot(request.work, HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9, workValues.length),
-      terminal_fault: identityFromSnapshot(request.terminalFault, "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1"),
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+      ),
+      selection: identityFromSnapshot(
+        request.selection,
+        HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
+        8_192,
+      ),
+      selection_manifest: identityFromSnapshot(
+        request.selectionManifest,
+        HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9,
+        workValues.length,
+      ),
+      terminal_fault: identityFromSnapshot(
+        request.terminalFault,
+        "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+      ),
       run_fingerprint: V1R10_IMPORT_SOURCE.runFingerprint,
     }),
     completed: Object.freeze({
@@ -4313,11 +4610,19 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
       rows: completedRows,
       role_parents: Object.freeze(roleParents),
       role_rows: Object.freeze(roleRows),
-      selection_order_parent_ids_sha256: sha256(`${orderedParentIds.join("\n")}\n`),
-      selection_indexes_sha256: sha256(canonicalHalfkp81Depth18Json(orderedIndexes)),
+      selection_order_parent_ids_sha256: sha256(
+        `${orderedParentIds.join("\n")}\n`,
+      ),
+      selection_indexes_sha256: sha256(
+        canonicalHalfkp81Depth18Json(orderedIndexes),
+      ),
       contiguous_prefix: contiguousPrefix,
-      holes_before_nominal_4196_boundary: Object.freeze(holesBeforeNominalBoundary),
-      extras_after_nominal_4196_boundary: Object.freeze(extrasAfterNominalBoundary),
+      holes_before_nominal_4196_boundary: Object.freeze(
+        holesBeforeNominalBoundary,
+      ),
+      extras_after_nominal_4196_boundary: Object.freeze(
+        extrasAfterNominalBoundary,
+      ),
     }),
     fallback_recount: Object.freeze(fallback),
     verification: Object.freeze({
@@ -4332,13 +4637,61 @@ export function validateHalfkp81Depth18V1R10ImportableSet(
   });
 }
 
-export function validateHalfkp81Depth18V1R11ImportedSet(
+interface Halfkp81Depth18V1R11CompletedSetContract {
+  readonly completedParents: number;
+  readonly completedRows: number;
+  readonly selectionOrderParentIdsSha256: string;
+  readonly selectionIndexesSha256: string;
+  readonly fallback: Readonly<{
+    parents: number;
+    rows: number;
+    searches: number;
+  }>;
+}
+
+const V1R11_V1R10_REBOUND_COMPLETED_SET = Object.freeze({
+  completedParents: 4_196,
+  completedRows: 49_190,
+  selectionOrderParentIdsSha256:
+    "528eb9dd1362b90f36fd1feb4dcc04d69edc7f907b85847929a0626f9c87f260",
+  selectionIndexesSha256:
+    "1fcdef1af4bb3f5861fa511b049b408b154c7e543e62af5cd350018975d936b6",
+  fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
+});
+
+const V1R11_MINIMAL_R2_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 119_913,
+    sha256: "06744e508564fbf28584a2969e7ec9c553aa98c800c4f010cb1c128ef7b62e4e",
+  }),
+  work: Object.freeze({
+    bytes: 91_324_617,
+    sha256: "8524f4a77be5cf36c1a4d51a6c0de7748e877523927eb28f1d333a5d64a7a326",
+  }),
+  terminalFault: Object.freeze({
+    bytes: 1_033,
+    sha256: "fd64097691511cf2ac6121bb16eb9c927453b4cf8ecb1192af72a17925c3a49e",
+  }),
+  runFingerprint:
+    "c323d0b49508768315cb0e19dba9aaac3cec7e424e8a4d36842f317fb736c5e8",
+  completedParents: 4_209,
+  completedRows: 49_316,
+  selectionOrderParentIdsSha256:
+    "7b57b00141419cedca994c3ff7fa67396c0614a6e902301a1f75fcf77531c6c9",
+  selectionIndexesSha256:
+    "5e3b054448aa86c4839b11172101c36dbc9422744308f495f6007c787b22441e",
+  fallback: Object.freeze({ parents: 5, rows: 51, searches: 60 }),
+});
+
+function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
     targetWork: Readonly<Halfkp81Depth18PrivateSnapshot>;
     expectedHeader: Readonly<Record<string, unknown>>;
     targetRunFingerprint: string;
   }>,
+  contract: Readonly<Halfkp81Depth18V1R11CompletedSetContract>,
+  requireCanonicalSelectionOrder: boolean,
 ): Readonly<Record<string, unknown>> {
   assertV1R10ImportSourceIdentity(
     request.selection,
@@ -4356,14 +4709,17 @@ export function validateHalfkp81Depth18V1R11ImportedSet(
     .map(parseSelectionRow)
     .map(selectionParent);
   const selectedByParentId = new Map(
-    selectionRows.map((selected, index) => [selected.parent.parent_id, { selected, index }] as const),
+    selectionRows.map(
+      (selected, index) =>
+        [selected.parent.parent_id, { selected, index }] as const,
+    ),
   );
   const workValues = parseExactJsonl(
     request.targetWork.bytes,
     "v1r11 imported target work",
   );
   if (
-    workValues.length !== V1R10_IMPORT_SOURCE.completedParents + 1 ||
+    workValues.length !== contract.completedParents + 1 ||
     !sameJson(workValues[0], request.expectedHeader) ||
     (workValues[0] as Record<string, unknown>).run_fingerprint !==
       request.targetRunFingerprint
@@ -4408,19 +4764,22 @@ export function validateHalfkp81Depth18V1R11ImportedSet(
       fallback.searches += fallbackEvidence.searches_executed;
     }
   }
-  const holes = Array.from(
-    { length: V1R10_IMPORT_SOURCE.completedParents },
-    (_, index) => index,
-  ).filter((index) => !indexes.includes(index));
-  const extras = indexes.filter(
-    (index) => index >= V1R10_IMPORT_SOURCE.completedParents,
-  );
+  const ordered = indexes
+    .map((index, offset) => Object.freeze({ index, id: ids[offset]! }))
+    .sort((left, right) => left.index - right.index);
+  const canonicalIndexes = ordered.map((entry) => entry.index);
+  const canonicalIds = ordered.map((entry) => entry.id);
   if (
-    rows !== V1R10_IMPORT_SOURCE.completedRows ||
-    !indexes.every((index, offset) => offset === 0 || index > indexes[offset - 1]) ||
-    !sameJson(holes, V1R10_IMPORT_SOURCE.holesBeforeNominalBoundary) ||
-    !sameJson(extras, V1R10_IMPORT_SOURCE.extrasAfterNominalBoundary) ||
-    !sameJson(fallback, { parents: 5, rows: 51, searches: 60 })
+    rows !== contract.completedRows ||
+    (requireCanonicalSelectionOrder &&
+      !indexes.every(
+        (index, offset) => offset === 0 || index > indexes[offset - 1]!,
+      )) ||
+    sha256(`${canonicalIds.join("\n")}\n`) !==
+      contract.selectionOrderParentIdsSha256 ||
+    sha256(canonicalHalfkp81Depth18Json(canonicalIndexes)) !==
+      contract.selectionIndexesSha256 ||
+    !sameJson(fallback, contract.fallback)
   ) {
     throw new Error("v1r11 imported target semantic accounting differs");
   }
@@ -4436,11 +4795,14 @@ export function validateHalfkp81Depth18V1R11ImportedSet(
     imported_parents: seen.size,
     imported_rows: rows,
     remaining_parent_id_set_difference: selectionRows.length - seen.size,
-    selection_order_parent_ids_sha256: sha256(`${ids.join("\n")}\n`),
-    selection_indexes_sha256: sha256(canonicalHalfkp81Depth18Json(indexes)),
+    selection_order_parent_ids_sha256: sha256(`${canonicalIds.join("\n")}\n`),
+    selection_indexes_sha256: sha256(
+      canonicalHalfkp81Depth18Json(canonicalIndexes),
+    ),
     fallback_recount: Object.freeze(fallback),
     verification: Object.freeze({
-      canonical_selection_order: true,
+      canonical_selection_order: requireCanonicalSelectionOrder,
+      canonical_selection_order_reconstructed_for_set_digests: true,
       every_outer_and_nested_run_fingerprint_rebound: true,
       every_outer_and_nested_payload_digest_recomputed: true,
       every_candidate_legal_ordered_and_exact_depth18: true,
@@ -4449,14 +4811,195 @@ export function validateHalfkp81Depth18V1R11ImportedSet(
   });
 }
 
+export function validateHalfkp81Depth18V1R11ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_V1R10_REBOUND_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR3ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R2_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR2ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    terminalFault: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R2_COMPLETED_SET.plan,
+    "minimal-r2 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r2 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R2_COMPLETED_SET.work,
+    "minimal-r2 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.terminalFault,
+    V1R11_MINIMAL_R2_COMPLETED_SET.terminalFault,
+    "minimal-r2 source terminal fault",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r2 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r2 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R2_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R2_COMPLETED_SET,
+    false,
+  );
+  const terminalFault = exactObject(
+    parseCanonicalDocument(
+      request.terminalFault,
+      "minimal-r2 source terminal fault",
+    ),
+    [
+      "authority",
+      "completed_parents",
+      "incomplete_parents",
+      "message",
+      "run_fingerprint",
+      "schema",
+      "status",
+      "teacher_plan",
+      "technical_faults",
+    ],
+    "minimal-r2 source terminal fault",
+  );
+  const authority = exactObject(
+    terminalFault.authority,
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
+    "minimal-r2 source terminal fault authority",
+  );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R2_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.status !== "terminal-fault-family-stopped" ||
+    terminalFault.run_fingerprint !==
+      V1R11_MINIMAL_R2_COMPLETED_SET.runFingerprint ||
+    terminalFault.completed_parents !==
+      V1R11_MINIMAL_R2_COMPLETED_SET.completedParents ||
+    terminalFault.incomplete_parents !==
+      8_192 - V1R11_MINIMAL_R2_COMPLETED_SET.completedParents ||
+    terminalFault.technical_faults !== 1 ||
+    !String(terminalFault.message).includes(
+      "pmset-anchor-missing-truncated-reset-or-ambiguous",
+    ) ||
+    !sameJson(authority, {
+      may_play_formal_games: false,
+      may_resume_same_family: false,
+      may_train: false,
+      may_write_live_weights: false,
+    })
+  ) {
+    throw new Error("minimal-r2 import terminal closure differs");
+  }
+  validateDeclaredIdentity(
+    terminalFault.teacher_plan,
+    request.plan,
+    "minimal-r2 import terminal fault teacher plan",
+    { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
+  );
+  return Object.freeze({
+    schema:
+      "shogi-halfkp81-depth18-v1r11-minimal-r2-importable-set-verification-v1",
+    status: "source-set-independently-verified-import-eligible-new-family-only",
+    source: Object.freeze({
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+        workValues.length,
+      ),
+      terminal_fault: identityFromSnapshot(
+        request.terminalFault,
+        "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+      ),
+      run_fingerprint: V1R11_MINIMAL_R2_COMPLETED_SET.runFingerprint,
+    }),
+    completed: Object.freeze({
+      parents: V1R11_MINIMAL_R2_COMPLETED_SET.completedParents,
+      rows: V1R11_MINIMAL_R2_COMPLETED_SET.completedRows,
+      selection_order_parent_ids_sha256:
+        V1R11_MINIMAL_R2_COMPLETED_SET.selectionOrderParentIdsSha256,
+      selection_indexes_sha256:
+        V1R11_MINIMAL_R2_COMPLETED_SET.selectionIndexesSha256,
+    }),
+    target_semantic_verification: verification,
+    authority: Object.freeze({
+      may_resume_minimal_r2: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
 export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(
   request: Readonly<
-    Omit<Halfkp81Depth18V1R10ImportSetValidationRequest, "work" | "terminalFault"> & {
+    Omit<
+      Halfkp81Depth18V1R10ImportSetValidationRequest,
+      "work" | "terminalFault"
+    > & {
       smokeWork: Readonly<Halfkp81Depth18PrivateSnapshot>;
     }
   >,
 ): Readonly<Record<string, unknown>> {
-  assertV1R10ImportSourceIdentity(request.plan, V1R10_IMPORT_SOURCE.plan, "smoke plan");
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R10_IMPORT_SOURCE.plan,
+    "smoke plan",
+  );
   assertV1R10ImportSourceIdentity(
     request.selection,
     V1R10_IMPORT_SOURCE.selection,
@@ -4467,7 +5010,10 @@ export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(
     V1R10_IMPORT_SOURCE.selectionManifest,
     "smoke selection manifest",
   );
-  const plan = parseCanonicalDocument(request.plan, "v1r10 prefix-one smoke plan");
+  const plan = parseCanonicalDocument(
+    request.plan,
+    "v1r10 prefix-one smoke plan",
+  );
   const selectionRows = parseExactJsonl(
     request.selection.bytes,
     "v1r10 prefix-one smoke selection",
@@ -4530,7 +5076,8 @@ export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(
     throw new Error("v1r10 prefix-one smoke fixed result differs");
   }
   return Object.freeze({
-    schema: "shogi-halfkp81-depth18-v1r10-prefix-one-teacher-smoke-verification-v1",
+    schema:
+      "shogi-halfkp81-depth18-v1r10-prefix-one-teacher-smoke-verification-v1",
     status: "actual-production-teacher-core-scratch-smoke-verified",
     parent_id: wrapper.parent_id,
     selection_index: 0,
@@ -4907,7 +5454,9 @@ function independentV1R11IntentContract(
   const forbidden = (candidate: unknown): boolean => {
     if (Array.isArray(candidate)) return candidate.some(forbidden);
     if (candidate !== null && typeof candidate === "object") {
-      return Object.entries(candidate as Readonly<Record<string, unknown>>).some(
+      return Object.entries(
+        candidate as Readonly<Record<string, unknown>>,
+      ).some(
         ([key, child]) =>
           /(?:run_fingerprint|launchagent_authority|launch_agent_authority|launchagent_evidence|launch_agent_evidence|preformal_authority|formal_authority|raw_receipt|verified_receipt|teacher_receipt|artifact_receipt|authority_receipt|power_continuity|process_cleanup|terminal_fault)/u.test(
             key,
@@ -5031,8 +5580,9 @@ export function independentlyComputeHalfkp81Depth18V1R11ArtifactFingerprintForTe
       receipt: engine.receipt as Readonly<Halfkp81Depth18ArtifactIdentity>,
     },
     teacherContract: root.teacherContract as Readonly<Record<string, unknown>>,
-    candidateContract:
-      root.candidateContract as Readonly<Record<string, unknown>>,
+    candidateContract: root.candidateContract as Readonly<
+      Record<string, unknown>
+    >,
     plannedFinalDescriptor:
       root.plannedFinalDescriptor as Readonly<Halfkp81Depth18ArtifactIdentity>,
   });
@@ -5058,41 +5608,41 @@ function expectedV1R11RunFingerprint(
     throw new Error("v1r11 planned final descriptor contains a fingerprint");
   }
   return independentlyComputeHalfkp81Depth18V1R11ArtifactFingerprintForTests({
-      teacherPlan: identityFromSnapshot(
-        request.plan,
-        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+    teacherPlan: identityFromSnapshot(
+      request.plan,
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+    ),
+    selectionJsonl: identityFromSnapshot(
+      request.selection,
+      HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
+      selectionRows.length,
+    ),
+    selectionManifest: identityFromSnapshot(
+      request.selectionManifest,
+      HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA,
+    ),
+    sourceRevision: String(plan.source_revision),
+    engine: {
+      binary: identityFromSnapshot(
+        request.engineBinary,
+        V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
       ),
-      selectionJsonl: identityFromSnapshot(
-        request.selection,
-        HALFKP81_DEPTH18_SELECTION_ROW_SCHEMA,
-        selectionRows.length,
+      evalFile: identityFromSnapshot(
+        request.engineEval,
+        V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
       ),
-      selectionManifest: identityFromSnapshot(
-        request.selectionManifest,
-        HALFKP81_DEPTH18_SELECTION_MANIFEST_SCHEMA,
+      receipt: identityFromSnapshot(
+        request.engineReceipt,
+        "shogi-teacher-engine-receipt-v1",
       ),
-      sourceRevision: String(plan.source_revision),
-      engine: {
-        binary: identityFromSnapshot(
-          request.engineBinary,
-          V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
-        ),
-        evalFile: identityFromSnapshot(
-          request.engineEval,
-          V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
-        ),
-        receipt: identityFromSnapshot(
-          request.engineReceipt,
-          "shogi-teacher-engine-receipt-v1",
-        ),
-      },
-      teacherContract: plan.teacher as Readonly<Record<string, unknown>>,
-      candidateContract: YANEURA_ONLY_V1R9_CANDIDATE_GENERATION,
-      plannedFinalDescriptor: identityFromSnapshot(
-        evidence.launchAgentPlist,
-        "application/x-apple-aspen-config-exact-bytes",
-      ),
-    });
+    },
+    teacherContract: plan.teacher as Readonly<Record<string, unknown>>,
+    candidateContract: YANEURA_ONLY_V1R9_CANDIDATE_GENERATION,
+    plannedFinalDescriptor: identityFromSnapshot(
+      evidence.launchAgentPlist,
+      "application/x-apple-aspen-config-exact-bytes",
+    ),
+  });
 }
 
 function validatePlanAndHeader(
@@ -6178,7 +6728,9 @@ export function validateHalfkp81Depth18V1R11FrozenPowerChainForTests(
     },
   );
   if (!sameJson(fault.process_cleanup, cleanup)) {
-    throw new Error("v1r11 test fault cleanup summary differs from held evidence");
+    throw new Error(
+      "v1r11 test fault cleanup summary differs from held evidence",
+    );
   }
   validateV1R11IsoUtc(fault.faulted_at_utc, "v1r11 test fault timestamp");
   validateV1R11EnvironmentFaultPreimageBinding(fault, receipt);
@@ -7058,7 +7610,7 @@ function validateCore(
               ? { reset_timeout_recovery_evidence_recomputed: true }
               : {}),
             ...(planSchema ===
-              HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+            HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
               ? {
                   hash8192_route_evidence_recomputed: true,
                   fallback_budgets_recomputed: true,

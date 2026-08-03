@@ -18,6 +18,7 @@ import {
 } from "../../../ml/halfkp81-depth18-v1r11-independent-power-verifier";
 
 import {
+  advanceHalfkp81Depth18PmsetCursorForTests,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA,
@@ -225,6 +226,62 @@ function reasonFor(
 }
 
 describe("HalfKP81 v1r11 power continuity", () => {
+  it("continues from one unique rolling pmset row after prefix truncation", () => {
+    const initial = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["old-a", "old-b", "rolling-anchor"],
+      undefined,
+    );
+    const next = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["new-prefix", "rolling-anchor", "new-a", "new-b"],
+      initial.cursor,
+    );
+    expect(next.newRows).toEqual(["new-a", "new-b"]);
+    expect(next.cursor).toMatchObject({
+      anchorRawLine: "rolling-anchor",
+      anchorOrdinal: 3,
+      previousRawLine: "new-b",
+      previousOrdinal: 5,
+      rows: ["old-a", "old-b", "rolling-anchor", "new-a", "new-b"],
+    });
+  });
+
+  it("fails closed when the rolling pmset row is missing or duplicated", () => {
+    const initial = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["old", "rolling-anchor"],
+      undefined,
+    );
+    expect(() =>
+      advanceHalfkp81Depth18PmsetCursorForTests(["new-only"], initial.cursor),
+    ).toThrow("pmset-anchor-missing-truncated-reset-or-ambiguous");
+    expect(() =>
+      advanceHalfkp81Depth18PmsetCursorForTests(
+        ["rolling-anchor", "new", "rolling-anchor"],
+        initial.cursor,
+      ),
+    ).toThrow("pmset-anchor-missing-truncated-reset-or-ambiguous");
+  });
+
+  it("keeps newly observed sleep-class pmset rows visible to rejection", () => {
+    const initial = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["old", "rolling-anchor"],
+      undefined,
+    );
+    const forbidden =
+      "2027-01-15 00:00:02 -0800 DarkWake                \tDarkWake from Normal Sleep";
+    const next = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["rolling-anchor", forbidden],
+      initial.cursor,
+    );
+    expect(next.newRows).toEqual([forbidden]);
+    expect(
+      reasonFor({
+        pmset_new_raw_event_lines: next.newRows,
+        pmset_previous_raw_event_line_sha256:
+          observation().pmset_last_raw_event_line_sha256,
+      }),
+    ).toBe("power-event-DarkWake");
+  });
+
   it("admits only the exact AC, battery and caffeinate ownership contract", () => {
     expect(() =>
       validateHalfkp81Depth18PowerContinuityAdmissionForTests(observation()),
@@ -447,7 +504,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
     const sourceRevision = "b".repeat(40);
     const repositoryRoot = "/private/repository";
     const label =
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-bbbbbbbb";
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r3-bbbbbbbb";
     const runnerUtilityArgv = [
       process.execPath,
       "-r",

@@ -19,6 +19,7 @@ import {
 
 import {
   advanceHalfkp81Depth18PmsetCursorForTests,
+  HALFKP81_DEPTH18_PMSET_LOG_TAIL_ROWS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA,
@@ -30,6 +31,7 @@ import {
   classifyHalfkp81Depth18PmsetEventLineForTests,
   closeHalfkp81Depth18GuardianChildForTests,
   deriveHalfkp81Depth18DarwinBootIdentityForTests,
+  halfkp81Depth18BoundedPmsetLogCommandForTests,
   halfkp81Depth18PowerContinuityFailureReasonForTests,
   parseHalfkp81Depth18CaffeinateAssertionsForTests,
   parseHalfkp81Depth18PmsetBatteryForTests,
@@ -277,6 +279,18 @@ describe("HalfKP81 v1r11 power continuity", () => {
     });
   });
 
+  it("streams only a fixed pmset event suffix into the guardian heap", () => {
+    const command = halfkp81Depth18BoundedPmsetLogCommandForTests();
+    expect(HALFKP81_DEPTH18_PMSET_LOG_TAIL_ROWS).toBe(4_096);
+    expect(command.executable).toBe("/bin/sh");
+    expect(command.args).toHaveLength(2);
+    expect(command.args[0]).toBe("-c");
+    expect(command.args[1]).toContain("set -o pipefail");
+    expect(command.args[1]).toContain("/usr/bin/pmset -g log |");
+    expect(command.args[1]).toContain("/usr/bin/awk");
+    expect(command.args[1]).toContain("/usr/bin/tail -n 4096");
+  });
+
   it("fails closed when the rolling pmset row is missing or duplicated", () => {
     const initial = advanceHalfkp81Depth18PmsetCursorForTests(
       ["old", "rolling-anchor"],
@@ -291,6 +305,19 @@ describe("HalfKP81 v1r11 power continuity", () => {
         initial.cursor,
       ),
     ).toThrow("pmset-anchor-missing-truncated-reset-or-ambiguous");
+  });
+
+  it("retains only the detached rolling row when the bounded suffix is empty", () => {
+    const initial = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["old", "rolling-anchor"],
+      undefined,
+    );
+    const next = advanceHalfkp81Depth18PmsetCursorForTests(
+      ["rolling-anchor"],
+      initial.cursor,
+    );
+    expect(next.newRows).toEqual([]);
+    expect(next.cursor).toEqual(initial.cursor);
   });
 
   it("keeps newly observed sleep-class pmset rows visible to rejection", () => {
@@ -536,7 +563,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
     const sourceRevision = "b".repeat(40);
     const repositoryRoot = "/private/repository";
     const label =
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r4-bbbbbbbb";
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r5-bbbbbbbb";
     const runnerUtilityArgv = [
       process.execPath,
       "-r",

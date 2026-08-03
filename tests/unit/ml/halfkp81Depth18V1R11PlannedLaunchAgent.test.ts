@@ -48,8 +48,8 @@ describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
       ...common,
       authorityDirectory: recoveryAuthority,
       labelPrefix:
-        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r4-",
-      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4",
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r5-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5",
     });
     expect(legacy.label).toBe(
       "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-dddddddd",
@@ -58,10 +58,10 @@ describe("HalfKP81 v1r11 planned LaunchAgent bootstrap", () => {
       "/halfkp81-hard-depth18-yaneura-only-v1r11/",
     );
     expect(recovery.label).toBe(
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r4-dddddddd",
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r5-dddddddd",
     );
     expect(recovery.stdoutPath).toContain(
-      "/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r4/",
+      "/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r5/",
     );
   });
 

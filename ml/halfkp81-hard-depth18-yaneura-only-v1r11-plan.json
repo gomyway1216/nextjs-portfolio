@@ -17,6 +17,12 @@
     "status": "prospective-outcome-first-start-gate-not-yet-run",
     "precedence": "This object is the sole blocking formal-start contract for v1r11 and supersedes every earlier requirement that made the complete thirteen-stage public lifecycle E2E or its receipts a prerequisite to starting the formal teacher. Existing thirteen-stage artifacts remain non-authorizing P2 hardening.",
     "strength_contract_change": false,
+    "minimal_formal_entrypoint": {
+      "path": "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
+      "bytes": 14480,
+      "sha256": "a2d7758291c8abf2d1e6ad63b0e294a06ca8958e515fcc034c408a626469ea83",
+      "schema": "text/typescript-utf8-exact-source"
+    },
     "v1r10_durable_completed_set_import": {
       "classification": "new-family-create-only-import-after-independent-verifier-pass-not-same-family-resume",
       "source_family": "halfkp81-hard-depth18-yaneura-only-v1r10",

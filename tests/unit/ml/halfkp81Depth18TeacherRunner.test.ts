@@ -23,6 +23,8 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+  HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+  HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R2,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R3,
@@ -30,6 +32,7 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6,
   HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9,
+  Halfkp81Depth18EnvironmentContinuityError,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R2_PREFLIGHT_RECEIPT_SCHEMA,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R3_PREFLIGHT_RECEIPT_SCHEMA,
@@ -50,6 +53,7 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY,
   authenticateHalfkp81Depth18TeacherPlan,
   expectedHalfkp81Depth18YaneuraOnlyInitialMultipv,
   initializeHalfkp81Depth18YaneuraOnlyPreflightDirectoryV1R4ForTests,
@@ -68,6 +72,7 @@ import {
   type Halfkp81Depth18TeacherFileIdentity,
   type Halfkp81Depth18TeacherRole,
   type Halfkp81Depth18TeacherRunnerDependencies,
+  type Halfkp81Depth18PowerContinuitySession,
   type Halfkp81Depth18TeacherStableRuntime,
 } from "../../../ml/halfkp81-depth18-teacher-runner";
 import {
@@ -692,6 +697,28 @@ describe("HalfKP81 depth18 teacher runner", () => {
     expect(JSON.parse(bytes.toString("utf8")).schema).toBe(
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PREREGISTRATION_IDENTITY.schema,
     );
+  });
+
+  it("pins the final independently audited v1r11 plan bytes", () => {
+    const identity =
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
+    expect(identity).toEqual({
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+      bytes: 149_544,
+      sha256:
+        "b1d733189685af964ae7f6ffba58ac6475e53b2c7a9cea3be5b9408fe0b6b0ca",
+      schema:
+        "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
+    });
+    const file = path.resolve(__dirname, `../../../${identity.path}`);
+    const bytes = fs.readFileSync(file);
+    expect(bytes.byteLength).toBe(identity.bytes);
+    expect(crypto.createHash("sha256").update(bytes).digest("hex")).toBe(
+      identity.sha256,
+    );
+    expect(JSON.parse(bytes.toString("utf8"))).toMatchObject({
+      schema: identity.schema,
+    });
   });
 
   it("pins the exact tracked v1r10 recovery preregistration bytes and schema", () => {
@@ -1569,6 +1596,54 @@ describe("HalfKP81 depth18 teacher runner", () => {
         planSourceRevision: "f".repeat(40),
       }),
     ).toThrow(/sealed runtime-plan source revision/);
+  });
+
+  it("keeps the legacy v1r11 evidence publisher unreachable from production", () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, "../../../ml/halfkp81-depth18-teacher-runner.ts"),
+      "utf8",
+    );
+    const v1r9Start = source.indexOf(
+      "export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R9(",
+    );
+    const v1r10Start = source.indexOf(
+      "export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R10(",
+    );
+    const v1r11Start = source.indexOf(
+      "export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R11(",
+    );
+    const modernV1R11Start = source.indexOf(
+      "export interface Halfkp81Depth18V1R11ModernVerifiedAuthorityRequest",
+      v1r11Start,
+    );
+    expect(v1r9Start).toBeGreaterThan(0);
+    expect(v1r10Start).toBeGreaterThan(v1r9Start);
+    expect(v1r11Start).toBeGreaterThan(v1r9Start);
+    const v1r9Wrapper = source.slice(v1r9Start, v1r10Start);
+    expect(modernV1R11Start).toBeGreaterThan(v1r11Start);
+    const v1r11Wrapper = source.slice(v1r11Start, modernV1R11Start);
+    const semanticLock = v1r11Wrapper.indexOf(
+      "assertHalfkp81Depth18V1R11SemanticPreformalAuthorityForTests();",
+    );
+    expect(source).not.toContain(
+      "mintHalfkp81Depth18V1R11FormalAuthorityForTests",
+    );
+    expect(semanticLock).toBeGreaterThan(0);
+    expect(v1r9Wrapper).not.toContain(
+      "authenticateHalfkp81Depth18V1R11LaunchdAuthority(",
+    );
+    expect(v1r11Wrapper).not.toContain(
+      "authenticateHalfkp81Depth18V1R11LaunchdAuthority(",
+    );
+    expect(v1r11Wrapper).not.toContain(
+      "authenticateHalfkp81Depth18V1R11PreformalAuthority(",
+    );
+    expect(v1r11Wrapper).not.toContain(
+      "runHalfkp81Depth18TeacherCoreForTests(",
+    );
+    expect(v1r11Wrapper).toContain(
+      "legacy v1r11 wrapper cannot authenticate or publish LaunchAgent evidence",
+    );
   });
 
   it("admits Hash8192 fallbacks through the fixed FIFO concurrency-two lane", async () => {
@@ -2767,6 +2842,336 @@ describe("HalfKP81 depth18 teacher runner", () => {
     });
     expect(value.engineActivity.active).toBe(0);
     expect(value.engineActivity.maximum).toBeLessThanOrEqual(4);
+  });
+
+  it("reaps an active v1r11 engine when the independent guardian fails during a blocked search", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R9: true,
+      searchDelayMs: 75,
+    });
+    const outputs = Object.freeze({
+      ...value.authenticated.outputs,
+      power_continuity_jsonl: path.join(value.root, "power-continuity.jsonl"),
+      power_continuity_receipt_json: path.join(
+        value.root,
+        "power-continuity-receipt.json",
+      ),
+    });
+    const authenticated = Object.freeze({
+      ...value.authenticated,
+      outputs,
+      planIdentity: Object.freeze({
+        ...value.authenticated.planIdentity,
+        schema: HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA,
+      }),
+    }) as Halfkp81Depth18AuthenticatedTeacherPlan;
+    let rejectFailure!: (error: Error) => void;
+    let continuityError: Error | undefined;
+    let signalEngineStart!: () => void;
+    const engineStarted = new Promise<void>((resolve) => {
+      signalEngineStart = resolve;
+    });
+    const failure = new Promise<never>((_resolve, reject) => {
+      rejectFailure = reject;
+    });
+    void failure.catch(() => undefined);
+    let started = 0;
+    let reaped = 0;
+    const session: Halfkp81Depth18PowerContinuitySession = {
+      failure,
+      async assertHealthy(): Promise<void> {
+        if (continuityError !== undefined) throw continuityError;
+      },
+      engineStarted(): void {
+        started += 1;
+        signalEngineStart();
+      },
+      engineReaped(): void {
+        reaped += 1;
+      },
+      async finalizeSuccess() {
+        throw new Error(
+          "power success must not finalize after guardian failure",
+        );
+      },
+      async finalizeFault() {
+        return Object.freeze({
+          ledger: Object.freeze({
+            path: outputs.power_continuity_jsonl,
+            bytes: 1,
+            sha256: "a".repeat(64),
+          }),
+          receipt: Object.freeze({
+            path: outputs.power_continuity_receipt_json,
+            bytes: 1,
+            sha256: "b".repeat(64),
+          }),
+        });
+      },
+      async close(): Promise<void> {},
+    };
+    const execution = runHalfkp81Depth18TeacherCoreForTests(
+      authenticated,
+      {
+        ...value.dependencies,
+        startPowerContinuity: async () => session,
+      },
+      coreContract(["fit"], 13),
+    );
+    await engineStarted;
+    continuityError = new Halfkp81Depth18EnvironmentContinuityError(
+      "guardian-heartbeat-gap-greater-than-90000ms",
+    );
+    rejectFailure(continuityError);
+    await expect(execution).rejects.toThrow(
+      /guardian-heartbeat-gap-greater-than-90000ms/u,
+    );
+    expect(started).toBeGreaterThan(0);
+    expect(reaped).toBe(started);
+    expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
+      true,
+    );
+    expect(value.engineActivity.active).toBe(0);
+    const workLines = (await fs.promises.readFile(outputs.work_jsonl, "utf8"))
+      .trimEnd()
+      .split("\n");
+    expect(workLines).toHaveLength(1);
+  });
+
+  it("rejects direct v1r11 core calls with a structurally forged formal capability", async () => {
+    const value = await fixture(["fit"], { yaneuraV1R9: true });
+    const authenticated = Object.freeze({
+      ...value.authenticated,
+      outputs: Object.freeze({
+        ...value.authenticated.outputs,
+        power_continuity_jsonl: path.join(value.root, "power-continuity.jsonl"),
+        power_continuity_receipt_json: path.join(
+          value.root,
+          "power-continuity-receipt.json",
+        ),
+      }),
+      planIdentity: Object.freeze({
+        ...value.authenticated.planIdentity,
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      }),
+    }) as Halfkp81Depth18AuthenticatedTeacherPlan;
+    const forged = {
+      launchAgentEvidence: {
+        path: "/private/tmp/forged-launch.json",
+        bytes: 1,
+        sha256: "e".repeat(64),
+      },
+      verifiedPreformalAuthority: {
+        path: "/private/tmp/forged-preformal.json",
+        bytes: 1,
+        sha256: "f".repeat(64),
+      },
+    };
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        authenticated,
+        {
+          ...value.dependencies,
+          v1r11FormalAuthority: forged,
+          startPowerContinuity: async () => {
+            throw new Error("must reject before guardian start");
+          },
+        },
+        coreContract(["fit"], 13),
+      ),
+    ).rejects.toThrow(/trusted live LaunchAgent capability/u);
+  });
+
+  it("reaps a replacement v1r11 engine when guardian failure wins the create/register race", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R9: true,
+      resetTimeoutAtCalls: [1],
+    });
+    const outputs = Object.freeze({
+      ...value.authenticated.outputs,
+      power_continuity_jsonl: path.join(value.root, "power-continuity.jsonl"),
+      power_continuity_receipt_json: path.join(
+        value.root,
+        "power-continuity-receipt.json",
+      ),
+    });
+    const authenticated = Object.freeze({
+      ...value.authenticated,
+      outputs,
+      planIdentity: Object.freeze({
+        ...value.authenticated.planIdentity,
+        schema: HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA,
+      }),
+    }) as Halfkp81Depth18AuthenticatedTeacherPlan;
+    let rejectFailure!: (error: Error) => void;
+    let continuityError: Error | undefined;
+    const failure = new Promise<never>((_resolve, reject) => {
+      rejectFailure = reject;
+    });
+    void failure.catch(() => undefined);
+    let started = 0;
+    let reaped = 0;
+    const session: Halfkp81Depth18PowerContinuitySession = {
+      failure,
+      async assertHealthy(): Promise<void> {
+        if (continuityError !== undefined) throw continuityError;
+      },
+      engineStarted(): void {
+        started += 1;
+      },
+      engineReaped(): void {
+        reaped += 1;
+      },
+      async finalizeSuccess() {
+        throw new Error(
+          "power success must not finalize after guardian failure",
+        );
+      },
+      async finalizeFault() {
+        return Object.freeze({
+          ledger: Object.freeze({
+            path: outputs.power_continuity_jsonl,
+            bytes: 1,
+            sha256: "a".repeat(64),
+          }),
+          receipt: Object.freeze({
+            path: outputs.power_continuity_receipt_json,
+            bytes: 1,
+            sha256: "b".repeat(64),
+          }),
+        });
+      },
+      async close(): Promise<void> {},
+    };
+    const originalCreateEngine = value.dependencies.createEngine!;
+    let createCalls = 0;
+    const execution = runHalfkp81Depth18TeacherCoreForTests(
+      authenticated,
+      {
+        ...value.dependencies,
+        startPowerContinuity: async () => session,
+        createEngine: async (options) => {
+          const engine = await originalCreateEngine(options);
+          createCalls += 1;
+          if (createCalls === 2) {
+            continuityError = new Halfkp81Depth18EnvironmentContinuityError(
+              "guardian-heartbeat-gap-greater-than-90000ms",
+            );
+            rejectFailure(continuityError);
+            await Promise.resolve();
+          }
+          return engine;
+        },
+      },
+      coreContract(["fit"], 13),
+    );
+    await expect(execution).rejects.toThrow(
+      /guardian-heartbeat-gap-greater-than-90000ms/u,
+    );
+    expect(createCalls).toBe(2);
+    expect(started).toBe(2);
+    expect(reaped).toBe(2);
+    expect(value.engineStats).toEqual([
+      { resetCalls: 1, searchCalls: 0, quitCalls: 1 },
+      { resetCalls: 0, searchCalls: 0, quitCalls: 1 },
+    ]);
+    expect(value.engineActivity.active).toBe(0);
+  });
+
+  it("durably stops v1r11 without claiming power authority when guardian fault finalization fails", async () => {
+    const value = await fixture(["fit"], {
+      yaneuraV1R9: true,
+      searchDelayMs: 75,
+    });
+    const outputs = Object.freeze({
+      ...value.authenticated.outputs,
+      power_continuity_jsonl: path.join(value.root, "power-continuity.jsonl"),
+      power_continuity_receipt_json: path.join(
+        value.root,
+        "power-continuity-receipt.json",
+      ),
+    });
+    const authenticated = Object.freeze({
+      ...value.authenticated,
+      outputs,
+      planIdentity: Object.freeze({
+        ...value.authenticated.planIdentity,
+        schema: HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA,
+      }),
+    }) as Halfkp81Depth18AuthenticatedTeacherPlan;
+    let rejectFailure!: (error: Error) => void;
+    let continuityError: Error | undefined;
+    let signalEngineStart!: () => void;
+    const engineStarted = new Promise<void>((resolve) => {
+      signalEngineStart = resolve;
+    });
+    const failure = new Promise<never>((_resolve, reject) => {
+      rejectFailure = reject;
+    });
+    void failure.catch(() => undefined);
+    let started = 0;
+    let reaped = 0;
+    const session: Halfkp81Depth18PowerContinuitySession = {
+      failure,
+      async assertHealthy(): Promise<void> {
+        if (continuityError !== undefined) throw continuityError;
+      },
+      engineStarted(): void {
+        started += 1;
+        signalEngineStart();
+      },
+      engineReaped(): void {
+        reaped += 1;
+      },
+      async finalizeSuccess() {
+        throw new Error(
+          "power success must not finalize after guardian failure",
+        );
+      },
+      async finalizeFault() {
+        throw new Halfkp81Depth18EnvironmentContinuityError(
+          "guardian-finalize-ipc-timeout",
+        );
+      },
+      async close(): Promise<void> {},
+    };
+    const execution = runHalfkp81Depth18TeacherCoreForTests(
+      authenticated,
+      {
+        ...value.dependencies,
+        startPowerContinuity: async () => session,
+      },
+      coreContract(["fit"], 13),
+    );
+    await engineStarted;
+    continuityError = new Halfkp81Depth18EnvironmentContinuityError(
+      "guardian-heartbeat-gap-greater-than-90000ms",
+    );
+    rejectFailure(continuityError);
+    await expect(execution).rejects.toThrow(
+      /power guardian terminal closure failed.*guardian-finalize-ipc-timeout/u,
+    );
+    expect(reaped).toBe(started);
+    expect(value.engineActivity.active).toBe(0);
+    const fault = JSON.parse(
+      await fs.promises.readFile(outputs.terminal_fault_json, "utf8"),
+    ) as Record<string, unknown>;
+    expect(fault).toMatchObject({
+      schema: HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA,
+      status: "terminal-fault-family-stopped",
+      technical_faults: 1,
+      authority: {
+        may_resume_same_family: false,
+        may_train: false,
+        may_play_formal_games: false,
+        may_write_live_weights: false,
+      },
+    });
+    expect(fault).not.toHaveProperty("power_continuity");
+    expect(String(fault.message)).toContain(
+      "guardian-heartbeat-gap-greater-than-90000ms",
+    );
+    expect(String(fault.message)).toContain("guardian-finalize-ipc-timeout");
   });
 
   it("publishes create-only with idempotent equality and rejects a different raced value", async () => {

@@ -1518,3 +1518,171 @@ def validate_teacher_receipt(
     }:
         raise Halfkp81Depth18StrengthError("teacher receipt authority differs")
     return copy.deepcopy(value)
+
+
+V1R11_VERIFIED_TEACHER_RECEIPT_SCHEMA = (
+    "shogi-halfkp81-hard-depth18-teacher-verified-artifact-receipt-v1r11"
+)
+V1R11_DATASET_SCHEMA = "canonical-shogi-sibling-v1-jsonl-one-lf-per-row"
+
+
+def validate_v1r11_verified_training_receipt(
+    value: Any,
+    *,
+    expected_plan_identity: Mapping[str, Any],
+    expected_source_revision: str,
+    expected_run_fingerprint: str,
+    expected_teacher_work: Mapping[str, Any],
+    expected_teacher_outputs: Mapping[str, Mapping[str, Any]],
+    expected_authority_chain: Mapping[str, Mapping[str, Any]],
+    expected_verifier: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Authenticate the sole v1r11 document allowed to start fixed training.
+
+    The raw teacher receipt intentionally fails this interface: it has a
+    different schema/status/field set and carries no training authority.
+    Callers still have to reopen and hash the declared files before invoking
+    an optimizer; this function validates the frozen authority envelope.
+    """
+
+    fields = {
+        "schema",
+        "status",
+        "teacher_plan",
+        "source_revision",
+        "run_fingerprint",
+        "raw_teacher_receipt",
+        "teacher_work",
+        "teacher_output",
+        "preformal_authority_ledger",
+        "preformal_authority_raw_receipt",
+        "preformal_authority_verified_receipt",
+        "launchagent_authority_evidence",
+        "power_continuity_ledger",
+        "power_continuity_receipt",
+        "verifier",
+        "authority",
+    }
+    if type(value) is not dict or set(value) != fields:
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified training receipt fields differ"
+        )
+    _exact(value, "schema", V1R11_VERIFIED_TEACHER_RECEIPT_SCHEMA)
+    _exact(
+        value,
+        "status",
+        "teacher-artifacts-and-authority-chain-independently-verified-training-only-authority",
+    )
+    if (
+        value["source_revision"] != expected_source_revision
+        or not REVISION_RE.fullmatch(expected_source_revision)
+        or value["run_fingerprint"] != expected_run_fingerprint
+        or not SHA256_RE.fullmatch(expected_run_fingerprint)
+    ):
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified training source/fingerprint differs"
+        )
+    plan = _identity(
+        value["teacher_plan"],
+        label="v1r11 verified teacher plan",
+        absolute=True,
+        schema="shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
+    )
+    if plan != dict(expected_plan_identity):
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified teacher plan identity differs"
+        )
+    work = _identity(
+        value["teacher_work"],
+        label="v1r11 verified teacher work",
+        absolute=True,
+        schema="shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+    )
+    if work != dict(expected_teacher_work):
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified teacher work identity differs"
+        )
+    output = value["teacher_output"]
+    if type(output) is not dict or set(output) != {"fit", "tune", "sealed"}:
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified teacher outputs differ"
+        )
+    for role in ("fit", "tune", "sealed"):
+        actual = _identity(
+            output[role],
+            label=f"v1r11 verified {role} output",
+            absolute=True,
+            schema=V1R11_DATASET_SCHEMA,
+        )
+        if actual != dict(expected_teacher_outputs[role]):
+            raise Halfkp81Depth18StrengthError(
+                f"v1r11 verified {role} output identity differs"
+            )
+    for label, field, schema in (
+        (
+            "raw teacher receipt",
+            "raw_teacher_receipt",
+            "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11",
+        ),
+        (
+            "preformal ledger",
+            "preformal_authority_ledger",
+            "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11",
+        ),
+        (
+            "preformal raw receipt",
+            "preformal_authority_raw_receipt",
+            "shogi-halfkp81-depth18-yaneura-only-preformal-authority-receipt-v1r11",
+        ),
+        (
+            "preformal verified receipt",
+            "preformal_authority_verified_receipt",
+            "shogi-halfkp81-depth18-yaneura-only-preformal-authority-verified-receipt-v1r11",
+        ),
+        (
+            "LaunchAgent authority",
+            "launchagent_authority_evidence",
+            "shogi-halfkp81-depth18-yaneura-only-launchagent-authority-evidence-v1r11",
+        ),
+        (
+            "power ledger",
+            "power_continuity_ledger",
+            "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+        ),
+        (
+            "power receipt",
+            "power_continuity_receipt",
+            "shogi-halfkp81-depth18-power-continuity-receipt-v1r11",
+        ),
+    ):
+        actual = _identity(
+            value[field], label=f"v1r11 {label}", absolute=True, schema=schema
+        )
+        if actual != dict(expected_authority_chain[field]):
+            raise Halfkp81Depth18StrengthError(
+                f"v1r11 {label} identity differs"
+            )
+    verifier = value["verifier"]
+    if (
+        type(verifier) is not dict
+        or set(verifier) != {"source_revision", "entrypoint", "dependency_closure"}
+        or verifier["source_revision"] != expected_source_revision
+        or type(verifier["entrypoint"]) is not str
+        or not verifier["entrypoint"]
+        or type(verifier["dependency_closure"]) is not list
+        or not verifier["dependency_closure"]
+    ):
+        raise Halfkp81Depth18StrengthError("v1r11 verifier identity differs")
+    if verifier != dict(expected_verifier):
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verifier dependency closure differs"
+        )
+    if value["authority"] != {
+        "may_train_fixed_v1r11_candidate": True,
+        "may_play_formal_games": False,
+        "may_write_live_weights": False,
+    }:
+        raise Halfkp81Depth18StrengthError(
+            "v1r11 verified training authority differs"
+        )
+    return copy.deepcopy(value)

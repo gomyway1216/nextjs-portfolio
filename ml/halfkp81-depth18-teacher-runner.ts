@@ -8,7 +8,7 @@
  */
 
 import * as crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, fork, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -67,6 +67,20 @@ import {
   UsiTeacherEngine,
   type UsiTeacherEngineOptions,
 } from "./usi-engine";
+import { buildHalfkp81Depth18OneShotLaunchAgentPlist } from "./halfkp81-depth18-one-shot-launch-agent";
+import {
+  HALFKP81_V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
+  HALFKP81_V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
+  halfkp81V1R11FormalRunFingerprintV2,
+} from "./halfkp81-depth18-v1r11-formal-run-intent";
+import type {
+  V1R11AuthorityDirectoryIdentity,
+  V1R11AuthorityFileIdentity,
+} from "./halfkp81-depth18-v1r11-authority-io";
+import type { IndependentFormalRunIntentInput } from "./verify-halfkp81-depth18-v1r11-staged-authority";
+import { importHalfkp81Depth18V1R10CompletedSetIntoV1R11 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
+const HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA =
+  "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11" as const;
 
 export const HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-plan-v2" as const;
@@ -90,8 +104,21 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r6" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r9" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11" as const;
+/**
+ * Non-authoritative unit-test harness. This schema can exercise the v1r11
+ * engine/power lifecycle, but it is deliberately not accepted by the formal
+ * plan authenticator and can never mint production authority.
+ */
+export const HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA =
+  "shogi-halfkp81-depth18-v1r11-power-test-plan-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-receipt-v1" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_RECEIPT_SCHEMA_V1R11 =
+  "shogi-halfkp81-hard-depth18-teacher-receipt-v1r11" as const;
+export const HALFKP81_DEPTH18_V1R11_DATASET_SCHEMA =
+  "canonical-shogi-sibling-v1-jsonl-one-lf-per-row" as const;
 export const HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-work-v1" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1 =
@@ -108,6 +135,10 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r6" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 =
   "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r9" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11 =
+  "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11" as const;
+export const HALFKP81_DEPTH18_V1R11_POWER_TEST_WORK_SCHEMA =
+  "shogi-halfkp81-depth18-v1r11-power-test-work-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_MILESTONE_SCHEMA =
   "shogi-halfkp81-hard-depth18-teacher-milestone-v1" as const;
 export const HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA =
@@ -221,6 +252,50 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity.jsonl` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-authority" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-verified-receipt.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_SCHEMA =
+  "shogi-halfkp81-depth18-yaneura-only-preformal-authority-receipt-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_LEDGER_SCHEMA =
+  "shogi-halfkp81-depth18-yaneura-only-preformal-authority-ledger-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_SCHEMA =
+  "shogi-halfkp81-depth18-yaneura-only-preformal-authority-verified-receipt-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA =
+  "shogi-halfkp81-depth18-yaneura-only-launchagent-authority-evidence-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHCTL_SNAPSHOT_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/launchagent-launchctl-print.txt` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/launchagent.plist.snapshot` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_PATH =
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/launchagent-authority-evidence.json` as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_LEDGER_SCHEMA =
+  "shogi-halfkp81-depth18-power-continuity-ledger-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_SCHEMA =
+  "shogi-halfkp81-depth18-power-continuity-receipt-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA =
+  "shogi-halfkp81-hard-depth18-yaneura-only-environment-terminal-fault-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_ENVIRONMENT_FAULT_INTENT_SCHEMA =
+  "shogi-halfkp81-hard-depth18-yaneura-only-environment-fault-intent-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA =
+  "shogi-halfkp81-depth18-power-guardian-ipc-v1r11" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_SAMPLE_INTERVAL_MS =
+  30_000 as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS =
+  90_000 as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMUM_BATTERY_PERCENTAGE =
+  80 as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PATHOLOGICAL_PREFLIGHT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-depth18-yaneura-only-v1r5-pathological-preflight" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_PATHOLOGICAL_PREFLIGHT_RECEIPT_SCHEMA =
@@ -324,6 +399,15 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 });
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
+const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-plan.json",
+  bytes: 149_544,
+  sha256: "b1d733189685af964ae7f6ffba58ac6475e53b2c7a9cea3be5b9408fe0b6b0ca",
+  schema:
+    "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
+});
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY =
+  EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION;
 
 const EXPECTED_TEACHER = Object.freeze({
   engine: EXPECTED_ENGINE_ID,
@@ -405,6 +489,11 @@ const EXPECTED_PLAN_OUTPUT_KEYS = Object.freeze([
   "receipt_json",
   "verified_artifact_receipt_json",
 ] as const);
+const EXPECTED_PLAN_OUTPUT_KEYS_V1R11 = Object.freeze([
+  ...EXPECTED_PLAN_OUTPUT_KEYS,
+  "power_continuity_jsonl",
+  "power_continuity_receipt_json",
+] as const);
 const SHA256_RE = /^[0-9a-f]{64}$/u;
 const SEMANTIC_ID_RE = /^sha256:[0-9a-f]{64}$/u;
 const REVISION_RE = /^[0-9a-f]{40}$/u;
@@ -461,7 +550,9 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
       | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R4
       | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R5
       | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
-      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9;
+      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+      | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
+      | typeof HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA;
   };
   readonly sourceRevision: string;
   readonly selectionIdentity: Readonly<Halfkp81Depth18TeacherFileIdentity> & {
@@ -474,7 +565,15 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
   readonly roles: ReadonlyMap<string, Halfkp81Depth18TeacherRole>;
   readonly outputs: Readonly<
     Record<(typeof EXPECTED_PLAN_OUTPUT_KEYS)[number], string>
-  >;
+  > &
+    Readonly<
+      Partial<
+        Record<
+          "power_continuity_jsonl" | "power_continuity_receipt_json",
+          string
+        >
+      >
+    >;
   readonly engine: Readonly<{
     readonly binary: Readonly<Halfkp81Depth18TeacherFileIdentity>;
     readonly eval_file: Readonly<Halfkp81Depth18TeacherFileIdentity>;
@@ -485,7 +584,7 @@ export interface Halfkp81Depth18AuthenticatedTeacherPlan {
   readonly teacher: Readonly<Record<string, unknown>>;
 }
 
-export interface Halfkp81Depth18TeacherWorkHeader {
+interface Halfkp81Depth18LegacyTeacherWorkHeader {
   readonly schema:
     | typeof HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1
@@ -494,7 +593,8 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9
+    | typeof HALFKP81_DEPTH18_V1R11_POWER_TEST_WORK_SCHEMA;
   readonly kind: "header";
   readonly run_fingerprint: string;
   readonly teacher_plan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
@@ -519,6 +619,31 @@ export interface Halfkp81Depth18TeacherWorkHeader {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9;
   readonly label_policy: typeof SIBLING_TEACHER_LABEL_POLICY;
 }
+
+export interface Halfkp81Depth18V1R11TeacherWorkHeader {
+  readonly schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
+  readonly status: "formal-work-ledger-open";
+  readonly record_kind: "header";
+  readonly teacher_plan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly source_revision: string;
+  readonly run_fingerprint: string;
+  readonly launchagent_authority_evidence: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly preformal_authority_verified_receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly power_admission_entry: Readonly<Record<string, unknown>>;
+  readonly opened_at_utc: string;
+  readonly kind?: never;
+  readonly selection_jsonl?: never;
+  readonly selection_manifest?: never;
+  readonly engine?: never;
+  readonly teacher?: never;
+  readonly stable_runtime?: never;
+  readonly candidate_generation?: never;
+  readonly label_policy?: never;
+}
+
+export type Halfkp81Depth18TeacherWorkHeader =
+  | Halfkp81Depth18LegacyTeacherWorkHeader
+  | Halfkp81Depth18V1R11TeacherWorkHeader;
 
 interface Halfkp81Depth18V1R9NormalRoute {
   readonly mode: "normal-depth18";
@@ -606,7 +731,8 @@ export interface Halfkp81Depth18TeacherWorkEntry {
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
     | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
-    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
   readonly kind: "parent";
   readonly run_fingerprint: string;
   readonly parent_id: string;
@@ -678,6 +804,55 @@ export interface Halfkp81Depth18TeacherRunnerDependencies {
   readonly resetTimeoutRecoveryPolicy?:
     "fatal" | typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY;
   readonly stablePolicy?: Halfkp81Depth18StablePolicy;
+  readonly startPowerContinuity?: (
+    context: Readonly<{
+      teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      sourceRevision: string;
+      runFingerprint: string;
+      launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      preformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    }>,
+  ) => Promise<Halfkp81Depth18PowerContinuitySession>;
+  /** Opaque, process-local capability minted only after live LaunchAgent authentication. */
+  readonly v1r11FormalAuthority?: Readonly<Halfkp81Depth18V1R11FormalAuthorityCapability>;
+  /** Independent all-13 fingerprint that the formal core must exactly recompute. */
+  readonly expectedV1R11RunFingerprint?: string;
+}
+
+export interface Halfkp81Depth18V1R11FormalAuthorityCapability {
+  readonly launchAgentEvidence: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly plannedFinalDescriptor: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly preformalLedger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly preformalRawReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly verifiedPreformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+}
+
+const trustedV1R11FormalAuthorities = new WeakSet<object>();
+
+export interface Halfkp81Depth18PowerContinuitySession {
+  readonly failure: Promise<never>;
+  readonly guardianPid?: number;
+  readonly caffeinatePid?: number;
+  readonly admissionEntry?: Readonly<Record<string, unknown>>;
+  readonly assertHealthy: (fresh?: boolean) => Promise<void>;
+  readonly engineStarted: (observedAtMs: number) => void;
+  readonly engineReaped: (observedAtMs: number) => void;
+  readonly finalizeSuccess: () => Promise<
+    Readonly<{
+      ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    }>
+  >;
+  readonly finalizeFault: (
+    reason: string,
+    terminalFaultPreimageSha256: string,
+  ) => Promise<
+    Readonly<{
+      ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    }>
+  >;
+  readonly close: () => Promise<void>;
 }
 
 export type Halfkp81Depth18StablePolicy =
@@ -704,7 +879,15 @@ function yaneuraOnlyWorkSchema(
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R4
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R5
   | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6
-  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 {
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9
+  | typeof HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11
+  | typeof HALFKP81_DEPTH18_V1R11_POWER_TEST_WORK_SCHEMA {
+  if (planSchema === HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA) {
+    return HALFKP81_DEPTH18_V1R11_POWER_TEST_WORK_SCHEMA;
+  }
+  if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11) {
+    return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
+  }
   if (planSchema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9) {
     return HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
   }
@@ -728,6 +911,78 @@ function yaneuraOnlyWorkSchema(
 
 function compareBytewise(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+function v1r11ImplementationIdentityFromRevision(
+  repositoryRoot: string,
+  sourceRevision: string,
+  entrypoint: string,
+): Readonly<Record<string, unknown>> {
+  const seen = new Map<string, Buffer>();
+  const pending = [entrypoint];
+  const readAtRevision = (relativePath: string): Buffer =>
+    execFileSync(
+      "git",
+      ["-C", repositoryRoot, "show", `${sourceRevision}:${relativePath}`],
+      {
+        encoding: null,
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+  while (pending.length > 0) {
+    const relativePath = pending.shift()!;
+    if (seen.has(relativePath)) continue;
+    const bytes = readAtRevision(relativePath);
+    seen.set(relativePath, bytes);
+    const imports = [
+      ...bytes
+        .toString("utf8")
+        .matchAll(
+          /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'](\.[^"']+)["']/gu,
+        ),
+    ].map((match) => match[1]!);
+    for (const specifier of imports) {
+      const base = path.posix.normalize(
+        path.posix.join(path.posix.dirname(relativePath), specifier),
+      );
+      const candidates = path.posix.extname(base)
+        ? [base]
+        : [`${base}.ts`, `${base}.json`, `${base}/index.ts`];
+      const resolved = candidates.find((candidate) => {
+        try {
+          readAtRevision(candidate);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      if (resolved === undefined || resolved.startsWith("..")) {
+        throw new Error(`v1r11 implementation cannot resolve ${specifier}`);
+      }
+      pending.push(resolved);
+    }
+  }
+  const ordered = [
+    entrypoint,
+    ...[...seen.keys()]
+      .filter((relativePath) => relativePath !== entrypoint)
+      .sort(compareBytewise),
+  ];
+  return Object.freeze({
+    source_revision: sourceRevision,
+    entrypoint,
+    dependency_closure: Object.freeze(
+      ordered.map((relativePath) => {
+        const bytes = seen.get(relativePath)!;
+        return Object.freeze({
+          path: relativePath,
+          bytes: bytes.byteLength,
+          sha256: sha256(bytes),
+        });
+      }),
+    ),
+  });
 }
 
 function canonicalJson(value: unknown): string {
@@ -763,6 +1018,2302 @@ function canonicalJsonLine(value: unknown): Buffer {
 
 function sha256(value: string | Uint8Array): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+export function expandHalfkp81Depth18V1R11HomePathForTests(
+  value: string,
+  canonicalHome: string,
+  environmentHome: string | undefined,
+): string {
+  if (
+    !path.isAbsolute(canonicalHome) ||
+    path.normalize(canonicalHome) !== canonicalHome ||
+    environmentHome !== canonicalHome ||
+    !value.startsWith("$HOME/")
+  ) {
+    throw new Error("v1r11 canonical passwd home binding differs");
+  }
+  const expanded = path.join(canonicalHome, value.slice("$HOME/".length));
+  if (
+    !path.isAbsolute(expanded) ||
+    path.normalize(expanded) !== expanded ||
+    !expanded.startsWith(`${canonicalHome}${path.sep}`)
+  ) {
+    throw new Error("v1r11 expanded output path is not canonical");
+  }
+  return expanded;
+}
+
+function currentCanonicalPasswdHome(): string {
+  const euid = process.getuid?.();
+  if (!Number.isSafeInteger(euid)) {
+    throw new Error("v1r11 requires a numeric effective uid");
+  }
+  const output = execFileSync(
+    "/usr/bin/dscacheutil",
+    ["-q", "user", "-a", "uid", String(euid)],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const homes = output
+    .split("\n")
+    .map((line) => /^dir:\s*(\/.*)$/u.exec(line)?.[1])
+    .filter((value): value is string => value !== undefined);
+  if (homes.length !== 1) {
+    throw new Error("v1r11 passwd lookup did not return one canonical home");
+  }
+  const home = homes[0]!;
+  const expanded = expandHalfkp81Depth18V1R11HomePathForTests(
+    "$HOME/.codex",
+    home,
+    process.env.HOME,
+  );
+  const realHome = fs.realpathSync.native(home);
+  const realCodexAncestor = fs.realpathSync.native(path.dirname(expanded));
+  if (realHome !== home || realCodexAncestor !== path.dirname(expanded)) {
+    throw new Error("v1r11 canonical home contains a symlink or alias");
+  }
+  return home;
+}
+
+const POWER_CONTINUITY_ENTRY_DIGEST_DOMAIN =
+  "shogi-halfkp81-depth18-power-continuity-entry-v1r11\0";
+const V1R11_REQUIRED_CAFFEINATE_ASSERTIONS = Object.freeze([
+  "PreventSystemSleep",
+  "PreventUserIdleSystemSleep",
+  "PreventUserIdleDisplaySleep",
+] as const);
+
+export type Halfkp81Depth18PowerEventClass =
+  "Sleep" | "DarkWake" | "Wake" | "Hibernate";
+
+export interface Halfkp81Depth18PowerContinuityObservation {
+  readonly observed_at_ms: number;
+  readonly timestamp_utc: string;
+  readonly power_source: string;
+  readonly battery_percentage: number;
+  readonly runner_pid: number;
+  readonly guardian_pid: number;
+  readonly caffeinate_assertion_holder_pid: number;
+  readonly caffeinate_assertion_holder_parent_runner_pid: number;
+  readonly caffeinate_executable: string;
+  readonly caffeinate_argv: readonly string[];
+  readonly runner_utility_argv: readonly string[];
+  readonly assertion_owner_caffeinate_pid: number;
+  readonly assertions: readonly string[];
+  readonly boot_session_identity: string;
+  readonly pmset_event_ordinal: number;
+  readonly pmset_previous_raw_event_line_sha256: string | null;
+  readonly pmset_last_raw_event_line_sha256: string;
+  readonly pmset_anchor_raw_event_line: string;
+  readonly pmset_new_raw_event_lines: readonly string[];
+}
+
+export interface Halfkp81Depth18PowerContinuityFinalBinding {
+  readonly outcome: "success";
+  readonly teacher_plan_sha256: string;
+  readonly run_fingerprint: string;
+  readonly launchagent_authority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly preformal_authority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly runner_pid: number;
+  readonly guardian_pid: number;
+  readonly caffeinate_assertion_holder_pid: number;
+  readonly engines_started: number;
+  readonly engines_reaped: number;
+  readonly first_engine_started_at_ms: number;
+  readonly last_engine_reaped_at_ms: number;
+  readonly all_yaneuraou_processes_reaped: true;
+}
+
+export interface Halfkp81Depth18PowerContinuityFaultBinding {
+  readonly outcome: "environment-continuity-fault";
+  readonly teacher_plan_sha256: string;
+  readonly run_fingerprint: string | null;
+  readonly launchagent_authority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly preformal_authority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly runner_pid: number;
+  readonly guardian_pid: number;
+  readonly caffeinate_assertion_holder_pid: number;
+  readonly engines_started: number;
+  readonly engines_reaped: number;
+  readonly first_engine_started_at_ms: number | null;
+  readonly last_engine_reaped_at_ms: number | null;
+  readonly all_yaneuraou_processes_reaped: true;
+  readonly terminal_fault_preimage_sha256: string;
+}
+
+export interface Halfkp81Depth18PowerContinuityLedgerEntry {
+  readonly schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_LEDGER_SCHEMA;
+  readonly kind: "admission" | "heartbeat" | "terminal-fault" | "final";
+  readonly sequence: number;
+  readonly previous_entry_sha256: string | null;
+  readonly gap_ms: number;
+  readonly status: "pass" | "fail";
+  readonly fault_reason: string | null;
+  readonly observation: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+  readonly binding?: Readonly<
+    | Halfkp81Depth18PowerContinuityFinalBinding
+    | Halfkp81Depth18PowerContinuityFaultBinding
+  >;
+  readonly entry_sha256: string;
+}
+
+export interface Halfkp81Depth18PowerContinuityLedgerState {
+  readonly entries: readonly Readonly<Halfkp81Depth18PowerContinuityLedgerEntry>[];
+  readonly start: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+  readonly previous: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+}
+
+export class Halfkp81Depth18EnvironmentContinuityError extends Error {
+  readonly code = "environment-continuity" as const;
+
+  constructor(readonly reason: string) {
+    super(`environment continuity failed: ${reason}`);
+    this.name = "Halfkp81Depth18EnvironmentContinuityError";
+  }
+}
+
+export interface Halfkp81Depth18PowerHeartbeatWatchdog {
+  readonly heartbeat: () => void;
+  readonly close: () => void;
+}
+
+/** Injectable watchdog seam: production uses a real timer; tests use a fake clock. */
+export function startHalfkp81Depth18PowerHeartbeatWatchdogForTests(
+  dependencies: Readonly<{
+    now: () => number;
+    schedule: (callback: () => void, intervalMs: number) => unknown;
+    cancel: (handle: unknown) => void;
+    fail: (reason: string) => void;
+  }>,
+): Readonly<Halfkp81Depth18PowerHeartbeatWatchdog> {
+  let lastHeartbeatAt = dependencies.now();
+  let closed = false;
+  let failed = false;
+  const handle = dependencies.schedule(() => {
+    if (
+      !closed &&
+      !failed &&
+      dependencies.now() - lastHeartbeatAt >
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS
+    ) {
+      failed = true;
+      dependencies.fail("guardian-heartbeat-gap-greater-than-90000ms");
+    }
+  }, HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_SAMPLE_INTERVAL_MS);
+  return Object.freeze({
+    heartbeat(): void {
+      if (!closed && !failed) lastHeartbeatAt = dependencies.now();
+    },
+    close(): void {
+      if (closed) return;
+      closed = true;
+      dependencies.cancel(handle);
+    },
+  });
+}
+
+function validPowerObservationInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+const POWER_OBSERVATION_KEYS = Object.freeze([
+  "observed_at_ms",
+  "timestamp_utc",
+  "power_source",
+  "battery_percentage",
+  "runner_pid",
+  "guardian_pid",
+  "caffeinate_assertion_holder_pid",
+  "caffeinate_assertion_holder_parent_runner_pid",
+  "caffeinate_executable",
+  "caffeinate_argv",
+  "runner_utility_argv",
+  "assertion_owner_caffeinate_pid",
+  "assertions",
+  "boot_session_identity",
+  "pmset_event_ordinal",
+  "pmset_previous_raw_event_line_sha256",
+  "pmset_last_raw_event_line_sha256",
+  "pmset_anchor_raw_event_line",
+  "pmset_new_raw_event_lines",
+] as const);
+
+function validatePowerObservationShape(
+  observation: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+): void {
+  exactKeys(
+    observation as unknown as Readonly<Record<string, unknown>>,
+    POWER_OBSERVATION_KEYS,
+    "power continuity observation",
+  );
+  if (
+    !validPowerObservationInteger(observation.observed_at_ms) ||
+    observation.timestamp_utc !==
+      new Date(observation.observed_at_ms).toISOString() ||
+    !Number.isSafeInteger(observation.battery_percentage) ||
+    observation.battery_percentage < 0 ||
+    observation.battery_percentage > 100 ||
+    !validPowerObservationInteger(observation.runner_pid) ||
+    observation.runner_pid < 1 ||
+    !validPowerObservationInteger(observation.guardian_pid) ||
+    observation.guardian_pid < 1 ||
+    !validPowerObservationInteger(
+      observation.caffeinate_assertion_holder_pid,
+    ) ||
+    observation.caffeinate_assertion_holder_pid < 1 ||
+    !validPowerObservationInteger(
+      observation.caffeinate_assertion_holder_parent_runner_pid,
+    ) ||
+    observation.caffeinate_assertion_holder_parent_runner_pid < 1 ||
+    !validPowerObservationInteger(observation.assertion_owner_caffeinate_pid) ||
+    observation.assertion_owner_caffeinate_pid < 1 ||
+    !validPowerObservationInteger(observation.pmset_event_ordinal) ||
+    observation.boot_session_identity.length === 0 ||
+    (observation.pmset_previous_raw_event_line_sha256 !== null &&
+      !SHA256_RE.test(observation.pmset_previous_raw_event_line_sha256)) ||
+    !SHA256_RE.test(observation.pmset_last_raw_event_line_sha256) ||
+    observation.pmset_anchor_raw_event_line.length === 0 ||
+    !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}\s+\S/u.test(
+      observation.pmset_anchor_raw_event_line,
+    ) ||
+    !Array.isArray(observation.assertions) ||
+    observation.assertions.some((value) => typeof value !== "string") ||
+    !Array.isArray(observation.caffeinate_argv) ||
+    observation.caffeinate_argv.length < 3 ||
+    observation.caffeinate_argv.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    ) ||
+    !Array.isArray(observation.runner_utility_argv) ||
+    observation.runner_utility_argv.length < 1 ||
+    observation.runner_utility_argv.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    ) ||
+    !Array.isArray(observation.pmset_new_raw_event_lines) ||
+    observation.pmset_new_raw_event_lines.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    )
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "malformed-power-observation",
+    );
+  }
+  const lastRawLine =
+    observation.pmset_new_raw_event_lines[
+      observation.pmset_new_raw_event_lines.length - 1
+    ];
+  const expectedLastDigest =
+    lastRawLine === undefined
+      ? (observation.pmset_previous_raw_event_line_sha256 ??
+        sha256(observation.pmset_anchor_raw_event_line))
+      : sha256(lastRawLine);
+  if (expectedLastDigest !== observation.pmset_last_raw_event_line_sha256) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "pmset-anchor-missing-truncated-reset-or-ambiguous",
+    );
+  }
+}
+
+export function classifyHalfkp81Depth18PmsetEventLineForTests(
+  line: string,
+): Halfkp81Depth18PowerEventClass | null {
+  const match =
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}\s+(Sleep|DarkWake|Wake) *\t/u.exec(
+      line,
+    );
+  if (match?.[1] === "DarkWake") return "DarkWake";
+  if (match?.[1] === "Sleep") return "Sleep";
+  if (match?.[1] === "Wake")
+    return /Wake from Hibernate/u.test(line) ? "Hibernate" : "Wake";
+  return null;
+}
+
+function validatePowerObservationContinuityFields(
+  observation: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+): void {
+  validatePowerObservationShape(observation);
+  if (observation.power_source !== "AC Power") {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "power-source-not-AC-Power",
+    );
+  }
+  if (
+    observation.caffeinate_assertion_holder_parent_runner_pid !==
+      observation.runner_pid ||
+    observation.caffeinate_assertion_holder_pid === observation.runner_pid
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "caffeinate-assertion-holder-parent-pid-not-exact-runner-pid",
+    );
+  }
+  if (
+    observation.caffeinate_executable !== "/usr/bin/caffeinate" ||
+    canonicalJson(observation.caffeinate_argv) !==
+      canonicalJson([
+        "/usr/bin/caffeinate",
+        "-dimsu",
+        "-w",
+        String(observation.runner_pid),
+      ])
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "caffeinate-executable-or-argv-mismatch",
+    );
+  }
+  if (
+    observation.assertion_owner_caffeinate_pid !==
+    observation.caffeinate_assertion_holder_pid
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "assertion-owner-caffeinate-pid-mismatch",
+    );
+  }
+  if (
+    canonicalJson([...observation.assertions].sort(compareBytewise)) !==
+    canonicalJson(
+      [...V1R11_REQUIRED_CAFFEINATE_ASSERTIONS].sort(compareBytewise),
+    )
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "required-caffeinate-assertion-missing",
+    );
+  }
+  const event = observation.pmset_new_raw_event_lines
+    .map(classifyHalfkp81Depth18PmsetEventLineForTests)
+    .find((value) => value !== null);
+  if (event !== undefined) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(`power-event-${event}`);
+  }
+}
+
+/**
+ * Validate the sealed v1r11 admission contract. This function is deliberately
+ * pure so fake clocks and power sources can exercise every fail-closed branch.
+ */
+export function validateHalfkp81Depth18PowerContinuityAdmissionForTests(
+  observation: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+): void {
+  validatePowerObservationContinuityFields(observation);
+  if (
+    observation.pmset_previous_raw_event_line_sha256 !== null ||
+    observation.pmset_new_raw_event_lines.length !== 0
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "pmset-anchor-missing-truncated-reset-or-ambiguous",
+    );
+  }
+  if (
+    observation.battery_percentage <
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMUM_BATTERY_PERCENTAGE
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "battery-below-80-percent",
+    );
+  }
+}
+
+/** Return the first sealed continuity failure, preserving classification order. */
+export function halfkp81Depth18PowerContinuityFailureReasonForTests(
+  start: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+  previous: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+  current: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+): string | null {
+  const gap = current.observed_at_ms - previous.observed_at_ms;
+  if (
+    gap < 0 ||
+    gap > HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS
+  ) {
+    return "heartbeat-gap-greater-than-90000ms";
+  }
+  try {
+    validatePowerObservationContinuityFields(current);
+  } catch (error) {
+    return error instanceof Halfkp81Depth18EnvironmentContinuityError
+      ? error.reason
+      : "malformed-power-observation";
+  }
+  if (current.boot_session_identity !== start.boot_session_identity) {
+    return "boot-session-identity-change";
+  }
+  if (
+    current.runner_pid !== start.runner_pid ||
+    current.guardian_pid !== start.guardian_pid ||
+    current.caffeinate_assertion_holder_pid !==
+      start.caffeinate_assertion_holder_pid ||
+    current.assertion_owner_caffeinate_pid !==
+      start.assertion_owner_caffeinate_pid ||
+    current.caffeinate_executable !== start.caffeinate_executable ||
+    canonicalJson(current.caffeinate_argv) !==
+      canonicalJson(start.caffeinate_argv) ||
+    canonicalJson(current.runner_utility_argv) !==
+      canonicalJson(start.runner_utility_argv)
+  ) {
+    return "power-process-identity-change";
+  }
+  if (
+    current.pmset_anchor_raw_event_line !== start.pmset_anchor_raw_event_line ||
+    current.pmset_previous_raw_event_line_sha256 !==
+      previous.pmset_last_raw_event_line_sha256 ||
+    current.pmset_event_ordinal !==
+      previous.pmset_event_ordinal + current.pmset_new_raw_event_lines.length ||
+    current.pmset_event_ordinal < previous.pmset_event_ordinal
+  ) {
+    return "pmset-anchor-missing-truncated-reset-or-ambiguous";
+  }
+  return null;
+}
+
+function powerContinuityEntryDigest(
+  value: Omit<Halfkp81Depth18PowerContinuityLedgerEntry, "entry_sha256">,
+): string {
+  return sha256(
+    `${POWER_CONTINUITY_ENTRY_DIGEST_DOMAIN}${canonicalJson(value)}`,
+  );
+}
+
+function validatePowerContinuityBinding(
+  binding: Readonly<
+    | Halfkp81Depth18PowerContinuityFinalBinding
+    | Halfkp81Depth18PowerContinuityFaultBinding
+  >,
+): void {
+  const sharedKeys = [
+    "outcome",
+    "teacher_plan_sha256",
+    "run_fingerprint",
+    "launchagent_authority",
+    "preformal_authority",
+    "runner_pid",
+    "guardian_pid",
+    "caffeinate_assertion_holder_pid",
+    "engines_started",
+    "engines_reaped",
+    "all_yaneuraou_processes_reaped",
+  ] as const;
+  exactKeys(
+    binding as unknown as Readonly<Record<string, unknown>>,
+    binding.outcome === "success"
+      ? [
+          ...sharedKeys,
+          "first_engine_started_at_ms",
+          "last_engine_reaped_at_ms",
+        ]
+      : [
+          ...sharedKeys,
+          "first_engine_started_at_ms",
+          "last_engine_reaped_at_ms",
+          "terminal_fault_preimage_sha256",
+        ],
+    "power continuity final binding",
+  );
+  if (
+    !SHA256_RE.test(binding.teacher_plan_sha256) ||
+    !SHA256_RE.test(binding.launchagent_authority.sha256) ||
+    !SHA256_RE.test(binding.preformal_authority.sha256) ||
+    (binding.run_fingerprint !== null &&
+      !SHA256_RE.test(binding.run_fingerprint)) ||
+    !validPowerObservationInteger(binding.runner_pid) ||
+    binding.runner_pid < 1 ||
+    !validPowerObservationInteger(binding.guardian_pid) ||
+    binding.guardian_pid < 1 ||
+    !validPowerObservationInteger(binding.caffeinate_assertion_holder_pid) ||
+    binding.caffeinate_assertion_holder_pid < 1 ||
+    !validPowerObservationInteger(binding.engines_started) ||
+    !validPowerObservationInteger(binding.engines_reaped) ||
+    binding.engines_started !== binding.engines_reaped ||
+    binding.all_yaneuraou_processes_reaped !== true
+  ) {
+    throw new Error("power continuity final binding differs");
+  }
+  if (
+    binding.outcome === "success" &&
+    (!SHA256_RE.test(binding.run_fingerprint) ||
+      !validPowerObservationInteger(binding.first_engine_started_at_ms) ||
+      !validPowerObservationInteger(binding.last_engine_reaped_at_ms) ||
+      binding.last_engine_reaped_at_ms < binding.first_engine_started_at_ms)
+  ) {
+    throw new Error("power continuity success binding differs");
+  }
+  if (
+    binding.outcome === "environment-continuity-fault" &&
+    (!SHA256_RE.test(binding.terminal_fault_preimage_sha256) ||
+      (binding.engines_started === 0
+        ? binding.first_engine_started_at_ms !== null ||
+          binding.last_engine_reaped_at_ms !== null
+        : !validPowerObservationInteger(binding.first_engine_started_at_ms) ||
+          !validPowerObservationInteger(binding.last_engine_reaped_at_ms) ||
+          binding.last_engine_reaped_at_ms <
+            binding.first_engine_started_at_ms))
+  ) {
+    throw new Error("power continuity fault preimage binding differs");
+  }
+}
+
+export function appendHalfkp81Depth18PowerContinuityObservationForTests(
+  state: Readonly<Halfkp81Depth18PowerContinuityLedgerState> | undefined,
+  observation: Readonly<Halfkp81Depth18PowerContinuityObservation>,
+  options: Readonly<{
+    kind?: "heartbeat" | "terminal-fault" | "final";
+    binding?: Readonly<
+      | Halfkp81Depth18PowerContinuityFinalBinding
+      | Halfkp81Depth18PowerContinuityFaultBinding
+    >;
+    forcedFaultReason?: string;
+  }> = {},
+): Readonly<Halfkp81Depth18PowerContinuityLedgerState> {
+  const previous = state?.previous;
+  const start = state?.start ?? observation;
+  const reason =
+    options.forcedFaultReason ??
+    (previous === undefined
+      ? (() => {
+          try {
+            validateHalfkp81Depth18PowerContinuityAdmissionForTests(
+              observation,
+            );
+            return null;
+          } catch (error) {
+            return error instanceof Halfkp81Depth18EnvironmentContinuityError
+              ? error.reason
+              : "malformed-power-observation";
+          }
+        })()
+      : halfkp81Depth18PowerContinuityFailureReasonForTests(
+          start,
+          previous,
+          observation,
+        ));
+  const kind =
+    options.kind ??
+    (state === undefined
+      ? "admission"
+      : reason === null
+        ? "heartbeat"
+        : "terminal-fault");
+  if ((kind === "terminal-fault") !== (reason !== null)) {
+    throw new Error("power continuity entry kind differs from fault state");
+  }
+  if (kind === "final" && options.binding === undefined) {
+    throw new Error("final power continuity entry requires a binding");
+  }
+  if (options.binding !== undefined) {
+    validatePowerContinuityBinding(options.binding);
+    if (
+      options.binding.runner_pid !== observation.runner_pid ||
+      options.binding.guardian_pid !== observation.guardian_pid ||
+      options.binding.caffeinate_assertion_holder_pid !==
+        observation.caffeinate_assertion_holder_pid
+    ) {
+      throw new Error("power continuity binding process identity differs");
+    }
+  }
+  if (
+    kind === "terminal-fault" &&
+    options.binding?.outcome !== "environment-continuity-fault"
+  ) {
+    throw new Error("terminal power continuity entry requires a fault binding");
+  }
+  if (
+    kind === "terminal-fault" &&
+    options.binding?.outcome === "environment-continuity-fault" &&
+    options.binding.last_engine_reaped_at_ms !== null &&
+    observation.observed_at_ms < options.binding.last_engine_reaped_at_ms
+  ) {
+    throw new Error("power continuity fault coverage differs");
+  }
+  if (kind === "final" && options.binding?.outcome !== "success") {
+    throw new Error("final power continuity entry requires a success binding");
+  }
+  if (
+    kind === "final" &&
+    options.binding?.outcome === "success" &&
+    (options.binding.engines_started < 1 ||
+      start.observed_at_ms > options.binding.first_engine_started_at_ms ||
+      observation.observed_at_ms < options.binding.last_engine_reaped_at_ms)
+  ) {
+    throw new Error("power continuity success coverage differs");
+  }
+  const withoutDigest = Object.freeze({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_LEDGER_SCHEMA,
+    kind,
+    sequence: state?.entries.length ?? 0,
+    previous_entry_sha256:
+      state?.entries[state.entries.length - 1]?.entry_sha256 ?? null,
+    gap_ms:
+      previous === undefined
+        ? 0
+        : observation.observed_at_ms - previous.observed_at_ms,
+    status: reason === null ? ("pass" as const) : ("fail" as const),
+    fault_reason: reason,
+    observation,
+    ...(options.binding === undefined ? {} : { binding: options.binding }),
+  });
+  const entry = Object.freeze({
+    ...withoutDigest,
+    entry_sha256: powerContinuityEntryDigest(withoutDigest),
+  });
+  return Object.freeze({
+    entries: Object.freeze([...(state?.entries ?? []), entry]),
+    start,
+    previous: observation,
+  });
+}
+
+export function verifyHalfkp81Depth18PowerContinuityLedgerForTests(
+  entries: readonly Readonly<Halfkp81Depth18PowerContinuityLedgerEntry>[],
+): Readonly<{
+  samples: number;
+  maximum_gap_ms: number;
+  final_entry_sha256: string;
+}> {
+  if (entries.length < 2 || entries[0]?.kind !== "admission") {
+    throw new Error("power continuity ledger lacks admission and final rows");
+  }
+  let state: Halfkp81Depth18PowerContinuityLedgerState | undefined;
+  let maximumGap = 0;
+  for (const [index, entry] of entries.entries()) {
+    exactKeys(
+      entry as unknown as Readonly<Record<string, unknown>>,
+      entry.binding === undefined
+        ? [
+            "schema",
+            "kind",
+            "sequence",
+            "previous_entry_sha256",
+            "gap_ms",
+            "status",
+            "fault_reason",
+            "observation",
+            "entry_sha256",
+          ]
+        : [
+            "schema",
+            "kind",
+            "sequence",
+            "previous_entry_sha256",
+            "gap_ms",
+            "status",
+            "fault_reason",
+            "observation",
+            "binding",
+            "entry_sha256",
+          ],
+      `power continuity ledger row ${index + 1}`,
+    );
+    const { entry_sha256: claimedDigest, ...withoutDigest } = entry;
+    if (
+      entry.sequence !== index ||
+      entry.previous_entry_sha256 !==
+        (entries[index - 1]?.entry_sha256 ?? null) ||
+      powerContinuityEntryDigest(withoutDigest) !== claimedDigest ||
+      entry.status !== "pass" ||
+      entry.fault_reason !== null
+    ) {
+      throw new Error(`power continuity ledger row ${index + 1} differs`);
+    }
+    state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+      state,
+      entry.observation,
+      {
+        kind: entry.kind === "admission" ? undefined : entry.kind,
+        ...(entry.binding === undefined ? {} : { binding: entry.binding }),
+      },
+    );
+    if (state.entries[index]?.entry_sha256 !== entry.entry_sha256) {
+      throw new Error(
+        `power continuity ledger row ${index + 1} is not canonical`,
+      );
+    }
+    maximumGap = Math.max(maximumGap, entry.gap_ms);
+  }
+  if (entries[entries.length - 1]?.kind !== "final") {
+    throw new Error("power continuity ledger is not closed by a final row");
+  }
+  return Object.freeze({
+    samples: entries.length,
+    maximum_gap_ms: maximumGap,
+    final_entry_sha256: entries[entries.length - 1]!.entry_sha256,
+  });
+}
+
+export function verifyHalfkp81Depth18PowerContinuityFaultLedgerForTests(
+  entries: readonly Readonly<Halfkp81Depth18PowerContinuityLedgerEntry>[],
+): Readonly<{
+  samples: number;
+  fault_reason: string;
+  final_entry_sha256: string;
+}> {
+  if (
+    entries.length < 2 ||
+    entries[0]?.kind !== "admission" ||
+    entries[entries.length - 1]?.kind !== "terminal-fault"
+  ) {
+    throw new Error("power continuity fault ledger is not sealed");
+  }
+  let state: Halfkp81Depth18PowerContinuityLedgerState | undefined;
+  for (const [index, entry] of entries.entries()) {
+    const terminal = index === entries.length - 1;
+    const { entry_sha256: claimedDigest, ...withoutDigest } = entry;
+    if (
+      entry.sequence !== index ||
+      entry.previous_entry_sha256 !==
+        (entries[index - 1]?.entry_sha256 ?? null) ||
+      powerContinuityEntryDigest(withoutDigest) !== claimedDigest ||
+      (!terminal && (entry.status !== "pass" || entry.fault_reason !== null)) ||
+      (terminal &&
+        (entry.status !== "fail" ||
+          entry.fault_reason === null ||
+          entry.binding?.outcome !== "environment-continuity-fault"))
+    ) {
+      throw new Error(`power continuity fault ledger row ${index + 1} differs`);
+    }
+    state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+      state,
+      entry.observation,
+      terminal
+        ? {
+            kind: "terminal-fault",
+            forcedFaultReason: entry.fault_reason ?? undefined,
+            binding: entry.binding,
+          }
+        : {},
+    );
+    if (state.entries[index]?.entry_sha256 !== entry.entry_sha256) {
+      throw new Error(
+        `power continuity fault ledger row ${index + 1} is not canonical`,
+      );
+    }
+  }
+  const terminal = entries[entries.length - 1]!;
+  return Object.freeze({
+    samples: entries.length,
+    fault_reason: terminal.fault_reason as string,
+    final_entry_sha256: terminal.entry_sha256,
+  });
+}
+
+export interface Halfkp81Depth18PowerContinuityGuardianConfig {
+  readonly schema: "shogi-halfkp81-depth18-power-continuity-guardian-config-v1r11";
+  readonly runnerPid: number;
+  readonly teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly sourceRevision?: string;
+  readonly producer?: Readonly<Record<string, unknown>>;
+  readonly runFingerprint: string;
+  readonly launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  /** Stage-B only: full live evidence carried in rows while the held file
+   * identity above remains the final-binding capability. Formal runs omit it. */
+  readonly inlineLaunchAgentEvidence?: Readonly<Record<string, unknown>>;
+  readonly preformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly ledgerPath: string;
+  readonly receiptPath: string;
+  readonly runnerUtilityArgv: readonly string[];
+}
+
+function validatePowerContinuityOutputTarget(filePath: string): void {
+  if (!path.isAbsolute(filePath) || path.normalize(filePath) !== filePath) {
+    throw new Error("power continuity target is not canonical absolute");
+  }
+  let cursor = path.dirname(filePath);
+  while (true) {
+    const status = fs.lstatSync(cursor);
+    if (status.isSymbolicLink()) {
+      throw new Error("power continuity target ancestor is a symlink");
+    }
+    if (fs.realpathSync.native(cursor) !== cursor) {
+      throw new Error("power continuity target ancestor is an alias");
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+}
+
+interface Halfkp81Depth18PmsetCursor {
+  readonly anchorRawLine: string;
+  readonly anchorOrdinal: number;
+  readonly previousRawLine: string;
+  readonly previousOrdinal: number;
+  readonly rows: readonly string[];
+}
+
+function systemText(executable: string, args: readonly string[]): string {
+  return execFileSync(executable, [...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 20_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+export function parseHalfkp81Depth18PmsetLogRowsForTests(
+  raw: string,
+): readonly string[] {
+  const rows = raw
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/u, ""))
+    .filter(
+      (line) =>
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}\s+\S/u.test(line) &&
+        !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}\s+: Showing all currently held IOKit power assertions$/u.test(
+          line,
+        ),
+    );
+  if (rows.length === 0) throw new Error("pmset log has no anchorable rows");
+  return Object.freeze(rows);
+}
+
+export function parseHalfkp81Depth18PmsetBatteryForTests(raw: string): {
+  powerSource: string;
+  batteryPercentage: number;
+} {
+  const powerSource = /Now drawing from '([^']+)'/u.exec(raw)?.[1];
+  const battery = /\b(\d{1,3})%;/u.exec(raw)?.[1];
+  if (powerSource === undefined || battery === undefined) {
+    throw new Error("pmset battery output is not parseable");
+  }
+  return { powerSource, batteryPercentage: Number(battery) };
+}
+
+export function parseHalfkp81Depth18CaffeinateAssertionsForTests(
+  raw: string,
+  caffeinatePid: number,
+): readonly string[] {
+  const ownerPrefix = new RegExp(
+    `^\\s*pid ${caffeinatePid}\\(caffeinate\\):`,
+    "u",
+  );
+  const assertions = new Set<string>();
+  for (const line of raw.split("\n")) {
+    if (!ownerPrefix.test(line)) continue;
+    for (const name of V1R11_REQUIRED_CAFFEINATE_ASSERTIONS) {
+      if (new RegExp(`\\b${name}\\b`, "u").test(line)) assertions.add(name);
+    }
+  }
+  return Object.freeze([...assertions].sort(compareBytewise));
+}
+
+function initialPmsetCursor(
+  rows: readonly string[],
+): Halfkp81Depth18PmsetCursor {
+  const rawLine = rows[rows.length - 1]!;
+  return Object.freeze({
+    anchorRawLine: rawLine,
+    anchorOrdinal: rows.length,
+    previousRawLine: rawLine,
+    previousOrdinal: rows.length,
+    rows: Object.freeze([...rows]),
+  });
+}
+
+async function captureSystemPowerContinuityObservation(
+  config: Readonly<Halfkp81Depth18PowerContinuityGuardianConfig>,
+  cursor: Readonly<Halfkp81Depth18PmsetCursor> | undefined,
+  now = Date.now(),
+): Promise<
+  Readonly<{
+    observation: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+    cursor: Readonly<Halfkp81Depth18PmsetCursor>;
+  }>
+> {
+  const battery = parseHalfkp81Depth18PmsetBatteryForTests(
+    systemText("/usr/bin/pmset", ["-g", "batt"]),
+  );
+  const parsedProcessRows = systemText("/bin/ps", [
+    "-ww",
+    "-axo",
+    "pid=,ppid=,command=",
+  ])
+    .split("\n")
+    .map((line) => /^\s*(\d+)\s+(\d+)\s+(.+)$/u.exec(line))
+    .filter((match): match is RegExpExecArray => match !== null);
+  const runnerCommandRows = parsedProcessRows.filter(
+    (match) => Number(match[1]) === config.runnerPid,
+  );
+  if (runnerCommandRows.length !== 1) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "runner-process-identity-missing-or-ambiguous",
+    );
+  }
+  const expectedRunnerCommand = config.runnerUtilityArgv.join(" ");
+  if (runnerCommandRows[0]![3] !== expectedRunnerCommand) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "runner-utility-argv-mismatch",
+    );
+  }
+  const expectedCaffeinateCommand =
+    `/usr/bin/caffeinate -dimsu -w ${String(config.runnerPid)}`;
+  const processRows = parsedProcessRows.filter(
+    (match) =>
+      Number(match[2]) === config.runnerPid &&
+      match[3] === expectedCaffeinateCommand,
+  );
+  if (processRows.length !== 1) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "caffeinate-assertion-holder-parent-pid-not-exact-runner-pid",
+    );
+  }
+  const runnerChildCaffeinatePid = Number(processRows[0]![1]);
+  const caffeinateCommand = processRows[0]![3];
+  const commandTokens = caffeinateCommand.split(/\s+/u);
+  const caffeinateExecutable = commandTokens[0] ?? "";
+  const assertions = parseHalfkp81Depth18CaffeinateAssertionsForTests(
+    systemText("/usr/bin/pmset", ["-g", "assertions"]),
+    runnerChildCaffeinatePid,
+  );
+  const bootSessionIdentity = sha256(
+    systemText("/usr/sbin/sysctl", ["-n", "kern.boottime"]).trim(),
+  );
+  const rows = parseHalfkp81Depth18PmsetLogRowsForTests(
+    systemText("/usr/bin/pmset", ["-g", "log"]),
+  );
+  const prior = cursor ?? initialPmsetCursor(rows);
+  if (
+    rows.length < prior.rows.length ||
+    prior.rows.some((line, index) => rows[index] !== line) ||
+    rows[prior.anchorOrdinal - 1] !== prior.anchorRawLine ||
+    rows[prior.previousOrdinal - 1] !== prior.previousRawLine
+  ) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "pmset-anchor-missing-truncated-reset-or-ambiguous",
+    );
+  }
+  const newRows = rows.slice(prior.previousOrdinal);
+  const currentRawLine = rows[rows.length - 1]!;
+  const nextCursor = Object.freeze({
+    anchorRawLine: prior.anchorRawLine,
+    anchorOrdinal: prior.anchorOrdinal,
+    previousRawLine: currentRawLine,
+    previousOrdinal: rows.length,
+    rows: Object.freeze([...rows]),
+  });
+  const observation = Object.freeze({
+    observed_at_ms: now,
+    timestamp_utc: new Date(now).toISOString(),
+    power_source: battery.powerSource,
+    battery_percentage: battery.batteryPercentage,
+    runner_pid: config.runnerPid,
+    guardian_pid: process.pid,
+    caffeinate_assertion_holder_pid: runnerChildCaffeinatePid,
+    caffeinate_assertion_holder_parent_runner_pid: config.runnerPid,
+    caffeinate_executable: caffeinateExecutable,
+    caffeinate_argv: Object.freeze(commandTokens),
+    runner_utility_argv: Object.freeze([...config.runnerUtilityArgv]),
+    assertion_owner_caffeinate_pid: runnerChildCaffeinatePid,
+    assertions,
+    boot_session_identity: bootSessionIdentity,
+    pmset_event_ordinal: rows.length,
+    pmset_previous_raw_event_line_sha256:
+      cursor === undefined ? null : sha256(prior.previousRawLine),
+    pmset_last_raw_event_line_sha256: sha256(currentRawLine),
+    pmset_anchor_raw_event_line: prior.anchorRawLine,
+    pmset_new_raw_event_lines: Object.freeze(newRows),
+  });
+  return Object.freeze({ observation, cursor: nextCursor });
+}
+
+async function appendPowerContinuityLedgerEntry(
+  handle: fs.promises.FileHandle,
+  entry: Readonly<Halfkp81Depth18PowerContinuityLedgerEntry>,
+): Promise<void> {
+  await handle.write(canonicalJsonLine(entry));
+  await handle.sync();
+}
+
+function frozenPowerAnchor(
+  rawLine: string,
+  ordinal: number,
+  bootSessionIdentity: string,
+): Readonly<Record<string, unknown>> {
+  const match =
+    /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{2})(\d{2})\b/u.exec(
+      rawLine,
+    );
+  if (match === null) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "pmset-anchor-timestamp-is-not-parseable",
+    );
+  }
+  const timezoneOffset = `${match[3]}:${match[4]}`;
+  const timestamp = new Date(`${match[1]}T${match[2]}${timezoneOffset}`);
+  if (!Number.isFinite(timestamp.getTime())) {
+    throw new Halfkp81Depth18EnvironmentContinuityError(
+      "pmset-anchor-timestamp-is-not-finite",
+    );
+  }
+  return Object.freeze({
+    boot_session_identity: bootSessionIdentity,
+    timestamp_utc: timestamp.toISOString(),
+    timezone_offset: timezoneOffset,
+    pmset_event_ordinal: ordinal,
+    last_raw_event_line_sha256: sha256(rawLine),
+  });
+}
+
+function frozenPowerObservation(
+  config: Readonly<Halfkp81Depth18PowerContinuityGuardianConfig>,
+  captured: Readonly<{
+    observation: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+    cursor: Readonly<Halfkp81Depth18PmsetCursor>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  const observation = captured.observation;
+  if (config.sourceRevision === undefined || config.producer === undefined) {
+    throw new Error("frozen power observation requires formal configuration");
+  }
+  return Object.freeze({
+    observed_at_ms: observation.observed_at_ms,
+    timestamp_utc: observation.timestamp_utc,
+    power_source: observation.power_source,
+    battery_percentage: observation.battery_percentage,
+    runner_pid: observation.runner_pid,
+    guardian_pid: observation.guardian_pid,
+    caffeinate_assertion_holder_pid:
+      observation.caffeinate_assertion_holder_pid,
+    caffeinate_assertion_holder_parent_runner_pid:
+      observation.caffeinate_assertion_holder_parent_runner_pid,
+    caffeinate_executable: observation.caffeinate_executable,
+    caffeinate_argv: observation.caffeinate_argv,
+    runner_utility_argv: observation.runner_utility_argv,
+    launchagent_authority_evidence:
+      config.inlineLaunchAgentEvidence ?? config.launchAgentAuthority,
+    preformal_authority_verified_receipt: config.preformalAuthority,
+    assertion_owner_caffeinate_pid: observation.assertion_owner_caffeinate_pid,
+    required_assertions: V1R11_REQUIRED_CAFFEINATE_ASSERTIONS,
+    boot_session_identity: observation.boot_session_identity,
+    pmset_start_anchor: frozenPowerAnchor(
+      captured.cursor.anchorRawLine,
+      captured.cursor.anchorOrdinal,
+      observation.boot_session_identity,
+    ),
+    pmset_current_cursor: frozenPowerAnchor(
+      captured.cursor.previousRawLine,
+      captured.cursor.previousOrdinal,
+      observation.boot_session_identity,
+    ),
+  });
+}
+
+function frozenPowerEntry(
+  config: Readonly<Halfkp81Depth18PowerContinuityGuardianConfig>,
+  observation: Readonly<Record<string, unknown>>,
+  status: "admission-pass" | "sample-pass" | "final-pass" | "environment-fault",
+  entryKind: "admission" | "sample" | "final" | "environment-fault",
+  previousEntrySha256: string | null,
+  environmentFault: Readonly<{
+    kind: "environment-continuity";
+    message: string;
+    intent_sha256: string;
+  }> | null = null,
+): Readonly<Record<string, unknown>> {
+  if (
+    (entryKind === "environment-fault") !== (environmentFault !== null) ||
+    (environmentFault !== null &&
+      (environmentFault.kind !== "environment-continuity" ||
+        environmentFault.message.length < 1 ||
+        !SHA256_RE.test(environmentFault.intent_sha256)))
+  ) {
+    throw new Error("frozen power environment fault closure differs");
+  }
+  const preimage = Object.freeze({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_LEDGER_SCHEMA,
+    status,
+    entry_kind: entryKind,
+    timestamp_utc: observation.timestamp_utc,
+    teacher_plan: config.teacherPlan,
+    source_revision: config.sourceRevision,
+    run_fingerprint: config.runFingerprint,
+    launchagent_authority_evidence:
+      config.inlineLaunchAgentEvidence ?? config.launchAgentAuthority,
+    preformal_authority_verified_receipt: config.preformalAuthority,
+    observation,
+    environment_fault: environmentFault,
+    previous_entry_sha256: previousEntrySha256,
+  });
+  return Object.freeze({
+    ...preimage,
+    entry_sha256: sha256(
+      `${POWER_CONTINUITY_ENTRY_DIGEST_DOMAIN}${canonicalJson(preimage)}`,
+    ),
+  });
+}
+
+async function runFrozenHalfkp81Depth18V1R11PowerGuardian(
+  config: Readonly<Halfkp81Depth18PowerContinuityGuardianConfig>,
+): Promise<void> {
+  let captured = await captureSystemPowerContinuityObservation(
+    config,
+    undefined,
+  );
+  let legacyState = appendHalfkp81Depth18PowerContinuityObservationForTests(
+    undefined,
+    captured.observation,
+  );
+  let entries: readonly Readonly<Record<string, unknown>>[] = Object.freeze([
+    frozenPowerEntry(
+      config,
+      frozenPowerObservation(config, captured),
+      "admission-pass",
+      "admission",
+      null,
+    ),
+  ]);
+  const handle = await fs.promises.open(
+    config.ledgerPath,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  const append = async (entry: Readonly<Record<string, unknown>>) => {
+    await handle.write(canonicalJsonLine(entry));
+    await handle.sync();
+  };
+  await append(entries[0]!);
+  let fault: Halfkp81Depth18EnvironmentContinuityError | undefined;
+  let faultCapture:
+    | Readonly<{
+        observation: Readonly<Halfkp81Depth18PowerContinuityObservation>;
+        cursor: Readonly<Halfkp81Depth18PmsetCursor>;
+      }>
+    | undefined;
+  let closed = false;
+  let tickTail = Promise.resolve();
+  const appendCaptured = async (
+    next: typeof captured,
+    status: "sample-pass" | "final-pass" | "environment-fault",
+    kind: "sample" | "final" | "environment-fault",
+    environmentFault: Readonly<{
+      kind: "environment-continuity";
+      message: string;
+      intent_sha256: string;
+    }> | null = null,
+  ) => {
+    const entry = frozenPowerEntry(
+      config,
+      frozenPowerObservation(config, next),
+      status,
+      kind,
+      String(entries.at(-1)!.entry_sha256),
+      environmentFault,
+    );
+    entries = Object.freeze([...entries, entry]);
+    await append(entry);
+  };
+  const sample = async (): Promise<void> => {
+    if (closed || fault !== undefined) return;
+    const next = await captureSystemPowerContinuityObservation(
+      config,
+      captured.cursor,
+    );
+    const reason = halfkp81Depth18PowerContinuityFailureReasonForTests(
+      legacyState.start,
+      legacyState.previous,
+      next.observation,
+    );
+    if (reason !== null) {
+      fault = new Halfkp81Depth18EnvironmentContinuityError(reason);
+      faultCapture = next;
+      process.send?.({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+        type: "fault",
+        reason,
+      });
+      return;
+    }
+    legacyState = appendHalfkp81Depth18PowerContinuityObservationForTests(
+      legacyState,
+      next.observation,
+    );
+    captured = next;
+    await appendCaptured(next, "sample-pass", "sample");
+    process.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type: "heartbeat",
+      observedAtMs: next.observation.observed_at_ms,
+    });
+  };
+  const timer = setInterval(() => {
+    tickTail = tickTail.then(sample).catch((error: unknown) => {
+      if (fault === undefined) {
+        fault = new Halfkp81Depth18EnvironmentContinuityError(
+          `guardian-sample-failed:${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        process.send?.({
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+          type: "fault",
+          reason: fault.reason,
+        });
+      }
+    });
+  }, 20_000);
+  timer.unref();
+  let lastRequestId = 0;
+  const finalize = async (
+    request: Extract<
+      PowerContinuityGuardianRequest,
+      { type: "finalize-success" | "finalize-fault" }
+    >,
+  ): Promise<void> => {
+    clearInterval(timer);
+    await tickTail;
+    let closing = captured;
+    if (request.type === "finalize-success") {
+      if (fault !== undefined) throw fault;
+      closing = await captureSystemPowerContinuityObservation(
+        config,
+        captured.cursor,
+      );
+      const reason = halfkp81Depth18PowerContinuityFailureReasonForTests(
+        legacyState.start,
+        legacyState.previous,
+        closing.observation,
+      );
+      if (reason !== null) {
+        throw new Halfkp81Depth18EnvironmentContinuityError(reason);
+      }
+      await appendCaptured(closing, "final-pass", "final");
+    } else {
+      if (faultCapture !== undefined) closing = faultCapture;
+      else {
+        try {
+          closing = await captureSystemPowerContinuityObservation(
+            config,
+            captured.cursor,
+          );
+        } catch {
+          closing = captured;
+        }
+      }
+      await appendCaptured(
+        closing,
+        "environment-fault",
+        "environment-fault",
+        Object.freeze({
+          kind: "environment-continuity",
+          message: request.reason,
+          intent_sha256: request.binding.terminal_fault_preimage_sha256,
+        }),
+      );
+    }
+    await handle.close();
+    closed = true;
+    const ledgerRaw = await readHeldStableFile(
+      config.ledgerPath,
+      "closed frozen v1r11 power ledger",
+    );
+    const ledgerIdentity = v1r11FullIdentity(
+      fileIdentity(config.ledgerPath, ledgerRaw),
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_LEDGER_SCHEMA,
+    );
+    const first = entries[0]!;
+    const final = entries.at(-1)!;
+    const firstObservation = first.observation as Readonly<
+      Record<string, unknown>
+    >;
+    const finalObservation = final.observation as Readonly<
+      Record<string, unknown>
+    >;
+    const receipt = Object.freeze({
+      schema:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_SCHEMA,
+      status:
+        request.type === "finalize-success"
+          ? "power-continuity-verified"
+          : "environment-fault-closed",
+      teacher_plan: config.teacherPlan,
+      source_revision: config.sourceRevision,
+      run_fingerprint: config.runFingerprint,
+      power_ledger: ledgerIdentity,
+      admission_entry: first,
+      final_entry: final,
+      launchagent_authority_evidence:
+        config.inlineLaunchAgentEvidence ?? config.launchAgentAuthority,
+      preformal_authority_verified_receipt: config.preformalAuthority,
+      pmset_start_anchor: firstObservation.pmset_start_anchor,
+      pmset_end_anchor: finalObservation.pmset_current_cursor,
+      environment_fault_preimage_sha256:
+        request.type === "finalize-fault"
+          ? request.binding.terminal_fault_preimage_sha256
+          : null,
+      producer: config.producer,
+    });
+    const receiptIdentity = v1r11FullIdentity(
+      await publishCreateOnly(config.receiptPath, canonicalJsonLine(receipt)),
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_SCHEMA,
+    );
+    process.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type: "finalized",
+      requestId: request.requestId,
+      ledger: ledgerIdentity,
+      receipt: receiptIdentity,
+    });
+  };
+  process.on("message", (raw: unknown) => {
+    let request: Readonly<PowerContinuityGuardianRequest>;
+    try {
+      request = validatePowerContinuityGuardianRequest(raw, lastRequestId);
+      if (closed) throw new Error("power guardian request follows closure");
+      lastRequestId = request.requestId;
+    } catch (error) {
+      const reason = `guardian-malformed-request:${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      fault ??= new Halfkp81Depth18EnvironmentContinuityError(reason);
+      process.send?.({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+        type: "fault",
+        reason,
+      });
+      return;
+    }
+    if (request.type === "check") {
+      void sample()
+        .then(() => {
+          if (fault !== undefined) throw fault;
+          process.send?.({
+            schema:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+            type: "checked",
+            requestId: request.requestId,
+          });
+        })
+        .catch((error: unknown) =>
+          process.send?.({
+            schema:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+            type: "fault",
+            requestId: request.requestId,
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      return;
+    }
+    void finalize(request).catch((error: unknown) =>
+      process.send?.({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+        type: "fatal",
+        requestId: request.requestId,
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  });
+  process.send?.({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+    type: "ready",
+    observedAtMs: captured.observation.observed_at_ms,
+    guardianPid: process.pid,
+    caffeinatePid: captured.observation.caffeinate_assertion_holder_pid,
+    admissionEntry: entries[0],
+  });
+}
+
+type PowerContinuityGuardianRequest =
+  | Readonly<{
+      schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA;
+      type: "check";
+      requestId: number;
+    }>
+  | Readonly<{
+      schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA;
+      type: "finalize-success";
+      requestId: number;
+      binding: Readonly<Halfkp81Depth18PowerContinuityFinalBinding>;
+    }>
+  | Readonly<{
+      schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA;
+      type: "finalize-fault";
+      requestId: number;
+      reason: string;
+      binding: Readonly<Halfkp81Depth18PowerContinuityFaultBinding>;
+    }>;
+
+function validatePowerContinuityGuardianRequest(
+  raw: unknown,
+  previousRequestId: number,
+): Readonly<PowerContinuityGuardianRequest> {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("power guardian request is not an object");
+  }
+  const request = raw as Readonly<Record<string, unknown>>;
+  const type = request.type;
+  exactKeys(
+    request,
+    type === "check"
+      ? ["schema", "type", "requestId"]
+      : type === "finalize-success"
+        ? ["schema", "type", "requestId", "binding"]
+        : type === "finalize-fault"
+          ? ["schema", "type", "requestId", "reason", "binding"]
+          : [],
+    "power guardian request",
+  );
+  if (
+    request.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA ||
+    !["check", "finalize-success", "finalize-fault"].includes(String(type)) ||
+    !validPowerObservationInteger(request.requestId) ||
+    request.requestId <= previousRequestId ||
+    (type === "finalize-fault" &&
+      (typeof request.reason !== "string" || request.reason.length === 0))
+  ) {
+    throw new Error("power guardian request values differ");
+  }
+  if (type === "finalize-success" || type === "finalize-fault") {
+    validatePowerContinuityBinding(
+      request.binding as Readonly<
+        | Halfkp81Depth18PowerContinuityFinalBinding
+        | Halfkp81Depth18PowerContinuityFaultBinding
+      >,
+    );
+  }
+  return request as unknown as Readonly<PowerContinuityGuardianRequest>;
+}
+
+export function validateHalfkp81Depth18PowerGuardianMessageForTests(
+  raw: unknown,
+): Readonly<Record<string, unknown>> {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("power guardian IPC message is not an object");
+  }
+  const message = raw as Readonly<Record<string, unknown>>;
+  const type = message.type;
+  const keys =
+    type === "ready"
+      ? [
+          "schema",
+          "type",
+          "observedAtMs",
+          "guardianPid",
+          "caffeinatePid",
+          ...(message.admissionEntry === undefined ? [] : ["admissionEntry"]),
+        ]
+      : type === "heartbeat"
+        ? ["schema", "type", "observedAtMs"]
+        : type === "checked"
+          ? ["schema", "type", "requestId"]
+          : type === "finalized"
+            ? ["schema", "type", "requestId", "ledger", "receipt"]
+            : type === "fatal"
+              ? [
+                  "schema",
+                  "type",
+                  ...(message.requestId === undefined ? [] : ["requestId"]),
+                  "reason",
+                ]
+              : type === "fault"
+                ? [
+                    "schema",
+                    "type",
+                    ...(message.requestId === undefined ? [] : ["requestId"]),
+                    "reason",
+                  ]
+                : undefined;
+  if (keys === undefined) throw new Error("power guardian IPC type differs");
+  exactKeys(message, keys, "power guardian IPC message");
+  if (
+    message.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA ||
+    ((type === "ready" || type === "heartbeat") &&
+      !validPowerObservationInteger(message.observedAtMs)) ||
+    (type === "ready" &&
+      (!validPowerObservationInteger(message.guardianPid) ||
+        Number(message.guardianPid) < 1 ||
+        !validPowerObservationInteger(message.caffeinatePid) ||
+        Number(message.caffeinatePid) < 1)) ||
+    (["checked", "finalized"].includes(String(type)) &&
+      (!validPowerObservationInteger(message.requestId) ||
+        Number(message.requestId) < 1)) ||
+    (type === "fatal" &&
+      message.requestId !== undefined &&
+      (!validPowerObservationInteger(message.requestId) ||
+        Number(message.requestId) < 1)) ||
+    (type === "fault" &&
+      message.requestId !== undefined &&
+      (!validPowerObservationInteger(message.requestId) ||
+        Number(message.requestId) < 1)) ||
+    ((type === "fault" || type === "fatal") &&
+      (typeof message.reason !== "string" || message.reason.length === 0))
+  ) {
+    throw new Error("power guardian IPC message values differ");
+  }
+  if (type === "finalized") {
+    for (const [label, identity] of [
+      ["ledger", message.ledger],
+      ["receipt", message.receipt],
+    ] as const) {
+      if (
+        identity === null ||
+        typeof identity !== "object" ||
+        Array.isArray(identity)
+      ) {
+        throw new Error(`power guardian ${label} IPC identity differs`);
+      }
+      const record = identity as Readonly<Record<string, unknown>>;
+      exactKeys(
+        record,
+        [
+          "path",
+          "bytes",
+          "sha256",
+          ...(record.schema === undefined ? [] : ["schema"]),
+        ],
+        `power guardian ${label}`,
+      );
+      if (
+        !path.isAbsolute(String(record.path)) ||
+        !Number.isSafeInteger(record.bytes) ||
+        Number(record.bytes) < 1 ||
+        !SHA256_RE.test(String(record.sha256)) ||
+        (record.schema !== undefined &&
+          (typeof record.schema !== "string" || record.schema.length < 1))
+      ) {
+        throw new Error(`power guardian ${label} IPC identity differs`);
+      }
+    }
+  }
+  if (
+    type === "ready" &&
+    message.admissionEntry !== undefined &&
+    (message.admissionEntry === null ||
+      typeof message.admissionEntry !== "object" ||
+      Array.isArray(message.admissionEntry))
+  ) {
+    throw new Error("power guardian admission IPC entry differs");
+  }
+  return message;
+}
+
+/** Entry used only by the independent guardian child. */
+export async function runHalfkp81Depth18V1R11PowerContinuityGuardianProcess(
+  config: Readonly<Halfkp81Depth18PowerContinuityGuardianConfig>,
+): Promise<void> {
+  const frozenFormal = config.sourceRevision !== undefined;
+  if (
+    config.schema !==
+      "shogi-halfkp81-depth18-power-continuity-guardian-config-v1r11" ||
+    !Number.isSafeInteger(config.runnerPid) ||
+    config.runnerPid < 1 ||
+    !SHA256_RE.test(config.teacherPlan.sha256) ||
+    !SHA256_RE.test(config.launchAgentAuthority.sha256) ||
+    !SHA256_RE.test(config.preformalAuthority.sha256) ||
+    !SHA256_RE.test(config.runFingerprint) ||
+    (frozenFormal &&
+      (!REVISION_RE.test(config.sourceRevision ?? "") ||
+        config.producer === undefined)) ||
+    (!frozenFormal && config.producer !== undefined) ||
+    (config.inlineLaunchAgentEvidence !== undefined &&
+      (config.inlineLaunchAgentEvidence === null ||
+        Array.isArray(config.inlineLaunchAgentEvidence)))
+  ) {
+    throw new Error("power guardian configuration differs");
+  }
+  exactKeys(
+    config as unknown as Readonly<Record<string, unknown>>,
+    [
+      "schema",
+      "runnerPid",
+      "teacherPlan",
+      ...(frozenFormal ? ["sourceRevision", "producer"] : []),
+      "runFingerprint",
+      "launchAgentAuthority",
+      ...(config.inlineLaunchAgentEvidence === undefined
+        ? []
+        : ["inlineLaunchAgentEvidence"]),
+      "preformalAuthority",
+      "ledgerPath",
+      "receiptPath",
+      "runnerUtilityArgv",
+    ],
+    "power guardian configuration",
+  );
+  validatePowerContinuityOutputTarget(config.ledgerPath);
+  validatePowerContinuityOutputTarget(config.receiptPath);
+  if (
+    path.dirname(config.ledgerPath) !== path.dirname(config.receiptPath) ||
+    path.basename(config.ledgerPath) !== "power-continuity.jsonl" ||
+    path.basename(config.receiptPath) !== "power-continuity-receipt.json"
+  ) {
+    throw new Error("power guardian output namespace differs");
+  }
+  if (frozenFormal) {
+    return runFrozenHalfkp81Depth18V1R11PowerGuardian(config);
+  }
+  let captured = await captureSystemPowerContinuityObservation(
+    config,
+    undefined,
+  );
+  let state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+    undefined,
+    captured.observation,
+  );
+  const handle = await fs.promises.open(
+    config.ledgerPath,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  await appendPowerContinuityLedgerEntry(handle, state.entries[0]!);
+  let fault: Halfkp81Depth18EnvironmentContinuityError | undefined;
+  let faultObservation:
+    Readonly<Halfkp81Depth18PowerContinuityObservation> | undefined;
+  let closed = false;
+  let tickTail: Promise<void> = Promise.resolve();
+  const sample = async (): Promise<void> => {
+    if (closed || fault !== undefined) return;
+    const next = await captureSystemPowerContinuityObservation(
+      config,
+      captured.cursor,
+    );
+    const reason = halfkp81Depth18PowerContinuityFailureReasonForTests(
+      state.start,
+      state.previous,
+      next.observation,
+    );
+    captured = next;
+    if (reason !== null) {
+      fault = new Halfkp81Depth18EnvironmentContinuityError(reason);
+      faultObservation = next.observation;
+      process.send?.({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+        type: "fault",
+        reason,
+      });
+      return;
+    }
+    state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+      state,
+      next.observation,
+    );
+    await appendPowerContinuityLedgerEntry(
+      handle,
+      state.entries[state.entries.length - 1]!,
+    );
+    process.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type: "heartbeat",
+      observedAtMs: next.observation.observed_at_ms,
+    });
+  };
+  const timer = setInterval(() => {
+    tickTail = tickTail.then(sample).catch((error: unknown) => {
+      if (fault === undefined) {
+        fault =
+          error instanceof Halfkp81Depth18EnvironmentContinuityError
+            ? error
+            : new Halfkp81Depth18EnvironmentContinuityError(
+                `guardian-sample-failed:${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+        process.send?.({
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+          type: "fault",
+          reason: fault.reason,
+        });
+      }
+    });
+  }, HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_SAMPLE_INTERVAL_MS);
+  timer.unref();
+
+  const finalize = async (
+    request: Extract<
+      PowerContinuityGuardianRequest,
+      { type: "finalize-success" | "finalize-fault" }
+    >,
+  ): Promise<void> => {
+    clearInterval(timer);
+    await tickTail;
+    if (request.type === "finalize-success") {
+      if (fault !== undefined) throw fault;
+      const finalCapture = await captureSystemPowerContinuityObservation(
+        config,
+        captured.cursor,
+      );
+      const finalReason = halfkp81Depth18PowerContinuityFailureReasonForTests(
+        state.start,
+        state.previous,
+        finalCapture.observation,
+      );
+      if (finalReason !== null) {
+        throw new Halfkp81Depth18EnvironmentContinuityError(finalReason);
+      }
+      captured = finalCapture;
+      state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+        state,
+        finalCapture.observation,
+        { kind: "final", binding: request.binding },
+      );
+    } else {
+      const reason = fault?.reason ?? request.reason;
+      let closingObservation = faultObservation;
+      if (closingObservation === undefined) {
+        try {
+          const finalCapture = await captureSystemPowerContinuityObservation(
+            config,
+            captured.cursor,
+          );
+          closingObservation = finalCapture.observation;
+          captured = finalCapture;
+        } catch {
+          // A parser/transport failure has no newer trustworthy observation;
+          // the fault row repeats the last authenticated sample explicitly.
+          closingObservation = state.previous;
+        }
+      }
+      state = appendHalfkp81Depth18PowerContinuityObservationForTests(
+        state,
+        closingObservation,
+        {
+          kind: "terminal-fault",
+          forcedFaultReason: reason,
+          binding: request.binding,
+        },
+      );
+    }
+    await appendPowerContinuityLedgerEntry(
+      handle,
+      state.entries[state.entries.length - 1]!,
+    );
+    await handle.close();
+    closed = true;
+    const ledgerRaw = await readHeldStableFile(
+      config.ledgerPath,
+      "closed v1r11 power continuity ledger",
+    );
+    const ledgerIdentity = fileIdentity(config.ledgerPath, ledgerRaw);
+    const verification =
+      request.type === "finalize-success"
+        ? verifyHalfkp81Depth18PowerContinuityLedgerForTests(state.entries)
+        : verifyHalfkp81Depth18PowerContinuityFaultLedgerForTests(
+            state.entries,
+          );
+    const receipt = Object.freeze({
+      schema:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_SCHEMA,
+      status:
+        request.type === "finalize-success"
+          ? "power-continuity-pass"
+          : "environment-continuity-fault",
+      teacher_plan: config.teacherPlan,
+      run_fingerprint: config.runFingerprint,
+      ledger: ledgerIdentity,
+      verification,
+      binding: request.binding,
+      authority: {
+        may_train: false,
+        may_play_formal_games: false,
+        may_write_live_weights: false,
+      },
+    });
+    const receiptIdentity = await publishCreateOnly(
+      config.receiptPath,
+      canonicalJsonLine(receipt),
+    );
+    process.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type: "finalized",
+      requestId: request.requestId,
+      ledger: ledgerIdentity,
+      receipt: receiptIdentity,
+    });
+  };
+
+  let lastRequestId = 0;
+  process.on("message", (raw: unknown) => {
+    let request: Readonly<PowerContinuityGuardianRequest>;
+    try {
+      request = validatePowerContinuityGuardianRequest(raw, lastRequestId);
+      if (closed) throw new Error("power guardian request follows closure");
+      lastRequestId = request.requestId;
+    } catch (error) {
+      const reason = `guardian-malformed-request:${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      fault ??= new Halfkp81Depth18EnvironmentContinuityError(reason);
+      process.send?.({
+        schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+        type: "fault",
+        reason,
+      });
+      return;
+    }
+    if (request?.type === "check") {
+      tickTail = tickTail
+        .then(sample)
+        .then(() => {
+          if (fault !== undefined) throw fault;
+          process.send?.({
+            schema:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+            type: "checked",
+            requestId: request.requestId,
+          });
+        })
+        .catch((error: unknown) => {
+          process.send?.({
+            schema:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+            type: "fault",
+            requestId: request.requestId,
+            reason:
+              error instanceof Halfkp81Depth18EnvironmentContinuityError
+                ? error.reason
+                : `guardian-check-failed:${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+          });
+        });
+      return;
+    }
+    if (
+      request?.type === "finalize-success" ||
+      request?.type === "finalize-fault"
+    ) {
+      void finalize(request).catch((error: unknown) => {
+        process.send?.({
+          schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+          type: "fatal",
+          requestId: request.requestId,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+  });
+  process.send?.({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+    type: "ready",
+    observedAtMs: state.previous.observed_at_ms,
+    guardianPid: process.pid,
+    caffeinatePid: state.previous.caffeinate_assertion_holder_pid,
+  });
+  await new Promise<void>((resolve) => {
+    process.once("disconnect", resolve);
+  });
+  if (!closed) {
+    clearInterval(timer);
+    await handle.close().catch(() => undefined);
+  }
+}
+
+function waitForGuardianMessage(
+  child: ChildProcess,
+  predicate: (message: Readonly<Record<string, unknown>>) => boolean,
+  timeoutMs = 60_000,
+): Promise<Readonly<Record<string, unknown>>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(
+        new Halfkp81Depth18EnvironmentContinuityError("guardian-ipc-timeout"),
+      );
+    }, timeoutMs);
+    const onMessage = (raw: unknown): void => {
+      if (
+        raw === null ||
+        typeof raw !== "object" ||
+        !predicate(raw as Readonly<Record<string, unknown>>)
+      ) {
+        return;
+      }
+      cleanup();
+      resolve(raw as Readonly<Record<string, unknown>>);
+    };
+    const onExit = (
+      code: number | null,
+      signal: NodeJS.Signals | null,
+    ): void => {
+      cleanup();
+      reject(
+        new Halfkp81Depth18EnvironmentContinuityError(
+          `guardian-exited:${code ?? "signal"}:${signal ?? "none"}`,
+        ),
+      );
+    };
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      child.off("message", onMessage);
+      child.off("exit", onExit);
+    };
+    child.on("message", onMessage);
+    child.once("exit", onExit);
+  });
+}
+
+interface Halfkp81Depth18ClosableGuardianChild {
+  readonly exitCode: number | null;
+  readonly signalCode: NodeJS.Signals | null;
+  readonly connected: boolean;
+  once(event: "exit", listener: () => void): unknown;
+  disconnect(): void;
+  kill(signal: NodeJS.Signals): boolean;
+}
+
+export async function closeHalfkp81Depth18GuardianChildForTests(
+  child: Halfkp81Depth18ClosableGuardianChild,
+  waitForExit: (
+    exited: Promise<void>,
+    timeoutMs: number,
+  ) => Promise<boolean> = async (exited, timeoutMs) =>
+    Promise.race([
+      exited.then(() => true),
+      new Promise<false>((resolve) =>
+        setTimeout(() => resolve(false), timeoutMs),
+      ),
+    ]),
+): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise<void>((resolve) =>
+    child.once("exit", () => resolve()),
+  );
+  if (child.connected) child.disconnect();
+  if (await waitForExit(exited, 5_000)) return;
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.kill("SIGTERM")) {
+    throw new Error("power guardian SIGTERM delivery failed");
+  }
+  if (await waitForExit(exited, 5_000)) return;
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.kill("SIGKILL")) {
+    throw new Error("power guardian SIGKILL delivery failed");
+  }
+  if (!(await waitForExit(exited, 5_000))) {
+    throw new Error("power guardian did not exit after SIGKILL");
+  }
+}
+
+export async function startHalfkp81Depth18V1R11PowerContinuitySession(
+  context: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision?: string;
+    runFingerprint: string;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    inlineLaunchAgentEvidence?: Readonly<Record<string, unknown>>;
+    preformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    ledgerPath?: string;
+    receiptPath?: string;
+  }>,
+): Promise<Halfkp81Depth18PowerContinuitySession> {
+  const config: Halfkp81Depth18PowerContinuityGuardianConfig = Object.freeze({
+    schema: "shogi-halfkp81-depth18-power-continuity-guardian-config-v1r11",
+    runnerPid: process.pid,
+    teacherPlan: context.teacherPlan,
+    ...(context.sourceRevision === undefined
+      ? {}
+      : {
+          sourceRevision: context.sourceRevision,
+          producer: v1r11ImplementationIdentityFromRevision(
+            path.resolve(__dirname, ".."),
+            context.sourceRevision,
+            "ml/halfkp81-depth18-power-continuity-guardian.ts",
+          ),
+        }),
+    runFingerprint: context.runFingerprint,
+    launchAgentAuthority: context.launchAgentAuthority,
+    ...(context.inlineLaunchAgentEvidence === undefined
+      ? {}
+      : { inlineLaunchAgentEvidence: context.inlineLaunchAgentEvidence }),
+    preformalAuthority: context.preformalAuthority,
+    ledgerPath:
+      context.ledgerPath ??
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH,
+    receiptPath:
+      context.receiptPath ??
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH,
+    runnerUtilityArgv: Object.freeze([
+      process.execPath,
+      ...process.execArgv,
+      ...process.argv.slice(1),
+    ]),
+  });
+  validatePowerContinuityOutputTarget(config.ledgerPath);
+  validatePowerContinuityOutputTarget(config.receiptPath);
+  for (const target of [config.ledgerPath, config.receiptPath]) {
+    try {
+      await fs.promises.lstat(target);
+      throw new Error(`power continuity create-only target exists: ${target}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  const guardianPath = path.join(
+    __dirname,
+    "halfkp81-depth18-power-continuity-guardian.ts",
+  );
+  const child = fork(guardianPath, [], {
+    env: {
+      ...process.env,
+      HALFKP81_DEPTH18_POWER_GUARDIAN_CONFIG: Buffer.from(
+        canonicalJson(config),
+        "utf8",
+      ).toString("base64"),
+    },
+    execArgv: process.execArgv,
+    stdio: ["ignore", "inherit", "inherit", "ipc"],
+  });
+  let failureError: Halfkp81Depth18EnvironmentContinuityError | undefined;
+  let finalized = false;
+  let rejectFailure!: (error: Error) => void;
+  const failure = new Promise<never>((_resolve, reject) => {
+    rejectFailure = reject;
+  });
+  void failure.catch(() => undefined);
+  const fail = (reason: string): void => {
+    if (failureError !== undefined) return;
+    failureError = new Halfkp81Depth18EnvironmentContinuityError(reason);
+    rejectFailure(failureError);
+  };
+  const heartbeatWatchdog = startHalfkp81Depth18PowerHeartbeatWatchdogForTests({
+    now: Date.now,
+    schedule(callback, intervalMs) {
+      const timer = setInterval(callback, intervalMs);
+      timer.unref();
+      return timer;
+    },
+    cancel(handle) {
+      clearInterval(handle as NodeJS.Timeout);
+    },
+    fail,
+  });
+  let readySeen = false;
+  let lastGuardianObservedAtMs = -1;
+  let lastGuardianResponseRequestId = 0;
+  child.on("message", (raw: unknown) => {
+    let message: Readonly<Record<string, unknown>>;
+    try {
+      message = validateHalfkp81Depth18PowerGuardianMessageForTests(raw);
+    } catch (error) {
+      fail(
+        `guardian-malformed-ipc:${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return;
+    }
+    if (message.type === "heartbeat" || message.type === "ready") {
+      const observedAtMs = Number(message.observedAtMs);
+      if (
+        observedAtMs <= lastGuardianObservedAtMs ||
+        (message.type === "ready" && readySeen) ||
+        (message.type === "heartbeat" && !readySeen)
+      ) {
+        fail("guardian-stale-duplicate-or-out-of-order-ipc");
+        return;
+      }
+      if (message.type === "ready") readySeen = true;
+      lastGuardianObservedAtMs = observedAtMs;
+      heartbeatWatchdog.heartbeat();
+    }
+    if (message.requestId !== undefined) {
+      const responseRequestId = Number(message.requestId);
+      if (responseRequestId <= lastGuardianResponseRequestId) {
+        fail("guardian-stale-duplicate-or-out-of-order-ipc");
+        return;
+      }
+      lastGuardianResponseRequestId = responseRequestId;
+    }
+    if (message.type === "fault" || message.type === "fatal") {
+      fail(String(message.reason ?? "guardian-fault-without-reason"));
+    }
+  });
+  child.once("exit", (code, signal) => {
+    if (!finalized) {
+      fail(`guardian-exited:${code ?? "signal"}:${signal ?? "none"}`);
+    }
+  });
+  let ready: Readonly<Record<string, unknown>>;
+  try {
+    ready = await waitForGuardianMessage(
+      child,
+      (message) =>
+        message.type === "ready" ||
+        message.type === "fault" ||
+        message.type === "fatal",
+    );
+  } catch (error) {
+    fail(
+      error instanceof Halfkp81Depth18EnvironmentContinuityError
+        ? error.reason
+        : `guardian-ready-ipc-failed:${
+            error instanceof Error ? error.message : String(error)
+          }`,
+    );
+    heartbeatWatchdog.close();
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill("SIGTERM");
+    throw failureError;
+  }
+  if (ready.type !== "ready") {
+    fail(String(ready.reason ?? "guardian-failed-before-ready"));
+    heartbeatWatchdog.close();
+    throw failureError;
+  }
+  if (
+    ready.guardianPid !== child.pid ||
+    !Number.isSafeInteger(ready.caffeinatePid) ||
+    Number(ready.caffeinatePid) < 1
+  ) {
+    fail("guardian-ready-process-identity-mismatch");
+    throw failureError;
+  }
+  const admissionEntry = ready.admissionEntry as
+    Readonly<Record<string, unknown>> | undefined;
+  if (
+    (context.sourceRevision === undefined) !==
+    (admissionEntry === undefined)
+  ) {
+    fail("guardian-ready-admission-contract-mismatch");
+    throw failureError;
+  }
+  const authenticatedGuardianPid = Number(ready.guardianPid);
+  const authenticatedCaffeinatePid = Number(ready.caffeinatePid);
+  let requestId = 0;
+  let enginesStarted = 0;
+  let enginesReaped = 0;
+  let firstEngineStartedAtMs: number | undefined;
+  let lastEngineReapedAtMs: number | undefined;
+  const assertHealthy = async (fresh = false): Promise<void> => {
+    if (failureError !== undefined) throw failureError;
+    if (!fresh) return;
+    const id = ++requestId;
+    child.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type: "check",
+      requestId: id,
+    });
+    let response: Readonly<Record<string, unknown>>;
+    try {
+      response = await waitForGuardianMessage(
+        child,
+        (message) =>
+          (message.type === "checked" || message.type === "fault") &&
+          message.requestId === id,
+      );
+    } catch (error) {
+      fail(
+        error instanceof Halfkp81Depth18EnvironmentContinuityError
+          ? error.reason
+          : `guardian-check-ipc-failed:${
+              error instanceof Error ? error.message : String(error)
+            }`,
+      );
+      throw failureError;
+    }
+    if (response.type === "fault") fail(String(response.reason));
+    if (failureError !== undefined) throw failureError;
+  };
+  const finalize = async (
+    type: "finalize-success" | "finalize-fault",
+    reason?: string,
+    terminalFaultPreimageSha256?: string,
+  ): Promise<
+    Readonly<{
+      ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    }>
+  > => {
+    if (
+      finalized ||
+      enginesStarted !== enginesReaped ||
+      (type === "finalize-success" && enginesStarted < 1) ||
+      (enginesStarted > 0 &&
+        (firstEngineStartedAtMs === undefined ||
+          lastEngineReapedAtMs === undefined))
+    ) {
+      throw new Error(
+        "power guardian cannot finalize before every engine reap",
+      );
+    }
+    const id = ++requestId;
+    const shared = {
+      teacher_plan_sha256: context.teacherPlan.sha256,
+      run_fingerprint: context.runFingerprint,
+      launchagent_authority: context.launchAgentAuthority,
+      preformal_authority: context.preformalAuthority,
+      runner_pid: process.pid,
+      guardian_pid: authenticatedGuardianPid,
+      caffeinate_assertion_holder_pid: authenticatedCaffeinatePid,
+      engines_started: enginesStarted,
+      engines_reaped: enginesReaped,
+      all_yaneuraou_processes_reaped: true as const,
+    };
+    const binding =
+      type === "finalize-success"
+        ? {
+            outcome: "success" as const,
+            ...shared,
+            first_engine_started_at_ms: firstEngineStartedAtMs ?? Date.now(),
+            last_engine_reaped_at_ms: lastEngineReapedAtMs ?? Date.now(),
+          }
+        : {
+            outcome: "environment-continuity-fault" as const,
+            ...shared,
+            first_engine_started_at_ms: firstEngineStartedAtMs ?? null,
+            last_engine_reaped_at_ms: lastEngineReapedAtMs ?? null,
+            terminal_fault_preimage_sha256:
+              terminalFaultPreimageSha256 as string,
+          };
+    child.send?.({
+      schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_GUARDIAN_IPC_SCHEMA,
+      type,
+      requestId: id,
+      ...(reason === undefined ? {} : { reason }),
+      binding,
+    });
+    let response: Readonly<Record<string, unknown>>;
+    try {
+      response = await waitForGuardianMessage(
+        child,
+        (message) =>
+          (message.type === "finalized" || message.type === "fatal") &&
+          message.requestId === id,
+      );
+    } catch (error) {
+      fail(
+        error instanceof Halfkp81Depth18EnvironmentContinuityError
+          ? error.reason
+          : `guardian-finalize-ipc-failed:${
+              error instanceof Error ? error.message : String(error)
+            }`,
+      );
+      throw failureError;
+    }
+    if (failureError !== undefined) throw failureError;
+    if (response.type === "fatal") {
+      fail(String(response.reason));
+      throw failureError;
+    }
+    finalized = true;
+    heartbeatWatchdog.close();
+    return Object.freeze({
+      ledger: Object.freeze(
+        response.ledger as Halfkp81Depth18TeacherFileIdentity,
+      ),
+      receipt: Object.freeze(
+        response.receipt as Halfkp81Depth18TeacherFileIdentity,
+      ),
+    });
+  };
+  return Object.freeze({
+    failure,
+    guardianPid: authenticatedGuardianPid,
+    caffeinatePid: authenticatedCaffeinatePid,
+    ...(admissionEntry === undefined ? {} : { admissionEntry }),
+    assertHealthy,
+    engineStarted(observedAtMs: number): void {
+      enginesStarted += 1;
+      firstEngineStartedAtMs ??= observedAtMs;
+    },
+    engineReaped(observedAtMs: number): void {
+      enginesReaped += 1;
+      lastEngineReapedAtMs = observedAtMs;
+    },
+    finalizeSuccess: () => finalize("finalize-success"),
+    finalizeFault: (reason: string, terminalFaultPreimageSha256: string) =>
+      finalize("finalize-fault", reason, terminalFaultPreimageSha256),
+    async close(): Promise<void> {
+      heartbeatWatchdog.close();
+      await closeHalfkp81Depth18GuardianChildForTests(child);
+    },
+  });
 }
 
 function parentOccurrenceId(gameId: string, ply: number): string {
@@ -1252,12 +3803,15 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     plan.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6;
   const yaneuraOnlyV1R9 =
     plan.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9;
-  const yaneuraOnly = yaneuraOnlyV1R6 || yaneuraOnlyV1R9;
+  const yaneuraOnlyV1R11 =
+    plan.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11;
+  const yaneuraOnlyV1R9Protocol = yaneuraOnlyV1R9 || yaneuraOnlyV1R11;
+  const yaneuraOnly = yaneuraOnlyV1R6 || yaneuraOnlyV1R9Protocol;
   const boundedStable = boundedStableV3R3;
   exactKeys(
     plan,
     yaneuraOnly
-      ? yaneuraOnlyV1R9
+      ? yaneuraOnlyV1R11
         ? [
             "authority",
             "downstream_gates",
@@ -1265,11 +3819,17 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
             "escalation_budgets",
             "family",
             "large_hash_evidence",
+            "live_baseline",
             "outputs",
+            "portable_home_path_binding",
+            "power_continuity",
+            "preformal_authority",
             "predecessor_failures",
             "preregistration",
+            "required_post_formal_gate",
             "required_preformal_gates",
             "reused_selection",
+            "run_identity",
             "schema",
             "selection_evidence",
             "selection_manifest",
@@ -1280,24 +3840,47 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
             "teacher",
             "training",
           ]
-        : [
-            "authority",
-            "downstream_gates",
-            "engine",
-            "outputs",
-            "predecessor_v1r5",
-            "preregistration",
-            "reused_selection",
-            "schema",
-            "selection_evidence",
-            "selection_manifest",
-            "selection_roles",
-            "source_revision",
-            "status",
-            "teacher",
-            "technical_recovery",
-            "training",
-          ]
+        : yaneuraOnlyV1R9
+          ? [
+              "authority",
+              "downstream_gates",
+              "engine",
+              "escalation_budgets",
+              "family",
+              "large_hash_evidence",
+              "outputs",
+              "predecessor_failures",
+              "preregistration",
+              "required_preformal_gates",
+              "reused_selection",
+              "schema",
+              "selection_evidence",
+              "selection_manifest",
+              "selection_roles",
+              "source_revision",
+              "source_revision_policy",
+              "status",
+              "teacher",
+              "training",
+            ]
+          : [
+              "authority",
+              "downstream_gates",
+              "engine",
+              "outputs",
+              "predecessor_v1r5",
+              "preregistration",
+              "reused_selection",
+              "schema",
+              "selection_evidence",
+              "selection_manifest",
+              "selection_roles",
+              "source_revision",
+              "status",
+              "teacher",
+              "technical_recovery",
+              "training",
+            ]
       : boundedStable
         ? [
             "schema",
@@ -1340,16 +3923,20 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       yaneuraOnlyV1R9 &&
       canonicalJson(plan.preregistration) ===
         canonicalJson(EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION);
-    const expectedPreregistration = v1r10Recovery
-      ? EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION
-      : yaneuraOnlyV1R9
-        ? EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION
-        : EXPECTED_YANEURA_ONLY_V1R6_PREREGISTRATION;
-    const yaneuraOnlyLabel = v1r10Recovery
-      ? "v1r10"
-      : yaneuraOnlyV1R9
-        ? "v1r9"
-        : "v1r6";
+    const expectedPreregistration = yaneuraOnlyV1R11
+      ? EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION
+      : v1r10Recovery
+        ? EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION
+        : yaneuraOnlyV1R9
+          ? EXPECTED_YANEURA_ONLY_V1R9_PREREGISTRATION
+          : EXPECTED_YANEURA_ONLY_V1R6_PREREGISTRATION;
+    const yaneuraOnlyLabel = yaneuraOnlyV1R11
+      ? "v1r11"
+      : v1r10Recovery
+        ? "v1r10"
+        : yaneuraOnlyV1R9
+          ? "v1r9"
+          : "v1r6";
     const preregistrationPath = path.join(
       repositoryRoot,
       expectedPreregistration.path,
@@ -1369,20 +3956,20 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
       preregistration.schema !== expectedPreregistration.schema ||
       canonicalJson(plan.preregistration) !==
         canonicalJson(expectedPreregistration) ||
-      (!yaneuraOnlyV1R9 &&
+      (!yaneuraOnlyV1R9Protocol &&
         canonicalJson(plan.predecessor_v1r5) !==
           canonicalJson(preregistration.predecessor_v1r5)) ||
-      (yaneuraOnlyV1R9 &&
+      (yaneuraOnlyV1R9Protocol &&
         canonicalJson(plan.predecessor_failures) !==
           canonicalJson(preregistration.predecessor_failures)) ||
       canonicalJson(plan.reused_selection) !==
         canonicalJson(preregistration.reused_selection) ||
-      (!yaneuraOnlyV1R9 &&
+      (!yaneuraOnlyV1R9Protocol &&
         canonicalJson(plan.technical_recovery) !==
           canonicalJson(preregistration.technical_recovery)) ||
       canonicalJson(plan.downstream_gates) !==
         canonicalJson(preregistration.downstream_gates) ||
-      (yaneuraOnlyV1R9 &&
+      (yaneuraOnlyV1R9Protocol &&
         (canonicalJson(plan.escalation_budgets) !==
           canonicalJson(preregistration.escalation_budgets) ||
           canonicalJson(plan.family) !==
@@ -1393,12 +3980,25 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
             canonicalJson(preregistration.required_preformal_gates) ||
           canonicalJson(plan.source_revision_policy) !==
             canonicalJson(preregistration.source_revision_policy))) ||
+      (yaneuraOnlyV1R11 &&
+        (canonicalJson(plan.power_continuity) !==
+          canonicalJson(preregistration.power_continuity) ||
+          canonicalJson(plan.live_baseline) !==
+            canonicalJson(preregistration.live_baseline) ||
+          canonicalJson(plan.portable_home_path_binding) !==
+            canonicalJson(preregistration.portable_home_path_binding) ||
+          canonicalJson(plan.preformal_authority) !==
+            canonicalJson(preregistration.preformal_authority) ||
+          canonicalJson(plan.required_post_formal_gate) !==
+            canonicalJson(preregistration.required_post_formal_gate) ||
+          canonicalJson(plan.run_identity) !==
+            canonicalJson(preregistration.run_identity))) ||
       canonicalJson(plan.teacher) !== canonicalJson(preregistration.teacher) ||
       canonicalJson(plan.training) !==
         canonicalJson(preregistration.training) ||
       canonicalJson(plan.selection_roles) !==
         canonicalJson(preregistration.selection_roles) ||
-      (!yaneuraOnlyV1R9 &&
+      (!yaneuraOnlyV1R9Protocol &&
         plan.source_revision ===
           sourceRevisionPolicy?.forbidden_failed_v1r5_revision) ||
       canonicalJson(plan.authority) !==
@@ -1427,7 +4027,7 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           candidate_rows: 0,
           worker_processes: 0,
         }) ||
-      (!yaneuraOnlyV1R9 &&
+      (!yaneuraOnlyV1R9Protocol &&
         canonicalJson(ledgerCandidateGeneration) !==
           canonicalJson(HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1))
     ) {
@@ -1445,13 +4045,25 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
         `Yaneura-only ${yaneuraOnlyLabel} output namespace is missing`,
       );
     }
-    const { collision_policy: collisionPolicy, ...expectedOutputs } =
+    const { collision_policy: collisionPolicy, ...portableExpectedOutputs } =
       outputNamespace as Record<string, unknown>;
     if (collisionPolicy !== "create-only-fail-if-any-target-exists") {
       throw new Error(
         `Yaneura-only ${yaneuraOnlyLabel} collision policy differs`,
       );
     }
+    const expectedOutputs = yaneuraOnlyV1R11
+      ? Object.fromEntries(
+          Object.entries(portableExpectedOutputs).map(([key, value]) => [
+            key,
+            expandHalfkp81Depth18V1R11HomePathForTests(
+              String(value),
+              currentCanonicalPasswdHome(),
+              process.env.HOME,
+            ),
+          ]),
+        )
+      : portableExpectedOutputs;
     familyExpectedOutputs = Object.freeze(expectedOutputs);
     teacher = Object.freeze({
       ...(plan.teacher as Readonly<Record<string, unknown>>),
@@ -1593,7 +4205,14 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   const engine = plan.engine as Record<string, unknown>;
   exactKeys(
     engine,
-    ["binary", "eval_file", "eval_tree_sha256", "source_revision", "id"],
+    [
+      "binary",
+      "eval_file",
+      ...(yaneuraOnlyV1R11 ? ["receipt"] : []),
+      "eval_tree_sha256",
+      "source_revision",
+      "id",
+    ],
     "teacher engine",
   );
   if (
@@ -1605,8 +4224,25 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   ) {
     throw new Error("teacher engine binding differs");
   }
+  if (yaneuraOnlyV1R11) {
+    const expectedReceipt = Object.freeze({
+      path: path.join(
+        path.resolve(__dirname, ".."),
+        HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_RELATIVE_PATH,
+      ),
+      bytes: HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_BYTES,
+      sha256: HALFKP81_DEPTH18_TEACHER_ENGINE_RECEIPT_SHA256,
+      schema: "shogi-teacher-engine-receipt-v1",
+    });
+    if (canonicalJson(engine.receipt) !== canonicalJson(expectedReceipt)) {
+      throw new Error("v1r11 teacher engine receipt binding differs");
+    }
+  }
   const outputs = plan.outputs as Record<string, unknown>;
-  exactKeys(outputs, EXPECTED_PLAN_OUTPUT_KEYS, "teacher outputs");
+  const expectedOutputKeys = yaneuraOnlyV1R11
+    ? EXPECTED_PLAN_OUTPUT_KEYS_V1R11
+    : EXPECTED_PLAN_OUTPUT_KEYS;
+  exactKeys(outputs, expectedOutputKeys, "teacher outputs");
   const directory = outputs.directory;
   if (
     typeof directory !== "string" ||
@@ -1615,11 +4251,8 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
   ) {
     throw new Error("teacher output directory is not canonical absolute");
   }
-  const capturedOutputs = {} as Record<
-    (typeof EXPECTED_PLAN_OUTPUT_KEYS)[number],
-    string
-  >;
-  for (const key of EXPECTED_PLAN_OUTPUT_KEYS) {
+  const capturedOutputs: Record<string, string> = {};
+  for (const key of expectedOutputKeys) {
     const output = outputs[key];
     if (
       typeof output !== "string" ||
@@ -1632,10 +4265,9 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
     capturedOutputs[key] = output;
   }
   if (
-    new Set(
-      EXPECTED_PLAN_OUTPUT_KEYS.slice(1).map((key) => capturedOutputs[key]),
-    ).size !==
-    EXPECTED_PLAN_OUTPUT_KEYS.length - 1
+    new Set(expectedOutputKeys.slice(1).map((key) => capturedOutputs[key]))
+      .size !==
+    expectedOutputKeys.length - 1
   ) {
     throw new Error("teacher output paths are not distinct");
   }
@@ -1799,11 +4431,13 @@ export async function authenticateHalfkp81Depth18TeacherPlan(
           ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA_V3R2
           : boundedStableV3
             ? HALFKP81_DEPTH18_BOUNDED_STABLE_TEACHER_PLAN_SCHEMA
-            : yaneuraOnlyV1R9
-              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
-              : yaneuraOnly
-                ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
-                : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
+            : yaneuraOnlyV1R11
+              ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
+              : yaneuraOnlyV1R9
+                ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+                : yaneuraOnly
+                  ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R6
+                  : HALFKP81_DEPTH18_TEACHER_PLAN_SCHEMA,
     }),
     sourceRevision: plan.source_revision,
     selectionIdentity: Object.freeze({
@@ -2154,7 +4788,7 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R6(): Promis
 /** Shared create-only publication for the sealed Hash8192-fallback protocol. */
 async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
   options: Readonly<{
-    familyLabel: "v1r9" | "v1r10";
+    familyLabel: "v1r9" | "v1r10" | "v1r11";
     preregistration: Readonly<Halfkp81Depth18TeacherFileIdentity>;
     outputDirectory: string;
     outputPlanPath: string;
@@ -2295,6 +4929,30 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
       );
     }
   }
+  if (options.familyLabel === "v1r11") {
+    for (const [label, expected] of Object.entries({
+      "v1r10 teacher plan": {
+        path: `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json`,
+        bytes: 16_859,
+        sha256:
+          "9f56b8ab252ce96a4ee0675252e7b54be6cdb26d294dde08d896dce9b7c60b15",
+      },
+      "v1r10 teacher work": {
+        path: `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-work.jsonl`,
+        bytes: 91_081_134,
+        sha256:
+          "39bef71ce5688eb10f47bdbc6e6aa8f1dd884a6f0a244bf090134cd7c10440ff",
+      },
+      "v1r10 terminal fault": {
+        path: `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-terminal-fault.json`,
+        bytes: 1_084,
+        sha256:
+          "436e9c6dfe5d8824cf89b1616ed82e082bfdafe67e7e8ed6870bb5e2d5539997",
+      },
+    })) {
+      await authenticateFixedFile(expected, label);
+    }
+  }
   const selectionEvidence = {
     ...(predecessor.selection_evidence as Record<string, unknown>),
     source_revision: sourceRevision,
@@ -2303,7 +4961,21 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
     string,
     unknown
   >;
-  const { collision_policy: collisionPolicy, ...outputs } = outputNamespace;
+  const { collision_policy: collisionPolicy, ...portableOutputs } =
+    outputNamespace;
+  const outputs =
+    options.familyLabel === "v1r11"
+      ? Object.fromEntries(
+          Object.entries(portableOutputs).map(([key, value]) => [
+            key,
+            expandHalfkp81Depth18V1R11HomePathForTests(
+              String(value),
+              currentCanonicalPasswdHome(),
+              process.env.HOME,
+            ),
+          ]),
+        )
+      : portableOutputs;
   if (
     collisionPolicy !== "create-only-fail-if-any-target-exists" ||
     outputs.directory !== options.outputDirectory ||
@@ -2321,6 +4993,14 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+  const v1r11 = options.familyLabel === "v1r11";
+  const v1r11EngineReceipt = v1r11
+    ? await authenticateEngineReceipt(
+        repositoryRoot,
+        predecessor.engine
+          .binary as Readonly<Halfkp81Depth18TeacherFileIdentity>,
+      )
+    : undefined;
   const plan = Object.freeze({
     authority: {
       may_execute_teacher: true,
@@ -2329,16 +5009,38 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
       may_write_live_weights: false,
     },
     downstream_gates: preregistration.downstream_gates,
-    engine: predecessor.engine,
+    engine: v1r11
+      ? {
+          ...(predecessor.engine as Readonly<Record<string, unknown>>),
+          receipt: v1r11EngineReceipt,
+        }
+      : predecessor.engine,
     escalation_budgets: preregistration.escalation_budgets,
     family: preregistration.family,
     large_hash_evidence: preregistration.large_hash_evidence,
+    ...(v1r11
+      ? {
+          live_baseline: preregistration.live_baseline,
+          portable_home_path_binding:
+            preregistration.portable_home_path_binding,
+          power_continuity: preregistration.power_continuity,
+          preformal_authority: preregistration.preformal_authority,
+        }
+      : {}),
     outputs,
     predecessor_failures: preregistration.predecessor_failures,
     preregistration: options.preregistration,
     required_preformal_gates: preregistration.required_preformal_gates,
+    ...(v1r11
+      ? {
+          required_post_formal_gate: preregistration.required_post_formal_gate,
+        }
+      : {}),
     reused_selection: preregistration.reused_selection,
-    schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+    ...(v1r11 ? { run_identity: preregistration.run_identity } : {}),
+    schema: v1r11
+      ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
+      : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
     selection_evidence: selectionEvidence,
     selection_manifest: predecessor.selection_manifest,
     selection_roles: preregistration.selection_roles,
@@ -2357,7 +5059,9 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
   );
   if (
     authenticated.planIdentity.schema !==
-      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9 ||
+      (v1r11
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
+        : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9) ||
     authenticated.planIdentity.sha256 !== planIdentity.sha256
   ) {
     throw new Error(
@@ -2366,7 +5070,9 @@ async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol(
   }
   return Object.freeze({
     ...planIdentity,
-    schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+    schema: v1r11
+      ? HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11
+      : HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
   });
 }
 
@@ -2391,6 +5097,18 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R10(): Promi
     preregistration: EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION,
     outputDirectory: HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY,
     outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH,
+  });
+}
+
+/** Create-only v1r11 recovery with independently verified AC continuity. */
+export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11(): Promise<
+  Readonly<Halfkp81Depth18TeacherFileIdentity>
+> {
+  return publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol({
+    familyLabel: "v1r11",
+    preregistration: EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION,
+    outputDirectory: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+    outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
   });
 }
 
@@ -2574,7 +5292,8 @@ function validateFormalWorkEntry(
   const resetTimeoutRecoveryV1R6 =
     header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R6;
   const hashFallbackV1R9 =
-    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
+    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 ||
+    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
   exactKeys(
     entry as unknown as Record<string, unknown>,
     yaneuraOnly
@@ -3461,6 +6180,7 @@ async function runWorkers(
   contract: Readonly<Halfkp81Depth18TeacherCoreContract>,
   runtimeRoot: string,
   publishedMilestones: Set<number>,
+  powerContinuity?: Readonly<Halfkp81Depth18PowerContinuitySession>,
 ): Promise<void> {
   const parentMap = new Map(
     authenticated.parents.map((parent) => [parent.parent_id, parent] as const),
@@ -3485,7 +6205,8 @@ async function runWorkers(
   const stablePolicy = dependencies.stablePolicy ?? "required-depth11-v2";
   const yaneuraOnly = stablePolicy === "yaneuraou-only-v1";
   const hashFallbackV1R9 =
-    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9;
+    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9 ||
+    header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
   const fallbackSemaphore = new FifoSemaphore(
     HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_CONCURRENCY,
   );
@@ -3607,11 +6328,45 @@ async function runWorkers(
   }
   let next = 0;
   let failure: Error | undefined;
+  const activeEngines = new Set<Halfkp81Depth18TeacherEngine>();
+  const reapingEngines = new Map<Halfkp81Depth18TeacherEngine, Promise<void>>();
+  const stopEngine = async (
+    engine: Halfkp81Depth18TeacherEngine | undefined,
+  ): Promise<void> => {
+    if (engine === undefined || !activeEngines.has(engine)) return;
+    const existing = reapingEngines.get(engine);
+    if (existing !== undefined) return existing;
+    const operation = engine.quit().then(() => {
+      activeEngines.delete(engine);
+      powerContinuity?.engineReaped(dependencies.now?.() ?? Date.now());
+    });
+    reapingEngines.set(engine, operation);
+    try {
+      await operation;
+    } finally {
+      reapingEngines.delete(engine);
+    }
+  };
+  const reapAllActiveEngines = async (): Promise<void> => {
+    await Promise.all([...activeEngines].map((engine) => stopEngine(engine)));
+  };
+  let powerFailureReap: Promise<void> | undefined;
+  const powerFailureWatcher = powerContinuity?.failure.catch(
+    async (error: unknown) => {
+      failure ??=
+        error instanceof Error
+          ? error
+          : new Halfkp81Depth18EnvironmentContinuityError(String(error));
+      powerFailureReap = reapAllActiveEngines();
+      await powerFailureReap;
+    },
+  );
   let appendTail: Promise<void> = Promise.resolve();
   const persist = async (
     entry: Halfkp81Depth18TeacherWorkEntry,
   ): Promise<void> => {
     const operation = appendTail.then(async () => {
+      await powerContinuity?.assertHealthy();
       await appendDurable(workHandle, entry);
       entries.set(entry.parent_id, entry);
       activeFallbackReservations.delete(entry.parent_id);
@@ -3648,6 +6403,7 @@ async function runWorkers(
           );
         }
       }
+      await powerContinuity?.assertHealthy();
       await publishReadyMilestones(
         authenticated,
         contract,
@@ -3672,7 +6428,8 @@ async function runWorkers(
         ): Promise<Halfkp81Depth18TeacherEngine> => {
           const cwd = path.join(workerCwd, `engine-${generation++}`);
           await fs.promises.mkdir(cwd, { mode: 0o700 });
-          return createEngine({
+          await powerContinuity?.assertHealthy();
+          const started = await createEngine({
             engineBin: authenticated.engine.binary.path,
             evalDir: path.dirname(authenticated.engine.eval_file.path),
             cwd,
@@ -3681,10 +6438,24 @@ async function runWorkers(
             hashMb,
             timeoutMs: parentTimeoutMs,
           });
+          activeEngines.add(started);
+          powerContinuity?.engineStarted(dependencies.now?.() ?? Date.now());
+          try {
+            // Close the create/register race with the independent guardian:
+            // a failure that fired while createEngine was pending may have
+            // reaped an earlier snapshot before this engine was registered.
+            await powerContinuity?.assertHealthy();
+            if (failure !== undefined) throw failure;
+            return started;
+          } catch (error) {
+            await stopEngine(started).catch(() => undefined);
+            throw error;
+          }
         };
         try {
           engine = await startEngine();
           while (failure === undefined) {
+            await powerContinuity?.assertHealthy();
             const parent = pending[next++];
             if (parent === undefined || engine === undefined) break;
             try {
@@ -3776,7 +6547,7 @@ async function runWorkers(
                         }
                         const failedNormalEngine = engine;
                         engine = undefined;
-                        await failedNormalEngine?.quit();
+                        await stopEngine(failedNormalEngine);
                         reserveFallbackBudget(
                           authenticated.roles.get(
                             parent.parent_id,
@@ -3811,13 +6582,13 @@ async function runWorkers(
                                   depth: HALFKP81_DEPTH18_TEACHER_RESCORE_DEPTH,
                                 },
                               );
-                              await fallbackEngine.quit();
+                              await stopEngine(fallbackEngine);
                               fallbackEngine = undefined;
                               break;
                             } catch (fallbackError) {
                               const failedFallbackEngine = fallbackEngine;
                               fallbackEngine = undefined;
-                              await failedFallbackEngine?.quit();
+                              await stopEngine(failedFallbackEngine);
                               if (
                                 !(
                                   fallbackError instanceof
@@ -3870,7 +6641,7 @@ async function runWorkers(
                           }
                         } finally {
                           try {
-                            await fallbackEngine?.quit();
+                            await stopEngine(fallbackEngine);
                           } finally {
                             release();
                           }
@@ -4015,7 +6786,7 @@ async function runWorkers(
                           operation,
                           parentTimeoutMs,
                           async () => {
-                            await engine?.quit().catch(() => undefined);
+                            await stopEngine(engine).catch(() => undefined);
                             engine = undefined;
                           },
                         );
@@ -4049,7 +6820,7 @@ async function runWorkers(
                   });
                   const failedEngine = engine;
                   engine = undefined;
-                  await failedEngine?.quit();
+                  await stopEngine(failedEngine);
                   engine = await startEngine();
                   process.stderr.write(
                     `[halfkp81-depth18-teacher] resetForParent timeout for ${parent.parent_id}; recycled worker ${workerIndex} engine and retrying whole parent 1/1\n`,
@@ -4072,17 +6843,28 @@ async function runWorkers(
             }`,
           );
         } finally {
-          await engine?.quit().catch(() => undefined);
+          await stopEngine(engine).catch(() => undefined);
         }
       },
     );
     await Promise.all(workers);
+    await Promise.resolve();
+    if (powerFailureReap !== undefined) await powerFailureWatcher;
+    await reapAllActiveEngines();
+    if (activeEngines.size !== 0) {
+      throw new Error("YaneuraOu engine reap did not complete");
+    }
     await appendTail;
   } finally {
+    await reapAllActiveEngines();
+    if (activeEngines.size !== 0) {
+      throw new Error("YaneuraOu engine remained active after reap");
+    }
     await appendTail.catch(() => undefined);
     await workHandle.close();
   }
   if (failure !== undefined) throw failure;
+  await powerContinuity?.assertHealthy();
 }
 
 function roleArtifactBytes(
@@ -4109,29 +6891,295 @@ function roleArtifactBytes(
   return { bytes, rows: records.length, parents };
 }
 
+function v1r11FullIdentity(
+  identity: Readonly<Halfkp81Depth18TeacherFileIdentity>,
+  schema: string,
+): Readonly<Halfkp81Depth18TeacherFileIdentity> {
+  return Object.freeze({ ...identity, schema });
+}
+
+export function buildHalfkp81Depth18V1R11FrozenWorkHeaderForTests(
+  value: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    runFingerprint: string;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    verifiedPreformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    powerAdmissionEntry: Readonly<Record<string, unknown>>;
+    openedAtUtc: string;
+  }>,
+): Readonly<Halfkp81Depth18V1R11TeacherWorkHeader> {
+  if (
+    !REVISION_RE.test(value.sourceRevision) ||
+    !SHA256_RE.test(value.runFingerprint) ||
+    !Number.isFinite(new Date(value.openedAtUtc).getTime())
+  ) {
+    throw new Error("v1r11 frozen work header inputs differ");
+  }
+  return Object.freeze({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+    status: "formal-work-ledger-open",
+    record_kind: "header",
+    teacher_plan: value.teacherPlan,
+    source_revision: value.sourceRevision,
+    run_fingerprint: value.runFingerprint,
+    launchagent_authority_evidence: value.launchAgentAuthority,
+    preformal_authority_verified_receipt: value.verifiedPreformalAuthority,
+    power_admission_entry: value.powerAdmissionEntry,
+    opened_at_utc: new Date(value.openedAtUtc).toISOString(),
+  });
+}
+
+export function buildHalfkp81Depth18V1R11FrozenRawReceiptForTests(
+  value: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    runFingerprint: string;
+    teacherWork: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    teacherOutput: Readonly<
+      Record<
+        Halfkp81Depth18TeacherRole,
+        Readonly<Halfkp81Depth18TeacherFileIdentity>
+      >
+    >;
+    preformalLedger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    preformalRawReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    verifiedPreformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    powerLedger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    powerReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    finalizer: Readonly<Record<string, unknown>>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  if (
+    !REVISION_RE.test(value.sourceRevision) ||
+    !SHA256_RE.test(value.runFingerprint)
+  ) {
+    throw new Error("v1r11 frozen raw receipt inputs differ");
+  }
+  return Object.freeze({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_RECEIPT_SCHEMA_V1R11,
+    status: "complete-unverified-no-training-authority",
+    teacher_plan: value.teacherPlan,
+    source_revision: value.sourceRevision,
+    run_fingerprint: value.runFingerprint,
+    teacher_work: value.teacherWork,
+    teacher_output: Object.freeze({ ...value.teacherOutput }),
+    preformal_authority_ledger: value.preformalLedger,
+    preformal_authority_raw_receipt: value.preformalRawReceipt,
+    preformal_authority_verified_receipt: value.verifiedPreformalAuthority,
+    launchagent_authority_evidence: value.launchAgentAuthority,
+    power_continuity_ledger: value.powerLedger,
+    power_continuity_receipt: value.powerReceipt,
+    finalizer: value.finalizer,
+    authority: Object.freeze({
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
+function v1r11EnvironmentFaultPreimage(
+  value: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    runFingerprint: string | null;
+    verifiedPreformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    processCleanupEvidence?: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    processCleanup?: Readonly<{
+      scheduling_stopped: true;
+      engines_terminated: number;
+      engines_reaped: number;
+      remaining_engine_pids: readonly number[];
+    }>;
+    fault: Readonly<Record<string, unknown>>;
+    faultedAtUtc: string;
+  }>,
+): Readonly<Record<string, unknown>> {
+  const cleanup = value.processCleanup;
+  if (
+    value.processCleanupEvidence === undefined ||
+    value.processCleanupEvidence.schema !==
+      "shogi-halfkp81-depth18-yaneura-only-process-cleanup-evidence-v1r11" ||
+    !path.isAbsolute(value.processCleanupEvidence.path) ||
+    !Number.isSafeInteger(value.processCleanupEvidence.bytes) ||
+    value.processCleanupEvidence.bytes < 1 ||
+    !SHA256_RE.test(value.processCleanupEvidence.sha256) ||
+    cleanup === undefined ||
+    cleanup.scheduling_stopped !== true ||
+    !Number.isSafeInteger(cleanup.engines_terminated) ||
+    cleanup.engines_terminated < 0 ||
+    !Number.isSafeInteger(cleanup.engines_reaped) ||
+    cleanup.engines_reaped < 0 ||
+    cleanup.engines_reaped !== cleanup.engines_terminated ||
+    !Array.isArray(cleanup.remaining_engine_pids) ||
+    cleanup.remaining_engine_pids.length !== 0
+  ) {
+    throw new Error("v1r11 rich cleanup evidence is required before environment fault");
+  }
+  return Object.freeze({
+    schema: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA,
+    status: "environment-continuity-fault-family-closed",
+    teacher_plan: value.teacherPlan,
+    source_revision: value.sourceRevision,
+    run_fingerprint: value.runFingerprint,
+    preformal_authority_verified_receipt: value.verifiedPreformalAuthority,
+    launchagent_authority_evidence: value.launchAgentAuthority,
+    fault: value.fault,
+    process_cleanup_evidence: value.processCleanupEvidence,
+    process_cleanup: Object.freeze({
+      ...cleanup,
+      remaining_engine_pids: Object.freeze([]),
+    }),
+    faulted_at_utc: new Date(value.faultedAtUtc).toISOString(),
+    authority: Object.freeze({
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
+/**
+ * Runner-owned environment-fault intent. This deliberately excludes process
+ * cleanup because the final LaunchAgent supervisor cannot prove cleanup until
+ * the runner and its service have stopped. The guardian seals the digest of
+ * this intent into its final fault row/receipt; only the outer supervisor may
+ * later combine it with rich cleanup evidence and publish the terminal fault.
+ */
+export function buildHalfkp81Depth18V1R11EnvironmentFaultIntentForTests(
+  value: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    runFingerprint: string | null;
+    verifiedPreformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    fault: Readonly<{ kind: "environment-continuity"; message: string }>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  if (
+    !REVISION_RE.test(value.sourceRevision) ||
+    (value.runFingerprint !== null && !SHA256_RE.test(value.runFingerprint)) ||
+    !SHA256_RE.test(value.teacherPlan.sha256) ||
+    !SHA256_RE.test(value.verifiedPreformalAuthority.sha256) ||
+    !SHA256_RE.test(value.launchAgentAuthority.sha256) ||
+    value.fault.kind !== "environment-continuity" ||
+    value.fault.message.length < 1
+  ) {
+    throw new Error("v1r11 environment fault intent differs");
+  }
+  return Object.freeze({
+    schema:
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_ENVIRONMENT_FAULT_INTENT_SCHEMA,
+    status: "runner-closed-power-fault-awaiting-outer-cleanup",
+    teacher_plan: value.teacherPlan,
+    source_revision: value.sourceRevision,
+    run_fingerprint: value.runFingerprint,
+    preformal_authority_verified_receipt: value.verifiedPreformalAuthority,
+    launchagent_authority_evidence: value.launchAgentAuthority,
+    fault: Object.freeze({ ...value.fault }),
+    authority: Object.freeze({
+      may_publish_terminal_fault: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
+export function buildHalfkp81Depth18V1R11FrozenEnvironmentFaultForTests(
+  value: Parameters<typeof v1r11EnvironmentFaultPreimage>[0] &
+    Readonly<{
+      powerLedger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      powerReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      faultPreimageSha256: string;
+    }>,
+): Readonly<Record<string, unknown>> {
+  if (!SHA256_RE.test(value.faultPreimageSha256)) {
+    throw new Error("v1r11 environment fault preimage digest differs");
+  }
+  const preimage = v1r11EnvironmentFaultPreimage(value);
+  return Object.freeze({
+    ...preimage,
+    power_continuity_ledger: value.powerLedger,
+    power_continuity_receipt: value.powerReceipt,
+    fault_preimage_sha256: value.faultPreimageSha256,
+  });
+}
+
+function terminalFaultPreimage(
+  authenticated: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
+  runFingerprint: string | null,
+  message: string,
+  completedParents: number,
+  environmentFault: boolean,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    schema: environmentFault
+      ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA
+      : HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA,
+    status: "terminal-fault-family-stopped",
+    teacher_plan: authenticated.planIdentity,
+    run_fingerprint: runFingerprint,
+    completed_parents: completedParents,
+    technical_faults: 1,
+    incomplete_parents: authenticated.parents.length - completedParents,
+    message,
+    authority: {
+      may_resume_same_family: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    },
+  });
+}
+
 async function publishTerminalFault(
   authenticated: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
   runFingerprint: string | null,
   message: string,
   completedParents: number,
+  powerContinuity?: Readonly<{
+    ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    launchAgentAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    preformalAuthority: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    environmentFault: boolean;
+    faultPreimageSha256?: string;
+    faultedAtUtc?: string;
+  }>,
 ): Promise<void> {
+  if (
+    authenticated.planIdentity.schema ===
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 &&
+    powerContinuity?.environmentFault
+  ) {
+    throw new Error(
+      "v1r11 environment terminal fault publication is outer-supervisor-only",
+    );
+  }
   await publishCreateOnly(
     authenticated.outputs.terminal_fault_json,
     canonicalJsonLine({
-      schema: HALFKP81_DEPTH18_TEACHER_FAULT_SCHEMA,
-      status: "terminal-fault-family-stopped",
-      teacher_plan: authenticated.planIdentity,
-      run_fingerprint: runFingerprint,
-      completed_parents: completedParents,
-      technical_faults: 1,
-      incomplete_parents: authenticated.parents.length - completedParents,
-      message,
-      authority: {
-        may_resume_same_family: false,
-        may_train: false,
-        may_play_formal_games: false,
-        may_write_live_weights: false,
-      },
+      ...terminalFaultPreimage(
+        authenticated,
+        runFingerprint,
+        message,
+        completedParents,
+        powerContinuity?.environmentFault ?? false,
+      ),
+      ...(powerContinuity === undefined
+        ? {}
+        : {
+            power_continuity: {
+              ledger: powerContinuity.ledger,
+              receipt: powerContinuity.receipt,
+              launchagent_authority: powerContinuity.launchAgentAuthority,
+              preformal_authority: powerContinuity.preformalAuthority,
+            },
+          }),
     }),
   );
 }
@@ -4198,6 +7246,87 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
   const recoveryV1R9 =
     authenticated.planIdentity.schema ===
     HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9;
+  const recoveryV1R11 =
+    authenticated.planIdentity.schema ===
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11;
+  const v1r11PowerTestHarness =
+    authenticated.planIdentity.schema ===
+    HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA;
+  const v1r11PowerProtocol = recoveryV1R11 || v1r11PowerTestHarness;
+  const recoveryV1R9Protocol = recoveryV1R9 || v1r11PowerProtocol;
+  if (
+    (v1r11PowerProtocol && dependencies.startPowerContinuity === undefined) ||
+    (!v1r11PowerProtocol && dependencies.startPowerContinuity !== undefined) ||
+    (recoveryV1R11 &&
+      (dependencies.v1r11FormalAuthority === undefined ||
+        dependencies.expectedV1R11RunFingerprint === undefined ||
+        !SHA256_RE.test(dependencies.expectedV1R11RunFingerprint) ||
+        !trustedV1R11FormalAuthorities.has(
+          dependencies.v1r11FormalAuthority as object,
+        ))) ||
+    (!recoveryV1R11 &&
+      (dependencies.v1r11FormalAuthority !== undefined ||
+        dependencies.expectedV1R11RunFingerprint !== undefined))
+  ) {
+    throw new Error(
+      "power-continuity guardian and trusted live LaunchAgent capability are mandatory only for Yaneura-only v1r11",
+    );
+  }
+  const v1r11Authority = recoveryV1R11
+    ? dependencies.v1r11FormalAuthority!
+    : v1r11PowerTestHarness
+      ? Object.freeze({
+          plannedFinalDescriptor: Object.freeze({
+            path: path.join(
+              authenticated.outputs.directory,
+              ".v1r11-power-test-planned-final-descriptor.plist",
+            ),
+            bytes: 0,
+            sha256: "0".repeat(64),
+            schema: "application/x-apple-aspen-config-exact-bytes",
+          }),
+          launchAgentEvidence: Object.freeze({
+            path: path.join(
+              authenticated.outputs.directory,
+              ".v1r11-power-test-launchagent-evidence.json",
+            ),
+            bytes: 0,
+            sha256: "0".repeat(64),
+            schema:
+              "shogi-halfkp81-depth18-v1r11-power-test-launchagent-evidence-v1",
+          }),
+          verifiedPreformalAuthority: Object.freeze({
+            path: path.join(
+              authenticated.outputs.directory,
+              ".v1r11-power-test-preformal-authority.json",
+            ),
+            bytes: 0,
+            sha256: "0".repeat(64),
+            schema:
+              "shogi-halfkp81-depth18-v1r11-power-test-preformal-authority-v1",
+          }),
+          preformalLedger: Object.freeze({
+            path: path.join(
+              authenticated.outputs.directory,
+              ".v1r11-power-test-preformal-ledger.jsonl",
+            ),
+            bytes: 0,
+            sha256: "0".repeat(64),
+            schema:
+              "shogi-halfkp81-depth18-v1r11-power-test-preformal-ledger-v1",
+          }),
+          preformalRawReceipt: Object.freeze({
+            path: path.join(
+              authenticated.outputs.directory,
+              ".v1r11-power-test-preformal-raw-receipt.json",
+            ),
+            bytes: 0,
+            sha256: "0".repeat(64),
+            schema:
+              "shogi-halfkp81-depth18-v1r11-power-test-preformal-raw-receipt-v1",
+          }),
+        })
+      : undefined;
   if (
     recoveryV1R5 &&
     (stablePolicy !== "yaneuraou-only-v1" ||
@@ -4225,7 +7354,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
     );
   }
   if (
-    recoveryV1R9 &&
+    recoveryV1R9Protocol &&
     (stablePolicy !== "yaneuraou-only-v1" ||
       dependencies.processes !== HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PROCESSES ||
       dependencies.parentTimeoutMs !==
@@ -4240,7 +7369,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
   }
   if (
     !recoveryV1R6 &&
-    !recoveryV1R9 &&
+    !recoveryV1R9Protocol &&
     dependencies.resetTimeoutRecoveryPolicy !== undefined &&
     dependencies.resetTimeoutRecoveryPolicy !== "fatal"
   ) {
@@ -4273,7 +7402,19 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  const priorReceipt = await existingReceipt(authenticated);
+  if (recoveryV1R11) {
+    try {
+      await fs.promises.lstat(authenticated.outputs.receipt_json);
+      throw new Error(
+        "v1r11 existing receipt must be handled by the independent continuity verifier",
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  const priorReceipt = recoveryV1R11
+    ? undefined
+    : await existingReceipt(authenticated);
   if (priorReceipt !== undefined) return priorReceipt;
   const repositoryRoot = path.resolve(__dirname, "..");
   const fixedAssets =
@@ -4315,49 +7456,148 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
   let runtimeRoot: string | undefined;
   let header: Halfkp81Depth18TeacherWorkHeader | undefined;
   let entries = new Map<string, Halfkp81Depth18TeacherWorkEntry>();
+  let powerContinuity: Halfkp81Depth18PowerContinuitySession | undefined;
+  let powerContinuityIdentities:
+    | Readonly<{
+        ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+        receipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+      }>
+    | undefined;
   try {
-    const fingerprintBase = {
-      teacher_plan: authenticated.planIdentity,
-      selection_jsonl: authenticated.selectionIdentity,
-      selection_manifest: authenticated.selectionManifestIdentity,
-      source_revision: authenticated.sourceRevision,
-      engine: { binary, eval_file: evalFile, receipt: engineReceipt },
-      teacher: authenticated.teacher,
-    };
-    const fingerprintPayload = yaneuraOnly
-      ? {
-          ...fingerprintBase,
-          candidate_generation: recoveryV1R9
-            ? HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9
-            : HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
-        }
-      : {
-          ...fingerprintBase,
-          stable_runtime: {
-            receipt_sha256: (
-              stable as Readonly<Halfkp81Depth18TeacherStableRuntime>
-            ).receiptDigest,
-            receipt: (stable as Readonly<Halfkp81Depth18TeacherStableRuntime>)
-              .receipt,
+    const fingerprintPayload = recoveryV1R11
+      ? undefined
+      : (() => {
+          const fingerprintBase = {
+            teacher_plan: authenticated.planIdentity,
+            selection_jsonl: authenticated.selectionIdentity,
+            selection_manifest: authenticated.selectionManifestIdentity,
+            source_revision: authenticated.sourceRevision,
+            engine: { binary, eval_file: evalFile, receipt: engineReceipt },
+            teacher: authenticated.teacher,
+            ...(v1r11PowerProtocol
+              ? {
+                  launchagent_authority: v1r11Authority!.launchAgentEvidence,
+                  preformal_authority:
+                    v1r11Authority!.verifiedPreformalAuthority,
+                }
+              : {}),
+          };
+          return yaneuraOnly
+            ? {
+                ...fingerprintBase,
+                candidate_generation: recoveryV1R9Protocol
+                  ? HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9
+                  : HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1,
+              }
+            : {
+                ...fingerprintBase,
+                stable_runtime: {
+                  receipt_sha256: (
+                    stable as Readonly<Halfkp81Depth18TeacherStableRuntime>
+                  ).receiptDigest,
+                  receipt: (
+                    stable as Readonly<Halfkp81Depth18TeacherStableRuntime>
+                  ).receipt,
+                },
+              };
+        })();
+    const effectiveRunFingerprint = recoveryV1R11
+      ? halfkp81V1R11FormalRunFingerprintV2({
+          teacherPlan: authenticated.planIdentity as Required<
+            Halfkp81Depth18TeacherFileIdentity
+          >,
+          selectionJsonl: authenticated.selectionIdentity as Required<
+            Halfkp81Depth18TeacherFileIdentity
+          >,
+          selectionManifest:
+            authenticated.selectionManifestIdentity as Required<
+              Halfkp81Depth18TeacherFileIdentity
+            >,
+          sourceRevision: authenticated.sourceRevision,
+          engine: {
+            binary: Object.freeze({
+              ...binary,
+              schema: HALFKP81_V1R11_ENGINE_BINARY_IDENTITY_SCHEMA,
+            }),
+            evalFile: Object.freeze({
+              ...evalFile,
+              schema: HALFKP81_V1R11_ENGINE_EVAL_IDENTITY_SCHEMA,
+            }),
+            receipt: engineReceipt as Required<Halfkp81Depth18TeacherFileIdentity>,
           },
+          teacherContract: authenticated.teacher,
+          candidateContract:
+            HALFKP81_DEPTH18_YANEURA_ONLY_CANDIDATE_GENERATION_V1R9,
+          plannedFinalDescriptor:
+            v1r11Authority!.plannedFinalDescriptor as Required<
+              Halfkp81Depth18TeacherFileIdentity
+            >,
+        })
+      : sha256(
+          `${WORK_FINGERPRINT_DOMAIN}${canonicalJson(fingerprintPayload)}`,
+        );
+    if (recoveryV1R11) {
+      assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForTests(
+        effectiveRunFingerprint,
+        dependencies.expectedV1R11RunFingerprint!,
+      );
+    }
+    if (dependencies.startPowerContinuity !== undefined) {
+      powerContinuity = await dependencies.startPowerContinuity({
+        teacherPlan: authenticated.planIdentity,
+        sourceRevision: authenticated.sourceRevision,
+        runFingerprint: effectiveRunFingerprint,
+        launchAgentAuthority: v1r11Authority!.launchAgentEvidence,
+        preformalAuthority: v1r11Authority!.verifiedPreformalAuthority,
+      });
+      await powerContinuity.assertHealthy();
+    }
+    header = recoveryV1R11
+      ? buildHalfkp81Depth18V1R11FrozenWorkHeaderForTests({
+          teacherPlan: authenticated.planIdentity,
+          sourceRevision: authenticated.sourceRevision,
+          runFingerprint: effectiveRunFingerprint,
+          launchAgentAuthority: v1r11Authority!.launchAgentEvidence,
+          verifiedPreformalAuthority:
+            v1r11Authority!.verifiedPreformalAuthority,
+          powerAdmissionEntry:
+            powerContinuity?.admissionEntry ??
+            (() => {
+              throw new Error(
+                "v1r11 power guardian did not return the frozen admission entry",
+              );
+            })(),
+          openedAtUtc: new Date(
+            dependencies.now?.() ?? Date.now(),
+          ).toISOString(),
+        })
+      : {
+          schema: yaneuraOnly
+            ? yaneuraOnlyWorkSchema(authenticated.planIdentity.schema)
+            : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
+          kind: "header",
+          run_fingerprint: effectiveRunFingerprint,
+          ...fingerprintPayload!,
+          label_policy: SIBLING_TEACHER_LABEL_POLICY,
         };
-    const runFingerprint = sha256(
-      `${WORK_FINGERPRINT_DOMAIN}${canonicalJson(fingerprintPayload)}`,
-    );
-    header = {
-      schema: yaneuraOnly
-        ? yaneuraOnlyWorkSchema(authenticated.planIdentity.schema)
-        : HALFKP81_DEPTH18_TEACHER_WORK_SCHEMA,
-      kind: "header",
-      run_fingerprint: runFingerprint,
-      ...fingerprintPayload,
-      label_policy: SIBLING_TEACHER_LABEL_POLICY,
-    };
     const parentMap = new Map(
       authenticated.parents.map(
         (parent) => [parent.parent_id, parent] as const,
       ),
     );
+    if (recoveryV1R11) {
+      await importHalfkp81Depth18V1R10CompletedSetIntoV1R11({
+        repositoryRoot,
+        targetWorkPath: authenticated.outputs.work_jsonl,
+        targetHeader: header as unknown as Readonly<Record<string, unknown>>,
+        targetRunFingerprint: effectiveRunFingerprint,
+        selectionOrderedParentIds: authenticated.parents.map(
+          (parent) => parent.parent_id,
+        ),
+        authorityDirectory:
+          HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
+      });
+    }
     entries = await initializeWork(
       authenticated.outputs.work_jsonl,
       header,
@@ -4386,12 +7626,15 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       contract,
       runtimeRoot,
       publishedMilestones,
+      powerContinuity,
     );
     if (entries.size !== contract.parentCount) {
       throw new Error(
         `formal work is incomplete: ${entries.size}/${contract.parentCount} parents`,
       );
     }
+    await powerContinuity?.assertHealthy(true);
+    powerContinuityIdentities = await powerContinuity?.finalizeSuccess();
     const artifacts = {} as Record<
       Halfkp81Depth18TeacherRole,
       {
@@ -4428,51 +7671,100 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
         "completed teacher row count is outside the sealed bounds",
       );
     }
-    const receipt = {
-      schema: HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
-      status: "structurally-complete-awaiting-artifact-verification",
-      teacher_plan: authenticated.planIdentity,
-      completed_parents: contract.parentCount,
-      completed_rows: completedRows,
-      role_parents: Object.fromEntries(
-        (["fit", "tune", "sealed"] as const).map((role) => [
-          role,
-          artifacts[role].parents,
-        ]),
-      ),
-      role_rows: Object.fromEntries(
-        (["fit", "tune", "sealed"] as const).map((role) => [
-          role,
-          artifacts[role].rows,
-        ]),
-      ),
-      depth: HALFKP81_DEPTH18_TEACHER_RESCORE_DEPTH,
-      technical_faults: 0,
-      incomplete_parents: 0,
-      old_depth12_targets: 0,
-      ...(recoveryV1R9
-        ? { hash8192_fallback_recount: v1r9RouteAccounting(entries.values()) }
-        : {}),
-      outputs: Object.fromEntries(
-        (["fit", "tune", "sealed"] as const).map((role) => [
-          role,
-          artifacts[role].identity,
-        ]),
-      ),
-      artifact_verification: {
-        held_descriptor_content_scan: false,
-        actual_bytes_sha256_rows_recomputed: false,
-        selected_parent_role_membership_recomputed: false,
-        every_target_depth18_recomputed: false,
-        old_depth12_target_absence_recomputed: false,
-      },
-      authority: {
-        may_build_training_plan: false,
-        may_train: false,
-        may_play_formal_games: false,
-        may_write_live_weights: false,
-      },
-    };
+    const receipt = recoveryV1R11
+      ? await (async () => {
+          if (powerContinuityIdentities === undefined) {
+            throw new Error("v1r11 success lacks a closed power interval");
+          }
+          const workRaw = await readHeldStableFile(
+            authenticated.outputs.work_jsonl,
+            "v1r11 completed teacher work",
+          );
+          const teacherWork = v1r11FullIdentity(
+            fileIdentity(authenticated.outputs.work_jsonl, workRaw),
+            HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+          );
+          const teacherOutput = Object.fromEntries(
+            (["fit", "tune", "sealed"] as const).map((role) => [
+              role,
+              v1r11FullIdentity(
+                artifacts[role].identity,
+                HALFKP81_DEPTH18_V1R11_DATASET_SCHEMA,
+              ),
+            ]),
+          ) as Record<
+            Halfkp81Depth18TeacherRole,
+            Readonly<Halfkp81Depth18TeacherFileIdentity>
+          >;
+          return buildHalfkp81Depth18V1R11FrozenRawReceiptForTests({
+            teacherPlan: authenticated.planIdentity,
+            sourceRevision: authenticated.sourceRevision,
+            runFingerprint: header!.run_fingerprint,
+            teacherWork,
+            teacherOutput,
+            preformalLedger: v1r11Authority!.preformalLedger,
+            preformalRawReceipt: v1r11Authority!.preformalRawReceipt,
+            verifiedPreformalAuthority:
+              v1r11Authority!.verifiedPreformalAuthority,
+            launchAgentAuthority: v1r11Authority!.launchAgentEvidence,
+            powerLedger: powerContinuityIdentities.ledger,
+            powerReceipt: powerContinuityIdentities.receipt,
+            finalizer: v1r11ImplementationIdentityFromRevision(
+              repositoryRoot,
+              authenticated.sourceRevision,
+              "ml/run-halfkp81-depth18-v1r11-formal-child.ts",
+            ),
+          });
+        })()
+      : {
+          schema: HALFKP81_DEPTH18_TEACHER_RECEIPT_SCHEMA,
+          status: "structurally-complete-awaiting-artifact-verification",
+          teacher_plan: authenticated.planIdentity,
+          completed_parents: contract.parentCount,
+          completed_rows: completedRows,
+          role_parents: Object.fromEntries(
+            (["fit", "tune", "sealed"] as const).map((role) => [
+              role,
+              artifacts[role].parents,
+            ]),
+          ),
+          role_rows: Object.fromEntries(
+            (["fit", "tune", "sealed"] as const).map((role) => [
+              role,
+              artifacts[role].rows,
+            ]),
+          ),
+          depth: HALFKP81_DEPTH18_TEACHER_RESCORE_DEPTH,
+          technical_faults: 0,
+          incomplete_parents: 0,
+          old_depth12_targets: 0,
+          ...(recoveryV1R9Protocol
+            ? {
+                hash8192_fallback_recount: v1r9RouteAccounting(
+                  entries.values(),
+                ),
+              }
+            : {}),
+          outputs: Object.fromEntries(
+            (["fit", "tune", "sealed"] as const).map((role) => [
+              role,
+              artifacts[role].identity,
+            ]),
+          ),
+          artifact_verification: {
+            held_descriptor_content_scan: false,
+            actual_bytes_sha256_rows_recomputed: false,
+            selected_parent_role_membership_recomputed: false,
+            every_target_depth18_recomputed: false,
+            old_depth12_target_absence_recomputed: false,
+          },
+          authority: {
+            may_build_training_plan: false,
+            may_train: false,
+            may_play_formal_games: false,
+            may_write_live_weights: false,
+          },
+        };
     if (stable !== undefined) {
       await stable.close();
       stableClosed = true;
@@ -4491,15 +7783,111 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       receiptIdentity,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    let effectiveError =
+      error instanceof Error ? error : new Error(String(error));
+    let environmentFault =
+      effectiveError instanceof Halfkp81Depth18EnvironmentContinuityError;
+    let environmentFaultPreimageSha256: string | undefined;
+    let environmentFaultedAtUtc: string | undefined;
+    if (
+      powerContinuity !== undefined &&
+      powerContinuityIdentities === undefined
+    ) {
+      try {
+        await powerContinuity.assertHealthy(true);
+      } catch (continuityError) {
+        effectiveError =
+          continuityError instanceof Error
+            ? continuityError
+            : new Halfkp81Depth18EnvironmentContinuityError(
+                String(continuityError),
+              );
+        environmentFault = true;
+      }
+      try {
+        if (environmentFault) {
+          environmentFaultedAtUtc = new Date(
+            dependencies.now?.() ?? Date.now(),
+          ).toISOString();
+          const preimage = recoveryV1R11
+            ? buildHalfkp81Depth18V1R11EnvironmentFaultIntentForTests({
+                teacherPlan: authenticated.planIdentity,
+                sourceRevision: authenticated.sourceRevision,
+                runFingerprint: header?.run_fingerprint ?? null,
+                verifiedPreformalAuthority:
+                  v1r11Authority!.verifiedPreformalAuthority,
+                launchAgentAuthority: v1r11Authority!.launchAgentEvidence,
+                fault: Object.freeze({
+                  kind: "environment-continuity",
+                  message: effectiveError.message,
+                }),
+              })
+            : terminalFaultPreimage(
+                authenticated,
+                header?.run_fingerprint ?? null,
+                effectiveError.message,
+                entries.size,
+                true,
+              );
+          environmentFaultPreimageSha256 = sha256(canonicalJson(preimage));
+          powerContinuityIdentities = await powerContinuity.finalizeFault(
+            effectiveError.message,
+            environmentFaultPreimageSha256,
+          );
+        } else {
+          // This closes a clean power interval; the subsequently published
+          // teacher terminal fault remains technical, not environmental.
+          powerContinuityIdentities = await powerContinuity.finalizeSuccess();
+        }
+      } catch (finalizationError) {
+        // A dead or hung guardian cannot authenticate a closed continuity
+        // interval. Preserve a durable, non-authoritative family stop without
+        // pretending the incomplete power ledger passed verification.
+        effectiveError = new Error(
+          `power guardian terminal closure failed after ${
+            environmentFault ? "environment" : "teacher"
+          } fault (${effectiveError.message}): ${
+            finalizationError instanceof Error
+              ? finalizationError.message
+              : String(finalizationError)
+          }`,
+        );
+        environmentFault = false;
+        powerContinuityIdentities = undefined;
+      }
+    }
+    const message = effectiveError.message;
+    if (recoveryV1R11 && environmentFault) {
+      // The guardian has durably closed the power ledger/receipt after every
+      // engine reap. The outer LaunchAgent supervisor now owns service stop,
+      // rich cleanup, independent revalidation and the sole terminal-fault
+      // publication. Exiting nonzero is the handoff; publishing here would
+      // race cleanup and create an unauthenticated environmental claim.
+      throw effectiveError;
+    }
     await publishTerminalFault(
       authenticated,
       header?.run_fingerprint ?? null,
       message,
       entries.size,
-    ).catch(() => undefined);
-    throw error;
+      powerContinuityIdentities === undefined
+        ? undefined
+        : {
+            ...powerContinuityIdentities,
+            launchAgentAuthority: v1r11Authority!.launchAgentEvidence,
+            preformalAuthority: v1r11Authority!.verifiedPreformalAuthority,
+            environmentFault,
+            ...(environmentFaultPreimageSha256 === undefined
+              ? {}
+              : { faultPreimageSha256: environmentFaultPreimageSha256 }),
+            ...(environmentFaultedAtUtc === undefined
+              ? {}
+              : { faultedAtUtc: environmentFaultedAtUtc }),
+          },
+    );
+    throw effectiveError;
   } finally {
+    await powerContinuity?.close().catch(() => undefined);
     if (!stableClosed && stable !== undefined) {
       await stable.close().catch(() => undefined);
     }
@@ -5668,6 +9056,646 @@ export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R10(
     throw new Error("Yaneura-only v1r10 runner rejects another plan family");
   }
   return runHalfkp81Depth18YaneuraOnlyTeacherV1R9(planPath);
+}
+
+const V1R11_PREFORMAL_GATE_NAMES = Object.freeze([
+  "ready-pr",
+  "all-required-ci-success",
+  "regular-merge",
+  "clean-main-source-authentication",
+  "preformal-authority-implementation-tests-pass",
+  "artifact-verifier-implementation-tests-pass",
+  "power-guardian-implementation-tests-pass",
+  "candidate-order-gate",
+  "known10-probe",
+  "pathological-fallback-probe",
+  "mixed-load-gate",
+  "formal-like-512",
+  "ac-power-start-admission-pass",
+] as const);
+// Deliberately false until a trusted producer and per-gate semantic verifier
+// replace the identity-only receipt scaffold below. Never flip this based on a
+// user-authored receipt or a runtime flag.
+const V1R11_SEMANTIC_PREFORMAL_AUTHORITY_IMPLEMENTED = false as const;
+
+export function assertHalfkp81Depth18V1R11SemanticPreformalAuthorityForTests(): void {
+  if (!V1R11_SEMANTIC_PREFORMAL_AUTHORITY_IMPLEMENTED) {
+    throw new Error(
+      "v1r11 formal remains locked until trusted semantic preformal authority is implemented",
+    );
+  }
+}
+
+export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForTests(
+  officialRunnerFingerprint: string,
+  independentVerifierFingerprint: string,
+): void {
+  if (
+    !SHA256_RE.test(officialRunnerFingerprint) ||
+    !SHA256_RE.test(independentVerifierFingerprint) ||
+    officialRunnerFingerprint ===
+      "d76ec02ecd721260c380c2a421b6bc7e9d689f37eaf8279e83d78b381390eba7" ||
+    officialRunnerFingerprint !== independentVerifierFingerprint
+  ) {
+    throw new Error(
+      "v1r11 official runner and independent all-13 fingerprint differ or equal forbidden old identity",
+    );
+  }
+}
+
+const V1R11_LAUNCHD_LABEL_PREFIX =
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-" as const;
+
+export interface Halfkp81Depth18V1R11LaunchdAuthority {
+  readonly label: string;
+  readonly plistPath: string;
+  readonly programArguments: readonly string[];
+  readonly workingDirectory: string;
+  readonly stdoutPath: string;
+  readonly stderrPath: string;
+  readonly pid: number;
+}
+
+export interface Halfkp81Depth18V1R11LaunchAgentAuthorityEvidence {
+  readonly schema: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA;
+  readonly status: "pass";
+  readonly teacher_plan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly source_revision: string;
+  readonly label: string;
+  readonly runner_pid: number;
+  readonly program_arguments: readonly string[];
+  readonly working_directory: string;
+  readonly stdout_path: string;
+  readonly stderr_path: string;
+  readonly launchctl_snapshot: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly plist_snapshot: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  readonly live_plist_path: string;
+  readonly authority: Readonly<{
+    may_execute_formal_teacher: true;
+    may_train: false;
+    may_play_formal_games: false;
+    may_write_live_weights: false;
+  }>;
+}
+
+function uniqueLaunchctlValue(raw: string, key: string): string {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const matches = [
+    ...raw.matchAll(new RegExp(`^\\t${escaped} = (.+)$`, "gmu")),
+  ];
+  if (matches.length !== 1 || matches[0]?.[1] === undefined) {
+    throw new Error(`v1r11 launchctl ${key} differs`);
+  }
+  return matches[0][1];
+}
+
+/** Pure parser used by production launch authentication and fixture tests. */
+export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
+  raw: string,
+  context: Readonly<{
+    uid: number;
+    sourceRevision: string;
+    xpcServiceName: string | undefined;
+    runnerPid: number;
+    runnerUtilityArgv: readonly string[];
+    repositoryRoot: string;
+  }>,
+): Readonly<Halfkp81Depth18V1R11LaunchdAuthority> {
+  if (
+    !Number.isSafeInteger(context.uid) ||
+    context.uid < 1 ||
+    !/^[0-9a-f]{40}$/u.test(context.sourceRevision) ||
+    !Number.isSafeInteger(context.runnerPid) ||
+    context.runnerPid < 1 ||
+    !path.isAbsolute(context.repositoryRoot) ||
+    path.normalize(context.repositoryRoot) !== context.repositoryRoot ||
+    context.runnerUtilityArgv.length !== 4 ||
+    context.runnerUtilityArgv.some(
+      (value) => typeof value !== "string" || value.length === 0,
+    )
+  ) {
+    throw new Error("v1r11 launchd authority context differs");
+  }
+  const label = `${V1R11_LAUNCHD_LABEL_PREFIX}${context.sourceRevision.slice(0, 8)}`;
+  if (context.xpcServiceName !== label) {
+    throw new Error("v1r11 exact launchd service name differs");
+  }
+  if (!raw.startsWith(`gui/${context.uid}/${label} = {\n`)) {
+    throw new Error("v1r11 launchctl service header differs");
+  }
+  const argumentsStart = raw.indexOf("\n\targuments = {\n");
+  const argumentsEnd = raw.indexOf("\n\t}\n", argumentsStart + 1);
+  if (
+    argumentsStart < 0 ||
+    argumentsEnd < 0 ||
+    raw.indexOf("\n\targuments = {\n", argumentsStart + 1) !== -1
+  ) {
+    throw new Error("v1r11 launchctl ProgramArguments differ");
+  }
+  const programArguments = raw
+    .slice(argumentsStart + "\n\targuments = {\n".length, argumentsEnd)
+    .split("\n")
+    .map((line) => /^\t\t(.+)$/u.exec(line)?.[1] ?? "");
+  const expectedProgramArguments = Object.freeze([
+    ...context.runnerUtilityArgv,
+  ]);
+  const expectedNode = process.execPath;
+  const expectedPreload = path.join(
+    context.repositoryRoot,
+    "node_modules/tsx/dist/cjs/index.cjs",
+  );
+  const expectedEntrypoint = path.join(
+    context.repositoryRoot,
+    "ml/run-halfkp81-depth18-v1r11-formal-child.ts",
+  );
+  if (
+    canonicalJson(programArguments) !==
+      canonicalJson(expectedProgramArguments) ||
+    canonicalJson(context.runnerUtilityArgv) !==
+      canonicalJson([
+        expectedNode,
+        "-r",
+        expectedPreload,
+        expectedEntrypoint,
+      ]) ||
+    uniqueLaunchctlValue(raw, "state") !== "running" ||
+    uniqueLaunchctlValue(raw, "program") !== expectedNode ||
+    Number(uniqueLaunchctlValue(raw, "pid")) !== context.runnerPid ||
+    uniqueLaunchctlValue(raw, "working directory") !== context.repositoryRoot
+  ) {
+    throw new Error("v1r11 launchd program identity differs");
+  }
+  const plistPath = uniqueLaunchctlValue(raw, "path");
+  const stdoutPath = uniqueLaunchctlValue(raw, "stdout path");
+  const stderrPath = uniqueLaunchctlValue(raw, "stderr path");
+  if (
+    !path.isAbsolute(plistPath) ||
+    path.basename(plistPath) !== `${label}.plist` ||
+    !path.isAbsolute(stdoutPath) ||
+    !path.isAbsolute(stderrPath) ||
+    path.dirname(plistPath) !== path.dirname(stdoutPath) ||
+    path.dirname(plistPath) !== path.dirname(stderrPath)
+  ) {
+    throw new Error("v1r11 launchd private paths differ");
+  }
+  return Object.freeze({
+    label,
+    plistPath,
+    programArguments: Object.freeze(programArguments),
+    workingDirectory: context.repositoryRoot,
+    stdoutPath,
+    stderrPath,
+    pid: context.runnerPid,
+  });
+}
+
+async function publishV1R11ExclusivePrivateFile(
+  destination: string,
+  bytes: Uint8Array,
+  schema?: string,
+): Promise<Readonly<Halfkp81Depth18TeacherFileIdentity>> {
+  if (
+    path.dirname(destination) !==
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY
+  ) {
+    throw new Error("v1r11 launch evidence namespace differs");
+  }
+  const directoryStatus = await fs.promises.lstat(path.dirname(destination));
+  if (
+    !directoryStatus.isDirectory() ||
+    directoryStatus.isSymbolicLink() ||
+    directoryStatus.uid !== process.geteuid?.() ||
+    (directoryStatus.mode & 0o7777) !== 0o700 ||
+    (await fs.promises.realpath(path.dirname(destination))) !==
+      path.dirname(destination)
+  ) {
+    throw new Error(
+      "v1r11 authority namespace is not owned private real directory",
+    );
+  }
+  const handle = await fs.promises.open(
+    destination,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  try {
+    await handle.writeFile(bytes);
+    await handle.datasync();
+  } finally {
+    await handle.close();
+  }
+  await fsyncDirectory(path.dirname(destination));
+  return Object.freeze({
+    ...fileIdentity(destination, bytes),
+    ...(schema === undefined ? {} : { schema }),
+  });
+}
+
+export function validateHalfkp81Depth18V1R11LaunchAgentEvidenceForTests(
+  evidence: Readonly<Halfkp81Depth18V1R11LaunchAgentAuthorityEvidence>,
+  context: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    authority: Readonly<Halfkp81Depth18V1R11LaunchdAuthority>;
+    launchctlSnapshot: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    plistSnapshot: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  }>,
+): void {
+  exactKeys(
+    evidence as unknown as Record<string, unknown>,
+    [
+      "schema",
+      "status",
+      "teacher_plan",
+      "source_revision",
+      "label",
+      "runner_pid",
+      "program_arguments",
+      "working_directory",
+      "stdout_path",
+      "stderr_path",
+      "launchctl_snapshot",
+      "plist_snapshot",
+      "live_plist_path",
+      "authority",
+    ],
+    "v1r11 LaunchAgent authority evidence",
+  );
+  if (
+    evidence.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA ||
+    evidence.status !== "pass" ||
+    canonicalJson(evidence.teacher_plan) !==
+      canonicalJson(context.teacherPlan) ||
+    evidence.source_revision !== context.sourceRevision ||
+    evidence.label !== context.authority.label ||
+    evidence.runner_pid !== context.authority.pid ||
+    canonicalJson(evidence.program_arguments) !==
+      canonicalJson(context.authority.programArguments) ||
+    evidence.working_directory !== context.authority.workingDirectory ||
+    evidence.stdout_path !== context.authority.stdoutPath ||
+    evidence.stderr_path !== context.authority.stderrPath ||
+    evidence.live_plist_path !== context.authority.plistPath ||
+    canonicalJson(evidence.launchctl_snapshot) !==
+      canonicalJson(context.launchctlSnapshot) ||
+    canonicalJson(evidence.plist_snapshot) !==
+      canonicalJson(context.plistSnapshot) ||
+    canonicalJson(evidence.authority) !==
+      canonicalJson({
+        may_execute_formal_teacher: true,
+        may_train: false,
+        may_play_formal_games: false,
+        may_write_live_weights: false,
+      })
+  ) {
+    throw new Error("v1r11 LaunchAgent authority evidence differs");
+  }
+}
+
+async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
+  teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>,
+  sourceRevision: string,
+  repositoryRoot: string,
+): Promise<Readonly<Halfkp81Depth18TeacherFileIdentity>> {
+  const uid = process.getuid?.();
+  if (!Number.isSafeInteger(uid) || Number(uid) < 1) {
+    throw new Error("v1r11 launchd authentication requires a numeric uid");
+  }
+  const label = `${V1R11_LAUNCHD_LABEL_PREFIX}${sourceRevision.slice(0, 8)}`;
+  const raw = execFileSync("/bin/launchctl", ["print", `gui/${uid}/${label}`], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const runnerUtilityArgv = Object.freeze([
+    process.execPath,
+    ...process.execArgv,
+    ...process.argv.slice(1),
+  ]);
+  const authority = validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(raw, {
+    uid: Number(uid),
+    sourceRevision,
+    xpcServiceName: process.env.XPC_SERVICE_NAME,
+    runnerPid: process.pid,
+    runnerUtilityArgv,
+    repositoryRoot,
+  });
+  const metadata = await fs.promises.lstat(authority.plistPath);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.uid !== uid ||
+    (metadata.mode & 0o7777) !== 0o600 ||
+    metadata.nlink !== 1 ||
+    (await fs.promises.realpath(authority.plistPath)) !== authority.plistPath
+  ) {
+    throw new Error(
+      "v1r11 launchd plist is not an owned private single-link file",
+    );
+  }
+  const plistRaw = await readHeldStableFile(
+    authority.plistPath,
+    "v1r11 launchd plist",
+  );
+  const expectedPlist = buildHalfkp81Depth18OneShotLaunchAgentPlist({
+    label: authority.label,
+    nodePath: runnerUtilityArgv[0]!,
+    nodePreloadPath: runnerUtilityArgv[2]!,
+    entrypointPath: runnerUtilityArgv[3]!,
+    workingDirectory: authority.workingDirectory,
+    stdoutPath: authority.stdoutPath,
+    stderrPath: authority.stderrPath,
+  });
+  if (!plistRaw.equals(Buffer.from(expectedPlist, "utf8"))) {
+    throw new Error("v1r11 launchd plist policy differs");
+  }
+  const launchctlRaw = Buffer.from(raw, "utf8");
+  const launchctlSnapshot = await publishV1R11ExclusivePrivateFile(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHCTL_SNAPSHOT_PATH,
+    launchctlRaw,
+  );
+  const plistSnapshot = await publishV1R11ExclusivePrivateFile(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PLIST_SNAPSHOT_PATH,
+    plistRaw,
+  );
+  const evidence = Object.freeze({
+    schema:
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA,
+    status: "pass" as const,
+    teacher_plan: teacherPlan,
+    source_revision: sourceRevision,
+    label: authority.label,
+    runner_pid: authority.pid,
+    program_arguments: authority.programArguments,
+    working_directory: authority.workingDirectory,
+    stdout_path: authority.stdoutPath,
+    stderr_path: authority.stderrPath,
+    launchctl_snapshot: launchctlSnapshot,
+    plist_snapshot: plistSnapshot,
+    live_plist_path: authority.plistPath,
+    authority: Object.freeze({
+      may_execute_formal_teacher: true as const,
+      may_train: false as const,
+      may_play_formal_games: false as const,
+      may_write_live_weights: false as const,
+    }),
+  });
+  validateHalfkp81Depth18V1R11LaunchAgentEvidenceForTests(evidence, {
+    teacherPlan,
+    sourceRevision,
+    authority,
+    launchctlSnapshot,
+    plistSnapshot,
+  });
+  const evidenceBytes = canonicalJsonLine(evidence);
+  const published = await publishV1R11ExclusivePrivateFile(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_PATH,
+    evidenceBytes,
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_LAUNCHAGENT_AUTHORITY_EVIDENCE_SCHEMA,
+  );
+  return published;
+}
+
+export function validateHalfkp81Depth18V1R11PreformalAuthorityReceiptForTests(
+  receipt: Readonly<Record<string, unknown>>,
+  context: Readonly<{
+    teacherPlan: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    sourceRevision: string;
+    requiredOrder: readonly unknown[];
+  }>,
+): readonly Readonly<Halfkp81Depth18TeacherFileIdentity>[] {
+  if (
+    canonicalJson(context.requiredOrder) !==
+    canonicalJson([...V1R11_PREFORMAL_GATE_NAMES, "formal-teacher"])
+  ) {
+    throw new Error("v1r11 preformal required order differs");
+  }
+  exactKeys(
+    receipt,
+    [
+      "schema",
+      "status",
+      "teacher_plan",
+      "source_revision",
+      "required_order",
+      "gates",
+      "authority",
+    ],
+    "v1r11 preformal authority receipt",
+  );
+  if (
+    receipt.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_SCHEMA ||
+    receipt.status !== "all-required-preformal-gates-passed" ||
+    canonicalJson(receipt.teacher_plan) !==
+      canonicalJson(context.teacherPlan) ||
+    receipt.source_revision !== context.sourceRevision ||
+    canonicalJson(receipt.required_order) !==
+      canonicalJson(context.requiredOrder) ||
+    canonicalJson(receipt.authority) !==
+      canonicalJson({
+        may_execute_formal_teacher: true,
+        may_train: false,
+        may_play_formal_games: false,
+        may_write_live_weights: false,
+      })
+  ) {
+    throw new Error("v1r11 preformal authority receipt differs");
+  }
+  const gates = receipt.gates;
+  if (gates === null || typeof gates !== "object" || Array.isArray(gates)) {
+    throw new Error("v1r11 preformal gate receipts are missing");
+  }
+  exactKeys(
+    gates as Readonly<Record<string, unknown>>,
+    V1R11_PREFORMAL_GATE_NAMES,
+    "v1r11 preformal gate receipts",
+  );
+  return Object.freeze(
+    V1R11_PREFORMAL_GATE_NAMES.map((gate, index) => {
+      const row = (gates as Readonly<Record<string, unknown>>)[gate];
+      if (row === null || typeof row !== "object" || Array.isArray(row)) {
+        throw new Error(`v1r11 preformal ${gate} receipt is missing`);
+      }
+      const value = row as Readonly<Record<string, unknown>>;
+      exactKeys(
+        value,
+        ["sequence", "status", "evidence"],
+        `v1r11 preformal ${gate} receipt`,
+      );
+      if (value.sequence !== index + 1 || value.status !== "pass") {
+        throw new Error(`v1r11 preformal ${gate} order/status differs`);
+      }
+      const evidence = value.evidence;
+      if (
+        evidence === null ||
+        typeof evidence !== "object" ||
+        Array.isArray(evidence)
+      ) {
+        throw new Error(`v1r11 preformal ${gate} evidence is missing`);
+      }
+      const identity =
+        evidence as unknown as Halfkp81Depth18TeacherFileIdentity;
+      exactKeys(
+        identity as unknown as Readonly<Record<string, unknown>>,
+        ["path", "bytes", "sha256", "schema"],
+        `v1r11 preformal ${gate} evidence identity`,
+      );
+      if (
+        !path.isAbsolute(identity.path) ||
+        !Number.isSafeInteger(identity.bytes) ||
+        identity.bytes < 1 ||
+        !SHA256_RE.test(identity.sha256) ||
+        identity.schema !== HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA
+      ) {
+        throw new Error(`v1r11 preformal ${gate} evidence identity differs`);
+      }
+      return Object.freeze(identity);
+    }),
+  );
+}
+
+async function authenticateHalfkp81Depth18V1R11PreformalAuthority(
+  authenticated: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
+): Promise<
+  Readonly<{
+    ledger: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    rawReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+    verifiedReceipt: Readonly<Halfkp81Depth18TeacherFileIdentity>;
+  }>
+> {
+  assertHalfkp81Depth18V1R11SemanticPreformalAuthorityForTests();
+  void authenticated;
+  throw new Error(
+    "v1r11 formal remains locked until the final Stage A/B/C independent verifier is wired",
+  );
+}
+
+export async function runHalfkp81Depth18YaneuraOnlyTeacherV1R11(
+  planPath = HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  // This must remain the first operation. A locked binary may not read a plan,
+  // query launchd, or create any authority artifact.
+  assertHalfkp81Depth18V1R11SemanticPreformalAuthorityForTests();
+  void planPath;
+  throw new Error(
+    "legacy v1r11 wrapper cannot authenticate or publish LaunchAgent evidence; use the outer-verified formal child capability",
+  );
+}
+
+export interface Halfkp81Depth18V1R11ModernVerifiedAuthorityRequest {
+  readonly repositoryRoot: string;
+  readonly teacherPlan: Readonly<V1R11AuthorityFileIdentity>;
+  readonly sourceRevision: string;
+  readonly runFingerprint: string;
+  readonly authorityDirectory: Readonly<V1R11AuthorityDirectoryIdentity>;
+  readonly gateDirectory: Readonly<V1R11AuthorityDirectoryIdentity>;
+  readonly stageAReceipt: Readonly<V1R11AuthorityFileIdentity>;
+  readonly preformalLedger: Readonly<V1R11AuthorityFileIdentity>;
+  readonly preformalRawReceipt: Readonly<V1R11AuthorityFileIdentity>;
+  readonly launchAgentEvidence: Readonly<V1R11AuthorityFileIdentity>;
+  readonly verifiedPreformalAuthority: Readonly<V1R11AuthorityFileIdentity>;
+  readonly plannedFinalDescriptor: Readonly<V1R11AuthorityFileIdentity>;
+  readonly formalRunIntent: Readonly<IndependentFormalRunIntentInput>;
+}
+
+/**
+ * The sole modern v1r11 guardian/core entrypoint. The lock is intentionally the
+ * first operation: while false, even a caller with forged identity objects
+ * cannot read authority files, start the guardian, or create teacher output.
+ */
+export async function runHalfkp81Depth18V1R11FromModernVerifiedAuthority(
+  request: Readonly<Halfkp81Depth18V1R11ModernVerifiedAuthorityRequest>,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  assertHalfkp81Depth18V1R11SemanticPreformalAuthorityForTests();
+  exactKeys(
+    request as unknown as Readonly<Record<string, unknown>>,
+    [
+      "repositoryRoot",
+      "teacherPlan",
+      "sourceRevision",
+      "runFingerprint",
+      "authorityDirectory",
+      "gateDirectory",
+      "stageAReceipt",
+      "preformalLedger",
+      "preformalRawReceipt",
+      "launchAgentEvidence",
+      "verifiedPreformalAuthority",
+      "plannedFinalDescriptor",
+      "formalRunIntent",
+    ],
+    "modern v1r11 verified authority request",
+  );
+  const authorityIo = await import(
+    "./halfkp81-depth18-v1r11-authority-io"
+  );
+  const stagedAuthority = await import(
+    "./verify-halfkp81-depth18-v1r11-staged-authority"
+  );
+  await authorityIo.readV1R11HeldIdentity(
+    request.plannedFinalDescriptor,
+    "application/x-apple-aspen-config-exact-bytes",
+    "modern v1r11 planned final descriptor",
+  );
+  const authenticated = await authenticateHalfkp81Depth18TeacherPlan(
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
+  );
+  if (
+    authenticated.planIdentity.schema !==
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 ||
+    canonicalJson(authenticated.planIdentity) !==
+      canonicalJson(request.teacherPlan) ||
+    authenticated.sourceRevision !== request.sourceRevision ||
+    canonicalJson(request.formalRunIntent.plannedFinalDescriptor) !==
+      canonicalJson(request.plannedFinalDescriptor)
+  ) {
+    throw new Error("modern v1r11 authenticated plan binding differs");
+  }
+  await stagedAuthority.reauthenticateHalfkp81V1R11ExistingStagedAuthorityForFormalChild(
+    {
+      repositoryRoot: request.repositoryRoot,
+      teacherPlan: request.teacherPlan,
+      sourceRevision: request.sourceRevision,
+      runFingerprint: request.runFingerprint,
+      authorityDirectory: request.authorityDirectory,
+      gateDirectory: request.gateDirectory,
+      stageAReceipt: request.stageAReceipt,
+      ledger: request.preformalLedger,
+      rawReceipt: request.preformalRawReceipt,
+      launchAgentAuthority: request.launchAgentEvidence,
+      verifiedReceipt: request.verifiedPreformalAuthority,
+      formalRunIntent: request.formalRunIntent,
+    },
+  );
+  const capability = Object.freeze({
+    launchAgentEvidence: request.launchAgentEvidence,
+    plannedFinalDescriptor: request.plannedFinalDescriptor,
+    preformalLedger: request.preformalLedger,
+    preformalRawReceipt: request.preformalRawReceipt,
+    verifiedPreformalAuthority: request.verifiedPreformalAuthority,
+  });
+  trustedV1R11FormalAuthorities.add(capability);
+  return runHalfkp81Depth18TeacherCoreForTests(
+    authenticated,
+    {
+      stablePolicy: "yaneuraou-only-v1",
+      processes: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_PROCESSES,
+      parentTimeoutMs: HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS,
+      parentDeadlinePolicy: "per-search-only",
+      resetTimeoutRecoveryPolicy:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+      startPowerContinuity: (context) =>
+        startHalfkp81Depth18V1R11PowerContinuitySession(context),
+      v1r11FormalAuthority: capability,
+      expectedV1R11RunFingerprint: request.runFingerprint,
+    },
+    {
+      parentCount: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT,
+      roleCounts: HALFKP81_DEPTH18_TEACHER_ROLE_COUNTS,
+      milestones: HALFKP81_DEPTH18_TEACHER_MILESTONES,
+      maximumRows: HALFKP81_DEPTH18_TEACHER_PARENT_COUNT * 13,
+    },
+  );
 }
 
 export function validateHalfkp81Depth18V1R9FormalSourceAuthorityForTests(

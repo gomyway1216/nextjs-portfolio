@@ -53,6 +53,20 @@ describe("USI teacher engine subprocess contract", () => {
     }
   });
 
+  it("registers the child PID synchronously before USI initialization can fail", async () => {
+    const spawned: number[] = [];
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, "--exit-before-usi"],
+      onSpawn: ({ pid }) => spawned.push(pid),
+      timeoutMs: 5_000,
+    });
+    await expect(engine.init()).rejects.toThrow(/intentional startup failure/u);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]).toBeGreaterThan(0);
+    await engine.quit();
+  });
+
   it("drains large engine stderr output instead of allowing the child pipe to block", async () => {
     const engine = new UsiTeacherEngine({
       engineBin: process.execPath,

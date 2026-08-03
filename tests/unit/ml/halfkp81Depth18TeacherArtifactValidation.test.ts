@@ -27,6 +27,7 @@ import {
   validateHalfkp81Depth18TeacherArtifacts,
   validateHalfkp81Depth18TeacherArtifactsCoreForTests,
   validateHalfkp81Depth18V1R9RouteCoreForTests,
+  v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests,
   type Halfkp81Depth18PrivateSnapshot,
   type Halfkp81Depth18ValidationRequest,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
@@ -48,6 +49,7 @@ import {
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_PROCESSES,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_TIMEOUT_MS,
+  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS,
   runHalfkp81Depth18TeacherCoreForTests,
   type Halfkp81Depth18AuthenticatedTeacherPlan,
   type Halfkp81Depth18TeacherEngine,
@@ -953,6 +955,31 @@ function resealStableWrapper(wrapper: Record<string, unknown>): void {
 }
 
 describe("HalfKP81 depth18 teacher artifact verifier", () => {
+  it("rejects a v1r11 plan without timeout recovery metadata without throwing", () => {
+    const legacyV1r11Plan = {
+      escalation_budgets:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS,
+      teacher: {
+        fallback_lane: {
+          search_timeout_milliseconds: 86_400_000,
+        },
+        normal_lane: {
+          search_timeout_milliseconds: 14_400_000,
+        },
+        reset_timeout_recovery: {
+          search_timeout_retry_allowed: true,
+        },
+      },
+    };
+
+    expect(() =>
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(legacyV1r11Plan),
+    ).not.toThrow();
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(legacyV1r11Plan),
+    ).toBe(false);
+  });
+
   it("accepts actual runner output and issues only training-plan authority", async () => {
     const fixture = await generatedFixture();
     const result = validateHalfkp81Depth18TeacherArtifactsCoreForTests(

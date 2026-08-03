@@ -741,6 +741,9 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
   const fallbackLane = teacherRecord.fallback_lane;
   const normalLane = teacherRecord.normal_lane;
   const resetRecovery = teacherRecord.reset_timeout_recovery;
+  const fallbackTimeoutRecovery = (
+    fallbackLane as Readonly<Record<string, unknown>> | undefined
+  )?.search_timeout_recovery;
   if (
     fallbackLane === null ||
     typeof fallbackLane !== "object" ||
@@ -750,7 +753,10 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
     Array.isArray(normalLane) ||
     resetRecovery === null ||
     typeof resetRecovery !== "object" ||
-    Array.isArray(resetRecovery)
+    Array.isArray(resetRecovery) ||
+    fallbackTimeoutRecovery === null ||
+    typeof fallbackTimeoutRecovery !== "object" ||
+    Array.isArray(fallbackTimeoutRecovery)
   ) {
     return false;
   }
@@ -766,11 +772,16 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
     (resetRecovery as Readonly<Record<string, unknown>>)
       .search_timeout_retry_allowed === true &&
     sameJson(
-      (fallbackLane as Readonly<Record<string, unknown>>)
-        .search_timeout_recovery,
+      fallbackTimeoutRecovery,
       YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
     )
   );
+}
+
+export function v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(
+  plan: Readonly<Record<string, unknown>>,
+): boolean {
+  return v1r11FallbackTimeoutRecoveryPlanIsAuthorized(plan);
 }
 
 function isBoundedStablePlanSchema(

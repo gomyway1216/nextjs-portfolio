@@ -1,12 +1,15 @@
 #!/usr/bin/env -S node -r tsx/cjs
 
 import * as crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 import {
+  closeHalfkp81Depth18GuardianChildForTests,
   startHalfkp81Depth18V1R11PowerContinuitySession,
   verifyHalfkp81Depth18PowerContinuityLedgerForTests,
+  type Halfkp81Depth18PowerContinuitySession,
   type Halfkp81Depth18PowerContinuityLedgerEntry,
 } from "./halfkp81-depth18-teacher-runner";
 
@@ -60,23 +63,71 @@ async function main(): Promise<void> {
       );
     }
   }
-  const session = await startHalfkp81Depth18V1R11PowerContinuitySession({
-    teacherPlan: Object.freeze({
-      path: path.join(root, "teacher-plan.json"),
-      bytes: planBytes.byteLength,
-      sha256: crypto.createHash("sha256").update(planBytes).digest("hex"),
-      schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
-    }),
-    runFingerprint: "5".repeat(64),
-    ledgerPath: path.join(root, "power-continuity.jsonl"),
-    receiptPath: path.join(root, "power-continuity-receipt.json"),
+  const caffeinate = spawn(
+    "/usr/bin/caffeinate",
+    ["-dimsu", "-w", String(process.pid)],
+    { stdio: "ignore" },
+  );
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      caffeinate.off("error", onError);
+      if (caffeinate.exitCode !== null || caffeinate.signalCode !== null) {
+        reject(new Error("power smoke caffeinate exited before admission"));
+        return;
+      }
+      resolve();
+    }, 250);
+    const onError = (error: Error): void => {
+      clearTimeout(timer);
+      reject(error);
+    };
+    caffeinate.once("error", onError);
   });
-  const started = Date.now();
-  session.engineStarted(started);
-  session.engineReaped(Date.now());
-  await session.assertHealthy(true);
-  const identities = await session.finalizeSuccess();
-  await session.close();
+  let session: Halfkp81Depth18PowerContinuitySession | undefined;
+  let identities:
+    | Readonly<{
+        ledger: Readonly<{ path: string; bytes: number; sha256: string }>;
+        receipt: Readonly<{ path: string; bytes: number; sha256: string }>;
+      }>
+    | undefined;
+  try {
+    session = await startHalfkp81Depth18V1R11PowerContinuitySession({
+      teacherPlan: Object.freeze({
+        path: path.join(root, "teacher-plan.json"),
+        bytes: planBytes.byteLength,
+        sha256: crypto.createHash("sha256").update(planBytes).digest("hex"),
+        schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-plan-v1r11",
+      }),
+      runFingerprint: "5".repeat(64),
+      launchAgentAuthority: Object.freeze({
+        path: path.join(root, "scratch-launchagent-authority.json"),
+        bytes: 1,
+        sha256: "6".repeat(64),
+        schema:
+          "shogi-halfkp81-depth18-yaneura-only-launchagent-authority-evidence-v1r11",
+      }),
+      preformalAuthority: Object.freeze({
+        path: path.join(root, "scratch-preformal-authority.json"),
+        bytes: 1,
+        sha256: "7".repeat(64),
+        schema:
+          "shogi-halfkp81-depth18-yaneura-only-preformal-authority-verified-receipt-v1r11",
+      }),
+      ledgerPath: path.join(root, "power-continuity.jsonl"),
+      receiptPath: path.join(root, "power-continuity-receipt.json"),
+    });
+    const started = Date.now();
+    session.engineStarted(started);
+    session.engineReaped(Date.now());
+    await session.assertHealthy(true);
+    identities = await session.finalizeSuccess();
+  } finally {
+    await session?.close().catch(() => undefined);
+    await closeHalfkp81Depth18GuardianChildForTests(caffeinate);
+  }
+  if (identities === undefined) {
+    throw new Error("power smoke did not publish final identities");
+  }
   const ledgerText = await fs.promises.readFile(identities.ledger.path, "utf8");
   const entries = ledgerText
     .trimEnd()

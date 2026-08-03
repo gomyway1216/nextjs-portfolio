@@ -4449,6 +4449,110 @@ export function validateHalfkp81Depth18V1R11ImportedSet(
   });
 }
 
+export function validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke(
+  request: Readonly<
+    Omit<Halfkp81Depth18V1R10ImportSetValidationRequest, "work" | "terminalFault"> & {
+      smokeWork: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    }
+  >,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(request.plan, V1R10_IMPORT_SOURCE.plan, "smoke plan");
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "smoke selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selectionManifest,
+    V1R10_IMPORT_SOURCE.selectionManifest,
+    "smoke selection manifest",
+  );
+  const plan = parseCanonicalDocument(request.plan, "v1r10 prefix-one smoke plan");
+  const selectionRows = parseExactJsonl(
+    request.selection.bytes,
+    "v1r10 prefix-one smoke selection",
+    false,
+  )
+    .map(parseSelectionRow)
+    .map(selectionParent);
+  const work = parseExactJsonl(
+    request.smokeWork.bytes,
+    "v1r10 prefix-one smoke work",
+  );
+  if (work.length !== 2 || selectionRows.length !== 8_192) {
+    throw new Error("v1r10 prefix-one smoke row count differs");
+  }
+  const verifierRequest = {
+    ...request,
+    work: request.smokeWork,
+  } as unknown as Halfkp81Depth18ValidationRequest;
+  const header = validatePlanAndHeader(
+    verifierRequest,
+    plan,
+    work[0],
+    selectionRows,
+  );
+  validateEngineReceipt(request.engineReceipt, request.engineBinary);
+  const prefixOne = selectionRows[0];
+  const wrapper = validateWrapper(
+    work[1],
+    prefixOne,
+    header.run_fingerprint,
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9,
+    undefined,
+    undefined,
+    2,
+  );
+  const expectedCandidates = Object.freeze([
+    "1e4b+",
+    "3f3e",
+    "4c4d",
+    "4g4f",
+    "4i4h",
+    "6h5i",
+    "6h7h",
+    "7f7e",
+    "7g6f",
+    "9g9f",
+    "P*2c",
+    "P*2d",
+  ]);
+  if (
+    prefixOne.parent.parent_id !==
+      "sha256:5ef4d6bbe4d6cae683c29e050264a0d9624114e815a23bbbb5175e1ec280b5f6" ||
+    wrapper.parent_id !== prefixOne.parent.parent_id ||
+    wrapper.rescore_route?.mode !== "normal-depth18" ||
+    wrapper.rescore_route.fallback !== null ||
+    !sameJson(wrapper.teacher_entry.candidate_moves, expectedCandidates) ||
+    wrapper.teacher_entry.records.length !== 12 ||
+    wrapper.teacher_entry.exact_search.searches.length !== 12
+  ) {
+    throw new Error("v1r10 prefix-one smoke fixed result differs");
+  }
+  return Object.freeze({
+    schema: "shogi-halfkp81-depth18-v1r10-prefix-one-teacher-smoke-verification-v1",
+    status: "actual-production-teacher-core-scratch-smoke-verified",
+    parent_id: wrapper.parent_id,
+    selection_index: 0,
+    candidate_moves: expectedCandidates,
+    completed_rows: 12,
+    route: "normal-depth18",
+    work: identityFromSnapshot(
+      request.smokeWork,
+      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R9,
+      2,
+    ),
+    verification: Object.freeze({
+      source_plan_selection_engine_identity: true,
+      unchanged_v1r9_candidate_and_rescore_contract: true,
+      every_candidate_legal_and_exact_depth18: true,
+      candidate_omissions: 0,
+      partial_or_capped_labels: 0,
+      formal_authority: false,
+    }),
+  });
+}
+
 function validateEngineReceipt(
   snapshot: Readonly<Halfkp81Depth18PrivateSnapshot>,
   engineBinary: Readonly<Halfkp81Depth18PrivateSnapshot>,

@@ -9,12 +9,14 @@ import {
   validateHalfkp81Depth18V1R11MinimalR3ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR4ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR5ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR6ImportableSet,
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
 import {
   importHalfkp81Depth18V1R10CompletedSetIntoV1R11,
   importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5,
   importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6,
+  importHalfkp81Depth18V1R11MinimalR6CompletedSetIntoR7,
 } from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
 
 function snapshot(name: string): Readonly<Halfkp81Depth18PrivateSnapshot> {
@@ -133,6 +135,39 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
       }),
     ).rejects.toThrow("minimal-r6 import target identity differs");
     expect(fs.existsSync("/private/tmp/never-created-r6")).toBe(false);
+  });
+
+  it("pins the complete r6 closure and rejects its fingerprint for the r7 target", async () => {
+    const invalid = snapshot("invalid-r6.json");
+    expect(() =>
+      validateHalfkp81Depth18V1R11MinimalR6ImportableSet({
+        plan: invalid,
+        selection: invalid,
+        work: invalid,
+        terminalFault: invalid,
+        powerLedger: invalid,
+        powerReceipt: invalid,
+      }),
+    ).toThrow("minimal-r6 source plan identity differs");
+    const fingerprint =
+      "549fb51196fffc91841bffb53a253deaf42cc5dfd8b3037353648723ca1ff7e8";
+    await expect(
+      importHalfkp81Depth18V1R11MinimalR6CompletedSetIntoR7({
+        repositoryRoot: "/private/tmp/does-not-exist",
+        targetWorkPath: "/private/tmp/never-created-r7/work.jsonl",
+        targetHeader: Object.freeze({
+          schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+          run_fingerprint: fingerprint,
+        }),
+        targetRunFingerprint: fingerprint,
+        selectionOrderedParentIds: Array.from(
+          { length: 8_192 },
+          (_, index) => `parent-${index}`,
+        ),
+        authorityDirectory: "/private/tmp/never-created-r7/authority",
+      }),
+    ).rejects.toThrow("minimal-r7 import target identity differs");
+    expect(fs.existsSync("/private/tmp/never-created-r7")).toBe(false);
   });
 
   it("rejects a target before reading the immutable source", async () => {

@@ -9333,6 +9333,9 @@ export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
     runnerUtilityArgv: readonly string[];
     repositoryRoot: string;
     entrypointPath?: string;
+    expectedPlistPath?: string;
+    expectedStdoutPath?: string;
+    expectedStderrPath?: string;
   }>,
 ): Readonly<Halfkp81Depth18V1R11LaunchdAuthority> {
   if (
@@ -9346,7 +9349,14 @@ export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
     context.runnerUtilityArgv.length !== 4 ||
     context.runnerUtilityArgv.some(
       (value) => typeof value !== "string" || value.length === 0,
-    )
+    ) ||
+    [
+      context.expectedPlistPath,
+      context.expectedStdoutPath,
+      context.expectedStderrPath,
+    ].filter((value) => value !== undefined).length %
+      3 !==
+      0
   ) {
     throw new Error("v1r11 launchd authority context differs");
   }
@@ -9404,13 +9414,21 @@ export function validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(
   const plistPath = uniqueLaunchctlValue(raw, "path");
   const stdoutPath = uniqueLaunchctlValue(raw, "stdout path");
   const stderrPath = uniqueLaunchctlValue(raw, "stderr path");
+  const exactProductionPathsSupplied =
+    context.expectedPlistPath !== undefined &&
+    context.expectedStdoutPath !== undefined &&
+    context.expectedStderrPath !== undefined;
   if (
     !path.isAbsolute(plistPath) ||
     path.basename(plistPath) !== `${label}.plist` ||
     !path.isAbsolute(stdoutPath) ||
     !path.isAbsolute(stderrPath) ||
-    path.dirname(plistPath) !== path.dirname(stdoutPath) ||
-    path.dirname(plistPath) !== path.dirname(stderrPath)
+    (exactProductionPathsSupplied
+      ? plistPath !== context.expectedPlistPath ||
+        stdoutPath !== context.expectedStdoutPath ||
+        stderrPath !== context.expectedStderrPath
+      : path.dirname(plistPath) !== path.dirname(stdoutPath) ||
+        path.dirname(plistPath) !== path.dirname(stderrPath))
   ) {
     throw new Error("v1r11 launchd private paths differ");
   }
@@ -9561,6 +9579,19 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
     runnerUtilityArgv,
     repositoryRoot,
     ...(entrypointPath === undefined ? {} : { entrypointPath }),
+    expectedPlistPath: path.join(
+      currentCanonicalPasswdHome(),
+      "Library/LaunchAgents",
+      `${label}.plist`,
+    ),
+    expectedStdoutPath: path.join(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+      "formal-launchagent.stdout.log",
+    ),
+    expectedStderrPath: path.join(
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+      "formal-launchagent.stderr.log",
+    ),
   });
   const metadata = await fs.promises.lstat(authority.plistPath);
   if (
@@ -9602,7 +9633,9 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
         "v1r11 preplanned plist snapshot",
       );
       if (!held.equals(plistRaw)) {
-        throw new Error("v1r11 preplanned plist snapshot differs from live plist");
+        throw new Error(
+          "v1r11 preplanned plist snapshot differs from live plist",
+        );
       }
       return Object.freeze({
         ...fileIdentity(

@@ -464,9 +464,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
       "",
       `\tprogram = ${process.execPath}`,
       "\targuments = {",
-      ...runnerUtilityArgv.map(
-        (value) => `\t\t${value}`,
-      ),
+      ...runnerUtilityArgv.map((value) => `\t\t${value}`),
       "\t}",
       "",
       `\tworking directory = ${repositoryRoot}`,
@@ -491,6 +489,27 @@ describe("HalfKP81 v1r11 power continuity", () => {
       label,
       pid: 410,
       programArguments: runnerUtilityArgv,
+    });
+    const productionPlist = `/Users/test/Library/LaunchAgents/${label}.plist`;
+    const productionStdout =
+      "/Users/test/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11/formal-launchagent.stdout.log";
+    const productionStderr =
+      "/Users/test/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11/formal-launchagent.stderr.log";
+    const productionLayout = launchctl
+      .replace(`${privateRoot}/${label}.plist`, productionPlist)
+      .replace(`${privateRoot}/${label}.stdout.log`, productionStdout)
+      .replace(`${privateRoot}/${label}.stderr.log`, productionStderr);
+    expect(
+      validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(productionLayout, {
+        ...context,
+        expectedPlistPath: productionPlist,
+        expectedStdoutPath: productionStdout,
+        expectedStderrPath: productionStderr,
+      }),
+    ).toMatchObject({
+      plistPath: productionPlist,
+      stdoutPath: productionStdout,
+      stderrPath: productionStderr,
     });
     expect(() =>
       validateHalfkp81Depth18V1R11LaunchdAuthorityForTests(launchctl, {

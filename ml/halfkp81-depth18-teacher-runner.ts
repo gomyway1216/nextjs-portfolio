@@ -22,8 +22,10 @@ import {
   rescorePreparedSiblingParent,
   SiblingTeacherNodeCapRoutingError,
   SiblingTeacherRescoreResetTimeoutError,
+  SiblingTeacherRescoreSearchTimeoutError,
   validateWorkEntry,
   type CompletedWorkEntry,
+  type PreparedSiblingParentLabel,
 } from "./generate-sibling-teacher";
 import {
   FLOODGATE_PRODUCTION_STABLE_WASM_RUNTIME_RESULT_CLAIM_BOUNDARY,
@@ -184,10 +186,49 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS =
   14_400_000 as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS =
   86_400_000 as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY =
+  "defer-once-then-retry-whole-parent" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN =
+  Object.freeze({
+    policy: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+    maximum_deferrals_per_parent: 1,
+    queue_position: "tail-after-primary-queue",
+    retry_engine: "fresh-hash8192",
+    retry_candidate_scope: "whole-fixed-parent-from-zero",
+    partial_results_reused: false,
+    search_budget_accounting:
+      "all-final-reset-retry-and-timeout-attempts-counted",
+    maximum_searches_executed_per_parent: 38,
+    second_timeout: "terminal-fault",
+  } as const);
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_PARENT_BUDGET =
   Object.freeze({ fit: 6_144, tune: 1_024, sealed: 1_024 } as const);
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET =
   Object.freeze({ fit: 79_872, tune: 13_312, sealed: 13_312 } as const);
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS =
+  Object.freeze({
+    actual_cap_parent_counts_by_role_required: true,
+    actual_cap_trigger_search_counts_by_role_required: true,
+    actual_fallback_rows_by_role_required: true,
+    artifact_verifier_recount_required: true,
+    capped_teacher_labels_maximum: 0,
+    fallback_parent_count_maximum: 8_192,
+    fallback_parent_count_maximum_by_role: Object.freeze({
+      fit: 6_144,
+      sealed: 1_024,
+      tune: 1_024,
+    }),
+    fallback_search_count_maximum: 311_296,
+    fallback_search_count_maximum_by_role: Object.freeze({
+      fit: 233_472,
+      sealed: 38_912,
+      tune: 38_912,
+    }),
+    fallback_search_count_maximum_per_parent: 38,
+    runtime_recount_after_every_routing_and_fallback_publication: true,
+    threshold_change_after_results: false,
+    threshold_exceeded_policy: "immediate-family-terminal-fault",
+  } as const);
 
 export const HALFKP81_DEPTH18_TEACHER_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-engine-evaldir-v2" as const;
@@ -704,6 +745,9 @@ interface Halfkp81Depth18V1R9FallbackRoute {
     readonly candidate_count: number;
     readonly fallback_reset_retries_used: 0 | 1;
     readonly discarded_completed_rescores_before_retry: number;
+    readonly search_timeout_deferrals_used?: 1;
+    readonly discarded_completed_rescores_before_timeout_retry?: number;
+    readonly timed_out_searchmoves?: readonly [string];
     readonly searches_executed: number;
     readonly normal_rescore_rows_reused: 0;
     readonly candidate_omissions: 0;
@@ -727,6 +771,99 @@ interface Halfkp81Depth18V1R9ResetTimeoutRecovery {
 
 export type Halfkp81Depth18V1R9RescoreRoute =
   Halfkp81Depth18V1R9NormalRoute | Halfkp81Depth18V1R9FallbackRoute;
+
+class Halfkp81Depth18DeferredFallbackTimeoutError extends Error {
+  readonly parentId: string;
+
+  constructor(parentId: string) {
+    super(`deferred fallback timeout for ${parentId}`);
+    this.name = "Halfkp81Depth18DeferredFallbackTimeoutError";
+    this.parentId = parentId;
+  }
+}
+
+interface Halfkp81Depth18DeferredFallbackState {
+  readonly prepared: Readonly<PreparedSiblingParentLabel>;
+  readonly routeError: Readonly<SiblingTeacherNodeCapRoutingError>;
+  readonly timedOutSearchmove: string;
+  readonly discardedCompletedRescores: number;
+  readonly discardedSearches: number;
+  readonly normalResetRetries: 0 | 1;
+  readonly normalResetEvents: readonly Readonly<{
+    attempt: 1;
+    error_name: "UsiResetForParentTimeoutError";
+    phase: "reset-for-parent";
+    timeout_ms: number;
+  }>[];
+  readonly fallbackResetRetries: 0 | 1;
+  readonly discardedResetSearches: number;
+  readonly fallbackResetEvents: readonly Readonly<{
+    route: "fallback";
+    attempt: 1;
+    error_name: "UsiResetForParentTimeoutError";
+    phase: "reset-for-parent";
+    timeout_ms: number;
+  }>[];
+}
+
+class Halfkp81Depth18FallbackTimeoutRecoveryExhaustedError extends Error {
+  readonly phase = "independent-rescore" as const;
+  readonly parentId: string;
+  readonly timeoutMs: number;
+  readonly fallbackTimeoutRecovery: Readonly<{
+    policy: typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY;
+    deferrals_used: 1;
+    first_timeout: Readonly<{
+      searchmove: string;
+      completed_rescores_discarded: number;
+      searches_discarded: number;
+    }>;
+    second_timeout: Readonly<{
+      searchmove: string;
+      completed_rescores_discarded: number;
+      searches_discarded: number;
+    }>;
+    reset_retry_searches_discarded: number;
+    timeout_searches_discarded: number;
+    total_discarded_searches: number;
+  }>;
+
+  constructor(
+    deferred: Readonly<Halfkp81Depth18DeferredFallbackState>,
+    second: Readonly<SiblingTeacherRescoreSearchTimeoutError>,
+    resetRetrySearchesDiscarded: number,
+  ) {
+    const secondDiscardedSearches = second.completedSearchesDiscarded + 1;
+    const timeoutSearchesDiscarded =
+      deferred.discardedSearches + secondDiscardedSearches;
+    super(
+      `fallback exact-rescore timeout recovery exhausted for ${second.parentId} after one deferred whole-parent retry`,
+      { cause: second },
+    );
+    this.name = "Halfkp81Depth18FallbackTimeoutRecoveryExhaustedError";
+    this.parentId = second.parentId;
+    this.timeoutMs = second.timeoutMs;
+    this.fallbackTimeoutRecovery = Object.freeze({
+      policy:
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+      deferrals_used: 1,
+      first_timeout: Object.freeze({
+        searchmove: deferred.timedOutSearchmove,
+        completed_rescores_discarded: deferred.discardedCompletedRescores,
+        searches_discarded: deferred.discardedSearches,
+      }),
+      second_timeout: Object.freeze({
+        searchmove: second.searchmoves[0] ?? "",
+        completed_rescores_discarded: second.completedSearchesDiscarded,
+        searches_discarded: secondDiscardedSearches,
+      }),
+      reset_retry_searches_discarded: resetRetrySearchesDiscarded,
+      timeout_searches_discarded: timeoutSearchesDiscarded,
+      total_discarded_searches:
+        resetRetrySearchesDiscarded + timeoutSearchesDiscarded,
+    });
+  }
+}
 
 export interface Halfkp81Depth18TeacherWorkEntry {
   readonly schema:
@@ -809,6 +946,9 @@ export interface Halfkp81Depth18TeacherRunnerDependencies {
   readonly parentDeadlinePolicy?: "aggregate" | "per-search-only";
   readonly resetTimeoutRecoveryPolicy?:
     "fatal" | typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY;
+  readonly fallbackTimeoutRecoveryPolicy?:
+    | "fatal"
+    | typeof HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY;
   readonly stablePolicy?: Halfkp81Depth18StablePolicy;
   readonly startPowerContinuity?: (
     context: Readonly<{
@@ -834,6 +974,7 @@ export interface Halfkp81Depth18V1R11FormalAuthorityCapability {
 }
 
 const trustedV1R11FormalAuthorities = new WeakSet<object>();
+const trustedFallbackTimeoutRecoveryTestPlans = new WeakSet<object>();
 const V1R11_MINIMAL_FORMAL_CAPABILITY = Symbol(
   "halfkp81-v1r11-minimal-formal-capability",
 );
@@ -5398,6 +5539,7 @@ function validateFormalWorkEntry(
   roles: ReadonlyMap<string, Halfkp81Depth18TeacherRole>,
   stablePolicy: Halfkp81Depth18StablePolicy,
   source: string,
+  allowFallbackTimeoutRecovery = false,
 ): Halfkp81Depth18TeacherWorkEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${source} must be an object`);
@@ -5635,6 +5777,10 @@ function validateFormalWorkEntry(
       ) {
         throw new Error(`${source} v1r9 fallback route evidence is missing`);
       }
+      const timeoutRecoveryEvidence = Object.prototype.hasOwnProperty.call(
+        fallback,
+        "search_timeout_deferrals_used",
+      );
       exactKeys(
         trigger as unknown as Record<string, unknown>,
         [
@@ -5661,6 +5807,13 @@ function validateFormalWorkEntry(
           "normal_rescore_rows_reused",
           "candidate_omissions",
           "engine_quit_before_semaphore_release",
+          ...(timeoutRecoveryEvidence
+            ? [
+                "search_timeout_deferrals_used",
+                "discarded_completed_rescores_before_timeout_retry",
+                "timed_out_searchmoves",
+              ]
+            : []),
         ],
         `${source} v1r9 fallback execution`,
       );
@@ -5740,10 +5893,11 @@ function validateFormalWorkEntry(
         fallback.depth !== HALFKP81_DEPTH18_TEACHER_RESCORE_DEPTH ||
         (fallback.timeout_ms !==
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
-          (header.schema !==
-            HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11 ||
-            fallback.timeout_ms !==
-              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS)) ||
+          (fallback.timeout_ms !==
+            HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS ||
+            (header.schema !==
+              HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11 &&
+              !allowFallbackTimeoutRecovery))) ||
         fallback.semaphore_limit !==
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_CONCURRENCY ||
         fallback.all_candidates_recomputed !== true ||
@@ -5756,9 +5910,30 @@ function validateFormalWorkEntry(
         fallback.discarded_completed_rescores_before_retry < 0 ||
         fallback.discarded_completed_rescores_before_retry >=
           fallback.candidate_count ||
-        fallback.searches_executed !==
-          fallback.candidate_count +
-            fallback.discarded_completed_rescores_before_retry ||
+        (timeoutRecoveryEvidence
+          ? !allowFallbackTimeoutRecovery ||
+            fallback.timeout_ms !==
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS ||
+            fallback.search_timeout_deferrals_used !== 1 ||
+            !Number.isSafeInteger(
+              fallback.discarded_completed_rescores_before_timeout_retry,
+            ) ||
+            fallback.discarded_completed_rescores_before_timeout_retry < 0 ||
+            fallback.discarded_completed_rescores_before_timeout_retry >=
+              fallback.candidate_count ||
+            !Array.isArray(fallback.timed_out_searchmoves) ||
+            fallback.timed_out_searchmoves.length !== 1 ||
+            typeof fallback.timed_out_searchmoves[0] !== "string" ||
+            fallback.searches_executed !==
+              fallback.candidate_count +
+                fallback.discarded_completed_rescores_before_retry +
+                fallback.discarded_completed_rescores_before_timeout_retry +
+                1 ||
+            fallback.searches_executed >
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum_per_parent
+          : fallback.searches_executed !==
+            fallback.candidate_count +
+              fallback.discarded_completed_rescores_before_retry) ||
         fallback.normal_rescore_rows_reused !== 0 ||
         fallback.candidate_omissions !== 0 ||
         fallback.engine_quit_before_semaphore_release !== true
@@ -5839,6 +6014,16 @@ function validateFormalWorkEntry(
         teacher.exact_search.searches.some(
           (search) => search.dual_bound !== undefined,
         ) ||
+        (Object.prototype.hasOwnProperty.call(
+          route.fallback,
+          "search_timeout_deferrals_used",
+        ) &&
+          (!Array.isArray(route.fallback.timed_out_searchmoves) ||
+            route.fallback.timed_out_searchmoves[0] !==
+              teacher.candidate_moves[
+                route.fallback
+                  .discarded_completed_rescores_before_timeout_retry as number
+              ])) ||
         route.fallback.fallback_reset_retries_used !==
           recovery.fallback_retries_used ||
         (recovery.fallback_retries_used === 0 &&
@@ -5882,6 +6067,7 @@ async function initializeWork(
   parents: ReadonlyMap<string, Readonly<FloodgateTrainingParent>>,
   roles: ReadonlyMap<string, Halfkp81Depth18TeacherRole>,
   stablePolicy: Halfkp81Depth18StablePolicy,
+  allowFallbackTimeoutRecovery = false,
 ): Promise<Map<string, Halfkp81Depth18TeacherWorkEntry>> {
   let handle: fs.promises.FileHandle;
   try {
@@ -5921,6 +6107,7 @@ async function initializeWork(
         roles,
         stablePolicy,
         `work checkpoint line ${index + 1}`,
+        allowFallbackTimeoutRecovery,
       );
       if (entries.has(entry.parent_id)) {
         throw new Error(
@@ -6216,6 +6403,7 @@ function teacherFailureTelemetry(error: unknown): string {
     readonly requestedLimit?: unknown;
     readonly searchmoves?: unknown;
     readonly timeoutMs?: unknown;
+    readonly fallbackTimeoutRecovery?: unknown;
   };
   const stage = {
     error_name: error.name,
@@ -6224,6 +6412,7 @@ function teacherFailureTelemetry(error: unknown): string {
     requested_limit: context.requestedLimit,
     searchmoves: context.searchmoves,
     timeout_ms: context.timeoutMs,
+    fallback_timeout_recovery: context.fallbackTimeoutRecovery,
   };
   const telemetry = Object.fromEntries(
     Object.entries(stage).filter(([, value]) => value !== undefined),
@@ -6293,6 +6482,64 @@ function v1r9CapEvidence(error: SiblingTeacherNodeCapRoutingError) {
   });
 }
 
+function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
+  plan: Readonly<Record<string, unknown>>,
+): boolean {
+  const teacher = plan.teacher;
+  if (
+    teacher === null ||
+    typeof teacher !== "object" ||
+    Array.isArray(teacher)
+  ) {
+    return false;
+  }
+  const teacherRecord = teacher as Readonly<Record<string, unknown>>;
+  const fallbackLane = teacherRecord.fallback_lane;
+  const normalLane = teacherRecord.normal_lane;
+  const resetRecovery = teacherRecord.reset_timeout_recovery;
+  if (
+    fallbackLane === null ||
+    typeof fallbackLane !== "object" ||
+    Array.isArray(fallbackLane) ||
+    normalLane === null ||
+    typeof normalLane !== "object" ||
+    Array.isArray(normalLane) ||
+    resetRecovery === null ||
+    typeof resetRecovery !== "object" ||
+    Array.isArray(resetRecovery)
+  ) {
+    return false;
+  }
+  const searchRecovery = (fallbackLane as Readonly<Record<string, unknown>>)
+    .search_timeout_recovery;
+  if (
+    searchRecovery === null ||
+    typeof searchRecovery !== "object" ||
+    Array.isArray(searchRecovery)
+  ) {
+    return false;
+  }
+  return (
+    (fallbackLane as Readonly<Record<string, unknown>>)
+      .search_timeout_milliseconds ===
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS &&
+    (normalLane as Readonly<Record<string, unknown>>)
+      .search_timeout_milliseconds ===
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
+    canonicalJson(plan.escalation_budgets) ===
+      canonicalJson(
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS,
+      ) &&
+    (resetRecovery as Readonly<Record<string, unknown>>)
+      .search_timeout_retry_allowed === true &&
+    canonicalJson(searchRecovery) ===
+      canonicalJson(HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN)
+  );
+}
+
+export const v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests =
+  v1r11FallbackTimeoutRecoveryPlanIsAuthorized;
+
 async function runWorkers(
   authenticated: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
   header: Readonly<Halfkp81Depth18TeacherWorkHeader>,
@@ -6302,6 +6549,7 @@ async function runWorkers(
   contract: Readonly<Halfkp81Depth18TeacherCoreContract>,
   runtimeRoot: string,
   publishedMilestones: Set<number>,
+  allowFallbackTimeoutRecovery: boolean,
   powerContinuity?: Readonly<Halfkp81Depth18PowerContinuitySession>,
 ): Promise<void> {
   const parentMap = new Map(
@@ -6324,6 +6572,8 @@ async function runWorkers(
   const parentDeadlinePolicy = dependencies.parentDeadlinePolicy ?? "aggregate";
   const resetTimeoutRecoveryPolicy =
     dependencies.resetTimeoutRecoveryPolicy ?? "fatal";
+  const fallbackTimeoutRecoveryPolicy =
+    dependencies.fallbackTimeoutRecoveryPolicy ?? "fatal";
   const stablePolicy = dependencies.stablePolicy ?? "required-depth11-v2";
   const yaneuraOnly = stablePolicy === "yaneuraou-only-v1";
   const hashFallbackV1R9 =
@@ -6331,18 +6581,18 @@ async function runWorkers(
     header.schema === HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11;
   const fallbackSearchTimeoutMs = (() => {
     if (
-      header.schema !==
-      HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11
+      header.schema !== HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11
     ) {
-      return HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS;
+      return allowFallbackTimeoutRecovery
+        ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS
+        : HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS;
     }
     const configured = (
       (authenticated.plan.teacher as Readonly<Record<string, unknown>>)
         .fallback_lane as Readonly<Record<string, unknown>>
     ).search_timeout_milliseconds;
     if (
-      configured !==
-        HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
+      configured !== HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
       configured !==
         HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS
     ) {
@@ -6353,6 +6603,12 @@ async function runWorkers(
   const fallbackSemaphore = new FifoSemaphore(
     HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_CONCURRENCY,
   );
+  const fallbackSearchBudgetByRole = allowFallbackTimeoutRecovery
+    ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum_by_role
+    : HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET;
+  const fallbackSearchBudgetTotal = allowFallbackTimeoutRecovery
+    ? HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS.fallback_search_count_maximum
+    : 106_496;
   const fallbackParentsByRole: Record<Halfkp81Depth18TeacherRole, number> = {
     fit: 0,
     tune: 0,
@@ -6366,6 +6622,10 @@ async function runWorkers(
   const activeFallbackReservations = new Map<
     string,
     Readonly<{ role: Halfkp81Depth18TeacherRole; candidateCount: number }>
+  >();
+  const deferredFallbackParents = new Map<
+    string,
+    Readonly<Halfkp81Depth18DeferredFallbackState>
   >();
   if (hashFallbackV1R9) {
     for (const entry of entries.values()) {
@@ -6384,13 +6644,13 @@ async function runWorkers(
     );
     if (
       resumedParents > 8_192 ||
-      resumedSearches > 106_496 ||
+      resumedSearches > fallbackSearchBudgetTotal ||
       (["fit", "tune", "sealed"] as const).some(
         (role) =>
           fallbackParentsByRole[role] >
             HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_PARENT_BUDGET[role] ||
           fallbackSearchesByRole[role] >
-            HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET[role],
+            fallbackSearchBudgetByRole[role],
       )
     ) {
       throw new Error(
@@ -6409,7 +6669,7 @@ async function runWorkers(
       fallbackParentsByRole[role] + 1 >
         HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_PARENT_BUDGET[role] ||
       fallbackSearchesByRole[role] + candidateCount >
-        HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET[role] ||
+        fallbackSearchBudgetByRole[role] ||
       Object.values(fallbackParentsByRole).reduce(
         (sum, value) => sum + value,
         0,
@@ -6421,7 +6681,7 @@ async function runWorkers(
         0,
       ) +
         candidateCount >
-        106_496
+        fallbackSearchBudgetTotal
     ) {
       throw new Error(
         `v1r9 Hash8192 fallback budget exceeded for ${role}: parents=${fallbackParentsByRole[role] + 1}, searches=${fallbackSearchesByRole[role] + candidateCount}`,
@@ -6441,13 +6701,13 @@ async function runWorkers(
       !Number.isSafeInteger(completedSearchesDiscarded) ||
       completedSearchesDiscarded < 0 ||
       fallbackSearchesByRole[role] + completedSearchesDiscarded >
-        HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_SEARCH_BUDGET[role] ||
+        fallbackSearchBudgetByRole[role] ||
       Object.values(fallbackSearchesByRole).reduce(
         (sum, value) => sum + value,
         0,
       ) +
         completedSearchesDiscarded >
-        106_496
+        fallbackSearchBudgetTotal
     ) {
       throw new Error(
         `v1r9 Hash8192 fallback retry search budget exceeded for ${role}`,
@@ -6513,6 +6773,7 @@ async function runWorkers(
       await appendDurable(workHandle, entry);
       entries.set(entry.parent_id, entry);
       activeFallbackReservations.delete(entry.parent_id);
+      deferredFallbackParents.delete(entry.parent_id);
       if (hashFallbackV1R9) {
         const committed = v1r9RouteAccounting(entries.values()) as Record<
           string,
@@ -6600,23 +6861,37 @@ async function runWorkers(
           engine = await startEngine();
           while (failure === undefined) {
             await powerContinuity?.assertHealthy();
-            const parent = pending[next++];
+            // Do not advance beyond the current tail. Workers that observe an
+            // empty queue may finish while another worker is still appending a
+            // deferred parent; overshooting here would strand that parent.
+            const parent = pending[next];
             if (parent === undefined || engine === undefined) break;
+            next += 1;
             try {
-              let resetTimeoutRetries = 0;
+              const deferredFallback = deferredFallbackParents.get(
+                parent.parent_id,
+              );
+              let resetTimeoutRetries =
+                deferredFallback?.normalResetRetries ?? 0;
               const resetTimeoutEvents: Array<{
                 attempt: 1;
                 error_name: "UsiResetForParentTimeoutError";
                 phase: "reset-for-parent";
                 timeout_ms: number;
-              }> = [];
+              }> =
+                deferredFallback?.normalResetEvents.map((event) => ({
+                  ...event,
+                })) ?? [];
               const fallbackResetTimeoutEvents: Array<{
                 route: "fallback";
                 attempt: 1;
                 error_name: "UsiResetForParentTimeoutError";
                 phase: "reset-for-parent";
                 timeout_ms: number;
-              }> = [];
+              }> =
+                deferredFallback?.fallbackResetEvents.map((event) => ({
+                  ...event,
+                })) ?? [];
               let completed: Halfkp81Depth18TeacherWorkEntry;
               while (true) {
                 try {
@@ -6644,16 +6919,21 @@ async function runWorkers(
                     let rescoreRoute:
                       Halfkp81Depth18V1R9RescoreRoute | undefined;
                     if (hashFallbackV1R9) {
-                      const prepared = await prepareSiblingParentLabel(
-                        engine as UsiTeacherEngine,
-                        parent,
-                        HALFKP81_DEPTH18_TEACHER_MULTIPV,
-                        { depth: HALFKP81_DEPTH18_TEACHER_PROPOSAL_DEPTH },
-                        legalMoves,
-                        undefined,
-                        stableMove,
-                      );
+                      const prepared =
+                        deferredFallback?.prepared ??
+                        (await prepareSiblingParentLabel(
+                          engine as UsiTeacherEngine,
+                          parent,
+                          HALFKP81_DEPTH18_TEACHER_MULTIPV,
+                          { depth: HALFKP81_DEPTH18_TEACHER_PROPOSAL_DEPTH },
+                          legalMoves,
+                          undefined,
+                          stableMove,
+                        ));
                       try {
+                        if (deferredFallback !== undefined) {
+                          throw deferredFallback.routeError;
+                        }
                         rawTeacher = await rescorePreparedSiblingParent(
                           engine as UsiTeacherEngine,
                           parent,
@@ -6692,26 +6972,43 @@ async function runWorkers(
                         const failedNormalEngine = engine;
                         engine = undefined;
                         await stopEngine(failedNormalEngine);
-                        reserveFallbackBudget(
-                          authenticated.roles.get(
-                            parent.parent_id,
-                          ) as Halfkp81Depth18TeacherRole,
-                          prepared.candidateMoves.length,
-                        );
-                        activeFallbackReservations.set(
-                          parent.parent_id,
-                          Object.freeze({
-                            role: authenticated.roles.get(
+                        if (deferredFallback === undefined) {
+                          reserveFallbackBudget(
+                            authenticated.roles.get(
                               parent.parent_id,
                             ) as Halfkp81Depth18TeacherRole,
-                            candidateCount: prepared.candidateMoves.length,
-                          }),
-                        );
+                            prepared.candidateMoves.length,
+                          );
+                          activeFallbackReservations.set(
+                            parent.parent_id,
+                            Object.freeze({
+                              role: authenticated.roles.get(
+                                parent.parent_id,
+                              ) as Halfkp81Depth18TeacherRole,
+                              candidateCount: prepared.candidateMoves.length,
+                            }),
+                          );
+                        } else if (
+                          prepared.candidateMoves.length !==
+                            deferredFallback.prepared.candidateMoves.length ||
+                          prepared.candidateMoves.some(
+                            (move, index) =>
+                              move !==
+                              deferredFallback.prepared.candidateMoves[index],
+                          ) ||
+                          !activeFallbackReservations.has(parent.parent_id)
+                        ) {
+                          throw new Error(
+                            "deferred fallback candidate set or reservation differs",
+                          );
+                        }
                         const release = await fallbackSemaphore.acquire();
                         let fallbackEngine:
                           Halfkp81Depth18TeacherEngine | undefined;
-                        let fallbackRetries = 0;
-                        let discardedFallbackSearches = 0;
+                        let fallbackRetries =
+                          deferredFallback?.fallbackResetRetries ?? 0;
+                        let discardedFallbackSearches =
+                          deferredFallback?.discardedResetSearches ?? 0;
                         try {
                           while (true) {
                             try {
@@ -6734,6 +7031,102 @@ async function runWorkers(
                               const failedFallbackEngine = fallbackEngine;
                               fallbackEngine = undefined;
                               await stopEngine(failedFallbackEngine);
+                              if (
+                                allowFallbackTimeoutRecovery &&
+                                fallbackTimeoutRecoveryPolicy ===
+                                  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY &&
+                                deferredFallback === undefined &&
+                                fallbackError instanceof
+                                  SiblingTeacherRescoreSearchTimeoutError &&
+                                fallbackError.parentId === parent.parent_id &&
+                                fallbackError.phase === "independent-rescore" &&
+                                fallbackError.timeoutMs ===
+                                  fallbackSearchTimeoutMs &&
+                                fallbackError.searchmoves.length === 1 &&
+                                fallbackError.candidateCount ===
+                                  prepared.candidateMoves.length &&
+                                fallbackError.candidateIndex ===
+                                  fallbackError.completedSearchesDiscarded &&
+                                fallbackError.searchmoves[0] ===
+                                  prepared.candidateMoves[
+                                    fallbackError.candidateIndex
+                                  ] &&
+                                fallbackError.completedSearchesDiscarded >= 0 &&
+                                fallbackError.completedSearchesDiscarded <
+                                  prepared.candidateMoves.length
+                              ) {
+                                await powerContinuity?.assertHealthy();
+                                if (failure !== undefined) throw failure;
+                                const discardedSearches =
+                                  fallbackError.completedSearchesDiscarded + 1;
+                                reserveFallbackRetrySearches(
+                                  parent.parent_id,
+                                  authenticated.roles.get(
+                                    parent.parent_id,
+                                  ) as Halfkp81Depth18TeacherRole,
+                                  discardedSearches,
+                                );
+                                deferredFallbackParents.set(
+                                  parent.parent_id,
+                                  Object.freeze({
+                                    prepared,
+                                    routeError,
+                                    timedOutSearchmove:
+                                      fallbackError.searchmoves[0],
+                                    discardedCompletedRescores:
+                                      fallbackError.completedSearchesDiscarded,
+                                    discardedSearches,
+                                    normalResetRetries: resetTimeoutRetries as
+                                      0 | 1,
+                                    normalResetEvents: Object.freeze(
+                                      resetTimeoutEvents.map((event) =>
+                                        Object.freeze({ ...event }),
+                                      ),
+                                    ),
+                                    fallbackResetRetries: fallbackRetries,
+                                    discardedResetSearches:
+                                      discardedFallbackSearches,
+                                    fallbackResetEvents: Object.freeze(
+                                      fallbackResetTimeoutEvents.map((event) =>
+                                        Object.freeze({ ...event }),
+                                      ),
+                                    ),
+                                  }),
+                                );
+                                throw new Halfkp81Depth18DeferredFallbackTimeoutError(
+                                  parent.parent_id,
+                                );
+                              }
+                              if (
+                                allowFallbackTimeoutRecovery &&
+                                fallbackTimeoutRecoveryPolicy ===
+                                  HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY &&
+                                deferredFallback !== undefined &&
+                                fallbackError instanceof
+                                  SiblingTeacherRescoreSearchTimeoutError &&
+                                fallbackError.parentId === parent.parent_id &&
+                                fallbackError.phase === "independent-rescore" &&
+                                fallbackError.timeoutMs ===
+                                  fallbackSearchTimeoutMs &&
+                                fallbackError.searchmoves.length === 1 &&
+                                fallbackError.candidateCount ===
+                                  prepared.candidateMoves.length &&
+                                fallbackError.candidateIndex ===
+                                  fallbackError.completedSearchesDiscarded &&
+                                fallbackError.searchmoves[0] ===
+                                  prepared.candidateMoves[
+                                    fallbackError.candidateIndex
+                                  ] &&
+                                fallbackError.completedSearchesDiscarded >= 0 &&
+                                fallbackError.completedSearchesDiscarded <
+                                  prepared.candidateMoves.length
+                              ) {
+                                throw new Halfkp81Depth18FallbackTimeoutRecoveryExhaustedError(
+                                  deferredFallback,
+                                  fallbackError,
+                                  discardedFallbackSearches,
+                                );
+                              }
                               if (
                                 !(
                                   fallbackError instanceof
@@ -6816,8 +7209,7 @@ async function runWorkers(
                             hash_mib:
                               HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_HASH_MIB,
                             depth: HALFKP81_DEPTH18_TEACHER_RESCORE_DEPTH,
-                            timeout_ms:
-                              fallbackSearchTimeoutMs,
+                            timeout_ms: fallbackSearchTimeoutMs,
                             semaphore_limit:
                               HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_FALLBACK_CONCURRENCY,
                             all_candidates_recomputed: true as const,
@@ -6826,9 +7218,20 @@ async function runWorkers(
                               0 | 1,
                             discarded_completed_rescores_before_retry:
                               discardedFallbackSearches,
+                            ...(deferredFallback === undefined
+                              ? {}
+                              : {
+                                  search_timeout_deferrals_used: 1 as const,
+                                  discarded_completed_rescores_before_timeout_retry:
+                                    deferredFallback.discardedCompletedRescores,
+                                  timed_out_searchmoves: Object.freeze([
+                                    deferredFallback.timedOutSearchmove,
+                                  ]) as readonly [string],
+                                }),
                             searches_executed:
                               prepared.candidateMoves.length +
-                              discardedFallbackSearches,
+                              discardedFallbackSearches +
+                              (deferredFallback?.discardedSearches ?? 0),
                             normal_rescore_rows_reused: 0 as const,
                             candidate_omissions: 0 as const,
                             engine_quit_before_semaphore_release: true as const,
@@ -6922,6 +7325,7 @@ async function runWorkers(
                       authenticated.roles,
                       stablePolicy,
                       `runtime parent ${parent.parent_id}`,
+                      allowFallbackTimeoutRecovery,
                     );
                   })();
                   completed =
@@ -6974,6 +7378,24 @@ async function runWorkers(
               }
               await persist(completed);
             } catch (error) {
+              if (
+                error instanceof Halfkp81Depth18DeferredFallbackTimeoutError &&
+                error.parentId === parent.parent_id &&
+                deferredFallbackParents.has(parent.parent_id) &&
+                failure === undefined
+              ) {
+                await powerContinuity?.assertHealthy();
+                pending.push(parent);
+                if (engine === undefined) {
+                  engine = await startEngine(
+                    HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_NORMAL_HASH_MIB,
+                  );
+                }
+                process.stderr.write(
+                  `[halfkp81-depth18-teacher] exact fallback timeout for ${parent.parent_id}; deferred one whole-parent retry behind the primary queue\n`,
+                );
+                continue;
+              }
               failure ??= new Error(
                 `teacher labeling failed for parent ${parent.parent_id}: ${teacherFailureTelemetry(
                   error,
@@ -7400,6 +7822,9 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
     HALFKP81_DEPTH18_V1R11_POWER_TEST_PLAN_SCHEMA;
   const v1r11PowerProtocol = recoveryV1R11 || v1r11PowerTestHarness;
   const recoveryV1R9Protocol = recoveryV1R9 || v1r11PowerProtocol;
+  const fallbackTimeoutRecoveryTestHarness =
+    recoveryV1R9 &&
+    trustedFallbackTimeoutRecoveryTestPlans.has(authenticated as object);
   if (
     (v1r11PowerProtocol && dependencies.startPowerContinuity === undefined) ||
     (!v1r11PowerProtocol && dependencies.startPowerContinuity !== undefined) ||
@@ -7473,6 +7898,14 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
           }),
         })
       : undefined;
+  const fallbackTimeoutRecoveryAuthorized =
+    dependencies.fallbackTimeoutRecoveryPolicy ===
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY &&
+    (fallbackTimeoutRecoveryTestHarness ||
+      (recoveryV1R11 &&
+        v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
+          authenticated.plan as Readonly<Record<string, unknown>>,
+        )));
   if (
     recoveryV1R5 &&
     (stablePolicy !== "yaneuraou-only-v1" ||
@@ -7507,10 +7940,20 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
         HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS ||
       dependencies.parentDeadlinePolicy !== "per-search-only" ||
       dependencies.resetTimeoutRecoveryPolicy !==
-        HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY)
+        HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY ||
+      (recoveryV1R11 && !fallbackTimeoutRecoveryAuthorized))
   ) {
     throw new Error(
       "Yaneura-only v1r9 requires eight Hash512 normal engines, 14400000ms per-search timeout, no aggregate parent race, one typed reset recycle per route, and FIFO Hash8192 fallback concurrency two",
+    );
+  }
+  if (
+    dependencies.fallbackTimeoutRecoveryPolicy !== undefined &&
+    dependencies.fallbackTimeoutRecoveryPolicy !== "fatal" &&
+    !fallbackTimeoutRecoveryAuthorized
+  ) {
+    throw new Error(
+      "fallback timeout deferral is authorized only for the Yaneura-only Hash8192 fallback protocol",
     );
   }
   if (
@@ -7745,6 +8188,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       parentMap,
       authenticated.roles,
       stablePolicy,
+      fallbackTimeoutRecoveryAuthorized,
     );
     const publishedMilestones = new Set<number>();
     await publishReadyMilestones(
@@ -7767,6 +8211,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       contract,
       runtimeRoot,
       publishedMilestones,
+      fallbackTimeoutRecoveryAuthorized,
       powerContinuity,
     );
     if (entries.size !== contract.parentCount) {
@@ -8035,6 +8480,34 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
     if (runtimeRoot !== undefined) {
       await fs.promises.rm(runtimeRoot, { recursive: true, force: true });
     }
+  }
+}
+
+/** Integration-only seam for the closed v1r9 fixture; production v1r9 stays fatal. */
+export async function runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests(
+  authenticated: Readonly<Halfkp81Depth18AuthenticatedTeacherPlan>,
+  dependencies: Readonly<Halfkp81Depth18TeacherRunnerDependencies>,
+  contract: Readonly<Halfkp81Depth18TeacherCoreContract>,
+): Promise<Readonly<Halfkp81Depth18TeacherRunResult>> {
+  if (
+    authenticated.planIdentity.schema !==
+    HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R9
+  ) {
+    throw new Error("fallback timeout recovery test seam requires v1r9");
+  }
+  trustedFallbackTimeoutRecoveryTestPlans.add(authenticated as object);
+  try {
+    return await runHalfkp81Depth18TeacherCoreForTests(
+      authenticated,
+      {
+        ...dependencies,
+        fallbackTimeoutRecoveryPolicy:
+          HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+      },
+      contract,
+    );
+  } finally {
+    trustedFallbackTimeoutRecoveryTestPlans.delete(authenticated as object);
   }
 }
 
@@ -9370,6 +9843,14 @@ export async function runHalfkp81Depth18V1R11MinimalFormalFromFixedGate(): Promi
       parentDeadlinePolicy: "per-search-only",
       resetTimeoutRecoveryPolicy:
         HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+      ...(v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
+        authenticated.plan as Readonly<Record<string, unknown>>,
+      )
+        ? {
+            fallbackTimeoutRecoveryPolicy:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+          }
+        : {}),
       startPowerContinuity: (context) =>
         startHalfkp81Depth18V1R11PowerContinuitySession(context),
       v1r11FormalAuthority: capability,
@@ -10076,6 +10557,14 @@ export async function runHalfkp81Depth18V1R11FromModernVerifiedAuthority(
       parentDeadlinePolicy: "per-search-only",
       resetTimeoutRecoveryPolicy:
         HALFKP81_DEPTH18_YANEURA_ONLY_V1R6_RESET_RECOVERY_POLICY,
+      ...(v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
+        authenticated.plan as Readonly<Record<string, unknown>>,
+      )
+        ? {
+            fallbackTimeoutRecoveryPolicy:
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_POLICY,
+          }
+        : {}),
       startPowerContinuity: (context) =>
         startHalfkp81Depth18V1R11PowerContinuitySession(context),
       v1r11FormalAuthority: capability,

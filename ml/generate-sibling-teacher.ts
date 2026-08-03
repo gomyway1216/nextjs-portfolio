@@ -2384,7 +2384,7 @@ function legalMovesForParent(parent: RawParentOccurrence): string[] {
   return moves;
 }
 
-class SiblingTeacherSearchTimeoutError extends Error {
+export class SiblingTeacherSearchTimeoutError extends Error {
   readonly phase: "proposal" | "proposal-fallback" | "independent-rescore";
   readonly requestedMultipv: number;
   readonly requestedLimit: { nodes: number } | { depth: number };
@@ -2392,7 +2392,7 @@ class SiblingTeacherSearchTimeoutError extends Error {
   readonly timeoutMs: number;
 
   constructor(
-    cause: UsiSearchTimeoutError,
+    cause: Readonly<Pick<UsiSearchTimeoutError, "message" | "timeoutMs">>,
     phase: "proposal" | "proposal-fallback" | "independent-rescore",
     requestedMultipv: number,
     requestedLimit: UsiSearchLimit,
@@ -2405,6 +2405,36 @@ class SiblingTeacherSearchTimeoutError extends Error {
     this.requestedLimit = normalizedSearchLimit(requestedLimit);
     this.searchmoves = Object.freeze([...searchmoves]);
     this.timeoutMs = cause.timeoutMs;
+  }
+}
+
+/** Adds candidate-local accounting to an exact-rescore search timeout. */
+export class SiblingTeacherRescoreSearchTimeoutError extends SiblingTeacherSearchTimeoutError {
+  readonly parentId: string;
+  readonly candidateIndex: number;
+  readonly candidateCount: number;
+  readonly completedSearchesDiscarded: number;
+
+  constructor(
+    cause: Readonly<SiblingTeacherSearchTimeoutError>,
+    parentId: string,
+    candidateIndex: number,
+    candidateCount: number,
+  ) {
+    super(
+      cause,
+      "independent-rescore",
+      cause.requestedMultipv,
+      cause.requestedLimit,
+      cause.searchmoves,
+    );
+    // Preserve legacy fatal-timeout telemetry while adding candidate-local
+    // fields that the prospective v1r11 recovery path can type-check.
+    this.name = cause.name;
+    this.parentId = parentId;
+    this.candidateIndex = candidateIndex;
+    this.candidateCount = candidateCount;
+    this.completedSearchesDiscarded = candidateIndex;
   }
 }
 
@@ -2724,14 +2754,27 @@ export async function rescorePreparedSiblingParent(
       }
       throw error;
     }
-    const result = await searchWithTimeoutContext(
-      engine,
-      parent,
-      1,
-      limit,
-      [move],
-      "independent-rescore",
-    );
+    let result: UsiMultiPvResult;
+    try {
+      result = await searchWithTimeoutContext(
+        engine,
+        parent,
+        1,
+        limit,
+        [move],
+        "independent-rescore",
+      );
+    } catch (error) {
+      if (error instanceof SiblingTeacherSearchTimeoutError) {
+        throw new SiblingTeacherRescoreSearchTimeoutError(
+          error,
+          parent.parent_id,
+          candidateIndex,
+          candidateMoves.length,
+        );
+      }
+      throw error;
+    }
     if (
       result.dualBound?.terminationReason === "node-cap" &&
       nodeCapPolicy === "route-whole-parent"
@@ -3953,9 +3996,14 @@ async function runSiblingTeacherDatasetCore(
               );
               await persist(validated);
             } catch (error) {
+              const timeoutError =
+                error instanceof SiblingTeacherSearchTimeoutError ||
+                error instanceof SiblingTeacherRescoreSearchTimeoutError
+                  ? error
+                  : undefined;
               if (
-                (error instanceof SiblingTeacherSearchTimeoutError &&
-                  error.phase !== "proposal-fallback" &&
+                (timeoutError !== undefined &&
+                  timeoutError.phase !== "proposal-fallback" &&
                   execution.recoverableSearchFailures !== "none") ||
                 (error instanceof SiblingTeacherProposalIncompleteError &&
                   execution.recoverableSearchFailures ===
@@ -3965,14 +4013,14 @@ async function runSiblingTeacherDatasetCore(
                   await engine.quit();
                   engine = null;
                   const sealed =
-                    error instanceof SiblingTeacherSearchTimeoutError
+                    timeoutError !== undefined
                       ? (() => {
                           const searchmoves =
-                            error.phase === "proposal"
+                            timeoutError.phase === "proposal"
                               ? ([] as const)
                               : ([
                                   requiredText(
-                                    error.searchmoves[0],
+                                    timeoutError.searchmoves[0],
                                     "timed-out searchmove",
                                   ),
                                 ] as const);
@@ -3984,11 +4032,11 @@ async function runSiblingTeacherDatasetCore(
                             reason: STRENGTH_FIRST_TIMEOUT_SKIP_REASON,
                             legal_moves: job.legalMoves.length,
                             timeout: {
-                              phase: error.phase,
-                              requested_multipv: error.requestedMultipv,
-                              requested_limit: error.requestedLimit,
+                              phase: timeoutError.phase,
+                              requested_multipv: timeoutError.requestedMultipv,
+                              requested_limit: timeoutError.requestedLimit,
                               searchmoves,
-                              timeout_ms: error.timeoutMs,
+                              timeout_ms: timeoutError.timeoutMs,
                             },
                           });
                         })()

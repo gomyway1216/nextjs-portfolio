@@ -4378,7 +4378,7 @@ function validateWrapper(
           : 14_400_000
         : 600_000,
     { depth: 16 },
-    undefined,
+    allowFallbackTimeoutRecovery ? 12 : undefined,
     stableMove,
   );
   if (teacherEntry.kind !== "parent") {
@@ -5040,6 +5040,40 @@ const V1R11_MINIMAL_R9_COMPLETED_SET = Object.freeze({
   }),
 });
 
+const V1R11_MINIMAL_R11_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 123_291,
+    sha256: "df1b5b6453d3edbd64e66fb6ddd3332be9c87cecc2fc9bb8fadcc516b2c107a1",
+  }),
+  work: Object.freeze({
+    bytes: 118_732_863,
+    sha256: "5e48b8f9f1175de40a5a88c382ca987f0403c0c1fcbd72a7be98ce81ff73d95f",
+  }),
+  terminalFault: Object.freeze({
+    bytes: 878,
+    sha256: "23f8faeb4ea1f8b5ec79cb9182578c5a01d4e50870b3389bb67d9bf8b0f9239b",
+  }),
+  powerLedger: Object.freeze({
+    bytes: 9_095_493,
+    sha256: "aff55deb8d1779d3486377fbab3517b3d9872f6a9388603ff24fca4fd2dd59d4",
+  }),
+  runFingerprint:
+    "fda4cd931eb5d645dfd43b1673a318b43df86bb9c1bcd8682d84cd26164cb344",
+  completedParents: 5_529,
+  completedRows: 64_003,
+  selectionOrderParentIdsSha256:
+    "f70b5d6bc2f6e0c4f8e16118dfc23097647fc4e804d751172cf6283dbcd99b81",
+  selectionIndexesSha256:
+    "e10510deb33b1f47540aa9ac58f5afce3f159376e349f24cd44e24806f04e5f7",
+  fallback: Object.freeze({ parents: 11, rows: 115, searches: 124 }),
+  allowedFallbackTimeouts: Object.freeze([14_400_000, 86_400_000]),
+  reset: Object.freeze({
+    fallbackRetries: 1,
+    engineRecycles: 1,
+    normalRetries: 0,
+  }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5108,6 +5142,7 @@ function validateHalfkp81Depth18V1R11CompletedSet(
       undefined,
       offset + 1,
       contract.allowedFallbackTimeouts,
+      contract.allowedFallbackTimeouts?.includes(86_400_000) ?? false,
     );
     seen.add(parentId);
     indexes.push(indexed.index);
@@ -5266,6 +5301,16 @@ export function validateHalfkp81Depth18V1R11MinimalR10ImportedSet(
   return validateHalfkp81Depth18V1R11CompletedSet(
     request,
     V1R11_MINIMAL_R9_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR12ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R11_COMPLETED_SET,
     true,
   );
 }
@@ -5448,6 +5493,168 @@ export function validateHalfkp81Depth18V1R11MinimalR9ImportableSet(
     V1R11_MINIMAL_R9_COMPLETED_SET,
     false,
   );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR11ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerLedger: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    terminalFault: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R11_COMPLETED_SET.plan,
+    "minimal-r11 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r11 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R11_COMPLETED_SET.work,
+    "minimal-r11 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerLedger,
+    V1R11_MINIMAL_R11_COMPLETED_SET.powerLedger,
+    "minimal-r11 source power ledger",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.terminalFault,
+    V1R11_MINIMAL_R11_COMPLETED_SET.terminalFault,
+    "minimal-r11 source terminal fault",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r11 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r11 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R11_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R11_COMPLETED_SET,
+    false,
+  );
+  const terminalFault = exactObject(
+    parseCanonicalDocument(
+      request.terminalFault,
+      "minimal-r11 source terminal fault",
+    ),
+    [
+      "authority",
+      "completed_parents",
+      "incomplete_parents",
+      "message",
+      "run_fingerprint",
+      "schema",
+      "status",
+      "teacher_plan",
+      "technical_faults",
+    ],
+    "minimal-r11 source terminal fault",
+  );
+  const authority = exactObject(
+    terminalFault.authority,
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
+    "minimal-r11 source terminal fault authority",
+  );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R11_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.status !== "terminal-fault-family-stopped" ||
+    terminalFault.run_fingerprint !==
+      V1R11_MINIMAL_R11_COMPLETED_SET.runFingerprint ||
+    terminalFault.completed_parents !==
+      V1R11_MINIMAL_R11_COMPLETED_SET.completedParents ||
+    terminalFault.incomplete_parents !==
+      8_192 - V1R11_MINIMAL_R11_COMPLETED_SET.completedParents ||
+    terminalFault.technical_faults !== 1 ||
+    !String(terminalFault.message).includes("power-source-not-AC-Power") ||
+    !sameJson(authority, {
+      may_play_formal_games: false,
+      may_resume_same_family: false,
+      may_train: false,
+      may_write_live_weights: false,
+    })
+  ) {
+    throw new Error("minimal-r11 import terminal closure differs");
+  }
+  validateDeclaredIdentity(
+    terminalFault.teacher_plan,
+    request.plan,
+    "minimal-r11 import terminal fault teacher plan",
+    { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
+  );
+  return Object.freeze({
+    schema:
+      "shogi-halfkp81-depth18-v1r11-minimal-r11-importable-set-verification-v1",
+    status: "source-set-independently-verified-import-eligible-new-family-only",
+    source: Object.freeze({
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+        workValues.length,
+      ),
+      power_ledger: identityFromSnapshot(
+        request.powerLedger,
+        "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+      ),
+      terminal_fault: identityFromSnapshot(
+        request.terminalFault,
+        "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+      ),
+      run_fingerprint: V1R11_MINIMAL_R11_COMPLETED_SET.runFingerprint,
+    }),
+    completed: Object.freeze({
+      parents: V1R11_MINIMAL_R11_COMPLETED_SET.completedParents,
+      rows: V1R11_MINIMAL_R11_COMPLETED_SET.completedRows,
+      selection_order_parent_ids_sha256:
+        V1R11_MINIMAL_R11_COMPLETED_SET.selectionOrderParentIdsSha256,
+      selection_indexes_sha256:
+        V1R11_MINIMAL_R11_COMPLETED_SET.selectionIndexesSha256,
+    }),
+    target_semantic_verification: verification,
+    authority: Object.freeze({
+      may_resume_minimal_r11: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
 }
 
 function validateHalfkp81Depth18V1R11MinimalImportableSet(

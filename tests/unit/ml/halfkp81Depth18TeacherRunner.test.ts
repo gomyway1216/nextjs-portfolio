@@ -225,7 +225,9 @@ async function fixture(
     resetTimeoutFailures?: number;
     resetTimeoutAtCalls?: readonly number[];
     unknownResetFailures?: number;
+    unknownResetFailureDelayMs?: number;
     searchDelayMs?: number;
+    abortSearchOnQuit?: boolean;
     parents?: readonly Readonly<{
       parentId?: string;
       sfen: string;
@@ -507,6 +509,7 @@ async function fixture(
     private readonly engineIndex: number;
     private readonly hashMb: number;
     private readonly timeoutMs: number;
+    private rejectPendingSearch: ((error: Error) => void) | undefined;
 
     constructor(engineOptions: Readonly<UsiTeacherEngineOptions>) {
       this.stats = {
@@ -551,6 +554,11 @@ async function fixture(
       }
       if (unknownResetFailures.value > 0) {
         unknownResetFailures.value -= 1;
+        if (options.unknownResetFailureDelayMs !== undefined) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.unknownResetFailureDelayMs),
+          );
+        }
         throw new Error("synthetic unknown reset failure");
       }
     }
@@ -558,6 +566,8 @@ async function fixture(
       if (this.closed) return;
       this.closed = true;
       this.stats.quitCalls += 1;
+      this.rejectPendingSearch?.(new Error("synthetic USI engine terminated"));
+      this.rejectPendingSearch = undefined;
       engineEvents.push(`quit:${this.engineIndex}`);
       engineHashEvents.push(`quit:${this.engineIndex}:hash${this.hashMb}`);
       engineActivity.active -= 1;
@@ -593,9 +603,29 @@ async function fixture(
         );
       }
       if (options.searchDelayMs !== undefined) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, options.searchDelayMs),
-        );
+        if (options.abortSearchOnQuit) {
+          let rejectOnQuit!: (error: Error) => void;
+          const quit = new Promise<never>((_resolve, reject) => {
+            rejectOnQuit = reject;
+          });
+          this.rejectPendingSearch = rejectOnQuit;
+          try {
+            await Promise.race([
+              new Promise((resolve) =>
+                setTimeout(resolve, options.searchDelayMs),
+              ),
+              quit,
+            ]);
+          } finally {
+            if (this.rejectPendingSearch === rejectOnQuit) {
+              this.rejectPendingSearch = undefined;
+            }
+          }
+        } else {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.searchDelayMs),
+          );
+        }
       }
       const legal = rulesCompleteLegalMoves(positionFromSfen(sfen).position)
         .map((entry) => entry.usi)
@@ -741,14 +771,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the exact r8 deferred-tail recovery plan bytes", () => {
+  it("pins the exact r9 fail-fast recovery plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r8-plan.json",
-      bytes: 157_948,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r9-plan.json",
+      bytes: 157_944,
       sha256:
-        "450391fb34a3bc4c4189c93c5cee5d4af24a1a4cdff9830c4b0cfc75bda4aa58",
+        "a78f0fae9170afc6173369b04c31789bd6800501bf891282c1104a02e6434a9e",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -3047,6 +3077,33 @@ describe("HalfKP81 depth18 teacher runner", () => {
       ).toHaveLength(1);
     },
   );
+
+  it("reaps every active engine immediately after the first worker failure", async () => {
+    const roles = ["fit", "fit", "fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      unknownResetFailures: 1,
+      unknownResetFailureDelayMs: 50,
+      searchDelayMs: 10_000,
+      abortSearchOnQuit: true,
+    });
+    const startedAt = Date.now();
+
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        value.dependencies,
+        coreContract(roles, 13),
+      ),
+    ).rejects.toThrow(/synthetic unknown reset failure/u);
+
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(value.engineStats).toHaveLength(3);
+    expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
+      true,
+    );
+    expect(value.engineActivity.active).toBe(0);
+  });
 
   it("never exceeds four active engines while v1r6 recycles timed-out workers", async () => {
     const roles = ["fit", "fit", "fit", "fit"] as const;

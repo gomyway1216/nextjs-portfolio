@@ -4980,6 +4980,36 @@ const V1R11_MINIMAL_R7_COMPLETED_SET = Object.freeze({
   }),
 });
 
+const V1R11_MINIMAL_R8_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 123_197,
+    sha256: "28cdd90853fde9772ef1faa71a5f23aa3d62fc543468f7c7efcd561f6b590fcf",
+  }),
+  work: Object.freeze({
+    bytes: 108_444_046,
+    sha256: "49cb4f4bf69f16d055ee92a47a865a07c98b9ed7739025ed277af7043ce39226",
+  }),
+  powerLedger: Object.freeze({
+    bytes: 470_302,
+    sha256: "53d79cae6c3285041e5715e700a44a15998d15cc15cdb68cc3357f1fd490bbfc",
+  }),
+  runFingerprint:
+    "76420ca344815574bcc65f7fbd741f3b9f8af7e727818a270f85b4c29e318dd9",
+  completedParents: 5_030,
+  completedRows: 58_502,
+  selectionOrderParentIdsSha256:
+    "eb7d4e39f4fa06e4c2a7851b10a6f1a57317dcbe6c518891312163d8e728aca1",
+  selectionIndexesSha256:
+    "0affe284574216118ba8d2aba69546d44a41c0373a9e1ccd7f86436fe67de93c",
+  fallback: Object.freeze({ parents: 10, rows: 103, searches: 112 }),
+  allowedFallbackTimeouts: Object.freeze([14_400_000, 86_400_000]),
+  reset: Object.freeze({
+    fallbackRetries: 1,
+    engineRecycles: 1,
+    normalRetries: 0,
+  }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5190,6 +5220,16 @@ export function validateHalfkp81Depth18V1R11MinimalR8ImportedSet(
   );
 }
 
+export function validateHalfkp81Depth18V1R11MinimalR9ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R8_COMPLETED_SET,
+    true,
+  );
+}
+
 export function validateHalfkp81Depth18V1R11MinimalR7ImportableSet(
   request: Readonly<{
     plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5246,6 +5286,66 @@ export function validateHalfkp81Depth18V1R11MinimalR7ImportableSet(
       targetRunFingerprint: V1R11_MINIMAL_R7_COMPLETED_SET.runFingerprint,
     },
     V1R11_MINIMAL_R7_COMPLETED_SET,
+    false,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR8ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerLedger: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R8_COMPLETED_SET.plan,
+    "minimal-r8 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r8 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R8_COMPLETED_SET.work,
+    "minimal-r8 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerLedger,
+    V1R11_MINIMAL_R8_COMPLETED_SET.powerLedger,
+    "minimal-r8 source power ledger",
+  );
+  const workValues = parseExactJsonl(request.work.bytes, "minimal-r8 source work");
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r8 source header",
+  );
+  if (header.run_fingerprint !== V1R11_MINIMAL_R8_COMPLETED_SET.runFingerprint) {
+    throw new Error("minimal-r8 source fingerprint differs");
+  }
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R8_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R8_COMPLETED_SET,
     false,
   );
 }

@@ -279,6 +279,7 @@ export class UsiTeacherEngine {
     multipv: number,
     limit: UsiSearchLimit,
     searchmoves: readonly string[] = [],
+    generateAllLegalMoves = false,
   ): Promise<UsiMultiPvResult> {
     if (this.lineHandler)
       return Promise.reject(
@@ -340,16 +341,37 @@ export class UsiTeacherEngine {
         this.lineHandler = null;
         this.abortPending = null;
         try {
-          resolve(accumulator.finish());
+          const result = accumulator.finish();
+          if (generateAllLegalMoves) {
+            this.send("setoption name GenerateAllLegalMoves value false");
+          }
+          resolve(result);
         } catch (error) {
+          if (generateAllLegalMoves) {
+            try {
+              this.send("setoption name GenerateAllLegalMoves value false");
+            } catch {
+              // Preserve the search result failure; the caller reaps this engine.
+            }
+          }
           reject(error);
         }
       };
       try {
+        if (generateAllLegalMoves) {
+          this.send("setoption name GenerateAllLegalMoves value true");
+        }
         this.send(`setoption name MultiPV value ${multipv}`);
         this.send(`position sfen ${sfen}`);
         this.send(buildGo(limit, searchmoves));
       } catch (error) {
+        if (generateAllLegalMoves) {
+          try {
+            this.send("setoption name GenerateAllLegalMoves value false");
+          } catch {
+            // Preserve the command failure; the caller reaps this engine.
+          }
+        }
         clearTimeout(timer);
         this.lineHandler = null;
         this.abortPending = null;

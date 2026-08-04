@@ -2478,9 +2478,16 @@ async function searchWithTimeoutContext(
   limit: UsiSearchLimit,
   searchmoves: readonly string[],
   phase: "proposal" | "proposal-fallback" | "independent-rescore",
+  generateAllLegalMoves = false,
 ): Promise<UsiMultiPvResult> {
   try {
-    return await engine.search(parent.parent_sfen, multipv, limit, searchmoves);
+    return await engine.search(
+      parent.parent_sfen,
+      multipv,
+      limit,
+      searchmoves,
+      generateAllLegalMoves,
+    );
   } catch (error) {
     if (error instanceof UsiSearchTimeoutError) {
       throw new SiblingTeacherSearchTimeoutError(
@@ -2617,6 +2624,7 @@ export async function prepareSiblingParentLabel(
         proposalLimit,
         [move],
         "proposal-fallback",
+        true,
       );
       if (
         result.lines.length !== 1 ||
@@ -2763,6 +2771,7 @@ export async function rescorePreparedSiblingParent(
         limit,
         [move],
         "independent-rescore",
+        prepared.proposalFallback !== undefined,
       );
     } catch (error) {
       if (error instanceof SiblingTeacherSearchTimeoutError) {

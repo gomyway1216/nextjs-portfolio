@@ -741,14 +741,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the final independently audited v1r11 plan bytes", () => {
+  it("pins the exact r8 deferred-tail recovery plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7-plan.json",
-      bytes: 156_094,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r8-plan.json",
+      bytes: 157_948,
       sha256:
-        "fdd851362531173202fb9b37e639983bf510d7f6a1046e81976ad567bafefddf",
+        "450391fb34a3bc4c4189c93c5cee5d4af24a1a4cdff9830c4b0cfc75bda4aa58",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -767,7 +767,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     });
   });
 
-  it("keeps timeout deferral disabled unless a future frozen plan authorizes the exact policy", () => {
+  it("authorizes only the exact frozen timeout deferral policy", () => {
     const currentPlan = JSON.parse(
       fs.readFileSync(
         path.resolve(
@@ -779,7 +779,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     ) as Record<string, unknown>;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(currentPlan),
-    ).toBe(false);
+    ).toBe(true);
 
     const futurePlan = structuredClone(currentPlan) as {
       escalation_budgets: Record<string, unknown>;
@@ -788,17 +788,13 @@ describe("HalfKP81 depth18 teacher runner", () => {
         reset_timeout_recovery: Record<string, unknown>;
       };
     };
-    futurePlan.teacher.reset_timeout_recovery.search_timeout_retry_allowed = true;
-    futurePlan.teacher.fallback_lane.search_timeout_recovery =
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN;
+    futurePlan.escalation_budgets = { ...futurePlan.escalation_budgets };
+    futurePlan.escalation_budgets.fallback_search_count_maximum = 106_496;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
     ).toBe(false);
     futurePlan.escalation_budgets =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS;
-    expect(
-      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
-    ).toBe(true);
     futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 14_400_000;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),

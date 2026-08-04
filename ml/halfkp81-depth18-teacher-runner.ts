@@ -2369,9 +2369,7 @@ async function runFrozenHalfkp81Depth18V1R11PowerGuardian(
 ): Promise<void> {
   let captured = await captureSystemPowerContinuityObservation(
     config,
-    allowFallbackTimeoutRecovery
-      ? HALFKP81_DEPTH18_TEACHER_MULTIPV
-      : undefined,
+    undefined,
   );
   let legacyState = appendHalfkp81Depth18PowerContinuityObservationForTests(
     undefined,

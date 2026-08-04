@@ -105,6 +105,7 @@ import {
   UsiSearchTimeoutError,
   type UsiTeacherEngineOptions,
 } from "../../../ml/usi-engine";
+import { UsiFixedDepthRanksIncompleteError } from "../../../ml/usi-multipv";
 
 const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
@@ -228,6 +229,7 @@ async function fixture(
     unknownResetFailureDelayMs?: number;
     searchDelayMs?: number;
     abortSearchOnQuit?: boolean;
+    proposalIncompleteFailures?: number;
     parents?: readonly Readonly<{
       parentId?: string;
       sfen: string;
@@ -408,6 +410,9 @@ async function fixture(
   const resetTimeoutAtCalls = new Set(options.resetTimeoutAtCalls ?? []);
   const globalResetCalls = { value: 0 };
   const unknownResetFailures = { value: options.unknownResetFailures ?? 0 };
+  const proposalIncompleteFailures = {
+    value: options.proposalIncompleteFailures ?? 0,
+  };
   const fallbackSearchTimeouts = {
     value: options.fallbackSearchTimeouts ?? 0,
   };
@@ -602,6 +607,21 @@ async function fixture(
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
         );
       }
+      if (
+        proposalIncompleteFailures.value > 0 &&
+        this.hashMb === 512 &&
+        limit.depth === 16 &&
+        searchmoves.length === 0
+      ) {
+        proposalIncompleteFailures.value -= 1;
+        throw new UsiFixedDepthRanksIncompleteError(
+          multipv,
+          16,
+          Math.max(0, multipv - 1),
+          Math.max(0, multipv - 1),
+          0,
+        );
+      }
       if (options.searchDelayMs !== undefined) {
         if (options.abortSearchOnQuit) {
           let rejectOnQuit!: (error: Error) => void;
@@ -771,14 +791,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the exact r9 fail-fast recovery plan bytes", () => {
+  it("pins the exact r10 proposal fallback plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r9-plan.json",
-      bytes: 157_944,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-plan.json",
+      bytes: 158_068,
       sha256:
-        "a78f0fae9170afc6173369b04c31789bd6800501bf891282c1104a02e6434a9e",
+        "4eb6fedeff025a1d41ceb794ba5ea71ff8c7db477183819dced66ee6bc89e16e",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -3102,6 +3122,48 @@ describe("HalfKP81 depth18 teacher runner", () => {
     expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
       true,
     );
+    expect(value.engineActivity.active).toBe(0);
+  });
+
+  it("labels a four-move parent through exact all-legal depth16 proposal fallback", async () => {
+    const roles = ["fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      proposalIncompleteFailures: 1,
+      parents: [
+        {
+          parentId:
+            "sha256:ddd6efab1c46c558ba4a8c96f23dad9ca400d3595b0df8e045989ac37a58b707",
+          sfen: "l7l/3S3s1/6np1/pb2G1p1p/1N1g3P1/PP3PP1P/2P1S4/3kS1N2/LN3K1RL w R5Pb2g2p 120",
+          playedMove: "6h7h",
+        },
+      ],
+    });
+
+    await runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests(
+      value.authenticated,
+      value.dependencies,
+      coreContract(roles, 13),
+    );
+
+    const records = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records).toHaveLength(2);
+    expect(
+      (records[1].teacher_entry as Record<string, unknown>).proposal_fallback,
+    ).toMatchObject({
+      mode: "typed-incomplete-then-all-legal-single-move-proposals-v1",
+      trigger: {
+        requested_multipv: 4,
+        requested_limit: { depth: 16 },
+        final_exact_ranks: 3,
+        missing_or_non_exact_ranks: 1,
+      },
+    });
     expect(value.engineActivity.active).toBe(0);
   });
 

@@ -19,8 +19,8 @@
     "strength_contract_change": false,
     "minimal_formal_entrypoint": {
       "path": "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
-      "bytes": 15854,
-        "sha256": "32d2b5e35e08d179da07b0d262b3fe638098b05d48bb0c8a19d1ffc6a34e98fd",
+      "bytes": 15925,
+      "sha256": "96b690e031b7b2ed8b4690fb0641149d1daa25f508d9f58c002d52021483c9e5",
       "schema": "text/typescript-utf8-exact-source"
     },
     "minimal_r6_durable_completed_set_import": {

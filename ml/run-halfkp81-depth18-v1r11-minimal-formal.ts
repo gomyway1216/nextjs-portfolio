@@ -39,6 +39,8 @@ const SELECTION_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1";
 const ASSET_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-teacher-assets-v1";
+const SOURCE_ENGINE_RECEIPT_ROOT =
+  "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio";
 const IMPORT_ROOT = "/private/tmp/v1r11-import-scratch.2bRuAT";
 const SMOKE_ROOT = "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB";
 const POWER_ROOT = "/private/tmp/v1r11-power-smoke-final4-05b81a1e";
@@ -287,7 +289,7 @@ async function verifySmokeArtifact(): Promise<
     ),
     privateSnapshot(
       header.engine.receipt.path,
-      path.dirname(path.dirname(header.engine.receipt.path)),
+      SOURCE_ENGINE_RECEIPT_ROOT,
       "minimal smoke engine receipt",
       654,
       false,

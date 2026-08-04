@@ -78,6 +78,20 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
     );
   });
 
+  it("anchors the smoke engine receipt to a fixed canonical root", () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts"),
+      "utf8",
+    );
+    expect(source).toContain("SOURCE_ENGINE_RECEIPT_ROOT");
+    expect(source).toContain(
+      "header.engine.receipt.path,\n      SOURCE_ENGINE_RECEIPT_ROOT,",
+    );
+    expect(source).not.toContain(
+      "path.dirname(path.dirname(header.engine.receipt.path))",
+    );
+  });
+
   it("binds the exact minimal entrypoint identity in the tracked plan", () => {
     const entrypointPath = path.join(
       ROOT,

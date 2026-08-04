@@ -445,8 +445,8 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
   path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
-  bytes: 158_070,
-  sha256: "fefa6c0593dc2bdae6ed9f84eea109571446ab2f2a6efc98925efebe787eda4e",
+  bytes: 158_068,
+  sha256: "bb8bac99b9779ca6dca365c815d04969327fc247a7c7acc084225462153c4146",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });

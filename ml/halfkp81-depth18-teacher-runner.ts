@@ -296,14 +296,14 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
-export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity.jsonl` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/power-continuity.jsonl` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
@@ -5363,7 +5363,8 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11(): Promi
   return publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R9Protocol({
     familyLabel: "v1r11",
     preregistration: EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION,
-    outputDirectory: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+    outputDirectory:
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
     outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
   });
 }
@@ -10241,11 +10242,11 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
       `${label}.plist`,
     ),
     expectedStdoutPath: path.join(
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
       "formal-launchagent.stdout.log",
     ),
     expectedStderrPath: path.join(
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY,
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
       "formal-launchagent.stderr.log",
     ),
   });

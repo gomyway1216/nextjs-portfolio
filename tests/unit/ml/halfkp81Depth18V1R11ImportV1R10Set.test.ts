@@ -13,6 +13,7 @@ import {
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
 import {
+  indexHalfkp81Depth18ImportParents,
   importHalfkp81Depth18V1R10CompletedSetIntoV1R11,
   importHalfkp81Depth18V1R11MinimalR4CompletedSetIntoR5,
   importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6,
@@ -32,6 +33,23 @@ function snapshot(name: string): Readonly<Halfkp81Depth18PrivateSnapshot> {
 }
 
 describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
+  it("indexes parent JSONL directly without a parsed-row intermediate array", () => {
+    const bytes = Buffer.from(
+      [
+        JSON.stringify({ schema: "header" }),
+        JSON.stringify({ kind: "parent", parent_id: "parent-a", value: 1 }),
+        JSON.stringify({ kind: "parent", parent_id: "parent-b", value: 2 }),
+      ].join("\n"),
+      "utf8",
+    );
+
+    const parents = indexHalfkp81Depth18ImportParents(bytes);
+
+    expect([...parents.keys()]).toEqual(["parent-a", "parent-b"]);
+    expect(parents.get("parent-a")).toMatchObject({ value: 1 });
+    expect(parents.get("parent-b")).toMatchObject({ value: 2 });
+  });
+
   it("rejects an unpinned source before parsing or importing it", () => {
     const invalid = snapshot("invalid.json");
     expect(() =>

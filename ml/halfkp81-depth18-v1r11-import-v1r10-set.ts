@@ -63,6 +63,31 @@ function canonicalLine(value: unknown): Buffer {
   return Buffer.from(`${canonicalHalfkp81Depth18Json(value)}\n`, "utf8");
 }
 
+export function indexHalfkp81Depth18ImportParents(
+  bytes: Uint8Array,
+): ReadonlyMap<string, Record<string, unknown>> {
+  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const parents = new Map<string, Record<string, unknown>>();
+  let lineNumber = 0;
+  let start = 0;
+  while (start < buffer.byteLength) {
+    const newline = buffer.indexOf(0x0a, start);
+    const end = newline === -1 ? buffer.byteLength : newline;
+    if (end > start) {
+      if (lineNumber > 0) {
+        const parent = JSON.parse(
+          buffer.toString("utf8", start, end),
+        ) as Record<string, unknown>;
+        parents.set(String(parent.parent_id), parent);
+      }
+      lineNumber += 1;
+    }
+    if (newline === -1) break;
+    start = newline + 1;
+  }
+  return parents;
+}
+
 async function fsyncDirectory(directory: string): Promise<void> {
   const handle = await fs.promises.open(directory, fs.constants.O_RDONLY);
   try {
@@ -1592,14 +1617,8 @@ export async function importHalfkp81Depth18V1R11MinimalR11CompletedSetIntoR12(
   const source = await readMinimalR11SourceSnapshots();
   const sourceVerification =
     validateHalfkp81Depth18V1R11MinimalR11ImportableSet(source);
-  const sourceLines = Buffer.from(source.work.bytes)
-    .toString("utf8")
-    .trimEnd()
-    .split("\n")
-    .slice(1)
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
-  const sourceByParentId = new Map(
-    sourceLines.map((entry) => [String(entry.parent_id), entry] as const),
+  const sourceByParentId = indexHalfkp81Depth18ImportParents(
+    source.work.bytes,
   );
   const imported: Record<string, unknown>[] = [];
   for (const parentId of request.selectionOrderedParentIds) {

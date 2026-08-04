@@ -20,6 +20,8 @@ import {
   validateHalfkp81Depth18V1R11MinimalR7ImportedSet,
   validateHalfkp81Depth18V1R11MinimalR7ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR8ImportedSet,
+  validateHalfkp81Depth18V1R11MinimalR8ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR9ImportedSet,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 
 const SOURCE_ROOT =
@@ -42,6 +44,8 @@ const MINIMAL_R6_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6";
 const MINIMAL_R7_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7";
+const MINIMAL_R8_SOURCE_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r8";
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -1243,6 +1247,139 @@ export async function importHalfkp81Depth18V1R11MinimalR7CompletedSetIntoR8(
       }),
       imported_parents: imported.length,
       imported_rows: 58_478,
+      remaining_parent_id_set_difference: 8_192 - imported.length,
+    }),
+  });
+}
+
+async function readMinimalR8SourceSnapshots() {
+  const uid = process.getuid?.() ?? -1;
+  const read = (
+    file: string,
+    root: string,
+    label: string,
+    maximumBytes: number,
+  ) => readHalfkp81Depth18PrivateArtifact(file, root, uid, label, maximumBytes);
+  const [plan, selection, work, powerLedger] = await Promise.all([
+    read(
+      path.join(MINIMAL_R8_SOURCE_ROOT, "teacher-plan.json"),
+      MINIMAL_R8_SOURCE_ROOT,
+      "minimal-r8 import plan",
+      123_197,
+    ),
+    read(
+      path.join(SELECTION_ROOT, "hard-parents.jsonl"),
+      SELECTION_ROOT,
+      "minimal-r8 import selection",
+      7_268_777,
+    ),
+    read(
+      path.join(MINIMAL_R8_SOURCE_ROOT, "teacher-work.jsonl"),
+      MINIMAL_R8_SOURCE_ROOT,
+      "minimal-r8 import work",
+      108_444_046,
+    ),
+    read(
+      path.join(MINIMAL_R8_SOURCE_ROOT, "power-continuity.jsonl"),
+      MINIMAL_R8_SOURCE_ROOT,
+      "minimal-r8 import power ledger",
+      470_302,
+    ),
+  ]);
+  return Object.freeze({ plan, selection, work, powerLedger });
+}
+
+export async function importHalfkp81Depth18V1R11MinimalR8CompletedSetIntoR9(
+  request: Readonly<Halfkp81Depth18V1R11ImportRequest>,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (
+    !/^[0-9a-f]{64}$/u.test(request.targetRunFingerprint) ||
+    request.targetRunFingerprint ===
+      "76420ca344815574bcc65f7fbd741f3b9f8af7e727818a270f85b4c29e318dd9" ||
+    request.targetHeader.run_fingerprint !== request.targetRunFingerprint ||
+    request.targetHeader.schema !== V1R11_WORK_SCHEMA ||
+    request.selectionOrderedParentIds.length !== 8_192 ||
+    new Set(request.selectionOrderedParentIds).size !== 8_192
+  ) {
+    throw new Error("minimal-r9 import target identity differs");
+  }
+  const source = await readMinimalR8SourceSnapshots();
+  const sourceVerification =
+    validateHalfkp81Depth18V1R11MinimalR8ImportableSet(source);
+  const sourceLines = Buffer.from(source.work.bytes)
+    .toString("utf8")
+    .trimEnd()
+    .split("\n")
+    .slice(1)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const sourceByParentId = new Map(
+    sourceLines.map((entry) => [String(entry.parent_id), entry] as const),
+  );
+  const imported: Record<string, unknown>[] = [];
+  for (const parentId of request.selectionOrderedParentIds) {
+    const sourceEntry = sourceByParentId.get(parentId);
+    if (sourceEntry === undefined) continue;
+    const sourceTeacher = sourceEntry.teacher_entry as Record<string, unknown>;
+    const teacherEntry: Record<string, unknown> = {
+      ...sourceTeacher,
+      run_fingerprint: request.targetRunFingerprint,
+    };
+    delete teacherEntry.payload_sha256;
+    teacherEntry.payload_sha256 = sha256(
+      canonicalHalfkp81Depth18Json(teacherEntry),
+    );
+    const withoutDigest: Record<string, unknown> = {
+      ...sourceEntry,
+      schema: V1R11_WORK_SCHEMA,
+      run_fingerprint: request.targetRunFingerprint,
+      teacher_entry: teacherEntry,
+    };
+    delete withoutDigest.payload_sha256;
+    imported.push({
+      ...withoutDigest,
+      payload_sha256: sha256(
+        `${HALFKP81_DEPTH18_WRAPPER_DIGEST_DOMAIN}${canonicalHalfkp81Depth18Json(withoutDigest)}`,
+      ),
+    });
+  }
+  if (imported.length !== 5_030) {
+    throw new Error("minimal-r9 transformed parent count differs");
+  }
+  const targetBytes = Buffer.concat([
+    canonicalLine(request.targetHeader),
+    ...imported.map(canonicalLine),
+  ]);
+  const targetWorkIdentity = await publishCreateOnly(
+    request.targetWorkPath,
+    targetBytes,
+  );
+  const targetWork = await readHalfkp81Depth18PrivateArtifact(
+    request.targetWorkPath,
+    path.dirname(request.targetWorkPath),
+    process.getuid?.() ?? -1,
+    "minimal-r9 imported target work",
+    targetBytes.byteLength,
+  );
+  const targetVerification = validateHalfkp81Depth18V1R11MinimalR9ImportedSet({
+    selection: source.selection,
+    targetWork,
+    expectedHeader: request.targetHeader,
+    targetRunFingerprint: request.targetRunFingerprint,
+  });
+  return Object.freeze({
+    schema: "shogi-halfkp81-depth18-v1r11-imported-set-verification-v1",
+    status: "new-family-create-only-exact-set-imported",
+    source: sourceVerification,
+    target_verification: targetVerification,
+    target: Object.freeze({
+      run_fingerprint: request.targetRunFingerprint,
+      work: Object.freeze({
+        ...targetWorkIdentity,
+        schema: V1R11_WORK_SCHEMA,
+        rows: imported.length + 1,
+      }),
+      imported_parents: imported.length,
+      imported_rows: 58_502,
       remaining_parent_id_set_difference: 8_192 - imported.length,
     }),
   });

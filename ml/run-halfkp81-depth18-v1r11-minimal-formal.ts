@@ -7,7 +7,7 @@ import * as path from "node:path";
 
 import {
   readHalfkp81Depth18PrivateArtifact,
-  validateHalfkp81Depth18V1R11MinimalR7ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR8ImportableSet,
   validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 import {
@@ -42,8 +42,8 @@ const ASSET_ROOT =
 const IMPORT_ROOT = "/private/tmp/v1r11-import-scratch.2bRuAT";
 const SMOKE_ROOT = "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB";
 const POWER_ROOT = "/private/tmp/v1r11-power-smoke-final4-05b81a1e";
-const MINIMAL_R7_ROOT =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7";
+const MINIMAL_R8_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r8";
 
 const FIXED = Object.freeze({
   "import-receipt": Object.freeze({
@@ -346,38 +346,38 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
       "fixed power receipt/result does not bind the independently verified ledger",
     );
   }
-  const [r7Plan, selection, r7Work, r7PowerLedger] = await Promise.all([
+  const [r8Plan, selection, r8Work, r8PowerLedger] = await Promise.all([
     privateSnapshot(
-      path.join(MINIMAL_R7_ROOT, "teacher-plan.json"),
-      MINIMAL_R7_ROOT,
-      "minimal-r7 fixed-gate plan",
-      122_757,
+      path.join(MINIMAL_R8_ROOT, "teacher-plan.json"),
+      MINIMAL_R8_ROOT,
+      "minimal-r8 fixed-gate plan",
+      123_197,
     ),
     privateSnapshot(
       path.join(SELECTION_ROOT, "hard-parents.jsonl"),
       SELECTION_ROOT,
-      "minimal-r7 fixed-gate selection",
+      "minimal-r8 fixed-gate selection",
       7_268_777,
     ),
     privateSnapshot(
-      path.join(MINIMAL_R7_ROOT, "teacher-work.jsonl"),
-      MINIMAL_R7_ROOT,
-      "minimal-r7 fixed-gate work",
-      108_399_537,
+      path.join(MINIMAL_R8_ROOT, "teacher-work.jsonl"),
+      MINIMAL_R8_ROOT,
+      "minimal-r8 fixed-gate work",
+      108_444_046,
     ),
     privateSnapshot(
-      path.join(MINIMAL_R7_ROOT, "power-continuity.jsonl"),
-      MINIMAL_R7_ROOT,
-      "minimal-r7 fixed-gate power ledger",
-      7_413_976,
+      path.join(MINIMAL_R8_ROOT, "power-continuity.jsonl"),
+      MINIMAL_R8_ROOT,
+      "minimal-r8 fixed-gate power ledger",
+      470_302,
     ),
   ]);
-  const minimalR7CompletedSet =
-    validateHalfkp81Depth18V1R11MinimalR7ImportableSet({
-      plan: r7Plan,
+  const minimalR8CompletedSet =
+    validateHalfkp81Depth18V1R11MinimalR8ImportableSet({
+      plan: r8Plan,
       selection,
-      work: r7Work,
-      powerLedger: r7PowerLedger,
+      work: r8Work,
+      powerLedger: r8PowerLedger,
     });
   const processes = execFileSync("/bin/ps", ["-ww", "-axo", "command="], {
     encoding: "utf8",
@@ -407,7 +407,7 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
     status: "minimal-formal-fixed-gate-pass",
     smoke,
     power_verification: powerVerification,
-    minimal_r7_completed_set: minimalR7CompletedSet,
+    minimal_r8_completed_set: minimalR8CompletedSet,
   });
 }
 
@@ -429,7 +429,7 @@ async function main(): Promise<void> {
   if (process.argv.length !== 2)
     throw new Error("the minimal formal entrypoint accepts no arguments");
   const launched =
-    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r8-[0-9a-f]{8}$/u.test(
+    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r9-[0-9a-f]{8}$/u.test(
       process.env.XPC_SERVICE_NAME ?? "",
     );
   if (!launched) {
@@ -455,8 +455,8 @@ async function main(): Promise<void> {
         "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
       ),
       labelPrefix:
-        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r8-",
-      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r8",
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r9-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r9",
     });
     await bootstrapHalfkp81V1R11PlannedLaunchAgent(descriptor);
     process.stdout.write(

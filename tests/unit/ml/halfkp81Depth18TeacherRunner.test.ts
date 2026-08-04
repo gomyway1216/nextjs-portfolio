@@ -105,6 +105,7 @@ import {
   UsiSearchTimeoutError,
   type UsiTeacherEngineOptions,
 } from "../../../ml/usi-engine";
+import { UsiFixedDepthRanksIncompleteError } from "../../../ml/usi-multipv";
 
 const START = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
@@ -225,7 +226,10 @@ async function fixture(
     resetTimeoutFailures?: number;
     resetTimeoutAtCalls?: readonly number[];
     unknownResetFailures?: number;
+    unknownResetFailureDelayMs?: number;
     searchDelayMs?: number;
+    abortSearchOnQuit?: boolean;
+    proposalIncompleteFailures?: number;
     parents?: readonly Readonly<{
       parentId?: string;
       sfen: string;
@@ -406,6 +410,9 @@ async function fixture(
   const resetTimeoutAtCalls = new Set(options.resetTimeoutAtCalls ?? []);
   const globalResetCalls = { value: 0 };
   const unknownResetFailures = { value: options.unknownResetFailures ?? 0 };
+  const proposalIncompleteFailures = {
+    value: options.proposalIncompleteFailures ?? 0,
+  };
   const fallbackSearchTimeouts = {
     value: options.fallbackSearchTimeouts ?? 0,
   };
@@ -507,6 +514,7 @@ async function fixture(
     private readonly engineIndex: number;
     private readonly hashMb: number;
     private readonly timeoutMs: number;
+    private rejectPendingSearch: ((error: Error) => void) | undefined;
 
     constructor(engineOptions: Readonly<UsiTeacherEngineOptions>) {
       this.stats = {
@@ -551,6 +559,11 @@ async function fixture(
       }
       if (unknownResetFailures.value > 0) {
         unknownResetFailures.value -= 1;
+        if (options.unknownResetFailureDelayMs !== undefined) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.unknownResetFailureDelayMs),
+          );
+        }
         throw new Error("synthetic unknown reset failure");
       }
     }
@@ -558,6 +571,8 @@ async function fixture(
       if (this.closed) return;
       this.closed = true;
       this.stats.quitCalls += 1;
+      this.rejectPendingSearch?.(new Error("synthetic USI engine terminated"));
+      this.rejectPendingSearch = undefined;
       engineEvents.push(`quit:${this.engineIndex}`);
       engineHashEvents.push(`quit:${this.engineIndex}:hash${this.hashMb}`);
       engineActivity.active -= 1;
@@ -592,10 +607,45 @@ async function fixture(
           HALFKP81_DEPTH18_YANEURA_ONLY_V1R5_TIMEOUT_MS,
         );
       }
-      if (options.searchDelayMs !== undefined) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, options.searchDelayMs),
+      if (
+        proposalIncompleteFailures.value > 0 &&
+        this.hashMb === 512 &&
+        limit.depth === 16 &&
+        searchmoves.length === 0
+      ) {
+        proposalIncompleteFailures.value -= 1;
+        throw new UsiFixedDepthRanksIncompleteError(
+          multipv,
+          16,
+          Math.max(0, multipv - 1),
+          Math.max(0, multipv - 1),
+          0,
         );
+      }
+      if (options.searchDelayMs !== undefined) {
+        if (options.abortSearchOnQuit) {
+          let rejectOnQuit!: (error: Error) => void;
+          const quit = new Promise<never>((_resolve, reject) => {
+            rejectOnQuit = reject;
+          });
+          this.rejectPendingSearch = rejectOnQuit;
+          try {
+            await Promise.race([
+              new Promise((resolve) =>
+                setTimeout(resolve, options.searchDelayMs),
+              ),
+              quit,
+            ]);
+          } finally {
+            if (this.rejectPendingSearch === rejectOnQuit) {
+              this.rejectPendingSearch = undefined;
+            }
+          }
+        } else {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.searchDelayMs),
+          );
+        }
       }
       const legal = rulesCompleteLegalMoves(positionFromSfen(sfen).position)
         .map((entry) => entry.usi)
@@ -741,14 +791,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the final independently audited v1r11 plan bytes", () => {
+  it("pins the exact r11 all-legal proposal fallback plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7-plan.json",
-      bytes: 156_094,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
+      bytes: 158_068,
       sha256:
-        "fdd851362531173202fb9b37e639983bf510d7f6a1046e81976ad567bafefddf",
+        "bb8bac99b9779ca6dca365c815d04969327fc247a7c7acc084225462153c4146",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -767,7 +817,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     });
   });
 
-  it("keeps timeout deferral disabled unless a future frozen plan authorizes the exact policy", () => {
+  it("authorizes only the exact frozen timeout deferral policy", () => {
     const currentPlan = JSON.parse(
       fs.readFileSync(
         path.resolve(
@@ -779,7 +829,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     ) as Record<string, unknown>;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(currentPlan),
-    ).toBe(false);
+    ).toBe(true);
 
     const futurePlan = structuredClone(currentPlan) as {
       escalation_budgets: Record<string, unknown>;
@@ -788,17 +838,13 @@ describe("HalfKP81 depth18 teacher runner", () => {
         reset_timeout_recovery: Record<string, unknown>;
       };
     };
-    futurePlan.teacher.reset_timeout_recovery.search_timeout_retry_allowed = true;
-    futurePlan.teacher.fallback_lane.search_timeout_recovery =
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN;
+    futurePlan.escalation_budgets = { ...futurePlan.escalation_budgets };
+    futurePlan.escalation_budgets.fallback_search_count_maximum = 106_496;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
     ).toBe(false);
     futurePlan.escalation_budgets =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_ESCALATION_BUDGETS;
-    expect(
-      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
-    ).toBe(true);
     futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 14_400_000;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
@@ -3051,6 +3097,75 @@ describe("HalfKP81 depth18 teacher runner", () => {
       ).toHaveLength(1);
     },
   );
+
+  it("reaps every active engine immediately after the first worker failure", async () => {
+    const roles = ["fit", "fit", "fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      unknownResetFailures: 1,
+      unknownResetFailureDelayMs: 50,
+      searchDelayMs: 10_000,
+      abortSearchOnQuit: true,
+    });
+    const startedAt = Date.now();
+
+    await expect(
+      runHalfkp81Depth18TeacherCoreForTests(
+        value.authenticated,
+        value.dependencies,
+        coreContract(roles, 13),
+      ),
+    ).rejects.toThrow(/synthetic unknown reset failure/u);
+
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(value.engineStats).toHaveLength(3);
+    expect(value.engineStats.every((stats) => stats.quitCalls === 1)).toBe(
+      true,
+    );
+    expect(value.engineActivity.active).toBe(0);
+  });
+
+  it("labels a four-move parent through exact all-legal depth16 proposal fallback", async () => {
+    const roles = ["fit"] as const;
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      proposalIncompleteFailures: 1,
+      parents: [
+        {
+          parentId:
+            "sha256:ddd6efab1c46c558ba4a8c96f23dad9ca400d3595b0df8e045989ac37a58b707",
+          sfen: "l7l/3S3s1/6np1/pb2G1p1p/1N1g3P1/PP3PP1P/2P1S4/3kS1N2/LN3K1RL w R5Pb2g2p 120",
+          playedMove: "6h7h",
+        },
+      ],
+    });
+
+    await runHalfkp81Depth18FallbackTimeoutRecoveryCoreForTests(
+      value.authenticated,
+      value.dependencies,
+      coreContract(roles, 13),
+    );
+
+    const records = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records).toHaveLength(2);
+    expect(
+      (records[1].teacher_entry as Record<string, unknown>).proposal_fallback,
+    ).toMatchObject({
+      mode: "typed-incomplete-then-all-legal-single-move-proposals-v1",
+      trigger: {
+        requested_multipv: 4,
+        requested_limit: { depth: 16 },
+        final_exact_ranks: 3,
+        missing_or_non_exact_ranks: 1,
+      },
+    });
+    expect(value.engineActivity.active).toBe(0);
+  });
 
   it("never exceeds four active engines while v1r6 recycles timed-out workers", async () => {
     const roles = ["fit", "fit", "fit", "fit"] as const;

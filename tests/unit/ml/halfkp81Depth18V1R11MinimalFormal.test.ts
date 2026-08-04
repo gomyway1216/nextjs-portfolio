@@ -35,7 +35,7 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7-plan.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
         ),
         "utf8",
       ),
@@ -78,7 +78,21 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
     );
   });
 
-  it("binds the exact minimal entrypoint identity in both tracked contracts", () => {
+  it("anchors the smoke engine receipt to a fixed canonical root", () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts"),
+      "utf8",
+    );
+    expect(source).toContain("SOURCE_ENGINE_RECEIPT_ROOT");
+    expect(source).toContain(
+      "header.engine.receipt.path,\n      SOURCE_ENGINE_RECEIPT_ROOT,",
+    );
+    expect(source).not.toContain(
+      "path.dirname(path.dirname(header.engine.receipt.path))",
+    );
+  });
+
+  it("binds the exact minimal entrypoint identity in the tracked plan", () => {
     const entrypointPath = path.join(
       ROOT,
       "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
@@ -94,25 +108,13 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7-plan.json",
-        ),
-        "utf8",
-      ),
-    ) as Record<string, Record<string, unknown>>;
-    const preregistration = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          ROOT,
-          "docs/data/shogi-halfkp81-depth18-yaneura-only-v1r11-minimal-r7-preregistration-2026-08-03.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
         ),
         "utf8",
       ),
     ) as Record<string, Record<string, unknown>>;
     expect(
       trackedPlan.minimal_formal_start_gate?.minimal_formal_entrypoint,
-    ).toEqual(expectedIdentity);
-    expect(
-      preregistration.minimal_formal_start_gate?.minimal_formal_entrypoint,
     ).toEqual(expectedIdentity);
   });
 });

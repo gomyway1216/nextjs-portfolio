@@ -7,7 +7,7 @@ import * as path from "node:path";
 
 import {
   readHalfkp81Depth18PrivateArtifact,
-  validateHalfkp81Depth18V1R11MinimalR6ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR9ImportableSet,
   validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 import {
@@ -39,11 +39,13 @@ const SELECTION_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-strength-v1";
 const ASSET_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-teacher-assets-v1";
+const SOURCE_ENGINE_RECEIPT_ROOT =
+  "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio";
 const IMPORT_ROOT = "/private/tmp/v1r11-import-scratch.2bRuAT";
 const SMOKE_ROOT = "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB";
 const POWER_ROOT = "/private/tmp/v1r11-power-smoke-final4-05b81a1e";
-const MINIMAL_R6_ROOT =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r6";
+const MINIMAL_R9_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r9";
 
 const FIXED = Object.freeze({
   "import-receipt": Object.freeze({
@@ -287,7 +289,7 @@ async function verifySmokeArtifact(): Promise<
     ),
     privateSnapshot(
       header.engine.receipt.path,
-      REPOSITORY_ROOT,
+      SOURCE_ENGINE_RECEIPT_ROOT,
       "minimal smoke engine receipt",
       654,
       false,
@@ -346,59 +348,38 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
       "fixed power receipt/result does not bind the independently verified ledger",
     );
   }
-  const [
-    r6Plan,
-    selection,
-    r6Work,
-    r6TerminalFault,
-    r6PowerLedger,
-    r6PowerReceipt,
-  ] = await Promise.all([
+  const [r9Plan, selection, r9Work, r9PowerLedger] = await Promise.all([
     privateSnapshot(
-      path.join(MINIMAL_R6_ROOT, "teacher-plan.json"),
-      MINIMAL_R6_ROOT,
-      "minimal-r6 fixed-gate plan",
-      122_673,
+      path.join(MINIMAL_R9_ROOT, "teacher-plan.json"),
+      MINIMAL_R9_ROOT,
+      "minimal-r9 fixed-gate plan",
+      123_197,
     ),
     privateSnapshot(
       path.join(SELECTION_ROOT, "hard-parents.jsonl"),
       SELECTION_ROOT,
-      "minimal-r6 fixed-gate selection",
+      "minimal-r9 fixed-gate selection",
       7_268_777,
     ),
     privateSnapshot(
-      path.join(MINIMAL_R6_ROOT, "teacher-work.jsonl"),
-      MINIMAL_R6_ROOT,
-      "minimal-r6 fixed-gate work",
-      105_333_287,
+      path.join(MINIMAL_R9_ROOT, "teacher-work.jsonl"),
+      MINIMAL_R9_ROOT,
+      "minimal-r9 fixed-gate work",
+      108_444_046,
     ),
     privateSnapshot(
-      path.join(MINIMAL_R6_ROOT, "teacher-terminal-fault.json"),
-      MINIMAL_R6_ROOT,
-      "minimal-r6 fixed-gate terminal fault",
-      2_316,
-    ),
-    privateSnapshot(
-      path.join(MINIMAL_R6_ROOT, "power-continuity.jsonl"),
-      MINIMAL_R6_ROOT,
-      "minimal-r6 fixed-gate power ledger",
-      3_628_882,
-    ),
-    privateSnapshot(
-      path.join(MINIMAL_R6_ROOT, "power-continuity-receipt.json"),
-      MINIMAL_R6_ROOT,
-      "minimal-r6 fixed-gate power receipt",
-      17_859,
+      path.join(MINIMAL_R9_ROOT, "power-continuity.jsonl"),
+      MINIMAL_R9_ROOT,
+      "minimal-r9 fixed-gate power ledger",
+      18_607,
     ),
   ]);
-  const minimalR6CompletedSet =
-    validateHalfkp81Depth18V1R11MinimalR6ImportableSet({
-      plan: r6Plan,
+  const minimalR9CompletedSet =
+    validateHalfkp81Depth18V1R11MinimalR9ImportableSet({
+      plan: r9Plan,
       selection,
-      work: r6Work,
-      terminalFault: r6TerminalFault,
-      powerLedger: r6PowerLedger,
-      powerReceipt: r6PowerReceipt,
+      work: r9Work,
+      powerLedger: r9PowerLedger,
     });
   const processes = execFileSync("/bin/ps", ["-ww", "-axo", "command="], {
     encoding: "utf8",
@@ -428,7 +409,7 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
     status: "minimal-formal-fixed-gate-pass",
     smoke,
     power_verification: powerVerification,
-    minimal_r6_completed_set: minimalR6CompletedSet,
+    minimal_r9_completed_set: minimalR9CompletedSet,
   });
 }
 
@@ -450,7 +431,7 @@ async function main(): Promise<void> {
   if (process.argv.length !== 2)
     throw new Error("the minimal formal entrypoint accepts no arguments");
   const launched =
-    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r7-[0-9a-f]{8}$/u.test(
+    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r11-[0-9a-f]{8}$/u.test(
       process.env.XPC_SERVICE_NAME ?? "",
     );
   if (!launched) {
@@ -476,8 +457,8 @@ async function main(): Promise<void> {
         "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
       ),
       labelPrefix:
-        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r7-",
-      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r7",
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r11-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11",
     });
     await bootstrapHalfkp81V1R11PlannedLaunchAgent(descriptor);
     process.stdout.write(

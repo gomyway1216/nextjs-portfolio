@@ -2958,6 +2958,19 @@ describe("deterministic sibling teacher generator", () => {
       { multipv: 1, depth: 16, searchmoves: ["8h7i"] },
       { multipv: 1, depth: 16, searchmoves: ["8h8g"] },
     ]);
+    const allLegalToggles = parseJsonl<Record<string, unknown>>(
+      await fs.promises.readFile(trace, "utf8"),
+    ).filter((event) => event.event === "generate-all-legal");
+    expect(allLegalToggles.map((event) => event.enabled)).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
 
     const fingerprint = "f".repeat(64);
     const sealed = {

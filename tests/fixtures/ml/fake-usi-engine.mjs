@@ -89,6 +89,13 @@ rl.on('line', (line) => {
     multipv = Number.parseInt(multi[1], 10);
     return;
   }
+  const generateAllLegal = line.match(
+    /^setoption name GenerateAllLegalMoves value (true|false)$/
+  );
+  if (generateAllLegal) {
+    trace({ event: 'generate-all-legal', enabled: generateAllLegal[1] === 'true' });
+    return;
+  }
   if (!line.startsWith('go ')) {
     if (line === 'quit') process.exit(0);
     return;

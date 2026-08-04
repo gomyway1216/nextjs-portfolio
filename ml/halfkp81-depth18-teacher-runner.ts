@@ -81,7 +81,7 @@ import type {
   V1R11AuthorityFileIdentity,
 } from "./halfkp81-depth18-v1r11-authority-io";
 import type { IndependentFormalRunIntentInput } from "./verify-halfkp81-depth18-v1r11-staged-authority";
-import { importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR10 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
+import { importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR11 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
 const HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA =
   "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11" as const;
 
@@ -297,7 +297,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
@@ -305,7 +305,7 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -444,9 +444,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-plan.json",
-  bytes: 158_068,
-  sha256: "4eb6fedeff025a1d41ceb794ba5ea71ff8c7db477183819dced66ee6bc89e16e",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
+  bytes: 158_070,
+  sha256: "fefa6c0593dc2bdae6ed9f84eea109571446ab2f2a6efc98925efebe787eda4e",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });
@@ -8186,7 +8186,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       ),
     );
     if (recoveryV1R11) {
-      await importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR10({
+      await importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR11({
         repositoryRoot,
         targetWorkPath: authenticated.outputs.work_jsonl,
         targetHeader: header as unknown as Readonly<Record<string, unknown>>,
@@ -9933,7 +9933,7 @@ export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForT
 }
 
 const V1R11_LAUNCHD_LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r10-" as const;
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r11-" as const;
 
 export interface Halfkp81Depth18V1R11LaunchdAuthority {
   readonly label: string;

@@ -791,14 +791,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the exact r10 proposal fallback plan bytes", () => {
+  it("pins the exact r11 all-legal proposal fallback plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-plan.json",
-      bytes: 158_068,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
+      bytes: 158_070,
       sha256:
-        "4eb6fedeff025a1d41ceb794ba5ea71ff8c7db477183819dced66ee6bc89e16e",
+        "fefa6c0593dc2bdae6ed9f84eea109571446ab2f2a6efc98925efebe787eda4e",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });

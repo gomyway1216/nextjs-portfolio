@@ -429,7 +429,7 @@ async function main(): Promise<void> {
   if (process.argv.length !== 2)
     throw new Error("the minimal formal entrypoint accepts no arguments");
   const launched =
-    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r10-[0-9a-f]{8}$/u.test(
+    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r11-[0-9a-f]{8}$/u.test(
       process.env.XPC_SERVICE_NAME ?? "",
     );
   if (!launched) {
@@ -455,8 +455,8 @@ async function main(): Promise<void> {
         "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
       ),
       labelPrefix:
-        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r10-",
-      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10",
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r11-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11",
     });
     await bootstrapHalfkp81V1R11PlannedLaunchAgent(descriptor);
     process.stdout.write(

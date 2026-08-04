@@ -35,7 +35,7 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-plan.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
         ),
         "utf8",
       ),
@@ -94,7 +94,7 @@ describe("HalfKP81 depth18 v1r11 minimal formal entrypoint", () => {
       fs.readFileSync(
         path.join(
           ROOT,
-          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r10-plan.json",
+          "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11-plan.json",
         ),
         "utf8",
       ),

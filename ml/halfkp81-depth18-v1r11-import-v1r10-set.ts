@@ -1521,3 +1521,9 @@ export async function importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR10(
     }),
   });
 }
+
+// minimal-r10 published no new parent before its typed terminal fault. The
+// successor therefore reimports the same independently verified minimal-r9
+// durable set into a fresh run fingerprint and create-only namespace.
+export const importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR11 =
+  importHalfkp81Depth18V1R11MinimalR9CompletedSetIntoR10;

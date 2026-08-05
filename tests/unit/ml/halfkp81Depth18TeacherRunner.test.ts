@@ -792,7 +792,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the exact r13 recovery plan bytes", () => {
+  it("pins the exact r14 plan bytes after r13 recovery", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({

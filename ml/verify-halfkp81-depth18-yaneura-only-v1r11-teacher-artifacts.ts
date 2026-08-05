@@ -7,7 +7,7 @@ import {
   verifyAndPublishHalfkp81Depth18TeacherArtifacts,
   verifyHalfkp81Depth18V1R11EnvironmentFaultArtifacts,
 } from "./halfkp81-depth18-teacher-artifact-validation";
-import { HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY } from "./halfkp81-depth18-teacher-runner";
+import { HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R14_DEFAULT_DIRECTORY } from "./halfkp81-depth18-teacher-runner";
 
 async function main(): Promise<void> {
   if (process.argv.length !== 2) {
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     );
   }
   const root =
-    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY;
+    HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R14_DEFAULT_DIRECTORY;
   const options = {
     artifactRoot: root,
     planPath: path.join(root, "teacher-plan.json"),

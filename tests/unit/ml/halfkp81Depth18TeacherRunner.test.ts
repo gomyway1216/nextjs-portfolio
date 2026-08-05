@@ -636,9 +636,7 @@ async function fixture(
           this.rejectPendingSearch = rejectOnQuit;
           try {
             await Promise.race([
-              new Promise((resolve) =>
-                setTimeout(resolve, searchDelayMs),
-              ),
+              new Promise((resolve) => setTimeout(resolve, searchDelayMs)),
               quit,
             ]);
           } finally {
@@ -647,9 +645,7 @@ async function fixture(
             }
           }
         } else {
-          await new Promise((resolve) =>
-            setTimeout(resolve, searchDelayMs),
-          );
+          await new Promise((resolve) => setTimeout(resolve, searchDelayMs));
         }
       }
       const legal = rulesCompleteLegalMoves(positionFromSfen(sfen).position)
@@ -796,14 +792,14 @@ describe("HalfKP81 depth18 teacher runner", () => {
     );
   });
 
-  it("pins the exact r12 recovery plan bytes", () => {
+  it("pins the exact r13 recovery plan bytes", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13-plan.json",
-      bytes: 157_096,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r14-plan.json",
+      bytes: 156_324,
       sha256:
-        "f776e3cf2775be229b853e50ffe8040cb36815a23304b87d4b7890c18ce2c83b",
+        "f6af0fc10ab75258d083ef692eb7299c8719128cfa92ab6f2e049013795eb31c",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -1997,11 +1993,13 @@ describe("HalfKP81 depth18 teacher runner", () => {
       .slice(1)
       .map((line) => JSON.parse(line) as Record<string, unknown>);
     expect(
-      work.slice(0, 2).every(
-        (row) =>
-          (row.rescore_route as { mode?: string } | undefined)?.mode ===
-          "normal-depth18",
-      ),
+      work
+        .slice(0, 2)
+        .every(
+          (row) =>
+            (row.rescore_route as { mode?: string } | undefined)?.mode ===
+            "normal-depth18",
+        ),
     ).toBe(true);
     expect(value.fallbackActivity).toEqual({ active: 0, maximum: 2 });
     expect(value.engineActivity).toEqual({ active: 0, maximum: 8 });

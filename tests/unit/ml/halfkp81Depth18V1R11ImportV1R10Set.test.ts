@@ -11,6 +11,7 @@ import {
   validateHalfkp81Depth18V1R11MinimalR5ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR6ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR12ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR13ImportableSet,
   type Halfkp81Depth18PrivateSnapshot,
 } from "../../../ml/halfkp81-depth18-teacher-artifact-validation";
 import {
@@ -20,6 +21,7 @@ import {
   importHalfkp81Depth18V1R11MinimalR5CompletedSetIntoR6,
   importHalfkp81Depth18V1R11MinimalR6CompletedSetIntoR7,
   importHalfkp81Depth18V1R11MinimalR12CompletedSetIntoR13,
+  importHalfkp81Depth18V1R11MinimalR13CompletedSetIntoR14,
 } from "../../../ml/halfkp81-depth18-v1r11-import-v1r10-set";
 
 function snapshot(name: string): Readonly<Halfkp81Depth18PrivateSnapshot> {
@@ -219,6 +221,38 @@ describe("HalfKP81 v1r10 exact-set import into v1r11", () => {
       }),
     ).rejects.toThrow("minimal-r13 import target identity differs");
     expect(fs.existsSync("/private/tmp/never-created-r13")).toBe(false);
+  });
+
+  it("pins the durable r13 set and rejects its fingerprint for the r14 target", async () => {
+    const invalid = snapshot("invalid-r13.json");
+    expect(() =>
+      validateHalfkp81Depth18V1R11MinimalR13ImportableSet({
+        plan: invalid,
+        selection: invalid,
+        work: invalid,
+        powerLedger: invalid,
+        terminalFault: invalid,
+      }),
+    ).toThrow("minimal-r13 source plan identity differs");
+    const fingerprint =
+      "bfa71a813d0bd79c5e54ffc862fa95b28ef692ad9c04974f186d19f8268aacf9";
+    await expect(
+      importHalfkp81Depth18V1R11MinimalR13CompletedSetIntoR14({
+        repositoryRoot: "/private/tmp/does-not-exist",
+        targetWorkPath: "/private/tmp/never-created-r14/work.jsonl",
+        targetHeader: Object.freeze({
+          schema: "shogi-halfkp81-hard-depth18-yaneura-only-teacher-work-v1r11",
+          run_fingerprint: fingerprint,
+        }),
+        targetRunFingerprint: fingerprint,
+        selectionOrderedParentIds: Array.from(
+          { length: 8_192 },
+          (_, index) => `parent-${index}`,
+        ),
+        authorityDirectory: "/private/tmp/never-created-r14/authority",
+      }),
+    ).rejects.toThrow("minimal-r14 import target identity differs");
+    expect(fs.existsSync("/private/tmp/never-created-r14")).toBe(false);
   });
 
   it("rejects a target before reading the immutable source", async () => {

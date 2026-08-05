@@ -20,6 +20,7 @@ import {
 import {
   advanceHalfkp81Depth18PmsetCursorForTests,
   HALFKP81_DEPTH18_PMSET_LOG_TAIL_ROWS,
+  HALFKP81_DEPTH18_SYSTEM_COMMAND_TIMEOUT_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_MAXIMUM_GAP_MS,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY,
   HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_FAULT_SCHEMA,
@@ -289,6 +290,8 @@ describe("HalfKP81 v1r11 power continuity", () => {
     expect(command.args[1]).toContain("/usr/bin/pmset -g log |");
     expect(command.args[1]).toContain("/usr/bin/awk");
     expect(command.args[1]).toContain("/usr/bin/tail -n 4096");
+    expect(HALFKP81_DEPTH18_SYSTEM_COMMAND_TIMEOUT_MS).toBe(60_000);
+    expect(command.timeoutMs).toBe(60_000);
   });
 
   it("fails closed when the rolling pmset row is missing or duplicated", () => {
@@ -563,7 +566,7 @@ describe("HalfKP81 v1r11 power continuity", () => {
     const sourceRevision = "b".repeat(40);
     const repositoryRoot = "/private/repository";
     const label =
-      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r13-bbbbbbbb";
+      "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r14-bbbbbbbb";
     const runnerUtilityArgv = [
       process.execPath,
       "-r",

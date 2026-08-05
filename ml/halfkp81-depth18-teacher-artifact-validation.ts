@@ -734,7 +734,11 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
   plan: Readonly<Record<string, unknown>>,
 ): boolean {
   const teacher = plan.teacher;
-  if (teacher === null || typeof teacher !== "object" || Array.isArray(teacher)) {
+  if (
+    teacher === null ||
+    typeof teacher !== "object" ||
+    Array.isArray(teacher)
+  ) {
     return false;
   }
   const teacherRecord = teacher as Readonly<Record<string, unknown>>;
@@ -771,10 +775,7 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
     ) &&
     (resetRecovery as Readonly<Record<string, unknown>>)
       .search_timeout_retry_allowed === true &&
-    sameJson(
-      fallbackTimeoutRecovery,
-      YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
-    )
+    sameJson(fallbackTimeoutRecovery, YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN)
   );
 }
 
@@ -5104,6 +5105,40 @@ const V1R11_MINIMAL_R12_COMPLETED_SET = Object.freeze({
   }),
 });
 
+const V1R11_MINIMAL_R13_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 123_291,
+    sha256: "941cea31b7e79e1506974797b83eb2fc454095f149b07e4ce8249fd1483ec612",
+  }),
+  work: Object.freeze({
+    bytes: 173_791_703,
+    sha256: "3ec96775f89a7861d8a3eafb29dada41fd31d7dee9992d5f39c36b75589383a0",
+  }),
+  terminalFault: Object.freeze({
+    bytes: 926,
+    sha256: "994bee3139f79a7fbd5884ef7cb3101247bbbfd48b46ae36a1f06589e8532876",
+  }),
+  powerLedger: Object.freeze({
+    bytes: 8_729_497,
+    sha256: "b417ae5b908689f0614d5c06b224ae9e279296d1c642a7ff66cd03a77495cadf",
+  }),
+  runFingerprint:
+    "bfa71a813d0bd79c5e54ffc862fa95b28ef692ad9c04974f186d19f8268aacf9",
+  completedParents: 8_115,
+  completedRows: 93_621,
+  selectionOrderParentIdsSha256:
+    "f33ece4c330dd48171860cd898b949eb1bdd18170806f9d04a256c682bfb88ad",
+  selectionIndexesSha256:
+    "8cd2f82a983af1f93914953135de034056dd23194a29653c27c55c9ea910b306",
+  fallback: Object.freeze({ parents: 14, rows: 143, searches: 152 }),
+  allowedFallbackTimeouts: Object.freeze([14_400_000, 86_400_000]),
+  reset: Object.freeze({
+    fallbackRetries: 1,
+    engineRecycles: 1,
+    normalRetries: 0,
+  }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5179,11 +5214,12 @@ function validateHalfkp81Depth18V1R11CompletedSet(
     ids.push(parentId);
     const parentRows = wrapper.teacher_entry.records.length;
     rows += parentRows;
-    const resetEvidence = wrapper.reset_timeout_recovery as unknown as Readonly<{
-      fallback_retries_used: number;
-      engine_recycles: number;
-      normal_retries_used: number;
-    }>;
+    const resetEvidence =
+      wrapper.reset_timeout_recovery as unknown as Readonly<{
+        fallback_retries_used: number;
+        engine_recycles: number;
+        normal_retries_used: number;
+      }>;
     reset.fallbackRetries += resetEvidence.fallback_retries_used;
     reset.engineRecycles += resetEvidence.engine_recycles;
     reset.normalRetries += resetEvidence.normal_retries_used;
@@ -5355,6 +5391,16 @@ export function validateHalfkp81Depth18V1R11MinimalR13ImportedSet(
   );
 }
 
+export function validateHalfkp81Depth18V1R11MinimalR14ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R13_COMPLETED_SET,
+    true,
+  );
+}
+
 export function validateHalfkp81Depth18V1R11MinimalR7ImportableSet(
   request: Readonly<{
     plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5383,7 +5429,10 @@ export function validateHalfkp81Depth18V1R11MinimalR7ImportableSet(
     V1R11_MINIMAL_R7_COMPLETED_SET.powerLedger,
     "minimal-r7 source power ledger",
   );
-  const workValues = parseExactJsonl(request.work.bytes, "minimal-r7 source work");
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r7 source work",
+  );
   const header = exactObject(
     workValues[0],
     [
@@ -5400,7 +5449,9 @@ export function validateHalfkp81Depth18V1R11MinimalR7ImportableSet(
     ],
     "minimal-r7 source header",
   );
-  if (header.run_fingerprint !== V1R11_MINIMAL_R7_COMPLETED_SET.runFingerprint) {
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R7_COMPLETED_SET.runFingerprint
+  ) {
     throw new Error("minimal-r7 source fingerprint differs");
   }
   return validateHalfkp81Depth18V1R11CompletedSet(
@@ -5443,7 +5494,10 @@ export function validateHalfkp81Depth18V1R11MinimalR8ImportableSet(
     V1R11_MINIMAL_R8_COMPLETED_SET.powerLedger,
     "minimal-r8 source power ledger",
   );
-  const workValues = parseExactJsonl(request.work.bytes, "minimal-r8 source work");
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r8 source work",
+  );
   const header = exactObject(
     workValues[0],
     [
@@ -5460,7 +5514,9 @@ export function validateHalfkp81Depth18V1R11MinimalR8ImportableSet(
     ],
     "minimal-r8 source header",
   );
-  if (header.run_fingerprint !== V1R11_MINIMAL_R8_COMPLETED_SET.runFingerprint) {
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R8_COMPLETED_SET.runFingerprint
+  ) {
     throw new Error("minimal-r8 source fingerprint differs");
   }
   return validateHalfkp81Depth18V1R11CompletedSet(
@@ -5503,7 +5559,10 @@ export function validateHalfkp81Depth18V1R11MinimalR9ImportableSet(
     V1R11_MINIMAL_R9_COMPLETED_SET.powerLedger,
     "minimal-r9 source power ledger",
   );
-  const workValues = parseExactJsonl(request.work.bytes, "minimal-r9 source work");
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r9 source work",
+  );
   const header = exactObject(
     workValues[0],
     [
@@ -5520,7 +5579,9 @@ export function validateHalfkp81Depth18V1R11MinimalR9ImportableSet(
     ],
     "minimal-r9 source header",
   );
-  if (header.run_fingerprint !== V1R11_MINIMAL_R9_COMPLETED_SET.runFingerprint) {
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R9_COMPLETED_SET.runFingerprint
+  ) {
     throw new Error("minimal-r9 source fingerprint differs");
   }
   return validateHalfkp81Depth18V1R11CompletedSet(
@@ -5791,6 +5852,170 @@ export function validateHalfkp81Depth18V1R11MinimalR12ImportableSet(
     target_semantic_verification: verification,
     authority: Object.freeze({
       may_resume_minimal_r12: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR13ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerLedger: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    terminalFault: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R13_COMPLETED_SET.plan,
+    "minimal-r13 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r13 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R13_COMPLETED_SET.work,
+    "minimal-r13 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerLedger,
+    V1R11_MINIMAL_R13_COMPLETED_SET.powerLedger,
+    "minimal-r13 source power ledger",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.terminalFault,
+    V1R11_MINIMAL_R13_COMPLETED_SET.terminalFault,
+    "minimal-r13 source terminal fault",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r13 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r13 source header",
+  );
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R13_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R13_COMPLETED_SET,
+    false,
+  );
+  const terminalFault = exactObject(
+    parseCanonicalDocument(
+      request.terminalFault,
+      "minimal-r13 source terminal fault",
+    ),
+    [
+      "authority",
+      "completed_parents",
+      "incomplete_parents",
+      "message",
+      "run_fingerprint",
+      "schema",
+      "status",
+      "teacher_plan",
+      "technical_faults",
+    ],
+    "minimal-r13 source terminal fault",
+  );
+  const authority = exactObject(
+    terminalFault.authority,
+    [
+      "may_play_formal_games",
+      "may_resume_same_family",
+      "may_train",
+      "may_write_live_weights",
+    ],
+    "minimal-r13 source terminal fault authority",
+  );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R13_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.status !== "terminal-fault-family-stopped" ||
+    terminalFault.run_fingerprint !==
+      V1R11_MINIMAL_R13_COMPLETED_SET.runFingerprint ||
+    terminalFault.completed_parents !==
+      V1R11_MINIMAL_R13_COMPLETED_SET.completedParents ||
+    terminalFault.incomplete_parents !==
+      8_192 - V1R11_MINIMAL_R13_COMPLETED_SET.completedParents ||
+    terminalFault.technical_faults !== 1 ||
+    !String(terminalFault.message).includes(
+      "guardian-sample-failed:spawnSync /bin/sh ETIMEDOUT",
+    ) ||
+    !sameJson(authority, {
+      may_play_formal_games: false,
+      may_resume_same_family: false,
+      may_train: false,
+      may_write_live_weights: false,
+    })
+  ) {
+    throw new Error("minimal-r13 import terminal closure differs");
+  }
+  validateDeclaredIdentity(
+    terminalFault.teacher_plan,
+    request.plan,
+    "minimal-r13 import terminal fault teacher plan",
+    { schema: HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11 },
+  );
+  return Object.freeze({
+    schema:
+      "shogi-halfkp81-depth18-v1r11-minimal-r13-importable-set-verification-v1",
+    status: "source-set-independently-verified-import-eligible-new-family-only",
+    source: Object.freeze({
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+        workValues.length,
+      ),
+      power_ledger: identityFromSnapshot(
+        request.powerLedger,
+        "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+      ),
+      terminal_fault: identityFromSnapshot(
+        request.terminalFault,
+        "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1",
+      ),
+      run_fingerprint: V1R11_MINIMAL_R13_COMPLETED_SET.runFingerprint,
+    }),
+    completed: Object.freeze({
+      parents: V1R11_MINIMAL_R13_COMPLETED_SET.completedParents,
+      rows: V1R11_MINIMAL_R13_COMPLETED_SET.completedRows,
+      selection_order_parent_ids_sha256:
+        V1R11_MINIMAL_R13_COMPLETED_SET.selectionOrderParentIdsSha256,
+      selection_indexes_sha256:
+        V1R11_MINIMAL_R13_COMPLETED_SET.selectionIndexesSha256,
+    }),
+    target_semantic_verification: verification,
+    authority: Object.freeze({
+      may_resume_minimal_r13: false,
       may_train: false,
       may_play_formal_games: false,
       may_write_live_weights: false,
@@ -6259,7 +6484,10 @@ export function validateHalfkp81Depth18V1R11MinimalR6ImportableSet(
     V1R11_MINIMAL_R6_COMPLETED_SET.powerReceipt,
     "minimal-r6 source power receipt",
   );
-  const workValues = parseExactJsonl(request.work.bytes, "minimal-r6 source work");
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r6 source work",
+  );
   const header = exactObject(
     workValues[0],
     [
@@ -6287,7 +6515,10 @@ export function validateHalfkp81Depth18V1R11MinimalR6ImportableSet(
     false,
   );
   const terminalFault = exactObject(
-    parseCanonicalDocument(request.terminalFault, "minimal-r6 source terminal fault"),
+    parseCanonicalDocument(
+      request.terminalFault,
+      "minimal-r6 source terminal fault",
+    ),
     [
       "authority",
       "completed_parents",
@@ -6343,12 +6574,15 @@ export function validateHalfkp81Depth18V1R11MinimalR6ImportableSet(
     .slice(1)
     .some(
       (value) =>
-        (value as Readonly<Record<string, unknown>>).parent_id === faultParentId,
+        (value as Readonly<Record<string, unknown>>).parent_id ===
+        faultParentId,
     );
   if (
     header.run_fingerprint !== V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint ||
-    terminalFault.run_fingerprint !== V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint ||
-    terminalFault.schema !== "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
+    terminalFault.run_fingerprint !==
+      V1R11_MINIMAL_R6_COMPLETED_SET.runFingerprint ||
+    terminalFault.schema !==
+      "shogi-halfkp81-hard-depth18-teacher-terminal-fault-v1" ||
     terminalFault.status !== "terminal-fault-family-stopped" ||
     terminalFault.completed_parents !== 4_881 ||
     terminalFault.incomplete_parents !== 3_311 ||

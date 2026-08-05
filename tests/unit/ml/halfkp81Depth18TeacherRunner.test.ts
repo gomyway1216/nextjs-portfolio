@@ -222,6 +222,7 @@ async function fixture(
     fallbackSearchTimeouts?: number;
     fallbackTimeoutAtSearchCalls?: readonly number[];
     fallbackTimeoutDelayMs?: number;
+    fallbackSearchDelayMs?: number;
     failSearchAt?: number;
     resetTimeoutFailures?: number;
     resetTimeoutAtCalls?: readonly number[];
@@ -622,7 +623,11 @@ async function fixture(
           0,
         );
       }
-      if (options.searchDelayMs !== undefined) {
+      const searchDelayMs =
+        this.hashMb === 8_192
+          ? (options.fallbackSearchDelayMs ?? options.searchDelayMs)
+          : options.searchDelayMs;
+      if (searchDelayMs !== undefined) {
         if (options.abortSearchOnQuit) {
           let rejectOnQuit!: (error: Error) => void;
           const quit = new Promise<never>((_resolve, reject) => {
@@ -632,7 +637,7 @@ async function fixture(
           try {
             await Promise.race([
               new Promise((resolve) =>
-                setTimeout(resolve, options.searchDelayMs),
+                setTimeout(resolve, searchDelayMs),
               ),
               quit,
             ]);
@@ -643,7 +648,7 @@ async function fixture(
           }
         } else {
           await new Promise((resolve) =>
-            setTimeout(resolve, options.searchDelayMs),
+            setTimeout(resolve, searchDelayMs),
           );
         }
       }
@@ -795,10 +800,10 @@ describe("HalfKP81 depth18 teacher runner", () => {
     const identity =
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREREGISTRATION_IDENTITY;
     expect(identity).toEqual({
-      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12-plan.json",
-      bytes: 158_068,
+      path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13-plan.json",
+      bytes: 157_096,
       sha256:
-        "acba7dae57ee72a633f31efc2d3b2de09990f330837db00d85e6c5eaabbce4d7",
+        "f776e3cf2775be229b853e50ffe8040cb36815a23304b87d4b7890c18ce2c83b",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });
@@ -811,7 +816,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
     expect(JSON.parse(bytes.toString("utf8"))).toMatchObject({
       schema: identity.schema,
       teacher: {
-        fallback_lane: { search_timeout_milliseconds: 86_400_000 },
+        fallback_lane: { search_timeout_milliseconds: 14_400_000 },
         normal_lane: { search_timeout_milliseconds: 14_400_000 },
       },
     });
@@ -848,8 +853,12 @@ describe("HalfKP81 depth18 teacher runner", () => {
     futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 14_400_000;
     expect(
       v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
-    ).toBe(false);
+    ).toBe(true);
     futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 86_400_000;
+    expect(
+      v1r11FallbackTimeoutRecoveryPlanIsAuthorizedForTests(futurePlan),
+    ).toBe(false);
+    futurePlan.teacher.fallback_lane.search_timeout_milliseconds = 14_400_000;
     futurePlan.teacher.fallback_lane.search_timeout_recovery = {
       ...HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_TIMEOUT_RECOVERY_PLAN,
       second_timeout: "retry-forever",
@@ -1963,6 +1972,46 @@ describe("HalfKP81 depth18 teacher runner", () => {
         .slice(0, thirdStart)
         .some((event) => event.startsWith("quit")),
     ).toBe(true);
+  });
+
+  it("publishes normal parents while the two Hash8192 fallback slots are saturated", async () => {
+    const roles = Array.from({ length: 10 }, () => "fit" as const);
+    const value = await fixture(roles, {
+      yaneuraV1R9: true,
+      v1r9NodeCapCandidateIndex: 0,
+      v1r9NodeCapRouteLimit: 8,
+      fallbackSearchDelayMs: 10,
+    });
+
+    await runHalfkp81Depth18TeacherCoreForTests(
+      value.authenticated,
+      value.dependencies,
+      coreContract(roles, 13),
+    );
+
+    const work = (
+      await fs.promises.readFile(value.authenticated.outputs.work_jsonl, "utf8")
+    )
+      .trim()
+      .split("\n")
+      .slice(1)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(
+      work.slice(0, 2).every(
+        (row) =>
+          (row.rescore_route as { mode?: string } | undefined)?.mode ===
+          "normal-depth18",
+      ),
+    ).toBe(true);
+    expect(value.fallbackActivity).toEqual({ active: 0, maximum: 2 });
+    expect(value.engineActivity).toEqual({ active: 0, maximum: 8 });
+    expect(
+      work.filter(
+        (row) =>
+          (row.rescore_route as { mode?: string } | undefined)?.mode ===
+          "hash8192-parent-fallback",
+      ),
+    ).not.toHaveLength(0);
   });
 
   it("accounts discarded fallback searches before its one typed reset retry", async () => {

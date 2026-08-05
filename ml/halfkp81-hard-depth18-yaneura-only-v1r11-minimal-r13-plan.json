@@ -3158,7 +3158,7 @@
     },
     "timeout_semantics": {
       "search_timeout_milliseconds": 14400000,
-      "fallback_search_timeout_milliseconds": 86400000,
+      "fallback_search_timeout_milliseconds": 14400000,
       "normal_lane_unchanged_from_v1r10": true,
       "fallback_lane_changed_from_v1r10": true,
       "sleep_time_subtraction_adopted": false,

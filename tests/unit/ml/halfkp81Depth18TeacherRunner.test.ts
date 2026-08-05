@@ -803,7 +803,7 @@ describe("HalfKP81 depth18 teacher runner", () => {
       path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13-plan.json",
       bytes: 157_096,
       sha256:
-        "41fa4d6bceb51dfaff338d6556928954efb1a234fcd9ec172d1d1c5805484e51",
+        "f776e3cf2775be229b853e50ffe8040cb36815a23304b87d4b7890c18ce2c83b",
       schema:
         "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
     });

@@ -1551,6 +1551,17 @@ describe("HalfKP81 depth18 teacher artifact verifier", () => {
         [14_400_000, 86_400_000],
         true,
       ),
+    ).not.toThrow();
+    expect(() =>
+      validateHalfkp81Depth18V1R9RouteCoreForTests(
+        {
+          ...recoveredRoute,
+          fallback: { ...recoveredRoute.fallback, timeout_ms: 3_600_000 },
+        },
+        "route",
+        [14_400_000, 86_400_000],
+        true,
+      ),
     ).toThrow(/fallback route evidence differs/);
     expect(() =>
       validateHalfkp81Depth18V1R9RouteCoreForTests(

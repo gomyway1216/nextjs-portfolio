@@ -762,7 +762,7 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
   }
   return (
     (fallbackLane as Readonly<Record<string, unknown>>)
-      .search_timeout_milliseconds === 86_400_000 &&
+      .search_timeout_milliseconds === 14_400_000 &&
     (normalLane as Readonly<Record<string, unknown>>)
       .search_timeout_milliseconds === 14_400_000 &&
     sameJson(
@@ -4123,7 +4123,7 @@ function validateV1R9Route(
     (fallback.discarded_completed_rescores_before_retry as number) >= count ||
     (timeoutRecoveryEvidence
       ? !allowFallbackTimeoutRecovery ||
-        fallback.timeout_ms !== 86_400_000 ||
+        !allowedFallbackTimeouts.includes(fallback.timeout_ms as number) ||
         fallback.search_timeout_deferrals_used !== 1 ||
         !Number.isSafeInteger(
           fallback.discarded_completed_rescores_before_timeout_retry,
@@ -5074,6 +5074,36 @@ const V1R11_MINIMAL_R11_COMPLETED_SET = Object.freeze({
   }),
 });
 
+const V1R11_MINIMAL_R12_COMPLETED_SET = Object.freeze({
+  plan: Object.freeze({
+    bytes: 123_291,
+    sha256: "9917a79fefae7930d8d8f15ab483f8eb5dbbf21e1475fca9ee0a58cb040cc845",
+  }),
+  work: Object.freeze({
+    bytes: 122_319_503,
+    sha256: "4fe72d8b33103b7e304fecb00742edb5515df5a9a54e97d3338f6ff30e87d2a1",
+  }),
+  powerLedger: Object.freeze({
+    bytes: 9_608_413,
+    sha256: "7867f795f11267713549face6aaf5ea2f4bc67ebed65c66430f1f218e7d0f5dc",
+  }),
+  runFingerprint:
+    "9dba6a5c0850dc915088e97c544c040f32ebf79336951128d9d5414d7822099c",
+  completedParents: 5_703,
+  completedRows: 65_920,
+  selectionOrderParentIdsSha256:
+    "9eb7d8d56bb526bbd9b99a0ee0e62d8f0af901acbbaa9ff10895636f62388d0e",
+  selectionIndexesSha256:
+    "0b7f27f23a2c72fdcb2f162943f611a0687d04d40e4dc94f61dff6fec1d93fc4",
+  fallback: Object.freeze({ parents: 12, rows: 119, searches: 128 }),
+  allowedFallbackTimeouts: Object.freeze([14_400_000, 86_400_000]),
+  reset: Object.freeze({
+    fallbackRetries: 1,
+    engineRecycles: 1,
+    normalRetries: 0,
+  }),
+});
+
 function validateHalfkp81Depth18V1R11CompletedSet(
   request: Readonly<{
     selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
@@ -5311,6 +5341,16 @@ export function validateHalfkp81Depth18V1R11MinimalR12ImportedSet(
   return validateHalfkp81Depth18V1R11CompletedSet(
     request,
     V1R11_MINIMAL_R11_COMPLETED_SET,
+    true,
+  );
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR13ImportedSet(
+  request: Parameters<typeof validateHalfkp81Depth18V1R11CompletedSet>[0],
+): Readonly<Record<string, unknown>> {
+  return validateHalfkp81Depth18V1R11CompletedSet(
+    request,
+    V1R11_MINIMAL_R12_COMPLETED_SET,
     true,
   );
 }
@@ -5650,6 +5690,107 @@ export function validateHalfkp81Depth18V1R11MinimalR11ImportableSet(
     target_semantic_verification: verification,
     authority: Object.freeze({
       may_resume_minimal_r11: false,
+      may_train: false,
+      may_play_formal_games: false,
+      may_write_live_weights: false,
+    }),
+  });
+}
+
+export function validateHalfkp81Depth18V1R11MinimalR12ImportableSet(
+  request: Readonly<{
+    plan: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    selection: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    work: Readonly<Halfkp81Depth18PrivateSnapshot>;
+    powerLedger: Readonly<Halfkp81Depth18PrivateSnapshot>;
+  }>,
+): Readonly<Record<string, unknown>> {
+  assertV1R10ImportSourceIdentity(
+    request.plan,
+    V1R11_MINIMAL_R12_COMPLETED_SET.plan,
+    "minimal-r12 source plan",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.selection,
+    V1R10_IMPORT_SOURCE.selection,
+    "minimal-r12 source selection",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.work,
+    V1R11_MINIMAL_R12_COMPLETED_SET.work,
+    "minimal-r12 source work",
+  );
+  assertV1R10ImportSourceIdentity(
+    request.powerLedger,
+    V1R11_MINIMAL_R12_COMPLETED_SET.powerLedger,
+    "minimal-r12 source power ledger",
+  );
+  const workValues = parseExactJsonl(
+    request.work.bytes,
+    "minimal-r12 source work",
+  );
+  const header = exactObject(
+    workValues[0],
+    [
+      "schema",
+      "record_kind",
+      "status",
+      "run_fingerprint",
+      "source_revision",
+      "teacher_plan",
+      "launchagent_authority_evidence",
+      "preformal_authority_verified_receipt",
+      "power_admission_entry",
+      "opened_at_utc",
+    ],
+    "minimal-r12 source header",
+  );
+  if (
+    header.run_fingerprint !== V1R11_MINIMAL_R12_COMPLETED_SET.runFingerprint
+  ) {
+    throw new Error("minimal-r12 source fingerprint differs");
+  }
+  const verification = validateHalfkp81Depth18V1R11CompletedSet(
+    {
+      selection: request.selection,
+      targetWork: request.work,
+      expectedHeader: header,
+      targetRunFingerprint: V1R11_MINIMAL_R12_COMPLETED_SET.runFingerprint,
+    },
+    V1R11_MINIMAL_R12_COMPLETED_SET,
+    false,
+  );
+  return Object.freeze({
+    schema:
+      "shogi-halfkp81-depth18-v1r11-minimal-r12-importable-set-verification-v1",
+    status: "source-set-independently-verified-import-eligible-new-family-only",
+    source: Object.freeze({
+      plan: identityFromSnapshot(
+        request.plan,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_PLAN_SCHEMA_V1R11,
+      ),
+      work: identityFromSnapshot(
+        request.work,
+        HALFKP81_DEPTH18_YANEURA_ONLY_TEACHER_WORK_SCHEMA_V1R11,
+        workValues.length,
+      ),
+      power_ledger: identityFromSnapshot(
+        request.powerLedger,
+        "shogi-halfkp81-depth18-power-continuity-ledger-v1r11",
+      ),
+      run_fingerprint: V1R11_MINIMAL_R12_COMPLETED_SET.runFingerprint,
+    }),
+    completed: Object.freeze({
+      parents: V1R11_MINIMAL_R12_COMPLETED_SET.completedParents,
+      rows: V1R11_MINIMAL_R12_COMPLETED_SET.completedRows,
+      selection_order_parent_ids_sha256:
+        V1R11_MINIMAL_R12_COMPLETED_SET.selectionOrderParentIdsSha256,
+      selection_indexes_sha256:
+        V1R11_MINIMAL_R12_COMPLETED_SET.selectionIndexesSha256,
+    }),
+    target_semantic_verification: verification,
+    authority: Object.freeze({
+      may_resume_minimal_r12: false,
       may_train: false,
       may_play_formal_games: false,
       may_write_live_weights: false,

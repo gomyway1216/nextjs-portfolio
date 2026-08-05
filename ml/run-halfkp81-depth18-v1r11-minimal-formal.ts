@@ -7,7 +7,7 @@ import * as path from "node:path";
 
 import {
   readHalfkp81Depth18PrivateArtifact,
-  validateHalfkp81Depth18V1R11MinimalR11ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR12ImportableSet,
   validateHalfkp81Depth18V1R10PrefixOneTeacherSmoke,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 import {
@@ -44,8 +44,8 @@ const SOURCE_ENGINE_RECEIPT_ROOT =
 const IMPORT_ROOT = "/private/tmp/v1r11-import-scratch.2bRuAT";
 const SMOKE_ROOT = "/private/tmp/v1r11-prefix1-v1r9-smoke.xOenkB";
 const POWER_ROOT = "/private/tmp/v1r11-power-smoke-final4-05b81a1e";
-const MINIMAL_R11_ROOT =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11";
+const MINIMAL_R12_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12";
 
 const FIXED = Object.freeze({
   "import-receipt": Object.freeze({
@@ -348,12 +348,12 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
       "fixed power receipt/result does not bind the independently verified ledger",
     );
   }
-  const [r11Plan, selection, r11Work, r11PowerLedger, r11TerminalFault] =
+  const [r12Plan, selection, r12Work, r12PowerLedger] =
     await Promise.all([
       privateSnapshot(
-        path.join(MINIMAL_R11_ROOT, "teacher-plan.json"),
-        MINIMAL_R11_ROOT,
-        "minimal-r11 fixed-gate plan",
+        path.join(MINIMAL_R12_ROOT, "teacher-plan.json"),
+        MINIMAL_R12_ROOT,
+        "minimal-r12 fixed-gate plan",
         123_291,
       ),
       privateSnapshot(
@@ -363,31 +363,24 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
         7_268_777,
       ),
       privateSnapshot(
-        path.join(MINIMAL_R11_ROOT, "teacher-work.jsonl"),
-        MINIMAL_R11_ROOT,
-        "minimal-r11 fixed-gate work",
-        118_732_863,
+        path.join(MINIMAL_R12_ROOT, "teacher-work.jsonl"),
+        MINIMAL_R12_ROOT,
+        "minimal-r12 fixed-gate work",
+        122_319_503,
       ),
       privateSnapshot(
-        path.join(MINIMAL_R11_ROOT, "power-continuity.jsonl"),
-        MINIMAL_R11_ROOT,
-        "minimal-r11 fixed-gate power ledger",
-        9_095_493,
-      ),
-      privateSnapshot(
-        path.join(MINIMAL_R11_ROOT, "teacher-terminal-fault.json"),
-        MINIMAL_R11_ROOT,
-        "minimal-r11 fixed-gate terminal fault",
-        878,
+        path.join(MINIMAL_R12_ROOT, "power-continuity.jsonl"),
+        MINIMAL_R12_ROOT,
+        "minimal-r12 fixed-gate power ledger",
+        9_608_413,
       ),
     ]);
-  const minimalR11CompletedSet =
-    validateHalfkp81Depth18V1R11MinimalR11ImportableSet({
-      plan: r11Plan,
+  const minimalR12CompletedSet =
+    validateHalfkp81Depth18V1R11MinimalR12ImportableSet({
+      plan: r12Plan,
       selection,
-      work: r11Work,
-      powerLedger: r11PowerLedger,
-      terminalFault: r11TerminalFault,
+      work: r12Work,
+      powerLedger: r12PowerLedger,
     });
   const processes = execFileSync("/bin/ps", ["-ww", "-axo", "command="], {
     encoding: "utf8",
@@ -417,7 +410,7 @@ export async function verifyHalfkp81Depth18V1R11MinimalFormalFixedGate(): Promis
     status: "minimal-formal-fixed-gate-pass",
     smoke,
     power_verification: powerVerification,
-    minimal_r11_completed_set: minimalR11CompletedSet,
+    minimal_r12_completed_set: minimalR12CompletedSet,
   });
 }
 
@@ -439,7 +432,7 @@ async function main(): Promise<void> {
   if (process.argv.length !== 2)
     throw new Error("the minimal formal entrypoint accepts no arguments");
   const launched =
-    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r12-[0-9a-f]{8}$/u.test(
+    /^com\.meetyudai\.shogi\.halfkp81-depth18-yaneura-only-v1r11-minimal-r13-[0-9a-f]{8}$/u.test(
       process.env.XPC_SERVICE_NAME ?? "",
     );
   if (!launched) {
@@ -465,8 +458,8 @@ async function main(): Promise<void> {
         "ml/run-halfkp81-depth18-v1r11-minimal-formal.ts",
       ),
       labelPrefix:
-        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r12-",
-      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12",
+        "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r13-",
+      runDirectoryName: "halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13",
     });
     await bootstrapHalfkp81V1R11PlannedLaunchAgent(descriptor);
     process.stdout.write(

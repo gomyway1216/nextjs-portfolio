@@ -81,7 +81,7 @@ import type {
   V1R11AuthorityFileIdentity,
 } from "./halfkp81-depth18-v1r11-authority-io";
 import type { IndependentFormalRunIntentInput } from "./verify-halfkp81-depth18-v1r11-staged-authority";
-import { importHalfkp81Depth18V1R11MinimalR11CompletedSetIntoR12 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
+import { importHalfkp81Depth18V1R11MinimalR12CompletedSetIntoR13 } from "./halfkp81-depth18-v1r11-import-v1r10-set";
 const HALFKP81_V1R11_PREFORMAL_GATE_RECEIPT_SCHEMA =
   "shogi-halfkp81-depth18-yaneura-only-preformal-gate-receipt-v1r11" as const;
 
@@ -296,16 +296,16 @@ export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r10" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_PLAN_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
-export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12" as const;
+export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY}/teacher-plan.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/power-continuity.jsonl` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY}/power-continuity.jsonl` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_POWER_CONTINUITY_RECEIPT_PATH =
-  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
+  `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY}/power-continuity-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY =
-  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12-authority" as const;
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13-authority" as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_AUTHORITY_RECEIPT_PATH =
   `${HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_AUTHORITY_DIRECTORY}/preformal-authority-receipt.json` as const;
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_PREFORMAL_VERIFIED_AUTHORITY_RECEIPT_PATH =
@@ -444,9 +444,9 @@ const EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION = Object.freeze({
 export const HALFKP81_DEPTH18_YANEURA_ONLY_V1R10_PREREGISTRATION_IDENTITY =
   EXPECTED_YANEURA_ONLY_V1R10_PREREGISTRATION;
 const EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION = Object.freeze({
-  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12-plan.json",
-  bytes: 158_068,
-  sha256: "acba7dae57ee72a633f31efc2d3b2de09990f330837db00d85e6c5eaabbce4d7",
+  path: "ml/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r13-plan.json",
+  bytes: 157_096,
+  sha256: "41fa4d6bceb51dfaff338d6556928954efb1a234fcd9ec172d1d1c5805484e51",
   schema:
     "shogi-halfkp81-hard-depth18-yaneura-only-parent-fallback-ac-power-continuity-plan-v1r11",
 });
@@ -780,6 +780,28 @@ class Halfkp81Depth18DeferredFallbackTimeoutError extends Error {
     this.name = "Halfkp81Depth18DeferredFallbackTimeoutError";
     this.parentId = parentId;
   }
+}
+
+class Halfkp81Depth18DeferredFallbackAdmissionError extends Error {
+  readonly parentId: string;
+
+  constructor(parentId: string) {
+    super(`deferred saturated fallback admission for ${parentId}`);
+    this.name = "Halfkp81Depth18DeferredFallbackAdmissionError";
+    this.parentId = parentId;
+  }
+}
+
+interface Halfkp81Depth18DeferredFallbackAdmissionState {
+  readonly prepared: Readonly<PreparedSiblingParentLabel>;
+  readonly routeError: Readonly<SiblingTeacherNodeCapRoutingError>;
+  readonly normalResetRetries: 0 | 1;
+  readonly normalResetEvents: readonly Readonly<{
+    attempt: 1;
+    error_name: "UsiResetForParentTimeoutError";
+    phase: "reset-for-parent";
+    timeout_ms: number;
+  }>[];
 }
 
 interface Halfkp81Depth18DeferredFallbackState {
@@ -5364,7 +5386,7 @@ export async function publishHalfkp81Depth18YaneuraOnlyTeacherPlanV1R11(): Promi
     familyLabel: "v1r11",
     preregistration: EXPECTED_YANEURA_ONLY_V1R11_PREREGISTRATION,
     outputDirectory:
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY,
     outputPlanPath: HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_DEFAULT_PLAN_PATH,
   });
 }
@@ -5913,8 +5935,10 @@ function validateFormalWorkEntry(
           fallback.candidate_count ||
         (timeoutRecoveryEvidence
           ? !allowFallbackTimeoutRecovery ||
-            fallback.timeout_ms !==
-              HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS ||
+            (fallback.timeout_ms !==
+              HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
+              fallback.timeout_ms !==
+                HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS) ||
             fallback.search_timeout_deferrals_used !== 1 ||
             !Number.isSafeInteger(
               fallback.discarded_completed_rescores_before_timeout_retry,
@@ -6453,6 +6477,18 @@ class FifoSemaphore {
     });
   }
 
+  tryAcquire(): (() => void) | undefined {
+    if (this.active >= this.limit || this.waiters.length > 0) return undefined;
+    this.active += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.active -= 1;
+      this.admitNext();
+    };
+  }
+
   private admitNext(): void {
     if (this.active >= this.limit) return;
     this.waiters.shift()?.();
@@ -6525,7 +6561,7 @@ function v1r11FallbackTimeoutRecoveryPlanIsAuthorized(
   return (
     (fallbackLane as Readonly<Record<string, unknown>>)
       .search_timeout_milliseconds ===
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_FALLBACK_SEARCH_TIMEOUT_MS &&
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
     (normalLane as Readonly<Record<string, unknown>>)
       .search_timeout_milliseconds ===
       HALFKP81_DEPTH18_YANEURA_ONLY_V1R9_SEARCH_TIMEOUT_MS &&
@@ -6630,6 +6666,10 @@ async function runWorkers(
     string,
     Readonly<Halfkp81Depth18DeferredFallbackState>
   >();
+  const admissionDeferredFallbackParents = new Map<
+    string,
+    Readonly<Halfkp81Depth18DeferredFallbackAdmissionState>
+  >();
   if (hashFallbackV1R9) {
     for (const entry of entries.values()) {
       if (entry.rescore_route?.mode !== "hash8192-parent-fallback") continue;
@@ -6732,6 +6772,7 @@ async function runWorkers(
   if ((stable === undefined) !== yaneuraOnly) {
     throw new Error("teacher candidate runtime differs from its fixed policy");
   }
+  const primaryPendingCount = pending.length;
   let next = 0;
   let failure: Error | undefined;
   const activeEngines = new Set<Halfkp81Depth18TeacherEngine>();
@@ -6783,6 +6824,7 @@ async function runWorkers(
       entries.set(entry.parent_id, entry);
       activeFallbackReservations.delete(entry.parent_id);
       deferredFallbackParents.delete(entry.parent_id);
+      admissionDeferredFallbackParents.delete(entry.parent_id);
       if (hashFallbackV1R9) {
         const committed = v1r9RouteAccounting(entries.values()) as Record<
           string,
@@ -6877,20 +6919,35 @@ async function runWorkers(
             if (parent === undefined || engine === undefined) break;
             next += 1;
             try {
+              const admissionDeferredFallback =
+                admissionDeferredFallbackParents.get(parent.parent_id);
               const deferredFallback = deferredFallbackParents.get(
                 parent.parent_id,
               );
+              if (
+                admissionDeferredFallback !== undefined &&
+                deferredFallback !== undefined
+              ) {
+                throw new Error(
+                  "fallback parent cannot be admission- and timeout-deferred",
+                );
+              }
+              const queuedFallback =
+                admissionDeferredFallback ?? deferredFallback;
               let resetTimeoutRetries =
-                deferredFallback?.normalResetRetries ?? 0;
+                admissionDeferredFallback?.normalResetRetries ??
+                deferredFallback?.normalResetRetries ??
+                0;
               const resetTimeoutEvents: Array<{
                 attempt: 1;
                 error_name: "UsiResetForParentTimeoutError";
                 phase: "reset-for-parent";
                 timeout_ms: number;
               }> =
-                deferredFallback?.normalResetEvents.map((event) => ({
-                  ...event,
-                })) ?? [];
+                (
+                  admissionDeferredFallback?.normalResetEvents ??
+                  deferredFallback?.normalResetEvents
+                )?.map((event) => ({ ...event })) ?? [];
               const fallbackResetTimeoutEvents: Array<{
                 route: "fallback";
                 attempt: 1;
@@ -6929,7 +6986,7 @@ async function runWorkers(
                       Halfkp81Depth18V1R9RescoreRoute | undefined;
                     if (hashFallbackV1R9) {
                       const prepared =
-                        deferredFallback?.prepared ??
+                        queuedFallback?.prepared ??
                         (await prepareSiblingParentLabel(
                           engine as UsiTeacherEngine,
                           parent,
@@ -6942,8 +6999,10 @@ async function runWorkers(
                           stableMove,
                         ));
                       try {
-                        if (deferredFallback !== undefined) {
-                          throw deferredFallback.routeError;
+                        if (
+                          queuedFallback !== undefined
+                        ) {
+                          throw queuedFallback.routeError;
                         }
                         rawTeacher = await rescorePreparedSiblingParent(
                           engine as UsiTeacherEngine,
@@ -6980,10 +7039,10 @@ async function runWorkers(
                         ) {
                           throw routeError;
                         }
-                        const failedNormalEngine = engine;
-                        engine = undefined;
-                        await stopEngine(failedNormalEngine);
-                        if (deferredFallback === undefined) {
+                        if (
+                          admissionDeferredFallback === undefined &&
+                          deferredFallback === undefined
+                        ) {
                           reserveFallbackBudget(
                             authenticated.roles.get(
                               parent.parent_id,
@@ -7001,11 +7060,11 @@ async function runWorkers(
                           );
                         } else if (
                           prepared.candidateMoves.length !==
-                            deferredFallback.prepared.candidateMoves.length ||
+                            queuedFallback.prepared.candidateMoves.length ||
                           prepared.candidateMoves.some(
                             (move, index) =>
                               move !==
-                              deferredFallback.prepared.candidateMoves[index],
+                              queuedFallback.prepared.candidateMoves[index],
                           ) ||
                           !activeFallbackReservations.has(parent.parent_id)
                         ) {
@@ -7013,11 +7072,38 @@ async function runWorkers(
                             "deferred fallback candidate set or reservation differs",
                           );
                         }
-                        const release = await fallbackSemaphore.acquire();
+                        let release = fallbackSemaphore.tryAcquire();
+                        if (
+                          release === undefined &&
+                          next < primaryPendingCount
+                        ) {
+                          admissionDeferredFallbackParents.set(
+                            parent.parent_id,
+                            Object.freeze({
+                              prepared,
+                              routeError,
+                              normalResetRetries: resetTimeoutRetries as 0 | 1,
+                              normalResetEvents: Object.freeze(
+                                resetTimeoutEvents.map((event) =>
+                                  Object.freeze({ ...event }),
+                                ),
+                              ),
+                            }),
+                          );
+                          throw new Halfkp81Depth18DeferredFallbackAdmissionError(
+                            parent.parent_id,
+                          );
+                        }
+                        if (release === undefined) {
+                          release = await fallbackSemaphore.acquire();
+                        }
                         if (failure !== undefined) {
                           release();
                           throw failure;
                         }
+                        const failedNormalEngine = engine;
+                        engine = undefined;
+                        await stopEngine(failedNormalEngine);
                         let fallbackEngine:
                           Halfkp81Depth18TeacherEngine | undefined;
                         let fallbackRetries =
@@ -7107,6 +7193,9 @@ async function runWorkers(
                                       ),
                                     ),
                                   }),
+                                );
+                                admissionDeferredFallbackParents.delete(
+                                  parent.parent_id,
                                 );
                                 throw new Halfkp81Depth18DeferredFallbackTimeoutError(
                                   parent.parent_id,
@@ -7393,6 +7482,16 @@ async function runWorkers(
               }
               await persist(completed);
             } catch (error) {
+              if (
+                error instanceof
+                  Halfkp81Depth18DeferredFallbackAdmissionError &&
+                error.parentId === parent.parent_id &&
+                admissionDeferredFallbackParents.has(parent.parent_id) &&
+                failure === undefined
+              ) {
+                pending.push(parent);
+                continue;
+              }
               if (
                 error instanceof Halfkp81Depth18DeferredFallbackTimeoutError &&
                 error.parentId === parent.parent_id &&
@@ -8187,7 +8286,7 @@ export async function runHalfkp81Depth18TeacherCoreForTests(
       ),
     );
     if (recoveryV1R11) {
-      await importHalfkp81Depth18V1R11MinimalR11CompletedSetIntoR12({
+      await importHalfkp81Depth18V1R11MinimalR12CompletedSetIntoR13({
         repositoryRoot,
         targetWorkPath: authenticated.outputs.work_jsonl,
         targetHeader: header as unknown as Readonly<Record<string, unknown>>,
@@ -9934,7 +10033,7 @@ export function assertHalfkp81Depth18V1R11RunnerVerifierFingerprintAgreementForT
 }
 
 const V1R11_LAUNCHD_LABEL_PREFIX =
-  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r12-" as const;
+  "com.meetyudai.shogi.halfkp81-depth18-yaneura-only-v1r11-minimal-r13-" as const;
 
 export interface Halfkp81Depth18V1R11LaunchdAuthority {
   readonly label: string;
@@ -10242,11 +10341,11 @@ async function authenticateHalfkp81Depth18V1R11LaunchdAuthority(
       `${label}.plist`,
     ),
     expectedStdoutPath: path.join(
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY,
       "formal-launchagent.stdout.log",
     ),
     expectedStderrPath: path.join(
-      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R12_DEFAULT_DIRECTORY,
+      HALFKP81_DEPTH18_YANEURA_ONLY_V1R11_MINIMAL_R13_DEFAULT_DIRECTORY,
       "formal-launchagent.stderr.log",
     ),
   });

@@ -26,6 +26,8 @@ import {
   validateHalfkp81Depth18V1R11MinimalR10ImportedSet,
   validateHalfkp81Depth18V1R11MinimalR11ImportableSet,
   validateHalfkp81Depth18V1R11MinimalR12ImportedSet,
+  validateHalfkp81Depth18V1R11MinimalR12ImportableSet,
+  validateHalfkp81Depth18V1R11MinimalR13ImportedSet,
 } from "./halfkp81-depth18-teacher-artifact-validation";
 
 const SOURCE_ROOT =
@@ -54,6 +56,8 @@ const MINIMAL_R9_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r9";
 const MINIMAL_R11_SOURCE_ROOT =
   "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r11";
+const MINIMAL_R12_SOURCE_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-hard-depth18-yaneura-only-v1r11-minimal-r12";
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -1685,6 +1689,133 @@ export async function importHalfkp81Depth18V1R11MinimalR11CompletedSetIntoR12(
       }),
       imported_parents: imported.length,
       imported_rows: 64_003,
+      remaining_parent_id_set_difference: 8_192 - imported.length,
+    }),
+  });
+}
+
+async function readMinimalR12SourceSnapshots() {
+  const uid = process.getuid?.() ?? -1;
+  const read = (
+    file: string,
+    root: string,
+    label: string,
+    maximumBytes: number,
+  ) => readHalfkp81Depth18PrivateArtifact(file, root, uid, label, maximumBytes);
+  const [plan, selection, work, powerLedger] = await Promise.all([
+    read(
+      path.join(MINIMAL_R12_SOURCE_ROOT, "teacher-plan.json"),
+      MINIMAL_R12_SOURCE_ROOT,
+      "minimal-r12 import plan",
+      123_291,
+    ),
+    read(
+      path.join(SELECTION_ROOT, "hard-parents.jsonl"),
+      SELECTION_ROOT,
+      "minimal-r12 import selection",
+      7_268_777,
+    ),
+    read(
+      path.join(MINIMAL_R12_SOURCE_ROOT, "teacher-work.jsonl"),
+      MINIMAL_R12_SOURCE_ROOT,
+      "minimal-r12 import work",
+      122_319_503,
+    ),
+    read(
+      path.join(MINIMAL_R12_SOURCE_ROOT, "power-continuity.jsonl"),
+      MINIMAL_R12_SOURCE_ROOT,
+      "minimal-r12 import power ledger",
+      9_608_413,
+    ),
+  ]);
+  return Object.freeze({ plan, selection, work, powerLedger });
+}
+
+export async function importHalfkp81Depth18V1R11MinimalR12CompletedSetIntoR13(
+  request: Readonly<Halfkp81Depth18V1R11ImportRequest>,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (
+    !/^[0-9a-f]{64}$/u.test(request.targetRunFingerprint) ||
+    request.targetRunFingerprint ===
+      "9dba6a5c0850dc915088e97c544c040f32ebf79336951128d9d5414d7822099c" ||
+    request.targetHeader.run_fingerprint !== request.targetRunFingerprint ||
+    request.targetHeader.schema !== V1R11_WORK_SCHEMA ||
+    request.selectionOrderedParentIds.length !== 8_192 ||
+    new Set(request.selectionOrderedParentIds).size !== 8_192
+  ) {
+    throw new Error("minimal-r13 import target identity differs");
+  }
+  const source = await readMinimalR12SourceSnapshots();
+  const sourceVerification =
+    validateHalfkp81Depth18V1R11MinimalR12ImportableSet(source);
+  const sourceByParentId = indexHalfkp81Depth18ImportParents(
+    source.work.bytes,
+  );
+  const imported: Record<string, unknown>[] = [];
+  for (const parentId of request.selectionOrderedParentIds) {
+    const sourceEntry = sourceByParentId.get(parentId);
+    if (sourceEntry === undefined) continue;
+    const sourceTeacher = sourceEntry.teacher_entry as Record<string, unknown>;
+    const teacherEntry: Record<string, unknown> = {
+      ...sourceTeacher,
+      run_fingerprint: request.targetRunFingerprint,
+    };
+    delete teacherEntry.payload_sha256;
+    teacherEntry.payload_sha256 = sha256(
+      canonicalHalfkp81Depth18Json(teacherEntry),
+    );
+    const withoutDigest: Record<string, unknown> = {
+      ...sourceEntry,
+      schema: V1R11_WORK_SCHEMA,
+      run_fingerprint: request.targetRunFingerprint,
+      teacher_entry: teacherEntry,
+    };
+    delete withoutDigest.payload_sha256;
+    imported.push({
+      ...withoutDigest,
+      payload_sha256: sha256(
+        `${HALFKP81_DEPTH18_WRAPPER_DIGEST_DOMAIN}${canonicalHalfkp81Depth18Json(withoutDigest)}`,
+      ),
+    });
+  }
+  if (imported.length !== 5_703) {
+    throw new Error("minimal-r13 transformed parent count differs");
+  }
+  const targetBytes = Buffer.concat([
+    canonicalLine(request.targetHeader),
+    ...imported.map(canonicalLine),
+  ]);
+  const targetWorkIdentity = await publishCreateOnly(
+    request.targetWorkPath,
+    targetBytes,
+  );
+  const targetWork = await readHalfkp81Depth18PrivateArtifact(
+    request.targetWorkPath,
+    path.dirname(request.targetWorkPath),
+    process.getuid?.() ?? -1,
+    "minimal-r13 imported target work",
+    targetBytes.byteLength,
+  );
+  const targetVerification = validateHalfkp81Depth18V1R11MinimalR13ImportedSet({
+    selection: source.selection,
+    targetWork,
+    expectedHeader: request.targetHeader,
+    targetRunFingerprint: request.targetRunFingerprint,
+  });
+  return Object.freeze({
+    schema: "shogi-halfkp81-depth18-v1r11-imported-set-verification-v1",
+    status: "new-family-create-only-exact-set-imported",
+    source: sourceVerification,
+    target_verification: targetVerification,
+    target: Object.freeze({
+      run_fingerprint: request.targetRunFingerprint,
+      work: Object.freeze({
+        ...targetWorkIdentity,
+        schema: V1R11_WORK_SCHEMA,
+        rows: imported.length + 1,
+      }),
+      imported_parents: imported.length,
+      imported_rows: 65_920,
       remaining_parent_id_set_difference: 8_192 - imported.length,
     }),
   });

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import unittest
 
@@ -55,6 +56,7 @@ class Missing77PreparationTest(unittest.TestCase):
         self.assertEqual(subject.MISSING["by_role"], {"fit": 10, "tune": 0, "sealed": 67})
         self.assertEqual(sum(subject.MISSING["by_role"].values()), 77)
         self.assertEqual(subject.EXPECTED_PARENT_COUNTS["tune"], 1_024)
+        self.assertEqual(subject.RUNS_ROOT, Path.home() / ".codex" / "shogi-runs")
 
     def test_overlap_filter_protects_sealed_then_tune_by_whole_parent(self):
         fit_kept = wrapper("fit-kept", "fit")

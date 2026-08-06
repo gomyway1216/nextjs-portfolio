@@ -39,17 +39,15 @@ MISSING = {
         "40ba7e1d26a7ae6a55d6ac445b0197ff1f6b52a4858d2c16c6bf82b47e76aa86"
     ),
 }
-DEFAULT_INITIALIZER = (
-    "/Users/yudaiyaguchi/.codex/shogi-runs/"
-    "halfkp81-epoch2-interpolation-v1/alpha-050.pt"
+RUNS_ROOT = Path.home() / ".codex" / "shogi-runs"
+DEFAULT_INITIALIZER = str(
+    RUNS_ROOT / "halfkp81-epoch2-interpolation-v1" / "alpha-050.pt"
 )
-DEFAULT_REPLAY = (
-    "/Users/yudaiyaguchi/.codex/shogi-runs/"
-    "large-scratch-806k-v1/wdl/train.teacher.wdl.jsonl"
+DEFAULT_REPLAY = str(
+    RUNS_ROOT / "large-scratch-806k-v1" / "wdl" / "train.teacher.wdl.jsonl"
 )
-DEFAULT_PRESERVATION = (
-    "/Users/yudaiyaguchi/.codex/shogi-runs/"
-    "large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl"
+DEFAULT_PRESERVATION = str(
+    RUNS_ROOT / "large-scratch-806k-v1" / "wdl" / "val.teacher.wdl.jsonl"
 )
 
 
@@ -255,6 +253,15 @@ def _dataset_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
     return b"".join(_canonical_line(row) for row in rows)
 
 
+def _work_values(source: Iterable[bytes]) -> Iterable[dict[str, Any]]:
+    for physical_line, raw_line in enumerate(source, start=2):
+        if not raw_line.endswith(b"\n") or raw_line == b"\n":
+            raise Missing77PreparationError(
+                f"teacher-work line {physical_line} must be one non-empty LF row"
+            )
+        yield _strict_json(raw_line[:-1], f"teacher-work line {physical_line}")
+
+
 def prepare(
     *,
     work_path: str,
@@ -267,26 +274,26 @@ def prepare(
     if {
         key: work_identity[key] for key in ("bytes", "sha256")
     } != {key: FROZEN_WORK[key] for key in ("bytes", "sha256")}:
-        raise Missing77PreparationError("frozen r14 teacher-work identity differs")
-    raw = Path(work_path).read_bytes()
-    if not raw.endswith(b"\n"):
-        raise Missing77PreparationError("frozen r14 teacher-work lacks final LF")
-    lines = raw.splitlines()
-    header = _strict_json(lines[0], "teacher-work header")
-    if (
-        header.get("schema") != WORK_SCHEMA
-        or header.get("record_kind") != "header"
-        or header.get("status") != "formal-work-ledger-open"
-    ):
-        raise Missing77PreparationError("teacher-work header differs")
-    values = [
-        _strict_json(line, f"teacher-work line {index}")
-        for index, line in enumerate(lines[1:], start=2)
-    ]
-    completed_roles, parent_counts = partition_completed_rows(values)
+        raise Missing77PreparationError("frozen teacher-work identity differs")
+    with open(work_path, "rb") as source:
+        header_line = source.readline()
+        if not header_line.endswith(b"\n") or header_line == b"\n":
+            raise Missing77PreparationError(
+                "teacher-work header must be one non-empty LF row"
+            )
+        header = _strict_json(header_line[:-1], "teacher-work header")
+        if (
+            header.get("schema") != WORK_SCHEMA
+            or header.get("record_kind") != "header"
+            or header.get("status") != "formal-work-ledger-open"
+        ):
+            raise Missing77PreparationError("teacher-work header differs")
+        completed_roles, parent_counts = partition_completed_rows(
+            _work_values(source)
+        )
     row_counts = {role: len(rows) for role, rows in completed_roles.items()}
     if (
-        len(values) != FROZEN_WORK["parents"]
+        sum(parent_counts.values()) != FROZEN_WORK["parents"]
         or sum(row_counts.values()) != FROZEN_WORK["rows"]
         or parent_counts != EXPECTED_PARENT_COUNTS
         or row_counts != EXPECTED_ROW_COUNTS

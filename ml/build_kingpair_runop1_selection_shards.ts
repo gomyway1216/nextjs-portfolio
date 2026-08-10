@@ -47,7 +47,7 @@ interface Options {
   readonly allowUnpinnedFixture: boolean;
 }
 
-interface Candidate {
+export interface Candidate {
   readonly priority: string;
   readonly positionId: string;
   readonly sfen: string;
@@ -200,10 +200,9 @@ async function chooseCandidates(source: string, target: number): Promise<{
       if (left.positionId < right.positionId) return -1;
       if (left.positionId > right.positionId) return 1;
       return 0;
-    })
-    .slice(0, target);
-  if (selected.length !== target) {
-    throw new Error(`priority margin produced ${selected.length} unique candidates, expected ${target}`);
+    });
+  if (selected.length < target) {
+    throw new Error(`priority margin produced ${selected.length} unique candidates, expected at least ${target}`);
   }
   return { selected, rows, invalid, duplicates, cutoffBucket };
 }
@@ -222,13 +221,21 @@ function gameIdFor(positionId: string): string {
   return `sha256:${sha256(`${GAME_DOMAIN}${positionId}`)}`;
 }
 
-function buildRows(selected: readonly Candidate[]): SelectionRow[] {
-  return selected.map((candidate, globalIndex) => {
+export function buildRows(selected: readonly Candidate[], target: number): {
+  rows: SelectionRow[];
+  rejectedLegal: number;
+} {
+  const rows: SelectionRow[] = [];
+  let rejectedLegal = 0;
+  for (const candidate of selected) {
     const legalMoves = rulesCompleteLegalMoves(positionFromSfen(candidate.sfen).position).length;
-    if (legalMoves < 2) throw new Error(`selected position has fewer than two legal moves: ${candidate.positionId}`);
-    return {
+    if (legalMoves < 2) {
+      rejectedLegal++;
+      continue;
+    }
+    rows.push({
       schema: SELECTION_ROW_SCHEMA,
-      global_index: globalIndex,
+      global_index: rows.length,
       domain: 'unused-runop1-positions-relabelled-by-aoba',
       split: 'train',
       game_id: gameIdFor(candidate.positionId),
@@ -237,8 +244,13 @@ function buildRows(selected: readonly Candidate[]): SelectionRow[] {
       position_id: candidate.positionId,
       legal_moves: legalMoves,
       priority_sha256: candidate.priority,
-    };
-  });
+    });
+    if (rows.length === target) break;
+  }
+  if (rows.length !== target) {
+    throw new Error(`legal filtering produced ${rows.length} candidates, expected ${target}`);
+  }
+  return { rows, rejectedLegal };
 }
 
 async function build(options: Options): Promise<void> {
@@ -255,7 +267,8 @@ async function build(options: Options): Promise<void> {
   if (!options.allowUnpinnedFixture && chosen.rows !== EXPECTED_SOURCE_ROWS) {
     throw new Error(`runOp1 row count mismatch: ${chosen.rows}`);
   }
-  const selectedRows = buildRows(chosen.selected);
+  const legalSelection = buildRows(chosen.selected, options.target);
+  const selectedRows = legalSelection.rows;
   const shardCount = Math.ceil(selectedRows.length / options.shardRows);
   if (shardCount > 99_999) throw new Error('shard count exceeds five-digit filename contract');
   const parent = dirname(options.outputRoot);
@@ -284,6 +297,7 @@ async function build(options: Options): Promise<void> {
       source_rows: chosen.rows,
       invalid_source_rows: chosen.invalid,
       duplicate_candidate_rows: chosen.duplicates,
+      rejected_fewer_than_two_legal_moves: legalSelection.rejectedLegal,
       selected_unique_parents: selectedRows.length,
       target_unique_parents: options.target,
       shard_rows: options.shardRows,

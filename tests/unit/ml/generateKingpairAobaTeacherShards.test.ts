@@ -6,13 +6,16 @@ import {
   SELECTION_ROW_SCHEMA,
   assignedShardIndices,
   buildEngineCrashReject,
+  buildSearchTimeoutReject,
   buildExactParentLabel,
   isRecoverableEngineCrash,
+  isRecoverableSearchTimeout,
   parentChunks,
   parseSelectionShard,
   type SelectionRow,
 } from '../../../ml/generate_kingpair_aoba_teacher_shards';
 import { positionKeyFromSfen } from '../../../ml/sibling-data';
+import { UsiSearchTimeoutError } from '../../../ml/usi-engine';
 
 const START = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
 
@@ -58,6 +61,21 @@ describe('KingPair Aoba compact teacher shards', () => {
       position_id: row().position_id,
       reason: 'engine-sigsegv-after-one-fresh-process-retry',
       requested_depth: 12,
+      technical_faults: 0,
+    });
+  });
+
+  it('records the fixed search timeout as an unlabeled structured reject', () => {
+    expect(isRecoverableSearchTimeout(new UsiSearchTimeoutError(600_000))).toBe(true);
+    expect(isRecoverableSearchTimeout(new UsiSearchTimeoutError(599_999))).toBe(false);
+    expect(isRecoverableSearchTimeout(new Error('USI search timeout after 600000ms'))).toBe(false);
+    expect(buildSearchTimeoutReject(row())).toMatchObject({
+      schema: 'shogi-kingpair-aoba-parent-reject-v1',
+      global_index: 7,
+      position_id: row().position_id,
+      reason: 'engine-search-timeout-without-label',
+      requested_depth: 12,
+      timeout_ms: 600_000,
       technical_faults: 0,
     });
   });

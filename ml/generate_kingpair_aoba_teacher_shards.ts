@@ -16,7 +16,7 @@ import { basename, join, resolve } from 'node:path';
 
 import { positionKeyFromSfen } from './sibling-data';
 import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from './shogi-sfen';
-import { UsiTeacherEngine } from './usi-engine';
+import { UsiSearchTimeoutError, UsiTeacherEngine } from './usi-engine';
 import { UsiFixedDepthRanksIncompleteError } from './usi-multipv';
 
 const ENGINE =
@@ -169,6 +169,10 @@ export function isRecoverableEngineCrash(error: unknown): boolean {
   return error instanceof Error && /signal=SIGSEGV/.test(error.message);
 }
 
+export function isRecoverableSearchTimeout(error: unknown): boolean {
+  return error instanceof UsiSearchTimeoutError && error.timeoutMs === TIMEOUT_MS;
+}
+
 export function buildEngineCrashReject(row: SelectionRow): Record<string, unknown> {
   return {
     schema: OUTPUT_REJECT_SCHEMA,
@@ -176,6 +180,20 @@ export function buildEngineCrashReject(row: SelectionRow): Record<string, unknow
     position_id: row.position_id,
     reason: 'engine-sigsegv-after-one-fresh-process-retry',
     requested_depth: DEPTH,
+    engine_sha256: ENGINE_SHA256,
+    eval_sha256: EVAL_SHA256,
+    technical_faults: 0,
+  };
+}
+
+export function buildSearchTimeoutReject(row: SelectionRow): Record<string, unknown> {
+  return {
+    schema: OUTPUT_REJECT_SCHEMA,
+    global_index: row.global_index,
+    position_id: row.position_id,
+    reason: 'engine-search-timeout-without-label',
+    requested_depth: DEPTH,
+    timeout_ms: TIMEOUT_MS,
     engine_sha256: ENGINE_SHA256,
     eval_sha256: EVAL_SHA256,
     technical_faults: 0,
@@ -313,7 +331,8 @@ function validateExistingOutput(path: string, inputSha256: string, shardIndex: n
     header.shard_index !== shardIndex || footer.schema !== OUTPUT_FOOTER_SCHEMA ||
     footer.shard_index !== shardIndex || footer.technical_faults !== 0 ||
     (footer.completed as number) + (footer.rejected_nonexact as number) +
-      ((footer.rejected_engine_crash as number | undefined) ?? 0) !== footer.assigned
+      ((footer.rejected_engine_crash as number | undefined) ?? 0) +
+      ((footer.rejected_timeout as number | undefined) ?? 0) !== footer.assigned
   ) {
     throw new Error(`existing output contract mismatch: ${path}`);
   }
@@ -357,7 +376,12 @@ async function processShard(
   inputPath: string,
   outputRoot: string,
   worker: number,
-): Promise<{ completed: number; rejected: number; rejectedEngineCrash: number }> {
+): Promise<{
+  completed: number;
+  rejected: number;
+  rejectedEngineCrash: number;
+  rejectedTimeout: number;
+}> {
   const input = readFileSync(inputPath);
   const inputSha256 = sha256Bytes(input);
   const { header, rows } = parseSelectionShard(input.toString('utf8'));
@@ -367,7 +391,7 @@ async function processShard(
   const destination = join(outputRoot, `teacher-${String(header.shard_index).padStart(5, '0')}-of-${String(header.shard_count).padStart(5, '0')}.jsonl`);
   if (existsSync(destination)) {
     validateExistingOutput(destination, inputSha256, header.shard_index);
-    return { completed: 0, rejected: 0, rejectedEngineCrash: 0 };
+    return { completed: 0, rejected: 0, rejectedEngineCrash: 0, rejectedTimeout: 0 };
   }
   const output = [JSON.stringify({
     schema: OUTPUT_HEADER_SCHEMA,
@@ -386,6 +410,7 @@ async function processShard(
   let completed = 0;
   let rejected = 0;
   let rejectedEngineCrash = 0;
+  let rejectedTimeout = 0;
   for (const chunk of parentChunks(rows)) {
     let engine = createTeacherEngine(outputRoot, worker);
     try {
@@ -422,6 +447,16 @@ async function processShard(
             await engine.init();
             continue;
           }
+          if (isRecoverableSearchTimeout(error)) {
+            output.push(JSON.stringify(buildSearchTimeoutReject(row)));
+            rejectedTimeout++;
+            // A timed-out search has no exact label and may still have a live
+            // engine process. Discard it before continuing with the next row.
+            await engine.quit();
+            engine = createTeacherEngine(outputRoot, worker);
+            await engine.init();
+            continue;
+          }
           if (!(error instanceof UsiFixedDepthRanksIncompleteError)) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(
@@ -452,11 +487,12 @@ async function processShard(
     completed,
     rejected_nonexact: rejected,
     rejected_engine_crash: rejectedEngineCrash,
+    rejected_timeout: rejectedTimeout,
     technical_faults: 0,
     worker,
   }));
   atomicLines(destination, output);
-  return { completed, rejected, rejectedEngineCrash };
+  return { completed, rejected, rejectedEngineCrash, rejectedTimeout };
 }
 
 async function main(): Promise<void> {
@@ -472,17 +508,20 @@ async function main(): Promise<void> {
   let completed = 0;
   let rejected = 0;
   let rejectedEngineCrash = 0;
+  let rejectedTimeout = 0;
   for (const name of work) {
     const result = await processShard(join(configured.selectionRoot, name), configured.outputRoot, configured.worker);
     completed += result.completed;
     rejected += result.rejected;
     rejectedEngineCrash += result.rejectedEngineCrash;
+    rejectedTimeout += result.rejectedTimeout;
     console.log(JSON.stringify({
       worker: configured.worker,
       shard: basename(name),
       completed,
       rejected_nonexact: rejected,
       rejected_engine_crash: rejectedEngineCrash,
+      rejected_timeout: rejectedTimeout,
       technical_faults: 0,
     }));
   }
@@ -493,6 +532,7 @@ async function main(): Promise<void> {
     completed,
     rejected_nonexact: rejected,
     rejected_engine_crash: rejectedEngineCrash,
+    rejected_timeout: rejectedTimeout,
     technical_faults: 0,
   }));
 }

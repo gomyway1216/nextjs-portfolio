@@ -414,6 +414,12 @@ async function processShard(
           if (isRecoverableEngineCrash(error)) {
             output.push(JSON.stringify(buildEngineCrashReject(row)));
             rejectedEngineCrash++;
+            // The retry process also exited, so it cannot serve the next row
+            // in this chunk. Recreate it now while retaining the structured
+            // unlabeled reject for only the crashing parent.
+            await engine.quit();
+            engine = createTeacherEngine(outputRoot, worker);
+            await engine.init();
             continue;
           }
           if (!(error instanceof UsiFixedDepthRanksIncompleteError)) {

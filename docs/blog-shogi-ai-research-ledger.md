@@ -4,6 +4,10 @@
 大きな対局log、checkpoint、教師データは引き続き `~/.codex/shogi-runs/` に保持し、
 ここには再現に必要な条件、artifact identity、最終判断だけを追記する。
 
+文書全体の入口は[研究ドキュメント案内](./blog-shogi-ai-research-map.md)、直近候補の横断的な
+原因分析は[2026-08-08以降のpostmortem](./blog-shogi-ai-20260808-postmortem.md)、現在の実行計画は
+[KingPair 10M fast lane](./blog-shogi-kingpair-10m-fast-lane.md)に分離する。この台帳には同じ説明を複製しない。
+
 ## 現行production
 
 - NNUE weights: 94,656,708 bytes, SHA-256
@@ -86,6 +90,27 @@
   superiority条件のlower > 50%を満たさなかった。小標本のscreen/independentで観測した優位を
   別panelのformalで再現できなかったため不採用とした。
 - 同じTT slotは再試行・係数調整しない。production WASM、weights、TTは変更していない。
+
+## 2026-08-10
+
+### Dual-perspective KingPair bootstrap — 診断FAIL、deployment対象外
+
+- 23,992,849 parameterのKingPair interaction NNUEについて、architecture、学習、checkpointの経路を
+  1,582,708 training rows、2 epochで確認した。
+- checkpoint:
+  `~/.codex/shogi-runs/kingpair-interaction-bootstrap-v1-20260809/kingpair-interaction-bootstrap.pt`
+- checkpoint: 95,976,850 bytes、SHA-256
+  `a1d58b203ea7514f03b12f6c15634164d9372a32d5b7382869e4a5490bcc7e36`
+- result:
+  `~/.codex/shogi-runs/kingpair-interaction-bootstrap-v1-20260809/bootstrap-result.json`
+- result: 4,985 bytes、SHA-256
+  `723e928363b97b74a27536f3e0a7f3cc5f1cc3c7ee21008381611634c52b7c19`
+- weighted validation MAEはproduction 501.3095cp、candidate 595.7368cpで、candidateが94.4272cp悪化した。
+  複数のsibling pair/top-1も回帰した。
+- このrunは最初からarchitecture/bootstrap診断でdeployment eligibilityを持たない。checkpointを次候補の
+  initializerへ使わず、artifactはhistoricalとして保持する。production assetは変更していない。
+- 数か月を要する50M-first計画は時間制約により本線から外し、旧lineageを2M/20%に制限して
+  fresh Aoba 8Mを使う別protocolの10M fast laneへ移行する。
 
 ## 更新規則
 

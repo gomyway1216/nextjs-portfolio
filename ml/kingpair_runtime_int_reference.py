@@ -145,4 +145,3 @@ def forward_dense_int(
     return output_bias + sum(
         weight * value for weight, value in zip(output_weight, hidden2, strict=True)
     )
-

@@ -70,6 +70,8 @@ interface ExactLine {
   readonly depth: number;
   readonly pv: readonly string[];
   readonly nodes: number;
+  readonly mate?: number;
+  readonly mateSign?: 1 | -1;
 }
 
 export interface ExactSnapshot {
@@ -202,7 +204,11 @@ export function buildExactParentLabel(
   const moves = snapshot.lines.map((line, index) => {
     if (
       line.depth !== DEPTH || line.multipv !== index + 1 || !legalMoves.includes(line.move) ||
-      seen.has(line.move) || line.scoreKind !== 'cp' || !Number.isFinite(line.cp)
+      seen.has(line.move) || (line.scoreKind !== 'cp' && line.scoreKind !== 'mate') ||
+      !Number.isFinite(line.cp) ||
+      (line.scoreKind === 'mate' &&
+        (!Number.isSafeInteger(line.mate) || (line.mateSign !== 1 && line.mateSign !== -1))) ||
+      (line.scoreKind === 'cp' && (line.mate !== undefined || line.mateSign !== undefined))
     ) {
       throw new Error('teacher line contract mismatch');
     }
@@ -214,6 +220,7 @@ export function buildExactParentLabel(
       teacher_child_cp: -line.cp,
       teacher_rank: line.multipv,
       score_kind: line.scoreKind,
+      ...(line.scoreKind === 'mate' ? { mate: line.mate, mate_sign: line.mateSign } : {}),
       depth: line.depth,
       child_sfen: child,
       child_position_id: positionKeyFromSfen(child),

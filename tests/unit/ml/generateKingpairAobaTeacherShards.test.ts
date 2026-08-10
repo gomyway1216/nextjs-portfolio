@@ -71,7 +71,7 @@ describe('KingPair Aoba compact teacher shards', () => {
     expect(moves[0].child_position_id).toBe(positionKeyFromSfen(moves[0].child_sfen as string));
   });
 
-  it('rejects incomplete or non-cp snapshots', () => {
+  it('rejects incomplete or malformed mate snapshots', () => {
     const selection = row();
     expect(() => buildExactParentLabel(selection, ['7g7f'], {
       depth: 11,
@@ -85,5 +85,31 @@ describe('KingPair Aoba compact teacher shards', () => {
       observedNodes: 10,
       lines: [{ move: '7g7f', cp: 1, multipv: 1, scoreKind: 'mate', depth: 12, pv: [], nodes: 10 }],
     })).toThrow('teacher line contract');
+  });
+
+  it('preserves exact mate metadata and child-side sign', () => {
+    const label = buildExactParentLabel(row(), ['7g7f'], {
+      depth: 12,
+      bestmove: '7g7f',
+      observedNodes: 10,
+      lines: [{
+        move: '7g7f',
+        cp: 999_997,
+        multipv: 1,
+        scoreKind: 'mate',
+        mate: 3,
+        mateSign: 1,
+        depth: 12,
+        pv: ['7g7f'],
+        nodes: 10,
+      }],
+    });
+    expect((label.moves as Array<Record<string, unknown>>)[0]).toMatchObject({
+      teacher_parent_cp: 999_997,
+      teacher_child_cp: -999_997,
+      score_kind: 'mate',
+      mate: 3,
+      mate_sign: 1,
+    });
   });
 });

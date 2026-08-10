@@ -44,6 +44,28 @@
 - 合計visited nodeが増えても強度は大きく悪化したため、この共有TT Lazy SMP topologyを不採用とした。
   independent 96局とformal 768局には進めず、productionはsingle-threadのまま維持する。
 
+### Deterministic 2-worker root partition alpha-beta — 不採用
+
+- rootのstable pseudo-move indexをeven/oddへ完全分離し、共有TTを使わない2 private WASMが
+  同じ500msの壁時計で並列探索する。探索、評価、重み、pruning、move orderingは変更していない。
+- candidate WASM: 39,030 bytes, SHA-256
+  `5ee5b5163584fd4abda5e0552dd21e413b8f6fdc0f15691ea4eabf150e511fec`
+- technical runtime report:
+  `~/.codex/shogi-runs/root-partition-alpha-beta-v1-20260809/runtime-gate-v3.json`
+- runtime report SHA-256:
+  `fe71f918498c7bd4e497d7486de552ab514ec41783df525629a42b066d3725d1`
+- 8局面のtechnical gateでは、single-thread 4,016.669msに対してparallel 4,019.982ms、
+  wall-time ratio 1.00082466だった。両partitionはnon-vacuousで、片側faultは正常側、
+  両側faultはproduction single-threadへfail closedした。2局smokeは273手すべて合法、fault 0だった。
+- 強度screenは56局、500ms/手、seed base `26460001`、合格線62/112で開始した。
+- artifact: `~/.codex/shogi-runs/root-partition-alpha-beta-screen56-20260809/screen.log`
+- artifact SHA-256:
+  `00faa47ae3169f2197e582d30965962dd9b40a2bab57e5a62947e19e42dac638`
+- 27/28 pair、54局完了時点で候補28勝、1分、25敗、57/108 half-points、technical fault 0だった。
+  残り1 pairを全勝しても最大61/112で合格線62に届かないため、数学的早期FAILとして停止した。
+- independent 96局とformal 768局には進めない。同じroot-partition topologyは再試行せず、
+  production WASM、weights、single-thread runtimeは変更していない。
+
 ## 更新規則
 
 - 実装・検証ハーネスと、採否結果は別commitにする。

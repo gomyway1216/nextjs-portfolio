@@ -194,7 +194,7 @@ function canonicalParent(
 export function parseStandardSourceRow(
   kind: StandardSourceKind,
   value: unknown,
-  label = kind,
+  label: string = kind,
 ): ParsedParent {
   const row = exactObject(value, label);
   const definition = SOURCE_METADATA[kind];

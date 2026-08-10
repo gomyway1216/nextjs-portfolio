@@ -179,25 +179,27 @@ def iter_aoba_examples(root: Path, *, seed: int) -> Iterator[TrainingExample]:
                     )
 
 
-def _repeat_to_count(
+def _exact_count(
     factory: ExampleFactory,
     count: int,
 ) -> Iterator[TrainingExample]:
     if type(count) is not int or count < 0:
         raise DpaTrainingError("exposure count must be a non-negative integer")
-    produced = 0
-    cycle = 0
-    while produced < count:
-        any_rows = False
-        for example in factory(cycle):
-            any_rows = True
-            yield example
-            produced += 1
-            if produced == count:
-                return
-        if not any_rows:
-            raise DpaTrainingError("an exposure arm contains no usable examples")
-        cycle += 1
+    source = iter(factory(0))
+    for produced in range(count):
+        try:
+            yield next(source)
+        except StopIteration as error:
+            raise DpaTrainingError(
+                f"exposure arm ended at {produced} rows; expected exactly {count}"
+            ) from error
+    try:
+        next(source)
+    except StopIteration:
+        return
+    raise DpaTrainingError(
+        f"exposure arm contains more than the fixed {count} rows"
+    )
 
 
 def mixed_example_stream(
@@ -211,12 +213,18 @@ def mixed_example_stream(
 
     if fresh_exposures != legacy_exposures * 4:
         raise DpaTrainingError("the fixed exposure contract must be exactly 20:80")
-    legacy = iter(_repeat_to_count(legacy_factory, legacy_exposures))
-    fresh = iter(_repeat_to_count(fresh_factory, fresh_exposures))
+    legacy = iter(_exact_count(legacy_factory, legacy_exposures))
+    fresh = iter(_exact_count(fresh_factory, fresh_exposures))
     for _ in range(legacy_exposures):
         yield next(legacy)
         for _fresh_offset in range(4):
             yield next(fresh)
+    # Resume each bounded iterator once so its exact-size postcondition runs.
+    for arm in (legacy, fresh):
+        try:
+            next(arm)
+        except StopIteration:
+            pass
 
 
 def collate_examples(

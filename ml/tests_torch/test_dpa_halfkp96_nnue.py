@@ -23,13 +23,16 @@ from dpa_halfkp96_nnue import (  # noqa: E402
 from dpa_halfkp96_runtime_int_reference import LAYOUT  # noqa: E402
 from train import MAX_PIECES  # noqa: E402
 from train_dpa_halfkp96_nnue import (  # noqa: E402
+    DpaTrainingError,
     LEARNING_RATE,
     SEED,
+    TrainingExample,
     WEIGHT_DECAY,
     iter_aoba_examples,
     iter_legacy_examples,
     load_checkpoint,
     mixed_batch_stream,
+    mixed_example_stream,
     same_parent_teacher_pair_ranking_loss,
     save_checkpoint,
 )
@@ -117,12 +120,15 @@ class DpaHalfkp96NnueTests(unittest.TestCase):
             legacy_root.mkdir()
             fresh_root.mkdir()
             (legacy_root / "legacy-00000-of-00001.jsonl").write_text(
-                json.dumps(
-                    {
-                        "sfen": START_SFEN,
-                        "cp": 25,
-                        "semantic_position_id": "sha256:legacy",
-                    }
+                "\n".join(
+                    json.dumps(
+                        {
+                            "sfen": START_SFEN,
+                            "cp": cp,
+                            "semantic_position_id": f"sha256:legacy-{cp}",
+                        }
+                    )
+                    for cp in (25, -25)
                 )
                 + "\n",
                 encoding="utf-8",
@@ -135,18 +141,21 @@ class DpaHalfkp96NnueTests(unittest.TestCase):
                 }
                 for rank, cp in enumerate((-240, -80, 90, 260), 1)
             ]
-            parent = {
-                "schema": "shogi-kingpair-aoba-parent-label-v1",
-                "position_id": "sha256:parent",
-                "engine_sha256": "a" * 64,
-                "eval_sha256": "b" * 64,
-                "moves": moves,
-            }
+            parents = [
+                {
+                    "schema": "shogi-kingpair-aoba-parent-label-v1",
+                    "position_id": f"sha256:parent-{offset}",
+                    "engine_sha256": "a" * 64,
+                    "eval_sha256": "b" * 64,
+                    "moves": moves,
+                }
+                for offset in range(2)
+            ]
             (fresh_root / "teacher-00000-of-00001.jsonl").write_text(
                 "\n".join(
                     (
                         json.dumps({"schema": "header"}),
-                        json.dumps(parent),
+                        *(json.dumps(parent) for parent in parents),
                         json.dumps({"schema": "footer"}),
                     )
                 )
@@ -180,6 +189,30 @@ class DpaHalfkp96NnueTests(unittest.TestCase):
             self.assertTrue(
                 all(batch.hands.shape == (5, 2, 14) for batch in batches)
             )
+
+    def test_fixed_mix_rejects_short_or_extra_arms(self):
+        def examples(count: int, source: str):
+            return [
+                TrainingExample(sfen=START_SFEN, cp=index, source=source)
+                for index in range(count)
+            ]
+
+        for legacy_rows, fresh_rows, message in (
+            (1, 8, "ended at 1 rows"),
+            (3, 8, "more than the fixed 2 rows"),
+            (2, 7, "ended at 7 rows"),
+            (2, 9, "more than the fixed 8 rows"),
+        ):
+            with self.subTest(legacy_rows=legacy_rows, fresh_rows=fresh_rows):
+                with self.assertRaisesRegex(DpaTrainingError, message):
+                    list(
+                        mixed_example_stream(
+                            lambda _cycle: iter(examples(legacy_rows, "legacy")),
+                            lambda _cycle: iter(examples(fresh_rows, "fresh")),
+                            legacy_exposures=2,
+                            fresh_exposures=8,
+                        )
+                    )
 
     def test_pair_loss_is_same_parent_same_teacher_and_prefers_order(self):
         cp = torch.tensor([200.0, 0.0, -200.0, 200.0, 0.0])

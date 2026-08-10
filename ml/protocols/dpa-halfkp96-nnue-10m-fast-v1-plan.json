@@ -1,0 +1,139 @@
+{
+  "schema": "shogi-dpa-halfkp96-nnue-10m-fast-plan-v1",
+  "status": "active-data-generation-runtime-preflight-pass",
+  "objective": "within seven days, decide whether one scratch DPA-HalfKP96 evaluator is stronger than production under unchanged promotion gates",
+  "deadline_days": 7,
+  "candidate": {
+    "name": "dual-perspective-antisymmetric-halfkp96-v1",
+    "initializer": "fresh-scratch",
+    "seed": 20260810,
+    "trainable_parameters": 17744928,
+    "hidden_lanes": 96,
+    "shared_halfkp81_first_layer": true,
+    "perspectives": 2,
+    "value_formula": "output_weight_dot(clip(us_accumulator)-clip(them_accumulator))",
+    "strict_antisymmetry": true,
+    "trainable_first_bias": false,
+    "scalar_output_bias": false,
+    "auxiliary_head": false,
+    "dense_interaction_trunk": false,
+    "production_search_contract_unchanged": true,
+    "bootstrap_checkpoint_reused": false
+  },
+  "runtime_preflight": {
+    "status": "pass-runtime-feasibility-only-not-strength",
+    "implementation_commit": "cd0742f9",
+    "candidate_wasm_bytes": 45391,
+    "candidate_wasm_sha256": "e3e14d0836ed11d4432ff11478c98b1c808a504ff5ee99da714aa0bde4c8c606",
+    "zero_payload_bytes": 35490240,
+    "zero_payload_sha256": "00025a3b7bbe5cd28565676ed76c8f04110fdad3e9159384629d268fcc382f32",
+    "fixed_work_positions": 64,
+    "fixed_work_exact": 64,
+    "production_mean_ms": 890.069,
+    "candidate_mean_ms": 887.053,
+    "slowdown_fraction": -0.00339,
+    "slowdown_maximum_fraction": 0.05,
+    "timed_500ms_work_ratio": 1.00737,
+    "minimum_work_ratio": 0.95,
+    "incremental_full_mismatches": 0
+  },
+  "training_data": {
+    "exact_unique_rows": 10000000,
+    "legacy": {
+      "rows": 2000000,
+      "fraction": 0.2,
+      "source_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "source_rows": 5892192,
+      "invalid_sfen_rows": 2239,
+      "selection": "lowest-salted-sha256-over-unique-nonconflicting-semantic-position",
+      "manifest": "/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/legacy-2m-shards-v1/manifest.json",
+      "manifest_sha256": "0588234ef6d2d26336faf75ca35fab655a897ac33791e52fedc6df7e2ab1a6d6"
+    },
+    "fresh_aoba": {
+      "rows": 8000000,
+      "fraction": 0.8,
+      "depth": 12,
+      "multipv": 4,
+      "exact_only": true,
+      "engine_role": "evaluation-labels-only-no-code-or-weight-copy",
+      "engine_sha256": "44d2643a2f921fff19dcb62974dd8e0a989bd81cd29766037f2615f6e4c2fdff",
+      "eval_sha256": "f8ee839ae8c08537036f23345dd5ed0416958b22425476fc60177942903219b5",
+      "bound_or_incomplete_policy": "reject-not-label",
+      "duplicate_rows_cannot_fill_shortfall": true,
+      "maximum_single_position_domain_rows": 3200000,
+      "domains": [
+        "unused-runop1-positions-relabelled-by-aoba",
+        "public-floodgate-and-wcsc-games",
+        "fresh-selfplay",
+        "browser-confusion-training-only"
+      ]
+    },
+    "split": {
+      "semantic_train_holdout_overlap": 0,
+      "parent_train_holdout_overlap": 0,
+      "whole_game_split_when_game_identity_exists": true,
+      "sealed_browser_validation_used_for_training": false,
+      "sealed_v9_validation_used_for_training": false
+    }
+  },
+  "training": {
+    "epochs": 2,
+    "batch_size": 1024,
+    "legacy_fraction_per_cycle": 0.2,
+    "fresh_fraction_per_cycle": 0.8,
+    "optimizer": "AdamW",
+    "learning_rate": 0.00005,
+    "weight_decay": 0.00001,
+    "value_loss": "SmoothL1",
+    "rank_loss": {
+      "scope": "same-parent-same-teacher-only",
+      "minimum_gap_cp": 50,
+      "maximum_gap_cp": 600,
+      "cross_parent_pairs": false,
+      "cross_teacher_pairs": false
+    },
+    "load_entire_corpus_into_ram": false,
+    "best_checkpoint_selection": false,
+    "additional_seed": false,
+    "epoch_extension": false,
+    "final_checkpoint": "fixed-epoch-2-only"
+  },
+  "static_gate": {
+    "role": "reject-only-does-not-prove-strength",
+    "weighted_mae_improvement_cp_min": 10,
+    "fresh_aoba_pair_gain_min": 0.005,
+    "fresh_yaneura_pair_gain_min": 0.002,
+    "browser_pair_gain_min": 0.002,
+    "v9_pair_gain_min": 0.002,
+    "all_domain_top1_non_regression": true,
+    "production_value_preservation_non_regression": true,
+    "aggregate_cannot_mask_domain_regression": true,
+    "finite": true
+  },
+  "deployment_runtime_gate": {
+    "python_quantized_wasm_parity": true,
+    "clipping_or_overflow_allowed": 0,
+    "random_make_unmake_parity": true,
+    "search_slowdown_maximum_fraction": 0.05,
+    "smoke_games": 2,
+    "technical_faults_required": 0
+  },
+  "strength_gate": {
+    "screen56_halfpoints_min": 62,
+    "independent96_halfpoints_min": 106,
+    "formal768": {
+      "pairs": 384,
+      "bootstrap_replicates": 100000,
+      "lower_95_score_strictly_greater_than": 0.5
+    },
+    "technical_faults_required": 0,
+    "early_pass": false,
+    "promotion_authority": "formal768-pass-plus-browser-runtime-pass-only"
+  },
+  "failure_policy": {
+    "same_slot_tuning": false,
+    "threshold_relaxation": false,
+    "failed_checkpoint_reuse": false,
+    "production_assets_change_on_failure": false
+  }
+}

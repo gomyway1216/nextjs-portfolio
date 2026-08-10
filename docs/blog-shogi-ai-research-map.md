@@ -11,8 +11,8 @@
 - production WASMは38,288 bytes、SHA-256
   `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6`。
 - 2026-08-08以降の探索・policy・MCTS・RL・評価学習候補は、direct-evasionを除いて未採用である。
-- 現在の次候補は、1週間で採否まで進めるdual-perspective KingPair interaction NNUEの
-  10M fast laneである。まだproduction候補ではない。
+- 旧dual-perspective KingPair interactionは学習前runtimeで不適合となった。現在の次候補は、
+  runtime preflightを通過したDPA-HalfKP96本体の10M fast laneである。まだproduction候補ではない。
 
 ## 文書ごとの責務
 
@@ -21,8 +21,9 @@
 | [AI再構築の長編記録](./blog-shogi-ai-rebuild.md) | 初期のTypeScript探索、WASM移植、旧NNUE構築、過去の人間実戦までの物語 | 2026-08-08以降の候補一覧、現在の実行契約 |
 | [研究台帳](./blog-shogi-ai-research-ledger.md) | 採否、固定条件、artifact path/SHA、productionが変わったか | 長い原因分析、将来計画、実装解説 |
 | [2026-08-08以降の失敗分析](./blog-shogi-ai-20260808-postmortem.md) | 直近候補を系統別に比較し、失敗原因と再発防止を整理 | artifact SHAの正本、fast laneの操作手順 |
-| [KingPair 10M fast lane](./blog-shogi-kingpair-10m-fast-lane.md) | 1週間の目的、データ、学習、runtime、gate、停止条件 | 過去候補の詳細な戦績、実行後の最終採否 |
-| [10M machine protocol](../ml/protocols/kingpair-interaction-nnue-10m-fast-v1-plan.json) | コードが検査する数値・不変条件 | 人間向け背景説明 |
+| [旧KingPair 10M fast lane](./blog-shogi-kingpair-10m-fast-lane.md) | 学習前runtime FAILへ至った旧計画 | 現在の実行手順、最終採否 |
+| [DPA-HalfKP96 10M fast lane](./blog-shogi-dpa-halfkp96-10m-fast-lane.md) | 現在の本体、データ、学習、gate、停止条件 | 過去候補の詳細、artifact SHAの正本 |
+| [DPA 10M machine protocol](../ml/protocols/dpa-halfkp96-nnue-10m-fast-v1-plan.json) | 現候補をコードが検査する数値・不変条件 | 人間向け背景説明 |
 | `~/.codex/shogi-runs/` | 大容量log、checkpoint、教師データ、result JSONの実体 | Git上の読み物、最新判断の要約 |
 
 ## 更新規則

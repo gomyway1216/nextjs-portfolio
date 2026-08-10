@@ -141,6 +141,7 @@ describe('standard Aoba selection builder', () => {
       selectionContract: files.contract,
       outputRoot: files.output,
       target: 257,
+      sourceKinds: undefined,
     };
     const summary = await buildStandardAobaSelection(options);
     expect(summary).toMatchObject({
@@ -155,10 +156,13 @@ describe('standard Aoba selection builder', () => {
 
     const names = (await fs.readdir(files.output)).sort();
     expect(names).toEqual([
+      'selected-position-ids.txt',
       'selection-00000-of-00002.jsonl',
       'selection-00001-of-00002.jsonl',
+      'selection-summary.json',
     ]);
-    const decoded = await Promise.all(names.map(async (name) =>
+    const shardNames = names.filter((name) => name.startsWith('selection-0'));
+    const decoded = await Promise.all(shardNames.map(async (name) =>
       (await fs.readFile(path.join(files.output, name), 'utf8'))
         .trimEnd()
         .split('\n')
@@ -182,6 +186,16 @@ describe('standard Aoba selection builder', () => {
     });
     expect(rows.some((row) => row.position_id === positionKeyFromSfen(positions[257]))).toBe(false);
     expect(rows.some((row) => row.position_id === positionKeyFromSfen(positions[258]))).toBe(false);
+    const selectedIds = (await fs.readFile(path.join(files.output, 'selected-position-ids.txt'), 'utf8'))
+      .trimEnd().split('\n');
+    expect(selectedIds).toEqual([...rows.map((row) => row.position_id)].sort());
+    const summaryReceipt = JSON.parse(
+      await fs.readFile(path.join(files.output, 'selection-summary.json'), 'utf8'),
+    );
+    expect(summaryReceipt).toMatchObject({
+      selected_unique_parents: 257,
+      selected_position_ids_sha256: summary.selected_position_ids_sha256,
+    });
     await expect(buildStandardAobaSelection(options)).rejects.toThrow(/output root already exists/);
   }, 30_000);
 
@@ -193,5 +207,27 @@ describe('standard Aoba selection builder', () => {
       position_id: positionKeyFromSfen(START),
       game_id: 'fixture',
     })).toThrow(/split must be train/);
+  });
+
+  it('can freeze one explicit source family for a domain quota', async () => {
+    const root = await temporaryDirectory();
+    const positions = fixturePositions(8);
+    const empty = path.join(root, 'empty.jsonl');
+    await fs.writeFile(empty, '');
+    const browser = path.join(root, 'browser.jsonl');
+    await writeJsonl(browser, positions.map((sfen, index) => ({
+      schema: 'shogi-sibling-v1', split: 'train', game_id: `browser-${index}`,
+      position_id: positionKeyFromSfen(sfen), parent_sfen: sfen, parent_ply: parentPly(sfen),
+    })));
+    const contract = path.join(root, 'contract.json');
+    await fs.writeFile(contract, '{}\n');
+    const output = path.join(root, 'browser-only');
+    const summary = await buildStandardAobaSelection({
+      largeScratch: empty, v9Train: empty, wcscParents: empty, browserTrain: browser,
+      exclusionIds: [], selectionContract: contract, outputRoot: output, target: 7,
+      sourceKinds: ['browser-confusion'],
+    });
+    expect(summary.selected_unique_parents).toBe(7);
+    expect(summary.selected_by_domain).toEqual({ 'browser-confusion-train': 7 });
   });
 });

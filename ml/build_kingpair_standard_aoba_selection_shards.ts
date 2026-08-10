@@ -48,6 +48,7 @@ interface Options {
   readonly selectionContract: string;
   readonly outputRoot: string;
   readonly target: number;
+  readonly sourceKinds?: readonly StandardSourceKind[];
 }
 
 export interface StandardSelectionCandidate {
@@ -79,6 +80,8 @@ interface BuildSummary {
   readonly excluded_occurrences: number;
   readonly duplicate_selected_occurrences: number;
   readonly rejected_fewer_than_four_legal_moves: number;
+  readonly selected_by_domain: Readonly<Record<string, number>>;
+  readonly selected_position_ids_sha256: string;
 }
 
 function sha256(value: Buffer | string): string {
@@ -120,6 +123,7 @@ function exactObject(value: unknown, label: string): Record<string, unknown> {
 function parseOptions(argv: readonly string[]): Options {
   const scalar = new Map<string, string>();
   const exclusionIds: string[] = [];
+  const sourceKinds: StandardSourceKind[] = [];
   const allowed = new Set([
     'large-scratch',
     'v9-train',
@@ -129,6 +133,7 @@ function parseOptions(argv: readonly string[]): Options {
     'selection-contract',
     'output-root',
     'target',
+    'source-kind',
   ]);
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
@@ -140,6 +145,13 @@ function parseOptions(argv: readonly string[]): Options {
     if (!allowed.has(key)) throw new Error(`unknown option --${key}`);
     if (key === 'exclude-ids') {
       exclusionIds.push(resolve(value));
+      continue;
+    }
+    if (key === 'source-kind') {
+      if (!['large-scratch', 'v9', 'wcsc', 'browser-confusion'].includes(value)) {
+        throw new Error(`invalid --source-kind ${value}`);
+      }
+      sourceKinds.push(value as StandardSourceKind);
       continue;
     }
     if (scalar.has(key)) throw new Error(`duplicate option --${key}`);
@@ -159,6 +171,7 @@ function parseOptions(argv: readonly string[]): Options {
     selectionContract: requiredPath('selection-contract'),
     outputRoot: requiredPath('output-root'),
     target: exactPositiveInteger(Number(scalar.get('target')), '--target'),
+    sourceKinds: sourceKinds.length === 0 ? undefined : [...new Set(sourceKinds)],
   };
 }
 
@@ -413,7 +426,8 @@ export async function buildStandardAobaSelection(options: Options): Promise<Buil
     { ...SOURCE_METADATA.v9, path: options.v9Train },
     { ...SOURCE_METADATA.wcsc, path: options.wcscParents },
     { ...SOURCE_METADATA['browser-confusion'], path: options.browserTrain },
-  ];
+  ].filter((source) => options.sourceKinds === undefined || options.sourceKinds.includes(source.kind));
+  if (sources.length === 0) throw new Error('at least one source kind is required');
 
   for (const source of sources) {
     sourceRows[source.kind] = await visitLines(source.path, (value, lineNumber) => {
@@ -454,6 +468,10 @@ export async function buildStandardAobaSelection(options: Options): Promise<Buil
     legal_moves: candidate.legalMoves,
     priority_sha256: candidate.priority,
   }));
+  const selectedByDomain: Record<string, number> = {};
+  for (const row of rows) selectedByDomain[row.domain] = (selectedByDomain[row.domain] ?? 0) + 1;
+  const selectedPositionIds = `${rows.map((row) => row.position_id).sort(compareText).join('\n')}\n`;
+  const selectedPositionIdsSha256 = sha256(selectedPositionIds);
   const shardCount = Math.ceil(rows.length / STANDARD_AOBA_SELECTION_SHARD_ROWS);
   if (shardCount > 99_999) throw new Error('shard count exceeds five-digit filename contract');
   const contractSha256 = sha256(readFileSync(options.selectionContract));
@@ -481,6 +499,16 @@ export async function buildStandardAobaSelection(options: Options): Promise<Buil
         `${[header, ...shardRows].map((row) => JSON.stringify(row)).join('\n')}\n`,
       );
     }
+    writeCreateOnly(join(staging, 'selected-position-ids.txt'), selectedPositionIds);
+    writeCreateOnly(join(staging, 'selection-summary.json'), `${JSON.stringify({
+      schema: 'shogi-kingpair-standard-aoba-selection-summary-v1',
+      selected_unique_parents: rows.length,
+      selected_by_domain: selectedByDomain,
+      selected_position_ids_sha256: selectedPositionIdsSha256,
+      source_kinds: sources.map((source) => source.kind),
+      excluded_position_ids: exclusions.size,
+      selection_contract_sha256: contractSha256,
+    }, null, 2)}\n`);
     renameSync(staging, options.outputRoot);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -495,6 +523,8 @@ export async function buildStandardAobaSelection(options: Options): Promise<Buil
     excluded_occurrences: excludedOccurrences,
     duplicate_selected_occurrences: duplicateSelectedOccurrences,
     rejected_fewer_than_four_legal_moves: rejectedLegal,
+    selected_by_domain: selectedByDomain,
+    selected_position_ids_sha256: selectedPositionIdsSha256,
   };
 }
 

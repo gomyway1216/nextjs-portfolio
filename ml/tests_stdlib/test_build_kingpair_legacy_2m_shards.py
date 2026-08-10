@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ from build_kingpair_legacy_2m_shards import (  # noqa: E402
     SEMANTIC_DOMAIN,
     SourcePin,
     build_legacy_shards,
+    main,
 )
 
 
@@ -130,6 +132,106 @@ class KingPairLegacyShardBuilderTests(unittest.TestCase):
                 build_legacy_shards(
                     source, output, pin=pin, target_rows=7, shard_rows=3
                 )
+
+    def test_semantic_exclusions_select_next_rows_and_are_manifest_bound(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, raw, records = self.make_fixture(directory)
+            pin = fixture_pin(raw, len(records), len(records) - 1, 1)
+            candidates = []
+            for value in range(1, 13):
+                canonical = " ".join(sparse_sfen(value).split()[:3])
+                identifier = semantic(canonical)
+                candidates.append((priority(identifier), identifier, canonical))
+            ranked = sorted(candidates)
+
+            first_exclusion = Path(directory) / "browser-val.jsonl"
+            first_raw = (
+                json.dumps(
+                    {
+                        "parent_sfen": ranked[0][2] + " 1",
+                        "child_sfen": ranked[1][2] + " 2",
+                    },
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode()
+            first_exclusion.write_bytes(first_raw)
+            second_exclusion = Path(directory) / "v9-selection.jsonl"
+            second_raw = (
+                json.dumps(
+                    {"sfen": ranked[2][2] + " 3"}, separators=(",", ":")
+                )
+                + "\n"
+            ).encode()
+            second_exclusion.write_bytes(second_raw)
+
+            output = Path(directory) / "output"
+            manifest = build_legacy_shards(
+                source,
+                output,
+                pin=pin,
+                target_rows=5,
+                shard_rows=2,
+                exclusion_paths=[second_exclusion, first_exclusion],
+                excluded_semantic_ids={ranked[3][1]},
+            )
+            output_ids = {
+                json.loads(line)["semantic_position_id"].removeprefix("sha256:")
+                for shard in manifest["shards"]
+                for line in (output / shard["name"]).read_text().splitlines()
+            }
+            self.assertEqual(
+                output_ids,
+                {identifier.hex() for _rank, identifier, _sfen in ranked[4:9]},
+            )
+            self.assertEqual(manifest["selection"]["selected_rows"], 5)
+            self.assertEqual(
+                manifest["selection"]["excluded_eligible_semantic_positions"], 4
+            )
+            exclusion = manifest["exclusions"]
+            self.assertEqual(exclusion["count"], 4)
+            self.assertEqual(exclusion["in_memory_semantic_positions"], 1)
+            self.assertEqual(exclusion["selected_overlap"], 0)
+            self.assertEqual(
+                [receipt["path"] for receipt in exclusion["files"]],
+                [str(first_exclusion.resolve()), str(second_exclusion.resolve())],
+            )
+            for receipt, file_raw, semantic_positions in (
+                (exclusion["files"][0], first_raw, 2),
+                (exclusion["files"][1], second_raw, 1),
+            ):
+                self.assertEqual(receipt["bytes"], len(file_raw))
+                self.assertEqual(receipt["sha256"], hashlib.sha256(file_raw).hexdigest())
+                self.assertEqual(receipt["rows"], 1)
+                self.assertEqual(receipt["count"], semantic_positions)
+
+    def test_cli_accepts_repeated_semantic_exclusion_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "first.jsonl"
+            second = Path(directory) / "second.jsonl"
+            completed = {
+                "status": "complete",
+                "selection": {"selected_rows": 2_000_000},
+                "format": {"shard_count": 20},
+            }
+            with patch(
+                "build_kingpair_legacy_2m_shards.build_legacy_shards",
+                return_value=completed,
+            ) as mocked:
+                result = main(
+                    [
+                        "--output-root",
+                        str(Path(directory) / "output"),
+                        "--semantic-exclusion",
+                        str(first),
+                        "--exclude-semantic-jsonl",
+                        str(second),
+                    ]
+                )
+            self.assertEqual(result, 0)
+            self.assertEqual(
+                mocked.call_args.kwargs["exclusion_paths"], [first, second]
+            )
 
     def test_source_identity_mismatch_fails_before_publication(self):
         with tempfile.TemporaryDirectory() as directory:

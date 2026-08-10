@@ -21,7 +21,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
-from typing import Callable, Iterator, Mapping, Sequence
+from typing import Callable, Collection, Iterator, Mapping, Sequence
 
 
 DEFAULT_SOURCE = Path(
@@ -81,6 +81,15 @@ class SourceScan:
     rows: int
     valid_rows: int
     invalid_sfen_rows: int
+
+
+@dataclass(frozen=True)
+class ExclusionScan:
+    path: str
+    sha256: str
+    bytes: int
+    rows: int
+    count: int
 
 
 def _reject_constant(value: str) -> None:
@@ -164,6 +173,110 @@ def _semantic_id(canonical_sfen: str) -> bytes:
 
 def _selection_priority(semantic: bytes) -> bytes:
     return hashlib.sha256(PRIORITY_DOMAIN + semantic).digest()
+
+
+def _normalize_semantic_id(value: bytes | str) -> bytes:
+    if isinstance(value, bytes):
+        if len(value) != hashlib.sha256().digest_size:
+            raise LegacyShardError("excluded semantic byte id must be 32 bytes")
+        return value
+    if not isinstance(value, str):
+        raise LegacyShardError("excluded semantic id must be bytes or sha256 text")
+    encoded = value.removeprefix("sha256:")
+    if len(encoded) != 64:
+        raise LegacyShardError("excluded semantic text id must contain 64 hex digits")
+    try:
+        return bytes.fromhex(encoded)
+    except ValueError as error:
+        raise LegacyShardError("excluded semantic text id is not hexadecimal") from error
+
+
+def _scan_exclusion_file(
+    path: Path,
+    validate_sfen: Callable[[str], str],
+) -> tuple[set[bytes], ExclusionScan]:
+    resolved = path.resolve()
+    if not resolved.is_file():
+        raise LegacyShardError(f"semantic exclusion is not a regular file: {resolved}")
+    digest = hashlib.sha256()
+    byte_count = 0
+    rows = 0
+    semantics: set[bytes] = set()
+    with resolved.open("rb") as stream:
+        for line_number, raw in enumerate(stream, 1):
+            rows = line_number
+            digest.update(raw)
+            byte_count += len(raw)
+            if not raw.strip():
+                raise LegacyShardError(
+                    f"{resolved}:{line_number}: blank semantic exclusion row"
+                )
+            try:
+                record = json.loads(
+                    raw.decode("utf-8", errors="strict"),
+                    parse_constant=_reject_constant,
+                )
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise LegacyShardError(
+                    f"{resolved}:{line_number}: invalid strict JSON"
+                ) from error
+            if not isinstance(record, dict):
+                raise LegacyShardError(
+                    f"{resolved}:{line_number}: exclusion row must be an object"
+                )
+            found = False
+            for field in ("parent_sfen", "child_sfen", "sfen"):
+                if field not in record:
+                    continue
+                found = True
+                value = record[field]
+                if not isinstance(value, str):
+                    raise LegacyShardError(
+                        f"{resolved}:{line_number}: {field} must be text"
+                    )
+                try:
+                    canonical_sfen = validate_sfen(value)
+                except (TypeError, ValueError) as error:
+                    raise LegacyShardError(
+                        f"{resolved}:{line_number}: {field} is not a valid SFEN"
+                    ) from error
+                semantics.add(_semantic_id(canonical_sfen))
+            if not found:
+                raise LegacyShardError(
+                    f"{resolved}:{line_number}: exclusion row has no SFEN field"
+                )
+    return semantics, ExclusionScan(
+        path=str(resolved),
+        sha256=digest.hexdigest(),
+        bytes=byte_count,
+        rows=rows,
+        count=len(semantics),
+    )
+
+
+def _load_exclusions(
+    paths: Sequence[Path],
+    excluded_semantic_ids: Collection[bytes | str],
+    validate_sfen: Callable[[str], str],
+) -> tuple[set[bytes], list[ExclusionScan], int]:
+    direct = {_normalize_semantic_id(value) for value in excluded_semantic_ids}
+    resolved_paths = [path.resolve() for path in paths]
+    if len(set(resolved_paths)) != len(resolved_paths):
+        raise LegacyShardError("semantic exclusion paths must be unique")
+    semantics = set(direct)
+    receipts: list[ExclusionScan] = []
+    for path in sorted(resolved_paths, key=str):
+        file_semantics, receipt = _scan_exclusion_file(path, validate_sfen)
+        semantics.update(file_semantics)
+        receipts.append(receipt)
+    return semantics, receipts, len(direct)
+
+
+def _semantic_set_sha256(semantics: Collection[bytes]) -> str:
+    digest = hashlib.sha256()
+    for semantic in sorted(semantics):
+        digest.update(semantic.hex().encode("ascii") + b"\n")
+    return digest.hexdigest()
 
 
 def _parse_source_row(
@@ -264,6 +377,9 @@ def _configure_index(connection: sqlite3.Connection) -> None:
         ) WITHOUT ROWID
         """
     )
+    connection.execute(
+        "CREATE TABLE exclusions (semantic BLOB PRIMARY KEY) WITHOUT ROWID"
+    )
 
 
 def _index_row(connection: sqlite3.Connection, row: ParsedRow, line_number: int) -> None:
@@ -284,8 +400,14 @@ def _index_row(connection: sqlite3.Connection, row: ParsedRow, line_number: int)
 
 
 def _freeze_selection(
-    connection: sqlite3.Connection, target_rows: int
+    connection: sqlite3.Connection,
+    target_rows: int,
+    excluded_semantics: Collection[bytes],
 ) -> dict[str, object]:
+    connection.executemany(
+        "INSERT INTO exclusions (semantic) VALUES (?)",
+        ((semantic,) for semantic in sorted(excluded_semantics)),
+    )
     connection.commit()
     connection.execute(
         "CREATE INDEX candidates_priority ON candidates(conflicted, priority, semantic)"
@@ -296,8 +418,22 @@ def _freeze_selection(
         FROM candidates
         """
     ).fetchone()
+    excluded_eligible = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM candidates JOIN exclusions USING (semantic)
+        WHERE conflicted = 0
+        """
+    ).fetchone()[0]
     eligible = connection.execute(
-        "SELECT COUNT(*) FROM candidates WHERE conflicted = 0"
+        """
+        SELECT COUNT(*)
+        FROM candidates
+        WHERE conflicted = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM exclusions WHERE exclusions.semantic = candidates.semantic
+          )
+        """
     ).fetchone()[0]
     if eligible < target_rows:
         raise LegacyShardError(
@@ -317,6 +453,9 @@ def _freeze_selection(
         SELECT semantic, first_line
         FROM candidates
         WHERE conflicted = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM exclusions WHERE exclusions.semantic = candidates.semantic
+          )
         ORDER BY priority, semantic
         LIMIT ?
         """,
@@ -325,6 +464,11 @@ def _freeze_selection(
     selected = connection.execute("SELECT COUNT(*) FROM selected").fetchone()[0]
     if selected != target_rows:
         raise LegacyShardError("SQLite selection did not produce the exact target")
+    selected_overlap = connection.execute(
+        "SELECT COUNT(*) FROM selected JOIN exclusions USING (semantic)"
+    ).fetchone()[0]
+    if selected_overlap != 0:
+        raise LegacyShardError("selected rows overlap the semantic exclusions")
     digest = hashlib.sha256()
     maximum_priority = None
     for semantic, priority in connection.execute(
@@ -342,8 +486,10 @@ def _freeze_selection(
         "unique_semantic_positions": int(unique_positions),
         "duplicate_rows_removed": int(duplicate_rows),
         "conflicting_semantic_positions_removed": int(conflicted_positions),
+        "excluded_eligible_semantic_positions": int(excluded_eligible),
         "eligible_unique_semantic_positions": int(eligible),
         "selected_rows": int(selected),
+        "selected_exclusion_overlap": int(selected_overlap),
         "selected_semantic_ids_sha256": digest.hexdigest(),
         "maximum_selected_priority_sha256": maximum_priority,
     }
@@ -434,8 +580,10 @@ def build_legacy_shards(
     pin: SourcePin = REAL_SOURCE_PIN,
     target_rows: int = TARGET_ROWS,
     shard_rows: int = DEFAULT_SHARD_ROWS,
+    exclusion_paths: Sequence[Path] = (),
+    excluded_semantic_ids: Collection[bytes | str] = (),
 ) -> dict[str, object]:
-    """Build one immutable compact arm. Tests may inject only source-size pins."""
+    """Build one immutable compact arm with optional semantic exclusions."""
 
     if type(target_rows) is not int or target_rows <= 0:
         raise LegacyShardError("target_rows must be a positive integer")
@@ -446,6 +594,11 @@ def build_legacy_shards(
     if not source.is_file():
         raise LegacyShardError("source must be a regular file")
     validate_sfen = load_inventory_validator()
+    exclusions, exclusion_scans, direct_exclusion_count = _load_exclusions(
+        exclusion_paths,
+        excluded_semantic_ids,
+        validate_sfen,
+    )
 
     with tempfile.TemporaryDirectory(prefix="kingpair-legacy-index-") as directory:
         connection = sqlite3.connect(str(Path(directory) / "selection.sqlite3"))
@@ -457,7 +610,7 @@ def build_legacy_shards(
                 lambda row, line: _index_row(connection, row, line),
             )
             _verify_pin(first_scan, pin, "first source pass")
-            selection = _freeze_selection(connection, target_rows)
+            selection = _freeze_selection(connection, target_rows, exclusions)
             if selection["valid_rows"] != pin.valid_rows:
                 raise LegacyShardError("semantic index valid-row accounting drifted")
 
@@ -511,6 +664,22 @@ def build_legacy_shards(
             "target_rows": target_rows,
             **selection,
         },
+        "exclusions": {
+            "files": [
+                {
+                    "path": scan.path,
+                    "bytes": scan.bytes,
+                    "sha256": scan.sha256,
+                    "rows": scan.rows,
+                    "count": scan.count,
+                }
+                for scan in exclusion_scans
+            ],
+            "in_memory_semantic_positions": direct_exclusion_count,
+            "count": len(exclusions),
+            "semantic_ids_sha256": _semantic_set_sha256(exclusions),
+            "selected_overlap": selection["selected_exclusion_overlap"],
+        },
         "format": {
             "kind": "compact-streaming-jsonl",
             "row_fields": ["cp", "semantic_position_id", "sfen"],
@@ -529,12 +698,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--shard-rows", type=int, default=DEFAULT_SHARD_ROWS)
+    parser.add_argument(
+        "--semantic-exclusion",
+        "--exclude-semantic-jsonl",
+        dest="exclusion_paths",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "sealed browser/v9 JSONL whose parent_sfen, child_sfen, and sfen "
+            "semantic union is excluded; repeat for multiple files"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         manifest = build_legacy_shards(
             args.source,
             args.output_root,
             shard_rows=args.shard_rows,
+            exclusion_paths=args.exclusion_paths,
         )
     except (LegacyShardError, OSError, sqlite3.Error) as error:
         print(json.dumps({"status": "error", "error": str(error)}, sort_keys=True))

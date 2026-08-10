@@ -33,6 +33,10 @@ const DEPTH = 12;
 const MULTIPV = 4;
 const HASH_MIB = 512;
 const TIMEOUT_MS = 600_000;
+// AobaNNUE reproducibly SIGSEGVs after a long sequence of unrelated parents
+// even when every individual position is valid. Keep one engine lifetime
+// bounded without changing depth, MultiPV, labels, or shard atomicity.
+export const PARENTS_PER_ENGINE = 32;
 
 export const SELECTION_HEADER_SCHEMA = 'shogi-kingpair-aoba-selection-shard-v1';
 export const SELECTION_ROW_SCHEMA = 'shogi-kingpair-aoba-parent-selection-v1';
@@ -151,6 +155,31 @@ export function assignedShardIndices(shardCount: number, worker: number, workers
   exactInteger(workers, 'workers', 1);
   if (worker >= workers) throw new Error('worker must be smaller than workers');
   return Array.from({ length: shardCount }, (_, index) => index).filter((index) => index % workers === worker);
+}
+
+export function parentChunks<T>(rows: readonly T[]): readonly (readonly T[])[] {
+  const chunks: T[][] = [];
+  for (let offset = 0; offset < rows.length; offset += PARENTS_PER_ENGINE) {
+    chunks.push(rows.slice(offset, offset + PARENTS_PER_ENGINE));
+  }
+  return chunks;
+}
+
+export function isRecoverableEngineCrash(error: unknown): boolean {
+  return error instanceof Error && /signal=SIGSEGV/.test(error.message);
+}
+
+export function buildEngineCrashReject(row: SelectionRow): Record<string, unknown> {
+  return {
+    schema: OUTPUT_REJECT_SCHEMA,
+    global_index: row.global_index,
+    position_id: row.position_id,
+    reason: 'engine-sigsegv-after-one-fresh-process-retry',
+    requested_depth: DEPTH,
+    engine_sha256: ENGINE_SHA256,
+    eval_sha256: EVAL_SHA256,
+    technical_faults: 0,
+  };
 }
 
 export function parseSelectionShard(text: string): { header: SelectionHeader; rows: SelectionRow[] } {
@@ -283,7 +312,8 @@ function validateExistingOutput(path: string, inputSha256: string, shardIndex: n
     header.schema !== OUTPUT_HEADER_SCHEMA || header.input_sha256 !== inputSha256 ||
     header.shard_index !== shardIndex || footer.schema !== OUTPUT_FOOTER_SCHEMA ||
     footer.shard_index !== shardIndex || footer.technical_faults !== 0 ||
-    (footer.completed as number) + (footer.rejected_nonexact as number) !== footer.assigned
+    (footer.completed as number) + (footer.rejected_nonexact as number) +
+      ((footer.rejected_engine_crash as number | undefined) ?? 0) !== footer.assigned
   ) {
     throw new Error(`existing output contract mismatch: ${path}`);
   }
@@ -309,12 +339,25 @@ function atomicLines(path: string, lines: readonly string[]): void {
   rmSync(temporary);
 }
 
+function createTeacherEngine(outputRoot: string, worker: number): UsiTeacherEngine {
+  const engineRoot = join(outputRoot, 'engines', `worker-${worker}`);
+  mkdirSync(engineRoot, { recursive: true, mode: 0o700 });
+  return new UsiTeacherEngine({
+    engineBin: ENGINE,
+    evalDir: EVAL.replace(/\/nn\.bin$/, ''),
+    fvScale: 40,
+    hashMb: HASH_MIB,
+    timeoutMs: TIMEOUT_MS,
+    cwd: engineRoot,
+    env: engineEnvironment(),
+  });
+}
+
 async function processShard(
-  engine: UsiTeacherEngine,
   inputPath: string,
   outputRoot: string,
   worker: number,
-): Promise<{ completed: number; rejected: number }> {
+): Promise<{ completed: number; rejected: number; rejectedEngineCrash: number }> {
   const input = readFileSync(inputPath);
   const inputSha256 = sha256Bytes(input);
   const { header, rows } = parseSelectionShard(input.toString('utf8'));
@@ -324,7 +367,7 @@ async function processShard(
   const destination = join(outputRoot, `teacher-${String(header.shard_index).padStart(5, '0')}-of-${String(header.shard_count).padStart(5, '0')}.jsonl`);
   if (existsSync(destination)) {
     validateExistingOutput(destination, inputSha256, header.shard_index);
-    return { completed: 0, rejected: 0 };
+    return { completed: 0, rejected: 0, rejectedEngineCrash: 0 };
   }
   const output = [JSON.stringify({
     schema: OUTPUT_HEADER_SCHEMA,
@@ -342,27 +385,58 @@ async function processShard(
   })];
   let completed = 0;
   let rejected = 0;
-  for (const row of rows) {
-    const legal = rulesCompleteLegalMoves(positionFromSfen(row.parent_sfen).position).map((entry) => entry.usi);
-    if (legal.length !== row.legal_moves || legal.length < 2) throw new Error('selection legal count drift');
-    await engine.resetForParent();
+  let rejectedEngineCrash = 0;
+  for (const chunk of parentChunks(rows)) {
+    let engine = createTeacherEngine(outputRoot, worker);
     try {
-      const snapshot = await engine.search(row.parent_sfen, Math.min(MULTIPV, legal.length), { depth: DEPTH }, [], true);
-      output.push(JSON.stringify(buildExactParentLabel(row, legal, snapshot)));
-      completed++;
-    } catch (error) {
-      if (!(error instanceof UsiFixedDepthRanksIncompleteError)) throw error;
-      output.push(JSON.stringify({
-        schema: OUTPUT_REJECT_SCHEMA,
-        global_index: row.global_index,
-        position_id: row.position_id,
-        reason: 'nonexact-fixed-depth-bound',
-        requested_depth: DEPTH,
-        engine_sha256: ENGINE_SHA256,
-        eval_sha256: EVAL_SHA256,
-        technical_faults: 0,
-      }));
-      rejected++;
+      await engine.init();
+      for (const row of chunk) {
+        const legal = rulesCompleteLegalMoves(positionFromSfen(row.parent_sfen).position).map((entry) => entry.usi);
+        if (legal.length !== row.legal_moves || legal.length < 2) throw new Error('selection legal count drift');
+        const search = async (): Promise<ExactSnapshot> => {
+          await engine.resetForParent();
+          return engine.search(row.parent_sfen, Math.min(MULTIPV, legal.length), { depth: DEPTH }, [], true);
+        };
+        try {
+          let snapshot: ExactSnapshot;
+          try {
+            snapshot = await search();
+          } catch (error) {
+            if (!isRecoverableEngineCrash(error)) throw error;
+            await engine.quit();
+            engine = createTeacherEngine(outputRoot, worker);
+            await engine.init();
+            snapshot = await search();
+          }
+          output.push(JSON.stringify(buildExactParentLabel(row, legal, snapshot)));
+          completed++;
+        } catch (error) {
+          if (isRecoverableEngineCrash(error)) {
+            output.push(JSON.stringify(buildEngineCrashReject(row)));
+            rejectedEngineCrash++;
+            continue;
+          }
+          if (!(error instanceof UsiFixedDepthRanksIncompleteError)) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(
+              `teacher technical failure global_index=${row.global_index} position_id=${row.position_id}: ${message}`,
+            );
+          }
+          output.push(JSON.stringify({
+            schema: OUTPUT_REJECT_SCHEMA,
+            global_index: row.global_index,
+            position_id: row.position_id,
+            reason: 'nonexact-fixed-depth-bound',
+            requested_depth: DEPTH,
+            engine_sha256: ENGINE_SHA256,
+            eval_sha256: EVAL_SHA256,
+            technical_faults: 0,
+          }));
+          rejected++;
+        }
+      }
+    } finally {
+      await engine.quit();
     }
   }
   output.push(JSON.stringify({
@@ -371,11 +445,12 @@ async function processShard(
     assigned: rows.length,
     completed,
     rejected_nonexact: rejected,
+    rejected_engine_crash: rejectedEngineCrash,
     technical_faults: 0,
     worker,
   }));
   atomicLines(destination, output);
-  return { completed, rejected };
+  return { completed, rejected, rejectedEngineCrash };
 }
 
 async function main(): Promise<void> {
@@ -388,35 +463,22 @@ async function main(): Promise<void> {
   if (names.length === 0) throw new Error('selection root has no shards');
   const assigned = names.filter((name) => selectionShardIndex(name) % configured.workers === configured.worker);
   const work = configured.maximumShards === null ? assigned : assigned.slice(0, configured.maximumShards);
-  const engineRoot = join(configured.outputRoot, 'engines', `worker-${configured.worker}`);
-  mkdirSync(engineRoot, { recursive: true, mode: 0o700 });
-  const engine = new UsiTeacherEngine({
-    engineBin: ENGINE,
-    evalDir: EVAL.replace(/\/nn\.bin$/, ''),
-    fvScale: 40,
-    hashMb: HASH_MIB,
-    timeoutMs: TIMEOUT_MS,
-    cwd: engineRoot,
-    env: engineEnvironment(),
-  });
-  await engine.init();
   let completed = 0;
   let rejected = 0;
-  try {
-    for (const name of work) {
-      const result = await processShard(engine, join(configured.selectionRoot, name), configured.outputRoot, configured.worker);
-      completed += result.completed;
-      rejected += result.rejected;
-      console.log(JSON.stringify({
-        worker: configured.worker,
-        shard: basename(name),
-        completed,
-        rejected_nonexact: rejected,
-        technical_faults: 0,
-      }));
-    }
-  } finally {
-    await engine.quit();
+  let rejectedEngineCrash = 0;
+  for (const name of work) {
+    const result = await processShard(join(configured.selectionRoot, name), configured.outputRoot, configured.worker);
+    completed += result.completed;
+    rejected += result.rejected;
+    rejectedEngineCrash += result.rejectedEngineCrash;
+    console.log(JSON.stringify({
+      worker: configured.worker,
+      shard: basename(name),
+      completed,
+      rejected_nonexact: rejected,
+      rejected_engine_crash: rejectedEngineCrash,
+      technical_faults: 0,
+    }));
   }
   console.log(JSON.stringify({
     worker: configured.worker,
@@ -424,6 +486,7 @@ async function main(): Promise<void> {
     shards: work.length,
     completed,
     rejected_nonexact: rejected,
+    rejected_engine_crash: rejectedEngineCrash,
     technical_faults: 0,
   }));
 }

@@ -5,7 +5,10 @@ import {
   SELECTION_HEADER_SCHEMA,
   SELECTION_ROW_SCHEMA,
   assignedShardIndices,
+  buildEngineCrashReject,
   buildExactParentLabel,
+  isRecoverableEngineCrash,
+  parentChunks,
   parseSelectionShard,
   type SelectionRow,
 } from '../../../ml/generate_kingpair_aoba_teacher_shards';
@@ -33,6 +36,30 @@ describe('KingPair Aoba compact teacher shards', () => {
     const assignments = Array.from({ length: 8 }, (_, worker) => assignedShardIndices(257, worker, 8)).flat();
     expect([...assignments].sort((a, b) => a - b)).toEqual(Array.from({ length: 257 }, (_, index) => index));
     expect(new Set(assignments).size).toBe(257);
+  });
+
+  it('bounds each Aoba process lifetime without dropping parents', () => {
+    const rows = Array.from({ length: 65 }, (_, index) => index);
+    const chunks = parentChunks(rows);
+    expect(chunks.map((chunk) => chunk.length)).toEqual([32, 32, 1]);
+    expect(chunks.flat()).toEqual(rows);
+  });
+
+  it('retries only an explicit engine SIGSEGV', () => {
+    expect(isRecoverableEngineCrash(new Error('USI process exited (code=null, signal=SIGSEGV)'))).toBe(true);
+    expect(isRecoverableEngineCrash(new Error('USI timeout after 600000ms'))).toBe(false);
+    expect(isRecoverableEngineCrash('signal=SIGSEGV')).toBe(false);
+  });
+
+  it('records a repeated SIGSEGV as an unlabeled structured reject', () => {
+    expect(buildEngineCrashReject(row())).toMatchObject({
+      schema: 'shogi-kingpair-aoba-parent-reject-v1',
+      global_index: 7,
+      position_id: row().position_id,
+      reason: 'engine-sigsegv-after-one-fresh-process-retry',
+      requested_depth: 12,
+      technical_faults: 0,
+    });
   });
 
   it('validates selection identity and uniqueness', () => {

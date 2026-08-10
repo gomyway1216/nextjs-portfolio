@@ -454,7 +454,7 @@ def main() -> None:
         "schema": SCHEMA,
         "status": "bootstrap-complete",
         "deployment_eligible": False,
-        "next_required_stage": "continue-same-model-on-10m-unique-teacher-rows",
+        "next_required_stage": "continue-same-model-through-10m-to-50m-unique-teacher-rows",
         "data_manifest": {
             "path": str(manifest_path),
             "bytes": manifest_path.stat().st_size,

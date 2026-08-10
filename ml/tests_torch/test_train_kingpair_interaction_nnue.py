@@ -31,7 +31,7 @@ class TrainKingPairInteractionNNUETests(unittest.TestCase):
         self.assertEqual(LEARNING_RATE, 1e-4)
 
         protocol = json.loads(
-            (Path(ML_DIR) / "protocols" / "kingpair-interaction-nnue-10m-v1-plan.json")
+            (Path(ML_DIR) / "protocols" / "kingpair-interaction-nnue-50m-v1-plan.json")
             .read_text(encoding="utf-8")
         )
         self.assertFalse(protocol["stage_1_bootstrap"]["deployment_eligible"])
@@ -39,8 +39,15 @@ class TrainKingPairInteractionNNUETests(unittest.TestCase):
             protocol["stage_2_full_training"]["minimum_unique_training_rows"],
             10_000_000,
         )
-        self.assertTrue(
+        self.assertFalse(
             protocol["stage_2_full_training"]["deployment_gate_runs_here_only"]
+        )
+        self.assertEqual(
+            protocol["stage_3_full_training"]["minimum_unique_training_rows"],
+            50_000_000,
+        )
+        self.assertTrue(
+            protocol["stage_3_full_training"]["deployment_gate_runs_here_only"]
         )
 
     def test_sampled_rank_loss_rewards_correct_order(self):

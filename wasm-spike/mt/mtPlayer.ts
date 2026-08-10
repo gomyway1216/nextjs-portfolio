@@ -36,6 +36,7 @@ export interface MtSearchWasm {
   getSearchLeaves(): number;
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
+  setNnueBuckets(buckets: number): void;
   setNnueScaleK(k: number): void;
   setNnueEnabled(flag: number): void;
   getSharedTtScratchPtr(): number;
@@ -83,6 +84,7 @@ export function loadShogiWasmMt(tt: SharedTT | null, getGen: () => number): MtSe
 
 export function loadNnueIntoWasm(wasm: MtSearchWasm): void {
   const weights = readFileSync(NNUE_WEIGHTS_PATH);
+  wasm.setNnueBuckets(81);
   if (weights.byteLength !== wasm.getNnueWeightsSize()) {
     throw new Error(`NNUE weights size mismatch: ${weights.byteLength} != ${wasm.getNnueWeightsSize()}`);
   }

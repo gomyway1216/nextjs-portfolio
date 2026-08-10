@@ -58,6 +58,7 @@ interface HelperWasm {
   getSearchDepth(): number;
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
+  setNnueBuckets(buckets: number): void;
   setNnueScaleK(k: number): void;
   setNnueEnabled(flag: number): void;
   getSharedTtScratchPtr(): number;
@@ -104,6 +105,7 @@ wasm.setSearchStartDepth(1 + (helperId & 1));
 let nnueLoaded = false;
 if (weightsPath) {
   const weights = readFileSync(weightsPath);
+  wasm.setNnueBuckets(81);
   if (weights.byteLength === wasm.getNnueWeightsSize()) {
     new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), weights.byteLength).set(weights);
     wasm.setNnueScaleK(600);

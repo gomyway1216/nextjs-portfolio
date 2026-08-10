@@ -26,7 +26,7 @@
   初期局面も不一致だった。実効coverage 0のためruntime実装前に終了した。
 - production assetは変更していない。同一book slotは再試行しない。
 
-### HalfKP81 2-thread Lazy SMP — 評価中
+### HalfKP81 2-thread Lazy SMP — 不採用
 
 - 壁時計は500ms/手のまま、main 1 + helper 1の2 private WASMと共有TTを使う。
 - resource report:
@@ -35,8 +35,14 @@
   shared TTは33,554,496 bytesだった。
 - 9局面、各500msのsanityでは全着手合法、technical fault 0、
   single-thread比の合計visited nodeは平均2.19倍だった。
-- 強度screenは56局、500ms/手、seed base `26460001`、合格線62/112で進行中。
-  完了後にこの節へ採否とartifact identityを追記する。
+- 強度screenは56局、500ms/手、seed base `26460001`、合格線62/112で実施した。
+- artifact: `~/.codex/shogi-runs/lazy-smp2-vs-st-screen56-20260809/screen.log`
+- artifact SHA-256:
+  `d441d2c5194d75af8820e5e1092fae7928175f1efec9d453873609d2f132c4fc`
+- 最終結果は2-thread側8勝、2分、46敗、18/112 half-points、得点率16.0714%だった。
+  6,466手はすべて合法で、technical faultは0だった。
+- 合計visited nodeが増えても強度は大きく悪化したため、この共有TT Lazy SMP topologyを不採用とした。
+  independent 96局とformal 768局には進めず、productionはsingle-threadのまま維持する。
 
 ## 更新規則
 

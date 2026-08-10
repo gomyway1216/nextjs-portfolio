@@ -17,6 +17,7 @@
   "stage_1_bootstrap": {
     "purpose": "architecture-training-and-export-sanity-only",
     "deployment_eligible": false,
+    "checkpoint_reused_as_initializer": false,
     "minimum_unique_teacher_rows": 1500000,
     "epochs": 2,
     "batch_size": 1024,
@@ -24,7 +25,7 @@
     "weight_decay": 0.00001
   },
   "stage_2_full_training": {
-    "initializer": "stage-1-bootstrap-checkpoint",
+    "initializer": "fresh-scratch-same-architecture-seed-20260810",
     "minimum_unique_training_rows": 10000000,
     "purpose": "scale-checkpoint-and-export-sanity-only",
     "deployment_eligible": false,
@@ -48,23 +49,48 @@
     "deployment_gate_runs_here_only": true
   },
   "data": {
-    "reuse_depth12_rows": {
+    "legacy_depth12_replay": {
       "path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
       "rows": 5892192,
-      "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb"
+      "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "production_training_lineage_same_source": true,
+      "quarantined_invalid_rows": 2239,
+      "stage_2_maximum_rows": 2000000,
+      "stage_2_maximum_fraction": 0.2,
+      "stage_3_maximum_rows": 5000000,
+      "stage_3_maximum_fraction": 0.1,
+      "selection": "deterministic-uniform-not-prefix"
     },
     "bootstrap_multi_teacher_rows": "globally-semantic-deduplicated-existing-corpus",
     "fresh_teacher": {
       "source_positions_max": 12500000,
-      "engine_role": "evaluation-labels-only",
-      "engine": "AobaNNUE",
-      "depth": 12,
+      "engine_role": "evaluation-labels-only-no-code-or-weight-copy",
+      "engines": [
+        {
+          "name": "AobaNNUE",
+          "depth": 12,
+          "stage_3_target_fraction": 0.6
+        },
+        {
+          "name": "YaneuraOu",
+          "depth": 16,
+          "stage_3_target_fraction": 0.3
+        }
+      ],
       "multipv": 4,
       "threads": 1,
       "parallelism": 8,
       "exact_only": true,
       "stop_condition": "full-corpus-has-at-least-50000000-unique-training-rows",
       "failure_condition": "source-position-cap-reached-before-target"
+    },
+    "fresh_position_domains": {
+      "domains": [
+        "fresh-selfplay",
+        "browser-confusion",
+        "public-floodgate-and-wcsc-games"
+      ],
+      "maximum_single_domain_fraction": 0.4
     },
     "semantic_train_validation_overlap": 0,
     "whole_game_split_for_sources_with_game_identity": true,
@@ -89,6 +115,8 @@
     "additional-seed",
     "deployment-after-bootstrap",
     "deployment-after-10m-stage",
+    "bootstrap-checkpoint-as-full-training-initializer",
+    "legacy-runop1-above-stage-cap",
     "engine-code-or-weight-copy"
   ]
 }

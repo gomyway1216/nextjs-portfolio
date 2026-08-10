@@ -35,6 +35,9 @@ class TrainKingPairInteractionNNUETests(unittest.TestCase):
             .read_text(encoding="utf-8")
         )
         self.assertFalse(protocol["stage_1_bootstrap"]["deployment_eligible"])
+        self.assertFalse(
+            protocol["stage_1_bootstrap"]["checkpoint_reused_as_initializer"]
+        )
         self.assertEqual(
             protocol["stage_2_full_training"]["minimum_unique_training_rows"],
             10_000_000,
@@ -49,6 +52,10 @@ class TrainKingPairInteractionNNUETests(unittest.TestCase):
         self.assertTrue(
             protocol["stage_3_full_training"]["deployment_gate_runs_here_only"]
         )
+        legacy = protocol["data"]["legacy_depth12_replay"]
+        self.assertTrue(legacy["production_training_lineage_same_source"])
+        self.assertLessEqual(legacy["stage_2_maximum_fraction"], 0.2)
+        self.assertLessEqual(legacy["stage_3_maximum_fraction"], 0.1)
 
     def test_sampled_rank_loss_rewards_correct_order(self):
         cp = torch.tensor([300.0, 100.0, -100.0, -300.0])

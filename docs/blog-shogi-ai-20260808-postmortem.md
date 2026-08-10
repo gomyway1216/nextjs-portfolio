@@ -3,7 +3,8 @@
 > この文書は、direct-evasion generatorの候補評価を始めた2026-08-08以降を対象に、
 > 探索、policy、MCTS、RL、HalfKP transfer、並列化の失敗を横断分析する。
 > それ以前の再構築史は[長編記録](./blog-shogi-ai-rebuild.md)、artifact SHAと最終採否の正本は
-> [研究台帳](./blog-shogi-ai-research-ledger.md)を参照する。
+> [研究台帳](./blog-shogi-ai-research-ledger.md)、この分析をDPA 10M fast lane v2の固定判断へ落とした内容は
+> [再発防止メモ](./blog-shogi-ai-dpa-10m-v2-failure-controls.md)を参照する。
 
 ## 1. 結論
 

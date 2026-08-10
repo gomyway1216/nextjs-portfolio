@@ -21,9 +21,10 @@
 | [AI再構築の長編記録](./blog-shogi-ai-rebuild.md) | 初期のTypeScript探索、WASM移植、旧NNUE構築、過去の人間実戦までの物語 | 2026-08-08以降の候補一覧、現在の実行契約 |
 | [研究台帳](./blog-shogi-ai-research-ledger.md) | 採否、固定条件、artifact path/SHA、productionが変わったか | 長い原因分析、将来計画、実装解説 |
 | [2026-08-08以降の失敗分析](./blog-shogi-ai-20260808-postmortem.md) | 直近候補を系統別に比較し、失敗原因と再発防止を整理 | artifact SHAの正本、fast laneの操作手順 |
+| [DPA 10M v2再発防止メモ](./blog-shogi-ai-dpa-10m-v2-failure-controls.md) | screenとformalの差、漏洩、旧lineageリスクをv2の固定判断・7日停止条件へ変換 | 候補一覧、artifact SHA、machine-readable contract |
 | [旧KingPair 10M fast lane](./blog-shogi-kingpair-10m-fast-lane.md) | 学習前runtime FAILへ至った旧計画 | 現在の実行手順、最終採否 |
 | [DPA-HalfKP96 10M fast lane](./blog-shogi-dpa-halfkp96-10m-fast-lane.md) | 現在の本体、データ、学習、gate、停止条件 | 過去候補の詳細、artifact SHAの正本 |
-| [DPA 10M machine protocol](../ml/protocols/dpa-halfkp96-nnue-10m-fast-v1-plan.json) | 現候補をコードが検査する数値・不変条件 | 人間向け背景説明 |
+| [DPA 10M machine protocol v2](../ml/protocols/dpa-halfkp96-nnue-10m-fast-v2-plan.json) | sealed holdout除外後の現候補をコードが検査する数値・不変条件 | 人間向け背景説明 |
 | `~/.codex/shogi-runs/` | 大容量log、checkpoint、教師データ、result JSONの実体 | Git上の読み物、最新判断の要約 |
 
 ## 更新規則

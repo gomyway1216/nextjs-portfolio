@@ -3,7 +3,8 @@
 この文書は現在実行中の候補だけを説明する。過去の失敗理由は
 [postmortem](./blog-shogi-ai-20260808-postmortem.md)、artifact SHAと最終採否は
 [研究台帳](./blog-shogi-ai-research-ledger.md)、コードが読む固定値は
-[machine protocol](../ml/protocols/dpa-halfkp96-nnue-10m-fast-v1-plan.json)を正本とする。
+[machine protocol v2](../ml/protocols/dpa-halfkp96-nnue-10m-fast-v2-plan.json)を正本とする。v2で追加する
+holdout除外、旧lineage上限、7日停止判断は[再発防止メモ](./blog-shogi-ai-dpa-10m-v2-failure-controls.md)へ分離する。
 
 ## 目的
 

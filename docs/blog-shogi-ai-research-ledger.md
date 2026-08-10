@@ -6,7 +6,8 @@
 
 文書全体の入口は[研究ドキュメント案内](./blog-shogi-ai-research-map.md)、直近候補の横断的な
 原因分析は[2026-08-08以降のpostmortem](./blog-shogi-ai-20260808-postmortem.md)、現在の実行計画は
-[KingPair 10M fast lane](./blog-shogi-kingpair-10m-fast-lane.md)に分離する。この台帳には同じ説明を複製しない。
+[DPA-HalfKP96 10M fast lane](./blog-shogi-dpa-halfkp96-10m-fast-lane.md)、過去の失敗をv2の判断へ反映する規則は
+[再発防止メモ](./blog-shogi-ai-dpa-10m-v2-failure-controls.md)に分離する。この台帳には同じ説明を複製しない。
 
 ## 現行production
 

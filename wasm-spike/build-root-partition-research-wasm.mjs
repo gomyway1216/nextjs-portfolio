@@ -106,6 +106,20 @@ export function applyRootPartitionTransform(input) {
 
   source = replaceExactlyOnce(
     source,
+    `    const ttRemainDepth = ttHitDepth;\n    if (ttRemainDepth >= depthLeft) {`,
+    `    const rootTtMoveAllowed =\n` +
+      `      ply != 0 || rootPartitionModG <= 1 || rootPartitionContainsMoveKey(ttMoveKey) != 0;\n` +
+      `    if (!rootTtMoveAllowed) {\n` +
+      `      ttMoveKey = 0;\n` +
+      `      ttSecondMoveKey = 0;\n` +
+      `    }\n\n` +
+      `    const ttRemainDepth = ttHitDepth;\n` +
+      `    if (rootTtMoveAllowed && ttRemainDepth >= depthLeft) {`,
+    'root TT partition guard',
+  );
+
+  source = replaceExactlyOnce(
+    source,
     `  for (let i = 0; i < pseudoN; i++) {\n    const m = unchecked(moveBuf[i]);`,
     `  for (let i = 0; i < pseudoN; i++) {\n` +
       `    if (!rootPartitionAcceptAS(i)) continue;\n` +

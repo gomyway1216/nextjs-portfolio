@@ -16,6 +16,7 @@ test('injects a fail-closed root partition without changing the default mode', (
   assert.match(transformed, /if \(ply == 0 && rootPartitionModG > 1\)/);
   assert.match(transformed, /export function getRootPartitionLegalMoveCount\(\): i32/);
   assert.match(transformed, /export function rootPartitionContainsMoveKey\(key: i32\): i32/);
+  assert.match(transformed, /if \(rootTtMoveAllowed && ttRemainDepth >= depthLeft\)/);
   assert.match(transformed, /clearTT\(\);/);
 });
 

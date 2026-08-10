@@ -66,6 +66,27 @@
 - independent 96局とformal 768局には進めない。同じroot-partition topologyは再試行せず、
   production WASM、weights、single-thread runtimeは変更していない。
 
+### 同容量2-way depth-preferred TT — 不採用
+
+- 1,048,576-entryのdirect-map TTを、総entry数とmemoryを変えず524,288 set×2-wayへ変更した。
+  同keyは深さ優先、collision時は空きwayから使い、両way使用中は浅いentryだけを置換した。
+- candidate WASM: 38,456 bytes, SHA-256
+  `a84fbc82abdcf957094ac7d758a899742f7dbc2478d0989bd774295124b773ae`
+- screen 56局は32勝4分20敗、68/112 half-points、得点率60.7143%で通過した。
+- 完全分離したindependent 96局も53勝4分39敗、110/192 half-points、
+  得点率57.2917%で通過した。
+- 最終formalは別panelの384 pair/768局、500ms/手、ペア単位100,000回bootstrapで完走した。
+- formal artifact:
+  `~/.codex/shogi-runs/two-way-depth-preferred-tt-formal768-20260809/formal-result.json`
+- formal artifact SHA-256:
+  `e42e1ce800582c43abf35f0c3269535e95473f2b66d48a1ca823661ba8a6b3ce`
+- formal結果は353勝38分377敗、744/1536 half-points、得点率48.4375%だった。
+  93,144手はすべて合法でtechnical faultは0だった。
+- ペアbootstrapのone-sided 95% lowerは45.5078%、two-sided 95% lowerは44.9870%で、
+  superiority条件のlower > 50%を満たさなかった。小標本のscreen/independentで観測した優位を
+  別panelのformalで再現できなかったため不採用とした。
+- 同じTT slotは再試行・係数調整しない。production WASM、weights、TTは変更していない。
+
 ## 更新規則
 
 - 実装・検証ハーネスと、採否結果は別commitにする。

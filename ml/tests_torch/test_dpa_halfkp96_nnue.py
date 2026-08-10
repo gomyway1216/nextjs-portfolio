@@ -33,6 +33,7 @@ from train_dpa_halfkp96_nnue import (  # noqa: E402
     load_checkpoint,
     mixed_batch_stream,
     mixed_example_stream,
+    restore_latest_epoch,
     same_parent_teacher_pair_ranking_loss,
     save_checkpoint,
 )
@@ -255,6 +256,27 @@ class DpaHalfkp96NnueTests(unittest.TestCase):
             torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
             with self.assertRaises(FileExistsError):
                 save_checkpoint(checkpoint, model, optimizer, epoch=1)
+
+    def test_resume_uses_only_the_latest_contiguous_durable_epoch(self):
+        model = DpaHalfkp96NNUE()
+        optimizer = torch.optim.AdamW(
+            model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(restore_latest_epoch(root, model, optimizer), 0)
+            save_checkpoint(root / "epoch-01.pt", model, optimizer, epoch=1)
+            self.assertEqual(restore_latest_epoch(root, model, optimizer), 1)
+            save_checkpoint(root / "epoch-02.pt", model, optimizer, epoch=2)
+            self.assertEqual(restore_latest_epoch(root, model, optimizer), 2)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            save_checkpoint(root / "epoch-02.pt", model, optimizer, epoch=2)
+            with self.assertRaisesRegex(
+                DpaTrainingError, "epoch-02 exists without durable epoch-01"
+            ):
+                restore_latest_epoch(root, model, optimizer)
 
 
 if __name__ == "__main__":

@@ -424,6 +424,27 @@ def load_checkpoint(
     return payload["epoch"]
 
 
+def restore_latest_epoch(
+    output_root: Path,
+    model: DpaHalfkp96NNUE,
+    optimizer: torch.optim.Optimizer,
+) -> int:
+    """Resume only from the latest contiguous durable epoch checkpoint."""
+
+    first = output_root / "epoch-01.pt"
+    second = output_root / "epoch-02.pt"
+    if second.exists() and not first.exists():
+        raise DpaTrainingError("epoch-02 exists without durable epoch-01")
+    latest = second if second.exists() else first if first.exists() else None
+    if latest is None:
+        return 0
+    epoch = load_checkpoint(latest, model, optimizer)
+    expected = 2 if latest == second else 1
+    if epoch != expected:
+        raise DpaTrainingError("checkpoint filename and epoch disagree")
+    return epoch
+
+
 def _resolve_device(name: str) -> torch.device:
     if name == "mps":
         if not torch.backends.mps.is_available():
@@ -451,8 +472,12 @@ def train(
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY
     )
+    completed_epoch = restore_latest_epoch(output_root, model, optimizer)
+    if completed_epoch == EPOCHS:
+        print(json.dumps({"epoch": EPOCHS, "status": "already-complete"}), flush=True)
+        return
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(completed_epoch + 1, EPOCHS + 1):
         model.train()
         batches = examples_seen = rank_pairs = 0
         value_sum = pair_sum = 0.0

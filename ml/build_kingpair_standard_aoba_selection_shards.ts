@@ -219,12 +219,12 @@ export function parseStandardSourceRow(
   if (kind === 'v9' || kind === 'browser-confusion') {
     if (row.split !== 'train') throw new Error(`${label}.split must be train`);
     // Each shogi-sibling-v1 child is an independently labelled position that
-    // becomes a new Aoba teacher parent. Its position_id therefore binds sfen,
-    // while parent_sfen only groups the original sibling comparison.
+    // becomes a new Aoba teacher parent. child_position_id binds child_sfen;
+    // position_id and parent_sfen identify the original sibling parent.
     return canonicalParent(
-      row.sfen,
+      row.child_sfen,
       row.ply,
-      row.position_id,
+      row.child_position_id,
       row.game_id,
       source,
       label,

@@ -112,6 +112,22 @@
 - 数か月を要する50M-first計画は時間制約により本線から外し、旧lineageを2M/20%に制限して
   fresh Aoba 8Mを使う別protocolの10M fast laneへ移行する。
 
+### Dual-perspective KingPair interaction runtime — 学習前FAIL
+
+- 10M学習を始める前に、23,992,849 parameterの固定architectureをzero-output payloadで
+  productionと同一探索木にしてruntime costだけを測定した。
+- candidate WASM: 45,805 bytes、SHA-256
+  `63cf89850e4fbbdfc5cb9c3042ee36c28f1bb2aac6d731398a46ad6c1c84de64`
+- zero payload: 47,401,444 bytes、SHA-256
+  `b395833c996d95ebe5ff15774e2d4e24d76fdcbaaeeaabb2603d7e66d45da822`
+- 64局面depth 4ではbest move、score、depth、nodes、leavesが64/64で一致し、両armの
+  workは1,253,856で同一だった。その条件でproduction平均約1.139秒に対しKingPairは
+  約3.721秒、slowdownは226.5%だった。
+- 8局面500msではKingPairの探索workはproductionの29.38%で、多くの局面が2〜3 ply浅かった。
+  原因は各評価のdual perspective foldと35,872 MAC dense tailであり、固定上限+5%を明確に超える。
+- このarchitectureの10M学習は開始しない。生成済み・生成中のAoba教師rowはarchitecture非依存のため
+  次の本体候補へ再利用する。production assetは変更していない。
+
 ## 更新規則
 
 - 実装・検証ハーネスと、採否結果は別commitにする。

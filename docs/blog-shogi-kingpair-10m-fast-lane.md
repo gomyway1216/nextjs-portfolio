@@ -4,6 +4,11 @@
 > **実行計画**である。過去候補の詳細は[postmortem](./blog-shogi-ai-20260808-postmortem.md)、
 > 採否とartifact SHAは[研究台帳](./blog-shogi-ai-research-ledger.md)へ分離する。
 
+> **2026-08-10 status:** 固定していた23,992,849 parameter版は、学習前runtime skeletonで
+> production比226.5% slowdownとなり、上限+5%を満たさず終了した。したがって本書の
+> architecture固有の学習contractはhistoricalであり実行しない。教師生成はarchitecture非依存なので
+> 継続し、次候補はzero-output runtimeが先に+5%以内を通った場合だけ新しいmachine protocolを作る。
+
 ## 1. 目的と非目的
 
 目的は、dual-perspective KingPair interaction NNUEを10M unique teacher rowsでscratch学習し、

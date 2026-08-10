@@ -84,18 +84,16 @@ describe('standard Aoba selection builder', () => {
       sfen: index === 0 ? sfen.replaceAll(' ', '  ') : sfen,
       ply: parentPly(sfen),
     })));
-    await writeJsonl(files.v9, positions.slice(70, 140).map((sfen, index) => {
-      const childSfen = childSfenAfterUsi(sfen, rulesCompleteLegalMoves(positionFromSfen(sfen).position)[0].usi);
-      return {
-        schema: 'shogi-sibling-v1',
-        split: 'train',
-        game_id: `v9-${index}`,
-        position_id: positionKeyFromSfen(childSfen),
-        child_sfen: childSfen,
-        parent_sfen: sfen,
-        parent_ply: parentPly(sfen),
-      };
-    }));
+    await writeJsonl(files.v9, positions.slice(70, 140).map((sfen, index) => ({
+      schema: 'shogi-sibling-v1',
+      split: 'train',
+      game_id: `v9-${index}`,
+      position_id: positionKeyFromSfen(sfen),
+      sfen,
+      ply: parentPly(sfen),
+      parent_sfen: sfen,
+      parent_ply: parentPly(sfen),
+    })));
     await writeJsonl(files.wcsc, [
       ...positions.slice(140, 209).map((sfen, index) => ({
         schema_version: 1,
@@ -115,26 +113,23 @@ describe('standard Aoba selection builder', () => {
       },
     ]);
     await writeJsonl(files.browser, [
-      ...positions.slice(209).map((sfen, index) => {
-        const childSfen = childSfenAfterUsi(sfen, rulesCompleteLegalMoves(positionFromSfen(sfen).position)[0].usi);
-        return {
-          schema: 'shogi-sibling-v1',
-          split: 'train',
-          game_id: `browser-${index}`,
-          position_id: positionKeyFromSfen(childSfen),
-          child_sfen: childSfen,
-          parent_sfen: sfen,
-          parent_ply: parentPly(sfen),
-        };
-      }),
+      ...positions.slice(209).map((sfen, index) => ({
+        schema: 'shogi-sibling-v1',
+        split: 'train',
+        game_id: `browser-${index}`,
+        position_id: positionKeyFromSfen(sfen),
+        sfen,
+        ply: parentPly(sfen),
+        parent_sfen: sfen,
+        parent_ply: parentPly(sfen),
+      })),
       {
         schema: 'shogi-sibling-v1',
         split: 'train',
         game_id: 'browser-preferred-duplicate',
-        position_id: positionKeyFromSfen(childSfenAfterUsi(
-          positions[0],
-          rulesCompleteLegalMoves(positionFromSfen(positions[0]).position)[0].usi,
-        )),
+        position_id: positionKeyFromSfen(positions[0]),
+        sfen: positions[0],
+        ply: parentPly(positions[0]),
         parent_sfen: positions[0],
         parent_ply: parentPly(positions[0]),
       },
@@ -220,6 +215,26 @@ describe('standard Aoba selection builder', () => {
     })).toThrow(/split must be train/);
   });
 
+  it('selects the labelled sibling child as the next teacher parent', () => {
+    const move = rulesCompleteLegalMoves(positionFromSfen(START).position)[0];
+    const child = childSfenAfterUsi(START, move.usi);
+    const parsed = parseStandardSourceRow('browser-confusion', {
+      schema: 'shogi-sibling-v1',
+      split: 'train',
+      game_id: 'browser-child-fixture',
+      parent_sfen: START,
+      parent_ply: 0,
+      position_id: positionKeyFromSfen(child),
+      sfen: child,
+      ply: 1,
+    });
+    expect(parsed).toMatchObject({
+      positionId: positionKeyFromSfen(child),
+      parentSfen: child,
+      ply: 1,
+    });
+  });
+
   it('can freeze one explicit source family for a domain quota', async () => {
     const root = await temporaryDirectory();
     const positions = fixturePositions(8);
@@ -228,7 +243,8 @@ describe('standard Aoba selection builder', () => {
     const browser = path.join(root, 'browser.jsonl');
     await writeJsonl(browser, positions.map((sfen, index) => ({
       schema: 'shogi-sibling-v1', split: 'train', game_id: `browser-${index}`,
-      position_id: positionKeyFromSfen(sfen), parent_sfen: sfen, parent_ply: parentPly(sfen),
+      position_id: positionKeyFromSfen(sfen), sfen, ply: parentPly(sfen),
+      parent_sfen: sfen, parent_ply: parentPly(sfen),
     })));
     const contract = path.join(root, 'contract.json');
     await fs.writeFile(contract, '{}\n');

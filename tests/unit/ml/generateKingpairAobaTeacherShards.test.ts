@@ -5,9 +5,11 @@ import {
   SELECTION_HEADER_SCHEMA,
   SELECTION_ROW_SCHEMA,
   assignedShardIndices,
+  buildBestmovePv1MismatchReject,
   buildEngineCrashReject,
   buildSearchTimeoutReject,
   buildExactParentLabel,
+  isRecoverableBestmovePv1Mismatch,
   isRecoverableEngineCrash,
   isRecoverableSearchTimeout,
   parentChunks,
@@ -76,6 +78,24 @@ describe('KingPair Aoba compact teacher shards', () => {
       reason: 'engine-search-timeout-without-label',
       requested_depth: 12,
       timeout_ms: 600_000,
+      technical_faults: 0,
+    });
+  });
+
+  it('records only the demonstrated fixed-depth bestmove/PV1 mismatch as an unlabeled reject', () => {
+    expect(isRecoverableBestmovePv1Mismatch(
+      new Error('bestmove N*7f does not match completed PV1 S*8b at depth 12'),
+    )).toBe(true);
+    expect(isRecoverableBestmovePv1Mismatch(
+      new Error('bestmove N*7f does not match completed PV1 S*8b at depth 11'),
+    )).toBe(false);
+    expect(isRecoverableBestmovePv1Mismatch(new Error('duplicate PV move at completed depth 12'))).toBe(false);
+    expect(buildBestmovePv1MismatchReject(row())).toMatchObject({
+      schema: 'shogi-kingpair-aoba-parent-reject-v1',
+      global_index: 7,
+      position_id: row().position_id,
+      reason: 'nonexact-bestmove-pv1-mismatch',
+      requested_depth: 12,
       technical_faults: 0,
     });
   });

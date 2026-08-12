@@ -173,6 +173,13 @@ export function isRecoverableSearchTimeout(error: unknown): boolean {
   return error instanceof UsiSearchTimeoutError && error.timeoutMs === TIMEOUT_MS;
 }
 
+export function isRecoverableBestmovePv1Mismatch(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return new RegExp(
+    `^bestmove [^\\s]+ does not match completed PV1 [^\\s]+ at depth ${DEPTH}$`,
+  ).test(error.message);
+}
+
 export function buildEngineCrashReject(row: SelectionRow): Record<string, unknown> {
   return {
     schema: OUTPUT_REJECT_SCHEMA,
@@ -194,6 +201,19 @@ export function buildSearchTimeoutReject(row: SelectionRow): Record<string, unkn
     reason: 'engine-search-timeout-without-label',
     requested_depth: DEPTH,
     timeout_ms: TIMEOUT_MS,
+    engine_sha256: ENGINE_SHA256,
+    eval_sha256: EVAL_SHA256,
+    technical_faults: 0,
+  };
+}
+
+export function buildBestmovePv1MismatchReject(row: SelectionRow): Record<string, unknown> {
+  return {
+    schema: OUTPUT_REJECT_SCHEMA,
+    global_index: row.global_index,
+    position_id: row.position_id,
+    reason: 'nonexact-bestmove-pv1-mismatch',
+    requested_depth: DEPTH,
     engine_sha256: ENGINE_SHA256,
     eval_sha256: EVAL_SHA256,
     technical_faults: 0,
@@ -452,6 +472,17 @@ async function processShard(
             rejectedTimeout++;
             // A timed-out search has no exact label and may still have a live
             // engine process. Discard it before continuing with the next row.
+            await engine.quit();
+            engine = createTeacherEngine(outputRoot, worker);
+            await engine.init();
+            continue;
+          }
+          if (isRecoverableBestmovePv1Mismatch(error)) {
+            output.push(JSON.stringify(buildBestmovePv1MismatchReject(row)));
+            rejected++;
+            // The engine completed depth 12 but its final bestmove did not
+            // match PV1, so no label is publishable. Start a fresh engine for
+            // the next parent without retrying or weakening this parent.
             await engine.quit();
             engine = createTeacherEngine(outputRoot, worker);
             await engine.init();

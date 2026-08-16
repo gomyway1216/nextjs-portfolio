@@ -179,7 +179,8 @@ const ponder = new PonderController({
 /**
  * NNUE leaf evaluation (forced HalfKP64-RKI16 epoch2 weights).
  *
- * The weights ship as a static asset (public/shogi-nnue-weights.bin) and are
+ * The weights ship as a static asset
+ * (public/shogi-halfkp64-rki16-weights.bin) and are
  * fetched asynchronously at worker startup — NOT bundled (base64 embedding
  * would add ~32MB to the worker bundle). Until the fetch resolves, searches
  * run on the hand-crafted V3 evaluation exactly as before (the first move
@@ -187,7 +188,7 @@ const ponder = new PonderController({
  * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
  * silently keeps the V3 path.
  */
-const NNUE_WEIGHTS_PATH = '/shogi-nnue-weights.bin';
+const NNUE_WEIGHTS_PATH = '/shogi-halfkp64-rki16-weights.bin';
 /** HalfKP64-RKI16 predicts cp directly (cp = out_q / 8128). */
 const NNUE_SCALE_K = 1;
 

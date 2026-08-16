@@ -12,7 +12,7 @@ import {
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
 import { GHI, SFU } from "../src/components/game/ShogiImproved/types";
-import { PRODUCTION_SHOGI_WASM_PATH } from "../wasm-spike/search-driver";
+import { ACTIVE_HALFKP64_RKI16_WASM_PATH } from "../wasm-spike/search-driver";
 
 export const REQUEST_SCHEMA = "shogi-production-root-move-universe-request-v2";
 export const RESPONSE_SCHEMA =
@@ -227,7 +227,7 @@ export class ProductionRootMoveUniverseBridge {
   private readonly wasm: RootMembershipWasm;
 
   constructor(
-    wasmBytes: Uint8Array = readFileSync(PRODUCTION_SHOGI_WASM_PATH),
+    wasmBytes: Uint8Array = readFileSync(ACTIVE_HALFKP64_RKI16_WASM_PATH),
   ) {
     const [major, minor] = process.versions.node
       .split(".")

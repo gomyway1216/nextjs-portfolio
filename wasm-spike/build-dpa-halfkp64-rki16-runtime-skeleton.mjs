@@ -29,7 +29,7 @@ const EXPECTED = {
   candidateWasm: [45_751, '0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3'],
 };
 const INPUTS = {
-  source: join(scriptDir, 'assembly', 'index.ts'),
+  source: join(scriptDir, 'assembly', 'index-halfkp64-rki16.ts'),
   tables: join(scriptDir, 'assembly', 'tables.ts'),
   ambient: join(scriptDir, 'assembly', 'as-ambient.d.ts'),
 };

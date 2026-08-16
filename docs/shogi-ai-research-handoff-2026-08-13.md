@@ -35,15 +35,15 @@ HEAD: `3289841a186e1480398092ddd3e0bd405c62dce7` (`Reject inconsistent Aoba best
 5. それでもユーザーの明示命令により、第二候補をローカルのユーザー向け資産へ**強制差し替え済み**。したがって現在のrepoは、対局で0-16だった候補を読み込む。
 6. 元本番のWASMとweightsは比較・復旧用にrun rootへ保存済みで、削除されていない。
 7. 現在、学習・教師生成・対局・Next dev serverの関連プロセスは **0**。30分監視automation `ai` も削除済みで、自動継続は走っていない。
-8. pushはしていない。既存dirty/user差分が大量にあるので、別AIは無関係な変更を整理・削除・上書きしてはならない。
+8. branch `codex/shogi-ai-research-updates`へpush済みで、PR #699を作成済み。既存dirty/user差分が大量にあるので、別AIは無関係な変更を整理・削除・上書きしてはならない。
 
 ### 1.2 現在repoが読み込む強制差し替え後の資産
 
 | 種類 | 現在のパス | bytes | SHA-256 |
 |---|---|---:|---|
-| WASM runtime | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogi.wasm` | 45,751 | `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3` |
-| NNUE weights | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/public/shogi-nnue-weights.bin` | 23,665,376 | `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb` |
-| embedded WASM base64 | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts` | decoded 45,751 | decoded bytesは上記WASMと完全一致 |
+| WASM runtime | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogi-halfkp64-rki16.wasm` | 45,751 | `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3` |
+| NNUE weights | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/public/shogi-halfkp64-rki16-weights.bin` | 23,665,376 | `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb` |
+| embedded WASM base64 | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogiHalfkp64Rki16WasmBase64.ts` | decoded 45,751 | decoded bytesは上記WASMと完全一致 |
 
 ### 1.3 保存済みの元本番資産
 
@@ -1012,6 +1012,23 @@ cp "$RUN/production-before-forced-halfkp64-rki16-v1.weights.bin" \
 - 初回`Core quality and build`は、current assetを旧production identityと同一視する履歴・比較テスト群、およびroot-move bridgeの旧pinでFAILした。root-move bridgeは原因直接修正済み。履歴・比較資産の旧pinは、証拠の意味を改変しないため維持した。
 - `npm audit`はPR差分外の既存`package-lock.json`に対し、後日公開された`nanoid <3.3.18` high advisory等を検出したもの。PRの`package.json`/`package-lock.json`は`main`と同一で、この研究差分が導入した依存脆弱性ではない。
 - このPRはユーザーの明示的な強制差し替え命令による。static gate FAILおよび旧productionとの16局0-16を隠さずPR本文と本書に保持する。
+
+## 21. 現行候補と履歴固定資産のパス分離
+
+PRの必須テストは、長年固定してきた比較・教師・receipt用の`shogi.wasm`と`shogi-nnue-weights.bin`を履歴基準として検証する。一方、強制配備候補はサイズ・ABI・bucket数が異なる。この2つを同じファイル名で上書きすると、候補のブラウザ動作が正しくても履歴証拠のidentityが壊れるため、用途別に分離した。
+
+- ブラウザが実際に読む強制配備候補:
+  - `wasm-spike/assembly/index-halfkp64-rki16.ts`（候補再生成専用source）
+  - `src/components/game/ShogiImproved/wasm/shogi-halfkp64-rki16.wasm`
+  - `src/components/game/ShogiImproved/wasm/shogiHalfkp64Rki16WasmBase64.ts`
+  - `public/shogi-halfkp64-rki16-weights.bin`
+- 過去検証・比較用として保持する従来repo資産:
+  - `wasm-spike/assembly/index.ts`: 143,322 bytes / SHA-256 `1005153cbfd17dc7046c5f82d87d33efa7a651736aba35c384e24a5162028880`
+  - `src/components/game/ShogiImproved/wasm/shogi.wasm`: 36,545 bytes / SHA-256 `9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31`
+  - `src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts`: 上記36,545-byte WASMのembedded copy
+  - `public/shogi-nnue-weights.bin`: 1,185,988 bytes / SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`
+
+この分離後も`wasmEngine.ts`と`shogi-ai.worker.ts`は明示的にHalfKP64-RKI16側を参照する。したがって、履歴資産を元のidentityへ戻したことは強制配備の取り消しではない。上記より前に書かれた「既存ファイル名を直接差し替える」手順は実施履歴として残すが、現在の配備・復旧判断では本節を優先する。
 
 ---
 

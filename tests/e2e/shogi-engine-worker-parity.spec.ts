@@ -36,7 +36,7 @@ test("explicit local weights traverse the real browser Worker/WASM/NNUE path", a
     {
       schema: BROWSER_WORKER_PARITY_REQUEST_SCHEMA,
       candidate_weights: {
-        path: "public/shogi-nnue-weights.bin",
+        path: "public/shogi-halfkp64-rki16-weights.bin",
         bytes: NNUE_WEIGHTS_BYTES,
         sha256: SHIPPED_WEIGHTS_SHA256,
         schema: CANDIDATE_WEIGHTS_SCHEMA,

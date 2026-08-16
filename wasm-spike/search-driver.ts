@@ -63,6 +63,18 @@ export const PRODUCTION_SHOGI_WASM_PATH = join(
   'shogi.wasm'
 );
 
+/** Explicit path used by the forced HalfKP64-RKI16 browser deployment. */
+export const ACTIVE_HALFKP64_RKI16_WASM_PATH = join(
+  __dirname,
+  '..',
+  'src',
+  'components',
+  'game',
+  'ShogiImproved',
+  'wasm',
+  'shogi-halfkp64-rki16.wasm'
+);
+
 /**
  * Load an explicitly selected research runtime, or the byte-pinned production
  * runtime when no path is provided. Research callers must pass their artifact

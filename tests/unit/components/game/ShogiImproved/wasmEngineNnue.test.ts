@@ -1,7 +1,7 @@
 /**
  * Unit tests for the NNUE weight-loading API of wasmEngine.ts.
  *
- * Uses the REAL committed weight file (public/shogi-nnue-weights.bin) and the
+ * Uses the REAL active weight file (public/shogi-halfkp64-rki16-weights.bin) and the
  * real WASM engine, so these tests also pin the deployed asset to the exact
  * size the engine requires. Test order matters: the module-scope loaded/
  * enabled state starts pristine in this file, so the "not loaded yet" paths
@@ -36,7 +36,7 @@ import {
   wasmSearchBestMove,
 } from '@/components/game/ShogiImproved/wasmEngine';
 
-const weightsPath = join(process.cwd(), 'public', 'shogi-nnue-weights.bin');
+const weightsPath = join(process.cwd(), 'public', 'shogi-halfkp64-rki16-weights.bin');
 const HALFKP64_RKI16_EPOCH2_SHA256 = '43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb';
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,

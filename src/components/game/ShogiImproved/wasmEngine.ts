@@ -28,7 +28,10 @@ import { KyokumenImproved } from './KyokumenImproved';
 import type { RootPolicyMoveRank } from './rootPolicyRank';
 import { SharedTT } from './sharedTT';
 import { GHI, SFU, Te } from './types';
-import { SHOGI_WASM_BASE64, SHOGI_WASM_IDENTITY } from './wasm/shogiWasmBase64';
+import {
+  SHOGI_WASM_BASE64,
+  SHOGI_WASM_IDENTITY,
+} from './wasm/shogiHalfkp64Rki16WasmBase64';
 
 interface ShogiSearchWasm {
   memory: WebAssembly.Memory;

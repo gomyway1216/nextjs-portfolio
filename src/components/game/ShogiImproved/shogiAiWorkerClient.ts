@@ -196,8 +196,10 @@ export interface ShogiAiWorkerClient {
  * 1 means multi-threading is not worth it on this machine.
  */
 function computeSearchThreadCount(): number {
-  const hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 1 : 1;
-  return Math.min(4, Math.max(1, hc - 2));
+  // Keep the forced HalfKP64-RKI16 deployment on the same single-instance
+  // topology used by its direct production comparison. Each helper would own
+  // another private candidate payload and search heap.
+  return 1;
 }
 
 /**

@@ -28,7 +28,10 @@ import { KyokumenImproved } from './KyokumenImproved';
 import type { RootPolicyMoveRank } from './rootPolicyRank';
 import { SharedTT } from './sharedTT';
 import { GHI, SFU, Te } from './types';
-import { SHOGI_WASM_BASE64, SHOGI_WASM_IDENTITY } from './wasm/shogiWasmBase64';
+import {
+  SHOGI_WASM_BASE64,
+  SHOGI_WASM_IDENTITY,
+} from './wasm/shogiHalfkp64Rki16WasmBase64';
 
 interface ShogiSearchWasm {
   memory: WebAssembly.Memory;
@@ -44,14 +47,21 @@ interface ShogiSearchWasm {
   getSearchDepth(): number;
   getSearchNodes(): number;
   getSearchLeaves(): number;
-  // NNUE leaf evaluation (see wasm-spike/assembly/index.ts). setNnueOutputScale
-  // exists too but is intentionally NOT wired up here: the 1/1 default measured
-  // strongest in A/B and calibration attempts made it worse.
+  // NNUE leaf evaluation (see wasm-spike/assembly/index.ts). The candidate is
+  // explicitly pinned to the runtime's 1/1 output scale.
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
+  setNnueBuckets(buckets: number): void;
+  getNnueBuckets(): number;
   setNnueScaleK(k: number): void;
+  setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
   nnueEvaluateCp(): number;
+  // Forced HalfKP64-RKI16 production evaluator. Its payload lives in a
+  // separate lazily-grown region because its layout differs from HalfKP81.
+  getDpaHalfkp64Rki16WeightsPtr(): number;
+  getDpaHalfkp64Rki16WeightsSize(): number;
+  setDpaHalfkp64Rki16RuntimeEnabled(flag: number): number;
   // Lazy SMP shared-TT hooks (see sharedTT.ts).
   getSharedTtScratchPtr(): number;
   getSecondaryHashVal(): number;
@@ -576,15 +586,16 @@ export function setWasmSearchStartDepth(depth: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// NNUE evaluation (run1m-base weights)
+// NNUE evaluation (HalfKP64-RKI16 epoch2 weights)
 // ---------------------------------------------------------------------------
 
 /**
- * Exact size of the quantized run1m-base weight file (shogi-distill-v1 layout,
- * 2282->256->32->1). Must equal the WASM engine's getNnueWeightsSize(); any
- * mismatch means a corrupt/truncated download and the weights are rejected.
+ * Exact size of the forced HalfKP64-RKI16 epoch2 payload. The candidate has
+ * its own WASM exports and memory region; it is not layout-compatible with
+ * the previous HalfKP81 payload.
  */
-export const NNUE_WEIGHTS_BYTES = 1_185_988;
+export const NNUE_WEIGHTS_BYTES = 23_665_376;
+export const NNUE_SCALE_K = 1;
 
 let nnueWeightsLoaded = false;
 // Mirrors the engine-side `nnueEnabled` flag so we only cross into WASM on a
@@ -604,7 +615,8 @@ export function isNnueEnabled(): boolean {
 
 /**
  * Copy quantized NNUE weights into the WASM engine and set the sigmoid scale
- * K (k_sigmoid from weights.meta.json; cp = out_q * K / 8128).
+ * K (cp = out_q * K / 8128). The HalfKP64-RKI16 trainer predicts cp
+ * directly, so its fixed deployment value is K=1.
  *
  * Returns false — leaving the engine on the hand-crafted V3 evaluation — when
  * the engine is unavailable, the build lacks the NNUE exports, or the byte
@@ -617,16 +629,20 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
   try {
     if (
       !wasm.memory ||
-      typeof wasm.getNnueWeightsPtr !== 'function' ||
-      typeof wasm.getNnueWeightsSize !== 'function' ||
+      typeof wasm.getDpaHalfkp64Rki16WeightsPtr !== 'function' ||
+      typeof wasm.getDpaHalfkp64Rki16WeightsSize !== 'function' ||
+      typeof wasm.setDpaHalfkp64Rki16RuntimeEnabled !== 'function' ||
+      typeof wasm.setNnueBuckets !== 'function' ||
+      typeof wasm.getNnueBuckets !== 'function' ||
       typeof wasm.setNnueScaleK !== 'function' ||
+      typeof wasm.setNnueOutputScale !== 'function' ||
       typeof wasm.setNnueEnabled !== 'function'
     ) {
       return false;
     }
-    if (bytes.byteLength !== NNUE_WEIGHTS_BYTES || bytes.byteLength !== wasm.getNnueWeightsSize()) {
+    if (bytes.byteLength !== NNUE_WEIGHTS_BYTES) {
       console.error(
-        `[wasmEngine] NNUE weights rejected: size=${bytes.byteLength}, expected ${NNUE_WEIGHTS_BYTES} (build) / ${wasm.getNnueWeightsSize()} (engine)`
+        `[wasmEngine] NNUE weights rejected: size=${bytes.byteLength}, expected ${NNUE_WEIGHTS_BYTES}`
       );
       return false;
     }
@@ -639,11 +655,32 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
       console.error(`[wasmEngine] NNUE weights rejected: invalid scale K=${scaleK}`);
       return false;
     }
-    new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_WEIGHTS_BYTES).set(bytes);
+    if (wasm.getDpaHalfkp64Rki16WeightsSize() !== NNUE_WEIGHTS_BYTES) {
+      console.error(
+        `[wasmEngine] NNUE layout rejected: candidate bytes=${wasm.getDpaHalfkp64Rki16WeightsSize()}`
+      );
+      return false;
+    }
+    // HalfKP64-RKI16 is trained against the 81 king-square buckets. Set and
+    // verify the feature mode before resolving its lazy payload pointer or
+    // enabling the candidate runtime; never rely on the WASM default.
+    wasm.setNnueBuckets(81);
+    if (wasm.getNnueBuckets() !== 81) {
+      console.error('[wasmEngine] NNUE layout rejected: bucket mode is not 81');
+      return false;
+    }
+    // Resolving this pointer can grow memory. Read wasm.memory.buffer only
+    // afterwards so the copy never targets a detached pre-grow ArrayBuffer.
+    const weightsPtr = wasm.getDpaHalfkp64Rki16WeightsPtr();
+    if (weightsPtr <= 0) return false;
+    new Uint8Array(wasm.memory.buffer, weightsPtr, NNUE_WEIGHTS_BYTES).set(bytes);
     wasm.setNnueScaleK(k);
+    wasm.setNnueOutputScale(1, 1);
+    if (wasm.setDpaHalfkp64Rki16RuntimeEnabled(1) !== 1) return false;
     // If NNUE is somehow already live (re-load), rebuild the accumulators from
     // the fresh weights so stale activations can never be searched.
     if (nnueEnabledState) wasm.setNnueEnabled(1);
+    else wasm.setNnueEnabled(0);
     nnueWeightsLoaded = true;
     return true;
   } catch (e) {

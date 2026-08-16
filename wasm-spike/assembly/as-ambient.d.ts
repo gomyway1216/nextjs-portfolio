@@ -39,6 +39,7 @@ declare function store<T>(ptr: usize, value: T, immOffset?: number): void;
 /** AssemblyScript `memory` builtins (static data reservation). */
 declare namespace memory {
   function data(size: i32, align?: i32): usize;
+  function grow(pages: i32): i32;
 }
 
 /** AssemblyScript intrinsic: reinterpret a value as another type (no-op cast). */

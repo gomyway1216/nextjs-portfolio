@@ -1,0 +1,258 @@
+{
+  "schema": "shogi-kingpair-interaction-nnue-10m-fast-plan-v1",
+  "status": "preregistered-single-candidate-not-started",
+  "objective": "within seven days, decide whether one scratch dual-perspective KingPair interaction NNUE is stronger than production under the unchanged formal promotion gates",
+  "deadline_days": 7,
+  "supersedes_as_active_lane": "kingpair-interaction-nnue-50m-v1-plan",
+  "preserves_superseded_plan_as_historical": true,
+  "candidate": {
+    "name": "dual-perspective-kingpair-interaction-nnue-10m-fast-v1",
+    "architecture_commit": "8f31936f",
+    "initializer": "fresh-scratch",
+    "seed": 20260810,
+    "parameters": 23992849,
+    "perspectives": 2,
+    "lanes_per_perspective": 128,
+    "explicit_interactions": [
+      "us",
+      "them",
+      "us-minus-them",
+      "us-times-them",
+      "relative-king-17x17"
+    ],
+    "estimated_dense_macs_per_eval_max": 40000,
+    "bootstrap_checkpoint_reused": false,
+    "production_search_contract_unchanged": true
+  },
+  "training_data": {
+    "minimum_unique_rows": 10000000,
+    "exact_unique_rows": 10000000,
+    "legacy": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
+      "source_rows": 5892192,
+      "source_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "quarantined_invalid_rows": 2239,
+      "usable_source_rows": 5889953,
+      "selected_unique_rows": 2000000,
+      "maximum_training_fraction": 0.2,
+      "selection": "deterministic-uniform-hash-sample-not-prefix",
+      "unused_rows_cannot_fill_fresh_shortfall": true
+    },
+    "fresh_aoba": {
+      "required_unique_rows": 8000000,
+      "required_unique_parents_assuming_four_siblings": 2000000,
+      "engine_role": "evaluation-labels-only-no-code-or-weight-copy",
+      "engine_sha256": "44d2643a2f921fff19dcb62974dd8e0a989bd81cd29766037f2615f6e4c2fdff",
+      "eval_sha256": "f8ee839ae8c08537036f23345dd5ed0416958b22425476fc60177942903219b5",
+      "depth": 12,
+      "multipv": 4,
+      "threads_per_engine": 1,
+      "default_parallelism": 8,
+      "exact_only": true,
+      "bound_or_incomplete_policy": "reject-not-label",
+      "duplicate_rows_cannot_fill_shortfall": true,
+      "source_position_domains": [
+        "fresh-selfplay",
+        "browser-confusion",
+        "public-floodgate-and-wcsc-games",
+        "unused-runop1-positions-relabelled-by-aoba"
+      ],
+      "maximum_single_source_position_domain_fraction": 0.4,
+      "output": "/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/aoba-train-shards"
+    },
+    "exposure": {
+      "batch_size": 1024,
+      "batch_cycle_length": 5,
+      "legacy_rows_per_batch_cycle": [205, 205, 205, 205, 204],
+      "fresh_rows_per_batch_cycle": [819, 819, 819, 819, 820],
+      "legacy_fraction": 0.2,
+      "fresh_fraction": 0.8,
+      "epoch_policy": "each-unique-row-exactly-once-per-epoch-with-deterministic-order",
+      "all_unique_rows_seen_at_least_once_across_training": true
+    },
+    "grouping": {
+      "preserve_complete_parent_sibling_groups": true,
+      "semantic_train_holdout_overlap": 0,
+      "parent_train_holdout_overlap": 0,
+      "whole_game_split_when_game_identity_exists": true,
+      "cross_source_duplicates_share_one_split": true
+    }
+  },
+  "holdouts": {
+    "fresh_aoba": {
+      "minimum_rows": 100000,
+      "depth": 12,
+      "multipv": 4,
+      "exact_only": true,
+      "output": "/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/aoba-holdout-shards"
+    },
+    "fresh_yaneura": {
+      "minimum_rows": 20000,
+      "training_use": false,
+      "engine_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1",
+      "eval_sha256": "1141d275bceec911156801f27303dc9ff5beb24f4f59144cc069306c59e80782",
+      "depth": 16,
+      "multipv": 4,
+      "exact_only": true,
+      "output": "/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/yaneura-holdout-shards"
+    },
+    "browser": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "rows": 57658,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca"
+    },
+    "v9": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "rows": 28518,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088"
+    },
+    "production_value_preservation": {
+      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/wdl/val.teacher.wdl.jsonl",
+      "rows": 3000,
+      "sha256": "01d959560220bb652f834f5361ee443cccbec177cdf5dfd7af0554f12c870b81"
+    }
+  },
+  "preflight": {
+    "data_admission": {
+      "validate_every_row": true,
+      "required_manifest_counts": [
+        "rows",
+        "unique_parents",
+        "unique_semantic_positions",
+        "source_games",
+        "phase_distribution",
+        "mate_rows",
+        "bound_rejects",
+        "technical_faults"
+      ],
+      "technical_faults_required": 0
+    },
+    "discarded_sentinel": {
+      "rows": 65536,
+      "weights_reused": false,
+      "checks": [
+        "finite",
+        "loss-decreases",
+        "same-parent-pair-improves",
+        "checkpoint-round-trip"
+      ]
+    },
+    "discarded_lineage_ablation": {
+      "development_rows_per_arm": 131072,
+      "arms": [
+        "legacy-only",
+        "fresh-only",
+        "fixed-20-80-mix"
+      ],
+      "same_steps_per_arm": true,
+      "weights_reused": false,
+      "final_holdouts_used": false,
+      "ratio_selection": false,
+      "fixed_mix_fresh_mae_improvement_vs_legacy_only_cp_min": 5,
+      "fixed_mix_legacy_mae_regression_vs_legacy_only_cp_max": 10,
+      "failure_action": "stop-slot-without-changing-the-20-80-ratio"
+    },
+    "runtime_skeleton_before_full_training": {
+      "required": true,
+      "weights": "zero-or-random-output-only-not-a-candidate",
+      "search_slowdown_maximum_fraction": 0.05,
+      "production_search_time_ms": 500
+    }
+  },
+  "training": {
+    "epochs": 2,
+    "batch_size": 1024,
+    "optimizer": "AdamW",
+    "learning_rate": 0.00005,
+    "weight_decay": 0.00001,
+    "value_loss": "per-row-smooth-l1-reported-per-source",
+    "rank_loss": {
+      "scope": "same-parent-same-teacher-only",
+      "minimum_gap_cp": 50,
+      "maximum_gap_cp": 600,
+      "cross_parent_pairs": false,
+      "cross_teacher_pairs": false
+    },
+    "best_checkpoint_selection": false,
+    "additional_seed": false,
+    "epoch_extension": false,
+    "final_checkpoint": "fixed-epoch-2-only"
+  },
+  "static_gate": {
+    "role": "reject-only-does-not-prove-strength",
+    "weighted_mae_improvement_cp_min": 10,
+    "fresh_aoba_sibling_pair_gain_min": 0.005,
+    "fresh_yaneura_sibling_pair_gain_min": 0.002,
+    "browser_sibling_pair_gain_min": 0.002,
+    "v9_sibling_pair_gain_min": 0.002,
+    "all_domain_top1_non_regression": true,
+    "production_value_preservation_non_regression": true,
+    "aggregate_cannot_mask_domain_regression": true,
+    "finite": true
+  },
+  "runtime_gate": {
+    "python_quantized_wasm_parity": true,
+    "clipping_or_overflow_allowed": 0,
+    "nnue_bucket_parity": [1, 6, 81],
+    "random_make_unmake_parity": true,
+    "fixed_work_determinism": true,
+    "search_slowdown_maximum_fraction": 0.05,
+    "smoke_games": 2,
+    "technical_faults_required": 0
+  },
+  "strength_gate": {
+    "screen56_halfpoints_min": 62,
+    "independent96_halfpoints_min": 106,
+    "formal768": {
+      "pairs": 384,
+      "bootstrap_replicates": 100000,
+      "lower_95_score_strictly_greater_than": 0.5
+    },
+    "technical_faults_required": 0,
+    "early_pass": false,
+    "production_promotion_authority": "formal768-pass-plus-browser-runtime-pass-only"
+  },
+  "failure_policy": {
+    "same_slot_tuning": false,
+    "threshold_relaxation": false,
+    "failed_checkpoint_reuse": false,
+    "failure_classes": [
+      "data-or-wiring",
+      "representation",
+      "runtime-budget",
+      "proxy-to-play-connection",
+      "sampling-noise",
+      "browser-deployment"
+    ],
+    "second_candidate_limit": 1,
+    "second_candidate_must_be_materially_different_full-evaluator_architecture": true
+  },
+  "storage": {
+    "format": "compact-streaming-shards",
+    "load_entire_corpus_into_ram": false,
+    "per_parent_files": false,
+    "atomic_create_only_publish": true,
+    "overwrite_completed_shard": false,
+    "large_artifacts_in_git": false
+  },
+  "production": {
+    "weights_sha256_before_candidate": "25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40",
+    "wasm_sha256_before_candidate": "1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6",
+    "unchanged_until_all_promotion_checks_pass": true
+  },
+  "prohibitions": [
+    "bootstrap-checkpoint-as-initializer",
+    "cross-parent-ranking",
+    "cross-teacher-ranking",
+    "holdout-driven-recipe-change",
+    "legacy-runop1-above-20-percent",
+    "legacy-fill-for-fresh-shortfall",
+    "ablation-driven-ratio-search",
+    "additional-seed",
+    "epoch-extension",
+    "small-head-successor",
+    "pure-puct-successor",
+    "engine-code-or-weight-copy",
+    "production-write-before-formal-and-browser-pass"
+  ]
+}

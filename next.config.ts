@@ -142,6 +142,10 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
       },
       {
+        source: '/shogi-halfkp64-rki16-weights.bin',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
+      {
         source: '/shogi-opening-book-v2.bin',
         headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
       },

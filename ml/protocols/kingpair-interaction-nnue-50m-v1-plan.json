@@ -1,0 +1,122 @@
+{
+  "schema": "shogi-kingpair-interaction-nnue-50m-plan-v1",
+  "status": "preregistered-single-pipeline",
+  "candidate": "dual-perspective-kingpair-interaction-nnue",
+  "candidate_seed": 20260810,
+  "deployment_contract": {
+    "first_layer_lanes_per_perspective": 128,
+    "perspectives": 2,
+    "explicit_interactions": [
+      "us-minus-them",
+      "us-times-them",
+      "relative-king-17x17"
+    ],
+    "estimated_dense_macs_per_eval_max": 40000,
+    "production_search_contract_unchanged": true
+  },
+  "stage_1_bootstrap": {
+    "purpose": "architecture-training-and-export-sanity-only",
+    "deployment_eligible": false,
+    "checkpoint_reused_as_initializer": false,
+    "minimum_unique_teacher_rows": 1500000,
+    "epochs": 2,
+    "batch_size": 1024,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.00001
+  },
+  "stage_2_full_training": {
+    "initializer": "fresh-scratch-same-architecture-seed-20260810",
+    "minimum_unique_training_rows": 10000000,
+    "purpose": "scale-checkpoint-and-export-sanity-only",
+    "deployment_eligible": false,
+    "epochs": 2,
+    "batch_size": 1024,
+    "learning_rate": 0.00005,
+    "weight_decay": 0.00001,
+    "best_checkpoint_selection": false,
+    "additional_seed": false,
+    "deployment_gate_runs_here_only": false
+  },
+  "stage_3_full_training": {
+    "initializer": "stage-2-10m-checkpoint",
+    "minimum_unique_training_rows": 50000000,
+    "epochs": 3,
+    "batch_size": 1024,
+    "learning_rate": 0.000025,
+    "weight_decay": 0.00001,
+    "best_checkpoint_selection": false,
+    "additional_seed": false,
+    "deployment_gate_runs_here_only": true
+  },
+  "data": {
+    "legacy_depth12_replay": {
+      "path": "$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
+      "rows": 5892192,
+      "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "production_training_lineage_same_source": true,
+      "quarantined_invalid_rows": 2239,
+      "stage_2_maximum_rows": 2000000,
+      "stage_2_maximum_fraction": 0.2,
+      "stage_3_maximum_rows": 5000000,
+      "stage_3_maximum_fraction": 0.1,
+      "selection": "deterministic-uniform-not-prefix"
+    },
+    "bootstrap_multi_teacher_rows": "globally-semantic-deduplicated-existing-corpus",
+    "fresh_teacher": {
+      "source_positions_max": 12500000,
+      "engine_role": "evaluation-labels-only-no-code-or-weight-copy",
+      "engines": [
+        {
+          "name": "AobaNNUE",
+          "depth": 12,
+          "stage_3_target_fraction": 0.6
+        },
+        {
+          "name": "YaneuraOu",
+          "depth": 16,
+          "stage_3_target_fraction": 0.3
+        }
+      ],
+      "multipv": 4,
+      "threads": 1,
+      "parallelism": 8,
+      "exact_only": true,
+      "stop_condition": "full-corpus-has-at-least-50000000-unique-training-rows",
+      "failure_condition": "source-position-cap-reached-before-target"
+    },
+    "fresh_position_domains": {
+      "domains": [
+        "fresh-selfplay",
+        "browser-confusion",
+        "public-floodgate-and-wcsc-games"
+      ],
+      "maximum_single_domain_fraction": 0.4
+    },
+    "semantic_train_validation_overlap": 0,
+    "whole_game_split_for_sources_with_game_identity": true,
+    "sealed_runop1_role": "training-only-source-without-game-identity"
+  },
+  "final_static_gate": {
+    "weighted_mae_improvement_cp_min": 10,
+    "per_domain_pair_non_regression": true,
+    "aoba_sibling_pair_gain_min": 0.005,
+    "other_sibling_pair_gain_min": 0.002,
+    "sibling_top1_non_regression": true,
+    "finite": true
+  },
+  "strength_gate": [
+    "screen56",
+    "independent96",
+    "formal768-paired-bootstrap"
+  ],
+  "prohibitions": [
+    "threshold-relaxation",
+    "same-slot-recipe-tuning",
+    "additional-seed",
+    "deployment-after-bootstrap",
+    "deployment-after-10m-stage",
+    "bootstrap-checkpoint-as-full-training-initializer",
+    "legacy-runop1-above-stage-cap",
+    "engine-code-or-weight-copy"
+  ]
+}

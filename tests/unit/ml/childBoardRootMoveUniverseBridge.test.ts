@@ -101,7 +101,7 @@ describe("pinned production root move universe bridge", () => {
         "game",
         "ShogiImproved",
         "wasm",
-        "shogi.wasm",
+        "shogi-halfkp64-rki16.wasm",
       ),
     );
     expect(actual.byteLength).toBe(PINNED_WASM_BYTES);

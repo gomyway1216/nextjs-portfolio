@@ -1,0 +1,168 @@
+{
+  "schema": "shogi-dpa-halfkp96-nnue-10m-fast-plan-v2",
+  "status": "active-strict-data-rebuild",
+  "supersedes": {
+    "protocol": "dpa-halfkp96-nnue-10m-fast-v1-plan.json",
+    "reason": "the v1 legacy selection overlapped the sealed browser/v9 semantic union by 227 positions"
+  },
+  "objective": "within seven days, decide one scratch DPA-HalfKP96 evaluator under unchanged promotion gates",
+  "deadline_days": 7,
+  "candidate": {
+    "name": "dual-perspective-antisymmetric-halfkp96-v1",
+    "initializer": "fresh-scratch",
+    "seed": 20260810,
+    "trainable_parameters": 17744928,
+    "hidden_lanes": 96,
+    "perspectives": 2,
+    "value_formula": "output_weight_dot(clip(us_accumulator)-clip(them_accumulator))",
+    "strict_antisymmetry": true,
+    "trainable_first_bias": false,
+    "scalar_output_bias": false,
+    "production_search_contract_unchanged": true,
+    "bootstrap_or_failed_checkpoint_reused": false
+  },
+  "sealed_holdouts": {
+    "browser": {
+      "path": "$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "bytes": 50255278,
+      "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
+      "semantic_positions": 57962
+    },
+    "v9": {
+      "path": "$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "bytes": 23800461,
+      "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
+      "semantic_positions": 33316
+    },
+    "union_semantic_positions": 91160,
+    "allowed_training_overlap": 0
+  },
+  "training_data": {
+    "exact_rows": 10000000,
+    "legacy": {
+      "exact_rows": 2000000,
+      "fraction_per_cycle": 0.2,
+      "source_path": "$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
+      "source_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "source_rows": 5892192,
+      "invalid_sfen_rows": 2239,
+      "selection": "lowest-salted-sha256-after-sealed-union-exclusion-over-unique-nonconflicting-semantics",
+      "output_root": "$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/legacy-2m-shards-v2-sealed-disjoint",
+      "selected_sealed_overlap": 0,
+      "duplicate_fill_allowed": false
+    },
+    "fresh_aoba": {
+      "exact_parent_positions": 2000000,
+      "multipv": 4,
+      "exact_child_rows": 8000000,
+      "fraction_per_cycle": 0.8,
+      "depth": 12,
+      "exact_only": true,
+      "engine_sha256": "44d2643a2f921fff19dcb62974dd8e0a989bd81cd29766037f2615f6e4c2fdff",
+      "eval_sha256": "f8ee839ae8c08537036f23345dd5ed0416958b22425476fc60177942903219b5",
+      "bound_or_incomplete_policy": "structured-reject-without-label",
+      "repeated_sigsegv_policy": "one-fresh-process-retry-then-structured-reject-without-label",
+      "duplicate_or_repeated_rows_cannot_fill_shortfall": true,
+      "domain_exact_parent_targets": {
+        "public": 800000,
+        "strict_unused_runop1": 500000,
+        "browser_confusion_train": 95000,
+        "fresh_selfplay": 605000
+      },
+      "domain_exact_child_row_targets": {
+        "public": 3200000,
+        "strict_unused_runop1": 2000000,
+        "browser_confusion_train": 380000,
+        "fresh_selfplay": 2420000
+      },
+      "maximum_single_domain_parent_positions": 800000
+    },
+    "standard_sources": {
+      "large_scratch_train": {
+        "path": "$HOME/.codex/shogi-runs/large-scratch-806k-v1/train.parents.jsonl",
+        "bytes": 379148596,
+        "sha256": "11ab560590c3ac5f08018c0c819542c2b4153494257ddf47ee4ab21006e8ff6e"
+      },
+      "v9_train_only": {
+        "path": "$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+        "bytes": 236990586,
+        "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
+      },
+      "wcsc_raw": {
+        "path": "ml/data/wcsc36/parents.raw.jsonl",
+        "bytes": 3225000,
+        "sha256": "827e912032feac9fd539af58a0e35c1131a1228abedcb1bca9c5f51f214bdfaa"
+      },
+      "browser_train_only": {
+        "path": "$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+        "bytes": 97820193,
+        "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e"
+      }
+    },
+    "admission": {
+      "legacy_rows_exact": 2000000,
+      "fresh_rows_exact": 8000000,
+      "legacy_fresh_semantic_overlap": 0,
+      "all_training_sealed_semantic_overlap": 0,
+      "parent_duplicates": 0,
+      "child_duplicates_across_parents_reported_not_silently_dropped": true,
+      "whole_game_split_when_game_identity_exists": true,
+      "shortfall_fill": false
+    }
+  },
+  "training": {
+    "epochs": 2,
+    "batch_size": 1024,
+    "optimizer": "AdamW",
+    "learning_rate": 0.00005,
+    "weight_decay": 0.00001,
+    "value_loss": "SmoothL1",
+    "rank_loss_scope": "same-parent-same-teacher-only-50-to-600-cp",
+    "load_entire_corpus_into_ram": false,
+    "best_checkpoint_selection": false,
+    "additional_seed_or_epoch": false,
+    "final_checkpoint": "fixed-epoch-2-only"
+  },
+  "static_gate": {
+    "role": "reject-only-does-not-prove-strength",
+    "weighted_mae_improvement_cp_min": 10,
+    "fresh_aoba_pair_gain_min": 0.005,
+    "fresh_yaneura_pair_gain_min": 0.002,
+    "browser_pair_gain_min": 0.002,
+    "v9_pair_gain_min": 0.002,
+    "all_domain_top1_non_regression": true,
+    "aggregate_cannot_mask_domain_regression": true,
+    "finite_and_strictly_antisymmetric": true
+  },
+  "runtime_gate": {
+    "python_quantized_wasm_parity": true,
+    "clipping_or_overflow_allowed": 0,
+    "random_make_unmake_parity": true,
+    "search_slowdown_maximum_fraction": 0.05,
+    "smoke_games": 2,
+    "technical_faults_required": 0
+  },
+  "strength_gate": {
+    "screen56_halfpoints_min": 62,
+    "independent96_halfpoints_min": 106,
+    "formal768_pairs": 384,
+    "formal_bootstrap_replicates": 100000,
+    "formal_lower_95_score_strictly_greater_than": 0.5,
+    "early_pass": false,
+    "technical_faults_required": 0
+  },
+  "deadline": {
+    "day_1": "strict contract, holdout union, runtime preflight, and real data jobs active",
+    "day_4": "leak-free legacy2M and exact fresh8M frozen",
+    "day_5": "fixed training, static gate, and trained-payload runtime gate complete",
+    "day_6": "screen and independent complete if qualified",
+    "day_7": "formal and browser gate complete if qualified; otherwise close fast lane"
+  },
+  "failure_policy": {
+    "same_slot_tuning": false,
+    "threshold_relaxation": false,
+    "failed_checkpoint_reuse": false,
+    "production_assets_change_on_failure": false,
+    "second_architecture_only_if_first_fails_static_by_day_5_first_half": true
+  }
+}

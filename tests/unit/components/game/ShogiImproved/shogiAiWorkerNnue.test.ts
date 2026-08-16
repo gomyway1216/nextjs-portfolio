@@ -1,6 +1,6 @@
 /**
  * Worker-level NNUE integration: weights served via a stubbed fetch (the
- * worker fetches /shogi-nnue-weights.bin at startup), then the difficulty
+ * worker fetches /shogi-halfkp64-rki16-weights.bin at startup), then the difficulty
  * gate is exercised through the real message protocol — NNUE for medium+,
  * V3 for easy — against the real WASM engine.
  *
@@ -100,14 +100,14 @@ function expectLegalMove(id: number, k: KyokumenImproved): PostedMessage {
 }
 
 beforeAll(async () => {
-  const weights = readFileSync(join(process.cwd(), 'public', 'shogi-nnue-weights.bin'));
+  const weights = readFileSync(join(process.cwd(), 'public', 'shogi-halfkp64-rki16-weights.bin'));
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: unknown) => {
       // The worker also fetches the external opening book at startup; answer 404 so this
       // test keeps exercising the curated-book + NNUE path in isolation.
       if (String(url) === '/shogi-opening-book-v2.bin') return { ok: false, status: 404 };
-      expect(String(url)).toBe('/shogi-nnue-weights.bin');
+      expect(String(url)).toBe('/shogi-halfkp64-rki16-weights.bin');
       return {
         ok: true,
         arrayBuffer: async () => weights.buffer.slice(weights.byteOffset, weights.byteOffset + weights.byteLength),

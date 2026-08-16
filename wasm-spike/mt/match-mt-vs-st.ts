@@ -19,7 +19,8 @@
 
 import { GenerateMovesImproved } from '../../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../../src/components/game/ShogiImproved/KyokumenImproved';
-import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../../src/components/game/ShogiImproved/types';
+import { GOTE, SENTE, Te } from '../../src/components/game/ShogiImproved/types';
+import { buildNnueFixedTimeOpening, NNUE_FIXED_TIME_OPENING_PLIES } from '../nnue-fixed-time-opening';
 import { teFromWasmKey } from '../search-driver';
 import { MtWasmPlayer, loadNnueIntoWasm, loadShogiWasmMt, syncWasmMt, type MtSearchWasm } from './mtPlayer';
 
@@ -35,56 +36,12 @@ const GAMES = argNum('--games', 24);
 const MOVE_MS = argNum('--ms', 2000);
 const SEED_BASE = argNum('--seed', 1);
 const THREADS = argNum('--threads', 4);
-const OPENING_PLIES = 6;
+const OPENING_PLIES = NNUE_FIXED_TIME_OPENING_PLIES;
 const MAX_PLIES = 256;
 const QUIESCENCE_DEPTH_MAX = 10;
 
-// ---------------------------------------------------------------------------
-// Deterministic RNG + curated opening lines (same policy as match-nnue-vs-v3)
-// ---------------------------------------------------------------------------
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pickCuratedOpeningMove(k: KyokumenImproved, moves: Te[], rnd: () => number): Te {
-  const quiet = moves.filter((m) => m.from !== 0 && m.capture === EMPTY && !m.promote);
-  const pawnStartDan = k.teban === SENTE ? 7 : 3;
-  const pawnNextDan = k.teban === SENTE ? 6 : 4;
-
-  const pawnPush = quiet.filter(
-    (m) => getKomashu(m.koma) === FU && (m.from & 0x0f) === pawnStartDan && (m.to & 0x0f) === pawnNextDan
-  );
-  if (pawnPush.length > 0) return pawnPush[Math.floor(rnd() * pawnPush.length)];
-
-  const develop = quiet.filter((m) => getKomashu(m.koma) !== OU);
-  if (develop.length > 0) return develop[Math.floor(rnd() * develop.length)];
-  if (quiet.length > 0) return quiet[Math.floor(rnd() * quiet.length)];
-  return moves[Math.floor(rnd() * moves.length)];
-}
-
 function buildOpeningLine(pairIndex: number): Te[] {
-  const k = new KyokumenImproved();
-  k.initHirate();
-  const rnd = mulberry32(0x5eed00 + SEED_BASE * 15485863 + pairIndex * 104729);
-  const line: Te[] = [];
-  for (let ply = 0; ply < OPENING_PLIES; ply++) {
-    const moves = GenerateMovesImproved.generateLegalMoves(k);
-    if (moves.length === 0) break;
-    const te = pickCuratedOpeningMove(k, moves, rnd);
-    te.capture = k.get(te.to);
-    line.push(te.clone());
-    k.move(te);
-    k.toggleTeban();
-  }
-  return line;
+  return [...buildNnueFixedTimeOpening(SEED_BASE, pairIndex).moves];
 }
 
 // ---------------------------------------------------------------------------

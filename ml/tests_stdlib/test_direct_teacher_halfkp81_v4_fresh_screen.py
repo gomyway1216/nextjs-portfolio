@@ -174,7 +174,21 @@ class DirectTeacherHalfkp81V4FreshScreenTests(unittest.TestCase):
         selected = manifest["selection"]["pairs_selected"]
         self.assertEqual(inventory["union_fingerprints"], 3_302)
         tracked, snapshot = BUILDER.scan_tracked_protocol_openings(REPO_ROOT)
-        self.assertEqual(snapshot, SCREEN.EXPECTED_TRACKED_PROTOCOL_SNAPSHOT)
+        expected_snapshot = SCREEN.EXPECTED_TRACKED_PROTOCOL_SNAPSHOT
+        # Protocol records added after this frozen opening manifest are allowed
+        # when they introduce no new opening fingerprints. The opening-bearing
+        # source identity and union must remain byte-for-byte unchanged.
+        self.assertGreaterEqual(
+            snapshot["files_scanned"], expected_snapshot["files_scanned"]
+        )
+        self.assertEqual(
+            {key: value for key, value in snapshot.items() if key != "files_scanned"},
+            {
+                key: value
+                for key, value in expected_snapshot.items()
+                if key != "files_scanned"
+            },
+        )
         self.assertTrue(
             tracked.issubset(set(inventory["full_sorted_unique_fingerprints"]))
         )

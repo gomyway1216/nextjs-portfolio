@@ -976,7 +976,8 @@ cp "$RUN/production-before-forced-halfkp64-rki16-v1.weights.bin" \
 - [x] 元本番WASM/weightsを保存
 - [x] unit 43 tests PASS
 - [x] real Chrome Worker/WASM/NNUE PASS
-- [x] pushなし
+- [x] branch `codex/shogi-ai-research-updates`へpush
+- [x] PR #699をreadyで作成
 - [x] 関連process 0
 - [x] automation停止済み
 
@@ -991,6 +992,26 @@ cp "$RUN/production-before-forced-halfkp64-rki16-v1.weights.bin" \
   - Python candidate model/export tests 7/7 PASS
   - browser loader/parity Vitest 43/43 PASS
 - 再生成試験出力は `/tmp/halfkp64-rki16-pr-goqQap/candidate.wasm` に保存した。正式artifactは従来どおり`$RUN`配下とrepo内current assetである。
+
+## 20. PR #699とCIの引き継ぎ
+
+- PR: `https://github.com/gomyway1216/nextjs-portfolio/pull/699`
+- 初回push commit: `7224d51fc3070632077ef8ea7de26016db7c3422`
+- branch: `codex/shogi-ai-research-updates`
+- 本番ブラウザが読むcurrent asset:
+  - WASM: 45,751 bytes / SHA-256 `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3`
+  - weights: 23,665,376 bytes / SHA-256 `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb`
+- current WASMを直接読む`ml/child-board-root-move-universe-bridge.ts`の固定identityも上記へ追随させた。
+- Floodgate stable teacher、formal A/B、過去研究receiptに固定された旧WASM/weightsは、比較・履歴資産でありcurrent browser assetとは別物なので変更していない。
+- 初回CIでPASSしたもの:
+  - Vercel deploy / preview
+  - E2E smoke
+  - Exact-24k teacher checkpoint
+  - Exact-24k scanner authority / cleanup / mutation / production / replay
+  - AWS witness adapter / external trust-root / Darwin rename
+- 初回`Core quality and build`は、current assetを旧production identityと同一視する履歴・比較テスト群、およびroot-move bridgeの旧pinでFAILした。root-move bridgeは原因直接修正済み。履歴・比較資産の旧pinは、証拠の意味を改変しないため維持した。
+- `npm audit`はPR差分外の既存`package-lock.json`に対し、後日公開された`nanoid <3.3.18` high advisory等を検出したもの。PRの`package.json`/`package-lock.json`は`main`と同一で、この研究差分が導入した依存脆弱性ではない。
+- このPRはユーザーの明示的な強制差し替え命令による。static gate FAILおよび旧productionとの16局0-16を隠さずPR本文と本書に保持する。
 
 ---
 

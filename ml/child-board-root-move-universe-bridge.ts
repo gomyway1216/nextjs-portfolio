@@ -18,9 +18,9 @@ export const REQUEST_SCHEMA = "shogi-production-root-move-universe-request-v2";
 export const RESPONSE_SCHEMA =
   "shogi-production-root-move-universe-response-v2";
 export const ERROR_SCHEMA = "shogi-production-root-move-universe-error-v1";
-export const PINNED_WASM_BYTES = 36_545;
+export const PINNED_WASM_BYTES = 45_751;
 export const PINNED_WASM_SHA256 =
-  "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31";
+  "0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3";
 export const PINNED_ROOT_MOVE_BUFFER_OFFSET = 7_128_112;
 export const MAX_ROOT_MOVES = 640;
 

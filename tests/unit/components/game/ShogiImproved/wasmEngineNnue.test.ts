@@ -181,7 +181,9 @@ describe('wasmEngine NNUE loading', () => {
       const repeatsPawnDrop = move!.from === 0 && move!.to === (8 << 4) + 6;
       expect(repeatsPawnDrop).toBe(false);
     },
-    30_000,
+    // The fixed depth-11 search is intentionally compute-bound and can take
+    // longer on shared CI runners than on a local Apple Silicon machine.
+    60_000,
   );
 
   it('can be switched back to V3', () => {

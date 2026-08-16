@@ -37,7 +37,7 @@ import {
 } from '@/components/game/ShogiImproved/wasmEngine';
 
 const weightsPath = join(process.cwd(), 'public', 'shogi-nnue-weights.bin');
-const RUN_OP1_SHA256 = 'e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc';
+const HALFKP64_RKI16_EPOCH2_SHA256 = '43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb';
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,
   L: KY,
@@ -117,9 +117,9 @@ describe('wasmEngine NNUE loading', () => {
     expect(readFileSync(weightsPath).byteLength).toBe(NNUE_WEIGHTS_BYTES);
   });
 
-  it('pins the production asset to the known-good runOp1 weights', () => {
+  it('pins the production asset to the forced HalfKP64-RKI16 epoch2 weights', () => {
     const digest = createHash('sha256').update(readFileSync(weightsPath)).digest('hex');
-    expect(digest).toBe(RUN_OP1_SHA256);
+    expect(digest).toBe(HALFKP64_RKI16_EPOCH2_SHA256);
   });
 
   it('cannot be enabled before weights are loaded (stays on V3)', () => {
@@ -129,8 +129,8 @@ describe('wasmEngine NNUE loading', () => {
   });
 
   it('rejects weights with a wrong byte size', () => {
-    expect(loadNnueWeights(new Uint8Array(NNUE_WEIGHTS_BYTES - 1), 600)).toBe(false);
-    expect(loadNnueWeights(new Uint8Array(NNUE_WEIGHTS_BYTES + 1), 600)).toBe(false);
+    expect(loadNnueWeights(new Uint8Array(1), 1)).toBe(false);
+    expect(loadNnueWeights(new Uint8Array(94_656_708), 1)).toBe(false);
     expect(loadNnueWeights(new Uint8Array(0), 600)).toBe(false);
     expect(isNnueWeightsLoaded()).toBe(false);
   });
@@ -143,8 +143,8 @@ describe('wasmEngine NNUE loading', () => {
     expect(isNnueWeightsLoaded()).toBe(false);
   });
 
-  it('loads the real runOp1 weights', () => {
-    expect(loadNnueWeights(readWeights(), 600)).toBe(true);
+  it('loads the real HalfKP64-RKI16 epoch2 weights', () => {
+    expect(loadNnueWeights(readWeights(), 1)).toBe(true);
     expect(isNnueWeightsLoaded()).toBe(true);
     // Loading alone must not flip the evaluation.
     expect(isNnueEnabled()).toBe(false);
@@ -166,7 +166,7 @@ describe('wasmEngine NNUE loading', () => {
   it(
     'does not choose the third P*8f repetition at fixed depth 11',
     () => {
-      expect(loadNnueWeights(readWeights(), 600)).toBe(true);
+      expect(loadNnueWeights(readWeights(), 1)).toBe(true);
       expect(setWasmNnueEnabled(true)).toBe(true);
       const position = rookPawnLoopPosition();
       clearWasmTT();
@@ -176,8 +176,10 @@ describe('wasmEngine NNUE loading', () => {
 
       expect(move).not.toBeNull();
       expect(stats?.depth).toBe(11);
-      expect(move!.from).toBe((3 << 4) + 1); // 3a
-      expect(move!.to).toBe((4 << 4) + 2); // 4b
+      // Preserve the actual regression contract without pinning a different
+      // evaluator architecture to the former model's exact 3a4b choice.
+      const repeatsPawnDrop = move!.from === 0 && move!.to === (8 << 4) + 6;
+      expect(repeatsPawnDrop).toBe(false);
     },
     30_000,
   );

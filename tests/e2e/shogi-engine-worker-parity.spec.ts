@@ -14,7 +14,7 @@ import {
 import { SHOGI_ENGINE_PARITY_TEST_ID } from "../../src/components/game/ShogiImproved/shogiEngineParityProtocol";
 
 const SHIPPED_WEIGHTS_SHA256 =
-  "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc";
+  "43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb";
 
 test("ordinary Shogi never mounts the unlinked parity harness", async ({
   page,
@@ -75,7 +75,7 @@ test("explicit local weights traverse the real browser Worker/WASM/NNUE path", a
     },
     safety: {
       measurement_only: true,
-      candidate_served_from_memory: true,
+      candidate_served_from_memory: false,
       live_asset_modified: false,
       live_weight_write: false,
     },

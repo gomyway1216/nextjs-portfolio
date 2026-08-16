@@ -177,19 +177,19 @@ const ponder = new PonderController({
 });
 
 /**
- * NNUE leaf evaluation (run1m-base weights, 77.1% vs V3 at 1000ms/move).
+ * NNUE leaf evaluation (forced HalfKP64-RKI16 epoch2 weights).
  *
  * The weights ship as a static asset (public/shogi-nnue-weights.bin) and are
  * fetched asynchronously at worker startup — NOT bundled (base64 embedding
- * would add ~1.6MB to the worker bundle). Until the fetch resolves, searches
+ * would add ~32MB to the worker bundle). Until the fetch resolves, searches
  * run on the hand-crafted V3 evaluation exactly as before (the first move
  * comes from the opening book anyway); once loaded, NNUE kicks in from the
  * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
  * silently keeps the V3 path.
  */
 const NNUE_WEIGHTS_PATH = '/shogi-nnue-weights.bin';
-/** k_sigmoid from ml/runs/run1m-base/weights.meta.json (cp = out_q * K / 8128). */
-const NNUE_SCALE_K = 600;
+/** HalfKP64-RKI16 predicts cp directly (cp = out_q / 8128). */
+const NNUE_SCALE_K = 1;
 
 /**
  * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
@@ -233,9 +233,9 @@ function difficultyUsesNnue(difficulty: Difficulty): boolean {
 }
 
 /**
- * Weights bytes kept for the Lazy SMP helpers: each helper runs its own WASM
- * instance and needs its own copy. Whichever comes last — the fetch resolving
- * or a helper connecting — triggers the forward (see sendNnueWeightsToHelpers).
+ * Retained for diagnostics and for the existing helper protocol. Production
+ * The forwarding path keeps helper instances on the same authenticated
+ * HalfKP64-RKI16 payload as the main worker.
  */
 let nnueWeightsBytes: ArrayBuffer | null = null;
 let nnueFetchStatus: ShogiAiNnueFetchStatus = 'pending';
@@ -279,7 +279,7 @@ async function fetchNnueWeights(): Promise<void> {
 const nnueStartup = fetchNnueWeights();
 
 async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {
-  // Hashing 1.18MB is opt-in: ordinary game startup/load behavior and cost are
+  // Hashing the 23.7MB asset is opt-in: ordinary game startup/load behavior and cost are
   // unchanged. Successful loads already retain this exact buffer for helpers.
   if (!nnueFetchedWeightsIdentity && nnueWeightsBytes) {
     const acceptedWeights = nnueWeightsBytes;

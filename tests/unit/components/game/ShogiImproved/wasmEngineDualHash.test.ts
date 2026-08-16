@@ -124,7 +124,7 @@ describe('wasmEngine dual-hash host integration', () => {
 
   it('clears shared scores on a main NNUE/V3 switch but not on the helper switch', () => {
     const weights = readFileSync(join(process.cwd(), 'public/shogi-nnue-weights.bin'));
-    expect(loadNnueWeights(weights, 600)).toBe(true);
+    expect(loadNnueWeights(weights, 1)).toBe(true);
     const initialEval = isNnueEnabled();
     const sab = createSharedTTBuffer();
     expect(sab).not.toBeNull();

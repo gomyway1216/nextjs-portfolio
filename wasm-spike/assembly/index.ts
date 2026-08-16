@@ -138,6 +138,7 @@ function initSeeds(): void {
   for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++)
     unchecked(SECOND_HAND_HASH_SEED[i] = rand32Secondary());
   SECOND_TEBAN_HASH_SEED = rand32Secondary();
+
 }
 initSeeds();
 
@@ -699,6 +700,179 @@ function generateMoves(ply: i32): i32 {
           unchecked(moveBuf[base + n] = encodeMove(koma, 0, to, false, EMPTY));
           n++;
         }
+      }
+    }
+  }
+
+  return n;
+}
+
+/** True for the checker square or an interposition square on its ray. */
+function isEvasionTarget(
+  to: i32,
+  checkerCount: i32,
+  checkerSquare: i32,
+  blockStep: i32,
+  kingPos: i32,
+): bool {
+  if (checkerCount != 1) return false;
+  if (to == checkerSquare) return true;
+  if (blockStep == 0) return false;
+  let square = kingPos + blockStep;
+  while (square != checkerSquare) {
+    if (to == square) return true;
+    square += blockStep;
+  }
+  return false;
+}
+
+/**
+ * Generate only pseudo-legal check evasions, in the same relative order as
+ * generateMoves. King moves are all retained for lazy attacked-square
+ * filtering; non-king moves must capture the sole checker or interpose on its
+ * ray. Double check therefore emits king moves only. Drop blocks retain the
+ * production nifu/rank/uchifuzume rules.
+ */
+function generateEvasionMoves(ply: i32): i32 {
+  const base = ply * MAX_MOVES;
+  const kingPos = teban == SENTE ? kingS : kingG;
+  if (kingPos <= 0) return generateMoves(ply);
+
+  const enemyFlag = teban == SENTE ? GOTE : SENTE;
+  let checkerCount: i32 = 0;
+  let checkerSquare: i32 = 0;
+  let blockStep: i32 = 0;
+
+  // Direct and knight checks.
+  for (let direct = 0; direct < 12; direct++) {
+    const square = kingPos - unchecked(DIFF[direct]);
+    const checker = get(square);
+    if (
+      (checker & enemyFlag) != 0 &&
+      unchecked(CAN_MOVE[(direct << 6) + checker]) != 0
+    ) {
+      checkerCount++;
+      checkerSquare = square;
+      blockStep = 0;
+    }
+  }
+
+  // Sliding checks. CAN_MOVE and CAN_JUMP are disjoint for these direction
+  // tables, so an adjacent slider is counted exactly once.
+  for (let direct = 0; direct < 8; direct++) {
+    const d = unchecked(DIFF[direct]);
+    let square = kingPos - d;
+    let checker = get(square);
+    while (checker != WALL) {
+      if (checker != EMPTY) {
+        if (
+          (checker & enemyFlag) != 0 &&
+          unchecked(CAN_JUMP[(direct << 6) + checker]) != 0
+        ) {
+          checkerCount++;
+          checkerSquare = square;
+          blockStep = -d;
+        }
+        break;
+      }
+      square -= d;
+      checker = get(square);
+    }
+  }
+
+  // This function is called only for a checked node. Fall back safely for a
+  // malformed position/table mismatch rather than omitting a legal move.
+  if (checkerCount == 0) return generateMoves(ply);
+
+  let n: i32 = 0;
+
+  // Board moves retain generateMoves' piece/direction/promotion order.
+  for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const from = suji + dan;
+      const koma = unchecked(ban[from]);
+      if (!isSelf(teban, koma)) continue;
+      const isKing = getKomashu(koma) == OU;
+
+      for (let direct = 0; direct < 12; direct++) {
+        if (unchecked(CAN_MOVE[(direct << 6) + koma]) == 0) continue;
+        const to = from + unchecked(DIFF[direct]);
+        const toSuji = to >> 4;
+        const toDan = to & 0x0f;
+        if (toSuji < 1 || toSuji > 9 || toDan < 1 || toDan > 9) continue;
+        if (isSelf(teban, unchecked(ban[to]))) continue;
+        if (!isKing && !isEvasionTarget(to, checkerCount, checkerSquare, blockStep, kingPos)) continue;
+        n = pushMoves(base, n, koma, from, to);
+      }
+
+      for (let direct = 0; direct < 8; direct++) {
+        if (unchecked(CAN_JUMP[(direct << 6) + koma]) == 0) continue;
+        const d = unchecked(DIFF[direct]);
+        for (let i = 1; i < 9; i++) {
+          const to = from + d * i;
+          const target = get(to);
+          if (target == WALL || isSelf(teban, target)) break;
+          if (isKing || isEvasionTarget(to, checkerCount, checkerSquare, blockStep, kingPos)) {
+            n = pushMoves(base, n, koma, from, to);
+          }
+          if (target != EMPTY) break;
+        }
+      }
+    }
+  }
+
+  // Only a single sliding check can be answered by a drop block.
+  if (checkerCount != 1 || blockStep == 0) return n;
+
+  let hasDrop = false;
+  for (let type = FU; type <= HI; type++) {
+    if (unchecked(hand[type | teban]) > 0) {
+      hasDrop = true;
+      break;
+    }
+  }
+  if (!hasDrop) return n;
+
+  const scratchBase = ply * DROP_SCRATCH_STRIDE;
+  const ownPawn = FU | teban;
+  for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+    let bits = 0;
+    let nifu: bool = false;
+    for (let dan = 1; dan <= 9; dan++) {
+      const piece = unchecked(ban[suji + dan]);
+      if (piece == EMPTY) bits |= 1 << dan;
+      else if (piece == ownPawn) nifu = true;
+    }
+    const s = suji >> 4;
+    unchecked(dropEmptyBits[scratchBase + s] = bits);
+    unchecked(dropSujiHasOwnPawn[scratchBase + s] = nifu);
+  }
+
+  const isSente = teban == SENTE;
+  for (let type = FU; type <= HI; type++) {
+    const koma = type | teban;
+    if (unchecked(hand[koma]) <= 0) continue;
+
+    for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+      const s = suji >> 4;
+      if (type == FU && unchecked(dropSujiHasOwnPawn[scratchBase + s])) continue;
+      const bits = unchecked(dropEmptyBits[scratchBase + s]);
+      if (bits == 0) continue;
+      for (let dan = 1; dan <= 9; dan++) {
+        if ((bits & (1 << dan)) == 0) continue;
+        const to = suji + dan;
+        if (!isEvasionTarget(to, checkerCount, checkerSquare, blockStep, kingPos)) continue;
+        if (type == KE) {
+          if (isSente && dan <= 2) continue;
+          if (!isSente && dan >= 8) continue;
+        }
+        if (type == FU || type == KY) {
+          if (isSente && dan == 1) continue;
+          if (!isSente && dan == 9) continue;
+        }
+        if (type == FU && isUtiFuDume(to, ply + 1)) continue;
+        unchecked(moveBuf[base + n] = encodeMove(koma, 0, to, false, EMPTY));
+        n++;
       }
     }
   }
@@ -1669,11 +1843,16 @@ const NNUE_HAND_FEATS: i32 = 14;
 // Reduced-KP (King-Piece) feature set: the board/hand tables are repeated per
 // own-king bucket (6 coarse king zones, see nnueKpBucket). weights.bin v2.
 const NNUE_KP_BUCKETS: i32 = 6;
+// Full own-king-square conditioning (HalfKP-style): one table per normalized
+// king square. The large table is allocated lazily when this format is selected
+// so the historical 1/6-bucket formats keep their existing memory footprint.
+const NNUE_HALFKP_BUCKETS: i32 = 81;
 
 // Byte offsets into the weights blob (weights.bin layout). The layout shape is
 // identical for both formats — only the w1 table sizes scale with the bucket
 // count — so the offsets are mutable and recomputed by setNnueBuckets():
-//   buckets=1 (original, 1,185,988 B) / buckets=6 (reduced KP, 7,027,908 B)
+//   buckets=1 (original, 1,185,988 B) / buckets=6 (reduced KP, 7,027,908 B) /
+//   buckets=81 (full own-king-square HalfKP, 94,656,708 B)
 const NNUE_W1B_OFF: i32 = 0;
 let nnueBuckets: i32 = 1;
 let nnueW1hOff: i32 = NNUE_BOARD_FEATS * NNUE_H1 * 2; // 1,161,216 (buckets=1)
@@ -1696,13 +1875,17 @@ function nnueComputeLayout(buckets: i32): void {
 }
 nnueComputeLayout(1);
 
-// Static, zero-initialized weight region sized for the LARGER (KP) format
-// (memory.data only reserves zeroed memory — no data segment is emitted, so
-// the .wasm binary does not grow). The host memcpys weights.bin here.
+// Keep the historical 1/6-bucket formats in the static allocation. The
+// 81-bucket production format grows memory only when explicitly selected.
 const NNUE_KP_TOTAL_BYTES: i32 =
   NNUE_KP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
   NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 7,027,908
-const NNUE_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
+const NNUE_HALFKP_TOTAL_BYTES: i32 =
+  NNUE_HALFKP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
+  NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 94,656,708
+const NNUE_STATIC_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
+let NNUE_WEIGHTS: usize = NNUE_STATIC_WEIGHTS;
+let nnueHalfkpWeights: usize = 0;
 
 // Engine komashu (koma & 0x0f) -> train.py piece kind (0..13):
 // [FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY]; slots 0 and 13 (unused) = -1.
@@ -1784,6 +1967,7 @@ let nnueAccGDirty: bool = false;
  *   d<=7: 5 / d==8: s<=4 -> 3, s>=5 -> 4 / d==9: s==5 -> 0, s<=4 -> 1, s>=6 -> 2
  */
 function nnueKpBucket(s: i32, d: i32): i32 {
+  if (nnueBuckets == NNUE_HALFKP_BUCKETS) return (s - 1) * 9 + (d - 1);
   if (d <= 7) return 5;
   if (d == 8) return s <= 4 ? 3 : 4;
   if (s == 5) return 0;
@@ -1877,20 +2061,36 @@ export function setNnueEnabled(flag: i32): void {
 
 /**
  * Select the weights.bin format: 1 = original board one-hot (default,
- * 1,185,988 B), 6 = reduced KP (7,027,908 B). Call BEFORE memcpying the
- * weights (the layout offsets change), then load the blob returned size.
+ * 1,185,988 B), 6 = reduced KP (7,027,908 B), 81 = full own-king-square
+ * HalfKP (94,656,708 B). Call BEFORE memcpying the weights (the layout
+ * offsets change), then load the blob returned size.
  * Invalid bucket counts are ignored. Clears the eval cache; rebuilds the
  * accumulators if NNUE is enabled.
  */
 export function setNnueBuckets(buckets: i32): void {
-  if (buckets != 1 && buckets != NNUE_KP_BUCKETS) return;
+  if (
+    buckets != 1 &&
+    buckets != NNUE_KP_BUCKETS &&
+    buckets != NNUE_HALFKP_BUCKETS
+  ) return;
   if (nnueBuckets == buckets) return;
+  if (buckets == NNUE_HALFKP_BUCKETS) {
+    if (nnueHalfkpWeights == 0) {
+      const pages = (NNUE_HALFKP_TOTAL_BYTES + 65535) >> 16;
+      const oldPages = memory.grow(pages);
+      if (oldPages < 0) return;
+      nnueHalfkpWeights = <usize>oldPages << 16;
+    }
+    NNUE_WEIGHTS = nnueHalfkpWeights;
+  } else {
+    NNUE_WEIGHTS = NNUE_STATIC_WEIGHTS;
+  }
   nnueComputeLayout(buckets);
   if (nnueEnabled) nnueRefreshAccumulators();
   initEvalCache();
 }
 
-/** Current weights format bucket count (1 = original, 6 = reduced KP). */
+/** Current weights format bucket count (1 = original, 6 = reduced KP, 81 = HalfKP). */
 export function getNnueBuckets(): i32 {
   return nnueBuckets;
 }
@@ -3460,7 +3660,12 @@ function scoreAndSortMovesAS(ply: i32, n: i32, ttMoveKey: i32, ttSecondMoveKey: 
 
 // --- Quiescence search (port of quiescence) --------------------------------------
 
-function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
+function quiescenceAS(
+  alpha: i32,
+  beta: i32,
+  ply: i32,
+  depthLeft: i32,
+): i32 {
   if (ply >= S_MAX_PLY - 1) {
     return evalForSideToMove();
   }
@@ -3487,7 +3692,7 @@ function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
     if (depthLeft <= 0) depthLeft = 1;
   }
 
-  const n = generateMoves(ply);
+  const n = inCheck ? generateEvasionMoves(ply) : generateMoves(ply);
   const base = ply * MAX_MOVES;
 
   // TT best move for quiescence ordering.
@@ -3717,8 +3922,14 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
     }
   }
 
-  // Pseudo-legal generation + lazy legality at make time.
-  const n = generateMoves(ply);
+  // Pseudo-legal generation + lazy legality at make time. Checked nodes use
+  // the promoted direct-evasion generator.
+  let n = 0;
+  if (parentInCheck) {
+    n = generateEvasionMoves(ply);
+  } else {
+    n = generateMoves(ply);
+  }
   const base = ply * MAX_MOVES;
 
   orderDepthLeft = depthLeft;
@@ -3961,7 +4172,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   // Root fallback: eager legal move list (order-preserving filter).
   const mover = teban;
   const enemy = mover == SENTE ? GOTE : SENTE;
-  const pseudoN = generateMoves(0);
+  const pseudoN = rootInCheckG ? generateEvasionMoves(0) : generateMoves(0);
   let rootN = 0;
   for (let i = 0; i < pseudoN; i++) {
     const m = unchecked(moveBuf[i]);

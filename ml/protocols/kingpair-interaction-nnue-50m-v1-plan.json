@@ -50,7 +50,7 @@
   },
   "data": {
     "legacy_depth12_replay": {
-      "path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
+      "path": "$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
       "rows": 5892192,
       "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
       "production_training_lineage_same_source": true,

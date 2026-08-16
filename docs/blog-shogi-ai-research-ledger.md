@@ -11,13 +11,15 @@
 
 ## 現行production
 
-- NNUE weights: 94,656,708 bytes, SHA-256
-  `25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40`
-- WASM: 38,288 bytes, SHA-256
-  `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6`
-- 採用済み: direct-evasion generator
+- shipped NNUE weights: 23,665,376 bytes, SHA-256
+  `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb`
+- shipped WASM: 45,751 bytes, SHA-256
+  `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3`
+- shipped evaluator: HalfKP64-RKI16 epoch-2（ユーザーの明示的な強制差し替え）
+  - static gate FAIL、直前productionとの16局は0勝16敗。強度gate通過とは扱わない。
+- 直前のgate承認済みproduction: direct-evasion generator
   - formal 768局: 520勝31分217敗、得点率69.7266%、technical fault 0
-  - production weightsは変更していない
+  - 旧WASM/weightsは比較・復旧用snapshotとして保持する。
 
 ## 2026-08-09
 

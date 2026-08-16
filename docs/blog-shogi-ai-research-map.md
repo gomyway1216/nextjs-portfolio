@@ -5,14 +5,14 @@
 
 ## 現在地
 
-- 現行productionの最新採用はdirect-evasion generatorである。
-- production NNUE weightsは94,656,708 bytes、SHA-256
-  `25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40`。
-- production WASMは38,288 bytes、SHA-256
-  `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6`。
-- 2026-08-08以降の探索・policy・MCTS・RL・評価学習候補は、direct-evasionを除いて未採用である。
-- 旧dual-perspective KingPair interactionは学習前runtimeで不適合となった。現在の次候補は、
-  runtime preflightを通過したDPA-HalfKP96本体の10M fast laneである。まだproduction候補ではない。
+- 現在repoから配信される評価器は、ユーザーの明示的overrideで差し替えた
+  HalfKP64-RKI16 epoch-2である。ただしstatic gateはFAILし、保存した旧productionとの
+  16局直接比較も0勝16敗だったため、強度gateを通過した採用とは扱わない。
+- 現行shipped NNUE weightsは23,665,376 bytes、SHA-256
+  `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb`。
+- 現行shipped WASMは45,751 bytes、SHA-256
+  `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3`。
+- 直前のgate承認済みproductionはdirect-evasion generatorであり、旧WASM/weightsは比較・復旧用に保持する。
 
 ## 文書ごとの責務
 

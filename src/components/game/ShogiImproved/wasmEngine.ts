@@ -629,6 +629,8 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
       typeof wasm.getDpaHalfkp64Rki16WeightsPtr !== 'function' ||
       typeof wasm.getDpaHalfkp64Rki16WeightsSize !== 'function' ||
       typeof wasm.setDpaHalfkp64Rki16RuntimeEnabled !== 'function' ||
+      typeof wasm.setNnueBuckets !== 'function' ||
+      typeof wasm.getNnueBuckets !== 'function' ||
       typeof wasm.setNnueScaleK !== 'function' ||
       typeof wasm.setNnueOutputScale !== 'function' ||
       typeof wasm.setNnueEnabled !== 'function'
@@ -654,6 +656,14 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
       console.error(
         `[wasmEngine] NNUE layout rejected: candidate bytes=${wasm.getDpaHalfkp64Rki16WeightsSize()}`
       );
+      return false;
+    }
+    // HalfKP64-RKI16 is trained against the 81 king-square buckets. Set and
+    // verify the feature mode before resolving its lazy payload pointer or
+    // enabling the candidate runtime; never rely on the WASM default.
+    wasm.setNnueBuckets(81);
+    if (wasm.getNnueBuckets() !== 81) {
+      console.error('[wasmEngine] NNUE layout rejected: bucket mode is not 81');
       return false;
     }
     // Resolving this pointer can grow memory. Read wasm.memory.buffer only

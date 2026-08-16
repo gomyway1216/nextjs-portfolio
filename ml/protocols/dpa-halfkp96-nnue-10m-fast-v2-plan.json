@@ -23,13 +23,13 @@
   },
   "sealed_holdouts": {
     "browser": {
-      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
+      "path": "$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl",
       "bytes": 50255278,
       "sha256": "0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca",
       "semantic_positions": 57962
     },
     "v9": {
-      "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
+      "path": "$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl",
       "bytes": 23800461,
       "sha256": "9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088",
       "semantic_positions": 33316
@@ -42,12 +42,12 @@
     "legacy": {
       "exact_rows": 2000000,
       "fraction_per_cycle": 0.2,
-      "source_path": "/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
+      "source_path": "$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl",
       "source_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
       "source_rows": 5892192,
       "invalid_sfen_rows": 2239,
       "selection": "lowest-salted-sha256-after-sealed-union-exclusion-over-unique-nonconflicting-semantics",
-      "output_root": "/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/legacy-2m-shards-v2-sealed-disjoint",
+      "output_root": "$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810/legacy-2m-shards-v2-sealed-disjoint",
       "selected_sealed_overlap": 0,
       "duplicate_fill_allowed": false
     },
@@ -79,12 +79,12 @@
     },
     "standard_sources": {
       "large_scratch_train": {
-        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/large-scratch-806k-v1/train.parents.jsonl",
+        "path": "$HOME/.codex/shogi-runs/large-scratch-806k-v1/train.parents.jsonl",
         "bytes": 379148596,
         "sha256": "11ab560590c3ac5f08018c0c819542c2b4153494257ddf47ee4ab21006e8ff6e"
       },
       "v9_train_only": {
-        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
+        "path": "$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-v9/train.jsonl",
         "bytes": 236990586,
         "sha256": "4a18b186c255b66dd195ec4c781381bc10d583951acfa8a690a9c152467b9580"
       },
@@ -94,7 +94,7 @@
         "sha256": "827e912032feac9fd539af58a0e35c1131a1228abedcb1bca9c5f51f214bdfaa"
       },
       "browser_train_only": {
-        "path": "/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
+        "path": "$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/train.jsonl",
         "bytes": 97820193,
         "sha256": "a592f7ece38172a0e2a8ee865359349555d8a3dc31eb6f6697411974d2dd3d1e"
       }

@@ -1024,6 +1024,7 @@ PRの必須テストは、長年固定してきた比較・教師・receipt用�
   - `public/shogi-halfkp64-rki16-weights.bin`
 - 過去検証・比較用として保持する従来repo資産:
   - `wasm-spike/assembly/index.ts`: 143,322 bytes / SHA-256 `1005153cbfd17dc7046c5f82d87d33efa7a651736aba35c384e24a5162028880`
+  - `src/components/game/ShogiImproved/wasmEngineLegacyFormal.ts`: 過去formal A/B専用の旧ABIローダー
   - `src/components/game/ShogiImproved/wasm/shogi.wasm`: 36,545 bytes / SHA-256 `9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31`
   - `src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts`: 上記36,545-byte WASMのembedded copy
   - `public/shogi-nnue-weights.bin`: 1,185,988 bytes / SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`

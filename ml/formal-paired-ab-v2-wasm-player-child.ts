@@ -20,7 +20,7 @@ import {
   loadNnueWeights,
   setWasmNnueEnabled,
   wasmSearchBestMove,
-} from "../src/components/game/ShogiImproved/wasmEngine";
+} from "../src/components/game/ShogiImproved/wasmEngineLegacyFormal";
 import { SHOGI_WASM_BASE64 } from "../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
 import {
   positionFromSfen,

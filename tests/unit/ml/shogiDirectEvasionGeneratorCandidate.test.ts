@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  join(process.cwd(), "wasm-spike", "assembly", "index.ts"),
+  join(process.cwd(), "wasm-spike", "assembly", "index-halfkp64-rki16.ts"),
   "utf8",
 );
 

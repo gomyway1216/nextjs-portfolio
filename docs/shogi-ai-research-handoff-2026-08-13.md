@@ -2,9 +2,9 @@
 
 更新日時: 2026-08-16（America/Los_Angeles）
 
-対象リポジトリ: `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio`
+対象リポジトリ: `$HOME/.codex/worktrees/541a/nextjs-portfolio`
 
-主実験ルート: `/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810`
+主実験ルート: `$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810`
 
 対象ブランチ: `codex/restore-strong-shogi-production`
 
@@ -55,8 +55,8 @@
 この文書では以下を使う。
 
 ```bash
-export REPO=/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio
-export RUN=/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810
+export REPO="$HOME/.codex/worktrees/541a/nextjs-portfolio"
+export RUN="$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810"
 ```
 
 ## 2. 守るべき契約とユーザー判断
@@ -175,7 +175,7 @@ export RUN=/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v
 
 raw source:
 
-`/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl`
+`$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl`
 
 - bytes 800,451,089
 - rows 5,892,192
@@ -407,8 +407,8 @@ receipt:
 
 主要実装:
 
-- `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/dpa_halfkp64_rki16_nnue.py`
-- `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/train_dpa_halfkp64_rki16_nnue.py`
+- `$HOME/.codex/worktrees/541a/nextjs-portfolio/ml/dpa_halfkp64_rki16_nnue.py`
+- `$HOME/.codex/worktrees/541a/nextjs-portfolio/ml/train_dpa_halfkp64_rki16_nnue.py`
 
 ### 7.2 trained前runtime preflight
 
@@ -519,13 +519,13 @@ receipt:
 
 static panel:
 
-- browser `/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl`
+- browser `$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl`
   - bytes 50,255,278
   - SHA `0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca`
-- v9 `/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl`
+- v9 `$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl`
   - bytes 23,800,461
   - SHA `9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088`
-- baseline production checkpoint `/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt`
+- baseline production checkpoint `$HOME/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt`
   - bytes 191,656,969
   - SHA `c7d250ab808cd8719594dae5ed69c54bd1c978fe90cb479bd0ed06594bd1cff9`
 
@@ -577,7 +577,7 @@ log:
 
 ### 9.1 loader/runtime連携
 
-`/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasmEngine.ts`
+`$HOME/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasmEngine.ts`
 
 - candidate用exportを追加利用:
   - `getDpaHalfkp64Rki16WeightsPtr`

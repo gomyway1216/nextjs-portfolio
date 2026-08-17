@@ -63,8 +63,7 @@ export const PRODUCTION_SHOGI_WASM_PATH = join(
   'shogi.wasm'
 );
 
-/** Explicit path used by the forced HalfKP64-RKI16 browser deployment. */
-/** Failed HalfKP64-RKI16 candidate retained for explicit research comparisons. */
+/** Failed HalfKP64-RKI16 browser candidate retained for explicit research comparisons. */
 export const ACTIVE_HALFKP64_RKI16_WASM_PATH = join(
   __dirname,
   '..',

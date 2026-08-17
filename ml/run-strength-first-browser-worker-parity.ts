@@ -34,16 +34,16 @@ export const CANDIDATE_WEIGHTS_SCHEMA =
   "shogi-int16-nnue-weights-bin-v1" as const;
 export const PRODUCTION_WASM_SCHEMA =
   "shogi-floodgate-strength-first-production-wasm-v1" as const;
-export const NNUE_WEIGHTS_BYTES = 23_665_376 as const;
+export const NNUE_WEIGHTS_BYTES = 94_656_708 as const;
 export const PRODUCTION_WASM_PATH =
-  "src/components/game/ShogiImproved/wasm/shogi-halfkp64-rki16.wasm" as const;
-export const PRODUCTION_WASM_BYTES = 45_751 as const;
+  "src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm" as const;
+export const PRODUCTION_WASM_BYTES = 38_288 as const;
 export const PRODUCTION_WASM_SHA256 =
-  "0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3" as const;
+  "1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6" as const;
 export const BROWSER_WORKER_PARITY_ORIGIN =
   "http://127.0.0.1:3000" as const;
 export const NNUE_ASSET_URL =
-  `${BROWSER_WORKER_PARITY_ORIGIN}/shogi-halfkp64-rki16-weights.bin` as const;
+  `${BROWSER_WORKER_PARITY_ORIGIN}/shogi-halfkp81-production-weights.bin` as const;
 
 const MAX_STDIN_BYTES = 16 * 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
@@ -436,7 +436,7 @@ async function runAuthenticatedInPage(
   let interceptCount = 0;
   const candidateServedFromMemory =
     authenticated.request.candidate_weights.path !==
-    "public/shogi-halfkp64-rki16-weights.bin";
+    "public/shogi-halfkp81-production-weights.bin";
   const onRequest = (request: Request): void => {
     const url = request.url();
     if (url.startsWith("blob:") || url.startsWith("data:")) return;
@@ -452,7 +452,7 @@ async function runAuthenticatedInPage(
   const serveCandidate = async (route: Route): Promise<void> => {
     interceptCount++;
     if (!candidateServedFromMemory) {
-      // The forced HalfKP64-RKI16 file is 23.7 MB. CDP base64-expands a fulfilled
+      // The restored HalfKP81 file is 94.7 MB. CDP base64-expands a fulfilled
       // body beyond Chromium's practical single-message limit, so production
       // parity lets Next stream the already-authenticated shipped asset. Its
       // worker-reported SHA and the postflight identity check remain mandatory.

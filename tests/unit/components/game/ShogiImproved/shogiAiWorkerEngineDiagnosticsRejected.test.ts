@@ -6,6 +6,7 @@ vi.mock('@/components/game/ShogiImproved/OpeningBookImproved', () => ({
 }));
 
 vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
+  NNUE_SCALE_K: 600,
   clearWasmRootPolicyRank: vi.fn(),
   clearWasmTT: vi.fn(),
   createWasmRootPolicyRankReceipt: vi.fn(() => null),

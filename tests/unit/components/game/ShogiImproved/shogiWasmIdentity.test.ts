@@ -6,13 +6,13 @@ import { measureEmbeddedWasmRuntimeIdentity } from '@/components/game/ShogiImpro
 import {
   SHOGI_WASM_BASE64,
   SHOGI_WASM_IDENTITY,
-} from '@/components/game/ShogiImproved/wasm/shogiHalfkp64Rki16WasmBase64';
+} from '@/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64';
 
 describe('embedded shogi WASM identity', () => {
   it('is generated from and exactly matches the unchanged production WASM bytes', () => {
     const embedded = Buffer.from(SHOGI_WASM_BASE64, 'base64');
     const production = readFileSync(
-      join(process.cwd(), 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi-halfkp64-rki16.wasm'),
+      join(process.cwd(), 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi-halfkp81-production.wasm'),
     );
 
     expect(embedded).toEqual(production);
@@ -24,7 +24,7 @@ describe('embedded shogi WASM identity', () => {
 
   it('measures the actual runtime-decoded bytes only when explicitly requested', async () => {
     const production = readFileSync(
-      join(process.cwd(), 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi-halfkp64-rki16.wasm'),
+      join(process.cwd(), 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi-halfkp81-production.wasm'),
     );
 
     await expect(measureEmbeddedWasmRuntimeIdentity()).resolves.toEqual({

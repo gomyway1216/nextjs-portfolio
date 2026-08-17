@@ -1,7 +1,7 @@
 /**
  * Unit tests for the NNUE weight-loading API of wasmEngine.ts.
  *
- * Uses the REAL active weight file (public/shogi-halfkp64-rki16-weights.bin) and the
+ * Uses the REAL active weight file (public/shogi-halfkp81-production-weights.bin) and the
  * real WASM engine, so these tests also pin the deployed asset to the exact
  * size the engine requires. Test order matters: the module-scope loaded/
  * enabled state starts pristine in this file, so the "not loaded yet" paths
@@ -36,8 +36,8 @@ import {
   wasmSearchBestMove,
 } from '@/components/game/ShogiImproved/wasmEngine';
 
-const weightsPath = join(process.cwd(), 'public', 'shogi-halfkp64-rki16-weights.bin');
-const HALFKP64_RKI16_EPOCH2_SHA256 = '43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb';
+const weightsPath = join(process.cwd(), 'public', 'shogi-halfkp81-production-weights.bin');
+const HALFKP81_PRODUCTION_SHA256 = '25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40';
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,
   L: KY,
@@ -117,9 +117,9 @@ describe('wasmEngine NNUE loading', () => {
     expect(readFileSync(weightsPath).byteLength).toBe(NNUE_WEIGHTS_BYTES);
   });
 
-  it('pins the production asset to the forced HalfKP64-RKI16 epoch2 weights', () => {
+  it('pins the production asset to the restored HalfKP81 weights', () => {
     const digest = createHash('sha256').update(readFileSync(weightsPath)).digest('hex');
-    expect(digest).toBe(HALFKP64_RKI16_EPOCH2_SHA256);
+    expect(digest).toBe(HALFKP81_PRODUCTION_SHA256);
   });
 
   it('cannot be enabled before weights are loaded (stays on V3)', () => {
@@ -130,7 +130,7 @@ describe('wasmEngine NNUE loading', () => {
 
   it('rejects weights with a wrong byte size', () => {
     expect(loadNnueWeights(new Uint8Array(1), 1)).toBe(false);
-    expect(loadNnueWeights(new Uint8Array(94_656_708), 1)).toBe(false);
+    expect(loadNnueWeights(new Uint8Array(23_665_376), 1)).toBe(false);
     expect(loadNnueWeights(new Uint8Array(0), 600)).toBe(false);
     expect(isNnueWeightsLoaded()).toBe(false);
   });
@@ -143,8 +143,8 @@ describe('wasmEngine NNUE loading', () => {
     expect(isNnueWeightsLoaded()).toBe(false);
   });
 
-  it('loads the real HalfKP64-RKI16 epoch2 weights', () => {
-    expect(loadNnueWeights(readWeights(), 1)).toBe(true);
+  it('loads the restored HalfKP81 production weights', () => {
+    expect(loadNnueWeights(readWeights(), 600)).toBe(true);
     expect(isNnueWeightsLoaded()).toBe(true);
     // Loading alone must not flip the evaluation.
     expect(isNnueEnabled()).toBe(false);
@@ -166,7 +166,7 @@ describe('wasmEngine NNUE loading', () => {
   it(
     'does not choose the third P*8f repetition at fixed depth 11',
     () => {
-      expect(loadNnueWeights(readWeights(), 1)).toBe(true);
+      expect(loadNnueWeights(readWeights(), 600)).toBe(true);
       expect(setWasmNnueEnabled(true)).toBe(true);
       const position = rookPawnLoopPosition();
       clearWasmTT();

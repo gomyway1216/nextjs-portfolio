@@ -1,14 +1,14 @@
-# 将棋AI研究・学習・強制ローカル差し替え 完全引き継ぎ
+# 将棋AI研究・学習・本番復旧 完全引き継ぎ
 
-更新日時: 2026-08-13（America/Los_Angeles）
+更新日時: 2026-08-16（America/Los_Angeles）
 
-対象リポジトリ: `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio`
+対象リポジトリ: `$HOME/.codex/worktrees/541a/nextjs-portfolio`
 
-主実験ルート: `/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810`
+主実験ルート: `$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810`
 
-対象ブランチ: `codex/shogi-ai-research-updates`
+対象ブランチ: `codex/restore-strong-shogi-production`
 
-HEAD: `3289841a186e1480398092ddd3e0bd405c62dce7` (`Reject inconsistent Aoba bestmove labels`)
+基点: `main` merge commit `6d63d24c64ce7265fed2af94680b923e4a250121`（PR #699）
 
 ## 0. この文書の目的
 
@@ -32,18 +32,18 @@ HEAD: `3289841a186e1480398092ddd3e0bd405c62dce7` (`Reject inconsistent Aoba best
 2. 第一候補 `DPA HalfKP96` は2 epochを完走したが、browser/v9静的reject-only評価で不合格になった。
 3. 第二候補 `HalfKP64-RKI16` も2 epochを完走し、export/runtime preflightには合格したが、browser/v9静的評価で不合格になった。
 4. 第二候補と元本番を同一探索ハーネスで直接16局戦わせた結果は、**第二候補 0勝 / 元本番 16勝 / 0引分**だった。8 openingを先後入替で2局ずつ、全942手合法、50ms/手。
-5. それでもユーザーの明示命令により、第二候補をローカルのユーザー向け資産へ**強制差し替え済み**。したがって現在のrepoは、対局で0-16だった候補を読み込む。
-6. 元本番のWASMとweightsは比較・復旧用にrun rootへ保存済みで、削除されていない。
+5. PR #699では第二候補を本番へ強制差し替えしたが、ユーザーの復旧指示により、このブランチで**16-0だった元本番HalfKP81へ実行経路を戻した**。
+6. 元本番のWASMとweightsはrun rootの保存物とbyte-for-byte同一の専用repo資産として追加した。失敗候補と研究成果も削除せず保持している。
 7. 現在、学習・教師生成・対局・Next dev serverの関連プロセスは **0**。30分監視automation `ai` も削除済みで、自動継続は走っていない。
-8. branch `codex/shogi-ai-research-updates`へpush済みで、PR #699を作成済み。既存dirty/user差分が大量にあるので、別AIは無関係な変更を整理・削除・上書きしてはならない。
+8. PR #699はmainへマージ済み。この復旧は最新mainから作った別ブランチ`codex/restore-strong-shogi-production`で行い、既存dirty/user差分を一切取り込んでいない。
 
-### 1.2 現在repoが読み込む強制差し替え後の資産
+### 1.2 現在repoが読み込む復旧後の資産
 
 | 種類 | 現在のパス | bytes | SHA-256 |
 |---|---|---:|---|
-| WASM runtime | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogi-halfkp64-rki16.wasm` | 45,751 | `0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3` |
-| NNUE weights | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/public/shogi-halfkp64-rki16-weights.bin` | 23,665,376 | `43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb` |
-| embedded WASM base64 | `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasm/shogiHalfkp64Rki16WasmBase64.ts` | decoded 45,751 | decoded bytesは上記WASMと完全一致 |
+| WASM runtime | `src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` | 38,288 | `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6` |
+| NNUE weights | `public/shogi-halfkp81-production-weights.bin` | 94,656,708 | `25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40` |
+| embedded WASM base64 | `src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts` | decoded 38,288 | decoded bytesは上記WASMと完全一致 |
 
 ### 1.3 保存済みの元本番資産
 
@@ -55,8 +55,8 @@ HEAD: `3289841a186e1480398092ddd3e0bd405c62dce7` (`Reject inconsistent Aoba best
 この文書では以下を使う。
 
 ```bash
-export REPO=/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio
-export RUN=/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810
+export REPO="$HOME/.codex/worktrees/541a/nextjs-portfolio"
+export RUN="$HOME/.codex/shogi-runs/kingpair-interaction-10m-fast-v1-20260810"
 ```
 
 ## 2. 守るべき契約とユーザー判断
@@ -81,9 +81,9 @@ export RUN=/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v
 - repeat fill禁止。閾値緩和禁止。同slot retry/追加seed/追加epoch/LR tuning禁止という研究契約だった。
 - 完成shard/checkpoint/receiptを削除または上書きしない。
 - historical dataを上書きしない。buffer追加はcreate-only。
-- branchは `codex/shogi-ai-research-updates`、push禁止。
+- `codex/shogi-ai-research-updates`へのpush禁止はPR #699作業時の履歴。復旧は最新main由来の新規ブランチで行う。
 - 既存dirty/user差分には触れない。
-- 最終的にはユーザーが安全gateを上書きし、第二候補を強制的にローカル差し替えするよう明示した。この判断は実行済みだが、対局結果の0-16も同時に保持し、次の担当者が事実を取り違えないようにする。
+- PR #699では安全gateを上書きして第二候補を配備した。その後ユーザーは、直接対局で16-0だった元本番への復旧を明示したため、このブランチでその実行経路を復元する。
 
 ## 3. 全体の時系列
 
@@ -175,7 +175,7 @@ export RUN=/Users/yudaiyaguchi/.codex/shogi-runs/kingpair-interaction-10m-fast-v
 
 raw source:
 
-`/Users/yudaiyaguchi/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl`
+`$HOME/.codex/shogi-data/wcsc36-sealed-training-inputs/runOp1-train.jsonl`
 
 - bytes 800,451,089
 - rows 5,892,192
@@ -407,8 +407,8 @@ receipt:
 
 主要実装:
 
-- `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/dpa_halfkp64_rki16_nnue.py`
-- `/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/train_dpa_halfkp64_rki16_nnue.py`
+- `$HOME/.codex/worktrees/541a/nextjs-portfolio/ml/dpa_halfkp64_rki16_nnue.py`
+- `$HOME/.codex/worktrees/541a/nextjs-portfolio/ml/train_dpa_halfkp64_rki16_nnue.py`
 
 ### 7.2 trained前runtime preflight
 
@@ -519,13 +519,13 @@ receipt:
 
 static panel:
 
-- browser `/Users/yudaiyaguchi/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl`
+- browser `$HOME/.codex/shogi-runs/browser-confusion-ranking-depth12-batch3-v2-dataset/val.jsonl`
   - bytes 50,255,278
   - SHA `0d3973ea7df7c44a5e863947b358b15dcf0e249dd26bbf0e7ef26dfff8bef3ca`
-- v9 `/Users/yudaiyaguchi/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl`
+- v9 `$HOME/.codex/shogi-runs/floodgate-q1-2026-strength-first-selection-v2/selection.jsonl`
   - bytes 23,800,461
   - SHA `9b18864c2d119edd8714301cddded4112d58adfe1bc5767a7760603d086bc088`
-- baseline production checkpoint `/Users/yudaiyaguchi/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt`
+- baseline production checkpoint `$HOME/.codex/shogi-runs/halfkp81-g3-full-all-seed42/epoch2.pt`
   - bytes 191,656,969
   - SHA `c7d250ab808cd8719594dae5ed69c54bd1c978fe90cb479bd0ed06594bd1cff9`
 
@@ -577,7 +577,7 @@ log:
 
 ### 9.1 loader/runtime連携
 
-`/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasmEngine.ts`
+`$HOME/.codex/worktrees/541a/nextjs-portfolio/src/components/game/ShogiImproved/wasmEngine.ts`
 
 - candidate用exportを追加利用:
   - `getDpaHalfkp64Rki16WeightsPtr`
@@ -1013,11 +1013,15 @@ cp "$RUN/production-before-forced-halfkp64-rki16-v1.weights.bin" \
 - `npm audit`はPR差分外の既存`package-lock.json`に対し、後日公開された`nanoid <3.3.18` high advisory等を検出したもの。PRの`package.json`/`package-lock.json`は`main`と同一で、この研究差分が導入した依存脆弱性ではない。
 - このPRはユーザーの明示的な強制差し替え命令による。static gate FAILおよび旧productionとの16局0-16を隠さずPR本文と本書に保持する。
 
-## 21. 現行候補と履歴固定資産のパス分離
+## 21. 現行本番・失敗候補・履歴固定資産のパス分離
 
 PRの必須テストは、長年固定してきた比較・教師・receipt用の`shogi.wasm`と`shogi-nnue-weights.bin`を履歴基準として検証する。一方、強制配備候補はサイズ・ABI・bucket数が異なる。この2つを同じファイル名で上書きすると、候補のブラウザ動作が正しくても履歴証拠のidentityが壊れるため、用途別に分離した。
 
-- ブラウザが実際に読む強制配備候補:
+- ブラウザが実際に読む復旧済みHalfKP81本番:
+  - `src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm`
+  - `src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts`
+  - `public/shogi-halfkp81-production-weights.bin`
+- 0-16だった失敗候補（研究・再現用として保持、ブラウザのactive pathではない）:
   - `wasm-spike/assembly/index-halfkp64-rki16.ts`（候補再生成専用source）
   - `src/components/game/ShogiImproved/wasm/shogi-halfkp64-rki16.wasm`
   - `src/components/game/ShogiImproved/wasm/shogiHalfkp64Rki16WasmBase64.ts`
@@ -1029,7 +1033,17 @@ PRの必須テストは、長年固定してきた比較・教師・receipt用�
   - `src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts`: 上記36,545-byte WASMのembedded copy
   - `public/shogi-nnue-weights.bin`: 1,185,988 bytes / SHA-256 `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc`
 
-この分離後も`wasmEngine.ts`と`shogi-ai.worker.ts`は明示的にHalfKP64-RKI16側を参照する。したがって、履歴資産を元のidentityへ戻したことは強制配備の取り消しではない。上記より前に書かれた「既存ファイル名を直接差し替える」手順は実施履歴として残すが、現在の配備・復旧判断では本節を優先する。
+復旧後の`wasmEngine.ts`と`shogi-ai.worker.ts`は明示的にHalfKP81本番側を参照する。HalfKP64-RKI16と従来名の履歴資産は、比較・再現のため残すがactive pathではない。上記より前に書かれた「HalfKP64-RKI16をcurrentとして読む」という記述は実施履歴であり、現在の配備判断では本節を優先する。
+
+## 22. 2026-08-16 元本番への復旧
+
+- 復旧根拠は、保存済み元本番HalfKP81が同一探索条件の直接16局でHalfKP64-RKI16に16-0だったこと。
+- `$RUN/production-before-forced-halfkp64-rki16-v1.*`を専用repo資産へbyte-for-byteコピーし、SHAを固定した。
+- HalfKP81の実行契約は81 buckets、K=600、output scale 1/1。
+- 81-bucket選択時の`memory.grow`後に新しい`memory.buffer`へweightsをコピーするため、detached bufferを使わない。
+- Worker fetch、embedded WASM、ブラウザparity、root-move bridgeを同じ復旧資産identityへ揃えた。
+- candidateの学習コード、checkpoint記録、static FAIL、0-16ログ、候補WASM/weightsは削除していない。
+- 従来名`shogi.wasm`/`shogi-nnue-weights.bin`も履歴・比較用identityのまま保持する。
 
 ---
 

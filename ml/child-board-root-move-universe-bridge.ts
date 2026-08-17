@@ -12,15 +12,15 @@ import {
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
 import { GHI, SFU } from "../src/components/game/ShogiImproved/types";
-import { ACTIVE_HALFKP64_RKI16_WASM_PATH } from "../wasm-spike/search-driver";
+import { ACTIVE_HALFKP81_PRODUCTION_WASM_PATH } from "../wasm-spike/search-driver";
 
 export const REQUEST_SCHEMA = "shogi-production-root-move-universe-request-v2";
 export const RESPONSE_SCHEMA =
   "shogi-production-root-move-universe-response-v2";
 export const ERROR_SCHEMA = "shogi-production-root-move-universe-error-v1";
-export const PINNED_WASM_BYTES = 45_751;
+export const PINNED_WASM_BYTES = 38_288;
 export const PINNED_WASM_SHA256 =
-  "0c07a50793470b354bd57072565476a9a87dc9189271aa43c9ef15a0105bc7e3";
+  "1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6";
 export const PINNED_ROOT_MOVE_BUFFER_OFFSET = 7_128_112;
 export const MAX_ROOT_MOVES = 640;
 
@@ -227,7 +227,7 @@ export class ProductionRootMoveUniverseBridge {
   private readonly wasm: RootMembershipWasm;
 
   constructor(
-    wasmBytes: Uint8Array = readFileSync(ACTIVE_HALFKP64_RKI16_WASM_PATH),
+    wasmBytes: Uint8Array = readFileSync(ACTIVE_HALFKP81_PRODUCTION_WASM_PATH),
   ) {
     const [major, minor] = process.versions.node
       .split(".")

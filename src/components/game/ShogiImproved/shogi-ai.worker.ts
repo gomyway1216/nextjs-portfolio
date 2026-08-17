@@ -67,6 +67,7 @@ import {
   isWasmEngineReady,
   loadNnueWeights,
   measureEmbeddedWasmRuntimeIdentity,
+  NNUE_SCALE_K,
   publishSearchGeneration,
   setSearchGeneration,
   setWasmNnueEnabled,
@@ -177,20 +178,18 @@ const ponder = new PonderController({
 });
 
 /**
- * NNUE leaf evaluation (forced HalfKP64-RKI16 epoch2 weights).
+ * NNUE leaf evaluation (restored HalfKP81 production weights).
  *
  * The weights ship as a static asset
- * (public/shogi-halfkp64-rki16-weights.bin) and are
+ * (public/shogi-halfkp81-production-weights.bin) and are
  * fetched asynchronously at worker startup — NOT bundled (base64 embedding
- * would add ~32MB to the worker bundle). Until the fetch resolves, searches
+ * would add ~126MB to the worker bundle). Until the fetch resolves, searches
  * run on the hand-crafted V3 evaluation exactly as before (the first move
  * comes from the opening book anyway); once loaded, NNUE kicks in from the
  * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
  * silently keeps the V3 path.
  */
-const NNUE_WEIGHTS_PATH = '/shogi-halfkp64-rki16-weights.bin';
-/** HalfKP64-RKI16 predicts cp directly (cp = out_q / 8128). */
-const NNUE_SCALE_K = 1;
+const NNUE_WEIGHTS_PATH = '/shogi-halfkp81-production-weights.bin';
 
 /**
  * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
@@ -234,9 +233,9 @@ function difficultyUsesNnue(difficulty: Difficulty): boolean {
 }
 
 /**
- * Retained for diagnostics and for the existing helper protocol. Production
- * The forwarding path keeps helper instances on the same authenticated
- * HalfKP64-RKI16 payload as the main worker.
+ * Retained for diagnostics and for the existing helper protocol. The
+ * forwarding path keeps helper instances on the same authenticated HalfKP81
+ * payload as the main worker.
  */
 let nnueWeightsBytes: ArrayBuffer | null = null;
 let nnueFetchStatus: ShogiAiNnueFetchStatus = 'pending';
@@ -280,7 +279,7 @@ async function fetchNnueWeights(): Promise<void> {
 const nnueStartup = fetchNnueWeights();
 
 async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {
-  // Hashing the 23.7MB asset is opt-in: ordinary game startup/load behavior and cost are
+  // Hashing the 94.7MB asset is opt-in: ordinary game startup/load behavior and cost are
   // unchanged. Successful loads already retain this exact buffer for helpers.
   if (!nnueFetchedWeightsIdentity && nnueWeightsBytes) {
     const acceptedWeights = nnueWeightsBytes;

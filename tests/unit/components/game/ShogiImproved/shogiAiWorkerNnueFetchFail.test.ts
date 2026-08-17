@@ -72,7 +72,7 @@ afterAll(() => {
 
 describe('shogi-ai.worker NNUE fetch failure', () => {
   it('attempted the weights fetch at startup', () => {
-    expect(fetchMock).toHaveBeenCalledWith('/shogi-halfkp64-rki16-weights.bin');
+    expect(fetchMock).toHaveBeenCalledWith('/shogi-halfkp81-production-weights.bin');
   });
 
   it('still answers a medium bestMove on the V3 path', () => {

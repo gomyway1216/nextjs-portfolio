@@ -19,10 +19,10 @@ import {
 } from "../../../src/components/game/ShogiImproved/shogiEngineParityProtocol";
 
 const SHIPPED_WEIGHTS_SHA256 =
-  "43138cfa7a0d9317d612f518404f78224c0992b588e3d4e09afe32a6d1c627fb";
+  "25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40";
 
 const candidate: BrowserWorkerParityArtifactIdentity = {
-  path: "public/shogi-halfkp64-rki16-weights.bin",
+  path: "public/shogi-halfkp81-production-weights.bin",
   bytes: NNUE_WEIGHTS_BYTES,
   sha256: SHIPPED_WEIGHTS_SHA256,
   schema: CANDIDATE_WEIGHTS_SCHEMA,

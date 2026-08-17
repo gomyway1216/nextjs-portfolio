@@ -31,7 +31,7 @@ import { GHI, SFU, Te } from './types';
 import {
   SHOGI_WASM_BASE64,
   SHOGI_WASM_IDENTITY,
-} from './wasm/shogiHalfkp64Rki16WasmBase64';
+} from './wasm/shogiHalfkp81ProductionWasmBase64';
 
 interface ShogiSearchWasm {
   memory: WebAssembly.Memory;
@@ -47,8 +47,7 @@ interface ShogiSearchWasm {
   getSearchDepth(): number;
   getSearchNodes(): number;
   getSearchLeaves(): number;
-  // NNUE leaf evaluation (see wasm-spike/assembly/index.ts). The candidate is
-  // explicitly pinned to the runtime's 1/1 output scale.
+  // NNUE leaf evaluation for the restored HalfKP81 production evaluator.
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
   setNnueBuckets(buckets: number): void;
@@ -57,11 +56,6 @@ interface ShogiSearchWasm {
   setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
   nnueEvaluateCp(): number;
-  // Forced HalfKP64-RKI16 production evaluator. Its payload lives in a
-  // separate lazily-grown region because its layout differs from HalfKP81.
-  getDpaHalfkp64Rki16WeightsPtr(): number;
-  getDpaHalfkp64Rki16WeightsSize(): number;
-  setDpaHalfkp64Rki16RuntimeEnabled(flag: number): number;
   // Lazy SMP shared-TT hooks (see sharedTT.ts).
   getSharedTtScratchPtr(): number;
   getSecondaryHashVal(): number;
@@ -586,16 +580,18 @@ export function setWasmSearchStartDepth(depth: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// NNUE evaluation (HalfKP64-RKI16 epoch2 weights)
+// NNUE evaluation (restored HalfKP81 production weights)
 // ---------------------------------------------------------------------------
 
 /**
- * Exact size of the forced HalfKP64-RKI16 epoch2 payload. The candidate has
- * its own WASM exports and memory region; it is not layout-compatible with
- * the previous HalfKP81 payload.
+ * Exact size and runtime configuration of the preserved HalfKP81 evaluator
+ * that won the recorded direct comparison 16-0. The 81-bucket layout grows
+ * WASM memory lazily, so callers must select the bucket count before resolving
+ * the weight pointer.
  */
-export const NNUE_WEIGHTS_BYTES = 23_665_376;
-export const NNUE_SCALE_K = 1;
+export const NNUE_WEIGHTS_BYTES = 94_656_708;
+export const NNUE_SCALE_K = 600;
+export const NNUE_BUCKETS = 81;
 
 let nnueWeightsLoaded = false;
 // Mirrors the engine-side `nnueEnabled` flag so we only cross into WASM on a
@@ -615,8 +611,9 @@ export function isNnueEnabled(): boolean {
 
 /**
  * Copy quantized NNUE weights into the WASM engine and set the sigmoid scale
- * K (cp = out_q * K / 8128). The HalfKP64-RKI16 trainer predicts cp
- * directly, so its fixed deployment value is K=1.
+ * K (cp = out_q * K / 8128). The restored production evaluator uses K=600
+ * and output scale 1/1, matching the configuration used in its 16-0 direct
+ * comparison against HalfKP64-RKI16.
  *
  * Returns false — leaving the engine on the hand-crafted V3 evaluation — when
  * the engine is unavailable, the build lacks the NNUE exports, or the byte
@@ -629,9 +626,8 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
   try {
     if (
       !wasm.memory ||
-      typeof wasm.getDpaHalfkp64Rki16WeightsPtr !== 'function' ||
-      typeof wasm.getDpaHalfkp64Rki16WeightsSize !== 'function' ||
-      typeof wasm.setDpaHalfkp64Rki16RuntimeEnabled !== 'function' ||
+      typeof wasm.getNnueWeightsPtr !== 'function' ||
+      typeof wasm.getNnueWeightsSize !== 'function' ||
       typeof wasm.setNnueBuckets !== 'function' ||
       typeof wasm.getNnueBuckets !== 'function' ||
       typeof wasm.setNnueScaleK !== 'function' ||
@@ -655,28 +651,24 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
       console.error(`[wasmEngine] NNUE weights rejected: invalid scale K=${scaleK}`);
       return false;
     }
-    if (wasm.getDpaHalfkp64Rki16WeightsSize() !== NNUE_WEIGHTS_BYTES) {
-      console.error(
-        `[wasmEngine] NNUE layout rejected: candidate bytes=${wasm.getDpaHalfkp64Rki16WeightsSize()}`
-      );
-      return false;
-    }
-    // HalfKP64-RKI16 is trained against the 81 king-square buckets. Set and
-    // verify the feature mode before resolving its lazy payload pointer or
-    // enabling the candidate runtime; never rely on the WASM default.
-    wasm.setNnueBuckets(81);
-    if (wasm.getNnueBuckets() !== 81) {
+    // Selecting the HalfKP81 layout can grow memory. Do it before reading the
+    // payload pointer or memory.buffer so no detached pre-grow buffer is used.
+    wasm.setNnueBuckets(NNUE_BUCKETS);
+    if (wasm.getNnueBuckets() !== NNUE_BUCKETS) {
       console.error('[wasmEngine] NNUE layout rejected: bucket mode is not 81');
       return false;
     }
-    // Resolving this pointer can grow memory. Read wasm.memory.buffer only
-    // afterwards so the copy never targets a detached pre-grow ArrayBuffer.
-    const weightsPtr = wasm.getDpaHalfkp64Rki16WeightsPtr();
+    if (wasm.getNnueWeightsSize() !== NNUE_WEIGHTS_BYTES) {
+      console.error(
+        `[wasmEngine] NNUE layout rejected: engine bytes=${wasm.getNnueWeightsSize()}`
+      );
+      return false;
+    }
+    const weightsPtr = wasm.getNnueWeightsPtr();
     if (weightsPtr <= 0) return false;
     new Uint8Array(wasm.memory.buffer, weightsPtr, NNUE_WEIGHTS_BYTES).set(bytes);
     wasm.setNnueScaleK(k);
     wasm.setNnueOutputScale(1, 1);
-    if (wasm.setDpaHalfkp64Rki16RuntimeEnabled(1) !== 1) return false;
     // If NNUE is somehow already live (re-load), rebuild the accumulators from
     // the fresh weights so stale activations can never be searched.
     if (nnueEnabledState) wasm.setNnueEnabled(1);

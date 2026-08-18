@@ -42,7 +42,9 @@
 | 種類 | 現在のパス | bytes | SHA-256 |
 |---|---|---:|---|
 | WASM runtime | `src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` | 38,288 | `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6` |
-| NNUE weights | `public/shogi-halfkp81-production-weights.bin` | 94,656,708 | `25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40` |
+| NNUE weights | `public/shogi-halfkp81-production-weights.bin` | 94,656,708 | `e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72` |
+
+2026-08-18追記: NNUE weightsは、復旧weights(`25fc77...bd40`)をベースに10M kingpairコーパス(sigmoid/K=600/cp-clamp3000, lr 5e-5, 4 epochs warm-start)で再学習したモデルへ昇格済み。復旧weightsに対し1000ms/手×80局で61.9%(48勝3分29敗、Wilson 95% CI下限50.9%)。学習・対局artifactは`~/.codex/shogi-runs/halfkp81-newdata-warmstart-v1-20260817/`。WASM/K/バイト数は不変。
 | embedded WASM base64 | `src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts` | decoded 38,288 | decoded bytesは上記WASMと完全一致 |
 
 ### 1.3 保存済みの元本番資産

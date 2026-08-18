@@ -104,7 +104,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.1.0",
-    "html-to-text": "^10.0.0",
+    "html-to-text": "^9.0.5",
     "i18next": "^26.3.2",
     "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^1.21.0",

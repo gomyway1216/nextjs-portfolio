@@ -47,7 +47,7 @@ interface ShogiSearchWasm {
   getSearchDepth(): number;
   getSearchNodes(): number;
   getSearchLeaves(): number;
-  // NNUE leaf evaluation for the restored HalfKP81 production evaluator.
+  // NNUE leaf evaluation for the HalfKP81 production evaluator.
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
   setNnueBuckets(buckets: number): void;
@@ -580,7 +580,7 @@ export function setWasmSearchStartDepth(depth: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// NNUE evaluation (restored HalfKP81 production weights)
+// NNUE evaluation (HalfKP81 production weights)
 // ---------------------------------------------------------------------------
 
 /**

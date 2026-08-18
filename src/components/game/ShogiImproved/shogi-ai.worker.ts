@@ -178,7 +178,7 @@ const ponder = new PonderController({
 });
 
 /**
- * NNUE leaf evaluation (restored HalfKP81 production weights).
+ * NNUE leaf evaluation (HalfKP81 production weights).
  *
  * The weights ship as a static asset
  * (public/shogi-halfkp81-production-weights.bin) and are

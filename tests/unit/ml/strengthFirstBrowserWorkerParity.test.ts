@@ -19,7 +19,7 @@ import {
 } from "../../../src/components/game/ShogiImproved/shogiEngineParityProtocol";
 
 const SHIPPED_WEIGHTS_SHA256 =
-  "25fc77addcd5e147906bb197313f2e5c6d4e4c3acc93fddbdb876c695818bd40";
+  "e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72";
 
 const candidate: BrowserWorkerParityArtifactIdentity = {
   path: "public/shogi-halfkp81-production-weights.bin",

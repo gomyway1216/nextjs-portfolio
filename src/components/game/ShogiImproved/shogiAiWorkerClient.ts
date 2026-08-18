@@ -196,9 +196,9 @@ export interface ShogiAiWorkerClient {
  * 1 means multi-threading is not worth it on this machine.
  */
 function computeSearchThreadCount(): number {
-  // The restored 81-bucket payload uses about 151MB of private WASM memory per
+  // The 81-bucket payload uses about 151MB of private WASM memory per
   // instance and a 94.7MB source buffer. Keep the single-instance topology
-  // used by the recorded 16-0 comparison instead of cloning it to helpers.
+  // instead of cloning it to helpers.
   return 1;
 }
 

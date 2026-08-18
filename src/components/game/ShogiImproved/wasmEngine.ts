@@ -47,7 +47,7 @@ interface ShogiSearchWasm {
   getSearchDepth(): number;
   getSearchNodes(): number;
   getSearchLeaves(): number;
-  // NNUE leaf evaluation for the restored HalfKP81 production evaluator.
+  // NNUE leaf evaluation for the HalfKP81 production evaluator.
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
   setNnueBuckets(buckets: number): void;
@@ -580,12 +580,14 @@ export function setWasmSearchStartDepth(depth: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// NNUE evaluation (restored HalfKP81 production weights)
+// NNUE evaluation (HalfKP81 production weights)
 // ---------------------------------------------------------------------------
 
 /**
- * Exact size and runtime configuration of the preserved HalfKP81 evaluator
- * that won the recorded direct comparison 16-0. The 81-bucket layout grows
+ * Exact size and runtime configuration of the HalfKP81 evaluator. The shipped
+ * weights are the 2026-08-17 retrain on the 10M kingpair corpus, which scored
+ * 61.9% (48W-3D-29L over 80 games at 1000ms/move, Wilson 95% CI lower bound
+ * 50.9%) against the previously restored weights. The 81-bucket layout grows
  * WASM memory lazily, so callers must select the bucket count before resolving
  * the weight pointer.
  */
@@ -611,9 +613,8 @@ export function isNnueEnabled(): boolean {
 
 /**
  * Copy quantized NNUE weights into the WASM engine and set the sigmoid scale
- * K (cp = out_q * K / 8128). The restored production evaluator uses K=600
- * and output scale 1/1, matching the configuration used in its 16-0 direct
- * comparison against HalfKP64-RKI16.
+ * K (cp = out_q * K / 8128). The HalfKP81 production evaluator uses K=600
+ * and output scale 1/1.
  *
  * Returns false — leaving the engine on the hand-crafted V3 evaluation — when
  * the engine is unavailable, the build lacks the NNUE exports, or the byte

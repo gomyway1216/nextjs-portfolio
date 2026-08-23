@@ -24,7 +24,7 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  * - The curated `OPENING_LINES` below are compiled in (regression-tested, always available).
  * - Additionally, a large-scale external book (a ~50k-position subset of やねうら王の
  *   新ペタショック定跡, MIT License) can be fetched at runtime from
- *   `public/shogi-opening-book-v2.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
+ *   `public/shogi-opening-book-v3.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
  *   always wins for positions it covers; the external book only extends coverage. If the fetch
  *   fails (offline, node tests), everything behaves exactly as before.
  */
@@ -1241,7 +1241,13 @@ function getBook(): DualKeyMap<BookCandidate[]> {
 
 /** Binary format magic "SBK2"; the writer is scripts/shogi-import-petashock-book.ts. */
 export const EXTERNAL_BOOK_MAGIC = 0x324b4253;
-export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book-v2.bin';
+/**
+ * v3 (2026-08): v2 (petashock lines to ply 20/30 + human-deviation cover seeded at ply <= 12)
+ * plus a deeper deviation cover — seeds follow the runtime book choice on the AI's turns and
+ * cover the human's natural replies up to ply 20 (scripts/shogi-book-deviation-cover.ts
+ * --ai-aware). v2 stays in public/ for the ML teacher pipeline and provenance pins.
+ */
+export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book-v3.bin';
 
 const EXTERNAL_LINE_NAME = 'ペタショック定跡';
 /** Below every curated priority (curated lines use 55..90) — only matters for tie-breaks. */

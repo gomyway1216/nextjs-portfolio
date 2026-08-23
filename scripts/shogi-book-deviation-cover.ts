@@ -33,6 +33,12 @@
  *     --book public/shogi-opening-book-v2.bin --results <results.jsonl> \
  *     --out <merged.bin> --meta <deviations.jsonl> \
  *     [--max-seed-ply 12] [--max-seeds 900] [--multipv 12] [--window 300] [--depth 18] [--procs 4]
+ *     [--min-seed-ply 0] [--seeds-per-ply 0] [--ai-aware] [--merge-all] [--time-budget-min 0]
+ *
+ * v3 (2026-08): the cover is extended past ply 12 with --min-seed-ply/--seeds-per-ply (per-ply
+ * quotas instead of a single reach-weight cap, see SEEDS_PER_PLY). Input is the v2 book; output
+ * public/shogi-opening-book-v3.bin. Several shards can share one --results file (resume is keyed
+ * by seed sfen); the merge step only runs once every selected seed has a result.
  */
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
@@ -40,6 +46,11 @@ import * as path from 'path';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
+import {
+  getOpeningMoveImproved,
+  loadExternalOpeningBook,
+} from '../src/components/game/ShogiImproved/OpeningBookImproved';
+import type { Difficulty } from '../src/components/game/common/types';
 import {
   EMPTY, FU, KY, KE, GI, KI, KA, HI, OU, PROMOTE,
   SENTE, GOTE, Te, getKomashu, isSelf,
@@ -60,13 +71,43 @@ const RESULTS_PATH = argValue('--results', '');
 const OUT_PATH = argValue('--out', '');
 const META_PATH = argValue('--meta', '');
 const MAX_SEED_PLY = Number(argValue('--max-seed-ply', '12'));
+/** Seeds shallower than this are skipped (they were covered by an earlier run, e.g. v2 <= 12). */
+const MIN_SEED_PLY = Number(argValue('--min-seed-ply', '0'));
 const MAX_SEEDS = Number(argValue('--max-seeds', '900'));
+/**
+ * Per-ply quota (v3): take the N highest-weight seeds at EVERY ply in [min, max] instead of the
+ * global top-N. Reach weight decays geometrically with depth, so a global cap concentrates on
+ * plies 0-6 (v2's 1,200 seeds: 0:1 1:13 2:98 3:422 4:265 5:185 6:114 7:48 8:25 9:15 10:9 11:3
+ * 12:2) and leaves the later opening — where humans actually leave the book — uncovered.
+ * 0 = disabled (global --max-seeds cap, v2 behaviour).
+ */
+const SEEDS_PER_PLY = Number(argValue('--seeds-per-ply', '0'));
 const MULTIPV = Number(argValue('--multipv', '12'));
 const DEVIATION_WINDOW = Number(argValue('--window', '300'));
 const DEPTH = Number(argValue('--depth', '18'));
 const PROCS = Number(argValue('--procs', '4'));
 /** Dry-run: print seed selection stats and exit without launching engines. */
 const SEEDS_ONLY = process.argv.includes('--seeds-only');
+/**
+ * v3 seed model: follow the REAL runtime book choice on the AI's turns. The AI plays whatever
+ * getOpeningMoveImproved() returns for the input book (all five difficulties, curated-book
+ * priority, phase/check gates and the static-eval threshold included), and that move is
+ * followed even when the resulting position is not in the book. The human's turns split
+ * weight uniformly over every legal move that stays in the book. Run once with the AI as
+ * sente and once as gote; seeds are the HUMAN-to-move positions of both walks.
+ *
+ * Consequences vs the uniform graph walk (v2): (1) positions the AI never actually steers
+ * into get no weight; (2) book leaves and the positions right after a stored deviation
+ * reply (out of book, human to move) become seeds — so the cover follows the AI one move
+ * past the book instead of stopping at the last in-book position.
+ */
+const AI_AWARE = process.argv.includes('--ai-aware');
+/** Emit the merged book from EVERY result row in --results (multi-phase runs), not just the
+ *  seeds selected by this invocation. */
+const MERGE_ALL = process.argv.includes('--merge-all');
+/** Stop dispatching new seeds after this many minutes (resumable chunking); 0 = unlimited. */
+const TIME_BUDGET_MIN = Number(argValue('--time-budget-min', '0'));
+const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
 
 // --seeds-only はシード選択の統計だけ出して終了するドライラン。出力系
 // (--results/--out/--meta) は不要なので、それらの必須チェックは通常実行時のみ。
@@ -230,7 +271,110 @@ interface Seed {
   k: KyokumenImproved;
 }
 
+/** Per-ply reach-weight totals of the walk (for the coverage share printed by --seeds-only). */
+const plyWeightTotal = new Map<number, number>();
+
+/**
+ * AI-aware walk for one AI colour (see AI_AWARE). Returns human-to-move nodes keyed by sfen.
+ * The runtime getter must already have the input book installed (loadExternalOpeningBook).
+ */
+function collectHumanNodes(book: Map<string, BookEntry>, aiColor: number): Map<string, Seed> {
+  interface Node {
+    k: KyokumenImproved;
+    ply: number;
+    weight: number;
+  }
+  const root = InitialPositionImproved.createInitialPosition();
+  root.setTeban(SENTE);
+  const seeds = new Map<string, Seed>();
+  let level = new Map<string, Node>();
+  level.set(sfenOf(root), { k: root, ply: 0, weight: 1 });
+
+  for (let ply = 0; ply <= MAX_SEED_PLY; ply++) {
+    const next = new Map<string, Node>();
+    for (const [sfen, node] of level) {
+      const humanToMove = node.k.teban !== aiColor;
+      if (humanToMove) {
+        plyWeightTotal.set(ply, (plyWeightTotal.get(ply) ?? 0) + node.weight);
+        const prev = seeds.get(sfen);
+        if (prev) prev.weight += node.weight;
+        else seeds.set(sfen, { sfen, ply, weight: node.weight, k: node.k });
+      }
+      if (ply === MAX_SEED_PLY) continue;
+      const children: KyokumenImproved[] = [];
+      if (humanToMove) {
+        // Human: any legal move that stays in the book (stored moves and transpositions).
+        for (const te of GenerateMovesImproved.generateLegalMoves(node.k)) {
+          const child = node.k.clone();
+          child.move(te);
+          child.toggleTeban();
+          if (book.has(positionIdentityKey(child))) children.push(child);
+        }
+      } else {
+        // AI: the runtime book choice per difficulty (deterministic), followed even off-book.
+        const seen = new Set<string>();
+        for (const d of DIFFICULTIES) {
+          const te = getOpeningMoveImproved(node.k, d);
+          if (!te) continue;
+          const key = `${te.from}:${te.to}:${te.promote ? 1 : 0}:${te.koma}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const child = node.k.clone();
+          child.move(te);
+          child.toggleTeban();
+          children.push(child);
+        }
+      }
+      if (children.length === 0) continue;
+      const share = node.weight / children.length;
+      for (const c of children) {
+        const key = sfenOf(c);
+        const ex = next.get(key);
+        if (ex) ex.weight += share;
+        else next.set(key, { k: c, ply: ply + 1, weight: share });
+      }
+    }
+    level = next;
+  }
+  return seeds;
+}
+
 function collectSeeds(book: Map<string, BookEntry>): Seed[] {
+  if (AI_AWARE) {
+    const raw = fs.readFileSync(BOOK_PATH);
+    const installed = loadExternalOpeningBook(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer);
+    if (installed === 0) throw new Error(`${BOOK_PATH}: runtime loader rejected the book`);
+    const merged = new Map<string, Seed>();
+    for (const aiColor of [SENTE, GOTE]) {
+      for (const [sfen, s] of collectHumanNodes(book, aiColor)) {
+        const prev = merged.get(sfen);
+        if (prev) prev.weight += s.weight;
+        else merged.set(sfen, { ...s });
+      }
+    }
+    return selectSeeds([...merged.values()]);
+  }
+  return selectSeeds(collectUniformSeeds(book));
+}
+
+function selectSeeds(all: Seed[]): Seed[] {
+  const out = all
+    .filter((s) => s.ply >= MIN_SEED_PLY)
+    .sort((a, b) => b.weight - a.weight || a.ply - b.ply);
+  if (SEEDS_PER_PLY <= 0) return out.slice(0, MAX_SEEDS);
+  const taken = new Map<number, number>();
+  const quota: Seed[] = [];
+  for (const s of out) {
+    const n = taken.get(s.ply) ?? 0;
+    if (n >= SEEDS_PER_PLY) continue;
+    taken.set(s.ply, n + 1);
+    quota.push(s);
+  }
+  return quota;
+}
+
+/** v2 seed model: uniform random walk over the book graph (both sides split uniformly). */
+function collectUniformSeeds(book: Map<string, BookEntry>): Seed[] {
   interface Node {
     k: KyokumenImproved;
     ply: number;
@@ -248,6 +392,7 @@ function collectSeeds(book: Map<string, BookEntry>): Seed[] {
       const entry = book.get(positionIdentityKey(node.k));
       const inBook = !!entry;
       if (!inBook && ply > 0) continue; // dead end (should not happen: children are pre-filtered)
+      plyWeightTotal.set(ply, (plyWeightTotal.get(ply) ?? 0) + node.weight);
       if (inBook) {
         const prev = seeds.get(sfen);
         if (prev) prev.weight += node.weight;
@@ -278,8 +423,7 @@ function collectSeeds(book: Map<string, BookEntry>): Seed[] {
     }
     level = next;
   }
-  const out = [...seeds.values()].sort((a, b) => b.weight - a.weight || a.ply - b.ply);
-  return out.slice(0, MAX_SEEDS);
+  return [...seeds.values()];
 }
 
 // --- Engine (identical deterministic protocol to shogi-petashock-book-fullcheck.ts) ----------
@@ -422,6 +566,8 @@ class Engine {
 
 // --- Deviation generation --------------------------------------------------------------------
 
+const T_START = Date.now();
+
 interface DeviationRow {
   usi: string; // human deviation move (at the seed)
   cp: number; // its cp at the seed (side-to-move = human)
@@ -454,6 +600,7 @@ async function runWorker(
   try {
     await engine.init();
     for (const seed of seeds) {
+      if (TIME_BUDGET_MIN > 0 && Date.now() - T_START > TIME_BUDGET_MIN * 60000) break;
       await engine.clearHash();
       engine.setMultiPv(MULTIPV);
       const pvs = await engine.search(seed.sfen, DEPTH);
@@ -536,10 +683,26 @@ async function main(): Promise<void> {
 
   const t0 = Date.now();
   const seeds = collectSeeds(book);
-  console.log(`selected ${seeds.length} seed positions (ply <= ${MAX_SEED_PLY}, reach-weighted) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  console.log(
+    `selected ${seeds.length} seed positions (ply ${MIN_SEED_PLY}..${MAX_SEED_PLY}, reach-weighted` +
+      `${SEEDS_PER_PLY > 0 ? `, ${SEEDS_PER_PLY}/ply` : ''}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`
+  );
   const plyHist = new Map<number, number>();
   for (const s of seeds) plyHist.set(s.ply, (plyHist.get(s.ply) ?? 0) + 1);
   console.log(`  seed ply histogram: ${[...plyHist.entries()].sort((a, b) => a[0] - b[0]).map(([p, n]) => `${p}:${n}`).join(' ')}`);
+  {
+    // Reach-weight share of the selected seeds per ply: P(the human's position at this ply is
+    // a seed | the walk model). In --ai-aware mode the denominator is the human-to-move weight
+    // of that ply (exactly one colour's walk contributes at each ply).
+    const seedW = new Map<number, number>();
+    for (const s of seeds) seedW.set(s.ply, (seedW.get(s.ply) ?? 0) + s.weight);
+    const share = [...plyWeightTotal.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .filter(([p]) => p >= MIN_SEED_PLY && p <= MAX_SEED_PLY)
+      .map(([p, tot]) => `${p}:${((100 * (seedW.get(p) ?? 0)) / tot).toFixed(0)}%`)
+      .join(' ');
+    console.log(`  seed weight share per ply: ${share}`);
+  }
   if (SEEDS_ONLY) {
     for (const s of seeds.slice(0, 10)) console.log(`  w=${s.weight.toFixed(4)} ply=${s.ply} ${s.sfen}`);
     return;
@@ -585,11 +748,14 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => stream.end(resolve));
 
   // --- merge -------------------------------------------------------------------------------
-  const results = seeds.map((s) => done.get(s.sfen)).filter((r): r is SeedResult => !!r);
-  if (results.length !== seeds.length) {
-    console.error(`only ${results.length}/${seeds.length} seeds done — book NOT emitted; re-run to resume`);
-    process.exit(1);
+  const selected = seeds.map((s) => done.get(s.sfen)).filter((r): r is SeedResult => !!r);
+  if (selected.length !== seeds.length) {
+    const budgetHit = TIME_BUDGET_MIN > 0 && Date.now() - T_START > TIME_BUDGET_MIN * 60000;
+    console.error(`only ${selected.length}/${seeds.length} seeds done — book NOT emitted; re-run to resume${budgetHit ? ' (time budget reached)' : ''}`);
+    process.exit(budgetHit ? 0 : 1);
   }
+  const results = MERGE_ALL ? [...done.values()] : selected;
+  if (MERGE_ALL) console.log(`--merge-all: merging ${results.length} seed results from ${RESULTS_PATH}`);
 
   const deviationByHash = new Map<string, { row: DeviationRow; seedSfen: string }>();
   let dupes = 0;

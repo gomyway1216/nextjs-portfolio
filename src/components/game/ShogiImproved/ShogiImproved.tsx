@@ -19,8 +19,21 @@ import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import type { KifuImportStep } from './KifuImportImproved';
 import { KifuImportPanel } from './KifuImportPanel';
-import type { DisambiguationFlags } from './KifuNotationImproved';
-import { computeDisambiguation,disambiguationToText } from './KifuNotationImproved';
+import { computeDisambiguation } from './KifuNotationImproved';
+import {
+  KIFU_DAN,
+  KIFU_SUJI,
+  MIN_ABANDON_MOVES,
+  buildGameRecord,
+  formatKifuText,
+  moveToKifu,
+  newGameId,
+  outcomeForWinner,
+  type RecordedMove,
+  type ShogiEndReason,
+  type ShogiEngineIdentity,
+  type ShogiOutcome,
+} from './gameRecord';
 import { KyokumenImproved } from './KyokumenImproved';
 import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
 import { buildDeclinablePromotion } from './PromotionRulesImproved';
@@ -28,6 +41,8 @@ import { getBestMoveV20WithInfo } from './ShogiAIImprovedV20';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiSearchPath,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
+import { claimGameRecord,submitShogiGameRecord } from '@/services/shogiGameRecordService';
+import { getSessionId } from '@/lib/sessionId';
 
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
 
@@ -142,33 +157,9 @@ interface GameState {
   ply: number; // 0-based ply count from game start
 }
 
-// `disambiguation` is computed once, at record time, against the position the
-// move was actually played from (computeDisambiguation needs the *pre-move*
-// legal-move list, which is only cheaply available right when the move is
-// applied — recomputing it later from `moveList` alone is not possible without
-// replaying the whole game).
-interface RecordedMove {
-  koma: number;
-  from: number;
-  to: number;
-  promote: boolean;
-  disambiguation: DisambiguationFlags;
-}
-const KIFU_SUJI = '１２３４５６７８９';
-const KIFU_DAN = '一二三四五六七八九';
-// Japanese move notation, e.g. "▲２六歩", "△同飛成", "▲５五角打", "▲５八金右".
-// `打` is always written for drops (matching real-world kifu conventions, which
-// write it unconditionally rather than only when ambiguous with a board move —
-// `m.disambiguation.drop` still tracks the JSA-strict "is it actually ambiguous"
-// fact for callers that want it, but the printed notation always includes 打).
-function moveToKifu(m: RecordedMove, prev: RecordedMove | undefined): string {
-  const side = isSente(m.koma) ? '▲' : '△';
-  const square = prev && prev.to === m.to ? '同' : `${KIFU_SUJI[(m.to >> 4) - 1]}${KIFU_DAN[(m.to & 15) - 1]}`;
-  const disambigText = disambiguationToText(m.disambiguation);
-  const dropText = m.from === 0 ? '打' : '';
-  const promoteText = m.promote ? '成' : m.disambiguation.noPromote ? '不成' : '';
-  return `${side}${square}${toString(m.koma)}${disambigText}${promoteText}${dropText}`;
-}
+// `RecordedMove`, `moveToKifu` and the suji/dan tables now live in
+// ./gameRecord so the on-screen kifu, the copy button and the saved game
+// record are all produced by one formatter (see that file's header).
 
 // --- Board coordinate labels (座標) ---
 // Standard shogi notation orientation: suji (筋, files) 1-9 run right-to-left
@@ -442,8 +433,102 @@ const ShogiImproved = () => {
     return displayKyokumen.toHandArrays();
   }, [displayKyokumen]);
 
+  // --- 対局記録 (anonymous game records) ---------------------------------
+  //
+  // The kifu of every game played here is saved so the engine's real-world
+  // play can be studied — above all, where it runs out of opening book. See
+  // ./gameRecord for the payload and src/services/shogiGameRecordService for
+  // the transport. Nothing about the player is stored; the notice under the
+  // board says so.
+
+  /** Identity and eligibility of the game currently on the board. */
+  const gameRecordRef = useRef<{ gameId: string; startedAt: Date; recordable: boolean }>({
+    gameId: '',
+    startedAt: new Date(0),
+    recordable: false,
+  });
+
+  /**
+   * Which engine build played, by content hash — left empty here on purpose.
+   *
+   * The worker can report it, but the client method that asks is the parity
+   * gate's evidence channel, and shogiAiWorkerClient.test.ts asserts that this
+   * file never calls it: evidence for that gate has to be asked for explicitly
+   * by the parity harness, not collected as a side effect of someone playing a
+   * game. `app_build_sha` still pins the record to a commit, which fixes both
+   * the code and the versioned weights asset it shipped with; the field stays
+   * in the schema so a deliberate decision to wire the hashes through later
+   * does not need a schema bump.
+   */
+  const engineIdentityRef = useRef<ShogiEngineIdentity | null>(null);
+
+  /**
+   * The parts of the live game a record needs, mirrored into a ref.
+   *
+   * The abandonment paths (pagehide, tab hidden, unmount) fire from listeners
+   * that were registered once and cannot see later renders' state. Re-binding
+   * them on every move instead would mean adding and removing three listeners
+   * per ply.
+   */
+  const recordContextRef = useRef<{
+    moveList: RecordedMove[];
+    difficulty: Difficulty;
+    handicap: Handicap;
+    engineFailed: boolean;
+  } | null>(null);
+
+  /**
+   * Start recording a new game from the initial position.
+   *
+   * Only games that begin from the standard start (or a handicap start) are
+   * eligible: a resumed save or an imported kifu has moves the board never
+   * saw, so its `moveList` would not replay from the beginning and the record
+   * would be a lie. Those callers mark the game unrecordable instead.
+   */
+  const beginGameRecord = useCallback((recordable: boolean) => {
+    gameRecordRef.current = { gameId: newGameId(), startedAt: new Date(), recordable };
+  }, []);
+
+  const submitGameRecord = useCallback(
+    (outcome: ShogiOutcome, endReason: ShogiEndReason, unloading: boolean) => {
+      const meta = gameRecordRef.current;
+      const context = recordContextRef.current;
+      if (!meta.recordable || !context) return;
+
+      // A handful of moves is someone trying the board out, not a game.
+      // Finished games are always worth keeping, however short.
+      if (outcome === 'abandoned' && context.moveList.length < MIN_ABANDON_MOVES) return;
+
+      if (!claimGameRecord(meta.gameId, outcome === 'abandoned' ? 'abandoned' : 'final')) return;
+
+      const payload = buildGameRecord({
+        gameId: meta.gameId,
+        sessionId: getSessionId(),
+        moves: context.moveList,
+        difficulty: context.difficulty,
+        handicap: context.handicap,
+        outcome,
+        // A game the engine could not move in is the most interesting kind of
+        // abandonment there is, so it keeps its own reason.
+        endReason: outcome === 'abandoned' && context.engineFailed ? 'engine_error' : endReason,
+        engine: engineIdentityRef.current,
+        startedAt: meta.startedAt,
+        endedAt: new Date(),
+      });
+      if (!payload) return;
+
+      void submitShogiGameRecord(payload, { unloading });
+    },
+    [],
+  );
+
   // Initialize game
 	  const initGame = useCallback((selectedHandicap: Handicap) => {
+    // Starting a new game over the top of an unfinished one is the player
+    // walking away from it — save what was played before the board is wiped.
+    submitGameRecord('abandoned', 'new_game', false);
+    beginGameRecord(true);
+
     // Invalidate any in-flight worker request.
     aiRequestIdRef.current++;
     setEngineFailed(false);
@@ -465,7 +550,7 @@ const ShogiImproved = () => {
     setShowPromotionDialog(false);
     setPendingMove(null);
     setReplay(null);
-  }, []);
+  }, [submitGameRecord, beginGameRecord]);
 
   // Check for game over
   const checkGameOver = (k: KyokumenImproved): { isOver: boolean; winner: number | null } => {
@@ -482,9 +567,12 @@ const ShogiImproved = () => {
   // `beforeKyokumen` MUST be the position te is about to be played from (not yet
   // mutated) — disambiguation (右/左/上/引/寄/直/打/不成) is computed against its
   // legal-move list.
-  const recordMove = useCallback((te: Te, beforeKyokumen: KyokumenImproved) => {
+  // `searchPath` is the engine route for an AI move ('book', 'wasm', 'mate',
+  // …) and is omitted for the player's own moves. It is stored on the move so
+  // the saved game record can say where the AI left the opening book.
+  const recordMove = useCallback((te: Te, beforeKyokumen: KyokumenImproved, searchPath?: string) => {
     const disambiguation = computeDisambiguation(beforeKyokumen, te);
-    setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote, disambiguation }]);
+    setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote, disambiguation, searchPath: searchPath ?? null }]);
     playMoveSound();
   }, [playMoveSound]);
 
@@ -501,7 +589,7 @@ const ShogiImproved = () => {
   }, [gameState.isAIThinking]);
 
   const handleCopyKifu = useCallback(() => {
-    const text = moveList.map((m, i) => `${i + 1}. ${moveToKifu(m, moveList[i - 1])}`).join('\n');
+    const text = formatKifuText(moveList);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => setKifuCopied(true)).catch(() => {});
     }
@@ -520,6 +608,11 @@ const ShogiImproved = () => {
   // in-flight AI search is invalidated since the current game is being replaced.
   const handleKifuImported = useCallback((steps: KifuImportStep[]) => {
     if (steps.length === 0) return;
+    // The imported moves were never played on this board, so this game can no
+    // longer produce an honest record. Whatever was played before the import
+    // is saved first, then recording stops until a new game is started.
+    submitGameRecord('abandoned', 'new_game', false);
+    gameRecordRef.current = { ...gameRecordRef.current, recordable: false };
     aiRequestIdRef.current++;
     setEngineFailed(false);
     workerRef.current?.clearTT();
@@ -551,7 +644,7 @@ const ShogiImproved = () => {
       isAIThinking: false,
     }));
     setReplay({ positions, viewPly: positions.length - 1 });
-  }, [gameState.kyokumen]);
+  }, [gameState.kyokumen, submitGameRecord]);
 
   const replayStep = useCallback((delta: number) => {
     setReplay((r) => {
@@ -784,7 +877,7 @@ const ShogiImproved = () => {
 	        // keyed on hirate positions and skipped in handicap games.
 	        if (bookMove) {
 	          const newKyokumen = gameState.kyokumen.clone();
-	          recordMove(bookMove, gameState.kyokumen); newKyokumen.move(bookMove);
+	          recordMove(bookMove, gameState.kyokumen, 'book'); newKyokumen.move(bookMove);
 	          newKyokumen.setTeban(SENTE);
 
 	          const { isOver, winner } = checkGameOver(newKyokumen);
@@ -848,7 +941,7 @@ const ShogiImproved = () => {
             newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
-            recordMove(aiMove, gameState.kyokumen);
+            recordMove(aiMove, gameState.kyokumen, 'main-thread-js');
 
             setGameState(prev => ({
               ...prev,
@@ -907,7 +1000,7 @@ const ShogiImproved = () => {
 	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
-            recordMove(aiMove, gameState.kyokumen);
+            recordMove(aiMove, gameState.kyokumen, info.searchPath);
 
 	            setGameState(prev => ({
 	              ...prev,
@@ -1038,6 +1131,10 @@ const ShogiImproved = () => {
 
   const resumeSavedGame = useCallback(() => {
     if (!savedGame) return;
+    // A resumed save restores the position but not the moves that produced
+    // it, so its kifu would not replay from the start. Recording stays off
+    // for the rest of this game rather than storing a partial one.
+    beginGameRecord(false);
     aiRequestIdRef.current++;
     setEngineFailed(false);
     workerRef.current?.clearTT();
@@ -1061,7 +1158,7 @@ const ShogiImproved = () => {
     setPendingMove(null);
     setReplay(null);
     setShowDifficultySelect(false);
-  }, [savedGame]);
+  }, [savedGame, beginGameRecord]);
 
   // Saving is only offered on the player's turn so a restore never lands
   // mid-AI-move; the saved teban is therefore always SENTE.
@@ -1116,6 +1213,49 @@ const ShogiImproved = () => {
       gameSaveApi.deleteGameSave(GAME_SAVE_KEY).catch(() => {});
     }
   }, [showDifficultySelect, gameState.ply, currentUser, savedGame]);
+
+  // --- 対局記録: keeping the snapshot fresh and choosing when to send ------
+
+  // Runs after every render so the unload-time listeners below always see the
+  // move list as it stands. Declared before the effects that read it, because
+  // effects fire in declaration order within a commit.
+  useEffect(() => {
+    recordContextRef.current = { moveList, difficulty, handicap, engineFailed };
+  });
+
+  // The game ended: save it. `winner === null` on a finished game means
+  // neither side was mated, which the board only reaches as a draw.
+  useEffect(() => {
+    if (!gameState.gameOver) return;
+    const outcome = outcomeForWinner(gameState.winner, SENTE, GOTE);
+    submitGameRecord(outcome, outcome === 'draw' ? 'draw' : 'checkmate', false);
+  }, [gameState.gameOver, gameState.winner, submitGameRecord]);
+
+  // The player left mid-game. Three exits, one meaning:
+  //   pagehide          — closing the tab or a full navigation. The only
+  //                       moment a browser reliably gives us before unload,
+  //                       and the reason the beacon transport exists.
+  //   visibilitychange  — backgrounding the tab. On mobile this is often the
+  //                       last event before the page is discarded outright.
+  //   unmount           — client-side navigation away from /games/shogi,
+  //                       which fires no page event at all.
+  // A game recorded here and then finished later is re-sent with its result
+  // and overwrites the partial record; see claimGameRecord.
+  useEffect(() => {
+    const saveOnLeave = () => submitGameRecord('abandoned', 'left_page', true);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') saveOnLeave();
+    };
+
+    window.addEventListener('pagehide', saveOnLeave);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', saveOnLeave);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      // Unmount still has a live page, so this one can use a normal request.
+      submitGameRecord('abandoned', 'unmount', false);
+    };
+  }, [submitGameRecord]);
 
   // The most recently applied move (any side / any path), for the last-move
   // highlight. Derived from the kifu so undo / reset stay in sync for free.
@@ -1813,6 +1953,24 @@ const ShogiImproved = () => {
       <div style={{ maxWidth: '1200px', margin: '18px auto 0', display: 'flex', justifyContent: 'center' }}>
         <KifuImportPanel startingPosition={gameState.kyokumen} onImported={handleKifuImported} />
       </div>
+
+      {/*
+        Standing notice that games are recorded. Deliberately quiet — it is
+        always visible while playing rather than being a dismissable banner,
+        because a notice you can make go away is one most players never read.
+      */}
+      <p
+        style={{
+          maxWidth: 'min(680px, 92%)',
+          margin: '14px auto 0',
+          textAlign: 'center',
+          fontSize: '12px',
+          lineHeight: 1.6,
+          color: 'rgba(255,255,255,0.45)',
+        }}
+      >
+        {copy.recordNotice}
+      </p>
 
       {/* Game Over / terminal engine failure */}
       {(gameState.gameOver || engineFailed) && (

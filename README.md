@@ -37,6 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Project Notes
 
+- Public growth timeline: `/growth` reads the memory service's approved public projection through a server-only request. Configure `PUBLIC_MEMORY_API_URL` in the deployment environment (never use a `NEXT_PUBLIC_` prefix). The endpoint returns `{"items":[{"id":"...","title":"...","summary":"...","category":"...","occurredAt":"2026-01-01T00:00:00Z","tags":["..."]}]}`; unknown fields are discarded before rendering and responses are revalidated hourly.
 - Shogi AI implementation details: `SHOGI_AI_IMPROVEMENTS.md`
 - Shogi evaluation recovery log: [日本語](docs/blog-shogi-eval-recovery.md) / [English](docs/blog-shogi-eval-recovery.en.md)
 - WCSC36 sibling-teacher forensic and retraining log: [日本語](docs/blog-shogi-wcsc36-sibling-training.md) / [English](docs/blog-shogi-wcsc36-sibling-training.en.md)

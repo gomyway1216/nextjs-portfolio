@@ -129,6 +129,17 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te, evalBeforeMove: n
 function openingThresholdByDifficulty(difficulty: Difficulty): number {
   // Max acceptable drop vs the best 1-ply static-eval move from the same position.
   // Lower levels allow more variety; higher levels are stricter.
+  //
+  // NOTE on 'master' (2026-08, book v3): this gate is a guard against corrupt/colliding book
+  // data, not a second opinion on joseki. At 90cp it was rejecting a stored move in 9.4% of
+  // in-book positions (hard/expert 6.4%, medium 0.1%) — i.e. the strictest level threw away
+  // the most depth-18-verified book moves and fell back to a raw NNUE search, which is exactly
+  // the weakness the book exists to cover. Widening it to 150cp drops that to 0.1% (260cp adds
+  // nothing beyond 150) and measured strictly better in 64 paired games (master, 1000ms, book
+  // v3, human system-line openings): free piece-loss events 0.53 -> 0.25 per game
+  // (95% CI [-0.47, -0.08], sign p=0.024), major losses 0.39 -> 0.14 (p=0.012), first
+  // out-of-book ply 7.31 -> 8.63, material@ply40 unchanged (p=0.90). 150cp is still stricter
+  // than 'medium' (180) and the depth-18 gap bound on stored moves (<=90cp) is unchanged.
   switch (difficulty) {
     case 'easy':
       return 260;
@@ -139,7 +150,7 @@ function openingThresholdByDifficulty(difficulty: Difficulty): number {
     case 'expert':
       return 110;
     case 'master':
-      return 90;
+      return 150;
   }
 }
 

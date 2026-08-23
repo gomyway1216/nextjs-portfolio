@@ -143,6 +143,39 @@
       }
     }
   },
+  "growthPage": {
+    "kicker": "Growth archive",
+    "title": "A public record of becoming",
+    "subtitle": "Selected milestones, lessons, and recurring themes—curated from a larger private memory system and shared here as a living timeline.",
+    "publicNote": "This page contains only entries intentionally approved for public viewing. Private memories are never queried by the browser.",
+    "stats": {
+      "label": "Growth timeline summary",
+      "moments_one": "{{count}} moment",
+      "moments_other": "{{count}} moments",
+      "themes_one": "{{count}} theme",
+      "themes_other": "{{count}} themes",
+      "since": "Since {{year}}"
+    },
+    "themes": {
+      "kicker": "Patterns",
+      "title": "Where the work compounds",
+      "text": "A view of the themes that keep returning across projects, learning, and life."
+    },
+    "timeline": {
+      "kicker": "Timeline",
+      "title": "Moments worth keeping",
+      "text": "Most recent first. Each entry is a deliberately public snapshot, not a window into the underlying private archive.",
+      "tags": "Entry tags"
+    },
+    "empty": {
+      "title": "The public timeline is taking shape",
+      "text": "There are no approved public entries yet. New moments will appear here after they are reviewed for sharing."
+    },
+    "error": {
+      "title": "The timeline is temporarily unavailable",
+      "text": "The public archive could not be loaded right now. Please check back a little later."
+    }
+  },
   "blogPage": {
     "index": {
       "kicker": "Blog",
@@ -1133,6 +1166,7 @@
       "education": "Education",
       "community": "Community",
       "hobbies": "Hobbies",
+      "growth": "Growth",
       "study": "Study",
       "studyLab": "Study Lab",
       "main": "Main",

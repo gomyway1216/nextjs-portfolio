@@ -11,17 +11,12 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PageIntro from '@/components/common/PageIntro';
+import { summarizeGrowthItems } from '@/lib/publicMemory/presentation';
 import type { PublicMemoryResult } from '@/lib/publicMemory/schema';
 import styles from './growth-page.module.css';
 
 interface GrowthPageProps {
   result: PublicMemoryResult;
-}
-
-interface CategorySummary {
-  name: string;
-  count: number;
-  percentage: number;
 }
 
 const CATEGORY_ACCENTS = ['#d97706', '#0f766e', '#7c3aed', '#2563eb', '#be123c', '#15803d'];
@@ -38,33 +33,18 @@ export default function GrowthPage({ result }: GrowthPageProps) {
   const language = i18n.language?.startsWith('ja') ? 'ja-JP' : 'en-US';
 
   const summary = useMemo(() => {
-    if (result.status !== 'ready') {
-      return { categories: [] as CategorySummary[], firstYear: null as number | null };
-    }
-
-    const counts = new Map<string, number>();
-    for (const item of result.items) {
-      counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
-    }
-
-    const largestCount = Math.max(1, ...counts.values());
-    const categories = Array.from(counts, ([name, count]) => ({
-      name,
-      count,
-      percentage: Math.max(8, Math.round((count / largestCount) * 100)),
-    })).sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
-
-    const firstYear = Math.min(...result.items.map((item) => new Date(item.occurredAt).getFullYear()));
-    return { categories, firstYear };
+    return summarizeGrowthItems(result.status === 'ready' ? result.items : []);
   }, [result]);
 
-  const formatDate = (value: string) =>
-    new Intl.DateTimeFormat(language, {
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(language, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       timeZone: 'UTC',
-    }).format(new Date(value));
+    }),
+    [language],
+  );
 
   const meta = result.status === 'ready' ? (
     <div className={styles.stats} aria-label={t('growthPage.stats.label')}>
@@ -151,7 +131,7 @@ export default function GrowthPage({ result }: GrowthPageProps) {
                     />
                     <article className={styles.card}>
                       <div className={styles.cardMeta}>
-                        <time dateTime={item.occurredAt}>{formatDate(item.occurredAt)}</time>
+                        <time dateTime={item.occurredAt}>{dateFormatter.format(new Date(item.occurredAt))}</time>
                         <span>{item.category}</span>
                       </div>
                       <h3>{item.title}</h3>

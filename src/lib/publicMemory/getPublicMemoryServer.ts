@@ -40,9 +40,17 @@ export async function getPublicMemoryServer(): Promise<PublicMemoryResult> {
       return { status: 'unavailable', items: [] };
     }
 
-    const contentLength = Number(response.headers.get('content-length') ?? 0);
-    if (contentLength > MAX_RESPONSE_BYTES) {
-      console.error('[public-memory] Public projection exceeded the response limit');
+    const contentLengthHeader = response.headers.get('content-length');
+    const contentLength = Number(contentLengthHeader);
+    const hasInvalidContentLength = contentLengthHeader !== null && (
+      contentLengthHeader.trim() === '' ||
+      !Number.isFinite(contentLength) ||
+      !Number.isInteger(contentLength) ||
+      contentLength < 0 ||
+      contentLength > MAX_RESPONSE_BYTES
+    );
+    if (hasInvalidContentLength) {
+      console.error('[public-memory] Public projection had an invalid or excessive response length');
       return { status: 'unavailable', items: [] };
     }
 

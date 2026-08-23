@@ -79,4 +79,31 @@ describe('getPublicMemoryServer', () => {
     await expect(getPublicMemoryServer()).resolves.toEqual({ status: 'unavailable', items: [] });
     expect(errorSpy).toHaveBeenCalledTimes(3);
   });
+
+  it.each(['not-a-number', 'Infinity', '-1'])(
+    'rejects an invalid Content-Length of %s before reading the body',
+    async (contentLength) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const response = new Response('{"items":[]}', {
+        headers: { 'content-length': contentLength },
+      });
+      const textSpy = vi.spyOn(response, 'text');
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+      const { getPublicMemoryServer } = await import('@/lib/publicMemory/getPublicMemoryServer');
+
+      await expect(getPublicMemoryServer()).resolves.toEqual({ status: 'unavailable', items: [] });
+      expect(textSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('allows a response without Content-Length', async () => {
+    const response = new Response('{"items":[]}');
+    expect(response.headers.has('content-length')).toBe(false);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    const { getPublicMemoryServer } = await import('@/lib/publicMemory/getPublicMemoryServer');
+
+    await expect(getPublicMemoryServer()).resolves.toEqual({ status: 'empty', items: [] });
+  });
 });

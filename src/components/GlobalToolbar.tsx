@@ -21,6 +21,7 @@ import {
   Menu,
   NotebookPen,
   Settings,
+  TrendingUp,
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -59,6 +60,14 @@ const TOOLBAR_THEME_BASE: Pick<ThemeConfig, 'bg' | 'border' | 'avatarBg'> = {
 };
 
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
+  {
+    prefix: '/growth',
+    theme: {
+      ...TOOLBAR_THEME_BASE,
+      accent: '#d97706',
+      avatarText: '#b45309',
+    },
+  },
   {
     prefix: '/projects',
     theme: {
@@ -162,6 +171,7 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 ];
 
 const MORE_NAV_ITEMS: PrimaryNavItem[] = [
+  { href: '/growth', labelKey: 'home.nav.growth', Icon: TrendingUp, activePrefixes: ['/growth'] },
   { href: '/study', labelKey: 'home.nav.study', Icon: BookOpenText, activePrefixes: ['/study'] },
   { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
 ];

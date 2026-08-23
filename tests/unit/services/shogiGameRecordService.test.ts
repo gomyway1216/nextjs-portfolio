@@ -118,4 +118,18 @@ describe('submitShogiGameRecord', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     await expect(submitShogiGameRecord(payload())).resolves.toBe(false);
   });
+
+  it('falls back to a keepalive fetch when sendBeacon refuses to queue', async () => {
+    const beacon = vi.fn().mockReturnValue(false);
+    vi.stubGlobal('navigator', { sendBeacon: beacon });
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const sent = await submitShogiGameRecord(payload(), { unloading: true });
+
+    expect(beacon).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].keepalive).toBe(true);
+    expect(sent).toBe(true);
+  });
 });

@@ -105,7 +105,14 @@ export async function submitShogiGameRecord(
 
   try {
     if (options.unloading && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      return navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'application/json' }));
+      // sendBeacon is the only transport guaranteed to survive the unload, so
+      // prefer it — but it returns false when the user agent refuses to queue
+      // the request (payload over the beacon quota, or a queue already full).
+      // In that case a keepalive fetch is still worth trying: it often
+      // survives a same-tab navigation even though it is not guaranteed to.
+      if (navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'application/json' }))) {
+        return true;
+      }
     }
 
     await fetch(ENDPOINT, {

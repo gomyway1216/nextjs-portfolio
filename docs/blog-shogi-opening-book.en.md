@@ -260,7 +260,7 @@ Widening the gate to 150cp drops that to **0.1%** (260cp is no different from 15
 
 > Added lesson: **before adding coverage, measure whether the coverage you already have is being used at runtime.** Those 9.4% were cheaper to fix than any of the 75,650 entries added on top.
 
-### 9.5 The sequel: applying the same logic to expert/hard, and finding **the instrument was the broken part**
+### 9.5 The sequel: the same logic at expert/hard, where **the measuring instrument turned out to be the broken part**
 
 If it worked for master, surely hard (140cp) and expert (110cp) — the levels discarding 6.4% — deserve the same? Re-measured on book v3, the 6.4% reproduced exactly, and better still, **hard and expert were rejecting the identical 255 positions**. The 110-vs-140 spread was selecting nothing; it was decoration. Sweeping the threshold puts the rejection knee **between 144 and 146cp**, making 150cp the smallest value that clears it (180 and 260 give the same result).
 

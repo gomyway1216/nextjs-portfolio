@@ -22,7 +22,7 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  *
  * Notes:
  * - The curated `OPENING_LINES` below are compiled in (regression-tested, always available).
- * - Additionally, a large-scale external book (a ~50k-position subset of やねうら王の
+ * - Additionally, a large-scale external book (a 170k+-position subset of やねうら王の
  *   新ペタショック定跡, MIT License) can be fetched at runtime from
  *   `public/shogi-opening-book-v3.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
  *   always wins for positions it covers; the external book only extends coverage. If the fetch
@@ -128,7 +128,9 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te, evalBeforeMove: n
 
 function openingThresholdByDifficulty(difficulty: Difficulty): number {
   // Max acceptable drop vs the best 1-ply static-eval move from the same position.
-  // Lower levels allow more variety; higher levels are stricter.
+  // Lower levels allow more variety. This was monotonic (stricter as the level rises) until
+  // book v3 widened 'master' to 150cp — see the note below for why the strictest level now
+  // has a wider gate than hard/expert rather than a narrower one.
   //
   // NOTE on 'master' (2026-08, book v3): this gate is a guard against corrupt/colliding book
   // data, not a second opinion on joseki. At 90cp it was rejecting a stored move in 9.4% of

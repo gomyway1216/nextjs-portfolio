@@ -9,7 +9,8 @@
  * Mode 1 (always): scripted human SYSTEM LINES. Each line is the move order a club player
  * uses to build a well-known setup (四間飛車, 矢倉, 棒銀, 居飛車穴熊, ...). The human plays the
  * next listed move that is legal (skipping ones blocked/already played), the AI answers with
- * its deterministic 'master' book move; the walk ends at the first AI turn with no book move.
+ * its deterministic book move for each difficulty under test (configurable via --difficulties
+ * / DIFFICULTIES, default: all five); the walk ends at the first AI turn with no book move.
  * Every line is probed with the human as sente AND as gote (mirrored coordinates). Reported
  * per line: the ply of the first AI out-of-book turn, and the number of AI book replies.
  *

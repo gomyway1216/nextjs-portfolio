@@ -38,6 +38,8 @@ export interface ShogiImprovedCopy {
   basicRules: string[];
   controlsLabel: string;
   controls: string[];
+  /** Standing notice that finished/abandoned games are stored anonymously. */
+  recordNotice: string;
   difficulties: Record<Difficulty, { label: string; description: string }>;
 }
 
@@ -82,6 +84,8 @@ const en: ShogiImprovedCopy = {
     'Click captured pieces to drop them',
     'Choose to promote when entering promotion zone'
   ],
+  recordNotice:
+    'Games played here are saved anonymously — the moves, the level and the result — to study how the engine plays. No personal information is stored.',
   difficulties: {
     easy: { label: 'Level 1 (Easy)', description: 'Fast (~250ms)' },
     medium: { label: 'Level 2 (Medium)', description: 'Balanced (~1s)' },
@@ -132,6 +136,8 @@ const ja: ShogiImprovedCopy = {
     '持ち駒をクリックして打つ',
     '成れるときは成るかどうかを選択'
   ],
+  recordNotice:
+    'エンジンの改善のため、対局の棋譜（指し手・レベル・結果）を匿名で保存しています。個人を特定する情報は保存しません。',
   difficulties: {
     easy: { label: 'レベル1（入門）', description: '高速（約250ms）' },
     medium: { label: 'レベル2（中級）', description: 'バランス（約1秒）' },

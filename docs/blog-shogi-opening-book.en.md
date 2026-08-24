@@ -260,6 +260,42 @@ Widening the gate to 150cp drops that to **0.1%** (260cp is no different from 15
 
 > Added lesson: **before adding coverage, measure whether the coverage you already have is being used at runtime.** Those 9.4% were cheaper to fix than any of the 75,650 entries added on top.
 
+### 9.5 The sequel: applying the same logic to expert/hard, and finding **the instrument was the broken part**
+
+If it worked for master, surely hard (140cp) and expert (110cp) — the levels discarding 6.4% — deserve the same? Re-measured on book v3, the 6.4% reproduced exactly, and better still, **hard and expert were rejecting the identical 255 positions**. The 110-vs-140 spread was selecting nothing; it was decoration. Sweeping the threshold puts the rejection knee **between 144 and 146cp**, making 150cp the smallest value that clears it (180 and 260 give the same result).
+
+Then the same 64-pair match protocol that worked for master came back **completely flat on every metric**. First out-of-book ply and book moves per game were tied in all 64 pairs. Suspicious, I replayed the recorded games and re-asked both thresholds for a move at every position:
+
+| | AI turns where the book was consulted | times 110cp and 150cp disagreed |
+|---|---|---|
+| expert | 1,514 | **0** |
+| hard | 1,523 | **0** |
+| (control) master 150cp vs 90cp | 1,523 | 42 (2.76%, plies 5–9) |
+
+**The rejected branches sit where the 16 standard system lines never go.** Master's 9.4% landed at plies 5–9, in the middle of the main variations, which is why it mattered. Expert/hard's 6.4% does not. Counting the book graph breadth-first weights every stored branch equally; recounting along random walks that keep following the book drops the affected rate to 1.1% (ply 4: 7.0%, ply 5: 6.3%, ply 6: 10.6%). **Reachable, but not on the standard systems.**
+
+#### Accidental find #2: an A/A comparison that returned p=0.033
+
+Those all-tied 64 pairs were effectively an **A/A comparison** — zero treatment. Which means they measure the noise floor of the metric suite for free. They returned **p=0.053 for expert and p=0.033 for hard** on material at ply 30, and in both cases the favoured side was **whichever config played second within the pair**. The paired design runs the two games back to back so they share machine load, but **the ordering itself carries a bias**.
+
+So the real measurement was counterbalanced with an **order-swapped replicate**. As predicted, the ply-30 material sign flipped when the order flipped (expert Δ+0.32 → Δ−0.67). **Without that control I would have read an order effect as a book improvement.**
+
+#### The real run: start from positions where the gate actually fires
+
+I harvested the 173 positions where the rejection happens and built games starting from them (colour balanced 48/48, **192 pairs per difficulty** including the order swap). Here the treatment bites in every pair — first out-of-book ply 5.7 → 10.0, in all 192.
+
+| Metric | expert 110→150 | hard 140→150 |
+|---|---|---|
+| Free piece-loss events/game | 0.18 → 0.13 (p=0.20) | 0.16 → 0.18 (p=0.35) |
+| Major losses/game | 0.11 → 0.08 (p=0.31) | 0.12 → 0.11 (p=1.00) |
+| Material at ply 40 | −0.26 → 0.26 (p=0.13) | −0.16 → −0.42 (p=0.87) |
+
+**Master's improvement did not reproduce.** Expert leans slightly favourable, hard is a near-perfect wash, and neither is significant.
+
+I adopted 150cp anyway — on coherence, not strength: (1) 110 and 140 reject the same set, so the distinction does no work; (2) 150 is the smallest value clearing the knee; (3) measured on 192 pairs restricted to the positions where it fires, **nothing gets worse**; (4) it restores monotonicity — easy 260 > medium 180 > hard = expert = master = 150. The depth-18 bound on stored moves (gap ≤ 90cp) is unchanged, so the book's permitted contents don't widen.
+
+> Added lesson: **before generalising a win, check that its mechanism even fires in the new place.** And **run one zero-treatment comparison** — without knowing your noise floor, a p=0.03 will convince you an order effect is a discovery.
+
 ## 10. Lab notebook: what didn't work
 
 Writing only about the wins isn't fair. Real development is mostly **experiments that don't work**. After Cycle 4, I ran two more experiments in parallel to push the strength further. One was a complete dead end; the other is looking shaky too. Records of failure are the useful ones, so here they are, honestly.
@@ -564,3 +600,4 @@ The change that crossed both the 56-game screen and the independent 96-game conf
 - **Safety infrastructure is not playing strength.** Strong games and a working teacher are assets, but more ownership, key, tamper boundaries, and non-required review responses do not strengthen the evaluator. Keep the minimum safety gate and put direct A/B first (Ch. 11).
 - **Better WDL approximation is not playing strength either.** Even audited-correct outcomes did not make the mixed-target candidates beat production. Promote on direct play with fresh seeds, not on lower loss (Ch. 11).
 - **Before adding coverage, measure whether the coverage you have is used at runtime.** 9.4% of the book was being discarded by master's 90cp safety valve; widening it to 150cp halved free piece-loss events (0.53 → 0.25 per game, p=0.024) — cheaper than the 75,650 entries added on top (§9)
+- **Run one zero-treatment comparison so you know your metrics' noise floor.** The expert/hard A/B (secretly an A/A comparison — both configs played identical moves) returned p=0.033 on material at ply 30. The cause was a within-pair play-order bias, and the sign flipped in an order-swapped replicate. Without a noise floor, any p<0.05 looks like a discovery (§9.5)

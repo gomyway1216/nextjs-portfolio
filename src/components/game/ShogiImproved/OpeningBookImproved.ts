@@ -128,29 +128,42 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te, evalBeforeMove: n
 
 function openingThresholdByDifficulty(difficulty: Difficulty): number {
   // Max acceptable drop vs the best 1-ply static-eval move from the same position.
-  // Lower levels allow more variety. This was monotonic (stricter as the level rises) until
-  // book v3 widened 'master' to 150cp — see the note below for why the strictest level now
-  // has a wider gate than hard/expert rather than a narrower one.
+  // Lower levels allow more variety; the three strong levels share one floor (see below).
+  // Ordering is monotone non-increasing: easy 260 > medium 180 > hard = expert = master = 150.
   //
-  // NOTE on 'master' (2026-08, book v3): this gate is a guard against corrupt/colliding book
-  // data, not a second opinion on joseki. At 90cp it was rejecting a stored move in 9.4% of
-  // in-book positions (hard/expert 6.4%, medium 0.1%) — i.e. the strictest level threw away
-  // the most depth-18-verified book moves and fell back to a raw NNUE search, which is exactly
-  // the weakness the book exists to cover. Widening it to 150cp drops that to 0.1% (260cp adds
-  // nothing beyond 150) and measured strictly better in 64 paired games (master, 1000ms, book
-  // v3, human system-line openings): free piece-loss events 0.53 -> 0.25 per game
-  // (95% CI [-0.47, -0.08], sign p=0.024), major losses 0.39 -> 0.14 (p=0.012), first
-  // out-of-book ply 7.31 -> 8.63, material@ply40 unchanged (p=0.90). 150cp is still stricter
-  // than 'medium' (180) and the depth-18 gap bound on stored moves (<=90cp) is unchanged.
+  // NOTE on the 150cp floor (2026-08, book v3). This gate guards against corrupt/colliding book
+  // data; it is not a second opinion on joseki. Every stored move is already depth-18 verified
+  // to within 90cp of best, so a 1-ply static eval that disagrees by more than that is far more
+  // likely to be wrong than the book is — and when it fires, the AI falls back to a raw NNUE
+  // search, which is exactly the weakness the book exists to cover.
+  //
+  // 'master' moved 90 -> 150 first: at 90cp it rejected a stored move in 9.4% of in-book
+  // positions, and 150cp measured strictly better over 64 paired games (1000ms, human
+  // system-line openings) — free piece-loss events 0.53 -> 0.25 per game (95% CI [-0.47, -0.08],
+  // sign p=0.024), major losses 0.39 -> 0.14 (p=0.012), material@ply40 unchanged (p=0.90).
+  //
+  // 'hard' (140) and 'expert' (110) followed for a weaker reason: consistency, not a measured
+  // strength gain. On book v3 both rejected the SAME 6.4% of in-book positions — the 110-vs-140
+  // spread selected nothing, the two rejection sets were identical — and the rejection knee sits
+  // between 144 and 146cp, so 150 is the smallest value clearing it (180/260 add nothing).
+  // Those branches are absent from ordinary system lines: across ~1500 AI book consultations per
+  // level in 64 games, 110/140 and 150 never once disagreed. The effect was therefore measured
+  // on 192 play-order-counterbalanced paired games per level started FROM the positions where
+  // the gate fires. Neither level was harmed and neither clearly gained: free piece-loss events
+  // expert 0.18 -> 0.13 per game (p=0.20), hard 0.16 -> 0.18 (p=0.35); major losses and
+  // material@ply40 not significant at either; first out-of-book ply 5.7 -> 10.0.
+  //
+  // The depth-18 gap bound on stored moves (<=90cp) is unchanged, so widening the runtime gate
+  // does not widen what the book is allowed to contain.
   switch (difficulty) {
     case 'easy':
       return 260;
     case 'medium':
       return 180;
     case 'hard':
-      return 140;
+      return 150;
     case 'expert':
-      return 110;
+      return 150;
     case 'master':
       return 150;
   }

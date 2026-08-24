@@ -22,9 +22,9 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  *
  * Notes:
  * - The curated `OPENING_LINES` below are compiled in (regression-tested, always available).
- * - Additionally, a large-scale external book (a ~50k-position subset of やねうら王の
+ * - Additionally, a large-scale external book (a 170k+-position subset of やねうら王の
  *   新ペタショック定跡, MIT License) can be fetched at runtime from
- *   `public/shogi-opening-book-v2.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
+ *   `public/shogi-opening-book-v3.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
  *   always wins for positions it covers; the external book only extends coverage. If the fetch
  *   fails (offline, node tests), everything behaves exactly as before.
  */
@@ -128,7 +128,20 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te, evalBeforeMove: n
 
 function openingThresholdByDifficulty(difficulty: Difficulty): number {
   // Max acceptable drop vs the best 1-ply static-eval move from the same position.
-  // Lower levels allow more variety; higher levels are stricter.
+  // Lower levels allow more variety. This was monotonic (stricter as the level rises) until
+  // book v3 widened 'master' to 150cp — see the note below for why the strictest level now
+  // has a wider gate than hard/expert rather than a narrower one.
+  //
+  // NOTE on 'master' (2026-08, book v3): this gate is a guard against corrupt/colliding book
+  // data, not a second opinion on joseki. At 90cp it was rejecting a stored move in 9.4% of
+  // in-book positions (hard/expert 6.4%, medium 0.1%) — i.e. the strictest level threw away
+  // the most depth-18-verified book moves and fell back to a raw NNUE search, which is exactly
+  // the weakness the book exists to cover. Widening it to 150cp drops that to 0.1% (260cp adds
+  // nothing beyond 150) and measured strictly better in 64 paired games (master, 1000ms, book
+  // v3, human system-line openings): free piece-loss events 0.53 -> 0.25 per game
+  // (95% CI [-0.47, -0.08], sign p=0.024), major losses 0.39 -> 0.14 (p=0.012), first
+  // out-of-book ply 7.31 -> 8.63, material@ply40 unchanged (p=0.90). 150cp is still stricter
+  // than 'medium' (180) and the depth-18 gap bound on stored moves (<=90cp) is unchanged.
   switch (difficulty) {
     case 'easy':
       return 260;
@@ -139,7 +152,7 @@ function openingThresholdByDifficulty(difficulty: Difficulty): number {
     case 'expert':
       return 110;
     case 'master':
-      return 90;
+      return 150;
   }
 }
 
@@ -1241,7 +1254,13 @@ function getBook(): DualKeyMap<BookCandidate[]> {
 
 /** Binary format magic "SBK2"; the writer is scripts/shogi-import-petashock-book.ts. */
 export const EXTERNAL_BOOK_MAGIC = 0x324b4253;
-export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book-v2.bin';
+/**
+ * v3 (2026-08): v2 (petashock lines to ply 20/30 + human-deviation cover seeded at ply <= 12)
+ * plus a deeper deviation cover — seeds follow the runtime book choice on the AI's turns and
+ * cover the human's natural replies up to ply 20 (scripts/shogi-book-deviation-cover.ts
+ * --ai-aware). v2 stays in public/ for the ML teacher pipeline and provenance pins.
+ */
+export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book-v3.bin';
 
 const EXTERNAL_LINE_NAME = 'ペタショック定跡';
 /** Below every curated priority (curated lines use 55..90) — only matters for tie-breaks. */

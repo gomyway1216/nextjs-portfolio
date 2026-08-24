@@ -106,7 +106,7 @@ beforeAll(async () => {
     vi.fn(async (url: unknown) => {
       // The worker also fetches the external opening book at startup; answer 404 so this
       // test keeps exercising the curated-book + NNUE path in isolation.
-      if (String(url) === '/shogi-opening-book-v2.bin') return { ok: false, status: 404 };
+      if (String(url) === '/shogi-opening-book-v3.bin') return { ok: false, status: 404 };
       expect(String(url)).toBe('/shogi-halfkp81-production-weights.bin');
       return {
         ok: true,

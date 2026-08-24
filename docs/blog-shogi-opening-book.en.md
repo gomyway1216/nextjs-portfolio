@@ -217,6 +217,49 @@ In the problem position, △Rook-8d sank from **15th to 23rd** in the static ran
 
 (Both were shipped only after independent verification — re-tallying the A/B logs, re-running the holdouts, bit-exact parity, the full test suite passing. The proxy pair-accuracy was *not* used to decide adoption, keeping faith with the earlier "proxy metrics don't predict playing strength.")
 
+### 9.3 Book v3: pushing the human-deviation cover from ply 12 to ply 20 (+75,650 entries)
+
+The §9.1 deviation cover had a limit that only became visible once it existed. Seeds stopped at ply 12 **and** were picked by a single "top 1,200 by reach weight" cap, so the seeds that actually got picked piled up at plies 0-3 (only 14 of them sat past ply 10). The stretch where a human has just finished building their formation — exactly where the AI leaves the book and falls back on its own opening bias — was essentially uncovered.
+
+v3 changes the generator in three ways.
+
+1. **Seeds follow what the AI actually plays** (`--ai-aware`). v2 seeded from a uniform random walk over the book graph, but that is not the set of positions a real game visits. v3 follows **the move the production `getOpeningMoveImproved()` returns on the AI's turns** (across all five difficulties) and splits weight over every in-book legal move on the human's turns, running once with the AI as sente and once as gote; the human-to-move positions are the seeds. A useful side effect: the position right after a stored deviation reply (out of book, human to move) becomes a seed too, so the cover reaches one move past the book instead of stopping at its edge.
+2. **Per-ply quotas instead of one global cap** (`--seeds-per-ply`). Reach weight decays geometrically with depth, so a single cap always concentrates on shallow plies. Taking the top N at each ply keeps the most-reachable position at ply 20 as well (81-100% of each ply's reach weight is covered).
+3. **Wider MultiPV where it matters** (30 at plies 0-4, 20 at 5-8, 12 at 9-20). After ▲P-7f △P-8d, the club-player staples **▲P-5f (Central Rook) and ▲K-6h (Yagura move order)** do not appear in a depth-18 MultiPV-12 list at all — utterly normal human moves that v2 simply missed.
+
+7,311 seed positions yielded 80,165 "natural but out-of-book" moves, each getting **exactly one depth-18 reply**: **97,522 → 173,172 positions** (gzip 1.23MB → 1.93MB, inside the 2.5MB budget). The quality gate is unchanged from §9.1: every new move is the **PV1 of a MultiPV-4 search (gap 0)**, an independent re-measurement of 1,818 sampled positions at depth 18 found **0 failures above 100cp and 0 warnings in the 50-100cp band**, and the determinism gate reproduced 12/12 stored values exactly.
+
+**Measured effect** (production runtime and NNUE on both sides; the "human" plays one of 16 scripted club formations and then searches without a book, with a hanging-piece guard):
+
+| Metric | v2 | v3 |
+|---|---|---|
+| Natural-move coverage (488 positions, MultiPV 12, ±300cp) | 19.5% | **21.9%** |
+| First out-of-book ply (medium, 64 paired games, 1000ms) | 7.91 | **8.66** (Δ+0.75, 95% CI [0.47, 1.06], p<0.001) |
+| First out-of-book ply (hard, 32 paired games, 2000ms) | 7.81 | **8.56** (Δ+0.75, p=0.002) |
+| Free piece-loss events/game (medium, 64 pairs) | 0.41 | 0.42 (Δ+0.02, 95% CI [-0.17, 0.19], n.s.) |
+| Same (hard, 32 pairs) | 0.44 | 0.41 (n.s.) |
+
+The book lasts significantly longer and **piece loss does not get worse** — which was the adoption condition. Each pair plays the same script, the same colour and the same machine load back to back: fixed-time search gets weaker under load, so two configs measured in separate concurrent processes cannot be compared.
+
+### 9.4 An accidental find: the **safety valve was discarding 9.4% of the book**
+
+While measuring v3, something with more leverage than the book itself turned up. Every book move passes a runtime guard: reject it if its 1-ply static eval falls more than X cp below the best legal move. For `master`, X was **90cp** — the strongest difficulty was the harshest book-rejecter.
+
+Measured: in **9.4% of the positions where the book has a move, master returns nothing** (hard/expert 6.4%, medium 0.1%). The strongest setting was throwing away depth-18-verified book moves and going back to a raw NNUE search — falling into precisely the hole the book was built to fill.
+
+Widening the gate to 150cp drops that to **0.1%** (260cp is no different from 150cp). Over 64 paired games (master, 1000ms, book v3):
+
+| Metric | 90cp (shipped) | 150cp |
+|---|---|---|
+| Free piece-loss events/game | 0.53 | **0.25** (Δ-0.28, 95% CI [-0.47, -0.08], sign test p=0.024) |
+| Major losses (net ≤ -6)/game | 0.39 | **0.14** (p=0.012) |
+| First out-of-book ply | 7.31 | **8.63** |
+| Material at ply 40 | 22.66 | 23.73 (n.s.) |
+
+**Piece loss halved.** The guard exists to survive corrupt or colliding book data, not to re-judge joseki — hand that job to a 1-ply static eval and it throws out the correct book move. 150cp is still stricter than medium's 180cp, and the depth-18 bound on stored moves (gap ≤ 90cp) is untouched, so nothing about the safety argument weakens.
+
+> Added lesson: **before adding coverage, measure whether the coverage you already have is being used at runtime.** Those 9.4% were cheaper to fix than any of the 75,650 entries added on top.
+
 ## 10. Lab notebook: what didn't work
 
 Writing only about the wins isn't fair. Real development is mostly **experiments that don't work**. After Cycle 4, I ran two more experiments in parallel to push the strength further. One was a complete dead end; the other is looking shaky too. Records of failure are the useful ones, so here they are, honestly.
@@ -520,3 +563,4 @@ The change that crossed both the 56-game screen and the independent 96-game conf
 - **Don't conclude from one game — but a tied short A/B is not a safety proof either.** The deeper-label re-distillation improved typical mid-game calibration on game4, yet a later real game exposed the `P*8f` regression and production returned to runOp1. Do not adopt from proxy metrics, a few positions, or a short A/B alone (Ch. 11).
 - **Safety infrastructure is not playing strength.** Strong games and a working teacher are assets, but more ownership, key, tamper boundaries, and non-required review responses do not strengthen the evaluator. Keep the minimum safety gate and put direct A/B first (Ch. 11).
 - **Better WDL approximation is not playing strength either.** Even audited-correct outcomes did not make the mixed-target candidates beat production. Promote on direct play with fresh seeds, not on lower loss (Ch. 11).
+- **Before adding coverage, measure whether the coverage you have is used at runtime.** 9.4% of the book was being discarded by master's 90cp safety valve; widening it to 150cp halved free piece-loss events (0.53 → 0.25 per game, p=0.024) — cheaper than the 75,650 entries added on top (§9)

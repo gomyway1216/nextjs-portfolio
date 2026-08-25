@@ -1,12 +1,33 @@
 'use client';
 
-import { type FC, useEffect, useSyncExternalStore } from 'react';
+import { type FC, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import styles from './ShogiTypefaceSelector.module.css';
+import {
+  SHOGI_TYPEFACE_DEFAULT,
+  SHOGI_TYPEFACE_STORAGE_KEY,
+  isShogiTypeface,
+  type ShogiTypeface,
+} from './shogiTypefacePreference';
 
-export type ShogiTypeface = 'kiyoyasu' | 'ryoko' | 'classic';
+export type { ShogiTypeface };
 
-const STORAGE_KEY = 'shogi-koma-typeface';
-const DEFAULT_TYPEFACE: ShogiTypeface = 'kiyoyasu';
+const STORAGE_KEY = SHOGI_TYPEFACE_STORAGE_KEY;
+const DEFAULT_TYPEFACE: ShogiTypeface = SHOGI_TYPEFACE_DEFAULT;
+
+/**
+ * Apply the choice before the browser paints.
+ *
+ * The board (and this selector with it) mounts on the client — the page starts
+ * on the setup screen, so no piece is ever in the server HTML. With a plain
+ * `useEffect` the attribute lands in a LATER task than the commit that inserted
+ * the pieces, so the first painted frame can show the default 清安風 face and
+ * then swap: the typeface flash players report. A layout effect runs inside the
+ * same commit, before paint, which makes that frame impossible.
+ * This file is a Client Component, so the guard is not about server rendering:
+ * it keeps the module importable from non-DOM tooling (jsdom-less unit tests,
+ * any RSC-side type/import pass) where `useLayoutEffect` would warn.
+ */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 const OPTIONS: ReadonlyArray<{ value: ShogiTypeface; label: string }> = [
   // 「清安風」= brush-font approximation of 源兵衛清安, not the real typeface.
@@ -14,10 +35,6 @@ const OPTIONS: ReadonlyArray<{ value: ShogiTypeface; label: string }> = [
   { value: 'ryoko', label: '菱湖' },
   { value: 'classic', label: '楷書' },
 ];
-
-function isShogiTypeface(value: string | null): value is ShogiTypeface {
-  return value === 'kiyoyasu' || value === 'ryoko' || value === 'classic';
-}
 
 // Tiny module-level store so the choice survives remounts and reads
 // localStorage only once.
@@ -64,8 +81,8 @@ function subscribe(listener: () => void): () => void {
 export const ShogiTypefaceSelector: FC = () => {
   const typeface = useSyncExternalStore(subscribe, getTypeface, getServerTypeface);
 
-  // Sync the choice to <html data-shogi-typeface="...">.
-  useEffect(() => {
+  // Sync the choice to <html data-shogi-typeface="...">, before paint.
+  useIsomorphicLayoutEffect(() => {
     if (typeface === DEFAULT_TYPEFACE) {
       delete document.documentElement.dataset.shogiTypeface;
     } else {

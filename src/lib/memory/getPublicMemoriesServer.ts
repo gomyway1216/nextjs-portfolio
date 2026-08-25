@@ -13,9 +13,13 @@ function publicMemoryUrl(): URL {
   if (!configuredUrl) throw new Error('Public memory endpoint is not configured');
 
   const url = new URL(configuredUrl);
-  const isLocalDevelopment = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  const isLocalDevelopment = process.env.NODE_ENV !== 'production' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
   if (url.protocol !== 'https:' && !isLocalDevelopment) {
     throw new Error('Public memory endpoint must use HTTPS');
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('Public memory endpoint must not include credentials, query, or fragment');
   }
 
   const normalizedPath = url.pathname.replace(/\/$/, '') || '/';
@@ -32,6 +36,7 @@ export async function getPublicMemoriesServer(): Promise<PublicMemoryItem[]> {
     method: 'GET',
     headers: { Accept: 'application/json' },
     credentials: 'omit',
+    redirect: 'error',
     signal: AbortSignal.timeout(PUBLIC_MEMORY_TIMEOUT_MS),
     next: {
       revalidate: PUBLIC_MEMORY_REVALIDATE_SECONDS,
@@ -41,13 +46,22 @@ export async function getPublicMemoriesServer(): Promise<PublicMemoryItem[]> {
 
   if (!response.ok) throw new Error('Public memory endpoint is temporarily unavailable');
 
-  const contentLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
+  const contentLengthHeader = response.headers.get('content-length');
+  const contentLength = Number(contentLengthHeader);
+  if (contentLengthHeader !== null && (
+    contentLengthHeader.trim() === '' ||
+    !Number.isFinite(contentLength) ||
+    !Number.isInteger(contentLength) ||
+    contentLength < 0 ||
+    contentLength > MAX_RESPONSE_BYTES
+  )) {
     throw new Error('Public memory response is too large');
   }
 
   const body = await response.text();
-  if (body.length > MAX_RESPONSE_BYTES) throw new Error('Public memory response is too large');
+  if (Buffer.byteLength(body, 'utf8') > MAX_RESPONSE_BYTES) {
+    throw new Error('Public memory response is too large');
+  }
 
   return parsePublicMemoryResponse(JSON.parse(body));
 }

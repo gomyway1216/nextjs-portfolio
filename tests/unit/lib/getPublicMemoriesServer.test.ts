@@ -44,6 +44,7 @@ describe('getPublicMemoriesServer', () => {
     expect(init).toEqual(expect.objectContaining({
       method: 'GET',
       credentials: 'omit',
+      redirect: 'error',
       headers: { Accept: 'application/json' },
       next: { revalidate: 300, tags: ['public-memory-projections'] },
     }));
@@ -57,6 +58,12 @@ describe('getPublicMemoriesServer', () => {
     vi.stubEnv('PUBLIC_MEMORY_API_URL', 'http://memory.example.com/public');
     await expect(getPublicMemoriesServer()).rejects.toThrow('must use HTTPS');
 
+    vi.stubEnv('PUBLIC_MEMORY_API_URL', 'https://user:password@memory.example.com/public');
+    await expect(getPublicMemoriesServer()).rejects.toThrow('must not include credentials');
+
+    vi.stubEnv('PUBLIC_MEMORY_API_URL', 'https://memory.example.com/public?token=secret');
+    await expect(getPublicMemoriesServer()).rejects.toThrow('must not include credentials');
+
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -68,6 +75,12 @@ describe('getPublicMemoriesServer', () => {
       status: 200,
       headers: { 'content-length': '600000' },
     }));
+    await expect(getPublicMemoriesServer()).rejects.toThrow('too large');
+
+    const multiByteBody = JSON.stringify({ items: [], padding: '界'.repeat(180_000) });
+    expect(multiByteBody.length).toBeLessThan(512_000);
+    expect(Buffer.byteLength(multiByteBody, 'utf8')).toBeGreaterThan(512_000);
+    fetchMock.mockResolvedValueOnce(new Response(multiByteBody, { status: 200 }));
     await expect(getPublicMemoriesServer()).rejects.toThrow('too large');
   });
 });

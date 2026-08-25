@@ -987,6 +987,7 @@ const ShogiImproved = () => {
         // animation) but the seconds counter freezes mid-count — the "stuck at
         // 0.4秒" players report. Announce the mode first and hand the thread over
         // only after the browser has had a chance to paint that announcement.
+
         // Everything that has already been on the board this game, so the
         // engine can see 千日手 coming and stop treating a return to an
         // earlier position as free. Replaying the kifu keeps this derived from

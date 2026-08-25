@@ -36,7 +36,10 @@ import {
 } from '@/components/game/ShogiImproved/wasmEngine';
 
 const weightsPath = join(process.cwd(), 'public', 'shogi-halfkp81-production-weights.bin');
-const HALFKP81_PRODUCTION_SHA256 = 'e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72';
+// Distill round 3, arm A (book-leaf targeted, Aoba depth-12 teacher). Replaces the
+// halfkp81-newdata-warmstart champion e04e60c7…, which it beat 66.2% on the book-exit
+// gate and 65.0% on the random-opening gate (80 games each, 1000ms/move).
+const HALFKP81_PRODUCTION_SHA256 = 'f47717860a1d0959567ad57365d473cd0a51d73ec3f791a7f25b6a8692966aa5';
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,
   L: KY,

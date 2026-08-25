@@ -14,7 +14,7 @@ import {
 import { SHOGI_ENGINE_PARITY_TEST_ID } from "../../src/components/game/ShogiImproved/shogiEngineParityProtocol";
 
 const SHIPPED_WEIGHTS_SHA256 =
-  "e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72";
+  "f47717860a1d0959567ad57365d473cd0a51d73ec3f791a7f25b6a8692966aa5";
 
 test("ordinary Shogi never mounts the unlinked parity harness", async ({
   page,

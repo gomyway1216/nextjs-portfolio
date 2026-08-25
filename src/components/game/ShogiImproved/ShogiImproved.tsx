@@ -34,6 +34,12 @@ import {
   type ShogiEngineIdentity,
   type ShogiOutcome,
 } from './gameRecord';
+import {
+  formatEvalAriaLabel,
+  formatEvalValue,
+  formatThinkSeconds,
+  senteBarPercent,
+} from './evalDisplay';
 import { KyokumenImproved } from './KyokumenImproved';
 import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
 import { buildDeclinablePromotion } from './PromotionRulesImproved';
@@ -216,12 +222,17 @@ interface EvalInfo {
 }
 
 /**
- * Map a sente-perspective centipawn score to Sente's win probability (0..1)
- * with the standard shogi sigmoid; 600 matches the NNUE's k_sigmoid, so the
- * bar reads "how won is this for Sente" rather than raw material.
+ * Last score the engine actually produced, kept separately from `evalInfo`.
+ *
+ * `evalInfo` is per-request diagnostics and is deliberately wiped at the start
+ * of every AI turn, but the 形勢バー must not snap to dead-even every time the
+ * AI starts thinking (and stay there for the whole opening book, which answers
+ * without a score at all). This holds the most recent real score so the bar can
+ * keep showing it, labelled 「前の局面」, until a new one arrives.
  */
-function cpToSenteWinRate(scoreCp: number): number {
-  return 1 / (1 + Math.exp(-scoreCp / 600));
+interface DisplayEval {
+  scoreCp: number;
+  depth?: number;
 }
 
 /** Style shared by the three display-toggle pills (盤反転 / 形勢バー / 駒音). */
@@ -301,9 +312,29 @@ const ShogiImproved = () => {
   // Current/latest AI request: route, optional score/depth, and any main-thread
   // blocking time. Replaced as a unit for every request to avoid stale values.
   const [evalInfo, setEvalInfo] = useState<EvalInfo | null>(null);
+  // Last real score, kept across scoreless turns so the eval bar does not snap
+  // to even on every AI think / book reply (see DisplayEval).
+  const [displayEval, setDisplayEval] = useState<DisplayEval | null>(null);
   // Elapsed ms of the current AI think, ticking while isAIThinking.
   const [thinkElapsedMs, setThinkElapsedMs] = useState(0);
+  // Duration of the most recently FINISHED think. The live counter above can be
+  // frozen by a blocking main-thread search (it cannot repaint while the UI
+  // thread is busy), so the true total is published once the move lands.
+  const [lastThinkMs, setLastThinkMs] = useState<number | null>(null);
+  const thinkStartRef = useRef<number | null>(null);
+  // True only while the (rare) compatibility search is about to run / running
+  // synchronously on the UI thread. Nothing can repaint during it, so the strip
+  // says so instead of showing a seconds counter that cannot tick.
+  const [mainThreadBlocking, setMainThreadBlocking] = useState(false);
   const aiPlayingBook = evalInfo?.searchPath === 'book';
+  // What the 形勢バー draws. The live request's score wins; otherwise the last
+  // real score is kept (flagged stale) so the bar does not snap to dead-even
+  // every time the AI starts thinking or answers from the opening book.
+  // `undefined` means "no score in this game yet" and is drawn as "no data",
+  // not as an even position.
+  const barScoreCp = evalInfo?.scoreCp ?? displayEval?.scoreCp;
+  const barScoreIsStale = evalInfo?.scoreCp === undefined && barScoreCp !== undefined;
+  const barDepth = evalInfo?.scoreCp !== undefined ? evalInfo.depth : displayEval?.depth;
 
   // Hydrate persisted preferences after mount (not in useState initializers:
   // SSR markup must match the client's first render).
@@ -547,6 +578,8 @@ const ShogiImproved = () => {
     setMoveList([]);
     setHistory([]);
     setEvalInfo(null);
+    setDisplayEval(null);
+    setLastThinkMs(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
     setReplay(null);
@@ -580,10 +613,27 @@ const ShogiImproved = () => {
   // reserves its space permanently, so this text never causes layout shift.
   // The counter starts each think at 0 because the previous cycle's cleanup
   // reset it (no synchronous setState in the effect body).
+  //
+  // A `setInterval` counter can only be as honest as the UI thread is free: the
+  // compatibility search below runs synchronously here, and while it does, no
+  // tick can fire and no paint can happen, so the number freezes at whatever it
+  // last showed (historically a stuck "0.4秒" — the last tick before the 500ms
+  // lead-in handed control to the blocking search). When the think ends we
+  // therefore publish the REAL total from the same clock, so the final number
+  // the player sees is never a lie even if the ticking was starved.
   useEffect(() => {
-    if (!gameState.isAIThinking) return;
+    if (!gameState.isAIThinking) {
+      const start = thinkStartRef.current;
+      if (start !== null) {
+        thinkStartRef.current = null;
+        setLastThinkMs(performance.now() - start);
+      }
+      return;
+    }
     const start = performance.now();
+    thinkStartRef.current = start;
     setThinkElapsedMs(0);
+    setLastThinkMs(null);
     const timer = setInterval(() => setThinkElapsedMs(performance.now() - start), 100);
     return () => clearInterval(timer);
   }, [gameState.isAIThinking]);
@@ -630,6 +680,8 @@ const ShogiImproved = () => {
     setMoveList(recorded);
     setHistory([]);
     setEvalInfo(null);
+    setDisplayEval(null);
+    setLastThinkMs(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
     // Importing may happen mid-selection (a piece/captured-piece highlighted,
@@ -676,6 +728,8 @@ const ShogiImproved = () => {
     setMoveList((prev) => prev.slice(0, viewPly));
     setHistory([]);
     setEvalInfo(null);
+    setDisplayEval(null);
+    setLastThinkMs(null);
     setReplay(null);
   }, [replay]);
 
@@ -897,10 +951,38 @@ const ShogiImproved = () => {
 	          return;
 	        }
 
+        // The compatibility search blocks the UI thread for seconds, so nothing
+        // repaints while it runs: the spinner keeps spinning (it is a compositor
+        // animation) but the seconds counter freezes mid-count — the "stuck at
+        // 0.4秒" players report. Announce the mode first and hand the thread over
+        // only after the browser has had a chance to paint that announcement.
         const runMainThreadFallback = () => {
+          if (aiRequestIdRef.current !== requestId) return;
+          setEvalInfo({ searchPath: 'main-thread-js' });
+          setMainThreadBlocking(true);
+          let started = false;
+          const startBlockingSearch = () => {
+            if (started) return;
+            started = true;
+            if (aiRequestIdRef.current !== requestId) {
+              setMainThreadBlocking(false);
+              return;
+            }
+            runMainThreadSearchNow();
+          };
+          // A frame callback is the accurate "after the paint" signal, but a
+          // hidden/background tab never fires one — so a timer races it and the
+          // first to arrive starts the search. Never rAF alone: that would
+          // leave a backgrounded game hanging on "thinking" forever.
+          if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => setTimeout(startBlockingSearch, 0));
+          }
+          setTimeout(startBlockingSearch, 120);
+        };
+
+        const runMainThreadSearchNow = () => {
           // This is deliberately the only blocking path. Measure it and always
           // leave isAIThinking, even if construction/search unexpectedly throws.
-          setEvalInfo({ searchPath: 'main-thread-js' });
           const wallStartedAt = Date.now();
           const preciseStartedAt =
             typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -929,6 +1011,9 @@ const ShogiImproved = () => {
               depth: info.depth,
               blockedMainThreadMs,
             });
+            if (info.scoreCp !== undefined) {
+              setDisplayEval({ scoreCp: info.scoreCp, depth: info.depth });
+            }
 
             const aiMove = info.move;
             if (!aiMove) {
@@ -957,6 +1042,9 @@ const ShogiImproved = () => {
             }
           } catch {
             stopWithEngineError(blockedMs());
+          } finally {
+            // The UI thread is free again whichever way the search ended.
+            setMainThreadBlocking(false);
           }
         };
 
@@ -988,6 +1076,11 @@ const ShogiImproved = () => {
               scoreCp: info.scoreCp,
               depth: info.depth,
             });
+            // The eval bar keeps the last real score across scoreless answers
+            // (book replies) instead of snapping back to even.
+            if (info.scoreCp !== undefined) {
+              setDisplayEval({ scoreCp: info.scoreCp, depth: info.depth });
+            }
 
             const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
             if (!aiMove) {
@@ -1101,6 +1194,8 @@ const ShogiImproved = () => {
     setHistory(h => h.slice(0, -1));
     // The last search's eval belongs to the undone position — drop it.
     setEvalInfo(null);
+    setDisplayEval(null);
+    setLastThinkMs(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, [history, gameState.gameOver, gameState.isAIThinking, gameState.kyokumen]);
@@ -1154,6 +1249,8 @@ const ShogiImproved = () => {
     setMoveList([]);
     setHistory([]);
     setEvalInfo(null);
+    setDisplayEval(null);
+    setLastThinkMs(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
     setReplay(null);
@@ -1477,7 +1574,11 @@ const ShogiImproved = () => {
             }}
           >
             {gameState.isAIThinking
-              ? (aiPlayingBook ? '定跡どおりに指しています' : 'AIが考えています…')
+              ? (aiPlayingBook
+                  ? '定跡どおりに指しています'
+                  : mainThreadBlocking
+                    ? 'AIが考えています…（低速互換モード：数秒間このページは反応しません）'
+                    : 'AIが考えています…')
               : gameState.gameOver
                 ? '対局終了'
                 : evalInfo?.searchPath === 'main-thread-js'
@@ -1490,21 +1591,28 @@ const ShogiImproved = () => {
           </span>
           <span
             data-testid="shogi-engine-timer"
-            data-elapsed-ms={Math.round(thinkElapsedMs)}
+            data-elapsed-ms={Math.round(gameState.isAIThinking ? thinkElapsedMs : lastThinkMs ?? thinkElapsedMs)}
             aria-hidden="true"
             style={{
               fontSize: '14px',
               fontWeight: 600,
               fontVariantNumeric: 'tabular-nums',
-              color: '#ffd700',
+              color: gameState.isAIThinking ? '#ffd700' : 'rgba(255,255,255,0.5)',
               // Hidden for book replies (instant — the seconds would read as a
-              // stuck 0.4s); only shown while the engine is actually searching.
-              visibility: gameState.isAIThinking && !aiPlayingBook ? 'visible' : 'hidden',
+              // stuck 0.4s). While searching it counts up; once the move lands
+              // it keeps showing how long that think actually took, which also
+              // corrects the count if a blocking search froze it mid-tick.
+              visibility:
+                !aiPlayingBook && (gameState.isAIThinking || lastThinkMs !== null)
+                  ? 'visible'
+                  : 'hidden',
               minWidth: '3.4em',
               textAlign: 'left',
             }}
           >
-            {(thinkElapsedMs / 1000).toFixed(1)}秒
+            {gameState.isAIThinking
+              ? (mainThreadBlocking ? '計算中…' : formatThinkSeconds(thinkElapsedMs))
+              : formatThinkSeconds(lastThinkMs ?? 0)}
           </span>
         </div>
         <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1520,26 +1628,49 @@ const ShogiImproved = () => {
             <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', flex: '0 0 auto' }}>▲先手</span>
             <div
               style={{
+                position: 'relative',
                 flex: '1 1 auto',
                 height: '10px',
                 borderRadius: '5px',
                 overflow: 'hidden',
-                background: '#e9e4d9',
+                // "No score yet" gets its own hatched look: a flat 50% fill is
+                // indistinguishable from a computed "dead even" position.
+                background: barScoreCp !== undefined
+                  ? '#e9e4d9'
+                  : 'repeating-linear-gradient(45deg, rgba(255,255,255,0.20) 0 5px, rgba(255,255,255,0.06) 5px 10px)',
                 border: '1px solid rgba(255,255,255,0.35)',
               }}
               role="img"
               aria-label={
-                evalInfo?.scoreCp !== undefined
-                  ? `形勢: 先手勝率 ${Math.round(cpToSenteWinRate(evalInfo.scoreCp) * 100)}%`
-                  : '形勢: 不明'
+                barScoreCp !== undefined
+                  ? formatEvalAriaLabel(barScoreCp, barScoreIsStale)
+                  : '形勢: 不明（まだ評価値がありません）'
               }
             >
+              {barScoreCp !== undefined && (
+                <div
+                  data-testid="shogi-eval-bar-fill"
+                  data-sente-percent={senteBarPercent(barScoreCp)}
+                  style={{
+                    width: `${senteBarPercent(barScoreCp)}%`,
+                    height: '100%',
+                    background: '#1f1f1f',
+                    // Dimmed while it belongs to the previous position.
+                    opacity: barScoreIsStale ? 0.5 : 1,
+                    transition: 'width 0.4s ease, opacity 0.2s ease',
+                  }}
+                />
+              )}
+              {/* Midpoint reference so a small lean is readable as small. */}
               <div
+                aria-hidden="true"
                 style={{
-                  width: `${(evalInfo?.scoreCp !== undefined ? cpToSenteWinRate(evalInfo.scoreCp) : 0.5) * 100}%`,
-                  height: '100%',
-                  background: '#1f1f1f',
-                  transition: 'width 0.4s ease',
+                  position: 'absolute',
+                  left: '50%',
+                  top: 0,
+                  bottom: 0,
+                  width: '1px',
+                  background: 'rgba(120,120,120,0.55)',
                 }}
               />
             </div>
@@ -1548,21 +1679,17 @@ const ShogiImproved = () => {
               data-testid="shogi-engine-eval"
               style={{
                 fontSize: '12px',
-                color: 'rgba(255,255,255,0.75)',
+                color: barScoreIsStale ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.75)',
                 fontVariantNumeric: 'tabular-nums',
                 minWidth: '8.5em',
                 flex: '0 0 auto',
               }}
             >
-              {evalInfo?.scoreCp !== undefined
-                ? Math.abs(evalInfo.scoreCp) >= 29000
-                  ? evalInfo.scoreCp > 0
-                    ? '先手勝勢（詰み）'
-                    : '後手勝勢（詰み）'
-                  : `評価値 ${evalInfo.scoreCp >= 0 ? '+' : ''}${evalInfo.scoreCp}${
-                      evalInfo.depth ? `（深さ${evalInfo.depth}）` : ''
-                    }`
-                : aiPlayingBook && gameState.isAIThinking ? '定跡' : '評価値 —'}
+              {aiPlayingBook && gameState.isAIThinking
+                ? '定跡'
+                : barScoreCp !== undefined
+                  ? formatEvalValue(barScoreCp, barDepth, barScoreIsStale)
+                  : '評価値 —'}
             </span>
           </div>
         </div>

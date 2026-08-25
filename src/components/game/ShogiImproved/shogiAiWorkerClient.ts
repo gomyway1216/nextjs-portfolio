@@ -88,8 +88,15 @@ export interface ShogiAiWorkerClientOptions {
    * Called once, when the error-storm guard permanently gives up on the worker
    * and every later request will reject. That is the terminal state behind a
    * session stuck in 低速互換モード, and until now it was only a console.error.
+   *
+   * `difficulty` is the level of the most recent best-move request, i.e. the
+   * search that was failing. It is reported from here rather than read by the
+   * caller because one client serves a whole session across many games: a page
+   * that captured its own `difficulty` when the client was built would log the
+   * level of the first game, not the one that actually broke. Undefined only if
+   * the client never received a best-move request (a worker that died on load).
    */
-  onWorkerGaveUp?: (reason: string) => void;
+  onWorkerGaveUp?: (reason: string, difficulty?: Difficulty) => void;
 }
 
 export type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiEngineDiagnostics };
@@ -360,6 +367,9 @@ export function createShogiAiWorkerClient(
   // until its module has loaded and it is executing. Cleared on every respawn,
   // because a fresh instance pays the startup cost all over again.
   let workerProven = false;
+  // The level of the most recent best-move request, so a terminal failure is
+  // attributed to the search that was actually failing.
+  let lastRequestedDifficulty: Difficulty | undefined;
 
   // Error-storm guard: if the worker keeps failing to boot/run, cap how many
   // times we respawn within a short window. After the cap we stop respawning
@@ -509,7 +519,7 @@ export function createShogiAiWorkerClient(
     if (gaveUpReported) return;
     gaveUpReported = true;
     try {
-      options.onWorkerGaveUp?.(reason);
+      options.onWorkerGaveUp?.(reason, lastRequestedDifficulty);
     } catch {
       /* a broken listener must not break the fallback path */
     }
@@ -593,6 +603,10 @@ export function createShogiAiWorkerClient(
         reject(new Error('AI worker unavailable (worker permanently disabled)'));
         return;
       }
+      // Remember what this search was playing at, so a later terminal give-up
+      // names the level that was actually failing rather than whatever the page
+      // happened to be showing when this long-lived client was built.
+      lastRequestedDifficulty = difficulty;
       // Hard wall-clock deadline: if the worker has not answered by then it is
       // treated as wedged — tear it down, respawn single-thread, and reject so
       // the caller falls back to the main-thread search. The UI never sticks on

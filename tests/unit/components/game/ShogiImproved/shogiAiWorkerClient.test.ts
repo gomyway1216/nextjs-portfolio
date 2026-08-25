@@ -354,6 +354,47 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
   });
 
   /**
+   * One client serves a whole session: it is built during the first game and
+   * then reused for every later one, while the level being played keeps
+   * changing under it (level selector, resuming a save). So the give-up report
+   * cannot come from a value the page captured when the client was built —
+   * that would blame the first game's level for a failure at another one. The
+   * client reports the level of the search that was actually failing.
+   */
+  it('reports the difficulty of the failing search, not the one at construction', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('navigator', { hardwareConcurrency: 1 });
+    vi.stubGlobal('Worker', WorkerStub);
+    const gaveUp: Array<{ reason: string; difficulty?: string }> = [];
+    const client = createShogiAiWorkerClient({
+      onWorkerGaveUp: (reason, difficulty) => gaveUp.push({ reason, difficulty }),
+    });
+
+    // The client is constructed on this first, easy request.
+    void client.requestBestMoveWithInfo(position, 'easy', 0).catch(() => {});
+    // The player then switches to master and keeps playing on the SAME client.
+    void client.requestBestMoveWithInfo(position, 'master', 1).catch(() => {});
+
+    // Five worker load/runtime errors: four respawns, then the storm guard
+    // permanently gives up.
+    for (let i = 0; i < 5; i++) {
+      const current = WorkerStub.instances[WorkerStub.instances.length - 1];
+      current.onerror?.({ message: 'boom' } as ErrorEvent);
+      await Promise.resolve();
+    }
+
+    expect(gaveUp).toHaveLength(1);
+    expect(gaveUp[0].difficulty).toBe('master');
+    expect(gaveUp[0].reason).toContain('respawn cap reached');
+
+    // And every later request fails fast so the page uses the main-thread engine.
+    await expect(client.requestBestMoveWithInfo(position, 'master', 2)).rejects.toThrow(
+      'AI worker unavailable'
+    );
+    client.terminate();
+  });
+
+  /**
    * A brand-new Worker still has to download its module bundle and instantiate
    * the WASM engine, and whichever request arrives first pays for all of it.
    * Measured on production 2026-08-25: the same master request answered in

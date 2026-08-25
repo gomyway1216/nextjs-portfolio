@@ -454,19 +454,26 @@ const ShogiImproved = () => {
         // The permanent give-up is the state behind a session that never leaves
         // 低速互換モード again. It used to be a console.error only, so from the
         // outside it was indistinguishable from a single unlucky move.
-        onWorkerGaveUp: (reason) => {
+        //
+        // The difficulty comes from the client, NOT from this closure: one
+        // client is built for the whole session and then reused across games,
+        // while the level keeps changing under it (level selector, resuming a
+        // save). A captured `difficulty` would report whichever level happened
+        // to be selected when the FIRST game started. The client reports the
+        // level of the search that was actually failing.
+        onWorkerGaveUp: (reason, failingDifficulty) => {
           logActivity({
             action: 'game.shogi.worker_gave_up',
             result: 'error',
             severity: 'error',
             error_message: `Shogi AI worker permanently disabled: ${reason}`,
-            params: { reason, difficulty },
+            params: { reason, difficulty: failingDifficulty },
           });
         },
       });
     }
     return workerRef.current;
-  }, [difficulty]);
+  }, []);
   useEffect(() => {
     const requestIds = aiRequestIdRef;
     const workers = workerRef;

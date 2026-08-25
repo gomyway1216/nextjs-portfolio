@@ -9,7 +9,10 @@
  *
  * Move pipeline (hybrid, per move):
  * 1. JS opening book (getOpeningMoveImproved)
- * 2. JS mate solver probe (same gate + budget policy as ShogiAIImprovedV20)
+ * 2. JS mate solver probe: same gate + budget policy as ShogiAIImprovedV20,
+ *    but the search itself is df-pn (31-ply horizon, vs the 9 plies the
+ *    iterative-deepening solver is capped at), with that solver then used to
+ *    shorten the proof (see `solveMate`)
  * 3. WASM full search (wasmEngine.ts — V20 port, ~15x faster / depth +3..+4)
  * 4. JS V20 search — fallback if the WASM engine is unavailable or fails
  *
@@ -46,6 +49,7 @@
  *   while the worker was thinking.
  */
 
+import { DfpnMateSolverImproved } from './DfpnMateSolverImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
 import { ensureExternalOpeningBookLoaded, getOpeningMoveImproved } from './OpeningBookImproved';
@@ -156,6 +160,12 @@ type WorkerResponse =
 
 const ai = new ShogiAIImprovedV20();
 const mateSolver = new MateSolverImproved();
+/**
+ * df-pn tsume solver used for the deep half of the mate probe (see `solveMate`). Module scope so
+ * its transposition table is allocated once; 2^18 entries (~4 MB) is ample for a 150k-node probe
+ * and keeps the per-call clear cheap.
+ */
+const dfpnMateSolver = new DfpnMateSolverImproved(1 << 18);
 
 /** One synchronous ponder search slice; short enough to keep the worker responsive. */
 const PONDER_SLICE_MS = 200;
@@ -465,6 +475,48 @@ function toSenteCp(scoreForTeban: number, teban: number): number {
 }
 
 /**
+ * Mate probe: df-pn to find a mate, then a bounded exact pass to shorten it.
+ *
+ * Search — `DfpnMateSolverImproved` gets the whole probe budget with a 31-ply horizon (long enough
+ * that it is not the binding constraint in practice, unlike the 9 plies the iterative-deepening
+ * solver is capped at; the budget runs out first). Proof-number
+ * search expands the most proof-constrained leaf first, so it follows long forcing lines to their
+ * end instead of paying for a wide shallow frontier the way iterative deepening does. Measured on
+ * 1069 labelled self-play endgames at this exact 200ms budget (see wasm-spike/mate-solver-bench.ts),
+ * that is 162 verified mates vs 148 for the 9-ply iterative-deepening probe it replaces; the gain is
+ * concentrated where it matters — 10/14 vs 5/14 on 9-ply mates, and 11 mates found in positions the
+ * old probe could not touch at all, against 3 short mates lost to df-pn's higher per-node cost.
+ *
+ * Shorten — a df-pn proof tree is a forced mate but not necessarily the *shortest* one, and playing
+ * a 17-ply mate when a 5-ply mate exists is exactly the kind of thing a strong player notices. When
+ * a mate is proven, `MateSolverImproved` re-searches with a horizon strictly below the proven length
+ * and wins the tie. This costs the main search nothing: a proven mate ends the move, so no full
+ * search follows it.
+ *
+ * Every move returned here carries an explicit proof tree that `DfpnMateSolverImproved` re-derived
+ * from real move generation (or comes from the exact iterative-deepening solver), so a "mate" here
+ * is never a heuristic guess.
+ */
+function solveMate(k: KyokumenImproved, budgetMs: number, startedAtMs: number): Te | null {
+  const found = dfpnMateSolver.solveDetailed(k, {
+    maxPlies: 31,
+    maxNodes: 150_000,
+    maxTimeMs: budgetMs,
+  });
+  if (!found) return null;
+  if (found.mateDepth <= 3) return found.move;
+
+  const left = budgetMs - (performance.now() - startedAtMs);
+  if (left <= 5) return found.move;
+  const shorter = mateSolver.solve(k, {
+    maxPlies: Math.min(found.mateDepth - 2, 9),
+    maxNodes: 150_000,
+    maxTimeMs: left,
+  });
+  return shorter ?? found.move;
+}
+
+/**
  * Hybrid best-move: book → mate solver → WASM search → JS V20 fallback.
  * Same gate/budget policy as ShogiAIImprovedV20.tryMateSolve(): ~20% of the
  * move budget (30..200ms) for the mate probe, remainder to the main search.
@@ -491,11 +543,7 @@ function computeBestMove(
   if (shouldTryMateSolve(k)) {
     const mateStart = performance.now();
     const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
-    const mate = mateSolver.solve(k, {
-      maxPlies: 9,
-      maxNodes: 150_000,
-      maxTimeMs: budgetMs,
-    });
+    const mate = solveMate(k, budgetMs, mateStart);
     if (mate) {
       return {
         move: mate,

@@ -12,12 +12,23 @@ const fallbackSearch = vi.hoisted(() =>
   }))
 );
 
+/** The shortening pass of the worker's mate probe (exact iterative deepening). */
 const mateMock = vi.hoisted(() => {
-  type MateMove = { koma: number; from: number; to: number; promote: boolean };
-  let result: MateMove | null = null;
+  let result: { koma: number; from: number; to: number; promote: boolean } | null = null;
   return {
     solve: vi.fn(() => result),
-    setResult: (next: MateMove | null) => {
+    setResult: (next: typeof result) => {
+      result = next;
+    },
+  };
+});
+
+/** The search stage of the worker's mate probe (df-pn, no ply horizon). */
+const dfpnMock = vi.hoisted(() => {
+  let result: { move: { koma: number; from: number; to: number; promote: boolean }; mateDepth: number } | null = null;
+  return {
+    solveDetailed: vi.fn(() => result),
+    setResult: (next: typeof result) => {
       result = next;
     },
   };
@@ -42,6 +53,14 @@ vi.mock('@/components/game/ShogiImproved/MateSolverImproved', () => ({
   MateSolverImproved: class {
     solve(): ReturnType<typeof mateMock.solve> {
       return mateMock.solve();
+    }
+  },
+}));
+
+vi.mock('@/components/game/ShogiImproved/DfpnMateSolverImproved', () => ({
+  DfpnMateSolverImproved: class {
+    solveDetailed(): ReturnType<typeof dfpnMock.solveDetailed> {
+      return dfpnMock.solveDetailed();
     }
   },
 }));
@@ -101,6 +120,8 @@ beforeEach(() => {
   fallbackSearch.mockClear();
   mateMock.solve.mockClear();
   mateMock.setResult(null);
+  dfpnMock.solveDetailed.mockClear();
+  dfpnMock.setResult(null);
 });
 
 describe('shogi-ai.worker JS fallback diagnostics', () => {
@@ -122,16 +143,20 @@ describe('shogi-ai.worker JS fallback diagnostics', () => {
     expect(fallbackSearch).toHaveBeenCalledOnce();
   });
 
-  it('reports a dedicated mate-solver result and score', () => {
+  /** Satisfy the worker's cheap mate-solver gate: two attacking pieces within distance 3. */
+  function positionPastMateGate(): ReturnType<typeof InitialPositionImproved.createInitialPosition> {
     const k = InitialPositionImproved.createInitialPosition();
     k.setTeban(SENTE);
-    // Satisfy the worker's cheap mate-solver gate: two attacking pieces are
-    // within Chebyshev distance 3 of Gote's king.
     k.ban[0x54] = SHI;
     k.ban[0x64] = SKI;
     k.initAll();
+    return k;
+  }
+
+  it('reports a dedicated mate-solver result and score', () => {
+    const k = positionPastMateGate();
     const mateMove = { koma: SHI, from: 0x54, to: 0x52, promote: false };
-    mateMock.setResult(mateMove);
+    dfpnMock.setResult({ move: mateMove, mateDepth: 1 });
 
     scope.onmessage!({
       data: { type: 'bestMove', id: 302, position: serialize(k), difficulty: 'easy', tesu: 0 },
@@ -144,7 +169,42 @@ describe('shogi-ai.worker JS fallback diagnostics', () => {
       move: mateMove,
     });
     expect(result?.depth).toBeUndefined();
+    expect(dfpnMock.solveDetailed).toHaveBeenCalledOnce();
+    // A mate in one cannot be shortened, so the exact solver is never asked.
+    expect(mateMock.solve).not.toHaveBeenCalled();
+    expect(fallbackSearch).not.toHaveBeenCalled();
+  });
+
+  it('prefers a shorter exact mate over a longer df-pn proof', () => {
+    const k = positionPastMateGate();
+    const longMove = { koma: SHI, from: 0x54, to: 0x51, promote: false };
+    const shortMove = { koma: SHI, from: 0x54, to: 0x52, promote: false };
+    dfpnMock.setResult({ move: longMove, mateDepth: 9 });
+    mateMock.setResult(shortMove);
+
+    scope.onmessage!({
+      data: { type: 'bestMove', id: 303, position: serialize(k), difficulty: 'medium', tesu: 0 },
+    });
+
+    const result = posted.find((message) => message.type === 'bestMoveResult' && message.id === 303);
+    expect(result).toMatchObject({ searchPath: 'mate', scoreCp: 30_000, move: shortMove });
+    expect(dfpnMock.solveDetailed).toHaveBeenCalledOnce();
     expect(mateMock.solve).toHaveBeenCalledOnce();
     expect(fallbackSearch).not.toHaveBeenCalled();
+  });
+
+  it('keeps the df-pn move when no shorter mate exists', () => {
+    const k = positionPastMateGate();
+    const longMove = { koma: SHI, from: 0x54, to: 0x51, promote: false };
+    dfpnMock.setResult({ move: longMove, mateDepth: 9 });
+    mateMock.setResult(null);
+
+    scope.onmessage!({
+      data: { type: 'bestMove', id: 304, position: serialize(k), difficulty: 'medium', tesu: 0 },
+    });
+
+    const result = posted.find((message) => message.type === 'bestMoveResult' && message.id === 304);
+    expect(result).toMatchObject({ searchPath: 'mate', move: longMove });
+    expect(mateMock.solve).toHaveBeenCalledOnce();
   });
 });

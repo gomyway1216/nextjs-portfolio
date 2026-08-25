@@ -5,9 +5,17 @@
  * - A dedicated "tsume" (mate) solver that searches ONLY forced mating sequences by consecutive checks
  *   (連続王手): the attacker plays checking moves exclusively, the defender tries every legal reply.
  * - This is an AND/OR tree search with iterative deepening over the mate length (1, 3, 5, ... plies).
- *   df-pn would scale further, but a depth-limited AND/OR search with node/time budgets is simple,
- *   allocation-free (pooled move lists) and already solves typical 7-9 ply mates well within a
- *   couple hundred milliseconds on the positions this engine reaches.
+ *   Because it deepens one mate length at a time it always returns the SHORTEST mate, which is what
+ *   a human expects to see played, and it is allocation-free (pooled move lists).
+ *
+ * Relationship to `DfpnMateSolverImproved`:
+ * - Iterative deepening re-searches the entire tree for every mate length, so its cost grows sharply
+ *   past ~7 plies; it is capped at 9 plies where it is used directly (ShogiAIImprovedV20, and the
+ *   shortening pass below). `DfpnMateSolverImproved` (df-pn) reaches much longer forcing lines
+ *   (31-ply horizon) but its proof tree is not necessarily the SHORTEST mate. The worker's probe
+ *   therefore runs df-pn FIRST, and only once it has a proof does it run this solver bounded by a
+ *   horizon shorter than that proof, purely to shorten the announced mate (see `solveMate()` in
+ *   shogi-ai.worker.ts). This solver is no longer the first thing the probe tries.
  *
  * Why a separate solver (instead of relying on the main alpha-beta search):
  * - The main search prunes aggressively (futility/LMR/null-move) and its move ordering is tuned for
@@ -89,6 +97,22 @@ export class MateSolverImproved {
     return typeof performance !== 'undefined' && typeof performance.now === 'function'
       ? performance.now()
       : Date.now();
+  }
+
+  /**
+   * Whether the most recent `solve()` ran out of node/time budget.
+   *
+   * `solve()` returns `null` both for "no mate exists within `maxPlies`" and for "gave up", which is
+   * all a player needs. Offline tooling (the benchmark labeller) has to tell the two apart to be
+   * able to claim a position genuinely has no mate, so the latch is exposed read-only.
+   */
+  get lastAborted(): boolean {
+    return this.aborted;
+  }
+
+  /** Nodes visited by the most recent `solve()`. */
+  get lastNodes(): number {
+    return this.nodes;
   }
 
   /**

@@ -443,6 +443,7 @@ const ShogiImproved = () => {
               `NNUE weights ${status.status} after ${status.attempts} attempt(s)`,
             params: {
               status: status.status,
+              source: status.source,
               attempts: status.attempts,
               elapsed_ms: Math.round(status.elapsedMs),
               http_status: status.httpStatus,
@@ -450,10 +451,22 @@ const ShogiImproved = () => {
             },
           });
         },
+        // The permanent give-up is the state behind a session that never leaves
+        // 低速互換モード again. It used to be a console.error only, so from the
+        // outside it was indistinguishable from a single unlucky move.
+        onWorkerGaveUp: (reason) => {
+          logActivity({
+            action: 'game.shogi.worker_gave_up',
+            result: 'error',
+            severity: 'error',
+            error_message: `Shogi AI worker permanently disabled: ${reason}`,
+            params: { reason, difficulty },
+          });
+        },
       });
     }
     return workerRef.current;
-  }, []);
+  }, [difficulty]);
   useEffect(() => {
     const requestIds = aiRequestIdRef;
     const workers = workerRef;
@@ -596,6 +609,28 @@ const ShogiImproved = () => {
     setEngineFailed(false);
     workerRef.current?.clearTT();
 
+    // Spawn the AI worker NOW, at the start of the game, rather than lazily on
+    // the first out-of-book move.
+    //
+    // The worker is where the NNUE evaluation lives, and it needs its 94.7MB
+    // weights before NNUE can be used at all. Measured against production on
+    // 2026-08-25: a freshly spawned worker answers a master request in ~5.05s
+    // but only has its weights ~11.0s after spawn — so with lazy spawning the
+    // first real search of every game was guaranteed to run on the weaker V3
+    // evaluation (observed: depth 14 on V3 vs depth 15 with NNUE on the same
+    // position), which is precisely "the NNUE work isn't showing up in play".
+    // It also charged the whole cold start to that one move's hard deadline.
+    //
+    // Spawning here moves both costs into the opening-book phase, which lasts
+    // tens of seconds of real play, so the first search that actually needs the
+    // engine meets a warm worker with NNUE already live.
+    try {
+      getWorker();
+    } catch {
+      // Worker construction can fail outright; the move path logs that and
+      // falls back to the main-thread engine exactly as before.
+    }
+
 	    setGameState({
 	      kyokumen: buildInitialKyokumen(selectedHandicap),
 	      selectedPosition: null,
@@ -614,7 +649,7 @@ const ShogiImproved = () => {
     setShowPromotionDialog(false);
     setPendingMove(null);
     setReplay(null);
-  }, [submitGameRecord, beginGameRecord]);
+  }, [submitGameRecord, beginGameRecord, getWorker]);
 
   // Check for game over
   const checkGameOver = (k: KyokumenImproved): { isOver: boolean; winner: number | null } => {
@@ -1011,7 +1046,7 @@ const ShogiImproved = () => {
          *   difficulties that never use a worker (`easy`) — a design choice,
          *   not a failure, and it must not be logged as one.
          */
-        const runMainThreadFallback = (failureReason?: string) => {
+        const runMainThreadFallback = (failureReason?: string, detail?: string) => {
           if (aiRequestIdRef.current !== requestId) return;
 
           // "低速互換モード" is the visible symptom of a broken worker, and it was
@@ -1023,8 +1058,14 @@ const ShogiImproved = () => {
               action: 'game.shogi.main_thread_fallback',
               result: 'error',
               severity: 'error',
-              error_message: `Shogi AI worker unavailable: ${failureReason}`,
-              params: { reason: failureReason, difficulty },
+              error_message: detail
+                ? `Shogi AI worker unavailable: ${failureReason}: ${detail}`
+                : `Shogi AI worker unavailable: ${failureReason}`,
+              // `reason` stays the coarse bucket so existing rows keep grouping;
+              // `detail` is the worker/client message that says WHICH failure it
+              // was — a blown deadline, a dead worker, or a permanently disabled
+              // client all reached this same line before and were indistinguishable.
+              params: { reason: failureReason, detail, difficulty, ply: gameState.ply },
             });
           }
 
@@ -1133,8 +1174,11 @@ const ShogiImproved = () => {
           // Worker construction itself may throw synchronously (blocked script,
           // unsupported environment). Catch it before a Promise exists.
           worker = getWorker();
-        } catch {
-          runMainThreadFallback('worker construction threw');
+        } catch (error) {
+          runMainThreadFallback(
+            'worker construction threw',
+            error instanceof Error ? error.message : String(error)
+          );
           return;
         }
 
@@ -1181,12 +1225,13 @@ const ShogiImproved = () => {
             if (isOver && winner === GOTE) {
               setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
             }
-          }, () => {
+          }, (error: unknown) => {
             // Only a rejected worker request takes the compatibility route.
             // Exceptions while applying a successful move must never trigger a
             // second search and a possible double move.
             if (aiRequestIdRef.current !== requestId) return;
-            runMainThreadFallback('worker search request rejected');
+            const detail = error instanceof Error ? error.message : String(error);
+            runMainThreadFallback('worker search request rejected', detail);
           })
             .catch(() => {
               // A failure while applying an already successful worker result is
@@ -1194,9 +1239,12 @@ const ShogiImproved = () => {
               if (aiRequestIdRef.current !== requestId) return;
               stopWithEngineError();
             });
-        } catch {
+        } catch (error) {
           // A client implementation can also throw before returning its Promise.
-          runMainThreadFallback('worker client threw before returning a promise');
+          runMainThreadFallback(
+            'worker client threw before returning a promise',
+            error instanceof Error ? error.message : String(error)
+          );
         }
         return;
 

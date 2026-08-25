@@ -72,6 +72,7 @@ import {
   loadNnueWeights,
   measureEmbeddedWasmRuntimeIdentity,
   NNUE_SCALE_K,
+  NNUE_WEIGHTS_BYTES,
   publishSearchGeneration,
   setSearchGeneration,
   setWasmNnueEnabled,
@@ -88,6 +89,9 @@ export type ShogiAiWorkerSearchPath = 'book' | 'mate' | 'wasm' | 'worker-js';
 export type ShogiAiWorkerEvaluationPath = 'nnue-wasm' | 'v3-wasm' | 'worker-js' | 'not-applicable';
 
 export type ShogiAiNnueFetchStatus = 'pending' | 'loaded' | 'rejected' | 'unavailable';
+
+/** Where a delivered weights payload came from. */
+export type ShogiAiNnueWeightsSource = 'cache' | 'network';
 
 export interface ShogiAiSha256Identity {
   readonly bytes: number;
@@ -209,6 +213,27 @@ const ponder = new PonderController({
 const NNUE_WEIGHTS_PATH = '/shogi-halfkp81-production-weights.bin';
 
 /**
+ * Cache Storage bucket for the weights body, and the build identity it is
+ * keyed by.
+ *
+ * Measured on production (2026-08-25, three consecutive worker spawns in one
+ * page): the browser re-downloaded all 94.7MB every single time, ~11.04s per
+ * spawn. The asset is served with `Cache-Control: public, max-age=0,
+ * must-revalidate` and, at 94.7MB, is far above Chrome's per-entry HTTP disk
+ * cache ceiling — so the HTTP cache never retains it. Every worker respawn
+ * (hard-deadline recovery, onerror self-heal) therefore paid the full download
+ * again, which is exactly the amplifier that turns one slow worker into a
+ * session that never gets NNUE.
+ *
+ * Cache Storage has no such per-entry ceiling, is available in workers, and
+ * survives reloads. Keyed by the build sha so a deploy that ships different
+ * weights can never be served the old bytes; stale keys are pruned on hit or
+ * store, so at most one 94.7MB body is retained.
+ */
+const NNUE_WEIGHTS_CACHE_NAME = 'shogi-nnue-weights-v1';
+const NNUE_WEIGHTS_BUILD = process.env.NEXT_PUBLIC_APP_BUILD_SHA || 'dev';
+
+/**
  * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
  * loaders) would resolve a root-relative fetch against the blob URL and fail;
  * `self.location.origin` is the creator's origin even in blob workers, so
@@ -218,6 +243,19 @@ function nnueWeightsUrl(): string {
   const origin = typeof self !== 'undefined' ? self.location?.origin : undefined;
   if (origin && origin !== 'null') return new URL(NNUE_WEIGHTS_PATH, origin).toString();
   return NNUE_WEIGHTS_PATH;
+}
+
+/**
+ * Cache Storage key: the weights URL tagged with the build that shipped them.
+ *
+ * A key only — the network fetch keeps using the bare URL, because `Cache.put`
+ * keys on the request you hand it and does not care that the stored response
+ * came from a different URL. A query string rather than a fragment, since
+ * Request construction strips fragments and every build would then collapse
+ * onto one entry.
+ */
+function nnueWeightsCacheKey(): string {
+  return `${nnueWeightsUrl()}?build=${encodeURIComponent(NNUE_WEIGHTS_BUILD)}`;
 }
 
 /**
@@ -297,6 +335,8 @@ const NNUE_FETCH_ATTEMPT_TIMEOUT_MS = 120_000;
 export interface ShogiAiNnueWeightsStatusMessage {
   readonly type: 'nnueWeightsStatus';
   readonly status: ShogiAiNnueFetchStatus;
+  /** Where the accepted bytes came from. Absent when nothing was delivered. */
+  readonly source?: ShogiAiNnueWeightsSource;
   readonly attempts: number;
   readonly elapsedMs: number;
   readonly bytes?: number;
@@ -324,6 +364,69 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * The weights cache, or null wherever Cache Storage is unavailable (node
+ * tests, an insecure context, a browser that refuses to open it). Every caller
+ * treats null as "no cache" and falls straight through to the network, so the
+ * cache can only ever make delivery faster, never break it.
+ */
+async function openNnueWeightsCache(): Promise<Cache | null> {
+  try {
+    const storage = (globalThis as { caches?: CacheStorage }).caches;
+    if (!storage) return null;
+    return await storage.open(NNUE_WEIGHTS_CACHE_NAME);
+  } catch {
+    return null;
+  }
+}
+
+/** Drop every entry that is not the current build's weights. */
+async function pruneNnueWeightsCache(cache: Cache): Promise<void> {
+  try {
+    const current = new Request(nnueWeightsCacheKey()).url;
+    for (const request of await cache.keys()) {
+      if (request.url !== current) await cache.delete(request);
+    }
+  } catch {
+    /* pruning is housekeeping; never let it affect delivery */
+  }
+}
+
+/**
+ * The cached weights body, or null on a miss. A stored entry of the wrong size
+ * is a truncated/partial write: delete it and let the network answer, rather
+ * than handing `loadNnueWeights` bytes it will terminally reject.
+ */
+async function readCachedNnueWeights(cache: Cache): Promise<ArrayBuffer | null> {
+  try {
+    const hit = await cache.match(nnueWeightsCacheKey());
+    if (!hit) return null;
+    const buf = await hit.arrayBuffer();
+    if (buf.byteLength === NNUE_WEIGHTS_BYTES) return buf;
+    await cache.delete(nnueWeightsCacheKey());
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Store the freshly downloaded body. Quota failures are not delivery failures. */
+async function storeNnueWeights(cache: Cache, bytes: ArrayBuffer): Promise<void> {
+  try {
+    await cache.put(
+      nnueWeightsCacheKey(),
+      new Response(bytes, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': String(bytes.byteLength),
+        },
+      })
+    );
+  } catch {
+    /* over quota / storage evicted — the next spawn simply re-downloads */
+  }
+}
+
 /** Fetch once, honouring an abort-based stuck-connection timeout. */
 async function fetchNnueWeightsOnce(): Promise<ArrayBuffer> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -348,6 +451,38 @@ async function fetchNnueWeights(): Promise<void> {
   let lastError: (Error & { httpStatus?: number }) | null = null;
   let attempts = 0;
 
+  // Cache Storage first: a respawned worker (or a returning visitor) must not
+  // pay the 94.7MB download again just because the last one was torn down.
+  const cache = await openNnueWeightsCache();
+  if (cache) {
+    const cached = await readCachedNnueWeights(cache);
+    if (cached) {
+      const ok = loadNnueWeights(new Uint8Array(cached), NNUE_SCALE_K);
+      if (ok) {
+        nnueWeightsBytes = cached;
+        sendNnueWeightsToHelpers();
+        nnueFetchStatus = 'loaded';
+        void pruneNnueWeightsCache(cache);
+        reportNnueWeightsStatus({
+          type: 'nnueWeightsStatus',
+          status: 'loaded',
+          source: 'cache',
+          attempts: 0,
+          elapsedMs: Date.now() - startedAt,
+          bytes: cached.byteLength,
+        });
+        return;
+      }
+      // Cached bytes the engine will not accept are worthless: drop them and
+      // give the network a chance rather than reporting a terminal rejection.
+      try {
+        await cache.delete(nnueWeightsCacheKey());
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+
   for (let attempt = 1; attempt <= NNUE_FETCH_MAX_ATTEMPTS; attempt++) {
     attempts = attempt;
     try {
@@ -356,6 +491,10 @@ async function fetchNnueWeights(): Promise<void> {
       if (ok) {
         nnueWeightsBytes = buf;
         sendNnueWeightsToHelpers();
+        if (cache) {
+          await pruneNnueWeightsCache(cache);
+          await storeNnueWeights(cache, buf);
+        }
       }
       nnueFetchStatus = ok ? 'loaded' : 'rejected';
       if (process.env.NODE_ENV === 'development') {
@@ -370,6 +509,7 @@ async function fetchNnueWeights(): Promise<void> {
       reportNnueWeightsStatus({
         type: 'nnueWeightsStatus',
         status: nnueFetchStatus,
+        source: 'network',
         attempts: attempt,
         elapsedMs: Date.now() - startedAt,
         bytes: buf.byteLength,

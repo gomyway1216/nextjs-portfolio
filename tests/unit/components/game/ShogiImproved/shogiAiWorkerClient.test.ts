@@ -343,11 +343,52 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
 
     const pending = client.requestBestMoveWithInfo(position, 'easy', 0);
     const rejection = expect(pending).rejects.toThrow('AI worker timed out');
-    await vi.advanceTimersByTimeAsync(4_000);
+    // easy's 4s search deadline plus the startup allowance every never-yet-heard-from
+    // instance gets (see WORKER_STARTUP_GRACE_MS).
+    await vi.advanceTimersByTimeAsync(14_000);
 
     await rejection;
     expect(WorkerStub.instances).toHaveLength(1);
     await expect(client.requestBestMoveWithInfo(position, 'easy', 1)).rejects.toThrow('AI worker unavailable');
+    client.terminate();
+  });
+
+  /**
+   * A brand-new Worker still has to download its module bundle and instantiate
+   * the WASM engine, and whichever request arrives first pays for all of it.
+   * Measured on production 2026-08-25: the same master request answered in
+   * ~5.05s on a warm instance and 7.61s on a cold page load — 2.5s of startup
+   * charged to a deadline whose search alone is budgeted 5s. Killing a worker
+   * that is merely still booting demotes the move to the (much weaker)
+   * main-thread engine, so startup gets its own allowance and only a proven
+   * instance is held to the bare search deadline.
+   */
+  it('gives a never-yet-heard-from worker a startup allowance, and drops it once the worker answers', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('navigator', { hardwareConcurrency: 1 });
+    vi.stubGlobal('Worker', WorkerStub);
+    const client = createShogiAiWorkerClient();
+    const worker = currentWorker();
+
+    // Cold: still pending well past the bare 4s easy deadline.
+    let settled = false;
+    const cold = client.requestBestMoveWithInfo(position, 'easy', 0).then(
+      () => { settled = true; },
+      () => { settled = true; }
+    );
+    await vi.advanceTimersByTimeAsync(4_500);
+    expect(settled).toBe(false);
+
+    worker.emit({ type: 'bestMoveResult', id: bestMoveRequest(worker).id, move: null, searchPath: 'wasm' });
+    await cold;
+    expect(settled).toBe(true);
+
+    // Warm: the instance has spoken, so the bare deadline applies again.
+    const warm = client.requestBestMoveWithInfo(position, 'easy', 1);
+    const warmRejection = expect(warm).rejects.toThrow('AI worker timed out');
+    await vi.advanceTimersByTimeAsync(4_000);
+    await warmRejection;
+
     client.terminate();
   });
 });

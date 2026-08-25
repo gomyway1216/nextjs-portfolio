@@ -1,11 +1,22 @@
 'use client';
 
-import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useEffect, useContext, useLayoutEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
 import { auth, signInWithEmail, signInWithGoogle, signInWithSessionCookie, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode } from '@/lib/errorUtils';
+import {
+  AuthLayoutHint,
+  AuthResolution,
+  hangGuardShouldStopPresuming,
+  nextAuthResolution,
+  readAuthLayoutHint,
+  resolvePresumedProfile,
+  shouldPersistAuthLayoutHint,
+  toAuthLayoutHint,
+  writeAuthLayoutHint,
+} from '@/lib/authLayoutHint';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -14,6 +25,19 @@ interface AuthProviderProps {
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  /**
+   * Layout-only: true while a signed-in session is still being restored on a
+   * browser that was signed in last time, and true once `currentUser` is set.
+   * Chrome that changes size with sign-in state should size itself off this so
+   * it doesn't reflow when auth settles. Never use it to authorize anything —
+   * gate actions on `currentUser`.
+   */
+  presumedSignedIn: boolean;
+  /**
+   * The remembered avatar shape to paint while `currentUser` is still null.
+   * Null once auth has settled (read `currentUser` from then on).
+   */
+  presumedProfile: AuthLayoutHint | null;
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
   twoFactorRequired: boolean;
@@ -34,6 +58,16 @@ interface AuthSessionState {
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
 }
+
+// `useLayoutEffect` warns when React renders on the server; the effect only
+// matters in the browser, where it must run before paint.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
+// Firebase's IndexedDB persistence has been seen to never call back at all.
+const AUTH_HANG_GUARD_MS = 2000;
+// Comfortably past a slow session restore (three round trips, any of which can
+// hit a cold start), so only a genuinely stuck request reaches it.
+const AUTH_PRESUMPTION_CAP_MS = 12000;
 
 const AUTH_SIGN_OUT_EVENT_KEY = 'meetyudai:auth-sign-out';
 const SESSION_COOKIE_SYNC_ERROR_CODE = 'auth/session-cookie-failed';
@@ -61,6 +95,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isEnrolledInMFA: false,
   });
   const [loading, setLoading] = useState<boolean>(true);
+  // Layout-only memory of the last settled sign-in state. Read in a layout
+  // effect rather than in the initial state so the server render and the
+  // hydration render agree; a layout effect still lands before the browser
+  // paints, so chrome sized off `presumedSignedIn` never shows a signed-out
+  // frame first.
+  const [layoutHint, setLayoutHint] = useState<AuthLayoutHint | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    setLayoutHint(readAuthLayoutHint());
+  }, []);
+  // Tracked separately from `loading`, which the hang guard below forces false
+  // on a timer whether or not auth actually resolved.
+  const [authResolution, setAuthResolution] = useState<AuthResolution>('pending');
+
   const [twoFactorRequired, setTwoFactorRequired] = useState<boolean>(false);
   const [mfaPhoneHint, setMfaPhoneHint] = useState<string | null>(null);
 
@@ -401,14 +448,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     };
 
+    // `loading` and the layout presumption answer different questions, and the
+    // hang guard above is why they must not share one flag. `finishLoading` is
+    // about "may the app render at all", so the guard fires it blind at 2s.
+    // The presumption is about "do we still expect a signed-in user", and a
+    // listener pass that is mid-await (session restore, admin check) is exactly
+    // the case where we do — dropping it at 2s would put the signed-out toolbar
+    // back on screen and then swap it again, which is the reflow this whole
+    // mechanism exists to prevent.
+    let authCallbackStarted = false;
+    // A completed listener pass is the only positive evidence of the real
+    // state; only that may rewrite the stored hint.
+    const resolveAuth = () => {
+      setAuthResolution((prev) => nextAuthResolution(prev, 'pass-completed'));
+    };
+    // Timers know nothing — they only stop us presuming. They must never be
+    // allowed to erase the hint, or a slow load would cost the next load too.
+    const giveUpPresuming = () => {
+      setAuthResolution((prev) => nextAuthResolution(prev, 'gave-up'));
+    };
+    const finishPass = () => {
+      finishLoading();
+      resolveAuth();
+    };
+
     const unsubscribe = auth.onAuthStateChanged(async (user: User | null) => {
+      authCallbackStarted = true;
       if (!user) {
         if (!wasSignedInRef.current && !attemptedSessionRestoreRef.current && !mfaSignInCompletingRef.current) {
           attemptedSessionRestoreRef.current = true;
           const restoredCredential = await restoreFirebaseAuthFromSession();
           if (restoredCredential?.user) {
             await applySignedInUser(restoredCredential.user);
-            finishLoading();
+            finishPass();
             return;
           }
         }
@@ -421,30 +493,67 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (hadSignedInUser) {
           await syncSessionCookie(null);
         }
-        finishLoading();
+        finishPass();
         return;
       }
 
       if (mfaSignInCompletingRef.current) {
-        finishLoading();
+        finishPass();
         return;
       }
 
       await applySignedInUser(user);
-      finishLoading();
+      finishPass();
     });
 
-    const fallbackTimer = setTimeout(finishLoading, 2000);
+    const fallbackTimer = setTimeout(() => {
+      finishLoading();
+      // Firebase never called back, so nothing is in flight and there is
+      // nothing left to wait for — stop presuming. When it HAS called back,
+      // leave the presumption alone: the pass is awaiting network work and
+      // will resolve it.
+      if (hangGuardShouldStopPresuming(authCallbackStarted)) {
+        giveUpPresuming();
+      }
+    }, AUTH_HANG_GUARD_MS);
+
+    // Backstop for the other direction: a listener pass that started but never
+    // finishes (a fetch that neither resolves nor rejects) would otherwise pin
+    // a signed-in-shaped toolbar up indefinitely. Long enough that a slow but
+    // healthy restore is never cut short.
+    const presumptionCapTimer = setTimeout(giveUpPresuming, AUTH_PRESUMPTION_CAP_MS);
 
     return () => {
       clearTimeout(fallbackTimer);
+      clearTimeout(presumptionCapTimer);
       unsubscribe();
     };
   }, [applySignedInUser, resetLocalAuthState, restoreFirebaseAuthFromSession, syncSessionCookie]);
 
+  // Remember the settled state for the next load. Gated on a completed listener
+  // pass, never on `loading`: the restore path reports a null user before it
+  // reports the restored one, and the hang guard can force `loading` false
+  // while that restore is still in flight. Writing the hint from either of
+  // those would record "signed out" for a user who is signed in, and the miss
+  // would persist into the next load.
+  // Only the stored copy is updated — `layoutHint` is read for this load alone,
+  // and by the time this runs it no longer feeds anything (see below).
+  useEffect(() => {
+    if (!shouldPersistAuthLayoutHint(authResolution)) return;
+    writeAuthLayoutHint(toAuthLayoutHint(authState.currentUser));
+  }, [authResolution, authState.currentUser]);
+
+  const presumedProfile = resolvePresumedProfile(
+    authState.currentUser !== null,
+    authResolution === 'pending',
+    layoutHint,
+  );
+
   const value: AuthContextType = {
     currentUser: authState.currentUser,
     loading,
+    presumedSignedIn: authState.currentUser !== null || presumedProfile !== null,
+    presumedProfile,
     isAdmin: authState.isAdmin,
     isEnrolledInMFA: authState.isEnrolledInMFA,
     twoFactorRequired,

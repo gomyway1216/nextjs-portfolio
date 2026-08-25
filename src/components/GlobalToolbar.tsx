@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
+import { deriveUserInitial } from '@/lib/authLayoutHint';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import type { GameNavEntry } from '@/components/game/constants/gameNav';
 import styles from './GlobalToolbar.module.css';
@@ -209,7 +210,7 @@ function isActiveNavItem(pathname: string, item: PrimaryNavItem): boolean {
 export function GlobalToolbar() {
   const pathname = usePathname();
   const { t, i18n } = useTranslation();
-  const { currentUser, isAdmin, signOut } = useAuth();
+  const { currentUser, isAdmin, signOut, presumedSignedIn, presumedProfile } = useAuth();
   const { content: gameContent } = useGameToolbar();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
   const nextLang = currentLang === 'en' ? 'ja' : 'en';
@@ -257,9 +258,15 @@ export function GlobalToolbar() {
   const brandName = t('home.hero.name');
   const nextLangLabel = currentLang === 'en' ? '日本語' : 'English';
   const languageSwitchLabel = `${t('home.language.switch')}: ${nextLangLabel}`;
-  const hasUserDisplayName = Boolean(currentUser?.displayName);
-  const userInitial = (currentUser?.displayName || currentUser?.email || 'U').charAt(0).toUpperCase();
-  const userMenuLabel = currentUser?.displayName || currentUser?.email || t('auth.userDefault');
+  // While a session is still being restored, paint the remembered avatar rather
+  // than the (much wider) login button: swapping one for the other resizes this
+  // slot, which rewraps the toolbar and shoves the page content below it down.
+  const userDisplayName = currentUser ? currentUser.displayName : presumedProfile?.displayName ?? null;
+  const hasUserDisplayName = Boolean(userDisplayName);
+  const userInitial = currentUser
+    ? deriveUserInitial(currentUser.displayName, currentUser.email)
+    : presumedProfile?.initial ?? 'U';
+  const userMenuLabel = userDisplayName || currentUser?.email || t('auth.userDefault');
   const primaryNavItems = PRIMARY_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
   const moreNavItems = MORE_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
   const isPrimaryNavActive = primaryNavItems.some((item) => isActiveNavItem(pathname, item));
@@ -457,7 +464,50 @@ export function GlobalToolbar() {
             <Languages className="h-4 w-4" />
           </button>
 
-          {currentUser ? (
+          {!presumedSignedIn ? (
+            <Link
+              href={`/signin?redirect=${encodeURIComponent(pathname)}`}
+              style={{ color: 'var(--muted-foreground)' }}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t('auth.login')}</span>
+              </Button>
+            </Link>
+          ) : !currentUser ? (
+            // Session still restoring. Same box as the resolved avatar so the
+            // toolbar's width — and therefore the page below it — never moves;
+            // inert because there is no account to open a menu for yet.
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled
+              aria-busy="true"
+              aria-label={userMenuLabel}
+              data-testid="global-toolbar-auth-placeholder"
+              className={cn(
+                'h-8 rounded-full text-xs font-medium text-muted-foreground',
+                hasUserDisplayName
+                  ? 'w-8 gap-0 px-0 md:w-auto md:gap-2 md:pl-1 md:pr-2'
+                  : 'w-8 gap-0 px-0',
+              )}
+            >
+              <div
+                className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium"
+                style={{ backgroundColor: accentSoft, color: theme.avatarText }}
+              >
+                {userInitial}
+              </div>
+              {hasUserDisplayName && (
+                <span className="hidden max-w-28 truncate md:inline">{userDisplayName}</span>
+              )}
+            </Button>
+          ) : (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -479,13 +529,13 @@ export function GlobalToolbar() {
                     {userInitial}
                   </div>
                   {hasUserDisplayName && (
-                    <span className="hidden max-w-28 truncate md:inline">{currentUser.displayName}</span>
+                    <span className="hidden max-w-28 truncate md:inline">{userDisplayName}</span>
                   )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 rounded-md shadow-sm">
                 <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium truncate">{currentUser.displayName || t('auth.userDefault')}</p>
+                  <p className="text-sm font-medium truncate">{userDisplayName || t('auth.userDefault')}</p>
                   <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
                 </div>
                 <DropdownMenuSeparator />
@@ -503,20 +553,6 @@ export function GlobalToolbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <Link
-              href={`/signin?redirect=${encodeURIComponent(pathname)}`}
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('auth.login')}</span>
-              </Button>
-            </Link>
           )}
         </div>
       </div>

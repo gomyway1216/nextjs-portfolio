@@ -203,8 +203,11 @@ describe('wasmEngine NNUE loading', () => {
       // Power and threshold, measured rather than assumed. Replaying this game
       // and asking at these four positions produced P*8f at:
       //
-      //   hard   (2000ms, q10)   pre-fix 3/48    post-fix 1/96 (two builds)
+      //   hard   (2000ms, q10)   pre-fix 6/96    post-fix 1/96
       //   master (5000ms, q12)   pre-fix 2/32    post-fix 1/32
+      //
+      // (the hard figures are two independent 48-measurement passes per side;
+      // the pre-fix engine produced 3/48 in both, so the rate is stable)
       //
       // Every single one of them, before and after, was the move-30 position;
       // the other three never relapse. So the fix REDUCES the shuttle, it does

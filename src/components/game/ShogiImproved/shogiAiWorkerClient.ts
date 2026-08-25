@@ -426,6 +426,13 @@ export function createShogiAiWorkerClient(
       recoverWithSingleThread(`worker error: ${message}`);
     };
   };
+  // MUST stay in the same synchronous block as `new Worker(...)` above.
+  // `nnueWeightsStatus` is unsolicited, so a handler attached after any `await`
+  // could miss it and lose the delivery-failure log this client exists to
+  // emit. This function is deliberately NOT async: control cannot reach the
+  // event loop between construction and here, and message events are only
+  // dispatched as event-loop tasks. Pinned by "attaches the message handler
+  // before returning" in shogiAiWorkerClient.test.ts.
   attachWorkerHandlers(worker);
 
   // Pause pondering while the tab is hidden (battery/CPU): the worker cannot

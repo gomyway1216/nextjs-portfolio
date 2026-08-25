@@ -61,6 +61,70 @@ afterEach(() => {
   WorkerStub.failConstructionAfter = Number.POSITIVE_INFINITY;
 });
 
+/**
+ * `nnueWeightsStatus` is unsolicited: the worker sends it without being asked,
+ * so a listener attached too late would silently drop the very event the
+ * delivery-failure logging exists to capture (raised in review of PR #718).
+ *
+ * The race cannot happen, and these tests pin the reason so a future refactor
+ * cannot quietly reintroduce it. `createShogiAiWorkerClient` is a plain
+ * synchronous function: from `new Worker(...)` to `attachWorkerHandlers(...)`
+ * control never returns to the event loop, and message events are dispatched
+ * as event-loop tasks. Insert a single `await` between the two and the first
+ * test below fails.
+ */
+describe('shogiAiWorkerClient unsolicited message delivery', () => {
+  it('attaches the message handler before returning, so nothing can arrive unheard', () => {
+    vi.stubGlobal('Worker', WorkerStub);
+    const client = createShogiAiWorkerClient();
+
+    // Synchronously after construction — the earliest an event could ever be
+    // dispatched is the next task, which is strictly after this point.
+    expect(currentWorker().onmessage).toBeTypeOf('function');
+    client.terminate();
+  });
+
+  it('receives a weights status delivered at the earliest possible moment', async () => {
+    // A microtask queued during `new Worker(...)` runs as soon as the calling
+    // synchronous block finishes — earlier than any real message event could
+    // be delivered, so it is a strict lower bound on the race window.
+    class EagerWorkerStub extends WorkerStub {
+      constructor() {
+        super();
+        queueMicrotask(() =>
+          this.emit({
+            type: 'nnueWeightsStatus',
+            status: 'unavailable',
+            attempts: 1,
+            elapsedMs: 12,
+            httpStatus: 404,
+            errorMessage: 'HTTP 404',
+          })
+        );
+      }
+    }
+    vi.stubGlobal('Worker', EagerWorkerStub);
+
+    const seen: unknown[] = [];
+    const client = createShogiAiWorkerClient({
+      onNnueWeightsStatus: (status) => seen.push(status),
+    });
+
+    await Promise.resolve();
+    expect(seen).toEqual([
+      {
+        status: 'unavailable',
+        attempts: 1,
+        elapsedMs: 12,
+        bytes: undefined,
+        httpStatus: 404,
+        errorMessage: 'HTTP 404',
+      },
+    ]);
+    client.terminate();
+  });
+});
+
 describe('shogiAiWorkerClient diagnostics protocol', () => {
   it('keeps the production game UI off the explicit diagnostic path', () => {
     const gameUi = readFileSync(

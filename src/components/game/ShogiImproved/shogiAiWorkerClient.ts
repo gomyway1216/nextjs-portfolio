@@ -228,21 +228,34 @@ export type { ShogiAiEngineReadyOutcome };
 
 export interface ShogiAiWorkerClient {
   /**
-   * Whether a search at `difficulty` can start right now at full strength.
+   * Whether this turn should start immediately, i.e. whether waiting would
+   * still change the outcome.
    *
-   * False only while the worker's NNUE weights are still in flight AND the
-   * level would actually use them. Callers use it to decide whether to show a
-   * "preparing" state before awaiting `waitForEngineReady`; a caller that skips
-   * it and awaits directly behaves identically, just without the UI hint.
+   * Deliberately NOT "the search will run at full strength": it is also true
+   * once the gate has been abandoned (a timeout already elapsed this session),
+   * once the client has given up respawning, and after disposal. In those
+   * states the next search may well run on V3 or on the main thread — but
+   * there is nothing left to wait FOR, so parking the turn would only add
+   * delay on top of a weaker move.
+   *
+   * False therefore means exactly one thing: the level uses NNUE and the
+   * weights are still in flight on a worker that may yet deliver them.
+   * Callers use it to decide whether to show the "preparing" state before
+   * awaiting `waitForEngineReady`; a caller that skips it and awaits directly
+   * behaves identically, just without the UI hint.
    */
   isEngineReady: (difficulty: Difficulty) => boolean;
   /**
    * Resolve once a search at `difficulty` can run at full strength, or after
    * ENGINE_READY_WAIT_MS, whichever comes first.
    *
-   * Resolves immediately with `'not-required'` when there is nothing to wait
-   * for (an easy search, weights already settled, a worker that has been given
-   * up on). Never rejects and never blocks the main thread: it is a message
+   * Resolves immediately with `'not-required'` when there is nothing left to
+   * wait for. That covers both "the weights are already here (or the level
+   * does not use them)" and "no future arrival is coming" — the gate was
+   * abandoned after an earlier timeout, respawning was given up on, or the
+   * client was disposed. The second group can still search on V3 or on the
+   * main thread; `'not-required'` is a statement about waiting, not about
+   * strength. Never rejects and never blocks the main thread: it is a message
    * listener plus a timer.
    *
    * `difficulty` is a PARAMETER rather than client state on purpose — one

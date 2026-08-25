@@ -200,11 +200,14 @@ describe('wasmEngine NNUE loading', () => {
       //   before the fix used fixed depth 11 with no time limit and once took
       //   ~350s on a shared CI runner.
       //
-      // Power, measured rather than assumed: on the pre-fix engine these four
-      // positions produce P*8f at about 6% each (2 of 32 measurements at the
-      // hard budget, 2000ms), and 0 of 32 after. So a single pass here catches
-      // a relapse maybe a quarter of the time - it is a smoke test on the real
-      // board, not the primary lock. The deterministic locks are
+      // Power, measured rather than assumed. Replaying this game against the
+      // pre-fix engine at the hard budget (2000ms) produced P*8f in 3 of 48
+      // measurements, and 0 of 48 after; at master (5000ms) 2 of 32 before and
+      // 1 of 32 after. Every single one of them was the move-30 position - the
+      // other three never relapse. So one pass here catches a relapse maybe a
+      // quarter of the time: it is a smoke test on the real board, not the
+      // primary lock, and the fix reduces the shuttle rather than abolishing
+      // it. The deterministic locks are
       // rootTtCutoff.test.ts (the root is searched instead of answered from
       // the table) and positionHistory.test.ts (primed occurrences count
       // towards repetition). If this one ever fails, believe it.

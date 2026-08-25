@@ -86,6 +86,7 @@ function runHelper(init: HelperInitMessage): void {
         msg.student_enabled === true && nnueActuallyEnabled
           ? msg.rootPolicyRank
           : null,
+        Array.isArray(msg.positionHistory) ? msg.positionHistory : [],
       );
       const stats = getLastWasmSearchStats();
       const response: HelperResponse = {

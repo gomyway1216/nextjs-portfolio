@@ -128,6 +128,13 @@ type WorkerRequest =
       tesu: number;
       /** Exact same-build candidate/stable role switch. */
       student_enabled: boolean;
+      /**
+       * Flat [primary, secondary, …] Zobrist pairs for every position played
+       * before `position` (see positionHistory.ts). Optional and additive: an
+       * older client that does not send it leaves the engine history-blind,
+       * exactly as before.
+       */
+      positionHistory?: number[];
     }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
@@ -658,6 +665,7 @@ function computeBestMove(
   difficulty: Difficulty,
   tesu: number,
   studentEnabled: boolean,
+  positionHistory: readonly number[],
 ): BestMoveComputation {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
@@ -726,6 +734,10 @@ function computeBestMove(
       student_enabled: effectiveStudentEnabled,
       rootPolicyRank,
       difficulty,
+      // Same root, same rules: a helper without this searches the position as
+      // if the game had never been played and publishes those scores to the
+      // shared table.
+      ...(positionHistory.length > 0 ? { positionHistory: [...positionHistory] } : {}),
     };
     for (const port of smpPorts) port.postMessage(go);
   }
@@ -739,6 +751,7 @@ function computeBestMove(
       32,
       budget.quiescenceDepthMax,
       rootPolicyRank,
+      positionHistory,
     );
   } finally {
     // Stop the helpers even if the search trapped, and sync our OWN local
@@ -775,7 +788,10 @@ function computeBestMove(
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
   // genuinely mated position it returns null just like the WASM engine).
-  const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty });
+  // It gets the same game history as the WASM engine: a route that is only
+  // taken when something has already gone wrong must not also quietly play by
+  // the old, history-blind repetition rules.
+  const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty, gameHistory: positionHistory });
   return {
     move: fallback.move,
     scoreCp: fallback.scoreCp === undefined ? undefined : toSenteCp(fallback.scoreCp, k.teban),
@@ -797,7 +813,13 @@ function computeBestMove(
  * `k` is owned by this message (buildPosition creates a fresh copy), so
  * mutating it here is safe.
  */
-function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu: number): void {
+function startPonder(
+  k: KyokumenImproved,
+  best: Te,
+  difficulty: Difficulty,
+  tesu: number,
+  positionHistory: readonly number[],
+): void {
   // Easy is intentionally weak — do not sharpen it. And without the WASM
   // engine there is no shared TT worth warming (the JS fallback path is rare
   // and its search is not slice-friendly at these budgets).
@@ -807,6 +829,9 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   // use the unchanged stable root ordering.
   clearWasmRootPolicyRank();
 
+  // The root we just answered from is now part of the game, so the ponder
+  // root (one move later) sees it as history too.
+  const ponderHistory = [...positionHistory, k.HashVal, k.SecondaryHashVal];
   k.move(best);
   k.toggleTeban();
   const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
@@ -832,7 +857,17 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   ponder.start((sliceMs) => {
     // Returns null when the human is already mated/stalemated (or the engine
     // tripped) — stop the session instead of spinning on empty slices.
-    return wasmSearchBestMove(k, ponderTesu, sliceMs, 32, budget.quiescenceDepthMax) !== null;
+    return (
+      wasmSearchBestMove(
+        k,
+        ponderTesu,
+        sliceMs,
+        32,
+        budget.quiescenceDepthMax,
+        null,
+        ponderHistory,
+      ) !== null
+    );
   });
 }
 
@@ -895,12 +930,16 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
             )
           : false;
       const k = buildPosition(msg.position);
+      const positionHistory = Array.isArray(msg.positionHistory)
+        ? msg.positionHistory
+        : [];
       const result = computeBestMove(
         k,
         msg.position,
         msg.difficulty,
         msg.tesu | 0,
         requestedStudent && studentReady,
+        positionHistory,
       );
       const best = result.move;
       const move: SerializedTeImproved | null = best
@@ -922,7 +961,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       });
 
       // Answer first, then start thinking on the opponent's time.
-      if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
+      if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0, positionHistory);
     } catch (e) {
       clearWasmRootPolicyRank();
       const message = e instanceof Error ? e.message : String(e);

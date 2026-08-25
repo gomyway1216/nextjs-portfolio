@@ -76,8 +76,10 @@ describe("pinned production root move universe bridge", () => {
       expect(response.wasm.legal_moves).toBe(response.wasm_usi.length);
       expect(response.wasm_usi).toEqual([...response.wasm_usi].sort());
       expect(new Set(response.wasm_usi).size).toBe(response.wasm_usi.length);
-      expect(response.wasm.second_search_nodes).toBe(1);
-      expect(response.wasm.second_search_leaves).toBe(0);
+      // The root universe now comes straight from the engine's root filter,
+      // so the evidence is that the fill agrees with countLegalMoves — not
+      // that a second search collapsed to a single transposition-table node.
+      expect(response.wasm.root_move_fill).toBe(response.wasm.legal_moves);
     }
 
     const bishop = responses[65].wasm_usi;

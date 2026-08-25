@@ -57,6 +57,15 @@ export type HelperRequest =
       /** Exact immutable receipt computed once by the main worker. */
       rootPolicyRank: WasmRootPolicyRankReceipt | null;
       difficulty: Difficulty;
+      /**
+       * Flat [primary, secondary, ...] Zobrist pairs of every position played
+       * before `position` (see positionHistory.ts). Helpers write into the
+       * SHARED table, so a helper that did not know the game history would
+       * store scores computed under a different repetition rule and hand them
+       * straight back to the main thread. Optional so a helper built before
+       * this field simply keeps the old behaviour.
+       */
+      positionHistory?: number[];
     }
   | { type: 'clearTT' }
   | { type: 'nnueWeights'; bytes: ArrayBuffer; scaleK: number };

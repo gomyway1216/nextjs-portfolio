@@ -118,19 +118,30 @@ MOVE_UNIVERSE_RECEIPT_SCHEMA = (
 MOVE_UNIVERSE_REQUEST_SCHEMA = (
     "shogi-production-root-move-universe-request-v2"
 )
+# v3: the bridge reads the root move universe from the engine's own root filter
+# (fillRootMoveBuffer) instead of provoking a transposition-table shortcut, so
+# the second_search_* evidence fields are replaced by root_move_fill.
 MOVE_UNIVERSE_RESPONSE_SCHEMA = (
-    "shogi-production-root-move-universe-response-v2"
+    "shogi-production-root-move-universe-response-v3"
 )
-MOVE_UNIVERSE_WASM_BYTES = 36_545
+# These four MUST equal the bridge's own PINNED_WASM_BYTES / PINNED_WASM_SHA256
+# / PINNED_ROOT_MOVE_BUFFER_OFFSET and RESPONSE_SCHEMA. Nothing but discipline
+# kept them in step and the discipline failed twice: before 2026-08-25 this
+# module still pinned the 36,545-byte legacy shogi.wasm and a bridge source
+# revision two changes old, so _bridge_source_identity() raised on the first
+# call and the pipeline could not run at all. Keeping them honest is now a test
+# (ml/tests_stdlib/test_child_board_root_policy_student_bridge_pins.py), which
+# reads the constants straight out of the bridge and compares.
+MOVE_UNIVERSE_WASM_BYTES = 38_711
 MOVE_UNIVERSE_WASM_SHA256 = (
-    "9142b6b0f0b993596ff3fffa1e05f0d0846bc7672b3f2fc7c90b9f4feaae4c31"
+    "ec555456e7df9369633aa2d85108e3f11868b0c70a64c6ecc16c8d7c1615f4ba"
 )
 MOVE_UNIVERSE_WASM_BUFFER_OFFSET = 7_128_112
 # Updated only when the reviewed bridge source changes. The verifier checks
 # this identity before spawning Node or opening a teacher checkpoint.
-MOVE_UNIVERSE_BRIDGE_BYTES = 12_340
+MOVE_UNIVERSE_BRIDGE_BYTES = 12_325
 MOVE_UNIVERSE_BRIDGE_SHA256 = (
-    "5d15c0a1399a4f352b4d52b0eb9f9f0514943ac995cfda92b5b050a6e2c5a65d"
+    "2a2fce7b829ae1675d2e4f6727ea1b8f66d80ffecf8a5443b410e9475f399b4d"
 )
 SHARDS = 64
 V9_PRETRAIN_EPOCHS = 4
@@ -923,18 +934,18 @@ def verify_production_move_universe(
                         "sha256",
                         "root_move_buffer_offset",
                         "legal_moves",
-                        "second_search_depth",
-                        "second_search_nodes",
-                        "second_search_leaves",
+                        "root_move_fill",
                     }
                     or wasm.get("bytes") != MOVE_UNIVERSE_WASM_BYTES
                     or wasm.get("sha256") != MOVE_UNIVERSE_WASM_SHA256
                     or wasm.get("root_move_buffer_offset")
                     != MOVE_UNIVERSE_WASM_BUFFER_OFFSET
                     or wasm.get("legal_moves") != len(production_usi)
-                    or wasm.get("second_search_nodes") != 1
-                    or wasm.get("second_search_leaves") != 0
-                    or wasm.get("second_search_depth") not in (0, 1)
+                    # The evidence that moveBuf really holds the root universe
+                    # is now that the engine's own root filter wrote exactly as
+                    # many moves as countLegalMoves reported - not that a second
+                    # search collapsed into a single transposition-table node.
+                    or wasm.get("root_move_fill") != len(production_usi)
                 ):
                     raise ValueError(
                         "production move-universe WASM extraction drift"

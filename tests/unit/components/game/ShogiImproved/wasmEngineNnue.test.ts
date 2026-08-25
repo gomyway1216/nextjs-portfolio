@@ -26,6 +26,10 @@ import {
   getKomashu,
 } from '@/components/game/ShogiImproved/types';
 import {
+  buildPositionHistoryHashes,
+  type ReplayableMove,
+} from '@/components/game/ShogiImproved/positionHistory';
+import {
   clearWasmTT,
   isNnueEnabled,
   isNnueWeightsLoaded,
@@ -47,18 +51,29 @@ const DROP_LETTER: Readonly<Record<string, number>> = {
   R: HI,
 };
 
-// Position immediately before move 32 in the reported rook-pawn loop game.
-// The original bug: a regressed evaluator kept re-dropping P*8f and shuffled
-// the rook into a repetition draw. The guarded property is loop-freedom, not
-// any particular single move: a shipped evaluator may make at most one P*8f
-// drop at this fixed depth (a depth-parity blip), but it must break out of the
-// cycle instead of restarting the shuttle.
-const ROOK_PAWN_LOOP_PREFIX = [
+// The reported game, exactly as it was played: Sente a human 2-dan, Gote the
+// shipped AI. Moves 24, 30, 36 and 44 (1-indexed) are the four points at which
+// the AI dropped P*8f and restarted the rook-pawn shuttle, and they are the
+// positions this test puts back in front of the engine.
+//
+// An earlier version of this test tried to synthesise the scenario instead: it
+// scripted a "cooperating" Sente that always took on 8f and re-dropped P*8g.
+// That does not reproduce anything - a scripted opponent hangs material, the
+// engine simply wins it and mates in about fourteen moves, and the test passed
+// on the buggy engine as happily as on the fixed one. The real board is the
+// only board on which this bug is known to appear.
+const REPORTED_GAME = [
   '2g2f', '8c8d', '2f2e', '8d8e', '6i7h', '4a3b', '2e2d', '2c2d', '2h2d', 'P*2c',
-  '2d2h', '8e8f', '8g8f', '8b8f', 'P*8g', '8f8d', '3i3h', '3c3d', '5i6h', 'P*8f',
-  '8g8f', '8d8f', 'P*8g', '8f8d', '3h2g', 'P*8f', '8g8f', '8d8f', 'P*8g', '8f8e',
-  '2g2f',
+  '2d2h', '8e8f', '8g8f', '8b8f', 'P*8g', '8f8d', '3i3h', '3c3d', '5i6h', '7a7b',
+  '3h2g', '2b4d', '2g3f', 'P*8f', '8g8f', '8d8f', 'P*8g', '8f8e', '4g4f', 'P*8f',
+  '8g8f', '8e8f', 'P*8g', '8f8e', '4i5h', 'P*8f', '8g8f', '8e8f', 'P*8g', '8f8d',
+  '3f4e', '4d3e', '2h4h', 'P*8f', '8g8f',
 ] as const;
+
+/** 1-indexed move numbers at which the shipped AI dropped P*8f. */
+const SHUTTLE_MOVES = [24, 30, 36, 44] as const;
+
+const P8F = (8 << 4) + 6;
 
 function readWeights(): Uint8Array {
   const buf = readFileSync(weightsPath);
@@ -89,8 +104,10 @@ function findUsiMove(usi: string, legal: Te[]): Te {
   return match;
 }
 
-/** Position identity for repetition counting: board cells + hands + side to move. */
-function positionKey(position: ReturnType<typeof InitialPositionImproved.createInitialPosition>): string {
+type Position = ReturnType<typeof InitialPositionImproved.createInitialPosition>;
+
+/** Full position identity (sennichite): board cells + both hands + side to move. */
+function positionKey(position: Position): string {
   const cells: number[] = [];
   for (let file = 1; file <= 9; file++) {
     for (let rank = 1; rank <= 9; rank++) {
@@ -166,61 +183,117 @@ describe('wasmEngine NNUE loading', () => {
   });
 
   it(
-    'does not fall into the rook-pawn repetition loop at fixed depth 11',
+    'does not re-drop the rook pawn at the four positions where the shipped engine did',
     () => {
       expect(loadNnueWeights(readWeights(), 600)).toBe(true);
       expect(setWasmNnueEnabled(true)).toBe(true);
 
-      // Replay the real game so sennichite counting matches the rules exactly:
-      // same board, hands, and side to move, counted from move 1.
-      const keyCounts = new Map<string, number>();
+      // Production shape, not a laboratory one:
+      // - the table is cleared ONCE, when the game starts, and stays warm
+      //   between moves (the version of this test before the fix cleared it
+      //   immediately before the measured search, which is the opposite of
+      //   what the browser does),
+      // - the engine ponders on the opponent's time in the slices the worker
+      //   uses, which is what leaves a deep entry sitting on the very root it
+      //   is about to be asked about,
+      // - the search runs on a wall clock, not to a fixed depth. The version
+      //   before the fix used fixed depth 11 with no time limit and once took
+      //   ~350s on a shared CI runner.
+      //
+      // Power and threshold, measured rather than assumed. Replaying this game
+      // and asking at these four positions produced P*8f at:
+      //
+      //   hard   (2000ms, q10)   pre-fix 6/96    post-fix 1/96
+      //   master (5000ms, q12)   pre-fix 2/32    post-fix 1/32
+      //
+      // (the hard figures are two independent 48-measurement passes per side;
+      // the pre-fix engine produced 3/48 in both, so the rate is stable)
+      //
+      // Every single one of them, before and after, was the move-30 position;
+      // the other three never relapse. So the fix REDUCES the shuttle, it does
+      // not abolish it, and demanding zero here would flake on CI roughly one
+      // run in twelve. The assertion is therefore "not twice": spending the
+      // pawn once at one of four positions is a judgement call the evaluator
+      // is allowed to make, doing it repeatedly is the shuttle.
+      //
+      // That makes this a smoke test on the real board, not the primary lock.
+      // The locks that fail outright on the pre-fix engine are
+      // rootTtCutoff.test.ts (the root is searched instead of answered from
+      // the table) and positionHistory.test.ts (primed occurrences count
+      // towards repetition, in both the WASM and the JS engine). The deterministic locks are
+      // rootTtCutoff.test.ts (the root is searched instead of answered from
+      // the table) and positionHistory.test.ts (primed occurrences count
+      // towards repetition). If this one ever fails, believe it.
+      const MOVE_MS = 1000;
+      const PONDER_SLICE_MS = 200;
+      const PONDER_SLICES = 10;
+
+      clearWasmTT();
       const position = InitialPositionImproved.createInitialPosition();
-      keyCounts.set(positionKey(position), 1);
-      for (const usi of ROOK_PAWN_LOOP_PREFIX) {
-        const move = findUsiMove(usi, GenerateMovesImproved.generateLegalMoves(position));
+      const startPosition = InitialPositionImproved.createInitialPosition();
+      const played: ReplayableMove[] = [];
+      const applyMove = (move: Te): void => {
+        played.push({ koma: move.koma, from: move.from, to: move.to, promote: move.promote });
         move.capture = position.get(move.to);
         position.move(move);
         position.toggleTeban();
-        const key = positionKey(position);
-        keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
-      }
+      };
 
-      // Self-play continuation at the fixed depth that historically triggered
-      // the loop, with the TT retained within the game like production play.
-      clearWasmTT();
-      let tesu = ROOK_PAWN_LOOP_PREFIX.length;
+      const counts = new Map<string, number>();
       let pawnDrops8f = 0;
-      for (let ply = 0; ply < 8; ply++) {
-        const move = wasmSearchBestMove(position, tesu, 0, 11, 10);
-        expect(move).not.toBeNull();
-        if (move!.from === 0 && move!.to === (8 << 4) + 6) pawnDrops8f++;
-        move!.capture = position.get(move!.to);
-        position.move(move!);
-        position.toggleTeban();
-        tesu++;
+
+      for (let index = 0; index < REPORTED_GAME.length; index++) {
+        const moveNumber = index + 1;
+
+        if ((SHUTTLE_MOVES as readonly number[]).includes(moveNumber)) {
+          // Everything already on the board, exactly as the worker sends it.
+          const history = buildPositionHistoryHashes(startPosition, played, position);
+          expect(history).toHaveLength(played.length * 2);
+
+          const aiMove = wasmSearchBestMove(
+            position.clone(),
+            played.length,
+            MOVE_MS,
+            32,
+            10,
+            null,
+            history
+          );
+          expect(aiMove).not.toBeNull();
+          if (aiMove!.from === 0 && aiMove!.to === P8F) pawnDrops8f++;
+        }
+
+        applyMove(findUsiMove(REPORTED_GAME[index], GenerateMovesImproved.generateLegalMoves(position)));
+
         const key = positionKey(position);
-        const count = (keyCounts.get(key) ?? 0) + 1;
-        keyCounts.set(key, count);
-        // Sennichite (4th occurrence of the same position) must never happen.
+        const count = (counts.get(key) ?? 0) + 1;
+        counts.set(key, count);
+        // The real game never actually reached sennichite; if the replay says
+        // otherwise the move list has drifted and every measurement below is
+        // about some other game.
         expect(count).toBeLessThan(4);
+
+        // Ponder the position now in front of the engine, in the worker's
+        // slice size. Only pondering shortly before a measured position can
+        // prime that position's root entry, so the rest is skipped.
+        const nextShuttle = (SHUTTLE_MOVES as readonly number[]).find((m) => m > moveNumber);
+        if (nextShuttle !== undefined && nextShuttle - moveNumber <= 2) {
+          const pondered = position.clone();
+          for (let slice = 0; slice < PONDER_SLICES; slice++) {
+            if (wasmSearchBestMove(pondered, played.length, PONDER_SLICE_MS, 32, 10, null, []) === null) {
+              break;
+            }
+          }
+        }
       }
 
-      // The engine may spend one pawn-drop cycle, but it must not restart it:
-      // more than one P*8f in the continuation means the shuttle is back.
+      // The engine is never forced into this move at any of the four, so more
+      // than one is the shuttle restarting rather than a one-off judgement.
       expect(pawnDrops8f).toBeLessThanOrEqual(1);
     },
-    // Eight *fixed-depth* searches with no time or node cap, which is the one
-    // search mode this engine can blow up in: in rare "pathological" positions
-    // the tree explodes, and which positions those are depends on the
-    // evaluator. This position is one of them for the 2026-08-24 weights -
-    // the same continuation costs ~8s under the previous weights and ~170s
-    // under these (~350s on a shared CI runner), while neutral positions at
-    // the same depth are unchanged (initial position depth 11: 354ms before,
-    // 381ms after). Production never runs this mode - the browser searches
-    // under a 1000ms clock - so this budget is deliberately generous rather
-    // than tuned to the current evaluator. Do not shrink the continuation to
-    // make it fit: the loop-freedom assertions below are the point.
-    900_000,
+    // Bounded by construction: 4 searches of MOVE_MS plus 8 pondered positions
+    // of PONDER_SLICES * PONDER_SLICE_MS is ~20s of search.
+    180_000,
   );
 
   it('can be switched back to V3', () => {

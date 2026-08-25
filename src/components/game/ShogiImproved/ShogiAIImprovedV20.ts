@@ -104,6 +104,21 @@ export interface ShogiAISearchOptions {
    * - `v1` is kept for regression/self-play comparisons.
    */
   evaluationMode?: 'v1' | 'v2' | 'v3' | 'v3t';
+
+  /**
+   * Positions already played this game, as the flat
+   * `[primary, secondary, primary, secondary, …]` Zobrist pairs that
+   * positionHistory.ts produces, in game order, STOPPING before the position
+   * being searched (the search contributes the root's own occurrence itself).
+   *
+   * Without this the repetition counter only ever sees positions the search
+   * walked into on this call, so returning the game to a position it has
+   * already been in looks free - which is the rook-pawn shuttle. The WASM
+   * engine is primed the same way; this keeps the main-thread fallback (the
+   * "低速互換モード" a user actually lands on when the worker fails) playing by
+   * the same rules instead of quietly reverting to the old behaviour.
+   */
+  gameHistory?: readonly number[];
 }
 
 export type ShogiAIMoveKind = 'book' | 'mate' | 'search';
@@ -171,6 +186,11 @@ export class ShogiAIImprovedV20 {
   // Both keys include side-to-move, so a repeated pair means an actual repetition state.
   private enableRepetition = true;
   private drawContempt = 0;
+  //
+  // `repetitionCount` is seeded per search with the already-played positions
+  // (see seedGameHistory) and the stacks are NOT: the game history is not part
+  // of the search path, so popRepetition must never unwind it. A pop only ever
+  // decrements what this search pushed, leaving the seeded baseline intact.
   private repetitionCount = new Map<number, Map<number, number>>();
   private repetitionPrimaryStack: number[] = [];
   private repetitionSecondaryStack: number[] = [];
@@ -489,6 +509,30 @@ export class ShogiAIImprovedV20 {
     const type = getKomashu(te.koma);
     const promoted = side | (type + 8);
     return Math.max(0, Math.abs(komaValue[promoted]) - Math.abs(komaValue[te.koma]));
+  }
+
+  /**
+   * Load the already-played positions into the repetition counter so that
+   * pushRepetition counts them exactly like occurrences on the search path -
+   * the rule is about the board, not about who put the position there.
+   *
+   * Seeding the counts and not the stacks is deliberate: popRepetition only
+   * decrements, so the history survives the whole search and is replaced
+   * wholesale by the next one.
+   */
+  private seedGameHistory(history: readonly number[] | undefined): void {
+    if (!history || history.length < 2) return;
+    const pairs = history.length - (history.length % 2);
+    for (let i = 0; i < pairs; i += 2) {
+      const primaryHash = history[i] | 0;
+      const secondaryHash = history[i + 1] | 0;
+      const secondaryCounts = this.repetitionCount.get(primaryHash);
+      if (secondaryCounts) {
+        secondaryCounts.set(secondaryHash, (secondaryCounts.get(secondaryHash) ?? 0) + 1);
+      } else {
+        this.repetitionCount.set(primaryHash, new Map([[secondaryHash, 1]]));
+      }
+    }
   }
 
   private pushRepetition(primaryHash: number, secondaryHash: number): boolean {
@@ -1673,6 +1717,7 @@ export class ShogiAIImprovedV20 {
     this.repetitionCount.clear();
     this.repetitionPrimaryStack.length = 0;
     this.repetitionSecondaryStack.length = 0;
+    this.seedGameHistory(options.gameHistory);
 
     const start = this.nowMs();
     this.startTime = start;
@@ -1800,11 +1845,12 @@ export function getBestMoveV20WithInfo(
   k: KyokumenImproved,
   teban: number,
   difficulty: Difficulty,
-  tesu: number = 0
+  tesu: number = 0,
+  gameHistory?: readonly number[]
 ): ShogiAIMoveInfo {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  const result = sharedAIV20.getNextTeWithInfo(k, tesu, { difficulty });
+  const result = sharedAIV20.getNextTeWithInfo(k, tesu, { difficulty, gameHistory });
   if (result.scoreCp === undefined || teban === SENTE) return result;
   return { ...result, scoreCp: -result.scoreCp };
 }

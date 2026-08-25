@@ -3242,6 +3242,86 @@ const repStack = new StaticArray<i32>(REP_STACK_SIZE);
 const repStackB = new StaticArray<i32>(REP_STACK_SIZE);
 let repSize: i32 = 0;
 
+// --- Game history (the positions actually played before the current root) ----
+//
+// The path stack above only ever saw the moves the search itself made, so
+// before this the engine was blind to the real game: it could neither claim
+// nor avoid 千日手, and it happily shuffled back into a position the game had
+// already been in. The host primes this list once per search with the hash
+// pair of every position from the start of the game up to (but NOT including)
+// the root — the root's own occurrence is contributed by the ply-0
+// pushRepetition, so the total count stays exactly the true occurrence count.
+//
+// Lookup must be cheap: it runs on every search node. A direct-mapped bit
+// filter over the primary hash answers "definitely absent" in three
+// instructions and only the rare hit pays for the linear scan.
+
+// 4,096 plies. The longest recorded professional shogi game is under 500 and
+// the UI has no way to produce anything remotely near this, so the cap is not
+// a game-length policy - it is a bound on a StaticArray (32 KB for the two
+// halves) that a real game cannot reach. getGameHistoryCapacity() publishes it
+// so the host can size its own window from the engine instead of guessing, and
+// getGameHistorySize() lets the host verify afterwards that everything it sent
+// was actually stored.
+const GAME_HISTORY_MAX: i32 = 4096;
+const gameHistA = new StaticArray<i32>(GAME_HISTORY_MAX);
+const gameHistB = new StaticArray<i32>(GAME_HISTORY_MAX);
+let gameHistSize: i32 = 0;
+
+const GAME_HIST_FILTER_WORDS: i32 = 512; // 16,384 bits
+const GAME_HIST_FILTER_MASK: i32 = GAME_HIST_FILTER_WORDS * 32 - 1;
+const gameHistFilter = new StaticArray<u32>(GAME_HIST_FILTER_WORDS);
+
+/** Drop the primed game history (new game, or a host that has none). */
+export function clearGameHistory(): void {
+  gameHistSize = 0;
+  for (let i = 0; i < GAME_HIST_FILTER_WORDS; i++) unchecked(gameHistFilter[i] = 0);
+}
+
+/**
+ * Append one already-played position, identified by the same hash pair the
+ * engine computes itself (getHashVal / getSecondaryHashVal). Positions must be
+ * pushed in game order and must stop before the root position.
+ *
+ * Pushes past GAME_HISTORY_MAX are ignored rather than evicting. That bound is
+ * unreachable for a real game, and a host that wants to be sure can compare
+ * getGameHistorySize() with what it sent; wasmEngine.ts does exactly that and
+ * sizes its window from getGameHistoryCapacity().
+ */
+export function pushGameHistoryHash(hashA: i32, hashB: i32): void {
+  if (gameHistSize >= GAME_HISTORY_MAX) return;
+  unchecked(gameHistA[gameHistSize] = hashA);
+  unchecked(gameHistB[gameHistSize] = hashB);
+  gameHistSize++;
+  const bit = hashA & GAME_HIST_FILTER_MASK;
+  unchecked(gameHistFilter[bit >>> 5] |= <u32>1 << <u32>(bit & 31));
+}
+
+/** How many positions are currently primed (diagnostics / host verification). */
+export function getGameHistorySize(): i32 {
+  return gameHistSize;
+}
+
+/** Most positions this build can hold, so the host never has to assume it. */
+export function getGameHistoryCapacity(): i32 {
+  return GAME_HISTORY_MAX;
+}
+
+/** Occurrences of this position in the already-played game. */
+function gameHistoryCount(hash: i32, hashB: i32): i32 {
+  if (gameHistSize == 0) return 0;
+  const bit = hash & GAME_HIST_FILTER_MASK;
+  if ((unchecked(gameHistFilter[bit >>> 5]) & (<u32>1 << <u32>(bit & 31))) == 0) return 0;
+  let count = 0;
+  for (let i = 0; i < gameHistSize; i++) {
+    if (
+      unchecked(gameHistA[i]) == hash &&
+      unchecked(gameHistB[i]) == hashB
+    ) count++;
+  }
+  return count;
+}
+
 function pushRepetition(hash: i32): bool {
   const hashB = getSecondaryHashVal();
   let count = 0;
@@ -3251,7 +3331,12 @@ function pushRepetition(hash: i32): bool {
       unchecked(repStackB[i]) == hashB
     ) count++;
   }
-  if (count >= 3) return false;
+  // Occurrences in the real game count towards 千日手 exactly like occurrences
+  // inside the search path: the rule is about the board, not about who put it
+  // there. Without this the engine could only ever see a repetition it had
+  // walked into itself within one search.
+  const gameCount = gameHistoryCount(hash, hashB);
+  if (count + gameCount >= 3) return false;
   if (repSize < REP_STACK_SIZE) {
     unchecked(repStack[repSize] = hash);
     unchecked(repStackB[repSize] = hashB);
@@ -3853,13 +3938,19 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
     ttMoveKey = ttHitBest;
     ttSecondMoveKey = ttHitSecond;
 
+    // Never cut off at the root. The table is full of entries written by the
+    // previous move's search and by up to 30s of pondering, and it carries no
+    // generation/age, so an EXACT root hit used to end the whole search
+    // before it started: the engine re-played the stored move, burned none of
+    // its budget and still reported the stored (stale) depth, which is how a
+    // "depth 13" answer could come out of 0 fresh nodes. At ply 0 the table is
+    // now used for move ordering only.
     const ttRemainDepth = ttHitDepth;
-    if (ttRemainDepth >= depthLeft) {
+    if (ply > 0 && ttRemainDepth >= depthLeft) {
       const ttValue = ttHitValue;
       const ttFlag = ttHitFlag;
 
       if (ttFlag == TT_EXACT) {
-        if (ply == 0 && ttMoveKey != 0) rootBestKey = ttMoveKey;
         popRepetition();
         return ttValue;
       }
@@ -4105,6 +4196,33 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
 
 // --- Engine API -------------------------------------------------------------------
 
+/**
+ * Fill moveBuf[0 .. n) with the fully legal moves of the side to move, in
+ * generation order, and return n. This is exactly the root filter
+ * searchBestMove runs before iterative deepening, exposed so research tools
+ * can read the engine's own root move universe without having to provoke a
+ * transposition-table shortcut to keep the buffer intact. rootInCheckG is
+ * refreshed here rather than assumed, so the export is also correct when
+ * called on its own, outside a search.
+ */
+export function fillRootMoveBuffer(): i32 {
+  const mover = teban;
+  rootInCheckG = isKingInCheck(mover);
+  const pseudoN = rootInCheckG ? generateEvasionMoves(0) : generateMoves(0);
+  let rootN = 0;
+  for (let i = 0; i < pseudoN; i++) {
+    const m = unchecked(moveBuf[i]);
+    makeMove(m);
+    const illegal = isKingInCheck(mover);
+    unmakeMove(m);
+    if (!illegal) {
+      unchecked(moveBuf[rootN] = m);
+      rootN++;
+    }
+  }
+  return rootN;
+}
+
 /** Root move number (used only by the opening-like root ordering heuristics). */
 export function setRootTesu(tesu: i32): void {
   rootTesuG = tesu;
@@ -4137,6 +4255,8 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   leafCount = 0;
   rootBestKey = 0;
   orderDepthLeft = 99;
+  // Only the search PATH is per-search state. The game history is owned by the
+  // host (clearGameHistory / pushGameHistoryHash) and deliberately survives.
   repSize = 0;
   for (let i = 0; i < S_MAX_PLY; i++) {
     unchecked(killer1[i] = 0);
@@ -4172,18 +4292,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   // Root fallback: eager legal move list (order-preserving filter).
   const mover = teban;
   const enemy = mover == SENTE ? GOTE : SENTE;
-  const pseudoN = rootInCheckG ? generateEvasionMoves(0) : generateMoves(0);
-  let rootN = 0;
-  for (let i = 0; i < pseudoN; i++) {
-    const m = unchecked(moveBuf[i]);
-    makeMove(m);
-    const illegal = isKingInCheck(mover);
-    unmakeMove(m);
-    if (!illegal) {
-      unchecked(moveBuf[rootN] = m);
-      rootN++;
-    }
-  }
+  const rootN = fillRootMoveBuffer();
   if (rootN == 0) {
     lastSearchScore = 0;
     lastSearchDepth = 0;

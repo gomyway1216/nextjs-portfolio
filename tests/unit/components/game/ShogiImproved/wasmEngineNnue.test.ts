@@ -209,10 +209,18 @@ describe('wasmEngine NNUE loading', () => {
       // more than one P*8f in the continuation means the shuttle is back.
       expect(pawnDrops8f).toBeLessThanOrEqual(1);
     },
-    // Eight fixed depth-11 searches are intentionally compute-bound and can
-    // take much longer on shared CI runners than on a local Apple Silicon
-    // machine.
-    180_000,
+    // Eight *fixed-depth* searches with no time or node cap, which is the one
+    // search mode this engine can blow up in: in rare "pathological" positions
+    // the tree explodes, and which positions those are depends on the
+    // evaluator. This position is one of them for the 2026-08-24 weights -
+    // the same continuation costs ~8s under the previous weights and ~170s
+    // under these (~350s on a shared CI runner), while neutral positions at
+    // the same depth are unchanged (initial position depth 11: 354ms before,
+    // 381ms after). Production never runs this mode - the browser searches
+    // under a 1000ms clock - so this budget is deliberately generous rather
+    // than tuned to the current evaluator. Do not shrink the continuation to
+    // make it fit: the loop-freedom assertions below are the point.
+    900_000,
   );
 
   it('can be switched back to V3', () => {

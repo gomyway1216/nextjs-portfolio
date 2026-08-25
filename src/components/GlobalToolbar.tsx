@@ -22,6 +22,7 @@ import {
   NotebookPen,
   Settings,
   TrendingUp,
+  ShieldCheck,
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -66,6 +67,14 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
       ...TOOLBAR_THEME_BASE,
       accent: '#d97706',
       avatarText: '#b45309',
+    },
+  },
+  {
+    prefix: '/memory',
+    theme: {
+      ...TOOLBAR_THEME_BASE,
+      accent: '#0f766e',
+      avatarText: '#0f766e',
     },
   },
   {
@@ -172,6 +181,7 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 
 const MORE_NAV_ITEMS: PrimaryNavItem[] = [
   { href: '/growth', labelKey: 'home.nav.growth', Icon: TrendingUp, activePrefixes: ['/growth'] },
+  { href: '/memory', labelKey: 'home.nav.memory', Icon: ShieldCheck, activePrefixes: ['/memory'] },
   { href: '/study', labelKey: 'home.nav.study', Icon: BookOpenText, activePrefixes: ['/study'] },
   { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
 ];

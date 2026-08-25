@@ -227,6 +227,11 @@ afterEach(async () => {
 });
 
 describe("v1r11 formal-like-512 production artifact boundary", () => {
+  // 512 parents through a real publish/verify cycle is genuinely compute- and
+  // filesystem-bound: ~6s locally, and shared CI runners are slower still. It
+  // timed out at vitest's 5s default on three separate PRs (#702, #715, #722),
+  // each time costing a re-run to confirm the code was fine. The budget is a
+  // runaway guard, not a performance assertion.
   it("publishes only after all 512 parents and an independent held-byte verification pass", async () => {
     const root = await fs.promises.realpath(
       await fs.promises.mkdtemp(path.join(os.tmpdir(), "v1r11-formal-like-")),
@@ -271,7 +276,7 @@ describe("v1r11 formal-like-512 production artifact boundary", () => {
       tune: 64,
       sealed: 64,
     });
-  });
+  }, 60_000);
 
   it("rejects changed completed bytes instead of minting a second verifier PASS", async () => {
     const root = await fs.promises.realpath(

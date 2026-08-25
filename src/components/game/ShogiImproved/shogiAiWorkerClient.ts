@@ -14,6 +14,11 @@
  */
 
 import { Difficulty } from '../common/types';
+import {
+  difficultyUsesNnue,
+  ENGINE_READY_WAIT_MS,
+  type ShogiAiEngineReadyOutcome,
+} from './engineReadiness';
 import { createSharedTTBuffer } from './sharedTT';
 import type {
   SerializedKyokumenImproved,
@@ -219,7 +224,45 @@ function normalizeEngineDiagnostics(value: unknown): ShogiAiEngineDiagnostics {
   };
 }
 
+export type { ShogiAiEngineReadyOutcome };
+
 export interface ShogiAiWorkerClient {
+  /**
+   * Whether this turn should start immediately, i.e. whether waiting would
+   * still change the outcome.
+   *
+   * Deliberately NOT "the search will run at full strength": it is also true
+   * once the gate has been abandoned (a timeout already elapsed this session),
+   * once the client has given up respawning, and after disposal. In those
+   * states the next search may well run on V3 or on the main thread — but
+   * there is nothing left to wait FOR, so parking the turn would only add
+   * delay on top of a weaker move.
+   *
+   * False therefore means exactly one thing: the level uses NNUE and the
+   * weights are still in flight on a worker that may yet deliver them.
+   * Callers use it to decide whether to show the "preparing" state before
+   * awaiting `waitForEngineReady`; a caller that skips it and awaits directly
+   * behaves identically, just without the UI hint.
+   */
+  isEngineReady: (difficulty: Difficulty) => boolean;
+  /**
+   * Resolve once a search at `difficulty` can run at full strength, or after
+   * ENGINE_READY_WAIT_MS, whichever comes first.
+   *
+   * Resolves immediately with `'not-required'` when there is nothing left to
+   * wait for. That covers both "the weights are already here (or the level
+   * does not use them)" and "no future arrival is coming" — the gate was
+   * abandoned after an earlier timeout, respawning was given up on, or the
+   * client was disposed. The second group can still search on V3 or on the
+   * main thread; `'not-required'` is a statement about waiting, not about
+   * strength. Never rejects and never blocks the main thread: it is a message
+   * listener plus a timer.
+   *
+   * `difficulty` is a PARAMETER rather than client state on purpose — one
+   * client serves a whole session and the level changes under it (level
+   * selector, resuming a save), so the answer must be computed per turn.
+   */
+  waitForEngineReady: (difficulty: Difficulty) => Promise<ShogiAiEngineReadyOutcome>;
   requestBestMove: (
     position: SerializedKyokumenImproved,
     difficulty: Difficulty,
@@ -371,6 +414,35 @@ export function createShogiAiWorkerClient(
   // attributed to the search that was actually failing.
   let lastRequestedDifficulty: Difficulty | undefined;
 
+  // --- NNUE readiness gate -------------------------------------------------
+  //
+  // The worker starts fetching its 94.7MB NNUE weights the moment it spawns and
+  // sends exactly one `nnueWeightsStatus` when that settles (loaded / rejected /
+  // unavailable). Until then an NNUE-level search silently runs on the
+  // hand-crafted V3 evaluation instead — measurably weaker (depth 14 vs 15 on
+  // the same position) and invisible from the outside. That is the hole this
+  // flag closes: the page can hold the turn until the answer is in.
+  //
+  // "Settled" is the right condition, not "loaded": once the fetch has given up
+  // (5 attempts + backoff) no amount of extra waiting produces weights, so the
+  // turn must go ahead on V3 rather than stall.
+  let nnueSettled = false;
+  // Callbacks of the turns currently waiting for the line above.
+  let readyWaiters: Array<() => void> = [];
+  // Set once a wait has actually run out of time. A link slow enough to miss the
+  // cap once will miss it again, and making the player sit through the full wait
+  // on every single move would be worse than the weaker moves it buys. From then
+  // on turns start immediately; if the weights do land later, searches pick NNUE
+  // up on their own with no gate involved.
+  let readyGateAbandoned = false;
+
+  const flushReadyWaiters = (): void => {
+    if (readyWaiters.length === 0) return;
+    const waiters = readyWaiters;
+    readyWaiters = [];
+    for (const waiter of waiters) waiter();
+  };
+
   // Error-storm guard: if the worker keeps failing to boot/run, cap how many
   // times we respawn within a short window. After the cap we stop respawning
   // and let requests reject so the caller falls back to the main-thread search
@@ -422,6 +494,13 @@ export function createShogiAiWorkerClient(
       }
 
       if (msg.type === 'nnueWeightsStatus') {
+        // Terminal: whatever the verdict, waiting longer cannot improve it, so
+        // release any turn parked on the readiness gate. Done BEFORE the
+        // observability callback so a listener that throws cannot strand a
+        // waiting turn for the full ENGINE_READY_WAIT_MS.
+        nnueSettled = true;
+        flushReadyWaiters();
+
         // Observability only — never allowed to disturb play.
         try {
           if (typeof msg.status === 'string' && NNUE_FETCH_STATUSES.has(msg.status)) {
@@ -516,6 +595,10 @@ export function createShogiAiWorkerClient(
    */
   let gaveUpReported = false;
   function reportGaveUp(reason: string): void {
+    // There is no worker left to deliver weights, so a turn parked on the
+    // readiness gate would sit there until the cap for nothing. Release it: it
+    // will fail fast on `respawnDisabled` and take the main-thread route.
+    flushReadyWaiters();
     if (gaveUpReported) return;
     gaveUpReported = true;
     try {
@@ -552,6 +635,10 @@ export function createShogiAiWorkerClient(
     }
     helpers = [];
     rejectAll(new Error(`AI worker failed: ${reason}`));
+    // The instance that owned the weights is gone. A replacement re-fetches
+    // (a Cache Storage hit costs ~38ms) and will announce its own outcome, so
+    // readiness goes back to unknown rather than staying optimistically true.
+    nnueSettled = false;
 
     const now = Date.now();
     respawnTimestamps = respawnTimestamps.filter((t) => now - t < RESPAWN_WINDOW_MS);
@@ -588,6 +675,47 @@ export function createShogiAiWorkerClient(
       reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  /**
+   * Is there anything a search at `difficulty` could usefully wait for?
+   *
+   * False (nothing to wait for) when:
+   * - the level does not use NNUE — `easy` is deliberately a V3 level, so
+   *   making it wait for a 94.7MB download it will never read is pure cost;
+   * - the weights already settled on this instance;
+   * - a previous turn already exhausted the wait (see `readyGateAbandoned`);
+   * - the client was given up on / terminated, so no weights are coming.
+   */
+  const engineReadyWaitNeeded = (difficulty: Difficulty): boolean =>
+    !nnueSettled &&
+    !readyGateAbandoned &&
+    !respawnDisabled &&
+    !disposed &&
+    difficultyUsesNnue(difficulty);
+
+  const waitForEngineReady = (difficulty: Difficulty): Promise<ShogiAiEngineReadyOutcome> => {
+    if (!engineReadyWaitNeeded(difficulty)) return Promise.resolve('not-required');
+    return new Promise<ShogiAiEngineReadyOutcome>((resolve) => {
+      let settled = false;
+      const waiter = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        // Released either because the weights arrived or because the worker is
+        // gone; both mean "stop waiting and play", which is what 'ready'
+        // instructs the caller to do. Only the timer path is a real timeout.
+        resolve('ready');
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        readyWaiters = readyWaiters.filter((w) => w !== waiter);
+        readyGateAbandoned = true;
+        resolve('timed-out');
+      }, ENGINE_READY_WAIT_MS);
+      readyWaiters.push(waiter);
+    });
+  };
 
   const requestBestMoveWithInfo = (
     position: SerializedKyokumenImproved,
@@ -701,6 +829,10 @@ export function createShogiAiWorkerClient(
   };
 
   return {
+    isEngineReady(difficulty: Difficulty) {
+      return !engineReadyWaitNeeded(difficulty);
+    },
+    waitForEngineReady,
     requestBestMove(
       position: SerializedKyokumenImproved,
       difficulty: Difficulty,
@@ -725,6 +857,9 @@ export function createShogiAiWorkerClient(
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }
+      // Release any parked turn (and cancel its timer) so unmounting the page
+      // does not leave a 12s timer alive holding a Promise nobody can settle.
+      flushReadyWaiters();
       rejectAll(new Error('AI worker terminated'));
       worker.terminate();
       for (const helper of helpers) helper.terminate();

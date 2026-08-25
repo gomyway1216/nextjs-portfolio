@@ -15,6 +15,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getShogiImprovedCopy } from './i18n';
 import { ShogiPiece } from '../Shogi/ShogiPiece';
 import { ShogiTypefaceSelector } from '../Shogi/ShogiTypefaceSelector';
+import { ENGINE_READY_WAIT_MS } from './engineReadiness';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import type { KifuImportStep } from './KifuImportImproved';
@@ -335,6 +336,21 @@ const ShogiImproved = () => {
   // synchronously on the UI thread. Nothing can repaint during it, so the strip
   // says so instead of showing a seconds counter that cannot tick.
   const [mainThreadBlocking, setMainThreadBlocking] = useState(false);
+  /**
+   * True while an AI turn is parked waiting for the worker's NNUE weights
+   * (the readiness gate in the AI-move effect below).
+   *
+   * A DIFFERENT state from `mainThreadBlocking`, and the strip must never blur
+   * the two: 低速互換モード means the worker is dead, the search is running on
+   * the UI thread and the page is frozen for seconds; this means the worker is
+   * alive and healthy, nothing is being computed yet, and the page stays fully
+   * responsive. The only thing they share is that the AI has not moved yet.
+   */
+  const [engineWarmingUp, setEngineWarmingUp] = useState(false);
+  // Which AI turn currently owns `engineWarmingUp`. A turn that was superseded
+  // (待った, new game, kifu import) still resolves its own wait afterwards, and
+  // without this it would clear a banner belonging to the turn that replaced it.
+  const warmupOwnerRef = useRef(0);
   const aiPlayingBook = evalInfo?.searchPath === 'book';
   // What the 形勢バー draws. The live request's score wins; otherwise the last
   // real score is kept (flagged stale) so the bar does not snap to dead-even
@@ -621,6 +637,7 @@ const ShogiImproved = () => {
     // Invalidate any in-flight worker request.
     aiRequestIdRef.current++;
     setEngineFailed(false);
+    setEngineWarmingUp(false);
     workerRef.current?.clearTT();
 
     // Spawn the AI worker NOW, at the start of the game, rather than lazily on
@@ -1196,70 +1213,132 @@ const ShogiImproved = () => {
           return;
         }
 
-        try {
-          void worker
-	          .requestBestMoveWithInfo(position, difficulty, gameState.ply, positionHistory)
-	          .then((info) => {
+        /**
+         * Hand the position to the worker. Split out of the effect body so the
+         * readiness gate below can either call it right away or park it until
+         * the engine is actually able to play at full strength.
+         */
+        const startWorkerSearch = () => {
             if (aiRequestIdRef.current !== requestId) return;
-
-            // Replace all diagnostics together, including scoreless answers.
-            setEvalInfo({
-              searchPath: info.searchPath,
-              scoreCp: info.scoreCp,
-              depth: info.depth,
-            });
-            // The eval bar keeps the last real score across scoreless answers
-            // (book replies) instead of snapping back to even.
-            if (info.scoreCp !== undefined) {
-              setDisplayEval({ scoreCp: info.scoreCp, depth: info.depth });
-            }
-
-            const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
-            if (!aiMove) {
-              stopWithEngineError();
-              return;
-            }
-
-	            const newKyokumen = gameState.kyokumen.clone();
-	            newKyokumen.move(aiMove);
-	            newKyokumen.setTeban(SENTE);
-
-            const { isOver, winner } = checkGameOver(newKyokumen);
-            recordMove(aiMove, gameState.kyokumen, info.searchPath);
-
-	            setGameState(prev => ({
-	              ...prev,
-	              kyokumen: newKyokumen,
-	              isAIThinking: false,
-	              gameOver: isOver,
-	              winner,
-	              ply: prev.ply + 1,
-	            }));
-
-            if (isOver && winner === GOTE) {
-              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-            }
-          }, (error: unknown) => {
-            // Only a rejected worker request takes the compatibility route.
-            // Exceptions while applying a successful move must never trigger a
-            // second search and a possible double move.
-            if (aiRequestIdRef.current !== requestId) return;
-            const detail = error instanceof Error ? error.message : String(error);
-            runMainThreadFallback('worker search request rejected', detail);
-          })
-            .catch(() => {
-              // A failure while applying an already successful worker result is
-              // not a worker failure. Stop the spinner without replaying a move.
+          try {
+            void worker
+  	          .requestBestMoveWithInfo(position, difficulty, gameState.ply, positionHistory)
+  	          .then((info) => {
               if (aiRequestIdRef.current !== requestId) return;
-              stopWithEngineError();
-            });
-        } catch (error) {
-          // A client implementation can also throw before returning its Promise.
-          runMainThreadFallback(
-            'worker client threw before returning a promise',
-            error instanceof Error ? error.message : String(error)
-          );
+
+              // Replace all diagnostics together, including scoreless answers.
+              setEvalInfo({
+                searchPath: info.searchPath,
+                scoreCp: info.scoreCp,
+                depth: info.depth,
+              });
+              // The eval bar keeps the last real score across scoreless answers
+              // (book replies) instead of snapping back to even.
+              if (info.scoreCp !== undefined) {
+                setDisplayEval({ scoreCp: info.scoreCp, depth: info.depth });
+              }
+
+              const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
+              if (!aiMove) {
+                stopWithEngineError();
+                return;
+              }
+
+  	            const newKyokumen = gameState.kyokumen.clone();
+  	            newKyokumen.move(aiMove);
+  	            newKyokumen.setTeban(SENTE);
+
+              const { isOver, winner } = checkGameOver(newKyokumen);
+              recordMove(aiMove, gameState.kyokumen, info.searchPath);
+
+  	            setGameState(prev => ({
+  	              ...prev,
+  	              kyokumen: newKyokumen,
+  	              isAIThinking: false,
+  	              gameOver: isOver,
+  	              winner,
+  	              ply: prev.ply + 1,
+  	            }));
+
+              if (isOver && winner === GOTE) {
+                setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+              }
+            }, (error: unknown) => {
+              // Only a rejected worker request takes the compatibility route.
+              // Exceptions while applying a successful move must never trigger a
+              // second search and a possible double move.
+              if (aiRequestIdRef.current !== requestId) return;
+              const detail = error instanceof Error ? error.message : String(error);
+              runMainThreadFallback('worker search request rejected', detail);
+            })
+              .catch(() => {
+                // A failure while applying an already successful worker result is
+                // not a worker failure. Stop the spinner without replaying a move.
+                if (aiRequestIdRef.current !== requestId) return;
+                stopWithEngineError();
+              });
+          } catch (error) {
+            // A client implementation can also throw before returning its Promise.
+            runMainThreadFallback(
+              'worker client threw before returning a promise',
+              error instanceof Error ? error.message : String(error)
+            );
+          }
+        };
+
+        // --- AI readiness gate ---------------------------------------------
+        //
+        // The worker's NNUE weights (94.7MB) are fetched from the moment it
+        // spawns. Until they land, an NNUE-level search runs on the hand-crafted
+        // V3 evaluation instead and looks completely normal from the outside —
+        // measurably weaker (depth 14 on V3 vs 15 with NNUE on the same
+        // position) with nothing on screen or in the log to say so. Rather than
+        // play that move silently, hold the turn and SAY we are still getting
+        // ready.
+        //
+        // This should essentially never be visible in ordinary play: since
+        // PR #721 the worker spawns when the game starts, and the ~18-ply
+        // opening book (about 9 human moves) outlasts the ~11s cold weights
+        // fetch by a wide margin. The gate is for the exceptions — a player who
+        // moves very fast, a slow link, a kifu imported straight into an
+        // out-of-book position — where the book runs out first.
+        //
+        // `difficulty` is read here, on this turn, and passed in: the level can
+        // change under a long-lived client (level selector, resuming a save),
+        // so `easy` (a V3-only level that must never wait for weights it will
+        // not read) has to be decided per turn, not captured once.
+        if (worker.isEngineReady(difficulty)) {
+          startWorkerSearch();
+          return;
         }
+        warmupOwnerRef.current = requestId;
+        setEngineWarmingUp(true);
+        // Purely a listener plus a timer inside the client — the UI thread stays
+        // free the whole time, so the page keeps repainting and responding.
+        void worker.waitForEngineReady(difficulty).then((outcome) => {
+          // Only the turn that opened the gate may close it; a stale turn whose
+          // wait resolves late must not clear the banner a newer turn just put up.
+          if (warmupOwnerRef.current === requestId) setEngineWarmingUp(false);
+          if (aiRequestIdRef.current !== requestId) return;
+          if (outcome === 'timed-out') {
+            // The weights never arrived, so this move falls back to exactly the
+            // pre-gate behaviour: a V3 search. Record it — a population of
+            // visitors on links too slow for the weights is the kind of thing
+            // that is invisible until it is logged (the same reasoning as
+            // game.shogi.worker_gave_up in PR #721). The client only ever times
+            // out once per session, so this is at most one row per session.
+            logActivity({
+              action: 'game.shogi.engine_ready_timeout',
+              result: 'error',
+              severity: 'warning',
+              error_message:
+                `Shogi NNUE weights still not ready after ${ENGINE_READY_WAIT_MS}ms; ` +
+                'playing this move on the V3 evaluation',
+              params: { wait_ms: ENGINE_READY_WAIT_MS, difficulty, ply: gameState.ply },
+            });
+          }
+          startWorkerSearch();
+        });
         return;
 
       }, bookMove ? 250 : 500);
@@ -1681,6 +1760,7 @@ const ShogiImproved = () => {
           data-search-depth={evalInfo?.depth ?? ''}
           data-main-thread-blocked-ms={Math.round(evalInfo?.blockedMainThreadMs ?? 0)}
           data-thinking={gameState.isAIThinking ? 'true' : 'false'}
+          data-engine-warming-up={engineWarmingUp ? 'true' : 'false'}
           style={{
             height: '28px',
             display: 'flex',
@@ -1716,9 +1796,16 @@ const ShogiImproved = () => {
             {gameState.isAIThinking
               ? (aiPlayingBook
                   ? '定跡どおりに指しています'
-                  : mainThreadBlocking
-                    ? 'AIが考えています…（低速互換モード：数秒間このページは反応しません）'
-                    : 'AIが考えています…')
+                  // Checked before 低速互換モード and before the ordinary
+                  // thinking line: while warming up nothing is being searched
+                  // yet, and (unlike 低速互換モード) the page is fully
+                  // responsive. Saying "考えています" here would be a lie in
+                  // both directions.
+                  : engineWarmingUp
+                    ? copy.enginePreparing
+                    : mainThreadBlocking
+                      ? 'AIが考えています…（低速互換モード：数秒間このページは反応しません）'
+                      : 'AIが考えています…')
               : gameState.gameOver
                 ? '対局終了'
                 : evalInfo?.searchPath === 'main-thread-js'

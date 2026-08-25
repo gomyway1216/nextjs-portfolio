@@ -242,7 +242,15 @@ function applyGameHistory(
   wasm.clearGameHistory();
   if (!history) return;
   const pairs = history.length - (history.length % 2);
-  for (let i = 0; i < pairs; i += 2) {
+  // The engine keeps GAME_HISTORY_MAX (512) positions and ignores pushes past
+  // that, so for a game longer than 512 plies it is the host's job to decide
+  // WHICH 512 it hears about. Send the most recent ones: a repetition is
+  // always between the current position and a recent one, and the openings
+  // that would be dropped are the least likely to come back. Losing an old
+  // occurrence can only make the engine count too few, never too many, so it
+  // errs towards the pre-fix behaviour rather than towards a phantom draw.
+  const start = Math.max(0, pairs - 2 * 512);
+  for (let i = start; i < pairs; i += 2) {
     wasm.pushGameHistoryHash(history[i] | 0, history[i + 1] | 0);
   }
 }

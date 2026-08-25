@@ -3275,6 +3275,10 @@ export function clearGameHistory(): void {
  * Append one already-played position, identified by the same hash pair the
  * engine computes itself (getHashVal / getSecondaryHashVal). Positions must be
  * pushed in game order and must stop before the root position.
+ *
+ * Pushes past GAME_HISTORY_MAX are ignored rather than evicting, so a host with
+ * a longer game must choose which window to send (wasmEngine.ts sends the most
+ * recent 512 — a repetition is always with a recent position).
  */
 export function pushGameHistoryHash(hashA: i32, hashB: i32): void {
   if (gameHistSize >= GAME_HISTORY_MAX) return;

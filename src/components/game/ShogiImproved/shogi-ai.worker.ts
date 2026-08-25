@@ -788,7 +788,10 @@ function computeBestMove(
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
   // genuinely mated position it returns null just like the WASM engine).
-  const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty });
+  // It gets the same game history as the WASM engine: a route that is only
+  // taken when something has already gone wrong must not also quietly play by
+  // the old, history-blind repetition rules.
+  const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty, gameHistory: positionHistory });
   return {
     move: fallback.move,
     scoreCp: fallback.scoreCp === undefined ? undefined : toSenteCp(fallback.scoreCp, k.teban),

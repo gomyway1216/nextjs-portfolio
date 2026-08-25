@@ -24,6 +24,16 @@ import { InitialPositionImproved } from '@/components/game/ShogiImproved/Initial
 import { FU, GI, HI, KA, KE, KI, KY, Te, getKomashu } from '@/components/game/ShogiImproved/types';
 
 import {
+  buildPositionHistoryHashes,
+  type ReplayableMove,
+} from '@/components/game/ShogiImproved/positionHistory';
+import {
+  clearWasmTT,
+  getLastWasmSearchStats,
+  wasmSearchBestMove,
+} from '@/components/game/ShogiImproved/wasmEngine';
+
+import {
   ACTIVE_HALFKP81_PRODUCTION_WASM_PATH,
   loadShogiWasm,
   syncWasm,
@@ -106,5 +116,59 @@ describe('root search with a warm transposition table', () => {
     // The table is still doing its job — a re-search is far cheaper than the
     // cold one, because the entry is used for move ordering.
     expect(same.nodes).toBeLessThan(warm.nodes);
+  });
+});
+
+describe('transposition table across a change of game history', () => {
+  // Repetition detection now consults the already-played positions, so a
+  // stored score can embody "this line repeats". A TT entry records only the
+  // board hash, never the history it was computed under. While the game only
+  // appends positions that is harmless - an older entry can only have counted
+  // too FEW occurrences, which is the pre-fix behaviour. Going backwards
+  // (待った, a restored save, an imported kifu) is the dangerous direction: an
+  // entry written when a position had three earlier occurrences would claim a
+  // draw that no longer exists. The engine drops the table in that case.
+  it('keeps the table while the game moves forward and drops it when it does not', () => {
+    const position = InitialPositionImproved.createInitialPosition();
+    const played: ReplayableMove[] = [];
+    for (const usi of OPENING) {
+      const move = findUsiMove(usi, GenerateMovesImproved.generateLegalMoves(position));
+      played.push({ koma: move.koma, from: move.from, to: move.to, promote: move.promote });
+      move.capture = position.get(move.to);
+      position.move(move);
+      position.toggleTeban();
+    }
+    const history = buildPositionHistoryHashes(
+      InitialPositionImproved.createInitialPosition(),
+      played,
+      position
+    );
+    expect(history).toHaveLength(played.length * 2);
+
+    const search = (gameHistory: readonly number[]): number => {
+      const move = wasmSearchBestMove(position.clone(), played.length, 0, 6, 8, null, gameHistory);
+      expect(move).not.toBeNull();
+      return getLastWasmSearchStats()?.nodes ?? 0;
+    };
+
+    clearWasmTT();
+    const cold = search(history);
+    expect(cold).toBeGreaterThan(1_000);
+
+    // Same history: a pure (empty) continuation, so the table survives and the
+    // re-search is far cheaper.
+    const warm = search(history);
+    expect(warm).toBeLessThan(cold / 2);
+
+    // One more position appended, the way the game actually advances. Still a
+    // forward continuation, so the table is still worth something.
+    const forward = [...history, position.HashVal, position.SecondaryHashVal];
+    expect(search(forward)).toBeLessThan(cold);
+
+    // Now go BACKWARDS, as 待った does. This is not a continuation of what was
+    // primed, so the table must be dropped and the next search pays full price
+    // again instead of trusting entries computed under a longer history.
+    const rewound = history.slice(0, history.length - 4);
+    expect(search(rewound)).toBeGreaterThan(cold / 2);
   });
 });

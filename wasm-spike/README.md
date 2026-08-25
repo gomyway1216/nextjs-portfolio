@@ -8,7 +8,8 @@
 
 ```
 wasm-spike/
-  assembly/index.ts      # AssemblyScript エンジン本体（盤面・make/unmake・手生成・打ち歩詰め・Zobrist・perft・evaluateV3/evaluateV3Full）
+  assembly/index-halfkp64-rki16.ts # ★本番エンジンsource（名前は履歴的。ここを編集する）
+  assembly/index.ts      # 2026-07-26で止まった旧世代の比較用source（本番ではない）
   assembly/halfkp81-research.patch # 固定した本番sourceへ研究用81-bucket差分だけを当てるpatch
   assembly/tables.ts     # 自動生成（gen-tables.mjs）。canMove/canJump/diff/komaValue/canPromote
   assembly/as-ambient.d.ts # ルート tsconfig で型チェックを通すための ambient 宣言（asc は無視する）
@@ -23,8 +24,10 @@ wasm-spike/
   artifacts/shogi-halfkp81-research.wasm # 81-bucket HalfKP 研究専用（本番loaderは参照しない）
   build-halfkp81-research-wasm.mjs # temp内でpatch・compile・hash検証して研究artifactだけを更新
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
-src/components/game/ShogiImproved/wasm/shogi.wasm # 本番固定バイナリ（HalfKP研究artifactと分離）
-src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記の base64 埋め込み（gen-wasm-base64.mjs で再生成）
+src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm # ★ブラウザが読む本番バイナリ
+src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts # 上記のbase64＋SHOGI_WASM_IDENTITY（identityの唯一の正）
+src/components/game/ShogiImproved/wasm/shogi.wasm # 旧世代の比較・履歴用バイナリ（本番ではない）
+src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記(shogi.wasm)の base64 埋め込み
 ```
 
 ## ビルド手順
@@ -42,12 +45,17 @@ node wasm-spike/gen-tables.mjs
 node wasm-spike/build-halfkp81-research-wasm.mjs
 ```
 
-本番 `assembly/index.ts`、`shogi.wasm`、`shogiWasmBase64.ts` は固定したままである。
-本番WASMは35,597 bytes / SHA-256
-`e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` の固定assetのままである。
-HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない。将来、正式A/B・ブラウザ複数workerの
-メモリゲート・ロールバック条件を通過して本番昇格する別PRだけが、本番assetとbase64を同時に更新する。
-81-bucket差分は`assembly/halfkp81-research.patch`だけに隔離した。研究用artifactは35,837 bytes / SHA-256
+> **注意 — 以下の段落は2026-07当時のHalfKP研究フェーズの記録であり、現在の本番ではない。**
+> ここで「本番」と呼ばれている `assembly/index.ts` / `shogi.wasm` / `shogiWasmBase64.ts` は、
+> その後 2026-08-15〜16 に本番が HalfKP81 へ移った時点で**比較・履歴用の資産に降格**している。
+> **いま `ShogiImproved` が読み込むエンジンと、その再ビルド手順は次節「本番 HalfKP81 WASM の再ビルド」が唯一の正である。**
+> この段落の bytes/SHA はすべて当時の記録であって、チェックインされている成果物の identity ではない。
+
+（2026-07 当時の記録）研究フェーズの間、`assembly/index.ts`・`shogi.wasm`・`shogiWasmBase64.ts` は固定したままとし、
+`shogi.wasm` は 35,597 bytes / SHA-256
+`e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` だった。
+HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない方針で、
+81-bucket差分は`assembly/halfkp81-research.patch`だけに隔離していた。研究用artifactは35,837 bytes / SHA-256
 `1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db` で、`--wasm-path` を明示したハーネスだけが読み込む。
 
 ### 本番 HalfKP81 WASM の再ビルド
@@ -55,11 +63,26 @@ HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない。将来、正式
 **本番sourceは `assembly/index-halfkp64-rki16.ts` である。** ファイル名は 2026-08-15 の
 「候補資産の分離」で付いた履歴的なもので中身は本番のもの: このファイルを patch も transform も
 当てずにそのままcompileすると、ブラウザが読む
-`src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` が**バイト単位で再現する**
-（2026-08-16 時点の本番: 38,288 bytes / SHA-256
-`1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6`)。
+`src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` が**バイト単位で再現する**。
 `wasm-spike/build-*-runtime-skeleton.mjs` 各種が「本番baseline source」としてこのファイルを
 pinしているのも同じ理由である。
+
+現在チェックインされている本番WASMの identity は**唯一
+`src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts` の
+`SHOGI_WASM_IDENTITY` が持つ**（`.wasm` と base64 埋め込みは同じ `gen-wasm-base64.mjs` が
+同時に書くので、常に一致する）。**このREADMEにhash値を書き写さない**: 書き写した瞬間、
+更新漏れで「手順に従っても成果物と照合できない」状態になる。実際 2026-08-25 のレビューで
+この事故が指摘された。照合はこうする:
+
+```sh
+node -e 'const m=require("./src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts");console.log(m.SHOGI_WASM_IDENTITY)' 2>/dev/null \
+  || grep -A3 "SHOGI_WASM_IDENTITY" src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts
+shasum -a 256 src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm
+```
+
+参考（履歴）: 2026-08-16 に復旧した本番は 38,288 bytes /
+`1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6` だった。
+`git show origin/main:…` で当時のsourceを取り出して上の手順でcompileすれば再現する。
 
 `assembly/index.ts` は 2026-07-26 で止まっている**旧世代の比較用資産**であり、本番ではない。
 `index.ts` + `halfkp81-research.patch` をcompileしても本番は再現せず（36,787 bytes /
@@ -85,6 +108,9 @@ node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
 - `ml/child-board-root-move-universe-bridge.ts`（`moveBuf` のbyte offsetもpinしている。
   `fillRootMoveBuffer()` を呼んで memory を走査すれば確認できる）
 - `ml/run-strength-first-browser-worker-parity.ts`
+- `ml/train_child_board_root_policy_student.py`（bridgeのbytes/SHA・schema・WASM identityを
+  二重にpinしている。`ml/tests_stdlib/test_child_board_root_policy_student_bridge_pins.py` が
+  bridgeから読み直して照合するので、更新漏れはCIで落ちる）
 
 `wasm-spike/build-*-runtime-skeleton.mjs` は本番sourceのidentityをpinしているので、
 本番sourceを変更したらそれらの `EXPECTED.source` と、そこから導かれる

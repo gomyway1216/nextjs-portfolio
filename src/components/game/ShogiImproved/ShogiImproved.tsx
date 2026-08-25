@@ -987,6 +987,24 @@ const ShogiImproved = () => {
         // animation) but the seconds counter freezes mid-count — the "stuck at
         // 0.4秒" players report. Announce the mode first and hand the thread over
         // only after the browser has had a chance to paint that announcement.
+        // Everything that has already been on the board this game, so the
+        // engine can see 千日手 coming and stop treating a return to an
+        // earlier position as free. Replaying the kifu keeps this derived from
+        // one source of truth (待った and kifu import trim moveList, so the
+        // history trims with them); a replay that cannot reproduce the current
+        // position yields [] and the engine behaves exactly as before.
+        //
+        // Computed HERE, above both routes, and not next to the worker call:
+        // the main-thread fallback is the "低速互換モード" a user lands on when
+        // the worker fails, and it is the route the reported shuttle may well
+        // have come from. A fix that only reaches the worker would be missing
+        // from exactly the path that broke.
+        const positionHistory = buildPositionHistoryHashes(
+          buildInitialKyokumen(handicap),
+          moveList,
+          gameState.kyokumen
+        );
+
         /**
          * @param failureReason Why the worker route was abandoned. Omitted for
          *   difficulties that never use a worker (`easy`) — a design choice,
@@ -1055,6 +1073,7 @@ const ShogiImproved = () => {
               GOTE,
               difficulty,
               gameState.ply,
+              positionHistory,
             );
             const blockedMainThreadMs = blockedMs();
             if (aiRequestIdRef.current !== requestId) return;
@@ -1108,17 +1127,6 @@ const ShogiImproved = () => {
         }
 
 	        const position = serializeForWorker(gameState.kyokumen);
-        // Everything that has already been on the board this game, so the
-        // engine can see 千日手 coming and stop treating a return to an
-        // earlier position as free. Replaying the kifu keeps this derived from
-        // one source of truth (待った and kifu import trim moveList, so the
-        // history trims with them); a replay that cannot reproduce the current
-        // position yields [] and the engine behaves exactly as before.
-        const positionHistory = buildPositionHistoryHashes(
-          buildInitialKyokumen(handicap),
-          moveList,
-          gameState.kyokumen
-        );
         let worker: ShogiAiWorkerClient;
         try {
           // Worker construction itself may throw synchronously (blocked script,

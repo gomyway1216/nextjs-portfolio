@@ -25,6 +25,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
+import { ShogiAIImprovedV20 } from '@/components/game/ShogiImproved/ShogiAIImprovedV20';
 import {
   buildPositionHistoryHashes,
   type ReplayableMove,
@@ -200,5 +201,57 @@ describe('position history transport', () => {
     expect(wasm.getGameHistorySize()).toBe(0);
     wasm.searchBestMove(0, 4, 6);
     expect(wasm.getSearchDepth()).toBeGreaterThan(0);
+  });
+});
+
+describe('main-thread JS fallback', () => {
+  // The worker is not always there. When it fails to construct or its request
+  // rejects, the UI drops to "低速互換モード" and searches with the JS V20
+  // engine on the main thread - and the user who reported the rook-pawn
+  // shuttle had been on exactly that route. A repetition fix that only reaches
+  // the WASM engine would be missing from the path that actually broke, so the
+  // JS engine takes the same history and counts it the same way.
+  it('counts primed occurrences towards repetition like the WASM engine', () => {
+    const { position, played } = replayGame();
+    const history = buildPositionHistoryHashes(
+      InitialPositionImproved.createInitialPosition(),
+      played,
+      position
+    );
+    expect(history.length).toBeGreaterThan(0);
+
+    const ai = new ShogiAIImprovedV20();
+    const search = (extraRootOccurrences: number) => {
+      const primed = [...history];
+      for (let i = 0; i < extraRootOccurrences; i++) {
+        primed.push(position.HashVal, position.SecondaryHashVal);
+      }
+      return ai.getNextTeWithInfo(position.clone(), played.length, {
+        difficulty: 'medium',
+        maxDepth: 3,
+        maxTimeMs: 0,
+        gameHistory: primed,
+      });
+    };
+
+    // Two earlier occurrences: only the third time on the board, not a draw,
+    // so the search runs and returns a move it actually looked for.
+    const notYetRepeated = search(2);
+    expect(notYetRepeated.move).not.toBeNull();
+    expect(notYetRepeated.depth ?? 0).toBeGreaterThan(0);
+
+    // Three earlier occurrences: the root IS the fourth, and the JS engine's
+    // own path stack is empty at ply 0, so recognising it can only come from
+    // the primed history.
+    expect(search(3).depth ?? 0).toBe(0);
+
+    // Nothing primed puts it back to the pre-fix behaviour exactly.
+    const blind = ai.getNextTeWithInfo(position.clone(), played.length, {
+      difficulty: 'medium',
+      maxDepth: 3,
+      maxTimeMs: 0,
+    });
+    expect(blind.move).not.toBeNull();
+    expect(blind.depth ?? 0).toBeGreaterThan(0);
   });
 });

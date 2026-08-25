@@ -47,6 +47,7 @@ interface ShogiSearchWasm {
   clearGameHistory?(): void;
   pushGameHistoryHash?(hashA: number, hashB: number): void;
   getGameHistorySize?(): number;
+  getGameHistoryCapacity?(): number;
   searchBestMove(maxTimeMs: number, maxDepth: number, quiescenceDepthMax: number): number;
   getSearchScore(): number;
   getSearchDepth(): number;
@@ -228,10 +229,38 @@ function syncPosition(wasm: ShogiSearchWasm, k: KyokumenImproved): void {
 }
 
 /**
+ * Positions primed into the engine by the previous search, so this one can
+ * tell whether the game moved FORWARD (one or more moves appended) or somewhere
+ * else entirely (待った, a restored save, an imported kifu, a new game).
+ */
+let primedGameHistory: number[] = [];
+
+/** True when `next` is `primedGameHistory` with zero or more pairs appended. */
+function isForwardContinuation(next: readonly number[]): boolean {
+  if (next.length < primedGameHistory.length) return false;
+  for (let i = 0; i < primedGameHistory.length; i++) {
+    if (primedGameHistory[i] !== next[i]) return false;
+  }
+  return true;
+}
+
+/**
  * Replace the engine's game history with `history` (flat [primary, secondary]
  * hash pairs from positionHistory.ts). Always called before a search — passing
  * nothing clears it — so one search can never inherit another's history.
  * A runtime without the exports keeps its previous, history-blind behavior.
+ *
+ * It also drops the transposition table when the history did not simply move
+ * forward. That matters because repetition detection now consults the game
+ * history, so a stored score can embody "this line is a draw by repetition"
+ * — and a TT entry records only the board hash, not the history it was
+ * computed under. While the game only appends positions, reusing an older
+ * entry can only make the engine count too FEW occurrences, which is the
+ * pre-fix behaviour and harmless. Going backwards or sideways is the dangerous
+ * direction: an entry written when a position had three earlier occurrences
+ * would claim a draw that no longer exists. 待った already clears the table
+ * explicitly; this is the backstop that does not depend on every UI path
+ * remembering to.
  */
 function applyGameHistory(
   wasm: ShogiSearchWasm,
@@ -239,19 +268,38 @@ function applyGameHistory(
 ): void {
   if (typeof wasm.clearGameHistory !== 'function') return;
   if (typeof wasm.pushGameHistoryHash !== 'function') return;
-  wasm.clearGameHistory();
-  if (!history) return;
-  const pairs = history.length - (history.length % 2);
-  // The engine keeps GAME_HISTORY_MAX (512) positions and ignores pushes past
-  // that, so for a game longer than 512 plies it is the host's job to decide
-  // WHICH 512 it hears about. Send the most recent ones: a repetition is
-  // always between the current position and a recent one, and the openings
-  // that would be dropped are the least likely to come back. Losing an old
-  // occurrence can only make the engine count too few, never too many, so it
-  // errs towards the pre-fix behaviour rather than towards a phantom draw.
-  const start = Math.max(0, pairs - 2 * 512);
+
+  const pairs = history ? history.length - (history.length % 2) : 0;
+  // The engine ignores pushes past its capacity rather than evicting, so ask it
+  // how much it can hold instead of assuming. If a game somehow outran that,
+  // send the most RECENT positions: a repetition is always between the current
+  // position and a recent one, and losing an old occurrence can only make the
+  // engine count too few, never too many.
+  const capacityPairs =
+    typeof wasm.getGameHistoryCapacity === 'function' ? wasm.getGameHistoryCapacity() | 0 : 0;
+  const start = capacityPairs > 0 ? Math.max(0, pairs - 2 * capacityPairs) : 0;
+  const next: number[] = [];
   for (let i = start; i < pairs; i += 2) {
-    wasm.pushGameHistoryHash(history[i] | 0, history[i + 1] | 0);
+    next.push(history![i] | 0, history![i + 1] | 0);
+  }
+
+  if (!isForwardContinuation(next)) clearWasmTT();
+
+  wasm.clearGameHistory();
+  for (let i = 0; i < next.length; i += 2) {
+    wasm.pushGameHistoryHash(next[i], next[i + 1]);
+  }
+  primedGameHistory = next;
+
+  // Everything sent must actually be stored; otherwise the caller is reasoning
+  // about a history the engine does not have.
+  if (typeof wasm.getGameHistorySize === 'function') {
+    const stored = wasm.getGameHistorySize() | 0;
+    if (stored !== next.length / 2) {
+      console.error(
+        `[wasmEngine] game history truncated: sent ${next.length / 2}, engine stored ${stored}`,
+      );
+    }
   }
 }
 
@@ -535,6 +583,9 @@ export function clearWasmTT(): void {
     // A new game has no already-played positions. Every search re-primes this
     // anyway; clearing here keeps the engine consistent even if one does not.
     wasm.clearGameHistory?.();
+    // Forget what was primed as well, so the next search compares against an
+    // empty history and does not think it is continuing the old game.
+    primedGameHistory = [];
     if (sharedTT && sharedTTRole === 'main') sharedTT.clear();
   } catch (e) {
     console.error('[wasmEngine] clearTT failed', e);

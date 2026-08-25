@@ -3256,7 +3256,14 @@ let repSize: i32 = 0;
 // filter over the primary hash answers "definitely absent" in three
 // instructions and only the rare hit pays for the linear scan.
 
-const GAME_HISTORY_MAX: i32 = 512;
+// 4,096 plies. The longest recorded professional shogi game is under 500 and
+// the UI has no way to produce anything remotely near this, so the cap is not
+// a game-length policy - it is a bound on a StaticArray (32 KB for the two
+// halves) that a real game cannot reach. getGameHistoryCapacity() publishes it
+// so the host can size its own window from the engine instead of guessing, and
+// getGameHistorySize() lets the host verify afterwards that everything it sent
+// was actually stored.
+const GAME_HISTORY_MAX: i32 = 4096;
 const gameHistA = new StaticArray<i32>(GAME_HISTORY_MAX);
 const gameHistB = new StaticArray<i32>(GAME_HISTORY_MAX);
 let gameHistSize: i32 = 0;
@@ -3276,9 +3283,10 @@ export function clearGameHistory(): void {
  * engine computes itself (getHashVal / getSecondaryHashVal). Positions must be
  * pushed in game order and must stop before the root position.
  *
- * Pushes past GAME_HISTORY_MAX are ignored rather than evicting, so a host with
- * a longer game must choose which window to send (wasmEngine.ts sends the most
- * recent 512 — a repetition is always with a recent position).
+ * Pushes past GAME_HISTORY_MAX are ignored rather than evicting. That bound is
+ * unreachable for a real game, and a host that wants to be sure can compare
+ * getGameHistorySize() with what it sent; wasmEngine.ts does exactly that and
+ * sizes its window from getGameHistoryCapacity().
  */
 export function pushGameHistoryHash(hashA: i32, hashB: i32): void {
   if (gameHistSize >= GAME_HISTORY_MAX) return;
@@ -3292,6 +3300,11 @@ export function pushGameHistoryHash(hashA: i32, hashB: i32): void {
 /** How many positions are currently primed (diagnostics / host verification). */
 export function getGameHistorySize(): i32 {
   return gameHistSize;
+}
+
+/** Most positions this build can hold, so the host never has to assume it. */
+export function getGameHistoryCapacity(): i32 {
+  return GAME_HISTORY_MAX;
 }
 
 /** Occurrences of this position in the already-played game. */

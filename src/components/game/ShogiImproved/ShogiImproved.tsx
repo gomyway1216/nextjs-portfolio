@@ -268,7 +268,14 @@ function replayButtonStyle(disabled: boolean): React.CSSProperties {
 
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
-  const { currentUser } = useAuth();
+  // `presumedSignedIn` is true from the first frame for a browser that was
+  // signed in last time, so the save button's box is reserved while the session
+  // restore is still in flight. Without it the button pops into the toolbar a
+  // second or two into the game, rewrapping the toolbar and pushing the board
+  // down — which reads as the position jumping. Saving itself still gates on
+  // `currentUser` (see canSaveGame), so the reserved button stays disabled
+  // until auth actually settles.
+  const { currentUser, presumedSignedIn } = useAuth();
   const { language } = useGameLanguage();
   const copy = getShogiImprovedCopy(language);
   const difficultyOptions = React.useMemo(() => DIFFICULTY_ORDER.map((value) => ({
@@ -1570,11 +1577,14 @@ const ShogiImproved = () => {
                 fontWeight: 600,
                 cursor: canUndo ? 'pointer' : 'not-allowed',
                 opacity: canUndo ? 1 : 0.45,
+                // Without this the label breaks between kana when the toolbar is
+                // tight, growing the toolbar (and pushing the board down).
+                whiteSpace: 'nowrap',
               }}
             >
               待った
             </button>
-            {currentUser && (
+            {presumedSignedIn && (
               <button
                 onClick={handleSaveGame}
                 disabled={!canSaveGame || saveStatus === 'saving'}
@@ -1592,6 +1602,7 @@ const ShogiImproved = () => {
                   // Fixed width across all labels (Save game / Saving… / Saved ✓ /
                   // Save failed) so the toolbar never reflows mid-game.
                   minWidth: '104px',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {saveStatus === 'saving' ? copy.saving : saveStatus === 'saved' ? copy.saved : saveStatus === 'error' ? copy.saveFailed : copy.saveGame}

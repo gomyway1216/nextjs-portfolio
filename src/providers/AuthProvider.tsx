@@ -1,11 +1,18 @@
 'use client';
 
-import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useEffect, useContext, useLayoutEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
 import { auth, signInWithEmail, signInWithGoogle, signInWithSessionCookie, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode } from '@/lib/errorUtils';
+import {
+  AuthLayoutHint,
+  readAuthLayoutHint,
+  resolvePresumedProfile,
+  toAuthLayoutHint,
+  writeAuthLayoutHint,
+} from '@/lib/authLayoutHint';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -14,6 +21,19 @@ interface AuthProviderProps {
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  /**
+   * Layout-only: true while a signed-in session is still being restored on a
+   * browser that was signed in last time, and true once `currentUser` is set.
+   * Chrome that changes size with sign-in state should size itself off this so
+   * it doesn't reflow when auth settles. Never use it to authorize anything —
+   * gate actions on `currentUser`.
+   */
+  presumedSignedIn: boolean;
+  /**
+   * The remembered avatar shape to paint while `currentUser` is still null.
+   * Null once auth has settled (read `currentUser` from then on).
+   */
+  presumedProfile: AuthLayoutHint | null;
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
   twoFactorRequired: boolean;
@@ -34,6 +54,10 @@ interface AuthSessionState {
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
 }
+
+// `useLayoutEffect` warns when React renders on the server; the effect only
+// matters in the browser, where it must run before paint.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 const AUTH_SIGN_OUT_EVENT_KEY = 'meetyudai:auth-sign-out';
 const SESSION_COOKIE_SYNC_ERROR_CODE = 'auth/session-cookie-failed';
@@ -61,6 +85,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isEnrolledInMFA: false,
   });
   const [loading, setLoading] = useState<boolean>(true);
+  // Layout-only memory of the last settled sign-in state. Read in a layout
+  // effect rather than in the initial state so the server render and the
+  // hydration render agree; a layout effect still lands before the browser
+  // paints, so chrome sized off `presumedSignedIn` never shows a signed-out
+  // frame first.
+  const [layoutHint, setLayoutHint] = useState<AuthLayoutHint | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    setLayoutHint(readAuthLayoutHint());
+  }, []);
+
   const [twoFactorRequired, setTwoFactorRequired] = useState<boolean>(false);
   const [mfaPhoneHint, setMfaPhoneHint] = useState<string | null>(null);
 
@@ -442,9 +476,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, [applySignedInUser, resetLocalAuthState, restoreFirebaseAuthFromSession, syncSessionCookie]);
 
+  // Remember the settled state for the next load. Deliberately skipped while
+  // `loading` is true: the restore path reports a null user before it reports
+  // the restored one, and clearing the hint there would defeat its purpose.
+  // Only the stored copy is updated — `layoutHint` is read for this load alone,
+  // and by the time this runs it no longer feeds anything (see below).
+  useEffect(() => {
+    if (loading) return;
+    writeAuthLayoutHint(toAuthLayoutHint(authState.currentUser));
+  }, [loading, authState.currentUser]);
+
+  const presumedProfile = resolvePresumedProfile(authState.currentUser !== null, loading, layoutHint);
+
   const value: AuthContextType = {
     currentUser: authState.currentUser,
     loading,
+    presumedSignedIn: authState.currentUser !== null || presumedProfile !== null,
+    presumedProfile,
     isAdmin: authState.isAdmin,
     isEnrolledInMFA: authState.isEnrolledInMFA,
     twoFactorRequired,

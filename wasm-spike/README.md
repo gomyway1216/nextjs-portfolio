@@ -290,6 +290,21 @@ node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 
   [--scale-numer 1] [--scale-denom 1]   # 37/10 = NNUE cp を V3 スケールへ校正
 ```
 
+`match-nnue-vs-v3.ts` は**固定された計測器**である。bytes/SHA-256 が
+`ml/direct_teacher_halfkp81_v4_fresh_screen.py` などのteacher/screen protocolに証拠として
+pinされているので、編集すると「その結果を出したハーネス」の定義を黙って書き換えてしまう。
+**評価関数ではなくruntime（WASMそのもの）を A/B するときは `match-runtime-ab.ts` を使う**:
+`--wasm-path-b` で B側に別のruntimeを読ませ、両側に対局履歴（`positionHistory.ts` と同じ形）を
+仕込む。両側に同じNNUE重みを渡せば、差分はruntimeだけになる。
+
+```sh
+# runtime A/B（候補WASM vs 本番WASM、評価は同一）
+node -r tsx/cjs wasm-spike/match-runtime-ab.ts public/shogi-halfkp81-production-weights.bin \
+  --vs public/shogi-halfkp81-production-weights.bin \
+  --wasm-path src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm \
+  --wasm-path-b /path/to/baseline.wasm --games 8 --ms 1000 --seed 101
+```
+
 ### スケール適応の単離測定（2026-07-04、setNnueOutputScale 37/10 — 回復せず）
 
 第1サイクル敗因仮説②（探索マージンのスケール不整合）を単離して測るため、同じ run100k

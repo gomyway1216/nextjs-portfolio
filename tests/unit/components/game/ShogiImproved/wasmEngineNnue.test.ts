@@ -36,7 +36,7 @@ import {
 } from '@/components/game/ShogiImproved/wasmEngine';
 
 const weightsPath = join(process.cwd(), 'public', 'shogi-halfkp81-production-weights.bin');
-const HALFKP81_PRODUCTION_SHA256 = 'e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72';
+const HALFKP81_PRODUCTION_SHA256 = 'f47717860a1d0959567ad57365d473cd0a51d73ec3f791a7f25b6a8692966aa5';
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,
   L: KY,
@@ -50,9 +50,9 @@ const DROP_LETTER: Readonly<Record<string, number>> = {
 // Position immediately before move 32 in the reported rook-pawn loop game.
 // The original bug: a regressed evaluator kept re-dropping P*8f and shuffled
 // the rook into a repetition draw. The guarded property is loop-freedom, not
-// any particular single move: the 2026-08 newdata weights pick P*8f once at
-// fixed depth 11 (a depth-parity blip; depths 10/12/13 pick other moves) but
-// were verified to break out of the cycle instead of repeating it.
+// any particular single move: a shipped evaluator may spend at most one P*8f
+// drop at this fixed depth (a depth-parity blip), but it must break out of the
+// cycle instead of restarting the shuttle.
 const ROOK_PAWN_LOOP_PREFIX = [
   '2g2f', '8c8d', '2f2e', '8d8e', '6i7h', '4a3b', '2e2d', '2c2d', '2h2d', 'P*2c',
   '2d2h', '8e8f', '8g8f', '8b8f', 'P*8g', '8f8d', '3i3h', '3c3d', '5i6h', 'P*8f',
@@ -119,7 +119,7 @@ describe('wasmEngine NNUE loading', () => {
     expect(readFileSync(weightsPath).byteLength).toBe(NNUE_WEIGHTS_BYTES);
   });
 
-  it('pins the production asset to the restored HalfKP81 weights', () => {
+  it('pins the production asset to the shipped HalfKP81 weights', () => {
     const digest = createHash('sha256').update(readFileSync(weightsPath)).digest('hex');
     expect(digest).toBe(HALFKP81_PRODUCTION_SHA256);
   });
@@ -145,7 +145,7 @@ describe('wasmEngine NNUE loading', () => {
     expect(isNnueWeightsLoaded()).toBe(false);
   });
 
-  it('loads the restored HalfKP81 production weights', () => {
+  it('loads the shipped HalfKP81 production weights', () => {
     expect(loadNnueWeights(readWeights(), 600)).toBe(true);
     expect(isNnueWeightsLoaded()).toBe(true);
     // Loading alone must not flip the evaluation.

@@ -585,11 +585,13 @@ export function setWasmSearchStartDepth(depth: number): void {
 
 /**
  * Exact size and runtime configuration of the HalfKP81 evaluator. The shipped
- * weights are the 2026-08-17 retrain on the 10M kingpair corpus, which scored
- * 61.9% (48W-3D-29L over 80 games at 1000ms/move, Wilson 95% CI lower bound
- * 50.9%) against the previously restored weights. The 81-bucket layout grows
- * WASM memory lazily, so callers must select the bucket count before resolving
- * the weight pointer.
+ * weights are the 2026-08-24 book-leaf distillation round (R3 arm A): a
+ * warm-start retrain that adds Aoba depth-12 labels for positions right after
+ * the opening book runs out. Against the previous weights it scored 66.2%
+ * (53W-27L over 80 book-exit games at 1000ms/move, Wilson 95% CI lower bound
+ * 55.4%) and 65.0% (51W-2D-27L over 80 curated-opening games). The 81-bucket
+ * layout grows WASM memory lazily, so callers must select the bucket count
+ * before resolving the weight pointer.
  */
 export const NNUE_WEIGHTS_BYTES = 94_656_708;
 export const NNUE_SCALE_K = 600;

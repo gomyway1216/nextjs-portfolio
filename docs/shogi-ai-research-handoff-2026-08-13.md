@@ -42,10 +42,12 @@
 | 種類 | 現在のパス | bytes | SHA-256 |
 |---|---|---:|---|
 | WASM runtime | `src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` | 38,288 | `1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6` |
-| NNUE weights | `public/shogi-halfkp81-production-weights.bin` | 94,656,708 | `e04e60c7962ae89528ca384f2055866b01dd3c47f870c2eb1f21bcdf985a1e72` |
-
-2026-08-18追記: NNUE weightsは、復旧weights(`25fc77...bd40`)をベースに10M kingpairコーパス(sigmoid/K=600/cp-clamp3000, lr 5e-5, 4 epochs warm-start)で再学習したモデルへ昇格済み。復旧weightsに対し1000ms/手×80局で61.9%(48勝3分29敗、Wilson 95% CI下限50.9%)。学習・対局artifactは`~/.codex/shogi-runs/halfkp81-newdata-warmstart-v1-20260817/`。WASM/K/バイト数は不変。
+| NNUE weights | `public/shogi-halfkp81-production-weights.bin` | 94,656,708 | `f47717860a1d0959567ad57365d473cd0a51d73ec3f791a7f25b6a8692966aa5` |
 | embedded WASM base64 | `src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts` | decoded 38,288 | decoded bytesは上記WASMと完全一致 |
+
+2026-08-18追記: NNUE weightsは、復旧weights(`25fc77...bd40`)をベースに10M kingpairコーパス(sigmoid/K=600/cp-clamp3000, lr 5e-5, 4 epochs warm-start)で再学習したモデル(`e04e60c7…`)へ昇格した。復旧weightsに対し1000ms/手×80局で61.9%(48勝3分29敗、Wilson 95% CI下限50.9%)。artifactは`~/.codex/shogi-runs/halfkp81-newdata-warmstart-v1-20260817/`。
+
+2026-08-24追記: NNUE weightsは、上記`e04e60c7…`をチャンピオンとする蒸留ラウンド3(R3 arm A、定跡末端 depth 12蒸留)のモデル`f4771786…`へ昇格した。チャンピオンに対し定跡離脱起点80局で66.2%(53勝27敗、Wilson 95% CI下限55.4%)、通常条件(curated openings)80局で65.0%(51勝2分27敗、同下限54.1%)。artifactは`~/.codex/shogi-runs/halfkp81-distill-r3-bookleaf-20260824/`。いずれの昇格でもWASM/K=600/バイト数94,656,708は不変。
 
 ### 1.3 保存済みの元本番資産
 

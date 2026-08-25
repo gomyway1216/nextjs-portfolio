@@ -19,6 +19,12 @@
  * The list covers plies 0 .. n-1 and deliberately STOPS before the position
  * being searched: the search contributes the root's own occurrence when it
  * pushes ply 0, so including it here would double count.
+ *
+ * Cost: the replay generates the legal moves at every ply, which is ~10ms for
+ * a 200-ply game and ~6ms for a typical one. It runs once per AI request, on
+ * the main thread, immediately before handing the position to a worker that
+ * will think for one to five seconds - so a cache is not worth the extra state
+ * it would have to keep correct across 待った and kifu import.
  */
 
 import { GenerateMovesImproved } from './GenerateMovesImproved';

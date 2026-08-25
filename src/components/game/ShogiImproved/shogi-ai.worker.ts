@@ -260,32 +260,159 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function fetchNnueWeights(): Promise<void> {
+/**
+ * Weights delivery is the single point of failure for NNUE strength, and it
+ * failed silently in production on 2026-08-25: the 94.7MB asset returned 503
+ * from the CDN during a deploy cutover, the one-shot fetch below gave up, and
+ * every subsequent search ran on the hand-crafted V3 evaluation instead. No
+ * telemetry recorded it — the regression was only noticed by eye.
+ *
+ * So: retry a handful of times with exponential backoff + jitter. The failure
+ * that was observed is transient by nature (cold edge cache, on-the-fly Brotli
+ * of a 94.7MB body, a deploy swapping the alias underneath the request), which
+ * is exactly the failure class a retry fixes. A permanently missing asset (404)
+ * is NOT retried — no number of attempts conjures a file that was never
+ * deployed, and retrying would only delay the V3 fallback.
+ */
+const NNUE_FETCH_MAX_ATTEMPTS = 5;
+const NNUE_FETCH_BASE_BACKOFF_MS = 500;
+const NNUE_FETCH_MAX_BACKOFF_MS = 8_000;
+
+/**
+ * Per-attempt ceiling. Deliberately generous: the body is 94.7MB, and a slow
+ * mobile connection making real progress must never be aborted and restarted —
+ * that would burn double the bandwidth and make a weak connection strictly
+ * worse. This is a stuck-connection backstop, not a latency budget.
+ */
+const NNUE_FETCH_ATTEMPT_TIMEOUT_MS = 120_000;
+
+/** Terminal outcome of weights delivery, reported to the page for logging. */
+export interface ShogiAiNnueWeightsStatusMessage {
+  readonly type: 'nnueWeightsStatus';
+  readonly status: ShogiAiNnueFetchStatus;
+  readonly attempts: number;
+  readonly elapsedMs: number;
+  readonly bytes?: number;
+  readonly httpStatus?: number;
+  readonly errorMessage?: string;
+}
+
+function isRetriableHttpStatus(status: number): boolean {
+  // 5xx: server/CDN transient (503 is the one actually observed).
+  // 408/429: request timeout / rate limited — both clear on their own.
+  return status >= 500 || status === 408 || status === 429;
+}
+
+function nnueBackoffMs(attempt: number): number {
+  const exponential = Math.min(
+    NNUE_FETCH_BASE_BACKOFF_MS * 2 ** (attempt - 1),
+    NNUE_FETCH_MAX_BACKOFF_MS
+  );
+  // Full jitter. Every visitor's worker retries on an independent schedule, so
+  // a CDN hiccup does not produce a synchronized retry stampede on recovery.
+  return Math.random() * exponential;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Fetch once, honouring an abort-based stuck-connection timeout. */
+async function fetchNnueWeightsOnce(): Promise<ArrayBuffer> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller
+    ? setTimeout(() => controller.abort(), NNUE_FETCH_ATTEMPT_TIMEOUT_MS)
+    : null;
   try {
-    const res = await fetch(nnueWeightsUrl());
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = await res.arrayBuffer();
-    const ok = loadNnueWeights(new Uint8Array(buf), NNUE_SCALE_K);
-    if (ok) {
-      nnueWeightsBytes = buf;
-      sendNnueWeightsToHelpers();
+    const res = await fetch(nnueWeightsUrl(), controller ? { signal: controller.signal } : undefined);
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status}`) as Error & { httpStatus?: number };
+      error.httpStatus = res.status;
+      throw error;
     }
-    nnueFetchStatus = ok ? 'loaded' : 'rejected';
-    if (process.env.NODE_ENV === 'development') {
-      console.info(
-        ok
-          ? `[shogi-ai.worker] NNUE weights loaded (${buf.byteLength} bytes, K=${NNUE_SCALE_K})`
-          : '[shogi-ai.worker] NNUE weights rejected; using V3 evaluation'
-      );
-    }
-  } catch (e) {
-    nnueFetchStatus = 'unavailable';
-    // Expected offline / in node tests; the V3 path is the normal fallback.
-    if (process.env.NODE_ENV === 'development') {
-      console.info('[shogi-ai.worker] NNUE weights unavailable; using V3 evaluation', e);
-    }
+    return await res.arrayBuffer();
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 }
+
+async function fetchNnueWeights(): Promise<void> {
+  const startedAt = Date.now();
+  let lastError: (Error & { httpStatus?: number }) | null = null;
+  let attempts = 0;
+
+  for (let attempt = 1; attempt <= NNUE_FETCH_MAX_ATTEMPTS; attempt++) {
+    attempts = attempt;
+    try {
+      const buf = await fetchNnueWeightsOnce();
+      const ok = loadNnueWeights(new Uint8Array(buf), NNUE_SCALE_K);
+      if (ok) {
+        nnueWeightsBytes = buf;
+        sendNnueWeightsToHelpers();
+      }
+      nnueFetchStatus = ok ? 'loaded' : 'rejected';
+      if (process.env.NODE_ENV === 'development') {
+        console.info(
+          ok
+            ? `[shogi-ai.worker] NNUE weights loaded (${buf.byteLength} bytes, K=${NNUE_SCALE_K}, attempt ${attempt})`
+            : '[shogi-ai.worker] NNUE weights rejected; using V3 evaluation'
+        );
+      }
+      // A rejected payload is a content problem (wrong shape/scale), not a
+      // delivery problem. Re-fetching the same bytes cannot change the verdict.
+      reportNnueWeightsStatus({
+        type: 'nnueWeightsStatus',
+        status: nnueFetchStatus,
+        attempts: attempt,
+        elapsedMs: Date.now() - startedAt,
+        bytes: buf.byteLength,
+      });
+      return;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      const httpStatus = lastError.httpStatus;
+
+      // A definitively absent or forbidden asset will not appear on retry.
+      if (typeof httpStatus === 'number' && !isRetriableHttpStatus(httpStatus)) break;
+      if (attempt === NNUE_FETCH_MAX_ATTEMPTS) break;
+
+      if (process.env.NODE_ENV === 'development') {
+        console.info(
+          `[shogi-ai.worker] NNUE weights attempt ${attempt}/${NNUE_FETCH_MAX_ATTEMPTS} failed (${lastError.message}); retrying`
+        );
+      }
+      await delay(nnueBackoffMs(attempt));
+    }
+  }
+
+  nnueFetchStatus = 'unavailable';
+  // Expected offline / in node tests; the V3 path is the normal fallback.
+  if (process.env.NODE_ENV === 'development') {
+    console.info('[shogi-ai.worker] NNUE weights unavailable; using V3 evaluation', lastError);
+  }
+  reportNnueWeightsStatus({
+    type: 'nnueWeightsStatus',
+    status: 'unavailable',
+    attempts,
+    elapsedMs: Date.now() - startedAt,
+    httpStatus: lastError?.httpStatus,
+    errorMessage: lastError?.message,
+  });
+}
+
+/**
+ * Push the terminal weights outcome to the page. Unsolicited (not a reply to a
+ * request id) — the page wires an optional listener and logs it. Failures here
+ * must never affect play, hence the swallow.
+ */
+function reportNnueWeightsStatus(message: ShogiAiNnueWeightsStatusMessage): void {
+  try {
+    (self as unknown as { postMessage: (m: unknown) => void }).postMessage(message);
+  } catch {
+    /* no page listening (node tests, torn-down worker) */
+  }
+}
+
 const nnueStartup = fetchNnueWeights();
 
 async function engineDiagnostics(): Promise<ShogiAiEngineDiagnostics> {

@@ -49,6 +49,7 @@ import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
 import { claimGameRecord,submitShogiGameRecord } from '@/services/shogiGameRecordService';
 import { getSessionId } from '@/lib/sessionId';
+import { logActivity } from '@/lib/activityLog';
 
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
 
@@ -418,9 +419,38 @@ const ShogiImproved = () => {
 
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
+  // Compatibility mode is per-move, but the interesting event is entering it.
+  // Log the first occurrence only, so one broken session is one log row.
+  const compatModeLoggedRef = useRef(false);
   const [engineFailed, setEngineFailed] = useState(false);
   const getWorker = useCallback((): ShogiAiWorkerClient => {
-    if (!workerRef.current) workerRef.current = createShogiAiWorkerClient();
+    if (!workerRef.current) {
+      workerRef.current = createShogiAiWorkerClient({
+        // Weights delivery is invisible from the UI: when the 94.7MB NNUE asset
+        // fails to load, the engine keeps playing on the hand-crafted V3
+        // evaluation and looks entirely healthy while being much weaker. That
+        // happened in production on 2026-08-25 (CDN 503) and went unnoticed.
+        // Record the terminal outcome so the next occurrence is visible.
+        onNnueWeightsStatus: (status) => {
+          if (status.status === 'loaded') return; // the ordinary case
+          logActivity({
+            action: 'game.shogi.nnue_weights_unavailable',
+            result: 'error',
+            severity: status.status === 'unavailable' ? 'error' : 'warning',
+            error_message:
+              status.errorMessage ??
+              `NNUE weights ${status.status} after ${status.attempts} attempt(s)`,
+            params: {
+              status: status.status,
+              attempts: status.attempts,
+              elapsed_ms: Math.round(status.elapsedMs),
+              http_status: status.httpStatus,
+              bytes: status.bytes,
+            },
+          });
+        },
+      });
+    }
     return workerRef.current;
   }, []);
   useEffect(() => {
@@ -956,8 +986,28 @@ const ShogiImproved = () => {
         // animation) but the seconds counter freezes mid-count — the "stuck at
         // 0.4秒" players report. Announce the mode first and hand the thread over
         // only after the browser has had a chance to paint that announcement.
-        const runMainThreadFallback = () => {
+        /**
+         * @param failureReason Why the worker route was abandoned. Omitted for
+         *   difficulties that never use a worker (`easy`) — a design choice,
+         *   not a failure, and it must not be logged as one.
+         */
+        const runMainThreadFallback = (failureReason?: string) => {
           if (aiRequestIdRef.current !== requestId) return;
+
+          // "低速互換モード" is the visible symptom of a broken worker, and it was
+          // invisible to us until a human happened to read the label: that is
+          // how the 2026-08-25 production regression stayed hidden. Record it.
+          if (failureReason && !compatModeLoggedRef.current) {
+            compatModeLoggedRef.current = true;
+            logActivity({
+              action: 'game.shogi.main_thread_fallback',
+              result: 'error',
+              severity: 'error',
+              error_message: `Shogi AI worker unavailable: ${failureReason}`,
+              params: { reason: failureReason, difficulty },
+            });
+          }
+
           setEvalInfo({ searchPath: 'main-thread-js' });
           setMainThreadBlocking(true);
           let started = false;
@@ -1063,7 +1113,7 @@ const ShogiImproved = () => {
           // unsupported environment). Catch it before a Promise exists.
           worker = getWorker();
         } catch {
-          runMainThreadFallback();
+          runMainThreadFallback('worker construction threw');
           return;
         }
 
@@ -1115,7 +1165,7 @@ const ShogiImproved = () => {
             // Exceptions while applying a successful move must never trigger a
             // second search and a possible double move.
             if (aiRequestIdRef.current !== requestId) return;
-            runMainThreadFallback();
+            runMainThreadFallback('worker search request rejected');
           })
             .catch(() => {
               // A failure while applying an already successful worker result is
@@ -1125,7 +1175,7 @@ const ShogiImproved = () => {
             });
         } catch {
           // A client implementation can also throw before returning its Promise.
-          runMainThreadFallback();
+          runMainThreadFallback('worker client threw before returning a promise');
         }
         return;
 

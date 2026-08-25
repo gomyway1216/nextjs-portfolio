@@ -50,7 +50,33 @@ type WorkerResponse =
       searchPath?: ShogiAiWorkerSearchPath;
     }
   | { type: 'engineDiagnosticsResult'; id: number; diagnostics?: unknown }
+  // Unsolicited (no request id): the worker's terminal NNUE weights outcome.
+  | ({ type: 'nnueWeightsStatus' } & Partial<ShogiAiNnueWeightsStatus>)
   | { type: 'error'; id: number; message: string };
+
+/**
+ * Terminal outcome of the worker's NNUE weights fetch.
+ *
+ * Reported so the page can record delivery failures. A 503 on the 94.7MB
+ * weights asset silently demoted production to the hand-crafted V3 evaluation
+ * on 2026-08-25 and nothing noticed; `status: 'unavailable'` is that event.
+ */
+export interface ShogiAiNnueWeightsStatus {
+  status: 'pending' | 'loaded' | 'rejected' | 'unavailable';
+  attempts: number;
+  elapsedMs: number;
+  bytes?: number;
+  httpStatus?: number;
+  errorMessage?: string;
+}
+
+export interface ShogiAiWorkerClientOptions {
+  /**
+   * Called once per worker instance when weights delivery reaches a terminal
+   * state. Invoked again after a respawn (a fresh worker re-fetches).
+   */
+  onNnueWeightsStatus?: (status: ShogiAiNnueWeightsStatus) => void;
+}
 
 export type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiEngineDiagnostics };
 
@@ -284,7 +310,9 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
   }
 }
 
-export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
+export function createShogiAiWorkerClient(
+  options: ShogiAiWorkerClientOptions = {}
+): ShogiAiWorkerClient {
   // The worker (and its SMP helpers) are mutable: the self-heal paths (hard
   // deadline, worker onerror) tear a wedged/broken set down and respawn a fresh
   // single-thread worker.
@@ -342,6 +370,26 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
         return;
       }
 
+      if (msg.type === 'nnueWeightsStatus') {
+        // Observability only — never allowed to disturb play.
+        try {
+          if (typeof msg.status === 'string' && NNUE_FETCH_STATUSES.has(msg.status)) {
+            options.onNnueWeightsStatus?.({
+              status: msg.status,
+              attempts: typeof msg.attempts === 'number' ? msg.attempts : 0,
+              elapsedMs: typeof msg.elapsedMs === 'number' ? msg.elapsedMs : 0,
+              bytes: typeof msg.bytes === 'number' ? msg.bytes : undefined,
+              httpStatus: typeof msg.httpStatus === 'number' ? msg.httpStatus : undefined,
+              errorMessage:
+                typeof msg.errorMessage === 'string' ? msg.errorMessage : undefined,
+            });
+          }
+        } catch {
+          /* a broken listener must not break the engine */
+        }
+        return;
+      }
+
       if (msg.type === 'engineDiagnosticsResult') {
         const p = pendingDiagnostics.get(msg.id);
         if (!p) return;
@@ -378,6 +426,13 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       recoverWithSingleThread(`worker error: ${message}`);
     };
   };
+  // MUST stay in the same synchronous block as `new Worker(...)` above.
+  // `nnueWeightsStatus` is unsolicited, so a handler attached after any `await`
+  // could miss it and lose the delivery-failure log this client exists to
+  // emit. This function is deliberately NOT async: control cannot reach the
+  // event loop between construction and here, and message events are only
+  // dispatched as event-loop tasks. Pinned by "attaches the message handler
+  // before returning" in shogiAiWorkerClient.test.ts.
   attachWorkerHandlers(worker);
 
   // Pause pondering while the tab is hidden (battery/CPU): the worker cannot

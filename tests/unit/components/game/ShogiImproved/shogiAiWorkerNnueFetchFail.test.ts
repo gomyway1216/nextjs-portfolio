@@ -3,6 +3,13 @@
  * worker must keep answering moves on the V3 evaluation exactly as before
  * (requirement: fetch failure silently falls back to the current behavior).
  *
+ * Also covers the delivery hardening added after the 2026-08-25 production
+ * incident, where the 94.7MB weights asset returned 503 from the CDN and the
+ * one-shot fetch gave up permanently and silently:
+ *   - the fetch is RETRIED with backoff before giving up, and
+ *   - the terminal outcome is REPORTED to the page as `nnueWeightsStatus`,
+ *     so a silent strength regression becomes an observable event.
+ *
  * Separate file from the success-path test on purpose — the loaded/enabled
  * flags live at wasmEngine module scope and vitest isolates modules per file.
  */
@@ -20,7 +27,17 @@ type PostedMessage = {
   scoreCp?: number;
   depth?: number;
   searchPath?: string;
+  status?: string;
+  attempts?: number;
+  elapsedMs?: number;
+  httpStatus?: number;
+  errorMessage?: string;
 };
+
+const WEIGHTS_URL = '/shogi-halfkp81-production-weights.bin';
+const weightsFetchCount = () =>
+  fetchMock.mock.calls.filter((call) => String(call[0]) === WEIGHTS_URL).length;
+const terminalStatus = () => posted.find((m) => m.type === 'nnueWeightsStatus');
 
 const posted: PostedMessage[] = [];
 const scope = {
@@ -59,10 +76,10 @@ beforeAll(async () => {
   await import('@/components/game/ShogiImproved/shogi-ai.worker');
   nnue = await import('@/components/game/ShogiImproved/wasmEngine');
 
-  // Give the (rejected) startup fetch time to settle.
-  for (let i = 0; i < 50 && fetchMock.mock.calls.length === 0; i++) await sleep(10);
-  await sleep(20);
-});
+  // The startup fetch now retries with exponential backoff, so settling takes
+  // seconds rather than a tick. Wait for the worker's terminal report.
+  for (let i = 0; i < 600 && !terminalStatus(); i++) await sleep(25);
+}, 30_000);
 
 afterAll(() => {
   send({ type: 'clearTT' }); // stop any ponder loop
@@ -72,7 +89,21 @@ afterAll(() => {
 
 describe('shogi-ai.worker NNUE fetch failure', () => {
   it('attempted the weights fetch at startup', () => {
-    expect(fetchMock).toHaveBeenCalledWith('/shogi-halfkp81-production-weights.bin');
+    expect(fetchMock).toHaveBeenCalledWith(WEIGHTS_URL, expect.anything());
+  });
+
+  it('retried the failing fetch several times before giving up', () => {
+    // The incident case (a transient CDN 503) is fixed by retrying at all; the
+    // exact count is the worker's MAX_ATTEMPTS, asserted as "more than once".
+    expect(weightsFetchCount()).toBeGreaterThan(1);
+  });
+
+  it('reported the terminal failure to the page instead of failing silently', () => {
+    const status = terminalStatus();
+    expect(status).toBeDefined();
+    expect(status!.status).toBe('unavailable');
+    expect(status!.attempts).toBe(weightsFetchCount());
+    expect(status!.errorMessage).toContain('network down (test)');
   });
 
   it('still answers a medium bestMove on the V3 path', () => {

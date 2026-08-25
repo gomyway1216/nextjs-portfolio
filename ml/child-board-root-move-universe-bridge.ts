@@ -15,12 +15,15 @@ import { GHI, SFU } from "../src/components/game/ShogiImproved/types";
 import { ACTIVE_HALFKP81_PRODUCTION_WASM_PATH } from "../wasm-spike/search-driver";
 
 export const REQUEST_SCHEMA = "shogi-production-root-move-universe-request-v2";
+// v3: the root move universe is read from fillRootMoveBuffer() instead of from
+// a transposition-table shortcut, so the second_search_* evidence fields (which
+// described that shortcut) are replaced by root_move_fill.
 export const RESPONSE_SCHEMA =
-  "shogi-production-root-move-universe-response-v2";
+  "shogi-production-root-move-universe-response-v3";
 export const ERROR_SCHEMA = "shogi-production-root-move-universe-error-v1";
-export const PINNED_WASM_BYTES = 38_288;
+export const PINNED_WASM_BYTES = 37_174;
 export const PINNED_WASM_SHA256 =
-  "1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6";
+  "8597c38db4f3f5a5e9bbbaea673ebb8626d112dc4ac25b293777f60bc1e01897";
 export const PINNED_ROOT_MOVE_BUFFER_OFFSET = 7_128_112;
 export const MAX_ROOT_MOVES = 640;
 
@@ -34,6 +37,7 @@ interface RootMembershipWasm {
   clearTT(): void;
   setRootTesu(tesu: number): void;
   countLegalMoves(): number;
+  fillRootMoveBuffer(): number;
   searchBestMove(
     maxTimeMs: number,
     maxDepth: number,
@@ -72,9 +76,8 @@ export interface RootMoveUniverseResponse {
     readonly sha256: typeof PINNED_WASM_SHA256;
     readonly root_move_buffer_offset: typeof PINNED_ROOT_MOVE_BUFFER_OFFSET;
     readonly legal_moves: number;
-    readonly second_search_depth: number;
-    readonly second_search_nodes: number;
-    readonly second_search_leaves: number;
+    /** Moves fillRootMoveBuffer() wrote; must equal legal_moves. */
+    readonly root_move_fill: number;
   };
 }
 
@@ -121,6 +124,7 @@ function instantiatePinnedWasm(value: Uint8Array): RootMembershipWasm {
     "clearTT",
     "setRootTesu",
     "countLegalMoves",
+    "fillRootMoveBuffer",
     "searchBestMove",
     "getHashVal",
     "getSecondaryHashVal",
@@ -278,37 +282,27 @@ export class ProductionRootMoveUniverseBridge {
       throw new Error("production WASM legal move count is invalid");
     }
 
-    if (legalMoves > 0) {
-      const warmKey = this.wasm.searchBestMove(0, 1, 0);
-      if (warmKey === 0) {
-        throw new Error("production WASM warm search returned no root move");
-      }
-      syncWasm(this.wasm, position);
-      this.wasm.setRootTesu(parsed.moveNumber - 1);
-      if (
-        this.wasm.getHashVal() !== primaryHash ||
-        this.wasm.getSecondaryHashVal() !== secondaryHash
-      ) {
-        throw new Error("production WASM position changed before extraction");
-      }
-      const secondKey = this.wasm.searchBestMove(0, 1, 0);
-      if (
-        secondKey === 0 ||
-        this.wasm.getSearchNodes() !== 1 ||
-        this.wasm.getSearchLeaves() !== 0 ||
-        ![0, 1].includes(this.wasm.getSearchDepth())
-      ) {
-        throw new Error(
-          "production WASM root buffer extraction did not take the pinned TT path",
-        );
-      }
+    // Fill moveBuf with the engine's own root move universe.
+    //
+    // This used to be extracted by running searchBestMove twice and relying on
+    // the second call hitting an EXACT transposition entry at the root, which
+    // returned in a single node and so left moveBuf holding the root list. That
+    // root cutoff has been removed (it also made real searches return a stale
+    // move at a stale depth), so the buffer is now filled directly by the
+    // engine's own root filter — the same code searchBestMove runs — instead of
+    // through a side effect of a table hit.
+    const filled = legalMoves === 0 ? 0 : this.wasm.fillRootMoveBuffer();
+    if (filled !== legalMoves) {
+      throw new Error(
+        "production WASM root move buffer disagrees with countLegalMoves",
+      );
     }
 
     if (
       this.wasm.getHashVal() !== primaryHash ||
       this.wasm.getSecondaryHashVal() !== secondaryHash
     ) {
-      throw new Error("production WASM search failed to restore the parent");
+      throw new Error("production WASM fill failed to restore the parent");
     }
     const packed =
       legalMoves === 0
@@ -350,10 +344,7 @@ export class ProductionRootMoveUniverseBridge {
         sha256: PINNED_WASM_SHA256,
         root_move_buffer_offset: PINNED_ROOT_MOVE_BUFFER_OFFSET,
         legal_moves: legalMoves,
-        second_search_depth: legalMoves === 0 ? 0 : this.wasm.getSearchDepth(),
-        second_search_nodes: legalMoves === 0 ? 0 : this.wasm.getSearchNodes(),
-        second_search_leaves:
-          legalMoves === 0 ? 0 : this.wasm.getSearchLeaves(),
+        root_move_fill: filled,
       },
     };
   }

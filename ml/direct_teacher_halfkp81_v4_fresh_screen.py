@@ -95,8 +95,8 @@ EXPECTED_RUNTIME = {
 }
 EXPECTED_HARNESS = {
     "path": HARNESS_PATH,
-    "bytes": 14_457,
-    "sha256": "040acec004a44a8e307ab49b944af7b660a055452b3650e8a4eda387e708b850",
+    "bytes": 16_401,
+    "sha256": "370b35d14bfee4174d78812849005b82124b1e98f9215bbddd2da371741f933b",
 }
 EXPECTED_BUNDLE = {
     "path": BUNDLE_PATH,

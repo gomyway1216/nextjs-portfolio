@@ -50,6 +50,33 @@ HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない。将来、正式
 81-bucket差分は`assembly/halfkp81-research.patch`だけに隔離した。研究用artifactは35,837 bytes / SHA-256
 `1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db` で、`--wasm-path` を明示したハーネスだけが読み込む。
 
+### 本番 HalfKP81 WASM の再ビルド
+
+`src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` は
+**`assembly/index.ts` に `assembly/halfkp81-research.patch` を当てたもの**からできている
+（素の `assembly/index.ts` だけをcompileすると `setNnueBuckets` が 81 を受け付けない別物になる）。
+上の `build-halfkp81-research-wasm.mjs` は古いsource hashにpinされていて現在は通らないので、
+本番を再ビルドするときは手順を直に実行する:
+
+```sh
+TMP=$(mktemp -d)
+mkdir -p "$TMP/wasm-spike/assembly"
+cp wasm-spike/assembly/index.ts wasm-spike/assembly/tables.ts \
+   wasm-spike/assembly/halfkp81-research.patch "$TMP/wasm-spike/assembly/"
+(cd "$TMP/wasm-spike/assembly" && patch -p0 < halfkp81-research.patch)
+(cd "$TMP" && npx -y -p assemblyscript@0.28.19 asc wasm-spike/assembly/index.ts \
+   --outFile out.wasm -O3 --runtime stub --noAssert --enable simd)
+cp "$TMP/out.wasm" src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm
+node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
+```
+
+出力バイト列はtoolchainのバージョンで前後するので、**バイト同一ではなく探索の同一性で確認する**
+(固定深さ・NNUE有効で bestMove / score / nodes が一致すること)。
+昇格したら、production WASM の bytes/SHA-256 をpinしている以下も一緒に更新する:
+
+- `ml/child-board-root-move-universe-bridge.ts`
+- `ml/run-strength-first-browser-worker-parity.ts`
+
 ## ベンチ実行
 
 ```sh

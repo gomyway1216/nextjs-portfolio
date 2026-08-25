@@ -37,9 +37,9 @@ export const PRODUCTION_WASM_SCHEMA =
 export const NNUE_WEIGHTS_BYTES = 94_656_708 as const;
 export const PRODUCTION_WASM_PATH =
   "src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm" as const;
-export const PRODUCTION_WASM_BYTES = 38_288 as const;
+export const PRODUCTION_WASM_BYTES = 37_174 as const;
 export const PRODUCTION_WASM_SHA256 =
-  "1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6" as const;
+  "8597c38db4f3f5a5e9bbbaea673ebb8626d112dc4ac25b293777f60bc1e01897" as const;
 export const BROWSER_WORKER_PARITY_ORIGIN =
   "http://127.0.0.1:3000" as const;
 export const NNUE_ASSET_URL =

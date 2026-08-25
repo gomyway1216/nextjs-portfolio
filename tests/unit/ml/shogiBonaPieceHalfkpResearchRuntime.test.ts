@@ -111,8 +111,8 @@ describe('single-perspective BonaPiece HalfKP format84 research runtime', () => 
       ),
     );
     expect(identity(productionSource)).toEqual({
-      bytes: 143_322,
-      sha256: '1005153cbfd17dc7046c5f82d87d33efa7a651736aba35c384e24a5162028880',
+      bytes: 147_394,
+      sha256: 'a6f833f1d0c12007f667542dc29b2f17a4e8b0ed14f9dd6ea71f196ba3ce857a',
     });
     expect(identity(productionWasm)).toEqual({
       bytes: 36_545,

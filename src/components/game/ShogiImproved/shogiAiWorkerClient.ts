@@ -33,6 +33,12 @@ type WorkerRequest =
       tesu: number;
       /** Same-build role switch. The live client stays disabled until admission. */
       student_enabled: boolean;
+      /**
+       * Flat [primary, secondary, …] Zobrist pairs of every position played
+       * before `position` (positionHistory.ts). Additive and optional: omitted
+       * for callers that have no move list, and ignored by an older worker.
+       */
+      positionHistory?: number[];
     }
   | { type: 'engineDiagnostics'; id: number }
   | { type: 'clearTT' }
@@ -202,13 +208,15 @@ export interface ShogiAiWorkerClient {
   requestBestMove: (
     position: SerializedKyokumenImproved,
     difficulty: Difficulty,
-    tesu: number
+    tesu: number,
+    positionHistory?: readonly number[]
   ) => Promise<SerializedTeImproved | null>;
   /** Like requestBestMove, but also surfaces the worker's score/depth diagnostics. */
   requestBestMoveWithInfo: (
     position: SerializedKyokumenImproved,
     difficulty: Difficulty,
-    tesu: number
+    tesu: number,
+    positionHistory?: readonly number[]
   ) => Promise<BestMoveInfo>;
   /** Read-only identity/load-state evidence for explicit parity diagnostics. */
   requestEngineDiagnostics: () => Promise<ShogiAiEngineDiagnostics>;
@@ -520,7 +528,8 @@ export function createShogiAiWorkerClient(
   const requestBestMoveWithInfo = (
     position: SerializedKyokumenImproved,
     difficulty: Difficulty,
-    tesu: number
+    tesu: number,
+    positionHistory?: readonly number[]
   ): Promise<BestMoveInfo> => {
     const id = nextId++;
     return new Promise<BestMoveInfo>((resolve, reject) => {
@@ -560,6 +569,9 @@ export function createShogiAiWorkerClient(
           difficulty,
           tesu: tesu | 0,
           student_enabled: false,
+          ...(positionHistory && positionHistory.length > 0
+            ? { positionHistory: [...positionHistory] }
+            : {}),
         };
         worker.postMessage(req);
       } catch (err) {
@@ -608,8 +620,15 @@ export function createShogiAiWorkerClient(
   };
 
   return {
-    requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
-      return requestBestMoveWithInfo(position, difficulty, tesu).then((info) => info.move);
+    requestBestMove(
+      position: SerializedKyokumenImproved,
+      difficulty: Difficulty,
+      tesu: number,
+      positionHistory?: readonly number[]
+    ) {
+      return requestBestMoveWithInfo(position, difficulty, tesu, positionHistory).then(
+        (info) => info.move
+      );
     },
     requestBestMoveWithInfo,
     requestEngineDiagnostics,

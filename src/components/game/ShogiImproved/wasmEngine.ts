@@ -42,6 +42,11 @@ interface ShogiSearchWasm {
   finalizePosition(): void;
   clearTT(): void;
   setRootTesu(tesu: number): void;
+  // Already-played positions (see positionHistory.ts). Optional so an older
+  // pinned runtime still links and simply keeps the previous behavior.
+  clearGameHistory?(): void;
+  pushGameHistoryHash?(hashA: number, hashB: number): void;
+  getGameHistorySize?(): number;
   searchBestMove(maxTimeMs: number, maxDepth: number, quiescenceDepthMax: number): number;
   getSearchScore(): number;
   getSearchDepth(): number;
@@ -220,6 +225,26 @@ function syncPosition(wasm: ShogiSearchWasm, k: KyokumenImproved): void {
   }
   wasm.setSideToMove(k.teban);
   wasm.finalizePosition();
+}
+
+/**
+ * Replace the engine's game history with `history` (flat [primary, secondary]
+ * hash pairs from positionHistory.ts). Always called before a search — passing
+ * nothing clears it — so one search can never inherit another's history.
+ * A runtime without the exports keeps its previous, history-blind behavior.
+ */
+function applyGameHistory(
+  wasm: ShogiSearchWasm,
+  history: readonly number[] | null | undefined
+): void {
+  if (typeof wasm.clearGameHistory !== 'function') return;
+  if (typeof wasm.pushGameHistoryHash !== 'function') return;
+  wasm.clearGameHistory();
+  if (!history) return;
+  const pairs = history.length - (history.length % 2);
+  for (let i = 0; i < pairs; i += 2) {
+    wasm.pushGameHistoryHash(history[i] | 0, history[i + 1] | 0);
+  }
 }
 
 /** Decode the packed move key ((koma&0x3f) | from<<6 | to<<14 | promote<<22) into a Te. */
@@ -499,6 +524,9 @@ export function clearWasmTT(): void {
   try {
     if (rootPolicyExportsAvailable(wasm)) wasm.clearRootPolicyRank();
     wasm.clearTT();
+    // A new game has no already-played positions. Every search re-primes this
+    // anyway; clearing here keeps the engine consistent even if one does not.
+    wasm.clearGameHistory?.();
     if (sharedTT && sharedTTRole === 'main') sharedTT.clear();
   } catch (e) {
     console.error('[wasmEngine] clearTT failed', e);
@@ -766,12 +794,14 @@ export function wasmSearchBestMove(
   maxDepth: number = 32,
   quiescenceDepthMax: number = 10,
   rootPolicyRank?: WasmRootPolicyRankReceipt | null,
+  gameHistory?: readonly number[] | null,
 ): Te | null {
   const wasm = getInstance();
   if (!wasm) return null;
 
   try {
     syncPosition(wasm, k);
+    applyGameHistory(wasm, gameHistory);
     if (rootPolicyExportsAvailable(wasm)) {
       // A rank is one-search state. Always begin from clear so a stale receipt
       // left by an interrupted caller can never affect this root.

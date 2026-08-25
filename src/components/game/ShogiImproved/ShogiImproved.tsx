@@ -42,6 +42,7 @@ import {
 } from './evalDisplay';
 import { KyokumenImproved } from './KyokumenImproved';
 import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
+import { buildPositionHistoryHashes } from './positionHistory';
 import { buildDeclinablePromotion } from './PromotionRulesImproved';
 import { getBestMoveV20WithInfo } from './ShogiAIImprovedV20';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiSearchPath,ShogiAiWorkerClient } from './shogiAiWorkerClient';
@@ -1107,6 +1108,17 @@ const ShogiImproved = () => {
         }
 
 	        const position = serializeForWorker(gameState.kyokumen);
+        // Everything that has already been on the board this game, so the
+        // engine can see 千日手 coming and stop treating a return to an
+        // earlier position as free. Replaying the kifu keeps this derived from
+        // one source of truth (待った and kifu import trim moveList, so the
+        // history trims with them); a replay that cannot reproduce the current
+        // position yields [] and the engine behaves exactly as before.
+        const positionHistory = buildPositionHistoryHashes(
+          buildInitialKyokumen(handicap),
+          moveList,
+          gameState.kyokumen
+        );
         let worker: ShogiAiWorkerClient;
         try {
           // Worker construction itself may throw synchronously (blocked script,
@@ -1119,7 +1131,7 @@ const ShogiImproved = () => {
 
         try {
           void worker
-	          .requestBestMoveWithInfo(position, difficulty, gameState.ply)
+	          .requestBestMoveWithInfo(position, difficulty, gameState.ply, positionHistory)
 	          .then((info) => {
             if (aiRequestIdRef.current !== requestId) return;
 

@@ -61,6 +61,11 @@ interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
   setResearchLazyMovePicker?: (flag: number, minMoves: number) => void;
+  // Game-history repetition priming. Absent on runtimes built before the
+  // repetition fix; every call site is guarded so those stay byte-identical.
+  clearGameHistory?: () => void;
+  pushGameHistoryHash?: (hashA: number, hashB: number) => void;
+  getGameHistorySize?: () => number;
 }
 
 function argNum(flag: string, def: number): number {
@@ -107,6 +112,9 @@ const SCALE_K = argNum("--k", 600);
 const SCALE_NUMER = argNum("--scale-numer", 1);
 const SCALE_DENOM = argNum("--scale-denom", 1);
 const WASM_PATH = argStr("--wasm-path") ?? undefined;
+// Optional second runtime for side B. With it the harness becomes a search
+// A/B (candidate WASM vs production WASM) instead of only an eval A/B.
+const WASM_PATH_B = argStr("--wasm-path-b") ?? undefined;
 const LAZY_PICKER_A_MIN_MOVES = argLazyPickerMinMoves(
   "--lazy-picker-a-min-moves",
 );
@@ -147,8 +155,31 @@ class WasmPlayer {
     private wasm: ShogiNnueSearchWasm,
   ) {}
 
+  /** True when this runtime knows about already-played positions. */
+  get supportsGameHistory(): boolean {
+    return (
+      typeof this.wasm.clearGameHistory === "function" &&
+      typeof this.wasm.pushGameHistoryHash === "function"
+    );
+  }
+
   newGame(): void {
     this.wasm.clearTT();
+    this.wasm.clearGameHistory?.();
+  }
+
+  /**
+   * Prime the engine with every position played before the current root, the
+   * way the browser worker does. `history` is a flat [primary, secondary, …]
+   * list in game order and must stop before the root position (the search
+   * contributes the root's own occurrence itself).
+   */
+  primeGameHistory(history: number[]): void {
+    if (!this.supportsGameHistory) return;
+    this.wasm.clearGameHistory!();
+    for (let i = 0; i + 1 < history.length; i += 2) {
+      this.wasm.pushGameHistoryHash!(history[i], history[i + 1]);
+    }
   }
 
   getNextTe(k: KyokumenImproved, tesu: number): Te | null {
@@ -193,7 +224,12 @@ function playOneGame(
   k.initHirate();
   k.setTeban(SENTE);
 
+  // Every position played so far, flat [primary, secondary, …] in game order.
+  // The opening plies count: they really were on the board.
+  const playedHistory: number[] = [];
+
   for (const opening of openingMoves) {
+    playedHistory.push(k.HashVal, k.SecondaryHashVal);
     const te = opening.clone();
     te.capture = k.get(te.to);
     k.move(te);
@@ -212,6 +248,7 @@ function playOneGame(
     const nnueToMove = nnueIsSente ? side === SENTE : side === GOTE;
     const player = nnueToMove ? nnue : v3;
 
+    player.primeGameHistory(playedHistory);
     const move = player.getNextTe(k, ply);
     const legalMoves = GenerateMovesImproved.generateLegalMoves(k);
 
@@ -252,6 +289,7 @@ function playOneGame(
     }
     movesChecked++;
 
+    playedHistory.push(k.HashVal, k.SecondaryHashVal);
     move.capture = k.get(move.to);
     k.move(move);
     k.toggleTeban();
@@ -351,8 +389,9 @@ function main(): void {
   );
   configureResearchLazyMovePicker(wasmA, "A", LAZY_PICKER_A_MIN_MOVES);
 
-  // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
-  const wasmB = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
+  // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full,
+  // optionally on a different runtime (--wasm-path-b) for a search A/B.
+  const wasmB = loadShogiWasm(WASM_PATH_B ?? WASM_PATH) as ShogiNnueSearchWasm;
   let opponentName = "V3";
   if (weightsPathB) {
     const bucketsB = setupNnueInstance(
@@ -380,7 +419,9 @@ function main(): void {
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
       `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : "WASM+V3"} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${NNUE_FIXED_TIME_OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
-      `runtime=${WASM_PATH ?? "production"}, fixed-time-ms=${MOVE_MS}, ` +
+      `runtimeA=${WASM_PATH ?? "production"}, runtimeB=${WASM_PATH_B ?? WASM_PATH ?? "production"}, ` +
+      `game-history=A:${nnuePlayer.supportsGameHistory ? "on" : "off"},B:${v3Player.supportsGameHistory ? "on" : "off"}, ` +
+      `fixed-time-ms=${MOVE_MS}, ` +
       `max-plies=${MAX_PLIES}, ` +
       `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
       `tt=clear-before-each-game-retain-within-game ===`,

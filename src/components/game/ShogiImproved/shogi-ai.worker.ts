@@ -734,6 +734,10 @@ function computeBestMove(
       student_enabled: effectiveStudentEnabled,
       rootPolicyRank,
       difficulty,
+      // Same root, same rules: a helper without this searches the position as
+      // if the game had never been played and publishes those scores to the
+      // shared table.
+      ...(positionHistory.length > 0 ? { positionHistory: [...positionHistory] } : {}),
     };
     for (const port of smpPorts) port.postMessage(go);
   }

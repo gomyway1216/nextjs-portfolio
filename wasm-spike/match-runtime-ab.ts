@@ -1,36 +1,42 @@
 /**
- * match-nnue-vs-v3.ts — evaluation A/B: WASM search with NNUE leaf eval
- * (real trained weights) vs the same WASM search with the hand-crafted
- * evaluateV3Full(). Pure engine-vs-engine — no opening book, no mate
- * solver on either side — so the ONLY difference is the leaf evaluation.
+ * match-runtime-ab.ts — engine-vs-engine A/B where the two sides may be
+ * DIFFERENT WASM runtimes.
  *
- * Setup (mirrors match-wasm-vs-js.ts):
- * - Two independent WASM instances (A = NNUE enabled, B = V3 default).
- * - Curated 6-ply opening lines from a deterministic PRNG (--seed offsets
- *   the base so different batches use disjoint openings), colors alternate
- *   every game, the same opening is reused for each color-swapped pair.
- * - Every move from BOTH engines is validated against the JS legal move
- *   list; an illegal move aborts the run with a non-zero exit code.
- * - Draws: fourfold repetition (JS hash) or 256 plies, same as the other
- *   match harnesses.
+ * Split off from match-nnue-vs-v3.ts, which is a pinned instrument: its bytes
+ * and SHA-256 are recorded as evidence by the teacher/screen protocols in ml/
+ * (ml/direct_teacher_halfkp81_v4_fresh_screen.py pins it outright), so editing
+ * it would silently redefine the harness those results claim to have come from.
+ * This copy is free to grow the two things a runtime A/B needs:
+ *
+ *   --wasm-path-b PATH   load side B from a second runtime, turning an eval
+ *                        A/B into a candidate-WASM vs production-WASM search
+ *                        A/B
+ *   game history         both sides are primed with the positions already
+ *                        played, the way the browser worker primes the engine,
+ *                        so a runtime that understands game history is measured
+ *                        the way it will actually be used. A runtime without
+ *                        the exports is untouched.
+ *
+ * Everything else is the original harness: two independent WASM instances,
+ * curated 6-ply openings from a deterministic PRNG (--seed offsets the base),
+ * colours alternate every game with the same opening reused for the swapped
+ * pair, every move from BOTH engines validated against the JS legal move list,
+ * and draws by fourfold repetition or 256 plies.
  *
  * Usage:
- *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
+ *   node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
  *     [--scale-numer 1] [--scale-denom 1] [--max-plies 256] \
- *     [--wasm-path research.wasm] \
+ *     [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] \
  *     [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]
  *
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
- * from that file (direct NNUE-vs-NNUE A/B; side A = first positional arg,
- * side B = --vs). Original 1,185,988 B, reduced-KP 7,027,908 B, and the
- * HalfKP research formats, including 64,216,260 B BonaPiece format84, are
- * auto-detected independently.
+ * from that file. Passing the SAME weights to both sides is how a pure search
+ * A/B is run: the evaluation is then identical and only the runtime differs.
  *
  * --scale-numer/--scale-denom rescale the NNUE cp output before it enters the
  * search (setNnueOutputScale). Use 37/10 to map true centipawns onto the
  * evaluateV3Full scale (~3.7x cp) that the search margins were tuned for.
- * (Applies to side A, and to side B when --vs is given.)
  */
 
 import { createHash } from "node:crypto";
@@ -61,6 +67,11 @@ interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
   setResearchLazyMovePicker?: (flag: number, minMoves: number) => void;
+  // Game-history repetition priming. Absent on runtimes built before the
+  // repetition fix; every call site is guarded so those stay byte-identical.
+  clearGameHistory?: () => void;
+  pushGameHistoryHash?: (hashA: number, hashB: number) => void;
+  getGameHistorySize?: () => number;
 }
 
 function argNum(flag: string, def: number): number {
@@ -95,7 +106,7 @@ function argLazyPickerMinMoves(flag: string): number {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    "usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path research.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
+    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
   );
   process.exit(2);
 }
@@ -107,6 +118,9 @@ const SCALE_K = argNum("--k", 600);
 const SCALE_NUMER = argNum("--scale-numer", 1);
 const SCALE_DENOM = argNum("--scale-denom", 1);
 const WASM_PATH = argStr("--wasm-path") ?? undefined;
+// Optional second runtime for side B. With it the harness becomes a search
+// A/B (candidate WASM vs production WASM) instead of only an eval A/B.
+const WASM_PATH_B = argStr("--wasm-path-b") ?? undefined;
 const LAZY_PICKER_A_MIN_MOVES = argLazyPickerMinMoves(
   "--lazy-picker-a-min-moves",
 );
@@ -147,8 +161,31 @@ class WasmPlayer {
     private wasm: ShogiNnueSearchWasm,
   ) {}
 
+  /** True when this runtime knows about already-played positions. */
+  get supportsGameHistory(): boolean {
+    return (
+      typeof this.wasm.clearGameHistory === "function" &&
+      typeof this.wasm.pushGameHistoryHash === "function"
+    );
+  }
+
   newGame(): void {
     this.wasm.clearTT();
+    this.wasm.clearGameHistory?.();
+  }
+
+  /**
+   * Prime the engine with every position played before the current root, the
+   * way the browser worker does. `history` is a flat [primary, secondary, …]
+   * list in game order and must stop before the root position (the search
+   * contributes the root's own occurrence itself).
+   */
+  primeGameHistory(history: number[]): void {
+    if (!this.supportsGameHistory) return;
+    this.wasm.clearGameHistory!();
+    for (let i = 0; i + 1 < history.length; i += 2) {
+      this.wasm.pushGameHistoryHash!(history[i], history[i + 1]);
+    }
   }
 
   getNextTe(k: KyokumenImproved, tesu: number): Te | null {
@@ -193,7 +230,12 @@ function playOneGame(
   k.initHirate();
   k.setTeban(SENTE);
 
+  // Every position played so far, flat [primary, secondary, …] in game order.
+  // The opening plies count: they really were on the board.
+  const playedHistory: number[] = [];
+
   for (const opening of openingMoves) {
+    playedHistory.push(k.HashVal, k.SecondaryHashVal);
     const te = opening.clone();
     te.capture = k.get(te.to);
     k.move(te);
@@ -212,6 +254,7 @@ function playOneGame(
     const nnueToMove = nnueIsSente ? side === SENTE : side === GOTE;
     const player = nnueToMove ? nnue : v3;
 
+    player.primeGameHistory(playedHistory);
     const move = player.getNextTe(k, ply);
     const legalMoves = GenerateMovesImproved.generateLegalMoves(k);
 
@@ -252,6 +295,7 @@ function playOneGame(
     }
     movesChecked++;
 
+    playedHistory.push(k.HashVal, k.SecondaryHashVal);
     move.capture = k.get(move.to);
     k.move(move);
     k.toggleTeban();
@@ -351,8 +395,9 @@ function main(): void {
   );
   configureResearchLazyMovePicker(wasmA, "A", LAZY_PICKER_A_MIN_MOVES);
 
-  // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
-  const wasmB = loadShogiWasm(WASM_PATH) as ShogiNnueSearchWasm;
+  // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full,
+  // optionally on a different runtime (--wasm-path-b) for a search A/B.
+  const wasmB = loadShogiWasm(WASM_PATH_B ?? WASM_PATH) as ShogiNnueSearchWasm;
   let opponentName = "V3";
   if (weightsPathB) {
     const bucketsB = setupNnueInstance(
@@ -380,7 +425,9 @@ function main(): void {
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
       `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : "WASM+V3"} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${NNUE_FIXED_TIME_OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver, ` +
-      `runtime=${WASM_PATH ?? "production"}, fixed-time-ms=${MOVE_MS}, ` +
+      `runtimeA=${WASM_PATH ?? "production"}, runtimeB=${WASM_PATH_B ?? WASM_PATH ?? "production"}, ` +
+      `game-history=A:${nnuePlayer.supportsGameHistory ? "on" : "off"},B:${v3Player.supportsGameHistory ? "on" : "off"}, ` +
+      `fixed-time-ms=${MOVE_MS}, ` +
       `max-plies=${MAX_PLIES}, ` +
       `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
       `tt=clear-before-each-game-retain-within-game ===`,

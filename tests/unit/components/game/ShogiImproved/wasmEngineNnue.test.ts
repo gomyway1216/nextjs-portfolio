@@ -50,7 +50,7 @@ const DROP_LETTER: Readonly<Record<string, number>> = {
 // Position immediately before move 32 in the reported rook-pawn loop game.
 // The original bug: a regressed evaluator kept re-dropping P*8f and shuffled
 // the rook into a repetition draw. The guarded property is loop-freedom, not
-// any particular single move: a shipped evaluator may spend at most one P*8f
+// any particular single move: a shipped evaluator may make at most one P*8f
 // drop at this fixed depth (a depth-parity blip), but it must break out of the
 // cycle instead of restarting the shuttle.
 const ROOK_PAWN_LOOP_PREFIX = [

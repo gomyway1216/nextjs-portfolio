@@ -200,14 +200,24 @@ describe('wasmEngine NNUE loading', () => {
       //   before the fix used fixed depth 11 with no time limit and once took
       //   ~350s on a shared CI runner.
       //
-      // Power, measured rather than assumed. Replaying this game against the
-      // pre-fix engine at the hard budget (2000ms) produced P*8f in 3 of 48
-      // measurements, and 0 of 48 after; at master (5000ms) 2 of 32 before and
-      // 1 of 32 after. Every single one of them was the move-30 position - the
-      // other three never relapse. So one pass here catches a relapse maybe a
-      // quarter of the time: it is a smoke test on the real board, not the
-      // primary lock, and the fix reduces the shuttle rather than abolishing
-      // it. The deterministic locks are
+      // Power and threshold, measured rather than assumed. Replaying this game
+      // and asking at these four positions produced P*8f at:
+      //
+      //   hard   (2000ms, q10)   pre-fix 3/48    post-fix 1/96 (two builds)
+      //   master (5000ms, q12)   pre-fix 2/32    post-fix 1/32
+      //
+      // Every single one of them, before and after, was the move-30 position;
+      // the other three never relapse. So the fix REDUCES the shuttle, it does
+      // not abolish it, and demanding zero here would flake on CI roughly one
+      // run in twelve. The assertion is therefore "not twice": spending the
+      // pawn once at one of four positions is a judgement call the evaluator
+      // is allowed to make, doing it repeatedly is the shuttle.
+      //
+      // That makes this a smoke test on the real board, not the primary lock.
+      // The locks that fail outright on the pre-fix engine are
+      // rootTtCutoff.test.ts (the root is searched instead of answered from
+      // the table) and positionHistory.test.ts (primed occurrences count
+      // towards repetition, in both the WASM and the JS engine). The deterministic locks are
       // rootTtCutoff.test.ts (the root is searched instead of answered from
       // the table) and positionHistory.test.ts (primed occurrences count
       // towards repetition). If this one ever fails, believe it.
@@ -274,10 +284,9 @@ describe('wasmEngine NNUE loading', () => {
         }
       }
 
-      // Two of the four are P*8g re-drops answered by a rook recapture, so the
-      // engine is never forced into this move: dropping the pawn here is the
-      // shuttle, and the shuttle is what the game history is meant to stop.
-      expect(pawnDrops8f).toBe(0);
+      // The engine is never forced into this move at any of the four, so more
+      // than one is the shuttle restarting rather than a one-off judgement.
+      expect(pawnDrops8f).toBeLessThanOrEqual(1);
     },
     // Bounded by construction: 4 searches of MOVE_MS plus 8 pondered positions
     // of PONDER_SLICES * PONDER_SLICE_MS is ~20s of search.

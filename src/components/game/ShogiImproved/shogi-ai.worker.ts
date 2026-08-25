@@ -50,6 +50,7 @@
  */
 
 import { DfpnMateSolverImproved } from './DfpnMateSolverImproved';
+import { difficultyUsesNnue } from './engineReadiness';
 import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
 import { ensureExternalOpeningBookLoaded, getOpeningMoveImproved } from './OpeningBookImproved';
@@ -259,33 +260,11 @@ function nnueWeightsCacheKey(): string {
 }
 
 /**
- * Difficulties that use the NNUE evaluation. `easy` (250ms) intentionally stays
- * on V3: at ~200ms budgets V3 measured stronger (NNUE 40.9%), and easy is meant
- * to be weak anyway.
- *
- * 2026-07-06: RE-ENABLED for hard/expert/master. The medium-only hotfix
- * (below) was lifted after the cycle-3 weights (run5m-base, 5.24M positions,
- * balance-rate 0.5) fixed the saturation that caused the 2-dan loss:
- *   - The infamous 72nd move: move-value spread 20cp (all moves equal =
- *     saturated, picked a −35281cp blunder) → 532cp (26x), now picks the TRUE
- *     best move; game blunders (>300cp) halved 8→4.
- *   - Direct A/B vs the shipped run1m-base NNUE: 92.2% (29.5/32) at 1000ms.
- *   - vs V3 at 2000ms (the hard budget that was never verified before): 87.5%.
- * Verified directly at 1000ms and 2000ms. expert (4000ms) and master (5000ms)
- * are enabled by extrapolation: throughout cycles 2-3 NNUE's edge only widened
- * with more thinking time (deeper search rewards its move ordering), so a
- * budget >= 2000ms is expected to be at least as favorable — the author's own
- * play is the final check for those.
- *
- * Prior hotfix rationale (2026-07-05, superseded): reduced to medium only after
- * a 2-dan game exposed NNUE saturation at decided positions; the 77.1% A/B was
- * 1000ms-only and hard (2000ms) was an unverified extrapolation.
+ * `difficultyUsesNnue` (and the difficulty set behind it, with the full A/B
+ * rationale) now lives in ./engineReadiness so the main-thread client can use
+ * the same definition when deciding whether an AI turn must wait for the
+ * weights. Imported at the top of this file.
  */
-const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium', 'hard', 'expert', 'master']);
-
-function difficultyUsesNnue(difficulty: Difficulty): boolean {
-  return NNUE_DIFFICULTIES.has(difficulty);
-}
 
 /**
  * Retained for diagnostics and for the existing helper protocol. The

@@ -190,7 +190,7 @@ R1の教訓に基づき蒸留データのシェアを3.6%→約17-20%へ引き�
 エージェント世代交代)とdeadline付き自己対局生成器は今後のラウンドにそのまま
 再利用できる。
 
-## 7. 蒸留ラウンド3(R3、2026-08-24): 定跡末端蒸留 — 初の昇格
+## 7. 蒸留ラウンド3(R3、2026-08-24): 定跡末端蒸留 — 昇格(PR #711)
 
 R1(蒸留シェア3.6%)50.0%、R2(19.6%)50.6% と、**量を積んでも動かなかった**。
 R3はここで仮説を切り替えた。
@@ -330,4 +330,5 @@ arm Bのラベリング(実測4.46 s/親 = d12の7.6倍、8ワーカーで約12�
 | **R3(現本番)** | `~/.codex/shogi-runs/halfkp81-distill-r3-bookleaf-20260824/`(handoff.md、`selection-50k/overlap-report.json`、`training/d12/halfkp81-r3-d12-export/weights.bin` SHA `f4771786…`、`gate/{d12,aa-champ}-stats.json`、`gate/d12-standard/*.log`、targeted gate一式 `tools/`) |
 | 旧本番snapshot(比較基準) | `$RUN/production-before-forced-halfkp64-rki16-v1.{wasm,weights.bin}`(SHA `1a9cb6fe…` / `25fc77ad…`) |
 
-関連PR: #699(codex研究run)、#701(旧本番復旧)、#702(newdata再学習の本番昇格)。
+関連PR: #699(codex研究run)、#701(旧本番復旧)、#702(newdata再学習の本番昇格)、
+#711(R3 arm A=定跡末端蒸留の本番昇格)。

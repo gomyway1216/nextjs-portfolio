@@ -50,6 +50,46 @@ HalfKPの研究中は `gen-wasm-base64.mjs` を実行しない。将来、正式
 81-bucket差分は`assembly/halfkp81-research.patch`だけに隔離した。研究用artifactは35,837 bytes / SHA-256
 `1b95659d54fc897e2ff766583ccc2035a0932929fcb9520800c3a5ca2b1430db` で、`--wasm-path` を明示したハーネスだけが読み込む。
 
+### 本番 HalfKP81 WASM の再ビルド
+
+**本番sourceは `assembly/index-halfkp64-rki16.ts` である。** ファイル名は 2026-08-15 の
+「候補資産の分離」で付いた履歴的なもので中身は本番のもの: このファイルを patch も transform も
+当てずにそのままcompileすると、ブラウザが読む
+`src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm` が**バイト単位で再現する**
+（2026-08-16 時点の本番: 38,288 bytes / SHA-256
+`1a9cb6fed8df7b0f02dc440e3fc8764f490738cec664168b0bfe47e081a07cd6`)。
+`wasm-spike/build-*-runtime-skeleton.mjs` 各種が「本番baseline source」としてこのファイルを
+pinしているのも同じ理由である。
+
+`assembly/index.ts` は 2026-07-26 で止まっている**旧世代の比較用資産**であり、本番ではない。
+`index.ts` + `halfkp81-research.patch` をcompileしても本番は再現せず（36,787 bytes /
+`73d02779fc36c3f29220a5a9a7f9d95a6c9a8ce0a8f71df868d7b1cd74407504`）、
+direct evasion generator など 7/26 以降の探索改善が丸ごと欠けた別エンジンになる。
+**本番WASMを触るときは必ず `index-halfkp64-rki16.ts` を編集すること。**
+
+```sh
+TMP=$(mktemp -d)
+mkdir -p "$TMP/wasm-spike/assembly"
+cp wasm-spike/assembly/index-halfkp64-rki16.ts "$TMP/wasm-spike/assembly/index.ts"
+cp wasm-spike/assembly/tables.ts wasm-spike/assembly/as-ambient.d.ts "$TMP/wasm-spike/assembly/"
+(cd "$TMP" && npx -y -p assemblyscript@0.28.19 asc wasm-spike/assembly/index.ts \
+   --outFile out.wasm -O3 --runtime stub --noAssert --enable simd)
+cp "$TMP/out.wasm" src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm
+node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
+```
+
+出力バイト列はtoolchainのバージョンで前後するので、**バイト同一ではなく探索の同一性で確認する**
+(固定深さ・NNUE有効で bestMove / score / nodes が一致すること)。
+昇格したら、production WASM の bytes/SHA-256 をpinしている以下も一緒に更新する:
+
+- `ml/child-board-root-move-universe-bridge.ts`（`moveBuf` のbyte offsetもpinしている。
+  `fillRootMoveBuffer()` を呼んで memory を走査すれば確認できる）
+- `ml/run-strength-first-browser-worker-parity.ts`
+
+`wasm-spike/build-*-runtime-skeleton.mjs` は本番sourceのidentityをpinしているので、
+本番sourceを変更したらそれらの `EXPECTED.source` と、そこから導かれる
+`transformedSource` / `candidateWasm` / `baselineWasm` も再導出が要る。
+
 ## ベンチ実行
 
 ```sh

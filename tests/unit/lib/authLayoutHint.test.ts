@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   deriveUserInitial,
+  hangGuardShouldStopPresuming,
+  nextAuthResolution,
   readAuthLayoutHint,
   resolvePresumedProfile,
+  shouldPersistAuthLayoutHint,
   toAuthLayoutHint,
   writeAuthLayoutHint,
 } from '@/lib/authLayoutHint';
@@ -148,6 +151,95 @@ describe('authLayoutHint', () => {
     it('defers to the real user once one is available', () => {
       expect(resolvePresumedProfile(true, true, hint)).toBeNull();
       expect(resolvePresumedProfile(true, false, hint)).toBeNull();
+    });
+  });
+
+  describe('nextAuthResolution', () => {
+    it('treats a completed listener pass as the real answer', () => {
+      expect(nextAuthResolution('pending', 'pass-completed')).toBe('resolved');
+      expect(nextAuthResolution('unknown', 'pass-completed')).toBe('resolved');
+      expect(nextAuthResolution('resolved', 'pass-completed')).toBe('resolved');
+    });
+
+    it('lets a watchdog stop the wait when nothing has answered yet', () => {
+      expect(nextAuthResolution('pending', 'gave-up')).toBe('unknown');
+    });
+
+    it('never lets a watchdog downgrade an answer it already has', () => {
+      expect(nextAuthResolution('resolved', 'gave-up')).toBe('resolved');
+      expect(nextAuthResolution('unknown', 'gave-up')).toBe('unknown');
+    });
+  });
+
+  describe('shouldPersistAuthLayoutHint', () => {
+    it('records the hint only from a completed pass', () => {
+      expect(shouldPersistAuthLayoutHint('resolved')).toBe(true);
+    });
+
+    it('does not record anything while auth is still in flight', () => {
+      expect(shouldPersistAuthLayoutHint('pending')).toBe(false);
+    });
+
+    it('does not let a watchdog erase the hint — timing out is not being signed out', () => {
+      expect(shouldPersistAuthLayoutHint('unknown')).toBe(false);
+    });
+  });
+
+  describe('hangGuardShouldStopPresuming', () => {
+    it('stops presuming when the auth listener never called back at all', () => {
+      expect(hangGuardShouldStopPresuming(false)).toBe(true);
+    });
+
+    it('leaves a slow but live listener pass alone', () => {
+      expect(hangGuardShouldStopPresuming(true)).toBe(false);
+    });
+  });
+
+  describe('slow session restore (the case the hang guard used to break)', () => {
+    const hint = { initial: 'Y', displayName: 'Yudai' };
+
+    it('keeps the reserved shape and the stored hint across the hang guard', () => {
+      // t=0: provider mounts, remembered hint read, nothing resolved yet.
+      let resolution = 'pending' as ReturnType<typeof nextAuthResolution>;
+      expect(resolvePresumedProfile(false, resolution === 'pending', hint)).toEqual(hint);
+
+      // t~100ms: the listener calls back with no user and starts a session
+      // restore. The pass is in flight; nothing has been decided.
+      const authCallbackStarted = true;
+
+      // t=2s: the hang guard fires. It must not touch the presumption, because
+      // the restore is still running.
+      if (hangGuardShouldStopPresuming(authCallbackStarted)) {
+        resolution = nextAuthResolution(resolution, 'gave-up');
+      }
+      expect(resolution).toBe('pending');
+      expect(resolvePresumedProfile(false, resolution === 'pending', hint)).toEqual(hint);
+      expect(shouldPersistAuthLayoutHint(resolution)).toBe(false);
+
+      // t=4s: the restore lands. Now — and only now — the real user takes over.
+      resolution = nextAuthResolution(resolution, 'pass-completed');
+      expect(resolvePresumedProfile(true, resolution === 'pending', hint)).toBeNull();
+      expect(shouldPersistAuthLayoutHint(resolution)).toBe(true);
+    });
+
+    it('keeps the stored hint when the pass never lands and the cap gives up', () => {
+      const store = stubBrowserStorage();
+      writeAuthLayoutHint(hint);
+
+      let resolution = nextAuthResolution('pending', 'gave-up');
+      expect(resolution).toBe('unknown');
+      // Presuming stops, so the toolbar falls back to the signed-out shape...
+      expect(resolvePresumedProfile(false, resolution === 'pending', hint)).toBeNull();
+      // ...but the hint survives, so the next load still reserves the box.
+      if (shouldPersistAuthLayoutHint(resolution)) {
+        writeAuthLayoutHint(toAuthLayoutHint(null));
+      }
+      expect(store.has(STORAGE_KEY)).toBe(true);
+      expect(readAuthLayoutHint()).toEqual(hint);
+
+      // A late pass still gets the last word.
+      resolution = nextAuthResolution(resolution, 'pass-completed');
+      expect(shouldPersistAuthLayoutHint(resolution)).toBe(true);
     });
   });
 });

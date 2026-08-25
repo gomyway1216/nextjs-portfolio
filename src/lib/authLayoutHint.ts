@@ -47,18 +47,73 @@ export function toAuthLayoutHint(
 }
 
 /**
- * The shape to paint while auth is still settling, or null to read the real
- * user instead. The hint is deliberately dropped the moment auth settles: from
- * then on `currentUser` is authoritative, including when it says "signed out"
- * and the remembered session turns out to have expired.
+ * How far auth resolution has got, for layout purposes.
+ *
+ * Kept distinct from any `loading` flag on purpose. A watchdog that force-clears
+ * `loading` after N seconds says nothing about whether auth resolved — it fires
+ * just as happily while a session restore is mid-flight — so reusing it here
+ * would drop the reservation at N seconds and reflow the page twice instead of
+ * never.
+ *
+ * - `pending`  — auth work is still in flight; keep reserving the remembered shape.
+ * - `resolved` — a listener pass completed. The only positive evidence of the real
+ *                state, and the only state allowed to rewrite the stored hint.
+ * - `unknown`  — a watchdog gave up. Stop presuming, but leave the stored hint
+ *                alone: nothing was learned, and erasing it would cost the next load.
+ */
+export type AuthResolution = 'pending' | 'resolved' | 'unknown';
+
+export type AuthResolutionEvent =
+  /** A listener pass ran to completion — we know the real state. */
+  | 'pass-completed'
+  /** A watchdog fired — we know nothing, we are only done waiting. */
+  | 'gave-up';
+
+export function nextAuthResolution(
+  previous: AuthResolution,
+  event: AuthResolutionEvent,
+): AuthResolution {
+  if (event === 'pass-completed') return 'resolved';
+  // Giving up must never downgrade a real answer.
+  return previous === 'pending' ? 'unknown' : previous;
+}
+
+/**
+ * Only a completed pass may rewrite the stored hint. A watchdog reaching its
+ * deadline is not evidence of being signed out, and treating it as such would
+ * erase the hint for a user who is merely on a slow connection — breaking the
+ * next load as well as this one.
+ */
+export function shouldPersistAuthLayoutHint(resolution: AuthResolution): boolean {
+  return resolution === 'resolved';
+}
+
+/**
+ * The hang guard exists for one failure: Firebase's listener never calling back
+ * at all. If it has called back, a pass is in flight and will resolve things, so
+ * the guard must leave the presumption alone.
+ */
+export function hangGuardShouldStopPresuming(authCallbackStarted: boolean): boolean {
+  return !authCallbackStarted;
+}
+
+/**
+ * The shape to paint while auth work is still in flight, or null to read the
+ * real user instead. The hint is dropped the moment that work stops: from then
+ * on `currentUser` is authoritative, including when it says "signed out" and
+ * the remembered session turns out to have expired.
+ *
+ * `authPending` must track whether the auth pipeline is still working, NOT a
+ * loading flag that some watchdog can flip on a timer — presuming has to
+ * outlast a slow session restore or the reflow it prevents simply happens later.
  */
 export function resolvePresumedProfile(
   isSignedIn: boolean,
-  loading: boolean,
+  authPending: boolean,
   hint: AuthLayoutHint | null,
 ): AuthLayoutHint | null {
   if (isSignedIn) return null;
-  return loading ? hint : null;
+  return authPending ? hint : null;
 }
 
 export function readAuthLayoutHint(): AuthLayoutHint | null {

@@ -69,6 +69,8 @@ type WorkerResponse =
  */
 export interface ShogiAiNnueWeightsStatus {
   status: 'pending' | 'loaded' | 'rejected' | 'unavailable';
+  /** Whether the accepted bytes came from Cache Storage or the network. */
+  source?: 'cache' | 'network';
   attempts: number;
   elapsedMs: number;
   bytes?: number;
@@ -82,6 +84,19 @@ export interface ShogiAiWorkerClientOptions {
    * state. Invoked again after a respawn (a fresh worker re-fetches).
    */
   onNnueWeightsStatus?: (status: ShogiAiNnueWeightsStatus) => void;
+  /**
+   * Called once, when the error-storm guard permanently gives up on the worker
+   * and every later request will reject. That is the terminal state behind a
+   * session stuck in 低速互換モード, and until now it was only a console.error.
+   *
+   * `difficulty` is the level of the most recent best-move request, i.e. the
+   * search that was failing. It is reported from here rather than read by the
+   * caller because one client serves a whole session across many games: a page
+   * that captured its own `difficulty` when the client was built would log the
+   * level of the first game, not the one that actually broke. Undefined only if
+   * the client never received a best-move request (a worker that died on load).
+   */
+  onWorkerGaveUp?: (reason: string, difficulty?: Difficulty) => void;
 }
 
 export type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiEngineDiagnostics };
@@ -254,6 +269,25 @@ const HARD_DEADLINE_MS: Record<Difficulty, number> = {
 };
 const ENGINE_DIAGNOSTICS_DEADLINE_MS = 15_000;
 
+/**
+ * Extra allowance for the FIRST request answered by a given worker instance.
+ *
+ * A fresh Worker has to download and evaluate its module bundle and instantiate
+ * the WASM engine before it can start searching, and that cost lands entirely on
+ * whichever request happens to be first. Measured against production on
+ * 2026-08-25: a warm-chunk worker answered a master request in 5.03-5.06s, but
+ * the same request on a cold page load took 7.61s — 2.5s of pure startup
+ * charged against a 14s deadline whose search alone is budgeted 5s. On a slower
+ * link or a loaded machine that margin runs out and a perfectly healthy worker
+ * is torn down as "wedged", which permanently demotes the move to the
+ * main-thread engine.
+ *
+ * Startup is not thinking time, so it gets its own allowance. Once the instance
+ * has produced any message at all it is proven warm and only the search deadline
+ * applies.
+ */
+const WORKER_STARTUP_GRACE_MS = 10_000;
+
 function hardDeadlineMs(difficulty: Difficulty): number {
   return HARD_DEADLINE_MS[difficulty] ?? HARD_DEADLINE_MS.hard;
 }
@@ -329,6 +363,13 @@ export function createShogiAiWorkerClient(
   });
   let helpers = trySpawnSmpHelpers(worker);
   let disposed = false;
+  // False until the current worker instance has said anything at all, i.e.
+  // until its module has loaded and it is executing. Cleared on every respawn,
+  // because a fresh instance pays the startup cost all over again.
+  let workerProven = false;
+  // The level of the most recent best-move request, so a terminal failure is
+  // attributed to the search that was actually failing.
+  let lastRequestedDifficulty: Difficulty | undefined;
 
   // Error-storm guard: if the worker keeps failing to boot/run, cap how many
   // times we respawn within a short window. After the cap we stop respawning
@@ -364,6 +405,8 @@ export function createShogiAiWorkerClient(
     w.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const msg = event.data;
       if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+      // Anything at all from this instance proves it booted and is running.
+      workerProven = true;
 
       if (msg.type === 'bestMoveResult') {
         const p = pending.get(msg.id);
@@ -384,6 +427,7 @@ export function createShogiAiWorkerClient(
           if (typeof msg.status === 'string' && NNUE_FETCH_STATUSES.has(msg.status)) {
             options.onNnueWeightsStatus?.({
               status: msg.status,
+              source: msg.source === 'cache' || msg.source === 'network' ? msg.source : undefined,
               attempts: typeof msg.attempts === 'number' ? msg.attempts : 0,
               elapsedMs: typeof msg.elapsedMs === 'number' ? msg.elapsedMs : 0,
               bytes: typeof msg.bytes === 'number' ? msg.bytes : undefined,
@@ -467,6 +511,21 @@ export function createShogiAiWorkerClient(
   }
 
   /**
+   * Announce the terminal give-up exactly once. A listener that throws must not
+   * turn an already-degraded engine into a broken one.
+   */
+  let gaveUpReported = false;
+  function reportGaveUp(reason: string): void {
+    if (gaveUpReported) return;
+    gaveUpReported = true;
+    try {
+      options.onWorkerGaveUp?.(reason, lastRequestedDifficulty);
+    } catch {
+      /* a broken listener must not break the fallback path */
+    }
+  }
+
+  /**
    * Self-heal a wedged or broken worker so the UI never sticks and never gets
    * permanently demoted to the main-thread JS engine. Terminates the current
    * worker + helpers, rejects every pending request (the caller falls back to
@@ -492,7 +551,7 @@ export function createShogiAiWorkerClient(
       /* terminate is best-effort */
     }
     helpers = [];
-    rejectAll(new Error('AI worker failed'));
+    rejectAll(new Error(`AI worker failed: ${reason}`));
 
     const now = Date.now();
     respawnTimestamps = respawnTimestamps.filter((t) => now - t < RESPAWN_WINDOW_MS);
@@ -502,6 +561,7 @@ export function createShogiAiWorkerClient(
         `[shogiAiWorkerClient] AI worker keeps failing (${reason}); ` +
           'giving up on the worker — moves will use the main-thread engine'
       );
+      reportGaveUp(`respawn cap reached (${reason})`);
       return;
     }
     respawnTimestamps.push(now);
@@ -511,6 +571,9 @@ export function createShogiAiWorkerClient(
       worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
         type: 'module',
       });
+      // The replacement instance has to boot from scratch, so its first request
+      // gets the startup allowance again.
+      workerProven = false;
       // After any failure, favor the rock-solid single-thread path (no SMP).
       attachWorkerHandlers(worker);
       syncVisibility();
@@ -522,6 +585,7 @@ export function createShogiAiWorkerClient(
         `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` + 'moves will use the main-thread engine',
         e
       );
+      reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -536,21 +600,38 @@ export function createShogiAiWorkerClient(
       // If the worker was permanently given up on (error storm), fail fast so
       // the caller uses the main-thread engine — do not touch a torn-down worker.
       if (respawnDisabled) {
-        reject(new Error('AI worker unavailable'));
+        reject(new Error('AI worker unavailable (worker permanently disabled)'));
         return;
       }
+      // Remember what this search was playing at, so a later terminal give-up
+      // names the level that was actually failing rather than whatever the page
+      // happened to be showing when this long-lived client was built.
+      lastRequestedDifficulty = difficulty;
       // Hard wall-clock deadline: if the worker has not answered by then it is
       // treated as wedged — tear it down, respawn single-thread, and reject so
       // the caller falls back to the main-thread search. The UI never sticks on
       // "AI Thinking..." regardless of the failure cause.
+      //
+      // An unproven instance is still booting, and boot time is not think time
+      // (see WORKER_STARTUP_GRACE_MS), so it gets the startup allowance on top.
+      const cold = !workerProven;
+      const deadlineMs = hardDeadlineMs(difficulty) + (cold ? WORKER_STARTUP_GRACE_MS : 0);
       const timer = setTimeout(() => {
         if (pending.delete(id)) {
           // Settle the caller first. Recovery is best-effort and may itself be
           // impossible when Worker construction is what the browser blocks.
-          reject(new Error('AI worker timed out'));
-          recoverWithSingleThread(`no response for id=${id} within ${hardDeadlineMs(difficulty)}ms`);
+          // The message names the exact deadline that fired and whether the
+          // worker had ever spoken, so the page's log can tell a wedged search
+          // apart from a worker that never booted.
+          reject(
+            new Error(
+              `AI worker timed out after ${deadlineMs}ms ` +
+                `(${cold ? 'never responded since spawn' : 'warm instance'}, difficulty=${difficulty})`
+            )
+          );
+          recoverWithSingleThread(`no response for id=${id} within ${deadlineMs}ms`);
         }
-      }, hardDeadlineMs(difficulty));
+      }, deadlineMs);
       pending.set(id, {
         resolve: (info) => {
           clearTimeout(timer);
@@ -589,7 +670,7 @@ export function createShogiAiWorkerClient(
     const id = nextId++;
     return new Promise<ShogiAiEngineDiagnostics>((resolve, reject) => {
       if (respawnDisabled) {
-        reject(new Error('AI worker unavailable'));
+        reject(new Error('AI worker unavailable (worker permanently disabled)'));
         return;
       }
       const timer = setTimeout(() => {
@@ -644,7 +725,7 @@ export function createShogiAiWorkerClient(
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }
-      rejectAll(new Error('Worker terminated'));
+      rejectAll(new Error('AI worker terminated'));
       worker.terminate();
       for (const helper of helpers) helper.terminate();
     },

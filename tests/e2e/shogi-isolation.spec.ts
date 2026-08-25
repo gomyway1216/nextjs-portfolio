@@ -201,15 +201,33 @@ test('permanent Worker and JS fallback failures stop instead of retrying forever
   await expect(status).toHaveAttribute('data-search-path', 'engine-error', { timeout: 15_000 });
   await expect(status).toHaveAttribute('data-thinking', 'false');
   await expect(status).toContainText('AIを起動できませんでした');
-  const attempts = await page.evaluate(
-    () => (window as typeof window & { __shogiWorkerAttempts?: number }).__shogiWorkerAttempts ?? 0,
-  );
-  await page.waitForTimeout(1_200);
-  const attemptsAfterWait = await page.evaluate(
-    () => (window as typeof window & { __shogiWorkerAttempts?: number }).__shogiWorkerAttempts ?? 0,
-  );
-  expect(attempts).toBe(1);
-  expect(attemptsAfterWait).toBe(attempts);
+  const readAttempts = () =>
+    page.evaluate(
+      () => (window as typeof window & { __shogiWorkerAttempts?: number }).__shogiWorkerAttempts ?? 0,
+    );
+  const attempts = await readAttempts();
+
+  // The property this test exists for is that construction STOPS. The bug it
+  // was written against respawned and re-searched every ~500ms forever, so the
+  // count grew without bound. Assert that directly: sample across several of
+  // those retry intervals and require the count to be pinned. Pinning one
+  // literal number instead would silently encode WHEN the worker is spawned,
+  // which is an implementation detail this test has no business owning.
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(500);
+    expect(await readAttempts()).toBe(attempts);
+  }
+
+  // It must also stop after a small bounded number of tries, not merely stop
+  // eventually. Exactly two places ask for a worker in one game — `initGame`
+  // spawns it up front so the 94.7MB NNUE weights load during the opening book,
+  // and the AI-move effect asks again when a search needs one. They normally
+  // share a single instance via `workerRef`, but a constructor that throws
+  // leaves nothing to cache, so here both ask and both fail. That a HEALTHY
+  // game builds exactly one worker for both call sites is pinned separately by
+  // 'a healthy game constructs exactly one AI worker' below.
+  expect(attempts).toBeGreaterThanOrEqual(1);
+  expect(attempts).toBeLessThanOrEqual(2);
 
   await page.evaluate(() => {
     const state = window as typeof window & {
@@ -223,6 +241,71 @@ test('permanent Worker and JS fallback failures stop instead of retrying forever
   await expect(status).toHaveAttribute('data-search-path', 'wasm', { timeout: 15_000 });
   await expect(status).toHaveAttribute('data-thinking', 'false');
   await expect(status).toHaveAttribute('data-ply', '1');
+});
+
+/**
+ * The AI worker is spawned when the game starts, not lazily on the first
+ * out-of-book move, so its 94.7MB NNUE weights download during the opening book
+ * rather than on the clock of a move — and so a move's hard deadline is not
+ * spent on worker cold start.
+ *
+ * Pulling the spawn earlier makes one specific mistake easy and invisible:
+ * spawning at game start AND again when a search needs one. That would run two
+ * engines, two WASM heaps and two 94.7MB fetches, and nothing in the UI would
+ * say so. Pin that both call sites share ONE instance.
+ *
+ * Every `new Worker` on this page is counted, not just a chosen URL: production
+ * bundles route worker construction through a Turbopack shim whose URL says
+ * nothing about which module it loads. That is safe to assert as exactly 1
+ * because `computeSearchThreadCount()` returns 1, so `trySpawnSmpHelpers` never
+ * spawns a helper. If Lazy SMP is ever switched back on this test fails loudly,
+ * which is the correct outcome: whether the engine is allowed more than one
+ * WASM heap and more than one weights fetch has to be re-decided, not silently
+ * absorbed by a test that was pre-weakened to tolerate it.
+ */
+test('a healthy game constructs exactly one AI worker', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/games/shogi');
+  await page.evaluate(() => {
+    const state = window as typeof window & { __shogiWorkerConstructions?: number };
+    state.__shogiWorkerConstructions = 0;
+    const NativeWorker = window.Worker;
+    window.Worker = new Proxy(NativeWorker, {
+      construct(target, args: ConstructorParameters<typeof Worker>) {
+        state.__shogiWorkerConstructions = (state.__shogiWorkerConstructions ?? 0) + 1;
+        return new target(...args);
+      },
+    });
+  });
+  const constructions = () =>
+    page.evaluate(
+      () =>
+        (window as typeof window & { __shogiWorkerConstructions?: number })
+          .__shogiWorkerConstructions ?? 0,
+    );
+
+  await page.getByRole('button', { name: 'Level 1 (Easy)' }).click();
+  // 角落ち: the AI (上手) moves first and is out of the opening book from move
+  // one, so the game-start spawn and the first out-of-book search — the only
+  // two places that ask for a worker — land back to back. In a hirate game the
+  // second one is merely deferred until the book runs out; it is the same call.
+  await page.getByRole('button', { name: '角落ち' }).click();
+  await page.getByRole('button', { name: /Start Game/i }).first().click();
+
+  const status = page.getByTestId('shogi-engine-status');
+  // Spawned up front, before any search has been requested.
+  expect(await constructions()).toBe(1);
+
+  // The first out-of-book search reused it instead of spawning its own.
+  await expect(status).toHaveAttribute('data-ply', '1', { timeout: 30_000 });
+  await expect(status).toHaveAttribute('data-search-path', 'wasm');
+  expect(await constructions()).toBe(1);
+
+  // And so does every later search in the same game.
+  await page.getByTestId('cell-7-7').click();
+  await page.getByTestId('cell-7-6').click();
+  await expect(status).toHaveAttribute('data-ply', '3', { timeout: 30_000 });
+  expect(await constructions()).toBe(1);
 });
 
 test('Retry replaces a client disabled by a failed Worker respawn', async ({ page }) => {

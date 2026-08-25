@@ -10,10 +10,12 @@
  *
  * Relationship to `DfpnMateSolverImproved`:
  * - Iterative deepening re-searches the entire tree for every mate length, so its cost grows sharply
- *   past ~7 plies and it is run with a 5-ply cap in production. `DfpnMateSolverImproved` (df-pn) has
- *   no horizon and reaches long forcing lines, but its proof tree is not necessarily the shortest
- *   mate. The worker's probe therefore runs this solver first for the short mates and hands the rest
- *   of the same budget to df-pn (see `solveMate()` in shogi-ai.worker.ts).
+ *   past ~7 plies; it is capped at 9 plies where it is used directly (ShogiAIImprovedV20, and the
+ *   shortening pass below). `DfpnMateSolverImproved` (df-pn) reaches much longer forcing lines
+ *   (31-ply horizon) but its proof tree is not necessarily the SHORTEST mate. The worker's probe
+ *   therefore runs df-pn FIRST, and only once it has a proof does it run this solver bounded by a
+ *   horizon shorter than that proof, purely to shorten the announced mate (see `solveMate()` in
+ *   shogi-ai.worker.ts). This solver is no longer the first thing the probe tries.
  *
  * Why a separate solver (instead of relying on the main alpha-beta search):
  * - The main search prunes aggressively (futility/LMR/null-move) and its move ordering is tuned for

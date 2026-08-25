@@ -10,8 +10,9 @@
  * Move pipeline (hybrid, per move):
  * 1. JS opening book (getOpeningMoveImproved)
  * 2. JS mate solver probe: same gate + budget policy as ShogiAIImprovedV20,
- *    but the search itself is df-pn (no ply horizon), with the shipped
- *    iterative-deepening solver used to shorten the proof (see `solveMate`)
+ *    but the search itself is df-pn (31-ply horizon, vs the 9 plies the
+ *    iterative-deepening solver is capped at), with that solver then used to
+ *    shorten the proof (see `solveMate`)
  * 3. WASM full search (wasmEngine.ts — V20 port, ~15x faster / depth +3..+4)
  * 4. JS V20 search — fallback if the WASM engine is unavailable or fails
  *
@@ -476,7 +477,9 @@ function toSenteCp(scoreForTeban: number, teban: number): number {
 /**
  * Mate probe: df-pn to find a mate, then a bounded exact pass to shorten it.
  *
- * Search — `DfpnMateSolverImproved` gets the whole probe budget with no ply horizon. Proof-number
+ * Search — `DfpnMateSolverImproved` gets the whole probe budget with a 31-ply horizon (long enough
+ * that it is not the binding constraint in practice, unlike the 9 plies the iterative-deepening
+ * solver is capped at; the budget runs out first). Proof-number
  * search expands the most proof-constrained leaf first, so it follows long forcing lines to their
  * end instead of paying for a wide shallow frontier the way iterative deepening does. Measured on
  * 1069 labelled self-play endgames at this exact 200ms budget (see wasm-spike/mate-solver-bench.ts),

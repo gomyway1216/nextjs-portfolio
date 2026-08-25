@@ -101,6 +101,6 @@ export function formatEvalAriaLabel(scoreCp: number, stale = false): string {
  * Kept here so the completed-think readout and the live counter format the
  * same way.
  */
-export function formatThinkSeconds(elapsedMs: number): string {
+export function formatThinkElapsedMs(elapsedMs: number): string {
   return `${(Math.max(0, elapsedMs) / 1000).toFixed(1)}秒`;
 }

@@ -5,7 +5,7 @@ import {
   cpToSenteWinRate,
   formatEvalAriaLabel,
   formatEvalValue,
-  formatThinkSeconds,
+  formatThinkElapsedMs,
   isMateDisplayScore,
   senteBarPercent,
   senteWinRatePercent,
@@ -150,13 +150,13 @@ describe('formatEvalAriaLabel', () => {
   });
 });
 
-describe('formatThinkSeconds', () => {
+describe('formatThinkElapsedMs', () => {
   it('renders one decimal', () => {
-    expect(formatThinkSeconds(0)).toBe('0.0秒');
-    expect(formatThinkSeconds(2_612)).toBe('2.6秒');
+    expect(formatThinkElapsedMs(0)).toBe('0.0秒');
+    expect(formatThinkElapsedMs(2_612)).toBe('2.6秒');
   });
 
   it('never renders a negative clock', () => {
-    expect(formatThinkSeconds(-5)).toBe('0.0秒');
+    expect(formatThinkElapsedMs(-5)).toBe('0.0秒');
   });
 });

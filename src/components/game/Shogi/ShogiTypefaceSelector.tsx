@@ -23,7 +23,9 @@ const DEFAULT_TYPEFACE: ShogiTypeface = SHOGI_TYPEFACE_DEFAULT;
  * the pieces, so the first painted frame can show the default 清安風 face and
  * then swap: the typeface flash players report. A layout effect runs inside the
  * same commit, before paint, which makes that frame impossible.
- * `useLayoutEffect` is client-only, so fall back to `useEffect` on the server.
+ * This file is a Client Component, so the guard is not about server rendering:
+ * it keeps the module importable from non-DOM tooling (jsdom-less unit tests,
+ * any RSC-side type/import pass) where `useLayoutEffect` would warn.
  */
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 

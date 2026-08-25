@@ -37,7 +37,7 @@ import {
 import {
   formatEvalAriaLabel,
   formatEvalValue,
-  formatThinkSeconds,
+  formatThinkElapsedMs,
   senteBarPercent,
 } from './evalDisplay';
 import { KyokumenImproved } from './KyokumenImproved';
@@ -970,10 +970,13 @@ const ShogiImproved = () => {
             }
             runMainThreadSearchNow();
           };
-          // A frame callback is the accurate "after the paint" signal, but a
-          // hidden/background tab never fires one — so a timer races it and the
-          // first to arrive starts the search. Never rAF alone: that would
-          // leave a backgrounded game hanging on "thinking" forever.
+          // rAF fires BEFORE the next paint, so it alone would still block the
+          // frame we are trying to show; the 0ms timeout nested inside it is
+          // what lands after that paint. Keep both — dropping the inner
+          // setTimeout silently reintroduces the frozen-counter bug. A
+          // hidden/background tab never fires rAF at all, so a plain timer
+          // races it and whichever arrives first starts the search. Never rAF
+          // alone: that would leave a backgrounded game stuck on "thinking".
           if (typeof requestAnimationFrame === 'function') {
             requestAnimationFrame(() => setTimeout(startBlockingSearch, 0));
           }
@@ -1611,8 +1614,8 @@ const ShogiImproved = () => {
             }}
           >
             {gameState.isAIThinking
-              ? (mainThreadBlocking ? '計算中…' : formatThinkSeconds(thinkElapsedMs))
-              : formatThinkSeconds(lastThinkMs ?? 0)}
+              ? (mainThreadBlocking ? '計算中…' : formatThinkElapsedMs(thinkElapsedMs))
+              : formatThinkElapsedMs(lastThinkMs ?? 0)}
           </span>
         </div>
         <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

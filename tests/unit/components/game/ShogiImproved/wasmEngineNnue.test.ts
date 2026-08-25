@@ -14,7 +14,6 @@ import { describe, expect, it } from 'vitest';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import {
-  EMPTY,
   FU,
   GI,
   HI,
@@ -25,7 +24,6 @@ import {
   SENTE,
   Te,
   getKomashu,
-  isSente,
 } from '@/components/game/ShogiImproved/types';
 import {
   buildPositionHistoryHashes,
@@ -53,28 +51,29 @@ const DROP_LETTER: Readonly<Record<string, number>> = {
   R: HI,
 };
 
-// The reported rook-pawn loop, replayed up to the move BEFORE the AI's first
-// P*8f drop (Gote to move). The previous version of this test started 12 plies
-// later, with three shuttle cycles already scripted in, and then let the
-// engine play only four more moves - far too late to observe a bug that takes
-// ~22 plies to build up.
-const ROOK_PAWN_LOOP_PREFIX = [
+// The reported game, exactly as it was played: Sente a human 2-dan, Gote the
+// shipped AI. Moves 24, 30, 36 and 44 (1-indexed) are the four points at which
+// the AI dropped P*8f and restarted the rook-pawn shuttle, and they are the
+// positions this test puts back in front of the engine.
+//
+// An earlier version of this test tried to synthesise the scenario instead: it
+// scripted a "cooperating" Sente that always took on 8f and re-dropped P*8g.
+// That does not reproduce anything - a scripted opponent hangs material, the
+// engine simply wins it and mates in about fourteen moves, and the test passed
+// on the buggy engine as happily as on the fixed one. The real board is the
+// only board on which this bug is known to appear.
+const REPORTED_GAME = [
   '2g2f', '8c8d', '2f2e', '8d8e', '6i7h', '4a3b', '2e2d', '2c2d', '2h2d', 'P*2c',
-  '2d2h', '8e8f', '8g8f', '8b8f', 'P*8g', '8f8d', '3i3h', '3c3d', '5i6h',
+  '2d2h', '8e8f', '8g8f', '8b8f', 'P*8g', '8f8d', '3i3h', '3c3d', '5i6h', '7a7b',
+  '3h2g', '2b4d', '2g3f', 'P*8f', '8g8f', '8d8f', 'P*8g', '8f8e', '4g4f', 'P*8f',
+  '8g8f', '8e8f', 'P*8g', '8f8e', '4i5h', 'P*8f', '8g8f', '8e8f', 'P*8g', '8f8d',
+  '3f4e', '4d3e', '2h4h', 'P*8f', '8g8f',
 ] as const;
 
-// Sente's side of the loop is SCRIPTED, not searched. The real opponent was a
-// cooperating human who always recaptured on 8f and always re-dropped P*8g;
-// self-play (what this test used to do) never produces that pattern, so the
-// loop could not form and the test could not fail. Anything outside the
-// shuttle is a fixed quiet developing move, so Sente stays a constant.
-const SENTE_DEVELOPING_MOVES = [
-  '7g7f', '4g4f', '5g5f', '6g6f', '3g3f', '1g1f', '9g9f',
-  '4i5h', '7h6g', '3h4g', '6h7i', '2f2e',
-] as const;
+/** 1-indexed move numbers at which the shipped AI dropped P*8f. */
+const SHUTTLE_MOVES = [24, 30, 36, 44] as const;
 
 const P8F = (8 << 4) + 6;
-const P8G = (8 << 4) + 7;
 
 function readWeights(): Uint8Array {
   const buf = readFileSync(weightsPath);
@@ -86,14 +85,6 @@ function readWeights(): Uint8Array {
 
 function usiSquare(file: string, rank: string): number {
   return ((file.charCodeAt(0) - 48) << 4) + (rank.charCodeAt(0) - 96);
-}
-
-function findUsiMoveOrUndefined(usi: string, legal: Te[]): Te | undefined {
-  try {
-    return findUsiMove(usi, legal);
-  } catch {
-    return undefined;
-  }
 }
 
 function findUsiMove(usi: string, legal: Te[]): Te {
@@ -124,46 +115,6 @@ function positionKey(position: Position): string {
     }
   }
   return `${cells.join(',')}|h:${position.hand.join(',')}|t:${position.teban}`;
-}
-
-/**
- * Identity of the AI's OWN position: its pieces on the board, its hand, and
- * whose turn it is. The shuttle bug returns the AI to an identical setup while
- * the opponent keeps developing, so the full key above never repeats and could
- * never detect it. This one does.
- */
-function aiSidePositionKey(position: Position): string {
-  const cells: number[] = [];
-  for (let file = 1; file <= 9; file++) {
-    for (let rank = 1; rank <= 9; rank++) {
-      const koma = position.get((file << 4) + rank);
-      cells.push(koma !== EMPTY && !isSente(koma) ? koma : EMPTY);
-    }
-  }
-  return `${cells.join(',')}|g:${position.hand.slice(0x10).join(',')}|t:${position.teban}`;
-}
-
-/** Sente's scripted reply: keep the shuttle available, otherwise just develop. */
-function scriptedSenteReply(
-  position: Position,
-  lastAiMove: Te,
-  developingIndex: { value: number }
-): Te {
-  const legal = GenerateMovesImproved.generateLegalMoves(position);
-  let reply: Te | undefined;
-  if (lastAiMove.from === 0 && lastAiMove.to === P8F) {
-    // The AI dropped a pawn on 8f — take it, exactly as the human did.
-    reply = legal.find((m) => m.from === P8G && m.to === P8F);
-  } else if (lastAiMove.to === P8F) {
-    // The AI recaptured on 8f — re-drop P*8g and offer the cycle again.
-    reply = legal.find((m) => m.from === 0 && m.to === P8G && getKomashu(m.koma) === FU);
-  }
-  while (!reply && developingIndex.value < SENTE_DEVELOPING_MOVES.length) {
-    const usi = SENTE_DEVELOPING_MOVES[developingIndex.value];
-    developingIndex.value += 1;
-    reply = findUsiMoveOrUndefined(usi, legal);
-  }
-  return reply ?? legal[0];
 }
 
 describe('wasmEngine NNUE loading', () => {
@@ -232,79 +183,102 @@ describe('wasmEngine NNUE loading', () => {
   });
 
   it(
-    'does not restart the rook-pawn shuttle against a cooperating opponent',
+    'does not re-drop the rook pawn at the four positions where the shipped engine did',
     () => {
       expect(loadNnueWeights(readWeights(), 600)).toBe(true);
       expect(setWasmNnueEnabled(true)).toBe(true);
 
-      // Two trials, because a time-budgeted search is not deterministic and
-      // the bug showed up as a RATE, not as a certainty (measured 2/5 on the
-      // pre-fix runtime, 0/24 after). Asserting per trial keeps a single
-      // relapse visible instead of averaging it away.
-      const TRIALS = 2;
-      const AI_MOVES = 20;
-      // Production budget shape: a wall clock, not a fixed depth. The previous
-      // version searched to a FIXED depth 11 with no time limit, which both
-      // missed the production search profile and once made this file take
-      // ~350s on CI. Twenty 300ms searches per trial is bounded by
-      // construction, whatever the evaluator does.
-      const MOVE_MS = 300;
+      // Production shape, not a laboratory one:
+      // - the table is cleared ONCE, when the game starts, and stays warm
+      //   between moves (the version of this test before the fix cleared it
+      //   immediately before the measured search, which is the opposite of
+      //   what the browser does),
+      // - the engine ponders on the opponent's time in the slices the worker
+      //   uses, which is what leaves a deep entry sitting on the very root it
+      //   is about to be asked about,
+      // - the search runs on a wall clock, not to a fixed depth. The version
+      //   before the fix used fixed depth 11 with no time limit and once took
+      //   ~350s on a shared CI runner.
+      //
+      // Power, measured rather than assumed: on the pre-fix engine these four
+      // positions produce P*8f at about 6% each (2 of 32 measurements at the
+      // hard budget, 2000ms), and 0 of 32 after. So a single pass here catches
+      // a relapse maybe a quarter of the time - it is a smoke test on the real
+      // board, not the primary lock. The deterministic locks are
+      // rootTtCutoff.test.ts (the root is searched instead of answered from
+      // the table) and positionHistory.test.ts (primed occurrences count
+      // towards repetition). If this one ever fails, believe it.
+      const MOVE_MS = 1000;
+      const PONDER_SLICE_MS = 200;
+      const PONDER_SLICES = 10;
 
-      for (let trial = 0; trial < TRIALS; trial++) {
-        // Warm, not cleared, exactly like production: the TT is cleared once
-        // per game and then carries over between moves (the old test cleared
-        // it immediately before the continuation, which is the opposite).
-        clearWasmTT();
+      clearWasmTT();
+      const position = InitialPositionImproved.createInitialPosition();
+      const startPosition = InitialPositionImproved.createInitialPosition();
+      const played: ReplayableMove[] = [];
+      const applyMove = (move: Te): void => {
+        played.push({ koma: move.koma, from: move.from, to: move.to, promote: move.promote });
+        move.capture = position.get(move.to);
+        position.move(move);
+        position.toggleTeban();
+      };
 
-        const position = InitialPositionImproved.createInitialPosition();
-        const startPosition = InitialPositionImproved.createInitialPosition();
-        const played: ReplayableMove[] = [];
-        const applyMove = (move: Te): void => {
-          played.push({ koma: move.koma, from: move.from, to: move.to, promote: move.promote });
-          move.capture = position.get(move.to);
-          position.move(move);
-          position.toggleTeban();
-        };
+      const counts = new Map<string, number>();
+      let pawnDrops8f = 0;
 
-        for (const usi of ROOK_PAWN_LOOP_PREFIX) {
-          applyMove(findUsiMove(usi, GenerateMovesImproved.generateLegalMoves(position)));
-        }
+      for (let index = 0; index < REPORTED_GAME.length; index++) {
+        const moveNumber = index + 1;
 
-        const fullCounts = new Map<string, number>();
-        const aiSideCounts = new Map<string, number>();
-        const developingIndex = { value: 0 };
-        let pawnDrops8f = 0;
-
-        for (let move = 0; move < AI_MOVES; move++) {
-          const full = positionKey(position);
-          fullCounts.set(full, (fullCounts.get(full) ?? 0) + 1);
-          expect(fullCounts.get(full)).toBeLessThan(4); // sennichite
-          const aiSide = aiSidePositionKey(position);
-          aiSideCounts.set(aiSide, (aiSideCounts.get(aiSide) ?? 0) + 1);
-
-          // The engine gets the real game history, the way the worker sends it.
+        if ((SHUTTLE_MOVES as readonly number[]).includes(moveNumber)) {
+          // Everything already on the board, exactly as the worker sends it.
           const history = buildPositionHistoryHashes(startPosition, played, position);
           expect(history).toHaveLength(played.length * 2);
 
-          const aiMove = wasmSearchBestMove(position, played.length, MOVE_MS, 32, 8, null, history);
+          const aiMove = wasmSearchBestMove(
+            position.clone(),
+            played.length,
+            MOVE_MS,
+            32,
+            10,
+            null,
+            history
+          );
           expect(aiMove).not.toBeNull();
           if (aiMove!.from === 0 && aiMove!.to === P8F) pawnDrops8f++;
-          applyMove(aiMove!);
-
-          if (GenerateMovesImproved.generateLegalMoves(position).length === 0) break;
-          applyMove(scriptedSenteReply(position, aiMove!, developingIndex));
         }
 
-        // Spending the pawn once is a judgement call the evaluator is allowed
-        // to make. Doing it twice is the shuttle restarting.
-        expect(pawnDrops8f).toBeLessThanOrEqual(1);
-        // And the AI's own setup must not keep coming back either, which is
-        // what the shuttle looks like once the opponent varies.
-        expect(Math.max(...aiSideCounts.values())).toBeLessThanOrEqual(2);
+        applyMove(findUsiMove(REPORTED_GAME[index], GenerateMovesImproved.generateLegalMoves(position)));
+
+        const key = positionKey(position);
+        const count = (counts.get(key) ?? 0) + 1;
+        counts.set(key, count);
+        // The real game never actually reached sennichite; if the replay says
+        // otherwise the move list has drifted and every measurement below is
+        // about some other game.
+        expect(count).toBeLessThan(4);
+
+        // Ponder the position now in front of the engine, in the worker's
+        // slice size. Only pondering shortly before a measured position can
+        // prime that position's root entry, so the rest is skipped.
+        const nextShuttle = (SHUTTLE_MOVES as readonly number[]).find((m) => m > moveNumber);
+        if (nextShuttle !== undefined && nextShuttle - moveNumber <= 2) {
+          const pondered = position.clone();
+          for (let slice = 0; slice < PONDER_SLICES; slice++) {
+            if (wasmSearchBestMove(pondered, played.length, PONDER_SLICE_MS, 32, 10, null, []) === null) {
+              break;
+            }
+          }
+        }
       }
+
+      // Two of the four are P*8g re-drops answered by a rook recapture, so the
+      // engine is never forced into this move: dropping the pawn here is the
+      // shuttle, and the shuttle is what the game history is meant to stop.
+      expect(pawnDrops8f).toBe(0);
     },
-    // Bounded by construction: TRIALS * AI_MOVES * MOVE_MS is 12s of search.
-    120_000,
+    // Bounded by construction: 4 searches of MOVE_MS plus 8 pondered positions
+    // of PONDER_SLICES * PONDER_SLICE_MS is ~20s of search.
+    180_000,
   );
 
   it('can be switched back to V3', () => {

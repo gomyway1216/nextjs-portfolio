@@ -28,6 +28,7 @@ import {
   type WinContext,
 } from '@/components/game/Mahjong/engine/yaku';
 import type {
+  HandValue,
   MeldType,
   Meld,
   Rules,
@@ -2035,6 +2036,28 @@ describe('evaluateHand fuzz', () => {
   });
 });
 
+/**
+ * `settleWin` takes a full {@link HandValue}; `handValue` only returns the
+ * payment half of one. These settlement tests care about the payments alone,
+ * so fill in the descriptive fields with a plain 1-yaku placeholder.
+ */
+function winValue(
+  han: number,
+  fu: number,
+  isDealer: boolean,
+  isTsumo: boolean,
+  rules: Rules = DEFAULT_RULES,
+): HandValue {
+  const payments = handValue(han, fu, isDealer, isTsumo, rules);
+  return {
+    yaku: [{ id: 'riichi', han, yakuman: 0 }],
+    han,
+    fu,
+    yakuman: 0,
+    ...payments,
+  };
+}
+
 describe('settlement invariants', () => {
   it('rejects a honba value the three tsumo payers cannot split', () => {
     expect(() =>
@@ -2043,7 +2066,7 @@ describe('settlement invariants', () => {
           {
             winner: 1,
             loser: null,
-            value: handValue(1, 30, false, true, DEFAULT_RULES),
+            value: winValue(1, 30, false, true),
           },
         ],
         dealer: 0,
@@ -2060,7 +2083,7 @@ describe('settlement invariants', () => {
         {
           winner: 2,
           loser: 0,
-          value: handValue(3, 40, false, false, DEFAULT_RULES),
+          value: winValue(3, 40, false, false),
         },
       ],
       dealer: 0,

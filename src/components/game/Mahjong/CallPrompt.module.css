@@ -1,0 +1,141 @@
+/*
+ * Riichi Mahjong — action prompt.
+ *
+ * Buttons are at least 44px tall so they are thumb-sized on a phone, and the
+ * row wraps rather than scrolls: a call window can offer up to six claims and
+ * none of them may end up off-screen.
+ */
+
+.prompt {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: clamp(0.5rem, 2vw, 0.85rem);
+  border: 1px solid #0ea5e9;
+  border-radius: 14px;
+  background: var(--games-route-surface-raised, rgba(255, 255, 255, 0.94));
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.16);
+}
+
+.title {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.claimButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 clamp(0.75rem, 3vw, 1.15rem);
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  background: var(--games-route-control, rgba(255, 255, 255, 0.72));
+  color: var(--games-route-fg, #1d1d1f);
+  cursor: pointer;
+  font-size: clamp(0.82rem, 3vw, 0.98rem);
+  font-weight: 740;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.claimButton:hover:not(:disabled) {
+  background: var(--games-route-control-hover, rgba(245, 245, 247, 0.96));
+}
+
+.claimButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.claimButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Ron and tsumo end the hand, so they get the loud treatment. */
+.claimButton[data-win='true'] {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.claimButton[data-win='true']:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.claimButton[data-claim='pass'] {
+  margin-left: auto;
+  color: var(--games-route-muted, #6e6e73);
+}
+
+.claimButton[data-expanded='true'] {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.count {
+  font-size: 0.72rem;
+  font-weight: 650;
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------- choices */
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--games-route-border, rgba(0, 0, 0, 0.14));
+}
+
+.choicesLabel {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.choiceRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.choiceButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  background: var(--games-route-control, rgba(255, 255, 255, 0.72));
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.choiceButton:hover:not(:disabled) {
+  border-color: #0ea5e9;
+  background: var(--games-route-control-hover, rgba(245, 245, 247, 0.96));
+}
+
+.choiceButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claimButton {
+    transition: none;
+  }
+}

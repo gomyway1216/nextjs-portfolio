@@ -1,0 +1,147 @@
+/*
+ * Riichi Mahjong — page frame.
+ *
+ * One column at every width: status, table, prompt, hand, log. The table and
+ * the hand both size themselves from the viewport, so nothing here may
+ * introduce a horizontal scroll — hence `overflow-x: clip` on the page and
+ * `min-width: 0` on the column.
+ */
+
+.page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(3.75rem, 12vw, 5rem) clamp(0.5rem, 2.5vw, 1.5rem) 2rem;
+  overflow-x: clip;
+  color: var(--games-route-fg, #1d1d1f);
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-inline: 0.3rem;
+  }
+}
+
+.board {
+  display: flex;
+  width: 100%;
+  max-width: 1080px;
+  min-width: 0;
+  flex-direction: column;
+  gap: clamp(0.5rem, 2vw, 0.9rem);
+}
+
+.topPill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 999px;
+  background: var(--games-route-control, rgba(255, 255, 255, 0.72));
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--games-route-muted, #6e6e73);
+  font-size: clamp(0.8rem, 3vw, 0.95rem);
+  font-weight: 680;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ log */
+
+.logPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: clamp(0.5rem, 2vw, 0.8rem);
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--games-route-surface, rgba(255, 255, 255, 0.84));
+}
+
+.logTitle {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.logEmpty {
+  margin: 0;
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.8rem;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.logLine {
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: clamp(0.72rem, 2.7vw, 0.84rem);
+  line-height: 1.45;
+}
+
+/* The oldest lines fade so the newest one reads as "now". */
+.logLine:not(:last-child) {
+  opacity: 0.62;
+}
+
+/* ----------------------------------------------------------- start screen */
+
+/*
+ * The summary slot sits inside `DifficultySelector`'s card, which sets its own
+ * foreground colour in light and dark, so this inherits it rather than picking
+ * a literal that would vanish against one of the two.
+ */
+.rulesSummary {
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  opacity: 0.72;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ info modal */
+
+.infoBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.infoHeading {
+  margin: 0.5rem 0 0;
+  color: #38bdf8;
+  font-size: 0.95rem;
+  font-weight: 740;
+}
+
+.infoText {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.infoList {
+  padding-left: 1.15rem;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}

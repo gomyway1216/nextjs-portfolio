@@ -1,0 +1,226 @@
+/*
+ * Riichi Mahjong — the hero's hand.
+ *
+ * Sizing rule for the tile row: fourteen tiles must always fit the viewport
+ * without a horizontal page scroll, so the tile width is derived from the
+ * available width rather than picked. `calc((100vw - 2rem) / 14.6)` leaves
+ * room for the gaps and the drawn-tile gutter, and the clamp keeps the tile
+ * usable on a small phone and stops it ballooning on a desktop.
+ */
+
+/*
+ * See the note in TableView.module.css: `TileSvg`'s size classes set
+ * `--mj-tile-width` on the tile element, so a zone width only takes effect if
+ * the tile re-inherits it from a more specific selector.
+ */
+.tileButton > span,
+.waitTiles > span {
+  --mj-tile-width: inherit;
+}
+
+.handArea {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: clamp(0.4rem, 2vw, 0.75rem);
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 14px;
+  background: var(--games-route-surface, rgba(255, 255, 255, 0.84));
+}
+
+/* --------------------------------------------------------------- status */
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.shapeBadge {
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: clamp(0.68rem, 2.4vw, 0.82rem);
+  font-weight: 720;
+}
+
+.shapeBadge[data-tenpai='true'] {
+  background: rgba(22, 163, 74, 0.18);
+  color: #15803d;
+}
+
+.waits {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.waitsLabel {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.66rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.waitTiles {
+  --mj-tile-width: clamp(16px, 4vw, 24px);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.furiten {
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.16);
+  color: #b91c1c;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.riichiToggle {
+  min-height: 34px;
+  padding: 0.25rem 0.85rem;
+  border: 1px solid #0ea5e9;
+  border-radius: 999px;
+  margin-left: auto;
+  background: transparent;
+  color: #0369a1;
+  cursor: pointer;
+  font-size: clamp(0.72rem, 2.6vw, 0.85rem);
+  font-weight: 720;
+  transition: background 0.15s, color 0.15s;
+}
+
+.riichiToggle[data-armed='true'] {
+  background: #0ea5e9;
+  color: #fff;
+}
+
+/* ----------------------------------------------------------------- hand */
+
+.handRow {
+  /*
+   * Fourteen tiles, the gaps between them and the drawn-tile gutter all have
+   * to fit the viewport: the subtracted 4.5rem is the page padding, the card
+   * padding, the gutter and a little slack, so the row can never be the thing
+   * that introduces a horizontal scroll.
+   */
+  --mj-tile-width: clamp(19px, calc((100vw - 4.5rem) / 14), 46px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(0.3rem, 1.6vw, 0.7rem);
+  min-width: 0;
+}
+
+.concealedRow,
+.drawnSlot {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+/*
+ * The tap target is taller than the tile so a thumb has something to hit even
+ * when fourteen tiles squeeze the width down on a small phone.
+ */
+.tileButton {
+  display: block;
+  padding: 0.5rem 0 0.6rem;
+  border: 0;
+  background: none;
+  transition: transform 0.12s ease-out, filter 0.12s ease-out;
+  touch-action: manipulation;
+}
+
+.tileButton[data-playable='true'] {
+  cursor: pointer;
+}
+
+.tileButton[data-playable='false'] {
+  cursor: default;
+  filter: grayscale(0.55) brightness(0.92);
+  opacity: 0.72;
+}
+
+.tileButton[data-playable='true']:hover,
+.tileButton[data-playable='true']:focus-visible {
+  outline: none;
+  transform: translateY(-8px);
+  filter: drop-shadow(0 4px 8px rgba(14, 165, 233, 0.55));
+}
+
+.tileButton[data-drawn='true'] {
+  padding-inline-start: 0.15rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--games-route-muted, #6e6e73);
+  font-size: clamp(0.68rem, 2.4vw, 0.8rem);
+  text-align: center;
+}
+
+/* --------------------------------------------------------------- dark */
+
+:global(html.dark) .shapeBadge {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:global(html.dark) .shapeBadge[data-tenpai='true'] {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+
+:global(html.dark) .furiten {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+}
+
+:global(html.dark) .riichiToggle {
+  color: #7dd3fc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tileButton {
+    transition: none;
+  }
+
+  .tileButton[data-playable='true']:hover,
+  .tileButton[data-playable='true']:focus-visible {
+    transform: none;
+  }
+}
+
+/*
+ * On a phone the fourteen-tile row is the binding constraint, so the card
+ * gives back its side padding and the tiles butt together the way real ones
+ * do on a rack. That buys roughly three more pixels per tile, which is the
+ * difference between a comfortable thumb target and a fiddly one.
+ */
+@media (max-width: 480px) {
+  .handArea {
+    padding-inline: 0.3rem;
+  }
+
+  .handRow {
+    --mj-tile-width: calc((100vw - 2.2rem) / 14);
+  }
+
+  .concealedRow,
+  .drawnSlot {
+    gap: 0;
+  }
+}
+
+@media (min-width: 900px) {
+  .handRow {
+    --mj-tile-width: clamp(30px, 4.2vw, 52px);
+  }
+}

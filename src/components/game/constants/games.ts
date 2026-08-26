@@ -320,6 +320,15 @@ export const games: Game[] = [
     category: 'Puzzle',
   },
   {
+    id: 'mahjong',
+    title: 'Riichi Mahjong',
+    description: 'Play a full East-round riichi mahjong game against three AI seats, yaku and fu included.',
+    thumbnail: '🀄',
+    path: '/games/mahjong',
+    difficulty: 'Hard',
+    category: 'Strategy',
+  },
+  {
     id: 'petersburg',
     title: 'St. Petersburg Paradox',
     description: 'Simulate the paradox where infinite expected value still feels overpriced.',

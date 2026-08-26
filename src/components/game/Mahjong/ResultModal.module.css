@@ -1,0 +1,291 @@
+/*
+ * Riichi Mahjong — result dialog.
+ *
+ * Sits above the table with the same backdrop treatment the shared
+ * `InfoModal` uses, but owns its own markup because the winning hand needs a
+ * tile layout rather than a prose body.
+ */
+
+/*
+ * See the note in TableView.module.css: `TileSvg`'s size classes set
+ * `--mj-tile-width` on the tile element, so `.handLayout`'s width only takes
+ * effect if the tile re-inherits it from a more specific selector.
+ */
+.handTiles > span,
+.winTile > span,
+.resultMeld > span {
+  --mj-tile-width: inherit;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1rem, 5vh, 3rem) 0.75rem 1rem;
+  background: var(--games-route-backdrop, rgba(15, 23, 42, 0.48));
+  backdrop-filter: blur(10px);
+  inset: 0;
+  overflow-y: auto;
+}
+
+.dialog {
+  display: flex;
+  width: 100%;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.12));
+  border-radius: 16px;
+  background: var(--games-route-surface-raised, rgba(255, 255, 255, 0.96));
+  box-shadow: var(--games-route-shadow, 0 28px 90px rgba(0, 0, 0, 0.34));
+  color: var(--games-route-fg, #1d1d1f);
+}
+
+.heading {
+  margin: 0;
+  font-size: clamp(1.25rem, 5vw, 1.6rem);
+  font-weight: 780;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------- agari */
+
+.agari {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--games-route-surface, rgba(255, 255, 255, 0.7));
+}
+
+.agariTitle {
+  margin: 0;
+  font-size: clamp(0.95rem, 3.6vw, 1.1rem);
+  font-weight: 740;
+}
+
+.handLayout {
+  --mj-tile-width: clamp(18px, calc((100vw - 5rem) / 16), 34px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.handTiles,
+.resultMelds,
+.resultMeld,
+.winTile {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.resultMelds {
+  gap: 0.35rem;
+}
+
+.resultMeld {
+  padding: 2px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+/* The winning tile is set apart so the wait is readable at a glance. */
+.winTile {
+  padding-left: 0.35rem;
+  border-left: 2px solid #0ea5e9;
+}
+
+.yakuList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.yakuRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.16rem 0;
+  border-bottom: 1px dotted var(--games-route-border, rgba(0, 0, 0, 0.12));
+  font-size: clamp(0.78rem, 3vw, 0.9rem);
+}
+
+.yakuName {
+  font-weight: 620;
+}
+
+.yakuHan {
+  color: var(--games-route-muted, #6e6e73);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.valueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.valueChip,
+.limitChip,
+.pointsChip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: clamp(0.76rem, 2.8vw, 0.88rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.valueChip {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.limitChip {
+  background: rgba(234, 179, 8, 0.22);
+  color: #a16207;
+}
+
+.pointsChip {
+  margin-left: auto;
+  background: #0ea5e9;
+  color: #fff;
+}
+
+/* -------------------------------------------------------------- draw */
+
+.drawBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--games-route-surface, rgba(255, 255, 255, 0.7));
+}
+
+.drawReason {
+  margin: 0;
+  font-size: clamp(0.9rem, 3.4vw, 1.05rem);
+  font-weight: 720;
+}
+
+.drawSeats {
+  margin: 0;
+  font-size: clamp(0.78rem, 3vw, 0.88rem);
+}
+
+.drawSeatsLabel {
+  color: var(--games-route-muted, #6e6e73);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------ deltas */
+
+.deltas,
+.standings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.deltasTitle {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.deltaRow,
+.standingRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  background: var(--games-route-control, rgba(255, 255, 255, 0.72));
+  font-size: clamp(0.8rem, 3vw, 0.92rem);
+}
+
+.standingRow[data-hero='true'] {
+  outline: 2px solid #0ea5e9;
+}
+
+.place {
+  min-width: 2.4rem;
+  font-weight: 780;
+}
+
+.deltaSeat {
+  flex: 1;
+  font-weight: 650;
+}
+
+.deltaValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 780;
+}
+
+.deltaValue[data-sign='up'] { color: #15803d; }
+.deltaValue[data-sign='down'] { color: #b91c1c; }
+.deltaValue[data-sign='flat'] { color: var(--games-route-muted, #6e6e73); }
+
+.deltaTotal {
+  min-width: 4.2rem;
+  color: var(--games-route-muted, #6e6e73);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ----------------------------------------------------------- actions */
+
+.actions {
+  display: flex;
+  justify-content: center;
+}
+
+.primary {
+  min-height: 46px;
+  padding: 0 1.75rem;
+  border: 0;
+  border-radius: 10px;
+  background: #0ea5e9;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 740;
+  touch-action: manipulation;
+}
+
+.primary:hover {
+  background: #0284c7;
+}
+
+/* -------------------------------------------------------------- dark */
+
+:global(html.dark) .resultMeld,
+:global(html.dark) .valueChip {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:global(html.dark) .limitChip {
+  background: rgba(234, 179, 8, 0.24);
+  color: #fde68a;
+}
+
+:global(html.dark) .deltaValue[data-sign='up'] { color: #86efac; }
+:global(html.dark) .deltaValue[data-sign='down'] { color: #fca5a5; }

@@ -9,7 +9,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    include: ['tests/unit/**/*.test.ts'],
+    // `.tsx` is needed for component render tests (see
+    // tests/unit/components/game/Mahjong/tileSvg.test.tsx).
+    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx'],
     exclude: ['node_modules/**', '.next/**', '.claude/**'],
   },
 });

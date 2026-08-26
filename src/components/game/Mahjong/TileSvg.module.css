@@ -1,0 +1,392 @@
+/**
+ * Riichi Mahjong — tile styles.
+ *
+ * Every colour used by the SVG lives here as a custom property on `.tile`, so
+ * nothing in the markup hard-codes a hex value. The palette is defined three
+ * times: a light default, a `prefers-color-scheme: dark` block for visitors on
+ * the system setting, and `html.dark` / `html[data-theme='dark']` overrides for
+ * the site's explicit theme toggle (with the matching `light` selectors so the
+ * toggle can force light back on a dark OS).
+ *
+ * Size comes from `--mj-tile-width`, which the `.sm` / `.md` / `.lg` classes
+ * set and any ancestor may override:
+ *
+ *   .myHand { --mj-tile-width: 3.2vw; }
+ */
+
+.tile {
+  /* Footprint */
+  --mj-tile-width: 40px;
+
+  /* Body / faceplate */
+  --mj-body: #cdc0a2;
+  --mj-body-edge: rgba(74, 58, 32, 0.45);
+  --mj-face: #fbf8ef;
+  --mj-bevel: rgba(255, 255, 255, 0.9);
+
+  /* Engraving */
+  --mj-ink: #22304a;
+  --mj-ink-soft: rgba(34, 48, 74, 0.55);
+  --mj-red: #c22a33;
+  --mj-green: #157a44;
+  --mj-pin: #1f5fa8;
+  --mj-pin-edge: #123f73;
+  --mj-sou: #1a7a46;
+  --mj-sou-edge: #0e5330;
+
+  /* Back */
+  --mj-back: #2b7cc0;
+  --mj-back-deep: #1a568c;
+  --mj-back-line: rgba(255, 255, 255, 0.55);
+
+  --mj-shadow: rgba(15, 23, 42, 0.3);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--mj-tile-width);
+  aspect-ratio: 3 / 4;
+  vertical-align: middle;
+  line-height: 0;
+  flex: none;
+}
+
+.sm { --mj-tile-width: 28px; }
+.md { --mj-tile-width: 40px; }
+.lg { --mj-tile-width: 56px; }
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1.5px var(--mj-shadow));
+}
+
+/*
+ * Sideways (riichi declaration). The wrapper takes the transposed footprint so
+ * the rotated tile still occupies exactly its own box in flow: a wrapper of
+ * width 4/3 W is 1 W tall, and an svg sized to 75% of that (= W wide, 4/3 W
+ * tall) rotates into it exactly.
+ *
+ * The svg is taken out of flow first — a rotation does not shrink the layout
+ * box, so an in-flow svg would keep forcing the wrapper to full tile height.
+ */
+.rotated {
+  width: calc(var(--mj-tile-width) * 4 / 3);
+  aspect-ratio: 4 / 3;
+}
+
+.rotated .svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 75%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.dimmed {
+  opacity: 0.48;
+  filter: saturate(0.6);
+}
+
+/* ------------------------------------------------------------------ body */
+
+.body {
+  fill: var(--mj-body);
+  stroke: var(--mj-body-edge);
+  stroke-width: 1;
+}
+
+.faceplate {
+  fill: var(--mj-face);
+}
+
+/* A hairline highlight along the faceplate so the tile reads as engraved. */
+.bevel {
+  fill: none;
+  stroke: var(--mj-bevel);
+  stroke-width: 1.4;
+}
+
+/* ------------------------------------------------------------- man (萬) */
+
+.manRank,
+.manChar,
+.honourChar {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP",
+    "Songti SC", "Source Han Serif", serif;
+  font-weight: 700;
+  fill: var(--mj-ink);
+  paint-order: stroke;
+}
+
+.manRank {
+  font-size: 32px;
+  letter-spacing: 0;
+}
+
+.manChar {
+  font-size: 27px;
+  fill: var(--mj-red);
+}
+
+/* ------------------------------------------------------------- honours */
+
+.honourChar {
+  font-size: 42px;
+}
+
+.honourGreen { fill: var(--mj-green); }
+.honourRed { fill: var(--mj-red); }
+
+.hakuOuter,
+.hakuInner {
+  fill: none;
+  stroke: var(--mj-ink-soft);
+}
+
+.hakuOuter { stroke-width: 2.2; }
+.hakuInner { stroke-width: 1.1; }
+
+/* ----------------------------------------------------------------- pin */
+
+.pip {
+  fill: var(--mj-pin);
+  stroke: var(--mj-pin-edge);
+  stroke-width: 1.1;
+}
+
+.pipAccent {
+  fill: var(--mj-red);
+  stroke: color-mix(in srgb, var(--mj-red) 70%, black);
+}
+
+/* 1p: one oversized pip with a contrasting rim, drawn as a single circle so
+ * the pip count still equals the rank. */
+.pipLarge {
+  fill: var(--mj-pin);
+  stroke: var(--mj-red);
+  stroke-width: 5;
+}
+
+/* ----------------------------------------------------------------- sou */
+
+.souBody {
+  fill: var(--mj-sou);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 1.1;
+}
+
+.souNode,
+.souCap {
+  fill: none;
+  stroke: var(--mj-sou-edge);
+  stroke-linecap: round;
+}
+
+.souNode { stroke-width: 1.3; }
+.souCap { stroke-width: 1; opacity: 0.65; }
+
+.souStickAccent .souBody {
+  fill: var(--mj-red);
+  stroke: var(--mj-pin-edge);
+}
+
+.souStickAccent .souNode,
+.souStickAccent .souCap {
+  stroke: var(--mj-face);
+}
+
+/* 1s: the bird. */
+.birdBody {
+  fill: var(--mj-sou);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 1.1;
+}
+
+.birdHead {
+  fill: var(--mj-sou);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 1.1;
+}
+
+.birdWing {
+  fill: var(--mj-face);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 0.9;
+  opacity: 0.85;
+}
+
+.birdTail {
+  fill: var(--mj-red);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 0.9;
+}
+
+.birdBeak {
+  fill: var(--mj-red);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 0.8;
+}
+
+.birdEye { fill: var(--mj-face); }
+
+.birdPerch {
+  fill: var(--mj-sou);
+  stroke: var(--mj-sou-edge);
+  stroke-width: 1.1;
+}
+
+/* ---------------------------------------------------------------- back */
+
+.backBody {
+  fill: var(--mj-back-deep);
+  stroke: var(--mj-body-edge);
+  stroke-width: 1;
+}
+
+.backFace { fill: var(--mj-back); }
+
+.backInset {
+  fill: none;
+  stroke: var(--mj-back-line);
+  stroke-width: 1.2;
+}
+
+.backMark {
+  fill: none;
+  stroke: var(--mj-back-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.backLines {
+  fill: none;
+  stroke: var(--mj-back-line);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+/* -------------------------------------------------------------- red five */
+
+/*
+ * Red fives tint the whole engraving. `.red` only ever lands on a face-up
+ * tile, so the back palette is untouched.
+ */
+.red {
+  --mj-pin: var(--mj-red);
+  --mj-pin-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+  --mj-sou: var(--mj-red);
+  --mj-sou-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+  --mj-ink: var(--mj-red);
+}
+
+/* ------------------------------------------------------------ dark mode */
+
+@media (prefers-color-scheme: dark) {
+  .tile {
+    --mj-body: #a2957a;
+    --mj-body-edge: rgba(8, 12, 20, 0.75);
+    --mj-face: #ece5d2;
+    --mj-bevel: rgba(255, 255, 255, 0.55);
+
+    --mj-ink: #16223a;
+    --mj-ink-soft: rgba(22, 34, 58, 0.6);
+    --mj-red: #b32029;
+    --mj-green: #10693a;
+    --mj-pin: #1a5396;
+    --mj-pin-edge: #0c2f58;
+    --mj-sou: #146639;
+    --mj-sou-edge: #093f24;
+
+    --mj-back: #256ba7;
+    --mj-back-deep: #123f68;
+    --mj-back-line: rgba(255, 255, 255, 0.45);
+
+    --mj-shadow: rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Explicit theme toggle wins over the OS preference in both directions. */
+:global(html.dark) .tile,
+:global(html[data-theme='dark']) .tile {
+  --mj-body: #a2957a;
+  --mj-body-edge: rgba(8, 12, 20, 0.75);
+  --mj-face: #ece5d2;
+  --mj-bevel: rgba(255, 255, 255, 0.55);
+
+  --mj-ink: #16223a;
+  --mj-ink-soft: rgba(22, 34, 58, 0.6);
+  --mj-red: #b32029;
+  --mj-green: #10693a;
+  --mj-pin: #1a5396;
+  --mj-pin-edge: #0c2f58;
+  --mj-sou: #146639;
+  --mj-sou-edge: #093f24;
+
+  --mj-back: #256ba7;
+  --mj-back-deep: #123f68;
+  --mj-back-line: rgba(255, 255, 255, 0.45);
+
+  --mj-shadow: rgba(0, 0, 0, 0.6);
+}
+
+:global(html.light) .tile,
+:global(html[data-theme='light']) .tile {
+  --mj-body: #cdc0a2;
+  --mj-body-edge: rgba(74, 58, 32, 0.45);
+  --mj-face: #fbf8ef;
+  --mj-bevel: rgba(255, 255, 255, 0.9);
+
+  --mj-ink: #22304a;
+  --mj-ink-soft: rgba(34, 48, 74, 0.55);
+  --mj-red: #c22a33;
+  --mj-green: #157a44;
+  --mj-pin: #1f5fa8;
+  --mj-pin-edge: #123f73;
+  --mj-sou: #1a7a46;
+  --mj-sou-edge: #0e5330;
+
+  --mj-back: #2b7cc0;
+  --mj-back-deep: #1a568c;
+  --mj-back-line: rgba(255, 255, 255, 0.55);
+
+  --mj-shadow: rgba(15, 23, 42, 0.3);
+}
+
+/* Keep the red-five remap after the palette blocks so it still wins. */
+:global(html.dark) .red,
+:global(html[data-theme='dark']) .red,
+:global(html.light) .red,
+:global(html[data-theme='light']) .red {
+  --mj-pin: var(--mj-red);
+  --mj-pin-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+  --mj-sou: var(--mj-red);
+  --mj-sou-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+  --mj-ink: var(--mj-red);
+}
+
+@media (prefers-color-scheme: dark) {
+  .red {
+    --mj-pin: var(--mj-red);
+    --mj-pin-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+    --mj-sou: var(--mj-red);
+    --mj-sou-edge: color-mix(in srgb, var(--mj-red) 65%, black);
+    --mj-ink: var(--mj-red);
+  }
+}
+
+/* At phone sizes the finest strokes disappear; thicken them so a ~28px tile
+ * stays readable. */
+@media (max-width: 480px) {
+  .pip { stroke-width: 1.4; }
+  .souNode { stroke-width: 1.6; }
+  .hakuInner { stroke-width: 1.4; }
+  .backLines { stroke-width: 1.3; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .svg { transition: filter 120ms ease-out; }
+}

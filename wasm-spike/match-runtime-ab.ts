@@ -28,7 +28,13 @@
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
  *     [--scale-numer 1] [--scale-denom 1] [--max-plies 256] \
  *     [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] \
- *     [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]
+ *     [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] \
+ *     [--json verdict.json]
+ *
+ * --json writes the machine-readable verdict: score, Wilson 95% interval,
+ * per-game outcomes, and the per-move THINK TIME of both sides. A change to
+ * time management is judged on strength AND on the wait it produces, so the
+ * wait is measured here rather than assumed from the budget.
  *
  * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
  * from that file. Passing the SAME weights to both sides is how a pure search
@@ -40,7 +46,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
 import { KyokumenImproved } from "../src/components/game/ShogiImproved/KyokumenImproved";
@@ -106,7 +112,7 @@ function argLazyPickerMinMoves(flag: string): number {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64]",
+    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] [--json verdict.json]",
   );
   process.exit(2);
 }
@@ -133,6 +139,8 @@ const EXPECTED_SHA_A = argStr("--sha-a");
 const EXPECTED_SHA_B = argStr("--sha-b");
 const EXPECTED_WASM_SHA = argStr("--wasm-sha");
 const MAX_PLIES = argNum("--max-plies", 256);
+// Optional machine-readable verdict (score + Wilson CI + per-move think time).
+const JSON_OUT = argStr("--json");
 // Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
 // never masquerade as a 1/1 run.
 if (
@@ -188,17 +196,63 @@ class WasmPlayer {
     }
   }
 
+  /**
+   * Wall-clock ms actually spent inside searchBestMove, one entry per move.
+   *
+   * A time-management change is only acceptable if it does not make the user
+   * wait longer, so the harness measures the wait instead of assuming it: the
+   * hard limit is a promise about the WORST case, and the average is what the
+   * player actually experiences.
+   */
+  readonly moveMs: number[] = [];
+
   getNextTe(k: KyokumenImproved, tesu: number): Te | null {
     syncWasm(this.wasm, k);
     this.wasm.setRootTesu(tesu);
+    const t0 = performance.now();
     const key = this.wasm.searchBestMove(
       MOVE_MS,
       MAX_DEPTH,
       QUIESCENCE_DEPTH_MAX,
     );
+    this.moveMs.push(performance.now() - t0);
     if (key === 0) return null;
     return teFromWasmKey(key, k);
   }
+}
+
+function quantile(values: readonly number[], q: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.floor(q * sorted.length));
+  return sorted[idx];
+}
+
+function timingSummary(moveMs: readonly number[]): {
+  moves: number;
+  meanMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+} {
+  const total = moveMs.reduce((a, b) => a + b, 0);
+  return {
+    moves: moveMs.length,
+    meanMs: moveMs.length ? total / moveMs.length : 0,
+    p50Ms: quantile(moveMs, 0.5),
+    p95Ms: quantile(moveMs, 0.95),
+    maxMs: moveMs.length ? Math.max(...moveMs) : 0,
+  };
+}
+
+/** Wilson score interval for a binomial proportion (the project's gate statistic). */
+function wilson(successes: number, n: number, z = 1.96): [number, number] {
+  if (n === 0) return [0, 1];
+  const p = successes / n;
+  const d = 1 + (z * z) / n;
+  const centre = p + (z * z) / (2 * n);
+  const half = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return [(centre - half) / d, (centre + half) / d];
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +474,14 @@ function main(): void {
   let nnueWins = 0;
   let v3Wins = 0;
   let draws = 0;
+  const gameRecords: {
+    game: number;
+    aIsSente: boolean;
+    opening: string;
+    outcome: "A" | "B" | "draw";
+    reason: string;
+    plies: number;
+  }[] = [];
 
   console.log(
     `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
@@ -457,6 +519,19 @@ function main(): void {
       draws++;
       summary = `DRAW (${result.reason})`;
     }
+    gameRecords.push({
+      game,
+      aIsSente: nnueIsSente,
+      opening,
+      outcome:
+        result.outcome === "draw"
+          ? "draw"
+          : (nnueIsSente ? result.winner === SENTE : result.winner === GOTE)
+            ? "A"
+            : "B",
+      reason: result.reason,
+      plies: result.plies,
+    });
     console.log(
       `game ${game + 1}/${GAMES}: NNUE=${nnueIsSente ? "SENTE" : "GOTE"} opening=${opening} => ${summary} plies=${result.plies} time=${elapsed}s`,
     );
@@ -467,12 +542,56 @@ function main(): void {
   console.log(
     `\nresult: ${nnuePlayer.name} ${nnueWins} wins / ${v3Player.name} ${v3Wins} wins / ${draws} draws (all ${movesChecked} moves legal)`,
   );
+  const [lo, hi] = wilson(score, GAMES);
   console.log(
     `${nnuePlayer.name} score: ${score}/${GAMES} (${((score / GAMES) * 100).toFixed(1)}%)` +
+      ` Wilson95 [${(lo * 100).toFixed(1)}, ${(hi * 100).toFixed(1)}]` +
       (decisive > 0
         ? `, decisive-only: ${nnueWins}/${decisive} (${((nnueWins / decisive) * 100).toFixed(1)}%)`
         : ""),
   );
+
+  const timingA = timingSummary(nnuePlayer.moveMs);
+  const timingB = timingSummary(v3Player.moveMs);
+  for (const [label, t] of [
+    [nnuePlayer.name, timingA],
+    [v3Player.name, timingB],
+  ] as const) {
+    console.log(
+      `think-time ${label}: n=${t.moves} mean=${t.meanMs.toFixed(1)}ms ` +
+        `p50=${t.p50Ms.toFixed(1)}ms p95=${t.p95Ms.toFixed(1)}ms max=${t.maxMs.toFixed(1)}ms (budget ${MOVE_MS}ms)`,
+    );
+  }
+
+  if (JSON_OUT) {
+    writeFileSync(
+      JSON_OUT,
+      `${JSON.stringify(
+        {
+          sideA: { name: nnuePlayer.name, wasm: WASM_PATH ?? "production", weights: weightsPath },
+          sideB: {
+            name: v3Player.name,
+            wasm: WASM_PATH_B ?? WASM_PATH ?? "production",
+            weights: weightsPathB ?? null,
+          },
+          games: GAMES,
+          moveMs: MOVE_MS,
+          seed: SEED_BASE,
+          maxPlies: MAX_PLIES,
+          aWins: nnueWins,
+          bWins: v3Wins,
+          draws,
+          scoreA: score,
+          wilson95: [lo, hi],
+          perGame: gameRecords,
+          timing: { A: timingA, B: timingB },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    console.log(`verdict written to ${JSON_OUT}`);
+  }
 }
 
 main();

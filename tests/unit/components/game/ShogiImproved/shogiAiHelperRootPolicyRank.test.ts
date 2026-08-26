@@ -7,6 +7,7 @@ const engine = vi.hoisted(() => {
   return {
     search: vi.fn((..._args: unknown[]) => null),
     setNnue: vi.fn((requested: boolean) => requested && nnueAvailable),
+    setSoftTimeLimit: vi.fn((_enabled: boolean) => {}),
     setNnueAvailable(available: boolean) {
       nnueAvailable = available;
     },
@@ -27,6 +28,7 @@ vi.mock('@/components/game/ShogiImproved/wasmEngine', () => ({
   setSearchGeneration: vi.fn(),
   setWasmNnueEnabled: engine.setNnue,
   setWasmSearchStartDepth: vi.fn(),
+  setWasmSoftTimeLimit: engine.setSoftTimeLimit,
   wasmSearchBestMove: engine.search,
 }));
 
@@ -98,5 +100,14 @@ describe('shogi-ai-helper.worker root-policy gate', () => {
     engine.setNnueAvailable(false);
     go();
     expect(engine.search.mock.lastCall?.[5]).toBeNull();
+  });
+
+  // A helper's unfinished iteration is not discarded the way the main thread's
+  // is — it lands in the shared transposition table the main thread reads on
+  // the same move. Stopping a helper on the soft limit would therefore delete
+  // useful work, so the helper must switch the soft limit off at startup.
+  it('turns the soft time limit off for this helper', () => {
+    expect(engine.setSoftTimeLimit).toHaveBeenCalledWith(false);
+    expect(engine.setSoftTimeLimit.mock.calls.every(([on]) => on === false)).toBe(true);
   });
 });

@@ -66,6 +66,9 @@ interface ShogiSearchWasm {
   getSharedTtScratchPtr(): number;
   getSecondaryHashVal(): number;
   setSharedTtEnabled(flag: number): void;
+  // Absent on runtimes built before the soft time limit; every call site is
+  // guarded so those keep working unchanged.
+  setSoftTimeLimit?(flag: number): void;
   setSearchStartDepth(d: number): void;
   // Root-policy rank hooks. Only integer move-key ranks cross this boundary;
   // no student score is visible to the search or TT.
@@ -663,6 +666,27 @@ export function setWasmSearchStartDepth(depth: number): void {
     wasm.setSearchStartDepth(depth | 0);
   } catch (e) {
     console.error('[wasmEngine] setSearchStartDepth failed', e);
+  }
+}
+
+/**
+ * Enable or disable the engine's soft time limit for this worker's instance
+ * (default: enabled).
+ *
+ * The soft limit refuses to START an iterative-deepening iteration that it
+ * predicts cannot finish, because the main thread throws an unfinished
+ * iteration away. Lazy SMP helpers must turn it OFF: their unfinished
+ * iterations are not thrown away, they land in the shared transposition table
+ * that the main thread reads on the same move. A helper is stopped by the
+ * coordinating thread's generation cell, which is the only clock it needs.
+ */
+export function setWasmSoftTimeLimit(enabled: boolean): void {
+  const wasm = getInstance();
+  if (!wasm || typeof wasm.setSoftTimeLimit !== 'function') return;
+  try {
+    wasm.setSoftTimeLimit(enabled ? 1 : 0);
+  } catch (e) {
+    console.error('[wasmEngine] setSoftTimeLimit failed', e);
   }
 }
 

@@ -64,6 +64,7 @@ import {
   type TileId,
   type TileKind,
 } from '../engine/types';
+import { evaluatePush } from './evTables';
 import {
   createSafetyContext,
   doraValueOf,
@@ -143,8 +144,9 @@ export interface AiPolicy {
   /** Pick uniformly from the best N discard candidates. `1` is deterministic. */
   discardRandomTop: number;
   /**
-   * Reserved for M7. When the EV push/fold from `ai/evTables.ts` lands it is
-   * switched on here and nowhere else, so no call site changes.
+   * Decide push/fold by the EV comparison in `ai/evTables.ts` instead of by
+   * the v1 thresholds. On for {@link HARD_POLICY} since the M7 R1 experiment;
+   * `easy` and `medium` keep the threshold rule.
    */
   useEvPushFold: boolean;
 }
@@ -164,17 +166,22 @@ export const MEDIUM_POLICY: AiPolicy = {
 };
 
 /**
- * Identical to {@link MEDIUM_POLICY} today.
+ * {@link MEDIUM_POLICY} plus the M7 EV push/fold (`ai/evTables.ts`).
  *
- * It exists as a separate constant so M7 can flip `useEvPushFold` here and
- * attach the EV push/fold without touching a single call site. `expert` and
- * `master` alias to it, so promoting the EV policy promotes all three at once
- * — which is exactly the shogi promotion discipline.
+ * Promoted on 2026-08-26 by the R1 experiment: pre-registered in
+ * `docs/data/mahjong-duplicate-ab-v1-plan.json`, run over 2,000 duplicate-wall
+ * sets (8,000 tonpuu games, 44,743 hands) and recorded in
+ * `docs/data/mahjong-duplicate-ab-v1-r1-result.json`. Average placement
+ * 2.4534 against 2.5155, a paired difference of **−0.0622 ± 0.0105**,
+ * `t(1999) = −5.91`, `p = 4.0e-9`; deal-in rate 10.74% against 14.58% for the
+ * cost of 0.71 points of win rate. `expert` and `master` alias to this
+ * constant, so the promotion moved all three levels at once — the shogi
+ * promotion discipline, applied here.
  */
 export const HARD_POLICY: AiPolicy = {
   useDefence: true,
   discardRandomTop: 1,
-  useEvPushFold: false,
+  useEvPushFold: true,
 };
 
 /** Map the shared {@link Difficulty} union onto a policy. */
@@ -405,8 +412,12 @@ function rankDiscards(
 // ---------------------------------------------------------------------------
 
 /**
- * The v1 push/fold rule. Threshold-based on purpose — M7 replaces the body
- * with an EV comparison and keeps the signature.
+ * The v1 push/fold rule: three thresholds, no arithmetic.
+ *
+ * Still the rule `easy` and `medium` play, unchanged and deliberately so — M7
+ * puts the EV comparison beside it in {@link shouldFoldEv} rather than inside
+ * it, so an A/B run is one change and the shipped policy stays byte-identical
+ * until a candidate wins its gate.
  */
 export function shouldFold(
   threats: readonly ThreatInfo[],
@@ -420,6 +431,32 @@ export function shouldFold(
     return true;
   }
   return false;
+}
+
+/**
+ * The M7 push/fold rule: fold when the hand is worth less than the tiles it
+ * would have to throw to finish.
+ *
+ * Selected by `AiPolicy.useEvPushFold`, which {@link HARD_POLICY} turns on —
+ * so `hard`, `expert` and `master` use this rule, while `easy` and `medium`
+ * stay on the threshold rule below. Everything it consults is a measured
+ * frequency — see `ai/evTables.ts` for the tables and their provenance.
+ *
+ * `danger` is the weighted danger of the tile the push would actually throw,
+ * which is what makes this different in kind from {@link shouldFold}: the
+ * threshold rule pushes a 1-shanten hand into a riichi whether the only
+ * shanten-preserving discard is a genbutsu or a live no-suji dora five, and
+ * those two discards differ in deal-in probability by a factor of a hundred.
+ */
+export function shouldFoldEv(
+  threats: readonly ThreatInfo[],
+  turn: number,
+  handShanten: number,
+  estimatedHan: number,
+  danger: number,
+): boolean {
+  if (threats.length === 0) return false;
+  return !evaluatePush({ turn, handShanten, estimatedHan, danger, threats }).push;
 }
 
 // ---------------------------------------------------------------------------
@@ -562,10 +599,23 @@ function chooseTurnAction(
     if (kan !== null) return kan;
   }
 
-  if (
+  const folding =
     player.riichi === null &&
-    shouldFold(threats, best.shanten, estimatedHan, best.waitTiles)
-  ) {
+    (policy.useEvPushFold
+      ? threats.length > 0 &&
+        shouldFoldEv(
+          threats,
+          player.discards.length,
+          best.shanten,
+          estimatedHan,
+          // Only reached with a live threat: weightedDangerIn loops over every
+          // seat's pond, and shouldFoldEv answers false on an empty threat
+          // list anyway, so computing it unguarded would pay that cost on the
+          // majority of turns for a foregone answer.
+          weightedDangerIn(ctx, best.kind, threats),
+        )
+      : shouldFold(threats, best.shanten, estimatedHan, best.waitTiles));
+  if (folding) {
     const tile = safestDiscardIn(ctx, plain.map((action) => action.tile), threats);
     const folded = plain.find((action) => action.tile === tile);
     if (folded !== undefined) return folded;
@@ -791,7 +841,43 @@ export function chooseAction(
     );
   }
 
-  const policy = policyFor(difficulty);
+  return chooseWith(state, seat, policyFor(difficulty), rng, legal);
+}
+
+/**
+ * {@link chooseAction} with the policy given directly instead of resolved from
+ * a difficulty level.
+ *
+ * The A/B harness (`scripts/mahjong-ai-match.ts`) needs to run two arms in one
+ * process, and an arm is a policy — possibly one no difficulty maps to, such
+ * as `hard` with the EV push/fold switched on before it has been promoted. The
+ * worker RPC (`MahjongAiRequest`) carries a `Difficulty` string and cannot
+ * express that, so the harness comes in here instead; this is the same
+ * function `chooseAction` calls once the difficulty has been resolved, and the
+ * unit tests assert the two entry points agree for every shipped level.
+ */
+export function chooseActionWithPolicy(
+  state: RoundState,
+  seat: Seat,
+  policy: AiPolicy,
+  rng: Rng,
+): Action {
+  const legal = legalActions(state, seat);
+  if (legal.length === 0) {
+    throw new Error(
+      `chooseActionWithPolicy: seat ${seat} has no legal action in phase ${state.phase}`,
+    );
+  }
+  return chooseWith(state, seat, policy, rng, legal);
+}
+
+function chooseWith(
+  state: RoundState,
+  seat: Seat,
+  policy: AiPolicy,
+  rng: Rng,
+  legal: readonly Action[],
+): Action {
   const action = decide(state, seat, policy, rng, legal);
 
   if (!legal.some((candidate) => sameAction(candidate, action))) {

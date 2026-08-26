@@ -384,6 +384,16 @@ export interface RoundState {
   pendingDiscard: PendingDiscard | null;
   /** Seats that have already responded to `pendingDiscard`. */
   pendingResponses: Seat[];
+  /**
+   * What each responder chose, parallel to {@link pendingResponses}: entry `i`
+   * is the action seat `pendingResponses[i]` declared (`pass` included).
+   *
+   * Claims cannot be executed the moment they arrive — ron beats pon/kan beats
+   * chi, and a double ron needs every ron declared before the payments can be
+   * ordered head-bump first — so they are parked here until every seat the
+   * engine is waiting on has answered.
+   */
+  pendingClaims: Action[];
   /** How the tile in hand was obtained; drives rinshan/haitei yaku. */
   lastDrawSource: 'wall' | 'rinshan' | null;
   kanCount: number;

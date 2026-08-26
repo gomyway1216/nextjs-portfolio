@@ -11,7 +11,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 300;
 
 export default async function MemoryPreviewPage() {
   // Defense in depth behind the middleware gate: do not contact the memory
@@ -24,7 +23,7 @@ export default async function MemoryPreviewPage() {
   try {
     items = await getPublicMemoriesServer();
   } catch {
-    // The public page fails closed. Do not log the response or endpoint: an
+    // The administrator preview fails closed. Do not log the response or endpoint: an
     // upstream regression must not copy unexpected memory fields into logs.
     console.error('[memory] Preview projection is temporarily unavailable');
     unavailable = true;

@@ -24,6 +24,7 @@ import {
   type HandValue,
   type RoundState,
   type Seat,
+  type Wind,
 } from './engine/types';
 import type { MahjongCopy } from './i18n';
 import styles from './ResultModal.module.css';
@@ -38,6 +39,26 @@ export function seatLabel(
 ): string {
   if (seat === hero) return copy.you;
   return copy.seatName(copy.winds[seatWindOf(state, seat)]);
+}
+
+/**
+ * Seat name for the final standings, where there is no round left to read.
+ *
+ * Winds rotate with the deal, so the raw seat index is not a wind — using it
+ * would label the opponents wrongly from the second hand onward. `GameState`
+ * still carries the dealer, so the same `(seat - dealer) mod 4` mapping
+ * `seatWindOf` applies gives the wind each seat held in the game's final
+ * position, which is the one the player just had on screen.
+ */
+export function finalSeatLabel(
+  game: GameState,
+  seat: Seat,
+  hero: Seat,
+  copy: MahjongCopy,
+): string {
+  if (seat === hero) return copy.you;
+  const wind = ((((seat - game.dealer) % 4) + 4) % 4) as Wind;
+  return copy.seatName(copy.winds[wind]);
 }
 
 /**
@@ -286,7 +307,7 @@ export function ResultModal({
               <div className={styles.standingRow} key={seat} data-hero={seat === hero}>
                 <span className={styles.place}>{copy.placeLabel(index + 1)}</span>
                 <span className={styles.deltaSeat}>
-                  {seat === hero ? copy.you : copy.seatName(copy.winds[seat])}
+                  {finalSeatLabel(game, seat, hero, copy)}
                 </span>
                 <span className={styles.deltaTotal}>
                   {game.scores[seat].toLocaleString('en-US')}

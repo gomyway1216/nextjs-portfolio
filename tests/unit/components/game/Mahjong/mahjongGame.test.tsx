@@ -42,6 +42,7 @@ import {
 } from '@/components/game/Mahjong/MahjongGame';
 import {
   doraHanOf,
+  finalSeatLabel,
   formatDelta,
   ResultModal,
   seatLabel,
@@ -378,6 +379,27 @@ describe('logEntriesFor', () => {
       seat: 0,
       how: 'tsumo',
     });
+  });
+});
+
+describe('final standings seat labels', () => {
+  const copy = getMahjongCopy('en');
+
+  it('follows the rotated winds rather than the raw seat index', () => {
+    // Second hand: the deal has moved to seat 1, so seat 1 is East and seat 0
+    // -- the hero -- is North. Reading copy.winds[seat] directly would call
+    // seat 2 "West" when it is in fact South.
+    const game = { dealer: 1 as const } as Parameters<typeof finalSeatLabel>[0];
+    expect(finalSeatLabel(game, 0, 0, copy)).toBe('You');
+    expect(finalSeatLabel(game, 2, 0, copy)).toBe('South seat');
+    expect(finalSeatLabel(game, 3, 0, copy)).toBe('West seat');
+    expect(finalSeatLabel(game, 1, 0, copy)).toBe('East seat');
+  });
+
+  it('agrees with the raw index only while seat 0 still deals', () => {
+    const game = { dealer: 0 as const } as Parameters<typeof finalSeatLabel>[0];
+    expect(finalSeatLabel(game, 1, 0, copy)).toBe('South seat');
+    expect(finalSeatLabel(game, 3, 0, copy)).toBe('North seat');
   });
 });
 

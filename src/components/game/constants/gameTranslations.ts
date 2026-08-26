@@ -707,6 +707,46 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
+  'mahjong': {
+    en: {
+      title: 'Riichi Mahjong',
+      description: 'Play a full East-round riichi mahjong game against three AI seats, yaku and fu included.',
+      longDescription: 'Japanese riichi mahjong, implemented from scratch: shanten and ukeire calculation, the full yaku list, proper fu counting, riichi with ippatsu and ura dora, three red fives, kan dora, open tanyao and double ron. You sit at seat 0 and play a tonpuusen — four hands of the East round — against three AI opponents. Tiles are drawn as inline SVG, so the table stays crisp at any size and follows your light or dark theme.',
+      howToPlay: [
+        'Tap a tile in your hand to discard it — only legal discards respond',
+        'Turn on "Declare riichi" first to restrict the hand to riichi-legal discards',
+        'Claim ron, tsumo, pon, chi or kan from the prompt — there is no timer',
+        'Your shanten count and, once tenpai, your waits are shown above the hand',
+        'Every hand needs a yaku: a complete shape with no yaku cannot be declared',
+      ],
+      features: [
+        'Complete yaku and fu scoring, including yakuman and kazoe yakuman',
+        'Riichi, ippatsu, ura dora, kan dora and three red fives',
+        'Live shanten, wait display and furiten warning',
+        'Six-wide ponds with sideways riichi tiles and dimmed called discards',
+        'Hand result screen with yaku breakdown, fu, han and score deltas',
+      ],
+    },
+    ja: {
+      title: 'リーチ麻雀',
+      description: '4人打ち東風戦。役・符まで完全実装したAI3人と対局できます。',
+      longDescription: '日本のリーチ麻雀をゼロから実装しました。シャンテン数・受け入れ計算、全役判定、正確な符計算、一発・裏ドラ付きのリーチ、赤ドラ3枚、カンドラ、喰いタン、ダブロンまで対応しています。あなたは0番席に座り、AI3人と東風戦（東1局〜東4局）を戦います。牌はインラインSVGで描画しているため、どのサイズでも鮮明で、ライト／ダークテーマにも追従します。',
+      howToPlay: [
+        '手牌の牌をタップして打牌します（合法な牌だけ反応します）',
+        '先に「リーチする」を押すと、リーチ可能な打牌だけが選べます',
+        'ロン・ツモ・ポン・チー・カンはボタンで宣言（制限時間なし）',
+        '手牌の上にシャンテン数と、テンパイ時は待ち牌が表示されます',
+        '和了には必ず役が必要です（形だけでは和了れません）',
+      ],
+      features: [
+        '役満・数え役満を含む完全な役判定と符計算',
+        'リーチ・一発・裏ドラ・カンドラ・赤ドラ3枚',
+        'シャンテン数、待ち牌表示、フリテン警告',
+        '6枚折り返しの河、横向きのリーチ宣言牌、鳴かれた牌の減光表示',
+        '役の内訳・符・翻・点数移動を表示する結果画面',
+      ],
+    },
+  },
   'daifugo': {
     en: {
       title: 'Daifugo',

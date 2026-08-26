@@ -255,12 +255,17 @@ AI 1 手は同期 1ms 未満なので SMP/ponder は不要。メッセージは
 - 点数表示・リザルト（役内訳・符翻・支払い）・局数/本場/供託表示
 - モバイル: 縦持ちで自家手牌が親指で打てるサイズを最優先（既存ゲームの規約に従う）
 
-**サイト統合（新ゲーム追加の定型 4 点セット）**
+**サイト統合（新ゲーム追加の定型 5 点セット）**
 1. `src/app/games/mahjong/page.tsx`
 2. `src/components/game/constants/games.ts` に
    `{ id: 'mahjong', title: 'Riichi Mahjong', thumbnail: '🀄', path: '/games/mahjong', category: 'Strategy', difficulty: 'Hard' }`
 3. `src/components/game/constants/gameTranslations.ts` に日英文言
-4. `Mahjong/i18n.ts`（役名・アクション名の日英。役名は日本語ローマ字 + 英訳併記）
+4. **`src/locales/{en,ja}/common.json` の `games.<id>.title` / `.description`**
+   — `/games` 一覧はこちらを `defaultValue` なしで引くので、**忘れるとカード上に
+   `games.mahjong.title` という生キーがそのまま表示される**（M6 で実際に踏んだ）。
+   なお `common.json` と `gameTranslations.ts` は **CRLF/LF が混在**しているので、
+   ファイル全体を書き換えると 4 行の変更が 800 行差分になる。バイト単位で編集すること。
+5. `Mahjong/i18n.ts`（役名・アクション名の日英。役名は日本語ローマ字 + 英訳併記）
 
 **ゲート**
 - Playwright smoke（`tests/e2e/mahjong-smoke.spec.ts`）: 開局 → 1 局完了まで自動打牌で通る

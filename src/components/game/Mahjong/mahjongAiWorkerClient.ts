@@ -10,8 +10,9 @@
  * What this client does *not* need, and the shogi one does: SharedArrayBuffer,
  * COOP/COEP headers, helper workers, pondering, visibility suspension, or an
  * error-storm budget with backoff. A mahjong decision is sub-millisecond and
- * stateless, so the failure story is simply "terminate, rebuild once, and if
- * that fails answer in-process".
+ * stateless, so the failure story is simply "terminate, rebuild up to
+ * {@link MAX_WORKER_RESTARTS} times, and once that budget is spent answer
+ * in-process for the rest of the session".
  *
  * ## The in-process fallback
  *
@@ -70,10 +71,14 @@ export interface MahjongAiClient {
 
 /**
  * How many times a dead worker is rebuilt before the client settles on the
- * in-process path for the rest of the session. One rebuild covers the common
+ * in-process path for the rest of the session. A rebuild covers the common
  * transient failure (a chunk that momentarily failed to load); anything that
  * keeps failing is not transient, and answering in-process is both correct and
  * fast enough to be invisible here.
+ *
+ * This counts *rebuilds*, not worker constructions: the first worker is not a
+ * restart, so the budget really does allow this many recoveries from a
+ * failure.
  */
 export const MAX_WORKER_RESTARTS = 2;
 
@@ -98,6 +103,7 @@ function workerAvailable(): boolean {
  */
 export function createMahjongAiClient(): MahjongAiClient {
   let worker: Worker | null = null;
+  /** Rebuilds spent so far. The initial construction does not count. */
   let restarts = 0;
   let disabled = !workerAvailable();
   let disposed = false;
@@ -128,7 +134,9 @@ export function createMahjongAiClient(): MahjongAiClient {
   /** A worker that errored is never reused: it is replaced or given up on. */
   const handleFailure = (): void => {
     teardown();
-    if (restarts >= MAX_WORKER_RESTARTS) disabled = true;
+    // `restarts` has already been incremented for the failure being handled,
+    // so the budget is spent only once it has been exceeded.
+    if (restarts > MAX_WORKER_RESTARTS) disabled = true;
     drainToFallback();
   };
 
@@ -156,7 +164,6 @@ export function createMahjongAiClient(): MahjongAiClient {
         handleFailure();
       };
       worker = created;
-      restarts += 1;
       return worker;
     } catch {
       // Construction itself can be the unavailable operation (a blocked or

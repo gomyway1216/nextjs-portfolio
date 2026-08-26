@@ -233,6 +233,11 @@ export function doraValueOf(state: RoundState, tile: TileId, dora: TileCounts): 
  * extra out-of-turn discard. One meld is therefore worth one extra index of
  * margin, which keeps the answer conservative (it may miss a genuinely safe
  * tile, and never invents one).
+ *
+ * An ankan is excluded on purpose. It happens on the seat's own turn — draw,
+ * declare, draw the replacement, discard — so the seat still discards exactly
+ * once that lap and the lap structure is untouched. A kakan is the same shape
+ * but is counted anyway, which only makes the estimate more conservative.
  */
 function firstDiscardAfterRiichi(
   state: RoundState,
@@ -251,6 +256,13 @@ function firstDiscardAfterRiichi(
  * Kinds `againstSeat` provably cannot ron: their own pond, plus — when they
  * have declared riichi and so can no longer change their wait — everything
  * anybody else has discarded since the declaration.
+ *
+ * Both halves are equally valid as suji evidence, which is why the suji test
+ * reads this whole set rather than the pond alone. Suji is the inference "a
+ * ryanmen waiting on this tile would have ronned the tile three away"; that
+ * argument only needs the tile three away to have *passed* the opponent, and a
+ * tile another seat discarded after the riichi passed it just as conclusively
+ * as one the opponent discarded themselves.
  */
 export function safeKindsAgainst(state: RoundState, againstSeat: Seat): Set<TileKind> {
   const player = state.players[againstSeat];

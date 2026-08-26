@@ -26,6 +26,7 @@ import {
   applyAction,
   currentActors,
   startGame,
+  startRound,
 } from '@/components/game/Mahjong/engine/gameState';
 import { createRng } from '@/components/game/Mahjong/engine/random';
 import { DEFAULT_RULES } from '@/components/game/Mahjong/engine/rules';
@@ -52,7 +53,11 @@ import {
   visibleCounts,
 } from '@/components/game/Mahjong/ai/safety';
 import { handleRequest } from '@/components/game/Mahjong/mahjong-ai.worker';
-import { chooseActionSync } from '@/components/game/Mahjong/mahjongAiWorkerClient';
+import {
+  MAX_WORKER_RESTARTS,
+  chooseActionSync,
+  createMahjongAiClient,
+} from '@/components/game/Mahjong/mahjongAiWorkerClient';
 import { buildRound, type SeatSpec } from './roundFixtures';
 
 /** A seat that holds nothing and does nothing. See the file header. */
@@ -715,5 +720,65 @@ describe('heuristic AI — whole-game properties', () => {
 
   it('throws rather than inventing a move when the seat cannot act', () => {
     expect(() => chooseAction(foldRound(), 3, 'medium', rng())).toThrow(/no legal action/);
+  });
+});
+
+describe('worker restart budget', () => {
+  class ExplodingWorker {
+    static built = 0;
+
+    onmessage: ((event: MessageEvent) => void) | null = null;
+
+    onerror: (() => void) | null = null;
+
+    constructor() {
+      ExplodingWorker.built += 1;
+    }
+
+    postMessage(): void {
+      // Every worker dies on its first message, exercising the rebuild budget.
+      this.onerror?.();
+    }
+
+    terminate(): void {}
+  }
+
+  it('rebuilds MAX_WORKER_RESTARTS times before settling on the fallback', async () => {
+    const original = (globalThis as { Worker?: unknown }).Worker;
+    ExplodingWorker.built = 0;
+    (globalThis as { Worker?: unknown }).Worker = ExplodingWorker;
+    try {
+      const client = createMahjongAiClient();
+      const state = startRound({
+        rules: DEFAULT_RULES,
+        roundWind: 0,
+        dealer: 0,
+        honba: 0,
+        riichiSticks: 0,
+        scores: [25000, 25000, 25000, 25000],
+        rng: createRng('worker-budget'),
+      });
+
+      // One more request than the budget allows: each failing request spends
+      // one rebuild, and every one of them still returns a legal action from
+      // the in-process fallback.
+      for (let i = 0; i <= MAX_WORKER_RESTARTS + 1; i += 1) {
+        const action = await client.requestAction({
+          state,
+          seat: state.turn,
+          difficulty: 'medium',
+          seed: 'worker-budget',
+        });
+        expect(action).toBeDefined();
+      }
+
+      // Initial construction plus one rebuild per failure inside the budget.
+      expect(ExplodingWorker.built).toBe(MAX_WORKER_RESTARTS + 1);
+      expect(client.usingWorker()).toBe(false);
+      client.terminate();
+    } finally {
+      if (original === undefined) delete (globalThis as { Worker?: unknown }).Worker;
+      else (globalThis as { Worker?: unknown }).Worker = original;
+    }
   });
 });

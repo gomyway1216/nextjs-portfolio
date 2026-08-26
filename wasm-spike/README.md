@@ -25,7 +25,6 @@ wasm-spike/
   build-halfkp81-research-wasm.mjs # temp内でpatch・compile・hash検証して研究artifactだけを更新
   build-soft-time-telemetry-wasm.mjs # 反復深化トレース付き研究ビルド（時間管理の計測用・本番外）
   soft-time-trace-collect.ts # 上のビルドで自己対局し、完了反復ごとの経過時間をJSONLに出す
-  soft-time-limit-invariants.ts # soft limitが壊してはいけない3不変条件のチェック
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
 src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm # ★ブラウザが読む本番バイナリ
 src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts # 上記のbase64＋SHOGI_WASM_IDENTITY（identityの唯一の正）
@@ -349,12 +348,6 @@ node wasm-spike/build-soft-time-telemetry-wasm.mjs /tmp/telemetry.wasm
 node -r tsx/cjs wasm-spike/soft-time-trace-collect.ts \
   /tmp/telemetry.wasm public/shogi-halfkp81-production-weights.bin /tmp/traces.jsonl \
   --games 8 --ms 1000 --seed 41
-
-# 時間管理が壊してはいけない3つの不変条件(無時間制限探索のビット一致 /
-# ml/ がpinしている moveBuf オフセット / opt-outで従来動作に戻ること)
-node -r tsx/cjs wasm-spike/soft-time-limit-invariants.ts \
-  /tmp/candidate.wasm src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm \
-  public/shogi-halfkp81-production-weights.bin
 ```
 
 トレースを取る動機は「予算がどこに消えているか」を推測しないこと。実測では

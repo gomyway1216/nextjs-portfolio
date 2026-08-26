@@ -29,7 +29,6 @@ import {
   setSearchGeneration,
   setWasmNnueEnabled,
   setWasmSearchStartDepth,
-  setWasmSoftTimeLimit,
   wasmSearchBestMove,
   getLastWasmSearchStats,
 } from './wasmEngine';
@@ -52,11 +51,6 @@ function runHelper(init: HelperInitMessage): void {
   // Odd helpers start iterative deepening one ply deeper — the standard Lazy
   // SMP desynchronization so the threads do not explore in lockstep.
   if (ok) setWasmSearchStartDepth(1 + (helperId & 1));
-  // Helpers keep the pre-soft-limit behaviour: they search until the
-  // coordinating thread stops them. Their unfinished iterations are not
-  // discarded the way the main thread's are — the entries go into the shared
-  // transposition table, which is the entire point of running them.
-  if (ok) setWasmSoftTimeLimit(false);
 
   port.onmessage = (event: MessageEvent<HelperRequest>) => {
     const msg = event.data;

@@ -3369,66 +3369,6 @@ let nullMoveReductionG: i32 = 2;
 let qCheckMoveLimit: i32 = 1;
 let qCheckTryLimit: i32 = 2;
 
-// --- Time management: soft limit / hard limit -------------------------------
-//
-// `maxTimeMs` remains the HARD limit and is untouched: sampleTime() still cuts
-// the search the moment it is reached, so the worst-case move time the UI
-// advertises per level ("レベル5（マスター）最強（約5秒）") is exactly what it
-// was. What changes is how the engine decides to START another iterative
-// deepening iteration.
-//
-// The measurement that motivates this (traces of the production engine at the
-// production 1000ms control): the LAST iteration the engine starts is thrown
-// away in 94% of searches — `stopped` fires mid-iteration and the partial
-// result is discarded by design — and that discarded iteration consumes ~69%
-// of the budget on average. Iteration N+1 costs roughly 2-3x iteration N, so a
-// search whose last completed ply landed at 300ms cannot possibly finish the
-// next one inside 1000ms, yet the engine spends the remaining 700ms trying.
-//
-// So the soft limit is an allowance on the PREDICTED completion time of the
-// next iteration, not a wall-clock cutoff:
-//
-//   start iteration d+1  iff  elapsed + TM_GROWTH * cost(d) <= allowance
-//
-// with a three-tier allowance:
-//   - unresolved root  -> the full hard limit (today's behaviour, unchanged)
-//   - normal           -> TM_SOFT_FRAC of it
-//   - stable and flat  -> TM_STABLE_FRAC of it
-//
-// "Unresolved" is the standard trio: the best move changed at the last
-// completed iteration, the root score dropped materially, or that iteration
-// needed an aspiration re-search (a root fail-low/fail-high being resolved).
-// Those are exactly the positions where the extra depth is worth the wait, and
-// they still get the whole budget.
-//
-// Everything here is gated on maxTimeMs > 0: untimed fixed-depth searches (the
-// parity harnesses, the deterministic tests, the self-play generators) must
-// stay bit-identical, and they do — none of this code runs for them.
-const TM_GROWTH: f64 = 2.0;
-const TM_SOFT_FRAC: f64 = 0.65;
-const TM_STABLE_FRAC: f64 = 0.4;
-const TM_STABLE_ITERS: i32 = 4;
-const TM_STABLE_MIN_DEPTH: i32 = 6;
-const TM_FLAT_SCORE: i32 = 30;
-const TM_SCORE_DROP: i32 = 50;
-
-// Lazy SMP helper threads opt OUT of all of the above, because the premise
-// does not hold for them. The main thread's unfinished iteration is discarded
-// wholesale, so the time it took bought nothing; a HELPER's unfinished
-// iteration writes real entries into the shared transposition table that the
-// main thread reads on this very move. Stopping a helper early therefore
-// throws away work that was not wasted. Helpers keep the old behaviour
-// exactly — they search until the coordinating thread stops them.
-let softTimeLimitEnabled: bool = true;
-
-export function setSoftTimeLimit(flag: i32): void {
-  softTimeLimitEnabled = flag != 0;
-}
-
-export function getSoftTimeLimit(): i32 {
-  return softTimeLimitEnabled ? 1 : 0;
-}
-
 let rootBestKey: i32 = 0;
 let orderDepthLeft: i32 = 99;
 
@@ -4388,28 +4328,8 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   }
   let completedDepth = 0;
 
-  // Only one legal reply: there is nothing to think about. The 1-ply sanity
-  // selection above has already picked it (it is the only candidate), so the
-  // whole budget would be spent proving that the forced move is forced.
-  // Timed searches only — an untimed fixed-depth search must keep reporting
-  // the depth and score it always did.
-  if (softTimeLimitEnabled && maxTimeMs > 0 && rootN == 1) {
-    lastSearchScore = bestScore;
-    lastSearchDepth = 0;
-    return bestMoveKey;
-  }
-
-  // Soft-limit bookkeeping (see the TM_* constants).
-  let prevIterMoveKey: i32 = 0;
-  let prevIterScore: i32 = 0;
-  let stableRun: i32 = 0;
-  let stableRunScore: i32 = 0;
-
   for (let depth = searchStartDepth; depth <= maxDepthL; depth++) {
     rootBestKey = 0;
-    const timeManaged = softTimeLimitEnabled && maxTimeMs > 0;
-    const iterStartMs = timeManaged ? hostNow() - searchStartTime : 0;
-    let researches = 0;
 
     // Aspiration windows with gradual (4x then full) widening.
     const useAspiration = depth >= 2;
@@ -4423,12 +4343,10 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
       const alpha1 = score <= alpha0 ? bestScore - wide : alpha0;
       const beta1 = score >= beta0 ? bestScore + wide : beta0;
       rootBestKey = 0;
-      researches++;
       score = searchNodeAS(depth, alpha1, beta1, 0);
       if (stopped) break;
       if (score <= alpha1 || score >= beta1) {
         rootBestKey = 0;
-        researches++;
         score = searchNodeAS(depth, -S_INFINITE, S_INFINITE, 0);
         if (stopped) break;
       }
@@ -4445,39 +4363,6 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
 
     if (timeUpNow()) break;
     if (sharedTtEnabled && hostSharedShouldStop() != 0) break;
-
-    if (timeManaged) {
-      // Root stability of the iteration that just completed.
-      const moveChanged = prevIterMoveKey != 0 && bestMoveKey != prevIterMoveKey;
-      const scoreDropped =
-        prevIterMoveKey != 0 && bestScore <= prevIterScore - TM_SCORE_DROP;
-      const unresolved = moveChanged || scoreDropped || researches > 0;
-
-      if (bestMoveKey == prevIterMoveKey) {
-        stableRun++;
-      } else {
-        stableRun = 1;
-        stableRunScore = bestScore;
-      }
-      prevIterMoveKey = bestMoveKey;
-      prevIterScore = bestScore;
-
-      const stable =
-        !unresolved &&
-        stableRun >= TM_STABLE_ITERS &&
-        completedDepth >= TM_STABLE_MIN_DEPTH &&
-        absI(bestScore - stableRunScore) <= TM_FLAT_SCORE;
-
-      let allowance = maxTimeMs * TM_SOFT_FRAC;
-      if (unresolved) allowance = maxTimeMs;
-      else if (stable) allowance = maxTimeMs * TM_STABLE_FRAC;
-
-      const elapsed = hostNow() - searchStartTime;
-      const iterCost = elapsed - iterStartMs;
-      // A partial iteration is discarded wholesale, so an iteration that
-      // cannot finish inside the allowance buys nothing for this move.
-      if (elapsed + TM_GROWTH * iterCost > allowance) break;
-    }
   }
 
   lastSearchScore = bestScore;

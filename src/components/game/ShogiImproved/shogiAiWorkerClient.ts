@@ -589,10 +589,6 @@ export function createShogiAiWorkerClient(
   let bootFailures = 0;
   let cacheBustCounter = 0;
 
-  /** Is there a captured, repairable (http) URL to route around? */
-  const canCacheBustWorkerUrl = (): boolean =>
-    workerSpec !== null && cacheBustedWorkerUrl(workerSpec, '0') !== null;
-
   /**
    * Build a replacement worker, escalating the repair as failures accumulate.
    *
@@ -911,16 +907,14 @@ export function createShogiAiWorkerClient(
           // Worker construction can itself be the unavailable operation. Do not
           // let that throw escape an error/timeout callback and strand a Promise.
           respawnPending = false;
-          // A constructor throw is a boot failure like any other: if the
-          // cache-busted URL has not been tried yet, go round once more (still
-          // inside the storm guard) rather than give up on a URL we may be able
-          // to route around.
-          if (bootFailures < 2 && canCacheBustWorkerUrl()) {
-            recoverWithSingleThread(
-              `respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`
-            );
-            return;
-          }
+          // Deliberately NOT escalated to the cache-busted URL. A THROW from
+          // the constructor means the Worker API itself refused (no workers
+          // available), which no URL can route around — and giving up at once
+          // is the contract pinned by "Retry replaces a client disabled by a
+          // failed Worker respawn" in tests/e2e/shogi-isolation.spec.ts. The
+          // poisoned-cache failure never presents this way: there the
+          // constructor RETURNS and an empty `error` event arrives instead,
+          // which is the path the escalation lives on.
           respawnDisabled = true;
           console.error(
             `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +

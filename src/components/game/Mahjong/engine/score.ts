@@ -237,7 +237,13 @@ export interface WinSettlementInput {
 }
 
 export interface Settlement {
-  /** Net change per seat; always sums to 0 minus the sticks handed out. */
+  /**
+   * Net change per seat. Point transfers between seats cancel out, so the sum
+   * is exactly the value of the riichi sticks handed to the winner — those
+   * were paid out of the players' scores when the declarations were made, so
+   * collecting them puts points back into circulation. On a draw the sum is 0
+   * (nothing leaves the table).
+   */
   deltas: [number, number, number, number];
   dealerRepeat: boolean;
   /** Sticks left on the table for the next hand. */
@@ -254,6 +260,7 @@ function emptyDeltas(): [number, number, number, number] {
  *
  * - Honba is `rules.honbaValue` per stick, paid by the discarder on a ron and
  *   split three ways on a tsumo (`honbaValue / 3` per payer, 100 by default).
+ *   `honbaValue` must be divisible by 3 or the split has no integer answer.
  * - All riichi sticks on the table go to `wins[0]` (head bump).
  * - The dealer keeps the deal when the dealer is **any** of the winners: v1
  *   explicitly does not head-bump the dealer-repeat decision.
@@ -262,6 +269,14 @@ function emptyDeltas(): [number, number, number, number] {
 export function settleWin(input: WinSettlementInput): Settlement {
   const { wins, dealer, honba, riichiSticks, rules } = input;
   if (wins.length === 0) throw new Error('settleWin requires at least one win');
+  if (rules.honbaValue % 3 !== 0) {
+    // Scores are whole points, so a honba value the three tsumo payers cannot
+    // split evenly has no well-defined settlement. Reject it at the source
+    // rather than silently producing fractional deltas.
+    throw new Error(
+      `rules.honbaValue must be divisible by 3, got ${rules.honbaValue}`,
+    );
+  }
   const deltas = emptyDeltas();
   const honbaPerPayer = (rules.honbaValue / 3) * honba;
 

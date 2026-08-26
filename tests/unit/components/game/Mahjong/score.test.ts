@@ -2034,3 +2034,41 @@ describe('evaluateHand fuzz', () => {
     expect(evaluateHand(ctx, true).points).toBe(1500);
   });
 });
+
+describe('settlement invariants', () => {
+  it('rejects a honba value the three tsumo payers cannot split', () => {
+    expect(() =>
+      settleWin({
+        wins: [
+          {
+            winner: 1,
+            loser: null,
+            value: handValue(1, 30, false, true, DEFAULT_RULES),
+          },
+        ],
+        dealer: 0,
+        honba: 1,
+        riichiSticks: 0,
+        rules: { ...DEFAULT_RULES, honbaValue: 100 },
+      }),
+    ).toThrow(/divisible by 3/);
+  });
+
+  it('moves exactly the riichi sticks into circulation', () => {
+    const settlement = settleWin({
+      wins: [
+        {
+          winner: 2,
+          loser: 0,
+          value: handValue(3, 40, false, false, DEFAULT_RULES),
+        },
+      ],
+      dealer: 0,
+      honba: 2,
+      riichiSticks: 3,
+      rules: DEFAULT_RULES,
+    });
+    const sum = settlement.deltas.reduce((a, b) => a + b, 0);
+    expect(sum).toBe(3 * DEFAULT_RULES.riichiStickValue);
+  });
+});

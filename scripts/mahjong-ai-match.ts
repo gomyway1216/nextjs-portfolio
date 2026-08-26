@@ -375,33 +375,6 @@ export function emptyEvCounters(): EvCounters {
   };
 }
 
-function addGrid(target: number[][], source: number[][]): void {
-  for (let i = 0; i < target.length; i += 1) {
-    for (let j = 0; j < target[i].length; j += 1) target[i][j] += source[i][j];
-  }
-}
-
-function addVector(target: number[], source: number[]): void {
-  for (let i = 0; i < target.length; i += 1) target[i] += source[i];
-}
-
-export function addEvCounters(target: EvCounters, source: EvCounters): void {
-  target.hands += source.hands;
-  target.discards += source.discards;
-  addGrid(target.winTrials, source.winTrials);
-  addGrid(target.winHits, source.winHits);
-  addVector(target.dangerTrials, source.dangerTrials);
-  addVector(target.dangerHits, source.dangerHits);
-  addVector(target.pushTrials, source.pushTrials);
-  addVector(target.pushRemaining, source.pushRemaining);
-  addVector(target.valueTrials, source.valueTrials);
-  addVector(target.valuePoints, source.valuePoints);
-  for (const key of THREAT_KEYS) {
-    target.costTrials[key] += source.costTrials[key];
-    target.costPoints[key] += source.costPoints[key];
-  }
-}
-
 /** One discard decision, held until the hand resolves it. */
 interface EvRow {
   seat: Seat;
@@ -655,7 +628,6 @@ export interface SetOptions {
   seed: string;
   /** Mixed into the A arm's decision seeds only. Turns A-vs-A into a real null. */
   aaSalt: string;
-  ev: EvCounters | null;
   observe?: (round: RoundState, handOrdinal: number, rotation: number) => void;
 }
 
@@ -686,7 +658,9 @@ export function playSet(options: SetOptions): SetRecord {
       wallSeed: options.seed,
       policies,
       salts,
-      ev: options.ev,
+      // EV collection is a separate mode: see `collectEvTables`, which plays
+      // independent games rather than duplicated ones.
+      ev: null,
       observe:
         options.observe === undefined
           ? undefined
@@ -889,7 +863,6 @@ export interface MatchOptions {
   seed: number | string;
   length: GameLength;
   aaSalt: string;
-  ev: EvCounters | null;
   /** Called after each finished set; used by the CLI progress line. */
   onSet?: (index: number, record: SetRecord) => void;
 }
@@ -1119,7 +1092,6 @@ export function runMatch(options: MatchOptions): MatchResult {
       rules,
       seed: setSeed(options.seed, index),
       aaSalt: options.aaSalt,
-      ev: options.ev,
     });
     records.push(record);
     options.onSet?.(index, record);
@@ -1188,7 +1160,9 @@ function parseArgs(argv: readonly string[]): CliOptions {
         options.length = value;
         break;
       case 'json':
-        options.json = value === 'none' ? null : value;
+        // `none` is kept as a sentinel rather than folded into `null`, which
+        // means "not given, use the generated path".
+        options.json = value;
         break;
       case 'ev-log':
         options.evLog = value;
@@ -1479,7 +1453,6 @@ async function main(): Promise<void> {
           rules,
           seed: setSeed(options.seed, options.shardStart + index),
           aaSalt: options.aaSalt,
-          ev: null,
         }),
       );
     }
@@ -1494,7 +1467,6 @@ async function main(): Promise<void> {
     seed: options.seed,
     length: options.length,
     aaSalt: options.aaSalt,
-    ev: null,
   };
 
   const started = Date.now();
@@ -1514,7 +1486,6 @@ async function main(): Promise<void> {
           rules,
           seed: setSeed(options.seed, index),
           aaSalt: options.aaSalt,
-          ev: null,
         }),
       );
       if (!options.quiet && (index + 1) % 25 === 0) {

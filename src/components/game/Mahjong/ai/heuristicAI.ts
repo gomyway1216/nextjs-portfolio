@@ -144,8 +144,9 @@ export interface AiPolicy {
   /** Pick uniformly from the best N discard candidates. `1` is deterministic. */
   discardRandomTop: number;
   /**
-   * Reserved for M7. When the EV push/fold from `ai/evTables.ts` lands it is
-   * switched on here and nowhere else, so no call site changes.
+   * Decide push/fold by the EV comparison in `ai/evTables.ts` instead of by
+   * the v1 thresholds. On for {@link HARD_POLICY} since the M7 R1 experiment;
+   * `easy` and `medium` keep the threshold rule.
    */
   useEvPushFold: boolean;
 }
@@ -165,17 +166,22 @@ export const MEDIUM_POLICY: AiPolicy = {
 };
 
 /**
- * Identical to {@link MEDIUM_POLICY} today.
+ * {@link MEDIUM_POLICY} plus the M7 EV push/fold (`ai/evTables.ts`).
  *
- * It exists as a separate constant so M7 can flip `useEvPushFold` here and
- * attach the EV push/fold without touching a single call site. `expert` and
- * `master` alias to it, so promoting the EV policy promotes all three at once
- * — which is exactly the shogi promotion discipline.
+ * Promoted on 2026-08-26 by the R1 experiment: pre-registered in
+ * `docs/data/mahjong-duplicate-ab-v1-plan.json`, run over 2,000 duplicate-wall
+ * sets (8,000 tonpuu games, 44,743 hands) and recorded in
+ * `docs/data/mahjong-duplicate-ab-v1-r1-result.json`. Average placement
+ * 2.4534 against 2.5155, a paired difference of **−0.0622 ± 0.0105**,
+ * `t(1999) = −5.91`, `p = 4.0e-9`; deal-in rate 10.74% against 14.58% for the
+ * cost of 0.71 points of win rate. `expert` and `master` alias to this
+ * constant, so the promotion moved all three levels at once — the shogi
+ * promotion discipline, applied here.
  */
 export const HARD_POLICY: AiPolicy = {
   useDefence: true,
   discardRandomTop: 1,
-  useEvPushFold: false,
+  useEvPushFold: true,
 };
 
 /** Map the shared {@link Difficulty} union onto a policy. */

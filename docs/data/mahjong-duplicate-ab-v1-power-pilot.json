@@ -1,7 +1,7 @@
 {
   "schema": "mahjong-duplicate-ab-result-v1",
   "plan": "docs/data/mahjong-duplicate-ab-v1-plan.json",
-  "generatedAt": "2026-08-26T11:41:29.920Z",
+  "generatedAt": "2026-08-26T11:49:46.099Z",
   "arms": {
     "a": {
       "name": "hard-ev",
@@ -39,9 +39,9 @@
     "games": 120,
     "hands": 695,
     "decisions": 41712,
-    "msPerDecision": 0.3061556449942463,
-    "gamesPerSecond": 8.499787505312367,
-    "elapsedSeconds": 14.118
+    "msPerDecision": 0.318245539556962,
+    "gamesPerSecond": 8.183864147855145,
+    "elapsedSeconds": 14.663
   },
   "metrics": {
     "a": {
@@ -62,7 +62,7 @@
       "averageWinValue": 5482.876712328767,
       "averageDealInValue": 4344.1558441558445,
       "decisions": 10401,
-      "msPerDecision": 0.3083631589270262
+      "msPerDecision": 0.32067791471973844
     },
     "b": {
       "seatGames": 360,
@@ -82,7 +82,7 @@
       "averageWinValue": 5607.760532150776,
       "averageDealInValue": 5093.939393939394,
       "decisions": 31311,
-      "msPerDecision": 0.30542234511832905
+      "msPerDecision": 0.31743754447318834
     }
   },
   "paired": {

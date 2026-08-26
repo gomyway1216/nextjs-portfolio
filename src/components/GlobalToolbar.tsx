@@ -182,7 +182,7 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 
 const MORE_NAV_ITEMS: PrimaryNavItem[] = [
   { href: '/growth', labelKey: 'home.nav.growth', Icon: TrendingUp, activePrefixes: ['/growth'] },
-  { href: '/memory', labelKey: 'home.nav.memory', Icon: ShieldCheck, activePrefixes: ['/memory'] },
+  { href: '/memory', labelKey: 'home.nav.memory', Icon: ShieldCheck, activePrefixes: ['/memory'], adminOnly: true },
   { href: '/study', labelKey: 'home.nav.study', Icon: BookOpenText, activePrefixes: ['/study'] },
   { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
 ];

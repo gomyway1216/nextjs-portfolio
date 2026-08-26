@@ -15,7 +15,12 @@ const AUTH_REQUIRED_PATTERNS = [
 const ADMIN_ROUTES = [
   '/admin',
   '/hobbies',
+  '/memory',
 ];
+
+function matchesRoutePrefix(pathname: string, route: string): boolean {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
 
 function isAuthRequired(pathname: string): boolean {
   if (AUTH_REQUIRED_ROUTES.some((route) => pathname.startsWith(route))) return true;
@@ -23,8 +28,8 @@ function isAuthRequired(pathname: string): boolean {
   return false;
 }
 
-function isAdminRoute(pathname: string): boolean {
-  return ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+export function isAdminRoute(pathname: string): boolean {
+  return ADMIN_ROUTES.some((route) => matchesRoutePrefix(pathname, route));
 }
 
 // Legacy blog post URL: /blog/<category>/<20-char Firestore id> (optionally

@@ -8,15 +8,23 @@
  * the site's explicit theme toggle (with the matching `light` selectors so the
  * toggle can force light back on a dark OS).
  *
- * Size comes from `--mj-tile-width`, which the `.sm` / `.md` / `.lg` classes
- * set and any ancestor may override:
+ * Size resolves as `var(--mj-tile-width, var(--mj-tile-fallback))`. The
+ * `.sm` / `.md` / `.lg` classes set `--mj-tile-fallback` on the tile itself,
+ * and `--mj-tile-width` is left *unset* here on purpose so an inherited value
+ * from any ancestor wins:
  *
- *   .myHand { --mj-tile-width: 3.2vw; }
+ *   .myHand { --mj-tile-width: clamp(26px, 6vw, 44px); }
+ *
+ * Setting `--mj-tile-width` on `.tile` instead would silently defeat that —
+ * a declaration on the element always beats an inherited one, so the ancestor
+ * override would never take effect.
  */
 
 .tile {
-  /* Footprint */
-  --mj-tile-width: 40px;
+  /* Footprint. See the header: the ancestor override rides on
+     --mj-tile-width, so only the fallback may be declared here. */
+  --mj-tile-fallback: 40px;
+  --mj-tile-size: var(--mj-tile-width, var(--mj-tile-fallback));
 
   /* Body / faceplate */
   --mj-body: #cdc0a2;
@@ -45,16 +53,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--mj-tile-width);
+  width: var(--mj-tile-size);
   aspect-ratio: 3 / 4;
   vertical-align: middle;
   line-height: 0;
   flex: none;
 }
 
-.sm { --mj-tile-width: 28px; }
-.md { --mj-tile-width: 40px; }
-.lg { --mj-tile-width: 56px; }
+.sm { --mj-tile-fallback: 28px; }
+.md { --mj-tile-fallback: 40px; }
+.lg { --mj-tile-fallback: 56px; }
 
 .svg {
   display: block;
@@ -74,7 +82,7 @@
  * box, so an in-flow svg would keep forcing the wrapper to full tile height.
  */
 .rotated {
-  width: calc(var(--mj-tile-width) * 4 / 3);
+  width: calc(var(--mj-tile-size) * 4 / 3);
   aspect-ratio: 4 / 3;
 }
 

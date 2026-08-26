@@ -6,17 +6,6 @@
  * tile layout rather than a prose body.
  */
 
-/*
- * See the note in TableView.module.css: `TileSvg`'s size classes set
- * `--mj-tile-width` on the tile element, so `.handLayout`'s width only takes
- * effect if the tile re-inherits it from a more specific selector.
- */
-.handTiles > span,
-.winTile > span,
-.resultMeld > span {
-  --mj-tile-width: inherit;
-}
-
 .backdrop {
   position: fixed;
   z-index: 90;

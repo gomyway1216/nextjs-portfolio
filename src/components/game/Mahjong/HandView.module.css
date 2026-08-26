@@ -8,16 +8,6 @@
  * usable on a small phone and stops it ballooning on a desktop.
  */
 
-/*
- * See the note in TableView.module.css: `TileSvg`'s size classes set
- * `--mj-tile-width` on the tile element, so a zone width only takes effect if
- * the tile re-inherits it from a more specific selector.
- */
-.tileButton > span,
-.waitTiles > span {
-  --mj-tile-width: inherit;
-}
-
 .handArea {
   display: flex;
   width: 100%;

@@ -12,21 +12,6 @@
  * correctly if it is ever rendered outside that route.
  */
 
-/*
- * `TileSvg` documents `--mj-tile-width` as overridable by any ancestor, but its
- * `.sm/.md/.lg` size classes declare the property *on the tile element itself*,
- * and a declaration on the element always beats an inherited value. Explicitly
- * re-inheriting from a selector with higher specificity than a single class
- * restores the documented behaviour, so the zone rules below actually size
- * their tiles. Applied only where a zone really does set a width.
- */
-.concealed > span,
-.meld > span,
-.pondRow > span,
-.doraTiles > span {
-  --mj-tile-width: inherit;
-}
-
 .table {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);

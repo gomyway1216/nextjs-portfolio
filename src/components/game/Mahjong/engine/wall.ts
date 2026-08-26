@@ -10,9 +10,12 @@
  *
  * - Live wall: `[drawIndex, liveEnd)`. Normal draws advance `drawIndex`; the
  *   haitei (last) tile is `tiles[liveEnd - 1]`.
- * - Dead wall: `122..135`, always 14 tiles. Each kan pulls one tile from the
- *   live end into the dead wall, so `liveEnd = 122 - kanCount` and the total
- *   number of drawable tiles per hand shrinks by one per kan.
+ * - Dead wall *slots*: `122..135`, the fourteen fixed positions that hold the
+ *   ten indicator tiles and the four replacement tiles. These indices never
+ *   move. Each kan additionally pulls one tile out of the live end — modelled
+ *   by decrementing `liveEnd` — so after `k` kans the non-drawable region
+ *   starts at `liveEnd = 122 - k`, i.e. `k` tiles *before* the fixed slots,
+ *   and the number of drawable tiles per hand shrinks by one per kan.
  * - Dora indicator `i` lives at `130 - 2 * i`, its ura at `131 - 2 * i`
  *   (`i` in `0..4`): 130/131, 128/129, 126/127, 124/125, 122/123.
  * - Replacement (rinshan) draw `n` (0-based) takes `tiles[135 - n]`:
@@ -29,6 +32,7 @@
  */
 
 import { shuffle, type Rng } from './random';
+import { MAX_KAN_COUNT } from './rules';
 import { doraFromIndicator, sortTiles } from './tiles';
 import {
   DEAD_WALL_START,
@@ -38,10 +42,13 @@ import {
   type WallState,
 } from './types';
 
-/** Maximum number of kans in a hand, hence of dora indicators beyond the first. */
-export const MAX_KANS = 4;
-/** Maximum number of dora indicators (initial + one per kan). */
-export const MAX_DORA_INDICATORS = 5;
+/**
+ * Maximum number of kans in a hand, hence of dora indicators beyond the first.
+ * Re-exported from `rules.ts` so there is a single definition of the limit.
+ */
+export const MAX_KANS = MAX_KAN_COUNT;
+/** Maximum number of dora indicators (the initial one plus one per kan). */
+export const MAX_DORA_INDICATORS = MAX_KANS + 1;
 /** Number of tiles dealt to each seat. */
 export const HAND_SIZE = 13;
 /** Number of seats dealt to. */

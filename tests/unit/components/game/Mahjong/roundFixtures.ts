@@ -9,8 +9,9 @@
  * indicators sitting in their proper dead-wall slots.
  *
  * This file is deliberately **not** a `*.test.ts`, so vitest's
- * `tests/unit/**\/*.test.ts` glob does not collect it — the same convention
- * `shantenReference.ts` uses next door.
+ * `tests/unit/` + `**` + `/*.test.ts` glob does not collect it — the same
+ * convention `shantenReference.ts` uses next door. (The glob is spelled out in
+ * pieces because writing it literally would close this block comment.)
  *
  * Notation is MPSZ with the usual `0` for a red five (`0m` is the red 5m).
  * Tiles are handed out in the order they are written, so the **last tile of a

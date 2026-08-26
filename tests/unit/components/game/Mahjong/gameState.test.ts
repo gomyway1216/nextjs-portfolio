@@ -450,7 +450,7 @@ describe('furiten', () => {
     });
   }
 
-  it('blocks ron when a winning kind sits in the player own pond', () => {
+  it("blocks ron when a winning kind sits in the player's own pond", () => {
     const state = waitingPosition({ discards: '1s' });
     discard(state, 1, '4s');
     expect(state.result).toBeNull();
@@ -1086,11 +1086,15 @@ describe('game progression', () => {
 
 describe('random-play invariants', () => {
   it(
-    'survives 2000 random hands with tiles, hands, scores and actors intact',
+    'survives 750 random hands with tiles, hands, scores and actors intact',
     () => {
-      const summary = runSmoke({ hands: 2000, seed: 'm4-fuzz' });
-      expect(summary.hands).toBe(2000);
-      expect(summary.actions).toBeGreaterThan(100_000);
+      // 750 rather than the script's 5000: invariants are re-checked after
+      // every single action, so this is CPU-bound, and CI runners share cores
+      // with other suites that have short timeouts. The full 5000-hand budget
+      // lives in `scripts/mahjong-sim-smoke.ts`.
+      const summary = runSmoke({ hands: 750, seed: 'm4-fuzz' });
+      expect(summary.hands).toBe(750);
+      expect(summary.actions).toBeGreaterThan(50_000);
       // The bigger 5000-hand budget is run from the script itself.
       expect(summary.tsumo + summary.ron).toBeGreaterThan(0);
       expect(summary.exhaustiveDraws).toBeGreaterThan(0);

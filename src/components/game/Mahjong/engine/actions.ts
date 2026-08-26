@@ -115,6 +115,13 @@ export function buildWinContext(
     ippatsu: state.rules.ippatsu && player.ippatsu,
     chankan,
     rinshan: isTsumo && state.lastDrawSource === 'rinshan',
+    // Haitei and houtei are deliberately asymmetric. Haitei raoyue is winning
+    // on *the last tile drawn from the live wall*, so a replacement tile never
+    // qualifies — that win is rinshan kaihou instead, which is why this checks
+    // `lastDrawSource === 'wall'`. Houtei raoyui is winning on *the last
+    // discard of the hand*, and the discard that follows a replacement draw is
+    // still the last discard once the live wall is empty, so it correctly does
+    // not exclude rinshan.
     haitei: isTsumo && state.lastDrawSource === 'wall' && isExhausted(state.wall),
     houtei: !isTsumo && !chankan && isExhausted(state.wall),
     tenhou: isTsumo && seat === state.dealer && state.turnCount === 0 && firstDraw,
@@ -408,7 +415,11 @@ function responseActions(state: RoundState, seat: Seat): Action[] {
         const minkan: MinkanAction = { type: 'minkan', seat, tiles };
         out.push(minkan);
       }
-      // Chi only from the player immediately to the caller's left (kamicha).
+      // Chi only from the caller's kamicha — the seat that plays immediately
+      // before the caller. Turn order is ascending mod 4, so the caller's
+      // kamicha is `seat - 1` and, equivalently, the caller is the
+      // discarder's shimocha. During a call phase `state.turn` is still the
+      // discarder, hence the test below.
       if (state.turn === ((seat + 3) % 4)) {
         for (const tiles of chiChoices(state, seat)) {
           const chi: ChiAction = { type: 'chi', seat, tiles };

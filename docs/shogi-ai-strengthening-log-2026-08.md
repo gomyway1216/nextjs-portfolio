@@ -105,10 +105,16 @@ R2自己対局(`shogi-nnue-selfplay-position-v1`、結果ラベル付き924,773�
 `~/.codex/shogi-runs/selfplay-cycle0-prefix16255-training-plan-v1.json`
 (186,634行、`shogi-nnue-selfplay-position-v1`)の2 armがそれ。
 
-| arm | wdl_mix | 結果 | Wilson 95% CI |
-|---|---:|---|---|
-| lambda-0.50 | 0.50 | 24.0/54 = **44.4%** | [32.0, 57.6] |
-| lambda-0.75 | 0.25 | 24.0/56 = **42.9%** | [30.8, 55.9] |
+**arm名の読み方に注意**(混同しやすい): `lambda-N` の `N` は `wdl_mix` ではなく
+**教師評価値側の比率** `search_score_fraction` を指す。つまり `wdl_mix = 1 - N`。
+run planの実値は `lambda-0.50 → {search_score_fraction: 0.5, wdl_mix: 0.5}`、
+`lambda-0.75 → {search_score_fraction: 0.75, wdl_mix: 0.25}`。
+下表は**混ぜた勝敗の比率**(`wdl_mix`)で読むこと。
+
+| arm | 教師比率 | wdl_mix(勝敗比率) | 結果 | Wilson 95% CI |
+|---|---:|---:|---|---|
+| lambda-0.50 | 0.50 | 0.50 | 24.0/54 = **44.4%** | [32.0, 57.6] |
+| lambda-0.75 | 0.75 | 0.25 | 24.0/56 = **42.9%** | [30.8, 55.9] |
 
 どちらもCI下限が50%に届かず、**符号は揃って負に振れている**。留保も記録しておく:
 相手は現チャンピオンではなく当時の**1バケット安定weights**であり、コーパスも小さい。
@@ -668,7 +674,7 @@ Turbopackのブートストラップは `new URL(location.href).searchParams.get
 | R1蒸留パイロット一式 | `~/.codex/shogi-runs/halfkp81-distill-r1-pilot-20260818/`(pilot-manifest.json、r1-gate-verdict.json) |
 | R2(引き分け・不採用) | `~/.codex/shogi-runs/halfkp81-distill-r2-scale-20260819/`(state.json、handoff.md) |
 | **R3(現本番)** | `~/.codex/shogi-runs/halfkp81-distill-r3-bookleaf-20260824/`(handoff.md、`selection-50k/overlap-report.json`、`training/d12/halfkp81-r3-d12-export/weights.bin` SHA `f4771786…`、`gate/{d12,aa-champ}-stats.json`、`gate/d12-standard/*.log`、targeted gate一式 `tools/`) |
-| WDL/λブレンドのネガティブ結果(2026-07) | `~/.codex/shogi-runs/selfplay-cycle0-prefix16255-training-plan-v1.json`(lambda-0.50 / lambda-0.75 の2 arm、186,634行) |
+| WDL/λブレンドのネガティブ結果(2026-07) | `~/.codex/shogi-runs/selfplay-cycle0-prefix16255-training-plan-v1.json`(lambda-0.50 / lambda-0.75 の2 arm、186,634行。arm名の `N` は教師比率で `wdl_mix = 1 - N`、§4.3参照) |
 | 旧本番snapshot(比較基準) | `$RUN/production-before-forced-halfkp64-rki16-v1.{wasm,weights.bin}`(SHA `1a9cb6fe…` / `25fc77ad…`) |
 
 関連PR: #699(codex研究run)、#701(旧本番復旧)、#702(newdata再学習の本番昇格)、

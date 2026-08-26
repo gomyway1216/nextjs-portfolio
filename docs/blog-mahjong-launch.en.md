@@ -1,6 +1,6 @@
 # After Shogi, I Built Mahjong — How Much the Design Changes Between Perfect and Imperfect Information
 
-> I added a four-player riichi mahjong game to my personal site (meetyudai.com) — [/games/mahjong](https://meetyudai.com/games/mahjong). One human plus three AI seats, tonpuusen (East-only), open tanyao and late yaku allowed, three red fives, ippatsu and ura dora on. The same site already hosts a shogi AI I wrote about at length in [the rebuild post](./blog-shogi-ai-rebuild.en.md). The interesting part was never "I made a mahjong game" — it was that **almost every design decision that was right for shogi turned out to be wrong for mahjong**. This is a record of that delta. Japanese version: [blog-mahjong-launch.md](./blog-mahjong-launch.md).
+> I added a four-player riichi mahjong game to my personal site (meetyudai.com) — [/games/mahjong](https://meetyudai.com/games/mahjong). One human plus three AI seats, tonpuusen (East-only), open tanyao and atozuke (late yaku) allowed, three red fives, ippatsu and ura dora on. The same site already hosts a shogi AI I wrote about at length in [the rebuild post](./blog-shogi-ai-rebuild.en.md). The interesting part was never "I made a mahjong game" — it was that **almost every design decision that was right for shogi turned out to be wrong for mahjong**. This is a record of that delta. Japanese version: [blog-mahjong-launch.md](./blog-mahjong-launch.md).
 
 ---
 

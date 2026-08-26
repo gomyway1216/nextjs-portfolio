@@ -35,7 +35,9 @@ function remainingOf(visible: TileCounts, kind: TileKind): number {
 /**
  * Kinds that reduce the shanten of a waiting hand.
  *
- * `counts` must hold `13 - 3 * meldCount` concealed tiles (`length % 3 === 1`).
+ * `counts` must sum to `13 - 3 * meldCount` concealed tiles — a hand waiting
+ * on a draw. (The constraint is on the histogram's *sum*; `counts.length` is
+ * always 34.)
  * At tenpai the result is exactly the winning tiles, so this doubles as an
  * ukeire-weighted wait list.
  *
@@ -64,8 +66,9 @@ export function ukeire(counts: TileCounts, meldCount: number, visible: TileCount
 }
 
 /**
- * Every discard from a 14-tile hand (`length % 3 === 2`), with the shanten and
- * ukeire of what is left behind.
+ * One entry per distinct *kind* held by a hand that has just drawn (the
+ * histogram sums to `14 - 3 * meldCount`), giving the shanten and ukeire of
+ * what would be left behind after discarding it.
  *
  * Sorted best first: lowest resulting shanten, then widest acceptance, then
  * lowest kind. `DiscardCandidate.tile` is the representative id `kind * 4`;

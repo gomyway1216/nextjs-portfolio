@@ -143,8 +143,10 @@ function decompose(length: number, runs: boolean, best: SuitProfile, index: numb
 
 /**
  * Cache signature of one suit group: three bits per kind, so the key stays a
- * small integer (27 bits at most) and stays collision-free even if a caller
- * hands over a malformed histogram with more than four copies of a kind.
+ * small integer (27 bits at most). Counts are clamped to 7 when packed, which
+ * is lossless for any legal histogram (0..4 copies of a kind); a malformed
+ * histogram with more than seven copies would alias, which is acceptable
+ * because such a hand is not representable in a real game.
  */
 function suitKey(counts: TileCounts, start: number, length: number): number {
   let key = 0;

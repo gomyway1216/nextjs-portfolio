@@ -153,8 +153,11 @@ export interface PlayerState {
  *
  * - Live wall: `[drawIndex, liveEnd)`. Dealing and normal draws advance
  *   `drawIndex`; the haitei tile is `tiles[liveEnd - 1]`.
- * - Dead wall: indices `122..135`, always 14 tiles. Each kan moves one tile
- *   from the live end into the dead wall, so `liveEnd = 122 - kanCount`.
+ * - Dead wall slots: indices `122..135` — the fourteen fixed positions holding
+ *   the ten indicator tiles and the four replacement tiles. They never move.
+ *   Each kan additionally takes one tile out of the live wall, modelled by
+ *   decrementing `liveEnd`, so after `k` kans the non-drawable region begins at
+ *   `liveEnd = 122 - k`, that is `k` tiles before the fixed slots.
  * - Dora indicator `i` is at index `130 - 2 * i`, ura indicator `i` at
  *   `131 - 2 * i`, for `i` in `0..4`.
  * - Replacement (rinshan) draw `n` (0-based) takes `tiles[135 - n]`.

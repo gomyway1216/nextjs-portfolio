@@ -192,6 +192,90 @@ describe('shogi AI worker cache self-heal', () => {
     client.terminate();
   });
 
+  /**
+   * Regression: the cooldown retry must not accept a move it has nowhere to
+   * send.
+   *
+   * `respawnPending` is the "no usable worker right now, fail fast" latch. The
+   * cooldown re-enable clears `respawnDisabled` and only THEN repairs the cache
+   * and builds — and that repair is a real network round trip. Without the
+   * latch held across it, a move arriving in that window is accepted and posted
+   * into the already-terminated instance, then sits until its hard deadline:
+   * up to 24s of "AI Thinking..." for a cold master search, which is precisely
+   * the stuck-UI failure this client exists to prevent.
+   */
+  it('fails a move fast while the cooldown retry is still repairing the cache', async () => {
+    HealableWorkerStub.healableByCacheBust = false;
+    installStubs();
+    const gaveUp: string[] = [];
+    const client = createShogiAiWorkerClient({
+      onWorkerGaveUp: (reason) => gaveUp.push(reason),
+    });
+    void client.requestBestMoveWithInfo(position, 'master', 0).catch(() => {});
+
+    // Drive the storm guard all the way to the terminal give-up.
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(gaveUp).toHaveLength(1);
+
+    // Hold the next cache repair open so the re-enable is observably parked
+    // between "no longer disabled" and "has a live worker".
+    let releaseRepair: (() => void) | undefined;
+    const repairGate = new Promise<void>((resolve) => {
+      releaseRepair = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        await repairGate;
+        return { ok: true, status: 200 } as unknown as Response;
+      })
+    );
+    // …and let the rebuild succeed once it finally happens.
+    HealableWorkerStub.healableByCacheBust = true;
+
+    const instancesBefore = HealableWorkerStub.instances.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+    // The repair is still in flight, so no replacement exists yet.
+    expect(HealableWorkerStub.instances.length).toBe(instancesBefore);
+
+    // A move arriving right now must be turned away immediately — one
+    // main-thread search — instead of being swallowed by a dead worker.
+    let settled: string | null = null;
+    void client.requestBestMoveWithInfo(position, 'master', 1).then(
+      () => {
+        settled = 'resolved';
+      },
+      (error: Error) => {
+        settled = `rejected: ${error.message}`;
+      }
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe('rejected: AI worker unavailable (respawning)');
+
+    // And the latch is released, not stuck: once the repair completes the
+    // rebuilt worker takes moves normally.
+    releaseRepair?.();
+    await vi.advanceTimersByTimeAsync(0);
+    const revived = latestWorker();
+    expect(revived.url).toContain(`${WORKER_CACHE_BUST_PARAM_NAME}=`);
+    expect(revived.boots).toBe(true);
+
+    const pending = client.requestBestMoveWithInfo(position, 'master', 2);
+    await vi.advanceTimersByTimeAsync(0);
+    const request = revived.posted.find(
+      (message) => (message as { type?: string }).type === 'bestMove'
+    ) as { id: number } | undefined;
+    expect(request).toBeDefined();
+    revived.emit({
+      type: 'bestMoveResult',
+      id: request!.id,
+      move: { koma: 1, from: 0x77, to: 0x76, promote: false },
+      searchPath: 'wasm',
+    });
+    await expect(pending).resolves.toMatchObject({ searchPath: 'wasm' });
+    client.terminate();
+  });
+
   it('still gives up through the storm guard when nothing can load the script', async () => {
     HealableWorkerStub.healableByCacheBust = false;
     installStubs();

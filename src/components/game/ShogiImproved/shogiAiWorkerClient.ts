@@ -631,6 +631,60 @@ export function createShogiAiWorkerClient(
     }
   };
 
+  /**
+   * Abandon an armed respawn: no timer left to fire later, no latch left set.
+   *
+   * Used when the storm guard gives up while a respawn is still waiting out its
+   * backoff. Without the `clearTimeout` that timer stays armed and fires into
+   * whatever state exists later — including a cooldown-re-enabled client, where
+   * it would build a SECOND worker behind the re-enable's back and leak the
+   * first one.
+   */
+  const cancelPendingRespawn = (): void => {
+    clearTimeout(respawnTimer);
+    respawnTimer = undefined;
+    respawnPending = false;
+  };
+
+  /**
+   * Repair the script cache and build the replacement worker.
+   *
+   * `respawnPending` is the "there is no usable worker right now, fail fast"
+   * latch, and this function OWNS it: set on entry, released in `finally`, so
+   * no exit path — an early bail on `disposed`/`respawnDisabled`, a successful
+   * build, or a constructor that throws — can leave it stuck. A stuck latch is
+   * the same failure class this whole client exists to eliminate.
+   *
+   * Setting it on entry is not redundant with the respawn path (which sets it
+   * before the backoff so requests during the gap fail fast too): the cooldown
+   * re-enable has no backoff, yet its cache repair is a real network round trip
+   * during which `worker` still points at a TERMINATED instance. Without the
+   * latch a request landing in that window is accepted, posted into the dead
+   * worker, and only settles when its hard deadline expires — up to 24s of
+   * "AI Thinking..." for a cold master search.
+   */
+  const rebuildWorker = async (onConstructFailure: (error: unknown) => void): Promise<void> => {
+    respawnPending = true;
+    try {
+      if (disposed || respawnDisabled) return;
+      await repairWorkerScriptCache();
+      if (disposed || respawnDisabled) return;
+      worker = buildWorker();
+      // The replacement instance has to boot from scratch, so its first
+      // request gets the startup allowance again.
+      workerProven = false;
+      // After any failure, favor the rock-solid single-thread path (no SMP).
+      attachWorkerHandlers(worker);
+      syncVisibility();
+    } catch (error) {
+      // Worker construction can itself be the unavailable operation. Do not let
+      // that throw escape an error/timeout callback and strand a Promise.
+      onConstructFailure(error);
+    } finally {
+      respawnPending = false;
+    }
+  };
+
   // Gap before each successive respawn attempt, indexed by how many respawns
   // have already happened in this window.
   //
@@ -866,6 +920,7 @@ export function createShogiAiWorkerClient(
     respawnTimestamps = respawnTimestamps.filter((t) => now - t < RESPAWN_WINDOW_MS);
     if (respawnTimestamps.length >= MAX_RESPAWNS_PER_WINDOW) {
       respawnDisabled = true;
+      cancelPendingRespawn();
       console.error(
         `[shogiAiWorkerClient] AI worker keeps failing (${reason}); ` +
           'giving up on the worker — moves will use the main-thread engine'
@@ -886,45 +941,28 @@ export function createShogiAiWorkerClient(
     clearTimeout(respawnTimer);
     respawnTimer = setTimeout(() => {
       respawnTimer = undefined;
-      // Async because the cache repair below has to complete BEFORE the
-      // replacement is constructed — rebuilding first would just re-read the
-      // poisoned entry, which is exactly the loop this fixes. Wrapped so no
-      // rejection can escape a timer callback.
-      void (async () => {
-        if (disposed || respawnDisabled) return;
-        await repairWorkerScriptCache();
-        if (disposed || respawnDisabled) return;
-        try {
-          worker = buildWorker();
-          // The replacement instance has to boot from scratch, so its first
-          // request gets the startup allowance again.
-          workerProven = false;
-          // After any failure, favor the rock-solid single-thread path (no SMP).
-          attachWorkerHandlers(worker);
-          respawnPending = false;
-          syncVisibility();
-        } catch (e) {
-          // Worker construction can itself be the unavailable operation. Do not
-          // let that throw escape an error/timeout callback and strand a Promise.
-          respawnPending = false;
-          // Deliberately NOT escalated to the cache-busted URL. A THROW from
-          // the constructor means the Worker API itself refused (no workers
-          // available), which no URL can route around — and giving up at once
-          // is the contract pinned by "Retry replaces a client disabled by a
-          // failed Worker respawn" in tests/e2e/shogi-isolation.spec.ts. The
-          // poisoned-cache failure never presents this way: there the
-          // constructor RETURNS and an empty `error` event arrives instead,
-          // which is the path the escalation lives on.
-          respawnDisabled = true;
-          console.error(
-            `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
-              'moves will use the main-thread engine',
-            e
-          );
-          reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
-          scheduleRespawnReenable();
-        }
-      })();
+      // `rebuildWorker` is async because the cache repair has to complete
+      // BEFORE the replacement is constructed — rebuilding first would just
+      // re-read the poisoned entry, which is exactly the loop this fixes.
+      // `void` because no rejection may escape a timer callback.
+      void rebuildWorker((e) => {
+        // Deliberately NOT escalated to the cache-busted URL. A THROW from the
+        // constructor means the Worker API itself refused (no workers
+        // available), which no URL can route around — and giving up at once is
+        // the contract pinned by "Retry replaces a client disabled by a failed
+        // Worker respawn" in tests/e2e/shogi-isolation.spec.ts. The
+        // poisoned-cache failure never presents this way: there the constructor
+        // RETURNS and an empty `error` event arrives instead, which is the path
+        // the escalation lives on.
+        respawnDisabled = true;
+        console.error(
+          `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
+            'moves will use the main-thread engine',
+          e
+        );
+        reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
+        scheduleRespawnReenable();
+      });
     }, backoffMs);
   }
 
@@ -947,26 +985,19 @@ export function createShogiAiWorkerClient(
     reenableAttempts++;
     reenableTimer = setTimeout(() => {
       reenableTimer = undefined;
-      void (async () => {
-        if (disposed || !respawnDisabled) return;
-        respawnDisabled = false;
-        respawnTimestamps = [];
-        console.warn('[shogiAiWorkerClient] retrying the AI worker after cooldown');
-        // Same order as the respawn path: repair the cache entry, then build.
-        await repairWorkerScriptCache();
-        if (disposed || respawnDisabled) return;
-        try {
-          worker = buildWorker();
-          workerProven = false;
-          attachWorkerHandlers(worker);
-          respawnPending = false;
-          syncVisibility();
-        } catch {
-          // Still unavailable — stay demoted and try again after another cooldown.
-          respawnDisabled = true;
-          scheduleRespawnReenable();
-        }
-      })();
+      if (disposed || !respawnDisabled) return;
+      respawnDisabled = false;
+      respawnTimestamps = [];
+      console.warn('[shogiAiWorkerClient] retrying the AI worker after cooldown');
+      // Same order as the respawn path: repair the cache entry, then build —
+      // and `rebuildWorker` holds the fast-fail latch across the repair, so the
+      // window between clearing `respawnDisabled` and having a live worker
+      // cannot accept a request it has nowhere to send.
+      void rebuildWorker(() => {
+        // Still unavailable — stay demoted and try again after another cooldown.
+        respawnDisabled = true;
+        scheduleRespawnReenable();
+      });
     }, RESPAWN_REENABLE_MS);
   }
 

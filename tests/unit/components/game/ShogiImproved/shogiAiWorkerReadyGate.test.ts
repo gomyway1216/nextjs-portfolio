@@ -51,7 +51,6 @@ function settleWeights(worker: WorkerStub, status = 'loaded'): void {
   worker.emit({ type: 'nnueWeightsStatus', status, attempts: 1, elapsedMs: 38 });
 }
 
-/** Drive the client into its permanent give-up state (respawn cap reached). */
 /**
  * Respawns are deferred by RESPAWN_BACKOFF_MS, so the clock has to be advanced
  * for the replacement instance to exist. Mirroring the real schedule (rather
@@ -61,6 +60,7 @@ function settleWeights(worker: WorkerStub, status = 'loaded'): void {
  */
 const RESPAWN_BACKOFF_SCHEDULE_MS = [0, 500, 2_000, 5_000, 0];
 
+/** Drive the client into its permanent give-up state (respawn cap reached). */
 async function stormTheWorker(): Promise<void> {
   for (const backoffMs of RESPAWN_BACKOFF_SCHEDULE_MS) {
     latestWorker().onerror?.({ message: 'boom' } as ErrorEvent);

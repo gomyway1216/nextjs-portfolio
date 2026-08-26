@@ -472,6 +472,11 @@ export function createShogiAiWorkerClient(
   // more chance. A transient CDN failure must not condemn the page to
   // 低速互換モード until the player thinks to reload.
   const RESPAWN_REENABLE_MS = 30_000;
+  // …but only a few times. A transient outage needs one retry; something that
+  // fails every cooldown is not transient, and at that point the main-thread
+  // engine is the honest answer rather than a worker rebuilt forever.
+  const MAX_RESPAWN_REENABLES = 3;
+  let reenableAttempts = 0;
   // True while a replacement worker is waiting on its backoff timer. Requests
   // arriving in that gap must fail fast (main-thread fallback for that one
   // move) rather than postMessage into a terminated worker and then sit out the
@@ -741,6 +746,8 @@ export function createShogiAiWorkerClient(
    */
   function scheduleRespawnReenable(): void {
     if (disposed || reenableTimer !== undefined) return;
+    if (reenableAttempts >= MAX_RESPAWN_REENABLES) return;
+    reenableAttempts++;
     reenableTimer = setTimeout(() => {
       reenableTimer = undefined;
       if (disposed || !respawnDisabled) return;

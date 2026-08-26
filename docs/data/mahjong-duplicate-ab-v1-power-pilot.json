@@ -1,0 +1,171 @@
+{
+  "schema": "mahjong-duplicate-ab-result-v1",
+  "plan": "docs/data/mahjong-duplicate-ab-v1-plan.json",
+  "generatedAt": "2026-08-26T11:41:29.920Z",
+  "arms": {
+    "a": {
+      "name": "hard-ev",
+      "difficulty": null,
+      "policy": {
+        "useDefence": true,
+        "discardRandomTop": 1,
+        "useEvPushFold": true
+      }
+    },
+    "b": {
+      "name": "medium",
+      "difficulty": "medium",
+      "policy": {
+        "useDefence": true,
+        "discardRandomTop": 1,
+        "useEvPushFold": false
+      }
+    }
+  },
+  "design": {
+    "duplicateWall": true,
+    "gamesPerSet": 4,
+    "rotation": "arm A occupies seat 0,1,2,3 in turn; arm B holds the other three",
+    "length": "tonpuu",
+    "aaSalt": ""
+  },
+  "seeds": {
+    "first": "777#0",
+    "last": "777#29",
+    "count": 30
+  },
+  "counts": {
+    "sets": 30,
+    "games": 120,
+    "hands": 695,
+    "decisions": 41712,
+    "msPerDecision": 0.3061556449942463,
+    "gamesPerSecond": 8.499787505312367,
+    "elapsedSeconds": 14.118
+  },
+  "metrics": {
+    "a": {
+      "seatGames": 120,
+      "seatHands": 695,
+      "placements": [
+        32,
+        29,
+        33,
+        26
+      ],
+      "averagePlacement": 2.441666666666667,
+      "averageScore": 25748.333333333332,
+      "winRate": 0.21007194244604316,
+      "dealInRate": 0.11079136690647481,
+      "riichiRate": 0.28776978417266186,
+      "callRate": 0.18129496402877698,
+      "averageWinValue": 5482.876712328767,
+      "averageDealInValue": 4344.1558441558445,
+      "decisions": 10401,
+      "msPerDecision": 0.3083631589270262
+    },
+    "b": {
+      "seatGames": 360,
+      "seatHands": 2085,
+      "placements": [
+        88,
+        91,
+        87,
+        94
+      ],
+      "averagePlacement": 2.5194444444444444,
+      "averageScore": 24689.444444444445,
+      "winRate": 0.21630695443645084,
+      "dealInRate": 0.15827338129496402,
+      "riichiRate": 0.3069544364508393,
+      "callRate": 0.1803357314148681,
+      "averageWinValue": 5607.760532150776,
+      "averageDealInValue": 5093.939393939394,
+      "decisions": 31311,
+      "msPerDecision": 0.30542234511832905
+    }
+  },
+  "paired": {
+    "estimate": -0.07777777777777778,
+    "standardError": 0.059119407132531394,
+    "t": -1.3156048335095587,
+    "df": 29,
+    "p": 0.198613315240052,
+    "ci95": [
+      -0.19365181575753931,
+      0.038096260201983756
+    ],
+    "n": 30
+  },
+  "unblocked": {
+    "estimate": -0.07777777777777779,
+    "standardError": 0.13463032423549903,
+    "t": -0.5777136630951493,
+    "df": 119,
+    "p": 0.5645489817399814,
+    "ci95": [
+      -0.3416532132793559,
+      0.18609765772380032
+    ],
+    "n": 120
+  },
+  "naiveTwoSample": {
+    "estimate": -0.0777777777777775,
+    "standardError": 0.11707811930391447,
+    "t": -0.6643237715142989,
+    "df": 206.95741397177264,
+    "p": 0.5072225859649142,
+    "ci95": [
+      -0.3072508916134499,
+      0.15169533605789487
+    ],
+    "n": 120
+  },
+  "variance": {
+    "pairedStandardError": 0.059119407132531394,
+    "unblockedStandardError": 0.13463032423549903,
+    "standardErrorRatio": 2.277261068158049,
+    "effectiveSampleMultiplier": 5.1859179725483395
+  },
+  "gate": {
+    "metric": "averagePlacement",
+    "direction": "lower-is-better",
+    "alpha": 0.05,
+    "improved": true,
+    "significant": false,
+    "met": false,
+    "verdict": "GATE NOT MET: hard-ev is ahead by 0.0778 but p=0.1986 >= 0.05"
+  },
+  "setDifferences": [
+    0.3333333333333335,
+    -0.3333333333333335,
+    0,
+    0.3333333333333335,
+    -0.3333333333333335,
+    0,
+    0.3333333333333335,
+    0,
+    0,
+    0,
+    0.3333333333333335,
+    0,
+    -0.3333333333333335,
+    -0.3333333333333335,
+    -0.3333333333333335,
+    0.3333333333333335,
+    -0.3333333333333335,
+    -1,
+    -0.3333333333333335,
+    0,
+    -0.3333333333333335,
+    0.3333333333333335,
+    0.3333333333333335,
+    0,
+    -0.6666666666666665,
+    0,
+    -0.3333333333333335,
+    0,
+    0,
+    0
+  ]
+}

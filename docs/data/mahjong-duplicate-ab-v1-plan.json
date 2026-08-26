@@ -1,0 +1,105 @@
+{
+  "schema": "mahjong-duplicate-ab-plan-v1",
+  "family": "mahjong-duplicate-ab-v1",
+  "round": "R1",
+  "registeredAt": "2026-08-26",
+  "objective": "Replace the v1 threshold push/fold rule with an EV comparison driven by frequencies measured from the AI's own self play, and decide by direct duplicate-wall play whether that change is worth promoting to production difficulty=hard.",
+  "claimBoundary": "This plan is written and committed before the experiment runs. The arms, the seed range, the sample size, the primary metric, the test and the gate are fixed here. The EV tables were estimated beforehand from a disjoint seed and are frozen: no table is re-fitted after any R1 result is seen. A pilot on a separate seed (disclosed under powerPilot) was used only to size the run. No result from the R1 seeds has been observed at the time of registration.",
+  "currentState": {
+    "evTablesEstimated": true,
+    "experimentExecuted": false,
+    "hardPolicyPromoted": false,
+    "productionUseEvPushFold": false
+  },
+  "arms": {
+    "a": {
+      "name": "hard-ev",
+      "policy": { "useDefence": true, "discardRandomTop": 1, "useEvPushFold": true },
+      "description": "HARD_POLICY with the M7 EV push/fold switched on. Only the push/fold decision changes; discard ranking, riichi judgement and call judgement are untouched."
+    },
+    "b": {
+      "name": "medium",
+      "difficulty": "medium",
+      "policy": { "useDefence": true, "discardRandomTop": 1, "useEvPushFold": false },
+      "description": "The shipped v1 policy. HARD_POLICY is byte-identical to it today, so this is simultaneously the control and the incumbent for difficulty=hard."
+    }
+  },
+  "evTables": {
+    "module": "src/components/game/Mahjong/ai/evTables.ts",
+    "source": "docs/data/mahjong-ev-tables-v1-source.json",
+    "estimatedFrom": {
+      "policy": "medium",
+      "seed": "99",
+      "selfPlayGames": 2000,
+      "hands": 11179,
+      "discards": 528124,
+      "length": "tonpuu"
+    },
+    "disjointFromExperimentSeeds": true
+  },
+  "design": {
+    "harness": "scripts/mahjong-ai-match.ts",
+    "command": "node -r tsx/cjs scripts/mahjong-ai-match.ts --a=hard-ev --b=medium --sets=2000 --seed=20260826 --length=tonpuu --jobs=7",
+    "duplicateWall": true,
+    "gamesPerSet": 4,
+    "rotation": "arm A occupies seat 0, 1, 2, 3 in turn; arm B holds the other three seats. All four games of a set are played on the same wall.",
+    "length": "tonpuu",
+    "sets": 2000,
+    "games": 8000,
+    "seed": "20260826",
+    "seeds": { "first": "20260826#0", "last": "20260826#1999", "count": 2000 },
+    "unitOfAnalysis": "set"
+  },
+  "powerPilot": {
+    "disclosed": "Run before registration purely to size the experiment. Its seed is disjoint from the R1 seeds and its result does not count towards the gate.",
+    "file": "docs/data/mahjong-duplicate-ab-v1-power-pilot.json",
+    "seed": "777",
+    "sets": 30,
+    "observedSdOfPairedDifference": 0.3238,
+    "minimumDetectableEffect80Power": 0.0203,
+    "note": "MDE = 2.8 * sd / sqrt(sets) at alpha=0.05, two-sided."
+  },
+  "primaryMetric": {
+    "name": "averagePlacement",
+    "direction": "lower-is-better",
+    "statistic": "mean over sets of (mean placement of A over its 4 games - mean placement of B over its 12 seat-games)",
+    "test": "two-sided one-sample (paired) Student t-test on the per-set differences, df = sets - 1",
+    "alpha": 0.05
+  },
+  "gate": {
+    "requires": [
+      "paired mean difference < 0 (A places better than B)",
+      "two-sided p < 0.05"
+    ],
+    "onPass": "Set HARD_POLICY.useEvPushFold = true, which promotes hard/expert/master together, and record the promotion in docs/mahjong-ai-strengthening-log-2026-08.md with these numbers.",
+    "onFail": "Leave HARD_POLICY.useEvPushFold = false. Write the negative result up in docs/mahjong-ai-strengthening-log-2026-08.md with the actual numbers, and propose R2. A negative result is a completed round, not a failed one."
+  },
+  "diagnosticsMustNotRegress": {
+    "note": "Checked only if the primary gate passes. Any breach blocks promotion and the round is written up as inconclusive rather than as a win.",
+    "dealInRateIncreaseMaxPp": 1.0,
+    "winRateDecreaseMaxPp": 3.0,
+    "averageScoreMustBeAtLeastB": true,
+    "msPerDecisionMax": 1.0
+  },
+  "diagnosticsReportedNotGated": [
+    "riichiRate",
+    "callRate",
+    "averageWinValue",
+    "averageDealInValue",
+    "placement distribution 1/2/3/4"
+  ],
+  "forbidden": {
+    "changeArmsAfterSeeingResults": true,
+    "changeSetsSeedAlphaOrMetricAfterStart": true,
+    "cherryPickSeedsOrTruncateEarly": true,
+    "reportARerunOnAnotherSeedInsteadOfThisOne": true,
+    "promoteOnADiagnosticOrOnThePilot": true,
+    "refitEvTablesOnTheExperimentSeeds": true,
+    "changeMediumBehaviour": true
+  },
+  "notes": [
+    "The M5 random-player baseline cannot decide this question: against three uniform-random players defence is pure loss, and easy (defence off) scored 1.0100 there against medium's 1.0333. That is why M7 exists.",
+    "An A-vs-A run of two deterministic policies is exactly zero on every set by construction (the four rotations are the same game with the seats relabelled), which is asserted in tests/unit/components/game/Mahjong/match.test.ts.",
+    "The variance reduction the duplicate wall buys is measured by the harness itself and reported next to the result; it is not assumed."
+  ]
+}

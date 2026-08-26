@@ -43,8 +43,14 @@ export const HANCHAN_RULES: Rules = {
   length: 'hanchan',
 };
 
-/** Points put on the table to declare riichi. */
-export const RIICHI_COST = 1000;
+/**
+ * Points put on the table to declare riichi. This is by definition the value
+ * of the stick that is created, so it is derived from the rules rather than
+ * duplicated — a variant that changes `riichiStickValue` changes both.
+ */
+export function riichiCost(rules: Rules): number {
+  return rules.riichiStickValue;
+}
 
 /** Number of hands before the game may end (East 1..4, plus South 1..4). */
 export function baseHandCount(rules: Rules): number {

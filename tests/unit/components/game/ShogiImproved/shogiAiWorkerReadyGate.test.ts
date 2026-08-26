@@ -52,10 +52,19 @@ function settleWeights(worker: WorkerStub, status = 'loaded'): void {
 }
 
 /** Drive the client into its permanent give-up state (respawn cap reached). */
+/**
+ * Respawns are deferred by RESPAWN_BACKOFF_MS, so the clock has to be advanced
+ * for the replacement instance to exist. Mirroring the real schedule (rather
+ * than advancing a flat maximum) keeps the storm inside the 7.5s it actually
+ * takes — under ENGINE_READY_WAIT_MS, so a turn parked on the readiness gate is
+ * still released by the give-up itself and not by its own timeout.
+ */
+const RESPAWN_BACKOFF_SCHEDULE_MS = [0, 500, 2_000, 5_000, 0];
+
 async function stormTheWorker(): Promise<void> {
-  for (let i = 0; i < 5; i++) {
+  for (const backoffMs of RESPAWN_BACKOFF_SCHEDULE_MS) {
     latestWorker().onerror?.({ message: 'boom' } as ErrorEvent);
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(backoffMs);
   }
 }
 
@@ -182,7 +191,8 @@ describe('shogiAiWorkerClient NNUE readiness gate', () => {
     expect(client.isEngineReady('master')).toBe(true);
 
     latestWorker().onerror?.({ message: 'boom' } as ErrorEvent);
-    await Promise.resolve();
+    // The first retry is immediate, but it is still scheduled on a timer.
+    await vi.advanceTimersByTimeAsync(0);
     expect(WorkerStub.instances.length).toBeGreaterThan(1);
     expect(client.isEngineReady('master')).toBe(false);
 

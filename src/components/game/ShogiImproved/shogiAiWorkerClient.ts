@@ -452,6 +452,34 @@ export function createShogiAiWorkerClient(
   let respawnTimestamps: number[] = [];
   let respawnDisabled = false;
 
+  // Gap before each successive respawn attempt, indexed by how many respawns
+  // have already happened in this window.
+  //
+  // Why this exists: the dominant real-world failure is NOT a worker that is
+  // broken, it is a worker whose SCRIPT momentarily fails to load — a 5xx or a
+  // dropped connection on the entrypoint chunk (or one of the chunks its
+  // bootstrap importScripts()es). Retrying that instantly is retrying inside
+  // the same outage: measured in production-build Playwright, a 2-second blip
+  // on the worker chunk burned all five attempts within 66ms and demoted the
+  // whole session to the main-thread engine, even though the outage was over
+  // seconds before the player's next move.
+  //
+  // The first retry stays immediate so a genuine one-off crash still costs the
+  // player nothing; after that the gap grows, so the budget spans ~7.5s of
+  // outage instead of a single 66ms instant.
+  const RESPAWN_BACKOFF_MS = [0, 500, 2_000, 5_000] as const;
+  // After the budget is spent, wait this long and then allow the worker one
+  // more chance. A transient CDN failure must not condemn the page to
+  // 低速互換モード until the player thinks to reload.
+  const RESPAWN_REENABLE_MS = 30_000;
+  // True while a replacement worker is waiting on its backoff timer. Requests
+  // arriving in that gap must fail fast (main-thread fallback for that one
+  // move) rather than postMessage into a terminated worker and then sit out the
+  // full hard deadline waiting for an answer that can never come.
+  let respawnPending = false;
+  let respawnTimer: ReturnType<typeof setTimeout> | undefined;
+  let reenableTimer: ReturnType<typeof setTimeout> | undefined;
+
   let nextId = 1;
   const pending = new Map<number, { resolve: (info: BestMoveInfo) => void; reject: (err: Error) => void }>();
   const pendingDiagnostics = new Map<
@@ -615,10 +643,16 @@ export function createShogiAiWorkerClient(
    * the main-thread search for that move), and respawns a FRESH single-thread
    * worker (no SMP — the safest possible mode) for future moves.
    *
+   * Respawns are spaced out by RESPAWN_BACKOFF_MS, because the failure being
+   * recovered from is usually a transient script-load error and an instant
+   * retry just lands inside the same outage (see RESPAWN_BACKOFF_MS).
+   *
    * Guarded against error storms: if the worker keeps failing more than
    * MAX_RESPAWNS_PER_WINDOW times inside RESPAWN_WINDOW_MS we stop respawning
    * and leave `worker` torn down, so requests reject fast and the caller stays
-   * on the main-thread engine instead of thrashing worker instances.
+   * on the main-thread engine instead of thrashing worker instances — but only
+   * until the RESPAWN_REENABLE_MS cooldown gives it one more chance, so a blip
+   * cannot strand the session in 低速互換モード.
    */
   function recoverWithSingleThread(reason: string): void {
     if (disposed || respawnDisabled) return;
@@ -649,31 +683,84 @@ export function createShogiAiWorkerClient(
           'giving up on the worker — moves will use the main-thread engine'
       );
       reportGaveUp(`respawn cap reached (${reason})`);
+      scheduleRespawnReenable();
       return;
     }
+    const backoffMs = RESPAWN_BACKOFF_MS[respawnTimestamps.length] ?? 5_000;
     respawnTimestamps.push(now);
-    console.warn(`[shogiAiWorkerClient] AI worker recovered (${reason}); respawning single-thread`);
+    console.warn(
+      `[shogiAiWorkerClient] AI worker recovered (${reason}); ` +
+        `respawning single-thread in ${backoffMs}ms`
+    );
 
-    try {
-      worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
-        type: 'module',
-      });
-      // The replacement instance has to boot from scratch, so its first request
-      // gets the startup allowance again.
-      workerProven = false;
-      // After any failure, favor the rock-solid single-thread path (no SMP).
-      attachWorkerHandlers(worker);
-      syncVisibility();
-    } catch (e) {
-      // Worker construction can itself be the unavailable operation. Do not
-      // let that throw escape an error/timeout callback and strand a Promise.
-      respawnDisabled = true;
-      console.error(
-        `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` + 'moves will use the main-thread engine',
-        e
-      );
-      reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
-    }
+    // Hold requests off the dead instance until the replacement exists.
+    respawnPending = true;
+    clearTimeout(respawnTimer);
+    respawnTimer = setTimeout(() => {
+      respawnTimer = undefined;
+      if (disposed || respawnDisabled) return;
+      try {
+        worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        // The replacement instance has to boot from scratch, so its first
+        // request gets the startup allowance again.
+        workerProven = false;
+        // After any failure, favor the rock-solid single-thread path (no SMP).
+        attachWorkerHandlers(worker);
+        respawnPending = false;
+        syncVisibility();
+      } catch (e) {
+        // Worker construction can itself be the unavailable operation. Do not
+        // let that throw escape an error/timeout callback and strand a Promise.
+        respawnPending = false;
+        respawnDisabled = true;
+        console.error(
+          `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
+            'moves will use the main-thread engine',
+          e
+        );
+        reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
+        scheduleRespawnReenable();
+      }
+    }, backoffMs);
+  }
+
+  /**
+   * Give the worker one more chance a while after the error-storm guard fired.
+   *
+   * The guard exists to stop instance thrashing, not to make the demotion
+   * permanent. Every cause we have actually observed — a 5xx on the worker
+   * chunk, a dropped connection mid-boot — is transient, and without this the
+   * page stays on the main-thread engine (低速互換モード, and a multi-second
+   * main-thread block on every AI move) until the player reloads by hand.
+   *
+   * Only the respawn budget is reset. `onWorkerGaveUp` has already fired and
+   * deliberately does not fire again, so the telemetry still records one
+   * give-up per real incident rather than one per retry cycle.
+   */
+  function scheduleRespawnReenable(): void {
+    if (disposed || reenableTimer !== undefined) return;
+    reenableTimer = setTimeout(() => {
+      reenableTimer = undefined;
+      if (disposed || !respawnDisabled) return;
+      respawnDisabled = false;
+      respawnTimestamps = [];
+      console.warn('[shogiAiWorkerClient] retrying the AI worker after cooldown');
+      try {
+        worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        workerProven = false;
+        attachWorkerHandlers(worker);
+        respawnPending = false;
+        syncVisibility();
+      } catch {
+        // Still unavailable — stay demoted and try again after another cooldown.
+        respawnDisabled = true;
+        scheduleRespawnReenable();
+      }
+    }, RESPAWN_REENABLE_MS);
   }
 
   /**
@@ -690,6 +777,7 @@ export function createShogiAiWorkerClient(
     !nnueSettled &&
     !readyGateAbandoned &&
     !respawnDisabled &&
+    !respawnPending &&
     !disposed &&
     difficultyUsesNnue(difficulty);
 
@@ -729,6 +817,14 @@ export function createShogiAiWorkerClient(
       // the caller uses the main-thread engine — do not touch a torn-down worker.
       if (respawnDisabled) {
         reject(new Error('AI worker unavailable (worker permanently disabled)'));
+        return;
+      }
+      // Mid-respawn: `worker` still points at the terminated instance, whose
+      // postMessage silently discards the request. Rejecting now costs this one
+      // move a main-thread search; staying would cost it the full hard deadline
+      // AND count as another failure against the respawn budget.
+      if (respawnPending) {
+        reject(new Error('AI worker unavailable (respawning)'));
         return;
       }
       // Remember what this search was playing at, so a later terminal give-up
@@ -801,6 +897,10 @@ export function createShogiAiWorkerClient(
         reject(new Error('AI worker unavailable (worker permanently disabled)'));
         return;
       }
+      if (respawnPending) {
+        reject(new Error('AI worker unavailable (respawning)'));
+        return;
+      }
       const timer = setTimeout(() => {
         if (pendingDiagnostics.delete(id)) {
           // A slow asset fetch should fail this explicit diagnostic without
@@ -854,6 +954,12 @@ export function createShogiAiWorkerClient(
     },
     terminate() {
       disposed = true;
+      // Both timers can outlive the page otherwise, and either would build a
+      // brand-new worker for a client nobody is listening to.
+      clearTimeout(respawnTimer);
+      clearTimeout(reenableTimer);
+      respawnTimer = undefined;
+      reenableTimer = undefined;
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }

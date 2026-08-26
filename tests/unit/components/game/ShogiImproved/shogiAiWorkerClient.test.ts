@@ -376,11 +376,13 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
     void client.requestBestMoveWithInfo(position, 'master', 1).catch(() => {});
 
     // Five worker load/runtime errors: four respawns, then the storm guard
-    // permanently gives up.
+    // gives up. Each respawn now waits out a backoff before it builds the
+    // replacement (RESPAWN_BACKOFF_MS), so the clock has to be advanced past
+    // the longest gap for the next instance to exist at all.
     for (let i = 0; i < 5; i++) {
       const current = WorkerStub.instances[WorkerStub.instances.length - 1];
       current.onerror?.({ message: 'boom' } as ErrorEvent);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(5_000);
     }
 
     expect(gaveUp).toHaveLength(1);
@@ -391,6 +393,95 @@ describe('shogiAiWorkerClient diagnostics protocol', () => {
     await expect(client.requestBestMoveWithInfo(position, 'master', 2)).rejects.toThrow(
       'AI worker unavailable'
     );
+    client.terminate();
+  });
+
+  /**
+   * Regression: a SHORT outage must not spend the whole respawn budget.
+   *
+   * The production incident behind this test was a transient failure to load
+   * the worker's script chunk. Respawning instantly meant all five attempts
+   * landed inside the same blip — measured at 66ms end to end in a
+   * production-build Playwright run — and the session was demoted to the
+   * main-thread engine (低速互換モード) permanently, even though the outage was
+   * over seconds later. The backoff is what makes the budget span the outage
+   * instead of being consumed by it.
+   */
+  it('spaces respawns out instead of spending the budget instantly', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('navigator', { hardwareConcurrency: 1 });
+    vi.stubGlobal('Worker', WorkerStub);
+    const gaveUp: string[] = [];
+    const client = createShogiAiWorkerClient({
+      onWorkerGaveUp: (reason) => gaveUp.push(reason),
+    });
+    void client.requestBestMoveWithInfo(position, 'master', 0).catch(() => {});
+
+    // Two failures back to back, as a brief outage produces.
+    WorkerStub.instances[WorkerStub.instances.length - 1].onerror?.({
+      message: 'boom',
+    } as ErrorEvent);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(WorkerStub.instances).toHaveLength(2); // first retry is immediate
+    WorkerStub.instances[1].onerror?.({ message: 'boom' } as ErrorEvent);
+
+    // The second retry is deferred, so requests made in the gap fail fast
+    // rather than vanishing into the terminated instance.
+    await expect(client.requestBestMoveWithInfo(position, 'master', 1)).rejects.toThrow(
+      'AI worker unavailable (respawning)'
+    );
+    expect(WorkerStub.instances).toHaveLength(2);
+
+    // Once the backoff elapses the replacement is built, and the budget still
+    // has room left — no give-up was reported.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(WorkerStub.instances).toHaveLength(3);
+    expect(gaveUp).toEqual([]);
+    client.terminate();
+  });
+
+  /**
+   * Regression: the storm guard is a brake, not a life sentence.
+   *
+   * Every cause of it we have actually observed is transient, so leaving the
+   * page on the main-thread engine until the player reloads by hand turns a
+   * few seconds of CDN trouble into a permanently degraded session.
+   */
+  it('gives the worker another chance after the give-up cooldown', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('navigator', { hardwareConcurrency: 1 });
+    vi.stubGlobal('Worker', WorkerStub);
+    const gaveUp: string[] = [];
+    const client = createShogiAiWorkerClient({
+      onWorkerGaveUp: (reason) => gaveUp.push(reason),
+    });
+    void client.requestBestMoveWithInfo(position, 'master', 0).catch(() => {});
+
+    for (let i = 0; i < 5; i++) {
+      WorkerStub.instances[WorkerStub.instances.length - 1].onerror?.({
+        message: 'boom',
+      } as ErrorEvent);
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    expect(gaveUp).toHaveLength(1);
+    const instancesAtGiveUp = WorkerStub.instances.length;
+
+    // Cooldown elapses: a fresh worker is built and requests flow again.
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(WorkerStub.instances.length).toBe(instancesAtGiveUp + 1);
+    const revived = WorkerStub.instances[WorkerStub.instances.length - 1];
+    const pending = client.requestBestMoveWithInfo(position, 'master', 1);
+    const request = bestMoveRequest(revived);
+    revived.emit({
+      type: 'bestMoveResult',
+      id: request.id,
+      move: { koma: 1, from: 0x77, to: 0x76, promote: false },
+      searchPath: 'wasm',
+    });
+    await expect(pending).resolves.toMatchObject({ searchPath: 'wasm' });
+
+    // The give-up is still reported exactly once per incident, not per retry.
+    expect(gaveUp).toHaveLength(1);
     client.terminate();
   });
 

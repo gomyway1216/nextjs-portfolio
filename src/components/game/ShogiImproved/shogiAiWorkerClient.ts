@@ -395,14 +395,144 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
   }
 }
 
+// --- Self-healing worker boot ----------------------------------------------
+//
+// The failure this exists for, measured on production in an affected browser:
+// `new Worker(<the worker entry chunk URL>)` failed immediately (3/3 attempts,
+// ~4ms each) with an EMPTY error message and a null filename — the script never
+// executed — while `fetch()` of the very same URL returned 200 with the right
+// 818 bytes and other chunks in the same directory loaded fine as workers. The
+// browser was holding a corrupt/poisoned HTTP cache entry for that one URL.
+// Vercel serves /_next/static/** as `public, max-age=31536000, immutable`, so
+// the browser never revalidates it and the session is stranded across reloads:
+// every respawn re-requests the same URL and hits the same broken entry, which
+// is why backoff alone cannot recover it — there is no outage to wait out.
+//
+// Two repairs were proven in that browser:
+//   1. `await fetch(url, { cache: 'reload' })` — bypasses the cache on the way
+//      out AND overwrites the stored entry; a plain `new Worker(url)` then
+//      loads and runs.
+//   2. requesting a URL the poisoned entry is not keyed on (an extra query
+//      parameter) — also loads and runs.
+// So a failed boot does (1), and if that was still not enough, (2).
+//
+// Deliberately NOT done here: weakening the `immutable` caching. The assets are
+// content-hashed and the caching policy is correct; the browser's cache entry
+// is the thing that is broken, and repairing that entry is the right layer.
+
+/** Query parameter used to route around a cache entry that stayed poisoned. */
+const WORKER_CACHE_BUST_PARAM = '__wcb';
+
+/** Exactly what `new Worker(...)` was called with, so we can rebuild it. */
+type CapturedWorkerSpec = { url: string; options: WorkerOptions | undefined };
+
+/** Re-entrancy guard: never install the patch below on top of itself. */
+let workerConstructorPatchActive = false;
+
+/**
+ * Build the AI worker, reporting the URL the bundler runtime actually asked the
+ * browser for.
+ *
+ * Why a constructor patch: Turbopack owns that URL. The literal below is
+ * rewritten at build time into a runtime helper which resolves the module to an
+ * entry chunk (`/_next/static/chunks/turbopack-worker-<hash>.js#params=<encoded
+ * chunk list>`) and constructs a CLASSIC worker from it — the `{ type: 'module' }`
+ * written here never reaches the browser, and neither does this file name. This
+ * module therefore has no other way to learn the string whose cache entry it
+ * needs to repair, so it reads it off the one place that string exists: the
+ * `Worker` constructor call itself.
+ *
+ * The patch is kept as small as it can be: installed immediately before the
+ * construction, removed in a `finally`, refusing to nest, and skipped entirely
+ * where there is nothing to patch (SSR — no `window`, hence no `Worker`). If it
+ * ever observes nothing, the client simply keeps its previous behaviour: every
+ * repair step is conditional on having captured a spec.
+ */
+function spawnAiWorkerCapturingUrl(onSpec: (spec: CapturedWorkerSpec) => void): Worker {
+  if (typeof globalThis.Worker !== 'function' || workerConstructorPatchActive) {
+    return new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+  }
+  const RealWorker = globalThis.Worker;
+  workerConstructorPatchActive = true;
+  globalThis.Worker = new Proxy(RealWorker, {
+    construct(target, args, newTarget) {
+      try {
+        onSpec({ url: String(args[0]), options: args[1] as WorkerOptions | undefined });
+      } catch {
+        /* observing must never break the construction it observes */
+      }
+      return Reflect.construct(target, args, newTarget);
+    },
+  }) as typeof Worker;
+  try {
+    return new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+  } finally {
+    globalThis.Worker = RealWorker;
+    workerConstructorPatchActive = false;
+  }
+}
+
+/**
+ * Parse a captured worker URL, or null if it is not a URL we can repair.
+ *
+ * Restricted to http(s): the repair below is an HTTP-cache repair, and a
+ * `blob:`/`file:` worker (tests, or a future inline-worker build) has no cache
+ * entry to fix. Anything else falls through to the pre-existing behaviour.
+ */
+function parseHttpWorkerUrl(spec: CapturedWorkerSpec): URL | null {
+  try {
+    const url = new URL(spec.url, typeof location === 'undefined' ? undefined : location.href);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The URL to re-fetch, without Turbopack's `#params=` bootstrap payload — a
+ * fragment is never sent to the server and is not part of the HTTP cache key,
+ * so dropping it fetches (and overwrites) exactly the poisoned entry.
+ */
+function workerRepairFetchUrl(spec: CapturedWorkerSpec): string | null {
+  const url = parseHttpWorkerUrl(spec);
+  if (!url) return null;
+  url.hash = '';
+  return url.toString();
+}
+
+/**
+ * The same script under a cache key the poisoned entry cannot answer.
+ *
+ * The `#params=` hash MUST survive: it is Turbopack's own bootstrap payload,
+ * read back by the entry chunk to know which chunks to `importScripts()`. So
+ * the parameter goes in the QUERY, which `URL` serializes before the fragment.
+ */
+function cacheBustedWorkerUrl(spec: CapturedWorkerSpec, token: string): string | null {
+  const url = parseHttpWorkerUrl(spec);
+  if (!url) return null;
+  // The fragment is re-attached verbatim rather than round-tripped through
+  // `URL`'s fragment serializer, which would percent-encode characters the
+  // bootstrap payload contains and the entry chunk reads back.
+  const hashIndex = spec.url.indexOf('#');
+  const rawHash = hashIndex === -1 ? '' : spec.url.slice(hashIndex);
+  url.hash = '';
+  url.searchParams.set(WORKER_CACHE_BUST_PARAM, token);
+  return `${url.toString()}${rawHash}`;
+}
+
 export function createShogiAiWorkerClient(
   options: ShogiAiWorkerClientOptions = {}
 ): ShogiAiWorkerClient {
   // The worker (and its SMP helpers) are mutable: the self-heal paths (hard
   // deadline, worker onerror) tear a wedged/broken set down and respawn a fresh
   // single-thread worker.
-  let worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
-    type: 'module',
+  //
+  // The URL the runtime requests is recorded on the way past (see
+  // "Self-healing worker boot" above) so that a failed boot can repair the
+  // browser cache entry behind it instead of re-requesting a poisoned one.
+  let workerSpec: CapturedWorkerSpec | null = null;
+  let worker = spawnAiWorkerCapturingUrl((spec) => {
+    workerSpec = spec;
   });
   let helpers = trySpawnSmpHelpers(worker);
   let disposed = false;
@@ -451,6 +581,59 @@ export function createShogiAiWorkerClient(
   const MAX_RESPAWNS_PER_WINDOW = 4;
   let respawnTimestamps: number[] = [];
   let respawnDisabled = false;
+
+  // How many times a worker instance has failed to boot/run in this client's
+  // life. Drives the repair escalation below and, unlike the respawn budget,
+  // is never reset: once a URL has proven itself poisoned, later attempts have
+  // no reason to walk back into it.
+  let bootFailures = 0;
+  let cacheBustCounter = 0;
+
+  /** Is there a captured, repairable (http) URL to route around? */
+  const canCacheBustWorkerUrl = (): boolean =>
+    workerSpec !== null && cacheBustedWorkerUrl(workerSpec, '0') !== null;
+
+  /**
+   * Build a replacement worker, escalating the repair as failures accumulate.
+   *
+   * First recovery: the plain URL, relying on the `cache: 'reload'` refetch
+   * that `repairWorkerScriptCache()` has just done to have overwritten the bad
+   * entry. Second and later: a URL the poisoned entry is not keyed on, which
+   * was proven to load even while the plain one still failed.
+   */
+  const buildWorker = (): Worker => {
+    if (bootFailures >= 2 && workerSpec !== null) {
+      const busted = cacheBustedWorkerUrl(workerSpec, String(++cacheBustCounter));
+      if (busted) {
+        console.warn(
+          '[shogiAiWorkerClient] worker script still failing to boot; ' +
+            'retrying under a cache-busted URL'
+        );
+        return new Worker(busted, workerSpec.options);
+      }
+    }
+    return spawnAiWorkerCapturingUrl((spec) => {
+      workerSpec = spec;
+    });
+  };
+
+  /**
+   * Overwrite the browser's HTTP cache entry for the worker script before
+   * rebuilding. This is the step proven to repair the poisoned entry; when the
+   * entry was fine it costs one conditional-free ~800-byte request and changes
+   * nothing. Never rejects — a failed repair must still leave the respawn its
+   * chance.
+   */
+  const repairWorkerScriptCache = async (): Promise<void> => {
+    if (workerSpec === null || typeof fetch !== 'function') return;
+    const url = workerRepairFetchUrl(workerSpec);
+    if (!url) return;
+    try {
+      await fetch(url, { cache: 'reload' });
+    } catch {
+      /* offline / blocked: rebuild anyway rather than skip the retry */
+    }
+  };
 
   // Gap before each successive respawn attempt, indexed by how many respawns
   // have already happened in this window.
@@ -661,6 +844,10 @@ export function createShogiAiWorkerClient(
    */
   function recoverWithSingleThread(reason: string): void {
     if (disposed || respawnDisabled) return;
+    // Only an instance that never said a word failed to BOOT. A wedged search
+    // inside an instance that had been running is a different problem and does
+    // not implicate the script URL, so it must not escalate the repair.
+    if (!workerProven) bootFailures++;
 
     // Tear down the current (broken/wedged) worker + helpers first so a fresh
     // onerror from the dying instance cannot re-enter this path.
@@ -703,31 +890,47 @@ export function createShogiAiWorkerClient(
     clearTimeout(respawnTimer);
     respawnTimer = setTimeout(() => {
       respawnTimer = undefined;
-      if (disposed || respawnDisabled) return;
-      try {
-        worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
-          type: 'module',
-        });
-        // The replacement instance has to boot from scratch, so its first
-        // request gets the startup allowance again.
-        workerProven = false;
-        // After any failure, favor the rock-solid single-thread path (no SMP).
-        attachWorkerHandlers(worker);
-        respawnPending = false;
-        syncVisibility();
-      } catch (e) {
-        // Worker construction can itself be the unavailable operation. Do not
-        // let that throw escape an error/timeout callback and strand a Promise.
-        respawnPending = false;
-        respawnDisabled = true;
-        console.error(
-          `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
-            'moves will use the main-thread engine',
-          e
-        );
-        reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
-        scheduleRespawnReenable();
-      }
+      // Async because the cache repair below has to complete BEFORE the
+      // replacement is constructed — rebuilding first would just re-read the
+      // poisoned entry, which is exactly the loop this fixes. Wrapped so no
+      // rejection can escape a timer callback.
+      void (async () => {
+        if (disposed || respawnDisabled) return;
+        await repairWorkerScriptCache();
+        if (disposed || respawnDisabled) return;
+        try {
+          worker = buildWorker();
+          // The replacement instance has to boot from scratch, so its first
+          // request gets the startup allowance again.
+          workerProven = false;
+          // After any failure, favor the rock-solid single-thread path (no SMP).
+          attachWorkerHandlers(worker);
+          respawnPending = false;
+          syncVisibility();
+        } catch (e) {
+          // Worker construction can itself be the unavailable operation. Do not
+          // let that throw escape an error/timeout callback and strand a Promise.
+          respawnPending = false;
+          // A constructor throw is a boot failure like any other: if the
+          // cache-busted URL has not been tried yet, go round once more (still
+          // inside the storm guard) rather than give up on a URL we may be able
+          // to route around.
+          if (bootFailures < 2 && canCacheBustWorkerUrl()) {
+            recoverWithSingleThread(
+              `respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`
+            );
+            return;
+          }
+          respawnDisabled = true;
+          console.error(
+            `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
+              'moves will use the main-thread engine',
+            e
+          );
+          reportGaveUp(`respawn threw (${reason}): ${e instanceof Error ? e.message : String(e)}`);
+          scheduleRespawnReenable();
+        }
+      })();
     }, backoffMs);
   }
 
@@ -750,23 +953,26 @@ export function createShogiAiWorkerClient(
     reenableAttempts++;
     reenableTimer = setTimeout(() => {
       reenableTimer = undefined;
-      if (disposed || !respawnDisabled) return;
-      respawnDisabled = false;
-      respawnTimestamps = [];
-      console.warn('[shogiAiWorkerClient] retrying the AI worker after cooldown');
-      try {
-        worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), {
-          type: 'module',
-        });
-        workerProven = false;
-        attachWorkerHandlers(worker);
-        respawnPending = false;
-        syncVisibility();
-      } catch {
-        // Still unavailable — stay demoted and try again after another cooldown.
-        respawnDisabled = true;
-        scheduleRespawnReenable();
-      }
+      void (async () => {
+        if (disposed || !respawnDisabled) return;
+        respawnDisabled = false;
+        respawnTimestamps = [];
+        console.warn('[shogiAiWorkerClient] retrying the AI worker after cooldown');
+        // Same order as the respawn path: repair the cache entry, then build.
+        await repairWorkerScriptCache();
+        if (disposed || respawnDisabled) return;
+        try {
+          worker = buildWorker();
+          workerProven = false;
+          attachWorkerHandlers(worker);
+          respawnPending = false;
+          syncVisibility();
+        } catch {
+          // Still unavailable — stay demoted and try again after another cooldown.
+          respawnDisabled = true;
+          scheduleRespawnReenable();
+        }
+      })();
     }, RESPAWN_REENABLE_MS);
   }
 

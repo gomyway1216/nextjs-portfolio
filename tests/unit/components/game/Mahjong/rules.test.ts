@@ -10,6 +10,16 @@ import {
   isMenzen,
   type Meld,
 } from '@/components/game/Mahjong/engine/types';
+import {
+  YAOCHUU_KINDS,
+  doraFromIndicator,
+  formatKinds,
+  isSimple,
+  isTerminal,
+  isYaochuu,
+  kindsToTileIds,
+  parseKinds,
+} from '@/components/game/Mahjong/engine/tiles';
 
 describe('mahjong tile constants', () => {
   it('describes a complete wall', () => {
@@ -50,5 +60,24 @@ describe('default rules', () => {
     expect(DEFAULT_RULES.redFives).toBe(true);
     expect(baseHandCount(DEFAULT_RULES)).toBe(4);
     expect(baseHandCount(HANCHAN_RULES)).toBe(8);
+  });
+});
+
+describe('tile helpers', () => {
+  it('round-trips MPSZ notation', () => {
+    expect(formatKinds(parseKinds('123m0p789s11z'))).toBe('123m5p789s11z');
+  });
+
+  it('walks dora indicators around each cycle', () => {
+    expect(doraFromIndicator(kindsToTileIds([0])[0])).toBe(1); // 1m -> 2m
+    expect(doraFromIndicator(kindsToTileIds([8])[0])).toBe(0); // 9m -> 1m
+    expect(doraFromIndicator(kindsToTileIds([30])[0])).toBe(27); // North -> East
+    expect(doraFromIndicator(kindsToTileIds([33])[0])).toBe(31); // Chun -> Haku
+  });
+
+  it('classifies yaochuu tiles', () => {
+    expect(YAOCHUU_KINDS.every(isYaochuu)).toBe(true);
+    expect(YAOCHUU_KINDS.filter(isTerminal)).toHaveLength(6);
+    expect(isSimple(4)).toBe(true);
   });
 });

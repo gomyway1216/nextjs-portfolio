@@ -80,7 +80,7 @@ src/components/game/Mahjong/
   MahjongGame.tsx / TableView.tsx / HandView.tsx / TileSvg.tsx / CallPrompt.tsx
   i18n.ts                                 … 日英文言（将棋の ShogiImproved/i18n.ts と同形式）
 scripts/
-  mahjong-ai-match.ts                     … A/B 自己対戦ハーネス（npm run mahjong:match）
+  mahjong-ai-match.ts                     … A/B 自己対戦ハーネス（node -r tsx/cjs で起動）
   mahjong-sim-smoke.ts                    … ランダム打ちで N 半荘完走させる健全性チェック
 tests/unit/components/game/Mahjong/       … vitest（既存の include パターンに載る）
 docs/blog-mahjong-*.md / *.en.md          … ブログ原稿（将棋と同じ日英ペア運用）
@@ -265,7 +265,7 @@ AI 1 手は同期 1ms 未満なので SMP/ponder は不要。メッセージは
 
 ### M7: A/B 自己対戦ハーネスと強化ループ（2 日 + 継続）
 
-**成果物**: `scripts/mahjong-ai-match.ts`（npm script `mahjong:match`）、
+**成果物**: `scripts/mahjong-ai-match.ts`（`node -r tsx/cjs scripts/mahjong-ai-match.ts` で直接起動）、
 `docs/data/mahjong-*.json` への結果出力
 
 **分散対策（麻雀 A/B の核心。将棋のペア開局に相当）**
@@ -314,6 +314,11 @@ AI 1 手は同期 1ms 未満なので SMP/ponder は不要。メッセージは
 
 ## 4. サブエージェント運用メモ
 
+- **`package.json` は変更禁止**（バイトシール: 将棋 ML のエビデンステストが sha256 を固定しており、
+  npm script を 1 行足すだけで `Test and build` が落ちる）。新しいハーネスは
+  `node -r tsx/cjs scripts/<name>.ts` で直接起動する。
+- **テストは必ず `tests/unit/**` 配下**に置く（vitest の include グロブ。コンポーネント dir に
+  colocate すると CI で実行されない）。
 - 実装ブランチは `main` から切り、M 単位で PR を分ける（M1+M2、M3、M4、M5、M6、M7 の
   5〜6 本想定）。フロントの必須チェック + gemini/copilot レビューボット
   （conversation-resolution 必須）が通ることがマージ条件。

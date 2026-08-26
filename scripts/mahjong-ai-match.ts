@@ -813,9 +813,20 @@ export function pairedTTest(differences: readonly number[]): TTest {
   const sd = Math.sqrt(variance(differences));
   const standardError = n === 0 ? 0 : sd / Math.sqrt(n);
   const df = n - 1;
-  // Every difference identical: either exactly the null (p = 1) or a
-  // degenerate non-zero constant, which no finite sample can call.
-  const t = standardError === 0 ? 0 : estimate / standardError;
+  // Every difference identical. Two very different situations share that
+  // shape, so they must not share an answer: all-zero is exactly the null and
+  // reports t = 0 (p = 1), while a non-zero constant is a difference with no
+  // observed spread at all — the limit of estimate/SE as SE goes to zero, so
+  // t is +/-Infinity and studentTwoSidedP returns 0. Collapsing the second
+  // case to t = 0 would report the strongest possible result as "no effect".
+  const t =
+    standardError === 0
+      ? estimate === 0
+        ? 0
+        : estimate > 0
+          ? Number.POSITIVE_INFINITY
+          : Number.NEGATIVE_INFINITY
+      : estimate / standardError;
   return {
     estimate,
     standardError,

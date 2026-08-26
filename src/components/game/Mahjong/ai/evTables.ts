@@ -258,7 +258,11 @@ export function evaluatePush(inputs: PushInputs): PushDecision {
     winProbability(inputs.turn, inputs.handShanten) *
     expectedWinValue(inputs.estimatedHan);
 
-  const later = Math.max(0, remainingDiscards(inputs.turn) - 1);
+  // `remainingDiscards` already excludes the discard being decided (the EV log
+  // records "discards this seat still made in the hand *after* this one"), so
+  // there is nothing to subtract: this turn's tile is charged at its own band
+  // and all `later` discards at the baseline.
+  const later = Math.max(0, remainingDiscards(inputs.turn));
   const exposure = dealInProbability(inputs.danger) + later * BASELINE_DEAL_IN_PROBABILITY;
   const foldRisk = exposure * expectedDealInCost(inputs.threats);
 

@@ -437,9 +437,10 @@ export function shouldFold(
  * The M7 push/fold rule: fold when the hand is worth less than the tiles it
  * would have to throw to finish.
  *
- * Selected by `AiPolicy.useEvPushFold`, which only the `hard-ev` A/B arm turns
- * on today. Everything it consults is a measured frequency — see
- * `ai/evTables.ts` for the tables and their provenance.
+ * Selected by `AiPolicy.useEvPushFold`, which {@link HARD_POLICY} turns on —
+ * so `hard`, `expert` and `master` use this rule, while `easy` and `medium`
+ * stay on the threshold rule below. Everything it consults is a measured
+ * frequency — see `ai/evTables.ts` for the tables and their provenance.
  *
  * `danger` is the weighted danger of the tile the push would actually throw,
  * which is what makes this different in kind from {@link shouldFold}: the
@@ -601,11 +602,16 @@ function chooseTurnAction(
   const folding =
     player.riichi === null &&
     (policy.useEvPushFold
-      ? shouldFoldEv(
+      ? threats.length > 0 &&
+        shouldFoldEv(
           threats,
           player.discards.length,
           best.shanten,
           estimatedHan,
+          // Only reached with a live threat: weightedDangerIn loops over every
+          // seat's pond, and shouldFoldEv answers false on an empty threat
+          // list anyway, so computing it unguarded would pay that cost on the
+          // majority of turns for a foregone answer.
           weightedDangerIn(ctx, best.kind, threats),
         )
       : shouldFold(threats, best.shanten, estimatedHan, best.waitTiles));
@@ -859,7 +865,7 @@ export function chooseActionWithPolicy(
   const legal = legalActions(state, seat);
   if (legal.length === 0) {
     throw new Error(
-      `chooseAction: seat ${seat} has no legal action in phase ${state.phase}`,
+      `chooseActionWithPolicy: seat ${seat} has no legal action in phase ${state.phase}`,
     );
   }
   return chooseWith(state, seat, policy, rng, legal);

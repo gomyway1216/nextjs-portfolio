@@ -47,6 +47,7 @@ import {
   evaluatePush,
   expectedDealInCost,
   expectedWinValue,
+  remainingDiscards,
   winProbability,
 } from '@/components/game/Mahjong/ai/evTables';
 import {
@@ -270,6 +271,21 @@ describe('paired statistics', () => {
     expect(test.p).toBe(1);
   });
 
+  it('does not report a constant non-zero difference as a non-result', () => {
+    // Same zero spread as the null case above, opposite meaning: every set
+    // moved the same way. Collapsing this to t = 0 would print p = 1 for the
+    // strongest evidence the design can produce.
+    const positive = pairedTTest([0.25, 0.25, 0.25, 0.25]);
+    expect(positive.estimate).toBeCloseTo(0.25, 12);
+    expect(positive.standardError).toBe(0);
+    expect(positive.t).toBe(Number.POSITIVE_INFINITY);
+    expect(positive.p).toBe(0);
+
+    const negative = pairedTTest([-0.5, -0.5, -0.5]);
+    expect(negative.t).toBe(Number.NEGATIVE_INFINITY);
+    expect(negative.p).toBe(0);
+  });
+
   it('gives the known answer for a hand-computable Welch sample', () => {
     // [1,2,3,4] vs [3,4,5,6]: equal n and equal variance, so Welch's df is
     // exactly 6 and t is -2/sqrt(5/6). The two-sided p at df = 6 is
@@ -413,6 +429,27 @@ describe('EV tables', () => {
       threats: riichi,
     });
     expect(farAndCheap.push).toBe(false);
+  });
+
+  it('charges every remaining discard, since the table already excludes this one', () => {
+    // REMAINING_DISCARDS_BY_TURN counts the discards made *after* the one being
+    // decided, so the exposure is this tile's own band plus the full remainder
+    // at the baseline. Subtracting one from the remainder would quietly make
+    // pushing cheaper than it is.
+    const turn = 5;
+    const decision = evaluatePush({
+      turn,
+      handShanten: 1,
+      estimatedHan: 2,
+      danger: 3,
+      threats: riichi,
+    });
+    const expectedExposure =
+      dealInProbability(3) + remainingDiscards(turn) * BASELINE_DEAL_IN_PROBABILITY;
+    expect(decision.foldRisk).toBeCloseTo(
+      expectedExposure * expectedDealInCost(riichi),
+      10,
+    );
   });
 
   it('reads the danger of the tile it is actually about to throw', () => {

@@ -308,6 +308,21 @@ test('a healthy game constructs exactly one AI worker', async ({ page }) => {
   expect(await constructions()).toBe(1);
 });
 
+/**
+ * The fault injected here is a SYNCHRONOUS throw from `new Worker(...)`, i.e.
+ * the Worker API refusing outright. The contract is that the client gives up
+ * immediately — two constructions, one terminate, terminal `engine-error` —
+ * and it is deliberate: no URL and no retry can route around an unavailable
+ * Worker constructor, so anything else just delays the honest answer.
+ *
+ * Do not relax these numbers to accommodate a recovery strategy. The
+ * poisoned-cache self-heal in shogiAiWorkerClient.ts (cache:'reload' refetch,
+ * then a cache-busted URL) is deliberately NOT reachable from here: that
+ * failure presents as a constructor that RETURNS followed by an empty `error`
+ * event, which is a different path. An attempt to escalate on a throw as well
+ * broke exactly this test — the client settled on `main-thread-js` at depth 5
+ * instead of `engine-error` — and was reverted rather than re-baselined.
+ */
 test('Retry replaces a client disabled by a failed Worker respawn', async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto('/games/shogi');

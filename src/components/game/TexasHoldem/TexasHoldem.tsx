@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { BrainCircuit, CircleHelp, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { BrainCircuit, CircleHelp, RotateCcw, ShieldCheck, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { InfoModal } from '../common';
 import { GameLanguageProvider, useGameLanguage } from '../contexts/GameLanguageContext';
 import { decideCpuAction } from './ai';
 import {
+  advanceRunout,
   applyPlayerAction,
   createGame,
   getLegalActions,
@@ -18,9 +19,13 @@ import {
 } from './engine';
 import { getHoldemStrings, type HoldemStrings } from './i18n';
 import { PlayingCard } from './PlayingCard';
+import { playPokerSound, unlockPokerAudio } from './sounds';
 import styles from './texas-holdem.module.css';
 
 type SeatStyle = CSSProperties & { '--seat-x': string; '--seat-y': string };
+
+const RUNOUT_CARD_DELAY_MS = 1400;
+const RUNOUT_SHOWDOWN_DELAY_MS = 1700;
 
 const chips = (amount: number): string => amount.toLocaleString('en-US');
 
@@ -259,18 +264,21 @@ function GameTable({ state, strings, onAction, onNext }: {
               </div>
               <div className={styles.potLabel}><small>{strings.table.pot}</small><strong><i aria-hidden="true" />{chips(totalPot(state))}</strong></div>
               {cpuThinking && <span className={styles.thinking}><BrainCircuit size={14} aria-hidden="true" />{strings.table.thinking}</span>}
+              {state.runout && <span className={styles.thinking}><Sparkles size={14} aria-hidden="true" />{strings.table.runout}</span>}
             </div>
           </div>
           {state.players.map((player, index) => <Seat key={player.id} state={state} player={player} index={index} strings={strings} />)}
         </div>
+      </div>
+      <aside className={styles.sideRail}>
         <ResultPanel state={state} strings={strings} onNext={onNext} />
         <ActionPanel state={state} strings={strings} onAction={onAction} />
-      </div>
-      <aside className={styles.logPanel}>
-        <div className={styles.logHeading}><span><ShieldCheck size={16} aria-hidden="true" />{strings.table.actionLog}</span><small>{strings.table.hand} #{state.handNumber}</small></div>
-        <ol>
-          {[...state.log].reverse().map((entry) => <li key={entry.id}>{formatLog(entry, state, strings)}</li>)}
-        </ol>
+        <div className={styles.logPanel}>
+          <div className={styles.logHeading}><span><ShieldCheck size={16} aria-hidden="true" />{strings.table.actionLog}</span><small>{strings.table.hand} #{state.handNumber}</small></div>
+          <ol>
+            {[...state.log].reverse().map((entry) => <li key={entry.id}>{formatLog(entry, state, strings)}</li>)}
+          </ol>
+        </div>
       </aside>
     </div>
   );
@@ -281,9 +289,40 @@ function TexasHoldemInner() {
   const strings = useMemo(() => getHoldemStrings(language), [language]);
   const [game, setGame] = useState<GameState | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const previousSoundState = useRef<{ board: number; hand: number; logId: number; street: GameState['street'] } | null>(null);
 
   useEffect(() => {
-    if (!game || game.currentActor === null || game.street === 'complete') return;
+    if (!game) {
+      previousSoundState.current = null;
+      return;
+    }
+    const previous = previousSoundState.current;
+    const latestLog = game.log.at(-1);
+    if (previous?.hand === game.handNumber) {
+      if (game.board.length > previous.board) playPokerSound('card', soundEnabled);
+      else if (game.street === 'complete' && previous.street !== 'complete') playPokerSound('showdown', soundEnabled);
+      else if (latestLog && latestLog.id > previous.logId && latestLog.type === 'action') {
+        playPokerSound(latestLog.action === 'fold' ? 'fold' : 'chip', soundEnabled);
+      }
+    }
+    previousSoundState.current = {
+      board: game.board.length,
+      hand: game.handNumber,
+      logId: latestLog?.id ?? 0,
+      street: game.street,
+    };
+  }, [game, soundEnabled]);
+
+  useEffect(() => {
+    if (!game || game.street === 'complete') return;
+    if (game.runout) {
+      const timer = window.setTimeout(() => {
+        setGame((current) => current?.runout ? advanceRunout(current) : current);
+      }, game.board.length === 5 ? RUNOUT_SHOWDOWN_DELAY_MS : RUNOUT_CARD_DELAY_MS);
+      return () => window.clearTimeout(timer);
+    }
+    if (game.currentActor === null) return;
     const actor = game.currentActor;
     if (game.players[actor].isHuman) return;
     const timer = window.setTimeout(() => {
@@ -308,14 +347,34 @@ function TexasHoldemInner() {
           </div>
           <div className={styles.headerActions}>
             <span className={styles.gtoBadge}><ShieldCheck size={15} aria-hidden="true" />{strings.gtoBadge}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSoundEnabled((enabled) => {
+                  if (!enabled) void unlockPokerAudio().then(() => playPokerSound('chip', true));
+                  return !enabled;
+                });
+              }}
+              aria-label={soundEnabled ? strings.actions.soundOff : strings.actions.soundOn}
+              title={soundEnabled ? strings.actions.soundOff : strings.actions.soundOn}
+            >
+              {soundEnabled ? <Volume2 size={17} aria-hidden="true" /> : <VolumeX size={17} aria-hidden="true" />}
+              {soundEnabled ? strings.actions.soundOn : strings.actions.soundOff}
+            </button>
             <button type="button" onClick={() => setInfoOpen(true)}><CircleHelp size={17} aria-hidden="true" />{strings.actions.rules}</button>
             {game && <button type="button" onClick={() => setGame(null)}><RotateCcw size={16} aria-hidden="true" />{strings.actions.newTable}</button>}
           </div>
         </header>
 
         {game
-          ? <GameTable state={game} strings={strings} onAction={act} onNext={() => setGame((current) => current ? startNextHand(current) : current)} />
-          : <Setup strings={strings} onStart={(count) => setGame(createGame(count))} />}
+          ? <GameTable state={game} strings={strings} onAction={act} onNext={() => {
+            void unlockPokerAudio().then(() => playPokerSound('deal', soundEnabled));
+            setGame((current) => current ? startNextHand(current) : current);
+          }} />
+          : <Setup strings={strings} onStart={(count) => {
+            void unlockPokerAudio().then(() => playPokerSound('deal', soundEnabled));
+            setGame(createGame(count));
+          }} />}
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={strings.info.title}>

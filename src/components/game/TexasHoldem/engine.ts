@@ -96,6 +96,8 @@ export interface GameState {
   pending: number[];
   /** Seats that may call or fold but whose raise option was not reopened. */
   raiseLocked: number[];
+  /** True while an all-in board is being revealed one card at a time. */
+  runout: boolean;
   handNumber: number;
   log: LogEntry[];
   nextLogId: number;
@@ -290,6 +292,7 @@ export function createGame(
     currentActor: null,
     pending: [],
     raiseLocked: [],
+    runout: false,
     handNumber: 0,
     log: [],
     nextLogId: 1,
@@ -351,6 +354,7 @@ export function startNextHand(state: GameState, rng: () => number = Math.random)
     currentActor: nextPendingSeat(resetPlayers, bigBlindIndex, pending),
     pending,
     raiseLocked: [],
+    runout: false,
     handNumber: state.handNumber + 1,
     log: [],
     nextLogId: 1,
@@ -456,6 +460,7 @@ function finishShowdown(state: GameState): GameState {
     currentActor: null,
     pending: [],
     raiseLocked: [],
+    runout: false,
     result,
   };
   for (const winner of result.winnerIndices) {
@@ -489,22 +494,46 @@ function finishUncontested(state: GameState, winner: number): GameState {
     currentActor: null,
     pending: [],
     raiseLocked: [],
+    runout: false,
     result,
   };
   next = appendLog(next, { type: 'result', seatIndex: winner, amount, detail: 'uncontested' });
   return next;
 }
 
-function revealToShowdown(state: GameState): GameState {
-  let board = [...state.board];
-  let deck = [...state.deck];
-  while (board.length < 5) {
-    deck = deck.slice(1); // burn before flop, turn and river
-    const drawCount = board.length === 0 ? 3 : 1;
-    board = [...board, ...deck.slice(0, drawCount)];
-    deck = deck.slice(drawCount);
-  }
-  return { ...state, board, deck };
+function beginRunout(state: GameState): GameState {
+  return {
+    ...state,
+    players: state.players.map((player) => ({ ...player, streetBet: 0, lastAction: null })),
+    currentBet: 0,
+    currentActor: null,
+    pending: [],
+    raiseLocked: [],
+    runout: true,
+  };
+}
+
+export function advanceRunout(state: GameState): GameState {
+  if (!state.runout) throw new Error('No all-in runout is pending');
+  if (state.board.length >= 5) return finishShowdown({ ...state, runout: false });
+
+  const boardLength = state.board.length;
+  const startsStreet = boardLength === 0 || boardLength === 3 || boardLength === 4;
+  const deck = startsStreet ? state.deck.slice(1) : [...state.deck];
+  if (deck.length === 0) throw new Error('Deck exhausted during all-in runout');
+  const street: Street = boardLength < 3 ? 'flop' : boardLength === 3 ? 'turn' : 'river';
+  let next: GameState = {
+    ...state,
+    board: [...state.board, deck[0]],
+    deck: deck.slice(1),
+    street,
+    currentActor: null,
+    pending: [],
+    raiseLocked: [],
+    runout: true,
+  };
+  if (street !== state.street) next = appendLog(next, { type: 'street', street });
+  return next;
 }
 
 function advanceStreet(state: GameState): GameState {
@@ -528,7 +557,7 @@ function advanceStreet(state: GameState): GameState {
   next = appendLog(next, { type: 'street', street });
 
   // With fewer than two players able to wager, no further betting is possible.
-  if (actionableIndices(players).length < 2) return finishShowdown(revealToShowdown(next));
+  if (actionableIndices(players).length < 2) return beginRunout(next);
   next.currentActor = nextPendingSeat(players, state.dealerIndex, next.pending);
   return next;
 }
@@ -590,7 +619,10 @@ export function applyPlayerAction(state: GameState, seatIndex: number, action: P
 
   const live = liveIndices(players);
   if (live.length === 1) return finishUncontested(next, live[0]);
-  if (pending.length === 0) return advanceStreet(next);
+  if (pending.length === 0) {
+    if (live.length > 1 && actionableIndices(players).length < 2) return beginRunout(next);
+    return advanceStreet(next);
+  }
   next.currentActor = nextPendingSeat(players, seatIndex, pending);
   return next;
 }

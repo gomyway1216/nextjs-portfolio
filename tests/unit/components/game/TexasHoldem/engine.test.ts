@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  advanceRunout,
   applyPlayerAction,
   cardKey,
   createDeck,
@@ -79,12 +80,25 @@ describe('Texas Hold’em engine', () => {
     expect(finished.players.reduce((sum, seat) => sum + seat.stack, 0)).toBe(400);
   });
 
-  it('runs out all five community cards after a preflop all-in', () => {
+  it('runs out a preflop all-in one community card at a time before showdown', () => {
     let game = createGame(2, { rng: () => 0.31 });
     game = applyPlayerAction(game, 0, { type: 'raise', raiseTo: 200 });
     game = applyPlayerAction(game, 1, { type: 'call' });
+    expect(game.runout).toBe(true);
+    expect(game.street).toBe('preflop');
+    expect(game.board).toHaveLength(0);
+
+    for (let revealed = 1; revealed <= 5; revealed += 1) {
+      game = advanceRunout(game);
+      expect(game.board).toHaveLength(revealed);
+      expect(game.runout).toBe(true);
+      expect(game.result).toBeNull();
+    }
+    expect(game.street).toBe('river');
+
+    game = advanceRunout(game);
     expect(game.street).toBe('complete');
-    expect(game.board).toHaveLength(5);
+    expect(game.runout).toBe(false);
     expect(game.players.reduce((sum, seat) => sum + seat.stack, 0)).toBe(400);
   });
 

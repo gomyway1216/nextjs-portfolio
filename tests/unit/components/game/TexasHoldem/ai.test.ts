@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { decideCpuAction, preflopStrength } from '@/components/game/TexasHoldem/ai';
-import { applyPlayerAction, createGame, type Card } from '@/components/game/TexasHoldem/engine';
+import { advanceRunout, applyPlayerAction, createGame, type Card } from '@/components/game/TexasHoldem/engine';
 
 const card = (rank: Card['rank'], suit: Card['suit']): Card => ({ rank, suit });
 
@@ -34,8 +34,14 @@ describe('Texas Hold’em CPU policy', () => {
       for (let repetition = 0; repetition < 4; repetition += 1) {
         let game = createGame(seats, { rng });
         let actions = 0;
-        while (game.street !== 'complete' && game.currentActor !== null) {
+        while (game.street !== 'complete') {
+          if (game.runout) {
+            game = advanceRunout(game);
+            continue;
+          }
           const actor = game.currentActor;
+          expect(actor).not.toBeNull();
+          if (actor === null) throw new Error('Hand stalled without an actor or runout');
           game = applyPlayerAction(game, actor, decideCpuAction(game, actor, rng));
           actions += 1;
           expect(actions).toBeLessThan(160);

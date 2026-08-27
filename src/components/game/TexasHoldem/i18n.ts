@@ -25,6 +25,7 @@ export interface HoldemStrings {
     bigBlind: string;
     you: string;
     thinking: string;
+    runout: string;
     folded: string;
     allIn: string;
     actionLog: string;
@@ -45,6 +46,8 @@ export interface HoldemStrings {
     nextHand: string;
     newTable: string;
     rules: string;
+    soundOn: string;
+    soundOff: string;
   };
   result: {
     title: string;
@@ -100,6 +103,7 @@ const en: HoldemStrings = {
     bigBlind: 'Big blind',
     you: 'You',
     thinking: 'Calculating range…',
+    runout: 'Running the board one card at a time…',
     folded: 'Folded',
     allIn: 'All-in',
     actionLog: 'Action log',
@@ -120,6 +124,8 @@ const en: HoldemStrings = {
     nextHand: 'Deal next hand',
     newTable: 'New table',
     rules: 'Model & rules',
+    soundOn: 'Sound on',
+    soundOff: 'Mute sound',
   },
   result: {
     title: 'Hand complete',
@@ -190,6 +196,7 @@ const ja: HoldemStrings = {
     bigBlind: 'ビッグブラインド',
     you: 'あなた',
     thinking: 'レンジを計算中…',
+    runout: 'ボードを1枚ずつ公開中…',
     folded: 'フォールド',
     allIn: 'オールイン',
     actionLog: 'アクションログ',
@@ -210,6 +217,8 @@ const ja: HoldemStrings = {
     nextHand: '次のハンド',
     newTable: '新しいテーブル',
     rules: 'AIモデルとルール',
+    soundOn: 'サウンドON',
+    soundOff: 'ミュート',
   },
   result: {
     title: 'ハンド終了',

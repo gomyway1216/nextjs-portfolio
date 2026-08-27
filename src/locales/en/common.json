@@ -1179,6 +1179,10 @@
       "title": "Blackjack Strategy",
       "description": "Play simplified blackjack with basic-strategy hints and strategy simulations."
     },
+    "texas-holdem": {
+      "title": "Texas Hold'em",
+      "description": "Play 100bb no-limit Hold’em against up to seven GTO-inspired CPU opponents."
+    },
     "secretary-problem": {
       "title": "Secretary Problem",
       "description": "Interview candidates one by one and test the classic 37% stopping rule."

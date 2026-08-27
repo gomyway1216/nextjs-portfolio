@@ -6,12 +6,12 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Games & Interactive Demos',
   description:
-    'Browser games and interactive probability demos built by Yudai Yaguchi — shogi with a from-scratch AI engine, tetris, othello, blackjack, and classic probability puzzles.',
+    'Browser games and interactive probability demos built by Yudai Yaguchi — shogi with a from-scratch AI engine, Texas Hold’em, riichi mahjong, and classic probability puzzles.',
   alternates: { canonical: '/games' },
   openGraph: {
     title: 'Games & Interactive Demos | Yudai Yaguchi',
     description:
-      'Browser games and interactive probability demos — shogi with a from-scratch AI engine, tetris, othello, blackjack, and classic probability puzzles.',
+      'Browser games and interactive probability demos — shogi with a from-scratch AI engine, Texas Hold’em, riichi mahjong, and classic probability puzzles.',
     url: '/games',
   },
 };

@@ -293,6 +293,15 @@ export const games: Game[] = [
     category: 'Card',
   },
   {
+    id: 'texas-holdem',
+    title: "Texas Hold'em",
+    description: 'Play 100bb no-limit Hold’em against up to seven GTO-inspired CPU opponents.',
+    thumbnail: '♠️',
+    path: '/games/texas-holdem',
+    difficulty: 'Hard',
+    category: 'Card',
+  },
+  {
     id: 'secretary-problem',
     title: 'Secretary Problem',
     description: 'Interview candidates one by one and test the classic 37% stopping rule.',

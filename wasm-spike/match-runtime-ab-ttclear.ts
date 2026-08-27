@@ -1,4 +1,18 @@
 /**
+ * match-runtime-ab-ttclear.ts — DIAGNOSTIC copy of match-runtime-ab.ts that
+ * clears the transposition table before EVERY move on BOTH sides.
+ *
+ * Why: the soft time limit was designed on the premise that an iterative
+ * deepening iteration cut off by the hard limit is discarded, so the time it
+ * consumed bought nothing. That is true for the current move and FALSE for the
+ * game — the TT is retained within a game, so the deep entries the aborted
+ * iteration wrote are read by the next search. If that carry-over is what the
+ * soft limit was destroying, then removing it from BOTH sides should make the
+ * candidate's deficit shrink or vanish. This run is a mechanism probe, not a
+ * gate; the verdict comes from the normal harness.
+ *
+ * (original header follows)
+ *
  * match-runtime-ab.ts — engine-vs-engine A/B where the two sides may be
  * DIFFERENT WASM runtimes.
  *
@@ -24,7 +38,7 @@
  * and draws by fourfold repetition or 256 plies.
  *
  * Usage:
- *   node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> \
+ *   node -r tsx/cjs wasm-spike/match-runtime-ab-ttclear.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
  *     [--scale-numer 1] [--scale-denom 1] [--max-plies 256] \
  *     [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] \
@@ -112,7 +126,7 @@ function argLazyPickerMinMoves(flag: string): number {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] [--json verdict.json]",
+    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab-ttclear.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] [--json verdict.json]",
   );
   process.exit(2);
 }
@@ -207,6 +221,9 @@ class WasmPlayer {
   readonly moveMs: number[] = [];
 
   getNextTe(k: KyokumenImproved, tesu: number): Te | null {
+    // The whole point of this copy: no search may inherit anything the
+    // previous search left behind.
+    this.wasm.clearTT();
     syncWasm(this.wasm, k);
     this.wasm.setRootTesu(tesu);
     const t0 = performance.now();
@@ -495,7 +512,7 @@ function main(): void {
       `fixed-time-ms=${MOVE_MS}, ` +
       `max-plies=${MAX_PLIES}, ` +
       `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
-      `tt=clear-before-each-game-retain-within-game ===`,
+      `tt=clear-before-every-move ===`,
   );
 
   for (let game = 0; game < GAMES; game++) {

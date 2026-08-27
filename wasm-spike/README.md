@@ -23,6 +23,8 @@ wasm-spike/
   nnue-verify-reference.ts # 実重み照合（ml/dump-reference.py の出力と 3-way 照合）
   artifacts/shogi-halfkp81-research.wasm # 81-bucket HalfKP 研究専用（本番loaderは参照しない）
   build-halfkp81-research-wasm.mjs # temp内でpatch・compile・hash検証して研究artifactだけを更新
+  build-soft-time-telemetry-wasm.mjs # 反復深化トレース付き研究ビルド（時間管理の計測用・本番外）
+  soft-time-trace-collect.ts # 上のビルドで自己対局し、完了反復ごとの経過時間をJSONLに出す
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
 src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm # ★ブラウザが読む本番バイナリ
 src/components/game/ShogiImproved/wasm/shogiHalfkp81ProductionWasmBase64.ts # 上記のbase64＋SHOGI_WASM_IDENTITY（identityの唯一の正）
@@ -330,6 +332,28 @@ node -r tsx/cjs wasm-spike/match-runtime-ab.ts public/shogi-halfkp81-production-
   --wasm-path src/components/game/ShogiImproved/wasm/shogi-halfkp81-production.wasm \
   --wasm-path-b /path/to/baseline.wasm --games 8 --ms 1000 --seed 101
 ```
+
+`--json <path>` を付けると、スコア・Wilson 95% CI・**両側の1手あたり思考時間**
+(mean/p50/p95/max) ・局ごとの結果が機械可読で落ちる。時間管理を触る変更は
+「強さが落ちていないこと」と「待ち時間が伸びていないこと」の両方が判定条件になるので、
+思考時間はハーネス側で実測する(仮定しない)。
+
+### 時間管理(soft limit / hard limit)の計測ツール
+
+```sh
+# 反復深化のトレース出力つき研究ビルド(本番には入れない)
+node wasm-spike/build-soft-time-telemetry-wasm.mjs /tmp/telemetry.wasm
+
+# 1000ms/手の自己対局を回して、完了反復ごとの (深さ/スコア/最善手/経過ms) を JSONL に出す
+node -r tsx/cjs wasm-spike/soft-time-trace-collect.ts \
+  /tmp/telemetry.wasm public/shogi-halfkp81-production-weights.bin /tmp/traces.jsonl \
+  --games 8 --ms 1000 --seed 41
+```
+
+トレースを取る動機は「予算がどこに消えているか」を推測しないこと。実測では
+**開始した最後の反復が95.8%(658/687)の探索で時間切れ破棄され、その反復に平均713ms/1000msを
+費やしていた**。`stopped` が立った反復は丸ごと捨てられる設計なので、この時間は
+その手のために1ビットも使われていない。soft limit をこの数字の上に設計している。
 
 ### スケール適応の単離測定（2026-07-04、setNnueOutputScale 37/10 — 回復せず）
 

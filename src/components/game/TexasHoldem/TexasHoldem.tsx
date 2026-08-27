@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { BrainCircuit, CircleHelp, RotateCcw, ShieldCheck, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { BrainCircuit, CircleHelp, RotateCcw, ShieldCheck, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { InfoModal } from '../common';
 import { GameLanguageProvider, useGameLanguage } from '../contexts/GameLanguageContext';
 import { decideCpuAction } from './ai';
@@ -135,13 +135,14 @@ function Seat({ state, player, index, strings }: {
   strings: HoldemStrings;
 }) {
   const isActing = state.currentActor === index;
+  const isWinner = state.result?.winnerIndices.includes(index) ?? false;
   const atShowdown = state.street === 'complete' && !!state.result && !state.result.uncontested && !player.folded;
   const spectatingCpuBattle = state.players[0]?.folded && !player.isHuman;
   const reveal = player.isHuman || spectatingCpuBattle || atShowdown;
-  const label = actionLabel(player, strings);
+  const label = isWinner ? strings.result.winner : actionLabel(player, strings);
   return (
     <div
-      className={`${styles.seat} ${player.isHuman ? styles.humanSeat : ''} ${isActing ? styles.actingSeat : ''} ${player.folded ? styles.foldedSeat : ''}`}
+      className={`${styles.seat} ${player.isHuman ? styles.humanSeat : ''} ${isActing ? styles.actingSeat : ''} ${isWinner ? styles.winnerSeat : ''} ${player.folded ? styles.foldedSeat : ''}`}
       style={seatStyle(index, state.players.length)}
     >
       <div className={styles.seatCards}>
@@ -224,7 +225,8 @@ function ResultPanel({ state, strings, onNext }: { state: GameState; strings: Ho
           const rank = state.result?.handRanks[winner];
           return (
             <h2 key={winner}>
-              {playerName(state.players[winner], strings)} · {chips(state.result?.payouts[winner] ?? 0)}
+              <span className={styles.winnerName}><Trophy size={17} aria-hidden="true" />{strings.result.winner}: {playerName(state.players[winner], strings)}</span>
+              <strong className={styles.winnerPayout}>+{chips(state.result?.payouts[winner] ?? 0)}</strong>
               <small>{state.result?.uncontested ? strings.result.uncontested : rank ? strings.hands[rank.name] : ''}</small>
             </h2>
           );

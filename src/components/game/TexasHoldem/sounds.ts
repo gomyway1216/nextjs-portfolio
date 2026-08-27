@@ -1,6 +1,7 @@
 export type PokerSound = 'deal' | 'card' | 'chip' | 'fold' | 'showdown';
 
 let audioContext: AudioContext | null = null;
+const POKER_VOLUME_BOOST = 2.6;
 
 function context(): AudioContext | null {
   if (typeof window === 'undefined' || typeof AudioContext === 'undefined') return null;
@@ -23,7 +24,7 @@ function tone(
   oscillator.frequency.setValueAtTime(frequency, start);
   oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), start + duration);
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + Math.min(.012, duration / 3));
+  gain.gain.exponentialRampToValueAtTime(Math.min(volume * POKER_VOLUME_BOOST, .14), start + Math.min(.012, duration / 3));
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain).connect(audio.destination);
   oscillator.start(start);

@@ -149,6 +149,9 @@
 .seatPanel { position: relative; z-index: 1; min-height: 55px; padding: 13px 8px 7px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: linear-gradient(165deg, rgba(23, 42, 35, .98), rgba(8, 19, 15, .98)); box-shadow: 0 8px 20px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.06); }
 .humanSeat .seatPanel { border-color: rgba(232, 188, 101, .55); background: linear-gradient(165deg, #3a3120, #171a13); }
 .actingSeat .seatPanel { border-color: var(--poker-cyan); box-shadow: 0 0 0 3px rgba(108,230,193,.13), 0 8px 24px rgba(0,0,0,.4); animation: actingGlow 1.35s ease-in-out infinite; }
+.winnerSeat { opacity: 1; filter: none; }
+.winnerSeat .seatPanel { border-color: #ffd978; background: linear-gradient(165deg, #55441f, #201a0d); box-shadow: 0 0 0 4px rgba(232,188,101,.22), 0 0 32px rgba(232,188,101,.5), 0 8px 24px rgba(0,0,0,.42); animation: winnerGlow 1.25s ease-in-out infinite; }
+.winnerSeat .lastAction { color: #241805; border-color: #ffe2a0; background: #f1c96f; }
 .foldedSeat { opacity: .43; filter: grayscale(.55); }
 .seatNameRow { display: flex; align-items: center; justify-content: center; gap: .24rem; min-width: 0; }
 .seatNameRow strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
@@ -193,8 +196,10 @@
 
 .resultPanel { position: relative; width: 100%; flex: 0 0 auto; display: flex; align-items: stretch; flex-direction: column; gap: .75rem; margin: 0; padding: .9rem; border-color: rgba(232,188,101,.35); }
 .resultPanel p { margin: 0 0 .28rem; color: var(--poker-gold); font-size: .7rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-.resultPanel h2 { margin: .18rem 0; font: 600 1.08rem/1.2 ui-sans-serif, system-ui; }
+.resultPanel h2 { display: flex; flex-direction: column; gap: .22rem; margin: .18rem 0; font: 600 1.08rem/1.2 ui-sans-serif, system-ui; }
 .resultPanel h2 small { display: inline-block; margin-left: .5rem; color: var(--poker-muted); font-size: .72rem; font-weight: 600; }
+.winnerName { display: flex; align-items: center; gap: .38rem; color: #fff0bf; }
+.winnerPayout { color: var(--poker-gold); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .resultPanel button { width: 100%; flex: 0 0 auto; min-height: 42px; padding: .65rem .9rem; border: 0; border-radius: 10px; color: #221805; background: var(--poker-gold); font-size: .84rem; font-weight: 850; cursor: pointer; }
 .potBreakdown { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .42rem; }
 .potBreakdown span { padding: .2rem .42rem; border: 1px solid var(--poker-line); border-radius: 999px; color: var(--poker-muted); font-size: .66rem; }
@@ -219,6 +224,7 @@
 @keyframes seatIn { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
 @keyframes pulse { 50% { opacity: .48; } }
 @keyframes actingGlow { 50% { box-shadow: 0 0 0 4px rgba(108,230,193,.19), 0 8px 24px rgba(0,0,0,.4); } }
+@keyframes winnerGlow { 50% { box-shadow: 0 0 0 5px rgba(232,188,101,.32), 0 0 42px rgba(232,188,101,.66), 0 8px 24px rgba(0,0,0,.42); } }
 
 @media (max-width: 1080px) {
   .gameLayout { grid-template-columns: 1fr; }

@@ -51,6 +51,7 @@ export interface HoldemStrings {
   };
   result: {
     title: string;
+    winner: string;
     wins: string;
     split: string;
     uncontested: string;
@@ -129,6 +130,7 @@ const en: HoldemStrings = {
   },
   result: {
     title: 'Hand complete',
+    winner: 'Winner',
     wins: 'wins',
     split: 'split the pot',
     uncontested: 'Everyone else folded',
@@ -222,6 +224,7 @@ const ja: HoldemStrings = {
   },
   result: {
     title: 'ハンド終了',
+    winner: '勝者',
     wins: '獲得',
     split: 'ポットを分配',
     uncontested: '全員がフォールド',

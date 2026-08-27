@@ -26,6 +26,8 @@ type SeatStyle = CSSProperties & { '--seat-x': string; '--seat-y': string };
 
 const RUNOUT_CARD_DELAY_MS = 1400;
 const RUNOUT_SHOWDOWN_DELAY_MS = 1700;
+const CPU_ACTION_DELAY_MIN_MS = 900;
+const CPU_ACTION_DELAY_JITTER_MS = 500;
 
 const chips = (amount: number): string => amount.toLocaleString('en-US');
 
@@ -330,7 +332,7 @@ function TexasHoldemInner() {
         if (!current || current.currentActor !== actor || current.street === 'complete') return current;
         return applyPlayerAction(current, actor, decideCpuAction(current, actor));
       });
-    }, 420 + Math.floor(Math.random() * 380));
+    }, CPU_ACTION_DELAY_MIN_MS + Math.floor(Math.random() * CPU_ACTION_DELAY_JITTER_MS));
     return () => window.clearTimeout(timer);
   }, [game]);
 

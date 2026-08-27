@@ -9,6 +9,7 @@ import {
   advanceRunout,
   applyPlayerAction,
   createGame,
+  evaluateMadeHand,
   getLegalActions,
   startNextHand,
   totalPot,
@@ -139,6 +140,7 @@ function Seat({ state, player, index, strings }: {
   const atShowdown = state.street === 'complete' && !!state.result && !state.result.uncontested && !player.folded;
   const spectatingCpuBattle = state.players[0]?.folded && !player.isHuman;
   const reveal = player.isHuman || spectatingCpuBattle || atShowdown;
+  const madeHand = reveal && !player.isHuman && !player.folded ? evaluateMadeHand(player.hole, state.board) : null;
   const label = isWinner ? strings.result.winner : actionLabel(player, strings);
   return (
     <div
@@ -151,11 +153,16 @@ function Seat({ state, player, index, strings }: {
       <div className={styles.seatPanel}>
         <div className={styles.seatNameRow}>
           <strong>{playerName(player, strings)}</strong>
-          {index === state.dealerIndex && <span title={strings.table.dealer}>D</span>}
-          {index === state.smallBlindIndex && <span title={strings.table.smallBlind}>SB</span>}
-          {index === state.bigBlindIndex && <span title={strings.table.bigBlind}>BB</span>}
+          {index === state.dealerIndex && <span className={`${styles.positionBadge} ${styles.buttonBadge}`} title={strings.table.dealer}>BTN</span>}
+          {index === state.smallBlindIndex && <span className={`${styles.positionBadge} ${styles.smallBlindBadge}`} title={strings.table.smallBlind}>SB</span>}
+          {index === state.bigBlindIndex && <span className={`${styles.positionBadge} ${styles.bigBlindBadge}`} title={strings.table.bigBlind}>BB</span>}
         </div>
         <div className={styles.stack}><i aria-hidden="true" />{chips(player.stack)}</div>
+        {madeHand && (
+          <span className={styles.madeHand} title={`${strings.table.madeHand}: ${strings.hands[madeHand.name]}`}>
+            {strings.hands[madeHand.name]}
+          </span>
+        )}
         {label && <span className={styles.lastAction}>{label}</span>}
       </div>
       {player.streetBet > 0 && <span className={styles.tableBet}><i aria-hidden="true" />{chips(player.streetBet)}</span>}
@@ -251,6 +258,8 @@ function GameTable({ state, strings, onAction, onNext }: {
   onNext: () => void;
 }) {
   const cpuThinking = state.currentActor !== null && !state.players[state.currentActor].isHuman && state.street !== 'complete';
+  const human = state.players.find((player) => player.isHuman);
+  const humanMadeHand = human && !human.folded ? evaluateMadeHand(human.hole, state.board) : null;
   return (
     <div className={styles.gameLayout}>
       <div className={styles.tableColumn}>
@@ -268,6 +277,12 @@ function GameTable({ state, strings, onAction, onNext }: {
                 ))}
               </div>
               <div className={styles.potLabel}><small>{strings.table.pot}</small><strong><i aria-hidden="true" />{chips(totalPot(state))}</strong></div>
+              {humanMadeHand && (
+                <span className={styles.heroMadeHand} title={`${strings.table.madeHand}: ${strings.hands[humanMadeHand.name]}`}>
+                  <small>{strings.table.madeHand}</small>
+                  <strong>{strings.hands[humanMadeHand.name]}</strong>
+                </span>
+              )}
               {cpuThinking && <span className={styles.thinking}><BrainCircuit size={14} aria-hidden="true" />{strings.table.thinking}</span>}
               {state.runout && <span className={styles.thinking}><Sparkles size={14} aria-hidden="true" />{strings.table.runout}</span>}
             </div>

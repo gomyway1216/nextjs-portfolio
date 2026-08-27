@@ -153,9 +153,9 @@ function Seat({ state, player, index, strings }: {
       <div className={styles.seatPanel}>
         <div className={styles.seatNameRow}>
           <strong>{playerName(player, strings)}</strong>
-          {index === state.dealerIndex && <span className={`${styles.positionBadge} ${styles.buttonBadge}`} title={strings.table.dealer}>BTN</span>}
-          {index === state.smallBlindIndex && <span className={`${styles.positionBadge} ${styles.smallBlindBadge}`} title={strings.table.smallBlind}>SB</span>}
-          {index === state.bigBlindIndex && <span className={`${styles.positionBadge} ${styles.bigBlindBadge}`} title={strings.table.bigBlind}>BB</span>}
+          {index === state.dealerIndex && <span className={`${styles.positionBadge} ${styles.buttonBadge}`} title={strings.table.dealer} aria-label={strings.table.dealer}>BTN</span>}
+          {index === state.smallBlindIndex && <span className={`${styles.positionBadge} ${styles.smallBlindBadge}`} title={strings.table.smallBlind} aria-label={strings.table.smallBlind}>SB</span>}
+          {index === state.bigBlindIndex && <span className={`${styles.positionBadge} ${styles.bigBlindBadge}`} title={strings.table.bigBlind} aria-label={strings.table.bigBlind}>BB</span>}
         </div>
         <div className={styles.stack}><i aria-hidden="true" />{chips(player.stack)}</div>
         {madeHand && (
@@ -258,7 +258,7 @@ function GameTable({ state, strings, onAction, onNext }: {
   onNext: () => void;
 }) {
   const cpuThinking = state.currentActor !== null && !state.players[state.currentActor].isHuman && state.street !== 'complete';
-  const human = state.players.find((player) => player.isHuman);
+  const human = state.players[0];
   const humanMadeHand = human && !human.folded ? evaluateMadeHand(human.hole, state.board) : null;
   return (
     <div className={styles.gameLayout}>

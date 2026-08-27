@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decideCpuAction, preflopStrength } from '@/components/game/TexasHoldem/ai';
+import { decideCpuAction, preflopStrength, requiredPostflopEquity } from '@/components/game/TexasHoldem/ai';
 import { advanceRunout, applyPlayerAction, createGame, type Card } from '@/components/game/TexasHoldem/engine';
 
 const card = (rank: Card['rank'], suit: Card['suit']): Card => ({ rank, suit });
@@ -21,6 +21,31 @@ describe('Texas Hold’em CPU policy', () => {
     expect(game.players[actor!].isHuman).toBe(false);
     const action = decideCpuAction(game, actor!, () => 0.5);
     expect(() => applyPlayerAction(game, actor!, action)).not.toThrow();
+  });
+
+  it('folds a marginal early-position hand when facing a raise', () => {
+    const game = createGame(6, { rng: () => 0.27 });
+    const actor = game.currentActor!;
+    const facingRaisePlayers = game.players.map((seat, index) => ({
+      ...seat,
+      hole: index === actor ? [card('K', '♠'), card('T', '♥')] : seat.hole,
+      stack: index === 0 ? 194 : seat.stack,
+      streetBet: index === 0 ? 6 : seat.streetBet,
+      totalContribution: index === 0 ? 6 : seat.totalContribution,
+    }));
+    const facingRaise = { ...game, players: facingRaisePlayers, currentBet: 6 };
+    expect(decideCpuAction(facingRaise, actor, () => 0.5)).toEqual({ type: 'fold' });
+
+    const premiumPlayers = facingRaisePlayers.map((seat, index) => ({
+      ...seat,
+      hole: index === actor ? [card('A', '♠'), card('K', '♠')] : seat.hole,
+    }));
+    expect(decideCpuAction({ ...facingRaise, players: premiumPlayers }, actor, () => 0.5).type).not.toBe('fold');
+  });
+
+  it('requires extra equity against a betting range, especially multiway', () => {
+    expect(requiredPostflopEquity(0.25, 1)).toBeCloseTo(0.305);
+    expect(requiredPostflopEquity(0.25, 3)).toBeCloseTo(0.35);
   });
 
   it('plays complete mixed-strategy hands without illegal actions or chip loss', () => {

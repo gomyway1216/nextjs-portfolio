@@ -134,8 +134,8 @@
 .centerMark { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%) rotate(-8deg); color: rgba(244, 224, 181, 0.08); font: 700 clamp(2rem, 6vw, 5rem)/1 Georgia, serif; letter-spacing: 0.05em; white-space: nowrap; }
 .boardArea { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; width: 58%; }
 .streetPill { margin-bottom: 0.48rem; padding: 0.28rem 0.62rem; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: #d4e7df; background: rgba(0,0,0,.23); font-size: 0.72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.communityCards { display: flex; justify-content: center; gap: clamp(0.22rem, 0.7vw, 0.48rem); min-height: 76px; }
-.cardSlot { width: clamp(38px, 4.4vw, 56px); height: clamp(55px, 6.2vw, 78px); border: 1px dashed rgba(255,255,255,.15); border-radius: 8px; background: rgba(0,0,0,.08); }
+.communityCards { display: flex; justify-content: center; gap: clamp(0.25rem, 0.75vw, 0.55rem); min-height: 96px; }
+.cardSlot { width: clamp(50px, 5.2vw, 68px); height: clamp(70px, 7.4vw, 96px); border: 1px dashed rgba(255,255,255,.15); border-radius: 9px; background: rgba(0,0,0,.08); }
 .potLabel { display: flex; flex-direction: column; align-items: center; margin-top: 0.55rem; }
 .potLabel small { color: #b7cec4; font-size: 0.7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .potLabel strong { display: flex; align-items: center; gap: .32rem; color: #fff4ce; font-size: 1.15rem; }
@@ -143,8 +143,8 @@
 .thinking { display: inline-flex; align-items: center; gap: .32rem; margin-top: .45rem; color: #b8f4df; font-size: .74rem; animation: pulse 1.2s ease-in-out infinite; }
 
 .seat { position: absolute; z-index: 4; left: var(--seat-x); top: var(--seat-y); width: 132px; transform: translate(-50%, -50%); text-align: center; transition: opacity 180ms, filter 180ms; }
-.seatCards { position: relative; z-index: 2; display: flex; justify-content: center; margin-bottom: -9px; min-height: 50px; pointer-events: none; }
-.seatCards > * + * { margin-left: -13px; transform: rotate(4deg); }
+.seatCards { position: relative; z-index: 2; display: flex; justify-content: center; margin-bottom: -10px; min-height: 62px; pointer-events: none; }
+.seatCards > * + * { margin-left: -15px; transform: rotate(4deg); }
 .seatCards > *:first-child { transform: rotate(-4deg); }
 .seatPanel { position: relative; z-index: 1; min-height: 55px; padding: 13px 8px 7px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: linear-gradient(165deg, rgba(23, 42, 35, .98), rgba(8, 19, 15, .98)); box-shadow: 0 8px 20px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.06); }
 .humanSeat .seatPanel { border-color: rgba(232, 188, 101, .55); background: linear-gradient(165deg, #3a3120, #171a13); }
@@ -163,15 +163,15 @@
 .tableBet i { width: 10px; height: 10px; border-width: 2px; }
 
 /* Cards */
-.playingCard { position: relative; flex: 0 0 auto; width: clamp(38px, 4.4vw, 56px); height: clamp(55px, 6.2vw, 78px); display: inline-flex; flex-direction: column; justify-content: space-between; padding: .3rem; overflow: hidden; border: 1px solid rgba(21, 26, 25, .24); border-radius: 8px; background: linear-gradient(145deg, #fffefa, #e9ece7); box-shadow: 0 5px 10px rgba(0,0,0,.32), inset 0 1px #fff; animation: dealIn 300ms cubic-bezier(.2,.8,.25,1) both; }
-.cardCompact { width: 37px; height: 52px; padding: .22rem; border-radius: 6px; }
+.playingCard { position: relative; flex: 0 0 auto; width: clamp(50px, 5.2vw, 68px); height: clamp(70px, 7.4vw, 96px); display: inline-flex; flex-direction: column; justify-content: space-between; padding: .34rem; overflow: hidden; border: 1px solid rgba(21, 26, 25, .24); border-radius: 9px; background: linear-gradient(145deg, #fffefa, #e9ece7); box-shadow: 0 5px 10px rgba(0,0,0,.32), inset 0 1px #fff; animation: dealIn 300ms cubic-bezier(.2,.8,.25,1) both; }
+.cardCompact { width: 46px; height: 64px; padding: .26rem; border-radius: 7px; }
 .cardRed { color: #c32732; }
 .cardBlack { color: #17201e; }
-.cardCorner { display: flex; flex-direction: column; align-items: flex-start; font: 800 clamp(.7rem, 1.5vw, .95rem)/.8 ui-sans-serif, system-ui; }
-.cardCorner small { font-size: .72em; }
-.cardSuit { align-self: flex-end; font-size: clamp(1.05rem, 2.3vw, 1.6rem); line-height: 1; }
-.cardCompact .cardCorner { font-size: .68rem; }
-.cardCompact .cardSuit { font-size: .95rem; }
+.cardCorner { display: flex; align-items: baseline; gap: .06em; font: 900 clamp(.9rem, 1.75vw, 1.18rem)/1 ui-sans-serif, system-ui; }
+.cardCorner small { font-size: .92em; line-height: 1; }
+.cardSuit { align-self: flex-end; font-size: clamp(1.5rem, 2.7vw, 2.15rem); font-weight: 900; line-height: .9; }
+.cardCompact .cardCorner { font-size: .86rem; }
+.cardCompact .cardSuit { font-size: 1.32rem; }
 .cardBack { padding: 4px; border-color: #c8b57d; background: #eee8d8; }
 .cardBackPattern { width: 100%; height: 100%; border: 2px solid rgba(255,255,255,.7); border-radius: 5px; background: repeating-linear-gradient(45deg, transparent 0 4px, rgba(255,255,255,.19) 4px 6px), radial-gradient(circle, #1b8468 0 2px, #0f5845 3px 5px); }
 
@@ -254,15 +254,15 @@
   .stack { font-size: .67rem; }
   .lastAction { bottom: -15px; font-size: .53rem; }
   .tableBet { top: calc(100% + 18px); font-size: .59rem; }
-  .seatCards { min-height: 39px; margin-bottom: -7px; }
-  .cardCompact { width: 29px; height: 41px; }
-  .seatCards > * + * { margin-left: -10px; }
-  .cardCompact .cardCorner { font-size: .52rem; }
-  .cardCompact .cardSuit { font-size: .7rem; }
+  .seatCards { min-height: 48px; margin-bottom: -8px; }
+  .cardCompact { width: 36px; height: 50px; }
+  .seatCards > * + * { margin-left: -11px; }
+  .cardCompact .cardCorner { font-size: .66rem; }
+  .cardCompact .cardSuit { font-size: 1rem; }
   .boardArea { width: 72%; }
-  .communityCards { min-height: 57px; }
-  .playingCard:not(.cardCompact) { width: 39px; height: 57px; }
-  .cardSlot { width: 39px; height: 57px; }
+  .communityCards { min-height: 64px; }
+  .playingCard:not(.cardCompact) { width: 45px; height: 64px; }
+  .cardSlot { width: 45px; height: 64px; }
   .actionDock { left: 50%; bottom: max(.35rem, env(safe-area-inset-bottom)); width: calc(100vw - .7rem); grid-template-columns: 1fr; border-radius: 14px; }
   .decisionHud { grid-column: 1; border-right: 0; border-bottom: 1px solid var(--poker-line); }
   .decisionHud span { padding: .38rem; }
@@ -276,8 +276,8 @@
   .seat { width: 80px; }
   .seatNameRow strong { max-width: 50px; }
   .boardArea { width: 78%; }
-  .playingCard:not(.cardCompact), .cardSlot { width: 34px; height: 50px; }
-  .communityCards { min-height: 50px; }
+  .playingCard:not(.cardCompact), .cardSlot { width: 40px; height: 58px; }
+  .communityCards { min-height: 58px; }
   .centerMark { display: none; }
   .headerActions button { flex: 1 1 auto; justify-content: center; }
 }

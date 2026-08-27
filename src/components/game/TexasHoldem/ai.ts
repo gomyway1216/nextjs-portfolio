@@ -137,15 +137,19 @@ function preflopDecision(state: GameState, seatIndex: number, rng: () => number)
   }
 
   const facingThreeBet = betInBigBlinds > 4.2;
-  const continueThreshold = (facingThreeBet ? 0.76 : 0.59) + (relativeToDealer(state, seatIndex) > 2 ? -0.025 : 0);
-  const adjustedContinue = continueThreshold - clamp((potOdds - 0.25) * 0.35, -0.03, 0.08);
-  const raiseThreshold = facingThreeBet ? 0.91 : 0.82;
+  const relative = relativeToDealer(state, seatIndex);
+  const positionDiscount = relative === 0 ? 0.045 : relative === state.players.length - 1 ? 0.03 : relative === 2 ? 0.035 : 0;
+  const continueThreshold = (facingThreeBet ? 0.86 : 0.72) - positionDiscount;
+  // A larger price must tighten the continue range. The previous subtraction
+  // inverted this relationship and made CPUs call larger raises too often.
+  const adjustedContinue = continueThreshold + clamp((potOdds - 0.25) * 0.32, -0.025, 0.065);
+  const raiseThreshold = facingThreeBet ? 0.92 : 0.84;
 
   if (legal.canRaise && rng() < mixFrequency(strength, raiseThreshold, 0.1) * 0.72) {
     const target = legalRaiseTarget(state, seatIndex, facingThreeBet ? state.currentBet * 2.35 : state.currentBet * 3.1);
     if (target !== null) return { type: 'raise', raiseTo: target };
   }
-  if (legal.canCall && rng() < mixFrequency(strength, adjustedContinue, 0.17)) return { type: 'call' };
+  if (legal.canCall && rng() < mixFrequency(strength, adjustedContinue, 0.14)) return { type: 'call' };
 
   // A small blocker-bluff frequency keeps strong opponents from over-folding.
   const hasAce = player.hole.some((card) => card.rank === 'A');
@@ -182,16 +186,24 @@ function postflopDecision(state: GameState, seatIndex: number, rng: () => number
     return { type: 'check' };
   }
 
-  const required = potOdds + (opponents > 2 ? 0.035 : 0);
+  // Raw Monte-Carlo equity is measured against random hands, while a bettor's
+  // range is stronger. This margin prevents random-range equity from turning
+  // into unrealistically sticky calls, especially in multiway pots.
+  const required = requiredPostflopEquity(potOdds, opponents);
   const raiseForValue = equity > (spr < 1.4 ? 0.64 : 0.74);
-  const semiBluff = equity > required - 0.02 && equity < 0.42 && opponents === 1 && rng() < 0.085;
+  const semiBluff = equity > required - 0.015 && equity < 0.42 && opponents === 1 && rng() < 0.085;
   if (legal.canRaise && (raiseForValue || semiBluff) && rng() < (raiseForValue ? 0.61 : 1)) {
     const desired = state.currentBet + Math.max(state.minRaise, (pot + legal.callAmount) * (spr < 1.25 ? 1 : 0.68));
     const target = legalRaiseTarget(state, seatIndex, desired);
     if (target !== null) return { type: 'raise', raiseTo: target };
   }
-  if (legal.canCall && equity >= required - 0.025) return { type: 'call' };
+  if (legal.canCall && equity >= required) return { type: 'call' };
   return { type: 'fold' };
+}
+
+export function requiredPostflopEquity(potOdds: number, opponentCount: number): number {
+  const rangeMargin = opponentCount >= 3 ? 0.1 : opponentCount === 2 ? 0.075 : 0.055;
+  return clamp(potOdds + rangeMargin);
 }
 
 export function decideCpuAction(

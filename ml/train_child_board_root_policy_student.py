@@ -132,16 +132,16 @@ MOVE_UNIVERSE_RESPONSE_SCHEMA = (
 # call and the pipeline could not run at all. Keeping them honest is now a test
 # (ml/tests_stdlib/test_child_board_root_policy_student_bridge_pins.py), which
 # reads the constants straight out of the bridge and compares.
-MOVE_UNIVERSE_WASM_BYTES = 38_711
+MOVE_UNIVERSE_WASM_BYTES = 39_433
 MOVE_UNIVERSE_WASM_SHA256 = (
-    "ec555456e7df9369633aa2d85108e3f11868b0c70a64c6ecc16c8d7c1615f4ba"
+    "b43f13951ae1175499ff4577023bc44b44fb8972089d5cd9c939c7b26f1f5b2f"
 )
 MOVE_UNIVERSE_WASM_BUFFER_OFFSET = 7_128_112
 # Updated only when the reviewed bridge source changes. The verifier checks
 # this identity before spawning Node or opening a teacher checkpoint.
 MOVE_UNIVERSE_BRIDGE_BYTES = 12_325
 MOVE_UNIVERSE_BRIDGE_SHA256 = (
-    "2a2fce7b829ae1675d2e4f6727ea1b8f66d80ffecf8a5443b410e9475f399b4d"
+    "f7855f52b84ae2ef09a31f02cb469c1a607e795151b4cb891b88782a592a25c4"
 )
 SHARDS = 64
 V9_PRETRAIN_EPOCHS = 4

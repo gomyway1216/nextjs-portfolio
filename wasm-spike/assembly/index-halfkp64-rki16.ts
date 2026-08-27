@@ -3365,6 +3365,45 @@ const FUTILITY_MARGIN_1: i32 = 350;
 const FUTILITY_MARGIN_2: i32 = 700;
 const DRAW_CONTEMPT: i32 = 12;
 const CHECK_EXTENSION_MAX_PLY: i32 = 0;
+
+// --- Singular extension tunables ---------------------------------------------
+//
+// The exclusion search is only allowed at a node that already has a reasonably
+// deep lower/exact transposition entry. SINGULAR_DEPTH_MIN keeps the test off
+// the shallow majority of nodes; in shogi that matters more than in chess,
+// because a midgame node carries 100-180 pseudo-legal moves once drops are
+// counted and the exclusion search touches every one of them.
+const SINGULAR_DEPTH_MIN: i32 = 8;
+// How much shallower than this node the stored entry may be and still be
+// trusted for the test.
+const SINGULAR_TT_DEPTH_SLACK: i32 = 3;
+// singularBeta = ttValue - SINGULAR_MARGIN_PER_PLY * depthLeft, in the engine's
+// centipawn-like score units (the same units as FUTILITY_MARGIN_*). 16 is
+// deliberately wider than the ~2-3 per ply that chess engines use: this
+// evaluation is noisy enough that a narrow margin calls almost every stored
+// move singular, and every extra extension is paid for out of the time budget
+// (see the measurements in the PR that added this).
+const SINGULAR_MARGIN_PER_PLY: i32 = 16;
+// The exclusion search runs at depthLeft / SINGULAR_EXCLUSION_DEPTH_DIV.
+const SINGULAR_EXCLUSION_DEPTH_DIV: i32 = 3;
+// Anything at least this large in magnitude is a mate/sentinel score, not a
+// number the margin arithmetic may touch. S_MATE is 90,000,000 here and the
+// host's teacher corpus uses a separate +-999,98x mate sentinel; neither is
+// allowed to reach singularBeta, and neither is allowed to be extended on.
+const SINGULAR_SCORE_LIMIT: i32 = S_MATE - 10_000;
+// Hard cap on singular extensions along one root-to-leaf path. The existing
+// check extension can only fire at ply 0 (CHECK_EXTENSION_MAX_PLY == 0), and a
+// move is never extended by both sources at once, so the total extension
+// budget of any path is SINGULAR_MAX_PATH_EXT + 1 plies.
+const SINGULAR_MAX_PATH_EXT: i32 = 6;
+
+// Singular extensions currently open on the path from the root to this node.
+let pathSingularExtG: i32 = 0;
+// Current iterative-deepening iteration, used for the ply < 2 * depth guard.
+let rootIterDepthG: i32 = 1;
+// Diagnostics: exclusion searches run, and how many of them extended.
+let singularTriedG: i32 = 0;
+let singularExtendedG: i32 = 0;
 let nullMoveReductionG: i32 = 2;
 let qCheckMoveLimit: i32 = 1;
 let qCheckTryLimit: i32 = 2;
@@ -3901,6 +3940,86 @@ function quiescenceAS(
   return alpha;
 }
 
+// --- Singular exclusion search -----------------------------------------------
+//
+// Reduced-depth null-window search of every move at this node EXCEPT the one
+// whose jsMoveKey is `excludedKey`. Its result is used ONLY as a boolean
+// predicate ("did everything else fail low?"); it never propagates into the
+// caller's alpha/beta, which is what keeps mate scores and the reduced-depth
+// numbers it produces from leaking into the node's real score.
+//
+// Returns S_INFINITE when `excludedKey` was not in the move list at all (a
+// stale or colliding transposition entry), which reads as "something held the
+// window" at the call site and suppresses the extension. That has to be part
+// of the return value rather than a flag in a global: the child searches this
+// function runs can themselves reach a singular test, and a global would come
+// back holding some nested node's answer instead of this one's.
+//
+// It deliberately does NOT re-enter searchNodeAS for this position. Instead it
+// walks the caller's already-generated, already-sorted move list at this ply
+// and recurses only into the children. Three things follow from that:
+//   * the node's own transposition entry is never probed and never written by
+//     the exclusion search, so the entry the move is excluded from cannot be
+//     polluted, and no excluded-move flag has to be threaded through the TT;
+//   * the repetition stack is not pushed a second time for this position, so
+//     the test cannot turn the node into a fake sennichite draw;
+//   * no second move generation happens. In shogi that is the difference
+//     between a cheap test and an expensive one, because generateMoves() has
+//     to enumerate every drop of every held piece type onto every empty square
+//     (plus the uchifuzume filter) and is the dominant per-node cost.
+function singularExclusionSearchAS(
+  n: i32,
+  base: i32,
+  excludedKey: i32,
+  sDepth: i32,
+  sBeta: i32,
+  ply: i32,
+  parentInCheck: bool,
+): i32 {
+  const mover = teban;
+  const enemy = mover == SENTE ? GOTE : SENTE;
+  let best = -S_INFINITE;
+  let foundExcluded = false;
+
+  for (let i = 0; i < n; i++) {
+    const m = unchecked(moveBuf[base + i]);
+    if (jsMoveKeyOf(m) == excludedKey) {
+      foundExcluded = true;
+      continue;
+    }
+    const from = (m >> 8) & 0xff;
+
+    makeMove(m);
+    // Same lazy legality rule as the main loop: a drop cannot expose the
+    // mover's own king unless the mover was already in check.
+    if ((from != 0 || parentInCheck) && isKingInCheck(mover)) {
+      unmakeMove(m);
+      continue;
+    }
+    teban = enemy;
+
+    if (ply + 1 < S_MAX_PLY) {
+      unchecked(prevKeyByPly[ply + 1] = jsMoveKeyOf(m));
+      unchecked(prevPtByPly[ply + 1] = pieceToIndexOf(m));
+    }
+
+    const score = -searchNodeAS(sDepth, -sBeta, -sBeta + 1, ply + 1);
+
+    teban = mover;
+    unmakeMove(m);
+    if (stopped) return S_INFINITE;
+
+    if (score > best) best = score;
+    // One move holding the lowered window is already enough to prove the
+    // excluded move is not singular; stop paying for the rest. Breaking before
+    // the excluded move has been seen is harmless: best >= sBeta and the
+    // not-found S_INFINITE both mean "do not extend" at the call site.
+    if (best >= sBeta) break;
+  }
+
+  return foundExcluded ? best : S_INFINITE;
+}
+
 // --- Main search (port of search) --------------------------------------------------
 
 function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
@@ -3934,9 +4053,17 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
   const hashVal = getHashVal();
   let ttMoveKey = 0;
   let ttSecondMoveKey = 0;
+  // ttHit* are globals and every nested search clobbers them, so the fields the
+  // singular test needs are snapshotted into locals here (and again after IID).
+  let ttValueSnap = 0;
+  let ttFlagSnap = TT_UPPER;
+  let ttDepthSnap = -1;
   if (ttLookup(hashVal)) {
     ttMoveKey = ttHitBest;
     ttSecondMoveKey = ttHitSecond;
+    ttValueSnap = ttHitValue;
+    ttFlagSnap = ttHitFlag;
+    ttDepthSnap = ttHitDepth;
 
     // Never cut off at the root. The table is full of entries written by the
     // previous move's search and by up to 30s of pondering, and it carries no
@@ -3979,6 +4106,9 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
     if (ttLookup(hashVal)) {
       ttMoveKey = ttHitBest;
       ttSecondMoveKey = ttHitSecond;
+      ttValueSnap = ttHitValue;
+      ttFlagSnap = ttHitFlag;
+      ttDepthSnap = ttHitDepth;
     }
   }
 
@@ -4026,6 +4156,55 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
   orderDepthLeft = depthLeft;
   scoreAndSortMovesAS(ply, n, ttMoveKey, ttSecondMoveKey);
   orderDepthLeft = 99;
+
+  // Singular extension test. If the stored move is backed by a deep enough
+  // lower/exact bound and every OTHER move fails low against a margin-lowered
+  // window, the stored move is the only one holding the position together and
+  // is searched one ply deeper.
+  //
+  // Guards, in order: never at the root (the root must keep searching every
+  // move at its own depth), never at a checked node (evasion nodes run a
+  // different generator and are the one place the check extension lives), only
+  // with a stored move, only deep enough, only with a deep enough and non-UPPER
+  // bound, only for ordinary scores - a mate score or the host's +-999,98x
+  // sentinel must never enter the margin arithmetic - and only while the path
+  // extension budget and the ply < 2 * root-depth envelope allow it.
+  let singularKey = 0;
+  if (
+    ply > 0 &&
+    !parentInCheck &&
+    ttMoveKey != 0 &&
+    depthLeft >= SINGULAR_DEPTH_MIN &&
+    ttDepthSnap >= depthLeft - SINGULAR_TT_DEPTH_SLACK &&
+    ttFlagSnap != TT_UPPER &&
+    ttValueSnap > -SINGULAR_SCORE_LIMIT &&
+    ttValueSnap < SINGULAR_SCORE_LIMIT &&
+    pathSingularExtG < SINGULAR_MAX_PATH_EXT &&
+    ply < 2 * rootIterDepthG
+  ) {
+    const singularBeta = ttValueSnap - SINGULAR_MARGIN_PER_PLY * depthLeft;
+    // The lowered window itself has to stay an ordinary score too.
+    if (singularBeta > -SINGULAR_SCORE_LIMIT && singularBeta < SINGULAR_SCORE_LIMIT) {
+      singularTriedG++;
+      const excluded = singularExclusionSearchAS(
+        n,
+        base,
+        ttMoveKey,
+        depthLeft / SINGULAR_EXCLUSION_DEPTH_DIV,
+        singularBeta,
+        ply,
+        parentInCheck,
+      );
+      if (stopped) {
+        popRepetition();
+        return 0;
+      }
+      if (excluded < singularBeta) {
+        singularKey = ttMoveKey;
+        singularExtendedG++;
+      }
+    }
+  }
 
   // Futility pruning precompute (frontier nodes).
   const futilityApplicable =
@@ -4123,7 +4302,19 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
 
     const givesCheck = canCheckExtend || canLMRBase ? isKingInCheck(teban) : false;
 
-    const depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+    let depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+    // Extensions do not stack: a move gets at most +1 ply, from the check
+    // extension or from singularity, never both. The two cannot fire at the
+    // same node today anyway (check extension needs ply <= 0, singularity needs
+    // ply > 0), but keeping it explicit is what bounds the depth of a path if
+    // CHECK_EXTENSION_MAX_PLY is ever raised.
+    const singularMove = singularKey != 0 && jsMoveKeyOf(m) == singularKey;
+    if (singularMove && depthNext == baseDepthNext) depthNext = baseDepthNext + 1;
+
+    // The budget is held open for exactly this move's searches, including the
+    // LMR re-search and the PV re-search, and released below.
+    if (singularMove) pathSingularExtG++;
+
     let score = 0;
     if (searched == 0) {
       score = -searchNodeAS(depthNext, -beta, -alpha, ply + 1);
@@ -4147,6 +4338,8 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
         score = -searchNodeAS(depthNext, -beta, -alpha, ply + 1);
       }
     }
+
+    if (singularMove) pathSingularExtG--;
 
     teban = mover;
     unmakeMove(m);
@@ -4255,6 +4448,9 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   leafCount = 0;
   rootBestKey = 0;
   orderDepthLeft = 99;
+  pathSingularExtG = 0;
+  singularTriedG = 0;
+  singularExtendedG = 0;
   // Only the search PATH is per-search state. The game history is owned by the
   // host (clearGameHistory / pushGameHistoryHash) and deliberately survives.
   repSize = 0;
@@ -4330,6 +4526,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
 
   for (let depth = searchStartDepth; depth <= maxDepthL; depth++) {
     rootBestKey = 0;
+    rootIterDepthG = depth;
 
     // Aspiration windows with gradual (4x then full) widening.
     const useAspiration = depth >= 2;
@@ -4382,6 +4579,16 @@ export function getSearchDepth(): i32 {
 
 export function getSearchNodes(): i32 {
   return nodeCount;
+}
+
+/** Exclusion searches run during the last searchBestMove() call. */
+export function getSingularTried(): i32 {
+  return singularTriedG;
+}
+
+/** Of those, how many concluded the stored move was singular and extended it. */
+export function getSingularExtended(): i32 {
+  return singularExtendedG;
 }
 
 export function getSearchLeaves(): i32 {

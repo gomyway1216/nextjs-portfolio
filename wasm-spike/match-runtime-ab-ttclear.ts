@@ -38,7 +38,7 @@
  * and draws by fourfold repetition or 256 plies.
  *
  * Usage:
- *   node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> \
+ *   node -r tsx/cjs wasm-spike/match-runtime-ab-ttclear.ts <weights.bin> \
  *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
  *     [--scale-numer 1] [--scale-denom 1] [--max-plies 256] \
  *     [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] \
@@ -126,7 +126,7 @@ function argLazyPickerMinMoves(flag: string): number {
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith("--")) {
   console.error(
-    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] [--json verdict.json]",
+    "usage: node -r tsx/cjs wasm-spike/match-runtime-ab-ttclear.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1] [--max-plies 256] [--wasm-path candidate.wasm] [--wasm-path-b production.wasm] [--lazy-picker-a-min-moves 64] [--lazy-picker-b-min-moves 64] [--json verdict.json]",
   );
   process.exit(2);
 }
@@ -241,8 +241,11 @@ class WasmPlayer {
 function quantile(values: readonly number[], q: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.floor(q * sorted.length));
-  return sorted[idx];
+  // `(length - 1) * q`, matching packed-heap-microbench/run.mjs. NOT
+  // `q * length`: that indexes one sample too far and, for small samples,
+  // returns the maximum for every q above 1 - 1/length — which would make a
+  // reported p95 silently identical to the max.
+  return sorted[Math.floor((sorted.length - 1) * q)];
 }
 
 function timingSummary(moveMs: readonly number[]): {
@@ -509,7 +512,7 @@ function main(): void {
       `fixed-time-ms=${MOVE_MS}, ` +
       `max-plies=${MAX_PLIES}, ` +
       `lazy-picker=A:${lazyPickerLogValue(LAZY_PICKER_A_MIN_MOVES)},B:${lazyPickerLogValue(LAZY_PICKER_B_MIN_MOVES)}, ` +
-      `tt=clear-before-each-game-retain-within-game ===`,
+      `tt=clear-before-every-move ===`,
   );
 
   for (let game = 0; game < GAMES; game++) {

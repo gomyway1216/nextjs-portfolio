@@ -8,7 +8,7 @@
  * Offline replay of these traces is how the soft-limit thresholds get chosen
  * without running games per candidate setting.
  *
- * usage: node -r tsx/cjs collect-traces.ts <wasm> <weights> <out.jsonl> [--games N] [--ms M] [--seed S]
+ * usage: node -r tsx/cjs wasm-spike/soft-time-trace-collect.ts <wasm> <weights> <out.jsonl> [--games N] [--ms M] [--seed S]
  */
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -45,7 +45,17 @@ interface TelemetryWasm extends ShogiSearchWasm {
 
 function argNum(flag: string, def: number): number {
   const i = process.argv.indexOf(flag);
-  return i < 0 ? def : parseInt(process.argv[i + 1], 10);
+  if (i < 0) return def;
+  // Reject a missing or non-numeric value loudly. `parseInt(undefined)` is NaN,
+  // and NaN reaching the WASM boundary is coerced to 0 — which would silently
+  // run every search on a 0ms budget and produce a full trace file of garbage
+  // that looks exactly like a valid one.
+  const raw = process.argv[i + 1];
+  const value = raw === undefined ? NaN : Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${flag} requires a numeric value (got ${raw === undefined ? "nothing" : `"${raw}"`})`);
+  }
+  return Math.trunc(value);
 }
 
 const [wasmPath, weightsPath, outPath] = process.argv.slice(2);

@@ -224,8 +224,11 @@ class WasmPlayer {
 function quantile(values: readonly number[], q: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.floor(q * sorted.length));
-  return sorted[idx];
+  // `(length - 1) * q`, matching packed-heap-microbench/run.mjs. NOT
+  // `q * length`: that indexes one sample too far and, for small samples,
+  // returns the maximum for every q above 1 - 1/length — which would make a
+  // reported p95 silently identical to the max.
+  return sorted[Math.floor((sorted.length - 1) * q)];
 }
 
 function timingSummary(moveMs: readonly number[]): {

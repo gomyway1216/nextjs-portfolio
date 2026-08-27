@@ -414,6 +414,7 @@ export function settleShowdown(
 
   const levels = [...new Set(players.map((player) => player.totalContribution).filter((amount) => amount > 0))].sort((a, b) => a - b);
   const pots: PotResult[] = [];
+  const winnerIndices: number[] = [];
   let previous = 0;
   for (const level of levels) {
     const contributors = players
@@ -423,6 +424,10 @@ export function settleShowdown(
     const amount = (level - previous) * contributors.length;
     previous = level;
     if (amount <= 0) continue;
+    if (contributors.length === 1) {
+      payouts[contributors[0]] += amount;
+      continue;
+    }
     const eligible = contributors.filter((index) => !players[index].folded);
     if (eligible.length === 0) continue;
     let winners = [eligible[0]];
@@ -437,12 +442,13 @@ export function settleShowdown(
     for (const winner of winners) {
       payouts[winner] += share + (remainder > 0 ? 1 : 0);
       remainder -= remainder > 0 ? 1 : 0;
+      if (!winnerIndices.includes(winner)) winnerIndices.push(winner);
     }
     pots.push({ amount, eligible, winners });
   }
   return {
     payouts,
-    winnerIndices: payouts.map((amount, index) => ({ amount, index })).filter(({ amount }) => amount > 0).map(({ index }) => index),
+    winnerIndices,
     handRanks,
     pots,
     uncontested: false,

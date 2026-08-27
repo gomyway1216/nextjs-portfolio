@@ -136,7 +136,8 @@ function Seat({ state, player, index, strings }: {
 }) {
   const isActing = state.currentActor === index;
   const atShowdown = state.street === 'complete' && !!state.result && !state.result.uncontested && !player.folded;
-  const reveal = player.isHuman || atShowdown;
+  const spectatingCpuBattle = state.players[0]?.folded && !player.isHuman;
+  const reveal = player.isHuman || spectatingCpuBattle || atShowdown;
   const label = actionLabel(player, strings);
   return (
     <div

@@ -66,6 +66,17 @@ describe('Texas Hold’em engine', () => {
     expect(result.payouts).toEqual([150, 100, 0]);
   });
 
+  it('returns an uncalled overbet without reporting the losing player as a winner', () => {
+    const result = settleShowdown(
+      [player('2s 3h', 200), player('As Ah', 100)],
+      cards('4c 7d 9h Jc Kd'),
+      1,
+    );
+    expect(result.pots.map((pot) => pot.amount)).toEqual([200]);
+    expect(result.payouts).toEqual([100, 200]);
+    expect(result.winnerIndices).toEqual([1]);
+  });
+
   it('uses heads-up blind order and awards an uncontested fold', () => {
     const game = createGame(2, { rng: () => 0.42 });
     expect(game.dealerIndex).toBe(0);

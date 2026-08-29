@@ -1,7 +1,12 @@
 import { games, type Game } from '@/components/game/constants/games';
 
 export const HOME_GAMES_CACHE_TAG = 'home-games';
-export const DEFAULT_HOME_GAME_IDS = games.map((game) => game.id);
+const FEATURED_HOME_GAME_ID = 'shogi';
+
+export const DEFAULT_HOME_GAME_IDS = [
+  FEATURED_HOME_GAME_ID,
+  ...games.filter((game) => game.id !== FEATURED_HOME_GAME_ID).map((game) => game.id),
+];
 
 const gameById = new Map(games.map((game) => [game.id, game]));
 

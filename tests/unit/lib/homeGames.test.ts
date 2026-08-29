@@ -10,6 +10,10 @@ import {
 } from '@/lib/homeGames';
 
 describe('home games config helpers', () => {
+  it('features shogi first in the default home game order', () => {
+    expect(DEFAULT_HOME_GAME_IDS[0]).toBe('shogi');
+  });
+
   it('falls back to the default game order when the stored value is missing or empty', () => {
     const missingConfig = normalizeHomeGameIds(undefined);
     const emptyConfig = normalizeHomeGameIds([]);

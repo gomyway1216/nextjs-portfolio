@@ -1,11 +1,21 @@
 .root {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 18px;
+}
+
+.root > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .header {
   display: grid;
-  width: min(100%, 760px);
+  width: 100%;
+  max-width: 760px;
   margin-inline: auto;
   gap: 7px;
 }
@@ -30,6 +40,7 @@
   font-weight: 680;
   letter-spacing: 0;
   line-height: 1.12;
+  overflow-wrap: anywhere;
 }
 
 .date {
@@ -46,6 +57,7 @@
 }
 
 .tags span {
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 8px;
@@ -53,9 +65,12 @@
   color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .cover {
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   margin: 0;
   border: 1px solid var(--border);
@@ -67,16 +82,21 @@
 .cover img {
   display: block;
   width: 100%;
+  max-width: 100%;
+  height: auto;
   max-height: 460px;
   object-fit: cover;
 }
 
 .body {
-  width: min(100%, 760px);
+  width: 100%;
+  min-width: 0;
+  max-width: 760px;
   margin-inline: auto;
   color: var(--foreground);
   font-size: 17px;
   line-height: 1.78;
+  overflow-wrap: anywhere;
 }
 
 .body :where(p, ul, ol, blockquote, pre, table, iframe) {
@@ -108,12 +128,15 @@
 
 .body img,
 .body iframe {
+  width: auto;
   max-width: 100%;
+  height: auto;
   border-radius: 8px;
 }
 
 .body iframe {
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 9;
   border: 1px solid var(--border);
 }
@@ -125,7 +148,11 @@
 }
 
 .body pre {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;

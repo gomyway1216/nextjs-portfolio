@@ -1,0 +1,15 @@
+.tableScroll {
+  width: 100%;
+  max-width: 100%;
+  margin: 20px 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: max-content !important;
+  min-width: 100%;
+  margin: 0 !important;
+  border-collapse: collapse;
+}

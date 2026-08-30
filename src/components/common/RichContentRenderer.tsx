@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { htmlWrappedMarkdownToMarkdown, isHtmlContent } from '@/lib/markdownHtml';
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import MermaidDiagram from './MermaidDiagram';
+import styles from './rich-content-renderer.module.css';
 
 interface RichContentRendererProps {
   content: string;
@@ -17,6 +18,29 @@ const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 
 type HtmlRenderState = { mode: 'html' | 'markdown'; content: string };
+
+function wrapHtmlTables(content: string): string {
+  if (typeof document === 'undefined') return content;
+
+  const container = document.createElement('div');
+  container.innerHTML = content;
+
+  container.querySelectorAll('table').forEach((table) => {
+    if (table.parentElement?.hasAttribute('data-rich-table-scroll')) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = styles.tableScroll;
+    wrapper.dataset.richTableScroll = '';
+    wrapper.tabIndex = 0;
+    wrapper.setAttribute('role', 'region');
+    wrapper.setAttribute('aria-label', 'Scrollable table');
+    table.classList.add(styles.table);
+    table.before(wrapper);
+    wrapper.appendChild(table);
+  });
+
+  return container.innerHTML;
+}
 
 function isSafeRelativeUrl(url: string): boolean {
   return url.startsWith('/') && !url.startsWith('//');
@@ -144,8 +168,14 @@ const components: Components = {
     );
   },
   table: ({ children }) => (
-    <div style={{ overflowX: 'auto', margin: '20px 0' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>{children}</table>
+    <div
+      className={styles.tableScroll}
+      data-rich-table-scroll=""
+      tabIndex={0}
+      role="region"
+      aria-label="Scrollable table"
+    >
+      <table className={styles.table}>{children}</table>
     </div>
   ),
   th: ({ children }) => (
@@ -175,7 +205,7 @@ export default function RichContentRenderer({ content, className }: RichContentR
       return;
     }
 
-    const sanitizedHtml = sanitizeRichHtml(content);
+    const sanitizedHtml = wrapHtmlTables(sanitizeRichHtml(content));
     const markdownContent = htmlWrappedMarkdownToMarkdown(sanitizedHtml);
     setHtmlRenderState(markdownContent
       ? { mode: 'markdown', content: markdownContent }

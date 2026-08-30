@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countPrivateMemoryCategories,
   parsePrivateMemoryHistoryResponse,
+  parsePrivateMemoryIndexPageResponse,
   parsePrivateMemoryIndexResponse,
 } from '@/lib/memory/privateMemory';
 
@@ -23,6 +24,7 @@ describe('private memory dashboard response helpers', () => {
   it('keeps only the allowlisted private index fields', () => {
     const result = parsePrivateMemoryIndexResponse({
       view: 'index',
+      total: 1,
       items: [{
         ...indexItem,
         canonicalSummaryJa: 'DETAIL MUST NOT ENTER THE INDEX',
@@ -33,6 +35,15 @@ describe('private memory dashboard response helpers', () => {
     expect(result).toEqual([indexItem]);
     expect(JSON.stringify(result)).not.toContain('EVIDENCE');
     expect(JSON.stringify(result)).not.toContain('SECRET');
+  });
+
+  it('validates dashboard pagination metadata', () => {
+    expect(parsePrivateMemoryIndexPageResponse({
+      view: 'index', items: [indexItem], total: 2, nextOffset: 1,
+    })).toEqual({items: [indexItem], total: 2, nextOffset: 1});
+    expect(() => parsePrivateMemoryIndexPageResponse({
+      view: 'index', items: [indexItem], total: 1, nextOffset: 2,
+    })).toThrow('Invalid private memory index response');
   });
 
   it('parses a revision snapshot but discards aliases, source, and evidence', () => {
@@ -70,8 +81,8 @@ describe('private memory dashboard response helpers', () => {
       view: 'history', memoryId: 'other', items: [],
     }, 'memory-1')).toThrow('Invalid private memory history response');
     expect(countPrivateMemoryCategories([
-      parsePrivateMemoryIndexResponse({ view: 'index', items: [indexItem] })[0],
-      parsePrivateMemoryIndexResponse({ view: 'index', items: [{ ...indexItem, id: 'memory-2' }] })[0],
+      parsePrivateMemoryIndexResponse({ view: 'index', total: 1, items: [indexItem] })[0],
+      parsePrivateMemoryIndexResponse({ view: 'index', total: 1, items: [{ ...indexItem, id: 'memory-2' }] })[0],
     ])).toEqual([{ category: 'career', count: 2 }]);
   });
 });

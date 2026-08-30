@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BLOG_SOCIAL_IMAGE_ALT,
   BLOG_SOCIAL_IMAGE_PATH,
+  buildBlogOpenGraphLocales,
   buildBlogSocialImages,
   buildTwitterImages,
 } from '@/lib/blog/socialMetadata';
@@ -35,5 +36,20 @@ describe('blog social metadata', () => {
     expect(buildTwitterImages(images)).toEqual([
       { url: BLOG_SOCIAL_IMAGE_PATH, alt: BLOG_SOCIAL_IMAGE_ALT },
     ]);
+  });
+
+  it('matches the Open Graph locale to the selected translation', () => {
+    expect(buildBlogOpenGraphLocales('ja', ['en', 'ja'])).toEqual({
+      locale: 'ja_JP',
+      alternateLocale: ['en_US'],
+    });
+    expect(buildBlogOpenGraphLocales('en', ['en', 'ja'])).toEqual({
+      locale: 'en_US',
+      alternateLocale: ['ja_JP'],
+    });
+    expect(buildBlogOpenGraphLocales('ja', ['ja'])).toEqual({
+      locale: 'ja_JP',
+      alternateLocale: undefined,
+    });
   });
 });

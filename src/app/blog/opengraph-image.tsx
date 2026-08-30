@@ -1,7 +1,8 @@
 import { ImageResponse } from 'next/og';
+import { BLOG_SOCIAL_IMAGE_ALT } from '@/lib/blog/socialMetadata';
 
 export const runtime = 'edge';
-export const alt = 'Yudai Yaguchi — Engineering Blog';
+export const alt = BLOG_SOCIAL_IMAGE_ALT;
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

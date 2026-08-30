@@ -1,5 +1,12 @@
+import type { PostLanguage } from './postTranslations';
+
 export const BLOG_SOCIAL_IMAGE_PATH = '/blog/opengraph-image';
 export const BLOG_SOCIAL_IMAGE_ALT = 'Yudai Yaguchi — Engineering Blog';
+
+const OPEN_GRAPH_LOCALES = {
+  en: 'en_US',
+  ja: 'ja_JP',
+} as const;
 
 export interface BlogSocialImage {
   url: string;
@@ -37,4 +44,18 @@ export function buildBlogSocialImages(
 
 export function buildTwitterImages(images: BlogSocialImage[]) {
   return images.map(({ url, alt }) => ({ url, alt }));
+}
+
+export function buildBlogOpenGraphLocales(
+  language: PostLanguage,
+  availableLanguages: readonly PostLanguage[],
+) {
+  const alternateLanguage: PostLanguage = language === 'en' ? 'ja' : 'en';
+
+  return {
+    locale: OPEN_GRAPH_LOCALES[language],
+    alternateLocale: availableLanguages.includes(alternateLanguage)
+      ? [OPEN_GRAPH_LOCALES[alternateLanguage]]
+      : undefined,
+  };
 }

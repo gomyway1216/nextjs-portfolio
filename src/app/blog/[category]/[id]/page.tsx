@@ -6,7 +6,11 @@ import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
-import { buildBlogSocialImages, buildTwitterImages } from '@/lib/blog/socialMetadata';
+import {
+  buildBlogOpenGraphLocales,
+  buildBlogSocialImages,
+  buildTwitterImages,
+} from '@/lib/blog/socialMetadata';
 
 interface BlogPostParams {
   // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
@@ -49,12 +53,17 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   // would be wrong, so it instead canonicalizes onto the pinned ja URL.
   const hasJa = post.availableLanguages.includes('ja');
   const hasEn = post.availableLanguages.includes('en');
+  const canonicalUrl = hasEn ? canonicalPath : jaPath;
+  const { locale, alternateLocale } = buildBlogOpenGraphLocales(
+    picked.language,
+    post.availableLanguages,
+  );
 
   return {
     title,
     description,
     alternates: {
-      canonical: hasEn ? canonicalPath : jaPath,
+      canonical: canonicalUrl,
       ...(hasEn && hasJa
         ? {
             languages: {
@@ -67,12 +76,12 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
     },
     openGraph: {
       type: 'article',
-      locale: 'en_US',
-      alternateLocale: hasJa ? ['ja_JP'] : undefined,
+      locale,
+      alternateLocale,
       siteName: 'Yudai Yaguchi',
       title,
       description,
-      url: canonicalPath,
+      url: canonicalUrl,
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
       images: socialImages,

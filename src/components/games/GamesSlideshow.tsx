@@ -140,7 +140,7 @@ function GamesSlideshowContent({ gameIds }: GamesSlideshowProps) {
       <div className="games-carousel">
         <div className="games-carousel__viewport" ref={emblaRef}>
           <div className="games-carousel__container">
-            {slideshowGames.map((game) => {
+            {slideshowGames.map((game, index) => {
               const gameKey = game.id;
               const title = t(`games.${gameKey}.title`);
               const description = t(`games.${gameKey}.description`);
@@ -165,6 +165,7 @@ function GamesSlideshowContent({ gameIds }: GamesSlideshowProps) {
                           src={getGameCoverPath(game.id)}
                           alt=""
                           fill
+                          loading={index < 3 ? 'eager' : 'lazy'}
                           sizes="(max-width: 640px) calc(100vw - 132px), (max-width: 1024px) 42vw, 29vw"
                         />
                         <div className="game-overlay">

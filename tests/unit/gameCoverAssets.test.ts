@@ -7,7 +7,7 @@ describe('game cover assets', () => {
   it('provides a valid WebP cover for every game', () => {
     for (const game of games) {
       const publicPath = getGameCoverPath(game.id);
-      const filePath = join(process.cwd(), 'public', publicPath);
+      const filePath = join(process.cwd(), 'public', publicPath.slice(1));
 
       expect(publicPath).toBe(`/img/games/covers/${game.id}.webp`);
       expect(existsSync(filePath), `${game.id} cover is missing`).toBe(true);

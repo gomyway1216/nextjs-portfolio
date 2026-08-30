@@ -209,3 +209,22 @@
     }
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .game-card-wrapper {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+
+    .game-cover,
+    .game-overlay {
+      transition: none;
+    }
+
+    &:hover .game-cover {
+      transform: none;
+    }
+  }
+}

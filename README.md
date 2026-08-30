@@ -38,6 +38,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Project Notes
 
 - Public growth timeline: `/growth` reads the memory service's approved public projection through a server-only request. Configure `PUBLIC_MEMORY_API_URL` in the deployment environment (never use a `NEXT_PUBLIC_` prefix). The endpoint returns `{"items":[{"id":"...","title":"...","summary":"...","category":"...","occurredAt":"2026-01-01T00:00:00Z","tags":["..."]}]}`; unknown fields are discarded before rendering and responses are revalidated hourly.
+- Owner memory dashboard: `/memory` requires the existing Firebase administrator session. Configure the server-only `PERSONAL_MEMORY_ADMIN_API_URL` and `PERSONAL_MEMORY_DASHBOARD_READ_KEY` deployment variables; never expose either through a `NEXT_PUBLIC_` variable. The private tab reads compact index metadata and summary-only revision snapshots. Raw evidence stays on the MCP read path, while the public tab continues to use only `PUBLIC_MEMORY_API_URL`.
 - Shogi AI implementation details: `SHOGI_AI_IMPROVEMENTS.md`
 - Shogi evaluation recovery log: [日本語](docs/blog-shogi-eval-recovery.md) / [English](docs/blog-shogi-eval-recovery.en.md)
 - WCSC36 sibling-teacher forensic and retraining log: [日本語](docs/blog-shogi-wcsc36-sibling-training.md) / [English](docs/blog-shogi-wcsc36-sibling-training.en.md)

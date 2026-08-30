@@ -2,7 +2,7 @@ import 'server-only';
 
 import {
   parsePrivateMemoryHistoryResponse,
-  parsePrivateMemoryIndexResponse,
+  parsePrivateMemoryIndexPageResponse,
   type PrivateMemoryIndexItem,
   type PrivateMemoryRevision,
 } from './privateMemory';
@@ -10,6 +10,8 @@ import {
 const PRIVATE_MEMORY_TIMEOUT_MS = 8_000;
 const MAX_INDEX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_HISTORY_RESPONSE_BYTES = 1024 * 1024;
+const INDEX_PAGE_SIZE = 500;
+const MAX_DASHBOARD_MEMORIES = 10_000;
 
 function privateMemoryUrl(): URL {
   const configuredUrl = process.env.PERSONAL_MEMORY_ADMIN_API_URL;
@@ -64,10 +66,33 @@ async function fetchPrivateMemory(url: URL, maximumBytes: number): Promise<unkno
 }
 
 export async function getPrivateMemoryIndexServer(): Promise<PrivateMemoryIndexItem[]> {
-  const url = privateMemoryUrl();
-  url.searchParams.set('view', 'index');
-  url.searchParams.set('limit', '1000');
-  return parsePrivateMemoryIndexResponse(await fetchPrivateMemory(url, MAX_INDEX_RESPONSE_BYTES));
+  const items = new Map<string, PrivateMemoryIndexItem>();
+  let offset = 0;
+  let expectedTotal: number | undefined;
+  while (offset < MAX_DASHBOARD_MEMORIES) {
+    const url = privateMemoryUrl();
+    url.searchParams.set('view', 'index');
+    url.searchParams.set('limit', String(INDEX_PAGE_SIZE));
+    url.searchParams.set('offset', String(offset));
+    const page = parsePrivateMemoryIndexPageResponse(
+      await fetchPrivateMemory(url, MAX_INDEX_RESPONSE_BYTES),
+    );
+    if (expectedTotal === undefined) expectedTotal = page.total;
+    if (page.total > MAX_DASHBOARD_MEMORIES) {
+      throw new Error('Private memory index exceeds the dashboard limit');
+    }
+    if (page.total !== expectedTotal) {
+      throw new Error('Private memory index changed while loading');
+    }
+    for (const item of page.items) items.set(item.id, item);
+    if (page.nextOffset === undefined) break;
+    if (page.nextOffset <= offset) throw new Error('Private memory pagination did not advance');
+    offset = page.nextOffset;
+  }
+  if (items.size !== (expectedTotal ?? 0)) {
+    throw new Error('Private memory index is incomplete');
+  }
+  return [...items.values()];
 }
 
 export async function getPrivateMemoryHistoryServer(memoryId: string): Promise<PrivateMemoryRevision[]> {

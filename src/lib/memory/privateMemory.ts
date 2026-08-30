@@ -28,6 +28,12 @@ export interface PrivateMemoryIndexItem {
   lastAccessedAt?: string;
 }
 
+export interface PrivateMemoryIndexPage {
+  items: PrivateMemoryIndexItem[];
+  total: number;
+  nextOffset?: number;
+}
+
 export interface PrivateMemoryRevision {
   id: string;
   memoryId: string;
@@ -146,7 +152,18 @@ function parseIndexItem(value: unknown): PrivateMemoryIndexItem | null {
 }
 
 export function parsePrivateMemoryIndexResponse(value: unknown): PrivateMemoryIndexItem[] {
+  return parsePrivateMemoryIndexPageResponse(value).items;
+}
+
+export function parsePrivateMemoryIndexPageResponse(value: unknown): PrivateMemoryIndexPage {
   if (!isRecord(value) || value.view !== 'index' || !Array.isArray(value.items)) {
+    throw new Error('Invalid private memory index response');
+  }
+  const total = value.total;
+  const nextOffset = value.nextOffset;
+  if (typeof total !== 'number' || !Number.isSafeInteger(total) || total < 0 || total > 100_000 ||
+    (nextOffset !== undefined && (typeof nextOffset !== 'number' || !Number.isSafeInteger(nextOffset) ||
+      nextOffset < 1 || nextOffset > total))) {
     throw new Error('Invalid private memory index response');
   }
   const seen = new Set<string>();
@@ -157,7 +174,7 @@ export function parsePrivateMemoryIndexResponse(value: unknown): PrivateMemoryIn
     seen.add(item.id);
     parsed.push(item);
   }
-  return parsed;
+  return {items: parsed, total, ...(nextOffset !== undefined ? {nextOffset} : {})};
 }
 
 function parseSnapshot(value: unknown): PrivateMemoryRevision['snapshot'] | null {

@@ -34,11 +34,13 @@ describe('private memory server client', () => {
   });
 
   it('sends the credential only in the server-side authorization header', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ view: 'index', items: [indexItem] }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      view: 'index', items: [indexItem], total: 1,
+    }), { status: 200 }));
 
     await expect(getPrivateMemoryIndexServer()).resolves.toEqual([indexItem]);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toBe('https://memory.example.com/admin/memories?view=index&limit=1000');
+    expect(String(url)).toBe('https://memory.example.com/admin/memories?view=index&limit=500&offset=0');
     expect(String(url)).not.toContain('server-only-dashboard-key');
     expect(init).toEqual(expect.objectContaining({
       method: 'GET',
@@ -50,6 +52,45 @@ describe('private memory server client', () => {
         Authorization: 'Bearer server-only-dashboard-key',
       },
     }));
+  });
+
+  it('loads every stable index page without duplicating records', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [indexItem], total: 2, nextOffset: 1,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [{...indexItem, id: 'memory-2'}], total: 2,
+      }), { status: 200 }));
+
+    await expect(getPrivateMemoryIndexServer()).resolves.toEqual([
+      indexItem,
+      {...indexItem, id: 'memory-2'},
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('offset=1');
+  });
+
+  it('distinguishes an oversized index from a changing index', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      view: 'index', items: [], total: 10_001,
+    }), { status: 200 }));
+
+    await expect(getPrivateMemoryIndexServer()).rejects.toThrow(
+      'Private memory index exceeds the dashboard limit',
+    );
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [indexItem], total: 2, nextOffset: 1,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [], total: 3,
+      }), { status: 200 }));
+
+    await expect(getPrivateMemoryIndexServer()).rejects.toThrow(
+      'Private memory index changed while loading',
+    );
   });
 
   it('requests one summary-only history by validated id', async () => {

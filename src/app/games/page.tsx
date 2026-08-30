@@ -1,9 +1,10 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
-import { games } from '@/components/game/constants/games';
+import { games, getGameCoverPath } from '@/components/game/constants/games';
 import styles from './games-page.module.css';
 
 type Category = 'Arcade' | 'Strategy' | 'Puzzle' | 'RPG' | 'Card';
@@ -102,7 +103,7 @@ export default function GamesPage() {
         </div>
 
         <section className={styles.grid} aria-label={t('games.collection')}>
-          {games.map((game) => {
+          {games.map((game, index) => {
             const title = t(`games.${game.id}.title`);
             const description = t(`games.${game.id}.description`);
             const difficultyLabel = t(difficultyKey(game.difficulty));
@@ -117,7 +118,14 @@ export default function GamesPage() {
               >
                 <article className={styles.card}>
                   <div className={styles.media} aria-hidden="true">
-                    <span className={styles.thumbnail}>{game.thumbnail}</span>
+                    <Image
+                      className={styles.coverImage}
+                      src={getGameCoverPath(game.id)}
+                      alt=""
+                      fill
+                      loading={index < 5 ? 'eager' : 'lazy'}
+                      sizes="(min-width: 1440px) 19vw, (min-width: 1200px) 23vw, (min-width: 900px) 31vw, (min-width: 680px) 47vw, 100vw"
+                    />
                   </div>
                   <div className={styles.content}>
                     <div className={styles.cardHeader}>

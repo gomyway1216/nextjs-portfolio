@@ -189,23 +189,19 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 54%);
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(10, 20, 50, 0.08));
 }
 
-.thumbnail {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  width: 86px;
-  height: 86px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
-  font-size: 3.5rem;
-  line-height: 1;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+.coverImage {
+  object-fit: cover;
+  transition: transform 220ms ease;
+}
+
+.cardLink:hover .coverImage,
+.cardLink:focus-visible .coverImage {
+  transform: scale(1.035);
 }
 
 .content {
@@ -416,12 +412,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card {
+  .card,
+  .coverImage {
     transition: none;
   }
 
   .cardLink:hover .card,
   .cardLink:focus-visible .card {
+    transform: none;
+  }
+
+  .cardLink:hover .coverImage,
+  .cardLink:focus-visible .coverImage {
     transform: none;
   }
 }

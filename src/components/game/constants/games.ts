@@ -12,6 +12,10 @@ export interface Game {
   category: string;
 }
 
+export function getGameCoverPath(gameId: string): string {
+  return `/img/games/covers/${gameId}.webp`;
+}
+
 export const games: Game[] = [
   {
     id: 'jump-game',

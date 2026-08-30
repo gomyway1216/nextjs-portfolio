@@ -9,9 +9,8 @@ describe('RichContentRenderer responsive regions', () => {
       <RichContentRenderer content={'| Name | Value |\n| --- | --- |\n| Example | 42 |'} />,
     );
 
-    expect(markup).toContain('data-rich-table-scroll=""');
-    expect(markup).toContain('role="region"');
-    expect(markup).toContain('aria-label="Scrollable table"');
-    expect(markup).toContain('tabindex="0"');
+    expect(markup).toMatch(
+      /<div(?=[^>]*data-rich-table-scroll="")(?=[^>]*role="region")(?=[^>]*aria-label="Scrollable table")(?=[^>]*tabindex="0")[^>]*>\s*<table/,
+    );
   });
 });

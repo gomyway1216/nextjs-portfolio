@@ -20,6 +20,8 @@ const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 type HtmlRenderState = { mode: 'html' | 'markdown'; content: string };
 
 function wrapHtmlTables(content: string): string {
+  if (typeof document === 'undefined') return content;
+
   const container = document.createElement('div');
   container.innerHTML = content;
 

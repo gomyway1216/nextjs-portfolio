@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   BookOpenText,
   CalendarClock,
@@ -57,6 +57,7 @@ export default function PrivateMemoryDashboard({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [history, setHistory] = useState<PrivateMemoryRevision[]>([]);
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const detailRequestSequence = useRef(0);
 
   const publicSet = useMemo(() => new Set(publicMemoryIds), [publicMemoryIds]);
   const categoryCounts = useMemo(() => countPrivateMemoryCategories(items), [items]);
@@ -82,6 +83,7 @@ export default function PrivateMemoryDashboard({
   const selected = history[0];
 
   async function selectMemory(memoryId: string) {
+    const requestSequence = ++detailRequestSequence.current;
     setSelectedId(memoryId);
     setDetailState('loading');
     setHistory([]);
@@ -91,11 +93,15 @@ export default function PrivateMemoryDashboard({
         credentials: 'same-origin',
       });
       if (!response.ok) throw new Error('history unavailable');
-      const parsed = parsePrivateMemoryHistoryResponse(await response.json(), memoryId);
+      const parsed = parsePrivateMemoryHistoryResponse(await response.json(), memoryId)
+        .sort((left, right) => right.revision - left.revision
+          || Date.parse(right.committedAt) - Date.parse(left.committedAt));
       if (parsed.length === 0) throw new Error('history empty');
+      if (requestSequence !== detailRequestSequence.current) return;
       setHistory(parsed);
       setDetailState('ready');
     } catch {
+      if (requestSequence !== detailRequestSequence.current) return;
       setDetailState('error');
     }
   }

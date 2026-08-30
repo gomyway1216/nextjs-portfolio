@@ -23,6 +23,8 @@ describe('private memory history API gate', () => {
     getServerAdminSessionMock.mockResolvedValue(null);
     const response = await GET(new NextRequest('https://example.com/api/admin/memory-history?memoryId=memory-1'));
     expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(response.headers.get('pragma')).toBe('no-cache');
     expect(getPrivateMemoryHistoryServerMock).not.toHaveBeenCalled();
   });
 
@@ -31,6 +33,8 @@ describe('private memory history API gate', () => {
     getPrivateMemoryHistoryServerMock.mockResolvedValue([]);
     const invalid = await GET(new NextRequest('https://example.com/api/admin/memory-history?memoryId=../private'));
     expect(invalid.status).toBe(400);
+    expect(invalid.headers.get('cache-control')).toContain('no-store');
+    expect(invalid.headers.get('pragma')).toBe('no-cache');
     expect(getPrivateMemoryHistoryServerMock).not.toHaveBeenCalled();
 
     const response = await GET(new NextRequest('https://example.com/api/admin/memory-history?memoryId=memory-1'));

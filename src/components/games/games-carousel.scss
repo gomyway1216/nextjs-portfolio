@@ -62,35 +62,31 @@
 
   .blog-img {
     position: relative;
-    overflow: visible !important;
+    overflow: hidden !important;
     background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%);
     height: 180px;
 
-    img {
-      display: none; // Hide any default img styling
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(10, 20, 50, 0.08));
     }
   }
 
-  .game-thumbnail {
+  .game-cover {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 78px;
-    height: 78px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.16);
-    border: 1px solid rgba(255, 255, 255, 0.24);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1;
-    line-height: 1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     transition: transform 0.3s ease;
   }
 
-  &:hover .game-thumbnail {
-    transform: translate(-50%, -50%) scale(1.04);
+  &:hover .game-cover {
+    transform: scale(1.035);
   }
 
   .game-overlay {

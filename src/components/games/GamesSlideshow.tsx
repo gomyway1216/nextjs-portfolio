@@ -1,18 +1,16 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
 import {
   ChevronLeft,
   ChevronRight,
   Gamepad2,
-  Swords,
-  Puzzle,
-  Rocket,
-  CreditCard,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { getGameCoverPath } from '@/components/game/constants/games';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { getHomeGamesByIds } from '@/lib/homeGames';
 import './games-carousel.scss';
@@ -137,21 +135,6 @@ function GamesSlideshowContent({ gameIds }: GamesSlideshowProps) {
     }
   };
 
-  const getGameIcon = (category: string) => {
-    switch (category) {
-      case 'Strategy':
-        return <Swords size={56} strokeWidth={1.8} />;
-      case 'Puzzle':
-        return <Puzzle size={56} strokeWidth={1.8} />;
-      case 'RPG':
-        return <Rocket size={56} strokeWidth={1.8} />;
-      case 'Card':
-        return <CreditCard size={56} strokeWidth={1.8} />;
-      default:
-        return <Gamepad2 size={56} strokeWidth={1.8} />;
-    }
-  };
-
   return (
     <>
       <div className="games-carousel">
@@ -177,7 +160,13 @@ function GamesSlideshowContent({ gameIds }: GamesSlideshowProps) {
                   >
                     <div className="blog-grid modern-card">
                       <div className="blog-img">
-                        <div className="game-thumbnail">{getGameIcon(game.category)}</div>
+                        <Image
+                          className="game-cover"
+                          src={getGameCoverPath(game.id)}
+                          alt=""
+                          fill
+                          sizes="(max-width: 640px) calc(100vw - 132px), (max-width: 1024px) 42vw, 29vw"
+                        />
                         <div className="game-overlay">
                           <Gamepad2 size={40} strokeWidth={2} />
                           <p>{t('games.clickToPlay')}</p>

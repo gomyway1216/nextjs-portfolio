@@ -71,6 +71,28 @@ describe('private memory server client', () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain('offset=1');
   });
 
+  it('distinguishes an oversized index from a changing index', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      view: 'index', items: [], total: 10_001,
+    }), { status: 200 }));
+
+    await expect(getPrivateMemoryIndexServer()).rejects.toThrow(
+      'Private memory index exceeds the dashboard limit',
+    );
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [indexItem], total: 2, nextOffset: 1,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        view: 'index', items: [], total: 3,
+      }), { status: 200 }));
+
+    await expect(getPrivateMemoryIndexServer()).rejects.toThrow(
+      'Private memory index changed while loading',
+    );
+  });
+
   it('requests one summary-only history by validated id', async () => {
     const snapshot = {
       title: 'Private context', canonicalSummaryJa: 'Detailed summary', category: 'career',

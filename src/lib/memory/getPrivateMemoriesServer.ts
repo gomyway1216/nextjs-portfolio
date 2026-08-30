@@ -78,7 +78,10 @@ export async function getPrivateMemoryIndexServer(): Promise<PrivateMemoryIndexI
       await fetchPrivateMemory(url, MAX_INDEX_RESPONSE_BYTES),
     );
     if (expectedTotal === undefined) expectedTotal = page.total;
-    if (page.total !== expectedTotal || page.total > MAX_DASHBOARD_MEMORIES) {
+    if (page.total > MAX_DASHBOARD_MEMORIES) {
+      throw new Error('Private memory index exceeds the dashboard limit');
+    }
+    if (page.total !== expectedTotal) {
       throw new Error('Private memory index changed while loading');
     }
     for (const item of page.items) items.set(item.id, item);

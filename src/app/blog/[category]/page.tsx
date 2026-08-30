@@ -5,6 +5,7 @@ import CategoryPostPage from '@/page/blog/CategoryPostPage';
 import { getInitialPostsCached, type PostsPage } from '@/lib/blog/getPostsServer';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
 import { categoryLabel } from '@/lib/blog/categoryLabel';
+import { buildBlogSocialImages, buildTwitterImages } from '@/lib/blog/socialMetadata';
 
 // Revalidate the route every 60s in addition to the in-process cache.
 export const revalidate = 60;
@@ -17,14 +18,26 @@ export async function generateMetadata({
   const { category } = await params;
   const label = categoryLabel(category);
   const description = `${label} articles by Yudai Yaguchi.`;
+  const title = `${label} — Blog | Yudai Yaguchi`;
+  const socialImages = buildBlogSocialImages(undefined, title);
   return {
     title: `${label} — Blog`,
     description,
     alternates: { canonical: `/blog/${encodeURIComponent(category)}` },
     openGraph: {
-      title: `${label} — Blog | Yudai Yaguchi`,
+      type: 'website',
+      locale: 'en_US',
+      siteName: 'Yudai Yaguchi',
+      title,
       description,
       url: `/blog/${encodeURIComponent(category)}`,
+      images: socialImages,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: buildTwitterImages(socialImages),
     },
   };
 }

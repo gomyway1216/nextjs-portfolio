@@ -6,6 +6,11 @@ import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
+import {
+  buildBlogOpenGraphLocales,
+  buildBlogSocialImages,
+  buildTwitterImages,
+} from '@/lib/blog/socialMetadata';
 
 interface BlogPostParams {
   // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
@@ -39,6 +44,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const description = excerpt(picked.translation.body);
   const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${canonicalPath}`;
+  const socialImages = buildBlogSocialImages(post.image, title);
 
   // hreflang: with both translations, this URL is what a cookieless
   // crawler reads in English, so it's the en + x-default alternate and
@@ -47,12 +53,17 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   // would be wrong, so it instead canonicalizes onto the pinned ja URL.
   const hasJa = post.availableLanguages.includes('ja');
   const hasEn = post.availableLanguages.includes('en');
+  const canonicalUrl = hasEn ? canonicalPath : jaPath;
+  const { locale, alternateLocale } = buildBlogOpenGraphLocales(
+    picked.language,
+    post.availableLanguages,
+  );
 
   return {
     title,
     description,
     alternates: {
-      canonical: hasEn ? canonicalPath : jaPath,
+      canonical: canonicalUrl,
       ...(hasEn && hasJa
         ? {
             languages: {
@@ -65,17 +76,21 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
     },
     openGraph: {
       type: 'article',
+      locale,
+      alternateLocale,
+      siteName: 'Yudai Yaguchi',
       title,
       description,
-      url: canonicalPath,
+      url: canonicalUrl,
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
-      ...(post.image ? { images: [post.image] } : {}),
+      images: socialImages,
     },
     twitter: {
-      card: post.image ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
+      images: buildTwitterImages(socialImages),
     },
   };
 }

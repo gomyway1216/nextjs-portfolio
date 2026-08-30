@@ -5,6 +5,7 @@ import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
+import { buildBlogSocialImages, buildTwitterImages } from '@/lib/blog/socialMetadata';
 
 interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
@@ -44,6 +45,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const enPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${enPath}`;
   const hasEn = post.availableLanguages.includes('en');
+  const socialImages = buildBlogSocialImages(post.image, title);
 
   return {
     title,
@@ -63,14 +65,17 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
       description,
       url: jaPath,
       locale: 'ja_JP',
+      alternateLocale: hasEn ? ['en_US'] : undefined,
+      siteName: 'Yudai Yaguchi',
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
-      ...(post.image ? { images: [post.image] } : {}),
+      images: socialImages,
     },
     twitter: {
-      card: post.image ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
+      images: buildTwitterImages(socialImages),
     },
   };
 }

@@ -6,6 +6,7 @@ import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
+import { buildBlogSocialImages, buildTwitterImages } from '@/lib/blog/socialMetadata';
 
 interface BlogPostParams {
   // `id` is a slug for public posts (legacy Firestore-id URLs 308-redirect
@@ -39,6 +40,7 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
   const description = excerpt(picked.translation.body);
   const canonicalPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(resolved?.slug ?? post.id)}`;
   const jaPath = `/ja${canonicalPath}`;
+  const socialImages = buildBlogSocialImages(post.image, title);
 
   // hreflang: with both translations, this URL is what a cookieless
   // crawler reads in English, so it's the en + x-default alternate and
@@ -65,17 +67,21 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
     },
     openGraph: {
       type: 'article',
+      locale: 'en_US',
+      alternateLocale: hasJa ? ['ja_JP'] : undefined,
+      siteName: 'Yudai Yaguchi',
       title,
       description,
       url: canonicalPath,
       publishedTime: post.created,
       modifiedTime: post.lastUpdated,
-      ...(post.image ? { images: [post.image] } : {}),
+      images: socialImages,
     },
     twitter: {
-      card: post.image ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
+      images: buildTwitterImages(socialImages),
     },
   };
 }

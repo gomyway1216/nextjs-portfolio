@@ -191,6 +191,8 @@
 
 .skeletonHeader {
   display: grid;
+  width: min(100%, 760px);
+  margin-inline: auto;
   gap: 7px;
 }
 
@@ -204,7 +206,7 @@
 }
 
 .skeletonTitle {
-  width: min(100%, 780px);
+  width: 100%;
   height: clamp(34px, 3.9vw, 44px);
   border-radius: 8px;
 }
@@ -252,6 +254,7 @@
 .skeletonBody {
   display: grid;
   width: min(100%, 760px);
+  margin-inline: auto;
   gap: 12px;
 }
 

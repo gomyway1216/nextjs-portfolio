@@ -12,6 +12,7 @@ import {
   type PublicMemoryItem,
 } from '@/lib/memory/publicMemory';
 import styles from './PublicMemoryAtlas.module.css';
+import MemoryDashboardNav from './MemoryDashboardNav';
 
 interface PublicMemoryAtlasProps {
   items: PublicMemoryItem[];
@@ -54,6 +55,7 @@ export default function PublicMemoryAtlas({ items, unavailable }: PublicMemoryAt
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
+        <MemoryDashboardNav active="public" />
         <PageIntro
           kicker={t('memoryPage.kicker')}
           title={t('memoryPage.title')}

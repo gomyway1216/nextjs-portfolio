@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 // renders its fallback state.
 
 test('home page renders the hero and sidebar navigation', async ({ page }) => {
-  const response = await page.goto('/');
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
 
@@ -37,7 +37,7 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
 });
 
 test('games page lists game cards from the static catalog', async ({ page }) => {
-  const response = await page.goto('/games');
+  const response = await page.goto('/games', { waitUntil: 'domcontentloaded' });
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
 

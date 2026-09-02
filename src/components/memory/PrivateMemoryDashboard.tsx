@@ -9,6 +9,9 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PageIntro from '@/components/common/PageIntro';
@@ -20,6 +23,10 @@ import {
   type PrivateMemorySensitivity,
 } from '@/lib/memory/privateMemory';
 import type { PublicMemoryCategory } from '@/lib/memory/publicMemory';
+import {
+  isExactMemoryDeleteConfirmation,
+  parsePrivateMemoryDeleteResponse,
+} from '@/lib/memory/privateMemoryDeletion';
 import MemoryDashboardNav from './MemoryDashboardNav';
 import styles from './PrivateMemoryDashboard.module.css';
 
@@ -31,6 +38,12 @@ interface PrivateMemoryDashboardProps {
 
 type CategoryFilter = 'all' | PublicMemoryCategory;
 type SensitivityFilter = 'all' | PrivateMemorySensitivity;
+interface DeleteTarget {
+  id: string;
+  title: string;
+  revision: number;
+  hasPublicProjection: boolean;
+}
 const PAGE_SIZE = 50;
 
 function displayDate(value: string | undefined, language: string, fallback: string): string {
@@ -50,6 +63,7 @@ export default function PrivateMemoryDashboard({
   unavailable,
 }: PrivateMemoryDashboardProps) {
   const { t, i18n } = useTranslation();
+  const [memories, setMemories] = useState(items);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [sensitivity, setSensitivity] = useState<SensitivityFilter>('all');
@@ -57,12 +71,16 @@ export default function PrivateMemoryDashboard({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [history, setHistory] = useState<PrivateMemoryRevision[]>([]);
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteState, setDeleteState] = useState<'idle' | 'deleting' | 'error'>('idle');
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const detailRequestSequence = useRef(0);
 
   const publicSet = useMemo(() => new Set(publicMemoryIds), [publicMemoryIds]);
-  const categoryCounts = useMemo(() => countPrivateMemoryCategories(items), [items]);
-  const sorted = useMemo(() => [...items].sort((left, right) =>
-    Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || left.title.localeCompare(right.title)), [items]);
+  const categoryCounts = useMemo(() => countPrivateMemoryCategories(memories), [memories]);
+  const sorted = useMemo(() => [...memories].sort((left, right) =>
+    Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || left.title.localeCompare(right.title)), [memories]);
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().normalize('NFKC').toLowerCase();
     return sorted.filter((item) => {
@@ -74,12 +92,12 @@ export default function PrivateMemoryDashboard({
     });
   }, [category, query, sensitivity, sorted]);
   const recentUpdated = sorted.slice(0, 6);
-  const recentAccessed = useMemo(() => items
+  const recentAccessed = useMemo(() => memories
     .filter((item) => item.lastAccessedAt)
     .sort((left, right) => Date.parse(right.lastAccessedAt!) - Date.parse(left.lastAccessedAt!))
-    .slice(0, 6), [items]);
-  const publishedCount = items.filter((item) => publicSet.has(item.id)).length;
-  const revisionCount = items.reduce((total, item) => total + item.revision, 0);
+    .slice(0, 6), [memories]);
+  const publishedCount = memories.filter((item) => publicSet.has(item.id)).length;
+  const revisionCount = memories.reduce((total, item) => total + item.revision, 0);
   const selected = history[0];
 
   async function selectMemory(memoryId: string) {
@@ -110,6 +128,59 @@ export default function PrivateMemoryDashboard({
     setVisibleCount(PAGE_SIZE);
   }
 
+  function openDeleteDialog() {
+    if (!selected) return;
+    setDeleteTarget({
+      id: selected.memoryId,
+      title: selected.snapshot.title,
+      revision: selected.revision,
+      hasPublicProjection: publicSet.has(selected.memoryId),
+    });
+    setDeleteConfirmation('');
+    setDeleteState('idle');
+  }
+
+  function closeDeleteDialog() {
+    if (deleteState === 'deleting') return;
+    setDeleteTarget(null);
+    setDeleteConfirmation('');
+    setDeleteState('idle');
+  }
+
+  async function deleteMemory() {
+    if (!deleteTarget || !isExactMemoryDeleteConfirmation(deleteConfirmation, deleteTarget.title)) return;
+    setDeleteState('deleting');
+    try {
+      const response = await fetch('/api/admin/memory-record', {
+        method: 'DELETE',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          memoryId: deleteTarget.id,
+          expectedRevision: deleteTarget.revision,
+          confirmationTitle: deleteConfirmation,
+          confirmed: true,
+        }),
+      });
+      if (!response.ok) throw new Error(response.status === 409 ? 'stale' : 'unavailable');
+      parsePrivateMemoryDeleteResponse(await response.json(), deleteTarget.id);
+      detailRequestSequence.current += 1;
+      setMemories((current) => current.filter((item) => item.id !== deleteTarget.id));
+      setSelectedId(null);
+      setHistory([]);
+      setDetailState('idle');
+      setDeleteTarget(null);
+      setDeleteConfirmation('');
+      setDeleteState('idle');
+      setDeleteNotice(t('privateMemoryPage.deleteSuccess', {title: deleteTarget.title}));
+    } catch (error) {
+      setDeleteState('error');
+      setDeleteNotice(null);
+      if (error instanceof Error && error.message === 'stale') return;
+    }
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
@@ -119,9 +190,9 @@ export default function PrivateMemoryDashboard({
           title={t('privateMemoryPage.title')}
           subtitle={t('privateMemoryPage.subtitle')}
           accent="#7c3aed"
-          meta={!unavailable && items.length > 0 ? (
+          meta={!unavailable && memories.length > 0 ? (
             <div className={styles.stats} aria-label={t('privateMemoryPage.statsLabel')}>
-              <span>{t('privateMemoryPage.memoryCount', { count: items.length })}</span>
+              <span>{t('privateMemoryPage.memoryCount', { count: memories.length })}</span>
               <span>{t('privateMemoryPage.revisionCount', { count: revisionCount })}</span>
               <span>{t('privateMemoryPage.publishedCount', { count: publishedCount })}</span>
             </div>
@@ -133,6 +204,8 @@ export default function PrivateMemoryDashboard({
           <p><strong>{t('privateMemoryPage.privacyTitle')}</strong> {t('privateMemoryPage.privacyText')}</p>
         </div>
 
+        {deleteNotice ? <p className={styles.deleteNotice} role="status">{deleteNotice}</p> : null}
+
         {unavailable ? (
           <div className={styles.statusPanel} role="status">
             <h2>{t('privateMemoryPage.unavailableTitle')}</h2>
@@ -140,14 +213,14 @@ export default function PrivateMemoryDashboard({
           </div>
         ) : null}
 
-        {!unavailable && items.length === 0 ? (
+        {!unavailable && memories.length === 0 ? (
           <div className={styles.statusPanel} role="status">
             <h2>{t('privateMemoryPage.emptyTitle')}</h2>
             <p>{t('privateMemoryPage.emptyText')}</p>
           </div>
         ) : null}
 
-        {!unavailable && items.length > 0 ? (
+        {!unavailable && memories.length > 0 ? (
           <>
             <section className={styles.activityGrid} aria-label={t('privateMemoryPage.activityTitle')}>
               <article className={styles.panel}>
@@ -273,7 +346,13 @@ export default function PrivateMemoryDashboard({
                         <span>{t(`privateMemoryPage.sensitivities.${selected.snapshot.sensitivity}`)}</span>
                         <span>{selected.snapshot.visibility}</span>
                       </div>
-                      <h3>{selected.snapshot.title}</h3>
+                      <div className={styles.detailTitleRow}>
+                        <h3>{selected.snapshot.title}</h3>
+                        <button className={styles.deleteButton} type="button" onClick={openDeleteDialog}>
+                          <Trash2 size={15} aria-hidden="true" />
+                          {t('privateMemoryPage.deleteAction')}
+                        </button>
+                      </div>
                       <p className={styles.summary}>{selected.snapshot.canonicalSummaryJa}</p>
                       <div className={styles.evidenceBoundary}>
                         <ShieldCheck size={15} aria-hidden="true" />
@@ -298,6 +377,71 @@ export default function PrivateMemoryDashboard({
               </div>
             </section>
           </>
+        ) : null}
+
+        {deleteTarget ? (
+          <div className={styles.dialogBackdrop} onClick={closeDeleteDialog}>
+            <section
+              className={styles.deleteDialog}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="memory-delete-title"
+              aria-describedby="memory-delete-description"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className={styles.dialogHeading}>
+                <div className={styles.warningIcon}><TriangleAlert size={20} aria-hidden="true" /></div>
+                <div>
+                  <p>{t('privateMemoryPage.deleteKicker')}</p>
+                  <h2 id="memory-delete-title">{t('privateMemoryPage.deleteTitle')}</h2>
+                </div>
+                <button type="button" onClick={closeDeleteDialog} aria-label={t('privateMemoryPage.deleteCancel')}>
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+              <p id="memory-delete-description" className={styles.deleteDescription}>
+                {t('privateMemoryPage.deleteDescription')}
+              </p>
+              {deleteTarget.hasPublicProjection ? (
+                <p className={styles.publicDeleteWarning}>{t('privateMemoryPage.deletePublicWarning')}</p>
+              ) : null}
+              <dl className={styles.deleteTargetMeta}>
+                <div><dt>{t('privateMemoryPage.deleteRecord')}</dt><dd>{deleteTarget.title}</dd></div>
+                <div><dt>{t('privateMemoryPage.deleteRecordId')}</dt><dd><code>{deleteTarget.id}</code></dd></div>
+                <div><dt>{t('privateMemoryPage.deleteRevision')}</dt><dd>{deleteTarget.revision}</dd></div>
+              </dl>
+              <label className={styles.deleteConfirmationLabel}>
+                <span>{t('privateMemoryPage.deleteConfirmationLabel')}</span>
+                <strong>{deleteTarget.title}</strong>
+                <input
+                  autoFocus
+                  type="text"
+                  value={deleteConfirmation}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => { setDeleteConfirmation(event.target.value); setDeleteState('idle'); }}
+                />
+              </label>
+              {deleteState === 'error' ? (
+                <p className={styles.deleteError} role="alert">{t('privateMemoryPage.deleteError')}</p>
+              ) : null}
+              <div className={styles.dialogActions}>
+                <button type="button" onClick={closeDeleteDialog} disabled={deleteState === 'deleting'}>
+                  {t('privateMemoryPage.deleteCancel')}
+                </button>
+                <button
+                  type="button"
+                  className={styles.confirmDeleteButton}
+                  onClick={deleteMemory}
+                  disabled={deleteState === 'deleting' ||
+                    !isExactMemoryDeleteConfirmation(deleteConfirmation, deleteTarget.title)}
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                  {deleteState === 'deleting' ? t('privateMemoryPage.deleting') : t('privateMemoryPage.deleteConfirm')}
+                </button>
+              </div>
+            </section>
+          </div>
         ) : null}
       </section>
     </main>

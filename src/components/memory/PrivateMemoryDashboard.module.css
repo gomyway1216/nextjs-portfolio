@@ -67,6 +67,17 @@
   color: var(--foreground);
 }
 
+.deleteNotice {
+  margin: -14px 0 30px;
+  border: 1px solid color-mix(in srgb, #0f766e 32%, var(--border));
+  border-radius: 8px;
+  padding: 11px 14px;
+  background: color-mix(in srgb, #0f766e 8%, var(--card));
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .statusPanel,
 .panel,
 .memoryIndex,
@@ -378,10 +389,39 @@
   line-height: 1.6;
 }
 
-.detailContent > h3 {
+.detailTitleRow {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
   margin: 14px 0 12px;
+}
+
+.detailTitleRow h3 {
+  margin: 0;
   font-size: 21px;
   line-height: 1.35;
+}
+
+.deleteButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, #dc2626 38%, var(--border));
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: color-mix(in srgb, #dc2626 5%, var(--card));
+  color: #dc2626;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.deleteButton:hover,
+.deleteButton:focus-visible {
+  background: color-mix(in srgb, #dc2626 11%, var(--card));
 }
 
 .summary {
@@ -458,6 +498,188 @@
   -webkit-line-clamp: 4;
 }
 
+.dialogBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 24px;
+  background: color-mix(in srgb, #111827 64%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.deleteDialog {
+  width: min(100%, 580px);
+  border: 1px solid color-mix(in srgb, #dc2626 30%, var(--border));
+  border-radius: 12px;
+  padding: 22px;
+  background: var(--card);
+  box-shadow: 0 30px 90px rgb(0 0 0 / 28%);
+  color: var(--foreground);
+}
+
+.dialogHeading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.warningIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, #dc2626 11%, var(--card));
+  color: #dc2626;
+}
+
+.dialogHeading p {
+  margin: 1px 0 3px;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.dialogHeading h2 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.dialogHeading > button {
+  display: grid;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px;
+  place-items: center;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.dialogHeading > button:hover,
+.dialogHeading > button:focus-visible {
+  background: var(--muted);
+}
+
+.deleteDescription {
+  margin: 18px 0 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.publicDeleteWarning,
+.deleteError {
+  margin: 12px 0;
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, #dc2626 8%, var(--card));
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.deleteTargetMeta {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+}
+
+.deleteTargetMeta div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.deleteTargetMeta dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.deleteTargetMeta dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 12px;
+}
+
+.deleteTargetMeta code {
+  font-size: 10px;
+}
+
+.deleteConfirmationLabel {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.deleteConfirmationLabel strong {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.deleteConfirmationLabel input {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 11px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.deleteConfirmationLabel input:focus {
+  border-color: #dc2626;
+  outline: 2px solid color-mix(in srgb, #dc2626 16%, transparent);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.dialogActions button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.dialogActions .confirmDeleteButton {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: white;
+}
+
+.dialogActions button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
 @media (max-width: 920px) {
   .activityGrid,
   .browserGrid {
@@ -499,5 +721,22 @@
   .panelHeading > span,
   .resultHeader span {
     display: none;
+  }
+
+  .dialogBackdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .deleteDialog {
+    padding: 18px;
+  }
+
+  .detailTitleRow {
+    display: grid;
+  }
+
+  .deleteButton {
+    width: fit-content;
   }
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
+  deletePrivateMemoryServer,
   getPrivateMemoryHistoryServer,
   getPrivateMemoryIndexServer,
 } from '@/lib/memory/getPrivateMemoriesServer';
@@ -26,6 +27,7 @@ describe('private memory server client', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubEnv('PERSONAL_MEMORY_ADMIN_API_URL', 'https://memory.example.com/admin/memories');
     vi.stubEnv('PERSONAL_MEMORY_DASHBOARD_READ_KEY', 'server-only-dashboard-key');
+    vi.stubEnv('PERSONAL_MEMORY_DASHBOARD_WRITE_KEY', 'server-only-write-key');
   });
 
   afterEach(() => {
@@ -109,6 +111,35 @@ describe('private memory server client', () => {
     await expect(getPrivateMemoryHistoryServer('memory-1')).resolves.toHaveLength(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain('memoryId=memory-1');
     await expect(getPrivateMemoryHistoryServer('../private')).rejects.toThrow('Invalid memory id');
+  });
+
+  it('uses the separate write credential only for an explicitly confirmed delete', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      memoryId: 'memory-1', deleted: true,
+    }), { status: 200 }));
+    const input = {
+      memoryId: 'memory-1', expectedRevision: 3,
+      confirmationTitle: 'Current title', confirmed: true as const,
+    };
+
+    await expect(deletePrivateMemoryServer(input)).resolves.toEqual({
+      memoryId: 'memory-1', deleted: true,
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://memory.example.com/admin/memories');
+    expect(String(url)).not.toContain('server-only-write-key');
+    expect(init).toEqual(expect.objectContaining({
+      method: 'DELETE',
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer server-only-write-key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    }));
   });
 
   it('rejects insecure, credentialed, and non-admin endpoints before fetch', async () => {

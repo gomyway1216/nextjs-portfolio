@@ -212,7 +212,21 @@
     "loadingDetail": "Loading the private revision history…",
     "detailError": "This memory history could not be loaded.",
     "evidenceBoundary": "Raw evidence is deliberately not returned by the dashboard endpoint. Use the audited MCP flow when an exact quotation is necessary.",
-    "revisionHistory": "Revision history"
+    "revisionHistory": "Revision history",
+    "deleteAction": "Delete record",
+    "deleteKicker": "Permanent action",
+    "deleteTitle": "Delete this memory record?",
+    "deleteDescription": "This permanently removes the complete lineage, revision history, related pending proposals, and access metadata. It cannot be undone.",
+    "deletePublicWarning": "This record has a public projection. That public copy will be removed too.",
+    "deleteRecord": "Record",
+    "deleteRecordId": "Record ID",
+    "deleteRevision": "Revision",
+    "deleteConfirmationLabel": "To confirm, enter the exact record title shown below:",
+    "deleteCancel": "Cancel",
+    "deleteConfirm": "Delete permanently",
+    "deleting": "Deleting…",
+    "deleteError": "The record was not deleted. It may have changed since you opened it; close this dialog, reload the record, and try again.",
+    "deleteSuccess": "Deleted “{{title}}” and its complete revision lineage."
   },
   "toolsPage": {
     "kicker": "Tools",

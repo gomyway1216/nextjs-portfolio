@@ -6,6 +6,11 @@ import {
   type PrivateMemoryIndexItem,
   type PrivateMemoryRevision,
 } from './privateMemory';
+import {
+  parsePrivateMemoryDeleteResponse,
+  type PrivateMemoryDeleteRequest,
+  type PrivateMemoryDeleteResponse,
+} from './privateMemoryDeletion';
 
 const PRIVATE_MEMORY_TIMEOUT_MS = 8_000;
 const MAX_INDEX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -36,6 +41,19 @@ function dashboardReadKey(): string {
   const key = process.env.PERSONAL_MEMORY_DASHBOARD_READ_KEY?.trim();
   if (!key) throw new Error('Private memory credential is not configured');
   return key;
+}
+
+function dashboardWriteKey(): string {
+  const key = process.env.PERSONAL_MEMORY_DASHBOARD_WRITE_KEY?.trim();
+  if (!key) throw new Error('Private memory write credential is not configured');
+  return key;
+}
+
+export class PrivateMemoryDeleteError extends Error {
+  constructor(readonly status: 404 | 409 | 503) {
+    super(status === 404 ? 'Memory not found' :
+      status === 409 ? 'Memory changed after confirmation' : 'Private memory is temporarily unavailable');
+  }
 }
 
 async function fetchPrivateMemory(url: URL, maximumBytes: number): Promise<unknown> {
@@ -105,4 +123,34 @@ export async function getPrivateMemoryHistoryServer(memoryId: string): Promise<P
     await fetchPrivateMemory(url, MAX_HISTORY_RESPONSE_BYTES),
     memoryId,
   );
+}
+
+export async function deletePrivateMemoryServer(
+  input: PrivateMemoryDeleteRequest,
+): Promise<PrivateMemoryDeleteResponse> {
+  const url = privateMemoryUrl();
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${dashboardWriteKey()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+    credentials: 'omit',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: AbortSignal.timeout(PRIVATE_MEMORY_TIMEOUT_MS),
+  });
+  if (response.status === 404 || response.status === 409) {
+    throw new PrivateMemoryDeleteError(response.status);
+  }
+  if (!response.ok) throw new PrivateMemoryDeleteError(503);
+  const body = await response.text();
+  if (Buffer.byteLength(body, 'utf8') > 4 * 1024) throw new PrivateMemoryDeleteError(503);
+  try {
+    return parsePrivateMemoryDeleteResponse(JSON.parse(body), input.memoryId);
+  } catch {
+    throw new PrivateMemoryDeleteError(503);
+  }
 }

@@ -209,6 +209,8 @@
     "deleteDescription": "このrecordのlineage全体、revision履歴、関連する未確定proposal、利用履歴を完全に削除します。削除後は元に戻せません。",
     "deletePublicWarning": "このrecordには公開projectionがあります。公開コピーも同時に削除されます。",
     "deleteRecord": "Record",
+    "deleteRecordId": "Record ID",
+    "deleteRevision": "Revision",
     "deleteConfirmationLabel": "確認のため、下に表示されたrecordタイトルを正確に入力してください：",
     "deleteCancel": "キャンセル",
     "deleteConfirm": "完全に削除",

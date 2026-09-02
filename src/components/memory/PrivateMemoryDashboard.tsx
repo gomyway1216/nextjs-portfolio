@@ -380,13 +380,14 @@ export default function PrivateMemoryDashboard({
         ) : null}
 
         {deleteTarget ? (
-          <div className={styles.dialogBackdrop}>
+          <div className={styles.dialogBackdrop} onClick={closeDeleteDialog}>
             <section
               className={styles.deleteDialog}
               role="dialog"
               aria-modal="true"
               aria-labelledby="memory-delete-title"
               aria-describedby="memory-delete-description"
+              onClick={(event) => event.stopPropagation()}
             >
               <div className={styles.dialogHeading}>
                 <div className={styles.warningIcon}><TriangleAlert size={20} aria-hidden="true" /></div>
@@ -406,8 +407,8 @@ export default function PrivateMemoryDashboard({
               ) : null}
               <dl className={styles.deleteTargetMeta}>
                 <div><dt>{t('privateMemoryPage.deleteRecord')}</dt><dd>{deleteTarget.title}</dd></div>
-                <div><dt>Record ID</dt><dd><code>{deleteTarget.id}</code></dd></div>
-                <div><dt>Revision</dt><dd>{deleteTarget.revision}</dd></div>
+                <div><dt>{t('privateMemoryPage.deleteRecordId')}</dt><dd><code>{deleteTarget.id}</code></dd></div>
+                <div><dt>{t('privateMemoryPage.deleteRevision')}</dt><dd>{deleteTarget.revision}</dd></div>
               </dl>
               <label className={styles.deleteConfirmationLabel}>
                 <span>{t('privateMemoryPage.deleteConfirmationLabel')}</span>

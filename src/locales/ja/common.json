@@ -202,7 +202,19 @@
     "loadingDetail": "非公開のrevision履歴を読み込んでいます…",
     "detailError": "このメモリーの履歴を読み込めませんでした。",
     "evidenceBoundary": "raw evidenceはdashboard endpointから意図的に返しません。正確な引用が必要なときは、監査可能なMCP経路で取得します。",
-    "revisionHistory": "Revision履歴"
+    "revisionHistory": "Revision履歴",
+    "deleteAction": "recordを削除",
+    "deleteKicker": "取り消せない操作",
+    "deleteTitle": "このメモリーrecordを削除しますか？",
+    "deleteDescription": "このrecordのlineage全体、revision履歴、関連する未確定proposal、利用履歴を完全に削除します。削除後は元に戻せません。",
+    "deletePublicWarning": "このrecordには公開projectionがあります。公開コピーも同時に削除されます。",
+    "deleteRecord": "Record",
+    "deleteConfirmationLabel": "確認のため、下に表示されたrecordタイトルを正確に入力してください：",
+    "deleteCancel": "キャンセル",
+    "deleteConfirm": "完全に削除",
+    "deleting": "削除しています…",
+    "deleteError": "recordは削除されませんでした。表示後に更新された可能性があります。ダイアログを閉じ、recordを再読み込みしてから再度お試しください。",
+    "deleteSuccess": "「{{title}}」と、そのrevision lineage全体を削除しました。"
   },
   "toolsPage": {
     "kicker": "ツール一覧",

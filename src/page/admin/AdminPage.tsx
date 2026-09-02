@@ -4,6 +4,7 @@ import { usePostMutations,usePostTaxonomy,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
 import RichContentRenderer from '@/components/common/RichContentRenderer';
+import PersonalMemoryAdminLink from '@/components/admin/PersonalMemoryAdminLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { normalizePostCategory, normalizePostTag, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
@@ -2353,6 +2354,14 @@ const AdminPage = () => {
                 {item.label}
               </button>
             ))}
+
+            <PersonalMemoryAdminLink
+              style={{
+                ...styles.navButton,
+                ...styles.navButtonInactive,
+                textDecoration: 'none',
+              }}
+            />
 
             {/* Security Settings Link */}
             <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${adminColors.border}` }}>

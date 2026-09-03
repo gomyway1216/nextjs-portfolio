@@ -1,6 +1,8 @@
 import { ensureAdmin } from '@/lib/auth-utils';
 import { getFirestore } from '@/lib/firebase-admin';
 import { NextRequest,NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
+import { HOME_EDUCATION_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -110,6 +112,7 @@ export const POST = withActivityLog('next_api.education.POST', async (request: N
 
     const db = getFirestore();
     const docRef = await db.collection('education').add(updates);
+    revalidateTag(HOME_EDUCATION_CACHE_TAG, 'max');
 
     return NextResponse.json(
       { id: docRef.id, message: `Created education entry for ${instituteName}` },
@@ -175,6 +178,7 @@ export const PUT = withActivityLog('next_api.education.PUT', async (request: Nex
     }
 
     await docRef.update(updates);
+    revalidateTag(HOME_EDUCATION_CACHE_TAG, 'max');
     return NextResponse.json({ success: true, message: `Updated education entry ${id}` });
   } catch (error) {
     console.error('Error updating education:', error);
@@ -215,6 +219,7 @@ export const DELETE = withActivityLog('next_api.education.DELETE', async (reques
     }
 
     await docRef.delete();
+    revalidateTag(HOME_EDUCATION_CACHE_TAG, 'max');
     return NextResponse.json({ success: true, message: `Deleted education entry ${id}` });
   } catch (error) {
     console.error('Error deleting education:', error);

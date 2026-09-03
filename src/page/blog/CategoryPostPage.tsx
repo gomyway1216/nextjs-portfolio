@@ -163,6 +163,9 @@ const CategoryPostPage = ({
 
     const existing = postsByCategory[cacheKey];
     if (existing && existing.length > 0) {
+      // Provider state is the navigation cache; applying it here restores
+      // the previous list and scroll position after returning from a post.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasMore(existing.length > 0);
       setFetchError(null);
       setIsLoading(false);
@@ -245,6 +248,7 @@ const CategoryPostPage = ({
                 id={item.id}
                 slug={item.slug}
                 title={item.title}
+                summary={item.summary}
                 body={item.body}
                 isPublic={item.isPublic}
                 created={item.created}

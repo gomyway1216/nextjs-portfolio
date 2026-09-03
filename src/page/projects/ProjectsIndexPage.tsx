@@ -34,14 +34,20 @@ function matchesCategory(project: Project, category: ProjectCategory): boolean {
   return project.categories?.includes(category) ?? false;
 }
 
-export default function ProjectsIndexPage() {
+interface ProjectsIndexPageProps {
+  initialProjects?: Project[];
+}
+
+export default function ProjectsIndexPage({ initialProjects }: ProjectsIndexPageProps) {
   const { t } = useTranslation();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => sortProjectsByDate(initialProjects ?? []));
   const [activeCategory, setActiveCategory] = useState<ProjectCategory>('All');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(initialProjects === undefined);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    if (initialProjects !== undefined) return;
+
     let cancelled = false;
 
     const fetchProjects = async () => {
@@ -63,7 +69,7 @@ export default function ProjectsIndexPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialProjects]);
 
   const filteredProjects = useMemo(
     () => projects.filter((project) => matchesCategory(project, activeCategory)),
@@ -138,6 +144,7 @@ export default function ProjectsIndexPage() {
                 <Link
                   className={styles.card}
                   href={getProjectPath(project.id)}
+                  prefetch
                   key={project.id}
                   aria-label={t('projectsPage.cardLabel', { title: project.title })}
                 >

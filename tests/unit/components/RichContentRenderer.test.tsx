@@ -13,4 +13,13 @@ describe('RichContentRenderer responsive regions', () => {
       /<div(?=[^>]*data-rich-table-scroll="")(?=[^>]*role="region")(?=[^>]*aria-label="Scrollable table")(?=[^>]*tabindex="0")[^>]*>\s*<table/,
     );
   });
+
+  it('keeps Markdown images off the critical loading path', () => {
+    const markup = renderToStaticMarkup(
+      <RichContentRenderer content="![Architecture diagram](https://example.com/diagram.png)" />,
+    );
+
+    expect(markup).toContain('loading="lazy"');
+    expect(markup).toContain('decoding="async"');
+  });
 });

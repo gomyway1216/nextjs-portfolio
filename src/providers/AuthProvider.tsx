@@ -20,6 +20,7 @@ import {
 
 interface AuthProviderProps {
   children: ReactNode;
+  hasSessionCookie?: boolean;
 }
 
 interface AuthContextType {
@@ -88,7 +89,7 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProviderProps) => {
   const [authState, setAuthState] = useState<AuthSessionState>({
     currentUser: null,
     isAdmin: false,
@@ -475,7 +476,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const unsubscribe = auth.onAuthStateChanged(async (user: User | null) => {
       authCallbackStarted = true;
       if (!user) {
-        if (!wasSignedInRef.current && !attemptedSessionRestoreRef.current && !mfaSignInCompletingRef.current) {
+        if (
+          hasSessionCookie &&
+          !wasSignedInRef.current &&
+          !attemptedSessionRestoreRef.current &&
+          !mfaSignInCompletingRef.current
+        ) {
           attemptedSessionRestoreRef.current = true;
           const restoredCredential = await restoreFirebaseAuthFromSession();
           if (restoredCredential?.user) {
@@ -528,7 +534,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       clearTimeout(presumptionCapTimer);
       unsubscribe();
     };
-  }, [applySignedInUser, resetLocalAuthState, restoreFirebaseAuthFromSession, syncSessionCookie]);
+  }, [applySignedInUser, hasSessionCookie, resetLocalAuthState, restoreFirebaseAuthFromSession, syncSessionCookie]);
 
   // Remember the settled state for the next load. Gated on a completed listener
   // pass, never on `loading`: the restore path reports a null user before it

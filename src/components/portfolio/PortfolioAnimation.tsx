@@ -17,6 +17,10 @@ type PortfolioCategory = typeof tabList[number];
 type ProjectsByCategory = Record<PortfolioCategory, Project[]>;
 const HOME_PROJECT_LIMIT = 4;
 
+function emptyProjectsByCategory(): ProjectsByCategory {
+  return {'All': [], 'Web App': [], 'Mobile': [], 'AI/ML': [], 'Console': []};
+}
+
 function normalizeTechnology(technology: Project['technologies'][number] | null | undefined): string {
   if (!technology) return '';
   return typeof technology === 'string' ? technology : technology.name || '';
@@ -30,32 +34,41 @@ function sortProjectsByDate(projects: Project[]): Project[] {
   });
 }
 
-const PortfolioAnimation = () => {
+export function classifyProjects(projects: Project[]): ProjectsByCategory {
+  const classified = emptyProjectsByCategory();
+  sortProjectsByDate(projects).forEach((project) => {
+    classified.All.push(project);
+    project.categories?.forEach((category) => {
+      if (Object.prototype.hasOwnProperty.call(classified, category)) {
+        classified[category as PortfolioCategory].push(project);
+      }
+    });
+  });
+  return classified;
+}
+
+interface PortfolioAnimationProps {
+  initialProjects?: Project[];
+}
+
+const PortfolioAnimation = ({ initialProjects }: PortfolioAnimationProps) => {
   const { t } = useTranslation();
   const [projectsByCategory, setProjectsByCategory]
-    = useState<ProjectsByCategory>({'All': [], 'Web App': [], 'Mobile': [], 'AI/ML': [], 'Console': []});
-  const [isLoading, setIsLoading] = useState(true);
+    = useState<ProjectsByCategory>(() => classifyProjects(initialProjects ?? []));
+  const [isLoading, setIsLoading] = useState(initialProjects === undefined);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    if (initialProjects !== undefined) return;
+
     let cancelled = false;
 
-    const classifyProjects = async () => {
+    const loadProjects = async () => {
       setIsLoading(true);
       setHasError(false);
 
       try {
-        const classified: ProjectsByCategory = {All: [], 'Web App': [], Mobile: [], 'AI/ML': [], Console: []};
-        const fetchedProjects: Project[] = sortProjectsByDate(await projectApi.getProjects());
-
-        fetchedProjects.forEach((project) => {
-          classified.All.push(project);
-          project.categories?.forEach((cat) => {
-            if (Object.prototype.hasOwnProperty.call(classified, cat)) {
-              classified[cat as PortfolioCategory].push(project);
-            }
-          });
-        });
+        const classified = classifyProjects(await projectApi.getProjects());
 
         if (!cancelled) setProjectsByCategory(classified);
       } catch (error) {
@@ -66,11 +79,11 @@ const PortfolioAnimation = () => {
       }
     };
 
-    classifyProjects();
+    loadProjects();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialProjects]);
 
   const renderProjects = (projects: Project[], category: string) => {
     if (isLoading) {
@@ -104,6 +117,7 @@ const PortfolioAnimation = () => {
               <Link
                 className="project-card modern-card"
                 href={getProjectPath(project.id)}
+                prefetch
                 aria-label={t('home.sections.work.cardLabel', { title: project.title })}
               >
                 <div className="project-card__media">

@@ -11,6 +11,7 @@ export interface HomeBlogPost {
   id: string;
   slug?: string;
   title: string;
+  summary?: string;
   body: string;
   isPublic: boolean;
   category: string;
@@ -53,6 +54,7 @@ export default function HomeBlogSection({ posts }: HomeBlogSectionProps) {
                 id={post.id}
                 slug={post.slug}
                 title={post.title}
+                summary={post.summary}
                 body={post.body}
                 isPublic={post.isPublic}
                 created={post.created}

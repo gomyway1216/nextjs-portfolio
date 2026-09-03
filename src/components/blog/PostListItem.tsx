@@ -10,7 +10,8 @@ interface PostListItemProps {
   id: string;
   slug?: string;
   title: string;
-  body: string;
+  summary?: string;
+  body?: string;
   isPublic?: boolean;
   created?: string | Date;
   lastUpdated: string | Date;
@@ -70,10 +71,10 @@ const markdownToPlainText = (value: string) => value
   .trim();
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, slug, title, body, lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
+  ({ id, slug, title, summary, body = '', lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
     const { t } = useTranslation();
-    const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
-    const bodyText = markdownToPlainText(rawBodyText);
+    const rawBodyText = summary || (HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body);
+    const bodyText = summary || markdownToPlainText(rawBodyText);
     const excerptLength = 190;
     const excerpt = bodyText.length > excerptLength ? `${bodyText.slice(0, excerptLength).trim()}...` : bodyText;
     const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
@@ -90,6 +91,10 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
       >
         <Link
           href={`/blog/${category}/${slug ?? id}`}
+          // The first cards are the overwhelmingly likely click targets.
+          // Full prefetch makes their dynamic RSC payload ready before the
+          // click, while lower cards retain Next's cheaper partial prefetch.
+          prefetch={index != null && index <= 2 ? true : undefined}
           className={styles.cardButton}
           onClick={handleClick}
           aria-label={openLabel}
@@ -125,10 +130,10 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
               <Image
                 src={image}
                 alt=""
-                width={128}
-                height={128}
+                width={768}
+                height={432}
                 loading="lazy"
-                unoptimized
+                sizes="(max-width: 640px) calc(100vw - 76px), (max-width: 960px) calc(50vw - 48px), 330px"
               />
             </span>
           ) : (

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { createPlainTextExcerpt } from '@/lib/text';
 import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
-import { getProjectServer } from '@/lib/projects/getProjectsServer';
+import { getProjectCached } from '@/lib/projects/getProjectsCached';
 import { SITE_URL } from '@/lib/siteConfig';
 import ProjectPage from '@/page/project/ProjectPage';
 
@@ -12,7 +12,7 @@ interface ProjectRouteParams {
 }
 
 const FALLBACK_DESCRIPTION = 'A portfolio project with project context, stack, links, and implementation notes.';
-const getProjectForRoute = cache(getProjectServer);
+const getProjectForRoute = cache(getProjectCached);
 
 export async function generateMetadata({ params }: ProjectRouteParams): Promise<Metadata> {
   const { id } = await params;

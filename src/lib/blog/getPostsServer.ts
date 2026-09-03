@@ -11,11 +11,13 @@ import {
 import { normalizePostTags } from '@/lib/blog/postMetadata';
 import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
+import { excerpt } from '@/lib/blog/postExcerpt';
 
 export interface ServerPost {
   id: string;
   slug: string;
   title: string;
+  summary: string;
   body: string;
   isPublic: boolean;
   category: string;
@@ -63,7 +65,10 @@ async function fetchPostsPage(
       id: doc.id,
       slug: slugById.get(doc.id) ?? doc.id,
       title: picked.translation.title,
-      body: picked.translation.body,
+      summary: excerpt(picked.translation.body),
+      // List cards only render a preview. Keeping the full body here made
+      // /blog serialize several articles into both HTML and the RSC payload.
+      body: '',
       isPublic: data.isPublic,
       category: data.category,
       tags: normalizePostTags(data.tags),

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
@@ -17,11 +17,18 @@ const FALLBACK_CONTACT_EMAIL = 'uwyudai@gmail.com';
 
 interface SliderProps {
   initialProfile?: Profile | null;
+  initialResumeLink?: string;
 }
 
-const Slider = ({ initialProfile }: SliderProps) => {
-  const [resumeLink, setResumeLink] = useState('');
-  const [mounted, setMounted] = useState(false);
+const subscribeToHydration = () => () => {};
+
+function useHydrated(): boolean {
+  return useSyncExternalStore(subscribeToHydration, () => true, () => false);
+}
+
+const Slider = ({ initialProfile, initialResumeLink }: SliderProps) => {
+  const [resumeLink, setResumeLink] = useState(initialResumeLink ?? '');
+  const mounted = useHydrated();
   const { profile, loading: profileLoading } = useProfile(initialProfile);
   const prefersReducedMotion = usePrefersReducedMotion();
   const contactEmail = profile?.email || FALLBACK_CONTACT_EMAIL;
@@ -47,19 +54,15 @@ const Slider = ({ initialProfile }: SliderProps) => {
     },
   ];
 
-  const fetchLink = async () => {
-    const link = await profileApi.getResumeLink();
-    setResumeLink(link);
-  };
-
   useEffect(() => {
-    fetchLink();
-    // TypeAnimation renders an empty wrapper on SSR and starts typing
-    // on the client, which produces a React #418 hydration mismatch.
-    // Gate it behind `mounted` and render a static fallback for the
-    // first paint so SSR + client first render agree.
-    setMounted(true);
-  }, []);
+    if (initialResumeLink === undefined) {
+      void profileApi.getResumeLink()
+        .then(setResumeLink)
+        .catch((error) => {
+          console.error('[SliderAnimation] failed to fetch resume link:', error);
+        });
+    }
+  }, [initialResumeLink]);
 
   return (
     <>

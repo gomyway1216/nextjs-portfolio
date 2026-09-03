@@ -4,6 +4,8 @@ import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { resolveProjectRouteId } from '@/lib/projectRoutes';
 import { getProjectServer } from '@/lib/projects/getProjectsServer';
+import { revalidateTag } from 'next/cache';
+import { HOME_PROJECTS_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -93,6 +95,7 @@ export const PUT = withActivityLog('next_api.projects.id.PUT', async (request: N
       technologies: technologies || [],
       categories: categories || [],
     });
+    revalidateTag(HOME_PROJECTS_CACHE_TAG, 'max');
 
     return NextResponse.json({ message: 'Project updated successfully' });
   } catch (error) {
@@ -132,6 +135,7 @@ export const DELETE = withActivityLog('next_api.projects.id.DELETE', async (requ
     }
 
     await docRef.delete();
+    revalidateTag(HOME_PROJECTS_CACHE_TAG, 'max');
 
     return NextResponse.json({ message: 'Project deleted successfully' });
   } catch (error) {

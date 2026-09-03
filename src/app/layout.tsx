@@ -157,6 +157,7 @@ export default async function RootLayout({
   // "シニアフィンテックエンジニア" after hydration — React #418.
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('i18nextLng')?.value;
+  const hasSessionCookie = cookieStore.has('__session');
   const hdrs = await headers();
   const acceptLanguage = hdrs.get('accept-language') ?? '';
   const preferredLanguage = acceptLanguage.split(',')[0]?.trim().toLowerCase();
@@ -184,7 +185,7 @@ export default async function RootLayout({
             <PageViewLogger />
           </Suspense>
           <I18nProvider initialLang={initialLang}>
-            <AuthProvider>
+            <AuthProvider hasSessionCookie={hasSessionCookie}>
               <GameToolbarProvider>
                 <GlobalToolbar />
                 {children}

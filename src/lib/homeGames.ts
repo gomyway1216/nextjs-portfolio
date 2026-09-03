@@ -1,6 +1,7 @@
 import { games, type Game } from '@/components/game/constants/games';
 
 export const HOME_GAMES_CACHE_TAG = 'home-games';
+export const HOME_GAME_PREVIEW_LIMIT = 6;
 const FEATURED_HOME_GAME_ID = 'shogi';
 
 export const DEFAULT_HOME_GAME_IDS = [
@@ -76,4 +77,8 @@ export function getHomeGamesByIds(gameIds: readonly string[] | undefined): Game[
     .filter((game): game is Game => Boolean(game));
 
   return orderedGames.length > 0 ? orderedGames : games;
+}
+
+export function getHomePreviewGames(gameIds: readonly string[] | undefined): Game[] {
+  return getHomeGamesByIds(gameIds).slice(0, HOME_GAME_PREVIEW_LIMIT);
 }

@@ -19,15 +19,30 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import type { Profile } from '@/hooks/useProfile';
 import type { Writing } from '@/lib/writing';
+import type { Project } from '@/services/projectsService';
+import type { Education, Job } from '@/services/resumeService';
 
 interface HomeOneProps {
   initialProfile?: Profile | null;
   initialWritings?: Writing[];
   initialBlogPosts?: HomeBlogPost[];
   initialHomeGameIds?: string[];
+  initialJobs?: Job[];
+  initialEducation?: Education[];
+  initialProjects?: Project[];
+  initialResumeLink?: string;
 }
 
-const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [], initialHomeGameIds }: HomeOneProps) => {
+const HomeOne = ({
+  initialProfile,
+  initialWritings = [],
+  initialBlogPosts = [],
+  initialHomeGameIds,
+  initialJobs,
+  initialEducation,
+  initialProjects,
+  initialResumeLink,
+}: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const hasPublishedWritings = initialWritings.length > 0;
@@ -47,11 +62,11 @@ const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [], 
     <div className="main-left home-modern">
       <Header showWriting={hasPublishedWritings} />
 
-      <Slider initialProfile={initialProfile} />
+      <Slider initialProfile={initialProfile} initialResumeLink={initialResumeLink} />
 
       <ImpactSnapshot />
 
-      <Resume />
+      <Resume initialJobs={initialJobs} initialEducation={initialEducation} />
 
       {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
 
@@ -74,7 +89,7 @@ const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [], 
             <h3>{t('home.sections.work.title')}</h3>
             <p>{t('home.sections.work.subtitle')}</p>
           </div>
-          <Portfolio />
+          <Portfolio initialProjects={initialProjects} />
         </div>
       </section>
       {/* End Portfolio Section */}
@@ -142,7 +157,7 @@ const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [], 
 
       <footer className="footer white modern-footer">
         <div className="container">
-          <Footer />
+          <Footer initialProfile={initialProfile} />
         </div>
       </footer>
     </div>

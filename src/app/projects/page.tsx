@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ProjectsIndexPage from '@/page/projects/ProjectsIndexPage';
+import { getProjectsCached } from '@/lib/projects/getProjectsCached';
 
 // Bare page title: the root layout's title template appends
 // "| Yudai Yaguchi", so including it here rendered the name twice.
@@ -14,6 +15,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ProjectsPage() {
-  return <ProjectsIndexPage />;
+export default async function ProjectsPage() {
+  let initialProjects;
+  try {
+    initialProjects = await getProjectsCached();
+  } catch (error) {
+    console.error('[projects] server-side fetch failed, falling back to client', error);
+  }
+
+  return <ProjectsIndexPage initialProjects={initialProjects} />;
 }

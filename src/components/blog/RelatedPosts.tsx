@@ -28,7 +28,6 @@ const RelatedPosts = ({ ids }: RelatedPostsProps) => {
 
   useEffect(() => {
     if (!idsKey) {
-      setPosts([]);
       return;
     }
 
@@ -58,6 +57,7 @@ const RelatedPosts = ({ ids }: RelatedPostsProps) => {
           <li key={post.id}>
             <Link
               href={`/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.slug ?? post.id)}`}
+              prefetch
               className={styles.card}
             >
               <span className={styles.cardCategory}>{post.category.replace(/-/g, ' ')}</span>

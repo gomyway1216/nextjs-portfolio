@@ -239,7 +239,7 @@ export default function CustomQuizForm({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex flex-col gap-3 pt-4 sm:flex-row">
             <Button
               onClick={handleSubmit}
               disabled={!isValid || loading}

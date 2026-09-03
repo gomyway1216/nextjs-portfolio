@@ -115,7 +115,13 @@ export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idle
 
   return (
     <div
-      style={{ position: 'relative', width: size, height: size + 24, margin: '0 auto' }}
+      style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: size,
+        aspectRatio: `${size} / ${size + 24}`,
+        margin: '0 auto',
+      }}
       role="img"
       aria-label={
         result !== null && !isSpinning
@@ -144,11 +150,11 @@ export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idle
 
       {/* Rotating wheel */}
       <svg
-        width={size}
-        height={size}
+        width="100%"
+        height="auto"
         viewBox={`0 0 ${size} ${size}`}
         style={{
-          marginTop: 24,
+          marginTop: '8%',
           transform: `rotate(${rotation}deg)`,
           transition: hasSpun ? spinTransition : 'none',
           display: 'block',
@@ -164,13 +170,13 @@ export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idle
 
       {/* Ball layer — separate SVG so it can rotate independently */}
       <svg
-        width={size}
-        height={size}
+        width="100%"
+        height="auto"
         viewBox={`0 0 ${size} ${size}`}
         style={{
           position: 'absolute',
           left: 0,
-          top: 24,
+          top: '8%',
           pointerEvents: 'none',
           transform: `rotate(${ballRotation}deg)`,
           transition: hasSpun ? spinTransition : 'none',

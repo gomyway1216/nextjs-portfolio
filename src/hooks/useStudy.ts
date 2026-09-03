@@ -1331,7 +1331,8 @@ export function useFlashcards(params?: {
   deckId?: string;
   categoryId?: string;
   dueOnly?: boolean;
-}) {
+}, options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true;
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1413,9 +1414,13 @@ export function useFlashcards(params?: {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     fetchFlashcards();
     fetchDecks();
-  }, [fetchFlashcards, fetchDecks]);
+  }, [enabled, fetchFlashcards, fetchDecks]);
 
   return {
     flashcards,

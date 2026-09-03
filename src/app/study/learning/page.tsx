@@ -62,7 +62,7 @@ const SOURCE_TYPE_LABEL_KEYS: Record<LearningSourceType, string> = {
 
 export default function LearningHubPage() {
   const { t } = useTranslation();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const { entries, loading: entriesLoading } = useLearningEntries();
   const { stats } = useLearningStats();
   const { totalDue } = useSpacedRepetition();
@@ -95,6 +95,14 @@ export default function LearningHubPage() {
     return matchesSearch && matchesSource;
   });
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" aria-busy="true" role="status">
+        Loading…
+      </div>
+    );
+  }
+
   if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)', padding: '48px 16px' }}>
@@ -105,7 +113,7 @@ export default function LearningHubPage() {
             {t('study.learning.signedOut.description')}
           </p>
           <Link
-            href="/login"
+            href="/signin?redirect=%2Fstudy%2Flearning"
             style={{
               display: 'inline-flex',
               alignItems: 'center',

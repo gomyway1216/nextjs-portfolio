@@ -21,7 +21,7 @@ import { useMemo,useState } from 'react';
 import { toast } from 'sonner';
 
 export default function DictionaryPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const { terms, loading, createTerm, updateTerm, deleteTerm } = useDictionary();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,11 +68,23 @@ export default function DictionaryPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div
+        style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        aria-busy="true"
+        role="status"
+      >
+        Loading…
+      </div>
+    );
+  }
+
   if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', padding: '48px 16px', textAlign: 'center' }}>
         <p>Please sign in to access your dictionary.</p>
-        <Link href="/login">Sign In</Link>
+        <Link href="/signin?redirect=%2Fstudy%2Flearning%2Fdictionary">Sign In</Link>
       </div>
     );
   }

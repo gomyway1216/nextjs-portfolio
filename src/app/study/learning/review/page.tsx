@@ -18,7 +18,7 @@ import 'prismjs/themes/prism-tomorrow.css';
 import { useEffect,useState } from 'react';
 
 export default function ReviewSessionPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const {
     totalDue,
     loading,
@@ -72,11 +72,23 @@ export default function ReviewSessionPage() {
     }));
   };
 
+  if (authLoading) {
+    return (
+      <div
+        style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        aria-busy="true"
+        role="status"
+      >
+        Loading…
+      </div>
+    );
+  }
+
   if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', padding: '48px 16px', textAlign: 'center' }}>
         <p>Please sign in to start a review session.</p>
-        <Link href="/login">Sign In</Link>
+        <Link href="/signin?redirect=%2Fstudy%2Flearning%2Freview">Sign In</Link>
       </div>
     );
   }

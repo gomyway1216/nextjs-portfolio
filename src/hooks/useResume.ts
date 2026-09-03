@@ -7,12 +7,14 @@ import type { Job, Education } from '@/services/resumeService';
 /**
  * Hook to fetch jobs
  */
-export function useJobs() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useJobs(initialJobs?: Job[]) {
+  const [jobs, setJobs] = useState<Job[]>(initialJobs ?? []);
+  const [loading, setLoading] = useState(initialJobs === undefined);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (initialJobs !== undefined) return;
+
     const fetchJobs = async () => {
       try {
         setLoading(true);
@@ -27,7 +29,7 @@ export function useJobs() {
     };
 
     fetchJobs();
-  }, []);
+  }, [initialJobs]);
 
   return { jobs, loading, error };
 }
@@ -35,12 +37,14 @@ export function useJobs() {
 /**
  * Hook to fetch education
  */
-export function useEducation() {
-  const [education, setEducation] = useState<Education[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useEducation(initialEducation?: Education[]) {
+  const [education, setEducation] = useState<Education[]>(initialEducation ?? []);
+  const [loading, setLoading] = useState(initialEducation === undefined);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (initialEducation !== undefined) return;
+
     const fetchEducation = async () => {
       try {
         setLoading(true);
@@ -55,7 +59,7 @@ export function useEducation() {
     };
 
     fetchEducation();
-  }, []);
+  }, [initialEducation]);
 
   return { education, loading, error };
 }

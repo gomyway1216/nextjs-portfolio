@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   ensureAdmin: vi.fn(),
   getFirestore: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
@@ -15,6 +16,10 @@ vi.mock('@/lib/auth-utils', () => ({
 
 vi.mock('@/lib/firebase-admin', () => ({
   getFirestore: mocks.getFirestore,
+}));
+
+vi.mock('next/cache', () => ({
+  revalidateTag: mocks.revalidateTag,
 }));
 
 const makeRequest = (url: string, init?: RequestInit) => new Request(url, init) as never;
@@ -33,6 +38,7 @@ describe('/api/education route', () => {
     vi.resetModules();
     mocks.ensureAdmin.mockReset();
     mocks.getFirestore.mockReset();
+    mocks.revalidateTag.mockReset();
   });
 
   it('rejects education creation without admin authentication', async () => {
@@ -90,6 +96,7 @@ describe('/api/education route', () => {
       instituteName: 'San Jose State University',
       order: 2,
     });
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('home-education', 'max');
   });
 
   it('updates an existing education entry by id', async () => {
@@ -123,6 +130,7 @@ describe('/api/education route', () => {
       instituteName: 'SJSU',
       order: 0,
     });
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('home-education', 'max');
   });
 
   it('rejects updates that clear required education fields', async () => {
@@ -161,5 +169,6 @@ describe('/api/education route', () => {
     await expect(response.json()).resolves.toMatchObject({ success: true });
     expect(doc).toHaveBeenCalledWith('education-1');
     expect(deleteDoc).toHaveBeenCalled();
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('home-education', 'max');
   });
 });

@@ -13,6 +13,14 @@ import { HOME_GAMES_CONFIG_DOC_ID, SITE_CONFIG_COLLECTION, WRITING_COLLECTION } 
 import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 import { getInitialPostsCached, type ServerPost } from '@/lib/blog/getPostsServer';
 import { createPlainTextExcerpt } from '@/lib/text';
+import { getProjectsCached } from '@/lib/projects/getProjectsCached';
+import type { Project } from '@/services/projectsService';
+import type { Education, Job } from '@/services/resumeService';
+import {
+  HOME_EDUCATION_CACHE_TAG,
+  HOME_JOBS_CACHE_TAG,
+  HOME_RESUME_CACHE_TAG,
+} from '@/lib/home/cacheTags';
 import {
   DEFAULT_HOME_GAME_IDS,
   HOME_GAMES_CACHE_TAG,
@@ -23,6 +31,14 @@ import {
 const PROFILE_DOC_ID = 'main';
 const HOME_BLOG_POST_LIMIT = 3;
 const HOME_BLOG_EXCERPT_LENGTH = 220;
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
 
 // Missing/malformed field → undefined (resolveSocialLinks falls back to
 // defaults); a real array is kept even when it filters to empty, so an
@@ -90,6 +106,73 @@ const getInitialHomeGameIdsCached = unstable_cache(getInitialHomeGameIds, ['home
   tags: [HOME_GAMES_CACHE_TAG],
 });
 
+async function getInitialJobs(): Promise<Job[]> {
+  const snapshot = await getFirestore().collection('job').get();
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      companyName: optionalString(data.companyName),
+      companyNameJa: optionalString(data.companyNameJa),
+      jobPosition: optionalString(data.jobPosition),
+      jobPositionJa: optionalString(data.jobPositionJa),
+      jobDuration: optionalString(data.jobDuration),
+      jobType: optionalString(data.jobType),
+      jobTypeJa: optionalString(data.jobTypeJa),
+      jobDescription: optionalString(data.jobDescription),
+      jobDescriptionJa: optionalString(data.jobDescriptionJa),
+      technologies: Array.isArray(data.technologies)
+        ? data.technologies.filter((technology): technology is string => typeof technology === 'string')
+        : [],
+      hidden: data.hidden === true,
+      order: optionalNumber(data.order),
+      delayAnimation: optionalNumber(data.delayAnimation),
+    };
+  });
+}
+
+const getInitialJobsCached = unstable_cache(getInitialJobs, ['home-jobs'], {
+  revalidate: 3600,
+  tags: [HOME_JOBS_CACHE_TAG],
+});
+
+async function getInitialEducation(): Promise<Education[]> {
+  const snapshot = await getFirestore().collection('education').get();
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      school: optionalString(data.school),
+      degree: optionalString(data.degree),
+      duration: optionalString(data.duration),
+      passingYear: optionalString(data.passingYear),
+      degreeTitle: optionalString(data.degreeTitle),
+      instituteName: optionalString(data.instituteName),
+      order: optionalNumber(data.order),
+      delayAnimation: optionalNumber(data.delayAnimation),
+    };
+  });
+}
+
+const getInitialEducationCached = unstable_cache(getInitialEducation, ['home-education'], {
+  revalidate: 3600,
+  tags: [HOME_EDUCATION_CACHE_TAG],
+});
+
+async function getInitialResumeLink(): Promise<string | undefined> {
+  const snapshot = await getFirestore()
+    .collection('profile')
+    .where('name', '==', 'resume')
+    .limit(1)
+    .get();
+  return optionalString(snapshot.docs[0]?.data().value);
+}
+
+const getInitialResumeLinkCached = unstable_cache(getInitialResumeLink, ['home-resume'], {
+  revalidate: 3600,
+  tags: [HOME_RESUME_CACHE_TAG],
+});
+
 async function getInitialHomeLanguage() {
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('i18nextLng')?.value?.toLowerCase();
@@ -104,43 +187,60 @@ async function getInitialHomeLanguage() {
 function toHomeBlogPost(post: ServerPost): ServerPost {
   return {
     ...post,
-    body: createPlainTextExcerpt(post.body, HOME_BLOG_EXCERPT_LENGTH),
+    summary: createPlainTextExcerpt(post.summary, HOME_BLOG_EXCERPT_LENGTH),
   };
 }
 
 export default async function Home() {
-  let initialProfile: Profile | null = null;
-  try {
-    initialProfile = await getInitialProfileCached();
-  } catch (error) {
-    // Render with the client-side fallback; the failure is not cached,
-    // so the next request retries Firestore.
-    console.error('[Home] Failed to load initial profile:', error);
-  }
-
-  let initialWritings: Writing[] = [];
-  try {
-    const fetched = await getInitialWritingsCached();
-    initialWritings = publicWritings(fetched).filter((w) => isSafeHttpUrl(w.url));
-  } catch (error) {
-    console.error('[Home] Failed to load initial writings:', error);
-  }
-
-  let initialBlogPosts: ServerPost[] = [];
-  try {
-    const language = await getInitialHomeLanguage();
-    const fetched = await getInitialPostsCached('all', HOME_BLOG_POST_LIMIT, language);
-    initialBlogPosts = fetched.posts.map(toHomeBlogPost);
-  } catch (error) {
-    console.error('[Home] Failed to load initial blog posts:', error);
-  }
-
-  let initialHomeGameIds = DEFAULT_HOME_GAME_IDS;
-  try {
-    initialHomeGameIds = await getInitialHomeGameIdsCached();
-  } catch (error) {
-    console.error('[Home] Failed to load home games config:', error);
-  }
+  const languagePromise = getInitialHomeLanguage();
+  const [
+    initialProfile,
+    initialWritings,
+    initialBlogPosts,
+    initialHomeGameIds,
+    initialJobs,
+    initialEducation,
+    initialProjects,
+    initialResumeLink,
+  ] = await Promise.all([
+    getInitialProfileCached().catch((error): Profile | null => {
+      console.error('[Home] Failed to load initial profile:', error);
+      return null;
+    }),
+    getInitialWritingsCached()
+      .then((writings) => publicWritings(writings).filter((writing) => isSafeHttpUrl(writing.url)))
+      .catch((error): Writing[] => {
+        console.error('[Home] Failed to load initial writings:', error);
+        return [];
+      }),
+    languagePromise
+      .then((language) => getInitialPostsCached('all', HOME_BLOG_POST_LIMIT, language))
+      .then((page) => page.posts.map(toHomeBlogPost))
+      .catch((error): ServerPost[] => {
+        console.error('[Home] Failed to load initial blog posts:', error);
+        return [];
+      }),
+    getInitialHomeGameIdsCached().catch((error): string[] => {
+      console.error('[Home] Failed to load home games config:', error);
+      return DEFAULT_HOME_GAME_IDS;
+    }),
+    getInitialJobsCached().catch((error): Job[] | undefined => {
+      console.error('[Home] Failed to load initial jobs:', error);
+      return undefined;
+    }),
+    getInitialEducationCached().catch((error): Education[] | undefined => {
+      console.error('[Home] Failed to load initial education:', error);
+      return undefined;
+    }),
+    getProjectsCached().catch((error): Project[] | undefined => {
+      console.error('[Home] Failed to load initial projects:', error);
+      return undefined;
+    }),
+    getInitialResumeLinkCached().catch((error): undefined => {
+      console.error('[Home] Failed to load initial resume link:', error);
+      return undefined;
+    }),
+  ]);
 
   return (
     <>
@@ -150,6 +250,10 @@ export default async function Home() {
         initialWritings={initialWritings}
         initialBlogPosts={initialBlogPosts}
         initialHomeGameIds={initialHomeGameIds}
+        initialJobs={initialJobs}
+        initialEducation={initialEducation}
+        initialProjects={initialProjects}
+        initialResumeLink={initialResumeLink}
       />
     </>
   );

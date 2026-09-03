@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_HOME_GAME_IDS,
+  HOME_GAME_PREVIEW_LIMIT,
   getDuplicateHomeGameIds,
   getHomeGamesByIds,
+  getHomePreviewGames,
   getUnknownHomeGameIds,
   normalizeHomeGameIds,
   shouldUseDefaultHomeGameIdsForRuntimeEnv,
@@ -36,6 +38,15 @@ describe('home games config helpers', () => {
       'othello',
       'shogi',
     ]);
+  });
+
+  it('limits the home preview while preserving the configured order', () => {
+    const preview = getHomePreviewGames(DEFAULT_HOME_GAME_IDS);
+
+    expect(preview).toHaveLength(HOME_GAME_PREVIEW_LIMIT);
+    expect(preview.map((game) => game.id)).toEqual(
+      DEFAULT_HOME_GAME_IDS.slice(0, HOME_GAME_PREVIEW_LIMIT),
+    );
   });
 
   it('reports validation problems for the write API', () => {

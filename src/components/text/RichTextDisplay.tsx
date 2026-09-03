@@ -39,7 +39,14 @@ const RichTextDisplay = ({ post, showCategory = true }: RichTextDisplayProps) =>
       </header>
       {image && (
         <figure className={styles.cover}>
-          <Image src={image} alt={title} width={1280} height={720} priority unoptimized />
+          <Image
+            src={image}
+            alt={title}
+            width={1280}
+            height={720}
+            priority
+            sizes="(max-width: 640px) calc(100vw - 36px), (max-width: 1028px) calc(100vw - 48px), 980px"
+          />
         </figure>
       )}
       <RichContentRenderer content={body} className={styles.body} />

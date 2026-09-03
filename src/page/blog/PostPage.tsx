@@ -25,9 +25,11 @@ interface PostPageProps {
    * language (what hreflang promises crawlers).
    */
   forcedLanguage?: PostLanguage;
+  /** Canonical public slug; avoids routing language switches through a legacy-id redirect. */
+  canonicalSlug?: string;
 }
 
-const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
+const PostPage = ({ initialPost, forcedLanguage, canonicalSlug }: PostPageProps) => {
   const { category: routeCategory, id: routeId } = useParams();
   const [post, setPost] = useState<DetailPost | null>(initialPost ?? null);
   const [isLoading, setIsLoading] = useState(!initialPost);
@@ -100,7 +102,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   // navigations only, so Back/Forward always move between distinct pages.
   const syncUrlToLanguage = useCallback(
     (language: PostLanguage, target: DetailPost) => {
-      const barePath = `/blog/${encodeURIComponent(target.category)}/${encodeURIComponent(target.id)}`;
+      const barePath = `/blog/${encodeURIComponent(target.category)}/${encodeURIComponent(canonicalSlug || target.id)}`;
 
       if (forcedLanguage === 'ja') {
         if (language === 'en' && target.availableLanguages.includes('en')) {
@@ -113,7 +115,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
         router.replace(`/ja${barePath}`);
       }
     },
-    [forcedLanguage, router],
+    [canonicalSlug, forcedLanguage, router],
   );
 
   // A toggle can fire before the client fetch delivers the post (private
@@ -182,7 +184,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
   // Cross-link to the same article's other-language URL when that
   // translation exists. The label is deliberately written in the target
   // language — it's addressed to the reader who wants that language.
-  const postPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`;
+  const postPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(canonicalSlug || post.id)}`;
   const languageSwitch =
     forcedLanguage === 'ja'
       ? post.availableLanguages.includes('en')
@@ -196,7 +198,7 @@ const PostPage = ({ initialPost, forcedLanguage }: PostPageProps) => {
     <main className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.toolbar}>
-          <Link href={`/blog/${backCategory}`} className={styles.backLink}>
+          <Link href={`/blog/${backCategory}`} prefetch className={styles.backLink}>
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
             {t('blogPage.post.backToBlog')}
           </Link>

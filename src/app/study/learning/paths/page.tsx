@@ -10,6 +10,7 @@ PreferredLearningStyle
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/providers/AuthProvider';
 
 // Example goals for inspiration
 const EXAMPLE_GOALS = [
@@ -23,6 +24,7 @@ const EXAMPLE_GOALS = [
 
 export default function LearningPathsPage() {
   const router = useRouter();
+  const { currentUser, loading: authLoading } = useAuth();
   const { paths, loading, error, creating, createPath, deletePath } = useLearningPaths();
   const [showGenerator, setShowGenerator] = useState(false);
   const [goal, setGoal] = useState('');
@@ -102,7 +104,7 @@ export default function LearningPathsPage() {
     );
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-4xl mx-auto">
@@ -111,6 +113,17 @@ export default function LearningPathsPage() {
             <div className="h-64 bg-gray-200 rounded" />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!currentUser || currentUser.isAnonymous) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-4 py-12 text-center text-gray-900">
+        <p className="mb-4">Please sign in to manage your learning paths.</p>
+        <Link className="text-blue-600 underline" href="/signin?redirect=%2Fstudy%2Flearning%2Fpaths">
+          Sign In
+        </Link>
       </div>
     );
   }

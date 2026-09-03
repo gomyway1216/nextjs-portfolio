@@ -3,9 +3,14 @@ import React from 'react';
 import { useProfile } from '@/hooks/useProfile';
 import { resolveSocialLinks } from '@/lib/socialLinks';
 import { SOCIAL_PLATFORM_META } from '@/components/socialPlatforms';
+import type { Profile } from '@/hooks/useProfile';
 
-const Footer = () => {
-  const { profile } = useProfile();
+interface FooterProps {
+  initialProfile?: Profile | null;
+}
+
+const Footer = ({ initialProfile }: FooterProps) => {
+  const { profile } = useProfile(initialProfile);
   const links = resolveSocialLinks(profile);
 
   return (

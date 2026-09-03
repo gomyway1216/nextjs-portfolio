@@ -37,6 +37,8 @@ export interface ListingPost {
   // cached/older API responses may predate the field.
   slug?: string;
   title: string;
+  /** Plain-text preview prepared by the server so list pages do not ship full article bodies. */
+  summary?: string;
   body: string;
   isPublic: boolean;
   category: string;

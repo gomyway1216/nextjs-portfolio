@@ -41,7 +41,7 @@ const SOURCE_TYPES = [
 
 export default function NewLearningEntryPage() {
   const router = useRouter();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const { createEntry } = useLearningEntries();
   const { categories } = useStudyCategories();
 
@@ -121,11 +121,19 @@ export default function NewLearningEntryPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" aria-busy="true" role="status">
+        Loading…
+      </div>
+    );
+  }
+
   if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', padding: '48px 16px', textAlign: 'center' }}>
         <p>Please sign in to create learning entries.</p>
-        <Link href="/login">Sign In</Link>
+        <Link href="/signin?redirect=%2Fstudy%2Flearning%2Fnew">Sign In</Link>
       </div>
     );
   }

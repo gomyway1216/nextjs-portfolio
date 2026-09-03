@@ -2,6 +2,8 @@ import { PROFILE_COLLECTION } from '@/app/api/constants';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { getFirestore,getStorage } from '@/lib/firebase-admin';
 import { NextRequest,NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
+import { HOME_RESUME_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -103,6 +105,7 @@ export const POST = withActivityLog('next_api.profile.resume.POST', async (reque
     } else {
       await snapshot.docs[0].ref.update({ value: downloadURL });
     }
+    revalidateTag(HOME_RESUME_CACHE_TAG, 'max');
 
     return NextResponse.json(
       { downloadURL, message: 'Resume uploaded successfully' },

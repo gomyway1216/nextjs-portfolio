@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { permanentRedirect } from 'next/navigation';
+import { cache } from 'react';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
+import { localizeDetailPost } from '@/lib/blog/localizeDetailPost';
 import { excerpt } from '@/lib/blog/postExcerpt';
 import { buildPostJsonLd } from '@/lib/blog/postJsonLd';
 import {
@@ -18,13 +21,18 @@ interface BlogPostParams {
   params: Promise<{ category: string; id: string }>;
 }
 
+// generateMetadata and the page run independently but ask for the same
+// records. React request memoization keeps each lookup to one invocation.
+const resolvePostForRoute = cache(resolvePostParamSafe);
+const getPublicPostForRoute = cache(getPublicPostCached);
+
 export async function generateMetadata({ params }: BlogPostParams): Promise<Metadata> {
   const { id: param } = await params;
-  const resolved = await resolvePostParamSafe(param);
+  const resolved = await resolvePostForRoute(param);
 
   let post = null;
   try {
-    post = await getPublicPostCached(resolved?.id ?? param);
+    post = await getPublicPostForRoute(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] generateMetadata fetch failed:', error);
   }
@@ -96,18 +104,25 @@ export async function generateMetadata({ params }: BlogPostParams): Promise<Meta
 }
 
 export default async function BlogPost({ params }: BlogPostParams) {
-  const { id: param } = await params;
+  const { category, id: param } = await params;
 
-  // Legacy id/wrong-category URLs already 308-redirected in the segment
-  // layout (above the loading boundary); here the param is canonical.
-  const resolved = await resolvePostParamSafe(param);
+  const resolved = await resolvePostForRoute(param);
+
+  // Middleware handles legacy 20-character Firestore IDs before rendering.
+  // Keep a page-level fallback for malformed category/slug combinations;
+  // importantly, this now sits inside loading.tsx rather than blocking it.
+  if (resolved && (param !== resolved.slug || category !== resolved.category)) {
+    permanentRedirect(
+      `/blog/${encodeURIComponent(resolved.category)}/${encodeURIComponent(resolved.slug)}`,
+    );
+  }
 
   // Public posts arrive server-side (no spinner, crawlable shell);
   // private posts fall back to PostPage's client fetch which carries the
   // admin's auth token.
   let initialPost = null;
   try {
-    initialPost = await getPublicPostCached(resolved?.id ?? param);
+    initialPost = await getPublicPostForRoute(resolved?.id ?? param);
   } catch (error) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
@@ -115,12 +130,20 @@ export default async function BlogPost({ params }: BlogPostParams) {
   // BlogPosting + BreadcrumbList structured data for public posts, in the
   // language the reader (and the cookieless crawler: en) receives.
   let jsonLd: object | null = null;
+  let localizedPost = initialPost;
   if (initialPost) {
     const cookieStore = await cookies();
     const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
-    const picked = pickTranslation(initialPost.translations, language);
-    if (picked) {
-      jsonLd = buildPostJsonLd(initialPost, picked.translation, picked.language, '', resolved?.slug);
+    const localized = localizeDetailPost(initialPost, language);
+    if (localized) {
+      localizedPost = localized.post;
+      jsonLd = buildPostJsonLd(
+        initialPost,
+        localized.translation,
+        localized.language,
+        '',
+        resolved?.slug,
+      );
     }
   }
 
@@ -134,7 +157,11 @@ export default async function BlogPost({ params }: BlogPostParams) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
         />
       )}
-      <PostPage key={param} initialPost={initialPost} />
+      <PostPage
+        key={param}
+        initialPost={localizedPost}
+        canonicalSlug={resolved?.slug ?? param}
+      />
     </>
   );
 }

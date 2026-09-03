@@ -2,6 +2,7 @@
 import { useEducation,useJobs } from '@/hooks';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { Education, Job } from '@/services/resumeService';
 import {
   calculateJobDuration,
   formatJobDurationRange,
@@ -10,10 +11,15 @@ import {
 } from '@/lib/resumeLocalization';
 import { getEducationDegreeTitle,getEducationInstituteName,getEducationPassingYear } from '@/lib/resumeEducation';
 
-const Resume = () => {
+interface ResumeProps {
+  initialJobs?: Job[];
+  initialEducation?: Education[];
+}
+
+const Resume = ({ initialJobs, initialEducation }: ResumeProps) => {
   const { t, i18n } = useTranslation();
-  const { jobs: fetchedJobs, loading: _jobsLoading } = useJobs();
-  const { education: fetchedEducation, loading: _educationLoading } = useEducation();
+  const { jobs: fetchedJobs, loading: _jobsLoading } = useJobs(initialJobs);
+  const { education: fetchedEducation, loading: _educationLoading } = useEducation(initialEducation);
   const language = i18n.language === 'ja' ? 'ja' : 'en';
 
   const jobs = useMemo(() => {

@@ -1,6 +1,8 @@
 import { ensureAdmin } from '@/lib/auth-utils';
 import { getFirestore } from '@/lib/firebase-admin';
 import { NextRequest,NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
+import { HOME_JOBS_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -121,6 +123,7 @@ export const POST = withActivityLog('next_api.job.POST', async (request: NextReq
 
     const db = getFirestore();
     const docRef = await db.collection('job').add(updates);
+    revalidateTag(HOME_JOBS_CACHE_TAG, 'max');
 
     return NextResponse.json(
       { id: docRef.id, message: `Created job for ${companyName}` },
@@ -188,6 +191,7 @@ export const PUT = withActivityLog('next_api.job.PUT', async (request: NextReque
         );
       }
       await docRef.update(updates);
+      revalidateTag(HOME_JOBS_CACHE_TAG, 'max');
       return NextResponse.json({ success: true, message: `Updated job ${id}` });
     }
 
@@ -206,6 +210,7 @@ export const PUT = withActivityLog('next_api.job.PUT', async (request: NextReque
 
     const doc = snapshot.docs[0];
     await doc.ref.update(updates);
+    revalidateTag(HOME_JOBS_CACHE_TAG, 'max');
 
     return NextResponse.json({
       success: true,
@@ -250,6 +255,7 @@ export const DELETE = withActivityLog('next_api.job.DELETE', async (request: Nex
     }
 
     await docRef.delete();
+    revalidateTag(HOME_JOBS_CACHE_TAG, 'max');
     return NextResponse.json({ success: true, message: `Deleted job ${id}` });
   } catch (error) {
     console.error('Error deleting job:', error);

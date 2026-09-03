@@ -5,6 +5,8 @@ import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
+import { revalidateTag } from 'next/cache';
+import { HOME_PROJECTS_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -81,6 +83,7 @@ export const POST = withActivityLog('next_api.projects.POST', async (request: Ne
       technologies: technologies || [],
       categories: categories || [],
     });
+    revalidateTag(HOME_PROJECTS_CACHE_TAG, 'max');
 
     return NextResponse.json(
       { id: docRef.id, message: 'Project created successfully' },

@@ -16,6 +16,7 @@ import { normalizeRelatedPostIds } from '@/lib/blog/relatedPosts';
 import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
+import { excerpt } from '@/lib/blog/postExcerpt';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -31,10 +32,9 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
  * - language: 'en' | 'ja' (default: 'en'; selects which translation to flatten)
- * - excludeBody: 'true' to return body: '' for each post. The admin list
- *   only renders metadata (title/category/date/visibility) and loads the
- *   full document on edit, so shipping every post's HTML body there is
- *   pure overhead. Public listings keep the body (used for excerpts).
+ * - excludeBody: 'true' to return body: '' for each post. Public list
+ *   responses also return only a server-built summary; a full body is sent
+ *   only for authenticated draft/admin flows that explicitly need it.
  */
 export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
@@ -100,7 +100,8 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
         isPublic: data.isPublic,
         image: data.image,
         title: picked.translation.title,
-        body: excludeBody ? '' : picked.translation.body,
+        summary: excerpt(picked.translation.body),
+        body: excludeBody || isPublic === true ? '' : picked.translation.body,
         language: picked.language,
         availableLanguages: availableLanguages(translations),
         viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,

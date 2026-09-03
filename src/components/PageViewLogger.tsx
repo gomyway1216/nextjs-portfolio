@@ -31,12 +31,27 @@ export default function PageViewLogger() {
   useEffect(() => {
     if (!pathname) return;
     if (isBot()) return;
-    const search = searchParams?.toString();
-    const path = search ? `${pathname}?${search}` : pathname;
-    logActivity({
-      action: 'client.page_view',
-      params: { path, pathname, referrer: document.referrer || undefined },
-    });
+
+    const logPageView = () => {
+      const search = searchParams?.toString();
+      const path = search ? `${pathname}?${search}` : pathname;
+      logActivity({
+        action: 'client.page_view',
+        params: { path, pathname, referrer: document.referrer || undefined },
+      });
+    };
+
+    // Analytics should not compete with the hero image, hydration, and public
+    // content requests. It remains keepalive-backed, but starts once the main
+    // thread is idle (or shortly after load in browsers without the API).
+    const scheduleIdle = window.requestIdleCallback;
+    if (typeof scheduleIdle === 'function') {
+      const idleId = scheduleIdle(logPageView, { timeout: 2000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = setTimeout(logPageView, 750);
+    return () => clearTimeout(timeoutId);
   }, [pathname, searchParams]);
 
   return null;

@@ -25,6 +25,14 @@ function wrapHtmlTables(content: string): string {
   const container = document.createElement('div');
   container.innerHTML = content;
 
+  // Images embedded in the article body are always below the title and cover.
+  // Keep them off the critical loading path, including legacy HTML-authored
+  // posts that bypass ReactMarkdown's component mapping.
+  container.querySelectorAll('img').forEach((image) => {
+    image.setAttribute('loading', 'lazy');
+    image.setAttribute('decoding', 'async');
+  });
+
   container.querySelectorAll('table').forEach((table) => {
     if (table.parentElement?.hasAttribute('data-rich-table-scroll')) return;
 
@@ -102,6 +110,8 @@ const components: Components = {
         <img
           src={src}
           alt={alt ?? ''}
+          loading="lazy"
+          decoding="async"
           style={{
             display: 'block',
             width: '100%',

@@ -1,30 +1,32 @@
 "use client";
 
 import { useFlashcards,useLearningAI } from "@/hooks/useStudy";
+import { useAuth } from "@/providers/AuthProvider";
 import {
 CardContentDifficulty,
 Flashcard,
 FlashcardDeck
 } from "@/types/study";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect,useState } from "react";
+import { useState } from "react";
 
 type TabType = "decks" | "cards" | "create";
 
 export default function FlashcardsPage() {
   const router = useRouter();
+  const { currentUser, loading: authLoading } = useAuth();
+  const canLoadFlashcards = Boolean(currentUser && !currentUser.isAnonymous);
   const {
     flashcards,
     decks,
     loading,
     error,
-    fetchFlashcards,
-    fetchDecks,
     createFlashcard,
     createDeck,
     deleteDeck,
-  } = useFlashcards();
+  } = useFlashcards(undefined, { enabled: canLoadFlashcards });
   const { generateFlashcards, generating: aiLoading } = useLearningAI();
 
   const [activeTab, setActiveTab] = useState<TabType>("decks");
@@ -56,11 +58,6 @@ export default function FlashcardsPage() {
   // Loading states
   const [creatingDeck, setCreatingDeck] = useState(false);
   const [creatingCard, setCreatingCard] = useState(false);
-
-  useEffect(() => {
-    fetchDecks();
-    fetchFlashcards();
-  }, []);
 
   const handleCreateDeck = async () => {
     if (!newDeckName.trim() || creatingDeck) return;
@@ -205,6 +202,27 @@ export default function FlashcardsPage() {
     return "text-red-600 dark:text-red-400";
   };
 
+  if (authLoading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        aria-busy="true"
+        role="status"
+      >
+        Loading…
+      </div>
+    );
+  }
+
+  if (!canLoadFlashcards) {
+    return (
+      <div className="min-h-screen px-4 py-12 text-center">
+        <p>Please sign in to manage your flashcards.</p>
+        <Link href="/signin?redirect=%2Fstudy%2Flearning%2Fflashcards">Sign In</Link>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -221,8 +239,8 @@ export default function FlashcardsPage() {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center space-x-4">
               <button
                 onClick={() => router.push("/study/learning")}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -238,16 +256,16 @@ export default function FlashcardsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
               <button
                 onClick={() => setShowCreateDeckModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 New Deck
               </button>
               <button
                 onClick={() => setShowCreateCardModal(true)}
-                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                className="px-3 py-2 sm:px-4 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
               >
                 New Card
               </button>

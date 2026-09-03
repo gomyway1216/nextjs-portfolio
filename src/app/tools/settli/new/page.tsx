@@ -235,7 +235,7 @@ export default function NewSettliGroupPage() {
         </Card>
 
         {/* Submit */}
-        <div className="flex gap-4">
+        <div className="flex flex-col-reverse gap-4 sm:flex-row">
           <Link href="/tools/settli" className="flex-1">
             <Button
               type="button"

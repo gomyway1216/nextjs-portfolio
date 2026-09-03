@@ -22,9 +22,12 @@ interface RelatedPostsProps {
 const RelatedPosts = ({ ids }: RelatedPostsProps) => {
   const { t, i18n } = useTranslation();
   const language = normalizeLanguage(i18n.language);
-  const [posts, setPosts] = useState<RelatedPostSummary[]>([]);
-
   const idsKey = (ids || []).join(',');
+  const requestKey = `${language}:${idsKey}`;
+  const [result, setResult] = useState<{
+    requestKey: string;
+    posts: RelatedPostSummary[];
+  }>({ requestKey: '', posts: [] });
 
   useEffect(() => {
     if (!idsKey) {
@@ -35,17 +38,21 @@ const RelatedPosts = ({ ids }: RelatedPostsProps) => {
     (async () => {
       try {
         const summaries = await getRelatedPosts(idsKey.split(','), language);
-        if (!cancelled) setPosts(summaries);
+        if (!cancelled) setResult({ requestKey, posts: summaries });
       } catch (error) {
         // A broken related strip should never take down the article.
         console.error('[blog] failed to load related posts', error);
-        if (!cancelled) setPosts([]);
+        if (!cancelled) setResult({ requestKey, posts: [] });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [idsKey, language]);
+  }, [idsKey, language, requestKey]);
+
+  // Hide results as soon as the target article or language changes. The next
+  // matching response will repopulate the strip without flashing stale links.
+  const posts = result.requestKey === requestKey ? result.posts : [];
 
   if (posts.length === 0) return null;
 

@@ -10,5 +10,7 @@ describe('Roulette Wheel responsive sizing', () => {
     expect(markup).toContain('width:100%');
     expect(markup).toContain('max-width:300px');
     expect(markup).toContain('aspect-ratio:300 / 324');
+    expect(markup.match(/height:auto/g)).toHaveLength(2);
+    expect(markup).not.toContain('height="auto"');
   });
 });

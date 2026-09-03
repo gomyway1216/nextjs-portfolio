@@ -151,9 +151,9 @@ export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idle
       {/* Rotating wheel */}
       <svg
         width="100%"
-        height="auto"
         viewBox={`0 0 ${size} ${size}`}
         style={{
+          height: 'auto',
           marginTop: '8%',
           transform: `rotate(${rotation}deg)`,
           transition: hasSpun ? spinTransition : 'none',
@@ -171,9 +171,9 @@ export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idle
       {/* Ball layer — separate SVG so it can rotate independently */}
       <svg
         width="100%"
-        height="auto"
         viewBox={`0 0 ${size} ${size}`}
         style={{
+          height: 'auto',
           position: 'absolute',
           left: 0,
           top: '8%',

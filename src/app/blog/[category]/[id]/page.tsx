@@ -4,6 +4,8 @@ import { permanentRedirect } from 'next/navigation';
 import { cache } from 'react';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
+import { getMorePostsSafe } from '@/lib/blog/getMorePostsServer';
+import type { MorePost } from '@/lib/blog/morePosts';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { normalizeLanguage, pickTranslation } from '@/lib/blog/postTranslations';
 import { localizeDetailPost } from '@/lib/blog/localizeDetailPost';
@@ -131,9 +133,12 @@ export default async function BlogPost({ params }: BlogPostParams) {
   // language the reader (and the cookieless crawler: en) receives.
   let jsonLd: object | null = null;
   let localizedPost = initialPost;
+  let morePosts: MorePost[] = [];
   if (initialPost) {
     const cookieStore = await cookies();
     const language = normalizeLanguage(cookieStore.get('i18nextLng')?.value);
+    // Same-category strip; already-cached by the category listing route.
+    morePosts = await getMorePostsSafe(initialPost, language);
     const localized = localizeDetailPost(initialPost, language);
     if (localized) {
       localizedPost = localized.post;
@@ -161,6 +166,7 @@ export default async function BlogPost({ params }: BlogPostParams) {
         key={param}
         initialPost={localizedPost}
         canonicalSlug={resolved?.slug ?? param}
+        morePosts={morePosts}
       />
     </>
   );

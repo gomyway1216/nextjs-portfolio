@@ -12,6 +12,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
+import { categoryDisplayLabel } from '@/lib/blog/categoryLabelKeys';
 import { normalizeLanguage, type PostLanguage } from '@/lib/blog/postTranslations';
 import styles from './category-post-page.module.css';
 
@@ -24,24 +25,6 @@ interface CategoryPostPageProps {
 }
 
 const PAGE_LIMIT = 5;
-
-const CATEGORY_LABELS: Record<string, string> = {
-  all: 'blogPage.index.categories.all',
-  'applied-algorithms': 'blogPage.index.categories.appliedAlgorithms',
-  'system-design': 'blogPage.index.categories.systemDesign',
-  'engineering-practices': 'blogPage.index.categories.engineeringPractices',
-  'fintech-payments': 'blogPage.index.categories.fintechPayments',
-  career: 'blogPage.index.categories.career',
-  technology: 'blogPage.index.categories.technology',
-  life: 'blogPage.index.categories.life',
-};
-
-const titleCaseCategory = (value: string) =>
-  value
-    .split('-')
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
 
 const LoadingPostSkeleton = () => (
   <article className={styles.loadingCard} aria-hidden="true">
@@ -107,7 +90,7 @@ const CategoryPostPage = ({
     postsByCategory[cacheKey] ||
     (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
     [];
-  const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
+  const categoryLabel = categoryDisplayLabel(category, t);
   const showLoadingSkeletons = isLoading;
   const skeletonCount = visiblePosts.length === 0 ? PAGE_LIMIT : Math.min(3, PAGE_LIMIT);
 

@@ -75,6 +75,11 @@
     "backToGames": "ゲーム一覧へ",
     "backToPortfolio": "ポートフォリオに戻る"
   },
+  "siteFooter": {
+    "navLabel": "サイト内リンク",
+    "socialLabel": "SNSプロフィール",
+    "rss": "RSSフィード"
+  },
   "projectPage": {
     "loading": "プロジェクト詳細を読み込んでいます...",
     "notFoundTitle": "プロジェクトが見つかりません",
@@ -323,7 +328,19 @@
       "related": "関連記事",
       "like": "いいね",
       "liked": "いいね済み",
-      "unlike": "いいねを取り消す"
+      "unlike": "いいねを取り消す",
+      "share": "シェア",
+      "shareOn": "{{network}}でシェア",
+      "copyLink": "リンクをコピー",
+      "linkCopied": "コピーしました",
+      "copyFailed": "コピーできませんでした",
+      "moreFrom": "{{category}}の他の記事"
+    },
+    "author": {
+      "label": "書いた人",
+      "blurb": "サンフランシスコ在住のシニア・フィンテックエンジニア。決済・リスク・オペレーション基盤を構築し、Bay Area AI Study Groupを主催しています。本番システムの裏にある意思決定と、個人開発の記録を書いています。",
+      "aboutLink": "プロフィールを見る",
+      "allPosts": "記事一覧"
     }
   },
   "study": {

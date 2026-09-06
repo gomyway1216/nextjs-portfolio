@@ -3,6 +3,8 @@ import { permanentRedirect, redirect } from 'next/navigation';
 import { cache } from 'react';
 import PostPage from '@/page/blog/PostPage';
 import { getPublicPostCached } from '@/lib/blog/getPostServer';
+import { getMorePostsSafe } from '@/lib/blog/getMorePostsServer';
+import type { MorePost } from '@/lib/blog/morePosts';
 import { resolvePostParamSafe } from '@/lib/blog/getSlugIndexServer';
 import { localizeDetailPost } from '@/lib/blog/localizeDetailPost';
 import { excerpt } from '@/lib/blog/postExcerpt';
@@ -114,7 +116,9 @@ export default async function BlogPostJa({ params }: BlogPostParams) {
 
   let jsonLd: object | null = null;
   let localizedPost = initialPost;
+  let morePosts: MorePost[] = [];
   if (initialPost) {
+    morePosts = await getMorePostsSafe(initialPost, 'ja');
     const localized = localizeDetailPost(initialPost, 'ja');
     if (localized) {
       localizedPost = localized.post;
@@ -141,6 +145,7 @@ export default async function BlogPostJa({ params }: BlogPostParams) {
         initialPost={localizedPost}
         forcedLanguage="ja"
         canonicalSlug={resolved?.slug ?? param}
+        morePosts={morePosts}
       />
     </>
   );

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { categoryDisplayLabel } from '@/lib/blog/categoryLabelKeys';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -37,24 +38,6 @@ const formatDisplayDate = (value?: string | Date, language?: string) => {
 
 const HTML_START_PATTERN = /^\s*<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
 
-const CATEGORY_LABELS: Record<string, string> = {
-  all: 'blogPage.index.categories.all',
-  'applied-algorithms': 'blogPage.index.categories.appliedAlgorithms',
-  'system-design': 'blogPage.index.categories.systemDesign',
-  'engineering-practices': 'blogPage.index.categories.engineeringPractices',
-  'fintech-payments': 'blogPage.index.categories.fintechPayments',
-  career: 'blogPage.index.categories.career',
-  technology: 'blogPage.index.categories.technology',
-  life: 'blogPage.index.categories.life',
-};
-
-const titleCaseCategory = (value: string) =>
-  value
-    .split('-')
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
-
 const markdownToPlainText = (value: string) => value
   .replace(/```[\s\S]*?```/g, ' ')
   .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
@@ -77,7 +60,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
     const bodyText = summary || markdownToPlainText(rawBodyText);
     const excerptLength = 190;
     const excerpt = bodyText.length > excerptLength ? `${bodyText.slice(0, excerptLength).trim()}...` : bodyText;
-    const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
+    const categoryLabel = categoryDisplayLabel(category, t);
     const displayIndex = index != null ? String(index).padStart(2, '0') : '01';
     const readLabel = t('blogPage.index.read');
     const openLabel = t('blogPage.index.openPost', { title });

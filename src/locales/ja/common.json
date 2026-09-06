@@ -75,6 +75,17 @@
     "backToGames": "ゲーム一覧へ",
     "backToPortfolio": "ポートフォリオに戻る"
   },
+  "footer": {
+    "navLabel": "サイト内リンク",
+    "rss": "RSSフィード"
+  },
+  "notFound": {
+    "title": "404 — ページが見つかりません",
+    "text": "お探しのページは存在しないか、移動しました。以下のリンクからお進みください。",
+    "backHome": "ホームへ戻る",
+    "browseBlog": "ブログを読む",
+    "viewProjects": "プロジェクトを見る"
+  },
   "projectPage": {
     "loading": "プロジェクト詳細を読み込んでいます...",
     "notFoundTitle": "プロジェクトが見つかりません",
@@ -1295,7 +1306,8 @@
       },
       "cta": {
         "downloadCv": "履歴書をダウンロード",
-        "exploreTools": "ツールを見る"
+        "viewProjects": "プロジェクトを見る",
+        "readBlog": "ブログを読む"
       },
       "stats": {
         "experienceValue": "6+ yrs",
@@ -1403,7 +1415,8 @@
       },
       "tools": {
         "title": "便利ツール",
-        "subtitle": "日常の課題を解決するために作成した、実用的なツールです。"
+        "subtitle": "日常の課題を解決するために作成した、実用的なツールです。",
+        "viewAll": "すべてのツールを見る"
       },
       "study": {
         "title": "学習ラボ",

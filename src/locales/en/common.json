@@ -75,6 +75,17 @@
     "backToGames": "Back to Games",
     "backToPortfolio": "Back to Portfolio"
   },
+  "footer": {
+    "navLabel": "Site sections",
+    "rss": "RSS feed"
+  },
+  "notFound": {
+    "title": "404 — Page not found",
+    "text": "The page you are looking for does not exist or has moved. Here are a few places to go next.",
+    "backHome": "Back to home",
+    "browseBlog": "Browse the blog",
+    "viewProjects": "See projects"
+  },
   "projectPage": {
     "loading": "Loading project...",
     "notFoundTitle": "Project not found",
@@ -1312,7 +1323,8 @@
       },
       "cta": {
         "downloadCv": "Download CV",
-        "exploreTools": "Explore Tools"
+        "viewProjects": "View projects",
+        "readBlog": "Read the blog"
       },
       "stats": {
         "experienceValue": "6+ yrs",
@@ -1420,7 +1432,8 @@
       },
       "tools": {
         "title": "Useful Tools",
-        "subtitle": "Production-ready utilities built to solve real-world day-to-day problems."
+        "subtitle": "Production-ready utilities built to solve real-world day-to-day problems.",
+        "viewAll": "View all tools"
       },
       "study": {
         "title": "Study Lab",

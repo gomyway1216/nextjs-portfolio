@@ -26,4 +26,31 @@
       color: $px-dark;
     }
   }
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 20px;
+    padding: 6px 0 12px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba($px-white, 0.12);
+    .theme-light & {
+      border-bottom-color: rgba($px-dark, 0.1);
+    }
+    a {
+      color: $px-white;
+      font-size: 14px;
+      text-decoration: none;
+      .theme-light & {
+        color: $px-dark;
+      }
+      &:hover,
+      &:focus-visible {
+        color: $px-theme;
+      }
+    }
+    @media (min-width: 768px) {
+      justify-content: flex-start;
+    }
+  }
 }

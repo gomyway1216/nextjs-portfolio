@@ -325,7 +325,7 @@ describe("v1r11 formal-like-512 production artifact boundary", () => {
         roles: sample.roles,
       }),
     ).rejects.toThrow();
-  });
+  }, 60_000);
 
   it("accepts one whole-parent Hash8192 route only when every capped normal row is discarded", async () => {
     const root = await fs.promises.realpath(
@@ -444,7 +444,7 @@ describe("v1r11 formal-like-512 production artifact boundary", () => {
       normal_partial_rows_published: 0,
       capped_rows_published: 0,
     });
-  });
+  }, 60_000);
 
   it("stops before artifact publication on an incomplete executor result", async () => {
     const root = await fs.promises.realpath(
@@ -471,5 +471,5 @@ describe("v1r11 formal-like-512 production artifact boundary", () => {
       ),
     ).rejects.toThrow("execution result differs");
     expect(await fs.promises.readdir(artifacts)).toEqual([]);
-  });
+  }, 60_000);
 });

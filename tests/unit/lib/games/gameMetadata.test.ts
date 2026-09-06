@@ -29,6 +29,16 @@ describe('buildGameMetadata', () => {
   });
 });
 
+describe('/games layout keeps the site title template for game pages', () => {
+  it('declares title as default + template, not a bare string', async () => {
+    const { metadata } = await import('@/app/games/layout');
+    expect(metadata.title).toEqual({
+      default: 'Games & Interactive Demos',
+      template: '%s | Yudai Yaguchi',
+    });
+  });
+});
+
 describe('every /games/<id> route exports its catalog metadata', () => {
   const appDir = join(process.cwd(), 'src', 'app', 'games');
 

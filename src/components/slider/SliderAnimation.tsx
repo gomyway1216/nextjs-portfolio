@@ -167,8 +167,11 @@ const Slider = ({ initialProfile, initialResumeLink }: SliderProps) => {
                   >
                     {t('home.hero.cta.downloadCv')}
                   </a>
-                  <Link className="px-btn px-btn-white" href="/#tools" aria-label="Explore tools">
-                    {t('home.hero.cta.exploreTools')}
+                  <Link className="px-btn px-btn-white" href="/projects" prefetch>
+                    {t('home.hero.cta.viewProjects')}
+                  </Link>
+                  <Link className="px-btn px-btn-white" href="/blog" prefetch>
+                    {t('home.hero.cta.readBlog')}
                   </Link>
                 </div>
               </div>

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import Header from '@/components/header/Header';
 import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
@@ -75,7 +77,13 @@ const HomeOne = ({
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>{t('home.sections.tools.title')}</h3>
+            <div className="modern-title__row">
+              <h3>{t('home.sections.tools.title')}</h3>
+              <Link className="modern-title__link" href="/tools">
+                {t('home.sections.tools.viewAll')}
+                <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+              </Link>
+            </div>
             <p>{t('home.sections.tools.subtitle')}</p>
           </div>
           <ToolsSection />

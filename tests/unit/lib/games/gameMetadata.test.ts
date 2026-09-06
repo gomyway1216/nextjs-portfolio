@@ -37,7 +37,9 @@ describe('every /games/<id> route exports its catalog metadata', () => {
       const candidates = [join(appDir, game.id, 'page.tsx'), join(appDir, game.id, 'layout.tsx')];
       const sources = candidates.filter(existsSync).map((file) => readFileSync(file, 'utf8'));
       expect(sources.length).toBeGreaterThan(0);
-      expect(sources.some((source) => source.includes(`buildGameMetadata('${game.id}')`))).toBe(true);
+      // Tolerant of quote style and whitespace; strict about the id.
+      const call = new RegExp(`buildGameMetadata\\(\\s*['"\`]${game.id}['"\`]\\s*\\)`);
+      expect(sources.some((source) => call.test(source))).toBe(true);
     });
   }
 });

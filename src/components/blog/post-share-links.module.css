@@ -46,3 +46,15 @@
   border-color: color-mix(in srgb, #16a34a 55%, var(--border));
   color: #16a34a;
 }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

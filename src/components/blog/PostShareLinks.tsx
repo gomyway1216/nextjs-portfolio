@@ -71,7 +71,6 @@ const PostShareLinks = ({ url, title }: PostShareLinksProps) => {
         type="button"
         className={`${styles.pill} ${copyState === 'copied' ? styles.copied : ''}`}
         onClick={handleCopy}
-        aria-live="polite"
       >
         {copyState === 'copied' ? (
           <Check size={14} aria-hidden="true" />
@@ -80,6 +79,11 @@ const PostShareLinks = ({ url, title }: PostShareLinksProps) => {
         )}
         {copyLabel}
       </button>
+      {/* Announce the outcome from a real live region: aria-live on the
+          button itself is ignored by most screen readers. */}
+      <span className={styles.srOnly} role="status" aria-live="polite">
+        {copyState === 'idle' ? '' : copyLabel}
+      </span>
     </div>
   );
 };

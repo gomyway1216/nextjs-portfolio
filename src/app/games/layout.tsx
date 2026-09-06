@@ -4,7 +4,14 @@ import type { Metadata } from 'next';
 // can't export metadata themselves; this gives the whole subtree a real
 // title/description instead of the site-wide default.
 export const metadata: Metadata = {
-  title: 'Games & Interactive Demos',
+  // Object form on purpose: a plain string here would replace the root
+  // layout's title template, so every game page rendered a bare
+  // "<title>Shogi</title>" without the site name. `default` is the /games
+  // index title; `template` re-applies the site suffix to each game.
+  title: {
+    default: 'Games & Interactive Demos',
+    template: '%s | Yudai Yaguchi',
+  },
   description:
     'Browser games and interactive probability demos built by Yudai Yaguchi — shogi with a from-scratch AI engine, Texas Hold’em, riichi mahjong, and classic probability puzzles.',
   alternates: { canonical: '/games' },

@@ -14,7 +14,6 @@ import StudyEntry from '@/components/home/StudyEntry';
 import PublishedWriting from '@/components/home/PublishedWriting';
 import HomeBlogSection, { type HomeBlogPost } from '@/components/home/HomeBlogSection';
 import Footer from '@/components/footer/FooterAnimation';
-import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import type { Profile } from '@/hooks/useProfile';
@@ -46,9 +45,9 @@ const HomeOne = ({
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const hasPublishedWritings = initialWritings.length > 0;
-  useDocumentTitle(
-    t('app.title')
-  );
+  // No client-side document.title override: the root layout's metadata
+  // ("Yudai Yaguchi — Senior Fintech Engineer") is what search results show,
+  // and the tab should say the same thing.
 
   useEffect(() => {
     document.body.classList.remove('theme-light', 'theme-dark');

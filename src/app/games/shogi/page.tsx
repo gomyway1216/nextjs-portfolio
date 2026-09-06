@@ -8,6 +8,9 @@
  */
 
 import { ShogiImproved } from '@/components/game/ShogiImproved';
+import { buildGameMetadata } from '@/lib/games/gameMetadata';
+
+export const metadata = buildGameMetadata('shogi');
 
 export default function ShogiPage() {
   return <ShogiImproved />;

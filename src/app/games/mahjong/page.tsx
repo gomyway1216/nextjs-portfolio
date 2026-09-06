@@ -17,6 +17,9 @@ import { useEffect, useMemo } from 'react';
 
 import { MahjongGame, type AiDriverFactory } from '@/components/game/Mahjong/MahjongGame';
 import { createMahjongAiClient } from '@/components/game/Mahjong/mahjongAiWorkerClient';
+import { buildGameMetadata } from '@/lib/games/gameMetadata';
+
+export const metadata = buildGameMetadata('mahjong');
 
 export default function MahjongPage() {
   const client = useMemo(() => createMahjongAiClient(), []);

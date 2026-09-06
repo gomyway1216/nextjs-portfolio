@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowRight,
   FileText,
@@ -27,7 +27,6 @@ interface Tool {
 }
 
 const ToolsSection: React.FC = () => {
-  const router = useRouter();
   const { t } = useTranslation();
 
   const tools: Tool[] = [
@@ -124,28 +123,17 @@ const ToolsSection: React.FC = () => {
     },
   ];
 
-  const handleToolClick = (path: string) => {
-    router.push(path);
-  };
-
   return (
     <div className="tools-section">
       <div className="tools-grid">
         {tools.map((tool) => (
-          <div
+          // A real link (not a div with router.push): crawlable, opens in a
+          // new tab with cmd/ctrl-click, and works before hydration.
+          <Link
             key={tool.id}
+            href={tool.path}
             className="tool-card tool-card--featured modern-card"
-            onClick={() => handleToolClick(tool.path)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                handleToolClick(tool.path);
-              }
-            }}
-            role="button"
-            tabIndex={0}
             data-aos="fade-up"
-
           >
             <div className="tool-card__icon">
               {tool.icon}
@@ -167,7 +155,7 @@ const ToolsSection: React.FC = () => {
             <div className="tool-card__arrow">
               <ArrowRight size={20} />
             </div>
-          </div>
+          </Link>
         ))}
 
         {/* Coming Soon Card */}

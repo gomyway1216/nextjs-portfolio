@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import Header from '@/components/header/Header';
 import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
@@ -14,7 +16,6 @@ import StudyEntry from '@/components/home/StudyEntry';
 import PublishedWriting from '@/components/home/PublishedWriting';
 import HomeBlogSection, { type HomeBlogPost } from '@/components/home/HomeBlogSection';
 import Footer from '@/components/footer/FooterAnimation';
-import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import type { Profile } from '@/hooks/useProfile';
@@ -46,9 +47,9 @@ const HomeOne = ({
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const hasPublishedWritings = initialWritings.length > 0;
-  useDocumentTitle(
-    t('app.title')
-  );
+  // No client-side document.title override: the root layout's metadata
+  // ("Yudai Yaguchi — Senior Fintech Engineer") is what search results show,
+  // and the tab should say the same thing.
 
   useEffect(() => {
     document.body.classList.remove('theme-light', 'theme-dark');
@@ -75,7 +76,13 @@ const HomeOne = ({
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>{t('home.sections.tools.title')}</h3>
+            <div className="modern-title__row">
+              <h3>{t('home.sections.tools.title')}</h3>
+              <Link className="modern-title__link" href="/tools">
+                {t('home.sections.tools.viewAll')}
+                <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+              </Link>
+            </div>
             <p>{t('home.sections.tools.subtitle')}</p>
           </div>
           <ToolsSection />

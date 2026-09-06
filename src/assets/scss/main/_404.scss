@@ -45,4 +45,11 @@
   .h4 {
     color: #cbcbcb;
   }
+
+  .error-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
 }

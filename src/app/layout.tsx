@@ -69,12 +69,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: SITE_NAME, url: SITE_URL }],
   creator: SITE_NAME,
+  // No hreflang here on purpose: the home page serves both languages from
+  // the same URL (cookie/Accept-Language), so there is no per-language URL
+  // to point at. Declaring en + ja alternates that both resolve to "/"
+  // told crawlers nothing and looked like a misconfiguration.
   alternates: {
     canonical: '/',
-    languages: {
-      'en-US': '/',
-      'ja-JP': '/',
-    },
     types: {
       'application/rss+xml': '/rss.xml',
     },

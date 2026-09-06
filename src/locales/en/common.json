@@ -75,6 +75,11 @@
     "backToGames": "Back to Games",
     "backToPortfolio": "Back to Portfolio"
   },
+  "siteFooter": {
+    "navLabel": "Site sections",
+    "socialLabel": "Social profiles",
+    "rss": "RSS feed"
+  },
   "footer": {
     "navLabel": "Site sections",
     "rss": "RSS feed"
@@ -348,7 +353,19 @@
       "related": "Related posts",
       "like": "Like",
       "liked": "Liked",
-      "unlike": "Remove like"
+      "unlike": "Remove like",
+      "share": "Share",
+      "shareOn": "Share on {{network}}",
+      "copyLink": "Copy link",
+      "linkCopied": "Link copied",
+      "copyFailed": "Could not copy",
+      "moreFrom": "More in {{category}}"
+    },
+    "author": {
+      "label": "Written by",
+      "blurb": "Senior fintech engineer in San Francisco building payments, risk, and operations systems, and founder of the Bay Area AI Study Group. I write about the decisions behind production systems and the things I build on the side.",
+      "aboutLink": "More about me",
+      "allPosts": "All posts"
     }
   },
   "study": {

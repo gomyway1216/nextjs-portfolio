@@ -1,10 +1,15 @@
 'use client';
 
+import AuthorCard from '@/components/blog/AuthorCard';
+import MoreFromCategory from '@/components/blog/MoreFromCategory';
 import PostLikeButton from '@/components/blog/PostLikeButton';
+import PostShareLinks from '@/components/blog/PostShareLinks';
 import RelatedPosts from '@/components/blog/RelatedPosts';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
 import { usePostViewBeacon } from '@/hooks/usePostViewBeacon';
+import type { MorePost } from '@/lib/blog/morePosts';
 import { normalizeLanguage, pickTranslation, type PostLanguage } from '@/lib/blog/postTranslations';
+import { SITE_URL } from '@/lib/siteConfig';
 import { useAuth } from '@/providers/AuthProvider';
 import type { DetailPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
@@ -27,9 +32,11 @@ interface PostPageProps {
   forcedLanguage?: PostLanguage;
   /** Canonical public slug; avoids routing language switches through a legacy-id redirect. */
   canonicalSlug?: string;
+  /** Server-selected newest posts in the same category for the onward strip. */
+  morePosts?: MorePost[];
 }
 
-const PostPage = ({ initialPost, forcedLanguage, canonicalSlug }: PostPageProps) => {
+const PostPage = ({ initialPost, forcedLanguage, canonicalSlug, morePosts = [] }: PostPageProps) => {
   const { category: routeCategory, id: routeId } = useParams();
   const [post, setPost] = useState<DetailPost | null>(initialPost ?? null);
   const [isLoading, setIsLoading] = useState(!initialPost);
@@ -185,6 +192,9 @@ const PostPage = ({ initialPost, forcedLanguage, canonicalSlug }: PostPageProps)
   // translation exists. The label is deliberately written in the target
   // language — it's addressed to the reader who wants that language.
   const postPath = `/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(canonicalSlug || post.id)}`;
+  // Share the URL that canonically serves the language on screen: the
+  // pinned /ja route for Japanese, the bare route otherwise.
+  const shareUrl = `${SITE_URL}${forcedLanguage === 'ja' ? '/ja' : ''}${postPath}`;
   const languageSwitch =
     forcedLanguage === 'ja'
       ? post.availableLanguages.includes('en')
@@ -222,8 +232,13 @@ const PostPage = ({ initialPost, forcedLanguage, canonicalSlug }: PostPageProps)
             image: post.image || '',
           }}
         />
-        <PostLikeButton postId={post.id} enabled={post.isPublic} />
+        <div className={styles.engagement}>
+          <PostLikeButton postId={post.id} enabled={post.isPublic} />
+          {post.isPublic && <PostShareLinks url={shareUrl} title={view.title} />}
+        </div>
+        <AuthorCard />
         <RelatedPosts ids={post.relatedPostIds} />
+        <MoreFromCategory category={post.category} posts={morePosts} />
         {isAdmin && (
           <div className={styles.adminActions}>
             <Link href="/admin#posts" className={styles.adminEditLink}>

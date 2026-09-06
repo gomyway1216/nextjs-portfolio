@@ -109,6 +109,21 @@
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
+.engagement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  width: min(100%, 760px);
+  margin: 28px auto 0;
+}
+
+/* The like button carries its own top margin for the standalone layout;
+   inside the engagement row the row owns the spacing. */
+.engagement > * {
+  margin-top: 0;
+}
+
 .adminActions {
   display: flex;
   justify-content: flex-end;

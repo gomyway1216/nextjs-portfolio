@@ -4,11 +4,10 @@ import React from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import Footer from '@/components/footer/FooterAnimation';
-import useDocumentTitle from '@/components/useDocumentTitle';
 
+// Title/robots come from app/not-found.tsx metadata; this view is content only.
 const NotFound = () => {
   const { t } = useTranslation();
-  useDocumentTitle(t('notFound.documentTitle'));
   return (
     <>
       <section className="error-page-wrapper">

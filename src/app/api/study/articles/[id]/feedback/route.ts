@@ -4,6 +4,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   STUDY_ARTICLES_COLLECTION,
   STUDY_ARTICLE_FEEDBACK_COLLECTION,
+  STUDY_OWNER_STATE_COLLECTION,
 } from '@/app/api/constants';
 import { logApiError } from '@/app/api/utils/errorLogger';
 import { ensureAdmin } from '@/lib/auth-utils';
@@ -89,7 +90,11 @@ export const PUT = withActivityLog(
         updatedAt: now,
       };
 
-      await ref.set(feedback);
+      const ownerStateRef = db.collection(STUDY_OWNER_STATE_COLLECTION).doc('daily-learning');
+      const batch = db.batch();
+      batch.set(ref, feedback);
+      batch.set(ownerStateRef, { userId: user.uid, updatedAt: now }, { merge: true });
+      await batch.commit();
       return NextResponse.json(
         { success: true, feedback },
         { headers: { 'Cache-Control': 'private, no-store' } }

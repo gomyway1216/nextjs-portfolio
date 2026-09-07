@@ -11,8 +11,14 @@ export const GET = withActivityLog('next_api.study.articles.id.GET', async (requ
     const { id } = await params;
     const url = new URL(getCloudFunctionUrl('getStudyArticle'));
     url.searchParams.set('id', id);
+    const authHeader = request.headers.get('authorization');
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), {
+      cache: 'no-store',
+      headers: {
+        ...(authHeader && { Authorization: authHeader }),
+      },
+    });
     const data = await response.json();
 
     if (!response.ok || !data.success) {

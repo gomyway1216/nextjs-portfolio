@@ -26,6 +26,7 @@ export const STUDY_CONFIG_COLLECTION = 'study_config';
 export const STUDY_READ_HISTORY_COLLECTION = 'study_read_history';
 export const STUDY_ARTICLE_FEEDBACK_COLLECTION = 'study_article_feedback';
 export const STUDY_OWNER_STATE_COLLECTION = 'study_owner_state';
+export const STUDY_OWNER_STATE_DOC_ID = 'daily-learning';
 
 // Learning System collection names
 export const LEARNING_ENTRIES_COLLECTION = 'learning_entries';

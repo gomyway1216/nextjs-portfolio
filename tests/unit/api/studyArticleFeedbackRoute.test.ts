@@ -72,6 +72,16 @@ describe('/api/study/articles/[id]/feedback authorization', () => {
     if (!response) throw new Error('Route handler returned no response');
 
     expect(response.status).toBe(200);
+    expect(batch.set).toHaveBeenCalledTimes(2);
+    expect(batch.set).toHaveBeenCalledWith(
+      feedbackRef,
+      expect.objectContaining({
+        articleId: 'article-1',
+        userId: 'owner-1',
+        signals: ['interesting'],
+        skipped: false,
+      })
+    );
     expect(batch.set).toHaveBeenCalledWith(
       ownerStateRef,
       expect.objectContaining({ userId: 'owner-1' }),

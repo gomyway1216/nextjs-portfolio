@@ -410,6 +410,24 @@
         "unread": "未読 ({{count}})",
         "read": "既読 ({{count}})"
       },
+      "articleFeedback": {
+        "title": "明日のレッスン選びに反映する",
+        "description": "次回以降の内容と難易度の調整に使える感想を、非公開で記録します。",
+        "loading": "感想を読み込んでいます…",
+        "loadError": "感想を読み込めませんでした。",
+        "save": "感想を保存",
+        "saving": "保存中…",
+        "saved": "感想を保存しました",
+        "saveError": "感想を保存できませんでした。",
+        "skip": "このトピックをスキップ",
+        "undoSkip": "スキップを取り消す",
+        "signals": {
+          "interesting": "面白かった",
+          "already_knew": "すでに知っていた",
+          "too_difficult": "難しかった",
+          "want_more": "もっと知りたい"
+        }
+      },
       "emptyState": {
         "allCaughtUp": "すべて読了！",
         "allCaughtUpText": "公開されている記事をすべて読みました。素晴らしい！",

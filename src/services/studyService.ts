@@ -1,5 +1,6 @@
 // Study Service - Frontend API client for study tool
 import { auth } from '@/lib/firebaseConnect';
+import { StudyArticleFeedback, StudyArticleFeedbackInput } from '@/lib/studyArticleFeedback';
 import {
   StudyCategory,
   StudyTopic,
@@ -317,6 +318,24 @@ export async function markArticleAsRead(
     method: 'POST',
     body: JSON.stringify({ timeSpent }),
   });
+}
+
+export async function getArticleFeedback(id: string): Promise<StudyArticleFeedback | null> {
+  const data = await apiCall<{ success: boolean; feedback: StudyArticleFeedback | null }>(
+    `/api/study/articles/${id}/feedback`
+  );
+  return data.feedback;
+}
+
+export async function saveArticleFeedback(
+  id: string,
+  feedback: StudyArticleFeedbackInput
+): Promise<StudyArticleFeedback> {
+  const data = await apiCall<{ success: boolean; feedback: StudyArticleFeedback }>(
+    `/api/study/articles/${id}/feedback`,
+    { method: 'PUT', body: JSON.stringify(feedback) }
+  );
+  return data.feedback;
 }
 
 export interface LinearArticleResult {

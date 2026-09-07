@@ -1,6 +1,7 @@
 'use client';
 
 import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
+import ArticleFeedback from '@/components/study/ArticleFeedback';
 import AudioPlayer from '@/components/study/AudioPlayer';
 import {
 useArticleChat,
@@ -1331,6 +1332,8 @@ function StudyArticlePageInner() {
                         ))}
                       </div>
                     )}
+
+                    {currentUser && <ArticleFeedback articleId={articleId} />}
                   </article>
                 )}
 

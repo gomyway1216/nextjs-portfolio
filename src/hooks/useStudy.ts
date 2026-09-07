@@ -34,7 +34,7 @@ TopicSuggestionType,
 UpdateLearningPath,
 UserStudyProgress
 } from '@/types/study';
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================================================
 // CATEGORIES HOOK
@@ -402,11 +402,31 @@ export function useArticleCounts(userId: string | undefined) {
 // SINGLE ARTICLE HOOK
 // ============================================================================
 
-export function useStudyArticle(articleId: string | null) {
+interface StudyArticleAccessContext {
+  ready?: boolean;
+  userId?: string | null;
+  isAdmin?: boolean;
+}
+
+export function useStudyArticle(
+  articleId: string | null,
+  accessContext: StudyArticleAccessContext = {},
+) {
+  const {
+    ready = true,
+    userId = null,
+    isAdmin = false,
+  } = accessContext;
   const [article, setArticle] = useState<StudyArticle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const requestSequenceRef = useRef(0);
+  const latestRequestRef = useRef<string | null>(null);
+  const viewerKey = `${userId ?? 'anonymous'}:${isAdmin ? 'admin' : 'reader'}`;
 
+  // Authentication can settle after a direct page load. Include the viewer
+  // identity and admin decision so a request that initially ran anonymously
+  // is retried with the Firebase ID token once the signed-in viewer resolves.
   const fetchArticle = useCallback(async () => {
     if (!articleId) {
       setArticle(null);
@@ -414,17 +434,25 @@ export function useStudyArticle(articleId: string | null) {
       return;
     }
 
+    if (!ready) return;
+
+    const requestId = `${viewerKey}:${++requestSequenceRef.current}`;
+    latestRequestRef.current = requestId;
     try {
       setLoading(true);
       setError(null);
       const data = await studyService.getArticle(articleId);
+      if (requestId !== latestRequestRef.current) return;
       setArticle(data);
     } catch (err) {
+      if (requestId !== latestRequestRef.current) return;
       setError(err instanceof Error ? err : new Error('Failed to fetch article'));
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setLoading(false);
+      }
     }
-  }, [articleId]);
+  }, [articleId, ready, viewerKey]);
 
   useEffect(() => {
     fetchArticle();

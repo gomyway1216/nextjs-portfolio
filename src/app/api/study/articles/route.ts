@@ -42,6 +42,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     // Get read status filter and userId
     const readStatus = searchParams.get('readStatus'); // 'all', 'unread', 'read'
     const userId = searchParams.get('userId');
+    const authHeader = request.headers.get('authorization');
 
     // Forward query parameters to Cloud Function
     const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView', 'search', 'difficulty'];
@@ -52,7 +53,12 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
 
     console.log('[Study API] GET articles:', url.toString());
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), {
+      cache: 'no-store',
+      headers: {
+        ...(authHeader && { Authorization: authHeader }),
+      },
+    });
     const data = await response.json() as StudyArticlesResponse;
 
     // Log error details from Cloud Function

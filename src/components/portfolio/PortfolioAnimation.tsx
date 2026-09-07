@@ -1,13 +1,13 @@
 'use client';
 import * as util from '@/lib/utils/util';
-import { getProjectPath } from '@/lib/projectRoutes';
+import { buildProjectSlugMap, getProjectPath } from '@/lib/projectRoutes';
 import { createPlainTextExcerpt } from '@/lib/text';
 import type { Project } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tab, TabList, TabPanel, Tabs } from 'react-tabs';
 
@@ -85,6 +85,9 @@ const PortfolioAnimation = ({ initialProjects }: PortfolioAnimationProps) => {
     };
   }, [initialProjects]);
 
+  // 'All' holds every project, which is what slug uniqueness is relative to.
+  const slugMap = useMemo(() => buildProjectSlugMap(projectsByCategory.All), [projectsByCategory]);
+
   const renderProjects = (projects: Project[], category: string) => {
     if (isLoading) {
       return <div className="project-state">{t('home.sections.work.loading')}</div>;
@@ -116,7 +119,7 @@ const PortfolioAnimation = ({ initialProjects }: PortfolioAnimationProps) => {
             >
               <Link
                 className="project-card modern-card"
-                href={getProjectPath(project.id)}
+                href={getProjectPath(project, slugMap)}
                 prefetch
                 aria-label={t('home.sections.work.cardLabel', { title: project.title })}
               >

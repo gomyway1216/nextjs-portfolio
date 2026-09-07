@@ -4,19 +4,22 @@ import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { resolveProjectRouteId } from '@/lib/projectRoutes';
 import { getProjectServer } from '@/lib/projects/getProjectsServer';
+import { getProjectByRouteIdCached } from '@/lib/projects/getProjectsCached';
 import { revalidateTag } from 'next/cache';
 import { HOME_PROJECTS_CACHE_TAG } from '@/lib/home/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/projects/[id]
- * Get a single project by ID
+ * Get a single project by Firestore id (fresh read) or by its title slug
+ * (resolved against the cached project list).
  */
 export const GET = withActivityLog('next_api.projects.id.GET', async (request: NextRequest,
   { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
-    const project = await getProjectServer(id);
+    const project =
+      (await getProjectServer(id)) ?? (await getProjectByRouteIdCached(id))?.project ?? null;
 
     if (!project) {
       return NextResponse.json(

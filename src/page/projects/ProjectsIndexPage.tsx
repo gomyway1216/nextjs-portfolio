@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PageIntro from '@/components/common/PageIntro';
-import { getProjectPath } from '@/lib/projectRoutes';
+import { buildProjectSlugMap, getProjectPath } from '@/lib/projectRoutes';
 import { createPlainTextExcerpt } from '@/lib/text';
 import * as util from '@/lib/utils/util';
 import type { Project } from '@/services/projectsService';
@@ -75,6 +75,9 @@ export default function ProjectsIndexPage({ initialProjects }: ProjectsIndexPage
     () => projects.filter((project) => matchesCategory(project, activeCategory)),
     [activeCategory, projects],
   );
+  // Slugs are only unique relative to the whole list, so derive them here
+  // rather than per card.
+  const slugMap = useMemo(() => buildProjectSlugMap(projects), [projects]);
 
   const categoryCount = categories.filter(
     (category) => category !== 'All' && projects.some((project) => matchesCategory(project, category)),
@@ -143,7 +146,7 @@ export default function ProjectsIndexPage({ initialProjects }: ProjectsIndexPage
               return (
                 <Link
                   className={styles.card}
-                  href={getProjectPath(project.id)}
+                  href={getProjectPath(project, slugMap)}
                   prefetch
                   key={project.id}
                   aria-label={t('projectsPage.cardLabel', { title: project.title })}

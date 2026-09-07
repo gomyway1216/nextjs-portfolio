@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { cache } from 'react';
 import { createPlainTextExcerpt } from '@/lib/text';
 import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
-import { getProjectCached } from '@/lib/projects/getProjectsCached';
+import { getProjectByRouteIdCached } from '@/lib/projects/getProjectsCached';
 import { SITE_URL } from '@/lib/siteConfig';
 import ProjectPage from '@/page/project/ProjectPage';
 
@@ -12,13 +12,14 @@ interface ProjectRouteParams {
 }
 
 const FALLBACK_DESCRIPTION = 'A portfolio project with project context, stack, links, and implementation notes.';
-const getProjectForRoute = cache(getProjectCached);
+const getProjectForRoute = cache(getProjectByRouteIdCached);
 
 export async function generateMetadata({ params }: ProjectRouteParams): Promise<Metadata> {
   const { id } = await params;
-  const project = await getProjectForRoute(id);
+  const resolved = await getProjectForRoute(id);
+  const project = resolved?.project;
 
-  if (!project) {
+  if (!resolved || !project) {
     return {
       title: 'Project Case Study',
       description: FALLBACK_DESCRIPTION,
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: ProjectRouteParams): Promise<
   }
 
   const description = createPlainTextExcerpt(project.description, 160) || FALLBACK_DESCRIPTION;
-  const canonicalPath = getProjectPath(project.id);
+  const canonicalPath = getProjectPath(project, resolved.slugMap);
   const title = project.title || 'Project';
 
   return {
@@ -51,11 +52,18 @@ export async function generateMetadata({ params }: ProjectRouteParams): Promise<
 
 export default async function ProjectRoute({ params }: ProjectRouteParams) {
   const { id } = await params;
-  const project = await getProjectForRoute(id);
+  const resolved = await getProjectForRoute(id);
 
-  if (!project) notFound();
+  if (!resolved) notFound();
 
-  const canonicalPath = getProjectPath(project.id);
+  const { project, segment } = resolved;
+  const canonicalPath = getProjectPath(project, resolved.slugMap);
+
+  // Legacy Firestore-id URLs (and any stale slug) permanently redirect to
+  // the canonical slug so old links keep working and search engines
+  // consolidate on one URL per project.
+  if (id !== segment) permanentRedirect(canonicalPath);
+
   const description = createPlainTextExcerpt(project.description, 220) || FALLBACK_DESCRIPTION;
   const projectUrl = `${SITE_URL}${canonicalPath}`;
   const keywords = [

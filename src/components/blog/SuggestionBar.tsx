@@ -14,9 +14,9 @@ const DEFAULT_OPTIONS = [
   { id: 2, value: 'system-design', titleKey: 'blogPage.index.categories.systemDesign', url: '/blog/system-design' },
   { id: 3, value: 'engineering-practices', titleKey: 'blogPage.index.categories.engineeringPractices', url: '/blog/engineering-practices' },
   { id: 4, value: 'fintech-payments', titleKey: 'blogPage.index.categories.fintechPayments', url: '/blog/fintech-payments' },
-  { id: 7, value: 'ai-engineering', titleKey: 'blogPage.index.categories.aiEngineering', url: '/blog/ai-engineering' },
-  { id: 5, value: 'career', titleKey: 'blogPage.index.categories.career', url: '/blog/career' },
-  { id: 6, value: 'life', titleKey: 'blogPage.index.categories.life', url: '/blog/life' },
+  { id: 5, value: 'ai-engineering', titleKey: 'blogPage.index.categories.aiEngineering', url: '/blog/ai-engineering' },
+  { id: 6, value: 'career', titleKey: 'blogPage.index.categories.career', url: '/blog/career' },
+  { id: 7, value: 'life', titleKey: 'blogPage.index.categories.life', url: '/blog/life' },
 ];
 
 const SuggestionBar = ({ activeTab, setActiveTab }: SuggestionBarProps) => {

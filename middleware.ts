@@ -68,12 +68,49 @@ async function legacyBlogRedirect(request: NextRequest, pathname: string) {
   }
 }
 
+// Legacy project URL: /projects/<20-char Firestore id>. Same reasoning as
+// the blog rule above: slugs are title-derived and effectively always
+// contain a hyphen; a rare hyphenless 20-char slug resolves to itself and
+// is not redirected, so a false match costs one cached lookup, never a
+// wrong URL. /projects/<id>/edit does not match (admin stays id-addressed).
+const LEGACY_PROJECT_URL = /^\/projects\/([A-Za-z0-9]{20})$/;
+
+/** The legacy-id param of a project URL, or null when the path is not one. */
+export function legacyProjectParam(pathname: string): string | null {
+  return pathname.match(LEGACY_PROJECT_URL)?.[1] ?? null;
+}
+
+async function legacyProjectRedirect(request: NextRequest, pathname: string) {
+  const param = legacyProjectParam(pathname);
+  if (!param) return null;
+
+  try {
+    const resolveUrl = new URL('/api/projects/resolve-slug', request.url);
+    resolveUrl.searchParams.set('param', param);
+    const res = await fetch(resolveUrl, { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { segment?: string };
+    if (!data.segment || data.segment === param) return null;
+    return NextResponse.redirect(
+      new URL(`/projects/${encodeURIComponent(data.segment)}`, request.url),
+      308,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const blogRedirect = await legacyBlogRedirect(request, pathname);
   if (blogRedirect) {
     return blogRedirect;
+  }
+
+  const projectRedirect = await legacyProjectRedirect(request, pathname);
+  if (projectRedirect) {
+    return projectRedirect;
   }
 
   if (!isAuthRequired(pathname) && !isAdminRoute(pathname)) {

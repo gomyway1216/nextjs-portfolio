@@ -804,9 +804,10 @@ export function useQuizAttempts(quizId?: string) {
 // SCHEDULES HOOK
 // ============================================================================
 
-export function useStudySchedules() {
+export function useStudySchedules(options: { autoFetch?: boolean } = {}) {
+  const autoFetch = options.autoFetch ?? true;
   const [schedules, setSchedules] = useState<ArticleSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(autoFetch);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchSchedules = useCallback(async () => {
@@ -858,8 +859,10 @@ export function useStudySchedules() {
   }, []);
 
   useEffect(() => {
-    fetchSchedules();
-  }, [fetchSchedules]);
+    if (autoFetch) {
+      void fetchSchedules();
+    }
+  }, [autoFetch, fetchSchedules]);
 
   return {
     schedules,
@@ -988,9 +991,10 @@ const DEFAULT_STUDY_CONFIG: StudyConfig = {
   updatedAt: new Date().toISOString(),
 };
 
-export function useStudyConfig() {
+export function useStudyConfig(options: { autoFetch?: boolean } = {}) {
+  const autoFetch = options.autoFetch ?? true;
   const [config, setConfig] = useState<StudyConfig>(DEFAULT_STUDY_CONFIG);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(autoFetch);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchConfig = useCallback(async () => {
@@ -1038,8 +1042,10 @@ export function useStudyConfig() {
   );
 
   useEffect(() => {
-    fetchConfig();
-  }, [fetchConfig]);
+    if (autoFetch) {
+      void fetchConfig();
+    }
+  }, [autoFetch, fetchConfig]);
 
   return {
     config,

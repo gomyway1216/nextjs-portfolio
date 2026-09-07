@@ -264,8 +264,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   // Hooks
   const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, seedCategories } = useStudyCategories();
   const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic } = useStudyTopics();
-  const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules();
-  const { config, loading: configLoading, updateConfig } = useStudyConfig();
+  const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules({ autoFetch: false });
+  const { config, loading: configLoading, updateConfig } = useStudyConfig({ autoFetch: false });
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();
   const { generating, generateArticle, result: generationResult } = useArticleGeneration();
   const { articles, loading: articlesLoading, fetchArticles, hasMore: articlesHasMore, loadMore: loadMoreArticles } = useStudyArticles({ status: 'all' });

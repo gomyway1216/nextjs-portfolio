@@ -1,5 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const studyHooks = vi.hoisted(() => ({
+  useStudyConfig: vi.fn(() => ({
+    config: null,
+    loading: false,
+    updateConfig: vi.fn(),
+  })),
+  useStudySchedules: vi.fn(() => ({
+    schedules: [],
+    loading: false,
+    createSchedule: vi.fn(),
+    updateSchedule: vi.fn(),
+    deleteSchedule: vi.fn(),
+    runScheduleNow: vi.fn(),
+  })),
+}));
 
 vi.mock('@/hooks/useStudy', () => ({
   useArticleGeneration: () => ({
@@ -22,19 +38,8 @@ vi.mock('@/hooks/useStudy', () => ({
     deleteCategory: vi.fn(),
     seedCategories: vi.fn(),
   }),
-  useStudyConfig: () => ({
-    config: null,
-    loading: false,
-    updateConfig: vi.fn(),
-  }),
-  useStudySchedules: () => ({
-    schedules: [],
-    loading: false,
-    createSchedule: vi.fn(),
-    updateSchedule: vi.fn(),
-    deleteSchedule: vi.fn(),
-    runScheduleNow: vi.fn(),
-  }),
+  useStudyConfig: studyHooks.useStudyConfig,
+  useStudySchedules: studyHooks.useStudySchedules,
   useStudyTopics: () => ({
     topics: [],
     loading: false,
@@ -52,6 +57,10 @@ vi.mock('@/hooks/useStudy', () => ({
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 
 describe('StudyAdminPanel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('keeps content management while retiring legacy generation controls', () => {
     const markup = renderToStaticMarkup(<StudyAdminPanel />);
 
@@ -67,5 +76,8 @@ describe('StudyAdminPanel', () => {
     expect(markup).not.toContain('Generate Article');
     expect(markup).not.toContain('Manage Schedules');
     expect(markup).not.toContain('Run Now');
+
+    expect(studyHooks.useStudySchedules).toHaveBeenCalledWith({ autoFetch: false });
+    expect(studyHooks.useStudyConfig).toHaveBeenCalledWith({ autoFetch: false });
   });
 });

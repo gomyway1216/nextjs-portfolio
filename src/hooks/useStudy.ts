@@ -228,6 +228,8 @@ export function useStudyArticles(initialOptions?: {
   language?: string;
   search?: string;  // Search query for backend filtering
   difficulty?: string;  // Difficulty filter
+  fromDate?: string;
+  toDate?: string;
   orderBy?: string;
   orderDir?: 'asc' | 'desc';
   readStatus?: 'all' | 'unread' | 'read';  // Filter by read status
@@ -246,6 +248,8 @@ export function useStudyArticles(initialOptions?: {
     language?: string;
     search?: string;
     difficulty?: string;
+    fromDate?: string;
+    toDate?: string;
     orderBy?: string;
     orderDir?: 'asc' | 'desc';
     readStatus?: 'all' | 'unread' | 'read';
@@ -261,6 +265,8 @@ export function useStudyArticles(initialOptions?: {
         language?: string;
         search?: string;  // Search query for backend filtering
         difficulty?: string;  // Difficulty filter
+        fromDate?: string;
+        toDate?: string;
         orderBy?: string;
         orderDir?: 'asc' | 'desc';
         limit?: number;
@@ -282,6 +288,8 @@ export function useStudyArticles(initialOptions?: {
           language: options.language || initialOptions?.language,
           search: options.search ?? initialOptions?.search,
           difficulty: options.difficulty ?? initialOptions?.difficulty,
+          fromDate: options.fromDate ?? initialOptions?.fromDate,
+          toDate: options.toDate ?? initialOptions?.toDate,
           orderBy: options.orderBy || initialOptions?.orderBy || 'createdAt',
           orderDir: options.orderDir || initialOptions?.orderDir || 'desc',
           readStatus: options.readStatus ?? initialOptions?.readStatus,
@@ -317,7 +325,7 @@ export function useStudyArticles(initialOptions?: {
         setLoading(false);
       }
     },
-    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
+    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.fromDate, initialOptions?.toDate, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
   );
 
   const loadMore = useCallback(async () => {

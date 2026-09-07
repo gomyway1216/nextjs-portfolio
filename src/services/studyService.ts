@@ -201,6 +201,8 @@ export async function getArticles(
     language?: string;
     search?: string;
     difficulty?: string;
+    fromDate?: string;
+    toDate?: string;
     orderBy?: string;
     orderDir?: 'asc' | 'desc';
     limit?: number;
@@ -221,6 +223,8 @@ export async function getArticles(
   if (options.language) params.set('language', options.language);
   if (options.search) params.set('search', options.search);
   if (options.difficulty) params.set('difficulty', options.difficulty);
+  if (options.fromDate) params.set('fromDate', options.fromDate);
+  if (options.toDate) params.set('toDate', options.toDate);
   if (options.orderBy) params.set('orderBy', options.orderBy);
   if (options.orderDir) params.set('orderDir', options.orderDir);
   if (options.limit) params.set('limit', String(options.limit));

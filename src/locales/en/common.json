@@ -403,6 +403,7 @@
         "category": "Category",
         "difficulty": "Difficulty",
         "language": "Language",
+        "date": "Date",
         "allCategories": "All Categories",
         "allDifficulties": "All Difficulties",
         "allLanguages": "All Languages",

@@ -109,7 +109,7 @@ export default function ArticleFeedback({ articleId }: ArticleFeedbackProps) {
         <button
           type="button"
           disabled={saving}
-          onClick={() => persist(signals, false)}
+          onClick={() => persist(signals, skipped)}
           style={{
             border: 'none',
             borderRadius: '6px',

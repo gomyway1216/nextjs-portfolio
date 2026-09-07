@@ -15,15 +15,23 @@ function feedbackDocumentId(userId: string, articleId: string): string {
   return `${userId}__${articleId}`;
 }
 
+function privateNoStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
+}
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export const GET = withActivityLog(
   'next_api.study.articles.id.feedback.GET',
   async (request: NextRequest, { params }: RouteContext) => {
     const { user, response } = await ensureValidUser(request);
-    if (response) return response;
+    if (response) return privateNoStore(response);
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+      );
     }
 
     const { id } = await params;
@@ -45,9 +53,12 @@ export const PUT = withActivityLog(
     const endpoint = '/api/study/articles/[id]/feedback';
     try {
       const { user, response } = await ensureValidUser(request);
-      if (response) return response;
+      if (response) return privateNoStore(response);
       if (!user) {
-        return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+        return NextResponse.json(
+          { success: false, error: 'Authentication required' },
+          { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+        );
       }
 
       const { id } = await params;
@@ -94,7 +105,7 @@ export const PUT = withActivityLog(
       });
       return NextResponse.json(
         { success: false, error: 'Failed to save article feedback' },
-        { status: 500 }
+        { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
       );
     }
   }

@@ -6,7 +6,7 @@ vi.mock('@/lib/firebaseConnect', () => ({
 
 import { getArticles, saveArticleFeedback } from '@/services/studyService';
 
-describe('studyService.getArticles', () => {
+describe('studyService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });

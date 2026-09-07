@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   ensureAdmin: vi.fn(),
@@ -30,7 +31,7 @@ describe('/api/study/articles/[id]/feedback authorization', () => {
 
   it('does not expose feedback to an authenticated non-admin user', async () => {
     const { GET } = await import('@/app/api/study/articles/[id]/feedback/route');
-    const authResponse = Response.json({ error: 'Admin access required' }, { status: 403 });
+    const authResponse = NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     mocks.ensureAdmin.mockResolvedValue({ user: null, response: authResponse });
 
     const response = await GET(

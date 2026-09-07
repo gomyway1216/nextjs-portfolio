@@ -10,7 +10,15 @@ describe('categoryDisplayLabel', () => {
   });
 
   it('title-cases unknown slugs instead of showing the raw value', () => {
-    expect(categoryDisplayLabel('ai-engineering', t)).toBe('Ai Engineering');
+    expect(categoryDisplayLabel('ml-ops', t)).toBe('Ml Ops');
     expect(titleCaseCategory('--odd--slug-')).toBe('Odd Slug');
+  });
+});
+
+describe('ai-engineering category', () => {
+  const t = (key: string) => `t(${key})`;
+
+  it('has a curated label instead of the title-cased "Ai Engineering"', () => {
+    expect(categoryDisplayLabel('ai-engineering', t)).toBe('t(blogPage.index.categories.aiEngineering)');
   });
 });

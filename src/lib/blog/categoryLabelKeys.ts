@@ -7,6 +7,7 @@ export const CATEGORY_LABEL_KEYS: Record<string, string> = {
   'system-design': 'blogPage.index.categories.systemDesign',
   'engineering-practices': 'blogPage.index.categories.engineeringPractices',
   'fintech-payments': 'blogPage.index.categories.fintechPayments',
+  'ai-engineering': 'blogPage.index.categories.aiEngineering',
   career: 'blogPage.index.categories.career',
   technology: 'blogPage.index.categories.technology',
   life: 'blogPage.index.categories.life',

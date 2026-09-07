@@ -45,7 +45,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     const authHeader = request.headers.get('authorization');
 
     // Forward query parameters to Cloud Function
-    const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView', 'search', 'difficulty'];
+    const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView', 'search', 'difficulty', 'fromDate', 'toDate'];
     params.forEach((param) => {
       const value = searchParams.get(param);
       if (value) url.searchParams.set(param, value);

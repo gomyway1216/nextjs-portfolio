@@ -8,6 +8,7 @@ SelectTrigger,
 SelectValue,
 } from '@/components/ui/select';
 import { useArticleCounts, useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
+import { getStudyArticleDateRange } from '@/lib/studyArticleDateRange';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 import {
@@ -61,12 +62,14 @@ export default function StudyListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all');
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebounce(searchQuery, 300);
+  const selectedDateRange = getStudyArticleDateRange(selectedDate);
 
   // Fetch articles with all filters including read status (backend filtering)
   const { articles, loading, hasMore, loadMore, isArticleRead } = useStudyArticles({
@@ -74,6 +77,8 @@ export default function StudyListPage() {
     language: selectedLanguage || undefined,
     search: debouncedSearch || undefined,
     difficulty: selectedDifficulty || undefined,
+    fromDate: selectedDateRange.fromDate,
+    toDate: selectedDateRange.toDate,
     readStatus: isAuthenticated ? statusFilter : undefined,
     userId: currentUser?.uid,
   });
@@ -391,7 +396,7 @@ export default function StudyListPage() {
   // Empty-state copy by current status filter (and, for the default
   // view, whether any filter/search is active). Pulled out of the JSX so
   // the nested ternaries don't live inside the markup.
-  const hasActiveFilters = !!(searchQuery || selectedCategory || selectedDifficulty || selectedLanguage);
+  const hasActiveFilters = !!(searchQuery || selectedCategory || selectedDifficulty || selectedLanguage || selectedDate);
   const emptyState =
     statusFilter === 'unread'
       ? { title: t('study.hub.emptyState.allCaughtUp'), text: t('study.hub.emptyState.allCaughtUpText') }
@@ -717,6 +722,32 @@ export default function StudyListPage() {
                 </Select>
               </div>
 
+              {/* Date Filter */}
+              <div style={{ flex: 1, minWidth: '170px' }}>
+                <label
+                  htmlFor="study-article-date"
+                  style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}
+                >
+                  {t('study.hub.filters.date')}
+                </label>
+                <input
+                  id="study-article-date"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+
               {/* Clear Filters */}
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                 <button
@@ -724,6 +755,7 @@ export default function StudyListPage() {
                     setSelectedCategory('');
                     setSelectedDifficulty('');
                     setSelectedLanguage('');
+                    setSelectedDate('');
                     setSearchQuery('');
                   }}
                   style={{

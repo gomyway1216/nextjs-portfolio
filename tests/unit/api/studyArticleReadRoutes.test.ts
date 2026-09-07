@@ -40,7 +40,7 @@ describe('Study article read routes', () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.getCloudFunctionUrl.mockReset().mockImplementation(
-      (name: string) => `https://${name}.example/`,
+      (name: string) => `https://${name.toLowerCase()}.example/`,
     );
     vi.unstubAllGlobals();
   });

@@ -59,9 +59,10 @@ export default async function ProjectRoute({ params }: ProjectRouteParams) {
   const { project, segment } = resolved;
   const canonicalPath = getProjectPath(project, resolved.slugMap);
 
-  // Legacy Firestore-id URLs (and any stale slug) permanently redirect to
-  // the canonical slug so old links keep working and search engines
-  // consolidate on one URL per project.
+  // A legacy Firestore-id URL (or a curated-slug alias) resolves to the
+  // project but is not its canonical segment: permanently redirect (308)
+  // so old links keep working and search engines consolidate on one URL.
+  // A slug nobody owns any more resolves to nothing and 404s above.
   if (id !== segment) permanentRedirect(canonicalPath);
 
   const description = createPlainTextExcerpt(project.description, 220) || FALLBACK_DESCRIPTION;

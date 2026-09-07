@@ -11,6 +11,7 @@ import { RouteScrollBehaviorFix } from "@/components/RouteScrollBehaviorFix";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
+import VercelAnalytics from "@/components/VercelAnalytics";
 import {
   BAY_AREA_AI_PROFILE_URL,
   BAY_AREA_AI_URL,
@@ -184,6 +185,7 @@ export default async function RootLayout({
           <Suspense fallback={null}>
             <PageViewLogger />
           </Suspense>
+          <VercelAnalytics />
           <I18nProvider initialLang={initialLang}>
             <AuthProvider hasSessionCookie={hasSessionCookie}>
               <GameToolbarProvider>

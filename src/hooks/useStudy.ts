@@ -34,7 +34,7 @@ TopicSuggestionType,
 UpdateLearningPath,
 UserStudyProgress
 } from '@/types/study';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============================================================================
 // CATEGORIES HOOK
@@ -428,16 +428,16 @@ export function useStudyArticle(
   // identity and admin decision so a request that initially ran anonymously
   // is retried with the Firebase ID token once the signed-in viewer resolves.
   const fetchArticle = useCallback(async () => {
-    const requestId = `${viewerKey}:${++requestSequenceRef.current}`;
-    latestRequestRef.current = requestId;
-    if (!ready) return;
-
     if (!articleId) {
       setArticle(null);
       setLoading(false);
       return;
     }
 
+    if (!ready) return;
+
+    const requestId = `${viewerKey}:${++requestSequenceRef.current}`;
+    latestRequestRef.current = requestId;
     try {
       setLoading(true);
       setError(null);

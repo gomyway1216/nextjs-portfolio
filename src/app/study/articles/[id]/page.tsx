@@ -396,7 +396,7 @@ function StudyArticlePageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const articleId = Array.isArray(params.id) ? params.id[0] : params.id || '';
 
   // Get initial tab from URL query parameter
@@ -1333,7 +1333,7 @@ function StudyArticlePageInner() {
                       </div>
                     )}
 
-                    {currentUser && <ArticleFeedback articleId={articleId} />}
+                    {isAdmin && <ArticleFeedback articleId={articleId} />}
                   </article>
                 )}
 

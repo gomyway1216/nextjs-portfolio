@@ -6,7 +6,7 @@ import {
   STUDY_ARTICLE_FEEDBACK_COLLECTION,
 } from '@/app/api/constants';
 import { logApiError } from '@/app/api/utils/errorLogger';
-import { ensureValidUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { getFirestore } from '@/lib/firebase-admin';
 import { parseStudyArticleFeedback, StudyArticleFeedback } from '@/lib/studyArticleFeedback';
 import { ErrorSeverity } from '@/types/errors';
@@ -25,7 +25,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export const GET = withActivityLog(
   'next_api.study.articles.id.feedback.GET',
   async (request: NextRequest, { params }: RouteContext) => {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (response) return privateNoStore(response);
     if (!user) {
       return NextResponse.json(
@@ -52,7 +52,7 @@ export const PUT = withActivityLog(
   async (request: NextRequest, { params }: RouteContext) => {
     const endpoint = '/api/study/articles/[id]/feedback';
     try {
-      const { user, response } = await ensureValidUser(request);
+      const { user, response } = await ensureAdmin(request);
       if (response) return privateNoStore(response);
       if (!user) {
         return NextResponse.json(

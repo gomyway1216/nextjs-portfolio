@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
-import { getProjectPath } from '@/lib/projectRoutes';
+import { buildProjectSlugMap, getProjectPath } from '@/lib/projectRoutes';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
 import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
 import { SITE_URL } from '@/lib/siteConfig';
@@ -126,8 +126,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   });
 
+  const projectSlugMap = buildProjectSlugMap(projects);
   const projectRoutes: MetadataRoute.Sitemap = projects.map((project) => ({
-    url: `${SITE_URL}${getProjectPath(project.id)}`,
+    url: `${SITE_URL}${getProjectPath(project, projectSlugMap)}`,
     lastModified: project.date ? new Date(project.date) : undefined,
     changeFrequency: 'monthly',
     priority: 0.7,

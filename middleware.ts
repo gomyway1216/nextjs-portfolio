@@ -69,9 +69,10 @@ async function legacyBlogRedirect(request: NextRequest, pathname: string) {
 }
 
 // Legacy project URL: /projects/<20-char Firestore id>. Same reasoning as
-// the blog rule above: slugs are title-derived and hyphenated, so a
-// hyphenless 20-char slug is the only false match and resolves to itself.
-// /projects/<id>/edit does not match (admin routes stay id-addressed).
+// the blog rule above: slugs are title-derived and effectively always
+// contain a hyphen; a rare hyphenless 20-char slug resolves to itself and
+// is not redirected, so a false match costs one cached lookup, never a
+// wrong URL. /projects/<id>/edit does not match (admin stays id-addressed).
 const LEGACY_PROJECT_URL = /^\/projects\/([A-Za-z0-9]{20})$/;
 
 /** The legacy-id param of a project URL, or null when the path is not one. */

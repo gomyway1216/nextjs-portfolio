@@ -396,7 +396,7 @@ function StudyArticlePageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, isAdmin, loading: authLoading } = useAuth();
   const articleId = Array.isArray(params.id) ? params.id[0] : params.id || '';
 
   // Get initial tab from URL query parameter
@@ -421,7 +421,11 @@ function StudyArticlePageInner() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // Data hooks
-  const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId);
+  const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId, {
+    ready: !authLoading,
+    userId: currentUser?.uid ?? null,
+    isAdmin,
+  });
   const { notes, createNote, updateNote, deleteNote, loading: notesLoading } = useArticleNotes(articleId);
   const { chat, sendMessage, generateSummary, loading: _chatLoading } = useArticleChat(articleId);
   const { categories } = useStudyCategories();

@@ -424,6 +424,24 @@
         "unread": "Unread ({{count}})",
         "read": "Read ({{count}})"
       },
+      "articleFeedback": {
+        "title": "Help choose tomorrow's lesson",
+        "description": "Save private feedback that can guide future lesson selection and difficulty.",
+        "loading": "Loading feedback...",
+        "loadError": "Could not load your feedback.",
+        "save": "Save feedback",
+        "saving": "Saving...",
+        "saved": "Feedback saved",
+        "saveError": "Could not save your feedback.",
+        "skip": "Skip this topic",
+        "undoSkip": "Undo skip",
+        "signals": {
+          "interesting": "Interesting",
+          "already_knew": "I knew this",
+          "too_difficult": "Too difficult",
+          "want_more": "More like this"
+        }
+      },
       "emptyState": {
         "allCaughtUp": "All caught up!",
         "allCaughtUpText": "You've read all available articles. Great job!",

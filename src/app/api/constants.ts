@@ -24,6 +24,7 @@ export const STUDY_PROGRESS_COLLECTION = 'study_progress';
 export const STUDY_INSIGHTS_COLLECTION = 'study_insights';
 export const STUDY_CONFIG_COLLECTION = 'study_config';
 export const STUDY_READ_HISTORY_COLLECTION = 'study_read_history';
+export const STUDY_ARTICLE_FEEDBACK_COLLECTION = 'study_article_feedback';
 
 // Learning System collection names
 export const LEARNING_ENTRIES_COLLECTION = 'learning_entries';

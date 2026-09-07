@@ -44,7 +44,6 @@ Pencil,
 Play,
 Plus,
 Save,
-Settings,
 Sparkles,
 Tags,
 Trash2,
@@ -265,8 +264,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   // Hooks
   const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, seedCategories } = useStudyCategories();
   const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic } = useStudyTopics();
-  const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules();
-  const { config, loading: configLoading, updateConfig } = useStudyConfig();
+  const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules({ autoFetch: false });
+  const { config, loading: configLoading, updateConfig } = useStudyConfig({ autoFetch: false });
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();
   const { generating, generateArticle, result: generationResult } = useArticleGeneration();
   const { articles, loading: articlesLoading, fetchArticles, hasMore: articlesHasMore, loadMore: loadMoreArticles } = useStudyArticles({ status: 'all' });
@@ -298,7 +297,6 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   // Article multi-select state
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<string>>(new Set());
   const [deletingMultipleArticles, setDeletingMultipleArticles] = useState(false);
-  const [generatingFromLinear, setGeneratingFromLinear] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Form states
@@ -737,24 +735,6 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     setShowSuggestions(false);
   };
 
-  const handleGenerateFromLinear = async () => {
-    if (generatingFromLinear) return;
-    setGeneratingFromLinear(true);
-    try {
-      const result = await studyService.generateArticleFromLinearTopic({ language: 'ja' });
-      showMessageToast(
-        'success',
-        `Generated from Linear ${result.linearIssue.identifier}: "${result.linearIssue.title}"`,
-      );
-      void fetchArticles({ status: 'all' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      showMessageToast('error', `Linear generation failed: ${message}`);
-    } finally {
-      setGeneratingFromLinear(false);
-    }
-  };
-
   const handleGenerateArticle = async () => {
     if (!generateForm.categoryId) {
       showMessageToast('error', 'Please select a category');
@@ -813,9 +793,6 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     { id: 'categories' as const, label: 'Categories', icon: Tags },
     { id: 'topics' as const, label: 'Topics', icon: BookOpen },
     { id: 'articles' as const, label: 'Articles', icon: FileText },
-    { id: 'schedules' as const, label: 'Schedules', icon: Calendar },
-    { id: 'generate' as const, label: 'Generate', icon: Sparkles },
-    { id: 'config' as const, label: 'Settings', icon: Settings },
   ];
 
   const getCategoryName = (categoryId: string) => {
@@ -881,7 +858,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
           </p>
 
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div style={{ ...styles.card, padding: '24px' }}>
               <Tags size={24} color="#a855f7" style={{ marginBottom: '12px' }} />
               <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffffff' }}>{categories.length}</p>
@@ -892,20 +869,6 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffffff' }}>{topics.length}</p>
               <p style={{ color: '#94a3b8' }}>Topics</p>
             </div>
-            <div style={{ ...styles.card, padding: '24px' }}>
-              <Calendar size={24} color="#10b981" style={{ marginBottom: '12px' }} />
-              <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffffff' }}>
-                {schedules.filter(s => s.status === ScheduleStatus.ACTIVE).length}
-              </p>
-              <p style={{ color: '#94a3b8' }}>Active Schedules</p>
-            </div>
-            <div style={{ ...styles.card, padding: '24px' }}>
-              <FileText size={24} color="#f59e0b" style={{ marginBottom: '12px' }} />
-              <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffffff' }}>
-                {schedules.reduce((acc, s) => acc + s.articlesGenerated, 0)}
-              </p>
-              <p style={{ color: '#94a3b8' }}>Articles Generated</p>
-            </div>
           </div>
 
           {/* Quick Actions */}
@@ -915,22 +878,10 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
             </h3>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button
-                onClick={() => setShowGenerateModal(true)}
+                onClick={() => setActiveSection('topics')}
                 style={{ ...styles.button, ...styles.primaryButton }}
               >
-                <Sparkles size={16} /> Generate Article
-              </button>
-              <button
-                onClick={() => setActiveSection('topics')}
-                style={{ ...styles.button, ...styles.outlineButton }}
-              >
                 <Plus size={16} /> Add Topic
-              </button>
-              <button
-                onClick={() => setActiveSection('schedules')}
-                style={{ ...styles.button, ...styles.outlineButton }}
-              >
-                <Calendar size={16} /> Manage Schedules
               </button>
               {onNavigateToArticles && (
                 <button
@@ -943,63 +894,12 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
             </div>
           </div>
 
-          {/* Recent Schedules */}
-          <div style={styles.card}>
-            <div style={{ padding: '24px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff' }}>
-                Active Schedules
-              </h3>
-            </div>
-            <div style={{ padding: '16px 24px' }}>
-              {schedulesLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
-                  <Loader2 size={24} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
-                </div>
-              ) : schedules.filter(s => s.status === ScheduleStatus.ACTIVE).length === 0 ? (
-                <p style={{ color: '#64748b', textAlign: 'center', padding: '24px' }}>
-                  No active schedules. Create one to start generating articles automatically.
-                </p>
-              ) : (
-                schedules
-                  .filter(s => s.status === ScheduleStatus.ACTIVE)
-                  .slice(0, 5)
-                  .map(schedule => (
-                    <div
-                      key={schedule.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 0',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                      }}
-                    >
-                      <div>
-                        <p style={{ color: '#ffffff', fontWeight: '500' }}>{schedule.name}</p>
-                        <p style={{ color: '#64748b', fontSize: '14px' }}>
-                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).map(t => utcTimeToLocal(t).split(':')[0] + ':00').join(', ')} (local) - {schedule.numberOfArticles} article(s)
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleRunSchedule(schedule.id)}
-                        disabled={runningScheduleId === schedule.id}
-                        style={{
-                          ...styles.button,
-                          ...styles.successButton,
-                          padding: '8px 16px',
-                          opacity: runningScheduleId === schedule.id ? 0.7 : 1,
-                          cursor: runningScheduleId === schedule.id ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {runningScheduleId === schedule.id ? (
-                          <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>
-                        ) : (
-                          <><Play size={14} /> Run Now</>
-                        )}
-                      </button>
-                    </div>
-                  ))
-              )}
+          <div style={{ ...styles.card, padding: '24px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>
+              Daily learning
+            </h3>
+            <div style={{ color: '#94a3b8', lineHeight: 1.6 }}>
+              New lessons are created by the connected ChatGPT task and saved privately to the Study Library.
             </div>
           </div>
         </div>
@@ -1103,12 +1003,9 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
                 Topics
               </h2>
-              <p style={{ color: '#94a3b8' }}>Manage learning topics for article generation</p>
+              <p style={{ color: '#94a3b8' }}>Manage the subjects you want to keep learning</p>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={handleFetchSuggestions} style={{ ...styles.button, ...styles.outlineButton }}>
-                <Sparkles size={16} /> Get AI Suggestions
-              </button>
               <button onClick={() => handleOpenTopicModal()} style={{ ...styles.button, ...styles.primaryButton }}>
                 <Plus size={16} /> Add Topic
               </button>
@@ -1315,7 +1212,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
                 Articles
               </h2>
-              <p style={{ color: '#94a3b8' }}>Manage generated study articles</p>
+              <p style={{ color: '#94a3b8' }}>Manage saved lessons and existing study articles</p>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               {selectedArticleIds.size > 0 && (
@@ -1331,28 +1228,6 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   <Trash2 size={16} /> Delete Selected ({selectedArticleIds.size})
                 </button>
               )}
-              <button
-                onClick={handleGenerateFromLinear}
-                disabled={generatingFromLinear}
-                style={{
-                  ...styles.button,
-                  backgroundColor: 'rgba(94, 106, 210, 0.15)',
-                  color: '#a5b4fc',
-                  border: '1px solid rgba(94, 106, 210, 0.4)',
-                  opacity: generatingFromLinear ? 0.6 : 1,
-                  cursor: generatingFromLinear ? 'not-allowed' : 'pointer',
-                }}
-                title="Pick the oldest Study Todo from Linear and generate an article from it"
-              >
-                {generatingFromLinear ? (
-                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Generating from Linear...</>
-                ) : (
-                  <><Sparkles size={16} /> From Linear</>
-                )}
-              </button>
-              <button onClick={() => setShowGenerateModal(true)} style={{ ...styles.button, ...styles.primaryButton }}>
-                <Sparkles size={16} /> Generate New
-              </button>
             </div>
           </div>
 
@@ -1532,7 +1407,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   {articles.length === 0 && (
                     <tr>
                       <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
-                        No articles yet. Click &quot;Generate New&quot; to create one.
+                        No articles yet. Lessons saved by the connected assistant will appear here.
                       </td>
                     </tr>
                   )}
@@ -2156,7 +2031,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                   />
                   <label htmlFor="topic-active" style={{ color: '#cbd5e1', cursor: 'pointer' }}>
-                    Active (available for article generation)
+                    Active (available for study planning)
                   </label>
                 </div>
               </div>

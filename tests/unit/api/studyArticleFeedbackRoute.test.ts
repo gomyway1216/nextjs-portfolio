@@ -65,7 +65,7 @@ describe('/api/study/articles/[id]/feedback authorization', () => {
     const response = await PUT(
       new Request('https://example.com/api/study/articles/article-1/feedback', {
         method: 'PUT',
-        body: JSON.stringify({ signals: ['interesting'], skipped: false }),
+        body: JSON.stringify({ signals: ['not_useful', 'too_niche'], skipped: false }),
       }) as never,
       { params: Promise.resolve({ id: 'article-1' }) }
     );
@@ -78,7 +78,7 @@ describe('/api/study/articles/[id]/feedback authorization', () => {
       expect.objectContaining({
         articleId: 'article-1',
         userId: 'owner-1',
-        signals: ['interesting'],
+        signals: ['not_useful', 'too_niche'],
         skipped: false,
       })
     );

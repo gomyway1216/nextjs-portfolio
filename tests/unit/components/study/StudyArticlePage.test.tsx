@@ -145,7 +145,7 @@ describe('StudyArticlePage private article loading', () => {
     expect(markup).toContain('Source');
     expect(markup).toContain('Personal Memory MCP');
     expect(markup).toContain('Created');
-    expect(markup).toContain('2026');
+    expect(markup).toContain('Sep 7, 2026, 08:02 AM');
     expect(markup).toContain('Not published');
     expect(markup).toContain('—');
     expect(markup).not.toContain('memory_internal-client-id');

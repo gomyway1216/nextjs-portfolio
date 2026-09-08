@@ -68,7 +68,8 @@ function formatArticleMetadataDate(value: unknown): string {
 
   if (Number.isNaN(date.getTime())) return 'Unavailable';
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -757,7 +758,7 @@ function StudyArticlePageInner() {
             { label: 'Published', value: article.publishedAt
               ? formatArticleMetadataDate(article.publishedAt)
               : 'Not published' },
-            { label: 'Views', value: article.status === 'published' ? article.viewCount.toString() : '—' },
+            { label: 'Views', value: article.publishedAt ? article.viewCount.toString() : '—' },
           ].map((item) => (
             <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
               <dt style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</dt>

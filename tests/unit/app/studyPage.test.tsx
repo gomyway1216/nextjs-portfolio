@@ -1,3 +1,4 @@
+import type { HTMLAttributes, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,12 +7,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
+  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children, value }: { children: ReactNode; value: string }) => (
     <span data-value={value}>{children}</span>
   ),
-  SelectTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement>) => (
+  SelectTrigger: ({ children, ...props }: HTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
   SelectValue: () => null,

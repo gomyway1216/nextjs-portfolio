@@ -12,6 +12,7 @@ import { getStudyArticleDateRange } from '@/lib/studyArticleDateRange';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 import {
+ArrowUpDown,
 BarChart3,
 BookMarked,
 BookOpen,
@@ -63,6 +64,7 @@ export default function StudyListPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all');
@@ -79,6 +81,8 @@ export default function StudyListPage() {
     difficulty: selectedDifficulty || undefined,
     fromDate: selectedDateRange.fromDate,
     toDate: selectedDateRange.toDate,
+    orderBy: 'createdAt',
+    orderDir: sortDirection,
     readStatus: isAuthenticated ? statusFilter : undefined,
     userId: currentUser?.uid,
   });
@@ -622,6 +626,24 @@ export default function StudyListPage() {
               )}
             </div>
 
+            {/* Creation Date Sort */}
+            <Select
+              value={sortDirection}
+              onValueChange={(value) => setSortDirection(value === 'asc' ? 'asc' : 'desc')}
+            >
+              <SelectTrigger
+                aria-label={t('study.hub.sort.label')}
+                style={{ height: '42px', minWidth: '156px', backgroundColor: 'var(--card)' }}
+              >
+                <ArrowUpDown size={16} />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">{t('study.hub.sort.newestFirst')}</SelectItem>
+                <SelectItem value="asc">{t('study.hub.sort.oldestFirst')}</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* Filter Toggle */}
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -757,6 +779,7 @@ export default function StudyListPage() {
                     setSelectedLanguage('');
                     setSelectedDate('');
                     setSearchQuery('');
+                    setSortDirection('desc');
                   }}
                   style={{
                     padding: '8px 16px',

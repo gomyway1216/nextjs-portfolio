@@ -419,6 +419,11 @@
           "ko": "Korean"
         }
       },
+      "sort": {
+        "label": "Sort by creation date",
+        "newestFirst": "Newest first",
+        "oldestFirst": "Oldest first"
+      },
       "statusFilter": {
         "all": "All ({{count}})",
         "unread": "Unread ({{count}})",

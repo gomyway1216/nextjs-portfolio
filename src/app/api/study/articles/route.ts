@@ -89,7 +89,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     let articles: StudyArticleListItem[] = data.articles || [];
     let readArticleIds = new Set<string>();
 
-    // If userId is provided, get read history for filtering and sorting
+    // If userId is provided, get read history for filtering and read badges
     if (userId) {
       readArticleIds = await getUserReadArticleIds(userId);
 
@@ -98,14 +98,6 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
         articles = articles.filter((a) => !readArticleIds.has(a.id));
       } else if (readStatus === 'read') {
         articles = articles.filter((a) => readArticleIds.has(a.id));
-      } else {
-        // Sort unread first for 'all' status
-        articles = articles.sort((a, b) => {
-          const aRead = readArticleIds.has(a.id);
-          const bRead = readArticleIds.has(b.id);
-          if (aRead !== bRead) return aRead ? 1 : -1;
-          return 0;
-        });
       }
     }
 

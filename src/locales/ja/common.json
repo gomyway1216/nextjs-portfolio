@@ -405,6 +405,11 @@
           "ko": "韓国語"
         }
       },
+      "sort": {
+        "label": "作成日時順",
+        "newestFirst": "新しい順",
+        "oldestFirst": "古い順"
+      },
       "statusFilter": {
         "all": "すべて ({{count}})",
         "unread": "未読 ({{count}})",

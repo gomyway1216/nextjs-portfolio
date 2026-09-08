@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   getCloudFunctionUrl: vi.fn(),
+  getFirestore: vi.fn(),
 }));
 
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
@@ -21,7 +22,7 @@ vi.mock('@/app/api/utils/errorLogger', () => ({
 }));
 
 vi.mock('@/lib/firebase-admin', () => ({
-  getFirestore: vi.fn(),
+  getFirestore: mocks.getFirestore,
 }));
 
 type StaticRoute = (request: NextRequest) => Promise<Response>;
@@ -42,6 +43,7 @@ describe('Study article read routes', () => {
     mocks.getCloudFunctionUrl.mockReset().mockImplementation(
       (name: string) => `https://${name.toLowerCase()}.example/`,
     );
+    mocks.getFirestore.mockReset();
     vi.unstubAllGlobals();
   });
 
@@ -83,6 +85,39 @@ describe('Study article read routes', () => {
       cache: 'no-store',
       headers: {},
     });
+  });
+
+  it('preserves server creation-date order when attaching read status', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      success: true,
+      articles: [
+        { id: 'newest-read', createdAt: '2026-09-08T12:00:00.000Z' },
+        { id: 'older-unread', createdAt: '2026-09-07T12:00:00.000Z' },
+      ],
+      hasMore: false,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.getFirestore.mockReturnValue({
+      collection: () => ({
+        where: () => ({
+          get: async () => ({
+            docs: [{ data: () => ({ articleId: 'newest-read' }) }],
+          }),
+        }),
+      }),
+    });
+    const { GET } = await import('@/app/api/study/articles/route');
+
+    const response = await (GET as StaticRoute)(request(
+      '/api/study/articles?userId=user-1&readStatus=all&orderBy=createdAt&orderDir=desc',
+    ));
+    const data = await response.json();
+
+    expect(data.articles.map((article: { id: string }) => article.id)).toEqual([
+      'newest-read',
+      'older-unread',
+    ]);
+    expect(data.readArticleIds).toEqual(['newest-read']);
   });
 
   it('forwards admin authentication when reading a private article', async () => {

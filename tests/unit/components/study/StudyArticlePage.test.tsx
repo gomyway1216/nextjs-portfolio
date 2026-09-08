@@ -46,7 +46,7 @@ vi.mock('@/services/studyService', () => ({
   markArticleAsRead: vi.fn(),
 }));
 
-vi.mock('@/components/study/ArticleLearningIntegration', () => ({
+vi.mock('@/components/study/SaveArticleLearning', () => ({
   default: () => null,
 }));
 

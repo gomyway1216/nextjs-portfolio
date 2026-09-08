@@ -7,6 +7,7 @@ describe('Learning Library references and article capture', () => {
   it('rejects active URLs, credentials and non-web references', () => {
     for (const url of ['javascript:alert(1)', 'data:text/html,hi', 'file:///private', 'https://name:password@example.com']) expect(safeLearningUrl(url)).toBeUndefined();
     expect(safeLearningUrl('https://example.com/lesson#section')).toBe('https://example.com/lesson#section');
+    expect(safeLearningUrl('  HTTPS://EXAMPLE.COM/lesson  ')).toBe('https://example.com/lesson');
   });
   it('preserves the selected original diagram and source anchor without generating content', () => {
     const content = 'Original explanation\n```mermaid\nflowchart LR\nA --> B\n```';

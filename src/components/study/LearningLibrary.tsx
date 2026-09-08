@@ -150,8 +150,14 @@ function OwnerLearningLibrary() {
           {item.pronunciation && <p>{item.pronunciation}</p>}
           {item.examples?.map((example, i) => <blockquote key={i} className="space-y-2 border-l-2 pl-4"><p>{example.sentence || example.context}</p>{example.codeExample && <pre className="overflow-x-auto rounded bg-muted p-3"><code>{example.codeExample}</code></pre>}<p className="text-sm text-muted-foreground">{example.explanation}</p></blockquote>)}
           {item.diagrams.map((d, i) => <section key={i}><h3 className="font-medium">{d.title}</h3><MermaidDiagram chart={d.mermaid} /></section>)}
-          {item.figures.map((f, i) => <p key={i}><a href={safeLearningUrl(f.url)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="underline">{say('元の図を開く：', 'Open original figure: ')}{f.title}</a></p>)}
-          {!!item.sources.length && <section><h3 className="mb-2 font-medium">{say('出典・元の説明', 'Sources and original explanations')}</h3><ul className="space-y-2">{item.sources.map((s, i) => <li key={i}>{safeLearningUrl(s.url) ? <a href={safeLearningUrl(s.url)} className="underline" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{s.label}</a> : s.label}{s.locator && <p className="break-words text-sm text-muted-foreground">{s.locator}</p>}</li>)}</ul></section>}
+          {item.figures.map((f, i) => {
+            const url = safeLearningUrl(f.url);
+            return <p key={i}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="underline">{say('元の図を開く：', 'Open original figure: ')}{f.title}</a> : <span>{f.title} — {say('参照リンクが無効です', 'Reference unavailable')}</span>}</p>;
+          })}
+          {!!item.sources.length && <section><h3 className="mb-2 font-medium">{say('出典・元の説明', 'Sources and original explanations')}</h3><ul className="space-y-2">{item.sources.map((s, i) => {
+            const url = safeLearningUrl(s.url);
+            return <li key={i}>{url ? <a href={url} className="underline" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{s.label}</a> : s.label}{s.locator && <p className="break-words text-sm text-muted-foreground">{s.locator}</p>}</li>;
+          })}</ul></section>}
           {item.linkedArticleIds.map((id) => <Link key={id} className="block underline" href={`/study/articles/${encodeURIComponent(id)}`}>{say('元の記事を読む', 'Read source article')}</Link>)}
           {item.relatedIds.map((id) => <Button key={id} variant="link" onClick={() => void openRelated(id)}>{say('関連する元の学びを開く', 'Open linked original learning')}</Button>)}
           <section className="rounded-lg bg-muted p-4"><h3 className="flex items-center gap-2 font-medium"><RotateCcw size={18} />{say('自分の言葉で説明できそう？', 'Could you explain it in your own words?')}</h3><div className="mt-3 flex flex-wrap gap-2">{(['again', 'remembered', 'understood', 'pause'] as const).map((a) => <Button key={a} variant="outline" disabled={saving} onClick={() => void assess(item, a)}>{labels.assessments[a]}</Button>)}</div><p className="mt-3 text-sm text-muted-foreground">{say('読むだけでは理解済みになりません。自己評価したものだけ復習を予定します。', 'Reading does not mark this as understood. Only your self-assessment schedules a review.')}</p></section>

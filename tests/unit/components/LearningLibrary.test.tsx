@@ -35,5 +35,6 @@ it('preserves original Mermaid without executing HTML or automatically loading r
   expect(html).not.toContain('<script');
   expect(html).not.toContain('<img');
   expect(html).not.toContain('href="javascript:');
+  expect(html).toContain('<span>Bad</span>');
   expect(html).toContain('href="https://example.com/figure.png"');
 });

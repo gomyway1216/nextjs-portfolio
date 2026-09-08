@@ -49,6 +49,43 @@ import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-yaml';
 import 'prismjs/themes/prism-tomorrow.css';
 
+function formatArticleMetadataDate(value: unknown): string {
+  let date: Date;
+
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === 'object' && value !== null) {
+    const timestamp = value as { _seconds?: number; seconds?: number; toDate?: () => Date };
+    const seconds = timestamp._seconds ?? timestamp.seconds;
+    date = typeof timestamp.toDate === 'function'
+      ? timestamp.toDate()
+      : typeof seconds === 'number'
+        ? new Date(seconds * 1000)
+        : new Date(Number.NaN);
+  } else {
+    date = new Date(value as string | number);
+  }
+
+  if (Number.isNaN(date.getTime())) return 'Unavailable';
+
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getArticleGenerationDetail(aiModel: string): { label: 'Model' | 'Source'; value: string } {
+  if (aiModel.startsWith('personal-memory-mcp:')) {
+    return { label: 'Source', value: 'Personal Memory MCP' };
+  }
+
+  return { label: 'Model', value: aiModel };
+}
+
 // Simple markdown renderer for chat messages
 function renderMarkdown(text: string): React.ReactNode {
   const lines = text.split('\n');
@@ -656,6 +693,12 @@ function StudyArticlePageInner() {
   }
 
   const diffStyle = getDifficultyStyle(article.difficulty);
+  const generationDetail = getArticleGenerationDetail(article.aiModel);
+  const providerLabel = article.aiProvider === 'chatgpt'
+    ? 'ChatGPT'
+    : article.aiProvider === 'claude'
+      ? 'Claude'
+      : article.aiProvider;
 
   const SidebarContent = () => (
     <>
@@ -709,25 +752,17 @@ function StudyArticlePageInner() {
         <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Article Info</h3>
         <dl style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[
-            { label: 'AI Provider', value: article.aiProvider },
-            { label: 'Model', value: article.aiModel },
+            { label: 'AI Provider', value: providerLabel },
+            generationDetail,
+            { label: 'Created', value: formatArticleMetadataDate(article.createdAt) },
             { label: 'Published', value: article.publishedAt
-              ? new Date(typeof article.publishedAt === 'object' && '_seconds' in article.publishedAt
-                  ? (article.publishedAt as { _seconds: number })._seconds * 1000
-                  : article.publishedAt
-                ).toLocaleString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
+              ? formatArticleMetadataDate(article.publishedAt)
               : 'Not published' },
-            { label: 'Views', value: article.viewCount.toString() },
+            { label: 'Views', value: article.publishedAt ? article.viewCount.toString() : '—' },
           ].map((item) => (
             <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
               <dt style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</dt>
-              <dd style={{ color: '#374151', fontSize: '13px', textTransform: 'capitalize' }}>{item.value}</dd>
+              <dd style={{ color: '#374151', fontSize: '13px' }}>{item.value}</dd>
             </div>
           ))}
         </dl>

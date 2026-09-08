@@ -851,8 +851,9 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       {activeSection === 'overview' && (
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
-            Study Tool Overview
+            Study & Learning Library
           </h2>
+          <a href="/study/learning" style={{ display: 'inline-block', color: '#93c5fd', marginBottom: '16px', textDecoration: 'underline' }}>Open private Learning Library — 学びのライブラリ</a>
           <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
             Manage your learning content and track progress
           </p>

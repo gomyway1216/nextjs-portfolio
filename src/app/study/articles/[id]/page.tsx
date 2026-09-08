@@ -1,6 +1,6 @@
 'use client';
 
-import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
+import ArticleLearningIntegration from '@/components/study/SaveArticleLearning';
 import ArticleFeedback from '@/components/study/ArticleFeedback';
 import AudioPlayer from '@/components/study/AudioPlayer';
 import {

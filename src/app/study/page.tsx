@@ -255,6 +255,7 @@ export default function StudyListPage() {
             {t('study.hub.sidebar.learningHub')}
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Link href="/study/learning" onClick={() => setShowMobileSidebar(false)} style={{ color: 'var(--foreground)', padding: '10px 12px', fontSize: '14px', textDecoration: 'underline' }}>Learning Library · 学びのライブラリ</Link>
             <Link
               href="/study/learning/review"
               onClick={() => setShowMobileSidebar(false)}

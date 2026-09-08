@@ -9,6 +9,8 @@ describe('parseStudyArticleFeedback', () => {
       ok: true, value: { signals, skipped: false },
     });
     expect(parseStudyArticleFeedback({ signals: ['useful', 'not_useful'], skipped: false }).ok).toBe(false);
+    expect(parseStudyArticleFeedback({ signals: ['useful', 'too_niche'], skipped: false }).ok).toBe(false);
+    expect(parseStudyArticleFeedback({ signals: ['not_relevant'], skipped: false }).ok).toBe(false);
   });
 
   it('switches the usefulness vote while preserving optional reasons and supports undo', () => {
@@ -16,6 +18,13 @@ describe('parseStudyArticleFeedback', () => {
     expect(toggleStudyFeedbackSignal(['not_useful', 'already_knew'], 'useful')).toEqual(['already_knew', 'useful']);
     expect(toggleStudyFeedbackSignal(['useful', 'interesting'], 'useful')).toEqual(['interesting']);
     expect(toggleStudyFeedbackSignal(['not_useful'], 'too_niche')).toEqual(['not_useful', 'too_niche']);
+  });
+
+  it('keeps negative reasons consistent with the usefulness vote', () => {
+    expect(toggleStudyFeedbackSignal(['useful', 'already_knew'], 'too_niche')).toEqual(['already_knew', 'not_useful', 'too_niche']);
+    expect(toggleStudyFeedbackSignal(['not_useful', 'too_niche', 'not_relevant', 'want_more'], 'useful')).toEqual(['want_more', 'useful']);
+    expect(toggleStudyFeedbackSignal(['not_useful', 'too_niche'], 'not_useful')).toEqual([]);
+    expect(toggleStudyFeedbackSignal(['not_useful', 'too_niche'], 'too_niche')).toEqual(['not_useful']);
   });
   it('accepts and deduplicates supported feedback signals', () => {
     expect(

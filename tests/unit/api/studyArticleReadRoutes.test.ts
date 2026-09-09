@@ -212,6 +212,17 @@ describe('Study article read routes', () => {
     expect(await response.json()).toEqual({ success: false, error: 'Article not found' });
   });
 
+  it('still serves the article when the view-counter write fails', async () => {
+    articleData({ status: 'published', content: 'Public content' });
+    mocks.updateArticle.mockRejectedValue(new Error('temporary contention'));
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const response = await read();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ article: { content: 'Public content' } });
+    expect(log).toHaveBeenCalledOnce();
+    log.mockRestore();
+  });
+
   it('fails closed on database errors without leaking details', async () => {
     articleData(null);
     mocks.getArticle.mockRejectedValue(new Error('internal database details'));

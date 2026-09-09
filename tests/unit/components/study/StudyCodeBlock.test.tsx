@@ -14,7 +14,7 @@ describe('StudyCodeBlock', () => {
     expect(html).not.toContain('<pre');
   });
   it('keeps ordinary code scrollable and escapes markup', () => {
-    const html = renderToStaticMarkup(<StudyCodeBlock language="html" code="<script>alert(1)</script>" />);
+    const html = renderToStaticMarkup(<StudyCodeBlock language=" HTML " code="<script>alert(1)</script>" />);
     expect(html).toContain('overflow:auto');
     expect(html).toContain('class="language-html"');
     expect(html).toContain('&lt;script&gt;');

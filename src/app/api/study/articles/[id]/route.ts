@@ -29,7 +29,12 @@ export const GET = withActivityLog('next_api.study.articles.id.GET', async (requ
       return notFound();
     }
     if (isPublished && article.isPublic !== false) {
-      await doc.ref.update({ viewCount: FieldValue.increment(1) });
+      try {
+        await doc.ref.update({ viewCount: FieldValue.increment(1) });
+      } catch (error) {
+        // Analytics must not turn an otherwise valid article read into a 500.
+        console.warn('Unable to increment study article view count:', error);
+      }
     }
     return NextResponse.json({ success: true, article: { ...article, id: doc.id } }, { headers });
   } catch (error) {

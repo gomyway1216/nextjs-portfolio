@@ -5,12 +5,15 @@ import { AIProvider, ArticleStatus, QuizDifficulty, type StudyArticle } from '@/
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
   useStudyArticle: vi.fn(),
+  useArticleNotes: vi.fn(),
+  useArticleChat: vi.fn(),
+  searchParams: new URLSearchParams(),
 }));
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'external-private-article' }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mocks.searchParams,
 }));
 
 vi.mock('@/providers/AuthProvider', () => ({
@@ -19,19 +22,8 @@ vi.mock('@/providers/AuthProvider', () => ({
 
 vi.mock('@/hooks/useStudy', () => ({
   useStudyArticle: mocks.useStudyArticle,
-  useArticleNotes: () => ({
-    notes: [],
-    createNote: vi.fn(),
-    updateNote: vi.fn(),
-    deleteNote: vi.fn(),
-    loading: false,
-  }),
-  useArticleChat: () => ({
-    chat: null,
-    sendMessage: vi.fn(),
-    generateSummary: vi.fn(),
-    loading: false,
-  }),
+  useArticleNotes: mocks.useArticleNotes,
+  useArticleChat: mocks.useArticleChat,
   useStudyCategories: () => ({ categories: [] }),
   useStudyTopics: () => ({ topics: [] }),
   useStudyQuizzes: () => ({ quizzes: [] }),
@@ -63,12 +55,35 @@ import StudyArticlePage from '@/app/study/articles/[id]/page';
 describe('StudyArticlePage private article loading', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.searchParams = new URLSearchParams();
+    mocks.useArticleNotes.mockReturnValue({ notes: [], loading: false });
+    mocks.useArticleChat.mockReturnValue({ chat: null, loading: false });
     mocks.useStudyArticle.mockReturnValue({
       article: null,
       loading: true,
       error: null,
       fetchArticle: vi.fn(),
     });
+  });
+
+  it.each([
+    ['', null, null],
+    ['notes', 'external-private-article', null],
+    ['chat', null, 'external-private-article'],
+  ])('only loads the selected auxiliary tab (%s)', (tab, notesId, chatId) => {
+    mocks.searchParams = new URLSearchParams({ tab });
+    mocks.useAuth.mockReturnValue({ currentUser: { uid: 'admin-1' }, isAdmin: true, loading: false });
+    renderToStaticMarkup(<StudyArticlePage />);
+    expect(mocks.useArticleNotes).toHaveBeenCalledWith(notesId);
+    expect(mocks.useArticleChat).toHaveBeenCalledWith(chatId);
+  });
+
+  it('does not request private auxiliary data while signed out', () => {
+    mocks.searchParams = new URLSearchParams({ tab: 'chat' });
+    mocks.useAuth.mockReturnValue({ currentUser: null, isAdmin: false, loading: false });
+    renderToStaticMarkup(<StudyArticlePage />);
+    expect(mocks.useArticleNotes).toHaveBeenCalledWith(null);
+    expect(mocks.useArticleChat).toHaveBeenCalledWith(null);
   });
 
   it('waits for auth and keys the article request to the resolved admin viewer', () => {

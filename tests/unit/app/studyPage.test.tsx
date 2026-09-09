@@ -1,9 +1,19 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { AnchorHTMLAttributes, HTMLAttributes, MouseEvent, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   useStudyArticles: vi.fn(),
+  getArticle: vi.fn().mockResolvedValue({ id: 'one' }),
+  articleLink: null as AnchorHTMLAttributes<HTMLAnchorElement> | null,
+}));
+
+vi.mock('@/services/studyService', () => ({ getArticle: mocks.getArticle }));
+vi.mock('next/link', () => ({
+  default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    if (props.href?.startsWith('/study/articles/')) mocks.articleLink = props;
+    return <a {...props} />;
+  },
 }));
 
 vi.mock('@/components/ui/select', () => ({
@@ -38,6 +48,7 @@ import StudyListPage from '@/app/study/page';
 describe('StudyListPage sorting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.articleLink = null;
     mocks.useStudyArticles.mockReturnValue({
       articles: [],
       loading: false,
@@ -46,6 +57,34 @@ describe('StudyListPage sorting', () => {
       isArticleRead: vi.fn(() => false),
     });
   });
+
+  it('starts the article body request on navigation, without fetching on render or hover', () => {
+    mocks.useStudyArticles.mockReturnValue({
+      articles: [{ id: 'one', title: 'Article', summary: 'Summary', tags: [], difficulty: 'beginner' }],
+      loading: false,
+      hasMore: false,
+      isArticleRead: () => false,
+    });
+    renderToStaticMarkup(<StudyListPage />);
+    expect(mocks.getArticle).not.toHaveBeenCalled();
+    mocks.articleLink!.onClick!({ button: 0 } as MouseEvent<HTMLAnchorElement>);
+    expect(mocks.getArticle).toHaveBeenCalledWith('one');
+  });
+
+  it.each([{ button: 1 }, { button: 0, metaKey: true }, { button: 0, ctrlKey: true }, { button: 0, defaultPrevented: true }])(
+    'does not fetch a body in the current tab for a modified or cancelled click (%j)',
+    event => {
+      mocks.useStudyArticles.mockReturnValue({
+        articles: [{ id: 'one', title: 'Article', tags: [], difficulty: 'beginner' }],
+        loading: false,
+        hasMore: false,
+        isArticleRead: () => false,
+      });
+      renderToStaticMarkup(<StudyListPage />);
+      mocks.articleLink!.onClick!(event as unknown as MouseEvent<HTMLAnchorElement>);
+      expect(mocks.getArticle).not.toHaveBeenCalled();
+    },
+  );
 
   it('shows creation-date sort controls and requests newest articles first by default', () => {
     const markup = renderToStaticMarkup(<StudyListPage />);

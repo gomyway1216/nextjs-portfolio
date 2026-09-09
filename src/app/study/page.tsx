@@ -9,6 +9,7 @@ SelectValue,
 } from '@/components/ui/select';
 import { useArticleCounts, useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
 import { getStudyArticleDateRange } from '@/lib/studyArticleDateRange';
+import { getArticle } from '@/services/studyService';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 import {
@@ -944,6 +945,14 @@ export default function StudyListPage() {
                   <Link
                     key={article.id}
                     href={`/study/articles/${article.id}`}
+                    onClick={(event) => {
+                      // Start the body request alongside Next's route transition.
+                      // Only actual same-tab visits count as article reads.
+                      if (!event.defaultPrevented && event.button === 0 &&
+                          !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                        void getArticle(article.id).catch(() => undefined);
+                      }
+                    }}
                     style={{ textDecoration: 'none' }}
                   >
                     <div style={{

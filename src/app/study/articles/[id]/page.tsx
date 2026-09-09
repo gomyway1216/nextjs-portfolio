@@ -10,7 +10,6 @@ useArticleReadHistory,
 useStudyArticle,
 useStudyCategories,
 useStudyQuizzes,
-useStudyTopics,
 } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { markArticleAsRead } from '@/services/studyService';
@@ -463,18 +462,16 @@ function StudyArticlePageInner() {
     userId: currentUser?.uid ?? null,
     isAdmin,
   });
-  const { notes, createNote, updateNote, deleteNote, loading: notesLoading } = useArticleNotes(articleId);
-  const { chat, sendMessage, generateSummary, loading: _chatLoading } = useArticleChat(articleId);
+  const { notes, createNote, updateNote, deleteNote, loading: notesLoading } = useArticleNotes(currentUser && activeTab === 'notes' ? articleId : null);
+  const { chat, sendMessage, generateSummary, loading: chatLoading } = useArticleChat(currentUser && activeTab === 'chat' ? articleId : null);
   const { categories } = useStudyCategories();
-  const { topics } = useStudyTopics();
   const { quizzes } = useStudyQuizzes({ articleId });
 
   // Admin read history hook
-  const { isRead, markAsRead, unmarkAsRead } = useArticleReadHistory();
+  const { isRead, markAsRead, unmarkAsRead } = useArticleReadHistory(!!currentUser);
 
   // Get category and topic info
   const category = categories.find((c) => c.id === article?.categoryId);
-  const _topic = topics.find((t) => t.id === article?.topicId);
 
   // Syntax highlighting
   useEffect(() => {
@@ -529,7 +526,7 @@ function StudyArticlePageInner() {
   };
 
   const handleSendChat = async () => {
-    if (!chatInput.trim() || isSendingChat) return;
+    if (!chatInput.trim() || isSendingChat || chatLoading) return;
     setIsSendingChat(true);
     try {
       await sendMessage(chatInput);
@@ -1401,7 +1398,7 @@ function StudyArticlePageInner() {
                       display: 'flex',
                       flexDirection: 'column',
                     }}>
-                      {!chat?.messages || chat.messages.length === 0 ? (
+                      {chatLoading ? <Loader2 className="animate-spin" aria-label="Loading chat" /> : !chat?.messages || chat.messages.length === 0 ? (
                         <div style={{
                           flex: 1,
                           display: 'flex',
@@ -1510,7 +1507,7 @@ function StudyArticlePageInner() {
                             }, 50);
                           }}
                           placeholder="Ask a question..."
-                          disabled={isSendingChat}
+                          disabled={isSendingChat || chatLoading}
                           rows={1}
                           style={{
                             width: '100%',
@@ -1536,7 +1533,7 @@ function StudyArticlePageInner() {
                         />
                         <button
                           onClick={handleSendChat}
-                          disabled={isSendingChat || !chatInput.trim()}
+                          disabled={isSendingChat || chatLoading || !chatInput.trim()}
                           style={{
                             position: 'absolute',
                             right: '6px',
@@ -1550,8 +1547,8 @@ function StudyArticlePageInner() {
                             backgroundColor: '#10a37f',
                             color: '#ffffff',
                             border: 'none',
-                            cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
-                            opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
+                            cursor: isSendingChat || chatLoading || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                            opacity: isSendingChat || chatLoading || !chatInput.trim() ? 0.5 : 1,
                           }}
                         >
                           {isSendingChat ? (
@@ -1614,7 +1611,7 @@ function StudyArticlePageInner() {
                     </div>
 
                     {/* Notes List */}
-                    {notes.length === 0 ? (
+                    {notesLoading ? <Loader2 className="animate-spin" aria-label="Loading notes" /> : notes.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '48px 16px' }}>
                         <StickyNote size={40} color="#d1d5db" style={{ marginBottom: '12px' }} />
                         <p style={{ color: '#6b7280', fontSize: '14px' }}>No notes yet. Start taking notes as you read!</p>

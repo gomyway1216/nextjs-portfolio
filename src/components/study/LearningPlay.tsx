@@ -57,7 +57,7 @@ export default function LearningPlay({ play }: { play: Play }) {
           <div aria-live="polite" aria-atomic="true" className="space-y-4 rounded-xl border bg-slate-50 p-4 sm:p-5 dark:bg-slate-900">
             <h4 className="font-semibold">{scene.label}</h4>
             <div className="flex flex-col items-stretch gap-3 md:flex-row">
-              {scene.panels.map((p, n) => <div key={p.label} className="flex min-w-0 flex-1 items-center gap-3">
+              {scene.panels.map((p, n) => <div key={n} className="flex min-w-0 flex-1 items-center gap-3">
                 {n > 0 && <ArrowRight aria-hidden="true" className="hidden shrink-0 text-blue-500 md:block" size={20} />}
                 <div className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-slate-950"><p className="mb-3 text-sm text-muted-foreground">{p.label}</p><p className="whitespace-pre-line break-words text-lg font-semibold leading-relaxed">{p.value}</p></div>
               </div>)}

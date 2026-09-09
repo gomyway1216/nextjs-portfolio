@@ -49,17 +49,17 @@ it('answers, hints, scenes, reset and optional navigation stay in-page without n
   expect(html()).toContain('ログイン直後');
   click('Cookieだけ消す');
   expect(html()).toContain('Cookieだけ削除');
-  expect(html()).toContain('demo-A の記録は残る');
+  expect(html()).toContain('以前の記録は残る');
   click('サーバーの記録も失効');
   expect(html()).toContain('どちらも使えない');
   click('最初の状態へ');
   click('サーバー側で失効');
-  expect(html()).toContain('Cookieは残る');
-  expect(html()).toContain('アクセス拒否');
+  expect(html()).toContain('Cookie: session=&lt;失効したID&gt;');
+  expect(html()).toContain('401：認証を拒否');
   click('今日はここまで');
   expect(html()).toContain('理解済みにはしません');
   click('続きへ戻る');
-  expect(html()).toContain('Cookieは残る');
+  expect(html()).toContain('Cookie: session=&lt;失効したID&gt;');
   click('実務で使う');
   expect(html()).toContain('実システムとコードを見る');
   expect(html()).toContain('href="#introduction"');
@@ -67,7 +67,7 @@ it('answers, hints, scenes, reset and optional navigation stay in-page without n
 });
 it('can skip unanswered quizzes and safely rejects malformed metadata', () => {
   click('次へ');
-  expect(html()).toContain('サーバー側のセッション記録も消える');
+  expect(html()).toContain('サーバーの記録も消える');
   expect(readLearningPlay({...fixture, version:2})).toBeUndefined();
   const broken = structuredClone(fixture);
   broken.activities[0].choices![0].correct = false;

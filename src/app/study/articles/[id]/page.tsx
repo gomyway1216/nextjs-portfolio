@@ -934,7 +934,7 @@ function StudyArticlePageInner() {
             <GraduationCap size={16} style={{ color: '#9333ea' }} />
             Learning Hub
           </h3>
-          <ArticleLearningIntegration article={article} />
+          <a href="#learning-follow-up" onClick={() => { handleTabChange('article'); setShowMobileSidebar(false); }} className="text-sm underline">Save a section / continue with your AI</a>
         </div>
       )}
     </>
@@ -1372,7 +1372,10 @@ function StudyArticlePageInner() {
                       </div>
                     )}
 
-                    {isAdmin && <ArticleFeedback articleId={articleId} />}
+                    {isAdmin && <>
+                      <ArticleFeedback articleId={articleId} />
+                      <div id="learning-follow-up" className="mt-8 scroll-mt-24"><ArticleLearningIntegration article={article} /></div>
+                    </>}
                   </article>
                 )}
 

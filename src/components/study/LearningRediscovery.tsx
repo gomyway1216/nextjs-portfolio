@@ -18,7 +18,7 @@ export function learningAngles(item: Pick<LearningItem, 'domains'>, ja: boolean)
 export default function LearningRediscovery({ item }: { item: LearningItem }) {
   const { i18n } = useTranslation();
   const ja = i18n.language.startsWith('ja');
-  const material = { title: item.title, content: item.content, itemId: item.id, revision: item.revision, sources: item.sources, diagrams: item.diagrams, figures: item.figures };
+  const material = { title: item.title, content: item.content, domains: item.domains, itemId: item.id, revision: item.revision, sources: item.sources, diagrams: item.diagrams, figures: item.figures };
   return <section className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
     <h3 className="font-medium">{ja ? '覚える前に、ちょっと遊んでみる？' : 'Explore it before memorizing it?'}</h3>
     <p className="text-sm text-muted-foreground">{ja ? '元の説明と図は下にあります。気になったら、問いを選んで普段のAIへ。選ぶだけでは送信・保存・復習設定はしません。' : 'The original explanation and diagrams are below. Pick a question to take to your AI if you want. Choosing does not send, save or schedule a review.'}</p>

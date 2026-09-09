@@ -51,29 +51,77 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-// Helper for API calls
+// Short-lived, browser-only data reuse for navigation. Never persist private
+// articles or share responses across viewers, refreshed tokens, or mutations.
+const studyReads = new Map<string, { expiresAt: number; data: unknown }>();
+const pendingStudyReads = new Map<string, Promise<unknown>>();
+let studyReadViewer: typeof auth.currentUser | undefined;
+let studyReadAuthorization: string | undefined;
+
+function clearStudyReads() {
+  studyReads.clear();
+  pendingStudyReads.clear();
+}
+
+// Helper for API calls. Only selected read endpoints opt into navigation reuse.
 async function apiCall<T>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  reuseRead = false,
 ): Promise<T> {
+  const viewer = auth.currentUser;
   const headers = await getAuthHeaders();
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-      ...options.headers,
-    },
-  });
-
-  const data = await response.json();
-
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || 'API request failed');
+  if (viewer !== auth.currentUser) {
+    throw new Error('Authentication changed during the request');
+  }
+  if (studyReadViewer !== viewer || studyReadAuthorization !== headers.Authorization) {
+    clearStudyReads();
+    studyReadViewer = viewer;
+    studyReadAuthorization = headers.Authorization;
+  }
+  const isRead = !options.method || options.method === 'GET';
+  const canReuse = reuseRead && isRead && typeof window !== 'undefined';
+  if (canReuse) {
+    const cached = studyReads.get(url);
+    if (cached && cached.expiresAt > Date.now()) return cached.data as T;
+    studyReads.delete(url);
+    const pending = pendingStudyReads.get(url);
+    if (pending) return pending as Promise<T>;
   }
 
-  return data;
+  const request = (async (): Promise<T> => {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+        ...options.headers,
+      },
+    });
+    const data = await response.json();
+    if (auth.currentUser !== viewer) {
+      throw new Error('Authentication changed during the request');
+    }
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'API request failed');
+    }
+    if (!isRead) clearStudyReads();
+    return data;
+  })();
+
+  if (!canReuse) return request;
+  pendingStudyReads.set(url, request);
+  try {
+    const data = await request;
+    // An old request must not repopulate the cache after a write or sign-out.
+    if (pendingStudyReads.get(url) === request && auth.currentUser === viewer) {
+      studyReads.set(url, { data, expiresAt: Date.now() + 30_000 });
+      if (studyReads.size > 40) studyReads.delete(studyReads.keys().next().value!);
+    }
+    return data;
+  } finally {
+    if (pendingStudyReads.get(url) === request) pendingStudyReads.delete(url);
+  }
 }
 
 // ============================================================================
@@ -82,7 +130,7 @@ async function apiCall<T>(
 
 export async function getCategories(): Promise<StudyCategory[]> {
   const data = await apiCall<{ success: boolean; categories: StudyCategory[] }>(
-    '/api/study/categories'
+    '/api/study/categories', {}, true
   );
   return data.categories;
 }
@@ -240,7 +288,7 @@ export async function getArticles(
     articles: StudyArticle[];
     hasMore: boolean;
     readArticleIds?: string[];
-  }>(url);
+  }>(url, {}, true);
   return {
     articles: data.articles,
     hasMore: data.hasMore,
@@ -250,7 +298,7 @@ export async function getArticles(
 
 export async function getArticle(id: string): Promise<StudyArticle> {
   const data = await apiCall<{ success: boolean; article: StudyArticle }>(
-    `/api/study/articles/${id}`
+    `/api/study/articles/${id}`, {}, true
   );
   return data.article;
 }

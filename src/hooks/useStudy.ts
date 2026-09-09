@@ -240,6 +240,7 @@ export function useStudyArticles(initialOptions?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [readArticleIds, setReadArticleIds] = useState<Set<string>>(new Set());
+  const requestSequence = useRef(0);
   // Track current filters for load more
   const [currentFilters, setCurrentFilters] = useState<{
     categoryId?: string;
@@ -277,6 +278,7 @@ export function useStudyArticles(initialOptions?: {
         userId?: string;
       } = {}
     ) => {
+      const sequence = ++requestSequence.current;
       try {
         setLoading(true);
         setError(null);
@@ -308,6 +310,8 @@ export function useStudyArticles(initialOptions?: {
           listView: options.listView !== false,  // Default to true for optimized list loading
         });
 
+        if (sequence !== requestSequence.current) return;
+
         if (options.append) {
           setArticles((prev) => [...prev, ...data.articles]);
         } else {
@@ -320,9 +324,11 @@ export function useStudyArticles(initialOptions?: {
           setReadArticleIds(new Set(data.readArticleIds));
         }
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch articles'));
+        if (sequence === requestSequence.current) {
+          setError(err instanceof Error ? err : new Error('Failed to fetch articles'));
+        }
       } finally {
-        setLoading(false);
+        if (sequence === requestSequence.current) setLoading(false);
       }
     },
     [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.fromDate, initialOptions?.toDate, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
@@ -341,6 +347,7 @@ export function useStudyArticles(initialOptions?: {
 
   useEffect(() => {
     fetchArticles();
+    return () => { ++requestSequence.current; };
   }, [fetchArticles]);
 
   // Helper function to check if an article is read
@@ -524,7 +531,10 @@ export function useArticleNotes(articleId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  const requestSequence = useRef(0);
+
   const fetchNotes = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     if (!articleId) {
       setNotes([]);
       setLoading(false);
@@ -535,11 +545,11 @@ export function useArticleNotes(articleId: string | null) {
       setLoading(true);
       setError(null);
       const data = await studyService.getArticleNotes(articleId);
-      setNotes(data);
+      if (sequence === requestSequence.current) setNotes(data);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch notes'));
+      if (sequence === requestSequence.current) setError(err instanceof Error ? err : new Error('Failed to fetch notes'));
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, [articleId]);
 
@@ -570,6 +580,7 @@ export function useArticleNotes(articleId: string | null) {
 
   useEffect(() => {
     fetchNotes();
+    return () => { ++requestSequence.current; };
   }, [fetchNotes]);
 
   return {
@@ -593,7 +604,10 @@ export function useArticleChat(articleId: string | null) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const requestSequence = useRef(0);
+
   const fetchChat = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     if (!articleId) {
       setChat(null);
       setLoading(false);
@@ -604,11 +618,11 @@ export function useArticleChat(articleId: string | null) {
       setLoading(true);
       setError(null);
       const data = await studyService.getArticleChat(articleId);
-      setChat(data);
+      if (sequence === requestSequence.current) setChat(data);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch chat'));
+      if (sequence === requestSequence.current) setError(err instanceof Error ? err : new Error('Failed to fetch chat'));
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, [articleId]);
 
@@ -682,6 +696,7 @@ export function useArticleChat(articleId: string | null) {
 
   useEffect(() => {
     fetchChat();
+    return () => { ++requestSequence.current; };
   }, [fetchChat]);
 
   return {

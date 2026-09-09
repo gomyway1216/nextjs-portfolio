@@ -47,6 +47,23 @@ describe('Study article read routes', () => {
     vi.unstubAllGlobals();
   });
 
+  it('starts read-history lookup without waiting for the article upstream', async () => {
+    let complete!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>(resolve => { complete = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    const getHistory = vi.fn().mockResolvedValue({ docs: [{ data: () => ({ articleId: 'one' }) }] });
+    mocks.getFirestore.mockReturnValue({
+      collection: () => ({ where: () => ({ get: getHistory }) }),
+    });
+    const { GET } = await import('@/app/api/study/articles/route');
+    const pending = (GET as StaticRoute)(request('/api/study/articles?userId=owner'));
+    expect(getHistory).toHaveBeenCalledTimes(1);
+    complete(Response.json({ success: true, articles: [{ id: 'one' }], hasMore: false }));
+    const data = await (await pending).json();
+    expect(data.articles).toEqual([{ id: 'one' }]);
+    expect(data.readArticleIds).toEqual(['one']);
+  });
+
   it('forwards admin authentication when listing drafts', async () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({
       success: true,

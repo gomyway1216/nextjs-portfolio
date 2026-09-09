@@ -53,13 +53,21 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
 
     console.log('[Study API] GET articles:', url.toString());
 
-    const response = await fetch(url.toString(), {
-      cache: 'no-store',
-      headers: {
-        ...(authHeader && { Authorization: authHeader }),
-      },
-    });
-    const data = await response.json() as StudyArticlesResponse;
+    // These reads are independent; do not add the history round trip after
+    // waiting for the article server. Promise.all also observes both failures.
+    const [upstream, readArticleIds] = await Promise.all([
+      (async () => {
+        const response = await fetch(url.toString(), {
+          cache: 'no-store',
+          headers: {
+            ...(authHeader && { Authorization: authHeader }),
+          },
+        });
+        return { response, data: await response.json() as StudyArticlesResponse };
+      })(),
+      userId ? getUserReadArticleIds(userId) : Promise.resolve(new Set<string>()),
+    ]);
+    const { response, data } = upstream;
 
     // Log error details from Cloud Function
     if (!response.ok || !data.success) {
@@ -87,11 +95,9 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     }
 
     let articles: StudyArticleListItem[] = data.articles || [];
-    let readArticleIds = new Set<string>();
 
     // If userId is provided, get read history for filtering and read badges
     if (userId) {
-      readArticleIds = await getUserReadArticleIds(userId);
 
       // Filter by read status if specified
       if (readStatus === 'unread') {

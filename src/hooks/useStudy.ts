@@ -222,6 +222,7 @@ export function useTopicSuggestions() {
 // ============================================================================
 
 export function useStudyArticles(initialOptions?: {
+  enabled?: boolean;
   categoryId?: string;
   topicId?: string;
   status?: string;  // 'all' to show all statuses (for admin), or specific status
@@ -235,6 +236,9 @@ export function useStudyArticles(initialOptions?: {
   readStatus?: 'all' | 'unread' | 'read';  // Filter by read status
   userId?: string;  // User ID for read status filtering
 }) {
+  const enabled = initialOptions?.enabled !== false;
+  const viewerKey = initialOptions?.userId ?? 'anonymous';
+  const [resultViewer, setResultViewer] = useState<string | null>(null);
   const [articles, setArticles] = useState<StudyArticle[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -278,6 +282,7 @@ export function useStudyArticles(initialOptions?: {
         userId?: string;
       } = {}
     ) => {
+      if (!enabled) return;
       const sequence = ++requestSequence.current;
       try {
         setLoading(true);
@@ -320,22 +325,28 @@ export function useStudyArticles(initialOptions?: {
         setHasMore(data.hasMore);
 
         // Update read article IDs from backend
-        if (data.readArticleIds) {
-          setReadArticleIds(new Set(data.readArticleIds));
-        }
+        setReadArticleIds(new Set(data.readArticleIds ?? []));
       } catch (err) {
         if (sequence === requestSequence.current) {
           setError(err instanceof Error ? err : new Error('Failed to fetch articles'));
+          if (!options.append) {
+            setArticles([]);
+            setHasMore(false);
+            setReadArticleIds(new Set());
+          }
         }
       } finally {
-        if (sequence === requestSequence.current) setLoading(false);
+        if (sequence === requestSequence.current) {
+          setResultViewer(viewerKey);
+          setLoading(false);
+        }
       }
     },
-    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.fromDate, initialOptions?.toDate, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
+    [enabled, viewerKey, initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.fromDate, initialOptions?.toDate, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
   );
 
   const loadMore = useCallback(async () => {
-    if (!hasMore || loading || articles.length === 0) return;
+    if (!enabled || resultViewer !== viewerKey || !hasMore || loading || articles.length === 0) return;
     const lastId = articles[articles.length - 1].id;
     // Use saved filters when loading more to maintain consistency
     await fetchArticles({
@@ -343,26 +354,30 @@ export function useStudyArticles(initialOptions?: {
       lastId,
       append: true,
     });
-  }, [hasMore, loading, articles, fetchArticles, currentFilters]);
+  }, [enabled, resultViewer, viewerKey, hasMore, loading, articles, fetchArticles, currentFilters]);
 
   useEffect(() => {
     fetchArticles();
     return () => { ++requestSequence.current; };
   }, [fetchArticles]);
 
+  // Hide a previous viewer's result immediately, before the effect starts the
+  // next request. Pending/failed reads must not masquerade as a successful zero.
+  const canShowResult = enabled && resultViewer === viewerKey;
+
   // Helper function to check if an article is read
   const isArticleRead = useCallback((articleId: string) => {
-    return readArticleIds.has(articleId);
-  }, [readArticleIds]);
+    return canShowResult && readArticleIds.has(articleId);
+  }, [canShowResult, readArticleIds]);
 
   return {
-    articles,
-    hasMore,
-    loading,
-    error,
+    articles: canShowResult ? articles : [],
+    hasMore: canShowResult && hasMore,
+    loading: !canShowResult || loading,
+    error: canShowResult ? error : null,
     fetchArticles,
     loadMore,
-    readArticleIds,
+    readArticleIds: canShowResult ? readArticleIds : new Set<string>(),
     isArticleRead,
   };
 }

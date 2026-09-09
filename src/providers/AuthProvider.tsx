@@ -26,6 +26,11 @@ interface AuthProviderProps {
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  /** Initial session restoration is still pending (bounded by the existing timeout).
+   * Unlike `loading`, this stays true during a slow, in-flight auth callback.
+   * Use for identity-scoped reads, never as an authorization decision.
+   */
+  resolving: boolean;
   /**
    * Layout-only: true while a signed-in session is still being restored on a
    * browser that was signed in last time, and true once `currentUser` is set.
@@ -558,6 +563,7 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
   const value: AuthContextType = {
     currentUser: authState.currentUser,
     loading,
+    resolving: authResolution === 'pending',
     presumedSignedIn: authState.currentUser !== null || presumedProfile !== null,
     presumedProfile,
     isAdmin: authState.isAdmin,

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { BookOpen, Plus, Search, RotateCcw, LockKeyhole } from 'lucide-react';
 import MermaidDiagram from '@/components/common/MermaidDiagram';
@@ -139,7 +139,8 @@ function OwnerLearningLibrary() {
       <Button onClick={() => newNote()}><Plus size={18} />{say('学びを保存', 'Save a learning')}</Button>
     </header>
     <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm"><Link href="/study" className="flex items-center gap-2 underline"><BookOpen size={16} />{say('エンジニア向けの記事を読む', 'Read engineering articles')}</Link><Link href="/memory?view=private" className="underline">Personal Memory</Link><Link href="/study/learning/dictionary" className="underline">{say('既存の辞書', 'Existing dictionary')}</Link></nav>
-    <Tabs value={view} onValueChange={(value) => { setFocusId(null); setExpanded(null); setQuery(''); setDomain('all'); setKind('all'); setView(value); setOffset(0); setNotice(''); setError(''); }}><TabsList className="h-auto w-full justify-start gap-1 p-1 sm:w-auto"><TabsTrigger value="today" className="min-h-11 flex-1 px-5">{say('今日', 'Today')}</TabsTrigger><TabsTrigger value="all" className="min-h-11 flex-1 px-5">{say('本棚', 'Library')}</TabsTrigger><TabsTrigger value="review" className="min-h-11 flex-1 px-5">{say('少し復習する', 'A little review')}</TabsTrigger></TabsList></Tabs>
+    <Tabs className="space-y-7" value={view} onValueChange={(value) => { setFocusId(null); setExpanded(null); setQuery(''); setDomain('all'); setKind('all'); setView(value); setOffset(0); setNotice(''); setError(''); }}><TabsList className="h-auto w-full justify-start gap-1 p-1 sm:w-auto"><TabsTrigger value="today" className="min-h-11 flex-1 px-5">{say('今日', 'Today')}</TabsTrigger><TabsTrigger value="all" className="min-h-11 flex-1 px-5">{say('本棚', 'Library')}</TabsTrigger><TabsTrigger value="review" className="min-h-11 flex-1 px-5">{say('少し復習する', 'A little review')}</TabsTrigger></TabsList>
+    <TabsContent value={view} className="space-y-6">
     {view === 'today' ? <LearningToday getToken={getToken} onOpen={openItem} onBrowse={browse} /> : <>
     <section className="space-y-4 rounded-xl border bg-card p-4">
       {focusId && <Button variant="link" onClick={() => browse()}>{say('← 本棚の一覧に戻る', '← Back to your shelf')}</Button>}
@@ -186,6 +187,7 @@ function OwnerLearningLibrary() {
       <div className="flex justify-between"><Button variant="outline" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 20))}>{say('前へ', 'Previous')}</Button><Button variant="outline" disabled={!hasMore} onClick={() => setOffset(offset + 20)}>{say('次へ', 'Next')}</Button></div>
     </>}
     </>}
+    </TabsContent></Tabs>
     <Dialog open={Boolean(organizing)} onOpenChange={(open) => { if (!open && !saving) setOrganizing(null); }}><DialogContent><DialogHeader><DialogTitle>{say('分野と種類を変更', 'Change domains and kind')}</DialogTitle><DialogDescription>{say('元の説明・図・自己評価は変更しません。', 'Your original explanation, diagrams and self-assessment stay unchanged.')}</DialogDescription></DialogHeader>{organizing && <>
       {error && <p role="alert">{error}</p>}
       <fieldset className="space-y-3"><legend>{organizing.title}</legend>{LEARNING_DOMAINS.map((d) => <label key={d} className="flex items-center gap-2"><Checkbox checked={organizing.domains.includes(d)} onCheckedChange={(checked) => setOrganizing({ ...organizing, domains: checked ? [...organizing.domains, d] : organizing.domains.filter((v) => v !== d) })} />{labels.domains[d]}</label>)}</fieldset>

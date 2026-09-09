@@ -25,6 +25,8 @@ it('gives the owner one entry point to learning, engineering articles and memory
   expect(html).toContain('エンジニア向けの記事を読む');
   expect(html).toContain('少し復習する');
   expect(html).toContain('/memory?view=private');
+  expect(html).toContain('role="tabpanel"');
+  expect(html).toContain('今日は、ここから。');
 });
 
 it('preserves original Mermaid without executing HTML or automatically loading remote figures', () => {

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { StudyArticle } from '@/types/study';
 import { LEARNING_DOMAINS, LearningDomain, learningLabels } from '@/lib/learningLibrary';
-import { articleLearningInput } from '@/lib/articleLearning';
+import { articleLearningInput, articleLearningMaterial } from '@/lib/articleLearning';
 import LearningConversation from './LearningConversation';
 
 export default function SaveArticleLearning({ article }: { article: StudyArticle; onClose?: () => void }) {
@@ -39,7 +39,7 @@ export default function SaveArticleLearning({ article }: { article: StudyArticle
     <p className="text-sm text-muted-foreground">{ja ? '元の説明・図・出典を非公開で保存します。有料AI生成は行いません。' : 'Save the original explanation, diagrams and source privately. No paid AI generation.'}</p>
     <Select value={section} onValueChange={(v) => { setSection(v); setSaved(false); }}><SelectTrigger aria-label={ja ? '保存する部分' : 'Section to save'}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="summary">{ja ? '要点' : 'Key takeaways'}</SelectItem>{article.sections.map((s) => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}</SelectContent></Select>
     <Select value={domain} onValueChange={(v) => { setDomain(v as LearningDomain); setSaved(false); }}><SelectTrigger aria-label={ja ? '分野' : 'Domain'}><SelectValue /></SelectTrigger><SelectContent>{LEARNING_DOMAINS.map((d) => <SelectItem key={d} value={d}>{learningLabels[ja ? 'ja' : 'en'].domains[d]}</SelectItem>)}</SelectContent></Select>
-    <LearningConversation key={section} material={articleLearningInput(article, section, domain)} />
+    <LearningConversation key={section} material={articleLearningMaterial(article, section, domain)} />
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {saved ? <p role="status">{ja ? '非公開で保存しました。' : 'Saved privately.'} <Link href="/study/learning" className="underline">{ja ? 'ライブラリを開く' : 'Open library'}</Link></p> : <Button disabled={busy} onClick={() => void save()}>{ja ? busy ? '保存中…' : 'この部分を保存' : busy ? 'Saving…' : 'Save this section'}</Button>}
   </section>;

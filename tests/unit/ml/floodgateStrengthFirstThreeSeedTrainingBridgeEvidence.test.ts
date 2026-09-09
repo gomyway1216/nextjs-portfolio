@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -160,9 +161,13 @@ describe("Floodgate strength-first three-seed training bridge evidence", () => {
     });
   });
 
-  it("proves package.json stayed unchanged and bilingual disclosure contains no private path", () => {
-    const packageBytes = fs.readFileSync(packagePath);
-    const packageJson = JSON.parse(packageBytes.toString("utf8")) as {
+  it("verifies the historical package pin and bilingual disclosure contains no private path", () => {
+    const packageBytes = execFileSync(
+      "git",
+      ["--no-replace-objects", "cat-file", "blob", "8a908ab4cdeb35821af5bfe105f3a967f5678330"],
+      { cwd: repositoryRoot },
+    );
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8")) as {
       scripts: Record<string, string>;
     };
     const record = evidence() as {

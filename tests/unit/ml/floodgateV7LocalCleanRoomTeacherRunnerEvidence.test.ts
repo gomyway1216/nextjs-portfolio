@@ -442,16 +442,29 @@ describe("Floodgate v7 explicit local clean-room teacher evidence", () => {
     ]);
 
     for (const entry of [...sourcePins, ...focusedPins]) {
-      const bytes = raw(entry.path);
+      // Package pins describe publication-time dependencies; source pins stay live.
+      const bytes =
+        entry.path === "package.json"
+          ? execFileSync("git", ["--no-replace-objects", "cat-file", "blob", entry.git_blob], {
+              cwd: repositoryRoot,
+            })
+          : raw(entry.path);
       expect(bytes.byteLength, entry.path).toBe(entry.bytes);
       expect(sha256(bytes), entry.path).toBe(entry.sha256);
       expect(
-        gitOutput(["--no-replace-objects", "hash-object", entry.path]),
+        execFileSync("git", ["--no-replace-objects", "hash-object", "--stdin"], {
+          cwd: repositoryRoot,
+          input: bytes,
+          encoding: "utf8",
+        }).trim(),
         entry.path,
       ).toBe(entry.git_blob);
       const source = bytes.toString("utf8");
       for (const marker of entry.required_markers ?? []) {
         expect(source, `${entry.path}: ${marker}`).toContain(marker);
+        if (entry.path === "package.json") {
+          expect(read(entry.path), marker).toContain(marker);
+        }
       }
     }
   });

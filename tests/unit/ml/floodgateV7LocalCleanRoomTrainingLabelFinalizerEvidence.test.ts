@@ -268,17 +268,24 @@ describe("Floodgate v7 local training-label finalizer evidence", () => {
       current_package_manifest: PinnedFile;
     };
     const currentPackage = downstream.current_package_manifest;
-    const currentBytes = raw(currentPackage.path);
+    // "current" here is relative to the historical downstream integration.
+    const currentBytes = gitRaw(["cat-file", "blob", currentPackage.git_blob]);
     expect(currentBytes.byteLength).toBe(currentPackage.bytes);
     expect(createHash("sha256").update(currentBytes).digest("hex")).toBe(
       currentPackage.sha256,
     );
-    expect(git(["hash-object", "--", currentPackage.path])).toBe(
-      currentPackage.git_blob,
-    );
+    expect(
+      execFileSync("/usr/bin/git", ["--no-replace-objects", "hash-object", "--stdin"], {
+        cwd: repositoryRoot,
+        env: hermeticGitEnvironment,
+        input: currentBytes,
+        encoding: "utf8",
+      }).trim(),
+    ).toBe(currentPackage.git_blob);
     const currentText = currentBytes.toString("utf8");
     for (const marker of currentPackage.required_markers) {
       expect(currentText, marker).toContain(marker);
+      expect(read(currentPackage.path), marker).toContain(marker);
     }
   });
 

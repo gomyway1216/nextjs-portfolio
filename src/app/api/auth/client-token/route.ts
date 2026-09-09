@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
+import { isAdmin } from '@/lib/auth-utils';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -17,7 +18,9 @@ export const POST = withActivityLog('next_api.auth.client-token.POST', async (re
     const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
     const customToken = await auth.createCustomToken(decodedClaims.uid);
 
-    return NextResponse.json({ customToken, uid: decodedClaims.uid });
+    return NextResponse.json({
+      customToken, uid: decodedClaims.uid, isAdmin: isAdmin(decodedClaims),
+    }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('Session client token creation error:', error);
     return NextResponse.json({ error: 'Invalid session' }, { status: 401 });

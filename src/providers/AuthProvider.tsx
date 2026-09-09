@@ -121,12 +121,18 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
   const wasSignedInRef = useRef(false);
   const syncedSessionUidRef = useRef<string | null>(null);
+  // UI metadata from the same server-verified response that established the
+  // session. Never persisted or used to authorize API/DB access.
+  const verifiedSessionAdminRef = useRef<{ uid: string; isAdmin: boolean } | null>(null);
+  const adminCheckRef = useRef<{ user: User; promise: Promise<boolean> } | null>(null);
   const mfaSignInCompletingRef = useRef(false);
   const attemptedSessionRestoreRef = useRef(false);
 
   const resetLocalAuthState = useCallback(() => {
     setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
     syncedSessionUidRef.current = null;
+    verifiedSessionAdminRef.current = null;
+    adminCheckRef.current = null;
     wasSignedInRef.current = false;
     mfaResolverRef.current = null;
     setTwoFactorRequired(false);
@@ -134,6 +140,7 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
   }, []);
 
   const syncSessionCookie = useCallback(async (user: User | null, forceRefresh = false): Promise<boolean> => {
+    verifiedSessionAdminRef.current = null;
     try {
       let response: Response;
       if (user) {
@@ -148,6 +155,15 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
       }
       if (!response.ok) {
         throw new Error(`Session cookie sync failed with status ${response.status}`);
+      }
+      if (user) {
+        const data = await response.json() as { uid?: unknown; isAdmin?: unknown };
+        if (data.uid !== undefined && data.uid !== user.uid) {
+          throw new Error('Synced session belongs to a different user');
+        }
+        if (data.uid === user.uid && typeof data.isAdmin === 'boolean') {
+          verifiedSessionAdminRef.current = { uid: user.uid, isAdmin: data.isAdmin };
+        }
       }
       syncedSessionUidRef.current = user?.uid ?? null;
       return true;
@@ -181,22 +197,36 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
       return false;
     }
 
+    const session = verifiedSessionAdminRef.current;
+    if (session?.uid === user.uid) return session.isAdmin;
+    if (adminCheckRef.current?.user === user) return adminCheckRef.current.promise;
+
+    // Compatibility with an older session endpoint during rollout. Both the
+    // restore caller and Firebase listener share this check, including errors.
+    const check = (async () => {
+      try {
+        const response = await fetch('/api/auth/verify', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        if (!response.ok) {
+          throw new Error(`Admin status check failed with status ${response.status}`);
+        }
+        const data = await response.json() as { uid?: string; isAdmin?: boolean };
+        if (data.uid !== user.uid) {
+          throw new Error('Verified session belongs to a different user');
+        }
+        return data.isAdmin === true;
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        return false;
+      }
+    })();
+    adminCheckRef.current = { user, promise: check };
     try {
-      const response = await fetch('/api/auth/verify', {
-        cache: 'no-store',
-        credentials: 'same-origin',
-      });
-      if (!response.ok) {
-        throw new Error(`Admin status check failed with status ${response.status}`);
-      }
-      const data = await response.json() as { uid?: string; isAdmin?: boolean };
-      if (data.uid && data.uid !== user.uid) {
-        throw new Error('Verified session belongs to a different user');
-      }
-      return data.isAdmin === true;
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      return false;
+      return await check;
+    } finally {
+      if (adminCheckRef.current?.promise === check) adminCheckRef.current = null;
     }
   }, []);
 
@@ -232,10 +262,11 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
 
   const restoreFirebaseAuthFromSession = useCallback(async (): Promise<UserCredential | null> => {
     try {
-      return await signInWithSessionCookie((uid) => {
+      return await signInWithSessionCookie((uid, isAdmin) => {
         // The cookie was already verified to mint the custom token; update this
         // before signInWithCustomToken can trigger the auth-state listener.
         syncedSessionUidRef.current = uid;
+        verifiedSessionAdminRef.current = typeof isAdmin === 'boolean' ? { uid, isAdmin } : null;
       });
     } catch (error) {
       console.error('Session restore error:', error);
@@ -401,6 +432,8 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
     await syncSessionCookie(null);
     wasSignedInRef.current = false;
     syncedSessionUidRef.current = null;
+    verifiedSessionAdminRef.current = null;
+    adminCheckRef.current = null;
     await signOutUser().catch((error) => {
       console.error('Firebase sign-out error:', error);
     });
@@ -423,6 +456,8 @@ export const AuthProvider = ({ children, hasSessionCookie = false }: AuthProvide
       attemptedSessionRestoreRef.current = true;
       wasSignedInRef.current = false;
       syncedSessionUidRef.current = null;
+      verifiedSessionAdminRef.current = null;
+      adminCheckRef.current = null;
       void signOutUser()
         .catch((error) => {
           console.error('Cross-tab Firebase sign-out failed:', error);

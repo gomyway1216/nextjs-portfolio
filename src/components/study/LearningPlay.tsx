@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowRight, Check, FlaskConical, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { LearningPlay as Play } from '@/lib/learningPlay';
+import styles from './LearningPlay.module.css';
 
 /** All feedback and scene transitions were authored with the article. No AI/network or progress writes. */
 export default function LearningPlay({ play }: { play: Play }) {
@@ -22,12 +23,12 @@ export default function LearningPlay({ play }: { play: Play }) {
     ? activity.states.find(s => s.id === scenes[activity.id])
       ?? activity.states.find(s => s.id === activity.initialStateId)
     : undefined;
-  return <section aria-label={say('触って学ぶ', 'Learn by trying')} className="my-6 overflow-hidden rounded-2xl border border-blue-300 bg-white text-slate-900 shadow-sm dark:border-blue-800 dark:bg-slate-950 dark:text-slate-100">
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-5 py-4 dark:border-blue-900 dark:bg-blue-950">
+  return <section aria-label={say('触って学ぶ', 'Learn by trying')} className={`${styles.root} my-6 overflow-hidden rounded-2xl border border-blue-300 bg-white text-slate-900 shadow-sm dark:border-blue-800 dark:bg-slate-950 dark:text-slate-100`}>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-5 py-4 dark:border-blue-900 dark:bg-blue-950">
       <h2 className="flex items-center gap-2 font-semibold"><FlaskConical size={20} />{say('触って学ぶ', 'Learn by trying')}</h2>
       <span className="text-sm">{say('この画面で完結・AI通信なし', 'On this page · no AI calls')}</span>
-    </div>
-    {paused ? <div className="space-y-4 p-5 sm:p-7">
+    </header>
+    {paused ? <div className={`${styles.body} space-y-4`}>
       <h3 className="text-xl font-semibold">{say('ここでひと区切り。', 'A good place to stop.')}</h3>
       <p>{say('正解数で理解済みにはしません。気になるところから、また試せます。', 'Answers do not mark mastery. You can keep exploring when you want.')}</p>
       <Button onClick={() => setPaused(false)}>{say('続きへ戻る', 'Resume')}</Button>
@@ -36,7 +37,7 @@ export default function LearningPlay({ play }: { play: Play }) {
       <nav aria-label={say('学習の順番', 'Learning activities')} className="flex flex-wrap gap-2 px-5 pt-5">
         {play.activities.map((a, n) => <button key={a.id} type="button" aria-current={n === currentIndex ? 'step' : undefined} onClick={() => setIndex(n)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm ${n === currentIndex ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{n + 1}. {a.title}</button>)}
       </nav>
-      <div className="space-y-5 p-5 sm:p-7">
+      <div className={`${styles.body} space-y-4`}>
         <div aria-live="polite">
           <p className="mb-2 text-sm text-blue-700 dark:text-blue-300">{currentIndex + 1} / {play.activities.length} · {activity.type === 'quiz' ? say('予想してみる', 'Make a prediction') : say('条件を変えて確かめる', 'Change a condition')}</p>
           <h3 className="text-xl font-semibold leading-relaxed sm:text-2xl">{activity.prompt}</h3>
@@ -58,12 +59,12 @@ export default function LearningPlay({ play }: { play: Play }) {
         </>}
         {activity.type === 'experiment' && scene && <>
           <p className="text-sm text-muted-foreground">{say('教材内のモデルです。本物のCookieやログイン状態は変更しません。', 'A teaching model. It never changes real cookies or sign-in state.')}</p>
-          <div aria-live="polite" aria-atomic="true" className="space-y-4 rounded-xl border bg-slate-50 p-4 sm:p-5 dark:bg-slate-900">
+          <div aria-live="polite" aria-atomic="true" className={`${styles.scene} space-y-3 rounded-xl border bg-slate-50 dark:bg-slate-900`}>
             <h4 className="font-semibold">{scene.label}</h4>
             <div className="flex flex-col items-stretch gap-3 md:flex-row">
               {scene.panels.map((p, n) => <div key={n} className="flex min-w-0 flex-1 items-center gap-3">
                 {n > 0 && <ArrowRight aria-hidden="true" className="hidden shrink-0 text-blue-500 md:block" size={20} />}
-                <div className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-slate-950"><p className="mb-3 text-sm text-muted-foreground">{p.label}</p><p className="whitespace-pre-line break-words text-lg font-semibold leading-relaxed">{p.value}</p></div>
+                <div data-scene-panel className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white dark:border-blue-800 dark:bg-slate-950"><p className="text-sm text-muted-foreground">{p.label}</p><p className="whitespace-pre-line break-words text-base font-semibold leading-relaxed">{p.value}</p></div>
               </div>)}
             </div>
             <p className="whitespace-pre-line leading-7">{scene.explanation}</p>

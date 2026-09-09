@@ -4,20 +4,14 @@ import { getCloudFunctionUrl, STUDY_ARTICLES_COLLECTION, STUDY_READ_HISTORY_COLL
 import { logCloudFunctionError, logApiError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { getFirestore } from '@/lib/firebase-admin';
+import { isAdmin, verifyIdToken } from '@/lib/auth-utils';
+import { Timestamp, type Query, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { learningExperience } from '@/lib/learningExperience';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
 interface StudyArticleListItem {
   id: string;
-  [key: string]: unknown;
-}
-
-interface StudyArticlesResponse {
-  success?: boolean;
-  error?: string;
-  details?: string;
-  message?: string;
-  articles?: StudyArticleListItem[];
   [key: string]: unknown;
 }
 
@@ -35,85 +29,117 @@ async function getUserReadArticleIds(userId: string): Promise<Set<string>> {
 // GET /api/study/articles - Get articles with filters
 export const GET = withActivityLog('next_api.study.articles.GET', async (request: NextRequest) => {
   const endpoint = '/api/study/articles';
+  // An identical URL may contain an owner's unpublished articles/history.
+  const headers = { 'Cache-Control': 'private, no-store' };
+  const fail = (error: string, status: number) => NextResponse.json({ success: false, error }, { status, headers });
   try {
     const searchParams = request.nextUrl.searchParams;
-    const url = new URL(getCloudFunctionUrl('getStudyArticles'));
-
-    // Get read status filter and userId
-    const readStatus = searchParams.get('readStatus'); // 'all', 'unread', 'read'
+    const readStatus = searchParams.get('readStatus');
     const userId = searchParams.get('userId');
     const authHeader = request.headers.get('authorization');
+    // Verify once on the Next server; never trust userId/admin flags supplied
+    // by the browser. Keep bearer auth identical to the individual read route.
+    const caller = authHeader?.startsWith('Bearer ')
+      ? await verifyIdToken(authHeader.slice(7)) : null;
+    if (userId && !caller) return fail('Authentication required for read history', 401);
+    if (userId && caller?.uid !== userId) return fail('Read history belongs to another user', 403);
+    const callerIsAdmin = caller ? isAdmin(caller) : false;
 
-    // Forward query parameters to Cloud Function
-    const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView', 'search', 'difficulty', 'fromDate', 'toDate'];
-    params.forEach((param) => {
-      const value = searchParams.get(param);
-      if (value) url.searchParams.set(param, value);
-    });
+    const orderBy = searchParams.get('orderBy') || 'createdAt';
+    const orderField = ['createdAt', 'publishedAt', 'title', 'difficulty', 'viewCount'].includes(orderBy) ? orderBy : 'createdAt';
+    const orderDir = searchParams.get('orderDir') === 'asc' ? 'asc' : 'desc';
+    const limit = Number(searchParams.get('limit') || 20);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) return fail('limit must be between 1 and 100', 400);
+    const lastId = searchParams.get('lastId');
+    if (lastId?.includes('/')) return fail('Invalid article cursor', 400);
+    const from = searchParams.get('fromDate') ? new Date(searchParams.get('fromDate')!) : undefined;
+    const to = searchParams.get('toDate') ? new Date(searchParams.get('toDate')!) : undefined;
+    if (from && Number.isNaN(from.getTime())) return fail('fromDate must be a valid ISO date', 400);
+    if (to && Number.isNaN(to.getTime())) return fail('toDate must be a valid ISO date', 400);
+    if (from && to && from >= to) return fail('toDate must be later than fromDate', 400);
+    if ((from || to) && orderBy !== 'createdAt') return fail('Date filters require orderBy=createdAt', 400);
 
-    console.log('[Study API] GET articles:', url.toString());
+    const db = getFirestore();
+    let query: Query = db.collection(STUDY_ARTICLES_COLLECTION);
+    for (const field of ['categoryId', 'topicId', 'language', 'difficulty']) {
+      const value = searchParams.get(field);
+      if (value) query = query.where(field, '==', value);
+    }
+    const status = callerIsAdmin ? searchParams.get('status') : 'published';
+    if (status && status !== 'all') query = query.where('status', '==', status);
+    if (from) query = query.where('createdAt', '>=', Timestamp.fromDate(from));
+    if (to) query = query.where('createdAt', '<', Timestamp.fromDate(to));
+    const search = searchParams.get('search')?.toLowerCase();
+    const fetchLimit = search ? Math.max(limit * 5, 100) : limit + 1;
+    query = query.orderBy(orderField, orderDir).limit(fetchLimit);
 
-    // These reads are independent; do not add the history round trip after
-    // waiting for the article server. Promise.all also observes both failures.
-    const [upstream, readArticleIds] = await Promise.all([
+    const listView = searchParams.get('listView') === 'true';
+    const cardFields = ['title', 'summary', 'categoryId', 'topicId', 'difficulty', 'tags',
+      'readingTimeMinutes', 'viewCount', 'status', 'language', 'aiProvider', 'createdAt',
+      'publishedAt', 'quizIds', 'keyTakeaways', 'learningExperience'];
+    // Firestore returns only card/search fields instead of full article bodies.
+    if (listView) query = query.select(...cardFields, 'isPublic');
+
+    const [snapshot, readArticleIds] = await Promise.all([
       (async () => {
-        const response = await fetch(url.toString(), {
-          cache: 'no-store',
-          headers: {
-            ...(authHeader && { Authorization: authHeader }),
-          },
-        });
-        return { response, data: await response.json() as StudyArticlesResponse };
+        if (lastId) {
+          const cursor = await db.collection(STUDY_ARTICLES_COLLECTION).doc(lastId).get();
+          if (cursor.exists) query = query.startAfter(cursor);
+        }
+        const docs: QueryDocumentSnapshot[] = [];
+        // Explicitly private published records are absent from public lists.
+        // Refill that page so hiding a record cannot truncate pagination;
+        // normal owner/public pages still need only one Firestore query.
+        while (docs.length < fetchLimit) {
+          const remaining = fetchLimit - docs.length;
+          const page = await query.limit(remaining).get();
+          docs.push(...page.docs.filter(doc => {
+            const data = doc.data();
+            return callerIsAdmin || (data.status === 'published' && data.isPublic !== false);
+          }));
+          if (page.docs.length < remaining) break;
+          query = query.startAfter(page.docs[page.docs.length - 1]);
+        }
+        return { docs };
       })(),
       userId ? getUserReadArticleIds(userId) : Promise.resolve(new Set<string>()),
     ]);
-    const { response, data } = upstream;
-
-    // Log error details from Cloud Function
-    if (!response.ok || !data.success) {
-      console.error('[Study API] Error from Cloud Function:', {
-        status: response.status,
-        error: data.error,
-        details: data.details || data.message,
-      });
-
-      await logCloudFunctionError({
-        functionName: 'getStudyArticles',
-        endpoint,
-        response: {
-          status: response.status,
-          error: data.error,
-          details: data.details || data.message,
-        },
-        metadata: {
-          categoryId: searchParams.get('categoryId'),
-          topicId: searchParams.get('topicId'),
-          language: searchParams.get('language'),
-        },
-      });
-      return NextResponse.json(data, { status: response.status });
-    }
-
-    let articles: StudyArticleListItem[] = data.articles || [];
-
-    // If userId is provided, get read history for filtering and read badges
-    if (userId) {
-
-      // Filter by read status if specified
-      if (readStatus === 'unread') {
-        articles = articles.filter((a) => !readArticleIds.has(a.id));
-      } else if (readStatus === 'read') {
-        articles = articles.filter((a) => readArticleIds.has(a.id));
+    const matches = snapshot.docs.filter(doc => {
+      const data = doc.data();
+      // Missing isPublic is the legacy public default, but explicit private
+      // records must not leak their title/summary through a published list.
+      if (!callerIsAdmin && (data.status !== 'published' || data.isPublic === false)) return false;
+      return !search || [data.title, data.summary,
+        ...(Array.isArray(data.tags) ? data.tags : []),
+        ...(Array.isArray(data.keyTakeaways) ? data.keyTakeaways : [])]
+        .some(value => typeof value === 'string' && value.toLowerCase().includes(search));
+    });
+    const iso = (value: unknown) => value instanceof Timestamp ? value.toDate().toISOString() : value;
+    let articles: StudyArticleListItem[] = matches.slice(0, limit).map(doc => {
+      const data = doc.data();
+      const article = listView
+        ? Object.fromEntries(cardFields.map(field => [field, data[field]])) : { ...data };
+      article.language ||= 'en';
+      article.createdAt = iso(data.createdAt);
+      article.publishedAt = iso(data.publishedAt);
+      if (!listView) article.updatedAt = iso(data.updatedAt);
+      if (listView) {
+        for (const field of ['tags', 'quizIds', 'keyTakeaways']) {
+          article[field] = Array.isArray(data[field]) ? data[field].filter(value => typeof value === 'string') : [];
+        }
+        article.learningExperience = learningExperience(data.learningExperience);
       }
-    }
-
-    console.log('[Study API] Fetched', articles.length, 'articles');
-
-    return NextResponse.json({
-      ...data,
-      articles,
-      readArticleIds: userId ? Array.from(readArticleIds) : [],
-    }, { status: response.status });
+      return { ...article, id: doc.id };
+    });
+    // One lookahead card makes normal pagination exact, including when private
+    // records were skipped. Search retains its existing bounded candidate window
+    // (hasMore may mean more candidates, not a full-collection match count).
+    const hasMore = search ? matches.length > limit || snapshot.docs.length === fetchLimit : matches.length > limit;
+    if (userId && readStatus === 'unread') articles = articles.filter(a => !readArticleIds.has(a.id));
+    if (userId && readStatus === 'read') articles = articles.filter(a => readArticleIds.has(a.id));
+    return NextResponse.json({ success: true, articles, hasMore,
+      totalMatched: search ? matches.length : undefined, readArticleIds: Array.from(readArticleIds),
+    }, { headers });
   } catch (error) {
     console.error('[Study API] Error fetching articles:', error);
 
@@ -128,7 +154,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
 
     return NextResponse.json(
       { success: false, error: 'Failed to fetch articles' },
-      { status: 500 }
+      { status: 500, headers }
     );
   }
 });

@@ -5,13 +5,17 @@ import { learningExperience, type LearningExperience } from '@/lib/learningExper
 import type { StudyArticle } from '@/types/study';
 import LearningContent from './LearningContent';
 import LearningConversation from './LearningConversation';
+import LearningPlay from './LearningPlay';
+import { readLearningPlay } from '@/lib/learningPlay';
 
 type DiscoveryProps = {
-  article: Pick<StudyArticle, 'title' | 'summary' | 'learningExperience'> & Partial<Pick<StudyArticle, 'id' | 'sections' | 'updatedAt'>>; compact?: boolean;
+  article: Pick<StudyArticle, 'title' | 'summary' | 'learningExperience' | 'learningPlay'> & Partial<Pick<StudyArticle, 'id' | 'sections' | 'updatedAt'>>; compact?: boolean;
 };
 
 /** Legacy articles need no new hooks, translated UI or loading boundary. */
 export default function ArticleDiscovery(props: DiscoveryProps) {
+  const play = readLearningPlay(props.article.learningPlay);
+  if (play && !props.compact) return <LearningPlay key={JSON.stringify(play)} play={play} />;
   const experience = learningExperience(props.article.learningExperience);
   return experience ? <Discovery {...props} experience={experience} /> : null;
 }

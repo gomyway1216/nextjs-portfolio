@@ -219,6 +219,7 @@ export interface ArticleAudio {
 
 export interface StudyArticle {
   learningExperience?: import('@/lib/learningExperience').LearningExperience;
+  learningPlay?: import('@/lib/learningPlay').LearningPlay;
   id: string;
   topicId: string;
   categoryId: string;

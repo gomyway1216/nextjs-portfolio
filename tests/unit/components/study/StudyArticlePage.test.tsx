@@ -47,7 +47,7 @@ vi.mock('@/services/studyService', () => ({
 }));
 
 vi.mock('@/components/study/SaveArticleLearning', () => ({
-  default: () => null,
+  default: () => <div data-article-follow-up>Save or discuss the original section</div>,
 }));
 
 vi.mock('@/components/study/ArticleFeedback', () => ({
@@ -149,5 +149,9 @@ describe('StudyArticlePage private article loading', () => {
     expect(markup).toContain('Not published');
     expect(markup).toContain('—');
     expect(markup).not.toContain('memory_internal-client-id');
+    expect(markup.match(/data-article-follow-up/g)).toHaveLength(1);
+    expect(markup.indexOf('data-article-follow-up')).toBeGreaterThan(markup.indexOf('<article'));
+    expect(markup.indexOf('data-article-follow-up')).toBeLessThan(markup.indexOf('</article>'));
+    expect(markup).toContain('href="/study/learning"');
   });
 });

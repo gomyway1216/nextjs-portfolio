@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  useAuth: vi.fn(),
   useStudyArticles: vi.fn(),
   getArticle: vi.fn().mockResolvedValue({ id: 'one' }),
   articleLink: null as AnchorHTMLAttributes<HTMLAnchorElement> | null,
@@ -36,7 +37,7 @@ vi.mock('@/hooks/useStudy', () => ({
 }));
 
 vi.mock('@/providers/AuthProvider', () => ({
-  useAuth: () => ({ currentUser: null }),
+  useAuth: mocks.useAuth,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -48,14 +49,61 @@ import StudyListPage from '@/app/study/page';
 describe('StudyListPage sorting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.useAuth.mockReturnValue({ currentUser: null, loading: false, resolving: false });
     mocks.articleLink = null;
     mocks.useStudyArticles.mockReturnValue({
       articles: [],
+      error: null,
       loading: false,
       hasMore: false,
       loadMore: vi.fn(),
       isArticleRead: vi.fn(() => false),
     });
+  });
+
+  it.each([true, false])('keeps session restoration in loading even when legacy loading is %s', loading => {
+    mocks.useAuth.mockReturnValue({ currentUser: null, loading, resolving: true });
+    const markup = renderToStaticMarkup(<StudyListPage />);
+    expect(mocks.useStudyArticles).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    expect(markup).toContain('role="status"');
+    expect(markup).not.toContain('study.hub.emptyState.noArticlesFound');
+  });
+
+  it('enables the first list request with the restored viewer', () => {
+    mocks.useAuth.mockReturnValue({ currentUser: { uid: 'owner' }, loading: false, resolving: false });
+    renderToStaticMarkup(<StudyListPage />);
+    expect(mocks.useStudyArticles).toHaveBeenCalledWith(expect.objectContaining({
+      enabled: true, userId: 'owner', readStatus: 'all',
+    }));
+  });
+
+  it('shows a retryable error, not an empty list, after a failed request', () => {
+    mocks.useStudyArticles.mockReturnValue({ articles: [], loading: false, error: new Error('Authentication changed during the request') });
+    const markup = renderToStaticMarkup(<StudyListPage />);
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('study.hub.retryArticles');
+    expect(markup).not.toContain('study.hub.emptyState.noArticlesFound');
+    expect(markup).not.toContain('Authentication changed');
+  });
+
+  it('shows the empty state only for a settled successful zero-result list', () => {
+    const markup = renderToStaticMarkup(<StudyListPage />);
+    expect(markup).toContain('study.hub.emptyState.noArticlesFound');
+    expect(markup).not.toContain('role="status"');
+    expect(markup).not.toContain('role="alert"');
+  });
+
+  it('keeps loaded articles visible when pagination fails', () => {
+    mocks.useStudyArticles.mockReturnValue({
+      articles: [{ id: 'one', title: 'Already loaded', tags: [], difficulty: 'beginner' }],
+      loading: false, error: new Error('Offline'), hasMore: true,
+      loadMore: vi.fn(), isArticleRead: () => false,
+    });
+    const markup = renderToStaticMarkup(<StudyListPage />);
+    expect(markup).toContain('Already loaded');
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('study.hub.retryArticles');
+    expect(markup).not.toContain('study.hub.emptyState.noArticlesFound');
   });
 
   it('starts the article body request on navigation, without fetching on render or hover', () => {

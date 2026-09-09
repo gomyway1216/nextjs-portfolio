@@ -372,6 +372,9 @@
   "study": {
     "hub": {
       "title": "Study Articles",
+      "articlesLoading": "Loading articles...",
+      "articlesError": "Articles could not be loaded. Please try again.",
+      "retryArticles": "Try again",
       "menu": "Menu",
       "searchPlaceholder": "Search articles...",
       "generalCategory": "General",

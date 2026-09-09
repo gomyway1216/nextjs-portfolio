@@ -54,7 +54,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function StudyListPage() {
   const { t } = useTranslation();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading, resolving } = useAuth();
+  const authPending = authLoading || resolving;
   const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();
   const { progress } = useStudyProgress(isAuthenticated);
@@ -75,7 +76,8 @@ export default function StudyListPage() {
   const selectedDateRange = getStudyArticleDateRange(selectedDate);
 
   // Fetch articles with all filters including read status (backend filtering)
-  const { articles, loading, hasMore, loadMore, isArticleRead } = useStudyArticles({
+  const { articles, loading, error, fetchArticles, hasMore, loadMore, isArticleRead } = useStudyArticles({
+    enabled: !authPending,
     categoryId: selectedCategory || undefined,
     language: selectedLanguage || undefined,
     search: debouncedSearch || undefined,
@@ -911,9 +913,16 @@ export default function StudyListPage() {
         )}
 
         {/* Articles Grid */}
-        {loading && articles.length === 0 ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
+        {authPending || (loading && articles.length === 0) ? (
+          <div role="status" aria-label={t('study.hub.articlesLoading')} style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
             <Loader2 size={32} color="#0f766e" style={{ animation: 'spin 1s linear infinite' }} />
+          </div>
+        ) : error && articles.length === 0 ? (
+          <div role="alert" style={{ backgroundColor: 'var(--muted)', borderRadius: '8px', padding: '32px 24px', textAlign: 'center' }}>
+            <p style={{ color: 'var(--foreground)', marginBottom: '16px' }}>{t('study.hub.articlesError')}</p>
+            <button type="button" disabled={loading} onClick={() => void fetchArticles()} style={{ color: 'var(--foreground)', textDecoration: 'underline' }}>
+              {t('study.hub.retryArticles')}
+            </button>
           </div>
         ) : articles.length === 0 ? (
           <div style={{
@@ -1098,6 +1107,11 @@ export default function StudyListPage() {
             </div>
 
             {/* Load More */}
+            {error && (
+              <p role="alert" style={{ color: 'var(--foreground)', marginTop: '24px', textAlign: 'center' }}>
+                {t('study.hub.articlesError')}
+              </p>
+            )}
             {hasMore && (
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
                 <button
@@ -1120,7 +1134,7 @@ export default function StudyListPage() {
                   {loading ? (
                     <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
                   ) : (
-                    t('study.hub.loadMore')
+                    t(error ? 'study.hub.retryArticles' : 'study.hub.loadMore')
                   )}
                 </button>
               </div>

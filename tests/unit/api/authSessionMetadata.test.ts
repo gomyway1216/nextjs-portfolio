@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/firebase-admin', () => ({ getAuth: () => mocks }));
 vi.mock('@/lib/auth-utils', () => ({ isAdmin: mocks.isAdmin }));
 vi.mock('@/app/api/_lib/withActivityLog', () => ({ withActivityLog: (_: string, fn: unknown) => fn }));
-import { POST as sync } from '@/app/api/auth/session/route';
+import { POST as sync, DELETE as signOut } from '@/app/api/auth/session/route';
 import { POST as restore } from '@/app/api/auth/client-token/route';
 type Route = (req: NextRequest) => Promise<Response>;
 
@@ -47,6 +47,7 @@ describe('verified session UI metadata', () => {
       method: 'POST', headers: { cookie: '__session=revoked-session' },
     }));
     expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).not.toHaveProperty('isAdmin');
     expect(mocks.createCustomToken).not.toHaveBeenCalled();
   });
@@ -56,7 +57,26 @@ describe('verified session UI metadata', () => {
       method: 'POST', body: JSON.stringify({ idToken: 'revoked-id-token' }),
     }));
     expect(response.status).toBe(500);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(mocks.createSessionCookie).not.toHaveBeenCalled();
+  });
+  it('never caches missing credentials, invalid tokens, or cookie deletion', async () => {
+    const request = new NextRequest('https://example.com/api/auth/session', { method: 'POST', body: '{}' });
+    const missingId = await (sync as Route)(request);
+    expect(missingId.status).toBe(400);
+    expect(missingId.headers.get('cache-control')).toBe('private, no-store');
+    const missingCookie = await (restore as Route)(new NextRequest('https://example.com/api/auth/client-token', { method: 'POST' }));
+    expect(missingCookie.status).toBe(401);
+    expect(missingCookie.headers.get('cache-control')).toBe('private, no-store');
+    mocks.verifyIdToken.mockResolvedValueOnce(null);
+    const invalid = await (sync as Route)(new NextRequest('https://example.com/api/auth/session', {
+      method: 'POST', body: JSON.stringify({ idToken: 'invalid' }),
+    }));
+    expect(invalid.status).toBe(401);
+    expect(invalid.headers.get('cache-control')).toBe('private, no-store');
+    const deleted = await (signOut as Route)(request);
+    expect(deleted.headers.get('cache-control')).toBe('private, no-store');
+    expect(deleted.headers.get('set-cookie')).toContain('Max-Age=0');
   });
 });

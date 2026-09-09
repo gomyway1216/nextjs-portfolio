@@ -70,7 +70,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     if (from) query = query.where('createdAt', '>=', Timestamp.fromDate(from));
     if (to) query = query.where('createdAt', '<', Timestamp.fromDate(to));
     const search = searchParams.get('search')?.toLowerCase();
-    const fetchLimit = search ? Math.max(limit * 5, 100) : limit;
+    const fetchLimit = search ? Math.max(limit * 5, 100) : limit + 1;
     query = query.orderBy(orderField, orderDir).limit(fetchLimit);
 
     const listView = searchParams.get('listView') === 'true';
@@ -109,7 +109,9 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
       // Missing isPublic is the legacy public default, but explicit private
       // records must not leak their title/summary through a published list.
       if (!callerIsAdmin && (data.status !== 'published' || data.isPublic === false)) return false;
-      return !search || [data.title, data.summary, ...(data.tags || []), ...(data.keyTakeaways || [])]
+      return !search || [data.title, data.summary,
+        ...(Array.isArray(data.tags) ? data.tags : []),
+        ...(Array.isArray(data.keyTakeaways) ? data.keyTakeaways : [])]
         .some(value => typeof value === 'string' && value.toLowerCase().includes(search));
     });
     const iso = (value: unknown) => value instanceof Timestamp ? value.toDate().toISOString() : value;
@@ -122,12 +124,17 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
       article.publishedAt = iso(data.publishedAt);
       if (!listView) article.updatedAt = iso(data.updatedAt);
       if (listView) {
-        article.tags ||= []; article.quizIds ||= []; article.keyTakeaways ||= [];
+        for (const field of ['tags', 'quizIds', 'keyTakeaways']) {
+          article[field] = Array.isArray(data[field]) ? data[field].filter(value => typeof value === 'string') : [];
+        }
         article.learningExperience = learningExperience(data.learningExperience);
       }
       return { ...article, id: doc.id };
     });
-    const hasMore = search ? matches.length > limit || snapshot.docs.length === fetchLimit : matches.length === limit;
+    // One lookahead card makes normal pagination exact, including when private
+    // records were skipped. Search retains its existing bounded candidate window
+    // (hasMore may mean more candidates, not a full-collection match count).
+    const hasMore = search ? matches.length > limit || snapshot.docs.length === fetchLimit : matches.length > limit;
     if (userId && readStatus === 'unread') articles = articles.filter(a => !readArticleIds.has(a.id));
     if (userId && readStatus === 'read') articles = articles.filter(a => readArticleIds.has(a.id));
     return NextResponse.json({ success: true, articles, hasMore,

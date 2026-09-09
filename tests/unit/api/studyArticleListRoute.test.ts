@@ -78,18 +78,18 @@ describe('direct server-side study article listing', () => {
   });
   it('hides private titles/bodies and refills a public page instead of ending pagination early', async () => {
     const privateDoc = doc('private', { isPublic: false, content: 'hidden' });
-    query.get.mockResolvedValueOnce({ docs: [privateDoc, doc('public-1')] })
-      .mockResolvedValueOnce({ docs: [doc('public-2')] });
+    query.get.mockResolvedValueOnce({ docs: [privateDoc, doc('public-1'), doc('public-2')] })
+      .mockResolvedValueOnce({ docs: [doc('public-3')] });
     const response = await read('limit=2');
     const data = await response.json();
     expect(data.articles.map((a: { id: string }) => a.id)).toEqual(['public-1', 'public-2']);
     expect(data.hasMore).toBe(true);
-    expect(query.startAfter).toHaveBeenCalledWith(expect.objectContaining({ id: 'public-1' }));
+    expect(query.startAfter).toHaveBeenCalledWith(expect.objectContaining({ id: 'public-2' }));
     expect(query.limit).toHaveBeenLastCalledWith(1);
     expect(JSON.stringify(data)).not.toContain('hidden');
   });
   it('terminates an exhausted private-only page without returning private records', async () => {
-    query.get.mockResolvedValueOnce({ docs: [doc('private', { isPublic: false })] })
+    query.get.mockResolvedValueOnce({ docs: [doc('private-1', { isPublic: false }), doc('private-2', { isPublic: false })] })
       .mockResolvedValueOnce({ docs: [] });
     expect(await (await read('limit=1')).json()).toMatchObject({ articles: [], hasMore: false });
     expect(query.get).toHaveBeenCalledTimes(2);
@@ -137,6 +137,19 @@ describe('direct server-side study article listing', () => {
     expect(data.articles.map((a: { id: string }) => a.id)).toEqual(['matching']);
     expect(data.totalMatched).toBe(1);
     expect(query.limit).toHaveBeenCalledWith(100);
+  });
+  it('ignores malformed search arrays instead of failing the entire list', async () => {
+    query.get.mockResolvedValue({ docs: [doc('Queue', { tags: {}, keyTakeaways: 42 })] });
+    const response = await read('search=queue&listView=true');
+    expect(response.status).toBe(200);
+    expect((await response.json()).articles[0]).toMatchObject({ id: 'Queue', tags: [], keyTakeaways: [] });
+  });
+  it('does not offer an empty next page when the last visible page is exactly full', async () => {
+    query.get.mockResolvedValue({ docs: [doc('one'), doc('two')] });
+    const data = await (await read('limit=2')).json();
+    expect(query.limit).toHaveBeenCalledWith(3);
+    expect(data.articles).toHaveLength(2);
+    expect(data.hasMore).toBe(false);
   });
   it('continues after a valid article cursor and serializes full-article timestamps', async () => {
     const last = { exists: true, id: 'last' }; cursor.get.mockResolvedValue(last);

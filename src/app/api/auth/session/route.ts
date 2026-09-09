@@ -5,13 +5,14 @@ import { isAdmin } from '@/lib/auth-utils';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_EXPIRY_MS = 60 * 60 * 24 * 14 * 1000; // 14 days
+const headers = { 'Cache-Control': 'private, no-store' };
 
 export const POST = withActivityLog('next_api.auth.session.POST', async (request: NextRequest) => {
   try {
     const { idToken } = await request.json();
 
     if (!idToken) {
-      return NextResponse.json({ error: 'Missing idToken' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing idToken' }, { status: 400, headers });
     }
 
     const auth = getAuth();
@@ -20,7 +21,7 @@ export const POST = withActivityLog('next_api.auth.session.POST', async (request
     const decodedToken = await auth.verifyIdToken(idToken, true);
 
     if (!decodedToken) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers });
     }
 
     const sessionCookie = await auth.createSessionCookie(idToken, {
@@ -29,7 +30,7 @@ export const POST = withActivityLog('next_api.auth.session.POST', async (request
 
     const response = NextResponse.json({
       status: 'ok', uid: decodedToken.uid, isAdmin: isAdmin(decodedToken),
-    }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }, { headers });
     response.cookies.set(SESSION_COOKIE_NAME, sessionCookie, {
       maxAge: SESSION_EXPIRY_MS / 1000,
       httpOnly: true,
@@ -41,12 +42,12 @@ export const POST = withActivityLog('next_api.auth.session.POST', async (request
     return response;
   } catch (error) {
     console.error('Session creation error:', error);
-    return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create session' }, { status: 500, headers });
   }
 });
 
 export const DELETE = withActivityLog('next_api.auth.session.DELETE', async () => {
-  const response = NextResponse.json({ status: 'ok' });
+  const response = NextResponse.json({ status: 'ok' }, { headers });
   response.cookies.set(SESSION_COOKIE_NAME, '', {
     maxAge: 0,
     httpOnly: true,

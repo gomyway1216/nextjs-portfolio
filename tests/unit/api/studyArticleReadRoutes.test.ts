@@ -4,6 +4,9 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   getCloudFunctionUrl: vi.fn(),
   getFirestore: vi.fn(),
+  getOptionalAdmin: vi.fn(),
+  getArticle: vi.fn(),
+  updateArticle: vi.fn(),
 }));
 
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
@@ -24,6 +27,7 @@ vi.mock('@/app/api/utils/errorLogger', () => ({
 vi.mock('@/lib/firebase-admin', () => ({
   getFirestore: mocks.getFirestore,
 }));
+vi.mock('@/lib/auth-utils', () => ({ getOptionalAdmin: mocks.getOptionalAdmin }));
 
 type StaticRoute = (request: NextRequest) => Promise<Response>;
 type ArticleRoute = (
@@ -44,6 +48,9 @@ describe('Study article read routes', () => {
       (name: string) => `https://${name.toLowerCase()}.example/`,
     );
     mocks.getFirestore.mockReset();
+    mocks.getOptionalAdmin.mockReset().mockResolvedValue(null);
+    mocks.getArticle.mockReset();
+    mocks.updateArticle.mockReset().mockResolvedValue(undefined);
     vi.unstubAllGlobals();
   });
 
@@ -137,44 +144,82 @@ describe('Study article read routes', () => {
     expect(data.readArticleIds).toEqual(['newest-read']);
   });
 
-  it('forwards admin authentication when reading a private article', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({
-      success: true,
-      article: { id: 'draft-1', status: 'draft' },
-    }));
-    vi.stubGlobal('fetch', fetchMock);
+  function articleData(data: Record<string, unknown> | null) {
+    mocks.getArticle.mockResolvedValue({
+      exists: data !== null, id: 'article-1', data: () => data,
+      ref: { update: mocks.updateArticle },
+    });
+    mocks.getFirestore.mockReturnValue({
+      collection: () => ({ doc: () => ({ get: mocks.getArticle }) }),
+    });
+  }
+  async function read(authorization?: string) {
     const { GET } = await import('@/app/api/study/articles/[id]/route');
-
-    await (GET as ArticleRoute)(
-      request('/api/study/articles/draft-1', 'Bearer admin-token'),
-      { params: Promise.resolve({ id: 'draft-1' }) },
+    return (GET as ArticleRoute)(
+      request('/api/study/articles/article-1', authorization),
+      { params: Promise.resolve({ id: 'article-1' }) },
     );
+  }
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://getstudyarticle.example/?id=draft-1',
-      expect.objectContaining({
-        cache: 'no-store',
-        headers: { Authorization: 'Bearer admin-token' },
-      }),
-    );
+  it('reads owner drafts directly without a second serverless request', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    articleData({ status: 'draft', content: 'Private content', learningPlay: { version: 1 } });
+    mocks.getOptionalAdmin.mockResolvedValue({ uid: 'owner', isAdmin: true });
+    const response = await read('Bearer valid-admin');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(await response.json()).toMatchObject({
+      success: true, article: { id: 'article-1', content: 'Private content', learningPlay: { version: 1 } },
+    });
+    expect(mocks.getOptionalAdmin.mock.calls[0][0].headers.get('authorization')).toBe('Bearer valid-admin');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.updateArticle).not.toHaveBeenCalled();
   });
 
-  it('keeps anonymous single-article reads anonymous', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({
-      success: false,
-      error: 'Article not found',
-    }, { status: 404 }));
-    vi.stubGlobal('fetch', fetchMock);
-    const { GET } = await import('@/app/api/study/articles/[id]/route');
+  it.each([undefined, 'Bearer invalid', 'Bearer non-admin'])(
+    'hides drafts from callers without verified admin access (%s)', async authorization => {
+      articleData({ status: 'draft', content: 'Private content' });
+      const response = await read(authorization);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ success: false, error: 'Article not found' });
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(mocks.updateArticle).not.toHaveBeenCalled();
+    },
+  );
 
-    await (GET as ArticleRoute)(
-      request('/api/study/articles/draft-1'),
-      { params: Promise.resolve({ id: 'draft-1' }) },
-    );
+  it.each(['draft', 'archived', 'failed', 'published'])(
+    'never exposes explicitly private content even with status %s', async status => {
+      articleData({ status, isPublic: false, content: 'Private content' });
+      expect((await read()).status).toBe(404);
+      expect(mocks.updateArticle).not.toHaveBeenCalled();
+    },
+  );
 
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      cache: 'no-store',
-      headers: {},
-    });
+  it('serves published articles and retains the view counter', async () => {
+    articleData({ status: 'published', content: 'Public content', viewCount: 3 });
+    const response = await read();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ article: { content: 'Public content', viewCount: 3 } });
+    expect(mocks.updateArticle).toHaveBeenCalledWith({ viewCount: expect.anything() });
+    expect(mocks.getOptionalAdmin).not.toHaveBeenCalled();
+  });
+
+  it('returns an indistinguishable missing-article response', async () => {
+    articleData(null);
+    const response = await read('Bearer valid-admin');
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ success: false, error: 'Article not found' });
+  });
+
+  it('fails closed on database errors without leaking details', async () => {
+    articleData(null);
+    mocks.getArticle.mockRejectedValue(new Error('internal database details'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const response = await read();
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ success: false, error: 'Failed to fetch article' });
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    log.mockRestore();
   });
 });

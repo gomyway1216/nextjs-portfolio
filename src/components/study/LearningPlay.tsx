@@ -15,9 +15,13 @@ export default function LearningPlay({ play }: { play: Play }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [scenes, setScenes] = useState<Record<string, string>>({});
   const [paused, setPaused] = useState(false);
-  const activity = play.activities[index];
+  const currentIndex = index >= 0 && index < play.activities.length ? index : 0;
+  const activity = play.activities[currentIndex];
   const choice = activity.type === 'quiz' ? activity.choices.find(c => c.id === answers[activity.id]) : undefined;
-  const scene = activity.type === 'experiment' ? activity.states.find(s => s.id === (scenes[activity.id] || activity.initialStateId))! : undefined;
+  const scene = activity.type === 'experiment'
+    ? activity.states.find(s => s.id === scenes[activity.id])
+      ?? activity.states.find(s => s.id === activity.initialStateId)
+    : undefined;
   return <section aria-label={say('触って学ぶ', 'Learn by trying')} className="my-6 overflow-hidden rounded-2xl border border-blue-300 bg-white text-slate-900 shadow-sm dark:border-blue-800 dark:bg-slate-950 dark:text-slate-100">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-5 py-4 dark:border-blue-900 dark:bg-blue-950">
       <h2 className="flex items-center gap-2 font-semibold"><FlaskConical size={20} />{say('触って学ぶ', 'Learn by trying')}</h2>
@@ -30,11 +34,11 @@ export default function LearningPlay({ play }: { play: Play }) {
       <a className="ml-4 inline-block underline underline-offset-4" href="#introduction">{say('詳しい本文へ', 'Read the full article')}</a>
     </div> : <>
       <nav aria-label={say('学習の順番', 'Learning activities')} className="flex flex-wrap gap-2 px-5 pt-5">
-        {play.activities.map((a, n) => <button key={a.id} type="button" aria-current={n === index ? 'step' : undefined} onClick={() => setIndex(n)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm ${n === index ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{n + 1}. {a.title}</button>)}
+        {play.activities.map((a, n) => <button key={a.id} type="button" aria-current={n === currentIndex ? 'step' : undefined} onClick={() => setIndex(n)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm ${n === currentIndex ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{n + 1}. {a.title}</button>)}
       </nav>
       <div className="space-y-5 p-5 sm:p-7">
         <div aria-live="polite">
-          <p className="mb-2 text-sm text-blue-700 dark:text-blue-300">{index + 1} / {play.activities.length} · {activity.type === 'quiz' ? say('予想してみる', 'Make a prediction') : say('条件を変えて確かめる', 'Change a condition')}</p>
+          <p className="mb-2 text-sm text-blue-700 dark:text-blue-300">{currentIndex + 1} / {play.activities.length} · {activity.type === 'quiz' ? say('予想してみる', 'Make a prediction') : say('条件を変えて確かめる', 'Change a condition')}</p>
           <h3 className="text-xl font-semibold leading-relaxed sm:text-2xl">{activity.prompt}</h3>
         </div>
         {activity.type === 'quiz' && <>
@@ -49,7 +53,7 @@ export default function LearningPlay({ play }: { play: Play }) {
             <p className="whitespace-pre-line leading-7">{choice.feedback}</p>
           </div>}
           <div key={`explanation-${activity.id}`}>
-            <details className="rounded-lg border p-4"><summary className="cursor-pointer">{say('答えと理由を見る（回答なしでもOK）', 'See the answer and why (no answer required)')}</summary><p className="mt-3 font-semibold">{activity.choices.find(c => c.correct)!.label}</p><p className="mt-2 whitespace-pre-line leading-7">{activity.explanation}</p></details>
+            <details className="rounded-lg border p-4"><summary className="cursor-pointer">{say('答えと理由を見る（回答なしでもOK）', 'See the answer and why (no answer required)')}</summary><p className="mt-3 font-semibold">{activity.choices.find(c => c.correct)?.label}</p><p className="mt-2 whitespace-pre-line leading-7">{activity.explanation}</p></details>
           </div>
         </>}
         {activity.type === 'experiment' && scene && <>
@@ -71,7 +75,7 @@ export default function LearningPlay({ play }: { play: Play }) {
         </>}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
           <Button variant="ghost" onClick={() => setPaused(true)}>{say('今日はここまで', 'Stop here')}</Button>
-          {index < play.activities.length - 1 ? <Button onClick={() => setIndex(index + 1)}>{say('次へ（回答は任意）', 'Next (answer optional)')}<ArrowRight size={16} /></Button> : <a className="rounded-lg bg-blue-600 px-4 py-3 text-white" href="#introduction">{say('実システムとコードを見る', 'Explore the real system and code')}</a>}
+          {currentIndex < play.activities.length - 1 ? <Button onClick={() => setIndex(currentIndex + 1)}>{say('次へ（回答は任意）', 'Next (answer optional)')}<ArrowRight size={16} /></Button> : <a className="rounded-lg bg-blue-600 px-4 py-3 text-white" href="#introduction">{say('実システムとコードを見る', 'Explore the real system and code')}</a>}
         </div>
       </div>
     </>}

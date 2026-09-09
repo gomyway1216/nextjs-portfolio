@@ -25,7 +25,7 @@ const unique = (ids: string[]) => { if (new Set(ids).size !== ids.length) fail()
 export function parseLearningPlay(value: unknown): LearningPlay | undefined {
   if (value === undefined) return;
   const v = object(value);
-  if (v.version !== 1 || JSON.stringify(v).length > 50000) fail();
+  if (v.version !== 1) fail();
   const activities = array(v.activities, 1, 8).map((raw): LearningQuiz | LearningExperiment => {
     const a = object(raw);
     const base = { id: id(a.id), title: text(a.title, 200), prompt: text(a.prompt, 600) };
@@ -66,9 +66,10 @@ export function parseLearningPlay(value: unknown): LearningPlay | undefined {
     return { ...base, type: 'experiment', initialStateId, states };
   });
   unique(activities.map(a => a.id));
-  return { version: 1, activities };
+  const result: LearningPlay = { version: 1, activities };
+  if (JSON.stringify(result).length > 50000) fail();
+  return result;
 }
 export function readLearningPlay(value: unknown): LearningPlay | undefined {
   try { return parseLearningPlay(value); } catch { return undefined; }
 }
-

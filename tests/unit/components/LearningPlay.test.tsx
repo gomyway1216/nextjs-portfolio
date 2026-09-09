@@ -74,11 +74,25 @@ it('can skip unanswered quizzes and safely rejects malformed metadata', () => {
   expect(readLearningPlay(broken)).toBeUndefined();
 });
 it('validates every scene target and ignores unknown author fields', () => {
-  expect(parseLearningPlay({...fixture, privateEvidence:'not shown'})).toEqual(fixture);
+  expect(parseLearningPlay({...fixture, privateEvidence:'x'.repeat(50001)})).toEqual(fixture);
   const broken = structuredClone(fixture);
   broken.activities[2].states![0].actions[0].target = 'missing';
   expect(readLearningPlay(broken)).toBeUndefined();
   const experiment = play.activities[2];
   if(experiment.type !== 'experiment') throw new Error('fixture');
   expect(experiment.states.every(s => s.actions.every(a => experiment.states.some(t => t.id === a.target)))).toBe(true);
+});
+it('falls back to the initial scene when mounted state is stale', () => {
+  const experiment = play.activities[2];
+  hooks.values = [2, {}, {[experiment.id]: 'removed-scene'}, false];
+  expect(html()).toContain('ログイン直後');
+  click('Cookieだけ消す');
+  expect(html()).toContain('Cookieだけ削除');
+});
+it('limits retained author data after normalization', () => {
+  const quiz = play.activities[0];
+  if (quiz.type !== 'quiz') throw new Error('fixture');
+  const large = {...quiz, explanation: 'e'.repeat(2000),
+    choices: Array.from({length:5}, (_, n) => ({id:`c${n}`, label:'choice', correct:n === 0, feedback:'f'.repeat(1200)}))};
+  expect(readLearningPlay({version:1, activities:Array.from({length:8}, (_, n) => ({...large,id:`q${n}`}))})).toBeUndefined();
 });

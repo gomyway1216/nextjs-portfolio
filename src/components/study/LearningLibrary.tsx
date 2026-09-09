@@ -119,7 +119,7 @@ function OwnerLearningLibrary() {
     finally { setSaving(false); }
   }
 
-  async function openRelated(id: string) {
+  function openRelated(id: string) {
     setError(''); setFocusId(id); setExpanded(id);
   }
 

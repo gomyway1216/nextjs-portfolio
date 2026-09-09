@@ -934,7 +934,7 @@ function StudyArticlePageInner() {
             <GraduationCap size={16} style={{ color: '#9333ea' }} />
             Learning Hub
           </h3>
-          <a href="#learning-follow-up" onClick={() => { handleTabChange('article'); setShowMobileSidebar(false); }} className="text-sm underline">Save a section / continue with your AI</a>
+          <a href="/study/learning" className="text-sm underline">Open Learning Library</a>
         </div>
       )}
     </>

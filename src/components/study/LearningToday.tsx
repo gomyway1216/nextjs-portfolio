@@ -25,7 +25,7 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
     {!!data.errors.length && <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">{say('一部の情報を取得できませんでした。表示できた内容は利用できます。再読み込みで確認してください。', 'Some information could not be loaded. Available items still work; refresh to retry.')}</p>}
     <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
       <section className="flex flex-col rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8" aria-labelledby="today-article">
-        <p className="mb-5 flex items-center gap-2 text-sm font-medium text-primary"><BookOpen size={18} />{say('新しい視点を読む · Engineering', 'Read a new perspective · Engineering')}</p>
+        <p className="mb-5 flex items-center gap-2 text-sm font-medium text-primary"><BookOpen size={18} />{say('新しい視点を読む', 'Read a new perspective')} · {labels.domains.engineering}</p>
         {data.article ? <>
           <p className="mb-2 text-sm text-muted-foreground">{say(data.articleReason === 'unread' ? '最近20件のうち、最新の未読記事' : data.articleReason === 'latest' ? '最近20件は読了済み · 最新を読み返す' : '最新の記事 · 読了状態は未確認', data.articleReason === 'unread' ? 'Newest unread among the latest 20 articles' : data.articleReason === 'latest' ? 'Latest 20 read · revisit the newest' : 'Latest article · read status unavailable')}</p>
           <h3 id="today-article" className="text-2xl font-semibold leading-relaxed tracking-tight">{data.article.title}</h3>

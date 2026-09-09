@@ -34,7 +34,7 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
         {article ? <>
           {data.articleChoices && data.articleChoices.length > 1 && <div className="mb-5 space-y-2" role="group" aria-label={say('気になる問いを選ぶ', 'Choose a question')}>
             <p className="text-sm">{say('今日は、どれが気になる？', 'Which one catches your curiosity?')}</p>
-            {data.articleChoices.map((choice) => <button key={choice.id} aria-pressed={choice.id === article.id} onClick={() => setChosenId(choice.id)} className={`w-full rounded-lg border p-3 text-left text-sm leading-relaxed ${choice.id === article.id ? 'border-primary bg-background font-medium' : 'border-transparent hover:border-primary/40'}`}>{learningExperience(choice.learningExperience)?.question || choice.title}</button>)}
+            {data.articleChoices.map((choice) => <button key={choice.id} type="button" aria-pressed={choice.id === article.id} onClick={() => setChosenId(choice.id)} className={`w-full rounded-lg border p-3 text-left text-sm leading-relaxed ${choice.id === article.id ? 'border-primary bg-background font-medium' : 'border-transparent hover:border-primary/40'}`}>{learningExperience(choice.learningExperience)?.question || choice.title}</button>)}
             <p className="text-xs text-muted-foreground">{say('最近の記事から選べます。選択だけでは既読・評価を変更しません。', 'Choose from recent articles. Choosing does not mark them read or rate them.')}</p>
           </div>}
           {chosen && chosen.id !== data.article?.id ? <p className="mb-2 text-sm text-muted-foreground">{say('いま自分で選んだ記事', 'Your choice for now')}</p> :

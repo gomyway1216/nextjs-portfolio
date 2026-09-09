@@ -34,5 +34,6 @@ it('offers real alternative questions without calling them a personalized rankin
   const html = render({ ...empty, article: first, articleChoices: [first, { ...first, id: 'b', title: 'Second question' }] });
   expect(html).toContain('今日は、どれが気になる');
   expect(html).toContain('Second question');
+  expect(html).toContain('type="button" aria-pressed="true"');
   expect(html).toContain('選択だけでは既読・評価を変更しません');
 });

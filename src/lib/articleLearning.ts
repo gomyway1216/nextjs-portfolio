@@ -1,5 +1,14 @@
 import type { StudyArticle } from '@/types/study';
 import type { LearningDomain, SaveLearningInput } from './learningLibrary';
+import type { LearningMaterial } from './learningConversation';
+
+/** Retrieval metadata belongs in the AI handoff, not in save_learning's write contract. */
+export function articleLearningMaterial(article: StudyArticle, sectionId: string, domain: LearningDomain): LearningMaterial {
+  return {
+    ...articleLearningInput(article, sectionId, domain),
+    article: { id: article.id, ...(sectionId !== 'summary' ? { sectionId } : {}), ...(article.updatedAt ? { updatedAt: article.updatedAt } : {}) },
+  };
+}
 
 export function articleLearningInput(article: StudyArticle & { language?: string }, sectionId: string, domain: LearningDomain): SaveLearningInput {
   const section = article.sections.find((s) => s.id === sectionId);

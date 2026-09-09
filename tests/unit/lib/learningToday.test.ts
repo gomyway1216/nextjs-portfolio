@@ -15,6 +15,7 @@ it('selects a real unread article, oldest server-selected due item and recent sa
   const result = await loadLearningToday(request);
   expect(result.article?.id).toBe('unread');
   expect(result.articleReason).toBe('unread');
+  expect(result.articleChoices?.map((a) => a.id)).toEqual(['unread', 'newest']);
   expect(result.due?.id).toBe('old-due-item');
   expect(result.total).toBe(40);
   expect(result.errors).toEqual([]);

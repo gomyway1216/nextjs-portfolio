@@ -16,6 +16,7 @@ import MermaidDiagram from '@/components/common/MermaidDiagram';
 import LearningContent from './LearningContent';
 import LearningToday from './LearningToday';
 import LearningConversation from './LearningConversation';
+import LearningRediscovery from './LearningRediscovery';
 import { LEARNING_DOMAINS, LEARNING_KINDS, LearningDomain, LearningKind, LearningItem, LearningAssessment, SaveLearningInput, learningLabels, safeLearningUrl } from '@/lib/learningLibrary';
 
 function OwnerLearningLibrary() {
@@ -164,6 +165,7 @@ function OwnerLearningLibrary() {
           {expanded !== item.id && <Button variant="outline" className="mt-4" onClick={() => setExpanded(item.id)}>{say(view === 'review' ? '思い出してから説明を見る' : '説明・図・出典を見る', view === 'review' ? 'Recall first, then reveal' : 'Open explanation, diagrams and sources')}</Button>}
         </div>
         {expanded === item.id && <div className="space-y-6 border-t p-5">
+          <LearningRediscovery item={item} />
           <LearningConversation material={{ title: item.title, content: item.content, itemId: item.id, revision: item.revision, sources: item.sources, diagrams: item.diagrams, figures: item.figures }} />
           <LearningContent content={item.content} />
           {item.pronunciation && <p>{item.pronunciation}</p>}

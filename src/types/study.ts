@@ -218,6 +218,7 @@ export interface ArticleAudio {
 }
 
 export interface StudyArticle {
+  learningExperience?: import('@/lib/learningExperience').LearningExperience;
   id: string;
   topicId: string;
   categoryId: string;

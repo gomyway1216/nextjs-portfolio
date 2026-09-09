@@ -29,3 +29,11 @@ it('links to the real stored article with an honest selection reason', () => {
   expect(html).toContain('最近20件のうち、最新の未読記事');
   expect(html).toContain('Real summary');
 });
+it('offers real alternative questions without calling them a personalized ranking', () => {
+  const first = { id: 'a', title: 'First', summary: 'Summary', createdAt: '', tags: [] };
+  const html = render({ ...empty, article: first, articleChoices: [first, { ...first, id: 'b', title: 'Second question' }] });
+  expect(html).toContain('今日は、どれが気になる');
+  expect(html).toContain('Second question');
+  expect(html).toContain('type="button" aria-pressed="true"');
+  expect(html).toContain('選択だけでは既読・評価を変更しません');
+});

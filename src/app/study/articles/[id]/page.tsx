@@ -2,6 +2,8 @@
 
 import ArticleLearningIntegration from '@/components/study/SaveArticleLearning';
 import ArticleFeedback from '@/components/study/ArticleFeedback';
+import ArticleDiscovery from '@/components/study/ArticleDiscovery';
+import { learningExperience } from '@/lib/learningExperience';
 import AudioPlayer from '@/components/study/AudioPlayer';
 import {
 useArticleChat,
@@ -1162,8 +1164,9 @@ function StudyArticlePageInner() {
                     {/* Audio player */}
                     {article.audio && <AudioPlayer audio={article.audio} />}
 
-                    {/* Summary */}
-                    <div style={{
+                    <ArticleDiscovery key={article.id} article={article} />
+                    {/* Preserve the original summary for legacy articles without a discovery entry. */}
+                    {!learningExperience(article.learningExperience) && <div style={{
                       backgroundColor: '#f0fdf4',
                       border: '1px solid #bbf7d0',
                       borderRadius: '8px',
@@ -1174,7 +1177,7 @@ function StudyArticlePageInner() {
                         Summary
                       </h3>
                       <p style={{ color: '#15803d', lineHeight: 1.7, fontSize: '14px' }}>{article.summary}</p>
-                    </div>
+                    </div>}
 
                     {/* Introduction */}
                     <section id="introduction" style={{ marginBottom: '40px' }}>

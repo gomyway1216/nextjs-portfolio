@@ -5,6 +5,7 @@ export interface LearningMaterial {
   content: string;
   itemId?: string;
   revision?: number;
+  domains?: LearningItem['domains'];
   sources?: LearningItem['sources'];
   diagrams?: LearningItem['diagrams'];
   figures?: LearningItem['figures'];
@@ -60,5 +61,8 @@ export function learningConversationPrompt(material: LearningMaterial, mode: Lea
   const retrieval = article ? (ja
     ? `回答前に、接続済みのPersonal Memory MCP（https://yudai-personal-memory.web.app/mcp）の search_learning を ${JSON.stringify({ id: `article:${article.id}` })} で呼び、article に返る全文・コード・元の図を読んでください。下の content は選択部分の抜粋で、全文ではありません。${article.sectionId ? `特に section ID ${JSON.stringify(article.sectionId)} を確認してください。` : '要約だけでなく関連する本文の節を確認してください。'} Webページがログイン画面でも、MCPを使う前に本文取得不能と判断しないでください。認証情報の貼り付け・コピーは不要です。取得できなければ、抜粋から確認できることと一般的な補足を分け、本文を読んだと主張しないでください。取得できたら末尾にarticleId・参照したsection ID・updatedAtまたはcontentHashを示してください。記事には学習メモのrevisionはないので捏造しないでください。article IDをrelatedIdsへ入れず、記事URLをsourcesへ残してください。`
     : `Before answering, call search_learning on the connected Personal Memory MCP (https://yudai-personal-memory.web.app/mcp) with ${JSON.stringify({ id: `article:${article.id}` })}. Read the full body, code and original diagrams returned in article. The content below is only the selected excerpt, not the full article. ${article.sectionId ? `Focus on section ID ${JSON.stringify(article.sectionId)}.` : 'Read the relevant sections, not just the summary.'} A login wall on the website does not mean MCP retrieval failed. Do not ask me to paste or copy credentials. If retrieval fails, distinguish the excerpt from general explanation; never claim you read the body. If it succeeds, cite articleId, section IDs actually used, and updatedAt or contentHash. Articles do not have learning revisions; do not invent one or put article IDs in relatedIds. Keep the article URL in sources.`) : '';
-  return `${request}\n\n${ja ? '質問・試したいこと' : 'My question or practice goal'}: ${question.trim() || (ja ? 'まず重要なポイントから。' : 'Start with the key idea.')}\n\n${retrieval ? `${retrieval}\n\n` : ''}${policy}\n\n${JSON.stringify(material, null, 2)}`;
+  const domainGuidance = material.domains?.length && !material.domains.includes('engineering') ? (ja
+    ? 'この教材はエンジニアリング以外の学びです。上の「実際のシステム」は、その分野の自然な会話・暮らし・社会での使いどころとして説明し、無理にソフトウェアの例へ変換しないでください。'
+    : 'This is a non-engineering learning. Interpret real systems as natural conversation, everyday life or social mechanisms appropriate to its domain; do not force a software example.') : '';
+  return `${request}\n\n${domainGuidance ? `${domainGuidance}\n\n` : ''}${ja ? '質問・試したいこと' : 'My question or practice goal'}: ${question.trim() || (ja ? 'まず重要なポイントから。' : 'Start with the key idea.')}\n\n${retrieval ? `${retrieval}\n\n` : ''}${policy}\n\n${JSON.stringify(material, null, 2)}`;
 }

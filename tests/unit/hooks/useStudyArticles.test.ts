@@ -65,6 +65,26 @@ beforeEach(() => {
 });
 
 describe('study list auth restoration', () => {
+  it('returns stable empty references while disabled', () => {
+    const first = render({ enabled: false });
+    const second = render({ enabled: false });
+    expect(second.articles).toBe(first.articles);
+    expect(second.readArticleIds).toBe(first.readArticleIds);
+  });
+
+  it('preserves loaded articles after a pagination failure and retries the same cursor', async () => {
+    hooks.getArticles.mockResolvedValueOnce(result('first'));
+    render(); await flush();
+    hooks.getArticles.mockRejectedValueOnce(new Error('Offline'));
+    await render().loadMore();
+    expect(render()).toMatchObject({ articles: [{ id: 'first' }], loading: false, hasMore: true });
+    expect(render().error?.message).toBe('Offline');
+    hooks.getArticles.mockResolvedValueOnce(result('second'));
+    await render().loadMore();
+    expect(hooks.getArticles).toHaveBeenLastCalledWith(expect.objectContaining({ lastId: 'first' }));
+    expect(render().articles.map(a => a.id)).toEqual(['first', 'second']);
+    expect(render().error).toBeNull();
+  });
   it('waits through auth restoration, then fetches exactly once for the resolved viewer', async () => {
     expect(render({ enabled: false }).loading).toBe(true);
     await render({ enabled: false }).fetchArticles();

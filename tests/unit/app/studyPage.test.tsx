@@ -93,6 +93,19 @@ describe('StudyListPage sorting', () => {
     expect(markup).not.toContain('role="alert"');
   });
 
+  it('keeps loaded articles visible when pagination fails', () => {
+    mocks.useStudyArticles.mockReturnValue({
+      articles: [{ id: 'one', title: 'Already loaded', tags: [], difficulty: 'beginner' }],
+      loading: false, error: new Error('Offline'), hasMore: true,
+      loadMore: vi.fn(), isArticleRead: () => false,
+    });
+    const markup = renderToStaticMarkup(<StudyListPage />);
+    expect(markup).toContain('Already loaded');
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('study.hub.retryArticles');
+    expect(markup).not.toContain('study.hub.emptyState.noArticlesFound');
+  });
+
   it('starts the article body request on navigation, without fetching on render or hover', () => {
     mocks.useStudyArticles.mockReturnValue({
       articles: [{ id: 'one', title: 'Article', summary: 'Summary', tags: [], difficulty: 'beginner' }],

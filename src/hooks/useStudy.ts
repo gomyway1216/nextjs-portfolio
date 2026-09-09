@@ -239,6 +239,7 @@ export function useStudyArticles(initialOptions?: {
   const enabled = initialOptions?.enabled !== false;
   const viewerKey = initialOptions?.userId ?? 'anonymous';
   const [resultViewer, setResultViewer] = useState<string | null>(null);
+  const emptyResult = useRef({ articles: [] as StudyArticle[], readArticleIds: new Set<string>() });
   const [articles, setArticles] = useState<StudyArticle[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -371,13 +372,13 @@ export function useStudyArticles(initialOptions?: {
   }, [canShowResult, readArticleIds]);
 
   return {
-    articles: canShowResult ? articles : [],
+    articles: canShowResult ? articles : emptyResult.current.articles,
     hasMore: canShowResult && hasMore,
     loading: !canShowResult || loading,
     error: canShowResult ? error : null,
     fetchArticles,
     loadMore,
-    readArticleIds: canShowResult ? readArticleIds : new Set<string>(),
+    readArticleIds: canShowResult ? readArticleIds : emptyResult.current.readArticleIds,
     isArticleRead,
   };
 }

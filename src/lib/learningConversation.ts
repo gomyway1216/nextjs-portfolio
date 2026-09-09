@@ -12,16 +12,29 @@ export interface LearningMaterial {
 }
 export type LearningMode = 'explain' | 'practice' | 'explore';
 
+const articleIdPattern = /^[A-Za-z0-9_-]{1,192}$/;
+const sectionIdPattern = /^[A-Za-z0-9_-]{1,200}$/;
+function sectionReference(value: string | undefined): { sectionId?: string } {
+  return value && sectionIdPattern.test(value) ? { sectionId: value } : {};
+}
+
 /** Older saved excerpts already have a source URL; they need no migration to recover the article. */
 export function learningArticleReference(material: LearningMaterial): LearningMaterial['article'] {
-  if (material.article && /^[A-Za-z0-9_-]+$/.test(material.article.id)) return material.article;
+  if (material.article && articleIdPattern.test(material.article.id)) return {
+    id: material.article.id, ...sectionReference(material.article.sectionId),
+    ...(material.article.updatedAt ? { updatedAt: material.article.updatedAt } : {}),
+  };
   for (const source of material.sources ?? []) {
     if (!source.url) continue;
     try {
       const url = new URL(source.url);
       if (url.origin !== 'https://www.meetyudai.com' || url.username || url.password) continue;
       const match = /^\/study\/articles\/([A-Za-z0-9_-]+)$/.exec(url.pathname);
-      if (match) return { id: match[1], ...(url.hash.startsWith('#section-') ? { sectionId: decodeURIComponent(url.hash.slice(9)) } : {}) };
+      if (match && articleIdPattern.test(match[1])) {
+        let sectionId: string | undefined;
+        try { sectionId = url.hash.startsWith('#section-') ? decodeURIComponent(url.hash.slice(9)) : undefined; } catch { /* Invalid hash: retrieve the whole article instead. */ }
+        return { id: match[1], ...sectionReference(sectionId) };
+      }
     } catch { /* An arbitrary or malformed source is not a trusted article identifier. */ }
   }
   return undefined;

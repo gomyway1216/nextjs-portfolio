@@ -1,18 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface MermaidDiagramProps {
   chart: string;
+  defer?: boolean;
+  minWidth?: number;
 }
 
 let mermaidInitialized = false;
 
-export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
+export default function MermaidDiagram({ chart, defer = false, minWidth = 640 }: MermaidDiagramProps) {
   const [svg, setSvg] = useState('');
   const [error, setError] = useState('');
+  const placeholder = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(!defer);
 
   useEffect(() => {
+    if (visible) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      const frame = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); observer.disconnect(); }
+    }, { rootMargin: '200px' });
+    if (placeholder.current) observer.observe(placeholder.current);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
     let cancelled = false;
 
     setSvg('');
@@ -47,7 +65,7 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
     return () => {
       cancelled = true;
     };
-  }, [chart]);
+  }, [chart, visible]);
 
   if (error) {
     return (
@@ -65,20 +83,21 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
   if (!svg) {
     return (
-      <div style={{
+      <div ref={placeholder} style={{
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         color: '#6b7280',
         padding: '18px',
         textAlign: 'center',
       }}>
-        Rendering diagram...
+        {visible ? 'Rendering diagram…' : 'Diagram'}
       </div>
     );
   }
 
   return (
-    <figure style={{
+    <figure tabIndex={0} aria-label="Diagram (scroll horizontally to view)" style={{
+      maxWidth: '100%',
       margin: '24px 0',
       overflowX: 'auto',
       border: '1px solid #e5e7eb',
@@ -87,7 +106,7 @@ export default function MermaidDiagram({ chart }: MermaidDiagramProps) {
       padding: '16px',
     }}>
       <div
-        style={{ minWidth: '640px' }}
+        style={{ minWidth }}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     </figure>

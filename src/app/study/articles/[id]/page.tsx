@@ -3,6 +3,7 @@
 import ArticleLearningIntegration from '@/components/study/SaveArticleLearning';
 import ArticleFeedback from '@/components/study/ArticleFeedback';
 import ArticleDiscovery from '@/components/study/ArticleDiscovery';
+import StudyCodeBlock from '@/components/study/StudyCodeBlock';
 import { learningExperience } from '@/lib/learningExperience';
 import AudioPlayer from '@/components/study/AudioPlayer';
 import {
@@ -300,9 +301,7 @@ function renderArticleMarkdown(text: string): React.ReactNode {
         i++;
       }
       elements.push(
-        <pre key={key} style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '16px', borderRadius: '8px', overflow: 'auto', margin: '16px 0', fontSize: '13px' }}>
-          <code className={lang ? `language-${lang}` : undefined}>{codeLines.join('\n')}</code>
-        </pre>
+        <StudyCodeBlock key={key} language={lang} code={codeLines.join('\n')} />
       );
       i++;
       continue;

@@ -1,46 +1,47 @@
 // Study Article by ID API
 import { NextRequest, NextResponse } from 'next/server';
-import { getCloudFunctionUrl } from '../../../constants';
+import { getCloudFunctionUrl, STUDY_ARTICLES_COLLECTION } from '../../../constants';
+import { getFirestore } from '@/lib/firebase-admin';
+import { getOptionalAdmin } from '@/lib/auth-utils';
+import { FieldValue } from 'firebase-admin/firestore';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/articles/[id] - Get a single article
 export const GET = withActivityLog('next_api.study.articles.id.GET', async (request: NextRequest,
   { params }: { params: Promise<{ id: string }> }) => {
+  const headers = { 'Cache-Control': 'private, no-store' };
   try {
     const { id } = await params;
-    const url = new URL(getCloudFunctionUrl('getStudyArticle'));
-    url.searchParams.set('id', id);
-    const authHeader = request.headers.get('authorization');
+    const notFound = () => NextResponse.json(
+      { success: false, error: 'Article not found' }, { status: 404, headers },
+    );
+    if (!id || id.includes('/')) return notFound();
 
-    const response = await fetch(url.toString(), {
-      cache: 'no-store',
-      headers: {
-        ...(authHeader && { Authorization: authHeader }),
-      },
-    });
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      await logCloudFunctionError({
-        functionName: 'getStudyArticle',
-        endpoint: `/api/study/articles/${id}`,
-        response: { status: response.status, error: data.error, details: data.details, message: data.message },
-        metadata: { articleId: id },
-      });
+    // The Next server already has Firebase Admin credentials. Read here to
+    // avoid a second serverless cold start through getStudyArticle. Never
+    // share-cache a response: the same URL can return an owner's draft.
+    const doc = await getFirestore().collection(STUDY_ARTICLES_COLLECTION).doc(id).get();
+    if (!doc.exists) return notFound();
+    const article = doc.data()!;
+    const isPublished = article.status === 'published';
+    if ((!isPublished || article.isPublic === false) && !(await getOptionalAdmin(request))) {
+      return notFound();
     }
-
-    return NextResponse.json(data, { status: response.status });
+    if (isPublished && article.isPublic !== false) {
+      try {
+        await doc.ref.update({ viewCount: FieldValue.increment(1) });
+      } catch (error) {
+        // Analytics must not turn an otherwise valid article read into a 500.
+        console.warn('Unable to increment study article view count:', error);
+      }
+    }
+    return NextResponse.json({ success: true, article: { ...article, id: doc.id } }, { headers });
   } catch (error) {
     console.error('Error fetching article:', error);
-    await logCloudFunctionError({
-      functionName: 'getStudyArticle',
-      endpoint: '/api/study/articles/[id]',
-      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
-    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch article' },
-      { status: 500 }
+      { status: 500, headers }
     );
   }
 });

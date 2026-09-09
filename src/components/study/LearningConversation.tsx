@@ -9,13 +9,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { learningArticleReference, learningConversationPrompt, type LearningMaterial, type LearningMode } from '@/lib/learningConversation';
 
-export default function LearningConversation({ material }: { material: LearningMaterial }) {
+export default function LearningConversation({ material, initialMode = 'explain', initialQuestion = '', label }: { material: LearningMaterial; initialMode?: LearningMode; initialQuestion?: string; label?: string }) {
   const { i18n } = useTranslation();
   const ja = i18n.language.startsWith('ja');
   const say = (j: string, e: string) => ja ? j : e;
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<LearningMode>('explain');
-  const [question, setQuestion] = useState('');
+  const [mode, setMode] = useState<LearningMode>(initialMode);
+  const [question, setQuestion] = useState(initialQuestion);
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   const prompt = learningConversationPrompt(material, mode, question, ja);
@@ -25,7 +25,7 @@ export default function LearningConversation({ material }: { material: LearningM
     catch { setFailed(true); setCopied(false); }
   }
   return <>
-    <Button variant="outline" onClick={() => { setOpen(true); setCopied(false); setFailed(false); }}><MessageCircle size={18} />{say('AIと理解を深める', 'Learn through conversation')}</Button>
+    <Button variant="outline" className="h-auto whitespace-normal text-left" onClick={() => { setOpen(true); setCopied(false); setFailed(false); }}><MessageCircle size={18} />{label || say('AIと理解を深める', 'Learn through conversation')}</Button>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>{say('分からないままにしない', 'Pick up where you got stuck')}</DialogTitle><DialogDescription>{say('説明・元の図・出典をまとめて、普段のCodexやClaudeへ。ここではAIの実行や自動送信はしません。', 'Take the explanation, original diagrams and sources to your usual Codex or Claude conversation. No AI calls or automatic sending here.')}</DialogDescription></DialogHeader>
       <p className="font-medium">{material.title}</p>

@@ -1,13 +1,14 @@
 import type { LearningItem } from './learningLibrary';
 import type { StudyArticle } from '@/types/study';
 
-export type LearningArticle = Pick<StudyArticle, 'id' | 'title' | 'summary' | 'createdAt' | 'tags'>;
+export type LearningArticle = Pick<StudyArticle, 'id' | 'title' | 'summary' | 'createdAt' | 'tags' | 'learningExperience'>;
 export interface LearningTodayData {
   recent: LearningItem[];
   total?: number;
   due?: LearningItem;
   dueTotal?: number;
   article?: LearningArticle;
+  articleChoices?: LearningArticle[];
   articleReason: 'unread' | 'latest' | 'unknown';
   errors: Array<'library' | 'review' | 'articles' | 'history'>;
 }
@@ -37,6 +38,10 @@ export async function loadLearningToday(request: Request): Promise<LearningToday
     const read = history.status === 'fulfilled' ? history.value.readArticleIds as Record<string, string> : undefined;
     const unread = read && candidates.find((article) => !Object.hasOwn(read, article.id));
     result.article = unread || candidates[0];
+    // Offer alternatives, not a compulsory assignment. Read state only orders choices.
+    result.articleChoices = [...candidates].sort((a, b) =>
+      Number(Boolean(read && Object.hasOwn(read, a.id))) - Number(Boolean(read && Object.hasOwn(read, b.id)))
+    ).slice(0, 3);
     result.articleReason = !read ? 'unknown' : unread ? 'unread' : 'latest';
   } else result.errors.push('articles');
   return result;

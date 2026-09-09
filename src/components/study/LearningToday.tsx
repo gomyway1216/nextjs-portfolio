@@ -7,6 +7,8 @@ import { ArrowRight, BookOpen, Code2, Languages, Landmark, Globe2, Library, Refr
 import { Button } from '@/components/ui/button';
 import { LEARNING_DOMAINS, learningLabels, type LearningDomain, type LearningItem } from '@/lib/learningLibrary';
 import { loadLearningToday, type LearningTodayData } from '@/lib/learningToday';
+import ArticleDiscovery from './ArticleDiscovery';
+import { learningExperience } from '@/lib/learningExperience';
 
 const domainIcons = { engineering: Code2, english: Languages, finance: Landmark, society: Globe2, other: Library };
 const domainColor = { engineering: 'text-blue-600', english: 'text-violet-600', finance: 'text-emerald-600', society: 'text-amber-600', other: 'text-muted-foreground' };
@@ -19,6 +21,9 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
   const ja = i18n.language.startsWith('ja');
   const say = (j: string, e: string) => ja ? j : e;
   const labels = learningLabels[ja ? 'ja' : 'en'];
+  const [chosenId, setChosenId] = useState<string>();
+  const chosen = data.articleChoices?.find((a) => a.id === chosenId);
+  const article = chosen || data.article;
   return <div className="space-y-8">
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-2xl font-semibold tracking-tight">{say('今日は、ここから。', 'A little learning, from here.')}</h2><p className="mt-2 text-muted-foreground">{say('一つ読んでも、一つ思い出しても。それだけで十分。', 'Read one thing or recall one idea. That is enough.')}</p></div><Button size="icon" variant="ghost" disabled={busy} onClick={onReload} aria-label={say('最新の保存状態を確認', 'Refresh saved activity')}><RefreshCw size={18} className={busy ? 'animate-spin' : ''} /></Button></div>
     {busy && <p role="status" className="text-sm text-muted-foreground">{say('記事と保存済みの学びを確認中…', 'Checking articles and saved learnings…')}</p>}
@@ -26,11 +31,19 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
     <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
       <section className="flex flex-col rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8" aria-labelledby="today-article">
         <p className="mb-5 flex items-center gap-2 text-sm font-medium text-primary"><BookOpen size={18} />{say('新しい視点を読む', 'Read a new perspective')} · {labels.domains.engineering}</p>
-        {data.article ? <>
+        {article ? <>
+          {data.articleChoices && data.articleChoices.length > 1 && <div className="mb-5 space-y-2" role="group" aria-label={say('気になる問いを選ぶ', 'Choose a question')}>
+            <p className="text-sm">{say('今日は、どれが気になる？', 'Which one catches your curiosity?')}</p>
+            {data.articleChoices.map((choice) => <button key={choice.id} aria-pressed={choice.id === article.id} onClick={() => setChosenId(choice.id)} className={`w-full rounded-lg border p-3 text-left text-sm leading-relaxed ${choice.id === article.id ? 'border-primary bg-background font-medium' : 'border-transparent hover:border-primary/40'}`}>{learningExperience(choice.learningExperience)?.question || choice.title}</button>)}
+            <p className="text-xs text-muted-foreground">{say('最近の記事から選べます。選択だけでは既読・評価を変更しません。', 'Choose from recent articles. Choosing does not mark them read or rate them.')}</p>
+          </div>}
+          {chosen && chosen.id !== data.article?.id ? <p className="mb-2 text-sm text-muted-foreground">{say('いま自分で選んだ記事', 'Your choice for now')}</p> :
           <p className="mb-2 text-sm text-muted-foreground">{say(data.articleReason === 'unread' ? '最近20件のうち、最新の未読記事' : data.articleReason === 'latest' ? '最近20件は読了済み · 最新を読み返す' : '最新の記事 · 読了状態は未確認', data.articleReason === 'unread' ? 'Newest unread among the latest 20 articles' : data.articleReason === 'latest' ? 'Latest 20 read · revisit the newest' : 'Latest article · read status unavailable')}</p>
-          <h3 id="today-article" className="text-2xl font-semibold leading-relaxed tracking-tight">{data.article.title}</h3>
-          <p className="mb-6 mt-4 leading-7 text-muted-foreground">{data.article.summary}</p>
-          <div className="mt-auto flex flex-wrap items-center gap-4"><Button asChild><Link href={`/study/articles/${encodeURIComponent(data.article.id)}`}>{say('記事を開く', 'Open article')}<ArrowRight size={18} /></Link></Button><Link href="/study" className="text-sm underline underline-offset-4">{say('すべての記事', 'All articles')}</Link></div>
+          }
+          <h3 id="today-article" className="text-2xl font-semibold leading-relaxed tracking-tight">{learningExperience(article.learningExperience)?.question || article.title}</h3>
+          <ArticleDiscovery key={article.id} article={article} compact />
+          {!learningExperience(article.learningExperience) && <p className="mb-6 mt-4 leading-7 text-muted-foreground">{article.summary}</p>}
+          <div className="mt-auto flex flex-wrap items-center gap-4"><Button asChild><Link href={`/study/articles/${encodeURIComponent(article.id)}`}>{say('本文で仕組みをたどる', 'Follow how it works')}<ArrowRight size={18} /></Link></Button><Link href="/study" className="text-sm underline underline-offset-4">{say('別の記事を探す', 'Find another article')}</Link></div>
           <p className="mt-4 text-sm text-muted-foreground">{say('読んだ後の「ためになった／ならなかった」が、次の題材選びに使われます。', 'Your useful / not useful feedback helps choose the next topic.')}</p>
         </> : <><h3 id="today-article" className="text-xl font-semibold">{say(busy ? '記事を確認中' : data.errors.includes('articles') ? '記事は取得できていません' : 'まだ記事がありません', busy ? 'Checking articles' : data.errors.includes('articles') ? 'Articles unavailable' : 'No articles yet')}</h3><Link href="/study" className="mt-4 underline">{say('記事ライブラリを開く', 'Open article library')}</Link></>}
       </section>

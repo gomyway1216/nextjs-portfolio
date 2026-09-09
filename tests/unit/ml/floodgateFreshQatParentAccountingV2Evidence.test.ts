@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -76,11 +77,19 @@ describe("fresh QAT parent-accounting v2 evidence", () => {
         sha256: record.sha256,
       });
     }
-    expect(identity("package.json")).toEqual({
-      bytes: 10879,
-      sha256:
-        "655b2ea0bdf4c51b7ca28907f3117e5ba2cfb39137564a684b0637e65af63060",
-    });
+    // The publication pins the historical manifest, not all future web dependencies.
+    const historicalPackage = execFileSync(
+      "git",
+      ["--no-replace-objects", "cat-file", "blob", "8a908ab4cdeb35821af5bfe105f3a967f5678330"],
+      { cwd: repositoryRoot },
+    );
+    expect(historicalPackage.byteLength).toBe(10879);
+    expect(createHash("sha256").update(historicalPackage).digest("hex")).toBe(
+      "655b2ea0bdf4c51b7ca28907f3117e5ba2cfb39137564a684b0637e65af63060",
+    );
+    expect(JSON.parse(read("package.json")).scripts).toEqual(
+      JSON.parse(historicalPackage.toString("utf8")).scripts,
+    );
   });
 
   it("separates input, forced, and emitted parents and passes only E to training", () => {

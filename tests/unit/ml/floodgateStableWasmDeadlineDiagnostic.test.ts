@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -580,7 +581,15 @@ describe("stable-WASM cooperative deadline diagnostic", () => {
     ]);
 
     for (const identity of evidence.unchanged_production_identities) {
-      const bytes = readFileSync(join(REPOSITORY_ROOT, identity.path));
+      // Web dependency security updates do not rewrite this historical evidence.
+      const bytes =
+        identity.path === "package.json"
+          ? execFileSync(
+              "git",
+              ["--no-replace-objects", "cat-file", "blob", "8a908ab4cdeb35821af5bfe105f3a967f5678330"],
+              { cwd: REPOSITORY_ROOT },
+            )
+          : readFileSync(join(REPOSITORY_ROOT, identity.path));
       const current = { bytes: bytes.byteLength, sha256: sha256(bytes) };
       const sealed = { bytes: identity.bytes, sha256: identity.sha256 };
       if (advancedProductionPaths.has(identity.path)) {

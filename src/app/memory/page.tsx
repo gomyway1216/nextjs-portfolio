@@ -19,7 +19,7 @@ interface MemoryPreviewPageProps {
   searchParams?: Promise<{ view?: string | string[] }>;
 }
 
-export default async function MemoryPreviewPage({ searchParams }: MemoryPreviewPageProps = {}) {
+export default async function MemoryPreviewPage({ searchParams }: MemoryPreviewPageProps) {
   // Defense in depth behind the middleware gate: do not contact the memory
   // services or construct their RSC props until the session is verified here.
   await requireServerAdmin('/memory');

@@ -34,7 +34,7 @@ describe('memory preview page gate', () => {
   it('does not fetch memory data when the server admin gate rejects', async () => {
     requireServerAdminMock.mockRejectedValue(new Error('redirect'));
 
-    await expect(MemoryPreviewPage()).rejects.toThrow('redirect');
+    await expect(MemoryPreviewPage({})).rejects.toThrow('redirect');
     expect(getPublicMemoriesServerMock).not.toHaveBeenCalled();
     expect(getPrivateMemoryIndexServerMock).not.toHaveBeenCalled();
   });
@@ -44,7 +44,7 @@ describe('memory preview page gate', () => {
     getPublicMemoriesServerMock.mockResolvedValue([]);
     getPrivateMemoryIndexServerMock.mockResolvedValue([]);
 
-    await expect(MemoryPreviewPage()).resolves.toBeTruthy();
+    await expect(MemoryPreviewPage({})).resolves.toBeTruthy();
     expect(requireServerAdminMock).toHaveBeenCalledWith('/memory');
     expect(getPublicMemoriesServerMock).toHaveBeenCalledOnce();
     expect(getPrivateMemoryIndexServerMock).toHaveBeenCalledOnce();

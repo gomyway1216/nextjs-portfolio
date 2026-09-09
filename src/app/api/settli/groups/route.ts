@@ -16,11 +16,6 @@ function simpleHash(passcode: string): string {
   return crypto.createHash('sha256').update(passcode).digest('hex');
 }
 
-// Verify passcode against hash
-export function verifyPasscode(passcode: string, hash: string): boolean {
-  return simpleHash(passcode) === hash;
-}
-
 // GET /api/settli/groups - Get user's groups (requires auth)
 export const GET = withActivityLog('next_api.settli.groups.GET', async (request: NextRequest) => {
   try {

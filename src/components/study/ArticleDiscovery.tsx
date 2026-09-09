@@ -1,20 +1,26 @@
 'use client';
 
 import { useTranslation } from 'react-i18next';
-import { learningExperience } from '@/lib/learningExperience';
+import { learningExperience, type LearningExperience } from '@/lib/learningExperience';
 import type { StudyArticle } from '@/types/study';
 import LearningContent from './LearningContent';
 import LearningConversation from './LearningConversation';
 
-/** Immediate, optional discovery on the page itself. No AI call or progress writes. */
-export default function ArticleDiscovery({ article, compact = false }: {
+type DiscoveryProps = {
   article: Pick<StudyArticle, 'title' | 'summary' | 'learningExperience'> & Partial<Pick<StudyArticle, 'id' | 'sections' | 'updatedAt'>>; compact?: boolean;
-}) {
+};
+
+/** Legacy articles need no new hooks, translated UI or loading boundary. */
+export default function ArticleDiscovery(props: DiscoveryProps) {
+  const experience = learningExperience(props.article.learningExperience);
+  return experience ? <Discovery {...props} experience={experience} /> : null;
+}
+
+/** Immediate, optional discovery on the page itself. No AI call or progress writes. */
+function Discovery({ article, compact = false, experience }: DiscoveryProps & { experience: LearningExperience }) {
   const { i18n } = useTranslation();
   const ja = i18n.language.startsWith('ja');
   const say = (j: string, e: string) => ja ? j : e;
-  const experience = learningExperience(article.learningExperience);
-  if (!experience) return null;
   return <section className="my-6 space-y-5 rounded-2xl border border-emerald-500/30 bg-emerald-50/60 p-5 text-slate-900 sm:p-7 dark:bg-emerald-950/30 dark:text-slate-100" aria-label={say('問いから読む', 'Start with a question')}>
     <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{say('気になるところだけで、いい。', 'Follow what makes you curious.')}</p>
     {!compact && <h2 className="text-2xl font-semibold leading-relaxed">{experience.question}</h2>}

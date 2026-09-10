@@ -140,6 +140,9 @@
 .potLabel small { color: #b7cec4; font-size: 0.7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .potLabel strong { display: flex; align-items: center; gap: .32rem; color: #fff4ce; font-size: 1.15rem; }
 .potLabel i, .stack i, .tableBet i { width: 12px; height: 12px; display: inline-block; border: 3px dashed rgba(255,255,255,.75); border-radius: 50%; background: #d54d45; box-shadow: inset 0 0 0 2px #842823, 0 1px 3px rgba(0,0,0,.4); }
+.heroMadeHand { display: inline-flex; align-items: center; gap: .38rem; margin-top: .42rem; padding: .32rem .58rem; border: 1px solid rgba(232,188,101,.48); border-radius: 999px; color: #fff0bd; background: rgba(8,22,17,.86); box-shadow: 0 4px 12px rgba(0,0,0,.25); white-space: nowrap; }
+.heroMadeHand small { color: #b8cec5; font-size: .65rem; font-weight: 750; }
+.heroMadeHand strong { font-size: .84rem; font-weight: 900; }
 .thinking { display: inline-flex; align-items: center; gap: .32rem; margin-top: .45rem; color: #b8f4df; font-size: .74rem; animation: pulse 1.2s ease-in-out infinite; }
 
 .seat { position: absolute; z-index: 4; left: var(--seat-x); top: var(--seat-y); width: 132px; transform: translate(-50%, -50%); text-align: center; transition: opacity 180ms, filter 180ms; }
@@ -153,11 +156,15 @@
 .winnerSeat .seatPanel { border-color: #ffd978; background: linear-gradient(165deg, #55441f, #201a0d); box-shadow: 0 0 0 4px rgba(232,188,101,.22), 0 0 32px rgba(232,188,101,.5), 0 8px 24px rgba(0,0,0,.42); animation: winnerGlow 1.25s ease-in-out infinite; }
 .winnerSeat .lastAction { color: #241805; border-color: #ffe2a0; background: #f1c96f; }
 .foldedSeat { opacity: .43; filter: grayscale(.55); }
-.seatNameRow { display: flex; align-items: center; justify-content: center; gap: .24rem; min-width: 0; }
+.seatNameRow { display: flex; align-items: center; justify-content: center; gap: .3rem; min-width: 0; }
 .seatNameRow strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
-.seatNameRow span { flex: 0 0 auto; padding: .08rem .23rem; border-radius: 4px; color: #2a1c06; background: var(--poker-gold); font-size: .48rem; font-weight: 900; }
+.positionBadge { min-width: 25px; flex: 0 0 auto; padding: .15rem .3rem; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; color: #251905; background: var(--poker-gold); box-shadow: 0 2px 6px rgba(0,0,0,.32); font-size: .65rem; font-weight: 950; line-height: 1.1; letter-spacing: .015em; }
+.buttonBadge { min-width: 31px; background: #efc86f; }
+.smallBlindBadge { background: #73dec0; }
+.bigBlindBadge { color: #2b0907; background: #f0877f; }
 .stack { display: flex; align-items: center; justify-content: center; gap: .28rem; margin-top: .16rem; color: #d8e8e0; font-size: .8rem; font-variant-numeric: tabular-nums; }
 .stack i { width: 9px; height: 9px; border-width: 2px; }
+.madeHand { display: block; max-width: 100%; margin: .3rem 0 -.02rem; overflow: hidden; padding: .22rem .35rem; border: 1px solid rgba(232,188,101,.34); border-radius: 6px; color: #fff0bd; background: rgba(232,188,101,.13); font-size: .7rem; font-weight: 850; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
 .lastAction { position: absolute; left: 50%; bottom: -17px; transform: translateX(-50%); padding: .14rem .42rem; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: #d8e8e0; background: #0a1713; font-size: .62rem; font-weight: 800; white-space: nowrap; }
 .tableBet { position: absolute; left: 50%; top: calc(100% + 21px); transform: translateX(-50%); display: flex; align-items: center; gap: .25rem; padding: .18rem .38rem; border-radius: 999px; color: #fff3ce; background: rgba(0,0,0,.44); font-size: .7rem; font-weight: 800; }
 .tableBet i { width: 10px; height: 10px; border-width: 2px; }
@@ -248,10 +255,12 @@
   .felt { inset: 7% 4%; }
   .seat { width: 91px; }
   .seatPanel { min-height: 48px; padding: 11px 4px 5px; border-radius: 9px; }
-  .seatNameRow { gap: .12rem; }
+  .seatNameRow { gap: .15rem; }
   .seatNameRow strong { font-size: .65rem; }
-  .seatNameRow span { font-size: .4rem; padding-inline: .16rem; }
+  .positionBadge { min-width: 21px; padding: .12rem .2rem; border-radius: 5px; font-size: .56rem; }
+  .buttonBadge { min-width: 28px; }
   .stack { font-size: .67rem; }
+  .madeHand { margin-top: .23rem; padding: .18rem .2rem; font-size: .58rem; }
   .lastAction { bottom: -15px; font-size: .53rem; }
   .tableBet { top: calc(100% + 18px); font-size: .59rem; }
   .seatCards { min-height: 48px; margin-bottom: -8px; }
@@ -263,6 +272,9 @@
   .communityCards { min-height: 64px; }
   .playingCard:not(.cardCompact) { width: 45px; height: 64px; }
   .cardSlot { width: 45px; height: 64px; }
+  .heroMadeHand { gap: .25rem; margin-top: .32rem; padding: .26rem .45rem; }
+  .heroMadeHand small { font-size: .56rem; }
+  .heroMadeHand strong { font-size: .7rem; }
   .actionDock { left: 50%; bottom: max(.35rem, env(safe-area-inset-bottom)); width: calc(100vw - .7rem); grid-template-columns: 1fr; border-radius: 14px; }
   .decisionHud { grid-column: 1; border-right: 0; border-bottom: 1px solid var(--poker-line); }
   .decisionHud span { padding: .38rem; }

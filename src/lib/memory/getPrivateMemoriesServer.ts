@@ -16,7 +16,7 @@ const PRIVATE_MEMORY_TIMEOUT_MS = 8_000;
 /** Owner-only document bridge. The read key never reaches the browser. */
 export async function getStudyDocumentsServer(params: URLSearchParams): Promise<unknown> {
   const url = privateMemoryUrl();
-  url.pathname = url.pathname.replace(/\/admin\/memories$/u, '/admin/study-documents');
+  url.pathname = url.pathname.replace(/\/admin\/memories\/?$/u, '/admin/study-documents');
   for (const key of ['id', 'version', 'page', 'query', 'course', 'offset', 'limit']) {
     const value = params.get(key);
     if (value !== null) url.searchParams.set(key, value);

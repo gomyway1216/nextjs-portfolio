@@ -6,6 +6,7 @@ import {
   deletePrivateMemoryServer,
   getPrivateMemoryHistoryServer,
   getPrivateMemoryIndexServer,
+  getStudyDocumentsServer,
 } from '@/lib/memory/getPrivateMemoriesServer';
 
 const indexItem = {
@@ -33,6 +34,19 @@ describe('private memory server client', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it('routes documents through the same private host with either trailing-slash form', async () => {
+    for (const endpoint of ['https://memory.example.com/admin/memories/', 'https://memory.example.com/memoryApi/admin/memories']) {
+      vi.stubEnv('PERSONAL_MEMORY_ADMIN_API_URL', endpoint);
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({items: []}), {status: 200}));
+      await getStudyDocumentsServer(new URLSearchParams({course: 'CS 564', url: 'https://attacker.test'}));
+      const [url, init] = fetchMock.mock.calls.at(-1)!;
+      expect(new URL(String(url)).pathname.endsWith('/admin/study-documents')).toBe(true);
+      expect(String(url)).not.toContain('attacker');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+    }
   });
 
   it('sends the credential only in the server-side authorization header', async () => {

@@ -6,6 +6,7 @@ import { BookOpen, LockKeyhole, Search, ChevronLeft, ChevronRight, FileText, Mes
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { documentLearningPrompt, safeDocumentAsset, type StudyDocumentPage, type StudyDocumentSearch } from '@/lib/studyDocuments';
+import { safeLearningUrl } from '@/lib/learningLibrary';
 
 function OwnerDocuments() {
   const { currentUser } = useAuth();
@@ -58,6 +59,7 @@ function OwnerDocuments() {
   }
   const image = safeDocumentAsset(page?.access?.imageUrl);
   const pdf = safeDocumentAsset(page?.access?.pdfUrl);
+  const source = safeLearningUrl(page?.sourceUrl);
   return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
     <nav className="flex flex-wrap gap-4 text-sm"><Link href="/study/learning" className="underline">← Learning Library</Link><Link href="/study" className="underline">記事を読む</Link></nav>
     <header className="space-y-3"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole size={15}/>本人限定 · 元の資料をそのまま</p><h1 className="text-3xl font-semibold tracking-tight">授業のノートを、もう一度ひらく</h1><p className="max-w-2xl text-muted-foreground">科目から探す。気になる言葉でページを見つける。図や手書きを見ながら、AIと理解を深める。</p></header>
@@ -89,7 +91,7 @@ function OwnerDocuments() {
         </aside>
       </div>
       <details className="rounded-2xl border p-5"><summary className="cursor-pointer font-medium">検索用の抽出テキストを見る</summary><p className="my-3 text-sm text-amber-700 dark:text-amber-300">文字が取れたページでも、手書き・数式・図の欠落や誤読があります。必ず元ページと照合してください。{page.needsVisualReview && ' このページは文字が少ないため、画像での確認が特に必要です。'}</p><pre className="whitespace-pre-wrap break-words text-sm">{page.text || '抽出テキストなし'}</pre></details>
-      <footer className="space-y-1 break-all text-xs text-muted-foreground"><a href={page.sourceUrl} className="underline">この版・このページへの固定リンク</a><p>ID: {page.id} · Page: {page.page}</p><p>SHA256: {page.version}</p><p>取り込みは理解済みの記録ではありません。復習の予定は自動設定しません。</p></footer>
+      <footer className="space-y-1 break-all text-xs text-muted-foreground">{source ? <a href={source} className="underline">この版・このページへの固定リンク</a> : <span>固定リンクを取得できませんでした</span>}<p>ID: {page.id} · Page: {page.page}</p><p>SHA256: {page.version}</p><p>取り込みは理解済みの記録ではありません。復習の予定は自動設定しません。</p></footer>
     </article>}
   </main>;
 }

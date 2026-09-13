@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
     (params.has('id') && !/^doc-[a-f0-9]{32}$/u.test(params.get('id')!)) ||
     (params.has('version') && !/^[a-f0-9]{64}$/u.test(params.get('version')!)) ||
     ['query', 'course'].some(k => (params.get(k)?.length ?? 0) > 200) ||
-    ['page', 'offset', 'limit'].some(k => params.has(k) && !/^\d{1,6}$/u.test(params.get(k)!));
+    ([['page', 1, 10000], ['offset', 0, 100000], ['limit', 1, 50]] as const).some(([k, min, max]) => {
+      const value = params.get(k);
+      return value !== null && (!/^\d{1,6}$/u.test(value) || Number(value) < min || Number(value) > max);
+    });
   if (invalid) return NextResponse.json({ error: 'invalid_request' }, { status: 400, headers });
   try {return NextResponse.json(await getStudyDocumentsServer(params), { headers });}
   catch {return NextResponse.json({ error: 'documents_unavailable' }, { status: 503, headers });}

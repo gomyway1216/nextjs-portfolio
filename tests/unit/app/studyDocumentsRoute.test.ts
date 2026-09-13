@@ -25,6 +25,20 @@ it('uses the private bridge and returns a no-store response', async () => {
   expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   expect(fetchDocuments.mock.calls[0][0].get('course')).toBe('CS 564');
 });
+it('rejects out-of-range pagination before calling the private bridge', async () => {
+  auth.mockResolvedValue({user: {uid: 'owner'}});
+  for (const query of ['page=0', 'page=10001', 'limit=0', 'limit=51', 'offset=-1', 'offset=100001']) {
+    expect((await GET(new NextRequest(`https://example.com/api/study/documents?${query}`))).status).toBe(400);
+  }
+  expect(fetchDocuments).not.toHaveBeenCalled();
+});
+it('accepts pagination bounds supported by the backend', async () => {
+  auth.mockResolvedValue({user: {uid: 'owner'}}); fetchDocuments.mockResolvedValue({items: []});
+  for (const query of ['page=1&limit=1&offset=0', 'page=10000&limit=50&offset=100000']) {
+    expect((await GET(new NextRequest(`https://example.com/api/study/documents?${query}`))).status).toBe(200);
+  }
+  expect(fetchDocuments).toHaveBeenCalledTimes(2);
+});
 it('does not expose upstream failures or fall back to public data', async () => {
   auth.mockResolvedValue({user: {uid: 'owner'}}); fetchDocuments.mockRejectedValue(new Error('private key'));
   const response = await GET(new NextRequest('https://example.com/api/study/documents'));

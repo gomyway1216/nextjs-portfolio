@@ -25,3 +25,11 @@ it('only accepts HTTPS Google Storage asset URLs without credentials', () => {
   expect(safeDocumentAsset('https://storage.googleapis.com/bucket/object?X-Goog-Signature=x')).toBeTruthy();
   for (const url of ['javascript:alert(1)', 'http://storage.googleapis.com/x', 'https://storage.googleapis.com.evil.test/x', 'https://user:secret@storage.googleapis.com/x']) expect(safeDocumentAsset(url)).toBeUndefined();
 });
+it('omits unsafe source URLs from the AI handoff while retaining page identity', () => {
+  for (const sourceUrl of ['javascript:alert(1)', 'http://example.com/unsafe', 'https://user:secret@example.com/unsafe']) {
+    const prompt = documentLearningPrompt({id: 'doc-id', version: 'sha', page: 4, pageCount: 7, title: 'Notebook', course: 'CS 564', relativePath: 'CS 564/Notebook.pdf', sourceUrl}, 'この図は？');
+    expect(prompt).not.toContain(sourceUrl);
+    expect(prompt).toContain('有効な出典URLを取得できません');
+    expect(prompt).toContain('"page":4');
+  }
+});

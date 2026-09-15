@@ -5,8 +5,24 @@ import { useAuth } from '@/providers/AuthProvider';
 import { BookOpen, LockKeyhole, Search, ChevronLeft, ChevronRight, FileText, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { documentLearningPrompt, safeDocumentAsset, type StudyDocumentPage, type StudyDocumentSearch } from '@/lib/studyDocuments';
+import { documentLearningPrompt, documentQueryExpansion, safeDocumentAsset, type StudyDocumentPage, type StudyDocumentSearch } from '@/lib/studyDocuments';
 import { safeLearningUrl } from '@/lib/learningLibrary';
+
+export function DocumentSearchExplanation({query, expansion}: {query: string; expansion?: StudyDocumentSearch['queryExpansion']}) {
+  if (!query.trim()) return null;
+  const resolved = documentQueryExpansion(expansion);
+  return <aside className="min-w-0 space-y-2 rounded-xl bg-muted/50 p-4 text-sm" aria-label="検索方法">
+    {resolved ? <>
+      <p>対応する日本語の用語を、英語でも検索しました。</p>
+      <details className="min-w-0 text-muted-foreground">
+        <summary className="cursor-pointer">今回の検索語を見る</summary>
+        <p className="mt-2">展開した検索語：<code className="break-all">{resolved.expandedQuery}</code></p>
+        <p className="mt-2 break-words">対応した概念：{resolved.concepts.join('、')}</p>
+        <p className="mt-2">登録済みの授業用語を置き換える検索です。自由な文章の翻訳や、意味の近さで探す検索ではありません。</p>
+      </details>
+    </> : <p>見つからない場合は、英語の短いキーワードでも試してください。例：index、transaction、virtual memory。</p>}
+  </aside>;
+}
 
 function OwnerDocuments() {
   const { currentUser } = useAuth();
@@ -65,9 +81,11 @@ function OwnerDocuments() {
     <header className="space-y-3"><p className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole size={15}/>本人限定 · 元の資料をそのまま</p><h1 className="text-3xl font-semibold tracking-tight">授業のノートを、もう一度ひらく</h1><p className="max-w-2xl text-muted-foreground">科目から探す。気になる言葉でページを見つける。図や手書きを見ながら、AIと理解を深める。</p></header>
     {!selection && <>
       <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row">
-        <label className="flex flex-1 items-center gap-2"><Search size={18}/><Input aria-label="資料を検索" placeholder="英語で検索：transactions, index…" value={query} onChange={e => {setBusy(true); setQuery(e.target.value); setOffset(0);}} /></label>
+        <label className="flex min-w-0 flex-1 items-center gap-2"><Search size={18} className="shrink-0"/><Input aria-label="資料を検索" aria-describedby="document-search-guidance" placeholder="日本語の主要用語／英語キーワード" value={query} onChange={e => {setBusy(true); setQuery(e.target.value); setOffset(0);}} /></label>
         <select className="min-h-10 max-w-full rounded-md border bg-background px-3" aria-label="科目" value={course} onChange={e => {setBusy(true); setCourse(e.target.value); setOffset(0);}}><option value="">すべての科目</option>{catalog?.courses.map(c => <option key={c.course} value={c.course}>{c.course} · {c.documents}</option>)}</select>
       </div>
+      <p id="document-search-guidance" className="text-sm text-muted-foreground">例：索引、トランザクション、仮想メモリ / index、transaction。日本語は対応する授業用語から探せます。</p>
+      {!busy && !error && catalog && <DocumentSearchExplanation query={query} expansion={catalog.queryExpansion}/>}
       {!busy && !error && <section className="grid gap-3 sm:grid-cols-2" aria-label="資料一覧">
         {catalog?.items.map(item => <button key={`${item.id}-${item.page}`} onClick={() => open({id: item.id, version: item.version, page: item.page})} className="group rounded-2xl border bg-card p-5 text-left transition hover:border-blue-500 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-500"><div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><FileText size={16}/>{item.course} · {item.pageCount} ページ</div><h2 className="break-words text-lg font-medium group-hover:text-blue-600">{item.title}</h2><p className="mt-1 break-all text-xs text-muted-foreground">{item.relativePath}</p>{item.snippet && <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">p. {item.page} · {item.snippet}</p>}</button>)}
         {catalog?.items.length === 0 && <p className="col-span-full rounded-2xl border border-dashed p-8 text-muted-foreground">{query ? '一致するページがありません。英語の別のキーワードでも試せます。' : '資料はまだ取り込まれていません。取り込み済みの科目がここに表示されます。'}</p>}

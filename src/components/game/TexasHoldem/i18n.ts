@@ -23,6 +23,7 @@ export interface HoldemStrings {
     dealer: string;
     smallBlind: string;
     bigBlind: string;
+    madeHand: string;
     you: string;
     thinking: string;
     runout: string;
@@ -102,6 +103,7 @@ const en: HoldemStrings = {
     dealer: 'Dealer',
     smallBlind: 'Small blind',
     bigBlind: 'Big blind',
+    madeHand: 'Made hand',
     you: 'You',
     thinking: 'Calculating range…',
     runout: 'Running the board one card at a time…',
@@ -197,6 +199,7 @@ const ja: HoldemStrings = {
     dealer: 'ディーラー',
     smallBlind: 'スモールブラインド',
     bigBlind: 'ビッグブラインド',
+    madeHand: '役',
     you: 'あなた',
     thinking: 'レンジを計算中…',
     runout: 'ボードを1枚ずつ公開中…',

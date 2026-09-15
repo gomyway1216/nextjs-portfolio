@@ -4,11 +4,20 @@ vi.mock('@/lib/firebaseConnect', () => ({
   auth: { currentUser: null },
 }));
 
-import { getArticles, saveArticleFeedback } from '@/services/studyService';
+import { getArticle, getArticles, saveArticleFeedback } from '@/services/studyService';
 
 describe('studyService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('separates editor reads from view-counted reader requests', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ success: true, article: { id: 'editor-test' } })));
+    await getArticle('editor-test', { forEdit: true });
+    await getArticle('editor-test');
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      '/api/study/articles/editor-test?mode=edit', '/api/study/articles/editor-test',
+    ]);
   });
 
   it('sends date boundaries with the article list request', async () => {

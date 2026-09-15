@@ -296,9 +296,9 @@ export async function getArticles(
   };
 }
 
-export async function getArticle(id: string): Promise<StudyArticle> {
+export async function getArticle(id: string, options: { forEdit?: boolean } = {}): Promise<StudyArticle> {
   const data = await apiCall<{ success: boolean; article: StudyArticle }>(
-    `/api/study/articles/${id}`, {}, true
+    `/api/study/articles/${encodeURIComponent(id)}${options.forEdit ? '?mode=edit' : ''}`, {}, true
   );
   return data.article;
 }

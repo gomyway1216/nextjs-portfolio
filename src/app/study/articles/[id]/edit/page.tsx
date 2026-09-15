@@ -16,7 +16,7 @@ export default function StudyArticleEditPage() {
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
   const allowed = !authLoading && Boolean(currentUser) && isAdmin;
   const { article, loading, error, fetchArticle } = useStudyArticle(id, {
-    ready: allowed, userId: allowed ? currentUser!.uid : null, isAdmin: allowed,
+    ready: allowed, userId: allowed ? currentUser!.uid : null, isAdmin: allowed, forEdit: true,
   });
 
   return <main className="mx-auto max-w-6xl p-4 sm:p-8">

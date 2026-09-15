@@ -23,12 +23,12 @@ describe('article edit route', () => {
   ])('does not load or expose an editor before owner authentication: %j', auth => {
     mocks.auth.mockReturnValue(auth);
     const html = renderToStaticMarkup(<StudyArticleEditPage />);
-    expect(mocks.article).toHaveBeenCalledWith('external-old-article', { ready: false, userId: null, isAdmin: false });
+    expect(mocks.article).toHaveBeenCalledWith('external-old-article', { ready: false, userId: null, isAdmin: false, forEdit: true });
     expect(html).not.toContain('data-editor');
   });
   it('loads the exact article and reuses the existing editor', () => {
     const html = renderToStaticMarkup(<StudyArticleEditPage />);
-    expect(mocks.article).toHaveBeenCalledWith('external-old-article', { ready: true, userId: 'owner', isAdmin: true });
+    expect(mocks.article).toHaveBeenCalledWith('external-old-article', { ready: true, userId: 'owner', isAdmin: true, forEdit: true });
     expect(html).toContain('data-editor="external-old-article"');
     expect(html).toContain('本文・図・クイズはこの画面では変更しません');
     expect(html).toContain('href="/study/articles/external-old-article"');

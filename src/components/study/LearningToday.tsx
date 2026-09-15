@@ -22,6 +22,8 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
   const say = (j: string, e: string) => ja ? j : e;
   const labels = learningLabels[ja ? 'ja' : 'en'];
   const [chosenId, setChosenId] = useState<string>();
+  const [reviewId, setReviewId] = useState<string>();
+  const due = data.reviewChoices?.find(item => item.id === reviewId) || data.due;
   const chosen = data.articleChoices?.find((a) => a.id === chosenId);
   const article = chosen || data.article;
   return <div className="space-y-8">
@@ -39,8 +41,10 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
           </div>}
           {chosen && chosen.id !== data.article?.id ? <p className="mb-2 text-sm text-muted-foreground">{say('いま自分で選んだ記事', 'Your choice for now')}</p> :
           data.articleReason === 'review-linked' && data.articleLearning ? <div className="mb-3 rounded-lg border border-primary/20 bg-background/60 p-3 text-sm">
-            <p>{say('自分で復習を始めた学びの元記事です。必要なら具体例から読み返せます。', 'This is a source article for a learning you chose to review. Revisit its example if useful.')}</p>
-            <button type="button" className="mt-2 text-left underline underline-offset-4" onClick={() => { if (data.due && data.due.id === data.articleLearning?.id) onOpen(data.due); }}>{data.articleLearning.title}</button>
+            <p>{data.articleLearning.lastAssessment === 'again'
+              ? say('前回「まだ曖昧」を選んだ学びの元記事です。引っかかった箇所を、具体例からもう一度。', 'You last chose “Still unclear” for this learning. Revisit the source example where you got stuck.')
+              : say('自分で復習を始めた学びの元記事です。必要なら具体例から読み返せます。', 'This is a source article for a learning you chose to review. Revisit its example if useful.')}</p>
+            <button type="button" className="mt-2 text-left underline underline-offset-4" onClick={() => { const source = data.reviewChoices?.find(item => item.id === data.articleLearning?.id) || (data.due?.id === data.articleLearning?.id ? data.due : undefined); if (source) onOpen(source); }}>{data.articleLearning.title}</button>
             <p className="mt-2 text-xs text-muted-foreground">{say('最近20件の中の関連候補です。別の問いを選んでも、復習の予定は変わりません。', 'A related choice among the latest 20 articles. Choosing another question does not change your review schedule.')}</p>
           </div> :
           <p className="mb-2 text-sm text-muted-foreground">{say(data.articleReason === 'unread' ? '最近20件のうち、最新の未読記事' : data.articleReason === 'latest' ? '最近20件は読了済み · 最新を読み返す' : '最新の記事 · 読了状態は未確認', data.articleReason === 'unread' ? 'Newest unread among the latest 20 articles' : data.articleReason === 'latest' ? 'Latest 20 read · revisit the newest' : 'Latest article · read status unavailable')}</p>
@@ -54,11 +58,13 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
       </section>
       <section className="flex flex-col rounded-2xl border bg-card p-6 sm:p-8" aria-labelledby="today-review">
         <p className="mb-5 flex items-center gap-2 text-sm font-medium text-muted-foreground"><RotateCcw size={18} />{say('少し思い出す', 'Recall one idea')}</p>
-        {data.due ? <>
+        {due ? <>
+          {data.reviewChoices && data.reviewChoices.length > 1 && <div role="group" aria-label={say('思い出す学びを選ぶ', 'Choose what to recall')} className="mb-4 flex flex-wrap gap-2">{data.reviewChoices.map(item => <button key={item.id} type="button" aria-pressed={item.id === due.id} className={`min-h-11 rounded-lg border px-3 py-2 text-left text-sm ${item.id === due.id ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`} onClick={() => setReviewId(item.id)}>{item.title}</button>)}</div>}
           <p className="mb-2 text-sm text-muted-foreground">{say('自分で復習を始めた学びから', 'From the learnings you chose to review')}</p>
-          <h3 id="today-review" className="text-xl font-semibold leading-relaxed">{data.due.title}</h3>
+          <h3 id="today-review" className="text-xl font-semibold leading-relaxed">{due.title}</h3>
+          {due.lastAssessment && <p className="mt-3 text-sm text-muted-foreground">{say('前回の自己評価：', 'Your last self-assessment: ')}{labels.assessments[due.lastAssessment].split(' · ')[0]}</p>}
           <p className="mb-6 mt-4 leading-7 text-muted-foreground">{say('どういう意味で、どんな場面に使える？まず自分の言葉で思い出してみよう。', 'What does it mean, and when would you use it? Try recalling it in your own words first.')}</p>
-          <Button variant="outline" className="mt-auto self-start" onClick={() => onOpen(data.due!)}>{say('思い出したら説明を見る', 'Reveal the explanation')}</Button>
+          <Button variant="outline" className="mt-auto self-start" onClick={() => onOpen(due)}>{say('思い出したら説明を見る', 'Reveal the explanation')}</Button>
           <p className="mt-4 text-sm text-muted-foreground">{data.dueTotal} {say('件が復習時期。一度に全部やる必要はありません。', 'due. No need to finish them all today.')}</p>
         </> : <><h3 id="today-review" className="text-xl font-semibold">{say(busy ? '復習の予定を確認中' : data.errors.includes('review') ? '復習の予定は未確認です' : '今日は復習の予定なし', busy ? 'Checking reviews' : data.errors.includes('review') ? 'Review schedule unavailable' : 'No reviews due today')}</h3><p className="mt-4 leading-7 text-muted-foreground">{say('保存しただけでは課題を増やしません。気になる学びを開き、自分で復習を始められます。', 'Saving does not create homework. Open a learning whenever you want to start reviewing it.')}</p><Button variant="outline" className="mt-6 self-start" onClick={() => onBrowse()}>{say('本棚を眺める', 'Browse your shelf')}</Button></>}
       </section>

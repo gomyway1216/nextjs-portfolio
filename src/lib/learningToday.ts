@@ -6,14 +6,22 @@ export interface LearningTodayData {
   recent: LearningItem[];
   total?: number;
   due?: LearningItem;
+  reviewChoices?: LearningItem[];
   dueTotal?: number;
   article?: LearningArticle;
   articleChoices?: LearningArticle[];
   articleReason: 'review-linked' | 'unread' | 'latest' | 'unknown';
-  articleLearning?: Pick<LearningItem, 'id' | 'title'>;
+  articleLearning?: Pick<LearningItem, 'id' | 'title' | 'lastAssessment'>;
   errors: Array<'library' | 'review' | 'articles' | 'history'>;
 }
 type Request = (path: string, body?: { action: string; input: object }) => Promise<Record<string, unknown>>;
+
+function activeDue(item: LearningItem, now: number): boolean {
+  return item.state !== 'saved' && item.lastAssessment !== 'pause'
+    && Boolean(item.lastReviewedAt && item.nextReviewAt)
+    && Number.isFinite(Date.parse(item.lastReviewedAt!)) && Date.parse(item.lastReviewedAt!) <= now
+    && Number.isFinite(Date.parse(item.nextReviewAt!)) && Date.parse(item.nextReviewAt!) <= now;
+}
 
 function articleSourceIds(item: LearningItem): Set<string> {
   const ids = new Set(item.linkedArticleIds ?? []);
@@ -33,7 +41,7 @@ function articleSourceIds(item: LearningItem): Set<string> {
 export async function loadLearningToday(request: Request, now = Date.now()): Promise<LearningTodayData> {
   const [library, review, articles, history] = await Promise.allSettled([
     request('/api/study/library', { action: 'search', input: { limit: 3 } }),
-    request('/api/study/library', { action: 'search', input: { view: 'review', limit: 1 } }),
+    request('/api/study/library', { action: 'search', input: { view: 'review', limit: 8 } }),
     request('/api/study/articles?status=all&listView=true&orderBy=createdAt&orderDir=desc&limit=20'),
     // The server derives the owner from authentication, never a caller-supplied UID.
     request('/api/study/articles/read-history'),
@@ -44,7 +52,13 @@ export async function loadLearningToday(request: Request, now = Date.now()): Pro
     result.total = library.value.total as number;
   } else result.errors.push('library');
   if (review.status === 'fulfilled') {
-    result.due = (review.value.items as LearningItem[])[0];
+    const dueItems = (review.value.items as LearningItem[]).filter(item => activeDue(item, now));
+    // Only the owner's explicit "again" choice gets extra priority. An older
+    // save, a read or a quiz click is not evidence of difficulty.
+    dueItems.sort((a, b) => Number(b.lastAssessment === 'again') - Number(a.lastAssessment === 'again')
+      || Date.parse(a.nextReviewAt!) - Date.parse(b.nextReviewAt!));
+    result.reviewChoices = dueItems.slice(0, 3);
+    result.due = dueItems[0];
     result.dueTotal = review.value.total as number;
   } else result.errors.push('review');
   if (history.status === 'rejected') result.errors.push('history');
@@ -52,16 +66,16 @@ export async function loadLearningToday(request: Request, now = Date.now()): Pro
     const candidates = articles.value.articles as LearningArticle[];
     const read = history.status === 'fulfilled' ? history.value.readArticleIds as Record<string, string> : undefined;
     const unread = read && candidates.find((article) => !Object.hasOwn(read, article.id));
-    const due = result.due;
+    const due = result.reviewChoices?.find(item => item.state === 'learning'
+      && (!item.lastAssessment || item.lastAssessment === 'again')
+      && candidates.some(article => articleSourceIds(item).has(article.id)));
     // A save or click is not a review. Paused / self-assessed understood items do not
     // promote the same explanation, and unrelated topics never match via generic tags.
-    const activeReview = due?.state === 'learning' && due.lastReviewedAt && due.nextReviewAt
-      && Number.isFinite(Date.parse(due.lastReviewedAt)) && Date.parse(due.lastReviewedAt) <= now
-      && Date.parse(due.nextReviewAt) <= now;
+    const activeReview = due && activeDue(due, now);
     const sourceIds = activeReview ? articleSourceIds(due) : new Set<string>();
     const linked = activeReview && candidates.find(article => sourceIds.has(article.id));
     result.article = linked || unread || candidates[0];
-    if (linked && due) result.articleLearning = { id: due.id, title: due.title };
+    if (linked && due) result.articleLearning = { id: due.id, title: due.title, lastAssessment: due.lastAssessment };
     const preferredId = linked ? linked.id : undefined;
     // Keep the choice finite and optional, with unread alternatives after the review source.
     result.articleChoices = [...candidates].sort((a, b) =>

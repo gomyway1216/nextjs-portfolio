@@ -68,6 +68,27 @@ it('keeps immutable page identity in the AI handoff, not expiring asset URLs', (
   expect(prompt).toContain('"version":"sha"'); expect(prompt).toContain('この図は？');
   expect(prompt).toContain('元ページ画像'); expect(prompt).not.toContain('X-Goog-Signature');
 });
+it('permits only new useful private explanations and preserves explicit opt-outs, sources and self-assessment boundaries', () => {
+  const page = {id: 'doc-id', version: 'sha', page: 4, pageCount: 7, title: 'Notebook', course: 'CS 564',
+    relativePath: 'CS 564/Notebook.pdf', sourceUrl: 'https://www.meetyudai.com/study/documents?id=doc-id&version=sha&page=4'};
+  const before = JSON.stringify(page);
+  const prompt = documentLearningPrompt(page, '今回は先に確認してから保存して。');
+  expect(prompt).toContain('今回は先に確認してから保存して。');
+  expect(prompt).toContain('私の継続的な承認の範囲');
+  expect(prompt).toContain('search_learningで重複確認後にsave_learningでprivate保存');
+  expect(prompt).toContain('現在の「保存しない」「先に確認して」という指示を優先');
+  expect(prompt).toContain('具体例・元の図・画像を保持');
+  expect(prompt).toContain('会話・PDFの全文は保存せず');
+  expect(prompt).toContain('sources に下の出典とdocument ID・version・page');
+  expect(prompt).toContain('不変のdocument ID・version・pageと下の安定した出典URL');
+  expect(prompt).toContain('署名付き・有効期限付きの画像・PDF URL（access.imageUrlやaccess.pdfUrl）は保存しない');
+  expect(prompt).toContain(page.sourceUrl);
+  expect(prompt).toContain('保存成功後は返されたitem IDをsearch_learningで再取得');
+  expect(prompt).toContain('保存失敗・結果不明・保存後の再取得失敗を区別');
+  expect(prompt).toContain('明示的な自己評価なしにreview_learningを呼んだり復習予定を設定したりしない');
+  expect(prompt).not.toContain('役立つ解説の保存は私に確認し');
+  expect(JSON.stringify(page)).toBe(before);
+});
 it('only accepts HTTPS Google Storage asset URLs without credentials', () => {
   expect(safeDocumentAsset('https://storage.googleapis.com/bucket/object?X-Goog-Signature=x')).toBeTruthy();
   for (const url of ['javascript:alert(1)', 'http://storage.googleapis.com/x', 'https://storage.googleapis.com.evil.test/x', 'https://user:secret@storage.googleapis.com/x']) expect(safeDocumentAsset(url)).toBeUndefined();

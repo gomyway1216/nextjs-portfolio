@@ -38,6 +38,11 @@ export function LearningTodayView({ data, busy, onReload, onOpen, onBrowse }: {
             <p className="text-xs text-muted-foreground">{say('最近の記事から選べます。選択だけでは既読・評価を変更しません。', 'Choose from recent articles. Choosing does not mark them read or rate them.')}</p>
           </div>}
           {chosen && chosen.id !== data.article?.id ? <p className="mb-2 text-sm text-muted-foreground">{say('いま自分で選んだ記事', 'Your choice for now')}</p> :
+          data.articleReason === 'review-linked' && data.articleLearning ? <div className="mb-3 rounded-lg border border-primary/20 bg-background/60 p-3 text-sm">
+            <p>{say('自分で復習を始めた学びの元記事です。必要なら具体例から読み返せます。', 'This is a source article for a learning you chose to review. Revisit its example if useful.')}</p>
+            <button type="button" className="mt-2 text-left underline underline-offset-4" onClick={() => { if (data.due && data.due.id === data.articleLearning?.id) onOpen(data.due); }}>{data.articleLearning.title}</button>
+            <p className="mt-2 text-xs text-muted-foreground">{say('最近20件の中の関連候補です。別の問いを選んでも、復習の予定は変わりません。', 'A related choice among the latest 20 articles. Choosing another question does not change your review schedule.')}</p>
+          </div> :
           <p className="mb-2 text-sm text-muted-foreground">{say(data.articleReason === 'unread' ? '最近20件のうち、最新の未読記事' : data.articleReason === 'latest' ? '最近20件は読了済み · 最新を読み返す' : '最新の記事 · 読了状態は未確認', data.articleReason === 'unread' ? 'Newest unread among the latest 20 articles' : data.articleReason === 'latest' ? 'Latest 20 read · revisit the newest' : 'Latest article · read status unavailable')}</p>
           }
           <h3 id="today-article" className="text-2xl font-semibold leading-relaxed tracking-tight">{learningExperience(article.learningExperience)?.question || article.title}</h3>

@@ -1,6 +1,55 @@
 import { expect, it, vi } from 'vitest';
 import { loadLearningToday } from '@/lib/learningToday';
 
+const now = Date.parse('2026-09-15T12:00:00Z');
+const dueLearning = { id: 'review-me', title: 'My learning', state: 'learning',
+  lastReviewedAt: '2026-09-13T12:00:00Z', nextReviewAt: '2026-09-14T12:00:00Z', linkedArticleIds: ['newest'] };
+async function withReview(due: object, historyUnavailable = false) {
+  const fixture = requestFixture();
+  return loadLearningToday(async (path, body) => {
+    if (historyUnavailable && path.includes('read-history')) throw new Error('503');
+    if (body && 'view' in body.input) return { items: [due], total: 1 };
+    return fixture(path, body);
+  }, now);
+}
+it('promotes the exact source of an explicitly reviewed, due learning and explains why', async () => {
+  const result = await withReview(dueLearning);
+  expect(result.article?.id).toBe('newest');
+  expect(result.articleReason).toBe('review-linked');
+  expect(result.articleLearning).toEqual({ id: 'review-me', title: 'My learning' });
+  expect(result.articleChoices?.map(a => a.id)).toEqual(['newest', 'unread']);
+});
+it('also uses the canonical source URL retained by MCP-created learning items', async () => {
+  const result = await withReview({ ...dueLearning, linkedArticleIds: [], sources: [{ url: 'https://www.meetyudai.com/study/articles/newest#takeaways' }] });
+  expect(result.article?.id).toBe('newest');
+  expect(result.articleReason).toBe('review-linked');
+});
+it.each([
+  'https://other.example/study/articles/newest', 'https://www.meetyudai.com.evil.example/study/articles/newest',
+  'https://user@www.meetyudai.com/study/articles/newest', 'http://www.meetyudai.com/study/articles/newest',
+  'https://www.meetyudai.com/study/articles/newest/edit', 'https://www.meetyudai.com/study/documents?id=newest', 'bad url',
+])('does not turn unrelated or unsafe source links into article references: %s', async url => {
+  const result = await withReview({ ...dueLearning, linkedArticleIds: [], sources: [{ url }] });
+  expect(result.articleReason).toBe('unread');
+});
+it.each([
+  { state: 'saved' }, { state: 'understood' }, { nextReviewAt: undefined },
+  { nextReviewAt: '2026-09-16T12:00:00Z' }, { nextReviewAt: 'bad date' },
+  { lastReviewedAt: undefined }, { lastReviewedAt: 'bad date' },
+  { linkedArticleIds: [] }, { linkedArticleIds: ['outside-latest-20'] },
+])('does not infer a need to repeat from saved/paused/understood/unrelated items: %j', change => {
+  return withReview({ ...dueLearning, ...change }).then(result => {
+    expect(result.articleReason).toBe('unread');
+    expect(result.article?.id).toBe('unread');
+    expect(result.articleLearning).toBeUndefined();
+  });
+});
+it('can explain a review source without claiming read status when history fails', async () => {
+  const result = await withReview(dueLearning, true);
+  expect(result.articleReason).toBe('review-linked');
+  expect(result.errors).toEqual(['history']);
+});
+
 const articles = [{ id: 'newest', title: 'Latest' }, { id: 'unread', title: 'Next' }];
 function requestFixture() {
   return vi.fn(async (path: string, body?: { action: string; input: object }): Promise<Record<string, unknown>> => {

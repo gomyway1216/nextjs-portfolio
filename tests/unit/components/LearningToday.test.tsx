@@ -29,6 +29,18 @@ it('links to the real stored article with an honest selection reason', () => {
   expect(html).toContain('最近20件のうち、最新の未読記事');
   expect(html).toContain('Real summary');
 });
+it('explains a review-linked recommendation without revealing the recall answer or claiming mastery', () => {
+  const html = render({ ...empty,
+    article: { id: 'source-article', title: 'Original example', summary: 'Article summary', createdAt: '', tags: [] },
+    articleReason: 'review-linked', articleLearning: { id: 'entry:review', title: 'Recall the concept' },
+    due: { id: 'entry:review', title: 'Recall the concept', content: 'HIDDEN RECALL ANSWER' } as LearningItem,
+  });
+  expect(html).toContain('自分で復習を始めた学びの元記事');
+  expect(html).toContain('Recall the concept');
+  expect(html).toContain('別の問いを選んでも、復習の予定は変わりません');
+  expect(html).not.toContain('最新の未読記事');
+  expect(html).not.toContain('HIDDEN RECALL ANSWER');
+});
 it('offers real alternative questions without calling them a personalized ranking', () => {
   const first = { id: 'a', title: 'First', summary: 'Summary', createdAt: '', tags: [] };
   const html = render({ ...empty, article: first, articleChoices: [first, { ...first, id: 'b', title: 'Second question' }] });

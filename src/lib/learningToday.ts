@@ -9,13 +9,14 @@ export interface LearningTodayData {
   dueTotal?: number;
   article?: LearningArticle;
   articleChoices?: LearningArticle[];
-  articleReason: 'unread' | 'latest' | 'unknown';
+  articleReason: 'review-linked' | 'unread' | 'latest' | 'unknown';
+  articleLearning?: Pick<LearningItem, 'id' | 'title'>;
   errors: Array<'library' | 'review' | 'articles' | 'history'>;
 }
 type Request = (path: string, body?: { action: string; input: object }) => Promise<Record<string, unknown>>;
 
-/** A small, read-only start page, not a mastery score or AI recommendation. */
-export async function loadLearningToday(request: Request): Promise<LearningTodayData> {
+/** Uses only explicit, active review choices and exact source links, never inferred mastery. */
+export async function loadLearningToday(request: Request, now = Date.now()): Promise<LearningTodayData> {
   const [library, review, articles, history] = await Promise.allSettled([
     request('/api/study/library', { action: 'search', input: { limit: 3 } }),
     request('/api/study/library', { action: 'search', input: { view: 'review', limit: 1 } }),
@@ -37,12 +38,22 @@ export async function loadLearningToday(request: Request): Promise<LearningToday
     const candidates = articles.value.articles as LearningArticle[];
     const read = history.status === 'fulfilled' ? history.value.readArticleIds as Record<string, string> : undefined;
     const unread = read && candidates.find((article) => !Object.hasOwn(read, article.id));
-    result.article = unread || candidates[0];
-    // Offer alternatives, not a compulsory assignment. Read state only orders choices.
+    const due = result.due;
+    // A save or click is not a review. Paused / self-assessed understood items do not
+    // promote the same explanation, and unrelated topics never match via generic tags.
+    const activeReview = due?.state === 'learning' && due.lastReviewedAt && due.nextReviewAt
+      && Number.isFinite(Date.parse(due.lastReviewedAt)) && Date.parse(due.lastReviewedAt) <= now
+      && Date.parse(due.nextReviewAt) <= now;
+    const linked = activeReview && candidates.find(article => due.linkedArticleIds?.includes(article.id));
+    result.article = linked || unread || candidates[0];
+    if (linked && due) result.articleLearning = { id: due.id, title: due.title };
+    const preferredId = linked ? linked.id : undefined;
+    // Keep the choice finite and optional, with unread alternatives after the review source.
     result.articleChoices = [...candidates].sort((a, b) =>
+      Number(b.id === preferredId) - Number(a.id === preferredId) ||
       Number(Boolean(read && Object.hasOwn(read, a.id))) - Number(Boolean(read && Object.hasOwn(read, b.id)))
     ).slice(0, 3);
-    result.articleReason = !read ? 'unknown' : unread ? 'unread' : 'latest';
+    result.articleReason = linked ? 'review-linked' : !read ? 'unknown' : unread ? 'unread' : 'latest';
   } else result.errors.push('articles');
   return result;
 }

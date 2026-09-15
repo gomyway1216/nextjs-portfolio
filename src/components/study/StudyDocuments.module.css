@@ -1,0 +1,9 @@
+/* Bootstrap's unlayered element resets outrank layered Tailwind utilities.
+   Keep these exceptions local; do not change legacy portfolio pages. */
+.searchField {
+  display: flex;
+}
+
+.documentCard {
+  border-radius: var(--radius-2xl, 1rem);
+}

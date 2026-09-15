@@ -1,8 +1,10 @@
 import {renderToStaticMarkup} from 'react-dom/server';
+import {readFileSync} from 'node:fs';
 import {expect, it, vi} from 'vitest';
 const {auth} = vi.hoisted(() => ({auth: vi.fn()}));
 vi.mock('@/providers/AuthProvider', () => ({useAuth: auth}));
-import StudyDocuments, {DocumentSearchExplanation} from '@/components/study/StudyDocuments';
+import StudyDocuments, {DocumentSearchCard, DocumentSearchExplanation} from '@/components/study/StudyDocuments';
+import styles from '@/components/study/StudyDocuments.module.css';
 import {documentLearningPrompt, documentQueryExpansion, safeDocumentAsset} from '@/lib/studyDocuments';
 it('shows no private controls until owner auth has finished', () => {
   auth.mockReturnValue({loading: true});
@@ -15,7 +17,20 @@ it('shows no private controls until owner auth has finished', () => {
   expect(owner).toContain('授業のノートを'); expect(owner).toContain('資料を読み込んでいます');
   expect(owner).toContain('日本語の主要用語／英語キーワード');
   expect(owner).toContain('aria-describedby="document-search-guidance"');
+  expect(owner).toContain(styles.searchField);
   expect(owner).not.toContain('資料はまだ取り込まれていません');
+});
+it('isolates the search label and native result button from Bootstrap resets', () => {
+  const css = readFileSync('src/components/study/StudyDocuments.module.css', 'utf8');
+  expect(css).toMatch(/\.searchField\s*\{\s*display:\s*flex;/u);
+  expect(css).toMatch(/\.documentCard\s*\{\s*border-radius:\s*var\(--radius-2xl,\s*1rem\);/u);
+  expect(css).not.toMatch(/@layer|!important|:global/u); // Unlayered scoped classes beat unlayered element resets.
+  const onOpen = vi.fn();
+  const markup = renderToStaticMarkup(<DocumentSearchCard onOpen={onOpen} item={{id: 'doc-fixture', version: 'sha', title: 'Index notes', course: 'CS 564', relativePath: 'CS 564/long-file-name.pdf', page: 4, pageCount: 10, sourceUrl: '/study/documents', snippet: 'Read this page'}}/>);
+  expect(markup).toContain(styles.documentCard);
+  expect(markup).toContain('rounded-2xl'); expect(markup).toContain('break-all');
+  expect(markup).toContain('p. 4'); expect(markup).toContain('Index notes');
+  expect(onOpen).not.toHaveBeenCalled();
 });
 it('shows the actual server-provided English expansion without promising semantic search', () => {
   const expansion = {method: 'japanese-concept-aliases-v1' as const, expandedQuery: 'index OR transaction', concepts: ['index', 'transaction']};

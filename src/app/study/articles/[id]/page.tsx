@@ -51,42 +51,7 @@ import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-yaml';
 import 'prismjs/themes/prism-tomorrow.css';
 
-function formatArticleMetadataDate(value: unknown): string {
-  let date: Date;
-
-  if (value instanceof Date) {
-    date = value;
-  } else if (typeof value === 'object' && value !== null) {
-    const timestamp = value as { _seconds?: number; seconds?: number; toDate?: () => Date };
-    const seconds = timestamp._seconds ?? timestamp.seconds;
-    date = typeof timestamp.toDate === 'function'
-      ? timestamp.toDate()
-      : typeof seconds === 'number'
-        ? new Date(seconds * 1000)
-        : new Date(Number.NaN);
-  } else {
-    date = new Date(value as string | number);
-  }
-
-  if (Number.isNaN(date.getTime())) return 'Unavailable';
-
-  return date.toLocaleString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function getArticleGenerationDetail(aiModel: string): { label: 'Model' | 'Source'; value: string } {
-  if (aiModel.startsWith('personal-memory-mcp:')) {
-    return { label: 'Source', value: 'Personal Memory MCP' };
-  }
-
-  return { label: 'Model', value: aiModel };
-}
+import { formatArticleMetadataDate, getArticleGenerationDetail } from '@/lib/studyArticleMetadata';
 
 // Simple markdown renderer for chat messages
 function renderMarkdown(text: string): React.ReactNode {

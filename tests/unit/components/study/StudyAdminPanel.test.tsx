@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ArticleStatus, QuizDifficulty, type StudyArticle } from '@/types/study';
+
+vi.mock('@/components/study/GenerateAudioButton', () => ({ default: () => null }));
 
 const studyHooks = vi.hoisted(() => ({
   useStudyConfig: vi.fn(() => ({
@@ -59,6 +62,22 @@ import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 describe('StudyAdminPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('opens the requested article even when it is outside the loaded list, preserving private draft values', () => {
+    const article = {
+      id: 'external-old-article', title: 'Original title', summary: 'Original summary',
+      status: ArticleStatus.DRAFT, difficulty: QuizDifficulty.ADVANCED,
+      isPublic: false, createdAt: '2026-09-15T00:00:00Z',
+    } as StudyArticle;
+    const markup = renderToStaticMarkup(<StudyAdminPanel initialArticle={article} />);
+    expect(markup).toContain('Edit Article');
+    expect(markup).toContain('value="Original title"');
+    expect(markup).toContain('Original summary');
+    expect(markup).toContain('value="draft" selected=""');
+    expect(markup).toContain('value="advanced" selected=""');
+    expect(markup).toMatch(/<input[^>]*id="article-public"[^>]*\/>/);
+    expect(markup.match(/<input[^>]*id="article-public"[^>]*\/>/)?.[0]).not.toContain('checked');
   });
 
   it('keeps content management while retiring legacy generation controls', () => {

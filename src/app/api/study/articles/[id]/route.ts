@@ -17,6 +17,9 @@ export const GET = withActivityLog('next_api.study.articles.id.GET', async (requ
       { success: false, error: 'Article not found' }, { status: 404, headers },
     );
     if (!id || id.includes('/')) return notFound();
+    const forEdit = request.nextUrl.searchParams.get('mode') === 'edit';
+    // Editor reads require admin authentication even for a public article.
+    if (forEdit && !(await getOptionalAdmin(request))) return notFound();
 
     // The Next server already has Firebase Admin credentials. Read here to
     // avoid a second serverless cold start through getStudyArticle. Never
@@ -25,10 +28,10 @@ export const GET = withActivityLog('next_api.study.articles.id.GET', async (requ
     if (!doc.exists) return notFound();
     const article = doc.data()!;
     const isPublished = article.status === 'published';
-    if ((!isPublished || article.isPublic === false) && !(await getOptionalAdmin(request))) {
+    if ((!isPublished || article.isPublic === false) && !forEdit && !(await getOptionalAdmin(request))) {
       return notFound();
     }
-    if (isPublished && article.isPublic !== false) {
+    if (!forEdit && isPublished && article.isPublic !== false) {
       try {
         await doc.ref.update({ viewCount: FieldValue.increment(1) });
       } catch (error) {

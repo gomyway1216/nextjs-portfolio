@@ -63,10 +63,10 @@ describe('Study article read routes', () => {
       collection: () => ({ doc: () => ({ get: mocks.getArticle }) }),
     });
   }
-  async function read(authorization?: string) {
+  async function read(authorization?: string, query = '') {
     const { GET } = await import('@/app/api/study/articles/[id]/route');
     return (GET as ArticleRoute)(
-      request('/api/study/articles/article-1', authorization),
+      request(`/api/study/articles/article-1${query}`, authorization),
       { params: Promise.resolve({ id: 'article-1' }) },
     );
   }
@@ -113,6 +113,23 @@ describe('Study article read routes', () => {
     expect(await response.json()).toMatchObject({ article: { content: 'Public content', viewCount: 3 } });
     expect(mocks.updateArticle).toHaveBeenCalledWith({ viewCount: expect.anything() });
     expect(mocks.getOptionalAdmin).not.toHaveBeenCalled();
+  });
+
+  it.each(['published', 'draft'])('editor reads %s content without incrementing views or changing the article', async status => {
+    articleData({ status, isPublic: status === 'published', viewCount: 3 });
+    mocks.getOptionalAdmin.mockResolvedValue({ uid: 'owner', isAdmin: true });
+    const response = await read('Bearer valid-admin', '?mode=edit');
+    expect(response.status).toBe(200);
+    expect((await response.json()).article.viewCount).toBe(3);
+    expect(mocks.updateArticle).not.toHaveBeenCalled();
+    expect(mocks.getOptionalAdmin).toHaveBeenCalledOnce();
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+  });
+  it('rejects unauthenticated editor requests before reading even public content', async () => {
+    articleData({ status: 'published', isPublic: true });
+    expect((await read(undefined, '?mode=edit')).status).toBe(404);
+    expect(mocks.getArticle).not.toHaveBeenCalled();
+    expect(mocks.updateArticle).not.toHaveBeenCalled();
   });
 
   it('returns an indistinguishable missing-article response', async () => {

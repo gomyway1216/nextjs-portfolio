@@ -429,6 +429,7 @@ interface StudyArticleAccessContext {
   ready?: boolean;
   userId?: string | null;
   isAdmin?: boolean;
+  forEdit?: boolean;
 }
 
 export function useStudyArticle(
@@ -439,13 +440,14 @@ export function useStudyArticle(
     ready = true,
     userId = null,
     isAdmin = false,
+    forEdit = false,
   } = accessContext;
   const [article, setArticle] = useState<StudyArticle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const requestSequenceRef = useRef(0);
   const latestRequestRef = useRef<string | null>(null);
-  const viewerKey = `${userId ?? 'anonymous'}:${isAdmin ? 'admin' : 'reader'}`;
+  const viewerKey = `${userId ?? 'anonymous'}:${isAdmin ? 'admin' : 'reader'}:${forEdit ? 'edit' : 'read'}`;
 
   // Authentication can settle after a direct page load. Include the viewer
   // identity and admin decision so a request that initially ran anonymously
@@ -464,7 +466,7 @@ export function useStudyArticle(
     try {
       setLoading(true);
       setError(null);
-      const data = await studyService.getArticle(articleId);
+      const data = await studyService.getArticle(articleId, { forEdit });
       if (requestId !== latestRequestRef.current) return;
       setArticle(data);
     } catch (err) {
@@ -475,7 +477,7 @@ export function useStudyArticle(
         setLoading(false);
       }
     }
-  }, [articleId, ready, viewerKey]);
+  }, [articleId, ready, viewerKey, forEdit]);
 
   useEffect(() => {
     fetchArticle();

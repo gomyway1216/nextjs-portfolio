@@ -140,7 +140,12 @@ function OwnerLearningLibrary() {
       <Button onClick={() => newNote()}><Plus size={18} />{say('学びを保存', 'Save a learning')}</Button>
     </header>
     <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm"><Link href="/study" className="flex items-center gap-2 underline"><BookOpen size={16} />{say('エンジニア向けの記事を読む', 'Read engineering articles')}</Link><Link href="/memory?view=private" className="underline">Personal Memory</Link><Link href="/study/documents" className="underline">{say('授業資料・PDF', 'Course documents & PDFs')}</Link><Link href="/study/learning/dictionary" className="underline">{say('既存の辞書', 'Existing dictionary')}</Link></nav>
-    <Tabs className="space-y-7" value={view} onValueChange={(value) => { setFocusId(null); setExpanded(null); setQuery(''); setDomain('all'); setKind('all'); setView(value); setOffset(0); setNotice(''); setError(''); }}><TabsList className="h-auto w-full justify-start gap-1 p-1 sm:w-auto"><TabsTrigger value="today" className="min-h-11 flex-1 px-5">{say('今日', 'Today')}</TabsTrigger><TabsTrigger value="all" className="min-h-11 flex-1 px-5">{say('本棚', 'Library')}</TabsTrigger><TabsTrigger value="review" className="min-h-11 flex-1 px-5">{say('少し復習する', 'A little review')}</TabsTrigger></TabsList>
+    <Tabs className="space-y-7" value={view} onValueChange={(value) => { setFocusId(null); setExpanded(null); setQuery(''); setDomain('all'); setKind('all'); setView(value); setOffset(0); setNotice(''); setError(''); }}>
+      <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1 sm:inline-flex sm:w-auto">
+        <TabsTrigger value="today" className="min-h-11 min-w-0 whitespace-normal px-2 py-2 text-xs sm:px-5 sm:text-sm">{say('今日', 'Today')}</TabsTrigger>
+        <TabsTrigger value="all" className="min-h-11 min-w-0 whitespace-normal px-2 py-2 text-xs sm:px-5 sm:text-sm">{say('本棚', 'Library')}</TabsTrigger>
+        <TabsTrigger value="review" className="min-h-11 min-w-0 whitespace-normal px-2 py-2 text-xs sm:px-5 sm:text-sm">{say('少し復習する', 'A little review')}</TabsTrigger>
+      </TabsList>
     <TabsContent value={view} className="space-y-6">
     {view === 'today' ? <LearningToday getToken={getToken} onOpen={openItem} onBrowse={browse} /> : <>
     <section className="space-y-4 rounded-xl border bg-card p-4">

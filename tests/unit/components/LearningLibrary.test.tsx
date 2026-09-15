@@ -3,12 +3,12 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import LearningLibrary from '@/components/study/LearningLibrary';
 import LearningContent from '@/components/study/LearningContent';
 
-const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
+const { auth, i18n } = vi.hoisted(() => ({ auth: vi.fn(), i18n: { language: 'ja' } }));
 vi.mock('@/providers/AuthProvider', () => ({ useAuth: auth }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'ja' } }) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n }) }));
 vi.mock('@/components/common/MermaidDiagram', () => ({ default: ({ chart }: { chart: string }) => <div data-original-diagram>{chart}</div> }));
 
-beforeEach(() => auth.mockReturnValue({ currentUser: null, isAdmin: false, loading: false }));
+beforeEach(() => { i18n.language = 'ja'; auth.mockReturnValue({ currentUser: null, isAdmin: false, loading: false }); });
 
 it('does not render private controls before owner authentication', () => {
   const html = renderToStaticMarkup(<LearningLibrary />);
@@ -39,4 +39,19 @@ it('preserves original Mermaid without executing HTML or automatically loading r
   expect(html).not.toContain('href="javascript:');
   expect(html).toContain('<span>Bad</span>');
   expect(html).toContain('href="https://example.com/figure.png"');
+});
+
+it.each(['ja', 'en'])('keeps all three learning tabs in shrinkable mobile columns (%s)', language => {
+  i18n.language = language;
+  auth.mockReturnValue({ currentUser: { uid: 'owner' }, isAdmin: true, loading: false });
+  const html = renderToStaticMarkup(<LearningLibrary />);
+  expect(html.match(/<div[^>]*role="tablist"[^>]*>/)?.[0]).toContain('grid-cols-3');
+  const tabs = html.match(/<button[^>]*role="tab"[^>]*>/g) ?? [];
+  expect(tabs).toHaveLength(3);
+  for (const tab of tabs) {
+    expect(tab).toContain('min-w-0');
+    expect(tab).toContain('whitespace-normal');
+    expect(tab).toContain('min-h-11');
+    expect(tab).not.toContain('whitespace-nowrap');
+  }
 });

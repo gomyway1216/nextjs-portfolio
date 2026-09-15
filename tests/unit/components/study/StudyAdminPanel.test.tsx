@@ -99,4 +99,18 @@ describe('StudyAdminPanel', () => {
     expect(studyHooks.useStudySchedules).toHaveBeenCalledWith({ autoFetch: false });
     expect(studyHooks.useStudyConfig).toHaveBeenCalledWith({ autoFetch: false });
   });
+
+  it('renders Firebase timestamps and MCP provenance in the editor without exposing a client ID as the model', () => {
+    const article = {
+      id: 'external-mcp', title: 'Imported lesson', summary: 'Summary',
+      status: ArticleStatus.DRAFT, difficulty: QuizDifficulty.INTERMEDIATE, isPublic: false,
+      aiProvider: 'chatgpt', aiModel: 'personal-memory-mcp:client-id',
+      createdAt: { _seconds: Date.parse('2026-09-15T04:00:00Z') / 1000 },
+    } as unknown as StudyArticle;
+    const markup = renderToStaticMarkup(<StudyAdminPanel initialArticle={article} />);
+    expect(markup).toContain('Sep 14, 2026, 09:00 PM');
+    expect(markup).toContain('Personal Memory MCP');
+    expect(markup).not.toContain('Invalid Date');
+    expect(markup).not.toContain('personal-memory-mcp:client-id');
+  });
 });

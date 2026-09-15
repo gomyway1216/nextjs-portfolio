@@ -1,6 +1,7 @@
 'use client';
 
 import GenerateAudioButton from '@/components/study/GenerateAudioButton';
+import { formatArticleMetadataDate, getArticleGenerationDetail } from '@/lib/studyArticleMetadata';
 import {
 Select,
 SelectContent,
@@ -1386,7 +1387,7 @@ export default function StudyAdminPanel({ onNavigateToArticles, initialArticle }
                         )}
                       </td>
                       <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }}>
-                        {new Date(article.createdAt).toLocaleDateString()}
+                        {formatArticleMetadataDate(article.createdAt)}
                       </td>
                       <td style={{ ...styles.td, textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -2547,8 +2548,8 @@ export default function StudyAdminPanel({ onNavigateToArticles, initialArticle }
                   <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '8px' }}>Article Info</p>
                   <p style={{ color: '#94a3b8', fontSize: '14px' }}>
                     Category: {getCategoryName(editingArticle.categoryId)} •
-                    AI: {editingArticle.aiProvider} ({editingArticle.aiModel}) •
-                    Created: {new Date(editingArticle.createdAt).toLocaleString()}
+                    AI: {editingArticle.aiProvider} • {getArticleGenerationDetail(editingArticle.aiModel).label}: {getArticleGenerationDetail(editingArticle.aiModel).value} •
+                    Created: {formatArticleMetadataDate(editingArticle.createdAt)}
                   </p>
                 </div>
                 <GenerateAudioButton

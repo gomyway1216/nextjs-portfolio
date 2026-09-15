@@ -65,6 +65,8 @@ it('permits only new useful private explanations and preserves explicit opt-outs
   expect(prompt).toContain('具体例・元の図・画像を保持');
   expect(prompt).toContain('会話・PDFの全文は保存せず');
   expect(prompt).toContain('sources に下の出典とdocument ID・version・page');
+  expect(prompt).toContain('不変のdocument ID・version・pageと下の安定した出典URL');
+  expect(prompt).toContain('署名付き・有効期限付きの画像・PDF URL（access.imageUrlやaccess.pdfUrl）は保存しない');
   expect(prompt).toContain(page.sourceUrl);
   expect(prompt).toContain('保存成功後は返されたitem IDをsearch_learningで再取得');
   expect(prompt).toContain('保存失敗・結果不明・保存後の再取得失敗を区別');

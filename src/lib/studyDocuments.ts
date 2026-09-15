@@ -8,6 +8,20 @@ export interface StudyDocumentPage extends StudyDocumentItem {
 }
 export interface StudyDocumentSearch {
   items: StudyDocumentItem[]; courses: {course: string; documents: number}[]; hasMore: boolean;
+  searchMode?: 'english-full-text' | 'english-full-text-with-japanese-concepts';
+  queryExpansion?: StudyDocumentQueryExpansion | null;
+}
+export interface StudyDocumentQueryExpansion {
+  method: 'japanese-concept-aliases-v1'; expandedQuery: string; concepts: string[];
+}
+export function documentQueryExpansion(value: unknown): StudyDocumentQueryExpansion | undefined {
+  if (!value || typeof value !== 'object') return;
+  const expansion = value as Partial<StudyDocumentQueryExpansion>;
+  if (expansion.method !== 'japanese-concept-aliases-v1' || typeof expansion.expandedQuery !== 'string' ||
+    !expansion.expandedQuery.trim() || expansion.expandedQuery.length > 1200 ||
+    !Array.isArray(expansion.concepts) || !expansion.concepts.length || expansion.concepts.length > 64 ||
+    expansion.concepts.some(concept => typeof concept !== 'string' || !concept.trim() || concept.length > 100)) return;
+  return expansion as StudyDocumentQueryExpansion;
 }
 export function safeDocumentAsset(value: unknown): string | undefined {
   if (typeof value !== 'string') return;

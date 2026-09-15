@@ -25,6 +25,15 @@ it('uses the private bridge and returns a no-store response', async () => {
   expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   expect(fetchDocuments.mock.calls[0][0].get('course')).toBe('CS 564');
 });
+it('preserves the Japanese query and authenticated server expansion without translating in the frontend', async () => {
+  auth.mockResolvedValue({user: {uid: 'owner'}});
+  const data = {items: [], queryExpansion: {method: 'japanese-concept-aliases-v1', expandedQuery: 'index', concepts: ['index']}};
+  fetchDocuments.mockResolvedValue(data);
+  const response = await GET(new NextRequest('https://example.com/api/study/documents?query=%E7%B4%A2%E5%BC%95'));
+  expect(fetchDocuments.mock.calls[0][0].get('query')).toBe('索引');
+  expect(await response.json()).toEqual(data);
+  expect(response.headers.get('cache-control')).toContain('private, no-store');
+});
 it('rejects out-of-range pagination before calling the private bridge', async () => {
   auth.mockResolvedValue({user: {uid: 'owner'}});
   for (const query of ['page=0', 'page=10001', 'limit=0', 'limit=51', 'offset=-1', 'offset=100001']) {

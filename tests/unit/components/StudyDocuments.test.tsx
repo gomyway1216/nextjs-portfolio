@@ -2,8 +2,8 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {expect, it, vi} from 'vitest';
 const {auth} = vi.hoisted(() => ({auth: vi.fn()}));
 vi.mock('@/providers/AuthProvider', () => ({useAuth: auth}));
-import StudyDocuments from '@/components/study/StudyDocuments';
-import {documentLearningPrompt, safeDocumentAsset} from '@/lib/studyDocuments';
+import StudyDocuments, {DocumentSearchExplanation} from '@/components/study/StudyDocuments';
+import {documentLearningPrompt, documentQueryExpansion, safeDocumentAsset} from '@/lib/studyDocuments';
 it('shows no private controls until owner auth has finished', () => {
   auth.mockReturnValue({loading: true});
   expect(renderToStaticMarkup(<StudyDocuments/>)).toContain('認証を確認');
@@ -13,7 +13,39 @@ it('shows no private controls until owner auth has finished', () => {
   auth.mockReturnValue({currentUser: {uid: 'owner'}, loading: false, isAdmin: true});
   const owner = renderToStaticMarkup(<StudyDocuments/>);
   expect(owner).toContain('授業のノートを'); expect(owner).toContain('資料を読み込んでいます');
+  expect(owner).toContain('日本語の主要用語／英語キーワード');
+  expect(owner).toContain('aria-describedby="document-search-guidance"');
   expect(owner).not.toContain('資料はまだ取り込まれていません');
+});
+it('shows the actual server-provided English expansion without promising semantic search', () => {
+  const expansion = {method: 'japanese-concept-aliases-v1' as const, expandedQuery: 'index OR transaction', concepts: ['index', 'transaction']};
+  const markup = renderToStaticMarkup(<DocumentSearchExplanation query="索引 OR トランザクション" expansion={expansion}/>);
+  expect(markup).toContain('英語でも検索しました');
+  expect(markup).toContain('<details');
+  expect(markup).toContain('index OR transaction');
+  expect(markup).toContain('index、transaction');
+  expect(markup).toContain('意味の近さで探す検索ではありません');
+  expect(markup).toContain('break-all');
+});
+it('keeps unsupported/legacy searches honest and never invents a translation', () => {
+  for (const expansion of [undefined, null]) {
+    const markup = renderToStaticMarkup(<DocumentSearchExplanation query="よくわからない用語" expansion={expansion}/>);
+    expect(markup).toContain('英語の短いキーワード');
+    expect(markup).not.toContain('英語でも検索しました');
+    expect(markup).not.toContain('<details');
+  }
+  expect(renderToStaticMarkup(<DocumentSearchExplanation query="  "/>)).toBe('');
+});
+it('omits malformed expansion metadata and renders search text without interpreting HTML', () => {
+  for (const value of [null, 'index', {}, {method: 'different', expandedQuery: 'index', concepts: ['index']},
+    {method: 'japanese-concept-aliases-v1', expandedQuery: 'index', concepts: [{}]},
+    {method: 'japanese-concept-aliases-v1', expandedQuery: 'x'.repeat(1201), concepts: ['index']}]) {
+    expect(documentQueryExpansion(value)).toBeUndefined();
+  }
+  const expansion = {method: 'japanese-concept-aliases-v1' as const, expandedQuery: '<script>alert(1)</script>', concepts: ['<img src=x>']};
+  const markup = renderToStaticMarkup(<DocumentSearchExplanation query="索引" expansion={expansion}/>);
+  expect(markup).not.toContain('<script>'); expect(markup).not.toContain('<img');
+  expect(markup).toContain('&lt;script&gt;');
 });
 it('keeps immutable page identity in the AI handoff, not expiring asset URLs', () => {
   const prompt = documentLearningPrompt({id: 'doc-id', version: 'sha', page: 4, pageCount: 7, title: 'Notebook', course: 'CS 564', relativePath: 'CS 564/Notebook.pdf', sourceUrl: 'https://www.meetyudai.com/study/documents?id=doc-id&version=sha&page=4'}, 'この図は？');

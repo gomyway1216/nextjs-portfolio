@@ -255,10 +255,11 @@ const styles: Record<string, CSSProperties> = {
 
 interface StudyAdminPanelProps {
   onNavigateToArticles?: () => void;
+  initialArticle?: StudyArticle;
 }
 
-export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPanelProps) {
-  const [activeSection, setActiveSection] = useState<StudyAdminSection>('overview');
+export default function StudyAdminPanel({ onNavigateToArticles, initialArticle }: StudyAdminPanelProps) {
+  const [activeSection, setActiveSection] = useState<StudyAdminSection>(initialArticle ? 'articles' : 'overview');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Hooks
@@ -275,14 +276,14 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [showArticleModal, setShowArticleModal] = useState(false);
+  const [showArticleModal, setShowArticleModal] = useState(Boolean(initialArticle));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'category' | 'topic' | 'schedule' | 'article'; id: string; name: string } | null>(null);
 
   // Edit states
   const [editingCategory, setEditingCategory] = useState<StudyCategory | null>(null);
   const [editingTopic, setEditingTopic] = useState<StudyTopic | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ArticleSchedule | null>(null);
-  const [editingArticle, setEditingArticle] = useState<StudyArticle | null>(null);
+  const [editingArticle, setEditingArticle] = useState<StudyArticle | null>(initialArticle ?? null);
   const [articleSaving, setArticleSaving] = useState(false);
 
   // Running schedule state
@@ -362,11 +363,11 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   });
 
   const [articleForm, setArticleForm] = useState({
-    title: '',
-    summary: '',
-    status: ArticleStatus.PUBLISHED as ArticleStatus,
-    difficulty: QuizDifficulty.INTERMEDIATE as QuizDifficulty,
-    isPublic: true,
+    title: initialArticle?.title ?? '',
+    summary: initialArticle?.summary ?? '',
+    status: initialArticle?.status ?? ArticleStatus.PUBLISHED,
+    difficulty: initialArticle?.difficulty ?? QuizDifficulty.INTERMEDIATE,
+    isPublic: initialArticle?.isPublic ?? true,
   });
 
   // Articles filter state

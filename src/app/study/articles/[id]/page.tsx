@@ -895,9 +895,9 @@ function StudyArticlePageInner() {
             <MessageSquare size={16} />
             Ask Question
           </button>
-          {currentUser && (
+          {currentUser && isAdmin && (
             <button
-              onClick={() => router.push(`/study/articles/${articleId}/edit`)}
+              onClick={() => router.push(`/study/articles/${encodeURIComponent(articleId)}/edit`)}
               style={{
                 display: 'flex',
                 alignItems: 'center',

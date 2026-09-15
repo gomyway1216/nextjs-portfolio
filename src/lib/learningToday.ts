@@ -15,6 +15,20 @@ export interface LearningTodayData {
 }
 type Request = (path: string, body?: { action: string; input: object }) => Promise<Record<string, unknown>>;
 
+function articleSourceIds(item: LearningItem): Set<string> {
+  const ids = new Set(item.linkedArticleIds ?? []);
+  // MCP saves retain the article URL as a source rather than a learning relatedId.
+  for (const source of item.sources ?? []) {
+    try {
+      const url = new URL(source.url ?? '');
+      if (url.protocol !== 'https:' || !['www.meetyudai.com', 'meetyudai.com'].includes(url.host) || url.username || url.password) continue;
+      const match = /^\/study\/articles\/([A-Za-z0-9_-]+)\/?$/.exec(url.pathname);
+      if (match) ids.add(match[1]);
+    } catch { /* A malformed or non-article source is not a recommendation signal. */ }
+  }
+  return ids;
+}
+
 /** Uses only explicit, active review choices and exact source links, never inferred mastery. */
 export async function loadLearningToday(request: Request, now = Date.now()): Promise<LearningTodayData> {
   const [library, review, articles, history] = await Promise.allSettled([
@@ -44,7 +58,8 @@ export async function loadLearningToday(request: Request, now = Date.now()): Pro
     const activeReview = due?.state === 'learning' && due.lastReviewedAt && due.nextReviewAt
       && Number.isFinite(Date.parse(due.lastReviewedAt)) && Date.parse(due.lastReviewedAt) <= now
       && Date.parse(due.nextReviewAt) <= now;
-    const linked = activeReview && candidates.find(article => due.linkedArticleIds?.includes(article.id));
+    const sourceIds = activeReview ? articleSourceIds(due) : new Set<string>();
+    const linked = activeReview && candidates.find(article => sourceIds.has(article.id));
     result.article = linked || unread || candidates[0];
     if (linked && due) result.articleLearning = { id: due.id, title: due.title };
     const preferredId = linked ? linked.id : undefined;

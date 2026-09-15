@@ -19,6 +19,19 @@ it('promotes the exact source of an explicitly reviewed, due learning and explai
   expect(result.articleLearning).toEqual({ id: 'review-me', title: 'My learning' });
   expect(result.articleChoices?.map(a => a.id)).toEqual(['newest', 'unread']);
 });
+it('also uses the canonical source URL retained by MCP-created learning items', async () => {
+  const result = await withReview({ ...dueLearning, linkedArticleIds: [], sources: [{ url: 'https://www.meetyudai.com/study/articles/newest#takeaways' }] });
+  expect(result.article?.id).toBe('newest');
+  expect(result.articleReason).toBe('review-linked');
+});
+it.each([
+  'https://other.example/study/articles/newest', 'https://www.meetyudai.com.evil.example/study/articles/newest',
+  'https://user@www.meetyudai.com/study/articles/newest', 'http://www.meetyudai.com/study/articles/newest',
+  'https://www.meetyudai.com/study/articles/newest/edit', 'https://www.meetyudai.com/study/documents?id=newest', 'bad url',
+])('does not turn unrelated or unsafe source links into article references: %s', async url => {
+  const result = await withReview({ ...dueLearning, linkedArticleIds: [], sources: [{ url }] });
+  expect(result.articleReason).toBe('unread');
+});
 it.each([
   { state: 'saved' }, { state: 'understood' }, { nextReviewAt: undefined },
   { nextReviewAt: '2026-09-16T12:00:00Z' }, { nextReviewAt: 'bad date' },

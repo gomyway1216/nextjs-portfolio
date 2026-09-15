@@ -2,6 +2,12 @@
 
 The owner starts at `/study/learning`. The default **Today** view offers one article, one optional review, five domain shelves, and the three most recently saved or updated learnings. This is a read-only view of existing records, not an AI recommender or an automatic importer.
 
+## Explicit assessment-aware choices
+
+Today fetches the earliest eight due reviews, prioritizes a real `lastAssessment: again`, and offers up to three optional recall choices. The previous self-assessment is visible without revealing the answer. `remembered` and `understood` keep their scheduled recall but do not automatically promote rereading the same explanation. Paused, saved-only, invalid and future schedules are excluded. Legacy active reviews with no assessment keep their exact-source behavior without fabricating an assessment.
+
+An exact source article for an unclear review can appear first among the latest 20 article cards. Source matching uses stored article IDs or canonical article source URLs, not generic tag similarity. It remains a bounded choice, not a complete prerequisite graph or a measurement of ability. Choosing a question or recall item never writes review, reading or feedback state.
+
 ## What to do
 
 - **Read:** open the newest unread article among the latest 20. If all 20 are marked read, revisit the latest or browse the article library. Read history is not evidence of understanding.

@@ -14,6 +14,7 @@ export interface LearningItem {
   relatedIds: string[]; linkedArticleIds: string[];
   state: 'saved' | 'learning' | 'understood'; revision: number;
   createdAt?: string; updatedAt?: string; nextReviewAt?: string; lastReviewedAt?: string;
+  lastAssessment?: LearningAssessment;
   examples?: Array<{ sentence?: string; explanation?: string; context?: string; codeExample?: string; language?: string }>;
   pronunciation?: string; visibility: 'private';
 }

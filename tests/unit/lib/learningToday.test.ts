@@ -55,7 +55,7 @@ function requestFixture() {
   return vi.fn(async (path: string, body?: { action: string; input: object }): Promise<Record<string, unknown>> => {
     if (path.includes('read-history')) return { readArticleIds: { newest: '2026-09-08' } };
     if (path.includes('articles?')) return { articles };
-    if (body && 'view' in body.input) return { items: [{ id: 'old-due-item' }], total: 2 };
+    if (body && 'view' in body.input) return { items: [{ ...dueLearning, id: 'old-due-item', linkedArticleIds: [] }], total: 2 };
     return { items: [{ id: 'recent' }], total: 40 };
   });
 }
@@ -101,4 +101,29 @@ it('offers rereading without treating reading as mastery', async () => {
     ? { readArticleIds: { newest: 'date', unread: 'date' } } : fixture(path, body));
   expect(result.article?.id).toBe('newest');
   expect(result.articleReason).toBe('latest');
+});
+
+it('prioritizes an explicit again among several due items, not the first returned item', async () => {
+  const fixture = requestFixture();
+  const result = await loadLearningToday(async (path, body) => body && 'view' in body.input
+    ? { items: [{ ...dueLearning, id: 'recalled', lastAssessment: 'remembered' },
+      { ...dueLearning, id: 'unclear', lastAssessment: 'again' }], total: 2 }
+    : fixture(path, body), now);
+  expect(result.due?.id).toBe('unclear');
+  expect(result.reviewChoices?.map(item => item.id)).toEqual(['unclear', 'recalled']);
+  expect(result.articleLearning).toEqual({ id: 'unclear', title: 'My learning', lastAssessment: 'again' });
+});
+it.each(['remembered', 'understood'])('offers recall but does not promote rereading for %s', async lastAssessment => {
+  const result = await withReview({ ...dueLearning, lastAssessment, state: lastAssessment === 'understood' ? 'understood' : 'learning' });
+  expect(result.due?.lastAssessment).toBe(lastAssessment);
+  expect(result.articleReason).toBe('unread');
+});
+it('filters paused/future/invalid schedules without silently changing any review', async () => {
+  const fixture = requestFixture();
+  const result = await loadLearningToday(async (path, body) => body && 'view' in body.input
+    ? { items: [{ ...dueLearning, lastAssessment: 'pause' }, { ...dueLearning, lastReviewedAt: 'bad' },
+      { ...dueLearning, nextReviewAt: '2027-01-01' }], total: 3 } : fixture(path, body), now);
+  expect(result.due).toBeUndefined();
+  expect(result.reviewChoices).toEqual([]);
+  expect(result.articleReason).toBe('unread');
 });

@@ -49,3 +49,11 @@ it('offers real alternative questions without calling them a personalized rankin
   expect(html).toContain('type="button" aria-pressed="true"');
   expect(html).toContain('選択だけでは既読・評価を変更しません');
 });
+it('shows the actual prior assessment and finite optional recall choices without answers', () => {
+  const due = { id: 'entry:one', title: 'First concept', lastAssessment: 'again', content: 'HIDDEN' } as LearningItem;
+  const html = render({ ...empty, due, reviewChoices: [due, { ...due, id: 'entry:two', title: 'Second concept' }] });
+  expect(html).toContain('前回の自己評価：');
+  expect(html).toContain('まだ曖昧');
+  expect(html).toContain('Second concept');
+  expect(html).not.toContain('HIDDEN');
+});

@@ -38,6 +38,20 @@ export interface RouletteStrings {
   win: string;
   lose: string;
   push: string;
+  /** Croupier call shown while the ball is in motion. */
+  noMoreBets: string;
+  // Results board (casino marquee)
+  /** Header of the board: how many spins the statistics cover. */
+  boardSpins: (n: number) => string;
+  /** Accessible name for the newest-first results column. */
+  ledListLabel: string;
+  zero: string;
+  hot: string;
+  cold: string;
+  /** How many hits a hot / cold number has had. */
+  hitCount: (count: number) => string;
+  /** Shown until enough spins exist for hot / cold numbers. */
+  hotColdPending: (remaining: number) => string;
   /** Localized color name for a pocket (red/black/green). */
   colorName: (n: number) => string;
   /** aria-label for the wheel when idle / spinning. */
@@ -150,7 +164,7 @@ const EN: RouletteStrings = {
   clear: 'Clear',
   undo: 'Undo',
   reset: 'Reset',
-  recentResults: 'Recent results',
+  recentResults: 'Winning numbers',
   none: '(none yet)',
   betHistory: 'Spin history',
   noBets: 'No spins yet.',
@@ -161,6 +175,15 @@ const EN: RouletteStrings = {
   win: 'Win',
   lose: 'Loss',
   push: 'Push',
+  noMoreBets: 'No more bets',
+  boardSpins: (n) => `Last ${n} ${n === 1 ? 'spin' : 'spins'}`,
+  ledListLabel: 'Winning numbers, newest first',
+  zero: 'Zero',
+  hot: 'Hot',
+  cold: 'Cold',
+  hitCount: (count) => `${count} ${count === 1 ? 'hit' : 'hits'}`,
+  hotColdPending: (remaining) =>
+    `Hot / cold numbers appear after ${remaining} more ${remaining === 1 ? 'spin' : 'spins'}.`,
   colorName: (n) => COLOR_NAMES.en[colorOf(n)],
   wheelIdle: 'Roulette wheel',
   wheelResult: (n) => `Roulette wheel showing ${n} (${COLOR_NAMES.en[colorOf(n)]})`,
@@ -241,7 +264,7 @@ const JA: RouletteStrings = {
   clear: 'クリア',
   undo: '取り消し',
   reset: 'リセット',
-  recentResults: '直近の出目',
+  recentResults: '出目履歴',
   none: '（まだなし）',
   betHistory: 'スピン履歴',
   noBets: 'まだスピンなし。',
@@ -252,6 +275,14 @@ const JA: RouletteStrings = {
   win: '勝ち',
   lose: '負け',
   push: '引分',
+  noMoreBets: 'ノー・モア・ベット',
+  boardSpins: (n) => `直近 ${n} 回`,
+  ledListLabel: '当選番号（新しい順）',
+  zero: 'ゼロ',
+  hot: 'ホット',
+  cold: 'コールド',
+  hitCount: (count) => `${count} 回`,
+  hotColdPending: (remaining) => `あと ${remaining} 回スピンするとホット / コールド数字を表示します。`,
   colorName: (n) => COLOR_NAMES.ja[colorOf(n)],
   wheelIdle: 'ルーレットホイール',
   wheelResult: (n) => `ルーレットホイール 結果 ${n}（${COLOR_NAMES.ja[colorOf(n)]}）`,

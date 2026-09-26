@@ -12,6 +12,7 @@ import {
   type WheelPose,
 } from '@/components/game/Roulette/ballPhysics';
 import { WHEEL_ORDER } from '@/components/game/Roulette/engine';
+import { SPIN_DURATION_MS } from '@/components/game/Roulette/Wheel';
 
 /** Deterministic Park–Miller generator so every run explores the same spins. */
 function seeded(seed: number) {
@@ -93,7 +94,18 @@ describe('planSpin / frameAt', () => {
 
   it('moves like a real wheel: head clockwise and slowing, ball counter-clockwise on the track', () => {
     const rng = seeded(42);
-    const T = 5.6; // seconds, matches SPIN_DURATION_MS order of magnitude
+    const T = SPIN_DURATION_MS / 1000;
+    const dt = T / SAMPLES;
+    // Track worst cases with plain math and assert once at the end: ~100k
+    // samples of individual expect() calls is too slow for CI's 5s timeout.
+    let minWheelVel = Infinity;
+    let maxWheelAccel = -Infinity;
+    let maxTrackBallVel = -Infinity;
+    let maxBallSpeed = 0;
+    let minR = Infinity;
+    let maxR = -Infinity;
+    let minLift = Infinity;
+    let maxLift = -Infinity;
     let pose: WheelPose = INITIAL_POSE;
     for (let trial = 0; trial < 150; trial++) {
       const plan = planSpin(Math.floor(rng() * 37), pose, rng);
@@ -102,27 +114,36 @@ describe('planSpin / frameAt', () => {
       for (let i = 1; i <= SAMPLES; i++) {
         const u = i / SAMPLES;
         const f = frameAt(plan, u);
-        const dt = T / SAMPLES;
         const wheelVel = (f.wheel - prev.wheel) / dt;
         const ballVel = (f.ball - prev.ball) / dt;
 
-        expect(wheelVel).toBeGreaterThanOrEqual(0);
-        expect(wheelVel).toBeLessThanOrEqual(prevWheelVel + 1e-6);
-        if (u > plan.uLaunch && u <= plan.uDrop) expect(ballVel).toBeLessThan(0);
-
-        // No teleporting: the ball never jumps more than a few pockets per frame
-        // (even at 30fps), and never leaves the bowl.
-        expect(Math.abs(f.ball - prev.ball)).toBeLessThan(SLICE_DEG * 4);
-        expect(f.ballR).toBeGreaterThanOrEqual(WHEEL_GEOMETRY.ballPocket - 1e-9);
-        expect(f.ballR).toBeLessThanOrEqual(WHEEL_GEOMETRY.ballTrack + 1e-9);
-        expect(f.lift).toBeGreaterThanOrEqual(0);
-        expect(f.lift).toBeLessThanOrEqual(1);
+        minWheelVel = Math.min(minWheelVel, wheelVel);
+        maxWheelAccel = Math.max(maxWheelAccel, wheelVel - prevWheelVel);
+        if (u > plan.uLaunch && u <= plan.uDrop) maxTrackBallVel = Math.max(maxTrackBallVel, ballVel);
+        maxBallSpeed = Math.max(maxBallSpeed, Math.abs(ballVel));
+        minR = Math.min(minR, f.ballR);
+        maxR = Math.max(maxR, f.ballR);
+        minLift = Math.min(minLift, f.lift);
+        maxLift = Math.max(maxLift, f.lift);
 
         prev = f;
         prevWheelVel = wheelVel;
       }
       pose = frameAt(plan, 1);
     }
+
+    // Head only turns clockwise and never speeds up.
+    expect(minWheelVel).toBeGreaterThanOrEqual(0);
+    expect(maxWheelAccel).toBeLessThanOrEqual(1e-6);
+    // Ball rolls counter-clockwise while on the track.
+    expect(maxTrackBallVel).toBeLessThan(0);
+    // No teleporting: even at 30fps the ball moves under 4 pockets per frame.
+    expect(maxBallSpeed / 30).toBeLessThan(SLICE_DEG * 4);
+    // Never leaves the bowl; hop height stays normalized.
+    expect(minR).toBeGreaterThanOrEqual(WHEEL_GEOMETRY.ballPocket - 1e-9);
+    expect(maxR).toBeLessThanOrEqual(WHEEL_GEOMETRY.ballTrack + 1e-9);
+    expect(minLift).toBeGreaterThanOrEqual(0);
+    expect(maxLift).toBeLessThanOrEqual(1);
   });
 
   it('follows the choreography: track, drop, bounce, then seated', () => {

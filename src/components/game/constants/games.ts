@@ -252,6 +252,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'slot-machine',
+    title: 'Slot Machine',
+    description: 'Spin a classic 3-reel slot, then see the exact odds, RTP, and why near misses are designed in.',
+    thumbnail: '🎰',
+    path: '/games/slot-machine',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'monty-hall',
     title: 'Monty Hall',
     description: 'Pick a door, decide whether to switch, and compare the odds with simulation.',

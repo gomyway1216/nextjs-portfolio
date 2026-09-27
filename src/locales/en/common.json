@@ -1291,6 +1291,10 @@
       "title": "Roulette & Martingale",
       "description": "Play European roulette, then simulate how Martingale betting fails under limits."
     },
+    "slot-machine": {
+      "title": "Slot Machine",
+      "description": "Spin a classic 3-reel slot, then see the exact odds, RTP, and why near misses are designed in."
+    },
     "monty-hall": {
       "title": "Monty Hall",
       "description": "Pick a door, decide whether to switch, and compare the odds with simulation."

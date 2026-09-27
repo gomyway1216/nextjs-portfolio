@@ -60,6 +60,16 @@ test('the dice land on what the table announces, and bets settle by the rules', 
   await expect(onTable(page)).toHaveText(String(totalOnTable(expected.bets)));
   await expect(page.getByTestId('craps-callout')).toContainText(String(dice[0] + dice[1]));
   await expect(page.getByRole('list', { name: 'Recent rolls' }).locator('li[data-event]')).toHaveCount(1);
+
+  // Reset starts a fresh table: bankroll, history and the dice themselves.
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(bankroll(page)).toHaveText('1000');
+  await expect(page.getByTestId('craps-callout')).toHaveText('Coming out');
+  await expect(page.locator('[data-rolling]')).toHaveAttribute('aria-label', 'Craps table with two dice');
+  await expect(page.locator('[data-die]').first()).toHaveAttribute('data-face', '5');
+  await expect(page.locator('[data-die]').nth(1)).toHaveAttribute('data-face', '2');
+  expect(await page.locator('[data-die]').first().evaluate((el) => (el as HTMLElement).style.left)).toBe('72%');
+  await expect(page.getByRole('list', { name: 'Recent rolls' }).locator('li[data-event]')).toHaveCount(0);
 });
 
 test('a scripted hand: point, odds, point made, then a seven-out', async ({ page }) => {

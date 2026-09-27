@@ -182,6 +182,8 @@ export const PlayTab = () => {
     setMessage(null);
     setStats(EMPTY_STATS);
     setHistory([]);
+    // Clear the dice too, so the tray goes back to its idle state.
+    setDice(null);
   };
 
   const onTable = totalOnTable(bets);

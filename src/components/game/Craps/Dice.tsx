@@ -89,26 +89,32 @@ export const DiceTray = ({ dice, rollId, onSettled, label }: DiceTrayProps) => {
     setSettled(rollId === 0);
   }
 
+  const placeDie = (i: number, frame: DieFrame) => {
+    const die = dieRefs.current[i];
+    const shadow = shadowRefs.current[i];
+    if (die) {
+      Object.assign(die.style, dieStyle(frame));
+      die.dataset.face = String(frame.face);
+    }
+    if (shadow) {
+      const s = shadowStyle(frame);
+      shadow.style.left = s.left;
+      shadow.style.top = s.top;
+      shadow.style.opacity = String(s.opacity);
+    }
+  };
+
+  // Dice cleared (e.g. the table was reset): gather them back in the corner.
+  useEffect(() => {
+    if (dice === null) RESTING.forEach((frame, i) => placeDie(i, frame));
+  }, [dice]);
+
   useEffect(() => {
     if (rollId === 0 || dice === null) return;
     const plans = planThrow(dice);
 
     const draw = (u: number) => {
-      plans.forEach((plan, i) => {
-        const frame = dieFrameAt(plan, u);
-        const die = dieRefs.current[i];
-        const shadow = shadowRefs.current[i];
-        if (die) {
-          Object.assign(die.style, dieStyle(frame));
-          die.dataset.face = String(frame.face);
-        }
-        if (shadow) {
-          const s = shadowStyle(frame);
-          shadow.style.left = s.left;
-          shadow.style.top = s.top;
-          shadow.style.opacity = String(s.opacity);
-        }
-      });
+      plans.forEach((plan, i) => placeDie(i, dieFrameAt(plan, u)));
     };
     const finish = () => {
       setSettled(true);

@@ -88,6 +88,32 @@ test('the ball lands in the winning pocket, which is paid and posted to the boar
   expect(await boardNumbers(page)).toEqual([second, result]);
 });
 
+test('switching tabs mid-spin keeps the spin, the payout and the bankroll', async ({ page }) => {
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: 'SPIN', exact: true }).click();
+  const wheel = page.locator('[data-spinning]');
+  await expect(wheel).toHaveAttribute('data-spinning', 'true');
+
+  // Leave while the ball is still rolling…
+  await page.getByRole('tab', { name: 'Martingale sim' }).click();
+  await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
+  // …the spin keeps going on the hidden play tab and settles there.
+  await expect(wheel).toHaveAttribute('data-spinning', 'false', { timeout: 15_000 });
+
+  await page.getByRole('tab', { name: 'Play' }).click();
+  const n = await settledResult(page);
+  expect(await boardNumbers(page)).toEqual([n]);
+  const balance = colorOf(n) === 'red' ? 1005 : 995;
+  expect(await readBalance(page)).toBe(balance);
+
+  // A second round trip leaves the settled state alone.
+  await page.getByRole('tab', { name: 'House edge' }).click();
+  await page.getByRole('tab', { name: 'Play' }).click();
+  expect(await readBalance(page)).toBe(balance);
+  expect(await boardNumbers(page)).toEqual([n]);
+});
+
 test('reduced motion settles quickly and builds hot / cold statistics', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoulette(page);

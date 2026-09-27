@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Wheel, WHEEL_SPIN_MS } from './Wheel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Wheel } from './Wheel';
+import { HistoryBoard } from './HistoryBoard';
+import { pushResult } from './history';
 import { Bet, BET_ODDS, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
@@ -85,6 +87,24 @@ interface HistoryEntry {
   wagered: number;
 }
 
+/** A spin whose ball is still rolling: settled when the wheel reports it stopped. */
+interface PendingSpin {
+  result: number;
+  bets: Record<BetKey, PlacedBet>;
+  wagered: number;
+}
+
+/** Brings the wheel on screen (single-column mobile layout) so the spin is visible. */
+function revealWheel(el: HTMLElement | null) {
+  if (!el || typeof window === 'undefined') return;
+  const rect = el.getBoundingClientRect();
+  const viewport = window.innerHeight || document.documentElement.clientHeight;
+  const visible = Math.min(rect.bottom, viewport) - Math.max(rect.top, 0);
+  if (visible >= rect.height * 0.6) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+}
+
 export const PlayTab = () => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -97,15 +117,21 @@ export const PlayTab = () => {
   const [result, setResult] = useState<number | null>(null);
   const [spinId, setSpinId] = useState(0);
   const [lastNet, setLastNet] = useState<number | null>(null);
-  const [recent, setRecent] = useState<number[]>([]);
+  // Winning numbers for the results board, newest first. Kept across Reset:
+  // like a casino marquee it describes the wheel, not the player's bankroll.
+  const [results, setResults] = useState<number[]>([]);
+  const [spinCount, setSpinCount] = useState(0);
+  // Winning number marked on the felt (the "dolly") until the next spin.
+  const [winning, setWinning] = useState<number | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const historyId = useRef(0);
+  const wheelAreaRef = useRef<HTMLDivElement>(null);
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
   // until the next render, so a fast second click would otherwise schedule a
   // duplicate spin.
   const spinningRef = useRef(false);
-  const settleTimer = useRef<number | null>(null);
+  const pendingRef = useRef<PendingSpin | null>(null);
   // bankrollRef mirrors bankroll for the placement guard. It is written
   // eagerly at every point that mutates bankroll (settle payout, reset) so the
   // guard never reads a stale value, and the effect covers any other path.
@@ -113,10 +139,6 @@ export const PlayTab = () => {
   useEffect(() => {
     bankrollRef.current = bankroll;
   }, [bankroll]);
-
-  useEffect(() => () => {
-    if (settleTimer.current) window.clearTimeout(settleTimer.current);
-  }, []);
 
   const totalWagered = useMemo(
     () => Object.values(bets).reduce((sum, b) => sum + b.amount, 0),
@@ -172,35 +194,43 @@ export const PlayTab = () => {
     spinningRef.current = true;
     setSpinning(true);
     setLastNet(null);
-    const wagered = totalWagered;
-    const snapshotBets = bets;
+    setWinning(null);
     const r = spin();
+    pendingRef.current = { result: r, bets, wagered: totalWagered };
     setResult(r);
     setSpinId((id) => id + 1);
-
-    settleTimer.current = window.setTimeout(() => {
-      settleTimer.current = null;
-      let winnings = 0;
-      for (const { bet, amount } of Object.values(snapshotBets)) {
-        winnings += amount * payoutMultiplier(bet, r);
-      }
-      const net = winnings - wagered;
-      // Update the ref eagerly so a bet placed in the same tick as settlement
-      // validates against the post-payout bankroll, not the stale pre-spin one.
-      bankrollRef.current += net;
-      setBankroll((b) => b + net);
-      setLastNet(net);
-      setRecent((h) => [r, ...h].slice(0, 14));
-      const entry: HistoryEntry = { id: historyId.current++, result: r, net, wagered };
-      setHistory((h) => [entry, ...h].slice(0, 40));
-      undoStack.current = [];
-      setPlaceOrder([]);
-      betsRef.current = {};
-      setBets({});
-      spinningRef.current = false;
-      setSpinning(false);
-    }, WHEEL_SPIN_MS + 100);
+    revealWheel(wheelAreaRef.current);
   };
+
+  // Pays out once the ball has dropped and the wheel has stopped, so the
+  // result is never revealed before the animation shows it.
+  const settleSpin = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    const { result: r, bets: snapshotBets, wagered } = pending;
+    let winnings = 0;
+    for (const { bet, amount } of Object.values(snapshotBets)) {
+      winnings += amount * payoutMultiplier(bet, r);
+    }
+    const net = winnings - wagered;
+    // Update the ref eagerly so a bet placed in the same tick as settlement
+    // validates against the post-payout bankroll, not the stale pre-spin one.
+    bankrollRef.current += net;
+    setBankroll((b) => b + net);
+    setLastNet(net);
+    setWinning(r);
+    setResults((h) => pushResult(h, r));
+    setSpinCount((c) => c + 1);
+    const entry: HistoryEntry = { id: historyId.current++, result: r, net, wagered };
+    setHistory((h) => [entry, ...h].slice(0, 40));
+    undoStack.current = [];
+    setPlaceOrder([]);
+    betsRef.current = {};
+    setBets({});
+    spinningRef.current = false;
+    setSpinning(false);
+  }, []);
 
   const reset = () => {
     bankrollRef.current = INITIAL_BANKROLL;
@@ -210,10 +240,10 @@ export const PlayTab = () => {
     betsRef.current = {};
     setBets({});
     setLastNet(null);
-    setRecent([]);
     setHistory([]);
+    setWinning(null);
+    // spinId stays monotonic so the wheel never sees a repeated id.
     setResult(null);
-    setSpinId(0);
   };
 
   const numberGrid: number[] = useMemo(() => {
@@ -228,6 +258,9 @@ export const PlayTab = () => {
 
   const resultColor = (n: number) =>
     colorOf(n) === 'red' ? 'var(--rl-red)' : colorOf(n) === 'green' ? 'var(--rl-green)' : 'var(--rl-black)';
+  // Text colour for the colour name: the black swatch colour is unreadable on
+  // the dark theme, so black results use the foreground colour instead.
+  const resultTextColor = (n: number) => (colorOf(n) === 'black' ? 'var(--games-route-fg)' : resultColor(n));
 
   // Localized aria-label for a multi-number bet: "<name> (<odds>:1) — n, n, …".
   const numAria = (kind: string, odds: number, numbers: readonly number[]) =>
@@ -235,24 +268,30 @@ export const PlayTab = () => {
 
   return (
     <div className={styles.playGrid}>
-      {/* ---- Left column: wheel + recent + history ---- */}
+      {/* ---- Left column: wheel + results board ---- */}
       <div className={styles.panel}>
-        <div className={styles.wheelWrap}>
+        <div className={styles.wheelWrap} ref={wheelAreaRef}>
           <Wheel
             result={result}
             spinId={spinId}
+            onSettled={settleSpin}
+            size={360}
             resultLabel={t.wheelResult}
             idleLabel={t.wheelIdle}
           />
 
           <div className={styles.resultBadge} aria-live="polite">
-            {result !== null && !spinning && (
-              <>
-                <span className={styles.resultChip} style={{ background: resultColor(result) }}>
-                  {result}
-                </span>
-                <span style={{ color: resultColor(result) }}>{t.colorName(result)}</span>
-              </>
+            {spinning ? (
+              <span className={styles.noMoreBets}>{t.noMoreBets}</span>
+            ) : (
+              result !== null && (
+                <>
+                  <span className={styles.resultChip} style={{ background: resultColor(result) }}>
+                    {result}
+                  </span>
+                  <span style={{ color: resultTextColor(result) }}>{t.colorName(result)}</span>
+                </>
+              )
             )}
           </div>
           <div className={styles.netLine}>
@@ -265,53 +304,7 @@ export const PlayTab = () => {
           </div>
         </div>
 
-        <div style={{ marginTop: '0.6rem' }}>
-          <div className={styles.sectionLabel}>{t.recentResults}</div>
-          <div className={styles.recentRow}>
-            {recent.length === 0 && (
-              <span style={{ color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>{t.none}</span>
-            )}
-            {recent.map((n, i) => (
-              <span key={i} className={styles.recentPip} style={{ background: resultColor(n) }}>
-                {n}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ marginTop: '0.9rem' }}>
-          <div className={styles.sectionLabel}>{t.betHistory}</div>
-          {history.length === 0 ? (
-            <span style={{ color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>{t.noBets}</span>
-          ) : (
-            <div className={styles.histWrap}>
-              <table className={styles.histTable}>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>{t.wagered}</th>
-                    <th>{t.net}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id}>
-                      <td>
-                        <span className={styles.histResultDot} style={{ background: resultColor(h.result) }}>
-                          {h.result}
-                        </span>
-                      </td>
-                      <td>{h.wagered}</td>
-                      <td className={h.net >= 0 ? styles.histNetWin : styles.histNetLose}>
-                        {h.net >= 0 ? `+${h.net}` : h.net}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <HistoryBoard results={results} spinCount={spinCount} t={t} />
       </div>
 
       {/* ---- Right column: bankroll, chips, felt, actions ---- */}
@@ -355,6 +348,7 @@ export const PlayTab = () => {
             <BetCell
               label="0"
               variant="green"
+              winning={winning === 0}
               chips={bets['straight:0']?.amount}
               onClick={() => placeBetTracked({ kind: 'straight', number: 0 })}
               disabled={spinning}
@@ -369,6 +363,7 @@ export const PlayTab = () => {
                     key={n}
                     label={String(n)}
                     variant={RED_NUMBERS.has(n) ? 'red' : 'black'}
+                    winning={winning === n}
                     chips={bets[`straight:${n}`]?.amount}
                     onClick={() => placeBetTracked({ kind: 'straight', number: n })}
                     disabled={spinning}
@@ -539,6 +534,40 @@ export const PlayTab = () => {
           <br />
           <strong>{t.insideHint}</strong>
         </p>
+
+        <div style={{ marginTop: '0.9rem' }}>
+          <div className={styles.sectionLabel}>{t.betHistory}</div>
+          {history.length === 0 ? (
+            <span style={{ color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>{t.noBets}</span>
+          ) : (
+            <div className={styles.histWrap}>
+              <table className={styles.histTable}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{t.wagered}</th>
+                    <th>{t.net}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id}>
+                      <td>
+                        <span className={styles.histResultDot} style={{ background: resultColor(h.result) }}>
+                          {h.result}
+                        </span>
+                      </td>
+                      <td>{h.wagered}</td>
+                      <td className={h.net >= 0 ? styles.histNetWin : styles.histNetLose}>
+                        {h.net >= 0 ? `+${h.net}` : h.net}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -553,6 +582,8 @@ interface BetCellProps {
   onClick: () => void;
   disabled?: boolean;
   small?: boolean;
+  /** Marks the last winning number (the casino "dolly"). */
+  winning?: boolean;
   ariaLabel: string;
   className?: string;
   style?: React.CSSProperties;
@@ -563,13 +594,14 @@ const variantClass: Record<CellVariant, string> = {
   green: styles.cellGreen,
   outside: styles.cellOutside,
 };
-const BetCell = ({ label, variant, chips, onClick, disabled, small, ariaLabel, className, style }: BetCellProps) => (
+const BetCell = ({ label, variant, chips, onClick, disabled, small, winning, ariaLabel, className, style }: BetCellProps) => (
   <button
     onClick={onClick}
     disabled={disabled}
     aria-label={ariaLabel}
-    className={`${styles.betCell} ${variantClass[variant]} ${small ? styles.cellSmall : ''} ${className ?? ''}`}
+    className={`${styles.betCell} ${variantClass[variant]} ${small ? styles.cellSmall : ''} ${winning ? styles.cellWinning : ''} ${className ?? ''}`}
     style={style}
+    data-winning={winning ? 'true' : undefined}
   >
     {label}
     {chips !== undefined && chips > 0 && <span className={styles.chipBadge}>{chips}</span>}

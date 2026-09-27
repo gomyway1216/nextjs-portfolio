@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { games, getGameCoverPath } from '@/components/game/constants/games';
+import { GAME_COVER_SIZE, games, getGameCoverPath } from '@/components/game/constants/games';
 
 const SITE_NAME = 'Yudai Yaguchi';
 
@@ -32,7 +32,7 @@ export function buildGameMetadata(gameId: string): Metadata {
       title: socialTitle,
       description,
       url: game.path,
-      images: [{ url: cover, width: 1200, height: 630, alt: title }],
+      images: [{ url: cover, ...GAME_COVER_SIZE, alt: title }],
     },
     twitter: {
       card: 'summary_large_image',

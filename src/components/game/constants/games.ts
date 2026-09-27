@@ -16,6 +16,9 @@ export function getGameCoverPath(gameId: string): string {
   return `/img/games/covers/${gameId}.webp`;
 }
 
+/** Pixel size of every cover in /img/games/covers (declared in Open Graph metadata). */
+export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
+
 export const games: Game[] = [
   {
     id: 'jump-game',

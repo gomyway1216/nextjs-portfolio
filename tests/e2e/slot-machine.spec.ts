@@ -70,6 +70,23 @@ test('the reels stop on the payline that is announced and paid', async ({ page }
   expect(await stat(page, 'Paid out')).toBe(win);
 });
 
+test('switching tabs mid-spin keeps the spin and the session', async ({ page }) => {
+  await openSlots(page);
+  await firstSpin(page);
+  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  // Leave while the reels are still rolling (the bet is already taken)…
+  await page.getByRole('tab', { name: 'Exact odds' }).click();
+  await expect(page.getByTestId('slot-rtp')).toBeVisible();
+  await page.waitForTimeout(2_500);
+  // …and come back: the spin has settled and been paid, nothing was reset.
+  await page.getByRole('tab', { name: 'Play' }).click();
+  const line = await settledLine(page);
+  const win = evaluateLine(line)?.pays ?? 0;
+  expect(await stat(page, 'Spins')).toBe(1);
+  await expect(page.getByTestId('slot-credits')).toHaveText(String(500 - 1 + win));
+  expect(await paylineOnScreen(page)).toEqual([...line]);
+});
+
 test('a jackpot pays 1000× and the session books balance over auto-spins', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openSlots(page);

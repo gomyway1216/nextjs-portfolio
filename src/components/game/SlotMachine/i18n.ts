@@ -61,7 +61,8 @@ export interface SlotStrings {
   ways: string;
   probability: string;
   oneIn: string;
-  rtpShare: string;
+  /** Column: percentage points of RTP each rule returns (they sum to the RTP). */
+  rtpContribution: string;
   total: string;
   exactFraction: (num: string, den: string) => string;
   virtualReelTitle: string;
@@ -167,7 +168,7 @@ const EN: SlotStrings = {
   ways: 'Ways (of 262,144)',
   probability: 'Probability',
   oneIn: '1 in',
-  rtpShare: 'Share of RTP',
+  rtpContribution: 'Contribution to RTP',
   total: 'All wins',
   exactFraction: (num, den) => `${num} ÷ ${den}`,
   virtualReelTitle: 'Virtual reels and the near miss',
@@ -279,7 +280,7 @@ const JA: SlotStrings = {
   ways: '通り数（262,144 中）',
   probability: '確率',
   oneIn: '1 /',
-  rtpShare: 'RTP への寄与',
+  rtpContribution: 'RTP への寄与',
   total: '当たり合計',
   exactFraction: (num, den) => `${num} ÷ ${den}`,
   virtualReelTitle: 'バーチャルリールとニアミス',

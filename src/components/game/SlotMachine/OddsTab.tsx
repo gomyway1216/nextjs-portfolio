@@ -18,7 +18,9 @@ export const OddsTab = () => {
   const pct = (v: number, digits = 2) => `${(v * 100).toFixed(digits)}%`;
   // Tiny probabilities (the jackpot is 0.00038%) keep two significant digits.
   const probPct = (v: number) => (v > 0 && v < 1e-3 ? `${(v * 100).toPrecision(2)}%` : pct(v, 3));
-  const oneIn = (p: number) => (p > 0 ? `${t.oneIn} ${fmt(1 / p, 1 / p < 100 ? 1 : 0)}` : '—');
+  // "1 in N" with precision that suits the size: 5.03, 36.9, 262,144.
+  const inverse = (p: number) => fmt(1 / p, 1 / p < 10 ? 2 : 1 / p < 100 ? 1 : 0);
+  const oneIn = (p: number) => (p > 0 ? `${t.oneIn} ${inverse(p)}` : '—');
   const maxShare = Math.max(...ODDS.rules.map((r) => r.rtpContribution));
 
   return (
@@ -71,7 +73,7 @@ export const OddsTab = () => {
               <th className={styles.num}>{t.ways}</th>
               <th className={styles.num}>{t.probability}</th>
               <th className={styles.num}>{t.oneIn}</th>
-              <th>{t.rtpShare}</th>
+              <th>{t.rtpContribution}</th>
             </tr>
           </thead>
           <tbody>
@@ -94,7 +96,7 @@ export const OddsTab = () => {
                 <td className={styles.num}>{rule.pays}</td>
                 <td className={styles.num}>{fmt(ways)}</td>
                 <td className={styles.num}>{probPct(probability)}</td>
-                <td className={styles.num}>{fmt(1 / probability, 1 / probability < 100 ? 1 : 0)}</td>
+                <td className={styles.num}>{inverse(probability)}</td>
                 <td>
                   <span className={styles.shareCell}>
                     <span className={styles.shareBar} style={{ width: `${(rtpContribution / maxShare) * 100}%` }} />
@@ -110,7 +112,7 @@ export const OddsTab = () => {
               <td />
               <td className={styles.num}>{fmt(ODDS.winningWays)}</td>
               <td className={styles.num}>{pct(ODDS.hitFrequency, 3)}</td>
-              <td className={styles.num}>{fmt(1 / ODDS.hitFrequency, 2)}</td>
+              <td className={styles.num}>{inverse(ODDS.hitFrequency)}</td>
               <td>
                 <b>{pct(ODDS.rtp, 3)}</b>
               </td>

@@ -58,10 +58,17 @@ export const SlotMachine = () => {
           ))}
         </div>
 
-        <div role="tabpanel" id={`slot-panel-${tab}`} aria-labelledby={`slot-tab-${tab}`}>
-          {tab === 'play' && <PlayTab />}
-          {tab === 'odds' && <OddsTab />}
-          {tab === 'sim' && <SimTab />}
+        {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
+            never drops the play session, a spin that is still rolling (its bet
+            is already taken and it pays on settle) or a running simulation. */}
+        <div role="tabpanel" id="slot-panel-play" aria-labelledby="slot-tab-play" hidden={tab !== 'play'}>
+          <PlayTab />
+        </div>
+        <div role="tabpanel" id="slot-panel-odds" aria-labelledby="slot-tab-odds" hidden={tab !== 'odds'}>
+          <OddsTab />
+        </div>
+        <div role="tabpanel" id="slot-panel-sim" aria-labelledby="slot-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab />
         </div>
       </div>
 

@@ -62,6 +62,12 @@ describe('OddsTab', () => {
     expect(markup.match(/data-rule="/g)).toHaveLength(7);
     expect(markup).toContain('1 in 262,144');
     expect(markup).toContain('12× as often as the jackpot');
+    // Hit frequency reads the same in the tile and the table footer.
+    expect(markup).toContain('1 in 5.03');
+    expect(markup).toContain('>5.03<');
+    // Per-row values are percentage points of RTP (they sum to the RTP), so the column says so.
+    expect(markup).toContain('>Contribution to RTP<');
+    expect(markup).not.toContain('Share of RTP');
   });
 
   it('draws all 3 × 22 virtual-reel stops with their weights', () => {
@@ -72,6 +78,16 @@ describe('OddsTab', () => {
 });
 
 describe('SlotMachine', () => {
+  it('keeps every tab panel mounted and hides the inactive ones (a rolling spin survives a tab switch)', () => {
+    const markup = render(<SlotMachine />);
+    const panels = [...markup.matchAll(/<div role="tabpanel" id="slot-panel-(\w+)"[^>]*?( hidden="")?>/g)];
+    expect(panels.map((m) => [m[1], Boolean(m[2])])).toEqual([
+      ['play', false],
+      ['odds', true],
+      ['sim', true],
+    ]);
+  });
+
   it('renders the tabs and quotes the computed RTP in the help text', () => {
     const markup = render(<SlotMachine />, 'ja');
     expect(markup).toContain('スロットマシン');

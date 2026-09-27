@@ -57,14 +57,17 @@ export const Roulette = () => {
           ))}
         </div>
 
-        <div
-          role="tabpanel"
-          id={`rl-panel-${tab}`}
-          aria-labelledby={`rl-tab-${tab}`}
-        >
-          {tab === 'play' && <PlayTab />}
-          {tab === 'sim' && <SimTab />}
-          {tab === 'edge' && <EdgeTab />}
+        {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
+            never resets the bankroll or drops a spin that is still rolling (its
+            bet is already on the table and it pays on settle). */}
+        <div role="tabpanel" id="rl-panel-play" aria-labelledby="rl-tab-play" hidden={tab !== 'play'}>
+          <PlayTab />
+        </div>
+        <div role="tabpanel" id="rl-panel-sim" aria-labelledby="rl-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab />
+        </div>
+        <div role="tabpanel" id="rl-panel-edge" aria-labelledby="rl-tab-edge" hidden={tab !== 'edge'}>
+          <EdgeTab />
         </div>
       </div>
 

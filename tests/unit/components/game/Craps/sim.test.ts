@@ -5,6 +5,7 @@ import {
   STRATEGY_IDS,
   UNIT,
   logCheckpoints,
+  minimumStake,
   simulateHands,
   simulateSessions,
   simulateStrategies,
@@ -74,24 +75,58 @@ describe('simulateStrategies', () => {
 });
 
 describe('simulateSessions', () => {
-  it('keeps its books: finals, bust / ahead rates, and the expected loss', async () => {
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const sd = (xs: number[]) => {
+    const m = mean(xs);
+    return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1));
+  };
+
+  it('keeps its books: finals and bust / ahead rates', async () => {
     const s = (await simulateSessions({ strategy: 'pass', bankroll: 1_000, maxRolls: 300 }, 1_500, {}, seeded(3)))!;
     expect(s.finals).toHaveLength(1_500);
     expect(s.finals.every((f) => f >= 0)).toBe(true);
-    expect(s.bustRate).toBeCloseTo(s.finals.filter((f) => f < UNIT).length / 1_500, 12);
+    // Line bets are played out and nothing is left on the table: Pass pays even
+    // money on 5-unit bets, so every final is a whole number.
+    expect(s.finals.every((f) => Number.isInteger(f))).toBe(true);
+    expect(s.bustRate).toBeCloseTo(s.finals.filter((f) => f < minimumStake('pass')).length / 1_500, 12);
     expect(s.aheadRate).toBeCloseTo(s.finals.filter((f) => f > 1_000).length / 1_500, 12);
     expect(s.sampleTrajectory[0]).toBe(1_000);
     expect(s.sampleTrajectory.at(-1)).toBe(s.finals[0]);
-    // Bankroll never runs out here, so the mean loss ≈ edge × action (±4 SE).
-    const expectedLoss = s.meanAction * theoreticalEdge('pass');
-    const perSessionSd = Math.sqrt(s.meanAction * UNIT); // ~1 unit² variance per decided unit
-    expect(Math.abs(1_000 - s.meanFinal - expectedLoss)).toBeLessThan((4 * perSessionSd) / Math.sqrt(1_500));
   });
 
-  it('stops a session that can no longer afford to bet', async () => {
-    const s = (await simulateSessions({ strategy: 'any7', bankroll: 5, maxRolls: 1_000 }, 200, {}, seeded(5)))!;
-    // One Any Seven bet: most sessions bust on the first roll.
-    expect(s.bustRate).toBeGreaterThan(0.6);
+  it.each([
+    ['pass', 1_000],
+    ['dontPass', 1_000],
+    ['place68', 1_000],
+    ['field', 1_000],
+    // Small bankroll: max odds are often unaffordable, so the wager mix varies.
+    ['passMaxOdds', 60],
+  ] as const)('%s: mean final = bankroll − exact expected loss (bankroll %i)', async (strategy, bankroll) => {
+    const trials = 3_000;
+    const s = (await simulateSessions({ strategy, bankroll, maxRolls: 200 }, trials, {}, seeded(17)))!;
+    const standardError = sd(s.finals) / Math.sqrt(trials);
+    expect(Math.abs(s.meanFinal - (bankroll - s.meanExpectedLoss))).toBeLessThan(4 * standardError + 1e-9);
+  });
+
+  it('prices partial odds play correctly (a single blended edge would not)', async () => {
+    const s = (await simulateSessions({ strategy: 'passMaxOdds', bankroll: 60, maxRolls: 200 }, 2_000, {}, seeded(23)))!;
+    const blended = s.meanAction * theoreticalEdge('passMaxOdds');
+    // Odds are skipped when unaffordable, so more of the action is the
+    // higher-edge Pass line than the max-odds mix assumes.
+    expect(s.meanExpectedLoss).toBeGreaterThan(blended * 1.05);
+  });
+
+  it('counts a session as broke when it cannot afford the strategy’s next bet', async () => {
+    expect(minimumStake('place68')).toBe(12);
+    expect(minimumStake('pass')).toBe(5);
+    expect(minimumStake('passMaxOdds')).toBe(5);
+    // 11 credits can't place both the 6 and the 8: broke before it starts.
+    const s = (await simulateSessions({ strategy: 'place68', bankroll: 11, maxRolls: 100 }, 50, {}, seeded(5)))!;
+    expect(s.bustRate).toBe(1);
+    expect(s.finals.every((f) => f === 11)).toBe(true);
+
+    const any7 = (await simulateSessions({ strategy: 'any7', bankroll: 5, maxRolls: 1_000 }, 200, {}, seeded(5)))!;
+    expect(any7.bustRate).toBeGreaterThan(0.6);
     await expect(simulateSessions({ strategy: 'pass', bankroll: 0, maxRolls: 10 }, 5)).rejects.toThrow();
   });
 });

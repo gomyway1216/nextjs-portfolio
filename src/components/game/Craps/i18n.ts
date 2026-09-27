@@ -111,7 +111,7 @@ export interface CrapsStrings {
   medianFinal: string;
   meanFinal: string;
   expectedFinal: string;
-  expectedFinalNote: (edge: string) => string;
+  expectedFinalNote: string;
   finalDist: string;
   sampleSession: string;
   handsTitle: string;
@@ -303,17 +303,17 @@ const EN: CrapsStrings = {
   colObserved: (rolls) => `After ${rolls} rolls`,
   sessionTitle: 'A night at the table',
   sessionIntro:
-    'Many players sit down with the same bankroll and follow one strategy for a number of rolls (5-unit bets; Place 6 & 8 are 6 each). How many go home ahead?',
+    'Many players sit down with the same bankroll and follow one strategy for a number of rolls (5-unit bets; Place 6 & 8 are 6 each). After the last roll an open line bet is played out and everything else is taken down. How many go home ahead?',
   strategyLabel: 'Strategy',
   bankrollLabel: 'Starting bankroll',
   rollsPerSession: 'Rolls per session',
   sessionsLabel: 'Players (sessions)',
-  bustRate: 'Went broke',
+  bustRate: 'Went broke (can’t afford the next bet)',
   aheadRate: 'Finished ahead',
   medianFinal: 'Median final bankroll',
   meanFinal: 'Mean final bankroll',
   expectedFinal: 'Expected final bankroll',
-  expectedFinalNote: (edge) => `Starting bankroll minus the exact edge (${edge}) on the average action.`,
+  expectedFinalNote: 'Starting bankroll minus the exact expected loss of every bet actually made (each stake × its own edge).',
   finalDist: 'Distribution of final bankrolls',
   sampleSession: 'One sample session',
   handsTitle: 'Shooter hands: simulation vs exact',
@@ -460,17 +460,17 @@ const JA: CrapsStrings = {
   colObserved: (rolls) => `${rolls} 投後`,
   sessionTitle: 'テーブルでの一晩',
   sessionIntro:
-    '大勢のプレイヤーが同じ持ち金で座り、1 つの賭け方で決まった回数だけ遊びます（1 回 5 単位、プレイス 6・8 は各 6）。勝って帰れるのは何人？',
+    '大勢のプレイヤーが同じ持ち金で座り、1 つの賭け方で決まった回数だけ遊びます（1 回 5 単位、プレイス 6・8 は各 6）。最後の投げの後、残ったラインベットは決着まで続け、それ以外は引き上げます。勝って帰れるのは何人？',
   strategyLabel: '賭け方',
   bankrollLabel: '最初の持ち金',
   rollsPerSession: '1 セッションの投数',
   sessionsLabel: 'プレイヤー数（セッション）',
-  bustRate: '破産した',
+  bustRate: '破産（次の賭け金が払えない）',
   aheadRate: '勝って終わった',
   medianFinal: '最終持ち金 中央値',
   meanFinal: '最終持ち金 平均',
   expectedFinal: '最終持ち金 期待値',
-  expectedFinalNote: (edge) => `最初の持ち金から、平均の賭け金 × 厳密なエッジ（${edge}）を引いた値。`,
+  expectedFinalNote: '最初の持ち金から、実際に賭けた各ベットの賭け金 × そのベット固有の厳密なエッジの合計を引いた値。',
   finalDist: '最終持ち金の分布',
   sampleSession: 'サンプル 1 セッション',
   handsTitle: 'シューターの手番: シミュレーション vs 厳密値',

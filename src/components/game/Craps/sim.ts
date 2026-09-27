@@ -143,7 +143,7 @@ export async function simulateStrategies(
       for (const s of state) result[s.id].push({ rolls: i, edge: s.action > 0 ? -s.profit / s.action : NaN });
       next++;
     }
-    if (i % 50_000 === 0 && i < rolls) {
+    if (i % 20_000 === 0 && i < rolls) {
       options.onProgress?.(i, rolls);
       if (options.signal?.aborted) return null;
       await yieldToBrowser();
@@ -156,26 +156,47 @@ export async function simulateStrategies(
 export interface SessionConfig {
   strategy: StrategyId;
   bankroll: number;
-  /** Stop after this many rolls (or earlier if the bankroll can't cover the next bet). */
+  /**
+   * Betting rolls per session. Afterwards no new bets are made: open line bets
+   * are played out to a decision and everything else is taken down.
+   */
   maxRolls: number;
 }
 
 export interface SessionSummary {
   trials: number;
   finals: number[];
+  /** Share of sessions that ended unable to afford the strategy's next bet. */
   bustRate: number;
   aheadRate: number;
   meanFinal: number;
   medianFinal: number;
-  /** Average total action per session (everything that was decided). */
+  /** Average total action per session (every stake that reached a decision). */
   meanAction: number;
+  /**
+   * Average exact expected loss per session: Σ stake × that bet's own house
+   * edge over every decided bet, so it fits any wager mix (e.g. odds skipped
+   * when they were unaffordable). By Wald's identity E[final] = bankroll − this.
+   */
+  meanExpectedLoss: number;
   sampleTrajectory: number[];
 }
 
+/** The smallest bankroll that can still follow the strategy from a fresh come-out. */
+export const minimumStake = (strategy: StrategyId) => totalOnTable(strategyTopUp(strategy, null, {}));
+
+const BET_EDGE: Partial<Record<BetId, number>> = Object.fromEntries(
+  allBetOdds().map((o) => [o.id, toNumber(o.houseEdge)]),
+);
+
+/** Resolved-roll budget between yields, so long runs never freeze the page. */
+const ROLLS_PER_YIELD = 20_000;
+
 /**
- * A night at the table: each session starts with `bankroll`, follows the
- * strategy (only adding bets it can afford) and ends after `maxRolls` rolls or
- * when it can no longer bet. Final credits include chips still on the table.
+ * A night at the table: each session starts with `bankroll` and follows the
+ * strategy for `maxRolls` rolls, adding only bets it can afford. Then it
+ * stops betting, plays any open line bet to its decision (so no bet is cut
+ * off mid-point, which would bias the result) and takes the rest down.
  */
 export async function simulateSessions(
   config: SessionConfig,
@@ -189,17 +210,32 @@ export async function simulateSessions(
   }
   if (!Number.isInteger(trials) || trials <= 0) throw new Error('simulateSessions: trials must be a positive integer');
 
+  const minStake = minimumStake(strategy);
   const finals = new Array<number>(trials);
   const sampleTrajectory: number[] = [bankroll];
   let busted = 0;
   let ahead = 0;
   let totalFinal = 0;
   let totalAction = 0;
+  let totalExpectedLoss = 0;
+  let rollsSinceYield = 0;
 
   for (let t = 0; t < trials; t++) {
     let credits = bankroll;
     let point: PointNumber | null = null;
     let bets: Bets = {};
+    const settle = (res: RollResolution) => {
+      credits += res.returned; // exact, like the table (no per-roll rounding bias)
+      for (const r of res.results) {
+        totalAction += r.stake;
+        totalExpectedLoss += r.stake * (BET_EDGE[r.id] ?? 0);
+      }
+      point = res.pointAfter;
+      bets = res.bets;
+      rollsSinceYield++;
+      if (t === 0) sampleTrajectory.push(credits + totalOnTable(bets));
+    };
+
     for (let roll = 0; roll < maxRolls; roll++) {
       const topUp = strategyTopUp(strategy, point, bets);
       const cost = totalOnTable(topUp);
@@ -210,19 +246,22 @@ export async function simulateSessions(
       } else if (cost > credits && totalOnTable(bets) === 0) {
         break; // can't afford to play and nothing is working
       }
-      const res = resolveRoll(point, bets, rollDice(rng));
-      credits += res.returned; // exact, like the table (no per-roll rounding bias)
-      totalAction += tally(res).action;
-      point = res.pointAfter;
-      bets = res.bets;
-      if (t === 0) sampleTrajectory.push(credits + totalOnTable(bets));
+      settle(resolveRoll(point, bets, rollDice(rng)));
     }
-    const final = credits + totalOnTable(bets);
-    finals[t] = final;
-    totalFinal += final;
-    if (final < UNIT) busted++;
-    if (final > bankroll) ahead++;
-    if ((t + 1) % 200 === 0 && t + 1 < trials) {
+
+    // Stop betting: play open line bets out, take everything else down.
+    const lineOnly = (b: Bets): Bets =>
+      Object.fromEntries(Object.entries(b).filter(([id]) => id === 'pass' || id === 'dontPass')) as Bets;
+    credits += totalOnTable(bets) - totalOnTable(lineOnly(bets));
+    bets = lineOnly(bets);
+    while (totalOnTable(bets) > 0) settle(resolveRoll(point, bets, rollDice(rng)));
+
+    finals[t] = credits;
+    totalFinal += credits;
+    if (credits < minStake) busted++;
+    if (credits > bankroll) ahead++;
+    if (rollsSinceYield >= ROLLS_PER_YIELD && t + 1 < trials) {
+      rollsSinceYield = 0;
       options.onProgress?.(t + 1, trials);
       if (options.signal?.aborted) return null;
       await yieldToBrowser();
@@ -240,6 +279,7 @@ export async function simulateSessions(
     meanFinal: totalFinal / trials,
     medianFinal: trials % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid],
     meanAction: totalAction / trials,
+    meanExpectedLoss: totalExpectedLoss / trials,
     sampleTrajectory,
   };
 }
@@ -252,28 +292,32 @@ export interface HandSummary {
   longest: number;
 }
 
-/** Rolls dice until `hands` shooters have sevened out, recording each hand's length. */
+/**
+ * Rolls until `hands` shooters have sevened out, recording each hand's length.
+ * The hand state (come-out / point / seven-out) comes from the rules engine
+ * itself, so it can never diverge from the table.
+ */
 export async function simulateHands(hands: number, options: AsyncOptions = {}, rng: () => number = Math.random): Promise<HandSummary | null> {
   if (!Number.isInteger(hands) || hands <= 0) throw new Error('simulateHands: hands must be a positive integer');
   const counts: number[] = [];
   let totalRolls = 0;
   let longest = 0;
+  let rollsSinceYield = 0;
   for (let h = 0; h < hands; h++) {
-    let point: number | null = null;
+    let point: PointNumber | null = null;
     let length = 0;
     for (;;) {
-      const [a, b] = rollDice(rng);
-      const total = a + b;
+      const res = resolveRoll(point, {}, rollDice(rng));
       length++;
-      if (point === null) {
-        if (total !== 2 && total !== 3 && total !== 7 && total !== 11 && total !== 12) point = total;
-      } else if (total === point) point = null;
-      else if (total === 7) break;
+      point = res.pointAfter;
+      if (res.event === 'sevenOut') break;
     }
     counts[length] = (counts[length] ?? 0) + 1;
     totalRolls += length;
+    rollsSinceYield += length;
     if (length > longest) longest = length;
-    if ((h + 1) % 20_000 === 0 && h + 1 < hands) {
+    if (rollsSinceYield >= ROLLS_PER_YIELD * 5 && h + 1 < hands) {
+      rollsSinceYield = 0;
       options.onProgress?.(h + 1, hands);
       if (options.signal?.aborted) return null;
       await yieldToBrowser();

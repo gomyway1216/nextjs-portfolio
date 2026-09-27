@@ -99,7 +99,9 @@ export const SimTab = () => {
   };
 
   const lastRolls = edges ? edges[STRATEGY_IDS[0]].at(-1)?.rolls ?? 0 : 0;
-  const expectedFinal = summary ? summaryConfig.bankroll - summary.meanAction * theoreticalEdge(summaryConfig.strategy) : 0;
+  // Exact for the wagers actually made (each decided bet × its own edge), so it
+  // stays right when, say, odds were skipped because they were unaffordable.
+  const expectedFinal = summary ? summaryConfig.bankroll - summary.meanExpectedLoss : 0;
 
   return (
     <div className={styles.oddsLayout}>
@@ -242,7 +244,7 @@ export const SimTab = () => {
               <div className={styles.stat}>
                 <span className={styles.statLabel}>{t.expectedFinal}</span>
                 <span className={styles.statValue}>{fmt(expectedFinal, 1)}</span>
-                <span className={styles.statNote}>{t.expectedFinalNote(pct(theoreticalEdge(summaryConfig.strategy), 3))}</span>
+                <span className={styles.statNote}>{t.expectedFinalNote}</span>
               </div>
             </div>
             <h4 className={styles.subTitle}>{t.finalDist}</h4>

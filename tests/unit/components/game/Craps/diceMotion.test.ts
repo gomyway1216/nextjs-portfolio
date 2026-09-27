@@ -10,7 +10,7 @@ function seeded(seed: number) {
 const faces = [1, 2, 3, 4, 5, 6];
 
 describe('planThrow / dieFrameAt', () => {
-  it('always lands on the drawn faces, apart from each other, inside the table', () => {
+  it('always lands on the drawn faces, never overlapping, inside the table', () => {
     const rng = seeded(21);
     // Track worst cases and assert once: ~400k per-frame expect() calls would
     // blow vitest's 5s timeout on a loaded CI runner.
@@ -21,6 +21,7 @@ describe('planThrow / dieFrameAt', () => {
     let minZ = Infinity;
     let maxStep = 0;
     let minGap = Infinity;
+    let minPathGap = Infinity;
     const wrongEnds: string[] = [];
     for (let trial = 0; trial < 500; trial++) {
       const result: [number, number] = [faces[trial % 6], faces[(trial * 5) % 6]];
@@ -32,6 +33,10 @@ describe('planThrow / dieFrameAt', () => {
         }
       });
       minGap = Math.min(minGap, Math.hypot(ends[0].x - ends[1].x, ends[0].y - ends[1].y));
+      for (let k = 0; k <= 200; k++) {
+        const [a, b] = plans.map((p) => dieFrameAt(p, k / 200));
+        minPathGap = Math.min(minPathGap, Math.hypot(a.x - b.x, a.y - b.y));
+      }
 
       for (const plan of plans) {
         let prev = dieFrameAt(plan, 0);
@@ -49,6 +54,8 @@ describe('planThrow / dieFrameAt', () => {
     }
     expect(wrongEnds).toEqual([]);
     expect(minGap).toBeGreaterThanOrEqual(MIN_REST_GAP - 1e-9);
+    // The dice never overlap: not at the start, in flight, nor at rest.
+    expect(minPathGap).toBeGreaterThanOrEqual(MIN_REST_GAP - 1e-9);
     // On the felt, below the wall, never under the table.
     expect(minX).toBeGreaterThanOrEqual(DIE_SIZE / 2);
     expect(maxX).toBeLessThanOrEqual(100 - DIE_SIZE / 2);

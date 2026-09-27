@@ -9,7 +9,9 @@
  * - Place bets and hardways are OFF on the come-out roll and stay up after a
  *   place win; everything else resolves and comes down.
  * - One-roll bets (Field, Any 7, Any Craps, Yo, Aces, Twelve) resolve every roll.
- * - Payouts are exact (e.g. Place 6 pays 7:6); results are rounded to cents.
+ * - Payouts are exact fractions of the stake (Place 6 for 5 pays 35/6): no
+ *   rounding, so the edge on the table is exactly the edge the odds tab shows.
+ *   Amounts are rounded only for display.
  */
 
 export type Dice = readonly [number, number];
@@ -107,8 +109,7 @@ export function rollDice(rng: () => number = Math.random): Dice {
   return [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)];
 }
 
-const cents = (x: number) => Math.round(x * 100) / 100;
-const pay = (stake: number, [num, den]: Ratio) => cents((stake * num) / den);
+const pay = (stake: number, [num, den]: Ratio) => (stake * num) / den;
 
 /** Largest odds stake allowed behind the line bet right now (0 if none). */
 export function maxOdds(id: 'passOdds' | 'dontPassOdds', point: PointNumber | null, bets: Bets): number {
@@ -261,11 +262,9 @@ export function resolveRoll(point: PointNumber | null, bets: Bets, dice: Dice): 
   }
 
   // Wins pay profit + stake back, except bets that stay up (only the profit comes back).
-  const returned = cents(
-    results.reduce((sum, r) => sum + (r.outcome === 'win' ? r.profit + (r.staysUp ? 0 : r.stake) : 0), 0),
-  );
+  const returned = results.reduce((sum, r) => sum + (r.outcome === 'win' ? r.profit + (r.staysUp ? 0 : r.stake) : 0), 0);
 
   return { dice, total, pointBefore: point, pointAfter, event, results, bets: remaining, returned };
 }
 
-export const totalOnTable = (bets: Bets) => cents(Object.values(bets).reduce((s, v) => s + (v ?? 0), 0));
+export const totalOnTable = (bets: Bets) => Object.values(bets).reduce((s, v) => s + (v ?? 0), 0);

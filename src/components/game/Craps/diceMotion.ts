@@ -56,17 +56,25 @@ function randomFace(rng: () => number, not: number): number {
 }
 
 export function planThrow(faces: readonly [number, number], rng: () => number = Math.random): [DiePlan, DiePlan] {
-  const restA = { x: 30 + rng() * 34, y: 20 + rng() * 16 };
-  let restB = { x: 30 + rng() * 40, y: 20 + rng() * 16 };
-  // Keep the dice apart at rest: nudge the second one sideways if needed.
-  if (Math.hypot(restB.x - restA.x, restB.y - restA.y) < MIN_REST_GAP) {
-    restB = { x: restA.x + (restA.x < 50 ? 1 : -1) * MIN_REST_GAP, y: restA.y };
-  }
-  const rests = [restA, restB];
+  // The dice travel in lanes: the left die starts, hits the wall and comes to
+  // rest to the left of the other, always at least MIN_REST_GAP apart. With a
+  // shared timing every in-between frame blends those ordered anchor points,
+  // so the gap never closes and the dice never overlap.
+  const leftRest = { x: 30 + rng() * 26, y: 20 + rng() * 16 };
+  const rightRest = { x: leftRest.x + MIN_REST_GAP + rng() * 14, y: 20 + rng() * 16 };
+  const leftStart = { x: 78 + rng() * 3, y: 44 + rng() * 5 };
+  const rightStart = { x: leftStart.x + MIN_REST_GAP + rng(), y: 44 + rng() * 5 };
+  const leftWall = leftRest.x + (rng() - 0.5) * 8;
+  const rightWall = Math.max(rightRest.x + (rng() - 0.5) * 8, leftWall + MIN_REST_GAP);
+  const lanes = [
+    { start: leftStart, wall: leftWall, rest: leftRest },
+    { start: rightStart, wall: rightWall, rest: rightRest },
+  ];
+  const uWall = 0.34 + rng() * 0.08;
+  const uSettle = 0.8 + rng() * 0.08;
 
   return faces.map((face, i) => {
-    const uWall = 0.34 + rng() * 0.08;
-    const uSettle = 0.8 + rng() * 0.08;
+    const lane = lanes[i];
     const tumble: number[] = [];
     let prev = 1 + Math.floor(rng() * 6);
     for (let k = 0; k * FACE_STEP < 1; k++) {
@@ -76,9 +84,9 @@ export function planThrow(faces: readonly [number, number], rng: () => number = 
     return {
       face,
       // From the shooter's end, fully on the felt (y ≤ TABLE_H − DIE_SIZE / 2).
-      start: { x: 82 + i * 7 + rng() * 4, y: 44 + rng() * 5, z: 7 },
-      wall: { x: rests[i].x + (rng() - 0.5) * 16, u: uWall },
-      rest: { ...rests[i], angle: (rng() - 0.5) * 50 },
+      start: { ...lane.start, z: 7 },
+      wall: { x: lane.wall, u: uWall },
+      rest: { ...lane.rest, angle: (rng() - 0.5) * 50 },
       uSettle,
       tumble,
       uLock: uWall + (uSettle - uWall) * (0.55 + rng() * 0.2),

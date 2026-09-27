@@ -87,7 +87,8 @@ describe('point phase', () => {
     const res = resolveRoll(9, { place6: 6 }, [2, 4]);
     expect(res.bets).toEqual({ place6: 6 });
     expect(res.returned).toBe(7); // only the profit comes back
-    expect(one(9, { place6: 5 }, [3, 3], 'place6')?.profit).toBe(5.83); // cents
+    // Exact, not rounded to cents: rounding would shift the edge with the stake.
+    expect(one(9, { place6: 5 }, [3, 3], 'place6')?.profit).toBe(35 / 6);
   });
 
   it('hardways win only the hard way and lose to the easy way or a 7', () => {

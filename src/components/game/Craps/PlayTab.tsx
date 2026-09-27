@@ -52,7 +52,11 @@ interface HistoryEntry {
   event: RollResolution['event'];
 }
 
-const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+/** Amounts stay exact internally (Place 6 for 5 pays 35/6); round only for display. */
+const money = (n: number) => {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2);
+};
 
 export const PlayTab = () => {
   const { language } = useGameLanguage();
@@ -85,8 +89,8 @@ export const PlayTab = () => {
     setBets(next);
   };
   const commitBankroll = (next: number) => {
-    bankrollRef.current = Math.round(next * 100) / 100;
-    setBankroll(bankrollRef.current);
+    bankrollRef.current = next;
+    setBankroll(next);
   };
 
   const place = (id: BetId, amount: number = chip): boolean => {
@@ -144,7 +148,7 @@ export const PlayTab = () => {
     const res = pendingRef.current;
     if (!res) return;
     pendingRef.current = null;
-    bankrollRef.current = Math.round((bankrollRef.current + res.returned) * 100) / 100;
+    bankrollRef.current += res.returned;
     setBankroll(bankrollRef.current);
     betsRef.current = res.bets;
     setBets(res.bets);
@@ -187,6 +191,7 @@ export const PlayTab = () => {
   };
 
   const onTable = totalOnTable(bets);
+  // Rounded for display, so float dust never shows as "-0" or a stray "+".
   const net = Math.round((bankroll + onTable - INITIAL_BANKROLL) * 100) / 100;
 
   const spot = (id: BetId, label: string, pays: string, extraClass = '', children?: React.ReactNode) => {

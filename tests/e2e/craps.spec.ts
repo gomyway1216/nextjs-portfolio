@@ -157,6 +157,30 @@ test('the exact odds tab shows the published numbers', async ({ page }) => {
   await expect(page.locator('tr[data-strategy="3-4-5x"]')).toContainText('0.374%');
 });
 
+test('the simulations compare strategies, sessions and hand lengths', async ({ page }) => {
+  await openCraps(page);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+
+  await page.getByLabel('Number of rolls').selectOption('10000');
+  await page.getByRole('button', { name: 'Run' }).first().click();
+  const edges = page.getByTestId('craps-sim-edges');
+  await expect(edges).toBeVisible({ timeout: 20_000 });
+  await expect(edges.locator('tr[data-strategy]')).toHaveCount(6);
+  await expect(edges.locator('tr[data-strategy="any7"]')).toContainText('16.667%');
+  await expect(edges).toContainText('After 10,000 rolls');
+
+  await page.getByLabel('Players (sessions)').fill('200');
+  await page.getByRole('button', { name: 'Run' }).nth(1).click();
+  const sessions = page.getByTestId('craps-sim-sessions');
+  await expect(sessions).toBeVisible({ timeout: 20_000 });
+  await expect(sessions).toContainText('Finished ahead');
+
+  await page.getByLabel('Number of hands').selectOption('1000');
+  await page.getByRole('button', { name: 'Run' }).nth(2).click();
+  await expect(page.getByTestId('craps-sim-hands')).toContainText('1,000 hands averaged', { timeout: 20_000 });
+  await expect(page.getByTestId('craps-sim-hands')).toContainText('(exact 8.53)');
+});
+
 test('craps is localized', async ({ page }) => {
   await openCraps(page, 'ja');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('クラップス');

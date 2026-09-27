@@ -70,13 +70,15 @@ describe('OddsTab', () => {
 });
 
 describe('Craps shell', () => {
-  it('keeps both tab panels mounted and hides the inactive one', () => {
+  it('keeps every tab panel mounted and hides the inactive ones', () => {
     const markup = render(<Craps />, 'ja');
     const panels = [...markup.matchAll(/<div role="tabpanel" id="craps-panel-(\w+)"[^>]*?( hidden="")?>/g)];
     expect(panels.map((m) => [m[1], Boolean(m[2])])).toEqual([
       ['play', false],
       ['odds', true],
+      ['sim', true],
     ]);
+    expect(markup).toContain('>シミュレーション<');
     expect(markup).toContain('クラップス');
     expect(markup).toContain('>正確な確率<');
   });

@@ -61,6 +61,24 @@ describe('HistoryBoard', () => {
     expect(after).toContain(`red, ${en.hitCount(HOT_COLD_MIN_SPINS)}`);
   });
 
+  it('offers a clear button only when a handler is given, disabled while empty or spinning', () => {
+    const noHandler = renderToStaticMarkup(<HistoryBoard results={[3]} spinCount={1} t={en} />);
+    expect(noHandler).not.toContain('aria-label="Clear saved winning numbers"');
+
+    const clearButton = (markup: string) => markup.match(/<button[^>]*aria-label="Clear saved winning numbers"[^>]*>/)?.[0] ?? '';
+    const active = renderToStaticMarkup(<HistoryBoard results={[3]} spinCount={1} t={en} onClear={() => {}} />);
+    expect(clearButton(active)).not.toBe('');
+    expect(clearButton(active)).not.toContain('disabled');
+
+    const empty = renderToStaticMarkup(<HistoryBoard results={[]} spinCount={0} t={en} onClear={() => {}} />);
+    expect(clearButton(empty)).toContain('disabled');
+
+    const spinning = renderToStaticMarkup(
+      <HistoryBoard results={[3]} spinCount={1} t={en} onClear={() => {}} clearDisabled />,
+    );
+    expect(clearButton(spinning)).toContain('disabled');
+  });
+
   it('renders Japanese labels', () => {
     const markup = renderToStaticMarkup(<HistoryBoard results={[3, 26]} spinCount={2} t={ja} />);
     expect(markup).toContain('出目履歴');

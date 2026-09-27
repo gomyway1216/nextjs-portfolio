@@ -17,6 +17,9 @@ interface HistoryBoardProps {
    */
   spinCount: number;
   t: RouletteStrings;
+  /** Empties the saved history (button hidden when omitted). */
+  onClear?: () => void;
+  clearDisabled?: boolean;
 }
 
 interface Segment {
@@ -78,7 +81,7 @@ const NumberChips = ({ label, icon, items, t }: { label: string; icon: string; i
  * column — red on the left, black on the right, zero in the middle, newest on
  * top — next to distribution bars and hot / cold numbers.
  */
-export const HistoryBoard = ({ results, spinCount, t }: HistoryBoardProps) => {
+export const HistoryBoard = ({ results, spinCount, t, onClear, clearDisabled }: HistoryBoardProps) => {
   const stats = computeHistoryStats(results);
   const shown = results.slice(0, BOARD_ROWS);
   const total = stats.total;
@@ -89,6 +92,17 @@ export const HistoryBoard = ({ results, spinCount, t }: HistoryBoardProps) => {
       <div className={styles.boardHeader}>
         <span className={styles.boardTitle}>{t.recentResults}</span>
         {total > 0 && <span className={styles.boardCount}>{t.boardSpins(total)}</span>}
+        {onClear && (
+          <button
+            type="button"
+            className={styles.boardClear}
+            onClick={onClear}
+            disabled={clearDisabled || total === 0}
+            aria-label={t.boardClearAria}
+          >
+            {t.boardClear}
+          </button>
+        )}
       </div>
 
       <div className={styles.boardBody}>

@@ -6,9 +6,10 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
+import { SimTab } from './SimTab';
 import styles from './Craps.module.css';
 
-type Tab = 'play' | 'odds';
+type Tab = 'play' | 'odds' | 'sim';
 
 export const Craps = () => {
   const [tab, setTab] = useState<Tab>('play');
@@ -19,6 +20,7 @@ export const Craps = () => {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
     { id: 'odds', label: t.tabOdds },
+    { id: 'sim', label: t.tabSim },
   ];
 
   return (
@@ -60,6 +62,9 @@ export const Craps = () => {
         </div>
         <div role="tabpanel" id="craps-panel-odds" aria-labelledby="craps-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+        </div>
+        <div role="tabpanel" id="craps-panel-sim" aria-labelledby="craps-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab />
         </div>
       </div>
 

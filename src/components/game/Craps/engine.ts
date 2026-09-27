@@ -96,14 +96,11 @@ export const WAYS: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6
 
 export const isPointNumber = (n: number): n is PointNumber => (POINT_NUMBERS as readonly number[]).includes(n);
 
-export const placeNumber = (id: BetId): PointNumber | null => {
-  const m = /^place(\d+)$/.exec(id);
-  return m ? (Number(m[1]) as PointNumber) : null;
-};
-export const hardNumber = (id: BetId): 4 | 6 | 8 | 10 | null => {
-  const m = /^hard(\d+)$/.exec(id);
-  return m ? (Number(m[1]) as 4 | 6 | 8 | 10) : null;
-};
+// Lookup tables (resolveRoll runs millions of times in the simulations).
+const PLACE_NUMBER: Partial<Record<BetId, PointNumber>> = { place4: 4, place5: 5, place6: 6, place8: 8, place9: 9, place10: 10 };
+const HARD_NUMBER: Partial<Record<BetId, 4 | 6 | 8 | 10>> = { hard4: 4, hard6: 6, hard8: 8, hard10: 10 };
+export const placeNumber = (id: BetId): PointNumber | null => PLACE_NUMBER[id] ?? null;
+export const hardNumber = (id: BetId): 4 | 6 | 8 | 10 | null => HARD_NUMBER[id] ?? null;
 
 export function rollDice(rng: () => number = Math.random): Dice {
   return [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)];

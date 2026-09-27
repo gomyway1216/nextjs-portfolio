@@ -4,12 +4,14 @@
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { BetId, PlacementError, RollEvent } from './engine';
+import type { StrategyId } from './sim';
 
 export interface CrapsStrings {
   title: string;
   subtitle: string;
   tabPlay: string;
   tabOdds: string;
+  tabSim: string;
   howToPlay: string;
   infoBody: string[];
   betName: Record<BetId, string>;
@@ -89,6 +91,35 @@ export interface CrapsStrings {
   survivalAxis: string;
   survivalLabel: (n: number) => string;
   recordNote: (oneIn: string) => string;
+  // Simulation
+  strategyName: Record<StrategyId, string>;
+  simEdgeTitle: string;
+  simEdgeIntro: string;
+  rollsLabel: string;
+  run: string;
+  running: (pct: number) => string;
+  colTheory: string;
+  colObserved: (rolls: string) => string;
+  sessionTitle: string;
+  sessionIntro: string;
+  strategyLabel: string;
+  bankrollLabel: string;
+  rollsPerSession: string;
+  sessionsLabel: string;
+  bustRate: string;
+  aheadRate: string;
+  medianFinal: string;
+  meanFinal: string;
+  expectedFinal: string;
+  expectedFinalNote: (edge: string) => string;
+  finalDist: string;
+  sampleSession: string;
+  handsTitle: string;
+  handsIntro: string;
+  handsLabel: string;
+  simulatedShare: string;
+  exactShare: string;
+  handsResult: (hands: string, mean: string, exact: string, longest: number) => string;
 }
 
 const BET_EN: Record<BetId, string> = {
@@ -143,6 +174,7 @@ const EN: CrapsStrings = {
     'Throw the dice at a full craps table, then see the exact house edge of every bet — from 0% on the odds to 16.7% on Any Seven.',
   tabPlay: 'Play',
   tabOdds: 'Exact odds',
+  tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
     'The first roll of a round is the come-out. Pass Line wins on 7 or 11 and loses on 2, 3 or 12; any other total becomes the point (the puck turns ON). The shooter then rolls until the point comes again (Pass wins) or a 7 shows (seven out — Pass loses).',
@@ -253,6 +285,44 @@ const EN: CrapsStrings = {
   survivalLabel: (n) => `Chance a hand lasts at least ${n} rolls`,
   recordNote: (oneIn) =>
     `In 2009 Patricia Demauro rolled 154 times before sevening out. The chance of a hand lasting that long is about 1 in ${oneIn}.`,
+  strategyName: {
+    passMaxOdds: 'Pass + 3-4-5× odds',
+    dontPass: "Don't Pass",
+    pass: 'Pass Line',
+    place68: 'Place 6 & 8',
+    field: 'Field',
+    any7: 'Any Seven',
+  },
+  simEdgeTitle: 'Which bet costs the most?',
+  simEdgeIntro:
+    'Six players bet the same way on every roll of the same dice. Each line is the house edge they have actually paid on everything wagered; dashed lines are the exact values. Luck dominates early — the order only settles after tens of thousands of rolls.',
+  rollsLabel: 'Number of rolls',
+  run: 'Run',
+  running: (pct) => `Running… ${pct}%`,
+  colTheory: 'Exact edge',
+  colObserved: (rolls) => `After ${rolls} rolls`,
+  sessionTitle: 'A night at the table',
+  sessionIntro:
+    'Many players sit down with the same bankroll and follow one strategy for a number of rolls (5-unit bets; Place 6 & 8 are 6 each). How many go home ahead?',
+  strategyLabel: 'Strategy',
+  bankrollLabel: 'Starting bankroll',
+  rollsPerSession: 'Rolls per session',
+  sessionsLabel: 'Players (sessions)',
+  bustRate: 'Went broke',
+  aheadRate: 'Finished ahead',
+  medianFinal: 'Median final bankroll',
+  meanFinal: 'Mean final bankroll',
+  expectedFinal: 'Expected final bankroll',
+  expectedFinalNote: (edge) => `Starting bankroll minus the exact edge (${edge}) on the average action.`,
+  finalDist: 'Distribution of final bankrolls',
+  sampleSession: 'One sample session',
+  handsTitle: 'Shooter hands: simulation vs exact',
+  handsIntro: 'Roll until each shooter sevens out and count how long every hand lasted. Bars are the simulation; the line is the exact Markov-chain answer.',
+  handsLabel: 'Number of hands',
+  simulatedShare: 'Simulated share of hands',
+  exactShare: 'Exact probability',
+  handsResult: (hands, mean, exact, longest) =>
+    `${hands} hands averaged ${mean} rolls (exact ${exact}); the longest lasted ${longest} rolls.`,
 };
 
 const JA: CrapsStrings = {
@@ -261,6 +331,7 @@ const JA: CrapsStrings = {
     '本格的なクラップステーブルでサイコロを振り、全ベットの正確なハウスエッジを確かめられます。オッズの 0% からエニーセブンの 16.7% まで。',
   tabPlay: '遊ぶ',
   tabOdds: '正確な確率',
+  tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
     '1 ラウンドの最初の投げはカムアウト。パスラインは 7・11 で勝ち、2・3・12 で負け。それ以外の目は「ポイント」になり（パックが ON）、シューターはポイントがもう一度出る（パスの勝ち）か、7 が出る（セブンアウト・パスの負け）まで振り続けます。',
@@ -371,6 +442,44 @@ const JA: CrapsStrings = {
   survivalLabel: (n) => `手番が ${n} 投以上続く確率`,
   recordNote: (oneIn) =>
     `2009 年、パトリシア・デマウロはセブンアウトまで 154 回投げ続けました。手番がそこまで続く確率は約 ${oneIn} 分の 1 です。`,
+  strategyName: {
+    passMaxOdds: 'パス + 3-4-5 倍オッズ',
+    dontPass: 'ドントパス',
+    pass: 'パスライン',
+    place68: 'プレイス 6・8',
+    field: 'フィールド',
+    any7: 'エニーセブン',
+  },
+  simEdgeTitle: 'どの賭け方が一番損をする？',
+  simEdgeIntro:
+    '6 人のプレイヤーが同じサイコロの出目に、それぞれ決まった賭け方を続けます。各線は賭け金全体に対して実際に払ったハウスエッジ、破線は厳密値です。序盤は運に左右され、順位が落ち着くのは数万投を超えてからです。',
+  rollsLabel: '投げる回数',
+  run: '実行',
+  running: (pct) => `実行中… ${pct}%`,
+  colTheory: '厳密なエッジ',
+  colObserved: (rolls) => `${rolls} 投後`,
+  sessionTitle: 'テーブルでの一晩',
+  sessionIntro:
+    '大勢のプレイヤーが同じ持ち金で座り、1 つの賭け方で決まった回数だけ遊びます（1 回 5 単位、プレイス 6・8 は各 6）。勝って帰れるのは何人？',
+  strategyLabel: '賭け方',
+  bankrollLabel: '最初の持ち金',
+  rollsPerSession: '1 セッションの投数',
+  sessionsLabel: 'プレイヤー数（セッション）',
+  bustRate: '破産した',
+  aheadRate: '勝って終わった',
+  medianFinal: '最終持ち金 中央値',
+  meanFinal: '最終持ち金 平均',
+  expectedFinal: '最終持ち金 期待値',
+  expectedFinalNote: (edge) => `最初の持ち金から、平均の賭け金 × 厳密なエッジ（${edge}）を引いた値。`,
+  finalDist: '最終持ち金の分布',
+  sampleSession: 'サンプル 1 セッション',
+  handsTitle: 'シューターの手番: シミュレーション vs 厳密値',
+  handsIntro: '各シューターがセブンアウトするまで振り、手番が何投続いたかを数えます。棒がシミュレーション、線がマルコフ連鎖による厳密値です。',
+  handsLabel: '手番の数',
+  simulatedShare: 'シミュレーションの割合',
+  exactShare: '厳密な確率',
+  handsResult: (hands, mean, exact, longest) =>
+    `${hands} 手番の平均は ${mean} 投（厳密値 ${exact}）、最長は ${longest} 投でした。`,
 };
 
 export function getStrings(lang: GameLanguage): CrapsStrings {

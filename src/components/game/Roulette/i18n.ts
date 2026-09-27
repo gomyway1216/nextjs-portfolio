@@ -45,6 +45,10 @@ export interface RouletteStrings {
   boardSpins: (n: number) => string;
   /** Accessible name for the newest-first results column. */
   ledListLabel: string;
+  /** Button that empties the saved results board. */
+  boardClear: string;
+  boardClearAria: string;
+  boardClearConfirm: string;
   zero: string;
   hot: string;
   cold: string;
@@ -178,6 +182,9 @@ const EN: RouletteStrings = {
   noMoreBets: 'No more bets',
   boardSpins: (n) => `Last ${n} ${n === 1 ? 'spin' : 'spins'}`,
   ledListLabel: 'Winning numbers, newest first',
+  boardClear: 'Clear',
+  boardClearAria: 'Clear saved winning numbers',
+  boardClearConfirm: 'Clear all saved winning numbers? This cannot be undone.',
   zero: 'Zero',
   hot: 'Hot',
   cold: 'Cold',
@@ -278,6 +285,9 @@ const JA: RouletteStrings = {
   noMoreBets: 'ノー・モア・ベット',
   boardSpins: (n) => `直近 ${n} 回`,
   ledListLabel: '当選番号（新しい順）',
+  boardClear: '消去',
+  boardClearAria: '保存した出目履歴を消去',
+  boardClearConfirm: '保存した出目履歴をすべて消去しますか？元に戻せません。',
   zero: 'ゼロ',
   hot: 'ホット',
   cold: 'コールド',

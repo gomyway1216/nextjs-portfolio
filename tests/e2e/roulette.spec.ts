@@ -123,3 +123,48 @@ test('the results board is localized', async ({ page }) => {
   await expect(page.getByRole('region', { name: '出目履歴' })).toBeVisible();
   await expect(page.getByText('あと 10 回スピンするとホット / コールド数字を表示します。')).toBeVisible();
 });
+
+test('winning numbers are saved across reloads and tab switches, and can be cleared', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+    await page.getByRole('button', { name: 'SPIN', exact: true }).click();
+    await settledResult(page);
+  }
+  const saved = await boardNumbers(page);
+  expect(saved).toHaveLength(3);
+
+  // Survives switching to another tab and back (the play tab remounts).
+  await page.getByRole('tab', { name: 'Martingale sim' }).click();
+  await page.getByRole('tab', { name: 'Play' }).click();
+  expect(await boardNumbers(page)).toEqual(saved);
+
+  // Survives a reload; the bankroll does not (only the board is saved).
+  await page.reload();
+  await expect.poll(() => boardNumbers(page)).toEqual(saved);
+  await expect(page.getByText('Last 3 spins', { exact: true })).toBeVisible();
+  expect(await readBalance(page)).toBe(1000);
+
+  // New spins keep stacking on top of the saved history.
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: 'SPIN', exact: true }).click();
+  const next = await settledResult(page);
+  expect(await boardNumbers(page)).toEqual([next, ...saved]);
+
+  // Clearing asks first, then empties the board for good.
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('button', { name: 'Clear saved winning numbers' }).click();
+  expect(await boardNumbers(page)).toHaveLength(4);
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Clear saved winning numbers' }).click();
+  await expect.poll(() => boardNumbers(page)).toEqual([]);
+  expect(await page.evaluate(() => window.localStorage.getItem('roulette-results-v1'))).toBeNull();
+  await page.reload();
+  await expect(page.locator('[data-spinning]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear saved winning numbers' })).toBeDisabled();
+  expect(await boardNumbers(page)).toEqual([]);
+});

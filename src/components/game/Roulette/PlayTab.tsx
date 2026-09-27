@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Wheel } from './Wheel';
 import { HistoryBoard } from './HistoryBoard';
-import { pushResult } from './history';
+import { resultsStore } from './resultsStore';
 import { Bet, BET_ODDS, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
@@ -117,10 +117,14 @@ export const PlayTab = () => {
   const [result, setResult] = useState<number | null>(null);
   const [spinId, setSpinId] = useState(0);
   const [lastNet, setLastNet] = useState<number | null>(null);
-  // Winning numbers for the results board, newest first. Kept across Reset:
-  // like a casino marquee it describes the wheel, not the player's bankroll.
-  const [results, setResults] = useState<number[]>([]);
-  const [spinCount, setSpinCount] = useState(0);
+  // Winning numbers for the results board, newest first, saved in
+  // localStorage (survives reloads and tab switches). Kept across Reset: like a
+  // casino marquee it describes the wheel, not the player's bankroll.
+  const { results, spinCount } = useSyncExternalStore(
+    resultsStore.subscribe,
+    resultsStore.getSnapshot,
+    resultsStore.getServerSnapshot,
+  );
   // Winning number marked on the felt (the "dolly") until the next spin.
   const [winning, setWinning] = useState<number | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -220,8 +224,7 @@ export const PlayTab = () => {
     setBankroll((b) => b + net);
     setLastNet(net);
     setWinning(r);
-    setResults((h) => pushResult(h, r));
-    setSpinCount((c) => c + 1);
+    resultsStore.record(r);
     const entry: HistoryEntry = { id: historyId.current++, result: r, net, wagered };
     setHistory((h) => [entry, ...h].slice(0, 40));
     undoStack.current = [];
@@ -304,7 +307,15 @@ export const PlayTab = () => {
           </div>
         </div>
 
-        <HistoryBoard results={results} spinCount={spinCount} t={t} />
+        <HistoryBoard
+          results={results}
+          spinCount={spinCount}
+          t={t}
+          onClear={() => {
+            if (window.confirm(t.boardClearConfirm)) resultsStore.clear();
+          }}
+          clearDisabled={spinning}
+        />
       </div>
 
       {/* ---- Right column: bankroll, chips, felt, actions ---- */}

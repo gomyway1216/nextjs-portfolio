@@ -237,9 +237,33 @@
   text-shadow: 0 0 8px rgba(251, 191, 36, 0.55);
 }
 .boardCount {
+  margin-left: auto;
   font-size: 0.72rem;
   color: #a8a29e;
   font-variant-numeric: tabular-nums;
+}
+.boardClear {
+  appearance: none;
+  border: 1px solid #3f3f46;
+  background: transparent;
+  color: #d6d3d1;
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.boardClear:hover:not(:disabled) {
+  border-color: var(--led-gold);
+  color: var(--led-gold);
+}
+.boardClear:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.boardClear:focus-visible {
+  outline: 2px solid var(--led-gold);
+  outline-offset: 2px;
 }
 .boardBody {
   display: grid;

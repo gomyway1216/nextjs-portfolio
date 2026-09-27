@@ -45,6 +45,15 @@ describe('parseStoredResults', () => {
     expect(parseStoredResults(JSON.stringify({ results: [1, 2, 3] })).spinCount).toBe(3);
     expect(parseStoredResults(JSON.stringify({ results: [1, 2, 3], spinCount: 'x' })).spinCount).toBe(3);
   });
+
+  it('repairs a spinCount too large to keep counting', () => {
+    // Past 2^53, +1 no longer changes the value, which would freeze row keys.
+    for (const spinCount of [1e100, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 2]) {
+      expect(parseStoredResults(JSON.stringify({ results: [1, 2], spinCount })).spinCount).toBe(2);
+    }
+    const largestKept = Number.MAX_SAFE_INTEGER - 1;
+    expect(parseStoredResults(JSON.stringify({ results: [1, 2], spinCount: largestKept })).spinCount).toBe(largestKept);
+  });
 });
 
 describe('createResultsStore', () => {
@@ -77,6 +86,36 @@ describe('createResultsStore', () => {
     expect(createResultsStore(() => storage, null).getSnapshot()).toEqual({ results: [15, 32], spinCount: 2 });
   });
 
+  it('builds on spins another tab saved before its storage event arrived', () => {
+    const storage = memoryStorage();
+    const store = createResultsStore(() => storage, new EventTarget());
+    store.subscribe(() => {});
+    expect(store.getSnapshot().results).toEqual([]); // cached as empty
+
+    // The other tab's write lands in storage; its event is still in flight.
+    storage.setItem(KEY, JSON.stringify({ results: [26, 3], spinCount: 2 }));
+    store.record(5);
+
+    expect(store.getSnapshot()).toEqual({ results: [5, 26, 3], spinCount: 3 });
+    expect(JSON.parse(storage.getItem(KEY)!)).toEqual({ results: [5, 26, 3], spinCount: 3 });
+  });
+
+  it('re-reads storage after remounting, catching writes it could not hear about', () => {
+    const storage = memoryStorage({ [KEY]: JSON.stringify({ results: [1], spinCount: 1 }) });
+    const events = new EventTarget();
+    const store = createResultsStore(() => storage, events);
+
+    const unsubscribe = store.subscribe(() => {});
+    expect(store.getSnapshot().results).toEqual([1]);
+    unsubscribe(); // play tab unmounted — no longer listening for storage events
+
+    storage.setItem(KEY, JSON.stringify({ results: [2, 1], spinCount: 2 }));
+    events.dispatchEvent(storageEvent(KEY)); // missed: nobody is subscribed
+
+    store.subscribe(() => {}); // play tab mounted again
+    expect(store.getSnapshot().results).toEqual([2, 1]);
+  });
+
   it('keeps counting spins past the history cap', () => {
     const storage = memoryStorage();
     const store = createResultsStore(() => storage, null);
@@ -106,9 +145,15 @@ describe('createResultsStore', () => {
     full.setItem = () => {
       throw new DOMException('full', 'QuotaExceededError');
     };
-    const store = createResultsStore(() => full, null);
+    const store = createResultsStore(() => full, new EventTarget());
+    const unsubscribe = store.subscribe(() => {});
     expect(() => store.record(9)).not.toThrow();
-    expect(store.getSnapshot().results).toEqual([9]);
+    store.record(10);
+    // Unsaved spins are not dropped by re-reading the (older) stored history,
+    // not even across an unmount / remount.
+    unsubscribe();
+    store.subscribe(() => {});
+    expect(store.getSnapshot()).toEqual({ results: [10, 9], spinCount: 2 });
 
     const noStorage = createResultsStore(() => null, null);
     noStorage.record(1);

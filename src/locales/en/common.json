@@ -1295,6 +1295,10 @@
       "title": "Slot Machine",
       "description": "Spin a classic 3-reel slot, then see the exact odds, RTP, and why near misses are designed in."
     },
+    "craps": {
+      "title": "Craps",
+      "description": "Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%."
+    },
     "monty-hall": {
       "title": "Monty Hall",
       "description": "Pick a door, decide whether to switch, and compare the odds with simulation."

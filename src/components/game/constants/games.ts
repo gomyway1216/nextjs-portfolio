@@ -264,6 +264,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'craps',
+    title: 'Craps',
+    description: 'Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%.',
+    thumbnail: '🎲',
+    path: '/games/craps',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
+  {
     id: 'monty-hall',
     title: 'Monty Hall',
     description: 'Pick a door, decide whether to switch, and compare the odds with simulation.',

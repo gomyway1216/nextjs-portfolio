@@ -65,6 +65,13 @@ import { DEFAULT_RULES } from '@/components/game/Mahjong/engine/rules';
 import type { Difficulty } from '@/components/game/common/types';
 import { chooseActionSync } from '@/components/game/Mahjong/mahjongAiWorkerClient';
 
+/**
+ * Tests that deal or play whole sets / matches are CPU-bound (~0.4–1.5 s
+ * locally), and CI runners share cores with other suites — the replay test
+ * once hit vitest's 5 s default there. Give them room instead of flaking.
+ */
+const WHOLE_MATCH_TIMEOUT_MS = 30_000;
+
 const MEDIUM = resolveArm('medium');
 const HARD_EV = resolveArm('hard-ev');
 
@@ -137,7 +144,7 @@ describe('duplicate wall', () => {
     // …and the wall really is the full 136-tile order, so "identical wall"
     // means identical draw order and not merely identical opening hands.
     expect(walls[0][0].split(',')).toHaveLength(136);
-  });
+  }, WHOLE_MATCH_TIMEOUT_MS);
 
   it('gives different seeds different walls', () => {
     const wallOf = (seed: string): string => {
@@ -155,7 +162,7 @@ describe('duplicate wall', () => {
       return first;
     };
     expect(wallOf(setSeed('wall-test', 1))).not.toBe(wallOf(setSeed('wall-test', 2)));
-  });
+  }, WHOLE_MATCH_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -180,7 +187,7 @@ describe('reproducibility', () => {
     expect(second.paired.p).toBe(first.paired.p);
     expect(second.metrics.a.averagePlacement).toBe(first.metrics.a.averagePlacement);
     expect(second.hands).toBe(first.hands);
-  });
+  }, WHOLE_MATCH_TIMEOUT_MS);
 
   it('drives the arms through the same entry point the game uses', () => {
     // The harness reaches ad-hoc policies through `chooseActionWithPolicy`
@@ -370,7 +377,7 @@ describe('an arm playing itself', () => {
     expect(result.gate.met).toBe(false);
     expect(result.metrics.a.averagePlacement).toBe(2.5);
     expect(result.metrics.b.averagePlacement).toBe(2.5);
-  });
+  }, WHOLE_MATCH_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------

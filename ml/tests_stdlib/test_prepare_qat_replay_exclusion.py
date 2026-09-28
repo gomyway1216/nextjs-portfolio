@@ -48,7 +48,9 @@ class PrepareQatReplayExclusionTests(unittest.TestCase):
             )
             self.assertEqual(receipt["output"]["count"], 4)
             self.assertEqual(receipt["selection"]["records"], 1)
-            self.assertNotIn("cp", json.dumps(receipt))
+            # No holdout label may leak into the receipt. The temp directory is
+            # blanked first: its random name can contain "cp" by chance.
+            self.assertNotIn("cp", json.dumps(receipt).replace(directory, "<tmp>"))
 
     def test_rejects_cross_component_overlap(self):
         with tempfile.TemporaryDirectory() as directory:

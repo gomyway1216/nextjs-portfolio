@@ -123,25 +123,25 @@ export const OddsTab = () => {
             <thead>
               <tr>
                 <th>{t.colBet}</th>
+                <th>{t.colHouseEdge}</th>
                 <th>{t.colPays}</th>
                 <th className={styles.num}>{t.colWin}</th>
                 <th className={styles.num}>{t.colPush}</th>
-                <th>{t.colHouseEdge}</th>
               </tr>
             </thead>
             <tbody>
               {bets.map((b) => (
                 <tr key={b.id} data-bet={b.id}>
                   <td>{t.oddsBetName[b.id]}</td>
-                  <td>{PAYS_TEXT[b.id]}</td>
-                  <td className={styles.num}>{pct(b.win, 3)}</td>
-                  <td className={styles.num}>{b.push > 0 ? pct(b.push, 3) : '—'}</td>
                   <td>
                     <span className={styles.edgeCell}>
                       <span className={styles.edgeBar} style={{ width: `${(-b.ev / maxEdge) * 100}%` }} />
                       <b data-testid={`edge-${b.id}`}>{pct(-b.ev)}</b>
                     </span>
                   </td>
+                  <td>{PAYS_TEXT[b.id]}</td>
+                  <td className={styles.num}>{pct(b.win, 3)}</td>
+                  <td className={styles.num}>{b.push > 0 ? pct(b.push, 3) : '—'}</td>
                 </tr>
               ))}
             </tbody>

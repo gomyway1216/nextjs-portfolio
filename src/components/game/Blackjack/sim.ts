@@ -5,10 +5,12 @@
  * the infinite-deck analysis.
  */
 
-import { gameValue, policyValue } from './analysis';
+import { P, TABLE_RULES, VALUES, addValue, dealerBlackjackChance, policyValue, upcard, type Total, type Value } from './analysis';
 import {
   DECKS,
+  MAX_HANDS,
   STRATEGIES,
+  basicStrategy,
   cardsLeft,
   createShoe,
   handValue,
@@ -16,6 +18,7 @@ import {
   needsShuffle,
   playRound,
   trueCount,
+  type Card,
   type Round,
   type StrategyId,
 } from './engine';
@@ -27,11 +30,103 @@ export const STRATEGY_COLORS: Record<StrategyId, string> = {
   neverBust: '#ef4444',
 };
 
+const cardOf = (v: Value): Card => ({ rank: v === 11 ? 'A' : v === 10 ? 'K' : (String(v) as Card['rank']), suit: '♠' });
+
+/** Two cards with a given total and softness (only the total matters once doubling and splitting are off). */
+function cardsFor({ total, soft }: Total): Card[] {
+  if (soft) return total === 12 ? [cardOf(11), cardOf(11)] : [cardOf(11), cardOf((total - 11) as Value)];
+  const a = Math.min(10, total - 2);
+  return [cardOf(a as Value), cardOf((total - a) as Value)];
+}
+
+/**
+ * The exact infinite-deck value of following the six-deck chart the table
+ * uses (and the simulation plays) — every decision, including doubles,
+ * splits and resplits, taken from the chart rather than from the optimum.
+ */
+export function chartValue(): number {
+  const rules = TABLE_RULES;
+  let ev = 0;
+  for (const up of VALUES) {
+    const a = upcard(up, rules);
+    const upCard = cardOf(up);
+    const memo = new Map<string, number>();
+    // A hand of three or more cards: hit or stand by the chart.
+    const cont = (hand: Total): number => {
+      if (hand.total > 21) return -1;
+      const key = `${hand.total},${hand.soft}`;
+      const cached = memo.get(key);
+      if (cached !== undefined) return cached;
+      let v: number;
+      if (basicStrategy(cardsFor(hand), upCard, { double: false, split: false }) === 'stand') v = a.stand(hand.total);
+      else {
+        v = 0;
+        for (const c of VALUES) v += P[c] * cont(addValue(hand, c));
+      }
+      memo.set(key, v);
+      return v;
+    };
+    // A two-card hand, with whatever the chart says given what is allowed.
+    const two = (c1: Value, c2: Value, canDouble: boolean, canSplit: boolean): number => {
+      const hand = addValue({ total: c1, soft: c1 === 11 }, c2);
+      const play = basicStrategy([cardOf(c1), cardOf(c2)], upCard, { double: canDouble, split: canSplit });
+      if (play === 'split') return split(c1);
+      if (play === 'double') {
+        let d = 0;
+        for (const c of VALUES) d += P[c] * a.stand(addValue(hand, c).total);
+        return 2 * d;
+      }
+      if (play === 'stand') return a.stand(hand.total);
+      let h = 0;
+      for (const c of VALUES) h += P[c] * cont(addValue(hand, c));
+      return h;
+    };
+    const split = (r: Value): number => {
+      const start: Total = { total: r, soft: r === 11 };
+      if (r === 11) {
+        let hand = 0;
+        for (const c of VALUES) hand += P[c] * a.stand(addValue(start, c).total);
+        return 2 * hand;
+      }
+      const das = rules.doubleAfterSplit;
+      let other = 0;
+      for (const c of VALUES) if (c !== r) other += P[c] * two(r, c, das, false);
+      const asPair = two(r, r, das, false);
+      const resplits = basicStrategy([cardOf(r), cardOf(r)], upCard, { double: das, split: true }) === 'split';
+      const cache = new Map<string, number>();
+      const value = (hands: number, pending: number): number => {
+        if (pending === 0) return 0;
+        const key = `${hands},${pending}`;
+        const hit = cache.get(key);
+        if (hit !== undefined) return hit;
+        const rest = value(hands, pending - 1);
+        const again = hands < MAX_HANDS && resplits ? value(hands + 1, pending + 1) : asPair + rest;
+        const v = other + (1 - P[r]) * rest + P[r] * again;
+        cache.set(key, v);
+        return v;
+      };
+      return value(2, 2);
+    };
+    const dBj = dealerBlackjackChance(up);
+    let evUp = 0;
+    for (const c1 of VALUES) {
+      for (const c2 of VALUES) {
+        const p = P[c1] * P[c2];
+        const natural = (c1 === 11 && c2 === 10) || (c1 === 10 && c2 === 11);
+        if (natural) evUp += p * (1 - dBj) * rules.blackjackPays;
+        else evUp += p * (-dBj + (1 - dBj) * two(c1, c2, true, c1 === c2));
+      }
+    }
+    ev += P[up] * evUp;
+  }
+  return ev;
+}
+
 /** Exact house edge (per initial bet) of each strategy for an infinite deck. */
 export function exactEdge(id: StrategyId): number {
   switch (id) {
     case 'basic':
-      return gameValue().houseEdge;
+      return -chartValue();
     case 'mimic':
       return -policyValue((h) => h.total < 17);
     case 'neverBust':

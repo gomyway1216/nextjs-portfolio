@@ -318,6 +318,15 @@ export const games: Game[] = [
     category: 'Card',
   },
   {
+    id: 'baccarat',
+    title: 'Baccarat',
+    description: 'Play Punto Banco from an 8-deck shoe with casino scoreboards and the exact odds of the next hand.',
+    thumbnail: '♦️',
+    path: '/games/baccarat',
+    difficulty: 'Easy',
+    category: 'Card',
+  },
+  {
     id: 'texas-holdem',
     title: "Texas Hold'em",
     description: 'Play 100bb no-limit Hold’em against up to seven GTO-inspired CPU opponents.',

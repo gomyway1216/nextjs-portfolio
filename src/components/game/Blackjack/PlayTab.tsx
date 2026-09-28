@@ -350,7 +350,7 @@ export const PlayTab = () => {
             <div className={styles.cardRow}>
               {dealerCards.map((c, i) =>
                 i === 1 && !view.holeUp ? (
-                  <HoleCard key={`${dealNo}-hole`} delay={delay(3)} label={t.dealer} />
+                  <HoleCard key={`${dealNo}-hole`} delay={delay(3)} label={t.holeCard} />
                 ) : (
                   <PlayingCard
                     key={`${dealNo}-d${i}-${c.rank}${c.suit}`}

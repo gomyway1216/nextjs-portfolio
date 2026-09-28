@@ -48,6 +48,7 @@ export interface BlackjackStrings {
   newShoe: string;
   feltPays: string;
   feltRules: string;
+  holeCard: string;
   hintToggle: string;
   hintSays: (action: string) => string;
   evTitle: string;
@@ -170,6 +171,7 @@ const en: BlackjackStrings = {
   newShoe: 'A fresh six-deck shoe is shuffled on the first deal.',
   feltPays: 'BLACKJACK PAYS 3 TO 2',
   feltRules: 'Dealer must stand on all 17s · Insurance pays 2 to 1',
+  holeCard: 'Dealer’s face-down card',
   hintToggle: 'Show basic-strategy hint',
   hintSays: (action) => `Basic strategy: ${action}`,
   evTitle: 'What each play is worth',
@@ -315,8 +317,9 @@ const ja: BlackjackStrings = {
   shoeLabel: (left) => `6デッキのシュー・残り${left}枚`,
   shuffleNext: 'カットカードが出ました。次のハンドの前にシャッフルします。',
   newShoe: '最初のディールで6デッキのシューをシャッフルします。',
-  feltPays: 'BLACKJACK PAYS 3 TO 2',
-  feltRules: 'Dealer must stand on all 17s · Insurance pays 2 to 1',
+  feltPays: 'ブラックジャックは3対2',
+  feltRules: 'ディーラーはすべての17でスタンド・インシュランスは2対1',
+  holeCard: 'ディーラーの伏せ札',
   hintToggle: 'ベーシックストラテジーのヒントを表示',
   hintSays: (action) => `ベーシックストラテジー：${action}`,
   evTitle: '各選択肢の期待値',

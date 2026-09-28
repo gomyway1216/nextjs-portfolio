@@ -40,6 +40,8 @@ describe('PlayTab', () => {
     expect(markup).toContain('所持金');
     expect(markup).toContain('>ディール<');
     expect(markup).toContain('>ヒット<');
+    expect(markup).toContain('ブラックジャックは3対2');
+    expect(markup).not.toContain('BLACKJACK PAYS');
   });
 });
 

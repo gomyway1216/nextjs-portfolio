@@ -135,6 +135,16 @@ export function exactEdge(id: StrategyId): number {
 }
 
 const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * A reproducible generator (Park–Miller) from any finite seed: negative or
+ * fractional seeds are folded into its valid state range 1 … 2³¹ − 2.
+ */
+export function seededRng(seed: number): () => number {
+  if (!Number.isFinite(seed)) throw new Error('seed must be a finite number');
+  let s = (Math.floor(Math.abs(seed)) % 2147483646) + 1;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
+}
 const YIELD_EVERY = 10_000;
 
 export interface AsyncOptions {
@@ -196,11 +206,11 @@ export async function simulateStrategies(
   seed: number = Math.floor(Math.random() * 2 ** 31),
 ): Promise<StrategiesResult | null> {
   if (!Number.isInteger(rounds) || rounds <= 0) throw new Error('simulateStrategies: rounds must be a positive integer');
+  if (options.signal?.aborted) return null;
   const checkpoints = logCheckpoints(rounds);
   const state = STRATEGY_IDS.map((id) => {
-    // Same seed per strategy → the same sequence of shuffles.
-    let s = (seed % 2147483646) + 1;
-    const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    // Same seed per strategy → the same sequence of shuffles (the rng is only used to shuffle).
+    const rng = seededRng(seed);
     return {
       id,
       rng,
@@ -285,8 +295,8 @@ export async function simulateCounting(
   seed: number = Math.floor(Math.random() * 2 ** 31),
 ): Promise<CountingResult | null> {
   if (!Number.isInteger(rounds) || rounds <= 0) throw new Error('simulateCounting: rounds must be a positive integer');
-  let s = (seed % 2147483646) + 1;
-  const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  if (options.signal?.aborted) return null;
+  const rng = seededRng(seed);
   let shoe = createShoe(DECKS, rng);
   let running = 0;
   const size = TC_MAX - TC_MIN + 1;

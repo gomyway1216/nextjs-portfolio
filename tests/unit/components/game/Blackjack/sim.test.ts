@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { gameValue } from '@/components/game/Blackjack/analysis';
 import { RANKS, STRATEGIES, playRound, type Card, type Shoe } from '@/components/game/Blackjack/engine';
-import { STRATEGY_IDS, chartValue, exactEdge, logCheckpoints, simulateStrategies } from '@/components/game/Blackjack/sim';
+import { STRATEGY_IDS, chartValue, exactEdge, logCheckpoints, seededRng, simulateStrategies } from '@/components/game/Blackjack/sim';
 
 describe('blackjack simulation', () => {
   it('knows each strategy’s exact infinite-deck edge', () => {
@@ -59,9 +59,24 @@ describe('blackjack simulation', () => {
     expect(Math.abs(mean - chartValue())).toBeLessThan(4 * se);
   });
 
-  it('can be aborted and rejects bad input', async () => {
+  it('reproduces runs from any finite seed', () => {
+    const draw = (seed: number) => Array.from({ length: 5 }, seededRng(seed));
+    expect(draw(42)).toEqual(draw(42));
+    expect(draw(42)).not.toEqual(draw(43));
+    for (const seed of [-7, 0, 2.5, 2 ** 31, -(2 ** 40)]) {
+      for (const x of draw(seed)) {
+        expect(x).toBeGreaterThan(0);
+        expect(x).toBeLessThan(1);
+      }
+    }
+    expect(() => seededRng(Number.NaN)).toThrow(/finite/);
+  });
+
+  it('can be aborted — before it starts and between chunks — and rejects bad input', async () => {
     const controller = new AbortController();
     controller.abort();
+    // Fewer rounds than one chunk: the signal is still honoured up front.
+    expect(await simulateStrategies(5, { signal: controller.signal })).toBeNull();
     expect(await simulateStrategies(20_001, { signal: controller.signal })).toBeNull();
     await expect(simulateStrategies(0)).rejects.toThrow(/positive integer/);
   });

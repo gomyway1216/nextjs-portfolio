@@ -29,7 +29,13 @@ export const SimTab = () => {
     const c = new AbortController();
     controller.current = c;
     setProgress(0);
-    const res = await simulateStrategies(rounds, { signal: c.signal, onProgress: (d, total) => setProgress(Math.round((d / total) * 100)) });
+    let res: StrategiesResult | null = null;
+    try {
+      res = await simulateStrategies(rounds, { signal: c.signal, onProgress: (d, total) => setProgress(Math.round((d / total) * 100)) });
+    } finally {
+      // A failed run must not leave the button stuck on "Running…" (a newer run owns it otherwise).
+      if (!res && controller.current === c) setProgress(null);
+    }
     if (c.signal.aborted || !res) return;
     setResult(res);
     setResultRounds(rounds);

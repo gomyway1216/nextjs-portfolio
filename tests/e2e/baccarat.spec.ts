@@ -163,3 +163,34 @@ test('the odds tab recomputes the exact odds for each deck count', async ({ page
   await expect(page.getByTestId('edge-banker')).toHaveText('1.012%');
   await expect(page.getByTestId('pair-body')).toContainText('= 1/17');
 });
+
+test('the simulation tab runs every simulation through the real rules', async ({ page }) => {
+  await openBaccarat(page);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  const section = (title: string) => page.locator('section', { has: page.getByRole('heading', { name: title }) });
+
+  const lines = section('Every bet on the same cards');
+  await lines.getByRole('combobox').selectOption('10000');
+  await expect(async () => {
+    await lines.getByRole('button', { name: 'Run' }).click({ timeout: 1_000 });
+    await expect(page.getByTestId('baccarat-sim-lines')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(page.getByTestId('baccarat-sim-lines').locator('tbody tr')).toHaveCount(7);
+  await expect(page.getByTestId('baccarat-sim-lines')).toContainText('Simulated (10,000 hands)');
+
+  const road = section('Chasing the road');
+  await road.getByRole('combobox').selectOption('10000');
+  await road.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByTestId('baccarat-sim-patterns').locator('tbody tr')).toHaveCount(6);
+  await expect(page.getByTestId('baccarat-sim-patterns').locator('tr[data-pattern="banker"] td').nth(2)).toHaveText('100.0%');
+  await expect(page.getByTestId('baccarat-sim-streaks')).toContainText('complete shoes');
+
+  const counting = section('Counting cards');
+  await counting.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByTestId('baccarat-sim-counting')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('baccarat-sim-counting').locator('tbody tr')).toHaveCount(7);
+  // The main bets almost never favor even a perfect counter.
+  const bankerFavorable = await page.getByTestId('baccarat-sim-counting').locator('tr[data-line="banker"] td').nth(1).textContent();
+  expect(parseFloat(bankerFavorable ?? '')).toBeLessThan(3);
+  await expect(page.getByText(/^10 shoes, [\d,]+ hands\./)).toBeVisible();
+});

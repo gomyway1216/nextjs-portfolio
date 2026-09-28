@@ -969,6 +969,81 @@
   font-weight: 820;
   font-variant-numeric: tabular-nums;
 }
+/* ---------- Simulation tab ---------- */
+.subTitle {
+  margin: 1rem 0 0.4rem;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+.formRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 1rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.fieldLabel {
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.input {
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border: 1px solid var(--games-route-border);
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+}
+.input:focus-visible {
+  outline: 2px solid var(--bc-gold);
+  outline-offset: 1px;
+}
+.btnRun {
+  background: linear-gradient(180deg, #1fbf5a, #12a049);
+  color: #fff;
+  border-color: transparent;
+}
+.btnRun:disabled {
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-muted);
+}
+.legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--games-route-muted);
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.simTable {
+  margin-top: 0.8rem;
+}
+.simTable tr[data-positive='true'] td {
+  background: rgba(22, 163, 74, 0.1);
+}
+.simTable small {
+  font-size: 0.74rem;
+}
+
 .infoP {
   line-height: 1.6;
   margin: 0 0 0.85rem;

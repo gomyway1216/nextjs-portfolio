@@ -5,12 +5,14 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { OddsBet } from './analysis';
 import type { BetId, Mode, Outcome, Side, Winner } from './engine';
+import type { PatternId } from './sim';
 
 export interface BaccaratStrings {
   title: string;
   subtitle: string;
   tabPlay: string;
   tabOdds: string;
+  tabSim: string;
   howToPlay: string;
   infoBody: string[];
   betName: Record<BetId, string>;
@@ -103,6 +105,37 @@ export interface BaccaratStrings {
   colDecks: string;
   pairTitle: string;
   pairBody: (decks: number, fraction: string, pct: string, edge: string) => string;
+  // Simulation
+  run: string;
+  running: (pct: number) => string;
+  handsLabel: string;
+  shoesLabel: string;
+  linesTitle: string;
+  linesIntro: string;
+  colSimulated: (hands: string) => string;
+  colExact: string;
+  linesNote: string;
+  patternsTitle: string;
+  patternsIntro: string;
+  patternName: Record<PatternId, string>;
+  colStrategy: string;
+  colBets: string;
+  colOnBanker: string;
+  colExpected: string;
+  patternsNote: string;
+  streakTitle: string;
+  streakAxis: string;
+  streakNote: (shoes: string, mean: string, eightPlus: string) => string;
+  countingTitle: string;
+  countingIntro: string;
+  colFavorable: string;
+  colAvgEdge: string;
+  colGainPerShoe: string;
+  colRealized: string;
+  countingNote: (shoes: string, hands: string) => string;
+  sampleShoeTitle: string;
+  sampleShoeAxis: string;
+  sampleShoeNote: string;
 }
 
 const en: BaccaratStrings = {
@@ -111,6 +144,7 @@ const en: BaccaratStrings = {
     'Punto Banco from an eight-deck shoe. Bet on Player, Banker or a Tie, follow the scoreboards, and see the exact odds of the next hand from the cards still in the shoe.',
   tabPlay: 'Table',
   tabOdds: 'Odds',
+  tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
     'Place chips on Player, Banker, Tie or the side bets, then press DEAL. Two hands of two cards are dealt; the hand closer to 9 wins.',
@@ -241,6 +275,50 @@ const en: BaccaratStrings = {
   pairTitle: 'Pair bets',
   pairBody: (decks, fraction, pct, edge) =>
     `The first two cards of a hand share a rank with probability (4·${decks} − 1)/(52·${decks} − 1) = ${fraction} ≈ ${pct}: the second card must be one of the other ${4 * decks - 1} cards of the first card’s rank. At 11:1 that is a ${edge} house edge.`,
+  run: 'Run',
+  running: (pct) => `Running… ${pct}%`,
+  handsLabel: 'Hands',
+  shoesLabel: 'Shoes',
+  linesTitle: 'Every bet on the same cards',
+  linesIntro:
+    'Deals real eight-deck shoes one after another — burn, cut card and reshuffle included — and bets one unit on every line each hand. The dashed lines are the exact edges from the Odds tab.',
+  colSimulated: (hands) => `Simulated (${hands} hands)`,
+  colExact: 'Exact',
+  linesNote:
+    'The ± is a 95% range. The 40:1 and 25:1 side bets swing so much that even a million hands only pins them down to about a point.',
+  patternsTitle: 'Chasing the road',
+  patternsIntro:
+    'Casino regulars read the big road: follow a streak, bet the chop, fade a run of three. Each system below bets one unit on Banker or Player from the current shoe’s road (ties skipped, road wiped at each new shoe), all on the same hands.',
+  patternName: {
+    banker: 'Always Banker',
+    player: 'Always Player',
+    follow: 'Follow the last winner',
+    chop: 'Bet against the last winner',
+    streak3: 'After three in a row, bet the other side',
+    coin: 'Coin flip',
+  },
+  colStrategy: 'System',
+  colBets: 'Bets',
+  colOnBanker: 'On Banker',
+  colExpected: 'Expected',
+  patternsNote:
+    'Every system lands where its mix of bets says it should — the Banker’s 1.06% and the Player’s 1.24%, weighted by how often it chose each. The road decides which side you bet, never the odds of the next hand.',
+  streakTitle: 'Longest streak per shoe',
+  streakAxis: 'Longest run of one side in the shoe',
+  streakNote: (shoes, mean, eightPlus) =>
+    `Over ${shoes} complete shoes the longest run averaged ${mean} in a row, and ${eightPlus} of shoes had one of 8 or more. Long streaks are what randomness looks like — not a signal.`,
+  countingTitle: 'Counting cards',
+  countingIntro:
+    'A perfect counter: before every hand it computes each bet’s exact odds from the cards not yet seen — the same calculation as the live panel on the Table tab — and bets one unit only when the bet favors the player.',
+  colFavorable: 'Hands in your favor',
+  colAvgEdge: 'Average edge then',
+  colGainPerShoe: 'Expected gain per shoe',
+  colRealized: 'Actually won per shoe',
+  countingNote: (shoes, hands) =>
+    `${shoes} shoes, ${hands} hands. Banker, Player and Tie almost never turn positive — Thorp and Walden showed in 1966 that the main bets are practically unbeatable. The side bets are another story: Dragon 7 pays 40:1, so a shortage of the right cards late in the shoe swings it by ten points or more. Casinos answer with low limits on side bets and by watching for players who only bet late in the shoe.`,
+  sampleShoeTitle: 'Every bet’s edge through one shoe',
+  sampleShoeAxis: 'Hand in the shoe',
+  sampleShoeNote: 'Above the zero line (shaded) the bet favors the player. The main bets barely move; the side bets wander further the deeper the shoe is dealt.',
 };
 
 const ja: BaccaratStrings = {
@@ -249,6 +327,7 @@ const ja: BaccaratStrings = {
     '8デッキのシューで遊ぶプント・バンコ。プレイヤー・バンカー・タイに賭けて罫線を追いかけ、シューに残ったカードから次の1回の正確な確率を確認できます。',
   tabPlay: 'テーブル',
   tabOdds: '確率',
+  tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
     'プレイヤー・バンカー・タイやサイドベットにチップを置いて「ディール」を押します。2枚ずつ配られ、合計が9に近い方の勝ちです。',
@@ -379,6 +458,49 @@ const ja: BaccaratStrings = {
   pairTitle: 'ペアベット',
   pairBody: (decks, fraction, pct, edge) =>
     `最初の2枚が同じランクになる確率は (4·${decks} − 1)/(52·${decks} − 1) = ${fraction} ≈ ${pct}。2枚目が1枚目と同じランクの残り${4 * decks - 1}枚のどれかであればよいからです。11:1の配当ではハウスエッジは${edge}です。`,
+  run: '実行',
+  running: (pct) => `実行中… ${pct}%`,
+  handsLabel: 'ハンド数',
+  shoesLabel: 'シュー数',
+  linesTitle: '同じカードで全ベットを比べる',
+  linesIntro:
+    '8デッキのシューを次々に配り（バーン、カットカード、シャッフルも本物どおり）、毎回すべてのベットに1単位ずつ賭けます。点線は確率タブの正確なエッジです。',
+  colSimulated: (hands) => `シミュレーション（${hands}回）`,
+  colExact: '理論値',
+  linesNote: '± は95%の幅です。40:1や25:1のサイドベットは振れ幅が大きく、100万回でも1ポイント程度までしか絞り込めません。',
+  patternsTitle: '罫線を追いかける',
+  patternsIntro:
+    'カジノの常連は大路を読みます。流れに乗る、ツラ切れを狙う、3連の後は逆に張る。以下の各方式は今のシューの罫線（タイは除外、新しいシューでリセット）を見てバンカーかプレイヤーに1単位ずつ、すべて同じハンドで賭けます。',
+  patternName: {
+    banker: 'いつもバンカー',
+    player: 'いつもプレイヤー',
+    follow: '直前の勝ちに乗る',
+    chop: '直前の勝ちの逆に張る',
+    streak3: '3連続の後は逆に張る',
+    coin: 'コイン投げで決める',
+  },
+  colStrategy: '方式',
+  colBets: 'ベット数',
+  colOnBanker: 'バンカー比率',
+  colExpected: '理論値',
+  patternsNote:
+    'どの方式も、賭けた比率どおりの場所に落ち着きます。バンカーの1.06%とプレイヤーの1.24%を、それぞれに賭けた割合で平均しただけです。罫線が変えるのはどちらに賭けるかだけで、次の1回の確率は変わりません。',
+  streakTitle: '1シューの最長連続',
+  streakAxis: 'シュー内で同じ側が続いた最長回数',
+  streakNote: (shoes, mean, eightPlus) =>
+    `完了した${shoes}シューで、最長連続の平均は${mean}回、8連続以上が出たシューは${eightPlus}でした。長いツラはランダムならふつうに起きることで、合図ではありません。`,
+  countingTitle: 'カードカウンティング',
+  countingIntro:
+    '完璧なカウンター：毎回、まだ見ていないカードから各ベットの正確な確率を計算し（テーブルタブの確率パネルと同じ計算）、プレイヤー有利なときだけ1単位賭けます。',
+  colFavorable: '有利だった回の割合',
+  colAvgEdge: 'そのときの平均エッジ',
+  colGainPerShoe: '1シューあたりの期待利益',
+  colRealized: '1シューあたりの実際の勝ち',
+  countingNote: (shoes, hands) =>
+    `${shoes}シュー・${hands}ハンド。バンカー・プレイヤー・タイがプレイヤー有利になることはほぼありません（ソープとウォルデンが1966年に示したとおり、メインのベットは事実上攻略できません）。サイドベットは別で、40:1のドラゴン7はシュー終盤に特定のカードが偏ると10ポイント以上動きます。カジノはサイドベットの上限を低くし、終盤だけ賭ける客を見張ることで対処しています。`,
+  sampleShoeTitle: '1シューを通した各ベットのエッジ',
+  sampleShoeAxis: 'シューの何回目か',
+  sampleShoeNote: 'ゼロの線より上（色付き）ならプレイヤー有利です。メインのベットはほとんど動かず、サイドベットはシューが進むほど大きく揺れます。',
 };
 
 export const getStrings = (language: GameLanguage): BaccaratStrings => (language === 'ja' ? ja : en);

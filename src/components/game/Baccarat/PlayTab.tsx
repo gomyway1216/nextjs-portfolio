@@ -219,6 +219,9 @@ export const PlayTab = () => {
     setDealing(true);
     setMessage(null);
     if (fresh) setRoads([]);
+    // "Cards left" still shows the count before this hand; it only drops when
+    // the hand settles. Dropping it now would give away whether third cards
+    // are coming before they are turned over.
     setShoeView((v) => ({
       number: shoeNumber.current,
       hand: fresh ? 1 : v.hand + 1,
@@ -570,6 +573,7 @@ export const PlayTab = () => {
               </tr>
             </thead>
             <tbody>
+              {/* Green only while the bet favors the player for the next hand. */}
               {liveRows.map(({ id, odds }) => (
                 <tr key={id} data-live={id} data-positive={odds.ev > 0 ? 'true' : undefined}>
                   <td>{id === 'playerPair' ? `${t.betName.playerPair} / ${t.betName.bankerPair}` : t.betName[id]}</td>

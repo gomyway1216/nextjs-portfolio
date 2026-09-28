@@ -1,531 +1,599 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { getBlackjackStrings, fmt } from './i18n';
-import { CardRow } from './PlayingCard';
+import { upcard, type ActionEvs, type Value } from './analysis';
 import {
-  Action,
-  Card,
-  basicStrategyDecision,
+  DECKS,
+  act as playAction,
+  answerInsurance,
+  basicStrategy,
   cardValue,
+  cardsLeft,
+  createShoe,
   handValue,
-  isBlackjack,
-  isBust,
-  isPair,
-  newShoe,
-  playDealerTurn,
-  shuffle,
+  legalActions,
+  needsShuffle,
+  startRound,
+  totalStaked,
+  type Action,
+  type Round,
+  type Shoe,
 } from './engine';
-import styles from './blackjack.module.css';
+import { HoleCard, PlayingCard } from './Cards';
+import { getStrings } from './i18n';
+import styles from './Blackjack.module.css';
 
-const INITIAL_BANKROLL = 1000;
-const BET = 10;
+export const INITIAL_BANKROLL = 1000;
+export const DEFAULT_BET = 10;
+export const CHIP_VALUES = [5, 10, 25, 100, 500] as const;
+const CHIP_COLORS: Record<number, string> = { 5: '#ef4444', 10: '#3b82f6', 25: '#22c55e', 100: '#1a1a1f', 500: '#a855f7' };
+const ACTIONS: Action[] = ['hit', 'stand', 'double', 'split'];
 
-type Phase = 'idle' | 'insurance' | 'playing' | 'done';
+/** Animation pacing (ms): the opening deal, the hole-card flip, each dealer draw, the pause before paying. */
+export const TIMING = { deal: 800, dealStep: 170, flip: 450, draw: 520, settle: 450 } as const;
 
-interface Hand {
-  cards: Card[];
-  bet: number;
-  doubled: boolean;
-  fromSplitAces: boolean;
-  done: boolean;
-  net?: number;
-  outcome?: 'win' | 'lose' | 'push' | 'blackjack';
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+interface View {
+  /** Dealer cards on the table (the rest of the dealer's hand is still to be drawn). */
+  dealerShown: number;
+  holeUp: boolean;
+  /** The round's result has been paid and shown. */
+  settled: boolean;
+  /** The opening deal is still animating (cards get staggered delays). */
+  opening: boolean;
 }
 
-interface SessionStats {
+interface Stats {
   hands: number;
-  net: number;
   wins: number;
-  losses: number;
   pushes: number;
+  losses: number;
   blackjacks: number;
-  hintFollows: number;
-  hintDiverges: number;
+  decisions: number;
+  agreed: number;
 }
 
-const INITIAL_STATS: SessionStats = {
-  hands: 0, net: 0, wins: 0, losses: 0, pushes: 0, blackjacks: 0, hintFollows: 0, hintDiverges: 0,
+const EMPTY_STATS: Stats = { hands: 0, wins: 0, pushes: 0, losses: 0, blackjacks: 0, decisions: 0, agreed: 0 };
+
+const money = (n: number) => {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2);
 };
-
-interface GameState {
-  shoe: Card[];
-  cursor: number;
-  hands: Hand[];
-  active: number;
-  dealer: Card[];
-  phase: Phase;
-  hideHole: boolean;
-  /** A lost insurance side bet to fold into the round's net at settlement. */
-  insuranceLoss: number;
-}
-
-const idleState = (): GameState => ({
-  shoe: [], cursor: 0, hands: [], active: 0, dealer: [], phase: 'idle', hideHole: true, insuranceLoss: 0,
-});
+const signedMoney = (n: number) => (n > 0 ? `+${money(n)}` : n < 0 ? `−${money(-n)}` : '±0');
 
 export const PlayTab = () => {
   const { language } = useGameLanguage();
-  const s = getBlackjackStrings(language);
+  const t = getStrings(language);
+
   const [bankroll, setBankroll] = useState(INITIAL_BANKROLL);
-  const [state, setState] = useState<GameState>(idleState);
-  const [stats, setStats] = useState<SessionStats>(INITIAL_STATS);
+  const [chip, setChip] = useState<number>(10);
+  const [bet, setBet] = useState(DEFAULT_BET);
+  const [round, setRound] = useState<Round | null>(null);
+  const [view, setView] = useState<View>({ dealerShown: 0, holeUp: false, settled: false, opening: false });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [showHint, setShowHint] = useState(true);
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  const [shoeLeft, setShoeLeft] = useState<number | null>(null);
+  const [shuffleNext, setShuffleNext] = useState(false);
+  /** Changes every deal, so each round's cards mount (and animate) fresh. */
+  const [dealNo, setDealNo] = useState(0);
 
-  const actionLabel = (a: Action) =>
-    a === 'hit' ? s.actionNames.hit : a === 'stand' ? s.actionNames.stand : a === 'double' ? s.actionNames.double : s.actionNames.split;
+  // Refs mirror what click handlers and timers read synchronously.
+  const bankrollRef = useRef(INITIAL_BANKROLL);
+  const roundRef = useRef<Round | null>(null);
+  const shoeRef = useRef<Shoe | null>(null);
+  const busyRef = useRef(false);
+  const roundId = useRef(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // --- Deal ---
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  const commitBankroll = (next: number) => {
+    bankrollRef.current = next;
+    setBankroll(next);
+  };
+  const commitRound = (next: Round | null) => {
+    roundRef.current = next;
+    setRound(next);
+  };
+  const commitBusy = (next: boolean) => {
+    busyRef.current = next;
+    setBusy(next);
+  };
+  const later = (ms: number, fn: () => void) => {
+    timers.current.push(setTimeout(fn, ms));
+  };
+
+  /** Pays out a finished round once its cards have been shown. */
+  const settle = (r: Round) => {
+    const res = r.result!;
+    commitBankroll(bankrollRef.current + res.returned);
+    setStats((s) => ({
+      ...s,
+      hands: s.hands + res.hands.length,
+      wins: s.wins + res.hands.filter((h) => h.outcome === 'win' || h.outcome === 'blackjack').length,
+      pushes: s.pushes + res.hands.filter((h) => h.outcome === 'push').length,
+      losses: s.losses + res.hands.filter((h) => h.outcome === 'lose' || h.outcome === 'bust').length,
+      blackjacks: s.blackjacks + res.hands.filter((h) => h.outcome === 'blackjack').length,
+    }));
+    setView((v) => ({ ...v, dealerShown: r.dealer.length, holeUp: true, settled: true, opening: false }));
+    setShoeLeft(cardsLeft(r.shoe));
+    setShuffleNext(needsShuffle(r.shoe));
+    commitBusy(false);
+  };
+
+  /** Turns the hole card, draws the dealer's cards one by one, then pays. */
+  const playDealer = (r: Round, startDelay: number) => {
+    commitBusy(true);
+    const fast = prefersReducedMotion();
+    const flip = fast ? 0 : TIMING.flip;
+    const draw = fast ? 0 : TIMING.draw;
+    const pause = fast ? 0 : TIMING.settle;
+    const id = roundId.current;
+    const guard = (fn: () => void) => () => {
+      if (roundId.current === id) fn();
+    };
+    later(startDelay, guard(() => setView((v) => ({ ...v, holeUp: true, opening: false }))));
+    // Each further dealer card lands `draw` ms after the previous one; pay once the last has landed.
+    let at = startDelay + flip;
+    for (let k = 3; k <= r.dealer.length; k++) {
+      const shown = k;
+      later(at, guard(() => setView((v) => ({ ...v, dealerShown: shown }))));
+      at += draw;
+    }
+    later(at + pause, guard(() => settle(r)));
+  };
+
   const deal = () => {
-    if (bankroll < BET) return;
-    const shoe = shuffle(newShoe());
-    let cursor = 0;
-    const p1 = shoe[cursor++];
-    const d1 = shoe[cursor++];
-    const p2 = shoe[cursor++];
-    const d2 = shoe[cursor++];
-    const player = [p1, p2];
-    const dealer = [d1, d2];
-    setBankroll((b) => b - BET); // stake escrowed; returned on settle
-
-    const hand: Hand = { cards: player, bet: BET, doubled: false, fromSplitAces: false, done: false };
-
-    // Insurance offer when dealer shows an Ace and player has no natural.
-    if (dealer[0].rank === 'A' && !isBlackjack(player)) {
-      setState({ shoe, cursor, hands: [hand], active: 0, dealer, phase: 'insurance', hideHole: true, insuranceLoss: 0 });
+    if (busyRef.current) return;
+    if (roundRef.current && roundRef.current.phase !== 'done') return;
+    if (bet <= 0) {
+      setMessage(t.placeBet);
       return;
     }
-
-    // Immediate naturals resolve at once.
-    if (isBlackjack(player) || isBlackjack(dealer)) {
-      resolveNaturals(shoe, cursor, [hand], dealer);
+    if (bet > bankrollRef.current) {
+      setMessage(t.noFunds);
       return;
     }
-    setState({ shoe, cursor, hands: [hand], active: 0, dealer, phase: 'playing', hideHole: true, insuranceLoss: 0 });
+    let shoe = shoeRef.current;
+    if (!shoe || needsShuffle(shoe)) shoe = createShoe(DECKS);
+    const r = startRound(shoe, bet);
+    shoeRef.current = r.shoe;
+    roundId.current++;
+    setDealNo(roundId.current);
+    commitBankroll(bankrollRef.current - bet);
+    commitRound(r);
+    setMessage(null);
+    setShuffleNext(false);
+    setShoeLeft(cardsLeft(r.shoe));
+    const fast = prefersReducedMotion();
+    setView({ dealerShown: 2, holeUp: false, settled: false, opening: !fast });
+    const opening = fast ? 0 : TIMING.deal;
+    if (r.phase === 'done') {
+      playDealer(r, opening);
+    } else {
+      commitBusy(!fast);
+      const id = roundId.current;
+      later(opening, () => {
+        if (roundId.current !== id) return;
+        setView((v) => ({ ...v, opening: false }));
+        commitBusy(false);
+      });
+    }
   };
 
-  const resolveNaturals = (shoe: Card[], cursor: number, hands: Hand[], dealer: Card[]) => {
-    const pBJ = isBlackjack(hands[0].cards);
-    const dBJ = isBlackjack(dealer);
-    let net: number;
-    let outcome: Hand['outcome'];
-    if (pBJ && dBJ) { net = 0; outcome = 'push'; }
-    else if (pBJ) { net = BET * 1.5; outcome = 'blackjack'; }
-    else { net = -BET; outcome = 'lose'; }
-    const settled: Hand = { ...hands[0], done: true, net, outcome };
-    setBankroll((b) => b + BET + net); // return stake + net
-    bookRound([settled]);
-    setState({ shoe, cursor, hands: [settled], active: 0, dealer, phase: 'done', hideHole: false, insuranceLoss: 0 });
+  /** Legal actions the bankroll can also cover (doubling / splitting need another stake). */
+  const affordable = (r: Round, funds: number) => {
+    const hand = r.hands[r.active];
+    const legal = legalActions(r);
+    return {
+      ...legal,
+      double: legal.double && funds >= hand.bet,
+      split: legal.split && funds >= r.bet,
+    };
   };
 
-  // --- Insurance ---
-  const resolveInsurance = (take: boolean) => {
-    const dealer = state.dealer;
-    const insuranceBet = take ? BET / 2 : 0;
-    const dealerBJ = isBlackjack(dealer);
-    const player = state.hands[0];
-    const playerBJ = isBlackjack(player.cards);
-
-    if (dealerBJ) {
-      // Dealer natural → round ends. Main hand loses unless the player also has
-      // a natural (push). Insurance, if taken, wins 2:1.
-      const mainNet = playerBJ ? 0 : -BET;            // profit on the main bet
-      const mainReturn = playerBJ ? BET : 0;          // main stake returned
-      const insuranceProfit = take ? insuranceBet * 2 : 0;
-      const insuranceReturn = take ? insuranceBet * 3 : 0; // stake + 2:1 payout
-      const settled: Hand = {
-        ...player,
-        done: true,
-        net: mainNet + insuranceProfit,
-        outcome: playerBJ ? 'push' : 'lose',
-      };
-      // Note: the insurance stake is netted directly (return already includes it).
-      setBankroll((b) => b + mainReturn + insuranceReturn - insuranceBet);
-      bookRound([settled]);
-      setState({ ...state, hands: [settled], phase: 'done', hideHole: false });
+  const onAction = (action: Action) => {
+    const r = roundRef.current;
+    if (busyRef.current || !r || r.phase !== 'player') return;
+    const can = affordable(r, bankrollRef.current);
+    if (!can[action]) {
+      if (legalActions(r)[action]) setMessage(t.noFunds);
       return;
     }
+    const hand = r.hands[r.active];
+    const chart = basicStrategy(hand.cards, r.dealer[0], can);
+    setStats((s) => ({ ...s, decisions: s.decisions + 1, agreed: s.agreed + (chart === action ? 1 : 0) }));
+    const extra = action === 'double' ? hand.bet : action === 'split' ? r.bet : 0;
+    const next = playAction(r, action);
+    shoeRef.current = next.shoe;
+    commitBankroll(bankrollRef.current - extra);
+    commitRound(next);
+    setMessage(null);
+    setShoeLeft(cardsLeft(next.shoe));
+    // Let the last player card land before the dealer turns the hole card.
+    if (next.phase === 'done') playDealer(next, prefersReducedMotion() ? 0 : TIMING.draw);
+  };
 
-    // No dealer BJ: insurance (if taken) is lost.
-    if (playerBJ) {
-      // Player natural vs non-BJ dealer → pays 3:2. (Rare: dealer up-Ace, player BJ.)
-      const settled: Hand = { ...player, done: true, net: BET * 1.5 - insuranceBet, outcome: 'blackjack' };
-      setBankroll((b) => b + BET + BET * 1.5 - insuranceBet);
-      bookRound([settled]);
-      setState({ ...state, hands: [settled], phase: 'done', hideHole: false });
+  const onInsurance = (take: boolean) => {
+    const r = roundRef.current;
+    if (busyRef.current || !r || r.phase !== 'insurance') return;
+    const cost = r.bet / 2;
+    if (take && cost > bankrollRef.current) {
+      setMessage(t.noFunds);
       return;
     }
-    // Continue the hand. If insurance was taken it is simply lost (subtract it now
-    // and remember it so the round's net reflects the side-bet loss at settlement).
-    if (insuranceBet > 0) setBankroll((b) => b - insuranceBet);
-    setState({ ...state, phase: 'playing', insuranceLoss: insuranceBet });
+    const next = answerInsurance(r, take);
+    commitBankroll(bankrollRef.current - (take ? cost : 0));
+    commitRound(next);
+    setMessage(null);
+    if (next.phase === 'done') playDealer(next, 0);
   };
 
-  // --- Player actions on the active hand ---
-  const recordHint = (taken: Action) => {
-    const h = state.hands[state.active];
-    if (!h) return;
-    const canDouble = h.cards.length === 2 && bankroll >= h.bet;
-    const canSplit = h.cards.length === 2 && isPair(h.cards) && state.hands.length < 4 && bankroll >= h.bet;
-    const rec = basicStrategyDecision(h.cards, state.dealer[0], canDouble, canSplit);
-    setStats((st) => taken === rec
-      ? { ...st, hintFollows: st.hintFollows + 1 }
-      : { ...st, hintDiverges: st.hintDiverges + 1 });
-  };
-
-  /**
-   * Given a game state whose active hand may have just finished, either advance
-   * to the next unfinished hand or, if all hands are done, play the dealer and
-   * settle. Pure: returns the next state plus the bankroll delta to apply.
-   */
-  const advanceOrDealer = (g: GameState): { next: GameState; bankrollDelta: number; settled?: Hand[] } => {
-    let idx = g.active;
-    while (idx < g.hands.length && g.hands[idx].done) idx++;
-    if (idx < g.hands.length) return { next: { ...g, active: idx }, bankrollDelta: 0 };
-
-    // All hands played → dealer turn + settle.
-    const anyLive = g.hands.some((h) => !isBust(h.cards));
-    const dealer = [...g.dealer];
-    let cursor = g.cursor;
-    if (anyLive) playDealerTurn(dealer, () => g.shoe[cursor++]);
-    const dV = handValue(dealer).total;
-
-    const settled = g.hands.map((h): Hand => {
-      if (isBust(h.cards)) return { ...h, done: true, net: -h.bet, outcome: 'lose' };
-      const pV = handValue(h.cards).total;
-      if (dV > 21 || pV > dV) return { ...h, done: true, net: h.bet, outcome: 'win' };
-      if (pV < dV) return { ...h, done: true, net: -h.bet, outcome: 'lose' };
-      return { ...h, done: true, net: 0, outcome: 'push' };
-    });
-    // Return each hand's escrowed stake + net (insurance was already settled in bankroll).
-    const bankrollDelta = settled.reduce((acc, h) => acc + h.bet + (h.net ?? 0), 0);
-    // Fold a lost insurance side bet into the reported net of the first hand.
-    if (g.insuranceLoss > 0 && settled.length > 0) {
-      settled[0] = { ...settled[0], net: (settled[0].net ?? 0) - g.insuranceLoss };
+  const addChip = () => {
+    if (busyRef.current || (roundRef.current && roundRef.current.phase !== 'done')) return;
+    if (bet + chip > bankrollRef.current) {
+      setMessage(t.noFunds);
+      return;
     }
-    return { next: { ...g, hands: settled, dealer, cursor, phase: 'done', hideHole: false }, bankrollDelta, settled };
+    setBet(bet + chip);
+    setMessage(null);
   };
 
-  const applyTransition = (g: GameState, extraBankrollDelta = 0) => {
-    const { next, bankrollDelta, settled } = advanceOrDealer(g);
-    setState(next);
-    const totalDelta = extraBankrollDelta + bankrollDelta;
-    if (totalDelta !== 0) setBankroll((b) => b + totalDelta);
-    if (settled) bookRound(settled);
-  };
-
-  const hit = () => {
-    if (state.phase !== 'playing') return;
-    recordHint('hit');
-    const hands = state.hands.map((h) => ({ ...h, cards: [...h.cards] }));
-    let cursor = state.cursor;
-    const h = hands[state.active];
-    h.cards.push(state.shoe[cursor++]);
-    if (isBust(h.cards) || handValue(h.cards).total === 21) h.done = true;
-    const g = { ...state, hands, cursor };
-    if (h.done) applyTransition(g);
-    else setState(g);
-  };
-
-  const stand = () => {
-    if (state.phase !== 'playing') return;
-    recordHint('stand');
-    const hands = state.hands.map((h) => ({ ...h }));
-    hands[state.active].done = true;
-    applyTransition({ ...state, hands });
-  };
-
-  const double = () => {
-    if (state.phase !== 'playing') return;
-    const h = state.hands[state.active];
-    if (h.cards.length !== 2 || bankroll < h.bet) return;
-    recordHint('double');
-    const hands = state.hands.map((x) => ({ ...x, cards: [...x.cards] }));
-    let cursor = state.cursor;
-    const hh = hands[state.active];
-    const extraStake = hh.bet; // escrow the doubled portion
-    hh.bet *= 2;
-    hh.doubled = true;
-    hh.cards.push(state.shoe[cursor++]);
-    hh.done = true;
-    applyTransition({ ...state, hands, cursor }, -extraStake);
-  };
-
-  const split = () => {
-    if (state.phase !== 'playing') return;
-    const h = state.hands[state.active];
-    if (!(h.cards.length === 2 && isPair(h.cards)) || state.hands.length >= 4 || bankroll < h.bet) return;
-    recordHint('split');
-    const hands = state.hands.map((x) => ({ ...x, cards: [...x.cards] }));
-    let cursor = state.cursor;
-    const src = hands[state.active];
-    const splitAces = cardValue(src.cards[0]) === 11;
-    const a = src.cards[0];
-    const b = src.cards[1];
-    src.cards = [a, state.shoe[cursor++]];
-    const newHand: Hand = { cards: [b, state.shoe[cursor++]], bet: BET, doubled: false, fromSplitAces: splitAces, done: splitAces };
-    if (splitAces) src.done = true;
-    hands.splice(state.active + 1, 0, newHand);
-    const g = { ...state, hands, cursor };
-    // Split aces are auto-done; otherwise keep playing the current hand.
-    if (splitAces) applyTransition(g, -BET);
-    else { setState(g); setBankroll((bk) => bk - BET); }
-  };
-
-  const bookRound = (settled: Hand[]) => {
-    setStats((st) => {
-      let net = 0, wins = 0, losses = 0, pushes = 0, bj = 0;
-      for (const h of settled) {
-        net += h.net ?? 0;
-        if (h.outcome === 'win' || h.outcome === 'blackjack') wins++;
-        else if (h.outcome === 'lose') losses++;
-        else if (h.outcome === 'push') pushes++;
-        if (h.outcome === 'blackjack') bj++;
-      }
-      return {
-        ...st,
-        // Count each settled hand (a split round settles multiple hands).
-        hands: st.hands + settled.length,
-        net: st.net + net,
-        wins: st.wins + wins,
-        losses: st.losses + losses,
-        pushes: st.pushes + pushes,
-        blackjacks: st.blackjacks + bj,
-      };
-    });
-  };
-
-  const next = () => setState(idleState());
   const reset = () => {
-    setBankroll(INITIAL_BANKROLL);
-    setStats(INITIAL_STATS);
-    setState(idleState());
+    if (busyRef.current) return;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    roundId.current++;
+    commitBankroll(INITIAL_BANKROLL);
+    commitRound(null);
+    shoeRef.current = null;
+    setBet(DEFAULT_BET);
+    setStats(EMPTY_STATS);
+    setMessage(null);
+    setShoeLeft(null);
+    setShuffleNext(false);
+    setView({ dealerShown: 0, holeUp: false, settled: false, opening: false });
   };
 
-  // --- Derived hint for the active hand ---
-  const hint = useMemo<Action | null>(() => {
-    if (state.phase !== 'playing') return null;
-    const h = state.hands[state.active];
-    if (!h) return null;
-    const canDouble = h.cards.length === 2 && bankroll >= h.bet;
-    const canSplit = h.cards.length === 2 && isPair(h.cards) && state.hands.length < 4 && bankroll >= h.bet;
-    return basicStrategyDecision(h.cards, state.dealer[0], canDouble, canSplit);
-  }, [state.phase, state.hands, state.active, state.dealer, bankroll]);
+  const inRound = round !== null && !(round.phase === 'done' && view.settled);
+  const playing = round?.phase === 'player' && !busy;
+  const active = round && round.phase === 'player' ? round.hands[round.active] : null;
+  const can = round && round.phase === 'player' ? affordable(round, bankroll) : null;
+  const hint = active && can ? basicStrategy(active.cards, round!.dealer[0], can) : null;
 
-  const activeHand = state.hands[state.active];
-  const canDoubleUI = state.phase === 'playing' && activeHand?.cards.length === 2 && bankroll >= (activeHand?.bet ?? BET);
-  const canSplitUI = state.phase === 'playing' && activeHand && activeHand.cards.length === 2 && isPair(activeHand.cards) && state.hands.length < 4 && bankroll >= activeHand.bet;
+  const evs = useMemo<ActionEvs | null>(() => {
+    if (!round || round.phase !== 'player') return null;
+    const hand = round.hands[round.active];
+    const legal = legalActions(round);
+    const a = upcard(cardValue(round.dealer[0]) as Value);
+    const v = handValue(hand.cards);
+    const out: ActionEvs = { stand: a.stand(v.total), hit: a.hit(v) };
+    if (legal.double) out.double = a.double(v);
+    if (legal.split) out.split = a.split(cardValue(hand.cards[0]) as Value);
+    return out;
+  }, [round]);
+  const bestEv = evs ? Math.max(...Object.values(evs)) : 0;
 
-  // Exclude pushes from the denominator to match the Simulate tab's win %.
-  const winRate = (stats.wins + stats.losses) === 0 ? null : stats.wins / (stats.wins + stats.losses);
-  const followTotal = stats.hintFollows + stats.hintDiverges;
-  const followRate = followTotal === 0 ? null : stats.hintFollows / followTotal;
+  const onTable = round && !view.settled ? totalStaked(round) : 0;
+  const net = Math.round((bankroll + onTable - INITIAL_BANKROLL) * 100) / 100;
+  const result = view.settled ? round?.result ?? null : null;
 
-  const multiHand = state.hands.length > 1;
+  const dealerCards = round ? round.dealer.slice(0, view.dealerShown) : [];
+  const dealerTotal = round && view.holeUp ? handValue(dealerCards) : round ? handValue(round.dealer.slice(0, 1)) : null;
+  const delay = (i: number) => (view.opening ? i * TIMING.dealStep : 0);
+
+  const calloutClass = !result
+    ? styles.calloutIdle
+    : result.net > 0
+      ? styles.calloutWin
+      : result.net < 0
+        ? styles.calloutLose
+        : styles.calloutPush;
+  const callout = !round
+    ? t.placeBet
+    : round.phase === 'insurance'
+      ? t.insuranceQuestion(money(round.bet / 2))
+      : round.phase === 'player'
+        ? busy
+          ? t.dealing
+          : t.yourMove
+        : result
+          ? t.resultSummary(signedMoney(result.net), result.dealerTotal, result.dealerBust, result.dealerBlackjack)
+          : t.dealerPlays;
 
   return (
-    <div className={styles.felt}>
-      <div className={styles.playGrid}>
-        {/* Table */}
-        <div>
-          {/* Dealer */}
-          <div className={styles.dealerZone}>
-            <div className={styles.zoneLabel}>
-              {s.play.dealer}
-              <DealerValue state={state} s={s} />
-            </div>
-            <CardRow
-              cards={state.dealer}
-              hideIndex={state.hideHole && state.phase !== 'done' ? 1 : undefined}
-              hiddenLabel={s.play.hidden}
-            />
-          </div>
-
-          {/* Player hands */}
-          <div className={styles.zoneLabel}>{s.play.you}</div>
-          {multiHand ? (
-            <div className={styles.splitRow}>
-              {state.hands.map((h, i) => (
-                <div
-                  key={i}
-                  className={`${styles.splitHand} ${state.phase === 'playing' && i === state.active ? styles.activeHand : ''}`}
-                >
-                  <div style={{ marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span className={styles.zoneLabel} style={{ margin: 0 }}>{fmt(s.play.hand, { n: i + 1 })}</span>
-                    <PlayerValue cards={h.cards} outcome={h.outcome} s={s} />
-                  </div>
-                  <CardRow cards={h.cards} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div>
-              <PlayerValue cards={activeHand?.cards ?? []} outcome={activeHand?.outcome} s={s} />
-              <div style={{ marginTop: '0.35rem' }}>
-                <CardRow cards={activeHand?.cards ?? []} />
-              </div>
-            </div>
-          )}
-
-          {/* Insurance prompt */}
-          {state.phase === 'insurance' && (
-            <div className={styles.insurance}>
-              <div className={styles.insurancePrompt}>{s.play.insurancePrompt}</div>
-              <div className={styles.actions} style={{ marginTop: 0 }}>
-                <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => resolveInsurance(true)} disabled={bankroll < BET / 2}>
-                  {s.play.insuranceTake}
-                </button>
-                <button className={`${styles.btn} ${styles.btnStand}`} onClick={() => resolveInsurance(false)}>
-                  {s.play.insuranceDecline}
-                </button>
-              </div>
-              <div className={styles.insuranceAdvice}>💡 {s.play.insuranceAdvice}</div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className={styles.actions}>
-            {state.phase === 'idle' && (
-              <button className={`${styles.btn} ${styles.btnDeal}`} onClick={deal} disabled={bankroll < BET}>
-                {fmt(s.play.deal, { bet: BET })}
-              </button>
-            )}
-            {state.phase === 'playing' && (
-              <>
-                <button className={`${styles.btn} ${styles.btnHit}`} onClick={hit}>
-                  {s.play.hit}{showHint && hint === 'hit' && <span className={styles.hintDot} aria-hidden />}
-                </button>
-                <button className={`${styles.btn} ${styles.btnStand}`} onClick={stand}>
-                  {s.play.stand}{showHint && hint === 'stand' && <span className={styles.hintDot} aria-hidden />}
-                </button>
-                <button className={`${styles.btn} ${styles.btnDouble}`} onClick={double} disabled={!canDoubleUI}>
-                  {s.play.double}{showHint && hint === 'double' && <span className={styles.hintDot} aria-hidden />}
-                </button>
-                {canSplitUI && (
-                  <button className={`${styles.btn} ${styles.btnSplit}`} onClick={split}>
-                    {s.play.split}{showHint && hint === 'split' && <span className={styles.hintDot} aria-hidden />}
-                  </button>
-                )}
-              </>
-            )}
-            {state.phase === 'done' && (
-              <button className={`${styles.btn} ${styles.btnNext}`} onClick={next} disabled={bankroll < BET}>
-                {s.play.nextHand}
-              </button>
-            )}
-          </div>
-
-          {/* Live advisor text */}
-          {state.phase === 'playing' && showHint && hint && (
-            <div className={styles.advisor} role="status">
-              <span aria-hidden>💡</span> {fmt(s.play.recommend, { action: actionLabel(hint) })}
-            </div>
-          )}
-
-          {/* Result banner */}
-          {state.phase === 'done' && <ResultBanner hands={state.hands} s={s} />}
-          {state.phase === 'done' && bankroll < BET && (
-            <div className={`${styles.banner} ${styles.bannerPush}`}>{s.play.broke}</div>
-          )}
-
-          <label className={styles.toggle}>
-            <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
-            {s.play.hintOn}
-          </label>
+    <div className={styles.playGrid}>
+      <div className={styles.panel}>
+        <div className={styles.shoeBar} data-testid="shoe-info">
+          {shoeLeft === null ? t.newShoe : t.shoeLabel(shoeLeft)}
         </div>
 
-        {/* Side panel */}
-        <div className={styles.panel}>
-          <div className={styles.zoneLabel} style={{ margin: 0 }}>{s.play.status}</div>
-          <div className={styles.statGrid}>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.bankroll}</div>
-              <div className={styles.statValue} style={{ color: bankroll < INITIAL_BANKROLL ? 'var(--bj-lose)' : 'var(--bj-win)' }}>${bankroll}</div>
-              <div className={styles.chips} aria-hidden>
-                <span className={styles.chip} style={{ background: '#dc2626' }}>$</span>
-                <span className={styles.chip} style={{ background: '#2563eb' }}>$</span>
-                <span className={styles.chip} style={{ background: '#16a34a' }}>$</span>
-              </div>
+        <div className={styles.table}>
+          <div className={styles.shoeBox} aria-hidden="true">
+            <span className={styles.shoeCards} />
+          </div>
+          <div className={styles.area} data-area="dealer" role="group" aria-label={t.dealer}>
+            <div className={styles.areaHead}>
+              <span className={styles.areaName}>{t.dealer}</span>
+              {dealerTotal && (
+                <span className={styles.totalBadge} data-testid="dealer-total">
+                  {t.total(dealerTotal.total, view.holeUp && dealerTotal.soft && dealerTotal.total < 21)}
+                </span>
+              )}
             </div>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.sessionNet}</div>
-              <div className={styles.statValue} style={{ color: stats.net >= 0 ? 'var(--bj-win)' : 'var(--bj-lose)' }}>{stats.net >= 0 ? '+' : ''}{stats.net}</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.hands}</div>
-              <div className={styles.statValue} style={{ color: '#67e8f9' }}>{stats.hands}</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.winRate}</div>
-              <div className={styles.statValue} style={{ color: '#a78bfa' }}>{winRate === null ? '—' : `${(winRate * 100).toFixed(0)}%`}</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.blackjacks}</div>
-              <div className={styles.statValue} style={{ color: 'var(--bj-gold)' }}>{stats.blackjacks}</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statLabel}>{s.play.stats.followRate}</div>
-              <div className={styles.statValue} style={{ color: '#f472b6' }}>{followRate === null ? '—' : `${(followRate * 100).toFixed(0)}%`}</div>
+            <div className={styles.cardRow}>
+              {dealerCards.map((c, i) =>
+                i === 1 && !view.holeUp ? (
+                  <HoleCard key={`${dealNo}-hole`} delay={delay(3)} label={t.dealer} />
+                ) : (
+                  <PlayingCard
+                    key={`${dealNo}-d${i}-${c.rank}${c.suit}`}
+                    card={c}
+                    delay={i === 0 ? delay(1) : 0}
+                    flip={i === 1}
+                  />
+                ),
+              )}
             </div>
           </div>
 
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={reset}>{s.play.resetSession}</button>
+          <div className={styles.feltPrint} aria-hidden="true">
+            <span className={styles.feltPays}>{t.feltPays}</span>
+            <span className={styles.feltRules}>{t.feltRules}</span>
+          </div>
 
-          <div className={styles.rulesCard}>
-            <h4>{s.play.rulesTitle}</h4>
-            <ul>
-              {s.play.rules.map((r, i) => <li key={i}>{r}</li>)}
-            </ul>
+          <div className={styles.area} data-area="player" role="group" aria-label={t.you}>
+            <div className={styles.handsRow}>
+              {round ? (
+                round.hands.map((h, hi) => {
+                  const v = handValue(h.cards);
+                  const outcome = result?.hands[hi]?.outcome;
+                  return (
+                    <div
+                      key={hi}
+                      className={styles.hand}
+                      data-hand={hi}
+                      data-active={round.phase === 'player' && hi === round.active && round.hands.length > 1 ? 'true' : undefined}
+                      data-outcome={outcome}
+                    >
+                      <div className={styles.cardRow}>
+                        {h.cards.map((c, ci) => (
+                          <PlayingCard
+                            key={`${dealNo}-h${hi}-${ci}-${c.rank}${c.suit}`}
+                            card={c}
+                            delay={hi === 0 && ci < 2 ? delay(ci * 2) : 0}
+                          />
+                        ))}
+                      </div>
+                      <div className={styles.handFoot}>
+                        <span className={styles.totalBadge} data-testid={`hand-total-${hi}`}>
+                          {v.total > 21 ? t.bust : !h.split && h.cards.length === 2 && v.total === 21 ? t.blackjack : t.total(v.total, v.soft && v.total < 21)}
+                        </span>
+                        <span className={styles.handBet} title={t.bet}>
+                          {money(h.bet)}
+                        </span>
+                        {outcome && (
+                          <span className={styles.outcomeTag} data-outcome={outcome}>
+                            {t.outcome[outcome]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className={styles.waitingCircle}>{bet > 0 ? money(bet) : '—'}</div>
+              )}
+            </div>
           </div>
         </div>
+
+        <div className={styles.callout} aria-live="polite" data-testid="bj-callout">
+          <span className={calloutClass}>{callout}</span>
+        </div>
+        {shuffleNext && view.settled && <p className={styles.cutNote}>{t.shuffleNext}</p>}
+
+        {result && (
+          <ul className={styles.resultList} data-testid="bj-results">
+            {result.hands.map((h, i) => (
+              <li key={i} data-positive={h.profit > 0 ? 'true' : undefined} data-negative={h.profit < 0 ? 'true' : undefined}>
+                <span>
+                  {result.hands.length > 1 ? `${t.handLabel(i + 1)} · ` : ''}
+                  {t.outcome[h.outcome]}
+                </span>
+                <span className={styles.resultAmount}>{signedMoney(h.profit)}</span>
+              </li>
+            ))}
+            {result.insurance && (
+              <li data-positive={result.insurance.profit > 0 ? 'true' : undefined} data-negative={result.insurance.profit < 0 ? 'true' : undefined}>
+                <span>{t.insurance}</span>
+                <span className={styles.resultAmount}>{signedMoney(result.insurance.profit)}</span>
+              </li>
+            )}
+          </ul>
+        )}
+
       </div>
-    </div>
-  );
-};
 
-// --- Small presentational helpers ---
+      <div className={styles.panel}>
+        <div className={styles.pillRow}>
+          <div className={styles.pill}>
+            <span className={styles.pillLabel}>{t.bankroll}</span>
+            <span className={styles.pillValue} data-testid="bj-bankroll">
+              {money(bankroll)}
+            </span>
+          </div>
+          <div className={styles.pill}>
+            <span className={styles.pillLabel}>{t.onTable}</span>
+            <span className={styles.pillValue} data-testid="bj-on-table">
+              {money(onTable)}
+            </span>
+          </div>
+          <div className={styles.pill}>
+            <span className={styles.pillLabel}>{t.net}</span>
+            <span className={`${styles.pillValue} ${net >= 0 ? styles.pos : styles.neg}`}>
+              {net > 0 ? '+' : ''}
+              {money(net)}
+            </span>
+          </div>
+        </div>
 
-const DealerValue = ({ state, s }: { state: GameState; s: ReturnType<typeof getBlackjackStrings> }) => {
-  if (state.dealer.length === 0) return null;
-  if (state.hideHole && state.phase !== 'done') {
-    return <span className={styles.valueBadge}>{s.play.upcard}: {handValue([state.dealer[0]]).total}</span>;
-  }
-  const v = handValue(state.dealer);
-  const bust = isBust(state.dealer);
-  return (
-    <span className={`${styles.valueBadge} ${bust ? styles.lose : ''}`}>
-      {v.total}{bust ? ` · ${s.play.bust}` : ''}
-    </span>
-  );
-};
+        <div className={styles.chipRow} role="radiogroup" aria-label={t.chip}>
+          <span className={styles.chipRowLabel}>{t.chip}:</span>
+          {CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={chip === v}
+              aria-label={`${t.chip} ${v}`}
+              onClick={() => setChip(v)}
+              className={styles.chip}
+              style={{ ['--c' as string]: CHIP_COLORS[v], color: v === 100 || v === 500 ? '#fff' : '#1a1200' }}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
 
-const PlayerValue = ({ cards, outcome, s }: { cards: Card[]; outcome?: Hand['outcome']; s: ReturnType<typeof getBlackjackStrings> }) => {
-  if (cards.length === 0) return null;
-  const v = handValue(cards);
-  const bust = isBust(cards);
-  // Only a natural (resolved with outcome 'blackjack') counts as Blackjack; a
-  // two-card 21 made after a split (e.g. split Aces + ten) is an ordinary 21.
-  const bj = outcome === 'blackjack';
-  const cls = outcome === 'win' || outcome === 'blackjack' ? styles.win : outcome === 'lose' || bust ? styles.lose : '';
-  return (
-    <span className={`${styles.valueBadge} ${cls}`}>
-      {bj ? s.play.blackjack : `${v.total} ${v.soft ? `(${s.play.soft})` : ''}`}{bust ? ` · ${s.play.bust}` : ''}
-    </span>
-  );
-};
+        <div className={styles.betRow}>
+          <button type="button" className={styles.betCircle} onClick={addChip} disabled={inRound || busy} aria-label={t.betAria(money(bet))}>
+            <span className={styles.betCircleLabel}>{t.bet}</span>
+            <span className={styles.betAmount} data-testid="bj-bet">
+              {money(bet)}
+            </span>
+          </button>
+          <div className={styles.actions} style={{ marginTop: 0, flex: 1 }}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={inRound || busy}>
+              {t.deal}
+            </button>
+            <button type="button" className={styles.btn} onClick={() => setBet(0)} disabled={inRound || busy}>
+              {t.clearBet}
+            </button>
+          </div>
+        </div>
 
-const ResultBanner = ({ hands, s }: { hands: Hand[]; s: ReturnType<typeof getBlackjackStrings> }) => {
-  const net = hands.reduce((a, h) => a + (h.net ?? 0), 0);
-  const cls = net > 0 ? styles.bannerWin : net < 0 ? styles.bannerLose : styles.bannerPush;
-  // Label: single hand → outcome text; multi → summarise net.
-  const label = hands.length === 1
-    ? s.play.outcomes[hands[0].outcome ?? 'push']
-    : `${s.play.you}: ${net >= 0 ? '+' : ''}${net}`;
-  return (
-    <div className={`${styles.banner} ${cls}`} role="status">
-      <span>{label}{hands[0].doubled && hands.length === 1 ? ` · ${s.play.double}` : ''}</span>
-      <span className={styles.bannerNet}>{net > 0 ? `+${net}` : net}</span>
+        {round?.phase === 'insurance' && !busy && (
+          <div className={styles.insuranceBox} data-testid="bj-insurance">
+            <span>{t.insuranceQuestion(money(round.bet / 2))}</span>
+            <div className={styles.actions} style={{ marginTop: 0 }}>
+              <button type="button" className={styles.btn} onClick={() => onInsurance(true)}>
+                {t.insuranceYes}
+              </button>
+              <button type="button" className={styles.btn} onClick={() => onInsurance(false)} data-hint={showHint ? 'true' : undefined}>
+                {t.insuranceNo}
+              </button>
+            </div>
+            {showHint && <span className={styles.muted}>{t.insuranceAdvice}</span>}
+          </div>
+        )}
+
+        <div className={styles.actionRow} role="group" aria-label={t.yourMove}>
+          {ACTIONS.map((a) => (
+            <button
+              key={a}
+              type="button"
+              className={styles.actionBtn}
+              data-action={a}
+              data-hint={showHint && playing && hint === a ? 'true' : undefined}
+              onClick={() => onAction(a)}
+              disabled={!playing || !can?.[a]}
+            >
+              {t.action[a]}
+            </button>
+          ))}
+        </div>
+
+        <p className={`${styles.message} ${message ? styles.messageError : ''}`} role="status" data-testid="bj-message">
+          {message ?? ''}
+        </p>
+
+        <div className={styles.hintRow}>
+          <label className={styles.hintToggle}>
+            <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
+            {t.hintToggle}
+          </label>
+          {showHint && playing && hint && (
+            <span className={styles.hintText} data-testid="bj-hint">
+              {t.hintSays(t.action[hint])}
+            </span>
+          )}
+        </div>
+
+        {evs && playing && (
+          <section className={styles.evPanel} aria-labelledby="bj-ev-title" data-testid="bj-ev">
+            <h3 id="bj-ev-title" className={styles.evTitle}>
+              {t.evTitle}
+            </h3>
+            <ul className={styles.evList}>
+              {(Object.entries(evs) as [Action, number][]).map(([a, ev]) => {
+                const clamped = Math.max(-2, Math.min(2, ev));
+                return (
+                  <li key={a} className={styles.evItem} data-ev={a} data-best={Math.abs(ev - bestEv) < 1e-12 ? 'true' : undefined}>
+                    <span>{t.action[a]}</span>
+                    <span className={styles.evTrack} aria-hidden="true">
+                      <span
+                        className={styles.evBar}
+                        style={{
+                          left: `${50 + Math.min(0, clamped) * 25}%`,
+                          width: `${Math.abs(clamped) * 25}%`,
+                          background: ev >= 0 ? 'var(--bj-win)' : 'var(--bj-lose)',
+                        }}
+                      />
+                    </span>
+                    <span className={styles.evValue}>
+                      {ev > 0 ? '+' : ''}
+                      {ev.toFixed(3)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className={styles.note}>{t.evNote}</p>
+          </section>
+        )}
+
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.spacerLeft}`} onClick={reset} disabled={busy}>
+            {t.reset}
+          </button>
+        </div>
+
+        <ul className={styles.hint}>
+          {t.hint.map((h, i) => (
+            <li key={i}>{h}</li>
+          ))}
+        </ul>
+
+        <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
+          {t.statsTitle}
+        </div>
+        <dl className={styles.statList} data-testid="bj-stats">
+          <div>
+            <dt>{t.hands}</dt>
+            <dd>{stats.hands}</dd>
+          </div>
+          <div>
+            <dt>{t.winsPushesLosses}</dt>
+            <dd>
+              {stats.wins} / {stats.pushes} / {stats.losses}
+            </dd>
+          </div>
+          <div>
+            <dt>{t.blackjacks}</dt>
+            <dd>{stats.blackjacks}</dd>
+          </div>
+          <div>
+            <dt>{t.agreement}</dt>
+            <dd>{stats.decisions > 0 ? `${Math.round((stats.agreed / stats.decisions) * 100)}%` : '–'}</dd>
+          </div>
+        </dl>
+      </div>
     </div>
   );
 };

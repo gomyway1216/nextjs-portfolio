@@ -1,56 +1,38 @@
 /**
- * Blackjack engine for teaching Basic Strategy.
+ * Blackjack rules engine: the shoe, a round as a pure state machine (deal,
+ * insurance, the dealer's peek, hit / stand / double / split, the dealer's
+ * turn, settlement) and the published basic-strategy chart.
  *
- * House rules (stated once, applied everywhere):
- * - 6-deck shoe, reshuffled every round (so card counting gives no edge; the
- *   Monte-Carlo edge reflects pure Basic Strategy, not deck composition).
- * - Dealer STANDS on all 17, including soft 17 (S17).
- * - Blackjack (natural 21 on the first two cards) pays 3:2.
- * - Player may Double on any first two cards, and Double After Split (DAS) is
- *   allowed.
- * - Splitting: pairs may be split (up to 4 hands / 3 re-splits). Split Aces
- *   receive exactly one card each and cannot be re-split or hit.
- * - Insurance is offered when the dealer shows an Ace and pays 2:1; Basic
- *   Strategy never takes it (it is a -EV side bet), so the advisor always
- *   recommends declining.
+ * Table rules, applied everywhere:
+ * - Six decks, one card burned after the shuffle, reshuffled once the cut card
+ *   (75% penetration) comes out.
+ * - Dealer stands on all 17s (S17) and peeks for blackjack under an ace or a
+ *   ten, so doubles and splits only ever meet a dealer without a natural.
+ * - Blackjack pays 3:2; insurance pays 2:1.
+ * - Double on any first two cards, double after split, split to four hands;
+ *   split aces get one card each and can't be resplit. No surrender.
  *
- * The Basic Strategy tables below are the standard published charts for
- * 4-8 deck, S17, DAS, no surrender.
+ * Every function is pure — the table, the simulations and the tests all run
+ * the same rules.
  */
 
-export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'T' | 'J' | 'Q' | 'K';
-export interface Card { rank: Rank; suit: '♠' | '♥' | '♦' | '♣' }
+export const SUITS = ['♠', '♥', '♦', '♣'] as const;
+export type Suit = (typeof SUITS)[number];
+export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'] as const;
+export type Rank = (typeof RANKS)[number];
 
-const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
-const SUITS: Card['suit'][] = ['♠', '♥', '♦', '♣'];
-
-/** Number of 52-card decks in the shoe. */
-export const DECK_COUNT = 6;
-
-/** A single 52-card deck (used by unit tests and as the shoe building block). */
-export function newDeck(): Card[] {
-  const deck: Card[] = [];
-  for (const s of SUITS) for (const r of RANKS) deck.push({ rank: r, suit: s });
-  return deck;
+export interface Card {
+  rank: Rank;
+  suit: Suit;
 }
 
-/** A full multi-deck shoe. */
-export function newShoe(decks: number = DECK_COUNT): Card[] {
-  const shoe: Card[] = [];
-  for (let d = 0; d < decks; d++) shoe.push(...newDeck());
-  return shoe;
-}
+export const DECKS = 6;
+export const PENETRATION = 0.75;
+export const MAX_HANDS = 4;
+export const BLACKJACK_PAYS = 1.5;
+export const INSURANCE_PAYS = 2;
 
-export function shuffle(deck: Card[], rng: () => number = Math.random): Card[] {
-  const a = deck.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** Numeric value of a single card. Ace counts as 11 here; soft-handling happens in handValue. */
+/** Value of a card with an ace as 11 (hand totals soften it as needed). */
 export function cardValue(card: Card): number {
   if (card.rank === 'A') return 11;
   if (card.rank === 'T' || card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') return 10;
@@ -59,16 +41,16 @@ export function cardValue(card: Card): number {
 
 export interface HandValue {
   total: number;
-  /** True if at least one ace is counted as 11. */
+  /** An ace is being counted as 11. */
   soft: boolean;
 }
 
-export function handValue(hand: Card[]): HandValue {
+export function handValue(cards: readonly Card[]): HandValue {
   let total = 0;
   let aces = 0;
-  for (const c of hand) {
-    if (c.rank === 'A') { aces++; total += 11; }
-    else total += cardValue(c);
+  for (const c of cards) {
+    total += cardValue(c);
+    if (c.rank === 'A') aces++;
   }
   while (total > 21 && aces > 0) {
     total -= 10;
@@ -77,48 +59,299 @@ export function handValue(hand: Card[]): HandValue {
   return { total, soft: aces > 0 };
 }
 
-export function isBust(hand: Card[]): boolean {
-  return handValue(hand).total > 21;
+export const isBust = (cards: readonly Card[]) => handValue(cards).total > 21;
+/** A natural: exactly two cards making 21. */
+export const isBlackjack = (cards: readonly Card[]) => cards.length === 2 && handValue(cards).total === 21;
+/** A splittable pair — by value, so any two ten-value cards count. */
+export const isPair = (cards: readonly Card[]) => cards.length === 2 && cardValue(cards[0]) === cardValue(cards[1]);
+
+// ---------------------------------------------------------------------------
+// The shoe
+// ---------------------------------------------------------------------------
+
+export interface Shoe {
+  decks: number;
+  cards: Card[];
+  /** Index of the next card to deal. */
+  next: number;
+  /** Once `next` passes this, the shoe is shuffled before the next round. */
+  cutIndex: number;
 }
 
-/** A natural: exactly two cards totalling 21. */
-export function isBlackjack(hand: Card[]): boolean {
-  if (hand.length !== 2) return false;
-  return handValue(hand).total === 21;
+export function createShoe(decks: number = DECKS, rng: () => number = Math.random): Shoe {
+  const cards: Card[] = [];
+  for (let d = 0; d < decks; d++) for (const suit of SUITS) for (const rank of RANKS) cards.push({ rank, suit });
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+  // The first card is burned face down.
+  return { decks, cards, next: 1, cutIndex: Math.floor(cards.length * PENETRATION) };
 }
 
-/** True when a two-card hand is a splittable pair (by rank value, so T/J/Q/K pair). */
-export function isPair(hand: Card[]): boolean {
-  if (hand.length !== 2) return false;
-  return cardValue(hand[0]) === cardValue(hand[1]);
+export const needsShuffle = (shoe: Shoe) => shoe.next >= shoe.cutIndex;
+export const cardsLeft = (shoe: Shoe) => shoe.cards.length - shoe.next;
+
+// ---------------------------------------------------------------------------
+// A round
+// ---------------------------------------------------------------------------
+
+export interface PlayerHand {
+  cards: Card[];
+  /** Stake on this hand (doubled hands carry twice the base bet). */
+  bet: number;
+  doubled: boolean;
+  /** Came from a split (so a two-card 21 is not a blackjack). */
+  split: boolean;
+  /** A split ace: one card only. */
+  splitAce: boolean;
+  done: boolean;
 }
 
-// ---------- Basic Strategy ----------
-
+export type Phase = 'insurance' | 'player' | 'done';
 export type Action = 'hit' | 'stand' | 'double' | 'split';
+export type HandOutcome = 'blackjack' | 'win' | 'push' | 'lose' | 'bust';
 
-/**
- * Returns 0-based index into a 10-entry [2,3,4,5,6,7,8,9,T,A] dealer upcard array.
- */
-function dealerIdx(card: Card): number {
-  if (card.rank === 'A') return 9;
-  if (cardValue(card) === 10) return 8; // T/J/Q/K all map to 10
-  return cardValue(card) - 2; // 2→0, ..., 9→7
+export interface HandResult {
+  outcome: HandOutcome;
+  stake: number;
+  /** Net profit (negative on a loss). */
+  profit: number;
 }
+
+export interface RoundResult {
+  hands: HandResult[];
+  /** Insurance stake and its net profit, if insurance was taken. */
+  insurance: { stake: number; profit: number } | null;
+  dealerTotal: number;
+  dealerBlackjack: boolean;
+  dealerBust: boolean;
+  /** Money back to the bankroll: every stake that wasn't lost, plus winnings. */
+  returned: number;
+  /** Net for the round across hands and insurance. */
+  net: number;
+}
+
+export interface Round {
+  shoe: Shoe;
+  bet: number;
+  dealer: Card[];
+  hands: PlayerHand[];
+  active: number;
+  phase: Phase;
+  /** Insurance stake (0 = declined or not offered). */
+  insurance: number;
+  result: RoundResult | null;
+}
+
+interface Draw {
+  card: Card;
+  shoe: Shoe;
+}
+
+function drawFrom(shoe: Shoe): Draw {
+  if (shoe.next >= shoe.cards.length) throw new Error('the shoe ran out of cards');
+  return { card: shoe.cards[shoe.next], shoe: { ...shoe, next: shoe.next + 1 } };
+}
+
+/** Deals player, dealer, player, dealer (the second dealer card is the hole card). */
+export function startRound(shoe: Shoe, bet: number): Round {
+  if (!(bet > 0)) throw new Error('bet must be positive');
+  let s = shoe;
+  const take = () => {
+    const d = drawFrom(s);
+    s = d.shoe;
+    return d.card;
+  };
+  const p1 = take();
+  const d1 = take();
+  const p2 = take();
+  const d2 = take();
+  const round: Round = {
+    shoe: s,
+    bet,
+    dealer: [d1, d2],
+    hands: [{ cards: [p1, p2], bet, doubled: false, split: false, splitAce: false, done: false }],
+    active: 0,
+    phase: 'player',
+    insurance: 0,
+    result: null,
+  };
+  // Insurance is offered whenever the dealer shows an ace.
+  if (d1.rank === 'A') return { ...round, phase: 'insurance' };
+  return afterPeek(round);
+}
+
+/** Answers the insurance offer (half the bet, pays 2:1 if the dealer has blackjack). */
+export function answerInsurance(round: Round, take: boolean): Round {
+  if (round.phase !== 'insurance') throw new Error('insurance is not on offer');
+  return afterPeek({ ...round, insurance: take ? round.bet / 2 : 0, phase: 'player' });
+}
+
+/** The dealer checks for blackjack; naturals end the round at once. */
+function afterPeek(round: Round): Round {
+  const dealerBj = isBlackjack(round.dealer);
+  const playerBj = isBlackjack(round.hands[0].cards);
+  if (dealerBj || playerBj) return settle({ ...round, hands: round.hands.map((h) => ({ ...h, done: true })) });
+  return { ...round, phase: 'player' };
+}
+
+export interface Legal {
+  hit: boolean;
+  stand: boolean;
+  double: boolean;
+  split: boolean;
+}
+
+/** What the active hand may do (bankroll limits are the caller's business). */
+export function legalActions(round: Round): Legal {
+  const none = { hit: false, stand: false, double: false, split: false };
+  if (round.phase !== 'player') return none;
+  const hand = round.hands[round.active];
+  if (!hand || hand.done) return none;
+  const two = hand.cards.length === 2;
+  return {
+    hit: true,
+    stand: true,
+    double: two,
+    split: two && isPair(hand.cards) && round.hands.length < MAX_HANDS && !hand.splitAce,
+  };
+}
+
+/** Plays one action on the active hand and moves the round on. */
+export function act(round: Round, action: Action): Round {
+  const legal = legalActions(round);
+  if (!legal[action]) throw new Error(`${action} is not allowed now`);
+  let shoe = round.shoe;
+  const take = () => {
+    const d = drawFrom(shoe);
+    shoe = d.shoe;
+    return d.card;
+  };
+  const hands = round.hands.map((h) => ({ ...h, cards: [...h.cards] }));
+  const hand = hands[round.active];
+
+  switch (action) {
+    case 'hit':
+      hand.cards.push(take());
+      // Bust or 21 ends the hand.
+      if (handValue(hand.cards).total >= 21) hand.done = true;
+      break;
+    case 'stand':
+      hand.done = true;
+      break;
+    case 'double':
+      hand.bet *= 2;
+      hand.doubled = true;
+      hand.cards.push(take());
+      hand.done = true;
+      break;
+    case 'split': {
+      const aces = hand.cards[0].rank === 'A';
+      const second: PlayerHand = { cards: [hand.cards[1]], bet: round.bet, doubled: false, split: true, splitAce: aces, done: false };
+      hand.cards = [hand.cards[0], take()];
+      hand.split = true;
+      hand.splitAce = aces;
+      hands.splice(round.active + 1, 0, second);
+      if (aces) {
+        // Each ace gets exactly one card.
+        second.cards.push(take());
+        hand.done = true;
+        second.done = true;
+      } else if (handValue(hand.cards).total === 21) {
+        hand.done = true;
+      }
+      break;
+    }
+  }
+  return advance({ ...round, shoe, hands });
+}
+
+/** Moves to the next unfinished hand (dealing a split hand its second card), or to the dealer. */
+function advance(round: Round): Round {
+  let shoe = round.shoe;
+  const hands = round.hands;
+  let i = round.active;
+  while (i < hands.length && hands[i].done) i++;
+  if (i < hands.length) {
+    const hand = hands[i];
+    if (hand.cards.length === 1) {
+      const d = drawFrom(shoe);
+      shoe = d.shoe;
+      hands[i] = { ...hand, cards: [...hand.cards, d.card] };
+      if (handValue(hands[i].cards).total === 21) {
+        hands[i].done = true;
+        return advance({ ...round, shoe, hands, active: i });
+      }
+    }
+    return { ...round, shoe, hands, active: i };
+  }
+  return dealerTurn({ ...round, shoe, hands, active: hands.length - 1 });
+}
+
+/** The dealer draws to 17 (standing on soft 17) unless every hand has busted. */
+function dealerTurn(round: Round): Round {
+  let shoe = round.shoe;
+  const dealer = [...round.dealer];
+  if (round.hands.some((h) => !isBust(h.cards))) {
+    while (handValue(dealer).total < 17) {
+      const d = drawFrom(shoe);
+      shoe = d.shoe;
+      dealer.push(d.card);
+    }
+  }
+  return settle({ ...round, shoe, dealer });
+}
+
+function settle(round: Round): Round {
+  const dealerBj = isBlackjack(round.dealer);
+  const dealer = handValue(round.dealer).total;
+  const dealerBust = dealer > 21;
+  const hands = round.hands.map((h): HandResult => {
+    const stake = h.bet;
+    const natural = !h.split && isBlackjack(h.cards);
+    if (dealerBj) return natural ? { outcome: 'push', stake, profit: 0 } : { outcome: 'lose', stake, profit: -stake };
+    if (natural) return { outcome: 'blackjack', stake, profit: stake * BLACKJACK_PAYS };
+    const total = handValue(h.cards).total;
+    if (total > 21) return { outcome: 'bust', stake, profit: -stake };
+    if (dealerBust || total > dealer) return { outcome: 'win', stake, profit: stake };
+    if (total < dealer) return { outcome: 'lose', stake, profit: -stake };
+    return { outcome: 'push', stake, profit: 0 };
+  });
+  const insurance = round.insurance > 0 ? { stake: round.insurance, profit: dealerBj ? round.insurance * INSURANCE_PAYS : -round.insurance } : null;
+  const results = [...hands, ...(insurance ? [{ stake: insurance.stake, profit: insurance.profit }] : [])];
+  const returned = results.reduce((sum, r) => sum + (r.profit >= 0 ? r.stake + r.profit : 0), 0);
+  const net = results.reduce((sum, r) => sum + r.profit, 0);
+  return {
+    ...round,
+    hands: round.hands.map((h) => ({ ...h, done: true })),
+    phase: 'done',
+    result: { hands, insurance, dealerTotal: dealer, dealerBlackjack: dealerBj, dealerBust, returned, net },
+  };
+}
+
+/** Total staked on the round so far (base bets, doubles, splits and insurance). */
+export const totalStaked = (round: Round) => round.hands.reduce((sum, h) => sum + h.bet, 0) + round.insurance;
+
+// ---------------------------------------------------------------------------
+// Basic strategy — the standard chart for 4–8 decks, S17, double after split, no surrender
+// ---------------------------------------------------------------------------
 
 const D = 'double' as const;
 const H = 'hit' as const;
 const S = 'stand' as const;
 const P = 'split' as const;
 
-// Hard totals 5-21 vs dealer 2-A. 4-8 deck, S17, DAS, no surrender.
-const HARD_TABLE: Record<number, readonly Action[]> = {
-  // dealer:        2  3  4  5  6  7  8  9  T  A
-  5:  [H, H, H, H, H, H, H, H, H, H],
-  6:  [H, H, H, H, H, H, H, H, H, H],
-  7:  [H, H, H, H, H, H, H, H, H, H],
-  8:  [H, H, H, H, H, H, H, H, H, H],
-  9:  [H, D, D, D, D, H, H, H, H, H],
+/** Columns: dealer 2, 3, 4, 5, 6, 7, 8, 9, 10, A. */
+export const UPCARDS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+const column = (dealerUp: Card) => UPCARDS.indexOf(cardValue(dealerUp) as (typeof UPCARDS)[number]);
+
+export const HARD_CHART: Record<number, readonly Action[]> = {
+  5: [H, H, H, H, H, H, H, H, H, H],
+  6: [H, H, H, H, H, H, H, H, H, H],
+  7: [H, H, H, H, H, H, H, H, H, H],
+  8: [H, H, H, H, H, H, H, H, H, H],
+  9: [H, D, D, D, D, H, H, H, H, H],
   10: [D, D, D, D, D, D, D, D, H, H],
   11: [D, D, D, D, D, D, D, D, D, H],
   12: [H, H, S, S, S, H, H, H, H, H],
@@ -133,351 +366,78 @@ const HARD_TABLE: Record<number, readonly Action[]> = {
   21: [S, S, S, S, S, S, S, S, S, S],
 };
 
-// Soft totals 12 (A,A when splitting is unavailable) .. 20 (A,9). S17, DAS.
-const SOFT_TABLE: Record<number, readonly Action[]> = {
-  // dealer:        2  3  4  5  6  7  8  9  T  A
-  12: [H, H, H, H, H, H, H, H, H, H], // soft 12 always hits
+/** Soft totals 13 (A,2) to 21. */
+export const SOFT_CHART: Record<number, readonly Action[]> = {
+  12: [H, H, H, H, H, H, H, H, H, H],
   13: [H, H, H, D, D, H, H, H, H, H],
   14: [H, H, H, D, D, H, H, H, H, H],
   15: [H, H, D, D, D, H, H, H, H, H],
   16: [H, H, D, D, D, H, H, H, H, H],
   17: [H, D, D, D, D, H, H, H, H, H],
   18: [S, D, D, D, D, S, S, H, H, H],
-  19: [S, S, S, S, D, S, S, S, S, S], // A,8 doubles vs 6 under S17
+  19: [S, S, S, S, S, S, S, S, S, S],
   20: [S, S, S, S, S, S, S, S, S, S],
+  21: [S, S, S, S, S, S, S, S, S, S],
 };
 
-// Pair splitting, keyed by the single-card value of the pair (2..11; 11 = Aces,
-// 10 = any two ten-value cards). 4-8 deck, DAS. "P" = split.
-const PAIR_TABLE: Record<number, readonly Action[]> = {
-  // dealer:        2  3  4  5  6  7  8  9  T  A
-  2:  [P, P, P, P, P, P, H, H, H, H],
-  3:  [P, P, P, P, P, P, H, H, H, H],
-  4:  [H, H, H, P, P, H, H, H, H, H], // 4,4 splits only vs 5-6 (DAS)
-  5:  [D, D, D, D, D, D, D, D, H, H], // never split; play as hard 10
-  6:  [P, P, P, P, P, H, H, H, H, H],
-  7:  [P, P, P, P, P, P, H, H, H, H],
-  8:  [P, P, P, P, P, P, P, P, P, P], // always split 8s
-  9:  [P, P, P, P, P, S, P, P, S, S], // stand vs 7, T, A
-  10: [S, S, S, S, S, S, S, S, S, S], // never split tens
-  11: [P, P, P, P, P, P, P, P, P, P], // always split Aces
+/** Pairs by card value (2–10, 11 = aces). */
+export const PAIR_CHART: Record<number, readonly Action[]> = {
+  2: [P, P, P, P, P, P, H, H, H, H],
+  3: [P, P, P, P, P, P, H, H, H, H],
+  4: [H, H, H, P, P, H, H, H, H, H],
+  5: [D, D, D, D, D, D, D, D, H, H],
+  6: [P, P, P, P, P, H, H, H, H, H],
+  7: [P, P, P, P, P, P, H, H, H, H],
+  8: [P, P, P, P, P, P, P, P, P, P],
+  9: [P, P, P, P, P, S, P, P, S, S],
+  10: [S, S, S, S, S, S, S, S, S, S],
+  11: [P, P, P, P, P, P, P, P, P, P],
 };
 
-export interface StrategyContext {
-  canDouble?: boolean;
-  canSplit?: boolean;
-}
-
 /**
- * Basic-strategy decision for a player hand vs a dealer upcard.
- * - `canDouble` false (e.g. more than 2 cards, or funds/rule bar it) →
- *   Double collapses to Hit.
- * - `canSplit` false → Split collapses to the correct hard/soft play.
+ * The chart's play for a hand against the dealer's up card. A double the
+ * hand can't make becomes a hit (a soft 18 stands instead), and a split it
+ * can't make falls through to the hard / soft total.
  */
-export function basicStrategyDecision(
-  playerHand: Card[],
-  dealerUp: Card,
-  canDouble: boolean = playerHand.length === 2,
-  canSplit: boolean = false,
-): Action {
-  const di = dealerIdx(dealerUp);
-
-  // Pair splitting is evaluated first (only on a true two-card pair).
-  if (canSplit && isPair(playerHand)) {
-    const pairKey = cardValue(playerHand[0]); // 2..11
-    const rec = PAIR_TABLE[pairKey][di];
-    if (rec === 'split') return 'split';
-    // Non-split recommendation for a pair falls through to hard/soft logic
-    // below (e.g. 5,5 → double as 10; 10,10 → stand).
+export function basicStrategy(cards: readonly Card[], dealerUp: Card, legal: Pick<Legal, 'double' | 'split'>): Action {
+  const col = column(dealerUp);
+  if (legal.split && isPair(cards)) {
+    const play = PAIR_CHART[cardValue(cards[0])][col];
+    if (play === 'split') return 'split';
   }
-
-  const v = handValue(playerHand);
-  let raw: Action;
-  if (v.soft && v.total >= 12 && v.total <= 20) {
-    raw = SOFT_TABLE[v.total][di];
-  } else if (v.total >= 5 && v.total <= 21) {
-    raw = HARD_TABLE[v.total][di];
-  } else {
-    raw = H;
-  }
-  if (raw === 'double' && !canDouble) return 'hit';
-  return raw;
+  const { total, soft } = handValue(cards);
+  const play = soft && total >= 12 ? SOFT_CHART[total][col] : total <= 5 ? 'hit' : HARD_CHART[Math.min(total, 21)][col];
+  if (play === 'double' && !legal.double) return soft && total === 18 ? 'stand' : 'hit';
+  return play;
 }
 
-/**
- * Insurance advice. Basic Strategy always declines insurance regardless of the
- * player hand, because it is an independent -EV bet at 2:1 (breaks even only
- * when the dealer has a ten in the hole more than 1/3 of the time).
- */
-export function shouldTakeInsurance(): boolean {
-  return false;
-}
+// ---------------------------------------------------------------------------
+// Playing a whole round with a strategy
+// ---------------------------------------------------------------------------
 
-// ---------- Round play ----------
+export type Decider = (hand: PlayerHand, dealerUp: Card, legal: Legal, round: Round) => Action;
 
-/**
- * Dealer hits until reaching a hard or soft total of 17 or more (S17).
- * Mutates `dealer` in place. `drawNext` returns the next card; the loop bails
- * if the draw source is exhausted.
- */
-export function playDealerTurn(dealer: Card[], drawNext: () => Card | undefined): void {
-  while (true) {
-    const v = handValue(dealer);
-    if (v.total >= 17) break; // S17: stand on all 17 (soft or hard)
-    const card = drawNext();
-    if (!card) break;
-    dealer.push(card);
+export const STRATEGIES = {
+  basic: ((hand, up, legal) => basicStrategy(hand.cards, up, legal)) as Decider,
+  /** Play like the dealer: hit to 17, never double or split. */
+  mimic: ((hand) => (handValue(hand.cards).total < 17 ? 'hit' : 'stand')) as Decider,
+  /** Never risk a bust: stand on hard 12+, hit soft hands below 18. */
+  neverBust: ((hand) => {
+    const { total, soft } = handValue(hand.cards);
+    return total <= 11 || (soft && total < 18) ? 'hit' : 'stand';
+  }) as Decider,
+};
+export type StrategyId = keyof typeof STRATEGIES;
+
+/** Deals and plays a full round (declining insurance), shuffling first if the cut card is out. */
+export function playRound(shoe: Shoe, bet: number, decide: Decider, rng: () => number = Math.random): Round {
+  let round = startRound(needsShuffle(shoe) ? createShoe(shoe.decks, rng) : shoe, bet);
+  if (round.phase === 'insurance') round = answerInsurance(round, false);
+  while (round.phase === 'player') {
+    const legal = legalActions(round);
+    let action = decide(round.hands[round.active], round.dealer[0], legal, round);
+    if (!legal[action]) action = action === 'double' ? 'hit' : handValue(round.hands[round.active].cards).total >= 17 ? 'stand' : 'hit';
+    round = act(round, action);
   }
-}
-
-export type Outcome = 'win' | 'lose' | 'push' | 'blackjack';
-
-export interface RoundResult {
-  player: Card[];
-  dealer: Card[];
-  outcome: Outcome;
-  bet: number;
-  /** Net change to bankroll (positive = profit). */
-  net: number;
-  doubled: boolean;
-  split?: boolean;
-}
-
-/**
- * Compare a finished (non-natural) player hand against the finished dealer hand.
- * Returns the net multiple of `bet` (win = +bet, lose = -bet, push = 0).
- */
-function settleHand(player: Card[], dealer: Card[], bet: number): { net: number; outcome: Outcome } {
-  if (isBust(player)) return { net: -bet, outcome: 'lose' };
-  const pV = handValue(player).total;
-  const dV = handValue(dealer).total;
-  if (dV > 21 || pV > dV) return { net: bet, outcome: 'win' };
-  if (pV < dV) return { net: -bet, outcome: 'lose' };
-  return { net: 0, outcome: 'push' };
-}
-
-/**
- * Run one round with a given strategy callback, including splitting. The
- * strategy decides actions one at a time based on the visible state.
- *
- * Splits are supported for the Monte-Carlo simulation: each split hand is
- * played out with the same strategy, then all hands are settled against a
- * single dealer hand. `net` is the summed bankroll change across all hands;
- * `bet` is the total amount wagered (base bet × number of hands, doubled
- * where applicable). The returned `player` array is the first hand (for
- * display); `split` flags a multi-hand round.
- */
-export function playRound(
-  bet: number,
-  strategy: (player: Card[], dealerUp: Card, canDouble: boolean, canSplit: boolean) => Action,
-  rng: () => number = Math.random,
-): RoundResult {
-  const shoe = shuffle(newShoe(), rng);
-  let cursor = 0;
-  const draw = (): Card => shoe[cursor++];
-
-  const player: Card[] = [draw(), draw()];
-  const dealer: Card[] = [draw(), draw()];
-
-  if (isBlackjack(player)) {
-    if (isBlackjack(dealer)) {
-      return { player, dealer, outcome: 'push', bet, net: 0, doubled: false };
-    }
-    return { player, dealer, outcome: 'blackjack', bet, net: bet * 1.5, doubled: false };
-  }
-  // Dealer natural with a non-natural player: the round ends immediately.
-  if (isBlackjack(dealer)) {
-    return { player, dealer, outcome: 'lose', bet, net: -bet, doubled: false };
-  }
-
-  const MAX_HANDS = 4;
-  // Each entry: the cards of one player hand plus its wager and whether it can
-  // still act (split-Aces get exactly one card).
-  interface SubHand { cards: Card[]; wager: number; done: boolean; fromSplitAces: boolean; }
-  const hands: SubHand[] = [{ cards: player, wager: bet, done: false, fromSplitAces: false }];
-  let didSplit = false;
-  let didDouble = false;
-
-  for (let hi = 0; hi < hands.length; hi++) {
-    const hand = hands[hi];
-    if (hand.fromSplitAces) {
-      // One card already dealt on split; no further action.
-      continue;
-    }
-    while (!hand.done) {
-      const canDouble = hand.cards.length === 2;
-      const canSplit = hand.cards.length === 2 && isPair(hand.cards) && hands.length < MAX_HANDS;
-      const action = strategy(hand.cards, dealer[0], canDouble, canSplit);
-
-      if (action === 'split' && canSplit) {
-        didSplit = true;
-        const splitAces = cardValue(hand.cards[0]) === 11;
-        const cardA = hand.cards[0];
-        const cardB = hand.cards[1];
-        // First hand keeps cardA + one new card; new hand gets cardB + one new card.
-        hand.cards = [cardA, draw()];
-        const newHand: SubHand = { cards: [cardB, draw()], wager: bet, done: false, fromSplitAces: splitAces };
-        hands.push(newHand);
-        if (splitAces) {
-          hand.fromSplitAces = true;
-          hand.done = true;
-        }
-        continue;
-      }
-
-      if (action === 'double' && canDouble) {
-        didDouble = true;
-        hand.wager = hand.wager * 2;
-        hand.cards.push(draw());
-        hand.done = true;
-        break;
-      }
-
-      if (action === 'stand') {
-        hand.done = true;
-        break;
-      }
-
-      // hit (also the fallback when split/double are recommended but not allowed)
-      hand.cards.push(draw());
-      if (isBust(hand.cards)) {
-        hand.done = true;
-        break;
-      }
-    }
-  }
-
-  // Dealer only draws if at least one player hand is still live (not all bust).
-  const anyLive = hands.some((h) => !isBust(h.cards));
-  if (anyLive) playDealerTurn(dealer, draw);
-
-  let totalNet = 0;
-  let totalWager = 0;
-  for (const h of hands) {
-    const { net } = settleHand(h.cards, dealer, h.wager);
-    totalNet += net;
-    totalWager += h.wager;
-  }
-
-  let outcome: Outcome;
-  if (totalNet > 0) outcome = 'win';
-  else if (totalNet < 0) outcome = 'lose';
-  else outcome = 'push';
-
-  return {
-    player: hands[0].cards,
-    dealer,
-    outcome,
-    bet: totalWager,
-    net: totalNet,
-    doubled: didDouble,
-    split: didSplit,
-  };
-}
-
-// ---------- Strategies ----------
-
-export type StrategyName = 'basic' | 'mimic-dealer' | 'always-stand';
-
-type Decider = (player: Card[], dealerUp: Card, canDouble: boolean, canSplit: boolean) => Action;
-
-export function strategyFor(name: StrategyName): Decider {
-  switch (name) {
-    case 'basic':
-      return (player, dealerUp, canDouble, canSplit) =>
-        basicStrategyDecision(player, dealerUp, canDouble, canSplit);
-    case 'mimic-dealer':
-      return (player) => {
-        const v = handValue(player);
-        return v.total < 17 ? 'hit' : 'stand';
-      };
-    case 'always-stand':
-      return () => 'stand';
-  }
-}
-
-// ---------- Monte Carlo ----------
-
-export interface SimSummary {
-  strategy: StrategyName;
-  hands: number;
-  totalNet: number;
-  rtp: number;            // return per unit wagered (EV per round = (rtp - 1) * baseBet)
-  edge: number;           // house edge = 1 - rtp (negative if player edge)
-  winCount: number;
-  pushCount: number;
-  loseCount: number;
-  blackjackCount: number;
-  /** Bankroll trajectory sampled every `sampleEvery` rounds. */
-  trajectory: number[];
-  trajectoryX: number[];
-}
-
-export interface SimOptions {
-  signal?: AbortSignal;
-  onProgress?: (done: number, total: number) => void;
-  chunkSize?: number;
-  startingBankroll?: number;
-  baseBet?: number;
-  sampleEvery?: number;
-}
-
-export async function runBlackjackSimAsync(
-  strategy: StrategyName,
-  hands: number,
-  options: SimOptions = {},
-  rng: () => number = Math.random,
-): Promise<SimSummary | null> {
-  if (!Number.isInteger(hands) || hands <= 0) {
-    throw new Error('runBlackjackSimAsync: hands must be a positive integer');
-  }
-  const chunkSize = options.chunkSize ?? 5000;
-  const startingBankroll = options.startingBankroll ?? 1000;
-  const baseBet = options.baseBet ?? 1;
-  const sampleEvery = options.sampleEvery ?? Math.max(1, Math.floor(hands / 200));
-  const decide = strategyFor(strategy);
-
-  let bankroll = startingBankroll;
-  let totalWagered = 0;
-  let totalNet = 0;
-  let wins = 0, pushes = 0, losses = 0, blackjacks = 0;
-  const traj: number[] = [bankroll];
-  const trajX: number[] = [0];
-
-  for (let i = 0; i < hands; i += chunkSize) {
-    const end = Math.min(i + chunkSize, hands);
-    for (let j = i; j < end; j++) {
-      const r = playRound(baseBet, decide, rng);
-      bankroll += r.net;
-      totalWagered += r.bet;
-      totalNet += r.net;
-      if (r.outcome === 'win') wins++;
-      else if (r.outcome === 'push') pushes++;
-      else if (r.outcome === 'lose') losses++;
-      else if (r.outcome === 'blackjack') { wins++; blackjacks++; }
-      const n = j + 1;
-      if (n % sampleEvery === 0 || n === hands) {
-        traj.push(bankroll);
-        trajX.push(n);
-      }
-    }
-    options.onProgress?.(end, hands);
-    if (options.signal?.aborted) return null;
-    if (end < hands) await new Promise<void>((res) => setTimeout(res, 0));
-  }
-
-  const rtp = totalWagered === 0 ? 1 : (totalWagered + totalNet) / totalWagered;
-  return {
-    strategy,
-    hands,
-    totalNet,
-    rtp,
-    edge: 1 - rtp,
-    winCount: wins,
-    pushCount: pushes,
-    loseCount: losses,
-    blackjackCount: blackjacks,
-    trajectory: traj,
-    trajectoryX: trajX,
-  };
+  return round;
 }

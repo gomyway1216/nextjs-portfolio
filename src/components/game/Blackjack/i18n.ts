@@ -1,244 +1,357 @@
 /**
- * Local bilingual strings for the Blackjack game. Kept in the component dir so
- * we don't touch the shared locale JSON. Resolved via `useGameLanguage()`.
+ * Local ja/en strings for blackjack, consumed via useGameLanguage().
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import type { Action as AnalysisAction } from './analysis';
+import type { HandOutcome, StrategyId } from './engine';
 
 export interface BlackjackStrings {
   title: string;
   subtitle: string;
-  tabs: { play: string; sim: string };
-
-  play: {
-    dealer: string;
-    you: string;
-    upcard: string;
-    total: string;
-    soft: string;
-    hard: string;
-    bust: string;
-    blackjack: string;
-    hidden: string;
-    deal: string; // interpolate {bet}
-    hit: string;
-    stand: string;
-    double: string;
-    split: string;
-    nextHand: string;
-    recommend: string; // interpolate {action}
-    hintOn: string;
-    insurancePrompt: string;
-    insuranceTake: string;
-    insuranceDecline: string;
-    insuranceAdvice: string;
-    hand: string; // interpolate {n}
-    status: string;
-    resetSession: string;
-    outcomes: { win: string; lose: string; push: string; blackjack: string };
-    stats: {
-      bankroll: string;
-      sessionNet: string;
-      hands: string;
-      winRate: string;
-      blackjacks: string;
-      followRate: string;
-    };
-    rulesTitle: string;
-    rules: string[];
-    broke: string;
-  };
-
-  actionNames: { hit: string; stand: string; double: string; split: string };
-
-  sim: {
-    handsPerStrategy: string;
-    startingBankroll: string;
-    betPerHand: string;
-    runButton: string;
-    running: string; // interpolate {strategy} {done} {total}
-    runNote: string;
-    introTitle: string;
-    introBody: string;
-    introBasic: string;
-    introMimic: string;
-    introStand: string;
-    introFooter: string;
-    edgeTitle: string;
-    edgeNote: string;
-    edgeGain: string; // interpolate {value}
-    edgeLoss: string; // interpolate {value}
-    trajectoryTitle: string;
-    trajectoryAria: string;
-    detailsTitle: string;
-    baselineLabel: string;
-    handsAxis: string;
-    table: { strategy: string; winRate: string; edge: string; totalNet: string };
-    strategyLabels: { basic: string; mimic: string; stand: string };
-  };
+  tabPlay: string;
+  tabOdds: string;
+  tabSim: string;
+  howToPlay: string;
+  infoBody: string[];
+  action: Record<AnalysisAction, string>;
+  // Play
+  bankroll: string;
+  onTable: string;
+  net: string;
+  chip: string;
+  bet: string;
+  betAria: (amount: string) => string;
+  clearBet: string;
+  deal: string;
+  dealing: string;
+  reset: string;
+  dealer: string;
+  you: string;
+  handLabel: (n: number) => string;
+  total: (total: number, soft: boolean) => string;
+  blackjack: string;
+  bust: string;
+  outcome: Record<HandOutcome, string>;
+  insuranceQuestion: (cost: string) => string;
+  insuranceYes: string;
+  insuranceNo: string;
+  insuranceAdvice: string;
+  noFunds: string;
+  placeBet: string;
+  yourMove: string;
+  dealerPlays: string;
+  resultSummary: (net: string, dealerTotal: number, dealerBust: boolean, dealerBj: boolean) => string;
+  insurance: string;
+  shoeLabel: (left: number) => string;
+  shuffleNext: string;
+  newShoe: string;
+  feltPays: string;
+  feltRules: string;
+  hintToggle: string;
+  hintSays: (action: string) => string;
+  evTitle: string;
+  evNote: string;
+  statsTitle: string;
+  hands: string;
+  winsPushesLosses: string;
+  blackjacks: string;
+  agreement: string;
+  hint: string[];
+  // Odds
+  oddsIntro: string;
+  edgeHeadline: string;
+  edgeHeadlineNote: string;
+  statPlayerBj: string;
+  statDealerBj: string;
+  statInsurance: string;
+  dealerTitle: string;
+  dealerIntro: string;
+  colUp: string;
+  colBust: string;
+  colBlackjack: string;
+  chartTitle: string;
+  chartIntro: string;
+  chartHard: string;
+  chartSoft: string;
+  chartPairs: string;
+  chartLegend: Record<AnalysisAction, string>;
+  chartDiffers: string;
+  cellDetail: (hand: string, up: string) => string;
+  cellMargin: (best: string, second: string, margin: string) => string;
+  pickCell: string;
+  rulesTitle: string;
+  rulesIntro: string;
+  colRule: string;
+  colEdge: string;
+  colChange: string;
+  ruleName: Record<'table' | 'h17' | 'sixFive' | 'noDas' | 'splitOnce' | 'surrender', string>;
+  playersTitle: string;
+  playersIntro: string;
+  strategyName: Record<StrategyId | 'optimal', string>;
+  // Simulation
+  run: string;
+  running: (pct: number) => string;
+  roundsLabel: string;
+  simTitle: string;
+  simIntro: string;
+  colStrategy: string;
+  colExact: string;
+  colSimulated: (rounds: string) => string;
+  colWinPushLose: string;
+  colBusts: string;
+  simNote: string;
 }
 
 const en: BlackjackStrings = {
-  title: 'Blackjack — Basic Strategy',
-  subtitle: 'Play a full round with live Basic-Strategy hints, then run a Monte-Carlo simulation to see how the strategies compare over thousands of hands.',
-  tabs: { play: 'Play', sim: 'Simulate' },
-
-  play: {
-    dealer: 'Dealer',
-    you: 'You',
-    upcard: 'Upcard',
-    total: 'Total',
-    soft: 'soft',
-    hard: 'hard',
-    bust: 'Bust',
-    blackjack: 'Blackjack!',
-    hidden: 'Hidden card',
-    deal: 'Deal (${{bet}})',
-    hit: 'Hit',
-    stand: 'Stand',
-    double: 'Double',
-    split: 'Split',
-    nextHand: 'Next hand',
-    recommend: 'Basic Strategy: {{action}}',
-    hintOn: 'Show strategy hint',
-    insurancePrompt: 'Dealer shows an Ace — take insurance?',
-    insuranceTake: 'Take insurance',
-    insuranceDecline: 'No insurance',
-    insuranceAdvice: 'Basic Strategy: decline (insurance is a losing bet).',
-    hand: 'Hand {{n}}',
-    status: 'Session',
-    resetSession: 'Reset session',
-    outcomes: { win: 'You win', lose: 'You lose', push: 'Push', blackjack: 'Blackjack! (pays 3:2)' },
-    stats: {
-      bankroll: 'Bankroll',
-      sessionNet: 'Session net',
-      hands: 'Hands',
-      winRate: 'Win rate',
-      blackjacks: 'Blackjacks',
-      followRate: 'Strategy match',
-    },
-    rulesTitle: 'House rules',
-    rules: [
-      '6-deck shoe, reshuffled each round. Dealer stands on all 17 (S17).',
-      'Blackjack pays 3:2. Double on any two cards; double after split allowed.',
-      'Split pairs up to 4 hands; split Aces get one card each. Insurance pays 2:1.',
-      'The 💡 marks the Basic-Strategy move. Follow it to keep the house edge near 0.5%.',
-    ],
-    broke: 'Out of chips — reset the session to keep playing.',
+  title: 'Blackjack',
+  subtitle:
+    'Six decks, dealer stands on 17, blackjack pays 3:2. Play with basic-strategy hints and the exact value of every option, then see the exact house edge of each rule and strategy.',
+  tabPlay: 'Table',
+  tabOdds: 'Odds',
+  tabSim: 'Simulation',
+  howToPlay: 'How to play',
+  infoBody: [
+    'Pick a chip, click the betting circle, then DEAL. Get closer to 21 than the dealer without going over. Cards 2–10 count their value, faces 10, aces 1 or 11.',
+    'Hit takes a card, Stand keeps your total, Double doubles the bet for exactly one more card, and Split turns a pair into two hands (up to four; split aces get one card each).',
+    'An ace and a ten-value card on the first two cards is blackjack and pays 3:2. The dealer checks for blackjack under an ace or a ten before you act, so doubles and splits never lose to a hidden natural. When the dealer shows an ace you may buy insurance for half your bet; it pays 2:1 if the dealer has blackjack.',
+    'The dealer draws to 17 and stands on all 17s, including soft 17. Six decks are dealt to a cut card at 75% and then reshuffled.',
+  ],
+  action: { hit: 'Hit', stand: 'Stand', double: 'Double', split: 'Split', surrender: 'Surrender' },
+  bankroll: 'Bankroll',
+  onTable: 'On table',
+  net: 'Net',
+  chip: 'Chip',
+  bet: 'Bet',
+  betAria: (amount) => `Betting circle, bet ${amount}`,
+  clearBet: 'Clear bet',
+  deal: 'DEAL',
+  dealing: 'Dealing…',
+  reset: 'Reset',
+  dealer: 'Dealer',
+  you: 'You',
+  handLabel: (n) => `Hand ${n}`,
+  total: (total, soft) => (soft ? `soft ${total}` : String(total)),
+  blackjack: 'Blackjack',
+  bust: 'Bust',
+  outcome: { blackjack: 'Blackjack 3:2', win: 'Win', push: 'Push', lose: 'Lose', bust: 'Bust' },
+  insuranceQuestion: (cost) => `The dealer shows an ace. Insurance for ${cost}?`,
+  insuranceYes: 'Take insurance',
+  insuranceNo: 'No insurance',
+  insuranceAdvice: 'Basic strategy: never. It pays 2:1 but only wins 4 times in 13 — a 7.7% house edge.',
+  noFunds: 'Not enough bankroll for that.',
+  placeBet: 'Place a bet and deal.',
+  yourMove: 'Your move.',
+  dealerPlays: 'Dealer plays…',
+  resultSummary: (net, total, bust, bj) =>
+    `${bj ? 'Dealer blackjack' : bust ? `Dealer busts with ${total}` : `Dealer has ${total}`} · ${net}`,
+  insurance: 'Insurance',
+  shoeLabel: (left) => `Six-deck shoe · ${left} cards left`,
+  shuffleNext: 'Cut card is out — the shoe is shuffled before the next hand.',
+  newShoe: 'A fresh six-deck shoe is shuffled on the first deal.',
+  feltPays: 'BLACKJACK PAYS 3 TO 2',
+  feltRules: 'Dealer must stand on all 17s · Insurance pays 2 to 1',
+  hintToggle: 'Show basic-strategy hint',
+  hintSays: (action) => `Basic strategy: ${action}`,
+  evTitle: 'What each play is worth',
+  evNote:
+    'Exact expected result per unit of this hand’s original bet, for an infinite deck, after the dealer has checked for blackjack. Six-deck charts differ only in a few close calls.',
+  statsTitle: 'This session',
+  hands: 'Hands',
+  winsPushesLosses: 'Won / pushed / lost',
+  blackjacks: 'Blackjacks',
+  agreement: 'Plays that matched the chart',
+  hint: [
+    'The hint uses the standard basic-strategy chart for this game; the Odds tab shows where it comes from.',
+    'Doubling and splitting need the extra stake in your bankroll.',
+    'A 21 made from a split is not a blackjack and pays 1:1.',
+  ],
+  oddsIntro:
+    'Blackjack’s odds depend on your decisions, so the question is “what is each play worth?”. For an infinite deck — every card drawn with the same chance, 1 in 13 per rank — that can be computed exactly: the dealer’s final total by recursion, then the value of standing, hitting, doubling and splitting for every hand. Nothing on this tab is simulated.',
+  edgeHeadline: 'House edge with perfect play',
+  edgeHeadlineNote:
+    'Per unit of the first bet in each round, for an infinite deck under this table’s rules. Real shoes come out slightly better for the player: with a finite number of cards, removal effects — blackjacks come a little more often, for one — tilt toward you.',
+  statPlayerBj: 'You get blackjack',
+  statDealerBj: 'Dealer gets blackjack',
+  statInsurance: 'House edge on insurance',
+  dealerTitle: 'Where the dealer ends up',
+  dealerIntro:
+    'The dealer has no choices, so the final total follows from the up card alone. A 5 or 6 busts the dealer about 42% of the time — the reason basic strategy stands on stiff hands against them.',
+  colUp: 'Up card',
+  colBust: 'Bust',
+  colBlackjack: 'Blackjack',
+  chartTitle: 'Basic strategy, derived',
+  chartIntro:
+    'Each cell is the play with the highest expected value, computed for that hand against that up card. Click a cell to see what every option is worth.',
+  chartHard: 'Hard totals',
+  chartSoft: 'Soft totals (with an ace counted as 11)',
+  chartPairs: 'Pairs',
+  chartLegend: { hit: 'H = hit', stand: 'S = stand', double: 'D = double', split: 'P = split', surrender: 'R = surrender' },
+  chartDiffers:
+    '* The standard six-deck chart (the table’s hint) doubles here instead. These are close calls — within a fraction of a cent — that the removal of the cards in play tips the other way in a real shoe.',
+  cellDetail: (hand, up) => `${hand} against a dealer ${up}`,
+  cellMargin: (best, second, margin) => `${best} beats ${second} by ${margin} per unit bet.`,
+  pickCell: 'Click a cell above.',
+  rulesTitle: 'How the rules move the edge',
+  rulesIntro: 'The same calculation with one rule changed at a time. Small print on the felt matters more than it looks.',
+  colRule: 'Rule',
+  colEdge: 'House edge',
+  colChange: 'vs this table',
+  ruleName: {
+    table: 'This table (S17, 3:2, double after split, split to 4)',
+    h17: 'Dealer hits soft 17',
+    sixFive: 'Blackjack pays 6:5',
+    noDas: 'No double after split',
+    splitOnce: 'Split once only (2 hands)',
+    surrender: 'Late surrender allowed',
   },
-
-  actionNames: { hit: 'Hit', stand: 'Stand', double: 'Double', split: 'Split' },
-
-  sim: {
-    handsPerStrategy: 'Hands per strategy',
-    startingBankroll: 'Starting bankroll',
-    betPerHand: 'Bet per hand',
-    runButton: 'Run simulation',
-    running: '{{strategy}} — {{done}} / {{total}}',
-    runNote: 'Runs three strategies over the same conditions.',
-    introTitle: 'What this shows.',
-    introBody: 'Each strategy plays the chosen number of hands under identical rules. Compare the long-run house edge and bankroll trajectory:',
-    introBasic: 'the optimal chart (hit/stand/double/split). House edge ≈ 0.5%.',
-    introMimic: 'copy the dealer — hit ≤16, stand on 17+. No doubles or splits.',
-    introStand: 'never take a card. Shows how costly passivity is.',
-    introFooter: 'Larger hand counts converge closer to the true edge. Results use a fresh 6-deck shoe every round.',
-    edgeTitle: 'House edge by strategy',
-    edgeNote: 'Bars show edge magnitude. Green = player advantage, red = house advantage.',
-    edgeGain: '+{{value}}% you',
-    edgeLoss: '−{{value}}% house',
-    trajectoryTitle: 'Bankroll over time',
-    trajectoryAria: 'Bankroll trajectory by strategy over the simulated hands',
-    detailsTitle: 'Details',
-    baselineLabel: 'Start',
-    handsAxis: 'hands',
-    table: { strategy: 'Strategy', winRate: 'Win %', edge: 'Edge', totalNet: 'Net' },
-    strategyLabels: { basic: 'Basic Strategy', mimic: 'Mimic Dealer', stand: 'Always Stand' },
+  playersTitle: 'Strategy matters more than any rule',
+  playersIntro:
+    'Exact edges for simple ways of playing, never doubling or splitting. Playing like the dealer loses because you bust first — and lose even when the dealer then busts too.',
+  strategyName: {
+    optimal: 'Perfect basic strategy',
+    basic: 'Basic strategy (the chart)',
+    mimic: 'Play like the dealer (hit to 17)',
+    neverBust: 'Never bust (stand on 12+)',
   },
+  run: 'Run',
+  running: (pct) => `Running… ${pct}%`,
+  roundsLabel: 'Rounds',
+  simTitle: 'Three ways to play, same shoes',
+  simIntro:
+    'Deals real six-deck shoes to the cut card and plays each strategy one unit a round. Every strategy gets the same shuffles. The dashed lines are the exact infinite-deck edges.',
+  colStrategy: 'Strategy',
+  colExact: 'Exact (∞ deck)',
+  colSimulated: (rounds) => `Simulated (${rounds} rounds)`,
+  colWinPushLose: 'Win / push / lose',
+  colBusts: 'Rounds with a bust',
+  simNote:
+    'The ± is a 95% range; blackjack’s doubles and splits make a round’s result swing more than an even-money bet, so it takes about a million rounds to pin the edge down to ±0.2%.',
 };
 
 const ja: BlackjackStrings = {
-  title: 'ブラックジャック — ベーシックストラテジー',
-  subtitle: 'ヒント付きで1ラウンドをプレイし、モンテカルロシミュレーションで各戦略を数千ハンドにわたり比較できます。',
-  tabs: { play: 'プレイ', sim: 'シミュレーション' },
-
-  play: {
-    dealer: 'ディーラー',
-    you: 'あなた',
-    upcard: 'アップカード',
-    total: '合計',
-    soft: 'ソフト',
-    hard: 'ハード',
-    bust: 'バスト',
-    blackjack: 'ブラックジャック！',
-    hidden: '伏せ札',
-    deal: 'ディール（${{bet}}）',
-    hit: 'ヒット',
-    stand: 'スタンド',
-    double: 'ダブル',
-    split: 'スプリット',
-    nextHand: '次のハンド',
-    recommend: 'ベーシックストラテジー：{{action}}',
-    hintOn: 'ヒントを表示',
-    insurancePrompt: 'ディーラーがエース — インシュランスを取りますか？',
-    insuranceTake: 'インシュランスを取る',
-    insuranceDecline: '取らない',
-    insuranceAdvice: 'ベーシックストラテジー：取らない（インシュランスは損な賭け）。',
-    hand: 'ハンド {{n}}',
-    status: 'セッション',
-    resetSession: 'セッションをリセット',
-    outcomes: { win: 'あなたの勝ち', lose: 'あなたの負け', push: '引き分け', blackjack: 'ブラックジャック！（3:2）' },
-    stats: {
-      bankroll: '残高',
-      sessionNet: 'セッション収支',
-      hands: 'ハンド数',
-      winRate: '勝率',
-      blackjacks: 'BJ回数',
-      followRate: '戦略一致率',
-    },
-    rulesTitle: 'ハウスルール',
-    rules: [
-      '6デッキ、毎回シャッフル。ディーラーは17でスタンド（S17）。',
-      'ブラックジャックは3:2。任意の2枚でダブル可、スプリット後のダブルも可。',
-      'ペアは最大4ハンドまでスプリット可。エースのスプリットは1枚ずつ。インシュランスは2:1。',
-      '💡 がベーシックストラテジーの手。従えばハウスエッジは約0.5%に。',
-    ],
-    broke: 'チップ切れ — セッションをリセットして続行してください。',
+  title: 'ブラックジャック',
+  subtitle:
+    '6デッキ、ディーラーは17でスタンド、ブラックジャックは3:2。ベーシックストラテジーのヒントと各選択肢の正確な期待値を見ながら遊び、ルールや戦略ごとの正確なハウスエッジを確認できます。',
+  tabPlay: 'テーブル',
+  tabOdds: '確率',
+  tabSim: 'シミュレーション',
+  howToPlay: '遊び方',
+  infoBody: [
+    'チップを選んでベッティングサークルをクリックし、「ディール」。21を超えずにディーラーより21に近ければ勝ちです。2〜10は数字どおり、絵札は10、Aは1か11と数えます。',
+    'ヒットは1枚引く、スタンドはそのまま、ダブルは賭け金を2倍にしてちょうど1枚だけ引く、スプリットはペアを2つの手に分けます（最大4手、Aのスプリットは各1枚のみ）。',
+    '最初の2枚でAと10点札ならブラックジャックで3:2。ディーラーはアップカードがAか10のとき先にブラックジャックを確認する（ピーク）ので、ダブルやスプリットが隠れたナチュラルに負けることはありません。ディーラーのアップカードがAのときは賭け金の半分でインシュランスを買え、ディーラーがブラックジャックなら2:1で払われます。',
+    'ディーラーは17になるまで引き、ソフト17を含むすべての17でスタンドします。6デッキを75%のカットカードまで配ったらシャッフルします。',
+  ],
+  action: { hit: 'ヒット', stand: 'スタンド', double: 'ダブル', split: 'スプリット', surrender: 'サレンダー' },
+  bankroll: '所持金',
+  onTable: 'ベット中',
+  net: '収支',
+  chip: 'チップ',
+  bet: 'ベット',
+  betAria: (amount) => `ベッティングサークル（ベット ${amount}）`,
+  clearBet: 'ベットをクリア',
+  deal: 'ディール',
+  dealing: 'ディール中…',
+  reset: 'リセット',
+  dealer: 'ディーラー',
+  you: 'あなた',
+  handLabel: (n) => `ハンド${n}`,
+  total: (total, soft) => (soft ? `ソフト${total}` : String(total)),
+  blackjack: 'ブラックジャック',
+  bust: 'バスト',
+  outcome: { blackjack: 'ブラックジャック 3:2', win: '勝ち', push: '引き分け', lose: '負け', bust: 'バスト' },
+  insuranceQuestion: (cost) => `ディーラーのアップカードはA。${cost}でインシュランスを買いますか？`,
+  insuranceYes: 'インシュランスを買う',
+  insuranceNo: '買わない',
+  insuranceAdvice: 'ベーシックストラテジーでは買いません。2:1で払われますが勝つのは13回に4回、ハウスエッジは7.7%です。',
+  noFunds: '所持金が足りません。',
+  placeBet: 'ベットしてディールしてください。',
+  yourMove: 'あなたの番です。',
+  dealerPlays: 'ディーラーの番…',
+  resultSummary: (net, total, bust, bj) =>
+    `${bj ? 'ディーラーのブラックジャック' : bust ? `ディーラーは${total}でバスト` : `ディーラーは${total}`}・${net}`,
+  insurance: 'インシュランス',
+  shoeLabel: (left) => `6デッキのシュー・残り${left}枚`,
+  shuffleNext: 'カットカードが出ました。次のハンドの前にシャッフルします。',
+  newShoe: '最初のディールで6デッキのシューをシャッフルします。',
+  feltPays: 'BLACKJACK PAYS 3 TO 2',
+  feltRules: 'Dealer must stand on all 17s · Insurance pays 2 to 1',
+  hintToggle: 'ベーシックストラテジーのヒントを表示',
+  hintSays: (action) => `ベーシックストラテジー：${action}`,
+  evTitle: '各選択肢の期待値',
+  evNote:
+    'このハンドの元の賭け金1単位あたりの正確な期待値です（無限デッキ、ディーラーがブラックジャックでないと確認した後）。6デッキの表とは僅差のいくつかのマスだけが異なります。',
+  statsTitle: 'このセッション',
+  hands: 'ハンド数',
+  winsPushesLosses: '勝ち / 引き分け / 負け',
+  blackjacks: 'ブラックジャック',
+  agreement: '表どおりにプレイした割合',
+  hint: [
+    'ヒントはこのゲームの標準的なベーシックストラテジー表です。確率タブでその根拠を確認できます。',
+    'ダブルやスプリットには追加の賭け金が所持金に必要です。',
+    'スプリットで作った21はブラックジャックではなく1:1です。',
+  ],
+  oddsIntro:
+    'ブラックジャックの確率はあなたの判断で変わるので、問いは「各選択肢はいくらの価値があるか」です。無限デッキ（どのカードも毎回同じ確率、ランクごとに13分の1）なら厳密に計算できます。ディーラーの最終合計を再帰で求め、各ハンドでスタンド・ヒット・ダブル・スプリットの価値を出すだけです。このタブの数字はシミュレーションではありません。',
+  edgeHeadline: '完璧にプレイしたときのハウスエッジ',
+  edgeHeadlineNote:
+    '各ラウンド最初の賭け金1単位あたり、このテーブルのルール・無限デッキでの値です。実際のシューはカードの枚数が有限なので、出たカードが抜ける効果（たとえばブラックジャックが少しだけ出やすくなる）でプレイヤーにわずかに有利になります。',
+  statPlayerBj: 'あなたがブラックジャック',
+  statDealerBj: 'ディーラーがブラックジャック',
+  statInsurance: 'インシュランスのハウスエッジ',
+  dealerTitle: 'ディーラーの最終結果',
+  dealerIntro:
+    'ディーラーには選択がないので、最終合計はアップカードだけで決まります。5や6のときディーラーは約42%バストします。これがベーシックストラテジーで弱い手でもスタンドする理由です。',
+  colUp: 'アップカード',
+  colBust: 'バスト',
+  colBlackjack: 'ブラックジャック',
+  chartTitle: 'ベーシックストラテジーを導く',
+  chartIntro: '各マスは、そのハンドとアップカードの組み合わせで期待値が最も高いプレイです。マスをクリックすると、すべての選択肢の価値が見られます。',
+  chartHard: 'ハード',
+  chartSoft: 'ソフト（Aを11と数えている手）',
+  chartPairs: 'ペア',
+  chartLegend: { hit: 'H = ヒット', stand: 'S = スタンド', double: 'D = ダブル', split: 'P = スプリット', surrender: 'R = サレンダー' },
+  chartDiffers:
+    '* 標準的な6デッキの表（テーブルのヒント）ではここはダブルです。1単位あたり数銭以下の僅差で、実際のシューではすでに出ているカードの分だけ逆に傾きます。',
+  cellDetail: (hand, up) => `${hand} 対 ディーラーの${up}`,
+  cellMargin: (best, second, margin) => `${best}が${second}より1単位あたり${margin}上回ります。`,
+  pickCell: '上の表のマスをクリックしてください。',
+  rulesTitle: 'ルールでエッジはどう動くか',
+  rulesIntro: '同じ計算でルールを1つずつ変えた結果です。フェルトの小さな文字は見た目以上に効きます。',
+  colRule: 'ルール',
+  colEdge: 'ハウスエッジ',
+  colChange: 'このテーブルとの差',
+  ruleName: {
+    table: 'このテーブル（S17、3:2、スプリット後のダブル可、4手まで）',
+    h17: 'ディーラーがソフト17でヒット',
+    sixFive: 'ブラックジャックが6:5',
+    noDas: 'スプリット後のダブル不可',
+    splitOnce: 'スプリットは1回（2手）まで',
+    surrender: 'レイトサレンダーあり',
   },
-
-  actionNames: { hit: 'ヒット', stand: 'スタンド', double: 'ダブル', split: 'スプリット' },
-
-  sim: {
-    handsPerStrategy: '戦略ごとのハンド数',
-    startingBankroll: '開始残高',
-    betPerHand: '1ハンドの賭け金',
-    runButton: 'シミュレーション実行',
-    running: '{{strategy}} — {{done}} / {{total}}',
-    runNote: '同じ条件で3つの戦略を実行します。',
-    introTitle: 'このシミュレーションの内容。',
-    introBody: '各戦略が同一ルールで指定ハンド数をプレイします。長期のハウスエッジと残高推移を比較：',
-    introBasic: '最適チャート（ヒット/スタンド/ダブル/スプリット）。ハウスエッジ約0.5%。',
-    introMimic: 'ディーラーの真似 — 16以下でヒット、17以上でスタンド。ダブル・スプリットなし。',
-    introStand: '一切引かない。受け身の代償がわかります。',
-    introFooter: 'ハンド数が多いほど真のエッジに収束します。毎回新しい6デッキを使用。',
-    edgeTitle: '戦略別ハウスエッジ',
-    edgeNote: 'バーはエッジの大きさ。緑＝プレイヤー有利、赤＝ハウス有利。',
-    edgeGain: '+{{value}}% 有利',
-    edgeLoss: '−{{value}}% ハウス',
-    trajectoryTitle: '残高の推移',
-    trajectoryAria: '戦略別の残高推移（シミュレーションハンド数に対して）',
-    detailsTitle: '詳細',
-    baselineLabel: '開始',
-    handsAxis: 'ハンド',
-    table: { strategy: '戦略', winRate: '勝率', edge: 'エッジ', totalNet: '収支' },
-    strategyLabels: { basic: 'ベーシック', mimic: 'ディーラー模倣', stand: '常にスタンド' },
+  playersTitle: '戦略の差はどのルールの差より大きい',
+  playersIntro:
+    'ダブルもスプリットもしない単純な遊び方の正確なエッジです。ディーラーの真似が負けるのは、あなたが先にバストし、その後ディーラーがバストしても負けのままだからです。',
+  strategyName: {
+    optimal: '完璧なベーシックストラテジー',
+    basic: 'ベーシックストラテジー（表）',
+    mimic: 'ディーラーの真似（17まで引く）',
+    neverBust: 'バストしない（12以上でスタンド）',
   },
+  run: '実行',
+  running: (pct) => `実行中… ${pct}%`,
+  roundsLabel: 'ラウンド数',
+  simTitle: '3つの遊び方を同じシューで',
+  simIntro:
+    '6デッキのシューをカットカードまで実際に配り、各戦略で毎ラウンド1単位ずつ賭けます。どの戦略も同じシャッフルを使います。点線は無限デッキの正確なエッジです。',
+  colStrategy: '戦略',
+  colExact: '理論値（無限デッキ）',
+  colSimulated: (rounds) => `シミュレーション（${rounds}ラウンド）`,
+  colWinPushLose: '勝ち / 引き分け / 負け',
+  colBusts: 'バストしたラウンド',
+  simNote:
+    '± は95%の幅です。ダブルやスプリットがあるぶん1ラウンドの結果は等倍のベットより大きく振れ、エッジを±0.2%まで絞るのに約100万ラウンドかかります。',
 };
 
-export function getBlackjackStrings(language: GameLanguage): BlackjackStrings {
-  return language === 'ja' ? ja : en;
-}
-
-/** Minimal interpolation for `{{key}}` placeholders. */
-export function fmt(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => String(vars[k] ?? ''));
-}
+export const getStrings = (language: GameLanguage): BlackjackStrings => (language === 'ja' ? ja : en);

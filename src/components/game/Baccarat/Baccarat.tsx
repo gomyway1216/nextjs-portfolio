@@ -6,9 +6,10 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
+import { SimTab } from './SimTab';
 import styles from './Baccarat.module.css';
 
-type Tab = 'play' | 'odds';
+type Tab = 'play' | 'odds' | 'sim';
 
 export const Baccarat = () => {
   const [tab, setTab] = useState<Tab>('play');
@@ -19,6 +20,7 @@ export const Baccarat = () => {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
     { id: 'odds', label: t.tabOdds },
+    { id: 'sim', label: t.tabSim },
   ];
 
   return (
@@ -60,6 +62,9 @@ export const Baccarat = () => {
         </div>
         <div role="tabpanel" id="baccarat-panel-odds" aria-labelledby="baccarat-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+        </div>
+        <div role="tabpanel" id="baccarat-panel-sim" aria-labelledby="baccarat-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab />
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { PlayingCard } from '@/components/game/Baccarat/Cards';
 import { OddsTab } from '@/components/game/Baccarat/OddsTab';
 import { INITIAL_BANKROLL, PlayTab, revealSchedule } from '@/components/game/Baccarat/PlayTab';
 import { BeadPlate, BigRoad } from '@/components/game/Baccarat/Roads';
+import { SimTab } from '@/components/game/Baccarat/SimTab';
 import type { RoadEntry } from '@/components/game/Baccarat/engine';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -97,6 +98,24 @@ describe('OddsTab', () => {
   });
 });
 
+describe('SimTab', () => {
+  it('offers the three simulations, each with its own run button', () => {
+    const markup = render(<SimTab />);
+    expect(markup).toContain('Every bet on the same cards');
+    expect(markup).toContain('Chasing the road');
+    expect(markup).toContain('Counting cards');
+    expect(markup.match(/>Run</g)).toHaveLength(3);
+    // No results until a simulation has run.
+    expect(markup).not.toContain('data-testid="baccarat-sim-lines"');
+  });
+
+  it('is localized', () => {
+    const markup = render(<SimTab />, 'ja');
+    expect(markup).toContain('罫線を追いかける');
+    expect(markup).toContain('カードカウンティング');
+  });
+});
+
 describe('Baccarat shell', () => {
   it('keeps every tab panel mounted and hides the inactive ones', () => {
     const markup = render(<Baccarat />, 'ja');
@@ -104,7 +123,9 @@ describe('Baccarat shell', () => {
     expect(panels.map((m) => [m[1], Boolean(m[2])])).toEqual([
       ['play', false],
       ['odds', true],
+      ['sim', true],
     ]);
     expect(markup).toContain('バカラ');
+    expect(markup).toContain('>シミュレーション<');
   });
 });

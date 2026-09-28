@@ -48,6 +48,8 @@ export const theoreticalEdge = (id: SimBet) => -betOdds(id, shoeOdds(DEFAULT_DEC
 
 const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const YIELD_EVERY = 20_000;
+/** Exact odds cost a few ms per hand, so the counter yields every few hands. */
+const COUNTING_YIELD_EVERY = 20;
 
 export interface AsyncOptions {
   signal?: AbortSignal;
@@ -67,6 +69,8 @@ export function createDealer(rng: () => number = Math.random) {
       }
       return { shoe, fresh };
     },
+    /** The cut card has come out of the current shoe: its last hand has been dealt. */
+    shoeDone: () => shoeFinished(shoe),
     deal(): { hand: Hand; newShoe: boolean } {
       const { shoe: current, fresh: newShoe } = this.peek();
       const dealt = dealHand(current);
@@ -186,6 +190,7 @@ export interface PatternSummary {
 
 export interface PatternsResult {
   hands: number;
+  /** Shoes dealt from; the last one may be unfinished. */
   shoes: number;
   strategies: Record<PatternId, PatternSummary>;
   /** Longest run of one side (ties skipped) in each complete shoe. */
@@ -236,6 +241,8 @@ export async function simulatePatterns(
       if (options.signal?.aborted) return null;
     }
   }
+  // A run that stops right after a cut-card hand has completed its last shoe too.
+  if (dealer.shoeDone()) longestStreaks.push(longest);
   options.onProgress?.(hands, hands);
   const bankerEdge = theoreticalEdge('banker');
   const playerEdge = theoreticalEdge('player');
@@ -310,6 +317,12 @@ export async function simulateCounting(
         }
       });
       hands++;
+      if (hands % COUNTING_YIELD_EVERY === 0) {
+        // Progress in shoes, counting the part of this one dealt so far.
+        options.onProgress?.(s + Math.min(1, shoe.next / shoe.cutIndex), shoes);
+        await yieldToBrowser();
+        if (options.signal?.aborted) return null;
+      }
     }
     options.onProgress?.(s + 1, shoes);
     await yieldToBrowser();

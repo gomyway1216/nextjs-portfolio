@@ -113,11 +113,28 @@ describe('road systems', () => {
     expect(s.follow.bankerBets / s.follow.bets).toBeGreaterThan(0.48);
     expect(s.follow.bankerBets / s.follow.bets).toBeLessThan(0.53);
     expect(s.streak3.bets).toBeLessThan(0.4 * 120_000);
-    // One longest-streak figure per complete shoe.
+    // One longest-streak figure per complete shoe (the last one is unfinished here).
     expect(res.longestStreaks).toHaveLength(res.shoes - 1);
     const mean = res.longestStreaks.reduce((a, b) => a + b, 0) / res.longestStreaks.length;
     expect(mean).toBeGreaterThan(5);
     expect(mean).toBeLessThan(8);
+  });
+
+  it('records the last shoe when the run ends on its cut-card hand', async () => {
+    // Find the run length that ends exactly on the first shoe's last hand.
+    let n = 60;
+    let res = (await simulatePatterns(n, {}, seeded(21)))!;
+    while (res.shoes === 1 && res.longestStreaks.length === 0) {
+      n++;
+      res = (await simulatePatterns(n, {}, seeded(21)))!;
+    }
+    expect(n).toBeLessThan(100);
+    expect(res.shoes).toBe(1);
+    expect(res.longestStreaks).toHaveLength(1);
+    // One more hand opens the second shoe and changes nothing about the first.
+    const next = (await simulatePatterns(n + 1, {}, seeded(21)))!;
+    expect(next.shoes).toBe(2);
+    expect(next.longestStreaks).toEqual(res.longestStreaks);
   });
 });
 
@@ -154,5 +171,28 @@ describe('simulateCounting', () => {
     controller.abort();
     expect(await simulateCounting(3, { signal: controller.signal })).toBeNull();
     await expect(simulateCounting(0)).rejects.toThrow(/positive integer/);
+  });
+});
+
+describe('simulateCounting progress', () => {
+  it('reports progress and honors an abort in the middle of a shoe', async () => {
+    const controller = new AbortController();
+    const seen: number[] = [];
+    const res = await simulateCounting(
+      2,
+      {
+        signal: controller.signal,
+        onProgress: (done) => {
+          seen.push(done);
+          controller.abort();
+        },
+      },
+      seeded(8),
+    );
+    expect(res).toBeNull();
+    // It stopped at the first checkpoint, part-way through the first shoe.
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeGreaterThan(0);
+    expect(seen[0]).toBeLessThan(1);
   });
 });

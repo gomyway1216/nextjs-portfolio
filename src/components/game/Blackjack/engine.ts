@@ -441,3 +441,16 @@ export function playRound(shoe: Shoe, bet: number, decide: Decider, rng: () => n
   }
   return round;
 }
+
+// ---------------------------------------------------------------------------
+// Card counting (Hi-Lo)
+// ---------------------------------------------------------------------------
+
+/** Hi-Lo tags: small cards leaving the shoe help the player (+1), tens and aces hurt (−1). */
+export const hiLo = (card: Card): number => {
+  const v = cardValue(card);
+  return v <= 6 ? 1 : v >= 10 ? -1 : 0;
+};
+
+/** Running count divided by the decks still to be dealt. */
+export const trueCount = (running: number, cardsRemaining: number) => running / Math.max(cardsRemaining / 52, 0.25);

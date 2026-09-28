@@ -77,7 +77,8 @@ export const PlayTab = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [showHint, setShowHint] = useState(true);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
-  const [shoeLeft, setShoeLeft] = useState<number | null>(null);
+  /** Cards left in the shoe before this round was dealt. */
+  const [leftAtDeal, setLeftAtDeal] = useState<number | null>(null);
   const [shuffleNext, setShuffleNext] = useState(false);
   /** Changes every deal, so each round's cards mount (and animate) fresh. */
   const [dealNo, setDealNo] = useState(0);
@@ -121,7 +122,6 @@ export const PlayTab = () => {
       blackjacks: s.blackjacks + res.hands.filter((h) => h.outcome === 'blackjack').length,
     }));
     setView((v) => ({ ...v, dealerShown: r.dealer.length, holeUp: true, settled: true, opening: false }));
-    setShoeLeft(cardsLeft(r.shoe));
     setShuffleNext(needsShuffle(r.shoe));
     commitBusy(false);
   };
@@ -169,7 +169,7 @@ export const PlayTab = () => {
     commitRound(r);
     setMessage(null);
     setShuffleNext(false);
-    setShoeLeft(cardsLeft(r.shoe));
+    setLeftAtDeal(cardsLeft(shoe));
     const fast = prefersReducedMotion();
     setView({ dealerShown: 2, holeUp: false, settled: false, opening: !fast });
     const opening = fast ? 0 : TIMING.deal;
@@ -214,7 +214,6 @@ export const PlayTab = () => {
     commitBankroll(bankrollRef.current - extra);
     commitRound(next);
     setMessage(null);
-    setShoeLeft(cardsLeft(next.shoe));
     // Let the last player card land before the dealer turns the hole card.
     if (next.phase === 'done') playDealer(next, prefersReducedMotion() ? 0 : TIMING.draw);
   };
@@ -255,7 +254,7 @@ export const PlayTab = () => {
     setBet(DEFAULT_BET);
     setStats(EMPTY_STATS);
     setMessage(null);
-    setShoeLeft(null);
+    setLeftAtDeal(null);
     setShuffleNext(false);
     setView({ dealerShown: 0, holeUp: false, settled: false, opening: false });
   };
@@ -284,6 +283,9 @@ export const PlayTab = () => {
   const result = view.settled ? round?.result ?? null : null;
 
   const dealerCards = round ? round.dealer.slice(0, view.dealerShown) : [];
+  // Count only cards already on the table: the dealer's next cards are drawn in
+  // the engine before they are shown, and must not leak through this number.
+  const cardsOut = round ? round.hands.reduce((n, h) => n + h.cards.length, 0) + dealerCards.length : 0;
   const dealerTotal = round && view.holeUp ? handValue(dealerCards) : round ? handValue(round.dealer.slice(0, 1)) : null;
   const delay = (i: number) => (view.opening ? i * TIMING.dealStep : 0);
 
@@ -310,7 +312,7 @@ export const PlayTab = () => {
     <div className={styles.playGrid}>
       <div className={styles.panel}>
         <div className={styles.shoeBar} data-testid="shoe-info">
-          {shoeLeft === null ? t.newShoe : t.shoeLabel(shoeLeft)}
+          {leftAtDeal === null || !round ? t.newShoe : t.shoeLabel(leftAtDeal - cardsOut)}
         </div>
 
         <div className={styles.table}>

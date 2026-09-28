@@ -54,6 +54,7 @@ test('every round follows the rules and pays what it shows', async ({ page }) =>
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openBlackjack(page);
   await hydrate(page);
+  let left: number | null = null;
   for (let round = 0; round < 8; round++) {
     const before = await bankroll(page);
     await playByHint(page);
@@ -88,6 +89,12 @@ test('every round follows the rules and pays what it shows', async ({ page }) =>
     const net = amounts.reduce((sum, a) => sum + (a.startsWith('±') ? 0 : Number(a.replace('−', '-').replace('+', ''))), 0);
     expect(await bankroll(page)).toBeCloseTo(before + net, 6);
     expect(await page.getByTestId('bj-on-table').textContent()).toBe('0');
+
+    // The shoe count drops by exactly the cards on the table (unless it was reshuffled).
+    const shownLeft = Number((await page.getByTestId('shoe-info').textContent())?.match(/(\d+) cards left/)?.[1]);
+    const onTable = dealer.length + hands.reduce((n, h) => n + h.length, 0);
+    if (left !== null && left - onTable >= 0 && shownLeft <= left) expect(shownLeft).toBe(left - onTable);
+    left = shownLeft;
   }
   await expect(page.getByTestId('bj-stats')).toContainText('100%');
 });

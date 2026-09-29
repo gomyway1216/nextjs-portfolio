@@ -102,6 +102,25 @@ export interface BlackjackStrings {
   colWinPushLose: string;
   colBusts: string;
   simNote: string;
+  // Counting
+  countToggle: string;
+  runningCount: string;
+  decksLeft: string;
+  trueCountLabel: string;
+  countBet: (units: number) => string;
+  countNote: string;
+  countingTitle: string;
+  countingIntro: string;
+  colTrueCount: string;
+  colRoundsShare: string;
+  colPlayerEdge: string;
+  countChartAxis: string;
+  flatBet: string;
+  spreadBet: string;
+  colAverageBet: string;
+  colPer100: string;
+  colEdgePerUnit: string;
+  countingNote: string;
 }
 
 const en: BlackjackStrings = {
@@ -229,6 +248,27 @@ const en: BlackjackStrings = {
   colBusts: 'Rounds with a bust',
   simNote:
     'The ± is a 95% range; blackjack’s doubles and splits make a round’s result swing more than an even-money bet, so it takes about a million rounds to pin the edge down to ±0.2%.',
+  countToggle: 'Count cards (Hi-Lo)',
+  runningCount: 'Running count',
+  decksLeft: 'Decks left',
+  trueCountLabel: 'True count',
+  countBet: (units) => `A 1–8 spread would bet ${units} unit${units === 1 ? '' : 's'} now`,
+  countNote:
+    'Hi-Lo: 2–6 count +1, 7–9 count 0, tens and aces −1, for every card you have seen (not the burn card or the dealer’s face-down card). The true count divides by the decks still in the shoe; the Simulation tab measures what it is worth.',
+  countingTitle: 'Counting cards',
+  countingIntro:
+    'A Hi-Lo counter plays basic strategy through the same kind of shoes and reads the true count before every round. Each round is scored twice: with a flat one-unit bet, and with a 1–8 spread (1 unit up to a true count of +1, then 2, 4 and 8 units at +2, +3 and +4 or more). Only the bet changes.',
+  colTrueCount: 'True count',
+  colRoundsShare: 'Rounds',
+  colPlayerEdge: 'Player edge',
+  countChartAxis: 'True count before the round',
+  flatBet: 'Flat bet (1 unit)',
+  spreadBet: 'Hi-Lo, 1–8 spread',
+  colAverageBet: 'Average bet',
+  colPer100: 'Won per 100 rounds',
+  colEdgePerUnit: 'Edge per unit bet',
+  countingNote:
+    'The shoe swings between favoring the house and favoring the player; a counter bets small in the first case and big in the second. That is the idea behind Edward Thorp’s Beat the Dealer (1962) — and why casinos deal six or eight decks, cut a quarter of the shoe off, use continuous shufflers and ask counters to leave. The ± is a 95% range: even a real edge takes hundreds of thousands of rounds to show.',
 };
 
 const ja: BlackjackStrings = {
@@ -355,6 +395,27 @@ const ja: BlackjackStrings = {
   colBusts: 'バストしたラウンド',
   simNote:
     '± は95%の幅です。ダブルやスプリットがあるぶん1ラウンドの結果は等倍のベットより大きく振れ、エッジを±0.2%まで絞るのに約100万ラウンドかかります。',
+  countToggle: 'カードを数える（ハイロー）',
+  runningCount: 'ランニングカウント',
+  decksLeft: '残りデッキ',
+  trueCountLabel: 'トゥルーカウント',
+  countBet: (units) => `1〜8倍のスプレッドなら今は${units}単位`,
+  countNote:
+    'ハイロー：見えたカード（バーンカードとディーラーの伏せ札は除く）ごとに、2〜6は+1、7〜9は0、10点札とAは−1。トゥルーカウントはそれをシューに残るデッキ数で割った値です。その価値はシミュレーションタブで測れます。',
+  countingTitle: 'カードカウンティング',
+  countingIntro:
+    'ハイローのカウンターが同じ6デッキのシューでベーシックストラテジーをプレイし、毎ラウンドの前にトゥルーカウントを読みます。各ラウンドを2通りに集計します：常に1単位の均等ベットと、1〜8倍のスプレッド（+1までは1単位、+2で2、+3で4、+4以上で8単位）。変えるのは賭け金だけです。',
+  colTrueCount: 'トゥルーカウント',
+  colRoundsShare: 'ラウンドの割合',
+  colPlayerEdge: 'プレイヤーのエッジ',
+  countChartAxis: 'ラウンド前のトゥルーカウント',
+  flatBet: '均等ベット（1単位）',
+  spreadBet: 'ハイロー、1〜8倍スプレッド',
+  colAverageBet: '平均ベット',
+  colPer100: '100ラウンドあたりの勝ち',
+  colEdgePerUnit: '賭け金1単位あたりのエッジ',
+  countingNote:
+    'シューはハウス有利とプレイヤー有利の間を行き来し、カウンターは前者で小さく後者で大きく賭けます。これがエドワード・ソープの『ディーラーをやっつけろ！（Beat the Dealer）』（1962年）の考え方で、カジノが6〜8デッキを使い、シューの4分の1をカットし、自動シャッフラーを導入し、カウンターに退場を求める理由です。± は95%の幅で、本物のエッジでも見えてくるまで数十万ラウンドかかります。',
 };
 
 export const getStrings = (language: GameLanguage): BlackjackStrings => (language === 'ja' ? ja : en);

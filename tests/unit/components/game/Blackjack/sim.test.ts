@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 
 import { gameValue } from '@/components/game/Blackjack/analysis';
 import { RANKS, STRATEGIES, playRound, type Card, type Shoe } from '@/components/game/Blackjack/engine';
-import { STRATEGY_IDS, chartValue, exactEdge, logCheckpoints, seededRng, simulateStrategies } from '@/components/game/Blackjack/sim';
+import {
+  STRATEGY_IDS,
+  TC_MAX,
+  TC_MIN,
+  chartValue,
+  exactEdge,
+  logCheckpoints,
+  seededRng,
+  simulateCounting,
+  simulateStrategies,
+  spreadUnits,
+} from '@/components/game/Blackjack/sim';
 
 describe('blackjack simulation', () => {
   it('knows each strategy’s exact infinite-deck edge', () => {
@@ -79,5 +90,43 @@ describe('blackjack simulation', () => {
     expect(await simulateStrategies(5, { signal: controller.signal })).toBeNull();
     expect(await simulateStrategies(20_001, { signal: controller.signal })).toBeNull();
     await expect(simulateStrategies(0)).rejects.toThrow(/positive integer/);
+  });
+});
+
+describe('card counting', () => {
+  it('spreads 1–8 units by true count', () => {
+    expect([-3, 0, 1.9, 2, 2.5, 3.2, 4, 9].map(spreadUnits)).toEqual([1, 1, 1, 2, 2, 4, 8, 8]);
+  });
+
+  it('scores the same rounds flat and spread, and the edge rises with the count', async () => {
+    const rounds = 150_000;
+    const res = (await simulateCounting(rounds, {}, 77))!;
+    expect(res.buckets.map((b) => b.tc)).toEqual(Array.from({ length: TC_MAX - TC_MIN + 1 }, (_, i) => TC_MIN + i));
+    expect(res.buckets.reduce((n, b) => n + b.rounds, 0)).toBe(rounds);
+    // The flat edge is the round-weighted average of the per-count edges.
+    const weighted = res.buckets.reduce((sum, b) => sum + b.rounds * b.edge, 0) / rounds;
+    expect(res.flat.edge).toBeCloseTo(weighted, 12);
+    // Units won per 100 rounds = −edge per unit × average bet × 100.
+    expect(res.spread.per100).toBeCloseTo(-res.spread.edge * res.spread.averageBet * 100, 9);
+    expect(res.spread.averageBet).toBeGreaterThan(1);
+    expect(res.spread.averageBet).toBeLessThan(8);
+    // High counts favor the player; low counts favor the house.
+    const edgeOf = (sel: (tc: number) => boolean) => {
+      const bs = res.buckets.filter((b) => sel(b.tc));
+      const n = bs.reduce((a, b) => a + b.rounds, 0);
+      return -bs.reduce((a, b) => a + b.rounds * b.edge, 0) / n;
+    };
+    expect(edgeOf((tc) => tc >= 2)).toBeGreaterThan(0);
+    expect(edgeOf((tc) => tc <= -2)).toBeLessThan(0);
+    // Raising the bet only when the count is high beats flat betting per unit wagered.
+    expect(res.spread.edge).toBeLessThan(res.flat.edge);
+  });
+
+  it('can be aborted and rejects bad input', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    expect(await simulateCounting(5, { signal: controller.signal })).toBeNull();
+    expect(await simulateCounting(20_001, { signal: controller.signal })).toBeNull();
+    await expect(simulateCounting(0)).rejects.toThrow(/positive integer/);
   });
 });

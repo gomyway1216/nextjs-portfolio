@@ -11,9 +11,13 @@ import {
   MAX_HANDS,
   STRATEGIES,
   basicStrategy,
+  cardsLeft,
   createShoe,
   handValue,
+  hiLo,
+  needsShuffle,
   playRound,
+  trueCount,
   type Card,
   type Round,
   type StrategyId,
@@ -240,4 +244,109 @@ export async function simulateStrategies(
       return [id, { ...rest, edge: -mean, se: Math.sqrt(Math.max(0, variance) / rounds) }];
     }),
   ) as StrategiesResult;
+}
+
+// ---------------------------------------------------------------------------
+// Card counting
+// ---------------------------------------------------------------------------
+
+/** Units bet at each (floored) true count: a 1–8 spread. */
+export function spreadUnits(tc: number): number {
+  const t = Math.floor(tc);
+  return t >= 4 ? 8 : t >= 3 ? 4 : t >= 2 ? 2 : 1;
+}
+
+export const TC_MIN = -5;
+export const TC_MAX = 6;
+
+export interface CountBucket {
+  /** Floored true count (the ends collect everything beyond them). */
+  tc: number;
+  rounds: number;
+  /** House edge of a flat bet at this count (negative = the player has the edge). */
+  edge: number;
+  se: number;
+}
+
+export interface CountingResult {
+  rounds: number;
+  buckets: CountBucket[];
+  flat: { edge: number; se: number };
+  spread: {
+    /** Average bet in units. */
+    averageBet: number;
+    /** Net result per unit wagered (house edge; negative = player edge). */
+    edge: number;
+    se: number;
+    /** Units won per 100 rounds. */
+    per100: number;
+  };
+}
+
+/**
+ * A Hi-Lo counter playing basic strategy through real six-deck shoes. Before
+ * each round it reads the true count; the same round is scored twice — once
+ * for a flat one-unit bet and once for the 1–8 spread — so the only
+ * difference between the two is the bet size.
+ */
+export async function simulateCounting(
+  rounds: number,
+  options: AsyncOptions = {},
+  seed: number = Math.floor(Math.random() * 2 ** 31),
+): Promise<CountingResult | null> {
+  if (!Number.isInteger(rounds) || rounds <= 0) throw new Error('simulateCounting: rounds must be a positive integer');
+  if (options.signal?.aborted) return null;
+  const rng = seededRng(seed);
+  let shoe = createShoe(DECKS, rng);
+  let running = 0;
+  const size = TC_MAX - TC_MIN + 1;
+  const bucket = Array.from({ length: size }, () => ({ n: 0, sum: 0, sumSq: 0 }));
+  let flatSum = 0;
+  let flatSq = 0;
+  let spreadNet = 0;
+  let spreadSq = 0;
+  let wagered = 0;
+  for (let i = 1; i <= rounds; i++) {
+    if (needsShuffle(shoe)) {
+      shoe = createShoe(DECKS, rng);
+      running = 0;
+    }
+    const tc = trueCount(running, cardsLeft(shoe));
+    const units = spreadUnits(tc);
+    const start = shoe.next;
+    const round = playRound(shoe, 1, STRATEGIES.basic, rng);
+    // Every card dealt in a round ends up face up, so the counter sees them all.
+    for (let k = start; k < round.shoe.next; k++) running += hiLo(round.shoe.cards[k]);
+    shoe = round.shoe;
+    const net = round.result!.net;
+    const b = bucket[Math.min(size - 1, Math.max(0, Math.floor(tc) - TC_MIN))];
+    b.n++;
+    b.sum += net;
+    b.sumSq += net * net;
+    flatSum += net;
+    flatSq += net * net;
+    spreadNet += units * net;
+    spreadSq += (units * net) ** 2;
+    wagered += units;
+    if (i % YIELD_EVERY === 0) {
+      options.onProgress?.(i, rounds);
+      await yieldToBrowser();
+      if (options.signal?.aborted) return null;
+    }
+  }
+  options.onProgress?.(rounds, rounds);
+  const seOf = (sum: number, sq: number, n: number) => (n > 1 ? Math.sqrt(Math.max(0, sq / n - (sum / n) ** 2) / n) : 0);
+  const meanBet = wagered / rounds;
+  return {
+    rounds,
+    buckets: bucket.map((b, k) => ({ tc: TC_MIN + k, rounds: b.n, edge: b.n ? -b.sum / b.n : 0, se: seOf(b.sum, b.sumSq, b.n) })),
+    flat: { edge: -flatSum / rounds, se: seOf(flatSum, flatSq, rounds) },
+    spread: {
+      averageBet: meanBet,
+      edge: -spreadNet / wagered,
+      // Standard error of the per-round result, scaled to per unit wagered.
+      se: seOf(spreadNet, spreadSq, rounds) / meanBet,
+      per100: (spreadNet / rounds) * 100,
+    },
+  };
 }

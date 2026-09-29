@@ -9,6 +9,7 @@ import {
   basicStrategy,
   createShoe,
   handValue,
+  hiLo,
   isBlackjack,
   isPair,
   legalActions,
@@ -16,6 +17,7 @@ import {
   playRound,
   startRound,
   totalStaked,
+  trueCount,
   type Card,
   type Rank,
   type Round,
@@ -210,5 +212,16 @@ describe('playRound', () => {
     const mimic = playRound(createShoe(DECKS, seeded(2)), 1, STRATEGIES.mimic);
     expect(mimic.hands.every((h) => !h.doubled)).toBe(true);
     expect(mimic.hands).toHaveLength(1);
+  });
+});
+
+describe('Hi-Lo', () => {
+  it('tags small cards +1, tens and aces −1, and balances over a whole shoe', () => {
+    expect(cards('2', '6', '7', '9', 'T', 'K', 'A').map(hiLo)).toEqual([1, 1, 0, 0, -1, -1, -1]);
+    const shoe = createShoe(DECKS, seeded(4));
+    expect(shoe.cards.reduce((n, card) => n + hiLo(card), 0)).toBe(0);
+    // +6 with three decks left is a true count of +2.
+    expect(trueCount(6, 156)).toBe(2);
+    expect(trueCount(-4, 104)).toBe(-2);
   });
 });

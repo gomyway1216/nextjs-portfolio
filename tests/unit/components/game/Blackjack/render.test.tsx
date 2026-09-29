@@ -31,6 +31,8 @@ describe('PlayTab', () => {
     // No round yet: every action is disabled.
     for (const a of ['hit', 'stand', 'double', 'split']) expect(markup).toMatch(new RegExp(`data-action="${a}"[^>]*disabled=""`));
     expect(markup).toContain('A fresh six-deck shoe is shuffled on the first deal.');
+    expect(markup).toContain('Count cards (Hi-Lo)');
+    expect(markup).not.toContain('data-testid="bj-count"');
   });
 
   it('is localized', () => {
@@ -71,7 +73,8 @@ describe('SimTab and shell', () => {
   it('offers the strategy simulation', () => {
     const markup = render(<SimTab />);
     expect(markup).toContain('Three ways to play, same shoes');
-    expect(markup).toContain('>Run<');
+    expect(markup).toContain('Counting cards');
+    expect(markup.match(/>Run</g)).toHaveLength(2);
   });
 
   it('keeps every tab panel mounted and hides the inactive ones', () => {

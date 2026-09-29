@@ -907,6 +907,29 @@
   font-weight: 800;
 }
 
+/* ---------- Count panel ---------- */
+.countPanel {
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+}
+.countGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.countGrid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.countGrid b {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Expected value panel ---------- */
 .evPanel {
   margin-top: 0.9rem;

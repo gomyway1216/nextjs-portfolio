@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { handValue, type Card, type Rank, type Suit } from '../../src/components/game/Blackjack/engine';
+import { handValue, hiLo, type Card, type Rank, type Suit } from '../../src/components/game/Blackjack/engine';
 
 // Rounds are random: each test reads the cards off the table and checks the
 // dealer's play, every total and the payouts against the rules.
@@ -33,6 +33,11 @@ async function cardsIn(page: Page, selector: string): Promise<Card[]> {
 /** Deals and plays a round by the basic-strategy hint, declining insurance. */
 async function playByHint(page: Page) {
   await dealButton(page).click();
+  await finishRound(page);
+}
+
+/** Plays the round in progress to the end by the hint. */
+async function finishRound(page: Page) {
   for (let step = 0; step < 20; step++) {
     await expect(async () => {
       const done = await dealButton(page).isEnabled();
@@ -146,11 +151,50 @@ test('the odds tab explains every cell of the chart', async ({ page }) => {
 test('the simulation tab plays three strategies on the same shoes', async ({ page }) => {
   await openBlackjack(page);
   await page.getByRole('tab', { name: 'Simulation' }).click();
-  await page.getByRole('combobox').selectOption('10000');
+  const strategies = page.locator('section', { has: page.getByRole('heading', { name: 'Three ways to play, same shoes' }) });
+  await strategies.getByRole('combobox').selectOption('10000');
   await expect(async () => {
-    await page.getByRole('button', { name: 'Run' }).click({ timeout: 1_000 });
+    await strategies.getByRole('button', { name: 'Run' }).click({ timeout: 1_000 });
     await expect(page.getByTestId('bj-sim-table')).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 30_000 });
   await expect(page.getByTestId('bj-sim-table').locator('tbody tr')).toHaveCount(3);
   await expect(page.getByTestId('bj-sim-table')).toContainText('Simulated (10,000 rounds)');
+
+  // Counting: flat vs spread on the same rounds, bars for every true count.
+  const counting = page.locator('section', { has: page.getByRole('heading', { name: 'Counting cards' }) });
+  await counting.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByTestId('bj-count-table')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('bj-count-table').locator('tbody tr')).toHaveCount(2);
+  await expect(counting.locator('[data-tc]')).toHaveCount(12);
+});
+
+test('the Hi-Lo count follows every card a player can see', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openBlackjack(page);
+  await hydrate(page);
+  await page.getByLabel('Count cards (Hi-Lo)').check();
+  await expect(page.getByTestId('bj-running-count')).toHaveText('0');
+  const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+  const tableCount = async () => {
+    const all = [...(await cardsIn(page, '[data-area="dealer"]')), ...(await cardsIn(page, '[data-area="player"]'))];
+    return all.reduce((n, card) => n + hiLo(card), 0);
+  };
+
+  await playByHint(page);
+  let count = await tableCount();
+  await expect(page.getByTestId('bj-running-count')).toHaveText(signed(count));
+
+  // Mid-round, the face-down hole card is not counted (and not in the DOM as a card).
+  await dealButton(page).click();
+  await expect(async () => {
+    const waiting = (await page.locator('button[data-action="stand"]:enabled').count()) > 0 || (await page.getByTestId('bj-insurance').isVisible());
+    expect(waiting || (await dealButton(page).isEnabled())).toBe(true);
+  }).toPass({ timeout: 10_000 });
+  if (!(await dealButton(page).isEnabled())) {
+    expect(await page.locator('[data-hole="true"]').count()).toBe(1);
+    await expect(page.getByTestId('bj-running-count')).toHaveText(signed(count + (await tableCount())));
+  }
+  await finishRound(page);
+  count += await tableCount();
+  await expect(page.getByTestId('bj-running-count')).toHaveText(signed(count));
 });

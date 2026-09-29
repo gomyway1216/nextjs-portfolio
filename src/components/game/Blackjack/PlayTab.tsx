@@ -12,16 +12,19 @@ import {
   cardsLeft,
   createShoe,
   handValue,
+  hiLo,
   legalActions,
   needsShuffle,
   startRound,
   totalStaked,
+  trueCount,
   type Action,
   type Round,
   type Shoe,
 } from './engine';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
+import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
 
 export const INITIAL_BANKROLL = 1000;
@@ -79,6 +82,9 @@ export const PlayTab = () => {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   /** Cards left in the shoe before this round was dealt. */
   const [leftAtDeal, setLeftAtDeal] = useState<number | null>(null);
+  /** Hi-Lo count of the cards seen in earlier rounds of this shoe. */
+  const [countBefore, setCountBefore] = useState(0);
+  const [showCount, setShowCount] = useState(false);
   const [shuffleNext, setShuffleNext] = useState(false);
   /** Changes every deal, so each round's cards mount (and animate) fresh. */
   const [dealNo, setDealNo] = useState(0);
@@ -122,6 +128,8 @@ export const PlayTab = () => {
       blackjacks: s.blackjacks + res.hands.filter((h) => h.outcome === 'blackjack').length,
     }));
     setView((v) => ({ ...v, dealerShown: r.dealer.length, holeUp: true, settled: true, opening: false }));
+    // Every card of the round is face up now.
+    setCountBefore((c) => c + [...r.dealer, ...r.hands.flatMap((h) => h.cards)].reduce((n, card) => n + hiLo(card), 0));
     setShuffleNext(needsShuffle(r.shoe));
     commitBusy(false);
   };
@@ -160,7 +168,10 @@ export const PlayTab = () => {
       return;
     }
     let shoe = shoeRef.current;
-    if (!shoe || needsShuffle(shoe)) shoe = createShoe(DECKS);
+    if (!shoe || needsShuffle(shoe)) {
+      shoe = createShoe(DECKS);
+      setCountBefore(0);
+    }
     const r = startRound(shoe, bet);
     shoeRef.current = r.shoe;
     roundId.current++;
@@ -255,6 +266,7 @@ export const PlayTab = () => {
     setStats(EMPTY_STATS);
     setMessage(null);
     setLeftAtDeal(null);
+    setCountBefore(0);
     setShuffleNext(false);
     setView({ dealerShown: 0, holeUp: false, settled: false, opening: false });
   };
@@ -286,6 +298,13 @@ export const PlayTab = () => {
   // Count only cards already on the table: the dealer's next cards are drawn in
   // the engine before they are shown, and must not leak through this number.
   const cardsOut = round ? round.hands.reduce((n, h) => n + h.cards.length, 0) + dealerCards.length : 0;
+  const shownLeft = leftAtDeal !== null && round ? leftAtDeal - cardsOut : null;
+  // The count of what a player at the table has seen: never the hole card before it is turned.
+  const seenThisRound = round
+    ? [...round.hands.flatMap((h) => h.cards), ...dealerCards.filter((_, i) => i !== 1 || view.holeUp)].reduce((n, card) => n + hiLo(card), 0)
+    : 0;
+  const running = view.settled ? countBefore : countBefore + seenThisRound;
+  const tc = shownLeft !== null ? trueCount(running, shownLeft) : 0;
   const dealerTotal = round && view.holeUp ? handValue(dealerCards) : round ? handValue(round.dealer.slice(0, 1)) : null;
   const delay = (i: number) => (view.opening ? i * TIMING.dealStep : 0);
 
@@ -312,7 +331,7 @@ export const PlayTab = () => {
     <div className={styles.playGrid}>
       <div className={styles.panel}>
         <div className={styles.shoeBar} data-testid="shoe-info">
-          {leftAtDeal === null || !round ? t.newShoe : t.shoeLabel(leftAtDeal - cardsOut)}
+          {shownLeft === null ? t.newShoe : t.shoeLabel(shownLeft)}
         </div>
 
         <div className={styles.table}>
@@ -526,6 +545,40 @@ export const PlayTab = () => {
             </span>
           )}
         </div>
+
+        <div className={styles.hintRow} style={{ marginTop: '0.4rem' }}>
+          <label className={styles.hintToggle}>
+            <input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} />
+            {t.countToggle}
+          </label>
+        </div>
+        {showCount && (
+          <section className={styles.countPanel} data-testid="bj-count">
+            <div className={styles.countGrid}>
+              <div>
+                <span className={styles.statLabel}>{t.runningCount}</span>
+                <b data-testid="bj-running-count">
+                  {running > 0 ? '+' : ''}
+                  {running}
+                </b>
+              </div>
+              <div>
+                <span className={styles.statLabel}>{t.decksLeft}</span>
+                <b>{shownLeft === null ? DECKS.toFixed(1) : (shownLeft / 52).toFixed(1)}</b>
+              </div>
+              <div>
+                <span className={styles.statLabel}>{t.trueCountLabel}</span>
+                <b data-testid="bj-true-count">
+                  {tc > 0 ? '+' : ''}
+                  {tc.toFixed(1)}
+                </b>
+              </div>
+            </div>
+            <p className={styles.note}>
+              <b>{t.countBet(spreadUnits(tc))}</b> · {t.countNote}
+            </p>
+          </section>
+        )}
 
         {evs && playing && (
           <section className={styles.evPanel} aria-labelledby="bj-ev-title" data-testid="bj-ev">

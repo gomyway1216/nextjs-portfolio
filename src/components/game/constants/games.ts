@@ -310,8 +310,8 @@ export const games: Game[] = [
   },
   {
     id: 'blackjack',
-    title: 'Blackjack Strategy',
-    description: 'Play simplified blackjack with basic-strategy hints and strategy simulations.',
+    title: 'Blackjack',
+    description: 'Play six-deck blackjack with basic-strategy hints, then see the exact value of every play and the house edge of each rule.',
     thumbnail: '🃏',
     path: '/games/blackjack',
     difficulty: 'Medium',

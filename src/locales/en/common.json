@@ -1303,6 +1303,10 @@
       "title": "Video Poker",
       "description": "Play Jacks or Better with the exact value of every hold, then see why a 9/6 machine returns 99.54%."
     },
+    "three-card-poker": {
+      "title": "Three Card Poker",
+      "description": "Ante, look at your three cards, then play or fold against the dealer — with the exact value of every decision and bet."
+    },
     "craps": {
       "title": "Craps",
       "description": "Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%."

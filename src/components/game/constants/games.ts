@@ -336,6 +336,15 @@ export const games: Game[] = [
     category: 'Card',
   },
   {
+    id: 'three-card-poker',
+    title: 'Three Card Poker',
+    description: 'Ante, look at your three cards, then play or fold against the dealer — with the exact value of every decision and bet.',
+    thumbnail: '♣️',
+    path: '/games/three-card-poker',
+    difficulty: 'Easy',
+    category: 'Card',
+  },
+  {
     id: 'texas-holdem',
     title: "Texas Hold'em",
     description: 'Play 100bb no-limit Hold’em against up to seven GTO-inspired CPU opponents.',

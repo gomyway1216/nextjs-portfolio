@@ -1299,6 +1299,10 @@
       "title": "Baccarat",
       "description": "Play Punto Banco from an 8-deck shoe with casino scoreboards and the exact odds of the next hand."
     },
+    "video-poker": {
+      "title": "Video Poker",
+      "description": "Play Jacks or Better with the exact value of every hold, then see why a 9/6 machine returns 99.54%."
+    },
     "craps": {
       "title": "Craps",
       "description": "Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%."

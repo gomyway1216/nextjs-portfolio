@@ -12,11 +12,18 @@
   --rl-chip: #e0a83c;
   --rl-win: #16a34a;
   --rl-lose: #ef4444;
+  /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --rl-win-text: #15803d;
+  --rl-lose-text: #b91c1c;
   --rl-line: rgba(255, 255, 255, 0.28);
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --rl-win-text: #4ade80;
+  --rl-lose-text: #f87171;
 }
 
 .shell {
@@ -183,10 +190,10 @@
   text-align: center;
 }
 .netWin {
-  color: var(--rl-win);
+  color: var(--rl-win-text);
 }
 .netLose {
-  color: var(--rl-lose);
+  color: var(--rl-lose-text);
 }
 
 .sectionLabel {
@@ -793,7 +800,8 @@
 }
 .btnPrimary {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
   font-weight: 820;
   font-size: 1rem;
@@ -861,11 +869,11 @@
   font-size: 0.72rem;
 }
 .histNetWin {
-  color: var(--rl-win);
+  color: var(--rl-win-text);
   font-weight: 800;
 }
 .histNetLose {
-  color: var(--rl-lose);
+  color: var(--rl-lose-text);
   font-weight: 800;
 }
 

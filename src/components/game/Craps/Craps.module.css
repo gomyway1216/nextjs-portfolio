@@ -10,10 +10,17 @@
   --cr-red: #e11d2e;
   --cr-win: #16a34a;
   --cr-lose: #ef4444;
+  /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --cr-win-text: #15803d;
+  --cr-lose-text: #b91c1c;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --cr-win-text: #4ade80;
+  --cr-lose-text: #f87171;
 }
 .shell {
   max-width: 1160px;
@@ -202,10 +209,10 @@
   letter-spacing: 0.08em;
 }
 .calloutGood {
-  color: var(--cr-win);
+  color: var(--cr-win-text);
 }
 .calloutBad {
-  color: var(--cr-lose);
+  color: var(--cr-lose-text);
 }
 .sectionLabel {
   color: var(--games-route-muted);
@@ -342,10 +349,10 @@
   font-variant-numeric: tabular-nums;
 }
 .pos {
-  color: var(--cr-win);
+  color: var(--cr-win-text);
 }
 .neg {
-  color: var(--cr-lose);
+  color: var(--cr-lose-text);
 }
 .chipRow {
   display: flex;
@@ -780,7 +787,8 @@
 }
 .btnRun {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnRun:disabled {

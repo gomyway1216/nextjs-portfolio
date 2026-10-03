@@ -13,12 +13,19 @@
   --bc-grid: rgba(127, 127, 127, 0.28);
   --bc-win: #16a34a;
   --bc-lose: #ef4444;
+  /* Result text on the panels and on the green-tinted rows: at least 4.5:1 on the light surfaces (dark values below). */
+  --bc-win-text: #166534;
+  --bc-lose-text: #b91c1c;
   --cw: 56px;
   --ch: 80px;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --bc-win-text: #4ade80;
+  --bc-lose-text: #f87171;
 }
 @media (max-width: 520px) {
   .root {
@@ -585,10 +592,10 @@
   font-variant-numeric: tabular-nums;
 }
 .pos {
-  color: var(--bc-win);
+  color: var(--bc-win-text);
 }
 .neg {
-  color: var(--bc-lose);
+  color: var(--bc-lose-text);
 }
 .chipRow {
   display: flex;
@@ -742,7 +749,7 @@
   min-height: 1.3rem;
   font-size: 0.86rem;
   font-weight: 700;
-  color: var(--bc-lose);
+  color: var(--bc-lose-text);
 }
 .actions {
   display: flex;
@@ -796,7 +803,7 @@
 }
 .liveTable tr[data-positive='true'] td {
   background: rgba(22, 163, 74, 0.14);
-  color: var(--bc-win);
+  color: var(--bc-win-text);
 }
 .hint {
   margin: 0.8rem 0 0;
@@ -937,7 +944,7 @@
 }
 .tableau td[data-draw='true'] {
   background: rgba(22, 163, 74, 0.2);
-  color: var(--bc-win);
+  color: var(--bc-win-text);
   font-weight: 800;
 }
 .tableau td[data-draw='false'] {
@@ -1007,7 +1014,8 @@
 }
 .btnRun {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnRun:disabled {

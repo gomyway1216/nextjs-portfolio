@@ -436,6 +436,24 @@
     line-height: 1.15;
   }
 }
+/* The column headers carry text for screen readers only, so the row takes no room on the screen. */
+.payTable .payHead th {
+  padding: 0;
+  border: 0;
+  height: 0;
+  line-height: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .payRow th,
 .payRow td {
   background: #fde047;

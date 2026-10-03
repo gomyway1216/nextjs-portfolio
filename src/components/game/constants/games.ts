@@ -327,6 +327,15 @@ export const games: Game[] = [
     category: 'Card',
   },
   {
+    id: 'video-poker',
+    title: 'Video Poker',
+    description: 'Play Jacks or Better with the exact value of every hold, then see why a 9/6 machine returns 99.54%.',
+    thumbnail: '♣️',
+    path: '/games/video-poker',
+    difficulty: 'Medium',
+    category: 'Card',
+  },
+  {
     id: 'texas-holdem',
     title: "Texas Hold'em",
     description: 'Play 100bb no-limit Hold’em against up to seven GTO-inspired CPU opponents.',

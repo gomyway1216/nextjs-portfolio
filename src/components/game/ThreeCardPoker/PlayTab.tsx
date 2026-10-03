@@ -408,28 +408,6 @@ export const PlayTab = () => {
             </ul>
           </div>
         )}
-
-        <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
-          {t.statsTitle} <small className={styles.muted}>({t.observedVsExact})</small>
-        </div>
-        <dl className={styles.statList} data-testid="tcp-stats">
-          <div>
-            <dt>{t.hands}</dt>
-            <dd>{stats.hands}</dd>
-          </div>
-          {statRow(t.played, stats.played, exactPlayRate, 'played')}
-          {statRow(t.dealerQualified, stats.dealerQualified, exactQualify, 'qualified')}
-          <div>
-            <dt>{t.winsPushesLosses}</dt>
-            <dd>
-              {stats.wins} / {stats.pushes} / {stats.losses}
-            </dd>
-          </div>
-          <div>
-            <dt>{t.agreement}</dt>
-            <dd>{stats.hands > 0 ? `${Math.round((stats.agreed / stats.hands) * 100)}%` : '–'}</dd>
-          </div>
-        </dl>
       </div>
 
       <div className={styles.panel}>
@@ -587,6 +565,29 @@ export const PlayTab = () => {
             <li key={i}>{h}</li>
           ))}
         </ul>
+
+        {/* Session stats sit below the controls, so on a phone the table is followed by the buttons. */}
+        <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
+          {t.statsTitle} <small className={styles.muted}>({t.observedVsExact})</small>
+        </div>
+        <dl className={styles.statList} data-testid="tcp-stats">
+          <div>
+            <dt>{t.hands}</dt>
+            <dd>{stats.hands}</dd>
+          </div>
+          {statRow(t.played, stats.played, exactPlayRate, 'played')}
+          {statRow(t.dealerQualified, stats.dealerQualified, exactQualify, 'qualified')}
+          <div>
+            <dt>{t.winsPushesLosses}</dt>
+            <dd>
+              {stats.wins} / {stats.pushes} / {stats.losses}
+            </dd>
+          </div>
+          <div>
+            <dt>{t.agreement}</dt>
+            <dd>{stats.hands > 0 ? `${Math.round((stats.agreed / stats.hands) * 100)}%` : '–'}</dd>
+          </div>
+        </dl>
       </div>
     </div>
   );

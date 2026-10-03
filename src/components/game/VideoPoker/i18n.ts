@@ -4,12 +4,14 @@
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { HandName } from './engine';
+import type { StrategyId } from './sim';
 
 export interface VideoPokerStrings {
   title: string;
   subtitle: string;
   tabPlay: string;
   tabOdds: string;
+  tabSim: string;
   howToPlay: string;
   infoBody: string[];
   hand: Record<HandName, string>;
@@ -81,6 +83,34 @@ export interface VideoPokerStrings {
   callsTitle: string;
   callsIntro: string;
   callName: Record<'flushOverPair' | 'pairOverStraight' | 'breakFlush' | 'noKicker' | 'pairOverRoyal3', string>;
+  // Simulation
+  run: string;
+  running: (pct: number) => string;
+  handsLabel: string;
+  sessionsLabel: string;
+  handsPerSessionLabel: string;
+  stratTitle: string;
+  stratIntro: string;
+  strategyName: Record<StrategyId, string>;
+  strategyRule: Record<StrategyId, string>;
+  colStrategy: string;
+  colExact: string;
+  colSimulated: (hands: string) => string;
+  colDiffered: string;
+  colRoyals: string;
+  stratNote: string;
+  sessionTitle: string;
+  sessionIntro: string;
+  sessExpected: string;
+  sessMean: string;
+  sessMedian: string;
+  sessAhead: string;
+  sessRoyal: string;
+  sessRoyalExact: (pct: string) => string;
+  sessMedianNoRoyal: string;
+  sessAxis: string;
+  sessOffChart: (count: string, cap: string) => string;
+  sessionNote: string;
 }
 
 const en: VideoPokerStrings = {
@@ -89,6 +119,7 @@ const en: VideoPokerStrings = {
     'Jacks or Better — the one machine where your choices matter. Play it with the exact value of every possible hold, then see how a “9/6” machine returns 99.54% and what each cheaper pay table costs.',
   tabPlay: 'Machine',
   tabOdds: 'Odds',
+  tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
     'Bet 1–5 coins and press DEAL to get five cards from a fresh 52-card deck.',
@@ -188,6 +219,41 @@ const en: VideoPokerStrings = {
     noKicker: 'Never keep a kicker',
     pairOverRoyal3: 'A high pair beats three to a royal',
   },
+  run: 'Run',
+  running: (pct) => `Running… ${pct}%`,
+  handsLabel: 'Hands',
+  sessionsLabel: 'Sessions',
+  handsPerSessionLabel: 'Hands per session',
+  stratTitle: 'Perfect play against two habits, on the same deals',
+  stratIntro:
+    'Every strategy gets the same five cards and the same replacement cards, one coin a hand on a 9/6 machine. The dashed lines are each strategy’s exact payback.',
+  strategyName: { optimal: 'Perfect play', simple: 'Common-sense rules', madeOnly: 'Keep only what already pays' },
+  strategyRule: {
+    optimal: 'The hold with the highest exact expectation, every hand.',
+    simple: 'Keep a made straight or better; otherwise any pair, two pair or three of a kind; otherwise four to a flush; otherwise every jack or higher; otherwise draw five.',
+    madeOnly: 'Hold a paying hand if you are dealt one; otherwise throw all five away.',
+  },
+  colStrategy: 'Strategy',
+  colExact: 'Exact payback',
+  colSimulated: (hands) => `Simulated (${hands} hands)`,
+  colDiffered: 'Hands played differently',
+  colRoyals: 'Royals',
+  stratNote:
+    'The ± is a 95% range. A single royal flush moves the payback of 100,000 hands by 0.8 points, which is why video poker results take so long to settle.',
+  sessionTitle: 'One evening at the machine',
+  sessionIntro:
+    'Sessions of perfect play at five coins a hand on a 9/6 machine. On average a session loses exactly what the payback says — but that average is propped up by rare royal flushes, so the typical session does worse.',
+  sessExpected: 'Exact expectation',
+  sessMean: 'Average result',
+  sessMedian: 'Typical (median) result',
+  sessAhead: 'Sessions that ended ahead',
+  sessRoyal: 'Sessions with a royal',
+  sessRoyalExact: (pct) => `exact: ${pct}`,
+  sessMedianNoRoyal: 'Median without a royal',
+  sessAxis: 'Net coins at the end of the session',
+  sessOffChart: (count, cap) => `${count} sessions finished above +${cap} and are gathered in the last bar.`,
+  sessionNote:
+    'Results are in coins. Take the royal flush away and the same play returns about 97.6%: two points of the payback sit in a hand you may not see for 40,000 deals.',
 };
 
 const ja: VideoPokerStrings = {
@@ -196,6 +262,7 @@ const ja: VideoPokerStrings = {
     'ジャックス・オア・ベター。あなたの選択で結果が変わる唯一のマシンです。すべての残し方の正確な期待値を見ながら遊び、「9/6」機の還元率99.54%と、配当表が下がるごとの差を確認できます。',
   tabPlay: 'マシン',
   tabOdds: '確率',
+  tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
     '1〜5コインを賭けて「ディール」を押すと、52枚のデッキから5枚が配られます。',
@@ -294,6 +361,39 @@ const ja: VideoPokerStrings = {
     noKicker: 'キッカーは残さない',
     pairOverRoyal3: 'ロイヤル3枚よりハイペア',
   },
+  run: '実行',
+  running: (pct) => `実行中… ${pct}%`,
+  handsLabel: 'ハンド数',
+  sessionsLabel: 'セッション数',
+  handsPerSessionLabel: '1セッションのハンド数',
+  stratTitle: '最善手と2つの「ありがちな遊び方」を同じ配りで比べる',
+  stratIntro:
+    'どの戦略にも同じ5枚と同じ引き直しのカードが配られます。9/6機で1ハンド1コイン。点線は各戦略の正確な還元率です。',
+  strategyName: { optimal: '最善手', simple: '常識的なルール', madeOnly: '当たっている役だけ残す' },
+  strategyRule: {
+    optimal: '毎回、正確な期待値が最も高い残し方。',
+    simple: 'ストレート以上ができていれば全部残す。なければペア・ツーペア・スリーカード、なければフラッシュ4枚、なければジャック以上を全部、どれもなければ5枚とも引き直す。',
+    madeOnly: '配られた時点で当たりの役があればそれを残し、なければ5枚とも捨てる。',
+  },
+  colStrategy: '戦略',
+  colExact: '正確な還元率',
+  colSimulated: (hands) => `シミュレーション（${hands}ハンド）`,
+  colDiffered: '最善手と違った手',
+  colRoyals: 'ロイヤル',
+  stratNote: '± は95%の幅です。ロイヤルフラッシュ1回で10万ハンドの還元率が0.8ポイント動きます。ビデオポーカーの結果がなかなか収束しないのはそのためです。',
+  sessionTitle: 'マシンで過ごす一晩',
+  sessionIntro:
+    '9/6機で1ハンド5コイン、最善手でプレイしたセッションです。平均すれば還元率どおりの損で済みますが、その平均はまれなロイヤルフラッシュに支えられています。ふつうのセッションはそれより悪くなります。',
+  sessExpected: '正確な期待値',
+  sessMean: '平均の結果',
+  sessMedian: 'ふつうの（中央値の）結果',
+  sessAhead: 'プラスで終わったセッション',
+  sessRoyal: 'ロイヤルが出たセッション',
+  sessRoyalExact: (pct) => `理論値：${pct}`,
+  sessMedianNoRoyal: 'ロイヤルなしの中央値',
+  sessAxis: 'セッション終了時の収支（コイン）',
+  sessOffChart: (count, cap) => `${count}セッションは+${cap}を超えており、右端の棒にまとめています。`,
+  sessionNote: '単位はコインです。ロイヤルフラッシュを除くと、同じプレイでも還元率は約97.6%です。還元率のうち2ポイントは、4万回配られても出ないかもしれない1つの役の中にあります。',
 };
 
 export const getStrings = (language: GameLanguage): VideoPokerStrings => (language === 'ja' ? ja : en);

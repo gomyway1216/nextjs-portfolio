@@ -177,3 +177,13 @@ export const DEALT_COUNTS = [2062860, 337920, 123552, 54912, 10200, 5108, 3744, 
 
 /** Suit-distinct deals. */
 export const CLASSES = 134459;
+
+/**
+ * Exact 9/6 payback of the strategies the Simulation tab compares (from
+ * `policyPayback` in sim.ts; a unit test recomputes them).
+ */
+export const STRATEGY_PAYBACK = {
+  optimal: 0.9954390436947825,
+  simple: 0.9712666072549204,
+  madeOnly: 0.7308473041008313,
+};

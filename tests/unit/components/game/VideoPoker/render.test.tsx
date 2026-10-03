@@ -6,6 +6,7 @@ import { VideoPoker } from '@/components/game/VideoPoker';
 import { MiniCard, PlayingCard } from '@/components/game/VideoPoker/Cards';
 import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
 import { INITIAL_CREDITS, PlayTab, effectivePays } from '@/components/game/VideoPoker/PlayTab';
+import { SimTab } from '@/components/game/VideoPoker/SimTab';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -75,6 +76,23 @@ describe('OddsTab', () => {
   });
 });
 
+describe('SimTab', () => {
+  it('describes the three strategies with their exact paybacks to come, and offers both simulations', () => {
+    const markup = render(<SimTab />);
+    expect(markup).toContain('Perfect play against two habits, on the same deals');
+    expect(markup).toContain('One evening at the machine');
+    expect(markup).toContain('Common-sense rules');
+    expect(markup.match(/>Run</g)).toHaveLength(2);
+    expect(markup).not.toContain('data-testid="vp-sim-strategies"');
+  });
+
+  it('is localized', () => {
+    const markup = render(<SimTab />, 'ja');
+    expect(markup).toContain('マシンで過ごす一晩');
+    expect(markup).toContain('>実行<');
+  });
+});
+
 describe('VideoPoker shell', () => {
   it('keeps every tab panel mounted and hides the inactive ones', () => {
     const markup = render(<VideoPoker />, 'ja');
@@ -82,6 +100,7 @@ describe('VideoPoker shell', () => {
     expect(panels.map((m) => [m[1], Boolean(m[2])])).toEqual([
       ['play', false],
       ['odds', true],
+      ['sim', true],
     ]);
     expect(markup).toContain('ビデオポーカー');
   });

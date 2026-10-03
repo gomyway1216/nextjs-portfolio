@@ -300,6 +300,77 @@
   font-weight: 820;
   font-variant-numeric: tabular-nums;
 }
+/* ---------- Simulation tab ---------- */
+.formRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 1rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.fieldLabel {
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.input {
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border: 1px solid var(--games-route-border);
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+}
+.input:focus-visible {
+  outline: 2px solid var(--vp-gold);
+  outline-offset: 1px;
+}
+.btnRun {
+  background: linear-gradient(180deg, #1fbf5a, #12a049);
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
+  border-color: transparent;
+}
+.btnRun:disabled {
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-muted);
+}
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.simTable {
+  margin-top: 0.8rem;
+}
+.simTable small {
+  font-size: 0.74rem;
+}
+.ruleList {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+.ruleList b {
+  color: var(--games-route-fg);
+}
+.statNote {
+  color: var(--games-route-muted);
+  font-size: 0.72rem;
+}
 .infoP {
   line-height: 1.6;
   margin: 0 0 0.85rem;

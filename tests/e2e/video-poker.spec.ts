@@ -176,3 +176,40 @@ test('the odds tab prices every pay table and shows the close calls', async ({ p
   await expect(page.locator('[data-call="breakFlush"]')).toContainText('18.277');
   await expect(page.locator('[data-call="breakFlush"]')).toContainText('5.000');
 });
+
+test('the simulation tab compares strategies and plays sessions', async ({ page }) => {
+  await openVideoPoker(page);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  const section = (title: string) => page.locator('section', { has: page.getByRole('heading', { name: title }) });
+
+  const strategies = section('Perfect play against two habits, on the same deals');
+  await strategies.getByRole('combobox').selectOption('10000');
+  await expect(async () => {
+    await strategies.getByRole('button', { name: 'Run' }).click({ timeout: 1_000 });
+    await expect(page.getByTestId('vp-sim-strategies')).toBeVisible({ timeout: 10_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(page.getByTestId('vp-sim-strategies').locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tr[data-strategy="optimal"] td').nth(1)).toHaveText('99.544%');
+  await expect(page.locator('tr[data-strategy="simple"] td').nth(1)).toHaveText('97.127%');
+  // Perfect play never differs from itself.
+  await expect(page.locator('tr[data-strategy="optimal"] td').nth(3)).toHaveText('0.0%');
+
+  const sessions = section('One evening at the machine');
+  await sessions.getByRole('combobox').nth(0).selectOption('500');
+  await sessions.getByRole('combobox').nth(1).selectOption('200');
+  await sessions.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByTestId('vp-sim-sessions')).toBeVisible({ timeout: 30_000 });
+  // 200 hands at 5 coins on a 99.5439% game: −4.6 coins expected; a royal in 0.49% of sessions.
+  await expect(page.getByTestId('vp-session-expected')).toHaveText('−4.6');
+  await expect(page.getByTestId('vp-session-royal-exact')).toHaveText('exact: 0.49%');
+
+  // The histogram is also there as a table: every session is in exactly one row.
+  const histogram = page.getByTestId('vp-histogram-table');
+  await expect(histogram.locator('caption')).toHaveText('Sessions by net coins at the end. The exact expectation is −4.6 coins.');
+  const counts = await histogram.locator('tbody td').allTextContents();
+  expect(counts.reduce((sum, c) => sum + Number(c.replace(/,/g, '')), 0)).toBe(500);
+  await expect(histogram.locator('tbody th').first()).toHaveText(/^−[\d,]+ to [−+]?[\d,]+$/);
+
+  // Dark label on the green Run buttons.
+  await expect(sessions.getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
+});

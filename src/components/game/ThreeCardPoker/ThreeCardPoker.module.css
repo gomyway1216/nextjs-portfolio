@@ -11,6 +11,9 @@
   --tcp-fold: #ef4444;
   --tcp-win: #16a34a;
   --tcp-lose: #ef4444;
+  /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --tcp-win-text: #15803d;
+  --tcp-lose-text: #b91c1c;
   --cw: 64px;
   --ch: 92px;
 
@@ -23,6 +26,10 @@
     --cw: 52px;
     --ch: 74px;
   }
+}
+:global(html.dark) .root {
+  --tcp-win-text: #4ade80;
+  --tcp-lose-text: #f87171;
 }
 .shell {
   max-width: 1160px;
@@ -429,10 +436,10 @@
   font-size: 0.95rem;
 }
 .calloutWin {
-  color: var(--tcp-win);
+  color: var(--tcp-win-text);
 }
 .calloutLose {
-  color: var(--tcp-lose);
+  color: var(--tcp-lose-text);
 }
 .calloutPush {
   color: var(--games-route-fg);
@@ -544,10 +551,10 @@
   font-variant-numeric: tabular-nums;
 }
 .pos {
-  color: var(--tcp-win);
+  color: var(--tcp-win-text);
 }
 .neg {
-  color: var(--tcp-lose);
+  color: var(--tcp-lose-text);
 }
 .chipRow {
   display: flex;
@@ -696,7 +703,7 @@
   min-height: 1.3rem;
   font-size: 0.86rem;
   font-weight: 700;
-  color: var(--tcp-lose);
+  color: var(--tcp-lose-text);
 }
 .actions {
   display: flex;
@@ -1007,7 +1014,8 @@
 }
 .btnRun {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnRun:disabled {

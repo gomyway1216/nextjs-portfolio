@@ -67,6 +67,9 @@ test('a played hand shows its exact value and settles every bet by the rules', a
   await pairPlusSpot(page).click(); // Pair Plus 5
   await expect(bankroll(page)).toHaveText('985');
   await expect(onTable(page)).toHaveText('15');
+  // Each spot tells screen readers what is on it, next to its name.
+  await expect(anteSpot(page)).toHaveAccessibleDescription('10');
+  await expect(pairPlusSpot(page)).toHaveAccessibleDescription('5');
 
   const player = await deal(page);
   expect(new Set(player.map((c) => `${c.rank}${c.suit}`)).size).toBe(3);
@@ -75,6 +78,9 @@ test('a played hand shows its exact value and settles every bet by the rules', a
   const odds = handOdds(player);
   await expect(page.locator('[data-ev="play"]')).toContainText(signed(odds.evPlay, 3));
   await expect(page.locator('[data-ev="fold"]')).toContainText('−1.000');
+  // Those are the Ante & Play bets only, and the panel says so: Pair Plus is on the table too.
+  await expect(page.getByTestId('tcp-ev').getByRole('heading')).toHaveText('This hand — exact value of the Ante & Play bets');
+  await expect(page.getByTestId('tcp-ev')).toContainText('Pair Plus is not included');
   await expect(page.locator(`[data-ev="${odds.best}"]`)).toHaveAttribute('data-best', 'true');
   await expect(page.locator('[data-case="notQualified"] dd')).toHaveText(`${((odds.notQualified / 18424) * 100).toFixed(2)}%`);
   // … and the hint is the Q-6-4 rule applied to them.
@@ -114,6 +120,8 @@ test('folding forfeits the Ante and Pair Plus and still shows the dealer', async
   await expect(bankroll(page)).toHaveText('990');
   await expect(onTable(page)).toHaveText('0');
   await expect(page.getByTestId('tcp-callout')).toHaveText('You folded · −10');
+  // Readable red on the light panel (6.4:1), not the felt's brighter one.
+  await expect(page.getByTestId('tcp-callout').locator('span')).toHaveCSS('color', 'rgb(185, 28, 28)');
   await expect(page.getByTestId('tcp-results').locator('li[data-outcome]')).toHaveCount(2);
   await expect(page.locator('li[data-line="ante"]')).toHaveAttribute('data-outcome', 'lose');
   await expect(page.locator('li[data-line="pairPlus"]')).toHaveAttribute('data-outcome', 'lose');
@@ -247,4 +255,6 @@ test('the simulation tab plays the three strategies through the real rules', asy
   expect(parseFloat(optimalPlayed ?? '')).toBeLessThan(71);
   await expect(page.locator('[data-series]')).toHaveCount(3);
   await expect(page.getByTestId('tcp-sim-note')).toContainText('exact: 69.59%');
+  // Dark label on the green Run button.
+  await expect(section.getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
 });

@@ -218,8 +218,9 @@ const en: ThreeCardPokerStrings = {
   outcome: { win: 'won', lose: 'lost', push: 'push' },
   hintToggle: 'Show the strategy hint',
   hintSays: (decision) => `Strategy: play Q-6-4 or better → ${decision === 'play' ? 'play' : 'fold'} this hand`,
-  evTitle: 'This hand — exact value',
-  evNote: 'In antes, Ante Bonus included. Folding always costs exactly one ante; playing is right whenever it loses less than that.',
+  evTitle: 'This hand — exact value of the Ante & Play bets',
+  evNote:
+    'In antes, for the Ante and Play bets with the Ante Bonus. Pair Plus is not included: it is paid on your own cards whatever you decide here, except that a fold gives it up. Folding always costs exactly one ante; playing is right whenever it loses less than that.',
   evAgainst: (dealerHands) => `Against the ${dealerHands} hands the dealer can hold:`,
   evNotQualified: 'Dealer doesn’t qualify',
   evWin: 'You win',
@@ -395,8 +396,9 @@ const ja: ThreeCardPokerStrings = {
   outcome: { win: '勝ち', lose: '負け', push: '引き分け' },
   hintToggle: '戦略のヒントを表示',
   hintSays: (decision) => `戦略：Q-6-4以上でプレイ → この手は${decision === 'play' ? 'プレイ' : 'フォールド'}`,
-  evTitle: 'この手札の正確な期待値',
-  evNote: '単位はアンティ、アンティボーナス込み。フォールドは必ずアンティ1つ分の負けなので、プレイの損がそれより小さければプレイが正解です。',
+  evTitle: 'この手札の正確な期待値（アンティとプレイ）',
+  evNote:
+    '単位はアンティ。アンティとプレイの賭けの期待値で、アンティボーナス込みです。ペアプラスは含みません。ペアプラスは自分の手札だけで決まりますが、フォールドすると没収されます。フォールドは必ずアンティ1つ分の負けなので、プレイの損がそれより小さければプレイが正解です。',
   evAgainst: (dealerHands) => `ディーラーがとり得る${dealerHands}通りの手に対して：`,
   evNotQualified: 'ディーラーがクオリファイせず',
   evWin: 'あなたの勝ち',

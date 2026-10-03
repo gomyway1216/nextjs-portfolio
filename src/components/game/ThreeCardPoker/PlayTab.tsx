@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands, strategyOdds } from './analysis';
 import {
@@ -94,6 +94,7 @@ export const PlayTab = () => {
   const [bankroll, setBankroll] = useState(INITIAL_BANKROLL);
   const [chip, setChip] = useState<number>(CHIP_VALUES[1]);
   const [bets, setBets] = useState<Bets>(NO_BETS);
+  const badgeId = useId();
   const [phase, setPhase] = useState<Phase>('idle');
   const [round, setRound] = useState<Round | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -298,12 +299,18 @@ export const PlayTab = () => {
       onClick={() => place(id)}
       disabled={!idle}
       aria-label={t.spotAria(t.lineName[id], pays)}
+      // The label names the bet; the chip badge tells screen readers how much is on it.
+      aria-describedby={bets[id] > 0 ? `${badgeId}-${id}` : undefined}
       data-bet={id}
       data-lit={lit(id) ? 'true' : undefined}
     >
       <span className={styles.spotLabel}>{t.lineName[id]}</span>
       <span className={styles.spotPays}>{pays}</span>
-      {bets[id] > 0 && <span className={styles.chipBadge}>{money(bets[id])}</span>}
+      {bets[id] > 0 && (
+        <span id={`${badgeId}-${id}`} className={styles.chipBadge}>
+          {money(bets[id])}
+        </span>
+      )}
     </button>
   );
 

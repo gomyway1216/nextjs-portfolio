@@ -9,6 +9,9 @@
   --bj-gold: #e9c46a;
   --bj-win: #16a34a;
   --bj-lose: #ef4444;
+  /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --bj-win-text: #15803d;
+  --bj-lose-text: #b91c1c;
   --bj-hit: #f59e0b;
   --bj-stand: #22c55e;
   --bj-double: #3b82f6;
@@ -20,6 +23,10 @@
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --bj-win-text: #4ade80;
+  --bj-lose-text: #f87171;
 }
 @media (max-width: 520px) {
   .root {
@@ -263,10 +270,10 @@
   font-variant-numeric: tabular-nums;
 }
 .pos {
-  color: var(--bj-win);
+  color: var(--bj-win-text);
 }
 .neg {
-  color: var(--bj-lose);
+  color: var(--bj-lose-text);
 }
 .chipRow {
   display: flex;
@@ -428,7 +435,8 @@
 }
 .btnRun {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnRun:disabled {
@@ -693,10 +701,10 @@
   font-size: 0.95rem;
 }
 .calloutWin {
-  color: var(--bj-win);
+  color: var(--bj-win-text);
 }
 .calloutLose {
-  color: var(--bj-lose);
+  color: var(--bj-lose-text);
 }
 .calloutPush {
   color: var(--bj-gold);
@@ -885,7 +893,7 @@
   color: var(--games-route-muted);
 }
 .messageError {
-  color: var(--bj-lose);
+  color: var(--bj-lose-text);
 }
 .hintRow {
   display: flex;

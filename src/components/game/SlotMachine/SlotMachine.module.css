@@ -7,10 +7,17 @@
   --slot-red: #dc2626;
   --slot-win: #16a34a;
   --slot-lose: #ef4444;
+  /* Result text on the panels and on the green-tinted rows: at least 4.5:1 on the light surfaces (dark values below). */
+  --slot-win-text: #166534;
+  --slot-lose-text: #b91c1c;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --slot-win-text: #4ade80;
+  --slot-lose-text: #f87171;
 }
 
 .shell {
@@ -107,7 +114,8 @@
 }
 .btnPrimary {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnPrimary:disabled {
@@ -561,10 +569,10 @@
   color: var(--games-route-muted);
 }
 .pos {
-  color: var(--slot-win);
+  color: var(--slot-win-text);
 }
 .neg {
-  color: var(--slot-lose);
+  color: var(--slot-lose-text);
 }
 .rtpCompare {
   margin-top: 0.9rem;
@@ -675,7 +683,7 @@
   font-variant-numeric: tabular-nums;
 }
 .recentWin .recentWinAmount {
-  color: var(--slot-win);
+  color: var(--slot-win-text);
 }
 
 /* ---------- Odds tab ---------- */

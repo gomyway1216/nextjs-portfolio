@@ -327,6 +327,15 @@ export const games: Game[] = [
     category: 'Card',
   },
   {
+    id: 'video-poker',
+    title: 'Video Poker',
+    description: 'Play Jacks or Better with the exact value of every hold, then see why a 9/6 machine returns 99.54%.',
+    thumbnail: '♣️',
+    path: '/games/video-poker',
+    difficulty: 'Medium',
+    category: 'Card',
+  },
+  {
     id: 'three-card-poker',
     title: 'Three Card Poker',
     description: 'Ante, look at your three cards, then play or fold against the dealer — with the exact value of every decision and bet.',

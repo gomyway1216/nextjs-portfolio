@@ -332,7 +332,8 @@
 }
 .btnRun {
   background: linear-gradient(180deg, #1fbf5a, #12a049);
-  color: #fff;
+  /* Dark on green: white is under 3.5:1 on this gradient. */
+  color: #04140a;
   border-color: transparent;
 }
 .btnRun:disabled {

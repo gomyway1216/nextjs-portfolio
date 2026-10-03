@@ -147,7 +147,9 @@ export type StrategiesResult = Record<StrategyId, StrategyRun>;
 
 /**
  * Plays every strategy on the same deals — the same five cards and the same
- * replacement cards — one coin a hand at the five-coin pay table.
+ * replacement cards — betting five coins a hand. Results are per coin bet at
+ * the five-coin pay table, so a royal flush counts as 800 per coin (a one-coin
+ * bet would pay 250, and return 98.37% on 9/6 instead of 99.54%).
  */
 export async function simulateStrategies(
   hands: number,

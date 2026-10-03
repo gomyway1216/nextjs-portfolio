@@ -202,4 +202,14 @@ test('the simulation tab compares strategies and plays sessions', async ({ page 
   // 200 hands at 5 coins on a 99.5439% game: −4.6 coins expected; a royal in 0.49% of sessions.
   await expect(page.getByTestId('vp-session-expected')).toHaveText('−4.6');
   await expect(page.getByTestId('vp-session-royal-exact')).toHaveText('exact: 0.49%');
+
+  // The histogram is also there as a table: every session is in exactly one row.
+  const histogram = page.getByTestId('vp-histogram-table');
+  await expect(histogram.locator('caption')).toHaveText('Sessions by net coins at the end. The exact expectation is −4.6 coins.');
+  const counts = await histogram.locator('tbody td').allTextContents();
+  expect(counts.reduce((sum, c) => sum + Number(c.replace(/,/g, '')), 0)).toBe(500);
+  await expect(histogram.locator('tbody th').first()).toHaveText(/^−[\d,]+ to [−+]?[\d,]+$/);
+
+  // Dark label on the green Run buttons.
+  await expect(sessions.getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
 });

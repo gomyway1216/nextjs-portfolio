@@ -220,7 +220,20 @@ export const SimTab = () => {
               </div>
             </div>
             <div style={{ marginTop: '0.8rem' }}>
-              <NetHistogram values={sessions.nets} cap={HISTOGRAM_CAP} marker={expected} xLabel={t.sessAxis} />
+              <NetHistogram
+                values={sessions.nets}
+                cap={HISTOGRAM_CAP}
+                marker={expected}
+                xLabel={t.sessAxis}
+                table={{
+                  caption: t.sessTableCaption(signed(expected, 1)),
+                  rangeHeader: t.sessColRange,
+                  countHeader: t.sessColCount,
+                  range: (from, to) => t.sessRange(signed(from), signed(to)),
+                  over: t.sessRangeOver(fmt(HISTOGRAM_CAP)),
+                  count: (n) => fmt(n),
+                }}
+              />
             </div>
             {offChart > 0 && <p className={styles.note}>{t.sessOffChart(fmt(offChart), fmt(HISTOGRAM_CAP))}</p>}
             <p className={styles.note}>{t.sessionNote}</p>

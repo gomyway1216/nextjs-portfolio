@@ -112,6 +112,12 @@ export interface VideoPokerStrings {
   sessMedianNoRoyal: string;
   sessAxis: string;
   sessOffChart: (count: string, cap: string) => string;
+  // The histogram as a table, for screen readers.
+  sessTableCaption: (expected: string) => string;
+  sessColRange: string;
+  sessColCount: string;
+  sessRange: (from: string, to: string) => string;
+  sessRangeOver: (cap: string) => string;
   sessionNote: string;
 }
 
@@ -229,7 +235,7 @@ const en: VideoPokerStrings = {
   handsPerSessionLabel: 'Hands per session',
   stratTitle: 'Perfect play against two habits, on the same deals',
   stratIntro:
-    'Every strategy gets the same five cards and the same replacement cards, one coin a hand on a 9/6 machine. The dashed lines are each strategy’s exact payback.',
+    'Every strategy gets the same five cards and the same replacement cards on a 9/6 machine, betting five coins a hand. Payback is shown per coin bet, so a royal flush counts as 800 per coin. The dashed lines are each strategy’s exact payback.',
   strategyName: { optimal: 'Perfect play', simple: 'Common-sense rules', madeOnly: 'Keep only what already pays' },
   strategyRule: {
     optimal: 'The hold with the highest exact expectation, every hand.',
@@ -255,6 +261,11 @@ const en: VideoPokerStrings = {
   sessMedianNoRoyal: 'Median without a royal',
   sessAxis: 'Net coins at the end of the session',
   sessOffChart: (count, cap) => `${count} sessions finished above +${cap} and are gathered in the last bar.`,
+  sessTableCaption: (expected) => `Sessions by net coins at the end. The exact expectation is ${expected} coins.`,
+  sessColRange: 'Net coins',
+  sessColCount: 'Sessions',
+  sessRange: (from, to) => (from === to ? from : `${from} to ${to}`),
+  sessRangeOver: (cap) => `Above +${cap}`,
   sessionNote:
     'Results are in coins. Take the royal flush away and the same play returns about 97.6%: two points of the payback sit in a hand you may not see for 40,000 deals.',
 };
@@ -372,7 +383,7 @@ const ja: VideoPokerStrings = {
   handsPerSessionLabel: '1セッションのハンド数',
   stratTitle: '最善手と2つの「ありがちな遊び方」を同じ配りで比べる',
   stratIntro:
-    'どの戦略にも同じ5枚と同じ引き直しのカードが配られます。9/6機で1ハンド1コイン。点線は各戦略の正確な還元率です。',
+    'どの戦略にも同じ5枚と同じ引き直しのカードが配られます。9/6機で1ハンド5コイン賭けたときの還元率を、賭けた1コインあたりで表しています（ロイヤルフラッシュは1コインあたり800）。点線は各戦略の正確な還元率です。',
   strategyName: { optimal: '最善手', simple: '常識的なルール', madeOnly: '当たっている役だけ残す' },
   strategyRule: {
     optimal: '毎回、正確な期待値が最も高い残し方。',
@@ -397,6 +408,11 @@ const ja: VideoPokerStrings = {
   sessMedianNoRoyal: 'ロイヤルなしの中央値',
   sessAxis: 'セッション終了時の収支（コイン）',
   sessOffChart: (count, cap) => `${count}セッションは+${cap}を超えており、右端の棒にまとめています。`,
+  sessTableCaption: (expected) => `セッション終了時の収支（コイン）ごとのセッション数。正確な期待値は${expected}コインです。`,
+  sessColRange: '収支（コイン）',
+  sessColCount: 'セッション数',
+  sessRange: (from, to) => (from === to ? from : `${from}〜${to}`),
+  sessRangeOver: (cap) => `+${cap}超`,
   sessionNote: '単位はコインです。ロイヤルフラッシュを除くと、同じプレイでも還元率は約97.6%です。還元率のうち2ポイントは、4万回配られても出ないかもしれない1つの役の中にあります。',
 };
 

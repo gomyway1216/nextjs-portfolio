@@ -8,6 +8,7 @@ import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
 import { EMPTY_STATS, INITIAL_CREDITS, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
 import { SimTab } from '@/components/game/VideoPoker/SimTab';
 import { analyzeHand } from '@/components/game/VideoPoker/analysis';
+import { NetHistogram, histogramBins } from '@/components/game/VideoPoker/charts';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -107,6 +108,58 @@ describe('OddsTab', () => {
   });
 });
 
+describe('NetHistogram', () => {
+  const values = [-100, -100, -50, 0, 40, 1200];
+  const table = {
+    caption: 'Sessions by result. Expected −10.',
+    rangeHeader: 'Net coins',
+    countHeader: 'Sessions',
+    range: (from: number, to: number) => `${from} to ${to}`,
+    over: 'Above +100',
+    count: (n: number) => String(n),
+  };
+
+  it('puts every value in one bar and knows the whole coins each bar covers', () => {
+    const { min, counts, rows, over } = histogramBins(values, 100, -10, 4);
+    expect(min).toBe(-100);
+    expect(counts).toEqual([2, 1, 2, 0, 1]);
+    expect(rows).toEqual([
+      { from: -100, to: -51, count: 2 },
+      { from: -50, to: -1, count: 1 },
+      { from: 0, to: 49, count: 2 },
+    ]);
+    expect(over).toBe(1);
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(values.length);
+  });
+
+  it('covers every whole coin up to the cap exactly once, whatever the bar width', () => {
+    // 30 bars over a range that does not divide evenly.
+    const { rows, over } = histogramBins(Array.from({ length: 1778 }, (_, i) => i - 777), 1000, -4.6, 30);
+    expect(rows).toHaveLength(30);
+    expect(rows[0].from).toBe(-777);
+    expect(rows[29].to).toBe(1000);
+    for (let i = 1; i < rows.length; i++) expect(rows[i].from).toBe(rows[i - 1].to + 1);
+    for (const r of rows) expect(r.count).toBe(r.to - r.from + 1);
+    expect(over).toBe(0);
+  });
+
+  it('gives screen readers the bars as a table, with the expectation in the caption', () => {
+    const markup = renderToStaticMarkup(<NetHistogram values={values} cap={100} marker={-10} xLabel="Net coins" table={table} bins={4} />);
+    expect(markup).toContain('<caption>Sessions by result. Expected −10.</caption>');
+    expect(markup).toContain('<th scope="col">Net coins</th><th scope="col">Sessions</th>');
+    expect(markup).toContain('<tr><th scope="row">-100 to -51</th><td>2</td></tr>');
+    expect(markup).toContain('<tr><th scope="row">0 to 49</th><td>2</td></tr>');
+    expect(markup).toContain('<tr><th scope="row">Above +100</th><td>1</td></tr>');
+    // Empty bars are left out of the table.
+    expect(markup.match(/<th scope="row">/g)).toHaveLength(4);
+    expect(markup).toContain('role="img" aria-label="Net coins"');
+  });
+
+  it('draws nothing without data', () => {
+    expect(renderToStaticMarkup(<NetHistogram values={[]} cap={100} marker={0} xLabel="x" table={table} />)).toBe('');
+  });
+});
+
 describe('SimTab', () => {
   it('describes the three strategies with their exact paybacks to come, and offers both simulations', () => {
     const markup = render(<SimTab />);
@@ -114,6 +167,10 @@ describe('SimTab', () => {
     expect(markup).toContain('One evening at the machine');
     expect(markup).toContain('Common-sense rules');
     expect(markup.match(/>Run</g)).toHaveLength(2);
+    // The comparison is per coin at a five-coin bet (royal 800), not one-coin play.
+    expect(markup).toContain('betting five coins a hand');
+    expect(markup).toContain('a royal flush counts as 800 per coin');
+    expect(markup).not.toContain('one coin a hand');
     expect(markup).not.toContain('data-testid="vp-sim-strategies"');
   });
 
@@ -121,6 +178,7 @@ describe('SimTab', () => {
     const markup = render(<SimTab />, 'ja');
     expect(markup).toContain('マシンで過ごす一晩');
     expect(markup).toContain('>実行<');
+    expect(markup).toContain('1ハンド5コイン賭けたときの還元率');
   });
 });
 

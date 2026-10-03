@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { analyzeHand, tablesAsync, type HoldValue } from './analysis';
+import { analyzeHand, tablesAsync, tablesReady, type HoldValue } from './analysis';
 import {
   HANDS,
   MAX_COINS,
@@ -47,7 +47,22 @@ interface Stats {
   givenUp: number;
 }
 
-const EMPTY_STATS: Stats = { hands: 0, wagered: 0, paid: 0, judged: 0, best: 0, givenUp: 0 };
+export const EMPTY_STATS: Stats = { hands: 0, wagered: 0, paid: 0, judged: 0, best: 0, givenUp: 0 };
+
+/** A hand with the bet and pay table it was dealt under; later changes to either apply to the next hand. */
+interface Round {
+  deal: Deal;
+  coins: number;
+  payId: PayTableId;
+}
+
+/** A finished hold, kept until the analysis tables exist to judge it. */
+interface Play {
+  hand: number[];
+  mask: number;
+  pays: PayTable;
+  coins: number;
+}
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -55,6 +70,15 @@ const prefersReducedMotion = () =>
 /** The pay table as it applies to a bet: below five coins the royal pays 250 per coin. */
 export const effectivePays = (pays: PayTable, coins: number): PayTable =>
   coins < MAX_COINS ? pays.map((p, r) => (r === HANDS.length - 1 ? ROYAL_SHORT_PAY : p)) : pays;
+
+/** Adds a finished hold to the session: whether it was the best play, and what it gave up. */
+export const judgePlay = (s: Stats, play: Play): Stats => {
+  const values = analyzeHand(play.hand, play.pays);
+  const mine = values.find((h) => h.mask === play.mask);
+  if (!mine) return s;
+  const lost = values[0].ev - mine.ev;
+  return { ...s, judged: s.judged + 1, best: s.best + (lost < EPS ? 1 : 0), givenUp: s.givenUp + lost * play.coins };
+};
 
 export const PlayTab = () => {
   const { language } = useGameLanguage();
@@ -66,7 +90,7 @@ export const PlayTab = () => {
   const [coins, setCoins] = useState(MAX_COINS);
   const [payId, setPayId] = useState<PayTableId>('9/6');
   const [phase, setPhase] = useState<Phase>('idle');
-  const [game, setGame] = useState<Deal | null>(null);
+  const [round, setRound] = useState<Round | null>(null);
   const [cards, setCards] = useState<number[]>([]);
   const [held, setHeld] = useState<boolean[]>(NONE);
   const [result, setResult] = useState<{ rank: HandRank; paid: number } | null>(null);
@@ -82,13 +106,17 @@ export const PlayTab = () => {
   const busyRef = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const alive = useRef(true);
+  /** Hands drawn before the tables were ready; judged as soon as they are. */
+  const unjudged = useRef<Play[]>([]);
 
   useEffect(() => {
     alive.current = true;
     // Build the analysis tables off the critical path, in small slices.
     const start = setTimeout(() => {
       void tablesAsync().then(() => {
-        if (alive.current) setReady(true);
+        if (!alive.current) return;
+        setReady(true);
+        for (const play of unjudged.current.splice(0)) setStats((s) => judgePlay(s, play));
       });
     }, 300);
     const pending = timers.current;
@@ -109,10 +137,11 @@ export const PlayTab = () => {
     setBusy(next);
   };
 
-  /** Every way to play the dealt hand, best first (once the tables are ready). */
+  const game = round?.deal ?? null;
+  /** Every way to play the dealt hand, best first (once the tables are ready), under the rules it was dealt with. */
   const analysis = useMemo<HoldValue[] | null>(
-    () => (ready && game && phase !== 'idle' ? analyzeHand(game.hand, effectivePays(PAY_TABLES[payId], coins)) : null),
-    [ready, game, phase, payId, coins],
+    () => (ready && round ? analyzeHand(round.deal.hand, effectivePays(PAY_TABLES[round.payId], round.coins)) : null),
+    [ready, round],
   );
   const chosenMask = holdMask(held);
   const chosen = analysis?.find((h) => h.mask === chosenMask) ?? null;
@@ -128,7 +157,7 @@ export const PlayTab = () => {
     const next = dealCards();
     commitCredits(creditsRef.current - bet);
     setCoins(bet);
-    setGame(next);
+    setRound({ deal: next, coins: bet, payId });
     setCards(next.hand);
     setHeld(NONE);
     setResult(null);
@@ -141,10 +170,17 @@ export const PlayTab = () => {
   };
 
   const drawNow = () => {
-    if (busyRef.current || phase !== 'dealt' || !game) return;
-    const final = drawCards(game, held);
+    if (busyRef.current || phase !== 'dealt' || !round) return;
+    const final = drawCards(round.deal, held);
     const rank = rankCards(final);
-    const paid = payout(rank, pays, coins);
+    const roundPays = PAY_TABLES[round.payId];
+    const paid = payout(rank, roundPays, round.coins);
+    const play: Play = {
+      hand: round.deal.hand,
+      mask: holdMask(held),
+      pays: effectivePays(roundPays, round.coins),
+      coins: round.coins,
+    };
     // Replaced cards turn over left to right, each in its own position.
     const lastReplaced = held.lastIndexOf(false);
     setCards(final);
@@ -152,14 +188,10 @@ export const PlayTab = () => {
       commitCredits(creditsRef.current + paid);
       setResult({ rank, paid });
       setPhase('drawn');
-      setStats((s) => ({
-        hands: s.hands + 1,
-        wagered: s.wagered + coins,
-        paid: s.paid + paid,
-        judged: s.judged + (chosen && best ? 1 : 0),
-        best: s.best + (chosen && best && best.ev - chosen.ev < EPS ? 1 : 0),
-        givenUp: s.givenUp + (chosen && best ? (best.ev - chosen.ev) * coins : 0),
-      }));
+      setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + play.coins, paid: s.paid + paid }));
+      // The tables may still be building on the first hands: judge those once they exist.
+      if (tablesReady()) setStats((s) => judgePlay(s, play));
+      else unjudged.current.push(play);
       commitBusy(false);
     };
     const wait = prefersReducedMotion() || lastReplaced < 0 ? 0 : lastReplaced * TIMING.step + TIMING.flip + TIMING.settle;
@@ -189,7 +221,8 @@ export const PlayTab = () => {
     commitCredits(INITIAL_CREDITS);
     setCoins(MAX_COINS);
     setPhase('idle');
-    setGame(null);
+    setRound(null);
+    unjudged.current.length = 0;
     setCards([]);
     setHeld(NONE);
     setResult(null);
@@ -227,6 +260,20 @@ export const PlayTab = () => {
       <div className={styles.machine}>
         <div className={styles.screen}>
           <table className={styles.payTable} data-testid="vp-paytable">
+            <caption className={styles.srOnly}>{t.payTableLabel}</caption>
+            {/* Read by screen readers only: which bet each column pays for, and which one is selected. */}
+            <thead className={styles.payHead}>
+              <tr>
+                <th scope="col">
+                  <span className={styles.srOnly}>{t.colHand}</span>
+                </th>
+                {[1, 2, 3, 4, 5].map((c) => (
+                  <th key={c} scope="col" aria-current={c === coins ? 'true' : undefined}>
+                    <span className={styles.srOnly}>{t.coinColumn(c, c === coins)}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {HANDS.slice(1)
                 .map((name, i) => ({ name, rank: i + 1 }))

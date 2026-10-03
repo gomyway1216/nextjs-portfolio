@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { VideoPoker } from '@/components/game/VideoPoker';
 import { MiniCard, PlayingCard } from '@/components/game/VideoPoker/Cards';
 import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
-import { INITIAL_CREDITS, PlayTab, effectivePays } from '@/components/game/VideoPoker/PlayTab';
+import { EMPTY_STATS, INITIAL_CREDITS, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
+import { analyzeHand } from '@/components/game/VideoPoker/analysis';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -44,6 +45,36 @@ describe('PlayTab', () => {
     expect(markup).toContain('クレジット');
     expect(markup).toContain('>ディール<');
     expect(markup).toContain('ロイヤルフラッシュ');
+  });
+
+  it('names the bet each pay column is for, and the current one, for screen readers', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toMatch(/<caption[^>]*>Pay table<\/caption>/);
+    expect(markup).toMatch(/<th scope="col"><span[^>]*>1 coin<\/span><\/th>/);
+    expect(markup).toMatch(/<th scope="col"><span[^>]*>4 coins<\/span><\/th>/);
+    expect(markup).toMatch(/<th scope="col" aria-current="true"><span[^>]*>5 coins \(current bet\)<\/span><\/th>/);
+    expect(render(<PlayTab />, 'ja')).toContain('5コイン（現在のベット）');
+  });
+
+  it('judges a finished hold against the best play under the rules it was dealt with', () => {
+    // A♠ K♠ Q♠ J♠ + 9♠: a made flush, but the best play breaks it for four to a royal.
+    const hand = [12, 11, 10, 9, 7];
+    const pays = effectivePays(PAY_TABLES['9/6'], 5);
+    const values = analyzeHand(hand, pays);
+    expect(values[0].mask).toBe(0b01111);
+    const kept = judgePlay(EMPTY_STATS, { hand, mask: 0b01111, pays, coins: 5 });
+    expect(kept).toMatchObject({ judged: 1, best: 1, givenUp: 0 });
+    // Keeping the flush gives up the difference, in coins.
+    const flush = values.find((h) => h.mask === 0b11111)!;
+    const both = judgePlay(kept, { hand, mask: 0b11111, pays, coins: 5 });
+    expect(both.judged).toBe(2);
+    expect(both.best).toBe(1);
+    expect(both.givenUp).toBeCloseTo((values[0].ev - flush.ev) * 5, 9);
+    expect(both.givenUp).toBeCloseTo((18.4255 - 6) * 5, 2);
+    // At one coin the royal pays 250, and the same hand is worth less: the snapshot matters.
+    expect(analyzeHand(hand, effectivePays(PAY_TABLES['9/6'], 1))[0].ev).toBeLessThan(values[0].ev);
+    // Hands and money are counted at the draw, not here.
+    expect(both).toMatchObject({ hands: 0, wagered: 0, paid: 0 });
   });
 
   it('pays the short royal below five coins', () => {

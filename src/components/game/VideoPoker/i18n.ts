@@ -27,6 +27,8 @@ export interface VideoPokerStrings {
   holdAria: (card: string, held: boolean) => string;
   cardBack: string;
   payTableLabel: string;
+  /** Column header of the pay table: the bet it pays for, and whether that is the current bet. */
+  coinColumn: (coins: number, current: boolean) => string;
   payTableOption: (id: string, payback: string) => string;
   coins: (n: number) => string;
   pressDeal: string;
@@ -94,7 +96,7 @@ const en: VideoPokerStrings = {
     'Bet 1–5 coins and press DEAL to get five cards from a fresh 52-card deck.',
     'Tap the cards you want to keep (HELD), then press DRAW: every other card is replaced once from the same deck. The final hand is paid by the table at the top.',
     'A pair of jacks or better is the lowest paying hand. A royal flush pays 250 per coin, but 4,000 for five coins — which is why you bet five.',
-    'There are 32 ways to play every deal. The Best play panel lists them with their exact expected payout, counted over every card that could be drawn.',
+    'There are 32 ways to play every deal. The Best play panel shows the five best of them, plus your own hold, each with its exact expected payout, counted over every card that could be drawn.',
   ],
   hand: {
     nothing: 'Nothing',
@@ -121,6 +123,7 @@ const en: VideoPokerStrings = {
   holdAria: (card, held) => `${card}${held ? ', held' : ''}`,
   cardBack: 'Face-down card',
   payTableLabel: 'Pay table',
+  coinColumn: (coins, current) => `${coins} ${coins === 1 ? 'coin' : 'coins'}${current ? ' (current bet)' : ''}`,
   payTableOption: (id, payback) => `${id} · ${payback}`,
   coins: (n) => (n === 1 ? '1 coin' : `${n} coins`),
   pressDeal: 'Press DEAL to start.',
@@ -201,7 +204,7 @@ const ja: VideoPokerStrings = {
     '1〜5コインを賭けて「ディール」を押すと、52枚のデッキから5枚が配られます。',
     '残したいカードをタップして（HELD）、「ドロー」を押します。残さなかったカードは同じデッキから1回だけ引き直され、最終的な手が上の配当表で払われます。',
     'ジャック以上のワンペアが最低の当たりです。ロイヤルフラッシュは1コインあたり250ですが、5コイン賭けたときだけ4,000になります。だから5コイン賭けるのが基本です。',
-    'どの配り方にも32通りの残し方があります。「最善手」パネルでは、引く可能性のあるカードをすべて数えた正確な期待値を一覧できます。',
+    'どの配り方にも32通りの残し方があります。「最善手」パネルには、そのうち上位5通りと自分が選んだ残し方が、引く可能性のあるカードをすべて数えた正確な期待値つきで表示されます。',
   ],
   hand: {
     nothing: 'ハズレ',
@@ -228,6 +231,7 @@ const ja: VideoPokerStrings = {
   holdAria: (card, held) => `${card}${held ? '（ホールド中）' : ''}`,
   cardBack: '伏せたカード',
   payTableLabel: '配当表',
+  coinColumn: (coins, current) => `${coins}コイン${current ? '（現在のベット）' : ''}`,
   payTableOption: (id, payback) => `${id}・${payback}`,
   coins: (n) => `${n}コイン`,
   pressDeal: '「ディール」を押してスタート。',

@@ -95,6 +95,47 @@ test('a worse hold is priced exactly', async ({ page }) => {
   await expect(page.getByTestId('vp-stats')).toContainText('0 / 1');
 });
 
+test('a finished hand keeps the bet and pay table it was dealt under', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openVideoPoker(page);
+  const hand = await dealHand(page);
+  await expect(page.getByTestId('vp-best')).toBeVisible({ timeout: 20_000 });
+  const all = analyzeHand(hand, PAY_TABLES['9/6']);
+  const worst = all[all.length - 1];
+  await holdMaskOnScreen(page, worst.mask);
+  await drawButton(page).click();
+  const verdict = `That hold gives up ${(all[0].ev - worst.ev).toFixed(3)} × your bet on average.`;
+  await expect(page.getByTestId('vp-verdict')).toHaveText(verdict);
+  const top = page.getByTestId('vp-best').locator('li').first();
+  await expect(top).toContainText(`${all[0].ev.toFixed(3)} × bet`);
+
+  // Settings for the next hand: one coin (the royal drops to 250) on the 6/5 table.
+  await page.getByRole('button', { name: 'Bet one' }).click();
+  await expect(page.getByTestId('vp-bet')).toHaveText('1');
+  await page.locator('#vp-paytable-select').selectOption('6/5');
+  const table = page.getByTestId('vp-paytable');
+  await expect(table.locator('[data-hand="fullHouse"] td').first()).toHaveText('6');
+  await expect(table.getByRole('columnheader', { name: '1 coin (current bet)' })).toHaveCount(1);
+  await expect(table.getByRole('columnheader', { name: '5 coins', exact: true })).toHaveCount(1);
+
+  // The finished hand is still judged by the rules it was played under.
+  await expect(top).toContainText(`${all[0].ev.toFixed(3)} × bet`);
+  await expect(page.getByTestId('vp-verdict')).toHaveText(verdict);
+});
+
+test('a hand drawn before the analysis is ready is still judged', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openVideoPoker(page);
+  // Draw at once, holding nothing, without waiting for the Best play panel.
+  const hand = await dealHand(page);
+  await drawButton(page).click();
+  await expect(dealButton(page)).toBeVisible();
+  const all = analyzeHand(hand, PAY_TABLES['9/6']);
+  const cost = all[0].ev - all.find((h) => h.mask === 0)!.ev;
+  await expect(page.getByTestId('vp-stats')).toContainText(`${cost < 1e-9 ? 1 : 0} / 1`, { timeout: 20_000 });
+  await expect(page.getByTestId('vp-given-up')).toHaveText((cost * 5).toFixed(2));
+});
+
 test('the bet changes the pay column and what is taken', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openVideoPoker(page);

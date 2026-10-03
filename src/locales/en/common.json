@@ -1299,6 +1299,10 @@
       "title": "Baccarat",
       "description": "Play Punto Banco from an 8-deck shoe with casino scoreboards and the exact odds of the next hand."
     },
+    "three-card-poker": {
+      "title": "Three Card Poker",
+      "description": "Ante, look at your three cards, then play or fold against the dealer — with the exact value of every decision and bet."
+    },
     "craps": {
       "title": "Craps",
       "description": "Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%."

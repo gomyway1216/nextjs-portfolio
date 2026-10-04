@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { categoryDisplayLabel } from '@/lib/blog/categoryLabelKeys';
+import { DISPLAY_TIME_ZONE } from '@/lib/utils/util';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -33,6 +34,8 @@ const formatDisplayDate = (value?: string | Date, language?: string) => {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    // Same day on the server and in the browser; see DISPLAY_TIME_ZONE.
+    timeZone: DISPLAY_TIME_ZONE,
   }).format(date);
 };
 

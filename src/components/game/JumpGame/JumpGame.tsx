@@ -933,6 +933,8 @@ const JumpGame = () => {
 
   return (
     <div className={styles.gameShell}>
+      {/* The page has no visible title, so screen readers and search engines get the main heading here. */}
+      <h1 className={styles.srOnly}>{jumpCopy.title}</h1>
       <div className={styles.canvasFrame}>
         <canvas
           ref={canvasRef}

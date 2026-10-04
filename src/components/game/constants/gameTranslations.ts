@@ -39,6 +39,8 @@ export interface UITranslations {
 export type JumpGameDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface JumpGameUITranslations {
+  /** The game's name, used as the page's main heading. */
+  title: string;
   stage: string;
   highScore: string;
   muted: string;
@@ -117,6 +119,7 @@ export const uiTranslations: Record<GameLanguage, UITranslations> = {
 
 export const jumpGameUITranslations: Record<GameLanguage, JumpGameUITranslations> = {
   en: {
+    title: 'Jump Game',
     stage: 'Stage',
     highScore: 'High Score',
     muted: 'Muted',
@@ -198,6 +201,7 @@ export const jumpGameUITranslations: Record<GameLanguage, JumpGameUITranslations
     ],
   },
   ja: {
+    title: 'ジャンプゲーム',
     stage: 'ステージ',
     highScore: 'ハイスコア',
     muted: 'ミュート',

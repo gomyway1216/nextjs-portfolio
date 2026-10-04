@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { categoryDisplayLabel } from '@/lib/blog/categoryLabelKeys';
 import type { MorePost } from '@/lib/blog/morePosts';
+import { DISPLAY_TIME_ZONE } from '@/lib/utils/util';
 import styles from './related-posts.module.css';
 
 interface MoreFromCategoryProps {
@@ -19,6 +20,8 @@ const formatDate = (value: string, language: string) => {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    // Same day on the server and in the browser; see DISPLAY_TIME_ZONE.
+    timeZone: DISPLAY_TIME_ZONE,
   }).format(date);
 };
 

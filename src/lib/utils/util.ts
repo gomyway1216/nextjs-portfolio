@@ -5,11 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Dates on server-rendered pages are printed in one fixed time zone. Formatting
+ * them in the viewer's own zone made the browser print a different day than the
+ * server HTML whenever the two fell on different calendar days, which React
+ * reports as a hydration error (#418) and repairs by re-rendering on the client.
+ */
+export const DISPLAY_TIME_ZONE = 'UTC';
+
 export const convertTimestampToFormattedDate = (timestampSeconds: number) => {
   const d = new Date(timestampSeconds * 1000);
-  const ye = new Intl.DateTimeFormat('en', { year: 'numeric' }).format(d);
-  const mo = new Intl.DateTimeFormat('en', { month: 'short' }).format(d);
-  const da = new Intl.DateTimeFormat('en', { day: '2-digit' }).format(d);
+  const ye = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: DISPLAY_TIME_ZONE }).format(d);
+  const mo = new Intl.DateTimeFormat('en', { month: 'short', timeZone: DISPLAY_TIME_ZONE }).format(d);
+  const da = new Intl.DateTimeFormat('en', { day: '2-digit', timeZone: DISPLAY_TIME_ZONE }).format(d);
   return `${mo} ${da}, ${ye}`;
 };
 
@@ -38,9 +46,9 @@ export const formatDate = (d: DateLike) => {
     return '';
   }
 
-  const ye = new Intl.DateTimeFormat('en', { year: 'numeric' }).format(date);
-  const mo = new Intl.DateTimeFormat('en', { month: 'short' }).format(date);
-  const da = new Intl.DateTimeFormat('en', { day: '2-digit' }).format(date);
+  const ye = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: DISPLAY_TIME_ZONE }).format(date);
+  const mo = new Intl.DateTimeFormat('en', { month: 'short', timeZone: DISPLAY_TIME_ZONE }).format(date);
+  const da = new Intl.DateTimeFormat('en', { day: '2-digit', timeZone: DISPLAY_TIME_ZONE }).format(date);
   return `${mo} ${da}, ${ye}`;
 };
 
@@ -67,7 +75,7 @@ export const formatJapaneseDate = (d: DateLike) => {
     return '';
   }
 
-  const ye = new Intl.DateTimeFormat('en', { year: 'numeric' }).format(date);
-  const da = new Intl.DateTimeFormat('en', { day: '2-digit' }).format(date);
-  return ` ${ye}年 ${date.getMonth() + 1}月 ${da}`;
+  const ye = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: DISPLAY_TIME_ZONE }).format(date);
+  const da = new Intl.DateTimeFormat('en', { day: '2-digit', timeZone: DISPLAY_TIME_ZONE }).format(date);
+  return ` ${ye}年 ${date.getUTCMonth() + 1}月 ${da}`;
 };

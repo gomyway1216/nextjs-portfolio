@@ -1,0 +1,1 @@
+export { KellyCriterion } from './KellyCriterion';

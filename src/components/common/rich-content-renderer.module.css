@@ -13,3 +13,8 @@
   margin: 0 !important;
   border-collapse: collapse;
 }
+
+/* A paragraph that holds an image is rendered as a <div>; keep paragraph spacing. */
+.paragraph {
+  margin: 0 0 1.35em;
+}

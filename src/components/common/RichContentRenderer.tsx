@@ -74,7 +74,31 @@ function isSafeMarkdownUrl(
   }
 }
 
+type MarkdownNode = { type: string; tagName?: string; value?: string; children?: MarkdownNode[] };
+
+/** Whether a Markdown node is an image or contains one (for example a linked image). */
+function containsImage(node: MarkdownNode): boolean {
+  if (node.type === 'element' && node.tagName === 'img') return true;
+  return (node.children ?? []).some(containsImage);
+}
+
 const components: Components = {
+  // Markdown wraps every image in a paragraph, and an image renders as a
+  // <figure>, which HTML does not allow inside a <p>: the browser closes the
+  // paragraph early, so the page it builds from the server HTML no longer
+  // matches what React renders, and hydration fails (#418). A paragraph that
+  // holds only images is therefore dropped, and one that mixes an image with
+  // text or a link becomes a <div>.
+  p: ({ node, children }) => {
+    const kids = (node?.children ?? []) as MarkdownNode[];
+    if (!kids.some(containsImage)) return <p>{children}</p>;
+
+    const onlyImages = kids.every((child) => (
+      (child.type === 'element' && child.tagName === 'img')
+      || (child.type === 'text' && (child.value ?? '').trim() === '')
+    ));
+    return onlyImages ? <>{children}</> : <div className={styles.paragraph}>{children}</div>;
+  },
   a: ({ href, children, ...props }) => {
     if (!href || !isSafeMarkdownUrl(href, SAFE_LINK_PROTOCOLS, {
       allowAnchor: true,

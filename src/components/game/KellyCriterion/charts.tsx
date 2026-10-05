@@ -1,6 +1,7 @@
 'use client';
 
 import { growthRate, type Wager } from './engine';
+import type { MarkerShape } from './sim';
 
 const AXIS = 'var(--games-route-muted)';
 const GRID = 'var(--games-route-border)';
@@ -11,7 +12,20 @@ const SURFACE = {
   display: 'block',
 } as const;
 
+// Line colours come from the stylesheet, which sets them for the light and the dark theme.
+const YOU = 'var(--kc-chart-you)';
+const KELLY = 'var(--kc-chart-kelly)';
+const ZERO = 'var(--kc-chart-zero)';
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** A small filled shape that identifies a series without relying on its colour. */
+export const Marker = ({ shape, x, y, color, size = 4 }: { shape: MarkerShape; x: number; y: number; color: string; size?: number }) => {
+  if (shape === 'square') return <rect x={x - size} y={y - size} width={size * 2} height={size * 2} fill={color} />;
+  if (shape === 'triangle') return <path d={`M${x} ${y - size * 1.2} L${x + size * 1.15} ${y + size} L${x - size * 1.15} ${y + size} Z`} fill={color} />;
+  if (shape === 'diamond') return <path d={`M${x} ${y - size * 1.3} L${x + size * 1.3} ${y} L${x} ${y + size * 1.3} L${x - size * 1.3} ${y} Z`} fill={color} />;
+  return <circle cx={x} cy={y} r={size} fill={color} />;
+};
 
 /** The player's bankroll after every flip, with the Kelly stake on the same flips, on a log scale. */
 export const BankrollChart = ({
@@ -73,13 +87,13 @@ export const BankrollChart = ({
           {i}
         </text>
       ))}
-      <polyline points={line(kelly)} fill="none" stroke="#22c55e" strokeWidth={1.6} strokeDasharray="5 4" strokeLinejoin="round" data-line="kelly" />
-      <polyline points={line(you)} fill="none" stroke="#e9c46a" strokeWidth={2.4} strokeLinejoin="round" data-line="you" />
+      <polyline points={line(kelly)} fill="none" stroke={KELLY} strokeWidth={1.8} strokeDasharray="5 4" strokeLinejoin="round" data-line="kelly" />
+      <polyline points={line(you)} fill="none" stroke={YOU} strokeWidth={2.4} strokeLinejoin="round" data-line="you" />
       <g fontSize={13} fontWeight={700}>
-        <text x={pad.left + 8} y={pad.top + 14} fill="#e9c46a">
+        <text x={pad.left + 8} y={pad.top + 14} fill={YOU}>
           ━ {youLabel}
         </text>
-        <text x={pad.left + 8} y={pad.top + 32} fill="#22c55e">
+        <text x={pad.left + 8} y={pad.top + 32} fill={KELLY}>
           ┅ {kellyLabel}
         </text>
       </g>
@@ -148,20 +162,20 @@ export const GrowthCurve = ({
       <text x={pad.left + innerW / 2} y={height - 4} textAnchor="middle" fill={AXIS} fontSize={10}>
         {xLabel}
       </text>
-      <polyline points={points.join(' ')} fill="none" stroke="#e9c46a" strokeWidth={2.4} strokeLinejoin="round" data-curve="growth" />
+      <polyline points={points.join(' ')} fill="none" stroke={YOU} strokeWidth={2.4} strokeLinejoin="round" data-curve="growth" />
       {kelly > 0 && (
         <g data-marker="kelly">
-          <line x1={x(kelly)} x2={x(kelly)} y1={y(peak)} y2={y(0)} stroke="#22c55e" strokeWidth={1.5} strokeDasharray="4 3" />
-          <circle cx={x(kelly)} cy={y(peak)} r={4.5} fill="#22c55e" />
-          <text x={x(kelly)} y={y(peak) - 8} textAnchor="middle" fill="#22c55e" fontSize={11} fontWeight={700}>
+          <line x1={x(kelly)} x2={x(kelly)} y1={y(peak)} y2={y(0)} stroke={KELLY} strokeWidth={1.5} strokeDasharray="4 3" />
+          <circle cx={x(kelly)} cy={y(peak)} r={4.5} fill={KELLY} />
+          <text x={x(kelly)} y={y(peak) - 8} textAnchor="middle" fill={KELLY} fontSize={11} fontWeight={700}>
             {kellyLabel} {(kelly * 100).toFixed(1)}%
           </text>
         </g>
       )}
       {zero !== null && zero <= xMax && (
         <g data-marker="zero">
-          <circle cx={x(zero)} cy={y(0)} r={4.5} fill="#ef4444" />
-          <text x={x(zero) + 9} y={y(0) - 8} textAnchor="start" fill="#ef4444" fontSize={11} fontWeight={700}>
+          <circle cx={x(zero)} cy={y(0)} r={4.5} fill={ZERO} />
+          <text x={x(zero) + 9} y={y(0) - 8} textAnchor="start" fill={ZERO} fontSize={11} fontWeight={700}>
             {zeroLabel} {(zero * 100).toFixed(1)}%
           </text>
         </g>
@@ -173,11 +187,16 @@ export const GrowthCurve = ({
 export interface GrowthSeries {
   id: string;
   color: string;
+  /** Drawn along the line, so the series can be told apart without its colour. */
+  marker: MarkerShape;
   label: string;
   /** The exact long-run growth per bet. */
   exact: number;
   points: { sessions: number; growth: number }[];
 }
+
+/** A marker on every sixth checkpoint keeps the shapes readable along a line. */
+const MARKER_EVERY = 6;
 
 /** Average growth per bet against sessions simulated (log x), one line per strategy, exact growth dashed. */
 export const ConvergenceChart = ({
@@ -201,17 +220,20 @@ export const ConvergenceChart = ({
   const maxSessions = Math.max(...all.map((p) => p.sessions));
   const minLog = 1;
   const maxLog = Math.max(2, Math.log10(maxSessions));
-  const exacts = series.map((s) => s.exact);
-  const top = Math.max(...exacts, 0);
-  const bottom = Math.min(...exacts, 0);
-  const margin = Math.max((top - bottom) * 0.2, 0.001);
+  // The axis covers every simulated point as well as the exact rates, so an early
+  // estimate that is far off is drawn where it is, not pinned to the edge.
+  const values = [...series.map((s) => s.exact), ...all.map((p) => p.growth)].filter(Number.isFinite);
+  const top = Math.max(...values, 0);
+  const bottom = Math.min(...values, 0);
+  const margin = Math.max((top - bottom) * 0.08, 0.0005);
   const yMax = top + margin;
   const yMin = bottom - margin;
   const x = (n: number) => pad.left + ((Math.log10(Math.max(n, 10)) - minLog) / (maxLog - minLog)) * innerW;
   const y = (v: number) => pad.top + innerH - ((clamp(v, yMin, yMax) - yMin) / (yMax - yMin)) * innerH;
   const decades: number[] = [];
   for (let e = minLog; e <= Math.floor(maxLog); e++) decades.push(10 ** e);
-  const yTicks = [...new Set([bottom, 0, top])];
+  const exacts = series.map((s) => s.exact).filter(Number.isFinite);
+  const yTicks = [...new Set([Math.min(...exacts, 0), 0, Math.max(...exacts, 0)])];
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={SURFACE} role="img" aria-label={ariaLabel}>
       {yTicks.map((v) => (
@@ -241,6 +263,9 @@ export const ConvergenceChart = ({
             strokeWidth={1.8}
             strokeLinejoin="round"
           />
+          {s.points.map((p, i) =>
+            i % MARKER_EVERY === 0 || i === s.points.length - 1 ? <Marker key={i} shape={s.marker} x={x(p.sessions)} y={y(p.growth)} color={s.color} /> : null,
+          )}
         </g>
       ))}
     </svg>

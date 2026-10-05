@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { KellyCriterion } from '@/components/game/KellyCriterion';
 import { OddsTab } from '@/components/game/KellyCriterion/OddsTab';
 import { DEFAULT_FRACTION, PlayTab, QUICK_FRACTIONS, TIMING, effectiveStake } from '@/components/game/KellyCriterion/PlayTab';
-import { SimTab } from '@/components/game/KellyCriterion/SimTab';
-import { BankrollChart, ConvergenceChart, GrowthCurve } from '@/components/game/KellyCriterion/charts';
+import { MAX_TOTAL_FLIPS, SESSION_OPTIONS, SimTab, sessionOptionsFor } from '@/components/game/KellyCriterion/SimTab';
+import { BankrollChart, ConvergenceChart, GrowthCurve, Marker } from '@/components/game/KellyCriterion/charts';
 import { SCENARIOS, kellyFraction, zeroGrowthFraction } from '@/components/game/KellyCriterion/engine';
 import { formatMultiple, money, percent, signedPercent } from '@/components/game/KellyCriterion/format';
 import { getStrings } from '@/components/game/KellyCriterion/i18n';
+import { STRATEGY_COLORS, STRATEGY_IDS, STRATEGY_MARKERS } from '@/components/game/KellyCriterion/sim';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -121,6 +122,8 @@ describe('OddsTab', () => {
     expect(row('allIn')).toContain('data-col="typical">×0<');
     expect(row('allIn')).toContain('>−∞<');
     expect(markup).toMatch(/<tr data-strategy="kelly" data-best="true">/);
+    // The table names itself, with the number of bets it is about.
+    expect(markup).toMatch(/data-testid="kelly-after-table"><caption[^>]*>Where a bankroll ends after 300 bets/);
     // The average is carried by a few enormous runs.
     expect(markup).toContain('At the Kelly stake the average is ×129K and the typical result ×420');
   });
@@ -165,6 +168,18 @@ describe('SimTab', () => {
     expect(markup).toContain('同じ出目に、5通りの賭け方');
     expect(markup).toContain('>実行<');
   });
+
+  it('keeps the largest run to a workload the page can carry', () => {
+    expect(MAX_TOTAL_FLIPS).toBe(30_000_000);
+    expect(sessionOptionsFor(100)).toEqual([...SESSION_OPTIONS]);
+    expect(sessionOptionsFor(300)).toEqual([...SESSION_OPTIONS]);
+    // A hundred thousand sessions of a thousand flips would be 100 million flips.
+    expect(sessionOptionsFor(1_000)).toEqual([1_000, 10_000]);
+    for (const flips of [100, 300, 1_000]) for (const sessions of sessionOptionsFor(flips)) expect(sessions * flips).toBeLessThanOrEqual(MAX_TOTAL_FLIPS);
+    // Nothing to cancel until a run has started.
+    expect(render(<SimTab />)).not.toContain('>Cancel<');
+    expect(getStrings('ja').cancel).toBe('中止');
+  });
 });
 
 describe('charts', () => {
@@ -199,13 +214,37 @@ describe('charts', () => {
 
   it('draws one line per strategy with its exact growth dashed', () => {
     const series = [
-      { id: 'kelly', color: '#22c55e', label: 'Kelly', exact: 0.02, points: [{ sessions: 10, growth: 0.03 }, { sessions: 100, growth: 0.021 }] },
-      { id: 'double', color: '#f59e0b', label: 'Double', exact: -0.002, points: [{ sessions: 10, growth: 0.01 }, { sessions: 100, growth: -0.001 }] },
+      { id: 'kelly', color: '#22c55e', marker: 'square' as const, label: 'Kelly', exact: 0.02, points: [{ sessions: 10, growth: 0.03 }, { sessions: 100, growth: 0.021 }] },
+      { id: 'double', color: '#f59e0b', marker: 'triangle' as const, label: 'Double', exact: -0.002, points: [{ sessions: 10, growth: 0.01 }, { sessions: 100, growth: -0.001 }] },
     ];
     const markup = renderToStaticMarkup(<ConvergenceChart series={series} xLabel="Sessions" ariaLabel="Growth" />);
     expect(markup.match(/data-series=/g)).toHaveLength(2);
     expect(markup.match(/stroke-dasharray="6 4"/g)).toHaveLength(2);
+    // A square on the Kelly line and a triangle on the other, at the first and the last point.
+    expect(markup.match(/<rect /g)).toHaveLength(2);
+    expect(markup.match(/<path /g)).toHaveLength(2);
     expect(renderToStaticMarkup(<ConvergenceChart series={[]} xLabel="Sessions" ariaLabel="Growth" />)).toBe('');
+  });
+
+  it('draws an estimate that is far off where it is, not pinned to the edge', () => {
+    // Early estimates can be many times the exact rate; both of these used to be clamped to the same height.
+    const heights = [0.2, 0.1].map((growth) => {
+      const series = [{ id: 'kelly', color: '#22c55e', marker: 'circle' as const, label: 'Kelly', exact: 0.02, points: [{ sessions: 10, growth }, { sessions: 100, growth: 0.02 }] }];
+      const markup = renderToStaticMarkup(<ConvergenceChart series={[...series, { ...series[0], id: 'other', points: [{ sessions: 10, growth: 0.2 }, { sessions: 100, growth: 0.02 }] }]} xLabel="Sessions" ariaLabel="Growth" />);
+      return Number(markup.match(/data-series="kelly">.*?<polyline points="[\d.]+,([\d.]+) /)![1]);
+    });
+    // The larger estimate is drawn higher up (a smaller y).
+    expect(heights[0]).toBeLessThan(heights[1]);
+  });
+
+  it('gives each strategy a theme-aware colour and its own shape', () => {
+    for (const id of STRATEGY_IDS) expect(STRATEGY_COLORS[id]).toMatch(/^var\(--kc-s-[a-z]+\)$/);
+    const charted = (['half', 'kelly', 'double', 'triple'] as const).map((id) => STRATEGY_MARKERS[id]);
+    expect(new Set(charted).size).toBe(4);
+    const shapes = (['circle', 'square', 'triangle', 'diamond'] as const).map((shape) => renderToStaticMarkup(<svg><Marker shape={shape} x={10} y={10} color="red" /></svg>));
+    expect(new Set(shapes).size).toBe(4);
+    expect(shapes[0]).toContain('<circle');
+    expect(shapes[1]).toContain('<rect');
   });
 });
 
@@ -216,6 +255,16 @@ describe('KellyCriterion shell', () => {
     expect(panels.map((m) => m[1])).toEqual(['play', 'formula', 'sim']);
     expect(panels.map((m) => Boolean(m[2]))).toEqual([false, true, true]);
     expect(markup).toContain('ケリー基準');
+  });
+
+  it('has one tab stop: the selected tab', () => {
+    const markup = render(<KellyCriterion />);
+    const tabs = [...markup.matchAll(/<button type="button" role="tab" id="kelly-tab-(\w+)" aria-selected="(true|false)" aria-controls="[^"]+" tabindex="(-?\d)"/g)];
+    expect(tabs.map((m) => [m[1], m[2], m[3]])).toEqual([
+      ['play', 'true', '0'],
+      ['formula', 'false', '-1'],
+      ['sim', 'false', '-1'],
+    ]);
   });
 
   it('renders in English with the three tabs and one main heading', () => {

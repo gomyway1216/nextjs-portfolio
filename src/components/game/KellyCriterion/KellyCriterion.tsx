@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
@@ -22,6 +22,26 @@ export const KellyCriterion = () => {
     { id: 'formula', label: t.tabFormula },
     { id: 'sim', label: t.tabSim },
   ];
+  const tabButtons = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
+
+  // The standard tab pattern: one tab stop, and the arrow keys, Home and End move between tabs.
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const last = tabs.length - 1;
+    const next =
+      event.key === 'ArrowRight'
+        ? (index + 1) % tabs.length
+        : event.key === 'ArrowLeft'
+          ? (index + last) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    setTab(tabs[next].id);
+    tabButtons.current[tabs[next].id]?.focus();
+  };
 
   return (
     <div className={styles.root}>
@@ -39,16 +59,21 @@ export const KellyCriterion = () => {
         </div>
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
-          {tabs.map((tb) => (
+          {tabs.map((tb, index) => (
             <button
               key={tb.id}
+              ref={(element) => {
+                tabButtons.current[tb.id] = element;
+              }}
               type="button"
               role="tab"
               id={`kelly-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`kelly-panel-${tb.id}`}
+              tabIndex={tab === tb.id ? 0 : -1}
               className={styles.tab}
               onClick={() => setTab(tb.id)}
+              onKeyDown={(event) => onTabKeyDown(event, index)}
             >
               {tb.label}
             </button>

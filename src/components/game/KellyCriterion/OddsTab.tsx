@@ -211,6 +211,7 @@ export const OddsTab = () => {
           </div>
           <div className={styles.tableWrap}>
             <table className={styles.oddsTable} data-testid="kelly-after-table">
+              <caption className={styles.srOnly}>{t.afterIntro(bets.toLocaleString(locale))}</caption>
               <thead>
                 <tr>
                   <th scope="col">{t.colStrategy}</th>

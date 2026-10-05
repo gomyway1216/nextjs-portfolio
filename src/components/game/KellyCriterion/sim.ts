@@ -13,12 +13,27 @@ export type StrategyId = (typeof STRATEGY_IDS)[number];
 /** Each strategy as a multiple of the Kelly fraction; all-in stakes everything. */
 const KELLY_MULTIPLE: Record<Exclude<StrategyId, 'allIn'>, number> = { half: 0.5, kelly: 1, double: 2, triple: 3 };
 
+/**
+ * Each strategy's colour, as a variable that the stylesheet sets for the light
+ * and the dark theme so the lines keep their contrast on both.
+ */
 export const STRATEGY_COLORS: Record<StrategyId, string> = {
-  half: '#38bdf8',
-  kelly: '#22c55e',
-  double: '#f59e0b',
-  triple: '#ef4444',
-  allIn: '#a855f7',
+  half: 'var(--kc-s-half)',
+  kelly: 'var(--kc-s-kelly)',
+  double: 'var(--kc-s-double)',
+  triple: 'var(--kc-s-triple)',
+  allIn: 'var(--kc-s-allin)',
+};
+
+export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond';
+
+/** A shape per strategy, so the chart's lines can be told apart without their colours. */
+export const STRATEGY_MARKERS: Record<StrategyId, MarkerShape> = {
+  half: 'circle',
+  kelly: 'square',
+  double: 'triangle',
+  triple: 'diamond',
+  allIn: 'circle',
 };
 
 /** The fraction of the bankroll a strategy stakes on every bet. */

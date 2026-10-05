@@ -10,6 +10,9 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/kelly-criterion');
   expect(response?.status()).toBe(200);
+  // While the page streams in, React briefly keeps a second, hidden copy of the
+  // content in the document. Wait until there is one before looking anything up.
+  await expect(page.getByTestId('kelly-message')).toHaveCount(1);
   await expect(play(page).getByTestId('kelly-message')).toBeVisible();
 }
 
@@ -215,6 +218,64 @@ test('the simulation lands on the exact numbers', async ({ page }) => {
   await expect(sim(page).locator('[data-series]')).toHaveCount(4);
   // Dark label on the green Run button.
   await expect(sim(page).getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
+});
+
+test('the tabs work from the keyboard', async ({ page }) => {
+  await openGame(page);
+  const tab = (name: string) => page.getByRole('tab', { name });
+  // Retry until hydration has attached the key handler.
+  await expect(async () => {
+    await tab('Play').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(tab('The formula')).toHaveAttribute('aria-selected', 'true', { timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(tab('The formula')).toBeFocused();
+  await expect(formula(page).getByTestId('kelly-formula')).toBeVisible();
+  // One tab stop: the selected tab.
+  await expect(tab('The formula')).toHaveAttribute('tabindex', '0');
+  await expect(tab('Play')).toHaveAttribute('tabindex', '-1');
+
+  await page.keyboard.press('End');
+  await expect(tab('Simulation')).toBeFocused();
+  await expect(tab('Simulation')).toHaveAttribute('aria-selected', 'true');
+  // The arrows wrap around.
+  await page.keyboard.press('ArrowRight');
+  await expect(tab('Play')).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(tab('Simulation')).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(tab('Play')).toHaveAttribute('aria-selected', 'true');
+  await expect(play(page).getByTestId('kelly-message')).toBeVisible();
+});
+
+test('a long simulation can be cancelled, and the longest sessions allow fewer of them', async ({ page }) => {
+  await openGame(page);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  const sessions = sim(page).getByLabel('Sessions');
+  await sessions.selectOption('100000');
+  // A thousand flips a session: a hundred thousand sessions is no longer on offer.
+  await sim(page).getByLabel('Flips per session').selectOption('1000');
+  await expect(sessions).toHaveValue('10000');
+  await expect(sessions.locator('option')).toHaveText(['1,000', '10,000']);
+  await sim(page).getByLabel('Flips per session').selectOption('300');
+  await expect(sessions.locator('option')).toHaveText(['1,000', '10,000', '100,000']);
+
+  await sessions.selectOption('100000');
+  await expect(async () => {
+    await sim(page).getByRole('button', { name: 'Run' }).click({ timeout: 1_000 });
+    await sim(page).getByRole('button', { name: 'Cancel' }).click({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(sim(page).getByRole('button', { name: 'Run' })).toBeEnabled();
+  await expect(sim(page).getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+  await expect(sim(page).getByTestId('kelly-sim-result')).toHaveCount(0);
+});
+
+test('chart lines keep their contrast on the light theme', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+  await openGame(page);
+  // Dark amber and dark green, not the pale gold and green that suit the dark theme.
+  await expect(play(page).locator('[data-line="you"]')).toHaveCSS('stroke', 'rgb(161, 98, 7)');
+  await expect(play(page).locator('[data-line="kelly"]')).toHaveCSS('stroke', 'rgb(21, 128, 61)');
 });
 
 test('the game is localized', async ({ page }) => {

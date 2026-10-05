@@ -9,6 +9,15 @@
   /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
   --kc-win-text: #15803d;
   --kc-lose-text: #b91c1c;
+  /* Chart lines and their labels: at least 4.5:1 on the light chart surface (dark values below). */
+  --kc-chart-you: #a16207;
+  --kc-chart-kelly: #15803d;
+  --kc-chart-zero: #b91c1c;
+  --kc-s-half: #0369a1;
+  --kc-s-kelly: #15803d;
+  --kc-s-double: #b45309;
+  --kc-s-triple: #b91c1c;
+  --kc-s-allin: #7e22ce;
 
   min-height: 100%;
   color: var(--games-route-fg);
@@ -17,6 +26,14 @@
 :global(html.dark) .root {
   --kc-win-text: #4ade80;
   --kc-lose-text: #f87171;
+  --kc-chart-you: #e9c46a;
+  --kc-chart-kelly: #4ade80;
+  --kc-chart-zero: #f87171;
+  --kc-s-half: #38bdf8;
+  --kc-s-kelly: #4ade80;
+  --kc-s-double: #fbbf24;
+  --kc-s-triple: #f87171;
+  --kc-s-allin: #c084fc;
 }
 .shell {
   max-width: 1160px;
@@ -599,6 +616,11 @@
   list-style: disc;
   font-size: 0.9rem;
   line-height: 1.65;
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .legend {
   display: flex;

@@ -2,15 +2,23 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { ConvergenceChart } from './charts';
+import { ConvergenceChart, Marker } from './charts';
 import { SCENARIOS, SCENARIO_IDS, type ScenarioId } from './engine';
 import { formatMultiple, percent, signedPercent } from './format';
 import { getStrings } from './i18n';
-import { STRATEGY_COLORS, STRATEGY_IDS, exactFor, simulateSessions, type SimResult, type StrategyId } from './sim';
+import { STRATEGY_COLORS, STRATEGY_IDS, STRATEGY_MARKERS, exactFor, simulateSessions, type SimResult, type StrategyId } from './sim';
 import styles from './KellyCriterion.module.css';
 
 export const SESSION_OPTIONS = [1_000, 10_000, 100_000] as const;
 export const FLIP_OPTIONS = [100, 300, 1_000] as const;
+/**
+ * The largest run on offer. The simulation runs on the main thread, so the
+ * biggest session count is only available with the shorter sessions: 30
+ * million flips take about a second and a half on a laptop.
+ */
+export const MAX_TOTAL_FLIPS = 30_000_000;
+/** The session counts that stay within the limit for sessions of `flips` flips. */
+export const sessionOptionsFor = (flips: number) => SESSION_OPTIONS.filter((sessions) => sessions * flips <= MAX_TOTAL_FLIPS);
 /** All in never recovers from a loss, so its growth is −∞ and it has no line to draw. */
 const CHARTED: StrategyId[] = ['half', 'kelly', 'double', 'triple'];
 
@@ -60,8 +68,15 @@ export const SimTab = () => {
     setProgress(null);
   };
 
+  const cancel = () => {
+    controller.current?.abort();
+    controller.current = null;
+    setProgress(null);
+  };
+
   const busy = progress !== null;
   const wager = run ? SCENARIOS[run.scenario] : null;
+  const sessionOptions = sessionOptionsFor(flips);
 
   return (
     <div className={styles.oddsLayout}>
@@ -87,7 +102,19 @@ export const SimTab = () => {
             <label className={styles.fieldLabel} htmlFor={flipsId}>
               {t.flipsPerSession}
             </label>
-            <select id={flipsId} className={styles.input} value={flips} onChange={(e) => setFlips(Number(e.target.value))} disabled={busy}>
+            <select
+              id={flipsId}
+              className={styles.input}
+              value={flips}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setFlips(next);
+                // Longer sessions allow fewer of them: fall back to the largest count still on offer.
+                const allowed = sessionOptionsFor(next);
+                if (!allowed.includes(sessions as (typeof SESSION_OPTIONS)[number])) setSessions(allowed[allowed.length - 1]);
+              }}
+              disabled={busy}
+            >
               {FLIP_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -100,7 +127,7 @@ export const SimTab = () => {
               {t.sessionsLabel}
             </label>
             <select id={sessionsId} className={styles.input} value={sessions} onChange={(e) => setSessions(Number(e.target.value))} disabled={busy}>
-              {SESSION_OPTIONS.map((n) => (
+              {sessionOptions.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
                 </option>
@@ -110,6 +137,11 @@ export const SimTab = () => {
           <button type="button" className={`${styles.btn} ${styles.btnRun}`} onClick={start} disabled={busy}>
             {busy ? t.running(progress) : t.run}
           </button>
+          {busy && (
+            <button type="button" className={styles.btn} onClick={cancel}>
+              {t.cancel}
+            </button>
+          )}
         </div>
 
         {run && wager && (
@@ -117,7 +149,11 @@ export const SimTab = () => {
             <ul className={styles.legend} aria-hidden="true">
               {CHARTED.map((id) => (
                 <li key={id}>
-                  <span className={styles.swatch} style={{ background: STRATEGY_COLORS[id] }} /> {t.strategyName[id]}
+                  <svg width={30} height={14} viewBox="0 0 30 14">
+                    <line x1={1} x2={29} y1={7} y2={7} stroke={STRATEGY_COLORS[id]} strokeWidth={2} />
+                    <Marker shape={STRATEGY_MARKERS[id]} x={15} y={7} color={STRATEGY_COLORS[id]} />
+                  </svg>{' '}
+                  {t.strategyName[id]}
                 </li>
               ))}
             </ul>
@@ -128,6 +164,7 @@ export const SimTab = () => {
                 series={CHARTED.map((id) => ({
                   id,
                   color: STRATEGY_COLORS[id],
+                  marker: STRATEGY_MARKERS[id],
                   label: t.strategyName[id],
                   exact: exactFor(wager, id, run.result.flips).growth,
                   points: run.result.strategies[id].points,

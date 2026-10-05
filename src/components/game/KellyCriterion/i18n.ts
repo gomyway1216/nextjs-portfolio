@@ -111,6 +111,7 @@ export interface KellyStrings {
   flipsPerSession: string;
   run: string;
   running: (pct: number) => string;
+  cancel: string;
   simChartAria: string;
   simChartX: string;
   colSimulated: string;
@@ -256,6 +257,7 @@ const en: KellyStrings = {
   flipsPerSession: 'Flips per session',
   run: 'Run',
   running: (pct) => `Running… ${pct}%`,
+  cancel: 'Cancel',
   simChartAria: 'Average growth per bet against the number of sessions simulated, one line per strategy',
   simChartX: 'Sessions',
   colSimulated: 'Simulated',
@@ -402,6 +404,7 @@ const ja: KellyStrings = {
   flipsPerSession: '1セッションの回数',
   run: '実行',
   running: (pct) => `実行中… ${pct}%`,
+  cancel: '中止',
   simChartAria: 'シミュレーションしたセッション数と1回あたりの平均成長率（賭け方ごとに1本）',
   simChartX: 'セッション数',
   colSimulated: 'シミュレーション',

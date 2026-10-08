@@ -301,7 +301,10 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     events?.push({ type: 'checker', gate, held });
   }
 
-  // One thing at a time on the screen: a roulette, a bonus game, or a spin.
+  // One thing at a time on the screen, and nothing that has started is cut short.
+  // A winning line and the game it leads to are one turn: the game follows its
+  // line at once, even if a ball has gone over in the meantime. When the screen
+  // is free, a ball's roulette comes next, and only then a held spin.
   const { roulette, bonus, spin } = session;
   if (roulette) {
     roulette.elapsed += dt;
@@ -337,7 +340,9 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     if (spin.elapsed < spin.duration + (tier === 'miss' ? 0 : TIMING.celebrate)) return;
     session.spin = null;
     if (tier === 'miss') return;
-    // The line stays up, then the game it leads to begins.
+    // The line stays up, then the game it leads to begins. A roulette that is
+    // waiting on a ball waits for that game too, so the screen never announces
+    // one game and plays another.
     const leadsTo = TIER_BONUS[tier];
     if (leadsTo === 'ball') {
       dropBall(session.machine);
@@ -354,7 +359,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     return;
   }
 
-  // A ball that has gone over the front has its roulette before any held spin.
+  // The screen is free. A ball that has gone over the front has its roulette before any held spin.
   if (session.balls > 0) {
     session.balls -= 1;
     session.roulettes += 1;

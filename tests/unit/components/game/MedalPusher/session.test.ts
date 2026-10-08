@@ -305,6 +305,28 @@ describe('the roulette', () => {
     expect(session.spins).toBe(1);
   });
 
+  it('waits for the game a winning line leads to, then runs ahead of any held spin', () => {
+    const session = withSpin();
+    session.stock = 2;
+    // Three even digits and a two on the die. Every draw after that comes out the same, which makes
+    // the roulette's pocket 1 whatever the medals thrown onto the field have drawn in between.
+    script(session, [0.03, 0.3, 0.2], 1.5 / ROULETTE.length);
+    play(session, TIMING.spin + 0.5);
+    // A ball goes over while the reels are still turning.
+    session.balls = 1;
+    const events = play(session, TIMING.reach + TIMING.celebrate + sugorokuDuration(2) + TIMING.prize + 0.3);
+    const order = types(events).filter((type) => ['spinEnd', 'sugorokuStart', 'sugorokuEnd', 'rouletteStart', 'spinStart'].includes(type));
+    // The line's own game follows it at once; the roulette takes the next free moment, before the held spin.
+    expect(order).toEqual(['spinEnd', 'sugorokuStart', 'sugorokuEnd', 'rouletteStart']);
+    expect(session.roulette?.pocket).toBe(1);
+    expect(session.balls).toBe(0);
+    expect(session.spins).toBe(1);
+    expect(session.stock).toBe(1);
+    const after = play(session, TIMING.roulette + TIMING.prize + 0.3);
+    expect(types(after).filter((type) => type === 'rouletteEnd' || type === 'spinStart')).toEqual(['rouletteEnd', 'spinStart']);
+    expect(session.spins).toBe(2);
+  });
+
   it('stacks a hundred medals as four towers', () => {
     const session = createSession(6, { balls: 0 });
     session.balls = 1;

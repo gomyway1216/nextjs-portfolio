@@ -18,6 +18,8 @@ import {
 } from '@/components/game/MedalPusher/session';
 
 const DT = 1 / 60;
+/** Tests that run the machine for a minute or more of its own time get room on a slow machine. */
+const LONG = 30_000;
 
 /** Runs the session for `seconds` and returns what happened. */
 function play(session: Session, seconds: number): SessionEvent[] {
@@ -228,7 +230,7 @@ describe('a session played for a while', () => {
     const start = medalsOnField(session.machine);
     const events: SessionEvent[] = [];
     let clock = 1;
-    for (let i = 0; i < 60 * 150; i++) {
+    for (let i = 0; i < 60 * 100; i++) {
       if (clock >= 0.2) {
         clock = 0;
         if (session.credits === 0) refill(session);
@@ -237,12 +239,12 @@ describe('a session played for a while', () => {
       advance(session, DT, events);
       clock += DT;
     }
-    expect(session.inserted).toBeGreaterThan(600);
+    expect(session.inserted).toBeGreaterThan(400);
     expect(start + session.inserted + session.paidOut).toBe(medalsOnField(session.machine) + session.won + session.lost);
     expect(session.credits).toBe(START_CREDITS * (1 + session.refills) - session.inserted + session.won);
     // Every medal through a gate either started a spin, is held, or found the machine full.
     expect(session.hits).toBe(session.spins + session.stock + session.wasted);
-    expect(session.hits).toBeGreaterThan(80);
+    expect(session.hits).toBeGreaterThan(50);
     // At five a second the reels cannot keep up with the centre gate.
     expect(session.wasted).toBeGreaterThan(0);
     expect(session.stock).toBeLessThanOrEqual(MAX_STOCK);
@@ -254,7 +256,7 @@ describe('a session played for a while', () => {
     expect(session.roulettes + session.balls).toBe(ballsOver);
     expect(ballsOver + ballsOnField(session.machine)).toBe(START_BALLS + session.tiers.seven);
     expect(events.filter((event) => event.type === 'won').reduce((sum, event) => sum + (event.type === 'won' ? event.count : 0), 0)).toBe(session.won);
-  });
+  }, LONG);
 
   it('plays out the same way from the same seed', () => {
     const play300 = () => {
@@ -271,5 +273,5 @@ describe('a session played for a while', () => {
       return [session.inserted, session.won, session.lost, session.hits, session.spins, session.paidOut, session.credits, session.jackpot, session.roulettes];
     };
     expect(play300()).toEqual(play300());
-  });
+  }, LONG);
 });

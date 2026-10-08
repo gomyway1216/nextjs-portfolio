@@ -1311,6 +1311,10 @@
       "title": "Craps",
       "description": "Roll the dice at a full craps table, then see the exact house edge of every bet — from 0% to 16.7%."
     },
+    "medal-pusher": {
+      "title": "Medal Pusher",
+      "description": "Drop medals into an arcade pusher, spin the slot on its screen, topple medal towers and push prize balls over the edge — then measure how much the open sides keep."
+    },
     "monty-hall": {
       "title": "Monty Hall",
       "description": "Pick a door, decide whether to switch, and compare the odds with simulation."

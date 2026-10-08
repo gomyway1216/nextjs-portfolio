@@ -273,6 +273,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'medal-pusher',
+    title: 'Medal Pusher',
+    description: 'Drop medals into an arcade pusher, spin the slot on its screen, topple medal towers and push prize balls over the edge — then measure how much the open sides keep.',
+    thumbnail: '🪙',
+    path: '/games/medal-pusher',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'monty-hall',
     title: 'Monty Hall',
     description: 'Pick a door, decide whether to switch, and compare the odds with simulation.',

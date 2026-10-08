@@ -275,7 +275,7 @@ export const games: Game[] = [
   {
     id: 'medal-pusher',
     title: 'Medal Pusher',
-    description: 'Drop medals into an arcade pusher, spin the slot on its screen, topple medal towers and push prize balls over the edge — then measure how much the open sides keep.',
+    description: 'Drop medals into a Japanese-style arcade pusher: spin the slot, roll the sugoroku die, pick a treasure chest, topple medal towers and push prize balls over the edge — then measure how much the open sides keep.',
     thumbnail: '🪙',
     path: '/games/medal-pusher',
     difficulty: 'Easy',

@@ -19,7 +19,10 @@ export type PusherSound =
   | 'prize'
   | 'jackpot'
   | 'crash'
-  | 'ball';
+  | 'ball'
+  | 'dice'
+  | 'chest'
+  | 'fever';
 
 let audioContext: AudioContext | null = null;
 
@@ -115,6 +118,15 @@ export function playSound(sound: PusherSound, enabled: boolean): void {
       break;
     case 'ball':
       run(audio, [392, 523, 659, 784, 1047], 0.08, 0.2, 0.08, 'square');
+      break;
+    case 'dice':
+      run(audio, [620, 540, 660, 500, 700, 560, 760], 0.09, 0.05, 0.05, 'square');
+      break;
+    case 'chest':
+      run(audio, [523, 659, 784, 659, 784, 1047], 0.1, 0.16, 0.07);
+      break;
+    case 'fever':
+      run(audio, [784, 988, 1175, 1568, 1175, 1568, 1976, 1568, 1976, 2349], 0.08, 0.2, 0.09);
       break;
     case 'jackpot':
       run(audio, [523, 659, 784, 1047, 1319, 1568, 2093, 1568, 2093, 2637, 2093, 2637, 3136], 0.11, 0.3, 0.1);

@@ -3,16 +3,28 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
-import { CALC_DEFAULT, JACKPOT_LEVELS, OddsTab, breakEvenSpins, pocketGroups, returnFor } from '@/components/game/MedalPusher/OddsTab';
+import { BOARD_ROLLS, CALC_DEFAULT, JACKPOT_LEVELS, OddsTab, boardSpread, breakEvenSpins, pocketGroups, returnFor } from '@/components/game/MedalPusher/OddsTab';
 import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
+import { IDLE_DIGITS, Screen, bannerText, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { FIELD, PUSHER } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { JACKPOT_START, ROULETTE, spinValue } from '@/components/game/MedalPusher/lottery';
-import { REEL_DIGITS, inReach, reelPositions, roulettePocket, rouletteSettled, stopTimes } from '@/components/game/MedalPusher/screen';
-import { START_CREDITS, TIMING, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
+import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, spinValue } from '@/components/game/MedalPusher/lottery';
+import {
+  REEL_DIGITS,
+  inReach,
+  reelPositions,
+  roulettePocket,
+  rouletteSettled,
+  sameScreen,
+  screenState,
+  stopTimes,
+  sugorokuSquare,
+  type ScreenState,
+} from '@/components/game/MedalPusher/screen';
+import { START_CREDITS, TIMING, createSession, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
 import { HEIGHT, VIEW, project, rise, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
@@ -227,7 +239,14 @@ describe('the page', () => {
     // Three reels, each a strip of the nine digits and the first again.
     expect(html.match(/data-tier="seven"/g)?.length).toBeGreaterThanOrEqual(3);
     expect(html).toContain('7·7·7 ▸ BALL');
-    expect(html).toContain('1·3·5·9 ▸ TOWER 20');
+    expect(html).toContain('1·3·5·9 ▸ TREASURE');
+    expect(html).toContain('2·4·6·8 ▸ SUGOROKU');
+    expect(html).toContain('GOLDEN FEVER');
+    expect(html).toContain('NUMBER SLOT');
+    // The sugoroku board is always on, the piece on its first square.
+    expect(html.match(/data-here="(true|false)"/g)).toHaveLength(BOARD.length);
+    expect(html.match(/data-here="true"/g)).toHaveLength(1);
+    expect(html).toContain('data-square="0"');
     expect(html).not.toContain('pusher-refill');
     expect(AUTO_PACE).toBe(2);
   });
@@ -236,23 +255,28 @@ describe('the page', () => {
     const html = render(<PlayTab />, 'ja');
     expect(html).toContain('落とす');
     expect(html).toContain('オート');
-    expect(html).toContain('タワー20枚');
+    expect(html).toContain('1·3·5·9 ▸ 宝箱');
+    expect(html).toContain('2·4·6·8 ▸ すごろく');
+    expect(html).toContain('ナンバースロット');
     expect(html).toContain('左から50%');
   });
 
   it('lists the exact odds', () => {
     const html = render(<OddsTab />);
     for (const text of ['0.6%', '1 in 167', '1.5%', '1 in 67', '4%', '1 in 25', '93.9%']) expect(html).toContain(text);
-    expect(html).toContain('A tower of 20 medals');
-    expect(html).toContain('A prize ball on the field');
+    for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
+    // What each line is worth: the board's average, the chests' average, the roulette's.
+    for (const text of ['8.8 medals', '20 medals', '76.7 medals']) expect(html).toContain(text);
     for (const text of ['8.3%', '25.0%', '33.3%', '12 towers on the pusher', '4 towers on the pusher', 'Medals thrown onto the field']) expect(html).toContain(text);
+    expect(html).toContain('One tower on the pusher');
+    expect(html).toContain('the average of the board: 8.75 medals');
+    expect(html).toContain(`after ${BOARD_ROLLS} rolls from the start, no square is more than ${percent(boardSpread(BOARD_ROLLS))} away`);
     expect(html).toContain('One spin in 2,000');
-    expect(html).toContain('76.7 medals');
-    expect(html).toContain('1.08 medals');
+    expect(html).toContain('1.11 medals');
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    expect(html.match(/<caption/g)).toHaveLength(3);
+    expect(html.match(/<caption/g)).toHaveLength(5);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
   });
@@ -308,5 +332,195 @@ describe('charts', () => {
     expect(html).toContain('aria-label="the field"');
     expect(html.match(/data-badge=/g)).toHaveLength(6);
     expect(PUSHER.max).toBeLessThan(FIELD.sideOpenFrom);
+  });
+});
+
+describe('the screen', () => {
+  const idle: ScreenState = { mode: 'slot', banner: 'none', amount: 0, line: null, lit: -1, square: 0, die: 0, rolling: false, chests: null, secondsLeft: 0 };
+  const en = getStrings('en');
+  const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
+    render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} onPick={() => {}} />, lang);
+
+  it('puts each digit on the pay line of its window', () => {
+    // A strip of twelve cells, the window showing three tenths of the cell above.
+    expect(stripOffset(0)).toBe(`translateY(${(-0.7 * 100) / 12}%)`);
+    expect(stripOffset(8)).toBe(`translateY(${(-8.7 * 100) / 12}%)`);
+    expect(IDLE_DIGITS).toHaveLength(3);
+  });
+
+  it('shows the slot with its reels, the held spins and the legend', () => {
+    const html = show(idle, 3);
+    expect(html).toContain('data-mode="slot"');
+    expect(html).toContain('aria-label="3 of 4 spins held"');
+    expect(html.match(/data-lit="true"/g)).toHaveLength(3);
+    expect(html).toContain('data-hidden="false"');
+    expect(html).toContain('7·7·7 ▸ BALL');
+    expect(html).not.toContain('pusher-die');
+    expect(html).not.toContain('pusher-wheel');
+    expect(html).toContain('aria-label="Sugoroku board: the piece is on square 1 of 12, which pays 10 medals"');
+  });
+
+  it('names what a winning line leads to', () => {
+    expect(bannerText({ ...idle, banner: 'line', line: 'small' }, en)).toBe('SUGOROKU CHANCE');
+    expect(bannerText({ ...idle, banner: 'line', line: 'big' }, en)).toBe('TREASURE CHANCE');
+    expect(bannerText({ ...idle, banner: 'ball', line: 'seven' }, en)).toBe('BALL GET!');
+    expect(bannerText({ ...idle, banner: 'reach' }, en)).toBe('REACH!');
+    expect(bannerText({ ...idle, banner: 'medals', amount: 8 }, en)).toBe('+8 MEDALS');
+    expect(bannerText({ ...idle, banner: 'towers', amount: 30 }, en)).toBe('TOWER +30');
+    expect(bannerText({ ...idle, banner: 'fever', amount: 30 }, en)).toBe('FEVER! +30');
+    expect(bannerText({ ...idle, banner: 'jackpot', amount: 312 }, en)).toBe('JACKPOT! +312');
+    expect(bannerText(idle, en)).toBeNull();
+    expect(show({ ...idle, banner: 'line', line: 'big' })).toContain('data-line="big"');
+  });
+
+  it('shows the die and moves the piece along the board', () => {
+    const html = show({ ...idle, mode: 'sugoroku', die: 4, square: 6 });
+    expect(html).toContain('SUGOROKU CHANCE');
+    expect(html).toContain('data-face="4"');
+    expect(html.match(/<circle/g)).toHaveLength(4);
+    expect(html).toContain('MOVE 4');
+    expect(html).toContain('data-square="6"');
+    expect(html).toContain('data-hidden="true"');
+    expect(show({ ...idle, mode: 'sugoroku', die: 2, rolling: true })).not.toContain('MOVE 2');
+    expect(show({ ...idle, mode: 'sugoroku' })).toContain('Rolling…');
+    expect(show({ ...idle, mode: 'sugoroku', die: 3 }, 0, 'ja')).toContain('3マス進む');
+  });
+
+  it('offers three chests to pick from, then shows what each held', () => {
+    const closed = { state: 'closed' as const, prize: null, chosen: false };
+    const choosing = show({ ...idle, mode: 'chest', chests: [closed, closed, closed], secondsLeft: 6 });
+    expect(choosing).toContain('TREASURE CHANCE');
+    expect(choosing.match(/data-testid="pusher-chest-\d"/g)).toHaveLength(3);
+    expect(choosing).not.toContain('disabled=""');
+    expect(choosing).toContain('aria-label="Chest 2"');
+    expect(choosing).toContain('PICK ONE!  6');
+
+    const picked = show({ ...idle, mode: 'chest', chests: [closed, { state: 'picked', prize: null, chosen: true }, closed] });
+    expect(picked.match(/disabled=""/g)).toHaveLength(3);
+    expect(picked).not.toContain('pusher-countdown');
+
+    const open = show({
+      ...idle,
+      mode: 'chest',
+      banner: 'towers',
+      amount: 30,
+      chests: [
+        { state: 'open', prize: 10, chosen: false },
+        { state: 'open', prize: 30, chosen: true },
+        { state: 'open', prize: 20, chosen: false },
+      ],
+    });
+    expect(open).toContain('aria-label="Chest 2 held 30 medals"');
+    expect(open).toContain('TOWER +30');
+    expect(open).toContain('data-chosen="true"');
+  });
+
+  it('lights one sector of the roulette wheel', () => {
+    const html = show({ ...idle, mode: 'roulette', lit: 4 });
+    expect(html).toContain('JACKPOT CHANCE');
+    expect(html.match(/data-pocket="\d+"/g)).toHaveLength(ROULETTE.length);
+    expect(html).toContain('data-pocket="4" data-lit="true"');
+    expect(html.match(/data-pocket="\d+" data-lit="true"/g)).toHaveLength(1);
+    expect(html).toContain('>JP<');
+  });
+
+  it('marks the fever square', () => {
+    const html = show(idle);
+    expect(html.match(/data-fever="true"/g)).toHaveLength(1);
+    expect(html).toContain('FEVER');
+    expect(BOARD[FEVER_SQUARE]).toBe(30);
+  });
+});
+
+describe('what the screen shows for a session', () => {
+  it('is the slot, with the piece where it stands, when nothing is on', () => {
+    const session = createSession(1, { balls: 0 });
+    session.square = 5;
+    expect(screenState(session, false)).toMatchObject({ mode: 'slot', banner: 'none', square: 5, die: 0, chests: null, lit: -1 });
+  });
+
+  it('follows a spin from a reach to the line it stops on', () => {
+    const session = createSession(1, { balls: 0 });
+    session.spin = { result: { tier: 'big', digits: [5, 5, 5], reach: true }, elapsed: 0, duration: TIMING.spin + TIMING.reach, done: false };
+    expect(screenState(session, false).banner).toBe('none');
+    session.spin.elapsed = TIMING.spin + 0.2;
+    expect(screenState(session, false).banner).toBe('reach');
+    expect(screenState(session, true).banner).toBe('none');
+    session.spin.done = true;
+    expect(screenState(session, false)).toMatchObject({ banner: 'line', line: 'big' });
+    session.spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true };
+    expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
+  });
+
+  it('tumbles the die, then hops the piece a square at a time', () => {
+    const session = createSession(1, { balls: 0 });
+    session.square = 10;
+    const bonus = { kind: 'sugoroku' as const, roll: 3, from: 10, elapsed: 0.1, duration: sugorokuDuration(3), payout: -1 };
+    session.bonus = bonus;
+    const tumbling = screenState(session, false);
+    expect(tumbling).toMatchObject({ mode: 'sugoroku', rolling: true, square: 10 });
+    expect(tumbling.die).toBeGreaterThanOrEqual(1);
+    expect(tumbling.die).toBeLessThanOrEqual(6);
+    // Without motion there is no tumbling die, only what was rolled.
+    expect(screenState(session, true)).toMatchObject({ rolling: false, die: 0, square: 10 });
+    bonus.elapsed = TIMING.dice - 0.05;
+    expect(screenState(session, false)).toMatchObject({ rolling: false, die: 3, square: 10 });
+    // One hop takes one hop's time: the piece is on the next square once that has passed.
+    expect(sugorokuSquare({ ...bonus, elapsed: TIMING.dice + TIMING.hop * 0.5 })).toBe(10);
+    expect(sugorokuSquare({ ...bonus, elapsed: TIMING.dice + TIMING.hop * 1.5 })).toBe(11);
+    expect(sugorokuSquare({ ...bonus, elapsed: TIMING.dice + TIMING.hop * 2.5 })).toBe(0);
+    expect(sugorokuSquare({ ...bonus, elapsed: TIMING.dice + TIMING.hop * 9 })).toBe(1);
+    bonus.payout = BOARD[1];
+    session.square = 1;
+    expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: BOARD[1], square: 1, die: 3 });
+    session.bonus = { ...bonus, from: FEVER_SQUARE - 3, payout: 30 };
+    expect(screenState(session, false)).toMatchObject({ banner: 'fever', amount: 30, square: FEVER_SQUARE });
+  });
+
+  it('counts the chest choice down and reveals every chest once one is open', () => {
+    const session = createSession(1, { balls: 0 });
+    const bonus = { kind: 'chest' as const, prizes: [20, 10, 30], fallback: 0, picked: -1, elapsed: 2.3, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = bonus;
+    const choosing = screenState(session, false);
+    expect(choosing).toMatchObject({ mode: 'chest', secondsLeft: 6, banner: 'none' });
+    expect(choosing.chests?.map((chest) => chest.state)).toEqual(['closed', 'closed', 'closed']);
+    expect(choosing.chests?.every((chest) => chest.prize === null)).toBe(true);
+    bonus.picked = 2;
+    bonus.pickedAt = 2.3;
+    const picked = screenState(session, false);
+    expect(picked.chests?.map((chest) => chest.state)).toEqual(['closed', 'closed', 'picked']);
+    expect(picked.secondsLeft).toBe(0);
+    bonus.payout = 30;
+    const open = screenState(session, false);
+    expect(open).toMatchObject({ banner: 'towers', amount: 30 });
+    expect(open.chests?.map((chest) => chest.prize)).toEqual([20, 10, 30]);
+    expect(open.chests?.map((chest) => chest.chosen)).toEqual([false, false, true]);
+    session.bonus = { ...bonus, picked: 1, payout: 10 };
+    expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: 10 });
+  });
+
+  it('follows the roulette to its prize', () => {
+    const session = createSession(1, { balls: 0 });
+    session.roulette = { pocket: 4, elapsed: 0, duration: TIMING.roulette, payout: -1 };
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none' });
+    expect(screenState(session, true).lit).toBe(-1);
+    session.roulette.payout = 100;
+    expect(screenState(session, false)).toMatchObject({ lit: 4, banner: 'towers', amount: 100 });
+    session.roulette = { pocket: 1, elapsed: 6, duration: TIMING.roulette, payout: 30 };
+    expect(screenState(session, false)).toMatchObject({ lit: 1, banner: 'medals', amount: 30 });
+    session.roulette = { pocket: 0, elapsed: 6, duration: TIMING.roulette, payout: 300 };
+    expect(screenState(session, false)).toMatchObject({ lit: 0, banner: 'jackpot', amount: 300 });
+  });
+
+  it('knows when nothing on the screen has changed', () => {
+    const session = createSession(1, { balls: 0 });
+    const a = screenState(session, false);
+    expect(sameScreen(a, screenState(session, false))).toBe(true);
+    expect(sameScreen(a, { ...a, square: 1 })).toBe(false);
+    expect(sameScreen(a, { ...a, die: 2 })).toBe(false);
+    const chests = [{ state: 'closed' as const, prize: null, chosen: false }];
+    expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0] }] })).toBe(true);
+    expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0], state: 'picked' }] })).toBe(false);
+    expect(sameScreen({ ...a, chests }, a)).toBe(false);
   });
 });

@@ -309,6 +309,15 @@ export const games: Game[] = [
     category: 'Puzzle',
   },
   {
+    id: 'kelly-criterion',
+    title: 'Kelly Criterion',
+    description: 'Bet on a coin that favors you, then see why one bet size beats all the others — and why betting more loses.',
+    thumbnail: '📈',
+    path: '/games/kelly-criterion',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
+  {
     id: 'blackjack',
     title: 'Blackjack',
     description: 'Play six-deck blackjack with basic-strategy hints, then see the exact value of every play and the house edge of each rule.',

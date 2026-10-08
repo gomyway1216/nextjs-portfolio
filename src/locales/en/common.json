@@ -1327,6 +1327,10 @@
       "title": "Gambler's Ruin",
       "description": "Model how bankroll, target, and win rate change the risk of ruin."
     },
+    "kelly-criterion": {
+      "title": "Kelly Criterion",
+      "description": "Bet on a coin that favors you, then see why one bet size beats all the others — and why betting more loses."
+    },
     "blackjack": {
       "title": "Blackjack",
       "description": "Play six-deck blackjack with basic-strategy hints, then see the exact value of every play and the house edge of each rule."

@@ -2,23 +2,35 @@ import { describe, expect, it } from 'vitest';
 
 import { seededRng } from '@/components/game/MedalPusher/engine';
 import {
+  BOARD,
+  BOARD_VALUE,
+  CHESTS,
+  CHEST_TOWERS_FROM,
+  CHEST_VALUE,
+  DIE_FACES,
+  FEVER_SQUARE,
   JACKPOT_CHANCE,
   JACKPOT_START,
   REACH_RATE,
   ROULETTE,
-  SPIN_PAYS,
   SPIN_TABLE,
   SPIN_TOTAL,
   TIERS,
+  TIER_BONUS,
   TIER_DIGITS,
   TOWERS_FROM,
+  boardAfter,
+  drawDie,
   drawPocket,
   drawSpin,
   pocketPays,
   rouletteValue,
+  shuffleChests,
   spinValue,
+  squareAfter,
   tierChance,
   tierFor,
+  tierValue,
 } from '@/components/game/MedalPusher/lottery';
 
 describe('the slot', () => {
@@ -111,10 +123,81 @@ describe('the roulette a ball starts', () => {
   });
 
   it('makes a spin worth a little over one medal', () => {
-    const expected = 0.04 * SPIN_PAYS.small + 0.015 * SPIN_PAYS.big + 0.006 * rouletteValue(JACKPOT_START);
+    expect(TIER_BONUS).toEqual({ small: 'sugoroku', big: 'chest', seven: 'ball' });
+    expect(tierValue('miss', JACKPOT_START)).toBe(0);
+    expect(tierValue('small', JACKPOT_START)).toBe(BOARD_VALUE);
+    expect(tierValue('big', JACKPOT_START)).toBe(CHEST_VALUE);
+    expect(tierValue('seven', 900)).toBeCloseTo(rouletteValue(900), 12);
+    const expected = 0.04 * BOARD_VALUE + 0.015 * CHEST_VALUE + 0.006 * rouletteValue(JACKPOT_START);
     expect(spinValue(JACKPOT_START)).toBeCloseTo(expected, 12);
-    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.08, 12);
-    expect(spinValue(900)).toBeCloseTo(1.38, 12);
-    expect(SPIN_PAYS).toEqual({ miss: 0, small: 8, big: 20 });
+    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.11, 12);
+    expect(spinValue(900)).toBeCloseTo(1.41, 12);
+  });
+});
+
+describe('the sugoroku board', () => {
+  it('is a loop of twelve squares with one fever on it', () => {
+    expect(BOARD).toHaveLength(12);
+    expect(BOARD[FEVER_SQUARE]).toBe(30);
+    expect(Math.max(...BOARD)).toBe(BOARD[FEVER_SQUARE]);
+    expect(BOARD.filter((medals) => medals === 30)).toHaveLength(1);
+    expect(BOARD.every((medals) => Number.isInteger(medals) && medals > 0)).toBe(true);
+    expect(BOARD_VALUE).toBeCloseTo(105 / 12, 12);
+    expect(squareAfter(0, 3)).toBe(3);
+    expect(squareAfter(9, 6)).toBe(3);
+    expect(squareAfter(11, 1)).toBe(0);
+  });
+
+  it('rolls every face of the die equally often', () => {
+    const rng = seededRng(64);
+    const rolls = 120_000;
+    const seen = Array.from({ length: DIE_FACES + 1 }, () => 0);
+    for (let i = 0; i < rolls; i++) seen[drawDie(rng)]++;
+    expect(seen[0]).toBe(0);
+    for (let face = 1; face <= DIE_FACES; face++) expect(Math.abs(seen[face] / rolls - 1 / DIE_FACES)).toBeLessThan(0.005);
+    expect(drawDie(() => 0)).toBe(1);
+    expect(drawDie(() => 0.9999999)).toBe(6);
+  });
+
+  it('comes to stand on every square equally often, whatever square it started from', () => {
+    expect(boardAfter(0)).toEqual([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    const one = boardAfter(1);
+    expect(one.slice(1, 7).every((chance) => Math.abs(chance - 1 / 6) < 1e-12)).toBe(true);
+    expect(one[0] + one.slice(7).reduce((sum, chance) => sum + chance, 0)).toBeCloseTo(0, 12);
+    for (const rolls of [1, 2, 6, 40]) expect(boardAfter(rolls).reduce((sum, chance) => sum + chance, 0)).toBeCloseTo(1, 12);
+    const even = 1 / BOARD.length;
+    const spread = (rolls: number, from = 0) => Math.max(...boardAfter(rolls, from).map((chance) => Math.abs(chance - even)));
+    expect(spread(6)).toBeLessThan(0.013);
+    expect(spread(10)).toBeLessThan(0.003);
+    expect(spread(60)).toBeLessThan(1e-9);
+    expect(spread(60, 7)).toBeLessThan(1e-9);
+    // So the long-run worth of a roll is the plain average of the board.
+    const worth = boardAfter(200).reduce((sum, chance, square) => sum + chance * BOARD[square], 0);
+    expect(worth).toBeCloseTo(BOARD_VALUE, 9);
+    expect(() => boardAfter(-1)).toThrow();
+    expect(() => boardAfter(1.5)).toThrow();
+  });
+});
+
+describe('the treasure chests', () => {
+  it('hold ten, twenty and thirty medals in an order shuffled every time', () => {
+    expect(CHESTS).toEqual([10, 20, 30]);
+    expect(CHEST_VALUE).toBe(20);
+    expect(CHEST_TOWERS_FROM).toBe(20);
+    const rng = seededRng(5);
+    const draws = 60_000;
+    const orders = new Map<string, number>();
+    const firstChest = new Map<number, number>();
+    for (let i = 0; i < draws; i++) {
+      const prizes = shuffleChests(rng);
+      expect([...prizes].sort((a, b) => a - b)).toEqual([10, 20, 30]);
+      orders.set(prizes.join(), (orders.get(prizes.join()) ?? 0) + 1);
+      firstChest.set(prizes[0], (firstChest.get(prizes[0]) ?? 0) + 1);
+    }
+    // All six orders turn up equally often, so every chest holds every prize a third of the time.
+    expect(orders.size).toBe(6);
+    for (const count of orders.values()) expect(Math.abs(count / draws - 1 / 6)).toBeLessThan(0.008);
+    for (const count of firstChest.values()) expect(Math.abs(count / draws - 1 / 3)).toBeLessThan(0.01);
+    expect(shuffleChests(() => 0.9999999)).toEqual([10, 20, 30]);
   });
 });

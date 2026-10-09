@@ -23,13 +23,25 @@ export interface PusherStrings {
   stock: string;
   stockAria: (held: number, max: number) => string;
   legendSeven: string;
-  legendOdd: (medals: number) => string;
-  legendEven: (medals: number) => string;
+  legendOdd: string;
+  legendEven: string;
   reach: string;
   spinWin: (medals: number) => string;
   towerWin: (medals: number) => string;
+  feverWin: (medals: number) => string;
+  feverTag: string;
   ballWin: string;
   chance: string;
+  slotName: string;
+  sugorokuTitle: string;
+  sugorokuRolling: string;
+  sugorokuMove: (squares: number) => string;
+  boardAria: (square: number, medals: number) => string;
+  chestTitle: string;
+  chestPrompt: string;
+  chestName: (chest: number) => string;
+  chestHeld: (chest: number, medals: number) => string;
+  chestCountdown: (seconds: number) => string;
   jackpotWon: (medals: number) => string;
   pocketJackpot: string;
   screenAria: string;
@@ -44,8 +56,11 @@ export interface PusherStrings {
   sound: string;
   refill: (medals: number) => string;
   // Announcements for screen readers
-  sayLine: (digits: string, medals: number) => string;
-  sayTower: (digits: string, medals: number) => string;
+  saySugorokuStart: (digits: string) => string;
+  saySugoroku: (medals: number) => string;
+  sayFever: (medals: number) => string;
+  sayChestStart: (digits: string) => string;
+  sayChest: (chest: number, medals: number, towers: boolean) => string;
   saySevens: string;
   sayBall: string;
   sayToppled: string;
@@ -80,7 +95,23 @@ export interface PusherStrings {
   lineEven: string;
   lineMiss: string;
   paysBall: string;
-  paysTower: (medals: number) => string;
+  paysSugoroku: string;
+  paysChest: string;
+  colAverage: string;
+  boardTitle: string;
+  boardIntro: (squares: number) => string;
+  boardCaption: string;
+  colSquare: string;
+  squareName: (square: number) => string;
+  squareFever: string;
+  boardNote: (average: string, rolls: number, spread: string) => string;
+  chestOddsTitle: string;
+  chestOddsIntro: (seconds: number) => string;
+  chestOddsCaption: string;
+  colChest: string;
+  chestPaidLoose: string;
+  chestPaidTowers: (towers: number) => string;
+  chestOddsNote: (average: string) => string;
   paysMedals: (medals: number | string) => string;
   towerNote: string;
   oneIn: (n: string) => string;
@@ -146,7 +177,7 @@ export interface PusherStrings {
 
 const en: PusherStrings = {
   title: 'Medal Pusher',
-  subtitle: 'Drop medals, let the pusher shove them over the edge, and feed the gates to spin the slot on the screen.',
+  subtitle: 'Drop medals, let the pusher shove them over the edge, and feed the gates to spin the slot: sugoroku, treasure chests, medal towers and a jackpot roulette.',
   tabMachine: 'Machine',
   tabOdds: 'Odds',
   tabSim: 'Simulation',
@@ -154,8 +185,11 @@ const en: PusherStrings = {
   infoBody: [
     'You start with 100 medals. Choose where to aim and drop them: each one comes down the back panel, lands on the pusher a little to one side of your aim, and gets shoved forward with the rest.',
     'Medals pushed over the front edge are yours. Near the front the sides of the table are open, and medals squeezed out there are gone.',
-    'A medal that comes down through one of the three gates starts a spin on the screen. Three even digits throw 8 medals onto the field, three odd digits stack a tower of 20 on the pusher, and three sevens drop a prize ball. The machine holds up to four spins at a time.',
+    'A medal that comes down through one of the three gates starts a spin on the screen. The machine holds up to four spins at a time.',
+    'Three even digits roll the die on the sugoroku board along the bottom of the screen: the piece moves on and you are paid what its square says, 3 to 15 medals, or a fever of 30.',
+    'Three odd digits open the treasure chance: pick one of three chests. They hold 10, 20 and 30 medals, and the bigger two are stacked on the pusher as medal towers.',
     'A tower rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it.',
+    'Three sevens drop a prize ball onto the field.',
     'Push a ball over the front edge and the jackpot chance starts: a roulette of twelve pockets. 30 medals rain down, 50 and 100 go up as towers, and one pocket is the jackpot, which begins at 300 medals and grows as the machine is played. Two balls are already lying on the field.',
     'The Odds tab lists the exact chances on the screen, and the Simulation tab measures what cannot be calculated: how much of what you drop comes back, depending on where and how fast you drop it.',
   ],
@@ -164,13 +198,25 @@ const en: PusherStrings = {
   stock: 'HOLD',
   stockAria: (held, max) => `${held} of ${max} spins held`,
   legendSeven: '7·7·7 ▸ BALL',
-  legendOdd: (medals) => `1·3·5·9 ▸ TOWER ${medals}`,
-  legendEven: (medals) => `2·4·6·8 ▸ ${medals}`,
+  legendOdd: '1·3·5·9 ▸ TREASURE',
+  legendEven: '2·4·6·8 ▸ SUGOROKU',
   reach: 'REACH!',
   spinWin: (medals) => `+${medals} MEDALS`,
   towerWin: (medals) => `TOWER +${medals}`,
+  feverWin: (medals) => `FEVER! +${medals}`,
+  feverTag: 'FEVER',
   ballWin: 'BALL GET!',
   chance: 'JACKPOT CHANCE',
+  slotName: 'NUMBER SLOT',
+  sugorokuTitle: 'SUGOROKU CHANCE',
+  sugorokuRolling: 'Rolling…',
+  sugorokuMove: (squares) => `MOVE ${squares}`,
+  boardAria: (square, medals) => `Sugoroku board: the piece is on square ${square} of 12, which pays ${medals} medals`,
+  chestTitle: 'TREASURE CHANCE',
+  chestPrompt: 'Pick one of the three chests',
+  chestName: (chest) => `Chest ${chest}`,
+  chestHeld: (chest, medals) => `Chest ${chest} held ${medals} medals`,
+  chestCountdown: (seconds) => `PICK ONE!  ${seconds}`,
   jackpotWon: (medals) => `JACKPOT! +${medals}`,
   pocketJackpot: 'JP',
   screenAria: 'The screen',
@@ -184,8 +230,11 @@ const en: PusherStrings = {
   autoHint: 'Drops two medals a second at your aim',
   sound: 'Sound',
   refill: (medals) => `Out of medals — take ${medals} more`,
-  sayLine: (digits, medals) => `${digits}. ${medals} medals paid onto the field.`,
-  sayTower: (digits, medals) => `${digits}. A tower of ${medals} medals goes up on the pusher.`,
+  saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
+  saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
+  sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
+  sayChestStart: (digits) => `${digits}. Treasure chance: pick one of the three chests.`,
+  sayChest: (chest, medals, towers) => `Chest ${chest} held ${medals} medals${towers ? ', stacked on the pusher as towers' : ''}.`,
   saySevens: 'Seven, seven, seven. A prize ball drops onto the field.',
   sayBall: 'A ball went over the front edge. The jackpot chance starts.',
   sayToppled: 'A tower came down onto the lower table.',
@@ -234,7 +283,27 @@ const en: PusherStrings = {
   lineEven: 'Three of 2, 4, 6 or 8',
   lineMiss: 'Anything else',
   paysBall: 'A prize ball on the field',
-  paysTower: (medals) => `A tower of ${medals} medals`,
+  paysSugoroku: 'A roll on the sugoroku board',
+  paysChest: 'A choice of three chests',
+  colAverage: 'Worth, on average',
+  boardTitle: 'The sugoroku board',
+  boardIntro: (squares) =>
+    `A loop of ${squares} squares along the bottom of the screen. Three even digits roll one die, the piece moves that many squares, and you are paid what the square it lands on says. The piece stays there until the next roll.`,
+  boardCaption: 'What each square of the board pays',
+  colSquare: 'Square',
+  squareName: (square) => `Square ${square}`,
+  squareFever: 'Fever',
+  boardNote: (average, rolls, spread) =>
+    `In the long run the piece lands on every square equally often, so a roll is worth the average of the board: ${average} medals. That is exact, and it takes hold fast: after ${rolls} rolls from the start, no square is more than ${spread} away from its even share.`,
+  chestOddsTitle: 'The treasure chance',
+  chestOddsIntro: (seconds) =>
+    `Three odd digits put three chests on the screen. You have ${seconds} seconds to pick one; after that the machine picks for you. Which chest holds which prize is shuffled before you choose.`,
+  chestOddsCaption: 'What the three chests hold and how each prize is paid',
+  colChest: 'A chest holds',
+  chestPaidLoose: 'Medals thrown onto the field',
+  chestPaidTowers: (towers) => (towers === 1 ? 'One tower on the pusher' : `${towers} towers on the pusher`),
+  chestOddsNote: (average) =>
+    `Each prize is behind your chest one time in three, whichever chest you pick, so the choice is worth ${average} medals on average. There is no better chest.`,
   paysMedals: (medals) => `${medals} medals`,
   towerNote:
     'A tower is stacked on the pusher a little behind its lip and rides it like any medal, only harder to push. When it goes over the lip its medals come down across the lower table. Drop medals behind it to bring it down sooner.',
@@ -318,7 +387,7 @@ const en: PusherStrings = {
 
 const ja: PusherStrings = {
   title: 'メダルプッシャー',
-  subtitle: 'メダルを落としてプッシャーに押し出させ、チャッカーに通して中央画面のスロットを回します。',
+  subtitle: 'メダルを落としてプッシャーに押し出させ、チャッカーに通してスロットを回します。すごろく、宝箱、メダルタワー、ジャックポットルーレットがあります。',
   tabMachine: 'マシン',
   tabOdds: '確率',
   tabSim: 'シミュレーション',
@@ -326,8 +395,11 @@ const ja: PusherStrings = {
   infoBody: [
     'メダル100枚から始めます。狙う位置を決めて落とすと、メダルは奥のパネルを転がり落ち、狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
     '手前の端から落ちたメダルがあなたのものです。テーブルの手前側は両脇が開いていて、そこから押し出されたメダルは戻りません。',
-    '落としたメダルが3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。偶数が3つそろうとメダル8枚がフィールドに降り、奇数が3つそろうとプッシャーの上に20枚のメダルタワーが立ち、7が3つそろうとボールが1個落ちてきます。抽選は4回分までためられます。',
+    '落としたメダルが3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。抽選は4回分までためられます。',
+    '偶数が3つそろうと「すごろくチャンス」です。画面の下のすごろく盤でサイコロを振り、コマが止まったマスの枚数（3〜15枚、フィーバーなら30枚）がもらえます。',
+    '奇数が3つそろうと「宝箱チャンス」です。3つの宝箱から1つ選びます。中身は10枚・20枚・30枚で、20枚と30枚はプッシャーの上にメダルタワーとして積まれます。',
     'タワーはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。',
+    '7が3つそろうと、ボールが1個フィールドに落ちてきます。',
     'ボールを手前の端から落とすとジャックポットチャンスが始まります。12個のポケットがあるルーレットで、30枚ならメダルが降り、50枚と100枚はタワーになり、1つがジャックポットです。ジャックポットは300枚から始まり、遊ぶほど増えていきます。ボールは最初から2個フィールドに置いてあります。',
     '「確率」タブには画面の抽選の正確な確率を載せています。「シミュレーション」タブでは計算では出せないもの、つまり落とす場所と速さによって何割戻ってくるかを実測します。',
   ],
@@ -336,13 +408,25 @@ const ja: PusherStrings = {
   stock: '保留',
   stockAria: (held, max) => `保留 ${held}／${max}`,
   legendSeven: '7·7·7 ▸ ボール',
-  legendOdd: (medals) => `1·3·5·9 ▸ タワー${medals}枚`,
-  legendEven: (medals) => `2·4·6·8 ▸ ${medals}枚`,
+  legendOdd: '1·3·5·9 ▸ 宝箱',
+  legendEven: '2·4·6·8 ▸ すごろく',
   reach: 'リーチ！',
   spinWin: (medals) => `${medals}枚 GET`,
   towerWin: (medals) => `タワー ${medals}枚`,
+  feverWin: (medals) => `フィーバー！ ${medals}枚`,
+  feverTag: 'フィーバー',
   ballWin: 'ボール GET！',
   chance: 'ジャックポットチャンス',
+  slotName: 'ナンバースロット',
+  sugorokuTitle: 'すごろくチャンス',
+  sugorokuRolling: 'サイコロを振っています…',
+  sugorokuMove: (squares) => `${squares}マス進む`,
+  boardAria: (square, medals) => `すごろく盤：コマは12マス中${square}マス目（${medals}枚）にいます`,
+  chestTitle: '宝箱チャンス',
+  chestPrompt: '3つの宝箱から1つ選んでください',
+  chestName: (chest) => `宝箱${chest}`,
+  chestHeld: (chest, medals) => `宝箱${chest}の中身は${medals}枚でした`,
+  chestCountdown: (seconds) => `1つ選んでね！ あと${seconds}秒`,
   jackpotWon: (medals) => `JACKPOT！ ${medals}枚`,
   pocketJackpot: 'JP',
   screenAria: '中央画面',
@@ -356,8 +440,11 @@ const ja: PusherStrings = {
   autoHint: '狙った位置に毎秒2枚落とします',
   sound: '音',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
-  sayLine: (digits, medals) => `${digits}。フィールドに${medals}枚払い出されます。`,
-  sayTower: (digits, medals) => `${digits}。プッシャーの上に${medals}枚のタワーが立ちます。`,
+  saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
+  saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
+  sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,
+  sayChestStart: (digits) => `${digits}。宝箱チャンスです。3つの宝箱から1つ選んでください。`,
+  sayChest: (chest, medals, towers) => `宝箱${chest}の中身は${medals}枚でした。${towers ? 'プッシャーの上にタワーとして積まれます。' : ''}`,
   saySevens: '7が3つそろいました。ボールがフィールドに落ちてきます。',
   sayBall: 'ボールが手前から落ちました。ジャックポットチャンスが始まります。',
   sayToppled: 'タワーが崩れて下のテーブルに落ちました。',
@@ -406,7 +493,26 @@ const ja: PusherStrings = {
   lineEven: '2・4・6・8 のどれかが3つ',
   lineMiss: 'それ以外',
   paysBall: 'ボール1個がフィールドへ',
-  paysTower: (medals) => `${medals}枚のタワー`,
+  paysSugoroku: 'すごろく盤でサイコロを1回振る',
+  paysChest: '3つの宝箱から1つ選ぶ',
+  colAverage: '平均の価値',
+  boardTitle: 'すごろく盤',
+  boardIntro: (squares) =>
+    `画面の下にある、${squares}マスが輪になった盤です。偶数が3つそろうとサイコロを1個振り、コマがその数だけ進んで、止まったマスに書かれた枚数がもらえます。コマは次に振るまでそのマスに残ります。`,
+  boardCaption: 'すごろく盤の各マスでもらえる枚数',
+  colSquare: 'マス',
+  squareName: (square) => `${square}マス目`,
+  squareFever: 'フィーバー',
+  boardNote: (average, rolls, spread) =>
+    `長い目で見ると、コマはどのマスにも同じ回数だけ止まります。だからサイコロ1回の価値は盤の平均の${average}枚です。これは正確な値で、すぐにそうなります。スタートから${rolls}回振っただけで、どのマスも均等な割合から${spread}以内に収まります。`,
+  chestOddsTitle: '宝箱チャンス',
+  chestOddsIntro: (seconds) =>
+    `奇数が3つそろうと、画面に宝箱が3つ出ます。${seconds}秒以内に1つ選びます。選ばなければ機械が代わりに選びます。どの箱に何が入っているかは、選ぶ前にシャッフルされています。`,
+  chestOddsCaption: '3つの宝箱の中身と、それぞれの出方',
+  colChest: '中身',
+  chestPaidLoose: 'メダルがフィールドに降る',
+  chestPaidTowers: (towers) => `プッシャーの上にタワー${towers}本`,
+  chestOddsNote: (average) => `どの箱を選んでも、それぞれの賞が入っている確率は3分の1です。だから選択の価値は平均${average}枚です。当たりやすい箱はありません。`,
   paysMedals: (medals) => `${medals}枚`,
   towerNote:
     'タワーはプッシャーの縁の少し奥に積まれ、ほかのメダルと同じようにプッシャーに乗って進みます。ただし普通のメダルより押しにくくなっています。縁を越えると崩れて、メダルが下のテーブルに広がります。タワーの後ろにメダルを落とすと早く崩せます。',

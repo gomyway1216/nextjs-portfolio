@@ -4,10 +4,11 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, FIELD, clampAim } from './engine';
 import { getStrings } from './i18n';
-import { JACKPOT_START, ROULETTE, SPIN_PAYS, TIER_DIGITS, TOWERS_FROM, type Tier } from './lottery';
-import { ageStage, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
-import { REEL_DIGITS, inReach, reelPositions, roulettePocket, stopTimes } from './screen';
-import { MAX_STOCK, PAID_AS_TOWER, START_CREDITS, advance, createSession, insert, refill, type Session, type SessionEvent } from './session';
+import { CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
+import { IDLE_DIGITS, Screen, stripOffset } from './ScreenPanel';
+import { reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
+import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { playSound, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
@@ -20,8 +21,6 @@ const HOLD_DELAY = 0.2;
 const MAX_PIXEL_RATIO = 2;
 /** The longest stretch of time one frame may cover, so a stalled tab does not lurch forward. */
 const MAX_FRAME = 0.1;
-/** The digits the reels show before the first spin. */
-const IDLE_DIGITS: [number, number, number] = [3, 5, 8];
 
 /** The numbers shown around the cabinet. */
 interface Hud {
@@ -33,17 +32,6 @@ interface Hud {
   lost: number;
   spins: number;
   paid: number;
-}
-
-type Banner = 'none' | 'reach' | 'win' | 'tower' | 'ball' | 'prize' | 'towers' | 'jackpot';
-
-/** What the screen is doing. */
-interface Show {
-  roulette: boolean;
-  /** The pocket the roulette's light is on, or −1. */
-  lit: number;
-  banner: Banner;
-  amount: number;
 }
 
 const hudOf = (session: Session): Hud => ({
@@ -58,29 +46,18 @@ const hudOf = (session: Session): Hud => ({
 });
 
 const INITIAL_HUD: Hud = { credits: START_CREDITS, jackpot: JACKPOT_START, stock: 0, played: 0, won: 0, lost: 0, spins: 0, paid: 0 };
-const IDLE_SHOW: Show = { roulette: false, lit: -1, banner: 'none', amount: 0 };
-
-/** What the screen should show for the session as it stands. `calm` leaves out the motion. */
-function showOf(session: Session, calm: boolean): Show {
-  const { roulette, spin } = session;
-  if (roulette) {
-    if (roulette.payout >= 0) {
-      const jackpot = ROULETTE[roulette.pocket] === 'jackpot';
-      const banner = jackpot ? 'jackpot' : roulette.payout >= TOWERS_FROM ? 'towers' : 'prize';
-      return { roulette: true, lit: roulette.pocket, banner, amount: roulette.payout };
-    }
-    return { roulette: true, lit: calm ? -1 : roulettePocket(roulette), banner: 'none', amount: 0 };
-  }
-  if (spin) {
-    const { tier } = spin.result;
-    if (spin.done && tier !== 'miss') {
-      if (tier === 'seven') return { roulette: false, lit: -1, banner: 'ball', amount: 0 };
-      return { roulette: false, lit: -1, banner: PAID_AS_TOWER[tier] ? 'tower' : 'win', amount: SPIN_PAYS[tier] };
-    }
-    if (!calm && inReach(spin)) return { roulette: false, lit: -1, banner: 'reach', amount: 0 };
-  }
-  return IDLE_SHOW;
-}
+const IDLE_SCREEN: ScreenState = {
+  mode: 'slot',
+  banner: 'none',
+  amount: 0,
+  line: null,
+  lit: -1,
+  square: 0,
+  die: 0,
+  rolling: false,
+  chests: null,
+  secondsLeft: 0,
+};
 
 const sameHud = (a: Hud, b: Hud): boolean =>
   a.credits === b.credits &&
@@ -92,21 +69,6 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.spins === b.spins &&
   a.paid === b.paid;
 
-const sameShow = (a: Show, b: Show): boolean => a.roulette === b.roulette && a.lit === b.lit && a.banner === b.banner && a.amount === b.amount;
-
-/** Which prize a digit belongs to, for its colour on the reel. */
-const tierOfDigit = (digit: number): Exclude<Tier, 'miss'> => (digit === 7 ? 'seven' : TIER_DIGITS.big.includes(digit) ? 'big' : 'small');
-
-/** Where each of the twelve pockets sits on the screen's 5 × 3 grid, going round clockwise from the top left. */
-const pocketCell = (index: number): { row: number; column: number } => {
-  if (index <= 4) return { row: 1, column: index + 1 };
-  if (index === 5) return { row: 2, column: 5 };
-  if (index <= 10) return { row: 3, column: 11 - index };
-  return { row: 2, column: 1 };
-};
-
-const stripOffset = (position: number): string => `translateY(${(-position * 100) / (REEL_DIGITS.length + 1)}%)`;
-
 export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -115,7 +77,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const aimId = useId();
 
   const [hud, setHud] = useState<Hud>(INITIAL_HUD);
-  const [show, setShow] = useState<Show>(IDLE_SHOW);
+  const [screen, setScreen] = useState<ScreenState>(IDLE_SCREEN);
   const [aim, setAim] = useState<number>(FIELD.width / 2);
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
@@ -164,7 +126,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     observer.observe(canvas);
 
     let shownHud = INITIAL_HUD;
-    let shownShow = IDLE_SHOW;
+    let shownScreen = IDLE_SCREEN;
     let digits = IDLE_DIGITS;
     let autoClock = 0;
     let lastSpinClock = 0;
@@ -198,7 +160,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       advance(session, elapsed, events);
 
       let landed = false;
-      let won = false;
+      let won = 0;
       let lost = false;
       for (const event of events) {
         switch (event.type) {
@@ -206,7 +168,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             landed = true;
             break;
           case 'won':
-            won = true;
+            won += event.count;
             break;
           case 'lost':
             lost = true;
@@ -215,23 +177,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             lightGate(stage, event.gate);
             playSound(event.held ? 'gate' : 'full', soundOn);
             break;
-          case 'spinStart':
-            lastSpinClock = 0;
-            break;
-          case 'spinEnd':
-            digits = event.result.digits;
-            if (event.result.tier === 'seven') {
-              playSound('seven', soundOn);
-              setAnnouncement(strings.saySevens);
-            } else if (event.payout > 0) {
-              const tower = PAID_AS_TOWER[event.result.tier];
-              playSound(tower ? 'big' : 'small', soundOn);
-              setAnnouncement((tower ? strings.sayTower : strings.sayLine)(event.result.digits.join(' '), event.payout));
-            } else {
-              playSound('reelStop', soundOn);
-            }
-            break;
           case 'toppled':
+            celebrate(stage, 'crash');
             playSound('crash', soundOn);
             setAnnouncement(strings.sayToppled);
             break;
@@ -239,21 +186,56 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound('ball', soundOn);
             setAnnouncement(strings.sayBall);
             break;
+          case 'spinStart':
+            lastSpinClock = 0;
+            break;
+          case 'spinEnd': {
+            digits = event.result.digits;
+            const { tier } = event.result;
+            if (tier === 'miss') {
+              playSound('reelStop', soundOn);
+            } else {
+              const leadsTo = TIER_BONUS[tier];
+              playSound(leadsTo === 'ball' ? 'seven' : leadsTo === 'chest' ? 'big' : 'small', soundOn);
+              const line = event.result.digits.join(' ');
+              setAnnouncement(leadsTo === 'ball' ? strings.saySevens : leadsTo === 'chest' ? strings.sayChestStart(line) : strings.saySugorokuStart(line));
+            }
+            break;
+          }
+          case 'sugorokuStart':
+            playSound('dice', soundOn);
+            break;
+          case 'sugorokuEnd':
+            if (event.fever) celebrate(stage, 'fever');
+            playSound(event.fever ? 'fever' : 'prize', soundOn);
+            setAnnouncement(event.fever ? strings.sayFever(event.payout) : strings.saySugoroku(event.payout));
+            break;
+          case 'chestStart':
+            playSound('chest', soundOn);
+            break;
+          case 'chestPicked':
+            playSound('reelStop', soundOn);
+            break;
+          case 'chestEnd':
+            playSound('prize', soundOn);
+            setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
+            break;
           case 'rouletteStart':
             break;
           case 'rouletteEnd':
+            if (event.jackpot) celebrate(stage, 'jackpot');
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayPrize(event.payout));
             break;
         }
       }
-      if (won) playSound('win', soundOn);
+      if (won > 0) playSound('win', soundOn);
       else if (lost) playSound('lost', soundOn);
       else if (landed) playSound('land', soundOn);
 
-      trackMedals(stage, session.machine);
-      ageStage(stage, elapsed);
-      drawField(context, stage, session.machine, { aim: aimNow, showGuide: true });
+      trackMedals(stage, session.machine, won);
+      ageStage(stage, elapsed, calm.matches);
+      drawField(context, stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
 
       // The reels act out the spin; without motion they simply change when it is over.
       const { spin } = session;
@@ -273,11 +255,13 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         });
       }
 
-      const nextShow = showOf(session, calm.matches);
-      if (!sameShow(nextShow, shownShow)) {
-        if (nextShow.roulette && nextShow.banner === 'none' && nextShow.lit !== shownShow.lit) playSound('tick', soundOn);
-        shownShow = nextShow;
-        setShow(nextShow);
+      const nextScreen = screenState(session, calm.matches);
+      if (!sameScreen(nextScreen, shownScreen)) {
+        const ticking = nextScreen.mode === 'roulette' && nextScreen.banner === 'none' && nextScreen.lit !== shownScreen.lit;
+        const hopping = nextScreen.mode === 'sugoroku' && nextScreen.square !== shownScreen.square;
+        if (ticking || hopping) playSound('tick', soundOn);
+        shownScreen = nextScreen;
+        setScreen(nextScreen);
       }
       const nextHud = hudOf(session);
       if (!sameHud(nextHud, shownHud)) {
@@ -337,26 +321,26 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     if (session && refill(session)) setHud(hudOf(session));
   };
 
-  const aimPercent = Math.round(((aim - AIM.min) / (AIM.max - AIM.min)) * 100);
-  const bannerText: Record<Banner, string | null> = {
-    none: null,
-    reach: t.reach,
-    win: t.spinWin(show.amount),
-    prize: t.spinWin(show.amount),
-    tower: t.towerWin(show.amount),
-    towers: t.towerWin(show.amount),
-    ball: t.ballWin,
-    jackpot: t.jackpotWon(show.amount),
+  const onPick = (chest: number) => {
+    const session = sessionRef.current;
+    if (session) pickChest(session, chest);
   };
-  const banner = bannerText[show.banner];
+
+  const registerStrip = (reel: number, element: HTMLDivElement | null) => {
+    strips.current[reel] = element;
+  };
+
+  const aimPercent = Math.round(((aim - AIM.min) / (AIM.max - AIM.min)) * 100);
 
   return (
     <div className={styles.machine}>
-      <div className={styles.cabinet} data-banner={show.banner}>
+      <div className={styles.cabinet} data-banner={screen.banner}>
+        <div className={styles.bulbs} aria-hidden />
         <div className={styles.marquee}>
-          <span className={styles.logo} aria-hidden>
-            MEDAL PUSHER
-          </span>
+          <div className={styles.logo} aria-hidden>
+            <span className={styles.logoMain}>GOLDEN FEVER</span>
+            <span className={styles.logoSub}>ゴールデンフィーバー</span>
+          </div>
           <div className={styles.jackpotBox}>
             <span className={styles.jackpotLabel}>{t.jackpot}</span>
             <span className={styles.jackpotValue} data-testid="pusher-jackpot">
@@ -365,70 +349,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </div>
 
-        <div className={styles.screen} role="group" aria-label={t.screenAria}>
-          <div className={styles.stock} role="img" aria-label={t.stockAria(hud.stock, MAX_STOCK)} data-testid="pusher-stock" data-held={hud.stock}>
-            <span className={styles.stockLabel} aria-hidden>
-              {t.stock}
-            </span>
-            {Array.from({ length: MAX_STOCK }, (_, index) => (
-              <span key={index} className={styles.lamp} data-lit={index < hud.stock} aria-hidden />
-            ))}
-          </div>
-
-          <div className={styles.reels} aria-hidden data-hidden={show.roulette}>
-            {IDLE_DIGITS.map((idle, reel) => (
-              <div key={reel} className={styles.reel}>
-                <div
-                  className={styles.strip}
-                  ref={(element) => {
-                    strips.current[reel] = element;
-                  }}
-                  style={{ transform: stripOffset(idle - 1) }}
-                >
-                  {[...REEL_DIGITS, REEL_DIGITS[0]].map((digit, index) => (
-                    <span key={index} className={styles.digit} data-tier={tierOfDigit(digit)}>
-                      {digit}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {show.roulette && (
-            <div className={styles.roulette} aria-hidden>
-              {ROULETTE.map((pocket, index) => {
-                const cell = pocketCell(index);
-                return (
-                  <span
-                    key={index}
-                    className={styles.pocket}
-                    style={{ gridRow: cell.row, gridColumn: cell.column }}
-                    data-jackpot={pocket === 'jackpot'}
-                    data-lit={show.lit === index}
-                  >
-                    {pocket === 'jackpot' ? t.pocketJackpot : pocket}
-                  </span>
-                );
-              })}
-              <span className={styles.rouletteCentre}>{show.banner === 'none' ? t.chance : banner}</span>
-            </div>
-          )}
-
-          <div className={styles.caption} aria-hidden data-testid="pusher-caption">
-            {banner && !show.roulette ? (
-              <span className={styles.banner} data-banner={show.banner}>
-                {banner}
-              </span>
-            ) : (
-              <span className={styles.legend}>
-                <span data-tier="seven">{t.legendSeven}</span>
-                <span data-tier="big">{t.legendOdd(SPIN_PAYS.big)}</span>
-                <span data-tier="small">{t.legendEven(SPIN_PAYS.small)}</span>
-              </span>
-            )}
-          </div>
-        </div>
+        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} onPick={onPick} />
 
         <div className={styles.fieldWrap}>
           <canvas
@@ -493,14 +414,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             {t.drop}
           </button>
           <div className={styles.toggles}>
-            <button
-              type="button"
-              className={styles.toggle}
-              aria-pressed={auto}
-              title={t.autoHint}
-              data-testid="pusher-auto"
-              onClick={() => setAuto(!auto)}
-            >
+            <button type="button" className={styles.toggle} aria-pressed={auto} title={t.autoHint} data-testid="pusher-auto" onClick={() => setAuto(!auto)}>
               {t.auto}
             </button>
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
@@ -514,6 +428,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             {t.refill(START_CREDITS)}
           </button>
         )}
+        <div className={styles.bulbs} aria-hidden />
       </div>
 
       <section className={styles.tally} aria-label={t.tallyTitle}>

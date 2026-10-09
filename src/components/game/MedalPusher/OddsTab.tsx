@@ -6,23 +6,31 @@ import { FieldDiagram } from './charts';
 import { percent, tidyPercent } from './format';
 import { PART_IDS, getStrings } from './i18n';
 import {
+  BOARD,
+  BOARD_VALUE,
+  CHESTS,
+  CHEST_TOWERS_FROM,
+  CHEST_VALUE,
+  FEVER_SQUARE,
   JACKPOT_CHANCE,
   JACKPOT_START,
   JACKPOT_STEP,
   REACH_RATE,
   ROULETTE,
-  SPIN_PAYS,
   SPIN_TABLE,
   SPIN_TOTAL,
+  TIER_BONUS,
   TOWERS_FROM,
+  boardAfter,
   rouletteValue,
   spinValue,
   tierChance,
+  tierValue,
   type Pocket,
   type Tier,
 } from './lottery';
 import { towerSizes } from './engine';
-import { MAX_STOCK, PAID_AS_TOWER } from './session';
+import { MAX_STOCK, TIMING } from './session';
 import styles from './MedalPusher.module.css';
 
 /** The slot's lines, best first. */
@@ -31,6 +39,15 @@ const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
 /** What the calculator starts from: about what aiming at a gate measures on the Simulation tab. */
 export const CALC_DEFAULT = { front: 78, spins: 22 } as const;
+
+/** Rolls after which the Odds tab shows how even the board has become. */
+export const BOARD_ROLLS = 6;
+
+/** The furthest any square's chance is from an even share after `rolls` rolls from the start. */
+export function boardSpread(rolls: number): number {
+  const even = 1 / BOARD.length;
+  return Math.max(...boardAfter(rolls).map((chance) => Math.abs(chance - even)));
+}
 
 /** The roulette's pockets grouped by what they pay, the jackpot first and then the largest prize down. */
 export function pocketGroups(): { pocket: Pocket; count: number }[] {
@@ -68,8 +85,12 @@ export const OddsTab = () => {
   const needed = breakEvenSpins(front / 100, value);
 
   const lineName: Record<Tier, string> = { seven: t.lineSeven, big: t.lineOdd, small: t.lineEven, miss: t.lineMiss };
-  const linePays = (tier: Tier) =>
-    tier === 'seven' ? t.paysBall : tier === 'miss' ? '—' : PAID_AS_TOWER[tier] ? t.paysTower(SPIN_PAYS[tier]) : t.paysMedals(SPIN_PAYS[tier]);
+  const linePays = (tier: Tier) => {
+    if (tier === 'miss') return '—';
+    const leadsTo = TIER_BONUS[tier];
+    return leadsTo === 'ball' ? t.paysBall : leadsTo === 'chest' ? t.paysChest : t.paysSugoroku;
+  };
+  const trim = (value: number, digits = 2) => String(Number(value.toFixed(digits)));
   /** How a roulette prize reaches the field. The jackpot is shown at the size it starts from. */
   const paidAs = (medals: number) => (medals >= TOWERS_FROM ? t.paidTowers(towerSizes(medals).length) : t.paidLoose);
 
@@ -112,6 +133,9 @@ export const OddsTab = () => {
                   {t.colOneIn}
                 </th>
                 <th scope="col">{t.colPays}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colAverage}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -121,13 +145,76 @@ export const OddsTab = () => {
                   <td className={styles.num}>{tidyPercent(tierChance(tier))}</td>
                   <td className={styles.num}>{tier === 'miss' ? '—' : t.oneIn(fmt(Math.round(SPIN_TOTAL / SPIN_TABLE[tier])))}</td>
                   <td>{linePays(tier)}</td>
+                  <td className={styles.num}>{tier === 'miss' ? '—' : t.paysMedals(trim(tierValue(tier, JACKPOT_START), 1))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className={styles.note}>{t.towerNote}</p>
         <p className={styles.note}>{t.reachNote(tidyPercent(REACH_RATE))}</p>
+      </section>
+
+      <section className={styles.panelBox}>
+        <h2 className={styles.blockTitle}>{t.boardTitle}</h2>
+        <p className={styles.body}>{t.boardIntro(BOARD.length)}</p>
+        <div className={styles.tableWrap}>
+          <table className={`${styles.oddsTable} ${styles.boardTable}`} data-testid="pusher-board-table">
+            <caption className={styles.srOnly}>{t.boardCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="row">{t.colSquare}</th>
+                {BOARD.map((_, square) => (
+                  <th key={square} scope="col" className={styles.num}>
+                    <span className={styles.srOnly}>{t.squareName(square + 1)}</span>
+                    <span aria-hidden>{square + 1}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">{t.colPays}</th>
+                {BOARD.map((medals, square) => (
+                  <td key={square} className={styles.num} data-fever={square === FEVER_SQUARE}>
+                    {medals}
+                    {square === FEVER_SQUARE && <span className={styles.srOnly}> ({t.squareFever})</span>}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.boardNote(trim(BOARD_VALUE), BOARD_ROLLS, percent(boardSpread(BOARD_ROLLS)))}</p>
+      </section>
+
+      <section className={styles.panelBox}>
+        <h2 className={styles.blockTitle}>{t.chestOddsTitle}</h2>
+        <p className={styles.body}>{t.chestOddsIntro(TIMING.choose)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-chest-table">
+            <caption className={styles.srOnly}>{t.chestOddsCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colChest}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colChance}
+                </th>
+                <th scope="col">{t.colPaidAs}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CHESTS.map((medals) => (
+                <tr key={medals}>
+                  <th scope="row">{t.paysMedals(medals)}</th>
+                  <td className={styles.num}>{percent(1 / CHESTS.length)}</td>
+                  <td>{medals >= CHEST_TOWERS_FROM ? t.chestPaidTowers(towerSizes(medals).length) : t.chestPaidLoose}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.chestOddsNote(trim(CHEST_VALUE))}</p>
+        <p className={styles.note}>{t.towerNote}</p>
       </section>
 
       <section className={styles.panelBox}>

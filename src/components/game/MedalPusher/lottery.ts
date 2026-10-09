@@ -1,8 +1,10 @@
 /**
  * The digital half of the machine: the number slot on the centre screen and
- * the roulette a prize ball starts when it is pushed over the front. Unlike
- * the field, these are pure lotteries — the result is drawn first and the
- * reels only act it out — so their odds are exact and are listed on the Odds tab.
+ * the three games it leads to — a sugoroku board, a choice of treasure chests,
+ * and the roulette a prize ball starts when it is pushed over the front.
+ * Unlike the field, these are pure lotteries — every result is drawn first and
+ * the screen only acts it out — so their odds are exact and are listed on the
+ * Odds tab.
  */
 
 export const TIERS = ['miss', 'small', 'big', 'seven'] as const;
@@ -12,8 +14,9 @@ export type Tier = (typeof TIERS)[number];
 export const SPIN_TABLE: Record<Tier, number> = { miss: 939, small: 40, big: 15, seven: 6 };
 export const SPIN_TOTAL = 1000;
 
-/** Medals a winning line pays onto the field; three sevens put a prize ball there instead. */
-export const SPIN_PAYS: Record<Exclude<Tier, 'seven'>, number> = { miss: 0, small: 8, big: 20 };
+/** What a line leads to: a roll on the sugoroku board, a choice of chests, or a prize ball on the field. */
+export type Bonus = 'sugoroku' | 'chest' | 'ball';
+export const TIER_BONUS: Record<Exclude<Tier, 'miss'>, Bonus> = { small: 'sugoroku', big: 'chest', seven: 'ball' };
 
 /** The digits each winning tier can line up. */
 export const TIER_DIGITS: Record<Exclude<Tier, 'miss'>, readonly number[]> = {
@@ -64,6 +67,67 @@ export function drawSpin(rng: () => number): SpinResult {
   return { tier, digits: [left, digit(rng), right], reach: false };
 }
 
+// ── The sugoroku board ──────────────────────────────────────────────────────
+
+/**
+ * The board: a loop of twelve squares, each paying the medals written on it
+ * to whoever lands there. The piece stays where it stopped until the next roll.
+ */
+export const BOARD = [10, 3, 5, 8, 3, 10, 5, 30, 3, 8, 5, 15] as const;
+/** The square that pays its medals as a fever: the big one. */
+export const FEVER_SQUARE = 7;
+export const DIE_FACES = 6;
+
+/** One roll of the die: 1 to 6. */
+export const drawDie = (rng: () => number): number => 1 + Math.min(DIE_FACES - 1, Math.floor(rng() * DIE_FACES));
+
+/** The square a piece on `from` reaches with a roll of `roll`. */
+export const squareAfter = (from: number, roll: number): number => (from + roll) % BOARD.length;
+
+/**
+ * Medals a roll pays on average. A die that moves 1 to 6 round a loop visits
+ * every square equally often in the long run, wherever the piece began, so
+ * this is simply the average of the board.
+ */
+export const BOARD_VALUE = BOARD.reduce<number>((sum, medals) => sum + medals, 0) / BOARD.length;
+
+/**
+ * The exact chance of standing on each square after `rolls` rolls from `from`:
+ * how quickly "every square equally often" becomes true.
+ */
+export function boardAfter(rolls: number, from = 0): number[] {
+  if (!Number.isInteger(rolls) || rolls < 0) throw new Error('rolls must be a whole number');
+  let chances: number[] = BOARD.map((_, square) => (square === from ? 1 : 0));
+  for (let i = 0; i < rolls; i++) {
+    const next: number[] = BOARD.map(() => 0);
+    chances.forEach((chance, square) => {
+      for (let roll = 1; roll <= DIE_FACES; roll++) next[squareAfter(square, roll)] += chance / DIE_FACES;
+    });
+    chances = next;
+  }
+  return chances;
+}
+
+// ── The treasure chests ─────────────────────────────────────────────────────
+
+/** What the three chests hold. Which chest holds which is shuffled every time. */
+export const CHESTS = [10, 20, 30] as const;
+/** A chest holding this much or more is paid as towers; less is thrown on loose. */
+export const CHEST_TOWERS_FROM = 20;
+
+/** The three prizes in the order the chests hold them, left to right. */
+export function shuffleChests(rng: () => number): number[] {
+  const prizes: number[] = [...CHESTS];
+  for (let i = prizes.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rng() * (i + 1)));
+    [prizes[i], prizes[j]] = [prizes[j], prizes[i]];
+  }
+  return prizes;
+}
+
+/** Medals a choice of chest pays on average: each prize is as likely as the next, whichever chest is picked. */
+export const CHEST_VALUE = CHESTS.reduce<number>((sum, medals) => sum + medals, 0) / CHESTS.length;
+
 // ── The ball's roulette ─────────────────────────────────────────────────────
 
 /** One pocket of the roulette: the jackpot, or a fixed number of medals. */
@@ -97,7 +161,13 @@ export function rouletteValue(jackpot: number): number {
 /** The chance that one spin leads to the jackpot itself: three sevens for a ball, then the one pocket once it falls. */
 export const JACKPOT_CHANCE = tierChance('seven') * (ROULETTE.filter((pocket) => pocket === 'jackpot').length / ROULETTE.length);
 
-/** Medals one spin is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
+/** Medals each line is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
+export function tierValue(tier: Tier, jackpot: number): number {
+  if (tier === 'miss') return 0;
+  return tier === 'small' ? BOARD_VALUE : tier === 'big' ? CHEST_VALUE : rouletteValue(jackpot);
+}
+
+/** Medals one spin is worth on average with the jackpot at `jackpot`. */
 export function spinValue(jackpot: number): number {
-  return tierChance('small') * SPIN_PAYS.small + tierChance('big') * SPIN_PAYS.big + tierChance('seven') * rouletteValue(jackpot);
+  return TIERS.reduce((sum, tier) => sum + tierChance(tier) * tierValue(tier, jackpot), 0);
 }

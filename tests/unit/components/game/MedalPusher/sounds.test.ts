@@ -210,6 +210,16 @@ function peakOf(samples: Float32Array): number {
   return peak;
 }
 
+/**
+ * Where two stretches of samples first differ, or −1 when they are the same sample for sample. A loop, because
+ * deep equality on a few hundred thousand numbers takes seconds, and on a busy machine more than a test is given.
+ */
+function firstDifference(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length) return Math.min(a.length, b.length);
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return i;
+  return -1;
+}
+
 /** A sound being cut short fades for this long; a little more than the module's own figure. */
 const FADE = 0.031;
 const EVERY_TAKE = SAMPLES.reduce((sum, sample) => sum + (VARIANTS[sample] ?? 1), 0);
@@ -990,14 +1000,16 @@ describe('what is worked out', () => {
 
   it('comes out the same every time, and at another sample rate too', () => {
     for (const [sample, variant] of takes) {
-      expect(renderSound(sample, RATE, variant)).toEqual(renderSound(sample, RATE, variant));
+      expect(firstDifference(renderSound(sample, RATE, variant), renderSound(sample, RATE, variant)), `${sample}:${variant}`).toBe(-1);
     }
     for (const sample of ['land', 'jackpot', 'spin', 'crash'] as const) {
+      const usual = renderSound(sample, RATE);
       const slower = renderSound(sample, 44100);
-      expect(slower.length / 44100).toBeCloseTo(renderSound(sample, RATE).length / RATE, 3);
+      expect(slower.length / 44100).toBeCloseTo(usual.length / RATE, 3);
       expect(peakOf(slower)).toBeCloseTo(1, 6);
-      expect(brightness(slower, 44100) / brightness(renderSound(sample, RATE), RATE)).toBeGreaterThan(0.9);
-      expect(brightness(slower, 44100) / brightness(renderSound(sample, RATE), RATE)).toBeLessThan(1.1);
+      const ratio = brightness(slower, 44100) / brightness(usual, RATE);
+      expect(ratio).toBeGreaterThan(0.9);
+      expect(ratio).toBeLessThan(1.1);
     }
   });
 

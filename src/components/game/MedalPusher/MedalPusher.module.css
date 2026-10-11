@@ -436,6 +436,30 @@
 .digit[data-tier='small'] {
   color: #15803d;
 }
+/* A reel running too fast to read is smeared along the way it runs. */
+.digit[data-tier='seven'] {
+  --mp-streak: 209, 18, 63;
+}
+.digit[data-tier='big'] {
+  --mp-streak: 29, 78, 216;
+}
+.digit[data-tier='small'] {
+  --mp-streak: 21, 128, 61;
+}
+.strip[data-fast='true'] {
+  filter: blur(0.02em);
+}
+.strip[data-fast='true'] .digit {
+  text-shadow:
+    0 0.1em 0 rgba(var(--mp-streak), 0.45),
+    0 -0.1em 0 rgba(var(--mp-streak), 0.45),
+    0 0.2em 0 rgba(var(--mp-streak), 0.2),
+    0 -0.2em 0 rgba(var(--mp-streak), 0.2);
+}
+/* For a player who asked for less motion the reels do not turn: one whose digit is still to come stands dimmed instead. */
+.strip[data-waiting='true'] {
+  opacity: 0.22;
+}
 .bonus {
   flex-direction: column;
   gap: 4cqh;

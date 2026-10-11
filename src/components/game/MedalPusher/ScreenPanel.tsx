@@ -20,6 +20,16 @@ export const stripOffset = (position: number): string => `translateY(${(-(positi
 /** Which prize a digit belongs to, for its colour on the reel. */
 const tierOfDigit = (digit: number): Exclude<Tier, 'miss'> => (digit === 7 ? 'seven' : TIER_DIGITS.big.includes(digit) ? 'big' : 'small');
 
+/**
+ * Marks a reel's strip for the stylesheet: `fast` while it runs too fast to
+ * read and is drawn blurred, `waiting` while it stands dimmed, when nothing
+ * may move, with its digit still to come. Written only when it changes.
+ */
+export const markStrip = (strip: { dataset: DOMStringMap }, mark: 'fast' | 'waiting', on: boolean): void => {
+  const value = String(on);
+  if (strip.dataset[mark] !== value) strip.dataset[mark] = value;
+};
+
 /** Where the dots of each face of a die sit, on a 3 × 3 grid counted from the top left. */
 const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
@@ -133,7 +143,13 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
         <div className={styles.reels} aria-hidden data-hidden={state.mode !== 'slot'} data-line={state.line ?? 'none'}>
           {IDLE_DIGITS.map((idle, reel) => (
             <div key={reel} className={styles.reel}>
-              <div className={styles.strip} ref={(element) => registerStrip(reel, element)} style={{ transform: stripOffset(idle - 1) }}>
+              <div
+                className={styles.strip}
+                ref={(element) => registerStrip(reel, element)}
+                style={{ transform: stripOffset(idle - 1) }}
+                data-fast="false"
+                data-waiting="false"
+              >
                 {STRIP.map((digit, index) => (
                   <span key={index} className={styles.digit} data-tier={tierOfDigit(digit)}>
                     {digit}

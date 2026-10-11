@@ -15,7 +15,7 @@ import {
   returnFor,
 } from '@/components/game/MedalPusher/OddsTab';
 import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
-import { IDLE_DIGITS, Screen, bannerText, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
+import { IDLE_DIGITS, Screen, bannerText, markStrip, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { FIELD, PUSHER } from '@/components/game/MedalPusher/engine';
@@ -24,13 +24,19 @@ import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
 import {
   REEL_DIGITS,
+  SWING,
   inReach,
+  landTimes,
   reelPositions,
+  reelsFast,
+  reelsWaiting,
   roulettePocket,
   rouletteSettled,
   sameScreen,
   screenState,
+  settleOffset,
   stopTimes,
+  stoppedDigits,
   sugorokuSquare,
   type ScreenState,
 } from '@/components/game/MedalPusher/screen';
@@ -158,6 +164,178 @@ describe('the reels', () => {
     expect(inReach(spin('long', long[2] + 0.01, [5, 6, 5]))).toBe(true);
     expect(inReach(spin('long', long[1] - 0.01, [5, 6, 5]))).toBe(true);
     expect(inReach(spin('long', long[1], [5, 6, 5]))).toBe(false);
+  });
+
+  const KINDS = [false, true, 'long'] as const;
+  /** How far round the strip it is from one position to another, the short way. */
+  const apart = (a: number, b: number) => Math.min(Math.abs(a - b), REEL_DIGITS.length - Math.abs(a - b));
+
+  it('swing a little past the digit as they stop, and settle exactly on it', () => {
+    expect(SWING.past).toBeGreaterThan(0);
+    expect(SWING.past).toBeLessThan(0.25);
+    // The swing itself: out and back, furthest a third of the way through, and still from then on.
+    const speed = (27 * SWING.past) / (4 * SWING.time);
+    expect(settleOffset(0, speed)).toBe(0);
+    expect(settleOffset(-1, speed)).toBe(0);
+    expect(settleOffset(SWING.time, speed)).toBe(0);
+    expect(settleOffset(SWING.time + 1, speed)).toBe(0);
+    expect(settleOffset(SWING.time / 3, speed)).toBeCloseTo(SWING.past, 12);
+    for (let since = 0.001; since < SWING.time; since += 0.001) {
+      expect(settleOffset(since, speed)).toBeGreaterThan(0);
+      expect(settleOffset(since, speed)).toBeLessThanOrEqual(SWING.past + 1e-12);
+    }
+    // It leaves the digit at the speed the reel came with, so there is no jolt.
+    expect(settleOffset(1e-6, speed) / 1e-6).toBeCloseTo(speed, 3);
+    // A reel lands on its digit one swing before it stops, and at that moment it is on the digit.
+    for (const kind of KINDS) {
+      const lands = landTimes(spin(kind, 0));
+      const stops = stopTimes(spin(kind, 0));
+      lands.forEach((land, reel) => expect(stops[reel] - land).toBeCloseTo(SWING.time, 12));
+      expect(lands.every((land) => land > 0)).toBe(true);
+      lands.forEach((land, reel) => expect(apart(reelPositions(spin(kind, land))[reel], [3, 6, 1][reel])).toBeLessThan(1e-9));
+    }
+
+    const count = REEL_DIGITS.length;
+    const homes = [8, 0, 3];
+    for (const kind of KINDS) {
+      for (const plain of [TIMING.spin, TIMING.quickSpin]) {
+        // Nine, one and four: the first and the last digit of the strip are the ones a swing could carry off its ends.
+        const at = (elapsed: number) => spin(kind, elapsed, [9, 1, 4], plain);
+        const stops = stopTimes(at(0));
+        const furthest = [0, 0, 0];
+        let last = reelPositions(at(0));
+        const step = 1 / 480;
+        for (let elapsed = step; elapsed <= at(0).duration + 0.05; elapsed += step) {
+          const now = reelPositions(at(elapsed));
+          now.forEach((position, reel) => {
+            // Always inside the strip, and never a jump: no further than the fastest reel goes in one step.
+            expect(position).toBeGreaterThanOrEqual(0);
+            expect(position).toBeLessThan(count);
+            expect(apart(position, last[reel])).toBeLessThanOrEqual(15 * step + 1e-9);
+            const past = (position - homes[reel] + count) % count;
+            if (elapsed >= stops[reel]) {
+              // Stopped: exactly on the digit, not nearly.
+              expect(position).toBe(homes[reel]);
+            } else if (elapsed > stops[reel] - SWING.time) {
+              // Swinging: a little past the digit, never short of it again.
+              expect(past).toBeLessThanOrEqual(SWING.past + 1e-9);
+              furthest[reel] = Math.max(furthest[reel], past);
+            } else if (elapsed > stops[reel] - SWING.time - 0.1) {
+              // About to arrive: still short of the digit, not past it.
+              expect(past === 0 || past > count / 2).toBe(true);
+            }
+          });
+          last = now;
+        }
+        // The outer reels come in fast and swing the full way; a centre reel that was held back swings less.
+        expect(furthest[0]).toBeCloseTo(SWING.past, 3);
+        expect(furthest[2]).toBeCloseTo(SWING.past, 3);
+        expect(furthest[1]).toBeGreaterThan(0.02);
+        expect(furthest[1]).toBeLessThanOrEqual(SWING.past + 1e-9);
+        if (kind !== false) expect(furthest[1]).toBeLessThan(furthest[0]);
+        if (kind === 'long') expect(furthest[1]).toBeLessThan(0.06);
+      }
+    }
+  });
+
+  it('run blurred while they are too fast to read', () => {
+    for (const kind of KINDS) {
+      const at = (elapsed: number) => spin(kind, elapsed, [5, 6, 5]);
+      const stops = stopTimes(at(0));
+      // Every reel starts out fast, and none is once it has stopped.
+      expect(reelsFast(at(0))).toEqual([true, true, true]);
+      expect(reelsFast(at(stops[0] - SWING.time / 2))).toEqual([false, true, true]);
+      expect(reelsFast(at(stops[0] + 0.01))).toEqual([false, true, true]);
+      expect(reelsFast(at(stops[2] - 0.001))).toEqual([false, true, false]);
+      expect(reelsFast(at(stops[1] - 0.01))).toEqual([false, false, false]);
+      expect(reelsFast(at(stops[1]))).toEqual([false, false, false]);
+      expect(reelsFast(at(stops[1] + 5))).toEqual([false, false, false]);
+      // A reel is fast for one stretch only: once it has slowed it does not speed up again.
+      for (let reel = 0; reel < 3; reel++) {
+        let slowed = false;
+        for (let elapsed = 0; elapsed <= stops[1]; elapsed += 0.01) {
+          const fast = reelsFast(at(elapsed))[reel];
+          if (slowed) expect(fast).toBe(false);
+          if (!fast) slowed = true;
+        }
+      }
+    }
+    // Until the right reel stops, the centre gives nothing away: with a reach to come it runs as it does without.
+    const stops = stopTimes(spin(false, 0));
+    for (let elapsed = 0; elapsed < stops[2]; elapsed += 0.05) {
+      const plain = reelsFast(spin(false, elapsed));
+      expect(reelsFast(spin(true, elapsed))).toEqual(plain);
+      expect(reelsFast(spin('long', elapsed))).toEqual(plain);
+    }
+    // Once the reach is on, the centre drops out of the blur at once and can be read.
+    expect(reelsFast(spin(true, stops[2] + 0.25, [5, 6, 5]))[1]).toBe(false);
+    expect(reelsFast(spin('long', stops[2] + 0.25, [5, 6, 5]))[1]).toBe(false);
+  });
+
+  it('crawl to the end of a long reach', () => {
+    /** Digits the centre reel goes by in the `seconds` before it stops. */
+    const lastDigits = (kind: boolean | 'long', seconds: number) => {
+      const stop = stopTimes(spin(kind, 0, [5, 6, 5]))[1];
+      let distance = 0;
+      let last = reelPositions(spin(kind, stop - seconds, [5, 6, 5]))[1];
+      for (let elapsed = stop - seconds + 0.005; elapsed <= stop + 1e-9; elapsed += 0.005) {
+        const now = reelPositions(spin(kind, elapsed, [5, 6, 5]))[1];
+        distance += apart(now, last);
+        last = now;
+      }
+      return distance;
+    };
+    // In its last second a reel with no reach goes by ten digits and more, one in a reach about four, and one in a long reach under two.
+    expect(lastDigits(false, 1)).toBeGreaterThan(10);
+    expect(lastDigits(true, 1)).toBeGreaterThan(3);
+    expect(lastDigits(true, 1)).toBeLessThan(6);
+    expect(lastDigits('long', 1)).toBeGreaterThan(1);
+    expect(lastDigits('long', 1)).toBeLessThan(2);
+    // All through what the long reach adds, it is slow enough to read every digit that goes by.
+    expect(lastDigits('long', TIMING.longReach)).toBeGreaterThan(2);
+    expect(lastDigits('long', TIMING.longReach)).toBeLessThan(4);
+  });
+
+  it('wait and then change one at a time when nothing may move', () => {
+    const before = [3, 1, 8];
+    const at = (elapsed: number) => spin(true, elapsed, [5, 6, 5]);
+    const stops = stopTimes(at(0));
+    expect(reelsWaiting(at(0))).toEqual([true, true, true]);
+    expect(stoppedDigits(at(0), before)).toEqual([3, 1, 8]);
+    expect(reelsWaiting(at(stops[0]))).toEqual([false, true, true]);
+    expect(stoppedDigits(at(stops[0]), before)).toEqual([5, 1, 8]);
+    // With the outer reels alike and the centre still waiting, the reach can be read off the reels.
+    expect(reelsWaiting(at(stops[2]))).toEqual([false, true, false]);
+    expect(stoppedDigits(at(stops[2]), before)).toEqual([5, 1, 5]);
+    expect(stoppedDigits(at(stops[1] - 0.01), before)).toEqual([5, 1, 5]);
+    expect(reelsWaiting(at(stops[1]))).toEqual([false, false, false]);
+    expect(stoppedDigits(at(stops[1]), before)).toEqual([5, 6, 5]);
+    // A spin that has been counted has nothing waiting, whatever its clock says.
+    expect(reelsWaiting({ ...at(0), done: true })).toEqual([false, false, false]);
+    expect(stoppedDigits({ ...at(0), done: true }, before)).toEqual([5, 6, 5]);
+  });
+
+  it('are marked for the stylesheet only when a mark changes', () => {
+    const writes: string[] = [];
+    const dataset: DOMStringMap = {};
+    const strip = {
+      dataset: new Proxy(dataset, {
+        set: (target, key, value) => {
+          writes.push(`${String(key)}=${value}`);
+          target[String(key)] = value;
+          return true;
+        },
+      }),
+    };
+    markStrip(strip, 'fast', true);
+    markStrip(strip, 'fast', true);
+    markStrip(strip, 'waiting', false);
+    markStrip(strip, 'fast', false);
+    markStrip(strip, 'fast', false);
+    markStrip(strip, 'waiting', true);
+    markStrip(strip, 'waiting', true);
+    expect(writes).toEqual(['fast=true', 'waiting=false', 'fast=false', 'waiting=true']);
+    expect(dataset).toEqual({ fast: 'false', waiting: 'true' });
   });
 });
 
@@ -433,6 +611,8 @@ describe('the screen', () => {
     expect(html).toContain('aria-label="3 of 4 spins held"');
     expect(html.match(/data-lit="true"/g)).toHaveLength(3);
     expect(html).toContain('data-hidden="false"');
+    // The strips start out neither blurred nor dimmed; the cabinet marks them as they run.
+    expect(html.match(/data-fast="false" data-waiting="false"/g)).toHaveLength(3);
     expect(html).toContain('7·7·7 ▸ BALL');
     expect(html).not.toContain('pusher-die');
     expect(html).not.toContain('pusher-wheel');

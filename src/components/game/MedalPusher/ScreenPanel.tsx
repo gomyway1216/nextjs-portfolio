@@ -1,7 +1,7 @@
 'use client';
 
 import type { PusherStrings } from './i18n';
-import { CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_DIGITS, type Tier } from './lottery';
+import { CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_BONUS, TIER_DIGITS, type Bonus, type Tier } from './lottery';
 import { BOARD_SQUARES, REEL_DIGITS, type Banner, type ChestView, type ScreenState } from './screen';
 import { MAX_STOCK } from './session';
 import styles from './MedalPusher.module.css';
@@ -29,6 +29,39 @@ export const markStrip = (strip: { dataset: DOMStringMap }, mark: 'fast' | 'wait
   const value = String(on);
   if (strip.dataset[mark] !== value) strip.dataset[mark] = value;
 };
+
+/** The colour of each game's badge: the colour of the digits that lead to it. */
+const BADGE_COLOR: Record<Bonus, string> = { ball: '#d1123f', chest: '#1d4ed8', sugoroku: '#15803d' };
+/** A five-pointed star, as on the prize ball. */
+const STAR = 'M12 7.1 L13.29 10.52 L16.95 10.69 L14.09 12.98 L15.06 16.51 L12 14.5 L8.94 16.51 L9.91 12.98 L7.05 10.69 L10.71 10.52 Z';
+
+/** What three of a digit lead to, as a small badge in the corner of its tile: a prize ball, a treasure chest or the sugoroku die. */
+const Badge = ({ leadsTo }: { leadsTo: Bonus }) => (
+  <svg className={styles.badge} viewBox="0 0 24 24" data-leads={leadsTo} aria-hidden>
+    <circle cx="12" cy="12" r="11" fill={BADGE_COLOR[leadsTo]} stroke="#ffffff" strokeWidth="1.6" />
+    {leadsTo === 'ball' && (
+      <>
+        <circle cx="12" cy="12" r="7.4" fill="#fff3b0" />
+        <path d={STAR} fill={BADGE_COLOR.ball} />
+      </>
+    )}
+    {leadsTo === 'chest' && (
+      <>
+        <path d="M5.5 11.5 Q5.5 6 12 6 Q18.5 6 18.5 11.5 Z" fill="#fff3b0" />
+        <rect x="5.5" y="12.7" width="13" height="5.6" rx="1" fill="#fff3b0" />
+        <rect x="10.6" y="10.6" width="2.8" height="3.8" rx="0.7" fill={BADGE_COLOR.chest} />
+      </>
+    )}
+    {leadsTo === 'sugoroku' && (
+      <>
+        <rect x="5.6" y="5.6" width="12.8" height="12.8" rx="2.6" fill="#fff3b0" />
+        {[8.6, 12, 15.4].map((at) => (
+          <circle key={at} cx={at} cy={at} r="1.5" fill={BADGE_COLOR.sugoroku} />
+        ))}
+      </>
+    )}
+  </svg>
+);
 
 /** Where the dots of each face of a die sit, on a 3 × 3 grid counted from the top left. */
 const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
@@ -153,6 +186,7 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
                 {STRIP.map((digit, index) => (
                   <span key={index} className={styles.digit} data-tier={tierOfDigit(digit)}>
                     {digit}
+                    <Badge leadsTo={TIER_BONUS[tierOfDigit(digit)]} />
                   </span>
                 ))}
               </div>

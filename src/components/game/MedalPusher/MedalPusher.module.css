@@ -436,6 +436,17 @@
 .digit[data-tier='small'] {
   color: #15803d;
 }
+/* What three of a digit lead to, in the corner of its tile. */
+.digit {
+  position: relative;
+}
+.badge {
+  position: absolute;
+  right: 0.04em;
+  bottom: 0.03em;
+  width: 0.25em;
+  height: 0.25em;
+}
 /* A reel running too fast to read is smeared along the way it runs. */
 .digit[data-tier='seven'] {
   --mp-streak: 209, 18, 63;
@@ -455,6 +466,9 @@
     0 -0.1em 0 rgba(var(--mp-streak), 0.45),
     0 0.2em 0 rgba(var(--mp-streak), 0.2),
     0 -0.2em 0 rgba(var(--mp-streak), 0.2);
+}
+.strip[data-fast='true'] .badge {
+  opacity: 0.55;
 }
 /* For a player who asked for less motion the reels do not turn: one whose digit is still to come stands dimmed instead. */
 .strip[data-waiting='true'] {

@@ -634,11 +634,27 @@ describe('the screen', () => {
     expect(show({ ...idle, banner: 'line', line: 'big' })).toContain('data-line="big"');
   });
 
+  it('badges every digit on the reels with what three of it lead to', () => {
+    const html = show(idle);
+    // A strip is twelve tiles: a nine, the nine digits, and a one and a two again.
+    const tiles = [...html.matchAll(/<span[^>]*data-tier="(seven|big|small)"[^>]*>(\d)<svg[^>]*data-leads="(ball|chest|sugoroku)"[^>]*aria-hidden="true"/g)];
+    expect(tiles).toHaveLength(3 * 12);
+    for (const [, tier, digit, leads] of tiles) {
+      const expected = digit === '7' ? ['seven', 'ball'] : Number(digit) % 2 === 1 ? ['big', 'chest'] : ['small', 'sugoroku'];
+      expect([tier, leads]).toEqual(expected);
+    }
+    expect(html.match(/data-leads="ball"/g)).toHaveLength(3);
+    expect(html.match(/data-leads="chest"/g)).toHaveLength(3 * 6);
+    expect(html.match(/data-leads="sugoroku"/g)).toHaveLength(3 * 5);
+  });
+
   it('shows the die and moves the piece along the board', () => {
     const html = show({ ...idle, mode: 'sugoroku', die: 4, square: 6 });
     expect(html).toContain('SUGOROKU CHANCE');
     expect(html).toContain('data-face="4"');
-    expect(html.match(/<circle/g)).toHaveLength(4);
+    // Four pips on the die itself; the reels behind it have circles of their own.
+    const die = html.match(/<svg[^>]*data-testid="pusher-die"[\s\S]*?<\/svg>/)?.[0] ?? '';
+    expect(die.match(/<circle/g)).toHaveLength(4);
     expect(html).toContain('MOVE 4');
     expect(html).toContain('data-square="6"');
     expect(html).toContain('data-hidden="true"');

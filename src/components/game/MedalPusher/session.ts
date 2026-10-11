@@ -31,7 +31,7 @@ import {
 
 export const START_CREDITS = 100;
 /** Spins the machine holds while the screen is busy; a chucker hit beyond that is wasted. */
-export const MAX_STOCK = 4;
+export const MAX_STOCK = 8;
 /** Prize balls lying on the field when a machine is switched on. */
 export const START_BALLS = 2;
 /**

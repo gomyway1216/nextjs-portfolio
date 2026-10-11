@@ -55,7 +55,7 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: /Medal Pusher/ })).toBeVisible();
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   await expect(machine(page).getByTestId('pusher-jackpot')).toHaveText(String(JACKPOT_START));
-  await expect(machine(page).getByRole('img', { name: '0 of 4 spins held' })).toBeVisible();
+  await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeVisible();
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
@@ -219,19 +219,19 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
 
-  // 79% by the front and 0.20 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.19 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('96.3%');
+  await expect(result).toHaveText('96.7%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('24%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('121.9%');
+  await expect(result).toHaveText('120.8%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('61.0%');
+  await expect(result).toHaveText('60.4%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
 });
 
@@ -250,7 +250,7 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // From the edges no medal can reach a gate; over the centre gate about one in five does.
+  // From the edges no medal can reach a gate, wherever its sweep has taken it; following the centre gate about one in five does.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
   await expect(cells('edges').nth(3)).toHaveText('0.0%');
   await expect(cells('edges').nth(5)).toHaveText('0');
@@ -301,6 +301,27 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   expect(box?.width).toBeGreaterThan(300);
   expect(box?.width).toBeLessThanOrEqual(375);
   await expect(dropButton(page)).toBeVisible();
+
+  // The hold's eight lamps sit in one row inside the screen, to the right of its title.
+  const screenBox = await machine(page).getByTestId('pusher-screen').boundingBox();
+  const title = await machine(page).getByTestId('pusher-mode').boundingBox();
+  if (!screenBox || !title) throw new Error('the screen has no box');
+  const lamps = machine(page).getByTestId('pusher-stock').locator('[data-lit]');
+  await expect(lamps).toHaveCount(8);
+  const lampBoxes = await lamps.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }),
+  );
+  for (const lamp of lampBoxes) {
+    expect(lamp.width).toBeGreaterThanOrEqual(6);
+    expect(Math.abs(lamp.height - lamp.width)).toBeLessThan(1);
+    expect(Math.abs(lamp.y - lampBoxes[0].y)).toBeLessThan(1);
+    expect(lamp.x).toBeGreaterThanOrEqual(title.x + title.width);
+    expect(lamp.x + lamp.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
+  }
+
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(oddsSizes.scroll).toBeLessThanOrEqual(oddsSizes.inner);

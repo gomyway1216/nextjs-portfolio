@@ -20,7 +20,7 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
-import { playSound, unlockAudio } from './sounds';
+import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -110,6 +110,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   useEffect(() => {
     live.current = { aim, auto, sound, active, strings: t };
   });
+
+  // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
+  // leaving the cabinet, cuts short whatever is still ringing.
+  useEffect(() => {
+    setMusic(sound && active);
+    return () => setMusic(false);
+  }, [sound, active]);
+  useEffect(() => (sound && active ? hush : undefined), [sound, active]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -203,6 +211,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'spinStart':
             lastSpinClock = 0;
+            // Each reel whirrs until it is heard to stop: an outer one as it lands on its digit, the centre when the spin ends.
+            if (session.spin && !calm.matches) {
+              const lands = landTimes(session.spin);
+              playSound('spin', soundOn, { stops: [lands[0], session.spin.duration, lands[2]] });
+            }
             break;
           case 'spinEnd': {
             digits = event.result.digits;
@@ -229,20 +242,24 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound('chest', soundOn);
             break;
           case 'chestPicked':
-            playSound('reelStop', soundOn);
+            playSound('open', soundOn);
             break;
           case 'chestEnd':
             playSound('prize', soundOn);
+            if (event.payout >= CHEST_TOWERS_FROM) playSound('tower', soundOn);
             setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
             break;
           case 'rouletteStart':
+            playSound('roulette', soundOn);
             break;
           case 'rouletteStep':
-            playSound('prize', soundOn);
+            playSound('pocket', soundOn, { level: event.level });
+            playSound('tower', soundOn);
             setAnnouncement(event.level >= CHAIN_GOAL ? strings.sayGoal(event.medals, event.level) : strings.sayStep(event.medals, event.level));
             break;
           case 'rouletteEnd':
-            playSound('full', soundOn);
+            // The run ends here only on a cross; a full run goes on to the bowl.
+            playSound('cross', soundOn);
             setAnnouncement(strings.sayFinish(event.total));
             break;
           case 'bowlStart':
@@ -250,7 +267,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'bowlEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
+            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
+            if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
             break;
         }
@@ -301,7 +320,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (!sameScreen(nextScreen, shownScreen)) {
         const ticking = nextScreen.mode === 'roulette' && nextScreen.banner === 'none' && nextScreen.lit !== shownScreen.lit;
         const hopping = nextScreen.mode === 'sugoroku' && nextScreen.square !== shownScreen.square;
-        if (ticking || hopping) playSound('tick', soundOn);
+        if (ticking || hopping) playSound(ticking ? 'tick' : 'hop', soundOn);
         shownScreen = nextScreen;
         setScreen(nextScreen);
       }

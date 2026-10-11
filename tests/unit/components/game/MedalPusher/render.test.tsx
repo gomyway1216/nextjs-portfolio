@@ -3,7 +3,17 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
-import { BOARD_ROLLS, CALC_DEFAULT, JACKPOT_LEVELS, OddsTab, boardSpread, breakEvenSpins, pocketGroups, returnFor } from '@/components/game/MedalPusher/OddsTab';
+import {
+  BOARD_ROLLS,
+  CALC_DEFAULT,
+  JACKPOT_LEVELS,
+  OddsTab,
+  REACH_ROWS,
+  boardSpread,
+  breakEvenSpins,
+  pocketGroups,
+  returnFor,
+} from '@/components/game/MedalPusher/OddsTab';
 import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { IDLE_DIGITS, Screen, bannerText, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
@@ -11,7 +21,7 @@ import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher
 import { FIELD, PUSHER } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, spinValue } from '@/components/game/MedalPusher/lottery';
+import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
 import {
   REEL_DIGITS,
   inReach,
@@ -301,9 +311,40 @@ describe('the page', () => {
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    expect(html.match(/<caption/g)).toHaveLength(6);
+    expect(html.match(/<caption/g)).toHaveLength(7);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
+  });
+
+  it('says how far to trust a reach', () => {
+    const html = render(<OddsTab />);
+    const table = html.match(/<table[^>]*data-testid="pusher-reach-table"[\s\S]*?<\/table>/)?.[0] ?? '';
+    expect(REACH_ROWS).toEqual(['long', 'normal', 'any']);
+    expect(table.match(/data-reach="(long|normal|any)"/g)).toEqual(['data-reach="long"', 'data-reach="normal"', 'data-reach="any"']);
+    // Each row: how often the reach comes up, and how often it then hits.
+    const row = (kind: string) => table.match(new RegExp(`<tr data-reach="${kind}">[\\s\\S]*?</tr>`))?.[0] ?? '';
+    for (const kind of REACH_ROWS) {
+      expect(row(kind)).toContain(`>${percent(reachChance(kind))}<`);
+      expect(row(kind)).toContain(`>${percent(reachHitChance(kind))}<`);
+    }
+    expect(row('long')).toContain('Super reach (the long one)');
+    expect(row('long')).toContain('>5.8%<');
+    expect(row('long')).toContain('>63.8%<');
+    expect(row('normal')).toContain('>14.4%<');
+    expect(row('normal')).toContain('>17.2%<');
+    expect(row('any')).toContain('>20.3%<');
+    expect(row('any')).toContain('>30.6%<');
+    // The note after it puts the two side by side and says where the difference comes from.
+    expect(html).toContain('a super reach goes on to hit 63.8% of the time and an ordinary reach 17.2%, so the long one is about 3.7 times as likely to hit');
+    expect(html).toContain('played with the long reach 60% of the time');
+    expect(html).toContain('lost with a reach only 15% of the time');
+    // The reach note that was there before still comes first.
+    expect(html.indexOf('About 15% of losing spins')).toBeGreaterThan(-1);
+    expect(html.indexOf('About 15% of losing spins')).toBeLessThan(html.indexOf('pusher-reach-table'));
+
+    const ja = render(<OddsTab />, 'ja');
+    for (const text of ['ノーマルリーチ', 'スーパーリーチ', 'リーチ全体', '出現率', '信頼度', '約3.7倍']) expect(ja).toContain(text);
+    expect(ja).toContain('スーパーリーチが63.8%、ノーマルリーチが17.2%');
   });
 
   it('offers the simulation before any run', () => {

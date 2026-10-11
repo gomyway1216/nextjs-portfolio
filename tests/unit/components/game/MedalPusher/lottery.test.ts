@@ -28,6 +28,8 @@ import {
   drawDie,
   drawPocket,
   drawSpin,
+  reachChance,
+  reachHitChance,
   rouletteValue,
   shuffleChests,
   spinValue,
@@ -162,6 +164,45 @@ describe('the two kinds of reach', () => {
     // The slot wins as often as it did before reaches came in two kinds, and teases as often.
     near(wins, draws, 1 - SPIN_TABLE.miss / SPIN_TOTAL);
     near(teases, draws - wins, REACH_RATE);
+  });
+});
+
+describe('how far to trust a reach', () => {
+  const win = 1 - SPIN_TABLE.miss / SPIN_TOTAL;
+  const tease = (SPIN_TABLE.miss / SPIN_TOTAL) * REACH_RATE;
+
+  it('works out the chance of each kind of reach and of a win behind it', () => {
+    // Every winning spin shows a reach, and a share of the losing ones.
+    expect(reachChance()).toBeCloseTo(win + tease, 12);
+    expect(reachChance('any')).toBe(reachChance());
+    expect(reachChance('long')).toBeCloseTo(win * LONG_REACH.win + tease * LONG_REACH.miss, 12);
+    expect(reachChance('normal')).toBeCloseTo(win * (1 - LONG_REACH.win) + tease * (1 - LONG_REACH.miss), 12);
+    expect(reachChance('long') + reachChance('normal')).toBeCloseTo(reachChance(), 12);
+    // Bayes: the wins among the spins that show the reach.
+    expect(reachHitChance()).toBeCloseTo(win / (win + tease), 12);
+    expect(reachHitChance('long')).toBeCloseTo((win * LONG_REACH.win) / (win * LONG_REACH.win + tease * LONG_REACH.miss), 12);
+    expect(reachHitChance('normal')).toBeCloseTo((win * (1 - LONG_REACH.win)) / (win * (1 - LONG_REACH.win) + tease * (1 - LONG_REACH.miss)), 12);
+    // The figures the Odds tab prints.
+    expect(reachChance()).toBeCloseTo(0.2027, 6);
+    expect(reachChance('long')).toBeCloseTo(0.058305, 6);
+    expect(reachHitChance()).toBeCloseTo(0.305871, 6);
+    expect(reachHitChance('long')).toBeCloseTo(0.638024, 6);
+    expect(reachHitChance('normal')).toBeCloseTo(0.171751, 6);
+    // A long reach is the better sign, an ordinary one the worse, and neither changes how often a spin wins.
+    expect(reachHitChance('long')).toBeGreaterThan(reachHitChance());
+    expect(reachHitChance('normal')).toBeLessThan(reachHitChance());
+    const overall = reachChance('long') * reachHitChance('long') + reachChance('normal') * reachHitChance('normal');
+    expect(overall).toBeCloseTo(win, 12);
+  });
+
+  it('draws reaches that come up, and hit, as often as that', () => {
+    const { draws, shown, hit } = tallyReaches(90210, 600_000);
+    near(shown.long, draws, reachChance('long'));
+    near(shown.normal, draws, reachChance('normal'));
+    near(shown.long + shown.normal, draws, reachChance());
+    near(hit.long, shown.long, reachHitChance('long'));
+    near(hit.normal, shown.normal, reachHitChance('normal'));
+    near(hit.long + hit.normal, shown.long + shown.normal, reachHitChance());
   });
 });
 

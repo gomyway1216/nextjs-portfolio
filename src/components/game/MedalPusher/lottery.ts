@@ -178,6 +178,30 @@ export const chainChance = (level: number): number => CONTINUE_CHANCE ** level;
 /** The chance of each tier on one spin. */
 export const tierChance = (tier: Tier): number => SPIN_TABLE[tier] / SPIN_TOTAL;
 
+/** A reach as the player meets it: the usual one, the long one, or either. */
+export type ReachShown = Exclude<ReachKind, 'none'> | 'any';
+
+/** The share of reaches that are of this kind, among spins that have won or among those that have lost with a reach. */
+const kindShare = (kind: ReachShown, won: boolean): number => {
+  const long = won ? LONG_REACH.win : LONG_REACH.miss;
+  return kind === 'any' ? 1 : kind === 'long' ? long : 1 - long;
+};
+
+/** The chance that one spin shows a reach of this kind and wins, and that it shows one and misses. */
+const reachAndWin = (kind: ReachShown): number => (1 - tierChance('miss')) * kindShare(kind, true);
+const reachAndMiss = (kind: ReachShown): number => tierChance('miss') * REACH_RATE * kindShare(kind, false);
+
+/** The chance that one spin shows a reach of this kind. */
+export const reachChance = (kind: ReachShown = 'any'): number => reachAndWin(kind) + reachAndMiss(kind);
+
+/**
+ * How far a reach can be trusted: the chance that a spin has won, given that
+ * it shows a reach of this kind. Every winning spin shows a reach and only
+ * some losing ones do, and a winning one is played long more often, so a reach
+ * is a hint at what was already drawn, and a long one a stronger hint.
+ */
+export const reachHitChance = (kind: ReachShown = 'any'): number => reachAndWin(kind) / reachChance(kind);
+
 /**
  * Medals a ball's roulette pays on average when the jackpot stands at
  * `jackpot`: every number it gets to, each worth the average pocket, and the

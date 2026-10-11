@@ -208,6 +208,12 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-board-table').locator('tbody td')).toHaveCount(12);
   await expect(odds(page).getByTestId('pusher-chest-table').locator('tbody tr')).toHaveCount(3);
   await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
+  // How far to trust a reach: the long one hits far more often than the ordinary one.
+  const reach = odds(page).getByTestId('pusher-reach-table');
+  await expect(reach.locator('tbody tr')).toHaveCount(3);
+  await expect(reach.locator('tr[data-reach="long"]')).toContainText('63.8%');
+  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('17.2%');
+  await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(6);
@@ -282,6 +288,8 @@ test('reads in Japanese', async ({ page }) => {
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
+  await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
+  await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {

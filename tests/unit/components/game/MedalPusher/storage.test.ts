@@ -172,10 +172,10 @@ describe('what the screen is in the middle of', () => {
   it('comes back at every moment of a spin, a bonus game and a roulette', { timeout: LONG }, () => {
     const seen = new Set<string>();
 
-    // A miss, then a reach that misses.
+    // Two spins that miss: every draw is one no line comes of.
     let session = quiet();
     session.stock = 2;
-    script(session, [0.99, 0.5, 0.5, 0.5, 0.5, 0.99, 0.5, 0.01, 0.2]);
+    script(session, [0.99]);
     follow(session, 7, seen);
     expect(session.tiers.miss).toBe(2);
 

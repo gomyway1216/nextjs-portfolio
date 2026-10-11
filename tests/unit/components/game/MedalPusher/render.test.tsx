@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
@@ -669,6 +672,20 @@ describe('the screen', () => {
     expect(long.match(/>SUPER REACH!</g)).toHaveLength(2);
     expect(show({ ...idle, banner: 'superReach' }, 0, 'ja').match(/>スーパーリーチ！</g)).toHaveLength(2);
     expect(show({ ...idle, banner: 'reach' }, 0, 'ja').match(/>リーチ！</g)).toHaveLength(2);
+  });
+
+  it('has the cut-in off the reels well before the centre reel decides the reach', () => {
+    const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
+    const plain = Number(/animation: mp-cut-in ([\d.]+)s/.exec(css)?.[1]);
+    const long = Number(/\.cutIn\[data-kind='superReach'\] \{[^}]*animation-duration: ([\d.]+)s/.exec(css)?.[1]);
+    // The stylesheet's own note gives these two figures; the band holds for a little over half of each.
+    expect(plain).toBe(0.75);
+    expect(long).toBe(1.1);
+    const superReach = Number((TIMING.reach + TIMING.longReach).toFixed(2));
+    expect(css).toContain(`It takes ${plain} s of a reach's ${TIMING.reach} s; a super reach's takes ${long} s of its ${superReach} s`);
+    // Either way it has gone with at least half a second of the reach still to run.
+    expect(TIMING.reach - plain).toBeGreaterThanOrEqual(0.5);
+    expect(superReach - long).toBeGreaterThanOrEqual(0.5);
   });
 
   it('shows the die and moves the piece along the board', () => {

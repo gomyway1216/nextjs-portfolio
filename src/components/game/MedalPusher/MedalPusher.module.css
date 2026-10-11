@@ -522,7 +522,8 @@
   opacity: 0.22;
 }
 /* A reach is cut in across the reels as it is called: a band that sweeps over them and is gone again, so that
-   the centre reel can be watched. Like the rest of a reach's dress, it is left out for a player who asked for less motion. */
+   the centre reel can be watched. It takes 0.75 s of a reach's 1.3 s; a super reach's takes 1.1 s of its 2.9 s,
+   since its words are longer to read. Like the rest of a reach's dress, it is left out for a player who asked for less motion. */
 .cutIn {
   display: none;
 }

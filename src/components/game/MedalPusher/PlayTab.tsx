@@ -241,7 +241,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         }
       }
 
-      // The arms follow the aim, so a medal on a rail drops where the aim is when it gets to the tip.
+      // The arms swing after the aim, and a medal on a rail drops where its arm's tip is when it gets there.
       aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);

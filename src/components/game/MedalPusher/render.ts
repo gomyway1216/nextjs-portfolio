@@ -6,7 +6,7 @@
  * running.
  */
 
-import { ARMS, armCollar, armGoal, armRest, armTip, letGoAt, rollingSpot, swing } from './arms';
+import { ARMS, armCollar, armTip, letGoAt, rollingSpot } from './arms';
 import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, checkerCentres, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import { HEIGHT, VIEW, project, rise, type Projected } from './view';
 
@@ -98,9 +98,6 @@ export interface Stage {
   /** Medals won since the last count floated up, and the seconds since then. */
   tally: number;
   tallyAge: number;
-  /** Where across the field each arm's tip is drawn, and where it is swinging to; no goal until the machine has been looked at. */
-  arms: [number, number];
-  armGoals: [number, number] | null;
   /** Seconds each light has left to shine. */
   gateGlow: number[];
   trayGlow: number;
@@ -474,8 +471,6 @@ export function createStage(ratio: number): Stage {
     popups: [],
     tally: 0,
     tallyAge: 0,
-    arms: [armRest(0), armRest(1)],
-    armGoals: null,
     gateGlow: CHECKERS.positions.map(() => 0),
     trayGlow: 0,
     sideGlow: [0, 0],
@@ -550,19 +545,11 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
   }
   stage.seen = present;
   stage.tally += won;
-  // Where the arms belong now. A stage that has not seen the machine before finds them already there.
-  const goals: [number, number] = [armGoal(machine, 0), armGoal(machine, 1)];
-  if (!stage.armGoals) stage.arms = [goals[0], goals[1]];
-  stage.armGoals = goals;
 }
 
-/** Ages the lights, the sparks and whatever is on its way out, and swings the arms. `calm` leaves the confetti and the swing out. */
+/** Ages the lights, the sparks and whatever is on its way out. `calm` leaves the confetti out. */
 export function ageStage(stage: Stage, dt: number, calm = false): void {
   stage.clock += dt;
-  // An arm swings to where it belongs. One that follows the aim keeps up with it; without motion it is simply there.
-  if (stage.armGoals) {
-    for (const arm of [0, 1] as const) stage.arms[arm] = calm ? stage.armGoals[arm] : swing(stage.arms[arm], stage.armGoals[arm], dt);
-  }
   for (const exit of stage.exits) exit.age += dt;
   if (stage.exits.length > 0 && stage.exits[0].age >= EXIT_TIME) stage.exits = stage.exits.filter((exit) => exit.age < EXIT_TIME);
   for (let i = 0; i < stage.gateGlow.length; i++) stage.gateGlow[i] = Math.max(0, stage.gateGlow[i] - dt);
@@ -807,15 +794,19 @@ function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, coun
 }
 
 /**
- * One feed arm, its tip where the stage has it: a rail of clear acrylic between
- * the track the medals run on and a guide over their heads, the hood at the tip
- * that turns a medal down, the medals on their way, and the collar the rail
- * slides through. `lit` is how bright its neon is, from 0 to 1.
+ * One feed arm, its tip exactly where the machine has it: a rail of clear
+ * acrylic between the track the medals run on and a guide over their heads, the
+ * hood at the tip that turns a medal down, the medals on their way, and the
+ * collar the rail slides through. The machine swings the arms, and a medal is
+ * let go where its arm's tip is, so nothing here eases a tip on its own: the
+ * rail a medal leaves and the spot its fall starts from are one place. `lit` is
+ * how bright its neon is, from 0 to 1.
  */
 function drawArm(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, arm: Arm, lit: number, shift: number): void {
   const k = stage.ratio;
+  const tipX = machine.tips[arm];
   const from = armCollar(arm);
-  const to = armTip(arm, stage.arms[arm]);
+  const to = armTip(arm, tipX);
   const length = Math.hypot(to.x - from.x, to.height - from.height);
   // One unit along the rail, and one square to it on the side a medal rests on, both in the plane the arm hangs in.
   const along = { x: (to.x - from.x) / length, height: (to.height - from.height) / length };
@@ -880,10 +871,10 @@ function drawArm(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, ar
   g.stroke();
 
   // The medals on their way down, each turned as far as it has rolled. It gets to the tip the way round it will lie.
-  const arrives = rollingSpot(arm, stage.arms[arm], 0).turned;
+  const arrives = rollingSpot(arm, tipX, 0).turned;
   for (const medal of machine.rolling) {
     if (medal.arm !== arm) continue;
-    const spot = rollingSpot(arm, stage.arms[arm], medal.remaining);
+    const spot = rollingSpot(arm, tipX, medal.remaining);
     const point = project(spot.x, spot.height, spot.depth);
     // Its far rim shows over the top of its face.
     const rim = project(spot.x, spot.height, spot.depth - T);
@@ -937,7 +928,7 @@ function drawArm(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, ar
 }
 
 export interface DrawOptions {
-  /** Where the next medal would be let go. */
+  /** Where the player is aiming: the arm on that side takes the next medal. */
   aim: number;
   /** Whether to show how far a dropped medal can land from its aim. */
   showGuide: boolean;
@@ -1066,12 +1057,14 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     flat();
   });
 
-  // Where a medal that leaves its arm now is let go, and how far from that it can land.
+  // Where a medal that leaves now is let go, and how far from that it can land: under the tip of the
+  // arm on the side of the aim, which is over the aim once it has swung there.
   const aim = options.aim;
   if (options.showGuide) {
-    const tip = project(aim, ARMS.tip, 0);
-    const left = project(Math.max(R, aim - LANDING.scatter), P, 0);
-    const right = project(Math.min(W - R, aim + LANDING.scatter), P, 0);
+    const over = machine.tips[armFor(aim)];
+    const tip = project(over, ARMS.tip, 0);
+    const left = project(Math.max(R, over - LANDING.scatter), P, 0);
+    const right = project(Math.min(W - R, over + LANDING.scatter), P, 0);
     const spread = g.createLinearGradient(0, tip.y, 0, left.y);
     spread.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
     spread.addColorStop(1, 'rgba(255, 255, 255, 0.03)');

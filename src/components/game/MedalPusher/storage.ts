@@ -33,20 +33,23 @@
  * show. None was ever written outside development.
  *
  * Version 1 is the machine before its feed arms, when a medal was in the air
- * from the moment it was dropped. Version 2 adds where the arms are pointed
- * and the medals on their rails. Each version's field is held to its own exact
- * shape, so a version-1 save comes back as the machine it was, and one that
- * has been given a field of the other version is not a save of either.
+ * from the moment it was dropped. Version 2 adds the arms: where they are
+ * pointed, where each tip has got to, and the medals on their rails. Each
+ * version's field is held to its own exact shape, so a version-1 save comes
+ * back as the machine it was, and one that has been given a field of the other
+ * version is not a save of either.
  */
 
 import {
   AIM,
+  ARM_REACH,
   DROP_INTERVAL,
   FIELD,
   MEDAL_RADIUS,
   ROLL_TIME,
   SETTLE,
   TOWER,
+  armRest,
   seededRng,
   type FallingMedal,
   type Machine,
@@ -232,10 +235,23 @@ const fallingMedal = shape<FallingMedal>(
   (m) => m.remaining <= m.duration,
 );
 
+/**
+ * Where the two arms' tips are, the left arm's first: each within its own arm's
+ * reach. The left one is never to the right of the right one: where they
+ * belong is always that way round, both swing at one speed, and neither
+ * overshoots, so they cannot pass each other.
+ */
+const tips: Check<[number, number]> = (value) => {
+  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  const left = real(ARM_REACH[0].min, ARM_REACH[0].max)(value[0]);
+  const right = real(ARM_REACH[1].min, ARM_REACH[1].max)(value[1]);
+  return left === undefined || right === undefined || left > right ? undefined : [left, right];
+};
+
 /** The field as it is stored: everything but the generator. */
 type StoredMachine = Omit<Machine, 'rng'>;
-/** The field as version 1 stored it: nothing on a rail, and no aim. */
-type MachineBeforeArms = Omit<StoredMachine, 'rolling' | 'aim'>;
+/** The field as version 1 stored it: no arms, so nothing on a rail, no aim and no tips. */
+type MachineBeforeArms = Omit<StoredMachine, 'rolling' | 'aim' | 'tips'>;
 
 /**
  * How closely the medals on the rails are held to the slot's pace, in seconds.
@@ -254,6 +270,7 @@ const machineFields = {
   towerClock: timer,
   cooldown: real(0, DROP_INTERVAL),
   aim: real(AIM.min, AIM.max),
+  tips,
   nextId: whole(1, LIMITS.count),
 };
 
@@ -277,19 +294,20 @@ const storedMachine = shape<StoredMachine>(machineFields, (machine) => {
   return growing === machine.growing && balls <= LIMITS.balls;
 });
 
-const { rolling: _rolling, aim: _aim, ...fieldsBeforeArms } = machineFields;
+const { rolling: _rolling, aim: _aim, tips: _tips, ...fieldsBeforeArms } = machineFields;
 const machineBeforeArms = shape<MachineBeforeArms>(fieldsBeforeArms);
 
 /**
  * The field of a version-1 save, as today's machine. That game had no arms: a
  * medal was in the air, with its landing spot, from the moment it was dropped.
  * So whatever such a save holds in the air is already in its fall, and lands
- * where and when it was going to; nothing is on a rail; and with no aim to
- * bring back, the arms point at the middle, as a new machine's do.
+ * where and when it was going to, whatever the arms do; nothing is on a rail;
+ * and with no aim to bring back, the arms are where a new machine's are: the
+ * aim on the middle, the right arm's tip over it and the left arm at rest.
  */
 const fieldBeforeArms: Check<StoredMachine> = (value) => {
   const field = machineBeforeArms(value);
-  return field && storedMachine({ ...field, rolling: [], aim: FIELD.width / 2 });
+  return field && storedMachine({ ...field, rolling: [], aim: FIELD.width / 2, tips: [armRest(0), FIELD.width / 2] });
 };
 
 // ── The purse and the counters ──────────────────────────────────────────────

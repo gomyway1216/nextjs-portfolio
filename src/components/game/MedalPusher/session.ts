@@ -10,17 +10,16 @@ import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, typ
 import {
   BOARD,
   CHESTS,
+  CHAIN_GOAL,
   CHEST_TOWERS_FROM,
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
   ROULETTE,
   TIER_BONUS,
-  TOWERS_FROM,
   drawDie,
   drawPocket,
   drawSpin,
-  pocketPays,
   shuffleChests,
   squareAfter,
   type SpinResult,
@@ -36,7 +35,8 @@ export const START_BALLS = 2;
  * How long things take on the screen, in seconds: a spin, a quicker one when
  * spins are queueing up, the extra suspense of a reach, how long a winning
  * line stays up, the die and each hop of the piece, the time to choose a
- * chest and for it to open, the roulette, and how long a prize stays up.
+ * chest and for it to open, one turn of the roulette and the pause before the
+ * next, and how long a prize stays up.
  */
 export const TIMING = {
   spin: 1.6,
@@ -47,7 +47,8 @@ export const TIMING = {
   hop: 0.28,
   choose: 8,
   open: 1.1,
-  roulette: 5,
+  roulette: 2.8,
+  step: 1.1,
   prize: 2.2,
 } as const;
 
@@ -92,14 +93,29 @@ export interface ActiveChest {
 
 export type ActiveBonus = ActiveSugoroku | ActiveChest;
 
+/**
+ * The roulette a ball starts: a run of turns. Each turn the light goes round
+ * and stops on a pocket. A number is stacked on the pusher as a tower and the
+ * roulette turns again; a cross ends the run; enough numbers in a row win the
+ * jackpot on top.
+ */
 export interface ActiveRoulette {
-  /** Index of the pocket it will stop on. */
+  /** Index of the pocket this turn will stop on, and of the one the light set off from. */
   pocket: number;
+  from: number;
+  /** Seconds into this turn, and how long the light takes to stop. */
   elapsed: number;
-  /** When the light stops. The prize then stays up for a moment. */
   duration: number;
-  /** Medals it paid; −1 while the light is still going round. */
-  payout: number;
+  /** Whether this turn's pocket has been reached and paid. */
+  landed: boolean;
+  /** Numbers in a row so far, and the medals the run has paid, the jackpot included. */
+  level: number;
+  total: number;
+  /** Medals the last pocket paid: its number, the jackpot when the run is complete, 0 for a cross. */
+  gain: number;
+  /** Whether the run has ended, and whether it ended in the jackpot. */
+  over: boolean;
+  jackpot: boolean;
 }
 
 export interface Session {
@@ -152,7 +168,8 @@ export type SessionEvent =
   | { type: 'chestPicked'; chest: number }
   | { type: 'chestEnd'; chest: number; payout: number }
   | { type: 'rouletteStart'; pocket: number; duration: number }
-  | { type: 'rouletteEnd'; pocket: number; payout: number; jackpot: boolean };
+  | { type: 'rouletteStep'; pocket: number; medals: number; level: number }
+  | { type: 'rouletteEnd'; total: number; level: number; jackpot: boolean };
 
 export interface SessionOptions {
   /** Prize balls on the field at the start. */
@@ -308,18 +325,44 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
   const { roulette, bonus, spin } = session;
   if (roulette) {
     roulette.elapsed += dt;
-    if (roulette.payout < 0 && roulette.elapsed >= roulette.duration) {
-      const jackpot = ROULETTE[roulette.pocket] === 'jackpot';
-      roulette.payout = pocketPays(ROULETTE[roulette.pocket], session.jackpot);
-      pay(session, roulette.payout, roulette.payout >= TOWERS_FROM);
-      if (jackpot) {
-        session.jackpots += 1;
-        session.jackpot = JACKPOT_START;
-        session.jackpotProgress = 0;
+    if (!roulette.landed && roulette.elapsed >= roulette.duration) {
+      roulette.landed = true;
+      const pocket = ROULETTE[roulette.pocket];
+      if (pocket === 'stop') {
+        roulette.gain = 0;
+        roulette.over = true;
+      } else {
+        // The number goes up on the pusher as a tower straight away.
+        roulette.level += 1;
+        roulette.gain = pocket;
+        roulette.total += pocket;
+        pay(session, pocket, true);
+        events?.push({ type: 'rouletteStep', pocket: roulette.pocket, medals: pocket, level: roulette.level });
+        if (roulette.level >= CHAIN_GOAL) {
+          roulette.gain = session.jackpot;
+          roulette.total += session.jackpot;
+          roulette.over = true;
+          roulette.jackpot = true;
+          pay(session, session.jackpot, true);
+          session.jackpots += 1;
+          session.jackpot = JACKPOT_START;
+          session.jackpotProgress = 0;
+        }
       }
-      events?.push({ type: 'rouletteEnd', pocket: roulette.pocket, payout: roulette.payout, jackpot });
+      if (roulette.over) events?.push({ type: 'rouletteEnd', total: roulette.total, level: roulette.level, jackpot: roulette.jackpot });
     }
-    if (roulette.elapsed >= roulette.duration + TIMING.prize) session.roulette = null;
+    if (roulette.landed) {
+      if (roulette.over) {
+        if (roulette.elapsed >= roulette.duration + TIMING.prize) session.roulette = null;
+      } else if (roulette.elapsed >= roulette.duration + TIMING.step) {
+        // The light sets off again from where it stopped.
+        roulette.from = roulette.pocket;
+        roulette.pocket = drawPocket(session.machine.rng);
+        roulette.elapsed = 0;
+        roulette.landed = false;
+        roulette.gain = 0;
+      }
+    }
     return;
   }
 
@@ -364,7 +407,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     session.balls -= 1;
     session.roulettes += 1;
     const pocket = drawPocket(session.machine.rng);
-    session.roulette = { pocket, elapsed: 0, duration: TIMING.roulette, payout: -1 };
+    session.roulette = { pocket, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
     events?.push({ type: 'rouletteStart', pocket, duration: TIMING.roulette });
     return;
   }

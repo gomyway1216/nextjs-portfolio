@@ -57,6 +57,8 @@ const IDLE_SCREEN: ScreenState = {
   rolling: false,
   chests: null,
   secondsLeft: 0,
+  level: 0,
+  total: 0,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -222,10 +224,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'rouletteStart':
             break;
+          case 'rouletteStep':
+            playSound('prize', soundOn);
+            setAnnouncement(strings.sayStep(event.medals, event.level));
+            break;
           case 'rouletteEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
-            playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayPrize(event.payout));
+            playSound(event.jackpot ? 'jackpot' : 'full', soundOn);
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.total) : strings.sayFinish(event.total));
             break;
         }
       }

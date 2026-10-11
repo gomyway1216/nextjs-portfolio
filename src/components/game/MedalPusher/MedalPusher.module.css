@@ -183,26 +183,27 @@
   inset: 0;
   background-image: radial-gradient(circle at 50% 50%, #fff7c2 0 2.6px, #ffd65c 3.4px, rgba(255, 214, 92, 0.35) 5px, transparent 6px);
   background-size: 54px 12px;
-  animation: mp-chase 0.9s steps(3, jump-none) infinite;
+  animation: mp-glow 2.4s ease-in-out infinite;
 }
 .bulbs::after {
   background-image: radial-gradient(circle at 50% 50%, #ffe0f1 0 2.6px, #ff7cc0 3.4px, rgba(255, 124, 192, 0.35) 5px, transparent 6px);
   background-position: 27px 0;
-  animation-direction: reverse;
-  opacity: 0.85;
+  animation-delay: -1.2s;
 }
 .cabinet[data-banner='jackpot'] .bulbs::before,
 .cabinet[data-banner='jackpot'] .bulbs::after,
 .cabinet[data-banner='fever'] .bulbs::before,
 .cabinet[data-banner='fever'] .bulbs::after {
-  animation-duration: 0.3s;
+  animation-duration: 0.7s;
 }
-@keyframes mp-chase {
-  from {
-    background-position-x: 0;
+/* The bulbs brighten and dim in turn: a slow glow, never a hard blink. */
+@keyframes mp-glow {
+  0%,
+  100% {
+    opacity: 0.25;
   }
-  to {
-    background-position-x: 36px;
+  50% {
+    opacity: 1;
   }
 }
 .marquee {
@@ -269,7 +270,7 @@
 }
 .cabinet[data-banner='jackpot'] .jackpotBox,
 .cabinet[data-banner='jackpot'] .marquee {
-  animation: mp-flash 0.5s steps(2, jump-none) infinite;
+  animation: mp-flash 0.7s ease-in-out infinite alternate;
 }
 
 /* The screen */
@@ -398,7 +399,7 @@
 .reels[data-line='small'] .reel,
 .reels[data-line='big'] .reel,
 .reels[data-line='seven'] .reel {
-  animation: mp-flash 0.4s steps(2, jump-none) infinite;
+  animation: mp-flash 0.7s ease-in-out infinite alternate;
 }
 .strip {
   will-change: transform;
@@ -425,6 +426,38 @@
 .bonus {
   flex-direction: column;
   gap: 4cqh;
+}
+.bonus[data-row='true'] {
+  flex-direction: row;
+  gap: 5cqw;
+}
+.chain {
+  display: grid;
+  justify-items: center;
+  gap: 5cqh;
+}
+.chainLabel {
+  font-size: clamp(0.7rem, 10cqh, 1.05rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #ffe0f1;
+}
+.chainLamps {
+  display: flex;
+  gap: 0.3rem;
+}
+.chainLamps .lamp[data-goal='true'] {
+  border-color: #ffd65c;
+}
+.chainTotal {
+  padding: 0.1rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #ffd65c;
+  background: rgba(10, 5, 32, 0.7);
+  font-size: clamp(0.85rem, 13cqh, 1.35rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffe98a;
 }
 .bonusHint {
   font-size: clamp(0.72rem, 11cqh, 1.15rem);
@@ -525,7 +558,9 @@
   filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));
 }
 .caption {
-  min-height: 1.9em;
+  /* One height whatever is in it, so a banner coming and going never moves the field below. */
+  height: 2.9em;
+  overflow: hidden;
   display: grid;
   place-items: center;
   text-align: center;
@@ -559,7 +594,7 @@
   text-shadow:
     0 0 14px rgba(255, 214, 92, 0.95),
     0 2px 0 #3a1d00;
-  animation: mp-pop 0.5s ease-in-out infinite alternate;
+  animation: mp-pop 0.8s ease-in-out infinite alternate;
 }
 .banner[data-banner='reach'] {
   color: #ffd0da;
@@ -573,7 +608,7 @@
     scale: 1;
   }
   to {
-    scale: 1.1;
+    scale: 1.06;
   }
 }
 /* The sugoroku board: a loop of squares laid out in a row, the piece on one of them. */
@@ -642,7 +677,7 @@
     filter: brightness(1);
   }
   to {
-    filter: brightness(1.5);
+    filter: brightness(1.28);
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -4,13 +4,16 @@ import { seededRng } from '@/components/game/MedalPusher/engine';
 import {
   BOARD,
   BOARD_VALUE,
+  CHAIN_GOAL,
   CHESTS,
   CHEST_TOWERS_FROM,
+  CONTINUE_CHANCE,
   CHEST_VALUE,
   DIE_FACES,
   FEVER_SQUARE,
   JACKPOT_CHANCE,
   JACKPOT_START,
+  POCKET_VALUE,
   REACH_RATE,
   ROULETTE,
   SPIN_TABLE,
@@ -18,12 +21,11 @@ import {
   TIERS,
   TIER_BONUS,
   TIER_DIGITS,
-  TOWERS_FROM,
   boardAfter,
+  chainChance,
   drawDie,
   drawPocket,
   drawSpin,
-  pocketPays,
   rouletteValue,
   shuffleChests,
   spinValue,
@@ -37,20 +39,20 @@ describe('the slot', () => {
   it('has a table that adds up', () => {
     expect(TIERS.reduce((sum, tier) => sum + SPIN_TABLE[tier], 0)).toBe(SPIN_TOTAL);
     expect(TIERS.reduce((sum, tier) => sum + tierChance(tier), 0)).toBeCloseTo(1, 12);
-    expect(tierChance('seven')).toBeCloseTo(0.006, 12);
+    expect(tierChance('seven')).toBeCloseTo(0.007, 12);
     expect(tierChance('big')).toBeCloseTo(0.015, 12);
     expect(tierChance('small')).toBeCloseTo(0.04, 12);
-    expect(tierChance('miss')).toBeCloseTo(0.939, 12);
+    expect(tierChance('miss')).toBeCloseTo(0.938, 12);
   });
 
   it('turns a roll into a tier at the right boundaries', () => {
     expect(tierFor(0)).toBe('seven');
-    expect(tierFor(0.0059)).toBe('seven');
-    expect(tierFor(0.006)).toBe('big');
-    expect(tierFor(0.0209)).toBe('big');
-    expect(tierFor(0.021)).toBe('small');
-    expect(tierFor(0.0609)).toBe('small');
-    expect(tierFor(0.061)).toBe('miss');
+    expect(tierFor(0.0069)).toBe('seven');
+    expect(tierFor(0.0071)).toBe('big');
+    expect(tierFor(0.0219)).toBe('big');
+    expect(tierFor(0.0221)).toBe('small');
+    expect(tierFor(0.0619)).toBe('small');
+    expect(tierFor(0.0621)).toBe('miss');
     expect(tierFor(0.999999)).toBe('miss');
   });
 
@@ -93,16 +95,16 @@ describe('the slot', () => {
 });
 
 describe('the roulette a ball starts', () => {
-  it('has twelve pockets, one of them the jackpot', () => {
+  it('has twelve pockets: eight numbers and four crosses', () => {
     expect(ROULETTE).toHaveLength(12);
-    expect(ROULETTE.filter((pocket) => pocket === 'jackpot')).toHaveLength(1);
-    expect(ROULETTE.filter((pocket) => pocket === 30)).toHaveLength(4);
-    expect(ROULETTE.filter((pocket) => pocket === 50)).toHaveLength(4);
-    expect(ROULETTE.filter((pocket) => pocket === 100)).toHaveLength(3);
-    expect(pocketPays('jackpot', 412)).toBe(412);
-    expect(pocketPays(50, 412)).toBe(50);
-    // Thirty medals are thrown on loose; fifty and up are stacked as towers.
-    expect(TOWERS_FROM).toBe(50);
+    expect(ROULETTE.filter((pocket) => pocket === 'stop')).toHaveLength(4);
+    expect(ROULETTE.filter((pocket) => pocket === 10)).toHaveLength(3);
+    expect(ROULETTE.filter((pocket) => pocket === 20)).toHaveLength(3);
+    expect(ROULETTE.filter((pocket) => pocket === 30)).toHaveLength(1);
+    expect(ROULETTE.filter((pocket) => pocket === 50)).toHaveLength(1);
+    expect(CONTINUE_CHANCE).toBeCloseTo(2 / 3, 12);
+    expect(POCKET_VALUE).toBeCloseTo(21.25, 12);
+    expect(CHAIN_GOAL).toBe(6);
   });
 
   it('draws every pocket equally often', () => {
@@ -115,11 +117,51 @@ describe('the roulette a ball starts', () => {
     expect(drawPocket(() => 0.9999999)).toBe(11);
   });
 
-  it('is worth what its pockets add up to', () => {
-    expect(rouletteValue(300)).toBeCloseTo((300 + 4 * 30 + 4 * 50 + 3 * 100) / 12, 12);
-    expect(rouletteValue(300)).toBeCloseTo(76.6667, 4);
-    expect(rouletteValue(1000) - rouletteValue(300)).toBeCloseTo(700 / 12, 12);
-    expect(JACKPOT_CHANCE).toBeCloseTo(1 / 2000, 12);
+  it('gets to each level of a run with the chance of that many numbers in a row', () => {
+    expect(chainChance(0)).toBe(1);
+    expect(chainChance(1)).toBeCloseTo(2 / 3, 12);
+    expect(chainChance(CHAIN_GOAL)).toBeCloseTo(64 / 729, 12);
+    expect(JACKPOT_CHANCE).toBeCloseTo(0.007 * (64 / 729), 12);
+  });
+
+  it('is worth every number it gets to and the jackpot for a full run', () => {
+    // Worked out the long way: every run of pockets up to the first cross or the goal.
+    const worth = (jackpot: number) => {
+      let total = 0;
+      const walk = (level: number, chance: number, medals: number) => {
+        if (level === CHAIN_GOAL) {
+          total += chance * (medals + jackpot);
+          return;
+        }
+        for (const pocket of ROULETTE) {
+          if (pocket === 'stop') total += (chance / ROULETTE.length) * medals;
+          else walk(level + 1, chance / ROULETTE.length, medals + pocket);
+        }
+      };
+      walk(0, 1, 0);
+      return total;
+    };
+    expect(rouletteValue(300)).toBeCloseTo(worth(300), 9);
+    expect(rouletteValue(1000)).toBeCloseTo(worth(1000), 9);
+    expect(rouletteValue(300)).toBeCloseTo(65.1063, 4);
+    expect(rouletteValue(1000) - rouletteValue(300)).toBeCloseTo((700 * 64) / 729, 9);
+  });
+
+  it('pays what its exact value says over many runs', () => {
+    const rng = seededRng(77);
+    const runs = 200_000;
+    let medals = 0;
+    let jackpots = 0;
+    for (let i = 0; i < runs; i++) {
+      for (let level = 0; level < CHAIN_GOAL; level++) {
+        const pocket = ROULETTE[drawPocket(rng)];
+        if (pocket === 'stop') break;
+        medals += pocket;
+        if (level === CHAIN_GOAL - 1) jackpots++;
+      }
+    }
+    expect(Math.abs(jackpots / runs - chainChance(CHAIN_GOAL))).toBeLessThan(0.003);
+    expect(Math.abs((medals + jackpots * 300) / runs - rouletteValue(300))).toBeLessThan(0.9);
   });
 
   it('makes a spin worth a little over one medal', () => {
@@ -128,10 +170,10 @@ describe('the roulette a ball starts', () => {
     expect(tierValue('small', JACKPOT_START)).toBe(BOARD_VALUE);
     expect(tierValue('big', JACKPOT_START)).toBe(CHEST_VALUE);
     expect(tierValue('seven', 900)).toBeCloseTo(rouletteValue(900), 12);
-    const expected = 0.04 * BOARD_VALUE + 0.015 * CHEST_VALUE + 0.006 * rouletteValue(JACKPOT_START);
+    const expected = 0.04 * BOARD_VALUE + 0.015 * CHEST_VALUE + 0.007 * rouletteValue(JACKPOT_START);
     expect(spinValue(JACKPOT_START)).toBeCloseTo(expected, 12);
-    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.11, 12);
-    expect(spinValue(900)).toBeCloseTo(1.41, 12);
+    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.10574, 5);
+    expect(spinValue(900)).toBeCloseTo(1.47447, 5);
   });
 });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { PusherStrings } from './i18n';
-import { FEVER_SQUARE, ROULETTE, TIER_DIGITS, type Tier } from './lottery';
+import { CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_DIGITS, type Tier } from './lottery';
 import { BOARD_SQUARES, REEL_DIGITS, type Banner, type ChestView, type ScreenState } from './screen';
 import { MAX_STOCK } from './session';
 import styles from './MedalPusher.module.css';
@@ -47,8 +47,8 @@ const Chest = ({ view }: { view: ChestView }) => (
   </svg>
 );
 
-/** The roulette as a wheel of twelve sectors, the lit one bright. */
-const Wheel = ({ lit, jackpotLabel }: { lit: number; jackpotLabel: string }) => {
+/** The roulette as a wheel of twelve sectors, the lit one bright. A cross ends the run. */
+const Wheel = ({ lit }: { lit: number }) => {
   const count = ROULETTE.length;
   const point = (index: number, radius: number) => {
     const angle = ((index / count) * 2 - 0.5) * Math.PI;
@@ -62,17 +62,17 @@ const Wheel = ({ lit, jackpotLabel }: { lit: number; jackpotLabel: string }) => 
         const [x2, y2] = point(index + 0.5, 47);
         const [tx, ty] = point(index, 36);
         const on = lit === index;
-        const jackpot = pocket === 'jackpot';
+        const stop = pocket === 'stop';
         return (
           <g key={index} data-pocket={index} data-lit={on}>
             <path
               d={`M50 50 L${x1.toFixed(2)} ${y1.toFixed(2)} A47 47 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`}
-              fill={on ? '#ffd65c' : jackpot ? '#6b0f3f' : index % 2 === 0 ? '#2a1c5c' : '#1b1140'}
+              fill={on ? (stop ? '#ff6b81' : '#ffd65c') : stop ? '#4a0d1c' : index % 2 === 0 ? '#2a1c5c' : '#1b1140'}
               stroke="#0a0520"
               strokeWidth="0.6"
             />
-            <text x={tx} y={ty + 2.6} textAnchor="middle" fontSize={jackpot ? 7.5 : 7} fontWeight={900} fill={on ? '#1a1200' : jackpot ? '#ffd65c' : '#e6e0ff'}>
-              {jackpot ? jackpotLabel : pocket}
+            <text x={tx} y={ty + 2.8} textAnchor="middle" fontSize={stop ? 9 : 7} fontWeight={900} fill={on ? '#1a1200' : stop ? '#ff9db1' : '#e6e0ff'}>
+              {stop ? '×' : pocket}
             </text>
           </g>
         );
@@ -101,6 +101,7 @@ export function bannerText(state: ScreenState, t: PusherStrings): string | null 
     medals: t.spinWin(state.amount),
     towers: t.towerWin(state.amount),
     fever: t.feverWin(state.amount),
+    finish: t.finishWin(state.amount),
     jackpot: t.jackpotWon(state.amount),
   };
   return text[state.banner];
@@ -179,8 +180,17 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
         )}
 
         {state.mode === 'roulette' && (
-          <div className={styles.bonus} aria-hidden>
-            <Wheel lit={state.lit} jackpotLabel={t.pocketJackpot} />
+          <div className={styles.bonus} data-row="true" aria-hidden>
+            <Wheel lit={state.lit} />
+            <div className={styles.chain} data-testid="pusher-chain" data-level={state.level}>
+              <span className={styles.chainLabel}>{t.chainLevel(state.level, CHAIN_GOAL)}</span>
+              <span className={styles.chainLamps}>
+                {Array.from({ length: CHAIN_GOAL }, (_, index) => (
+                  <span key={index} className={styles.lamp} data-lit={index < state.level} data-goal={index === CHAIN_GOAL - 1} />
+                ))}
+              </span>
+              <span className={styles.chainTotal}>{t.chainTotal(state.total)}</span>
+            </div>
           </div>
         )}
       </div>

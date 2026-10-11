@@ -273,44 +273,90 @@ describe('the treasure chests', () => {
 });
 
 describe('the roulette', () => {
-  it('starts when a ball has gone over, ahead of any held spin', () => {
+  /** A pocket's index as the draw that picks it. */
+  const draw = (pocket: number) => (pocket + 0.5) / ROULETTE.length;
+  const TURN = TIMING.roulette;
+  const withBall = (draws: number[], then = draw(0)): Session => {
     const session = createSession(6, { balls: 0 });
-    session.stock = 2;
     session.balls = 1;
-    // Pocket 1 of 12: thirty medals.
-    script(session, [1.5 / ROULETTE.length]);
+    script(session, draws, then);
+    return session;
+  };
+
+  it('starts when a ball has gone over, ahead of any held spin', () => {
+    const session = withBall([draw(1)]);
+    session.stock = 2;
     const events: SessionEvent[] = [];
     advance(session, DT, events);
     expect(types(events)).toEqual(['rouletteStart']);
-    expect(session.roulette?.pocket).toBe(1);
+    expect(session.roulette).toMatchObject({ pocket: 1, from: 0, level: 0, total: 0, landed: false, over: false });
     expect(session.roulettes).toBe(1);
     expect(session.balls).toBe(0);
     expect(session.stock).toBe(2);
     expect(session.spins).toBe(0);
   });
 
-  it('throws thirty medals on loose and holds the prize up before the next spin', () => {
-    const session = createSession(6, { balls: 0 });
-    session.balls = 1;
+  it('ends at once on a cross, with nothing paid', () => {
+    const session = withBall([draw(0)]);
     session.stock = 1;
-    script(session, [1.5 / ROULETTE.length]);
-    const events = play(session, TIMING.roulette + 0.1);
-    expect(events.find((event) => event.type === 'rouletteEnd')).toMatchObject({ pocket: 1, payout: 30, jackpot: false });
-    expect(session.paidOut).toBe(30);
-    expect(session.machine.growing).toBe(0);
-    expect(session.roulette?.payout).toBe(30);
+    const events = play(session, TURN + 0.1);
+    expect(events.find((event) => event.type === 'rouletteEnd')).toMatchObject({ total: 0, level: 0, jackpot: false });
+    expect(types(events)).not.toContain('rouletteStep');
+    expect(session.paidOut).toBe(0);
+    expect(session.roulette).toMatchObject({ over: true, jackpot: false, gain: 0 });
+    // The end stays up, then the held spin gets the screen.
     expect(session.spins).toBe(0);
     play(session, TIMING.prize + 0.1);
     expect(session.roulette).toBeNull();
     expect(session.spins).toBe(1);
   });
 
+  it('stacks every number as a tower and turns again until a cross', () => {
+    // Pockets 1, 3 and 7 are 10, 30 and 50; pocket 4 is a cross.
+    const session = withBall([draw(1), draw(3), draw(7), draw(4)]);
+    const before = medalsOnField(session.machine);
+    const first = play(session, TURN + 0.1);
+    expect(first.find((event) => event.type === 'rouletteStep')).toMatchObject({ pocket: 1, medals: 10, level: 1 });
+    expect(session.roulette).toMatchObject({ level: 1, total: 10, gain: 10, landed: true, over: false });
+    expect(session.paidOut).toBe(10);
+    expect(towersOf(session)).toHaveLength(1);
+    // After a pause the light sets off again from where it stopped.
+    play(session, TIMING.step);
+    expect(session.roulette).toMatchObject({ pocket: 3, from: 1, landed: false, gain: 0 });
+    const rest = play(session, (TURN + TIMING.step) * 2 + TURN + 0.2);
+    expect(rest.filter((event) => event.type === 'rouletteStep').map((event) => (event.type === 'rouletteStep' ? event.medals : 0))).toEqual([30, 50]);
+    expect(rest.find((event) => event.type === 'rouletteEnd')).toMatchObject({ total: 90, level: 3, jackpot: false });
+    expect(session.paidOut).toBe(90);
+    expect(session.jackpots).toBe(0);
+    expect(session.machine.payoutQueue).toBe(0);
+    expect(medalsOnField(session.machine) + session.won + session.lost).toBe(before + 90);
+  });
+
+  it('pays the jackpot on top of six numbers in a row and starts it over', () => {
+    const session = withBall([], draw(1));
+    session.jackpot = 337;
+    session.jackpotProgress = 12;
+    const events = play(session, (TURN + TIMING.step) * 5 + TURN + 0.2);
+    expect(events.filter((event) => event.type === 'rouletteStep')).toHaveLength(6);
+    expect(events.find((event) => event.type === 'rouletteEnd')).toMatchObject({ total: 60 + 337, level: 6, jackpot: true });
+    expect(session.roulette).toMatchObject({ over: true, jackpot: true, gain: 337, total: 397 });
+    expect(session.jackpots).toBe(1);
+    expect(session.jackpot).toBe(JACKPOT_START);
+    expect(session.jackpotProgress).toBe(0);
+    expect(session.paidOut).toBe(397);
+    expect(isBusy(session)).toBe(true);
+    // No seventh turn: the run is over.
+    const after = play(session, TIMING.prize + 0.2);
+    expect(types(after)).not.toContain('rouletteStep');
+    expect(session.roulette).toBeNull();
+  });
+
   it('waits for the game a winning line leads to, then runs ahead of any held spin', () => {
     const session = withSpin();
     session.stock = 2;
-    // Three even digits and a two on the die. Every draw after that comes out the same, which makes
-    // the roulette's pocket 1 whatever the medals thrown onto the field have drawn in between.
-    script(session, [0.03, 0.3, 0.2], 1.5 / ROULETTE.length);
+    // Three even digits and a two on the die. Every draw after that picks pocket 1,
+    // whatever the medals thrown onto the field have drawn in between.
+    script(session, [0.03, 0.3, 0.2], draw(1));
     play(session, TIMING.spin + 0.5);
     // A ball goes over while the reels are still turning.
     session.balls = 1;
@@ -322,35 +368,11 @@ describe('the roulette', () => {
     expect(session.balls).toBe(0);
     expect(session.spins).toBe(1);
     expect(session.stock).toBe(1);
-    const after = play(session, TIMING.roulette + TIMING.prize + 0.3);
+    // From here every draw is a cross: one number, then the end, then the held spin.
+    session.machine.rng = () => draw(0);
+    const after = play(session, TURN + TIMING.step + TURN + TIMING.prize + 0.3);
     expect(types(after).filter((type) => type === 'rouletteEnd' || type === 'spinStart')).toEqual(['rouletteEnd', 'spinStart']);
     expect(session.spins).toBe(2);
-  });
-
-  it('stacks a hundred medals as four towers', () => {
-    const session = createSession(6, { balls: 0 });
-    session.balls = 1;
-    script(session, [4.5 / ROULETTE.length]);
-    play(session, TIMING.roulette + 0.1);
-    expect(session.paidOut).toBe(100);
-    expect(session.machine.payoutQueue).toBe(0);
-    expect(towersOf(session)).toHaveLength(4);
-  });
-
-  it('pays the jackpot as a wall of towers and starts it over', () => {
-    const session = createSession(6, { balls: 0 });
-    session.jackpot = 337;
-    session.jackpotProgress = 12;
-    session.balls = 1;
-    script(session, [0]);
-    const events = play(session, TIMING.roulette + 0.1);
-    expect(events.find((event) => event.type === 'rouletteEnd')).toMatchObject({ pocket: 0, payout: 337, jackpot: true });
-    expect(session.jackpots).toBe(1);
-    expect(session.jackpot).toBe(JACKPOT_START);
-    expect(session.jackpotProgress).toBe(0);
-    expect(session.paidOut).toBe(337);
-    expect(towersOf(session)).toHaveLength(14);
-    expect(isBusy(session)).toBe(true);
   });
 });
 

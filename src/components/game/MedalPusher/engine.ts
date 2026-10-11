@@ -36,6 +36,8 @@ export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
 export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
 /** Where it is let go: this high above the lower table, this close to the back panel. */
 export const RELEASE = { height: 34, depth: 1.2 } as const;
+/** A landing medal starts at this share of its size and takes this long, in seconds, to reach all of it. */
+export const SETTLE = { from: 0.3, time: 0.32 } as const;
 /** How long a medal is in the air, and how often one can be dropped. */
 export const FALL_TIME = 0.45;
 export const DROP_INTERVAL = 0.18;
@@ -105,6 +107,12 @@ export interface Medal {
   grow: number;
   /** Whether this is a prize ball. It lies among the medals and is pushed like one. */
   ball: boolean;
+  /**
+   * How far a medal that has just landed has worked its way into the pile: it
+   * starts small and reaches 1 in a fraction of a second. The medals round it
+   * are eased aside over that time instead of being thrown apart in one step.
+   */
+  grown: number;
 }
 
 export interface FallingMedal {
@@ -219,7 +227,8 @@ function part(a: Medal, b: Medal): void {
   let dx = b.x - a.x;
   let dy = b.y - a.y;
   const squared = dx * dx + dy * dy;
-  if (squared >= DIAMETER * DIAMETER) return;
+  const reach = R * (a.grown + b.grown);
+  if (squared >= reach * reach) return;
   let distance = Math.sqrt(squared);
   if (distance < 1e-6) {
     // Exactly on top of each other: part them along a direction fixed by their ids.
@@ -230,7 +239,7 @@ function part(a: Medal, b: Medal): void {
   }
   const weightA = a.stack > 1 ? TOWER.weight : 1;
   const weightB = b.stack > 1 ? TOWER.weight : 1;
-  const push = (DIAMETER - distance) / distance / (weightA + weightB);
+  const push = (reach - distance) / distance / (weightA + weightB);
   a.x -= dx * push * weightB;
   a.y -= dy * push * weightB;
   b.x += dx * push * weightA;
@@ -270,7 +279,7 @@ function fillTable(machine: Machine, count: number, level: Level, yFrom: number,
   for (let i = 0; i < count; i++) {
     const x = R + machine.rng() * (FIELD.width - DIAMETER);
     const y = yFrom + machine.rng() * (yTo - yFrom);
-    medals.push({ id: machine.nextId++, x, y, level, sinceDrop: -1, stack: 1, grow: 0, ball: false });
+    medals.push({ id: machine.nextId++, x, y, level, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
   }
   for (let pass = 0; pass < SETTLE_PASSES; pass++) {
     buildGrid(medals);
@@ -377,13 +386,22 @@ export function towerSizes(medals: number): number[] {
 export function buildTowers(machine: Machine, medals: number): void {
   const sizes = towerSizes(medals);
   const front = pusherFront(machine.time);
+  // Every place a tower can stand, the middle of the front row first, and those with no tower on them yet before the rest.
+  const sites: { x: number; y: number; taken: boolean }[] = [];
+  for (const offset of TOWER.rows) {
+    for (let i = 0; i < TOWER.perRow; i++) {
+      const fromMiddle = Math.ceil(i / 2) * (i % 2 === 0 ? 1 : -1) + (TOWER.perRow % 2 === 0 ? 0.5 : 0);
+      const x = FIELD.width / 2 + fromMiddle * TOWER.spacing;
+      const y = Math.max(R, front - offset);
+      const taken = machine.medals.some((m) => m.level === 1 && m.stack + m.grow > 1 && Math.hypot(m.x - x, m.y - y) < DIAMETER * 1.5);
+      sites.push({ x, y, taken });
+    }
+  }
+  const order = [...sites.filter((site) => !site.taken), ...sites.filter((site) => site.taken)];
   let stacked = 0;
   sizes.forEach((size, index) => {
-    const row = Math.floor(index / TOWER.perRow);
-    const inRow = Math.min(TOWER.perRow, sizes.length - row * TOWER.perRow);
-    const x = FIELD.width / 2 + ((index % TOWER.perRow) - (inRow - 1) / 2) * TOWER.spacing;
-    const y = Math.max(R, front - TOWER.rows[row]);
-    machine.medals.push({ id: machine.nextId++, x, y, level: 1, sinceDrop: -1, stack: 1, grow: size - 1, ball: false });
+    const { x, y } = order[index];
+    machine.medals.push({ id: machine.nextId++, x, y, level: 1, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: 1 });
     machine.growing += size - 1;
     stacked += size;
   });
@@ -502,7 +520,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
         stillFalling.push(medal);
         continue;
       }
-      machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball });
+      machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
       events.landed++;
       if (medal.source === 'player') {
         const checker = checkerAt(medal.x);
@@ -513,9 +531,11 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   }
 
   // The pusher carries what lies on it; the walls and its front face hold their ground.
+  const settle = (dt * (1 - SETTLE.from)) / SETTLE.time;
   for (const medal of machine.medals) {
     if (medal.level === 1) medal.y += carried;
     else if (medal.sinceDrop >= 0) medal.sinceDrop += dt;
+    if (medal.grown < 1) medal.grown = Math.min(1, medal.grown + settle);
   }
   constrain(machine.medals, front);
   buildGrid(machine.medals);

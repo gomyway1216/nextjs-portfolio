@@ -142,44 +142,57 @@ describe('the reels', () => {
 });
 
 describe('the roulette light', () => {
-  const roulette = (pocket: number, elapsed: number): ActiveRoulette => ({ pocket, elapsed, duration: TIMING.roulette, payout: -1 });
+  const roulette = (pocket: number, elapsed: number, from = 0): ActiveRoulette => ({
+    pocket,
+    from,
+    elapsed,
+    duration: TIMING.roulette,
+    landed: false,
+    level: 0,
+    total: 0,
+    gain: 0,
+    over: false,
+    jackpot: false,
+  });
 
-  it('starts on the first pocket and ends on the one that was drawn', () => {
+  it('starts on the pocket it set off from and ends on the one that was drawn', () => {
     for (let pocket = 0; pocket < ROULETTE.length; pocket++) {
       expect(roulettePocket(roulette(pocket, 0))).toBe(0);
-      expect(roulettePocket(roulette(pocket, TIMING.roulette))).toBe(pocket);
-      expect(roulettePocket(roulette(pocket, TIMING.roulette + 3))).toBe(pocket);
+      expect(roulettePocket(roulette(pocket, 0, 5))).toBe(5);
+      expect(roulettePocket(roulette(pocket, TIMING.roulette, 5))).toBe(pocket);
+      expect(roulettePocket(roulette(pocket, TIMING.roulette + 3, 9))).toBe(pocket);
     }
   });
 
   it('only ever moves on by one pocket, and more slowly as it goes', () => {
     const changes: number[] = [];
-    let last = roulettePocket(roulette(7, 0));
-    for (let elapsed = 0; elapsed <= TIMING.roulette; elapsed += 0.002) {
-      const now = roulettePocket(roulette(7, elapsed));
+    let last = roulettePocket(roulette(7, 0, 3));
+    for (let elapsed = 0; elapsed <= TIMING.roulette; elapsed += 0.001) {
+      const now = roulettePocket(roulette(7, elapsed, 3));
       if (now !== last) {
         expect((now - last + ROULETTE.length) % ROULETTE.length).toBe(1);
         changes.push(elapsed);
         last = now;
       }
     }
-    // Three laps and then on to pocket 7.
-    expect(changes).toHaveLength(3 * ROULETTE.length + 7);
+    // Two laps and then on from pocket 3 to pocket 7.
+    expect(changes).toHaveLength(2 * ROULETTE.length + 4);
     const firstGap = changes[1] - changes[0];
     const lastGap = changes[changes.length - 1] - changes[changes.length - 2];
     expect(lastGap).toBeGreaterThan(firstGap * 5);
-    expect(rouletteSettled(roulette(7, changes[changes.length - 1] - 0.01))).toBe(false);
-    expect(rouletteSettled(roulette(7, TIMING.roulette))).toBe(true);
+    expect(rouletteSettled(roulette(7, changes[changes.length - 1] - 0.01, 3))).toBe(false);
+    expect(rouletteSettled(roulette(7, TIMING.roulette, 3))).toBe(true);
   });
 });
 
 describe('the odds', () => {
-  it('groups the roulette by prize, the jackpot first', () => {
+  it('groups the roulette by pocket, the cross first', () => {
     expect(pocketGroups()).toEqual([
-      { pocket: 'jackpot', count: 1 },
-      { pocket: 100, count: 3 },
-      { pocket: 50, count: 4 },
-      { pocket: 30, count: 4 },
+      { pocket: 'stop', count: 4 },
+      { pocket: 50, count: 1 },
+      { pocket: 30, count: 1 },
+      { pocket: 20, count: 3 },
+      { pocket: 10, count: 3 },
     ]);
   });
 
@@ -263,20 +276,22 @@ describe('the page', () => {
 
   it('lists the exact odds', () => {
     const html = render(<OddsTab />);
-    for (const text of ['0.6%', '1 in 167', '1.5%', '1 in 67', '4%', '1 in 25', '93.9%']) expect(html).toContain(text);
+    for (const text of ['0.7%', '1 in 143', '1.5%', '1 in 67', '4%', '1 in 25', '93.8%']) expect(html).toContain(text);
     for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
     // What each line is worth: the board's average, the chests' average, the roulette's.
-    for (const text of ['8.8 medals', '20 medals', '76.7 medals']) expect(html).toContain(text);
-    for (const text of ['8.3%', '25.0%', '33.3%', '12 towers on the pusher', '4 towers on the pusher', 'Medals thrown onto the field']) expect(html).toContain(text);
+    for (const text of ['8.8 medals', '20 medals', '65.1 medals']) expect(html).toContain(text);
+    // The roulette: four crosses in twelve, and the chance of each number of pockets in a row.
+    for (const text of ['A cross: the run ends', 'A tower of 50 medals', '33.3%', '25.0%', '8.3%', 'Medals thrown onto the field']) expect(html).toContain(text);
+    for (const text of ['66.7%', '44.4%', '29.6%', '19.8%', '13.2%', '8.8%']) expect(html).toContain(text);
+    expect(html).toContain('One ball in 11.4 wins it, and one spin in 1,627 leads to it');
     expect(html).toContain('One tower on the pusher');
     expect(html).toContain('the average of the board: 8.75 medals');
     expect(html).toContain(`after ${BOARD_ROLLS} rolls from the start, no square is more than ${percent(boardSpread(BOARD_ROLLS))} away`);
-    expect(html).toContain('One spin in 2,000');
-    expect(html).toContain('1.11 medals');
+    expect(html).toContain('1.106 medals');
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    expect(html.match(/<caption/g)).toHaveLength(5);
+    expect(html.match(/<caption/g)).toHaveLength(6);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
   });
@@ -336,7 +351,20 @@ describe('charts', () => {
 });
 
 describe('the screen', () => {
-  const idle: ScreenState = { mode: 'slot', banner: 'none', amount: 0, line: null, lit: -1, square: 0, die: 0, rolling: false, chests: null, secondsLeft: 0 };
+  const idle: ScreenState = {
+    mode: 'slot',
+    banner: 'none',
+    amount: 0,
+    line: null,
+    lit: -1,
+    square: 0,
+    die: 0,
+    rolling: false,
+    chests: null,
+    secondsLeft: 0,
+    level: 0,
+    total: 0,
+  };
   const en = getStrings('en');
   const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
     render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} onPick={() => {}} />, lang);
@@ -369,6 +397,8 @@ describe('the screen', () => {
     expect(bannerText({ ...idle, banner: 'towers', amount: 30 }, en)).toBe('TOWER +30');
     expect(bannerText({ ...idle, banner: 'fever', amount: 30 }, en)).toBe('FEVER! +30');
     expect(bannerText({ ...idle, banner: 'jackpot', amount: 312 }, en)).toBe('JACKPOT! +312');
+    expect(bannerText({ ...idle, banner: 'finish', amount: 90 }, en)).toBe('FINISH! TOTAL 90');
+    expect(bannerText({ ...idle, banner: 'finish', amount: 0 }, en)).toBe('FINISH…');
     expect(bannerText(idle, en)).toBeNull();
     expect(show({ ...idle, banner: 'line', line: 'big' })).toContain('data-line="big"');
   });
@@ -416,12 +446,17 @@ describe('the screen', () => {
   });
 
   it('lights one sector of the roulette wheel', () => {
-    const html = show({ ...idle, mode: 'roulette', lit: 4 });
+    const html = show({ ...idle, mode: 'roulette', lit: 4, level: 2, total: 40 });
     expect(html).toContain('JACKPOT CHANCE');
     expect(html.match(/data-pocket="\d+"/g)).toHaveLength(ROULETTE.length);
     expect(html).toContain('data-pocket="4" data-lit="true"');
     expect(html.match(/data-pocket="\d+" data-lit="true"/g)).toHaveLength(1);
-    expect(html).toContain('>JP<');
+    // Four crosses on the wheel, and beside it how far the run has got.
+    expect(html.match(/>×</g)).toHaveLength(4);
+    expect(html).toContain('LEVEL 2 / 6');
+    expect(html).toContain('TOWER 40');
+    expect(html).toContain('data-level="2"');
+    expect(html.match(/data-goal="true"/g)).toHaveLength(1);
   });
 
   it('marks the fever square', () => {
@@ -499,17 +534,21 @@ describe('what the screen shows for a session', () => {
     expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: 10 });
   });
 
-  it('follows the roulette to its prize', () => {
+  it('follows the roulette through a run to its end', () => {
     const session = createSession(1, { balls: 0 });
-    session.roulette = { pocket: 4, elapsed: 0, duration: TIMING.roulette, payout: -1 };
-    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none' });
+    const run = { pocket: 3, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
+    session.roulette = run;
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none', level: 0, total: 0 });
     expect(screenState(session, true).lit).toBe(-1);
-    session.roulette.payout = 100;
-    expect(screenState(session, false)).toMatchObject({ lit: 4, banner: 'towers', amount: 100 });
-    session.roulette = { pocket: 1, elapsed: 6, duration: TIMING.roulette, payout: 30 };
-    expect(screenState(session, false)).toMatchObject({ lit: 1, banner: 'medals', amount: 30 });
-    session.roulette = { pocket: 0, elapsed: 6, duration: TIMING.roulette, payout: 300 };
-    expect(screenState(session, false)).toMatchObject({ lit: 0, banner: 'jackpot', amount: 300 });
+    // A number: the tower goes up and the run goes on.
+    Object.assign(run, { landed: true, level: 1, total: 30, gain: 30 });
+    expect(screenState(session, false)).toMatchObject({ lit: 3, banner: 'towers', amount: 30, level: 1, total: 30 });
+    // A cross: the total the run built.
+    Object.assign(run, { pocket: 4, from: 3, landed: true, gain: 0, over: true });
+    expect(screenState(session, false)).toMatchObject({ lit: 4, banner: 'finish', amount: 30, level: 1 });
+    // A full run: the jackpot.
+    Object.assign(run, { pocket: 1, level: 6, total: 400, gain: 300, over: true, jackpot: true });
+    expect(screenState(session, false)).toMatchObject({ lit: 1, banner: 'jackpot', amount: 300, level: 6, total: 400 });
   });
 
   it('knows when nothing on the screen has changed', () => {

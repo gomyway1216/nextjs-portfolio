@@ -4,7 +4,7 @@
  * has got, so the reels and the lamps can be drawn from the session's clock.
  */
 
-import { BOARD, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, TOWERS_FROM, squareAfter, type Tier } from './lottery';
+import { BOARD, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
 import { TIMING, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
@@ -51,15 +51,16 @@ export function reelPositions(spin: ActiveSpin): [number, number, number] {
 }
 
 /** How many times the light goes round before it settles, and the share of the time it takes to get there. */
-const LAPS = 3;
+const LAPS = 2;
 const SETTLE = 0.86;
 
 /** The pocket the roulette's light is on. It slows as it goes and ends on the pocket already drawn. */
 export function roulettePocket(roulette: ActiveRoulette): number {
   const count = ROULETTE.length;
   const progress = Math.min(1, Math.max(0, roulette.elapsed / (roulette.duration * SETTLE)));
-  const steps = LAPS * count + roulette.pocket;
-  return Math.floor(steps * (1 - (1 - progress) ** 3) + 1e-9) % count;
+  // From the pocket it set off from, round twice and on to the one that was drawn.
+  const steps = LAPS * count + ((roulette.pocket - roulette.from + count) % count);
+  return (roulette.from + Math.floor(steps * (1 - (1 - progress) ** 3) + 1e-9)) % count;
 }
 
 /** Whether the light has reached its pocket and is only holding there. */
@@ -69,7 +70,7 @@ export const rouletteSettled = (roulette: ActiveRoulette): boolean => roulette.e
 
 export type ScreenMode = 'slot' | 'sugoroku' | 'chest' | 'roulette';
 /** The headline across the screen: nothing, a reach, a winning line, or a prize and the way it is paid. */
-export type Banner = 'none' | 'reach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'jackpot';
+export type Banner = 'none' | 'reach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'finish' | 'jackpot';
 
 export interface ChestView {
   state: 'closed' | 'picked' | 'open';
@@ -97,6 +98,9 @@ export interface ScreenState {
   chests: ChestView[] | null;
   /** Whole seconds left to pick a chest. */
   secondsLeft: number;
+  /** The roulette's run: numbers in a row so far, and the medals it has stacked. */
+  level: number;
+  total: number;
 }
 
 /** How long the die tumbles before it shows what was rolled, as a share of its time on screen. */
@@ -124,13 +128,17 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     rolling: false,
     chests: null,
     secondsLeft: 0,
+    level: 0,
+    total: 0,
   };
   const { roulette, bonus, spin } = session;
   if (roulette) {
-    if (roulette.payout < 0) return { ...idle, mode: 'roulette', lit: calm ? -1 : roulettePocket(roulette) };
-    const jackpot = ROULETTE[roulette.pocket] === 'jackpot';
-    const banner: Banner = jackpot ? 'jackpot' : roulette.payout >= TOWERS_FROM ? 'towers' : 'medals';
-    return { ...idle, mode: 'roulette', lit: roulette.pocket, banner, amount: roulette.payout };
+    const run = { ...idle, mode: 'roulette' as const, level: roulette.level, total: roulette.total };
+    if (!roulette.landed) return { ...run, lit: calm ? -1 : roulettePocket(roulette) };
+    // A number is a tower going up; the end of the run is the jackpot or the total it built.
+    if (roulette.jackpot) return { ...run, lit: roulette.pocket, banner: 'jackpot', amount: roulette.gain };
+    if (roulette.over) return { ...run, lit: roulette.pocket, banner: 'finish', amount: roulette.total };
+    return { ...run, lit: roulette.pocket, banner: 'towers', amount: roulette.gain };
   }
   if (bonus?.kind === 'sugoroku') {
     const square = sugorokuSquare(bonus);
@@ -171,7 +179,9 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.square !== b.square ||
     a.die !== b.die ||
     a.rolling !== b.rolling ||
-    a.secondsLeft !== b.secondsLeft
+    a.secondsLeft !== b.secondsLeft ||
+    a.level !== b.level ||
+    a.total !== b.total
   ) {
     return false;
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DROP_INTERVAL, ballsOnField, medalsOnField } from '@/components/game/MedalPusher/engine';
+import { DROP_INTERVAL, FALL_TIME, ballsOnField, checkerCentres, medalsOnField } from '@/components/game/MedalPusher/engine';
 import { BOARD, FEVER_SQUARE, JACKPOT_START, JACKPOT_STEP, ROULETTE } from '@/components/game/MedalPusher/lottery';
 import {
   MAX_STOCK,
@@ -45,6 +45,8 @@ const withSpin = (seed = 5): Session => {
 };
 /** The seconds a winning line takes from the start of its spin to the game it leads to. */
 const LINE = TIMING.spin + TIMING.reach + TIMING.celebrate;
+/** Where to let a medal go now for it to come down through the centre gate: where that gate will be by then. */
+const centreGate = (session: Session): number => checkerCentres(session.machine.time + FALL_TIME)[1];
 
 describe('a new session', () => {
   it('starts with a purse, a jackpot, the piece on the first square and two balls on the field', () => {
@@ -122,6 +124,52 @@ describe('the slot', () => {
     script(session, [0.5, 0.1, 0.9, 0.5, 0.5]);
     advance(session, DT);
     expect(session.spin?.duration).toBeCloseTo(TIMING.quickSpin, 9);
+  });
+
+  it('holds eight spins while the screen is busy, and wastes a gate hit beyond that', () => {
+    expect(MAX_STOCK).toBe(8);
+    const session = createSession(5, { balls: 0 });
+    // A chest nobody picks keeps the screen busy, and with no scatter every medal lands where it is aimed.
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    script(session, []);
+    const events: SessionEvent[] = [];
+    for (let medal = 0; medal < MAX_STOCK + 3; medal++) {
+      expect(insert(session, centreGate(session))).toBe(true);
+      for (let i = 0; i < Math.round(0.3 / DT); i++) advance(session, DT, events);
+    }
+    for (let i = 0; i < Math.round(FALL_TIME / DT); i++) advance(session, DT, events);
+    const gates = events.filter((event) => event.type === 'checker');
+    expect(gates).toHaveLength(MAX_STOCK + 3);
+    expect(gates.every((event) => event.type === 'checker' && event.gate === 1)).toBe(true);
+    // The first eight are held, in the order they came; the three after them start nothing.
+    expect(gates.map((event) => event.type === 'checker' && event.held)).toEqual([...Array(MAX_STOCK).fill(true), false, false, false]);
+    expect(session.hits).toBe(MAX_STOCK + 3);
+    expect(session.stock).toBe(MAX_STOCK);
+    expect(session.wasted).toBe(3);
+    expect(session.spins).toBe(0);
+    expect(types(events)).not.toContain('spinStart');
+  });
+
+  it('starts a spin only for a medal that comes down where a gate is by then', () => {
+    const through = (aim: (session: Session) => number) => {
+      const session = createSession(5, { balls: 0 });
+      // Just before the gates come back through the middle of their sweep, where they move fastest.
+      play(session, 2.8);
+      script(session, []);
+      insert(session, aim(session));
+      const events = play(session, FALL_TIME + 0.1);
+      return { session, events };
+    };
+    // Let go where the centre gate will be: a hit, held for a moment and spun at once.
+    const led = through(centreGate);
+    expect(led.events.filter((event) => event.type === 'checker')).toEqual([{ type: 'checker', gate: 1, held: true }]);
+    expect(led.session.hits).toBe(1);
+    expect(led.session.spins).toBe(1);
+    // Let go where the gate is now: by the time the medal is down, the gate has moved out from over it.
+    const late = through((session) => checkerCentres(session.machine.time)[1]);
+    expect(types(late.events)).not.toContain('checker');
+    expect(late.session.hits).toBe(0);
+    expect(late.session.spins).toBe(0);
   });
 
   it('holds a winning line up before the game it leads to begins', () => {
@@ -386,7 +434,7 @@ describe('a session played for a while', () => {
       if (clock >= 0.2) {
         clock = 0;
         if (session.credits === 0) refill(session);
-        insert(session, 50);
+        insert(session, centreGate(session));
       }
       advance(session, DT, events);
       clock += DT;
@@ -397,7 +445,7 @@ describe('a session played for a while', () => {
     // Every medal through a gate either started a spin, is held, or found the machine full.
     expect(session.hits).toBe(session.spins + session.stock + session.wasted);
     expect(session.hits).toBeGreaterThan(50);
-    // At five a second the reels cannot keep up with the centre gate.
+    // At five a second the reels cannot keep up with a player who follows the centre gate, even with eight held.
     expect(session.wasted).toBeGreaterThan(0);
     expect(session.stock).toBeLessThanOrEqual(MAX_STOCK);
     const finished = session.tiers.miss + session.tiers.small + session.tiers.big + session.tiers.seven;

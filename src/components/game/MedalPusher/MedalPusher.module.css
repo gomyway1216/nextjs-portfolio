@@ -340,6 +340,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  min-width: 0;
 }
 .screenTitle {
   padding: 0.12rem 0.7rem;
@@ -355,9 +356,12 @@
 .stock {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: clamp(0.15rem, 0.8vw, 0.3rem);
+  /* On a screen too narrow for the title and every lamp, the lamps give way instead of widening the screen. */
+  min-width: 0;
 }
 .stockLabel {
+  flex: none;
   font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -374,6 +378,10 @@
   border-color: #fff3b0;
   background: #ffd65c;
   box-shadow: 0 0 10px rgba(255, 214, 92, 0.9);
+}
+/* The hold has eight lamps in a row beside the title, so on a phone they are smaller than the roulette's six. */
+.stock .lamp {
+  width: clamp(0.5rem, 2.2vw, 1.05rem);
 }
 /* Everything the screen plays happens on this stage, which keeps one size whatever is on it. */
 .stage {

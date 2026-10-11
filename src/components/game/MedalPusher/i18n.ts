@@ -189,6 +189,7 @@ const en: PusherStrings = {
   howToPlay: 'How to play',
   infoBody: [
     'You start with 100 medals. Choose where to aim and drop them: each one comes down the back panel, lands on the pusher a little to one side of your aim, and gets shoved forward with the rest.',
+    'Medals pile two deep. One that comes down where there is no room lies on top of the others, rides along with them, slides over them when it is pushed, and drops in as soon as a gap opens under it.',
     'Medals pushed over the front edge are yours. Near the front the sides of the table are open, and medals squeezed out there are gone.',
     'A medal that comes down through one of the three gates starts a spin on the screen. The machine holds up to four spins at a time.',
     'Three even digits roll the die on the sugoroku board along the bottom of the screen: the piece moves on and you are paid what its square says, 3 to 15 medals, or a fever of 30.',
@@ -273,8 +274,8 @@ const en: PusherStrings = {
   partText: {
     chute: 'Lets a medal go where you aim. It bounces on the way down and lands up to 12% of the width to either side, most often close to the aim.',
     gates: 'Three of them at the foot of the back panel. A medal you dropped that comes through one starts a spin. Medals the machine pays out do not count.',
-    pusher: 'Slides back and forth under the back panel. The panel scrapes the rearmost medals forward, and the front ones tip over the lip.',
-    table: 'The pusher’s face shoves these medals toward you, a row at a time.',
+    pusher: 'Slides back and forth under the back panel, carrying a heap two medals deep. The panel scrapes the rearmost medals forward, and the front ones tip over the lip.',
+    table: 'The pusher’s face shoves these medals toward you, a row at a time. Here too they lie two deep, and the ones on top slide forward over the rest.',
     sides: 'The last fifth of the table has no side walls. A medal squeezed out there is lost: this is the only place the machine takes anything. A ball does not fit through.',
     front: 'Whatever goes over is yours.',
   },
@@ -353,7 +354,7 @@ const en: PusherStrings = {
   calcBreakEven: (percent) => `At this front share you would break even if ${percent} of your medals started a spin.`,
   calcNever: 'At this front share you could not break even even if every medal started a spin.',
   calcNote:
-    'The Simulation tab measures both. Aimed at a gate, about 78% of medals leave by the front and about 22% come through a gate — fewer start a spin if you drop faster than the screen can keep up.',
+    'The Simulation tab measures both. Aimed at a gate at two medals a second, about 79% of medals leave by the front and about 20% start a spin. A few more than that come through a gate, about 22%, but some of them find four spins already held. Drop faster than the screen can keep up and fewer still start one.',
 
   simTitle: 'Where to drop, measured',
   simIntro: (warmUp) =>
@@ -404,6 +405,7 @@ const ja: PusherStrings = {
   howToPlay: '遊び方',
   infoBody: [
     'メダル100枚から始めます。狙う位置を決めて落とすと、メダルは奥のパネルを転がり落ち、狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
+    'メダルは2段まで重なります。置く場所がないところに落ちたメダルはほかのメダルの上に乗り、下のメダルと一緒に運ばれ、押されるとその上を滑り、下にすき間ができると落ち込みます。',
     '手前の端から落ちたメダルがあなたのものです。テーブルの手前側は両脇が開いていて、そこから押し出されたメダルは戻りません。',
     '落としたメダルが3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。抽選は4回分までためられます。',
     '偶数が3つそろうと「すごろくチャンス」です。画面の下のすごろく盤でサイコロを振り、コマが止まったマスの枚数（3〜15枚、フィーバーなら30枚）がもらえます。',
@@ -488,8 +490,8 @@ const ja: PusherStrings = {
   partText: {
     chute: '狙った位置でメダルを放します。落ちる途中で跳ねるので、左右に幅の12%までずれますが、多くは狙いの近くに落ちます。',
     gates: '奥のパネルの下に3つあります。自分で落としたメダルがここを通ると抽選が1回始まります。払い出されたメダルは数えません。',
-    pusher: '奥のパネルの下を前後に動きます。引くときにパネルが奥のメダルを前へかき出し、先頭のメダルが縁から落ちます。',
-    table: 'プッシャーの前面が、ここのメダルを一列ずつ手前へ押します。',
+    pusher: '2段に積もったメダルを乗せて、奥のパネルの下を前後に動きます。引くときにパネルが奥のメダルを前へかき出し、先頭のメダルが縁から落ちます。',
+    table: 'プッシャーの前面が、ここのメダルを一列ずつ手前へ押します。ここでもメダルは2段に重なり、上のメダルは下のメダルの上を滑って前へ進みます。',
     sides: 'テーブルの手前5分の1には脇の壁がありません。ここから押し出されたメダルは失われます。機械が取り分を得るのはここだけです。ボールはここを通れません。',
     front: 'ここを越えたメダルがあなたのものです。',
   },
@@ -567,7 +569,7 @@ const ja: PusherStrings = {
   calcBreakEven: (percent) => `この割合なら、落としたメダルの${percent}が抽選を始めれば収支がゼロになります。`,
   calcNever: 'この割合では、すべてのメダルが抽選を始めても収支はゼロに届きません。',
   calcNote:
-    'どちらも「シミュレーション」タブで実測できます。チャッカーを狙うと、約78%が手前から出て、約22%がチャッカーを通ります。画面が追いつかない速さで落とすと、抽選が始まる割合はそれより下がります。',
+    'どちらも「シミュレーション」タブで実測できます。チャッカーを狙って毎秒2枚落とすと、約79%が手前から出て、約20%が抽選を始めます。チャッカーを通るのはそれより少し多い約22%ですが、一部は保留が4回分たまっていて無駄になります。画面が追いつかない速さで落とすと、抽選が始まる割合はさらに下がります。',
 
   simTitle: 'どこに落とすかを実測する',
   simIntro: (warmUp) =>

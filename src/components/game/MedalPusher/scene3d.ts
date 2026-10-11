@@ -5,9 +5,10 @@
  * go. All of it is plain arithmetic, so the tests can check it.
  */
 
-import { FIELD, MEDAL_RADIUS, RELEASE, type FallingMedal, type Machine, type Medal } from './engine';
+import { letGoAt, rollingSpot } from './arms';
+import { FIELD, MEDAL_RADIUS, RELEASE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
-import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
+import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal, type Stage } from './render';
 import { HEIGHT, VIEW, project } from './view';
 
 const R = MEDAL_RADIUS;
@@ -154,9 +155,18 @@ function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn:
 }
 
 /**
+ * Where across the field the tip of a feed arm is. Everything that draws an
+ * arm or a medal on one asks here, so there is one place that knows who
+ * keeps the tips: the stage, which swings each toward where it belongs.
+ */
+export const armTipAt = (stage: Pick<Stage, 'arms'>, arm: Arm): number => stage.arms[arm];
+
+/**
  * A medal in the air. Let go on its edge, it turns over one and a quarter
- * times on the way down the back panel and lands flat; off a falling tower it
- * slides out, and the ones from high up turn right over.
+ * times on the way down and lands flat: one the player fed starts at the tip
+ * of its arm, standing as it rolled; one the machine pays, at the top of the
+ * back panel. Off a falling tower it slides out, and the ones from high up
+ * turn right over.
  */
 function fallingRow(rows: Rows, medal: FallingMedal): void {
   const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
@@ -169,10 +179,13 @@ function fallingRow(rows: Rows, medal: FallingMedal): void {
     medalRow(rows, medal.id, x, T / 2 + (from - T) * (1 - t * t), z, turnOf(medal.id) + t * 5, tilt, (chance(medal.id, 4) - 0.5) * 1.2, 0, 0, 1);
     return;
   }
-  const height = P + (RELEASE.height - P) * (1 - t * t) + T * 1.5 + RIDE * 0.5;
+  // It comes down to where it will lie once it has landed, on top of the pile. One off an arm starts
+  // where its rail left it, and only ever goes down from there.
+  const offArm = medal.source === 'player';
+  const height = P + (letGoAt(medal) - P) * (1 - t * t) + (T * 1.5 + RIDE * 0.5) * (offArm ? t * t : 1);
   // No two tumble quite alike on the way, but each starts on its edge and ends flat.
   const tilt = Math.PI * 2.5 * (1 - t) + (chance(medal.id, 3) - 0.5) * 1.2 * Math.sin(Math.PI * t);
-  medalRow(rows, medal.id, x, height, z, turnOf(medal.id), tilt, (chance(medal.id, 4) - 0.5) * 0.9, 0, 0, 1);
+  medalRow(rows, medal.id, x, height, z, turnOf(medal.id), tilt, (chance(medal.id, 4) - 0.5) * 0.9 * (offArm ? t : 1), 0, 0, 1);
 }
 
 /** How long a medal that has left by a side is still lit on its way down into the dark. */
@@ -180,10 +193,10 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
 
 /**
  * Every medal there is to draw: the ones lying on the two tables, each
- * tower's column, the ones in the air and the ones that have just gone over
- * an edge. Balls are not among them.
+ * tower's column, the ones rolling down the feed arms, the ones in the air
+ * and the ones that have just gone over an edge. Balls are not among them.
  */
-export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
+export function writeMedals(rows: Rows, machine: Machine, stage: Pick<Stage, 'arms' | 'exits'>): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball) continue;
@@ -208,8 +221,16 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
       medalRow(rows, id + i * 31, medal.x + dx, base + T * (i + 0.5), medal.y + dz, turnOf(id + i * 7), 0, 0, 0, 0, 1);
     }
   }
+  // On a feed arm a medal stands on its edge, its face to the player, and turns as it rolls. It
+  // reaches the tip the way round it will lie, so nothing jumps as it tips over and falls.
+  for (const medal of machine.rolling) {
+    const tip = armTipAt(stage, medal.arm);
+    const spot = rollingSpot(medal.arm, tip, medal.remaining);
+    const still = rollingSpot(medal.arm, tip, 0).turned - spot.turned;
+    medalRow(rows, medal.id, spot.x, spot.height, spot.depth, turnOf(medal.id) + still, Math.PI / 2, 0, 0, 0, 1);
+  }
   for (const medal of machine.falling) if (!medal.ball) fallingRow(rows, medal);
-  for (const exit of exits) {
+  for (const exit of stage.exits) {
     if (exit.ball) continue;
     const a = exit.age;
     const won = exit.kind === 'won';

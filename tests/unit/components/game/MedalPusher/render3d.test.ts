@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ARMS, armCollar, armGoal, armTip } from '@/components/game/MedalPusher/arms';
 import { PANEL_TOP, pinSpots, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
 import {
   FLAT_STRIDE,
@@ -23,8 +24,10 @@ import {
   MEDAL_THICKNESS,
   PUSHER,
   RELEASE,
+  ROLL_TIME,
   SWEEP,
   TOWER,
+  aimArms,
   buildTowers,
   checkerCentres,
   createMachine,
@@ -45,6 +48,7 @@ import {
   EYE,
   KEY_LIGHT,
   MEDAL_STRIDE,
+  armTipAt,
   ballShape,
   cameraMatrix,
   chance,
@@ -185,10 +189,13 @@ describe('the key light', () => {
   });
 });
 
+/** What the rows are written from besides the machine: the medals on their way out, and the arms' tips, here already where they belong. */
+const staged = (machine: Machine, exits: ExitingMedal[] = []) => ({ exits, arms: [armGoal(machine, 0), armGoal(machine, 1)] as [number, number] });
+
 /** The rows of medals for a machine, read back as objects. */
 function medalRows(machine: Machine, exits: ExitingMedal[] = []) {
   const rows = createRows(MEDAL_STRIDE, 64);
-  writeMedals(rows, machine, exits);
+  writeMedals(rows, machine, staged(machine, exits));
   return readMedals(rows);
 }
 
@@ -284,17 +291,73 @@ describe('the medals of the 3D field', () => {
     expect(Math.max(...rows.map((row) => row.y))).toBeCloseTo(P + T * (tallest - 0.5), 4);
   });
 
-  it('lets a dropped medal go on its edge at the chute and brings it down flat where it lands', () => {
+  it('rolls a fed medal down its arm on its edge, its face to the player, turning as it goes', () => {
+    for (const aim of [30, 70]) {
+      const machine = holding([]);
+      aimArms(machine, aim);
+      dropMedal(machine, aim);
+      const [rolling] = machine.rolling;
+      expect(machine.falling).toHaveLength(0);
+      const tip = armTipAt(staged(machine), rolling.arm);
+      const at = (remaining: number) => medalRows({ ...machine, rolling: [{ ...rolling, remaining }] })[0];
+      // It goes in at the collar and comes off at the tip, in the plane the arm hangs in.
+      const collar = armCollar(rolling.arm);
+      const end = armTip(rolling.arm, tip);
+      expect([at(ROLL_TIME).x, at(ROLL_TIME).y, at(ROLL_TIME).z]).toEqual([collar.x, collar.height, collar.depth].map(Math.fround));
+      expect([at(0).x, at(0).y, at(0).z]).toEqual([end.x, end.height, end.depth].map(Math.fround));
+      expect(at(0).y).toBeCloseTo(ARMS.tip, 5);
+      let last = at(ROLL_TIME);
+      for (let step = 1; step <= 20; step++) {
+        const row = at(ROLL_TIME * (1 - step / 20));
+        // Downhill all the way, toward the middle of the field.
+        expect(row.y).toBeLessThan(last.y);
+        expect(Math.abs(row.x - 50)).toBeLessThan(Math.abs(last.x - 50));
+        // On its edge with a face to the player: neither face looks up or across.
+        expect(Math.abs(row.up[1])).toBeLessThan(1e-6);
+        expect(row.up[2]).toBeCloseTo(1, 6);
+        expect(row.contact).toBe(0);
+        last = row;
+      }
+      // It rolls: a mark on its rim goes round, clockwise for the player on the left arm and the other way on the right.
+      const mark = (remaining: number) => {
+        const rows = createRows(MEDAL_STRIDE, 4);
+        writeMedals(rows, { ...machine, rolling: [{ ...rolling, remaining }] }, staged(machine));
+        const [x, y] = rotate(rows.data, 4, [1, 0, 0]);
+        return Math.atan2(y, x);
+      };
+      // Seen from the player's side an angle grows anticlockwise, so going clockwise the mark's falls with time.
+      const earlier = mark(ROLL_TIME * 0.52);
+      const later = mark(ROLL_TIME * 0.5);
+      expect(Math.sign(Math.sin(earlier - later))).toBe(rolling.arm === 0 ? 1 : -1);
+      // By the tip it is the way round it will fall and lie, so nothing jumps as it leaves the rail.
+      step(machine, ROLL_TIME + 1e-6);
+      expect(machine.rolling).toHaveLength(0);
+      const [falling] = machine.falling;
+      expect(falling.source).toBe('player');
+      const leaving = medalRows({ ...machine, falling: [{ ...falling, remaining: falling.duration }] })[0];
+      expect(leaving.x).toBeCloseTo(at(0).x, 4);
+      expect(leaving.y).toBeCloseTo(at(0).y, 4);
+      expect(leaving.z).toBeCloseTo(at(0).z, 4);
+      leaving.turn.forEach((value, i) => expect(Math.abs(value)).toBeCloseTo(Math.abs(at(0).turn[i]), 5));
+    }
+  });
+
+  it('lets a medal go on its edge and brings it down flat where it lands', () => {
     const machine = holding([]);
     dropMedal(machine, 40);
+    step(machine, ROLL_TIME + 1e-6);
     const [falling] = machine.falling;
     const at = (remaining: number) => medalRows({ ...machine, falling: [{ ...falling, remaining }] })[0];
     const start = at(falling.duration);
     expect(start.x).toBeCloseTo(falling.fromX, 4);
     expect(start.z).toBeCloseTo(RELEASE.depth, 4);
-    expect(start.y).toBeGreaterThan(RELEASE.height);
+    // One the player fed drops off the tip of its arm; one the machine pays comes from the top of the back panel.
+    expect(start.y).toBeCloseTo(ARMS.tip, 4);
+    const paid = medalRows({ ...machine, falling: [{ ...falling, source: 'payout', remaining: falling.duration }] })[0];
+    expect(paid.y).toBeGreaterThan(RELEASE.height);
     // On its edge: its faces look along the table, not up.
     expect(Math.abs(start.up[1])).toBeLessThan(0.05);
+    expect(Math.abs(paid.up[1])).toBeLessThan(0.05);
     const end = at(0);
     expect(end.x).toBeCloseTo(falling.x, 4);
     expect(end.z).toBeCloseTo(falling.y, 4);
@@ -367,7 +430,7 @@ describe('the medals of the 3D field', () => {
   it('makes room for more medals than it started with', () => {
     const rows = createRows(MEDAL_STRIDE, 2);
     const medals = Array.from({ length: 300 }, (_, i) => lying(i + 1, (i % 20) * 5, 50 + Math.floor(i / 20), 0));
-    writeMedals(rows, holding(medals), []);
+    writeMedals(rows, holding(medals), staged(holding(medals)));
     expect(rows.count).toBe(300);
     expect(rows.data.length).toBeGreaterThanOrEqual(300 * MEDAL_STRIDE);
     const read = readMedals(rows);
@@ -375,7 +438,7 @@ describe('the medals of the 3D field', () => {
     expect(read[299].x).toBeCloseTo(95, 5);
     // The next frame starts the list again without making a new one.
     const { data } = rows;
-    writeMedals(rows, holding(medals.slice(0, 10)), []);
+    writeMedals(rows, holding(medals.slice(0, 10)), staged(holding(medals)));
     expect(rows.count).toBe(10);
     expect(rows.data).toBe(data);
   });
@@ -919,13 +982,19 @@ describe('the 3D scene on a graphics card', () => {
     // Nothing is made while drawing.
     expect(fake.alive()).toEqual(held);
 
-    // A second frame with a medal in the air and a gate lit makes nothing either.
+    // A second frame with a medal on an arm and a gate lit makes nothing either, and a third with the medal in the air.
     dropMedal(machine, 30);
     step(machine, 0.1);
     lightGate(stage, 1);
     scene.draw(stage, machine, { aim: 30, showGuide: false, calm: true });
     expect(fake.alive()).toEqual(held);
+    expect(machine.rolling).toHaveLength(1);
     expect(scene.last.medals).toBe(machine.medals.length - 2 + 1);
+    step(machine, ROLL_TIME);
+    scene.draw(stage, machine, { aim: 30, showGuide: false, calm: true });
+    expect(machine.falling).toHaveLength(1);
+    expect(scene.last.medals).toBe(machine.medals.length - 2 + 1);
+    expect(fake.alive()).toEqual(held);
 
     scene.dispose();
     expect(fake.alive()).toEqual({});

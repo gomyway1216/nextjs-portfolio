@@ -7,9 +7,9 @@ import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/stor
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
 
-async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
+async function openGame(page: Page, language: 'en' | 'ja' = 'en', query = '') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
-  const response = await page.goto('/games/medal-pusher');
+  const response = await page.goto(`/games/medal-pusher${query}`);
   expect(response?.status()).toBe(200);
   // While the page streams in, React briefly keeps a second, hidden copy of the
   // content in the document. Wait until there is one before looking anything up.
@@ -29,6 +29,67 @@ const aimSlider = (page: Page) => machine(page).getByTestId('pusher-aim');
 async function counter(page: Page, id: string): Promise<number> {
   const text = (await machine(page).getByTestId(`pusher-${id}`).textContent()) ?? '';
   return Number(text.replace(/,/g, ''));
+}
+
+/**
+ * Collects what would show that drawing the field went wrong: any error
+ * nobody caught, and anything the console says, at any level, about WebGL or
+ * a shader. The game itself writes nothing to the console, so that is all a
+ * renderer could put there. Other console errors are left out on purpose:
+ * the rest of the site reports its failed sign-in and network calls there,
+ * and under CI's placeholder credentials those are expected.
+ */
+function watchForTrouble(page: Page): string[] {
+  const trouble: string[] = [];
+  page.on('pageerror', (error) => trouble.push(`uncaught: ${error.message}`));
+  page.on('console', (message) => {
+    const text = message.text();
+    // Reading a pixel back for `fieldPixel` makes the graphics driver remark on its speed: the test's doing, not the game's.
+    if (/GPU stall due to ReadPixels/.test(text)) return;
+    if (/WebGL|GL_INVALID|shader/i.test(text)) trouble.push(`${message.type()}: ${text}`);
+  });
+  return trouble;
+}
+
+/**
+ * The colour of the middle of the lower table, as [red, green, blue, alpha].
+ * With the 3D renderer the picture is on the canvas under the field, and a
+ * WebGL canvas can only be read in the frame it was drawn in, so both
+ * canvases are read right after the game's own frame.
+ */
+function fieldPixel(page: Page): Promise<number[]> {
+  return page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        requestAnimationFrame(() => {
+          const probe = document.createElement('canvas');
+          probe.width = probe.height = 1;
+          const context = probe.getContext('2d');
+          if (!context) return resolve([]);
+          for (const canvas of document.querySelectorAll<HTMLCanvasElement>('#pusher-panel-machine canvas')) {
+            context.drawImage(canvas, Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1, 0, 0, 1, 1);
+          }
+          resolve(Array.from(context.getImageData(0, 0, 1, 1).data));
+        });
+      }),
+  );
+}
+
+/**
+ * Waits until the field is painted: its middle is the lower table and its
+ * medals, blue or gold. An empty canvas is clear there, and a 3D scene with
+ * nothing in it is nearly black.
+ */
+async function expectFieldPainted(page: Page, timeout = 5_000) {
+  await expect
+    .poll(
+      async () => {
+        const [red = 0, green = 0, blue = 0, alpha = 0] = await fieldPixel(page);
+        return alpha === 255 && red + green + blue > 60;
+      },
+      { timeout },
+    )
+    .toBe(true);
 }
 
 /** Drops one medal with the button, retrying until hydration has attached the handlers. */
@@ -71,23 +132,98 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(machine(page).getByTestId('pusher-board').locator('li')).toHaveCount(12);
   await expect(machine(page).getByTestId('pusher-refill')).toHaveCount(0);
 
-  // The field is painted: its middle is the lower table and its medals, not an empty canvas.
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="pusher-field"]');
-        const context = canvas?.getContext('2d');
-        if (!canvas || !context) return -1;
-        return context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1).data[3];
-      }),
-    )
-    .toBe(255);
+  // The field is painted, by one renderer or the other.
+  await expectFieldPainted(page);
+  await expect(machine(page).getByTestId('pusher-field')).toHaveAttribute('data-renderer', /^(webgl|2d)$/);
 
   // A machine nobody feeds keeps its medals.
   await page.waitForTimeout(1_500);
   await expect(machine(page).getByTestId('pusher-won')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-lost')).toHaveText('0');
   expect(errors).toEqual([]);
+});
+
+test('the field says which renderer draws it, and nothing goes wrong while the machine runs', async ({ page }) => {
+  const trouble = watchForTrouble(page);
+  await openGame(page);
+  const field = machine(page).getByTestId('pusher-field');
+  // In 3D where this browser has WebGL2 and a graphics card behind it, on the canvas where it has not: one of the two.
+  await expect(field).toHaveAttribute('data-renderer', /^(webgl|2d)$/);
+  const renderer = await field.getAttribute('data-renderer');
+  await expectFieldPainted(page);
+
+  // Feed it for a few seconds: medals fall, land, and are pushed about.
+  await dropOne(page);
+  await autoButton(page).click();
+  await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(5);
+  await autoButton(page).click();
+  await expectFieldPainted(page);
+  await expectPurseToBalance(page);
+  // It is still the renderer it started with, and neither it nor anything else has complained.
+  await expect(field).toHaveAttribute('data-renderer', renderer ?? '');
+  expect(trouble).toEqual([]);
+});
+
+test('the canvas renderer draws the field when the address asks for it', async ({ page }) => {
+  const trouble = watchForTrouble(page);
+  await openGame(page, 'en', '?renderer=2d');
+  const field = machine(page).getByTestId('pusher-field');
+  await expect(field).toHaveAttribute('data-renderer', '2d');
+  await expectFieldPainted(page);
+  // The whole picture is on the field's own canvas, as it was before there was a second one under it for the 3D scene.
+  const alphas = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLCanvasElement>('#pusher-panel-machine canvas'), (canvas) => {
+      const context = canvas.dataset.testid === 'pusher-field' ? canvas.getContext('2d') : null;
+      return context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1).data[3] : -1;
+    }),
+  );
+  expect(alphas).toEqual([-1, 255]);
+
+  // The game plays as it does in 3D: a click on the field aims there and drops a medal.
+  await dropOne(page);
+  const box = await field.boundingBox();
+  if (!box) throw new Error('the field has no box');
+  const before = await counter(page, 'played');
+  await page.waitForTimeout(300);
+  await field.click({ position: { x: box.width * 0.25, y: box.height * 0.12 } });
+  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
+  expect(Number(await aimSlider(page).inputValue())).toBeLessThan(35);
+  await expectPurseToBalance(page);
+  expect(trouble).toEqual([]);
+});
+
+test('the 3D renderer draws the field wherever the browser has WebGL2 at all, when the address insists', async ({ page }) => {
+  // Left to itself the game does not draw in 3D on a browser that has no graphics card behind it, which is
+  // what CI runs: it would be slow. `?renderer=webgl` insists, so this is where the shaders are really
+  // compiled and the scene really drawn. Drawn in software it is slow, hence the patience.
+  test.setTimeout(90_000);
+  const trouble = watchForTrouble(page);
+  await openGame(page, 'en', '?renderer=webgl');
+  const field = machine(page).getByTestId('pusher-field');
+  const hasWebgl2 = await page.evaluate(() => document.createElement('canvas').getContext('webgl2') !== null);
+  await expect(field).toHaveAttribute('data-renderer', hasWebgl2 ? 'webgl' : '2d', { timeout: 30_000 });
+  await expectFieldPainted(page, 30_000);
+  if (hasWebgl2) {
+    // The scene is on the canvas under the field, and the field's own canvas is only the glass over it: clear in the middle.
+    const glass = await page.evaluate(() => {
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="pusher-field"]');
+      const context = canvas?.getContext('2d');
+      return canvas && context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1).data[3] : -1;
+    });
+    expect(glass).toBeGreaterThanOrEqual(0);
+    expect(glass).toBeLessThan(60);
+  }
+  // A medal dropped by a click on the field lands where it does with the other renderer: the two share one camera.
+  await dropOne(page);
+  const box = await field.boundingBox();
+  if (!box) throw new Error('the field has no box');
+  const before = await counter(page, 'played');
+  await page.waitForTimeout(300);
+  await field.click({ position: { x: box.width * 0.8, y: box.height * 0.12 } });
+  await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(before + 1);
+  expect(Number(await aimSlider(page).inputValue())).toBeGreaterThan(65);
+  await expectPurseToBalance(page);
+  expect(trouble).toEqual([]);
 });
 
 test('DROP takes a medal from the purse', async ({ page }) => {

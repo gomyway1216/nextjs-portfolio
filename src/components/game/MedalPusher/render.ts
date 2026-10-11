@@ -16,28 +16,28 @@ const W = FIELD.width;
 const D = FIELD.depth;
 const OPEN = FIELD.sideOpenFrom;
 /** Seconds a medal takes to drop from the pusher's lip onto the lower table. */
-const LIP_FALL = 0.18;
+export const LIP_FALL = 0.18;
 /** Seconds a medal that has left the field is still drawn for, on its way down. */
-const EXIT_TIME = 0.6;
+export const EXIT_TIME = 0.6;
 /** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
-const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
+export const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
 /** How much higher than the pile a medal that has just come down is drawn, before it has come to rest. */
-const RIDE = 1.4;
+export const RIDE = 1.4;
 /** Seconds a gate, the tray or a side stays lit after a medal passes. */
-const GLOW_TIME = 0.5;
+export const GLOW_TIME = 0.5;
 const RELEASE_HEIGHT = RELEASE.height;
 /** A prize ball is drawn this large. It overhangs the flat medals round it, so it touches them over less. */
-const BALL_RADIUS = 4.3;
+export const BALL_RADIUS = 4.3;
 /** How far a gate's opening reaches up the back panel. */
-const GATE = { halfWidth: R + CHECKERS.halfWidth, height: 11 } as const;
+export const GATE = { halfWidth: R + CHECKERS.halfWidth, height: 11 } as const;
 /** How long each kind of celebration lights the cabinet, in seconds. */
-const PARTY_TIME = { crash: 0.5, fever: 5, jackpot: 9 } as const;
+export const PARTY_TIME = { crash: 0.5, fever: 5, jackpot: 9 } as const;
 export type Party = keyof typeof PARTY_TIME;
 /** The most sparks alive at once. */
 const MAX_SPARKS = 220;
-const SPARK_COLORS = ['#fff3a8', '#ffd65c', '#ff7cc0', '#7df0ff', '#b6ff8f', '#ffffff'] as const;
+export const SPARK_COLORS = ['#fff3a8', '#ffd65c', '#ff7cc0', '#7df0ff', '#b6ff8f', '#ffffff'] as const;
 
-interface ExitingMedal {
+export interface ExitingMedal {
   id: number;
   x: number;
   y: number;
@@ -80,6 +80,8 @@ interface Popup {
 export interface Stage {
   /** Canvas pixels per pixel of the drawing. */
   ratio: number;
+  /** Whether the three layers below have been drawn. The 3D renderer does without them until the canvas one has to take over. */
+  painted: boolean;
   background: HTMLCanvasElement;
   medal: HTMLCanvasElement;
   ball: HTMLCanvasElement;
@@ -134,7 +136,7 @@ function onPanel(g: CanvasRenderingContext2D, k: number, x: number, height: numb
   g.setTransform((u.x - o.x) * k, (u.y - o.y) * k, (v.x - o.x) * k, (v.y - o.y) * k, (o.x + shift) * k, o.y * k);
 }
 
-const starPath = (g: CanvasRenderingContext2D, cx: number, cy: number, outer: number, inner: number): void => {
+export const starPath = (g: CanvasRenderingContext2D, cx: number, cy: number, outer: number, inner: number): void => {
   g.beginPath();
   for (let i = 0; i < 10; i++) {
     const radius = i % 2 === 0 ? outer : inner;
@@ -439,12 +441,19 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   return canvas;
 }
 
-export function createStage(ratio: number): Stage {
+/**
+ * A stage for a canvas `ratio` times the size of the drawing. With `painted`
+ * false its background and sprites are left blank: the 3D renderer draws none
+ * of them, and `paintStage` makes them if the canvas renderer ever takes over.
+ */
+export function createStage(ratio: number, painted = true): Stage {
+  const blank = painted ? null : document.createElement('canvas');
   return {
     ratio,
-    background: backgroundLayer(ratio),
-    medal: medalSprite(),
-    ball: ballSprite(),
+    painted,
+    background: blank ?? backgroundLayer(ratio),
+    medal: blank ?? medalSprite(),
+    ball: blank ?? ballSprite(),
     clock: 0,
     seen: new Map(),
     exits: [],
@@ -457,6 +466,15 @@ export function createStage(ratio: number): Stage {
     sideGlow: [0, 0],
     party: null,
   };
+}
+
+/** Draws the layers a stage was made without. */
+export function paintStage(stage: Stage): void {
+  if (stage.painted) return;
+  stage.background = backgroundLayer(stage.ratio);
+  stage.medal = medalSprite();
+  stage.ball = ballSprite();
+  stage.painted = true;
 }
 
 /** Lights the gate a medal has just come through. */
@@ -581,7 +599,7 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
 }
 
 /** The turn each medal lies at, fixed by its id so a pile does not look stamped. */
-const turnOf = (id: number): number => id * 2.399963;
+export const turnOf = (id: number): number => id * 2.399963;
 
 /** Stamps one medal's face where `point` is, squashed to `tilt` and turned by `turn`. */
 function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt: number, turn: number, shift = 0): void {
@@ -664,7 +682,7 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
  * down is a little higher still, and one dropping into a gap comes down from
  * the top of the pile as it makes room for itself.
  */
-function liftOf(medal: Medal): number {
+export function liftOf(medal: Medal): number {
   const settling = medal.grown < 1 ? 1 - (medal.grown - SETTLE.from) / (1 - SETTLE.from) : 0;
   return medal.tier === 1 ? T + settling * RIDE * 0.5 : settling * T;
 }
@@ -977,6 +995,18 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake);
   }
   g.globalAlpha = 1;
+  drawOverlay(g, stage, calm);
+}
+
+/**
+ * What lies flat on the glass rather than in the cabinet: sparks, confetti,
+ * the counts floating up from the tray, the wash of a fever and the glass
+ * itself. It closes every frame of this renderer, and it is all the 3D
+ * renderer draws on the canvas it keeps over its own.
+ */
+export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = false): void {
+  const k = stage.ratio;
+  const partying = stage.party !== null && stage.party.kind !== 'crash';
   g.setTransform(k, 0, 0, k, 0, 0);
 
   // Sparks and confetti, then the counts floating up from the tray.

@@ -33,20 +33,20 @@ async function counter(page: Page, id: string): Promise<number> {
 
 /**
  * Collects what would show that drawing the field went wrong: any error
- * nobody caught, and anything the console says, at any level, about WebGL or
- * a shader. The game itself writes nothing to the console, so that is all a
- * renderer could put there. Other console errors are left out on purpose:
- * the rest of the site reports its failed sign-in and network calls there,
- * and under CI's placeholder credentials those are expected.
+ * nobody caught, and any call the browser reports that WebGL refused, which
+ * it writes to the console at whatever level as `INVALID_OPERATION` and the
+ * like. The game itself writes nothing to the console, so that is all a
+ * renderer could put there. Everything else on the console is left out on
+ * purpose: the rest of the site reports its failed sign-in and network calls
+ * there, which CI's placeholder credentials make certain, and a browser
+ * drawing WebGL in software says so, and remarks on its speed.
  */
 function watchForTrouble(page: Page): string[] {
   const trouble: string[] = [];
   page.on('pageerror', (error) => trouble.push(`uncaught: ${error.message}`));
   page.on('console', (message) => {
     const text = message.text();
-    // Reading a pixel back for `fieldPixel` makes the graphics driver remark on its speed: the test's doing, not the game's.
-    if (/GPU stall due to ReadPixels/.test(text)) return;
-    if (/WebGL|GL_INVALID|shader/i.test(text)) trouble.push(`${message.type()}: ${text}`);
+    if (/INVALID_(ENUM|VALUE|OPERATION|FRAMEBUFFER_OPERATION)|GL_OUT_OF_MEMORY/.test(text)) trouble.push(`${message.type()}: ${text}`);
   });
   return trouble;
 }

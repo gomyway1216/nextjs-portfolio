@@ -39,6 +39,12 @@ export interface PusherStrings {
   challenge: string;
   sayGoal: (medals: number, level: number) => string;
   sayHole: (medals: number, total: number) => string;
+  bowlIntro: (holes: number) => string;
+  bowlCaption: string;
+  colHole: string;
+  holeJackpot: string;
+  holeJackpotPaid: (towers: number, start: number) => string;
+  bowlNote: (start: number, average: string, perBall: string) => string;
   slotName: string;
   sugorokuTitle: string;
   sugorokuRolling: string;
@@ -224,6 +230,14 @@ const en: PusherStrings = {
   sayGoal: (medals, level) =>
     `${medals} medals go up as a tower. Level ${level}: the jackpot challenge. The ball rolls round a bowl and will drop into one of three holes.`,
   sayHole: (medals, total) => `The ball dropped into the ${medals} hole. ${medals} more medals go up as towers. The run is over: ${total} medals in towers.`,
+  bowlIntro: (holes) =>
+    `The jackpot challenge is a bowl with ${holes} holes. The ball circles under the rim, spirals in as it slows, hesitates on the lip of each hole it passes and drops into one. Each hole is as likely as the next, and the ball only acts it out: its hole is drawn before it is let go.`,
+  bowlCaption: 'The bowl’s holes, the chance of each and how it is paid',
+  colHole: 'The ball drops into',
+  holeJackpot: 'The jackpot',
+  holeJackpotPaid: (towers, start) => `${towers} towers on the pusher when it stands at ${start}`,
+  bowlNote: (start, average, perBall) =>
+    `With the jackpot at ${start} medals the bowl pays ${average} medals on average: the three holes added up, divided by three. About ${perBall} of all balls get this far.`,
   slotName: 'NUMBER SLOT',
   sugorokuTitle: 'SUGOROKU CHANCE',
   sugorokuRolling: 'Rolling…',
@@ -444,6 +458,14 @@ const ja: PusherStrings = {
   sayGoal: (medals, level) =>
     `${medals}枚がタワーに積まれます。レベル${level}。ジャックポットチャレンジです。ボールがクルーンを転がり、3つの穴のどれかに落ちます。`,
   sayHole: (medals, total) => `ボールが${medals}枚の穴に落ちました。さらに${medals}枚がタワーに積まれます。終了です。タワーは合計${total}枚です。`,
+  bowlIntro: (holes) =>
+    `ジャックポットチャレンジは、穴が${holes}つ開いたクルーン（すり鉢状の皿）での抽選です。ボールは縁の内側を回り、勢いが落ちるにつれて内側へ寄っていき、穴の縁で何度かためらってから、どれか1つに落ちます。どの穴も同じ確率です。ボールは結果を演じているだけで、落ちる穴はボールが放たれる前に決まっています。`,
+  bowlCaption: 'クルーンの穴ごとの確率と出方',
+  colHole: 'ボールが落ちる穴',
+  holeJackpot: 'ジャックポット',
+  holeJackpotPaid: (towers, start) => `${start}枚のとき、プッシャーの上にタワー${towers}本`,
+  bowlNote: (start, average, perBall) =>
+    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3つの穴の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。`,
   slotName: 'ナンバースロット',
   sugorokuTitle: 'すごろくチャンス',
   sugorokuRolling: 'サイコロを振っています…',

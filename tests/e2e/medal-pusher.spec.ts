@@ -210,9 +210,11 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  // Four numbers in a row lead to the bowl.
+  // Four numbers in a row lead to the bowl, and each of its three holes is as likely as the next.
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
@@ -285,6 +287,7 @@ test('reads in Japanese', async ({ page }) => {
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
+  await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
 });
 

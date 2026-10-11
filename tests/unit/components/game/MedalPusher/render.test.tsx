@@ -472,6 +472,15 @@ describe('the page', () => {
     const chain = table(html, 'pusher-chain-table');
     expect(chain.match(/<td[^>]*>[^<]*</g)?.map((cell) => cell.replace(/<td[^>]*>/, '').slice(0, -1))).toEqual(['66.7%', '44.4%', '29.6%', '19.8%']);
     expect(chain.match(/<th scope="col"/g)).toHaveLength(4);
+    // The bowl a full run ends in: three holes, each one time in three.
+    const bowl = table(html, 'pusher-bowl-table');
+    expect(bowl.match(/<tr data-hole="[a-z0-9]+"/g)).toEqual(['<tr data-hole="jackpot"', '<tr data-hole="50"', '<tr data-hole="100"']);
+    expect(bowl.match(/33\.3%/g)).toHaveLength(3);
+    const holes = ['The jackpot', '12 towers on the pusher when it stands at 300', '50 medals', '2 towers on the pusher', '100 medals', '4 towers on the pusher'];
+    for (const text of holes) expect(bowl).toContain(text);
+    expect(html).toContain('The jackpot challenge is a bowl with 3 holes.');
+    expect(html).toContain('With the jackpot at 300 medals the bowl pays 150 medals on average');
+    expect(html).toContain('About 19.8% of all balls get this far.');
     expect(html).toContain('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
     expect(html).toContain('One tower on the pusher');
     expect(html).toContain('the average of the board: 8.75 medals');
@@ -480,7 +489,7 @@ describe('the page', () => {
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    expect(html.match(/<caption/g)).toHaveLength(6);
+    expect(html.match(/<caption/g)).toHaveLength(7);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
   });
@@ -489,6 +498,8 @@ describe('the page', () => {
     const html = render(<OddsTab />, 'ja');
     expect(html).toContain('数字が4回続くとジャックポットチャレンジが始まります');
     expect(html).toContain('クルーン');
+    expect(html).toContain('300枚のとき、プッシャーの上にタワー12本');
+    expect(html).toContain('クルーンの払い出しは平均150枚です');
     expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では2,170回に1回がそこにつながります');
     const info = getStrings('ja').infoBody.join('');
     expect(info).toContain('数字が4回続くと「ジャックポットチャレンジ」です');

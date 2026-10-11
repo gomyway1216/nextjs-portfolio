@@ -323,7 +323,7 @@ const en: PusherStrings = {
     front: 'Front edge',
   },
   partText: {
-    arms: 'One reaches in from each upper corner. A medal goes into the arm on the side you aim at, rolls down its rail and drops off the tip. Both arms follow your aim, each to a little past the middle, so a medal is let go wherever its arm is pointing when it gets to the tip. It lands up to 12% of the width to either side of that, most often close to it.',
+    arms: 'One reaches in from each upper corner. A medal goes into the arm on the side you aim at, rolls down its rail and drops off the tip. Both arms swing after your aim, each to a little past the middle, and an arm crosses its whole reach in under a fifth of a second. A medal is let go wherever its arm’s tip is when it gets there. It lands up to 12% of the width to either side of that, most often close to it.',
     gates: 'Three of them at the foot of the back panel, drawn here in the middle of their sweep. They move from side to side together, 7% of the width each way, there and back every 6 seconds. A medal you dropped starts a spin if it comes down through one, where the gate is at that moment. Medals the machine pays out do not count.',
     pusher: 'Slides back and forth under the back panel, carrying a heap two medals deep. The panel scrapes the rearmost medals forward, and the front ones tip over the lip.',
     table: 'The pusher’s face shoves these medals toward you, a row at a time. Here too they lie two deep, and the ones on top slide forward over the rest.',
@@ -566,7 +566,7 @@ const ja: PusherStrings = {
     front: '手前の端',
   },
   partText: {
-    arms: '左右の上の角から1本ずつ伸びています。メダルは狙った側のアームに入り、レールを転がって先端から落ちます。アームは狙いに合わせて動き、どちらも中央を少し越えるところまで届きます。メダルが放されるのは、先端に着いたときにアームが向いている位置です。そこから左右に幅の12%までずれますが、多くは近くに落ちます。',
+    arms: '左右の上の角から1本ずつ伸びています。メダルは狙った側のアームに入り、レールを転がって先端から落ちます。アームは狙いを追って動き、どちらも中央を少し越えるところまで届きます。端から端まで動くのに0.2秒かかりません。メダルが放されるのは、先端に着いたときにアームの先端がある位置です。そこから左右に幅の12%までずれますが、多くは近くに落ちます。',
     gates: '奥のパネルの下に3つあります。図は振れ幅の中央にあるときの位置です。3つそろって左右に幅の7%ずつ動き、6秒で1往復します。自分で落としたメダルが、そのときチャッカーのある位置を通ると抽選が1回始まります。払い出されたメダルは数えません。',
     pusher: '2段に積もったメダルを乗せて、奥のパネルの下を前後に動きます。引くときにパネルが奥のメダルを前へかき出し、先頭のメダルが縁から落ちます。',
     table: 'プッシャーの前面が、ここのメダルを一列ずつ手前へ押します。ここでもメダルは2段に重なり、上のメダルは下のメダルの上を滑って前へ進みます。',

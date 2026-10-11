@@ -128,7 +128,7 @@ describe('a machine that has just been switched on', () => {
       const onTop = machine.medals.filter((m) => m.tier === 1);
       expect(onTop.filter((m) => m.level === 1).length).toBeLessThanOrEqual(INITIAL.onTop.upper);
       expect(onTop.filter((m) => m.level === 0).length).toBeLessThanOrEqual(INITIAL.onTop.lower);
-      expect(onTop.length).toBeGreaterThan(10);
+      expect(onTop.length).toBeGreaterThan(30);
       for (const medal of onTop) {
         const under = [...upper, ...lower].filter((m) => m.level === medal.level);
         expect(Math.min(...under.map((m) => Math.hypot(m.x - medal.x, m.y - medal.y)))).toBeLessThan(MEDAL_RADIUS * 2 * GAP);
@@ -166,8 +166,15 @@ describe('a machine that has just been switched on', () => {
     for (let balls = 1; balls <= BALL_SPOTS.length; balls++) {
       const machine = createMachine(5, balls);
       expect(ballsOnField(machine)).toBe(balls);
-      expect(machine.medals.length).toBe(plain.medals.length);
-      expect(medalsOnField(machine)).toBe(medalsOnField(plain) - balls);
+      // A ball takes the place of a medal of the lower tier; what lies on top keeps clear of it.
+      const lowerTier = (m: Machine) => m.medals.filter((medal) => medal.tier === 0).length;
+      expect(lowerTier(machine)).toBe(lowerTier(plain));
+      expect(medalsOnField(machine)).toBe(machine.medals.length - balls);
+      for (const ball of machine.medals.filter((medal) => medal.ball)) {
+        expect(ball.tier).toBe(0);
+        const onTop = machine.medals.filter((medal) => medal.tier === 1 && medal.level === ball.level);
+        expect(Math.min(...onTop.map((medal) => Math.hypot(medal.x - ball.x, medal.y - ball.y)))).toBeGreaterThanOrEqual(MEDAL_RADIUS * 2 * 1.6 - 1e-9);
+      }
       const levels = machine.medals.filter((m) => m.ball).map((m) => m.level);
       expect(levels.sort()).toEqual(
         BALL_SPOTS.slice(0, balls)

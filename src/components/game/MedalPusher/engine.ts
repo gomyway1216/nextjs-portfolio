@@ -82,11 +82,12 @@ export const TOWER = {
 } as const;
 
 /**
- * Medals thrown onto the two tables when a machine is switched on: about as
- * many as lie there once it has been played for a while, so the first medal
- * dropped already pushes another one out. A few that will not fit are left out.
+ * Medals thrown onto the two tables when a machine is switched on, and onto
+ * the top of each pile: about as many as lie there once it has been played
+ * for a while, so the first medal dropped already pushes another one out. A
+ * few that will not fit, or would have nothing to lie on, are left out.
  */
-export const INITIAL = { upper: 74, lower: 132, onTop: { upper: 8, lower: 14 } } as const;
+export const INITIAL = { upper: 74, lower: 132, onTop: { upper: 56, lower: 22 } } as const;
 /** Where the balls a machine starts with lie: the first on the lower table, the second on the pusher. */
 export const BALL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
   { level: 0, x: 38, y: 70 },
@@ -362,16 +363,16 @@ const SETTLE_PASSES = 800;
 const SETTLED = 0.004;
 
 /**
- * Fills a band of one table. The medals are thrown down at random, overlapping,
- * and then pushed apart inside the band until they lie side by side — a packed
- * but irregular pile, the way a played machine looks.
+ * Fills a band of one table, in one tier. The medals are thrown down at
+ * random, overlapping, and then pushed apart inside the band until they lie
+ * side by side — a packed but irregular pile, the way a played machine looks.
  */
-function fillTable(machine: Machine, count: number, level: Level, yFrom: number, yTo: number): void {
+function fillTable(machine: Machine, count: number, level: Level, tier: Tier, yFrom: number, yTo: number): void {
   const medals: Medal[] = [];
   for (let i = 0; i < count; i++) {
     const x = R + machine.rng() * (FIELD.width - DIAMETER);
     const y = yFrom + machine.rng() * (yTo - yFrom);
-    medals.push({ id: machine.nextId++, x, y, level, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    medals.push({ id: machine.nextId++, x, y, level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
   }
   for (let pass = 0; pass < SETTLE_PASSES; pass++) {
     buildGrid(medals);
@@ -383,31 +384,24 @@ function fillTable(machine: Machine, count: number, level: Level, yFrom: number,
   }
   // Now and then a corner of the pile is still squeezed. A medal left pressing on
   // another would spring the pile apart once the machine starts, so it is taken out.
+  // On top of a pile a medal also needs something to lie on, well inside the reach of a medal
+  // beneath it, and it keeps clear of any ball: otherwise it would move the moment the machine starts.
+  const under = tier === 1 ? machine.medals.filter((medal) => medal.level === level && medal.tier === 0) : [];
+  const supported = (medal: Medal): boolean => {
+    if (tier === 0) return true;
+    let nearest = Infinity;
+    for (const other of under) {
+      const distance = Math.hypot(other.x - medal.x, other.y - medal.y);
+      if (other.ball && distance < DIAMETER * 1.6) return false;
+      if (!other.ball && distance < nearest) nearest = distance;
+    }
+    return nearest < DIAMETER * GAP * 0.85;
+  };
   const kept: Medal[] = [];
   for (const medal of medals) {
-    if (kept.every((other) => Math.hypot(other.x - medal.x, other.y - medal.y) >= DIAMETER * (1 - SETTLED))) kept.push(medal);
+    if (supported(medal) && kept.every((other) => Math.hypot(other.x - medal.x, other.y - medal.y) >= DIAMETER * (1 - SETTLED))) kept.push(medal);
   }
   machine.medals.push(...kept);
-}
-
-/**
- * Lays a few medals on top of a table's pile, each resting on a medal of the
- * lower tier and clear of the others on top, of any ball, and of the edge.
- */
-function strewOnTop(machine: Machine, count: number, level: Level, yMin: number, yMax: number): void {
-  const under = machine.medals.filter((medal) => medal.level === level && medal.tier === 0);
-  const balls = under.filter((medal) => medal.ball);
-  const placed: Medal[] = [];
-  for (let attempt = 0; attempt < count * 40 && placed.length < count; attempt++) {
-    const rest = under[Math.min(under.length - 1, Math.floor(machine.rng() * under.length))];
-    const x = Math.min(FIELD.width - R, Math.max(R, rest.x + (machine.rng() - 0.5) * R * 0.5));
-    const y = Math.min(yMax, Math.max(yMin, rest.y + (machine.rng() - 0.5) * R * 0.5));
-    const clear = (others: Medal[], distance: number) => others.every((other) => Math.hypot(other.x - x, other.y - y) >= distance);
-    if (!rest.ball && clear(placed, DIAMETER * 1.05) && clear(balls, DIAMETER * 1.6)) {
-      placed.push({ id: machine.nextId++, x, y, level, tier: 1, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
-    }
-  }
-  machine.medals.push(...placed);
 }
 
 /**
@@ -430,8 +424,8 @@ export function createMachine(seed: number, balls = 0): Machine {
   };
   // The pusher starts fully back: its own medals fit behind the lip, and the
   // lower table's lie beyond its full reach, so nothing moves until it is fed.
-  fillTable(machine, INITIAL.upper, 1, R, PUSHER.min - 0.5);
-  fillTable(machine, INITIAL.lower, 0, PUSHER.max + R, FIELD.depth - 0.5);
+  fillTable(machine, INITIAL.upper, 1, 0, R, PUSHER.min - 0.5);
+  fillTable(machine, INITIAL.lower, 0, 0, PUSHER.max + R, FIELD.depth - 0.5);
   // A ball takes the place of the medal lying nearest its spot.
   for (const spot of BALL_SPOTS.slice(0, balls)) {
     let nearest: Medal | null = null;
@@ -445,8 +439,9 @@ export function createMachine(seed: number, balls = 0): Machine {
     }
     if (nearest) nearest.ball = true;
   }
-  strewOnTop(machine, INITIAL.onTop.upper, 1, R, PUSHER.min - 0.5);
-  strewOnTop(machine, INITIAL.onTop.lower, 0, PUSHER.max + R, FIELD.depth - 0.5);
+  // Then the medals lying on top of each pile, once the balls are where they will be.
+  fillTable(machine, INITIAL.onTop.upper, 1, 1, R, PUSHER.min - 0.5);
+  fillTable(machine, INITIAL.onTop.lower, 0, 1, PUSHER.max + R, FIELD.depth - 0.5);
   return machine;
 }
 

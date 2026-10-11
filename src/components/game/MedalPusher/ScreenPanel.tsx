@@ -139,6 +139,7 @@ export function bannerText(state: ScreenState, t: PusherStrings): string | null 
   const text: Record<Banner, string | null> = {
     none: null,
     reach: t.reach,
+    superReach: t.superReach,
     line: state.line === 'big' ? t.chestTitle : t.sugorokuTitle,
     ball: t.ballWin,
     medals: t.spinWin(state.amount),
@@ -155,6 +156,8 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
   const banner = bannerText(state, t);
   const title = state.mode === 'sugoroku' ? t.sugorokuTitle : state.mode === 'chest' ? t.chestTitle : state.mode === 'roulette' ? t.chance : t.slotName;
   const choosing = state.mode === 'chest' && state.chests?.every((chest) => chest.state === 'closed');
+  // A reach is cut in across the reels as it is called; the caption below keeps the words up for as long as it lasts.
+  const reach = state.banner === 'reach' || state.banner === 'superReach';
   return (
     <div className={styles.screen} role="group" aria-label={t.screenAria} data-mode={state.mode} data-banner={state.banner} data-testid="pusher-screen">
       <div className={styles.rays} aria-hidden />
@@ -193,6 +196,12 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
             </div>
           ))}
         </div>
+
+        {reach && (
+          <div className={styles.cutIn} data-kind={state.banner} aria-hidden data-testid="pusher-cut-in">
+            <span className={styles.cutInText}>{banner}</span>
+          </div>
+        )}
 
         {state.mode === 'sugoroku' && (
           <div className={styles.bonus} aria-hidden>

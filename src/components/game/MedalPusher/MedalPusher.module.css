@@ -330,6 +330,53 @@
   background: repeating-conic-gradient(rgba(255, 226, 120, 0.3) 0deg 9deg, rgba(255, 255, 255, 0) 9deg 18deg);
   animation-duration: 6s;
 }
+/* How a reach is dressed. All of it is decoration, so none of it is on for a player who asked for less motion:
+   the caption's words are the whole of a reach then. */
+@media (prefers-reduced-motion: no-preference) {
+  /* A reach turns the rays red and quickens them. A long reach turns the screen red and the rays through three colours, faster still. */
+  .screen[data-banner='reach'] .rays {
+    background: repeating-conic-gradient(rgba(255, 92, 132, 0.36) 0deg 9deg, rgba(255, 255, 255, 0) 9deg 18deg);
+    animation-duration: 9s;
+  }
+  .screen[data-banner='superReach'] {
+    background: radial-gradient(120% 120% at 50% 20%, #a3122f 0%, #3d0614 55%, var(--mp-screen) 100%);
+  }
+  .screen[data-banner='superReach'] .rays {
+    background: repeating-conic-gradient(
+      rgba(255, 226, 120, 0.46) 0deg 10deg,
+      rgba(255, 255, 255, 0) 10deg 20deg,
+      rgba(255, 124, 192, 0.46) 20deg 30deg,
+      rgba(255, 255, 255, 0) 30deg 40deg,
+      rgba(125, 240, 255, 0.46) 40deg 50deg,
+      rgba(255, 255, 255, 0) 50deg 60deg
+    );
+    animation-duration: 3.5s;
+  }
+  /* The two reels that stopped alike flash while the centre decides it. */
+  .screen[data-banner='reach'] .reel:not(:nth-child(2)),
+  .screen[data-banner='superReach'] .reel:not(:nth-child(2)) {
+    animation: mp-flash 0.45s ease-in-out infinite alternate;
+  }
+  .screen[data-banner='superReach'] .reel:not(:nth-child(2)) {
+    animation-duration: 0.34s;
+  }
+  /* A long reach draws slowly in on the reels, and lets go at once when the centre stops. */
+  .reels {
+    scale: 1;
+    transition: scale 0.25s ease-out;
+  }
+  .screen[data-banner='superReach'] .reels {
+    scale: 1.1;
+    transition: scale 2.4s ease-in-out 0.4s;
+  }
+  .cabinet[data-banner='superReach'] .bulbs::before,
+  .cabinet[data-banner='superReach'] .bulbs::after {
+    animation-duration: 1.4s;
+  }
+  .cabinet[data-banner='superReach'] .bulbs::after {
+    animation-delay: -0.7s;
+  }
+}
 @keyframes mp-turn {
   to {
     rotate: 1turn;
@@ -473,6 +520,77 @@
 /* For a player who asked for less motion the reels do not turn: one whose digit is still to come stands dimmed instead. */
 .strip[data-waiting='true'] {
   opacity: 0.22;
+}
+/* A reach is cut in across the reels as it is called: a band that sweeps over them and is gone again, so that
+   the centre reel can be watched. Like the rest of a reach's dress, it is left out for a player who asked for less motion. */
+.cutIn {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cutIn {
+    position: absolute;
+    z-index: 2;
+    left: -8%;
+    right: -8%;
+    top: 50%;
+    height: 44cqh;
+    display: grid;
+    place-items: center;
+    translate: 0 -50%;
+    rotate: -4deg;
+    border-block: 1cqh solid #ffd65c;
+    background: linear-gradient(90deg, #7a0026 0%, #d61f4c 22%, #ff4f7d 50%, #d61f4c 78%, #7a0026 100%);
+    box-shadow: 0 0 5cqh rgba(255, 79, 125, 0.75);
+    pointer-events: none;
+    animation: mp-cut-in 0.75s ease-out both;
+  }
+  .cutIn[data-kind='superReach'] {
+    height: 58cqh;
+    rotate: -5deg;
+    border-block-color: #ffffff;
+    background: linear-gradient(90deg, #b8860b 0%, #ffd65c 22%, #fff7c2 50%, #ffd65c 78%, #b8860b 100%);
+    box-shadow: 0 0 7cqh rgba(255, 226, 120, 0.9);
+    animation-duration: 1.1s;
+  }
+}
+.cutInText {
+  font-size: min(27cqh, 9.4cqw);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fffbe0;
+  -webkit-text-stroke: 1px #5a0020;
+  text-shadow:
+    0 0.06em 0 #5a0020,
+    0 0 0.4em rgba(255, 240, 160, 0.9);
+}
+.cutIn[data-kind='superReach'] .cutInText {
+  font-size: min(31cqh, 8.4cqw);
+  color: #8a0029;
+  -webkit-text-stroke: 1px #fffbe0;
+  text-shadow:
+    0 0.05em 0 #fffbe0,
+    0 0 0.4em #ffffff;
+}
+/* The band comes in from the left, holds while it is read, and leaves to the right. */
+@keyframes mp-cut-in {
+  from {
+    transform: translateX(-112%);
+  }
+  20% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  72% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(112%);
+    opacity: 0;
+  }
 }
 .bonus {
   flex-direction: column;
@@ -653,6 +771,15 @@
   text-shadow:
     0 0 14px rgba(255, 100, 140, 0.95),
     0 2px 0 #3a0012;
+}
+.banner[data-banner='superReach'] {
+  color: #ffffff;
+  -webkit-text-stroke: 1px #7a0026;
+  text-shadow:
+    0 0 16px rgba(255, 226, 120, 1),
+    0 0 6px rgba(255, 100, 140, 0.95),
+    0 2px 0 #3a0012;
+  animation-duration: 0.4s;
 }
 @keyframes mp-pop {
   from {

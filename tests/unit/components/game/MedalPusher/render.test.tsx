@@ -624,6 +624,9 @@ describe('the screen', () => {
     expect(bannerText({ ...idle, banner: 'line', line: 'big' }, en)).toBe('TREASURE CHANCE');
     expect(bannerText({ ...idle, banner: 'ball', line: 'seven' }, en)).toBe('BALL GET!');
     expect(bannerText({ ...idle, banner: 'reach' }, en)).toBe('REACH!');
+    expect(bannerText({ ...idle, banner: 'superReach' }, en)).toBe('SUPER REACH!');
+    expect(bannerText({ ...idle, banner: 'reach' }, getStrings('ja'))).toBe('リーチ！');
+    expect(bannerText({ ...idle, banner: 'superReach' }, getStrings('ja'))).toBe('スーパーリーチ！');
     expect(bannerText({ ...idle, banner: 'medals', amount: 8 }, en)).toBe('+8 MEDALS');
     expect(bannerText({ ...idle, banner: 'towers', amount: 30 }, en)).toBe('TOWER +30');
     expect(bannerText({ ...idle, banner: 'fever', amount: 30 }, en)).toBe('FEVER! +30');
@@ -646,6 +649,26 @@ describe('the screen', () => {
     expect(html.match(/data-leads="ball"/g)).toHaveLength(3);
     expect(html.match(/data-leads="chest"/g)).toHaveLength(3 * 6);
     expect(html.match(/data-leads="sugoroku"/g)).toHaveLength(3 * 5);
+  });
+
+  it('cuts a reach in across the reels, and a long one as a super reach', () => {
+    expect(show(idle)).not.toContain('pusher-cut-in');
+    expect(show({ ...idle, banner: 'line', line: 'small' })).not.toContain('pusher-cut-in');
+
+    const reach = show({ ...idle, banner: 'reach' });
+    expect(reach).toContain('data-banner="reach"');
+    expect(reach).toMatch(/data-kind="reach"[^>]*aria-hidden="true"[^>]*data-testid="pusher-cut-in"/);
+    // Once across the reels and once in the caption, which is all that is left of it without motion.
+    expect(reach.match(/>REACH!</g)).toHaveLength(2);
+    expect(reach).not.toContain('SUPER REACH!');
+    expect(reach).not.toContain('7·7·7 ▸ BALL');
+
+    const long = show({ ...idle, banner: 'superReach' });
+    expect(long).toContain('data-banner="superReach"');
+    expect(long).toMatch(/data-kind="superReach"[^>]*data-testid="pusher-cut-in"/);
+    expect(long.match(/>SUPER REACH!</g)).toHaveLength(2);
+    expect(show({ ...idle, banner: 'superReach' }, 0, 'ja').match(/>スーパーリーチ！</g)).toHaveLength(2);
+    expect(show({ ...idle, banner: 'reach' }, 0, 'ja').match(/>リーチ！</g)).toHaveLength(2);
   });
 
   it('shows the die and moves the piece along the board', () => {
@@ -729,11 +752,38 @@ describe('what the screen shows for a session', () => {
     expect(screenState(session, false).banner).toBe('none');
     spin.elapsed = TIMING.spin + 0.2;
     expect(screenState(session, false).banner).toBe('reach');
-    expect(screenState(session, true).banner).toBe('none');
-    session.spin.done = true;
+    // Without motion the reach is still called: the words are all there is of it.
+    expect(screenState(session, true).banner).toBe('reach');
+    spin.done = true;
     expect(screenState(session, false)).toMatchObject({ banner: 'line', line: 'big' });
     spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true, reachKind: 'normal' };
     expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
+  });
+
+  it('calls a long reach a super reach for as long as it lasts', () => {
+    const session = createSession(1, { balls: 0 });
+    const result: ActiveSpin['result'] = { tier: 'miss', digits: [7, 8, 7], reach: true, reachKind: 'long' };
+    const spin: ActiveSpin = { result, elapsed: 0, duration: TIMING.spin + reachTime(result), done: false };
+    session.spin = spin;
+    const [, centre, right] = stopTimes(spin);
+    spin.elapsed = right - 0.01;
+    expect(screenState(session, false).banner).toBe('none');
+    spin.elapsed = right + 0.01;
+    expect(screenState(session, false).banner).toBe('superReach');
+    expect(screenState(session, true).banner).toBe('superReach');
+    // Still on when an ordinary reach would have been over.
+    spin.elapsed = TIMING.spin + TIMING.reach + 0.5;
+    expect(screenState(session, false).banner).toBe('superReach');
+    spin.elapsed = centre - 0.01;
+    expect(screenState(session, false).banner).toBe('superReach');
+    // It missed: the reels have stopped and there is nothing to announce.
+    spin.elapsed = centre;
+    spin.done = true;
+    expect(screenState(session, false)).toMatchObject({ banner: 'none', line: null });
+    // The same reach with three alike behind it ends in the line it was always going to.
+    spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true, reachKind: 'long' };
+    expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
+    expect(sameScreen({ ...screenState(session, false), banner: 'reach' }, { ...screenState(session, false), banner: 'superReach' })).toBe(false);
   });
 
   it('tumbles the die, then hops the piece a square at a time', () => {

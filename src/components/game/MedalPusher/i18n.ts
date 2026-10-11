@@ -26,6 +26,7 @@ export interface PusherStrings {
   legendOdd: string;
   legendEven: string;
   reach: string;
+  superReach: string;
   // Odds: how far to trust a reach
   reachCaption: string;
   colReach: string;
@@ -214,6 +215,7 @@ const en: PusherStrings = {
   legendOdd: '1·3·5·9 ▸ TREASURE',
   legendEven: '2·4·6·8 ▸ SUGOROKU',
   reach: 'REACH!',
+  superReach: 'SUPER REACH!',
   reachCaption: 'How often each kind of reach comes up, and the chance that it then hits',
   colReach: 'Reach',
   colReachShare: 'Share of spins',
@@ -437,6 +439,7 @@ const ja: PusherStrings = {
   legendOdd: '1·3·5·9 ▸ 宝箱',
   legendEven: '2·4·6·8 ▸ すごろく',
   reach: 'リーチ！',
+  superReach: 'スーパーリーチ！',
   reachCaption: 'リーチの種類ごとの出現率と信頼度',
   colReach: 'リーチ',
   colReachShare: '出現率',

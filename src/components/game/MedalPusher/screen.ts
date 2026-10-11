@@ -173,8 +173,8 @@ export const rouletteSettled = (roulette: ActiveRoulette): boolean => roulette.e
 // ── What the whole screen shows ─────────────────────────────────────────────
 
 export type ScreenMode = 'slot' | 'sugoroku' | 'chest' | 'roulette';
-/** The headline across the screen: nothing, a reach, a winning line, or a prize and the way it is paid. */
-export type Banner = 'none' | 'reach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'finish' | 'jackpot';
+/** The headline across the screen: nothing, a reach or a long one, a winning line, or a prize and the way it is paid. */
+export type Banner = 'none' | 'reach' | 'superReach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'finish' | 'jackpot';
 
 export interface ChestView {
   state: 'closed' | 'picked' | 'open';
@@ -267,7 +267,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
   if (spin) {
     const { tier } = spin.result;
     if (spin.done && tier !== 'miss') return { ...idle, line: tier, banner: tier === 'seven' ? 'ball' : 'line' };
-    if (!calm && inReach(spin)) return { ...idle, banner: 'reach' };
+    // A reach is called with or without motion: the words stay, and only what moves round them is left out.
+    if (inReach(spin)) return { ...idle, banner: spin.result.reachKind === 'long' ? 'superReach' : 'reach' };
   }
   return idle;
 }

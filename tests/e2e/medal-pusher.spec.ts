@@ -63,6 +63,8 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   // Every digit on the three reels is badged with what it leads to.
   await expect(machine(page).locator('[data-leads="ball"]')).toHaveCount(3);
   await expect(machine(page).locator('[data-leads]')).toHaveCount(36);
+  // No reach is cut in across them before the first spin.
+  await expect(machine(page).getByTestId('pusher-cut-in')).toHaveCount(0);
   // The sugoroku board is always on, the piece on its first square.
   await expect(machine(page).getByTestId('pusher-board')).toHaveAttribute('data-square', '0');
   await expect(machine(page).getByTestId('pusher-board').locator('li')).toHaveCount(12);

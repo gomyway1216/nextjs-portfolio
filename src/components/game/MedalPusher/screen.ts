@@ -5,7 +5,7 @@
  */
 
 import { BOARD, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
-import { TIMING, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import { TIMING, reachTime, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
 export const REEL_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -18,7 +18,7 @@ const EASE = { fast: 0.22, slow: 0.7 } as const;
 
 /** The moment each reel stops, in seconds from the start of the spin: left, centre, right. */
 export function stopTimes(spin: ActiveSpin): [number, number, number] {
-  const plain = spin.duration - (spin.result.reach ? TIMING.reach : 0);
+  const plain = spin.duration - reachTime(spin.result);
   return [plain * STOP.left, spin.duration, plain * STOP.right];
 }
 

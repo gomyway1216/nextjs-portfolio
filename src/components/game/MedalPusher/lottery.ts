@@ -28,12 +28,24 @@ export const TIER_DIGITS: Record<Exclude<Tier, 'miss'>, readonly number[]> = {
 /** Share of losing spins that tease with two matching digits before missing. */
 export const REACH_RATE = 0.15;
 
+/** How a spin's reach is played: not at all, the usual one, or the long one that draws the suspense out. */
+export const REACH_KINDS = ['none', 'normal', 'long'] as const;
+export type ReachKind = (typeof REACH_KINDS)[number];
+
+/**
+ * The chance that a reach is played long: for a spin that has won, and for one
+ * that has lost. The spin is drawn first, so this decides only how it is shown.
+ */
+export const LONG_REACH = { win: 0.6, miss: 0.15 } as const;
+
 export interface SpinResult {
   tier: Tier;
   /** Left, centre and right reel. The centre stops last. */
   digits: [number, number, number];
   /** Whether the left and right reels match, so the centre decides it. */
   reach: boolean;
+  /** How that reach is played: 'none' exactly when there is no reach. */
+  reachKind: ReachKind;
 }
 
 const pick = <T>(items: readonly T[], rng: () => number): T => items[Math.min(items.length - 1, Math.floor(rng() * items.length))];
@@ -49,22 +61,25 @@ export function tierFor(roll: number): Tier {
   return 'miss';
 }
 
-/** Draws one spin: the tier first, then digits that show it. */
+/** How a reach is played, drawn once the spin itself is settled: long more often when the line has won. */
+const reachKindFor = (won: boolean, rng: () => number): ReachKind => (rng() < (won ? LONG_REACH.win : LONG_REACH.miss) ? 'long' : 'normal');
+
+/** Draws one spin: the tier first, then digits that show it, then how its reach is played. */
 export function drawSpin(rng: () => number): SpinResult {
   const tier = tierFor(rng());
   if (tier !== 'miss') {
     const d = pick(TIER_DIGITS[tier], rng);
-    return { tier, digits: [d, d, d], reach: true };
+    return { tier, digits: [d, d, d], reach: true, reachKind: reachKindFor(true, rng) };
   }
   const left = digit(rng);
   if (rng() < REACH_RATE) {
     // Two alike and a centre reel that stops one short or one past.
     const centre = ((left - 1 + (rng() < 0.5 ? 1 : 8)) % 9) + 1;
-    return { tier, digits: [left, centre, left], reach: true };
+    return { tier, digits: [left, centre, left], reach: true, reachKind: reachKindFor(false, rng) };
   }
   let right = digit(rng);
   if (right === left) right = (right % 9) + 1;
-  return { tier, digits: [left, digit(rng), right], reach: false };
+  return { tier, digits: [left, digit(rng), right], reach: false, reachKind: 'none' };
 }
 
 // ── The sugoroku board ──────────────────────────────────────────────────────

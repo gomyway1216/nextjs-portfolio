@@ -24,7 +24,7 @@ import {
   sugorokuSquare,
   type ScreenState,
 } from '@/components/game/MedalPusher/screen';
-import { START_CREDITS, TIMING, createSession, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
+import { START_CREDITS, TIMING, createSession, reachTime, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
 import { HEIGHT, VIEW, project, rise, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
@@ -92,12 +92,12 @@ describe('the camera', () => {
 });
 
 describe('the reels', () => {
-  const spin = (reach: boolean, elapsed: number, digits: [number, number, number] = [4, 7, 2]): ActiveSpin => ({
-    result: { tier: 'miss', digits, reach },
-    elapsed,
-    duration: TIMING.spin + (reach ? TIMING.reach : 0),
-    done: false,
-  });
+  /** A losing spin `elapsed` seconds in: with no reach, with one, or with a long one. */
+  const spin = (reach: boolean | 'long', elapsed: number, digits: [number, number, number] = [4, 7, 2], plain: number = TIMING.spin): ActiveSpin => {
+    const reachKind = reach === 'long' ? 'long' : reach ? 'normal' : 'none';
+    const result: ActiveSpin['result'] = { tier: 'miss', digits, reach: reach !== false, reachKind };
+    return { result, elapsed, duration: plain + reachTime(result), done: false };
+  };
 
   it('stop left, then right, then centre', () => {
     const [left, centre, right] = stopTimes(spin(false, 0));
@@ -109,6 +109,11 @@ describe('the reels', () => {
     expect(reach[0]).toBeCloseTo(left, 9);
     expect(reach[2]).toBeCloseTo(right, 9);
     expect(reach[1]).toBeCloseTo(TIMING.spin + TIMING.reach, 9);
+    // A long reach holds it back longer still.
+    const long = stopTimes(spin('long', 0));
+    expect(long[0]).toBeCloseTo(left, 9);
+    expect(long[2]).toBeCloseTo(right, 9);
+    expect(long[1]).toBeCloseTo(TIMING.spin + TIMING.reach + TIMING.longReach, 9);
   });
 
   it('show the drawn digits once they have stopped, and keep inside the strip before', () => {
@@ -138,6 +143,11 @@ describe('the reels', () => {
     expect(inReach(spin(true, stops[2] + 0.01, [5, 6, 5]))).toBe(true);
     expect(inReach(spin(true, stops[1], [5, 6, 5]))).toBe(false);
     expect(inReach(spin(false, TIMING.spin * 0.9))).toBe(false);
+    // A long reach is a reach for all of its longer time.
+    const long = stopTimes(spin('long', 0, [5, 6, 5]));
+    expect(inReach(spin('long', long[2] + 0.01, [5, 6, 5]))).toBe(true);
+    expect(inReach(spin('long', long[1] - 0.01, [5, 6, 5]))).toBe(true);
+    expect(inReach(spin('long', long[1], [5, 6, 5]))).toBe(false);
   });
 });
 
@@ -476,14 +486,16 @@ describe('what the screen shows for a session', () => {
 
   it('follows a spin from a reach to the line it stops on', () => {
     const session = createSession(1, { balls: 0 });
-    session.spin = { result: { tier: 'big', digits: [5, 5, 5], reach: true }, elapsed: 0, duration: TIMING.spin + TIMING.reach, done: false };
+    const result: ActiveSpin['result'] = { tier: 'big', digits: [5, 5, 5], reach: true, reachKind: 'normal' };
+    const spin: ActiveSpin = { result, elapsed: 0, duration: TIMING.spin + TIMING.reach, done: false };
+    session.spin = spin;
     expect(screenState(session, false).banner).toBe('none');
-    session.spin.elapsed = TIMING.spin + 0.2;
+    spin.elapsed = TIMING.spin + 0.2;
     expect(screenState(session, false).banner).toBe('reach');
     expect(screenState(session, true).banner).toBe('none');
     session.spin.done = true;
     expect(screenState(session, false)).toMatchObject({ banner: 'line', line: 'big' });
-    session.spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true };
+    spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true, reachKind: 'normal' };
     expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
   });
 

@@ -13,7 +13,9 @@ import {
   FEVER_SQUARE,
   JACKPOT_CHANCE,
   JACKPOT_START,
+  LONG_REACH,
   POCKET_VALUE,
+  REACH_KINDS,
   REACH_RATE,
   ROULETTE,
   SPIN_TABLE,
@@ -59,9 +61,12 @@ describe('the slot', () => {
   it('shows digits that agree with the tier it drew', () => {
     const rng = seededRng(99);
     for (let i = 0; i < 20_000; i++) {
-      const { tier, digits, reach } = drawSpin(rng);
+      const { tier, digits, reach, reachKind } = drawSpin(rng);
       const [left, centre, right] = digits;
       expect(digits.every((digit) => Number.isInteger(digit) && digit >= 1 && digit <= 9)).toBe(true);
+      // A reach is played one way or the other, and a spin without one has none to play.
+      expect(REACH_KINDS).toContain(reachKind);
+      expect(reachKind !== 'none').toBe(reach);
       if (tier === 'miss') {
         // A losing spin never lines three up, and a reach is exactly two outer reels alike.
         expect(left === centre && centre === right).toBe(false);
@@ -91,6 +96,72 @@ describe('the slot', () => {
       expect(Math.abs(seen[tier] / draws - p)).toBeLessThan(5 * Math.sqrt((p * (1 - p)) / draws));
     }
     expect(Math.abs(reaches / seen.miss - REACH_RATE)).toBeLessThan(0.004);
+  });
+});
+
+/** Many spins, counted by the kind of reach each showed and by whether it had won. */
+function tallyReaches(seed: number, draws: number) {
+  const rng = seededRng(seed);
+  const shown = { normal: 0, long: 0 };
+  const hit = { normal: 0, long: 0 };
+  let wins = 0;
+  let teases = 0;
+  for (let i = 0; i < draws; i++) {
+    const spin = drawSpin(rng);
+    if (spin.tier !== 'miss') wins++;
+    else if (spin.reach) teases++;
+    if (spin.reachKind === 'none') continue;
+    shown[spin.reachKind]++;
+    if (spin.tier !== 'miss') hit[spin.reachKind]++;
+  }
+  return { draws, shown, hit, wins, teases };
+}
+
+/** Expects `seen` out of `of` to be within five standard errors of the exact chance. */
+const near = (seen: number, of: number, chance: number) => expect(Math.abs(seen / of - chance)).toBeLessThan(5 * Math.sqrt((chance * (1 - chance)) / of));
+
+describe('the two kinds of reach', () => {
+  it('plays a reach long more often for a spin that has won', () => {
+    expect(REACH_KINDS).toEqual(['none', 'normal', 'long']);
+    expect(LONG_REACH).toEqual({ win: 0.6, miss: 0.15 });
+    expect(LONG_REACH.win).toBeGreaterThan(LONG_REACH.miss);
+  });
+
+  it('decides how a reach is played only once the spin itself is settled', () => {
+    // The draws up to the last are the same; the last one only picks the kind of reach.
+    const spin = (draws: number[]) => {
+      const queue = [...draws];
+      return drawSpin(() => queue.shift() ?? 0.5);
+    };
+    const wonLong = spin([0.03, 0.3, 0.59]);
+    const wonNormal = spin([0.03, 0.3, 0.61]);
+    expect(wonLong).toEqual({ tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'long' });
+    expect(wonNormal).toEqual({ ...wonLong, reachKind: 'normal' });
+    const lostLong = spin([0.5, 0.45, 0.1, 0.2, 0.14]);
+    const lostNormal = spin([0.5, 0.45, 0.1, 0.2, 0.16]);
+    expect(lostLong).toEqual({ tier: 'miss', digits: [5, 6, 5], reach: true, reachKind: 'long' });
+    expect(lostNormal).toEqual({ ...lostLong, reachKind: 'normal' });
+    // A spin with no reach draws nothing more than it did.
+    const queue = [0.5, 0.45, 0.9, 0.3, 0.7];
+    const plain = drawSpin(() => {
+      const next = queue.shift();
+      if (next === undefined) throw new Error('a spin with no reach drew a number too many');
+      return next;
+    });
+    expect(plain).toEqual({ tier: 'miss', digits: [5, 7, 3], reach: false, reachKind: 'none' });
+    expect(queue).toHaveLength(0);
+  });
+
+  it('plays as many reaches long as it says, and pays as often as it did', () => {
+    const { draws, shown, hit, wins, teases } = tallyReaches(4242, 600_000);
+    near(hit.long, wins, LONG_REACH.win);
+    near(shown.long - hit.long, teases, LONG_REACH.miss);
+    // Every winning spin shows a reach of one kind or the other, and so does every tease.
+    expect(hit.long + hit.normal).toBe(wins);
+    expect(shown.long + shown.normal).toBe(wins + teases);
+    // The slot wins as often as it did before reaches came in two kinds, and teases as often.
+    near(wins, draws, 1 - SPIN_TABLE.miss / SPIN_TOTAL);
+    near(teases, draws - wins, REACH_RATE);
   });
 });
 

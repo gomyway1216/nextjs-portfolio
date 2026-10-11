@@ -33,15 +33,16 @@ export const MAX_STOCK = 4;
 export const START_BALLS = 2;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
- * spins are queueing up, the extra suspense of a reach, how long a winning
- * line stays up, the die and each hop of the piece, the time to choose a
- * chest and for it to open, one turn of the roulette and the pause before the
- * next, and how long a prize stays up.
+ * spins are queueing up, the extra suspense of a reach and what a long reach
+ * adds to it, how long a winning line stays up, the die and each hop of the
+ * piece, the time to choose a chest and for it to open, one turn of the
+ * roulette and the pause before the next, and how long a prize stays up.
  */
 export const TIMING = {
   spin: 1.6,
   quickSpin: 0.9,
   reach: 1.3,
+  longReach: 1.6,
   celebrate: 1.2,
   dice: 1.3,
   hop: 0.28,
@@ -260,6 +261,9 @@ function pay(session: Session, medals: number, towers: boolean): void {
 /** The seconds a roll takes from the die to the piece landing. */
 export const sugorokuDuration = (roll: number): number => TIMING.dice + roll * TIMING.hop;
 
+/** The seconds of suspense a spin's reach adds before the centre reel stops: none, the usual, or the long one. */
+export const reachTime = (result: SpinResult): number => (result.reach ? TIMING.reach + (result.reachKind === 'long' ? TIMING.longReach : 0) : 0);
+
 function advanceSugoroku(session: Session, bonus: ActiveSugoroku, dt: number, events?: SessionEvent[]): void {
   bonus.elapsed += dt;
   if (bonus.payout < 0 && bonus.elapsed >= bonus.duration) {
@@ -417,7 +421,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     session.spins += 1;
     const result = drawSpin(session.machine.rng);
     // With spins queueing behind it, the reels hurry.
-    const duration = (session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + (result.reach ? TIMING.reach : 0);
+    const duration = (session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + reachTime(result);
     session.spin = { result, elapsed: 0, duration, done: false };
     events?.push({ type: 'spinStart', result, duration });
   }

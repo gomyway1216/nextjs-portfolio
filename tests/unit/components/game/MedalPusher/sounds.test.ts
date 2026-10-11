@@ -63,12 +63,18 @@ class FakeParam {
     return this;
   }
 
-  setTargetAtTime(value: number): this {
+  /** The targets it has been set, with the moment each starts, and the moments its schedule was cleared from. */
+  readonly targets: { value: number; at: number }[] = [];
+  readonly cancelled: number[] = [];
+
+  setTargetAtTime(value: number, at = 0): this {
     this.seen.push(value);
+    this.targets.push({ value, at });
     return this;
   }
 
-  cancelScheduledValues(): this {
+  cancelScheduledValues(from = 0): this {
+    this.cancelled.push(from);
     return this;
   }
 }
@@ -907,6 +913,30 @@ describe('the tray', () => {
     const made = audio.sources.length;
     wait(audio, 2);
     expect(audio.sources.length).toBeGreaterThan(made + 4);
+  });
+
+  it('gives the loop its level back when everything is hushed, and forgets the rattle it was making room for', async () => {
+    const audio = await switchOn();
+    setMusic(true);
+    wait(audio, 1);
+    const last = () => audio.bus.gain.targets[audio.bus.gain.targets.length - 1];
+    // A long rattle: the loop is to come back when it ends, more than half a second from now.
+    playSound('win', true, { count: 32 });
+    const long = last();
+    expect(long.value).toBe(1);
+    expect(long.at).toBeGreaterThan(audio.currentTime + 0.5);
+    // The sound is switched off in the middle of it. The schedule is cleared and the loop's gain is on its way back at once.
+    wait(audio, 0.1);
+    hush();
+    expect(audio.bus.gain.cancelled[audio.bus.gain.cancelled.length - 1]).toBe(audio.currentTime);
+    expect(last().value).toBe(1);
+    expect(last().at).toBeLessThan(audio.currentTime + 0.05);
+    // A short rattle afterwards waits for its own end, not for the end of the long one that was cut.
+    wait(audio, 0.2);
+    playSound('win', true, { count: 2 });
+    expect(last().value).toBe(1);
+    expect(last().at).toBeGreaterThan(audio.currentTime);
+    expect(last().at).toBeLessThan(long.at);
   });
 });
 

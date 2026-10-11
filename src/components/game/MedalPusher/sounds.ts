@@ -1485,6 +1485,13 @@ export function hush(): void {
   // Medals that were still to be heard in the tray are not heard after all.
   rig.tray.owed = 0;
   rig.tray.next = 0;
+  // Nor is there a rattle left for the loop to make room for. It comes back to its own level once what was
+  // cut has faded, rather than staying down until the end of a rattle that will never be heard.
+  rig.duckedUntil = 0;
+  const now = rig.audio.currentTime;
+  const { gain } = rig.music;
+  gain.cancelScheduledValues(now);
+  gain.setTargetAtTime(1, now + CUT, MUSIC.duck);
 }
 
 /** Forgets the audio altogether, as if the page had just been opened. The tests start from here. */

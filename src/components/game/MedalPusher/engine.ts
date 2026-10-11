@@ -36,7 +36,7 @@ export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
 export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
 /** Where it is let go: this high above the lower table, this close to the back panel. */
 export const RELEASE = { height: 34, depth: 1.2 } as const;
-/** A landing medal starts at this share of its size and takes this long, in seconds, to reach all of it. */
+/** A landing medal starts with this share of its room among the others and takes this long, in seconds, to have all of it. */
 export const SETTLE = { from: 0.3, time: 0.32 } as const;
 /** How long a medal is in the air, and how often one can be dropped. */
 export const FALL_TIME = 0.45;
@@ -108,9 +108,11 @@ export interface Medal {
   /** Whether this is a prize ball. It lies among the medals and is pushed like one. */
   ball: boolean;
   /**
-   * How far a medal that has just landed has worked its way into the pile: it
-   * starts small and reaches 1 in a fraction of a second. The medals round it
-   * are eased aside over that time instead of being thrown apart in one step.
+   * How far a medal that has just landed has worked its way into the pile.
+   * It comes down on top of the others, so at first it takes up only a little
+   * room among them, and all of it (1) a fraction of a second later. The
+   * medals round it are eased aside over that time instead of being thrown
+   * apart in one step. It is drawn full size throughout, lying on top.
    */
   grown: number;
 }
@@ -370,10 +372,17 @@ export function dropBall(machine: Machine): void {
   machine.falling.push({ id: machine.nextId++, x, y, level: 1, fromX: x, fromY: RELEASE.depth, rank: 0, ball: true, remaining: FALL_TIME, duration: FALL_TIME, source: 'payout' });
 }
 
-/** How a prize of `medals` is split into towers: as few as will hold it, as even as they can be. */
-export function towerSizes(medals: number): number[] {
+/** Every place on the pusher a tower can stand. */
+export const TOWER_SITES = TOWER.perRow * TOWER.rows.length;
+
+/**
+ * How a prize of `medals` is split into towers when `sites` places are free:
+ * as few towers as will hold it, as even as they can be. What they cannot
+ * hold is left out of the list.
+ */
+export function towerSizes(medals: number, sites: number = TOWER_SITES): number[] {
   if (!Number.isInteger(medals) || medals < 0) throw new Error('a payout is a whole number of medals');
-  const sites = TOWER.perRow * TOWER.rows.length;
+  if (!Number.isInteger(sites) || sites < 0) throw new Error('sites is a whole number of places');
   const count = Math.min(sites, Math.ceil(medals / TOWER.max));
   const stacked = Math.min(medals, count * TOWER.max);
   return Array.from({ length: count }, (_, index) => Math.floor(stacked / count) + (index < stacked % count ? 1 : 0));
@@ -381,26 +390,30 @@ export function towerSizes(medals: number): number[] {
 
 /**
  * Pays `medals` as towers on the pusher. Each starts as one medal and gains the
- * rest as the machine runs. What the towers cannot hold is thrown on loose.
+ * rest as the machine runs. A tower only ever goes up where no tower stands:
+ * what the free places cannot hold is thrown on loose.
  */
 export function buildTowers(machine: Machine, medals: number): void {
-  const sizes = towerSizes(medals);
+  if (!Number.isInteger(medals) || medals < 0) throw new Error('a payout is a whole number of medals');
   const front = pusherFront(machine.time);
-  // Every place a tower can stand, the middle of the front row first, and those with no tower on them yet before the rest.
+  // Every place a tower can stand, the middle of the front row first.
   const sites: { x: number; y: number; taken: boolean }[] = [];
   for (const offset of TOWER.rows) {
     for (let i = 0; i < TOWER.perRow; i++) {
       const fromMiddle = Math.ceil(i / 2) * (i % 2 === 0 ? 1 : -1) + (TOWER.perRow % 2 === 0 ? 0.5 : 0);
       const x = FIELD.width / 2 + fromMiddle * TOWER.spacing;
       const y = Math.max(R, front - offset);
-      const taken = machine.medals.some((m) => m.level === 1 && m.stack + m.grow > 1 && Math.hypot(m.x - x, m.y - y) < DIAMETER * 1.5);
+      // A place is taken when a tower stands close enough to touch one put there. The places
+      // themselves are further apart than that, so a tower never blocks the place behind it.
+      const taken = machine.medals.some((m) => m.level === 1 && m.stack + m.grow > 1 && Math.hypot(m.x - x, m.y - y) < DIAMETER * 1.1);
       sites.push({ x, y, taken });
     }
   }
-  const order = [...sites.filter((site) => !site.taken), ...sites.filter((site) => site.taken)];
+  const free = sites.filter((site) => !site.taken);
+  const sizes = towerSizes(medals, free.length);
   let stacked = 0;
   sizes.forEach((size, index) => {
-    const { x, y } = order[index];
+    const { x, y } = free[index];
     machine.medals.push({ id: machine.nextId++, x, y, level: 1, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: 1 });
     machine.growing += size - 1;
     stacked += size;

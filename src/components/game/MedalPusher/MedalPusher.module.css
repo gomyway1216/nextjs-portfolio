@@ -167,7 +167,8 @@
     0 18px 40px rgba(20, 8, 60, 0.5);
   color: #f4f0ff;
 }
-/* A strip of bulbs across the top and the bottom of the cabinet, running. */
+/* A strip of bulbs across the top and the bottom of the cabinet. The bulbs stay where they are;
+   a band of light travels along them, so each brightens and dims in turn after its neighbour. */
 .bulbs {
   position: relative;
   height: 12px;
@@ -182,28 +183,40 @@
   position: absolute;
   inset: 0;
   background-image: radial-gradient(circle at 50% 50%, #fff7c2 0 2.6px, #ffd65c 3.4px, rgba(255, 214, 92, 0.35) 5px, transparent 6px);
-  background-size: 54px 12px;
-  animation: mp-glow 2.4s ease-in-out infinite;
+  background-size: 36px 12px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+  -webkit-mask-size: 144px 100%;
+  mask-size: 144px 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  animation: mp-travel 3.2s linear infinite;
 }
 .bulbs::after {
   background-image: radial-gradient(circle at 50% 50%, #ffe0f1 0 2.6px, #ff7cc0 3.4px, rgba(255, 124, 192, 0.35) 5px, transparent 6px);
-  background-position: 27px 0;
-  animation-delay: -1.2s;
+  background-position: 18px 0;
+  /* The pink bulbs sit between the yellow ones and light half a band later. */
+  animation-delay: -1.6s;
 }
 .cabinet[data-banner='jackpot'] .bulbs::before,
 .cabinet[data-banner='jackpot'] .bulbs::after,
 .cabinet[data-banner='fever'] .bulbs::before,
 .cabinet[data-banner='fever'] .bulbs::after {
-  animation-duration: 0.7s;
+  animation-duration: 0.9s;
 }
-/* The bulbs brighten and dim in turn: a slow glow, never a hard blink. */
-@keyframes mp-glow {
-  0%,
-  100% {
-    opacity: 0.25;
+.cabinet[data-banner='jackpot'] .bulbs::after,
+.cabinet[data-banner='fever'] .bulbs::after {
+  animation-delay: -0.45s;
+}
+/* The band of light moves one full length along the strip, then starts again unseen. */
+@keyframes mp-travel {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
   }
-  50% {
-    opacity: 1;
+  to {
+    -webkit-mask-position: 144px 0;
+    mask-position: 144px 0;
   }
 }
 .marquee {

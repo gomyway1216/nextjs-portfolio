@@ -21,7 +21,10 @@ const LIP_FALL = 0.18;
 const EXIT_TIME = 0.6;
 /** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
 const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
-/** How high a medal that has just landed still rides on the pile before it has worked its way in. */
+/**
+ * How high a medal that has just landed rides above the pile. It is drawn full size, lying on the
+ * medals round it, and comes down as they make room: its size never changes, only the room it has.
+ */
 const RIDE = 1.4;
 /** Seconds a gate, the tray or a side stays lit after a medal passes. */
 const GLOW_TIME = 0.5;
@@ -666,9 +669,9 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
 }
 
 /**
- * A table's medals: the shadows they throw, every rim in one fill, then the
- * faces from the back forward, and last whatever stands above them — towers
- * and balls.
+ * A table's medals: the shadows they throw, the medals lying in the pile, the
+ * ones that have just landed on top of it, and last whatever stands above
+ * them all — towers and balls.
  */
 function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], base: number, shift: number): void {
   if (medals.length === 0) return;
@@ -692,10 +695,12 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     g.ellipse(point.x + rx * 0.12, point.y + thickness * 1.9, rx, rx * point.tilt, 0, 0, TAU);
   }
   g.fill();
+  // The medals lying in the pile: every rim in one fill, then the faces from the back forward.
   g.fillStyle = '#8a5a08';
   g.beginPath();
-  for (const point of points) {
-    if (!point) continue;
+  for (let i = 0; i < medals.length; i++) {
+    const point = points[i];
+    if (!point || medals[i].grown < 1) continue;
     const rx = R * point.scale;
     const thickness = T * rise(point);
     g.moveTo(point.x + rx, point.y + thickness);
@@ -705,7 +710,22 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
   g.fill();
   for (let i = 0; i < medals.length; i++) {
     const point = points[i];
-    if (point) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+    if (point && medals[i].grown >= 1) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+  }
+  // A medal that has just landed lies on top of them until it has worked its way in,
+  // so it is drawn over its neighbours whichever of them is nearer, rim and face together.
+  for (let i = 0; i < medals.length; i++) {
+    const point = points[i];
+    if (!point || medals[i].grown >= 1) continue;
+    const rx = R * point.scale;
+    const thickness = T * rise(point);
+    g.setTransform(k, 0, 0, k, shift * k, 0);
+    g.fillStyle = '#8a5a08';
+    g.beginPath();
+    g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
+    g.rect(point.x - rx, point.y, rx * 2, thickness);
+    g.fill();
+    stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
   }
   for (let i = 0; i < medals.length; i++) {
     const medal = medals[i];

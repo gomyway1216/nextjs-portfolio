@@ -9,6 +9,12 @@
  * sound is, where its energy lies, that it begins and ends in silence. It also
  * keeps a falling medal down to two audio nodes.
  *
+ * The medals come first. A pusher is the sound of its medals: one going in,
+ * one coming down on the table or on the others, and above all the rattle of
+ * them into the tray. They are modelled on what a brass medal and the things
+ * it strikes do (see `MEDAL` and `BODIES`), and they are played well over the
+ * background loop.
+ *
  * They only play once the player has switched the sound on, which is also the
  * gesture a browser needs before it lets a page make noise.
  */
@@ -18,8 +24,10 @@
 /** Every sound the cabinet makes, the ones heard most often first. */
 export const SOUNDS = [
   'land',
+  'insert',
   'win',
   'lost',
+  'roll',
   'gate',
   'full',
   'spin',
@@ -48,9 +56,29 @@ export type PusherSound = (typeof SOUNDS)[number];
 /** The two notes the background loop is played with, each kept once and played faster or slower for its pitch. */
 const LOOP_SAMPLES = ['arp', 'bass'] as const;
 type LoopSample = (typeof LOOP_SAMPLES)[number];
-/** Everything that is kept as a buffer. */
-export type Sample = PusherSound | LoopSample;
-export const SAMPLES: readonly Sample[] = [...SOUNDS, ...LOOP_SAMPLES];
+
+/**
+ * The tray's rattles: how many medals each one holds. Medals that go over the
+ * front together are heard as the rattles that add up to them, so 5 are a
+ * rattle of 4 and a single medal, and 30 are rattles of 16, 8, 4 and 2.
+ */
+export const POURS = [1, 2, 4, 8, 16, 32] as const;
+export type Pour = (typeof POURS)[number];
+/**
+ * Buffers that are not sounds to ask for by name: a medal on the bare table,
+ * which is one way a `land` can come out, and the rattles of several medals,
+ * which are what a `win` of more than one is made of.
+ */
+const EXTRA_SAMPLES = ['plate', 'pour2', 'pour4', 'pour8', 'pour16', 'pour32'] as const;
+type ExtraSample = (typeof EXTRA_SAMPLES)[number];
+/** The buffer for each size of rattle. One medal by itself is the `win`. */
+export const POUR_SAMPLES: Record<Pour, PusherSound | ExtraSample> = { 1: 'win', 2: 'pour2', 4: 'pour4', 8: 'pour8', 16: 'pour16', 32: 'pour32' };
+
+/** Everything that is kept as a buffer, the medals first: they are worked out in this order once the sound is on. */
+export type Sample = PusherSound | ExtraSample | LoopSample;
+export const SAMPLES: readonly Sample[] = [
+  ...new Set<Sample>(['land', 'plate', 'insert', 'win', 'pour2', 'pour4', 'pour8', 'lost', ...SOUNDS, ...EXTRA_SAMPLES, ...LOOP_SAMPLES]),
+];
 
 /** What a sound may be told when it is played. */
 export interface SoundOptions {
@@ -58,6 +86,13 @@ export interface SoundOptions {
   stops?: readonly number[];
   /** For `pocket`: how many numbers the roulette's run has reached. The tone climbs with it. */
   level?: number;
+  /** For `win`: how many medals went over the front together. Every one of them is heard in the tray. */
+  count?: number;
+  /**
+   * For `land`: whether the medal came down on the bare table rather than on
+   * other medals. Left out, it is one or the other by chance, more often the medals.
+   */
+  bare?: boolean;
 }
 
 // ── How loud ────────────────────────────────────────────────────────────────
@@ -101,11 +136,19 @@ const MAKE_UP = -0.6 * COMPRESSOR.threshold * (1 - 1 / COMPRESSOR.ratio);
  */
 export const MASTER_GAIN = LEVEL.master * 10 ** (-MAKE_UP / 20);
 
-/** The peak each sound is played at. A clink is played a little under it, by a different amount each time. */
+/**
+ * The peak each sound is played at. A medal is played a little under it, by a
+ * different amount each time. The medals are played as high as anything on the
+ * cabinet but a fanfare, and four times as high as the loop: they are what a
+ * pusher sounds like. `win` is one medal in the tray; a rattle of more is
+ * louder, up to the ceiling for the largest.
+ */
 export const SOUND_LEVELS: Record<PusherSound, number> = {
-  land: 0.04,
-  win: 0.065,
-  lost: 0.05,
+  land: 0.1,
+  insert: 0.09,
+  win: 0.1,
+  lost: 0.08,
+  roll: 0.05,
   gate: 0.045,
   full: 0.04,
   spin: 0.015,
@@ -130,17 +173,30 @@ export const SOUND_LEVELS: Record<PusherSound, number> = {
   jackpot: 0.11,
 };
 
-/** The medals themselves: the sounds that come in streams. */
-const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'win', 'lost']);
+/** The peak a rattle of `size` medals is played at: from a single medal's level up to the ceiling. */
+export const pourLevel = (size: number): number =>
+  SOUND_LEVELS.win + (LEVEL.ceiling - SOUND_LEVELS.win) * (Math.log2(size) / Math.log2(POURS[POURS.length - 1]));
+
+/** The medals themselves, the tray apart: the sounds that come in streams, each a little different from the last. */
+const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'insert', 'lost', 'roll']);
 
 export const LIMITS = {
-  /** No more than this many clinks of one kind — landing, won, lost — start within `window` seconds, evenly spaced. */
+  /** No more than this many clinks of one kind — going in, landing, lost — start within `window` seconds, evenly spaced. */
   clinks: 3,
   window: 0.1,
   /** Sounds in the air at once, the loop's notes apart. One more cuts the oldest short. */
   voices: 24,
-  /** How many of those a clink may not take, so that a stream of medals never crowds out a jingle. */
+  /** How many of those a medal may not take, so that a stream of medals never crowds out a jingle. */
   kept: 8,
+  /**
+   * Sources of the tray, single medals and rattles alike, that may be sounding
+   * or waiting at once. The busier the tray, the larger a rattle has to be to
+   * start: the first five sources may be single medals, the next has to hold
+   * two, the next four, and the last thirty-two.
+   */
+  tray: 10,
+  /** Medals that may be waiting to be heard in the tray. More than that at once is no louder. */
+  owed: 64,
   /** Two of the same sound never start closer together than this, so that they cannot double up in step. */
   gap: 0.08,
   /** The lamps and the piece on the board come faster than that. */
@@ -149,6 +205,19 @@ export const LIMITS = {
 
 /** How far a clink's pitch and level wander from one medal to the next. */
 const WANDER = { pitch: 0.1, level: 0.3 } as const;
+
+/**
+ * The tray. A medal is heard in it `fall` seconds after it goes over the
+ * front, give or take. Its sources start no closer together than `spacing`,
+ * so that no two strike in step, and are never lined up further ahead than
+ * `ahead`; one win starts at most `atOnce` of them, at a level that wanders
+ * down by `wander`; and medals still owed when nothing has been won for
+ * `forget` seconds are forgotten.
+ */
+export const TRAY = { fall: [0.1, 0.18], spacing: 0.03, ahead: 0.3, atOnce: 4, wander: 0.2, forget: 0.6 } as const;
+
+/** How often a medal that lands finds the bare table under it, when nobody says. */
+const BARE_SHARE = 0.25;
 
 // ── The notes ───────────────────────────────────────────────────────────────
 
@@ -284,6 +353,9 @@ const MUSIC_STEP = 0.25;
  * The background loop: eight bars of broken chords over a bass, at 120 beats a
  * minute, played very quietly. It is scheduled a little at a time (`ahead`
  * seconds, looked at every `every` seconds) so that it can be stopped at once.
+ * While a rattle of medals is falling into the tray it drops to `ducked` of
+ * its level, over `duck` seconds, and comes back over `swell` once they have
+ * settled. A single medal is heard over it as it is.
  */
 export const MUSIC = {
   bars: 8,
@@ -292,10 +364,13 @@ export const MUSIC = {
   every: 0.1,
   /** The most of its notes that may be sounding or waiting at once. */
   voices: 12,
+  ducked: 0.35,
+  duck: 0.03,
+  swell: 0.15,
   parts: [
     {
       sample: 'arp',
-      level: 0.018,
+      level: 0.011,
       notes: line(
         MUSIC_STEP,
         'C5 E5 G5 C6 G5 E5 G5 E5 | A4 C5 E5 A5 E5 C5 E5 C5 | F4 A4 C5 F5 C5 A4 C5 A4 | G4 B4 D5 G5 D5 B4 D5 B4 | ' +
@@ -304,7 +379,7 @@ export const MUSIC = {
     },
     {
       sample: 'bass',
-      level: 0.026,
+      level: 0.015,
       notes: line(MUSIC_STEP, 'C3:4 G3:4 | A2:4 E3:4 | F2:4 C3:4 | G2:4 D3:4 | C3:4 G3:4 | E3:4 B2:4 | F2:4 C3:4 | G2:4 G2:2 B2:2'),
     },
   ] satisfies { sample: LoopSample; level: number; notes: Note[] }[],
@@ -333,7 +408,7 @@ const TURN = Math.PI * 2;
 /** Nothing is asked to sound above this, in hertz: a harmonic that would is left out. */
 const TOP = 9000;
 /** Nor above what the samples can carry, where a sound card runs slowly (a telephone headset does). */
-const top = (rate: number): number => Math.min(TOP, rate * 0.45);
+const top = (rate: number, limit: number = TOP): number => Math.min(limit, rate * 0.45);
 /** Nothing is left below this: a small speaker cannot play it and a large one should not have to. */
 const BOTTOM = 60;
 
@@ -366,11 +441,11 @@ const swell =
 /**
  * One mode of something that has been struck: a sine that dies away. It is
  * drawn as a point going round a shrinking circle, so there is no sine to work
- * out for each sample.
+ * out for each sample. One that would lie above `limit` is left out.
  */
-function ping(t: Take, at: number, hz: number, level: number, ring: number): void {
+function ping(t: Take, at: number, hz: number, level: number, ring: number, limit: number = TOP): void {
   const { out, rate } = t;
-  if (hz >= top(rate)) return;
+  if (hz >= top(rate, limit)) return;
   const start = Math.max(0, Math.round(at * rate));
   const end = Math.min(out.length, start + Math.ceil(ring * 7 * rate));
   const shrink = Math.exp(-1 / (ring * rate));
@@ -539,22 +614,155 @@ function bell(t: Take, at: number, hz: number, level: number, ring: number): voi
 }
 
 /**
- * A disc rings in modes that are not harmonics of one another: the second and
- * third lie 1.73 and 2.33 times above the first.
+ * The medal, and what it rings like. A free disc rings in modes that are not
+ * harmonics of one another: one with two nodal diameters, one with a nodal
+ * circle 1.73 times higher, one with three diameters 2.33 times higher. The
+ * lowest is f = 5.25 · h / (2π a²) · √(E / 12ρ(1 − ν²)) for a thickness h and
+ * a radius a, which for brass 1.5 mm thick is about 9 kHz at 25 mm across and
+ * 6 kHz at 30 mm. This is the larger medal, at the bottom of that range: the
+ * ear and a small speaker both do better at 6 kHz than at 9.
  */
-const DISC = [1, 1.73, 2.33] as const;
+export const MEDAL = {
+  hz: 6300,
+  modes: [1, 1.73, 2.33],
+  weights: [1, 0.5, 0.3],
+  /** How long each mode lasts beside the lowest. */
+  lives: [1, 0.6, 0.4],
+  /** Its modes are let up to here, well above anything else on the cabinet: they are what makes it a coin. */
+  top: 16000,
+} as const;
 
 /**
- * A medal striking something: its modes, each dying sooner than the one below
- * it, and the few milliseconds of noise that are the strike itself. `sheen`,
- * from 0 to 1, is how freely it rings: a medal that falls on a pile of others
- * is damped by them, one that falls on bare metal is not.
+ * A medal struck. The strike itself is a millisecond of noise right across the
+ * top of the spectrum; the ring it sets off lasts as long as whatever the medal
+ * lies against lets it. No medal is perfectly round, so each mode with nodal
+ * diameters is really two, a fraction of a percent apart (a different fraction
+ * for every strike), and they beat: the waver in a coin's ring. `strike` is
+ * how hard the edge of the hit is.
  */
-function clink(t: Take, at: number, hz: number, level: number, ring: number, sheen: number, seed: number): void {
-  const weights = [1, 0.4 + 0.4 * sheen, 0.2 + 0.4 * sheen];
-  const lives = [1, 0.6 + 0.3 * sheen, 0.4 + 0.35 * sheen];
-  DISC.forEach((ratio, mode) => ping(t, at, hz * ratio, level * weights[mode], ring * lives[mode]));
-  hiss(t, at, 0.03, dying(0.005, level * 0.3), { kind: 'band', hz: Math.min(TOP, hz * (1.2 + sheen)), q: 1.2 }, seed);
+function coin(t: Take, at: number, hz: number, level: number, ring: number, seed: number, strike = 1): void {
+  const apart = 1.003 + (seed % 5) * 0.0008;
+  MEDAL.modes.forEach((ratio, mode) => {
+    const weight = level * MEDAL.weights[mode];
+    const life = ring * MEDAL.lives[mode];
+    ping(t, at, hz * ratio, weight, life, MEDAL.top);
+    if (mode !== 1) ping(t, at, hz * ratio * apart, weight * 0.5, life * 0.85, MEDAL.top);
+  });
+  hiss(t, at, 0.006, dying(0.001, level * strike * 0.5), { kind: 'band', hz: 7000, q: 0.5 }, seed);
+}
+
+/**
+ * What a medal can land on. Sheet metal and a heap of medals have far too many
+ * modes to count, so most of the answer is noise in the band where the thing
+ * is resonant (`hz`, `q`), as loud as `loud` and dying as fast as it is damped
+ * (`ring`): a clank with no note to it. Under and through that are the few
+ * modes that can be told apart, each a frequency, a weight and a life. They
+ * never change, which is what makes a tray the same tray every time.
+ */
+interface Body {
+  hz: number;
+  q: number;
+  loud: number;
+  ring: number;
+  modes: readonly (readonly [hz: number, weight: number, ring: number])[];
+}
+
+const BODIES = {
+  // The tray: sheet steel, boxy, between 1 and 3 kHz. It is far bigger than a medal and so far louder, struck by the
+  // same blow: many medals strike it together, and that is most of what a rattle is.
+  tray: { hz: 1900, q: 1, loud: 1.5, ring: 0.024, modes: [[520, 0.4, 0.02], [1180, 0.6, 0.018], [2460, 0.5, 0.012]] },
+  // The pusher's table: thick and dead.
+  table: { hz: 1300, q: 1.2, loud: 1, ring: 0.006, modes: [[420, 0.5, 0.012]] },
+  // The throat of the slot: thin metal, higher and shorter.
+  chute: { hz: 2700, q: 1.4, loud: 1.2, ring: 0.008, modes: [[900, 0.3, 0.006], [3300, 0.3, 0.007]] },
+  // The gutter down the side: plastic. It takes the hit and gives back a knock.
+  gutter: { hz: 800, q: 1, loud: 0.8, ring: 0.012, modes: [[210, 0.6, 0.028]] },
+  // A pile of other medals: they chatter against one another for a few milliseconds, all over the place.
+  pile: { hz: 4200, q: 0.7, loud: 1.6, ring: 0.005, modes: [[950, 0.3, 0.005]] },
+  // A plastic rail under a medal's edge.
+  rail: { hz: 1700, q: 1.5, loud: 0.35, ring: 0.0015, modes: [[600, 0.4, 0.002]] },
+} satisfies Record<string, Body>;
+
+/** The answer of what was struck. */
+function answer(t: Take, at: number, body: Body, level: number, seed: number): void {
+  hiss(t, at, body.ring * 5, dying(body.ring, level * body.loud), { kind: 'band', hz: body.hz, q: body.q }, seed);
+  for (const [hz, weight, ring] of body.modes) ping(t, at, hz, level * weight, ring);
+}
+
+/** Every strike begins a millisecond in, clear of the half millisecond in which a take comes up from silence. */
+const LEAD = 0.001;
+
+/**
+ * Rounds off the top of a take. The loudest instant of a strike is a peak or
+ * two of noise in its first millisecond, far above the ring that follows.
+ * With those rounded off, the ring behind them can be played nearly twice as
+ * loud under the same ceiling. What lies well below `knee` of the peak is all
+ * but untouched.
+ */
+function rounded(t: Take, knee = 0.6): Take {
+  const { out } = t;
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+  const limit = peak * knee;
+  if (limit > 0) for (let i = 0; i < out.length; i++) out[i] = limit * Math.tanh(out[i] / limit);
+  return t;
+}
+
+/** One strike of a medal in the tray: when, at what pitch, how hard, how long it rings, and which bounce of its medal it is. */
+export interface Hit {
+  at: number;
+  hz: number;
+  level: number;
+  ring: number;
+  bounce: number;
+}
+
+/** How a rattle is spread out: `count` medals arrive over `spread · count ^ power` seconds, and its last strike is left `tail` to ring. */
+const POUR = { spread: 0.045, power: 0.8, tail: 0.2 } as const;
+
+/**
+ * The strikes of `count` medals coming into the tray, in the order they are
+ * heard, the same every time for the same `seed`. The first medal strikes at
+ * once; the rest arrive over a time that grows with their number, most of them
+ * early. Each bounces once or twice, sooner and softer each time. A medal by
+ * itself rings; among others it is damped.
+ */
+export function pourHits(count: number, seed: number): Hit[] {
+  const random = noise(seed);
+  const unit = () => (random() + 1) / 2;
+  const spread = count === 1 ? 0 : POUR.spread * count ** POUR.power;
+  const ring = 0.04 - 0.022 * Math.min(1, Math.log2(count) / 5);
+  const hits: Hit[] = [];
+  for (let medal = 0; medal < count; medal++) {
+    let at = medal === 0 ? 0 : spread * unit() ** 1.6;
+    const hz = MEDAL.hz * (0.92 + 0.16 * unit());
+    let level = medal === 0 ? 1 : 0.55 + 0.45 * unit();
+    let gap = 0.07 + 0.05 * unit();
+    const bounces = (count === 1 ? 2 : 1) + (unit() < 0.6 ? 1 : 0);
+    for (let bounce = 0; bounce <= bounces; bounce++) {
+      hits.push({ at, hz: hz * (1 + 0.006 * bounce), level, ring: ring * (0.8 + 0.4 * unit()) * 0.85 ** bounce, bounce });
+      at += gap;
+      gap *= 0.55;
+      level *= 0.42;
+    }
+  }
+  return hits.sort((a, b) => a.at - b.at);
+}
+
+/** The seed a take of a rattle is worked out from. */
+export const pourSeed = (count: number, variant: number): number => 400 + count * 10 + variant;
+
+/** `count` medals into the tray: every strike is the medal and the tray together. */
+function pour(rate: number, count: number, variant: number): Take {
+  const seed = pourSeed(count, variant);
+  const hits = pourHits(count, seed);
+  const t = take(LEAD + hits[hits.length - 1].at + POUR.tail, rate);
+  hits.forEach((hit, index) => {
+    coin(t, LEAD + hit.at, hit.hz, hit.level, hit.ring, seed * 100 + index * 2);
+    answer(t, LEAD + hit.at, BODIES.tray, hit.level, seed * 100 + index * 2 + 1);
+  });
+  // Where several medals strike together the peak is theirs alone, so a rattle is rounded off harder than a single medal.
+  return rounded(t, count === 1 ? 0.6 : 0.5);
 }
 
 /** How long a bell in a jingle rings, in seconds. */
@@ -578,37 +786,102 @@ const jingle =
   };
 
 /** How many different takes of a sound are kept. A clink is one of several, picked afresh each time. */
-export const VARIANTS: Partial<Record<Sample, number>> = { land: 4, win: 4, lost: 3, pocket: POCKET_NOTES.length };
+export const VARIANTS: Partial<Record<Sample, number>> = {
+  land: 4,
+  plate: 3,
+  insert: 3,
+  win: 4,
+  pour2: 3,
+  pour4: 3,
+  pour8: 2,
+  pour16: 2,
+  pour32: 2,
+  lost: 3,
+  roll: 2,
+  pocket: POCKET_NOTES.length,
+};
 
 /** The turns of a reel that go by in a second, heard as a flutter in its whirr. */
 const FLUTTER = 15;
 
 const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
-  // A medal coming down on the pile: the others damp it, so it is short, with the knock of the table under it.
+  // A medal coming down on other medals: they damp it at once, and the ones it lands on answer over the next few hundredths of a second.
   land: (rate, variant) => {
-    const t = take(0.16, rate);
-    clink(t, 0, 2500 * [0.94, 1, 1.05, 1.11][variant], 1, 0.022, 0.25, 11 + variant);
-    ping(t, 0, 430, 0.35, 0.012);
-    return t;
+    const t = take(0.18, rate);
+    const hz = MEDAL.hz * [0.95, 1, 1.04, 1.08][variant];
+    const seed = 200 + variant * 10;
+    const taps = [0, 0.006, 0.015, 0.027, 0.042].map((at, tap) => at * [1, 1.15, 0.9, 1.07][(variant + tap) % 4]);
+    const tunes = [1, 1.06, 0.94, 1.03, 0.97].map((tune, tap) => (variant % 2 === 0 || tap === 0 ? tune : 2 - tune));
+    [1, 0.7, 0.5, 0.35, 0.22].forEach((level, tap) => {
+      coin(t, LEAD + taps[tap], hz * tunes[tap], level, 0.02 - tap * 0.002, seed + tap * 2, tap === 0 ? 1 : 0.6);
+      answer(t, LEAD + taps[tap], BODIES.pile, level, seed + tap * 2 + 1);
+    });
+    return rounded(t);
   },
-  // A medal into the tray: higher, left to ring, and it bounces twice before it lies still.
-  win: (rate, variant) => {
-    const t = take(0.34, rate);
-    const hz = 3200 * [0.96, 1, 1.03, 0.98][variant];
-    const second = [0.085, 0.075, 0.095, 0.08][variant];
-    clink(t, 0, hz, 1, 0.045, 1, 21 + variant);
-    clink(t, second, hz * 1.04, 0.5, 0.035, 1, 31 + variant);
-    clink(t, second + [0.055, 0.06, 0.05, 0.065][variant], hz * 0.98, 0.24, 0.028, 1, 41 + variant);
-    return t;
+  // A medal coming down on the bare table: nothing damps it, so it rings, and it chatters to rest in quickening taps.
+  plate: (rate, variant) => {
+    const t = take(0.3, rate);
+    const hz = MEDAL.hz * [0.97, 1.03, 1][variant];
+    let at = LEAD;
+    let gap = [0.05, 0.044, 0.056][variant];
+    let level = 1;
+    for (let tap = 0; tap < 6; tap++) {
+      coin(t, at, hz * (1 + 0.004 * tap), level, 0.024 * 0.9 ** tap, 240 + variant * 10 + tap, 0.8);
+      answer(t, at, BODIES.table, level, 290 + variant * 10 + tap);
+      at += gap;
+      gap *= 0.62;
+      level *= 0.68;
+    }
+    return rounded(t);
   },
-  // A medal down a side: no ring to speak of, a muffled knock and the thud of the chute.
+  // A medal going in: it catches the edge of the slot, strikes the throat behind it, and falls clear still ringing.
+  insert: (rate, variant) => {
+    const t = take(0.4, rate);
+    const hz = MEDAL.hz * [1, 0.96, 1.05][variant];
+    const seed = 330 + variant * 10;
+    const second = LEAD + [0.05, 0.058, 0.044][variant];
+    const third = second + [0.075, 0.065, 0.085][variant];
+    coin(t, LEAD, hz, 0.45, 0.02, seed);
+    answer(t, LEAD, BODIES.chute, 0.45, seed + 1);
+    coin(t, second, hz * 1.008, 1, 0.05, seed + 2, 0.7);
+    answer(t, second, BODIES.chute, 1, seed + 3);
+    coin(t, third, hz * 0.992, 0.3, 0.04, seed + 4, 0.6);
+    answer(t, third, BODIES.chute, 0.3, seed + 5);
+    return rounded(t);
+  },
+  // A medal into the tray, by itself: it strikes, bounces and lies still, and the tray answers every time.
+  win: (rate, variant) => pour(rate, 1, variant),
+  pour2: (rate, variant) => pour(rate, 2, variant),
+  pour4: (rate, variant) => pour(rate, 4, variant),
+  pour8: (rate, variant) => pour(rate, 8, variant),
+  pour16: (rate, variant) => pour(rate, 16, variant),
+  pour32: (rate, variant) => pour(rate, 32, variant),
+  // A medal off the side into the gutter: the same medal, but plastic takes the hit, so there is little strike and the ring is smothered.
   lost: (rate, variant) => {
-    const t = take(0.2, rate);
-    const hz = 1500 * [0.95, 1, 1.06][variant];
-    ping(t, 0, hz, 0.5, 0.014);
-    ping(t, 0, hz * 1.73, 0.2, 0.009);
-    hiss(t, 0, 0.1, dying(0.018, 0.4), { kind: 'low', hz: 1200, q: 0.7 }, 51 + variant);
-    glide(t, 0, 0.18, 200, 120, 0.06, dying(0.03, 0.8));
+    const t = take(0.24, rate);
+    const hz = MEDAL.hz * [0.95, 1, 1.04][variant];
+    const seed = 360 + variant * 10;
+    const second = LEAD + [0.07, 0.085, 0.062][variant];
+    coin(t, LEAD, hz, 0.5, 0.008, seed, 0.5);
+    answer(t, LEAD, BODIES.gutter, 1, seed + 1);
+    coin(t, second, hz * 0.99, 0.2, 0.006, seed + 2, 0.5);
+    answer(t, second, BODIES.gutter, 0.4, seed + 3);
+    return rounded(t);
+  },
+  // A medal rolling down a rail on its edge: a run of tiny taps that come faster as it gathers speed, the medal singing faintly over them.
+  roll: (rate, variant) => {
+    const length = 0.5;
+    const t = take(length, rate);
+    const random = noise(390 + variant);
+    const level = (seconds: number) => Math.min(1, seconds / 0.04, (length - seconds) / 0.07);
+    let at = LEAD;
+    for (let tap = 0; at < length - 0.02; tap++) {
+      const loud = level(at) * (0.75 + 0.25 * random());
+      answer(t, at, BODIES.rail, loud, 400 + variant * 1000 + tap);
+      ping(t, at, MEDAL.hz * [0.98, 1.03][variant], loud * 0.12, 0.004, MEDAL.top);
+      at += (1 + 0.3 * random()) / (140 + 260 * (at / length));
+    }
+    hiss(t, 0, length, (seconds) => 0.12 * level(seconds), { kind: 'band', hz: 2400, to: 3600, q: 1 }, 399 + variant);
     return t;
   },
   gate: jingle(SCORES.gate),
@@ -719,7 +992,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     glide(t, 0, 0.3, 150, 75, 0.08, dying(0.07));
     glide(t, 0, 0.15, 320, 210, 0.05, dying(0.03, 0.45));
     hiss(t, 0, 0.12, dying(0.03, 0.35), { kind: 'low', hz: 500, q: 0.7 }, 141);
-    [0.13, 0.21, 0.29, 0.37].forEach((at, index) => clink(t, at, 2100 + index * 160, 0.16, 0.012, 0.25, 142 + index));
+    [0.13, 0.21, 0.29, 0.37].forEach((at, index) => coin(t, at, MEDAL.hz * (0.94 + index * 0.03), 0.1, 0.009, 142 + index));
     return t;
   },
   // The cross: a low buzzer, two notes a shade apart so that they grate.
@@ -738,7 +1011,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     glide(t, 0, 0.9, 110, 70, 0.3, swell(0.01, 0.2, 0.5));
     for (let medal = 0; medal < 8; medal++) {
       const at = 0.04 + medal * 0.07 + (random() + 1) * 0.015;
-      clink(t, at, 2800 + random() * 600, 0.3 - medal * 0.025, 0.018, 0.6, 154 + medal);
+      coin(t, at, MEDAL.hz * (1 + 0.08 * random()), 0.2 - medal * 0.015, 0.016, 154 + medal);
     }
     return t;
   },
@@ -806,12 +1079,26 @@ interface Playing {
   gain: GainNode;
   level: number;
   until: number;
+  /** Whether it is medals in the tray, which have a limit of their own. */
+  tray?: boolean;
+}
+
+/** The tray's books: medals won but not yet heard, when they were last added to, and the earliest its next source may start. */
+interface Tray {
+  owed: number;
+  asked: number;
+  next: number;
 }
 
 /** The audio once it exists: the context, the gain everything goes into, and what has been worked out and started. */
 interface Rig {
   audio: AudioContext;
   master: GainNode;
+  /** The loop goes through a gain of its own on the way to the master, so that it can be turned down under the medals. */
+  music: GainNode;
+  /** When the loop may come back up. */
+  duckedUntil: number;
+  tray: Tray;
   /** The rate buffers are worked out at. */
   rate: number;
   buffers: Map<string, AudioBuffer>;
@@ -850,7 +1137,11 @@ let tune: Tune | null = null;
 let musicWanted = false;
 let warming: ReturnType<typeof setTimeout> | null = null;
 
-/** Builds the chain: one gain into one compressor into the speakers. Returns null where there is no audio to be had. */
+/**
+ * Builds the chain: one gain into one compressor into the speakers, and in
+ * front of that gain another that only the loop goes through. Returns null
+ * where there is no audio to be had.
+ */
 function build(): Rig | null {
   if (typeof AudioContext === 'undefined') return null;
   try {
@@ -865,9 +1156,24 @@ function build(): Rig | null {
     compressor.release.value = COMPRESSOR.release;
     master.connect(compressor);
     compressor.connect(audio.destination);
+    const music = audio.createGain();
+    music.gain.value = 1;
+    music.connect(master);
     // The context can stop and start by itself (a phone call, a lid closed); the loop follows it.
     audio.onstatechange = () => syncMusic();
-    return { audio, master, rate: Math.min(TOP_RATE, audio.sampleRate), buffers: new Map(), voices: [], notes: [], starts: {}, warmed: false };
+    return {
+      audio,
+      master,
+      music,
+      duckedUntil: 0,
+      tray: { owed: 0, asked: -Infinity, next: 0 },
+      rate: Math.min(TOP_RATE, audio.sampleRate),
+      buffers: new Map(),
+      voices: [],
+      notes: [],
+      starts: {},
+      warmed: false,
+    };
   } catch {
     return null;
   }
@@ -911,16 +1217,16 @@ function prune(list: Playing[], now: number): void {
   list.length = kept;
 }
 
-/** Starts a buffer at `when`, at `level` and `speed`, and stops it when it has run out. */
-function begin(target: Rig, list: Playing[], buffer: AudioBuffer, when: number, level: number, speed: number): Playing {
+/** Starts a buffer at `when`, at `level` and `speed`, into the master or the gain it is given, and stops it when it has run out. */
+function begin(target: Rig, list: Playing[], buffer: AudioBuffer, when: number, level: number, speed: number, into: GainNode = target.master): Playing {
   const source = target.audio.createBufferSource();
   source.buffer = buffer;
   source.playbackRate.value = speed;
-  const playing = { source, gain: target.audio.createGain(), level: Math.min(LEVEL.ceiling, level), until: when + buffer.duration / speed };
+  const playing: Playing = { source, gain: target.audio.createGain(), level: Math.min(LEVEL.ceiling, level), until: when + buffer.duration / speed };
   const { gain } = playing;
   gain.gain.value = playing.level;
   source.connect(gain);
-  gain.connect(target.master);
+  gain.connect(into);
   source.onended = () => gain.disconnect();
   source.start(when);
   source.stop(playing.until);
@@ -997,19 +1303,71 @@ function whirr(target: Rig, now: number, stops: readonly number[]): void {
   });
 }
 
+/** A speed to play a medal at, a little off true, so that no two are the same medal. */
+const wander = (): number => 1 - WANDER.pitch / 2 + Math.random() * WANDER.pitch;
+
+/** Turns the loop down from now until `until`, and lets it come back after the last rattle that asked. */
+function duck(target: Rig, now: number, until: number): void {
+  target.duckedUntil = Math.max(target.duckedUntil, until);
+  const { gain } = target.music;
+  gain.cancelScheduledValues(now);
+  gain.setTargetAtTime(MUSIC.ducked, now, MUSIC.duck);
+  gain.setTargetAtTime(1, target.duckedUntil, MUSIC.swell);
+}
+
+/**
+ * Medals into the tray. They are added to what the tray is owed, and as much
+ * of that as there is room for is started: the largest rattle that does not
+ * overshoot, then the next, each a moment after the one before. A single medal
+ * is a single clink, a handful is a short rattle, a tower going over is
+ * rattles of sixteen and thirty-two. What cannot start yet stays owed and
+ * joins the next win as part of a larger rattle, so that a stream of medals,
+ * however thick, is never more than `LIMITS.tray` sources.
+ */
+function trayful(target: Rig, now: number, count: number): void {
+  const { tray } = target;
+  if (now - tray.asked > TRAY.forget) tray.owed = 0;
+  tray.asked = now;
+  tray.owed = Math.min(LIMITS.owed, tray.owed + count);
+  let sounding = target.voices.filter((playing) => playing.tray).length;
+  for (let started = 0; started < TRAY.atOnce && tray.owed > 0; started++) {
+    // The smallest rattle that may start now. Past the last of them the tray is full.
+    const least: Pour | undefined = POURS[Math.max(0, sounding - (LIMITS.tray - POURS.length))];
+    const size = POURS.reduce<Pour>((best, pour) => (pour <= tray.owed ? pour : best), 1);
+    if (least === undefined || size < least || target.voices.length >= LIMITS.voices - LIMITS.kept) return;
+    const when = Math.max(now + TRAY.fall[0] + Math.random() * (TRAY.fall[1] - TRAY.fall[0]), tray.next);
+    if (when > now + TRAY.ahead) return;
+    const sample = POUR_SAMPLES[size];
+    const buffer = bufferFor(target, sample, Math.floor(Math.random() * (VARIANTS[sample] ?? 1)));
+    const playing = begin(target, target.voices, buffer, when, pourLevel(size) * (1 - Math.random() * TRAY.wander), wander());
+    playing.tray = true;
+    tray.next = when + TRAY.spacing;
+    tray.owed -= size;
+    sounding += 1;
+    if (size > 1) duck(target, now, playing.until);
+  }
+}
+
 function start(target: Rig, sound: PusherSound, options: SoundOptions): void {
   const now = target.audio.currentTime;
   prune(target.voices, now);
+  if (sound === 'win') {
+    const count = Math.round(options.count ?? 1);
+    trayful(target, now, count >= 1 ? count : 1);
+    return;
+  }
   if (!admit(target, sound, now)) return;
   if (sound === 'spin') {
     whirr(target, now, options.stops ?? USUAL_STOPS);
     return;
   }
-  const takes = VARIANTS[sound] ?? 1;
+  // A medal that lands comes down on the table or on other medals, and they are different sounds.
+  const sample: Sample = sound === 'land' && (options.bare ?? Math.random() < BARE_SHARE) ? 'plate' : sound;
+  const takes = VARIANTS[sample] ?? 1;
   const clink = CLINKS.has(sound);
   const variant = sound === 'pocket' ? Math.min(takes, Math.max(1, Math.round(options.level ?? 1))) - 1 : Math.floor(Math.random() * takes);
-  const buffer = bufferFor(target, sound, variant);
-  const speed = clink ? 1 - WANDER.pitch / 2 + Math.random() * WANDER.pitch : 1;
+  const buffer = bufferFor(target, sample, variant);
+  const speed = clink ? wander() : 1;
   const level = SOUND_LEVELS[sound] * (clink ? 1 - Math.random() * WANDER.level : 1);
   begin(target, target.voices, buffer, now, level, speed);
   if (tune && RESTS.has(sound)) {
@@ -1037,7 +1395,7 @@ function pump(): void {
       const at = tune.loopAt + note.at;
       if (at >= horizon) break;
       if (at >= now && at >= tune.restUntil && rig.notes.length < MUSIC.voices) {
-        begin(rig, rig.notes, bufferFor(rig, note.sample, 0), at, note.level, note.speed);
+        begin(rig, rig.notes, bufferFor(rig, note.sample, 0), at, note.level, note.speed, rig.music);
       }
       tune.index += 1;
       if (tune.index === LOOP.length) {
@@ -1124,6 +1482,9 @@ export function hush(): void {
   for (const playing of [...rig.voices, ...rig.notes]) cut(rig, playing);
   rig.voices.length = 0;
   rig.notes.length = 0;
+  // Medals that were still to be heard in the tray are not heard after all.
+  rig.tray.owed = 0;
+  rig.tray.next = 0;
 }
 
 /** Forgets the audio altogether, as if the page had just been opened. The tests start from here. */

@@ -12,6 +12,7 @@ import {
   MEDAL_RADIUS,
   PUSHER,
   TOWER,
+  TOWER_SITES,
   ballsOnField,
   buildTowers,
   checkerAt,
@@ -294,9 +295,15 @@ describe('medal towers', () => {
     expect(towerSizes(300)).toHaveLength(12);
     expect(towerSizes(312)).toEqual(Array.from({ length: 13 }, () => 24));
     expect(towerSizes(0)).toEqual([]);
-    const sites = TOWER.perRow * TOWER.rows.length;
+    const sites = TOWER_SITES;
+    expect(sites).toBe(TOWER.perRow * TOWER.rows.length);
     // More than every site can hold: the towers are full and the rest is paid loose.
     expect(towerSizes(sites * TOWER.max + 70)).toEqual(Array.from({ length: sites }, () => TOWER.max));
+    // With fewer places free, fewer towers; with none, no tower at all.
+    expect(towerSizes(100, 2)).toEqual([25, 25]);
+    expect(towerSizes(30, 1)).toEqual([25]);
+    expect(towerSizes(100, 0)).toEqual([]);
+    expect(() => towerSizes(10, -1)).toThrow();
     for (const medals of [1, 19, 26, 51, 137, 449]) {
       const sizes = towerSizes(medals);
       expect(sizes.reduce((sum, size) => sum + size, 0)).toBe(medals);
@@ -329,6 +336,39 @@ describe('medal towers', () => {
     ).toEqual([25, 25, 25, 25]);
     expect(early.toppled + late.toppled).toBe(0);
     expect(medalsOnField(machine) + early.won + early.lost + late.won + late.lost).toBe(start + 100);
+  });
+
+  it('never stands a tower where one already stands, however often it pays', () => {
+    const machine = createMachine(13);
+    const start = medalsOnField(machine);
+    const apart = () => {
+      const towers = machine.medals.filter((m) => m.stack + m.grow > 1);
+      let nearest = Infinity;
+      for (let i = 0; i < towers.length; i++) {
+        for (let j = i + 1; j < towers.length; j++) nearest = Math.min(nearest, Math.hypot(towers[i].x - towers[j].x, towers[i].y - towers[j].y));
+      }
+      return { count: towers.length, nearest };
+    };
+    // Six numbers of a run, one after another with no time passing, then a jackpot on top.
+    let paid = 0;
+    for (const medals of [10, 20, 30, 50, 10, 20]) {
+      buildTowers(machine, medals);
+      paid += medals;
+    }
+    expect(apart()).toMatchObject({ count: 8 });
+    expect(apart().nearest).toBeGreaterThanOrEqual(MEDAL_RADIUS * 2);
+    buildTowers(machine, 300);
+    paid += 300;
+    // Ten places were left for the jackpot's twelve towers: ten go up and the rest is thrown on loose.
+    expect(apart().count).toBe(TOWER_SITES);
+    expect(apart().nearest).toBeGreaterThanOrEqual(MEDAL_RADIUS * 2);
+    expect(machine.payoutQueue).toBe(50);
+    expect(medalsOnField(machine)).toBe(start + paid);
+    // With every place taken, a further prize is thrown on loose in full.
+    buildTowers(machine, 40);
+    expect(apart().count).toBe(TOWER_SITES);
+    expect(machine.payoutQueue).toBe(90);
+    expect(() => buildTowers(machine, 1.5)).toThrow();
   });
 
   it('pays what its towers cannot hold as loose medals', () => {

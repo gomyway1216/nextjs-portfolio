@@ -16,9 +16,16 @@ const W = FIELD.width;
 const D = FIELD.depth;
 const OPEN = FIELD.sideOpenFrom;
 /** Seconds a medal takes to drop from the pusher's lip onto the lower table. */
-const LIP_FALL = 0.14;
+const LIP_FALL = 0.18;
 /** Seconds a medal that has left the field is still drawn for, on its way down. */
-const EXIT_TIME = 0.5;
+const EXIT_TIME = 0.6;
+/** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
+const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
+/**
+ * How high a medal that has just landed rides above the pile. It is drawn full size, lying on the
+ * medals round it, and comes down as they make room: its size never changes, only the room it has.
+ */
+const RIDE = 1.4;
 /** Seconds a gate, the tray or a side stays lit after a medal passes. */
 const GLOW_TIME = 0.5;
 const RELEASE_HEIGHT = RELEASE.height;
@@ -662,9 +669,9 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
 }
 
 /**
- * A table's medals: the shadows they throw, every rim in one fill, then the
- * faces from the back forward, and last whatever stands above them — towers
- * and balls.
+ * A table's medals: the shadows they throw, the medals lying in the pile, the
+ * ones that have just landed on top of it, and last whatever stands above
+ * them all — towers and balls.
  */
 function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], base: number, shift: number): void {
   if (medals.length === 0) return;
@@ -675,7 +682,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     // A medal that has just come over the lip is still on its way down to the lower table.
     const drop = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
     drops.push(drop);
-    points.push(medal.ball ? null : project(medal.x, base + drop + T, medal.y));
+    points.push(medal.ball ? null : project(medal.x, base + drop + T + (1 - medal.grown) * RIDE, medal.y));
   }
   g.setTransform(k, 0, 0, k, shift * k, 0);
   g.fillStyle = 'rgba(0, 4, 18, 0.34)';
@@ -688,10 +695,12 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     g.ellipse(point.x + rx * 0.12, point.y + thickness * 1.9, rx, rx * point.tilt, 0, 0, TAU);
   }
   g.fill();
+  // The medals lying in the pile: every rim in one fill, then the faces from the back forward.
   g.fillStyle = '#8a5a08';
   g.beginPath();
-  for (const point of points) {
-    if (!point) continue;
+  for (let i = 0; i < medals.length; i++) {
+    const point = points[i];
+    if (!point || medals[i].grown < 1) continue;
     const rx = R * point.scale;
     const thickness = T * rise(point);
     g.moveTo(point.x + rx, point.y + thickness);
@@ -701,7 +710,22 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
   g.fill();
   for (let i = 0; i < medals.length; i++) {
     const point = points[i];
-    if (point) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+    if (point && medals[i].grown >= 1) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+  }
+  // A medal that has just landed lies on top of them until it has worked its way in,
+  // so it is drawn over its neighbours whichever of them is nearer, rim and face together.
+  for (let i = 0; i < medals.length; i++) {
+    const point = points[i];
+    if (!point || medals[i].grown >= 1) continue;
+    const rx = R * point.scale;
+    const thickness = T * rise(point);
+    g.setTransform(k, 0, 0, k, shift * k, 0);
+    g.fillStyle = '#8a5a08';
+    g.beginPath();
+    g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
+    g.rect(point.x - rx, point.y, rx * 2, thickness);
+    g.fill();
+    stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
   }
   for (let i = 0; i < medals.length; i++) {
     const medal = medals[i];
@@ -712,24 +736,34 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
 
 const smooth = (t: number): number => t * t * (3 - 2 * t);
 
-/** A row of bulbs between two points, lit in a running pattern. */
-function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, count: number, phase: number, colors: readonly string[], size: number): void {
+/**
+ * A row of bulbs between two points. A glow travels along it: every bulb
+ * brightens and dims smoothly, a third of a cycle after its neighbour, so the
+ * row reads as running lights without anything switching hard on and off.
+ */
+function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, count: number, wave: number, colors: readonly string[], size: number): void {
   for (let i = 0; i < count; i++) {
     const f = (i + 0.5) / count;
     const x = from.x + (to.x - from.x) * f;
     const y = from.y + (to.y - from.y) * f;
-    const lit = (i + phase) % 3 === 0;
-    if (lit) {
-      g.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      g.beginPath();
-      g.arc(x, y, size * 2.1, 0, TAU);
-      g.fill();
-    }
-    g.fillStyle = lit ? colors[i % colors.length] : 'rgba(60, 40, 110, 0.9)';
+    const glow = 0.5 + 0.5 * Math.sin(wave - (i * TAU) / 3);
+    g.globalAlpha = 1;
+    g.fillStyle = 'rgba(60, 40, 110, 0.9)';
     g.beginPath();
-    g.arc(x, y, lit ? size : size * 0.8, 0, TAU);
+    g.arc(x, y, size * 0.85, 0, TAU);
+    g.fill();
+    g.globalAlpha = 0.16 * glow;
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(x, y, size * 2.1, 0, TAU);
+    g.fill();
+    g.globalAlpha = 0.25 + 0.75 * glow;
+    g.fillStyle = colors[i % colors.length];
+    g.beginPath();
+    g.arc(x, y, size, 0, TAU);
     g.fill();
   }
+  g.globalAlpha = 1;
 }
 
 export interface DrawOptions {
@@ -757,11 +791,12 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
 
   // Running lights along the top of the back panel, along the rails and under the front edge.
   const partying = party !== null && party.kind !== 'crash';
-  const phase = calm ? 0 : Math.floor(stage.clock * (partying ? 9 : 3));
+  // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
+  const phase = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
   const lights: readonly string[] = partying ? SPARK_COLORS : ['#fff3a8', '#ffd65c'];
   bulbs(g, project(1, HEIGHT.wall - 1.2, 0), project(W - 1, HEIGHT.wall - 1.2, 0), 26, phase, lights, 2.6);
   bulbs(g, project(0, HEIGHT.sideWall + 2, 2), project(0, HEIGHT.sideWall + 2, OPEN - 2), 12, phase, lights, 2.2);
-  bulbs(g, project(W, HEIGHT.sideWall + 2, 2), project(W, HEIGHT.sideWall + 2, OPEN - 2), 12, phase + 1, lights, 2.2);
+  bulbs(g, project(W, HEIGHT.sideWall + 2, 2), project(W, HEIGHT.sideWall + 2, OPEN - 2), 12, phase, lights, 2.2);
 
   // Lights on the open sides and the tray, when a medal has just gone that way.
   for (const index of [0, 1]) {
@@ -893,32 +928,38 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
       stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake);
       continue;
     }
-    const wobble = Math.sin(t * 9.5 + medal.id) * 1.3 * (1 - t);
-    const x = medal.fromX + (medal.x - medal.fromX) * smooth(t) + wobble;
+    // Let go at the chute, it falls faster and faster, turning over as it comes, and lands flat.
+    const x = medal.fromX + (medal.x - medal.fromX) * t;
     const height = P + (RELEASE_HEIGHT - P) * (1 - t * t);
-    const depth = medal.fromY + (medal.y - medal.fromY) * t ** 3;
+    const depth = medal.fromY + (medal.y - medal.fromY) * t;
     if (medal.ball) {
       drawBall(g, stage, x, height, depth, false, shake);
       continue;
     }
-    const point = project(x, height + T, depth);
-    // Upright against the panel on the way down, lying flat as it lands.
-    const tilt = 0.92 + (point.tilt - 0.92) * smooth(Math.max(0, (t - 0.6) / 0.4));
-    stamp(g, stage, point, tilt, turnOf(medal.id) + t * 7, shake);
+    const point = project(x, height + T + RIDE * 0.7, depth);
+    // Two and a half turns on the way down, ending face up.
+    const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * 0.6));
+    const landing = smooth(Math.max(0, (t - 0.8) / 0.2));
+    const tilt = (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing;
+    stamp(g, stage, point, tilt, turnOf(medal.id), shake);
   }
 
-  // Whatever has just left the field, on its way down.
+  // Whatever has just left the field: it goes on the way it was pushed, tips over the edge and falls.
   for (const exit of stage.exits) {
     const a = exit.age;
-    const forward = exit.kind === 'won' ? 16 * a : 0;
-    const sideways = exit.kind === 'lost' ? exit.side * 12 * a : 0;
-    g.globalAlpha = Math.max(0, 1 - (a / EXIT_TIME) ** 2);
+    const won = exit.kind === 'won';
+    const fall = (EXIT.gravity * a * a) / 2;
+    const x = exit.x + (won ? 0 : exit.side * EXIT.sideways * a);
+    const depth = exit.y + (won ? EXIT.forward * a : 0);
+    // Over the front it drops out of sight below the edge of the glass; into a side pit it is lost in the dark.
+    g.globalAlpha = won ? 1 : Math.max(0, 1 - (a / (EXIT_TIME * 0.7)) ** 2);
     if (exit.ball) {
-      drawBall(g, stage, exit.x, -70 * a * a, exit.y + forward, false, shake);
+      drawBall(g, stage, x, -fall, depth, false, shake);
       continue;
     }
-    const point = project(exit.x + sideways, T - 70 * a * a, exit.y + forward);
-    stamp(g, stage, point, point.tilt * (0.35 + 0.65 * Math.abs(Math.cos(a * 13 + exit.id))), turnOf(exit.id), shake);
+    const point = project(x, T - fall, depth);
+    const turn = Math.min(Math.PI, a * EXIT.turn);
+    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake);
   }
   g.globalAlpha = 1;
   g.setTransform(k, 0, 0, k, 0, 0);

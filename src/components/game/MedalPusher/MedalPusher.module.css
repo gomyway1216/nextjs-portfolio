@@ -167,7 +167,8 @@
     0 18px 40px rgba(20, 8, 60, 0.5);
   color: #f4f0ff;
 }
-/* A strip of bulbs across the top and the bottom of the cabinet, running. */
+/* A strip of bulbs across the top and the bottom of the cabinet. The bulbs stay where they are;
+   a band of light travels along them, so each brightens and dims in turn after its neighbour. */
 .bulbs {
   position: relative;
   height: 12px;
@@ -182,27 +183,40 @@
   position: absolute;
   inset: 0;
   background-image: radial-gradient(circle at 50% 50%, #fff7c2 0 2.6px, #ffd65c 3.4px, rgba(255, 214, 92, 0.35) 5px, transparent 6px);
-  background-size: 54px 12px;
-  animation: mp-chase 0.9s steps(3, jump-none) infinite;
+  background-size: 36px 12px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 50%, transparent 100%);
+  -webkit-mask-size: 144px 100%;
+  mask-size: 144px 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  animation: mp-travel 3.2s linear infinite;
 }
 .bulbs::after {
   background-image: radial-gradient(circle at 50% 50%, #ffe0f1 0 2.6px, #ff7cc0 3.4px, rgba(255, 124, 192, 0.35) 5px, transparent 6px);
-  background-position: 27px 0;
-  animation-direction: reverse;
-  opacity: 0.85;
+  background-position: 18px 0;
+  /* The pink bulbs sit between the yellow ones and light half a band later. */
+  animation-delay: -1.6s;
 }
 .cabinet[data-banner='jackpot'] .bulbs::before,
 .cabinet[data-banner='jackpot'] .bulbs::after,
 .cabinet[data-banner='fever'] .bulbs::before,
 .cabinet[data-banner='fever'] .bulbs::after {
-  animation-duration: 0.3s;
+  animation-duration: 0.9s;
 }
-@keyframes mp-chase {
+.cabinet[data-banner='jackpot'] .bulbs::after,
+.cabinet[data-banner='fever'] .bulbs::after {
+  animation-delay: -0.45s;
+}
+/* The band of light moves one full length along the strip, then starts again unseen. */
+@keyframes mp-travel {
   from {
-    background-position-x: 0;
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
   }
   to {
-    background-position-x: 36px;
+    -webkit-mask-position: 144px 0;
+    mask-position: 144px 0;
   }
 }
 .marquee {
@@ -269,7 +283,7 @@
 }
 .cabinet[data-banner='jackpot'] .jackpotBox,
 .cabinet[data-banner='jackpot'] .marquee {
-  animation: mp-flash 0.5s steps(2, jump-none) infinite;
+  animation: mp-flash 0.7s ease-in-out infinite alternate;
 }
 
 /* The screen */
@@ -398,7 +412,7 @@
 .reels[data-line='small'] .reel,
 .reels[data-line='big'] .reel,
 .reels[data-line='seven'] .reel {
-  animation: mp-flash 0.4s steps(2, jump-none) infinite;
+  animation: mp-flash 0.7s ease-in-out infinite alternate;
 }
 .strip {
   will-change: transform;
@@ -425,6 +439,38 @@
 .bonus {
   flex-direction: column;
   gap: 4cqh;
+}
+.bonus[data-row='true'] {
+  flex-direction: row;
+  gap: 5cqw;
+}
+.chain {
+  display: grid;
+  justify-items: center;
+  gap: 5cqh;
+}
+.chainLabel {
+  font-size: clamp(0.7rem, 10cqh, 1.05rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #ffe0f1;
+}
+.chainLamps {
+  display: flex;
+  gap: 0.3rem;
+}
+.chainLamps .lamp[data-goal='true'] {
+  border-color: #ffd65c;
+}
+.chainTotal {
+  padding: 0.1rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #ffd65c;
+  background: rgba(10, 5, 32, 0.7);
+  font-size: clamp(0.85rem, 13cqh, 1.35rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffe98a;
 }
 .bonusHint {
   font-size: clamp(0.72rem, 11cqh, 1.15rem);
@@ -525,7 +571,9 @@
   filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));
 }
 .caption {
-  min-height: 1.9em;
+  /* One height whatever is in it, so a banner coming and going never moves the field below. */
+  height: 2.9em;
+  overflow: hidden;
   display: grid;
   place-items: center;
   text-align: center;
@@ -559,7 +607,7 @@
   text-shadow:
     0 0 14px rgba(255, 214, 92, 0.95),
     0 2px 0 #3a1d00;
-  animation: mp-pop 0.5s ease-in-out infinite alternate;
+  animation: mp-pop 0.8s ease-in-out infinite alternate;
 }
 .banner[data-banner='reach'] {
   color: #ffd0da;
@@ -573,7 +621,7 @@
     scale: 1;
   }
   to {
-    scale: 1.1;
+    scale: 1.06;
   }
 }
 /* The sugoroku board: a loop of squares laid out in a row, the piece on one of them. */
@@ -642,7 +690,7 @@
     filter: brightness(1);
   }
   to {
-    filter: brightness(1.5);
+    filter: brightness(1.28);
   }
 }
 @media (prefers-reduced-motion: reduce) {

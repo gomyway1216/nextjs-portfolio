@@ -199,29 +199,32 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page)).toBeVisible();
 
   const slot = odds(page).getByTestId('pusher-slot-table');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('0.6%');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 167');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('0.7%');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 143');
   await expect(slot.locator('tr[data-tier="seven"]')).toContainText('A prize ball on the field');
   await expect(slot.locator('tr[data-tier="big"]')).toContainText('A choice of three chests');
   await expect(slot.locator('tr[data-tier="small"]')).toContainText('A roll on the sugoroku board');
   await expect(slot.locator('tr[data-tier="small"]')).toContainText('8.8 medals');
   await expect(odds(page).getByTestId('pusher-board-table').locator('tbody td')).toHaveCount(12);
   await expect(odds(page).getByTestId('pusher-chest-table').locator('tbody tr')).toHaveCount(3);
-  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.9%');
-  await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(4);
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.11 medals');
+  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
+  await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
+  await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(6);
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('8.8%');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.106 medals');
 
-  // 78% by the front and 0.22 spins a medal at 1.11 medals a spin.
+  // 78% by the front and 0.22 spins a medal at 1.106 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
   await expect(result).toHaveText('97.0%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('25%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('26%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('124.4%');
+  await expect(result).toHaveText('124.3%');
   await page.keyboard.press('Home');
   await expect(result).toHaveText('62.2%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
@@ -277,7 +280,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('ナンバースロット');
   await expect(page.getByRole('tab', { name: '確率' })).toBeVisible();
   await page.getByRole('tab', { name: '確率' }).click();
-  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('167回に1回');
+  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
 });
 

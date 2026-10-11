@@ -8,6 +8,7 @@ import { PART_IDS, getStrings } from './i18n';
 import {
   BOARD,
   BOARD_VALUE,
+  CHAIN_GOAL,
   CHESTS,
   CHEST_TOWERS_FROM,
   CHEST_VALUE,
@@ -15,13 +16,14 @@ import {
   JACKPOT_CHANCE,
   JACKPOT_START,
   JACKPOT_STEP,
+  POCKET_VALUE,
   REACH_RATE,
   ROULETTE,
   SPIN_TABLE,
   SPIN_TOTAL,
   TIER_BONUS,
-  TOWERS_FROM,
   boardAfter,
+  chainChance,
   rouletteValue,
   spinValue,
   tierChance,
@@ -49,13 +51,13 @@ export function boardSpread(rolls: number): number {
   return Math.max(...boardAfter(rolls).map((chance) => Math.abs(chance - even)));
 }
 
-/** The roulette's pockets grouped by what they pay, the jackpot first and then the largest prize down. */
+/** The roulette's pockets grouped by what they do: the cross first, then the largest number down. */
 export function pocketGroups(): { pocket: Pocket; count: number }[] {
   const counts = new Map<Pocket, number>();
   for (const pocket of ROULETTE) counts.set(pocket, (counts.get(pocket) ?? 0) + 1);
   return [...counts.entries()]
     .map(([pocket, count]) => ({ pocket, count }))
-    .sort((a, b) => (a.pocket === 'jackpot' ? -1 : b.pocket === 'jackpot' ? 1 : (b.pocket as number) - (a.pocket as number)));
+    .sort((a, b) => (a.pocket === 'stop' ? -1 : b.pocket === 'stop' ? 1 : (b.pocket as number) - (a.pocket as number)));
 }
 
 /**
@@ -91,8 +93,6 @@ export const OddsTab = () => {
     return leadsTo === 'ball' ? t.paysBall : leadsTo === 'chest' ? t.paysChest : t.paysSugoroku;
   };
   const trim = (value: number, digits = 2) => String(Number(value.toFixed(digits)));
-  /** How a roulette prize reaches the field. The jackpot is shown at the size it starts from. */
-  const paidAs = (medals: number) => (medals >= TOWERS_FROM ? t.paidTowers(towerSizes(medals).length) : t.paidLoose);
 
   return (
     <div className={styles.oddsLayout}>
@@ -219,7 +219,7 @@ export const OddsTab = () => {
 
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.rouletteTitle}</h2>
-        <p className={styles.body}>{t.rouletteIntro(ROULETTE.length)}</p>
+        <p className={styles.body}>{t.rouletteIntro(ROULETTE.length, CHAIN_GOAL)}</p>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-roulette-table">
             <caption className={styles.srOnly}>{t.rouletteCaption}</caption>
@@ -232,22 +232,47 @@ export const OddsTab = () => {
                 <th scope="col" className={styles.num}>
                   {t.colChance}
                 </th>
-                <th scope="col">{t.colPaidAs}</th>
               </tr>
             </thead>
             <tbody>
               {pocketGroups().map(({ pocket, count }) => (
-                <tr key={pocket}>
-                  <th scope="row">{pocket === 'jackpot' ? t.pocketJackpotName : t.paysMedals(pocket)}</th>
+                <tr key={pocket} data-pocket={pocket}>
+                  <th scope="row">{pocket === 'stop' ? t.pocketStopName : t.pocketTower(pocket)}</th>
                   <td className={styles.num}>{count}</td>
                   <td className={styles.num}>{percent(count / ROULETTE.length)}</td>
-                  <td>{paidAs(pocket === 'jackpot' ? JACKPOT_START : pocket)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className={styles.note}>{t.jackpotNote(JACKPOT_START, JACKPOT_STEP, fmt(Math.round(1 / JACKPOT_CHANCE)))}</p>
+        <div className={styles.tableWrap}>
+          <table className={`${styles.oddsTable} ${styles.boardTable}`} data-testid="pusher-chain-table">
+            <caption className={styles.srOnly}>{t.chainCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="row">{t.colInARow}</th>
+                {Array.from({ length: CHAIN_GOAL }, (_, index) => (
+                  <th key={index} scope="col" className={styles.num}>
+                    {index + 1}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">{t.colGetsThere}</th>
+                {Array.from({ length: CHAIN_GOAL }, (_, index) => (
+                  <td key={index} className={styles.num} data-fever={index === CHAIN_GOAL - 1}>
+                    {percent(chainChance(index + 1))}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>
+          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / chainChance(CHAIN_GOAL), 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
+        </p>
       </section>
 
       <section className={styles.panelBox}>

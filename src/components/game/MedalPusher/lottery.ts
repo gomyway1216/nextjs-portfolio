@@ -11,7 +11,7 @@ export const TIERS = ['miss', 'small', 'big', 'seven'] as const;
 export type Tier = (typeof TIERS)[number];
 
 /** Chances out of 1,000 spins. */
-export const SPIN_TABLE: Record<Tier, number> = { miss: 939, small: 40, big: 15, seven: 6 };
+export const SPIN_TABLE: Record<Tier, number> = { miss: 938, small: 40, big: 15, seven: 7 };
 export const SPIN_TOTAL = 1000;
 
 /** What a line leads to: a roll on the sugoroku board, a choice of chests, or a prize ball on the field. */
@@ -130,36 +130,52 @@ export const CHEST_VALUE = CHESTS.reduce<number>((sum, medals) => sum + medals, 
 
 // ── The ball's roulette ─────────────────────────────────────────────────────
 
-/** One pocket of the roulette: the jackpot, or a fixed number of medals. */
-export type Pocket = 'jackpot' | number;
+/** One pocket of the roulette: medals for the tower, or the cross that ends the run. */
+export type Pocket = 'stop' | number;
 
-/** The twelve pockets in the order they sit on the wheel. Each is equally likely. */
-export const ROULETTE: readonly Pocket[] = ['jackpot', 30, 50, 30, 100, 50, 30, 100, 50, 30, 100, 50];
+/**
+ * The twelve pockets in the order they sit on the wheel, each as likely as the
+ * next. A number adds that many medals to the towers on the pusher and the
+ * roulette turns again; a cross ends the run.
+ */
+export const ROULETTE: readonly Pocket[] = ['stop', 10, 20, 30, 'stop', 10, 20, 50, 'stop', 10, 20, 'stop'];
+
+/** Numbers in a row, with no cross, that win the jackpot on top of them. */
+export const CHAIN_GOAL = 6;
 
 /** The jackpot starts here and grows by one medal for every `JACKPOT_STEP` medals played. */
 export const JACKPOT_START = 300;
 export const JACKPOT_STEP = 40;
 
-/** A roulette prize this large or larger is stacked as towers; a smaller one is thrown on loose. */
-export const TOWERS_FROM = 50;
-
 export const drawPocket = (rng: () => number): number => Math.min(ROULETTE.length - 1, Math.floor(rng() * ROULETTE.length));
 
-/** Medals a pocket pays when the jackpot stands at `jackpot`. */
-export const pocketPays = (pocket: Pocket, jackpot: number): number => (pocket === 'jackpot' ? jackpot : pocket);
+const NUMBERS = ROULETTE.filter((pocket): pocket is number => pocket !== 'stop');
+/** The chance that a turn lands on a number, so the run goes on. */
+export const CONTINUE_CHANCE = NUMBERS.length / ROULETTE.length;
+/** The average a numbered pocket pays. */
+export const POCKET_VALUE = NUMBERS.reduce((sum, medals) => sum + medals, 0) / NUMBERS.length;
+
+/** The chance that a run gets as far as `level` numbers in a row. */
+export const chainChance = (level: number): number => CONTINUE_CHANCE ** level;
 
 // ── Exact odds ──────────────────────────────────────────────────────────────
 
 /** The chance of each tier on one spin. */
 export const tierChance = (tier: Tier): number => SPIN_TABLE[tier] / SPIN_TOTAL;
 
-/** The average roulette prize when the jackpot stands at `jackpot`. */
+/**
+ * Medals a ball's roulette pays on average when the jackpot stands at
+ * `jackpot`: every number it gets to, each worth the average pocket, and the
+ * jackpot for the runs that reach the goal.
+ */
 export function rouletteValue(jackpot: number): number {
-  return ROULETTE.reduce<number>((sum, pocket) => sum + pocketPays(pocket, jackpot), 0) / ROULETTE.length;
+  let numbers = 0;
+  for (let level = 1; level <= CHAIN_GOAL; level++) numbers += chainChance(level);
+  return numbers * POCKET_VALUE + chainChance(CHAIN_GOAL) * jackpot;
 }
 
-/** The chance that one spin leads to the jackpot itself: three sevens for a ball, then the one pocket once it falls. */
-export const JACKPOT_CHANCE = tierChance('seven') * (ROULETTE.filter((pocket) => pocket === 'jackpot').length / ROULETTE.length);
+/** The chance that one spin leads to the jackpot: three sevens for a ball, then a full run once it falls. */
+export const JACKPOT_CHANCE = tierChance('seven') * chainChance(CHAIN_GOAL);
 
 /** Medals each line is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
 export function tierValue(tier: Tier, jackpot: number): number {

@@ -57,6 +57,12 @@ export interface PusherStrings {
   autoHint: string;
   sound: string;
   refill: (medals: number) => string;
+  // The machine is saved in the browser, and can be reset
+  reset: string;
+  resetConfirm: string;
+  savedNote: string;
+  sayReset: (medals: number) => string;
+  sayResetOff: string;
   // Announcements for screen readers
   saySugorokuStart: (digits: string) => string;
   saySugoroku: (medals: number) => string;
@@ -238,6 +244,11 @@ const en: PusherStrings = {
   autoHint: 'Drops two medals a second at your aim',
   sound: 'Sound',
   refill: (medals) => `Out of medals — take ${medals} more`,
+  reset: 'Reset the machine',
+  resetConfirm: 'Press again to reset',
+  savedNote: 'This machine is saved on this device. Your medals, the jackpot and the field are as you left them when you come back.',
+  sayReset: (medals) => `The machine has been reset. You have ${medals} medals.`,
+  sayResetOff: 'Reset cancelled.',
   saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
@@ -454,6 +465,11 @@ const ja: PusherStrings = {
   autoHint: '狙った位置に毎秒2枚落とします',
   sound: '音',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
+  reset: 'マシンをリセット',
+  resetConfirm: 'もう一度押すとリセットします',
+  savedNote: 'メダルはこの端末に預けてあります。次に来たときも、メダル・ジャックポット・フィールドはそのまま残っています。',
+  sayReset: (medals) => `マシンをリセットしました。メダルは${medals}枚です。`,
+  sayResetOff: 'リセットを取り消しました。',
   saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,

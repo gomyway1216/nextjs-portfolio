@@ -427,6 +427,26 @@ describe('medals two deep', () => {
     expect(rider.sinceDrop).toBe(0);
   });
 
+  it('lands them the same way round whichever the list holds first', () => {
+    // The one on top comes earlier in the list than the one it lies on, as it can after medals have slid about.
+    const under = medalAt(50, PUSHER.min + 0.5, { level: 1 });
+    const rider = medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
+    const beside = medalAt(70, PUSHER.min + 0.4, { level: 1, tier: 1 });
+    const machine = machineWith([rider, beside, under]);
+    step(machine, DT);
+    expect([under.level, rider.level, beside.level]).toEqual([0, 0, 0]);
+    expect(under.tier).toBe(0);
+    expect(rider.tier).toBe(1);
+    // With nothing under it where it lands, a medal that was on top lies on the table.
+    expect(beside.tier).toBe(0);
+    // The same three in every other order end up the same way.
+    for (const order of [[0, 1, 2], [2, 0, 1], [1, 2, 0], [2, 1, 0]]) {
+      const three = [medalAt(50, PUSHER.min + 0.5, { level: 1 }), medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 }), medalAt(70, PUSHER.min + 0.4, { level: 1, tier: 1 })];
+      step(machineWith(order.map((index) => three[index])), DT);
+      expect(three.map((medal) => medal.tier)).toEqual([0, 1, 0]);
+    }
+  });
+
   it('has a pile two deep on both tables once it has been played', () => {
     const machine = createMachine(31);
     run(machine, 120, (n) => [25, 50, 75, 40, 60][n % 5], 0.3);

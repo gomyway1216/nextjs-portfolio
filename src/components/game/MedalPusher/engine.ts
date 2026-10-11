@@ -670,19 +670,17 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
 
   // Over the lip, over the front edge, or out of an open side.
   const kept: Medal[] = [];
+  const crossing: Medal[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
         if (medal.stack > 1) {
           spill(machine, medal, front);
           events.toppled++;
-          continue;
+        } else {
+          crossing.push(medal);
         }
-        // Over the lip it comes down on the lower table: onto the table if there is room, onto the pile if not.
-        medal.tier = medal.ball || roomBelow(machine.medals, 0, medal.x, medal.y) ? 0 : 1;
-        medal.level = 0;
-        medal.sinceDrop = 0;
-        medal.grown = SETTLE.from;
+        continue;
       }
       kept.push(medal);
     } else if (medal.y > FIELD.depth) {
@@ -693,6 +691,17 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     } else {
       kept.push(medal);
     }
+  }
+  // Whatever has gone over the lip comes down on the lower table: onto the table where there is
+  // room, onto the pile where there is not. The medals that were underneath land first, so one
+  // that was riding on another comes down on top of it again, whatever order the list holds them in.
+  crossing.sort((a, b) => a.tier - b.tier || a.id - b.id);
+  for (const medal of crossing) {
+    medal.tier = medal.ball || roomBelow(kept, 0, medal.x, medal.y) ? 0 : 1;
+    medal.level = 0;
+    medal.sinceDrop = 0;
+    medal.grown = SETTLE.from;
+    kept.push(medal);
   }
   machine.medals = kept;
 }

@@ -354,7 +354,7 @@ const en: PusherStrings = {
   calcBreakEven: (percent) => `At this front share you would break even if ${percent} of your medals started a spin.`,
   calcNever: 'At this front share you could not break even even if every medal started a spin.',
   calcNote:
-    'The Simulation tab measures both. Aimed at a gate, about 79% of medals leave by the front and about 22% come through a gate — fewer start a spin if you drop faster than the screen can keep up.',
+    'The Simulation tab measures both. Aimed at a gate at two medals a second, about 79% of medals leave by the front and about 20% start a spin. A few more than that come through a gate, about 22%, but some of them find four spins already held. Drop faster than the screen can keep up and fewer still start one.',
 
   simTitle: 'Where to drop, measured',
   simIntro: (warmUp) =>
@@ -569,7 +569,7 @@ const ja: PusherStrings = {
   calcBreakEven: (percent) => `この割合なら、落としたメダルの${percent}が抽選を始めれば収支がゼロになります。`,
   calcNever: 'この割合では、すべてのメダルが抽選を始めても収支はゼロに届きません。',
   calcNote:
-    'どちらも「シミュレーション」タブで実測できます。チャッカーを狙うと、約79%が手前から出て、約22%がチャッカーを通ります。画面が追いつかない速さで落とすと、抽選が始まる割合はそれより下がります。',
+    'どちらも「シミュレーション」タブで実測できます。チャッカーを狙って毎秒2枚落とすと、約79%が手前から出て、約20%が抽選を始めます。チャッカーを通るのはそれより少し多い約22%ですが、一部は保留が4回分たまっていて無駄になります。画面が追いつかない速さで落とすと、抽選が始まる割合はさらに下がります。',
 
   simTitle: 'どこに落とすかを実測する',
   simIntro: (warmUp) =>

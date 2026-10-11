@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
+import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/storage';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -91,6 +92,47 @@ test('DROP takes a medal from the purse', async ({ page }) => {
   expect(played).toBeGreaterThanOrEqual(1);
   await expectPurseToBalance(page);
   await expect(machine(page).getByTestId('pusher-return')).not.toHaveText('—');
+});
+
+/** The machine the browser holds a save of, read the way the game reads it, or null when it holds none that reads. */
+async function savedMachine(page: Page) {
+  const text = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
+  return restore(text, 1);
+}
+
+test('the machine is still there after a reload, until it is reset', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openGame(page);
+  await dropOne(page);
+  await dropOne(page);
+  await dropOne(page);
+  // Let the counter catch up with the last press before reading it.
+  await page.waitForTimeout(500);
+  const dropped = await counter(page, 'played');
+  expect(dropped).toBeGreaterThanOrEqual(3);
+
+  // The machine is saved every few seconds: wait for a save that has these medals in it.
+  await expect.poll(async () => (await savedMachine(page))?.inserted ?? -1, { timeout: 20_000 }).toBe(dropped);
+
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
+  // The page is first drawn as a new machine, and then shows the one it remembers.
+  await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(dropped);
+  await expectPurseToBalance(page);
+
+  // Reset takes two presses, and leaves a new machine with nothing of the old one saved.
+  const reset = machine(page).getByTestId('pusher-reset');
+  await expect(reset).toHaveText('Reset the machine');
+  await reset.click();
+  await expect(reset).toHaveAttribute('data-armed', 'true');
+  await expect(reset).toHaveText('Press again to reset');
+  await reset.click();
+  await expect(reset).toHaveAttribute('data-armed', 'false');
+  await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
+  await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
+  await expect(machine(page).getByTestId('pusher-announcement')).toContainText('has been reset');
+  await expect.poll(async () => (await savedMachine(page))?.inserted ?? 0, { timeout: 20_000 }).toBe(0);
 });
 
 test('clicking the field aims there and drops a medal', async ({ page }) => {

@@ -7,7 +7,7 @@
  * and plays the same number of medals at the same pace.
  */
 
-import { AIM, CHECKERS, medalsOnField, seededRng } from './engine';
+import { AIM, CHECKERS, FALL_TIME, checkerCentres, medalsOnField, seededRng } from './engine';
 import { JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
@@ -17,13 +17,16 @@ export type AimId = (typeof AIM_IDS)[number];
 const [LEFT_GATE, CENTRE_GATE, RIGHT_GATE] = CHECKERS.positions;
 
 /**
- * Where each way of aiming lets its `n`-th medal go: always over the centre
- * gate, anywhere at all (`pick` chooses), between two gates, or at the edges.
+ * Where each way of aiming lets its `n`-th medal go at `time` on the machine's
+ * clock: following the centre gate, anywhere at all (`pick` chooses), at a
+ * fixed spot halfway between the middles of two gates' sweeps, or at the edges.
+ * Only the first looks at the clock. The gates move while a medal is in the
+ * air, so it aims where the centre gate will be when the medal comes down.
  */
-export function aimAt(id: AimId, n: number, pick: () => number): number {
+export function aimAt(id: AimId, n: number, pick: () => number, time = 0): number {
   switch (id) {
     case 'centre':
-      return CENTRE_GATE;
+      return checkerCentres(time + FALL_TIME)[1];
     case 'anywhere':
       return AIM.min + pick() * (AIM.max - AIM.min);
     case 'between':
@@ -76,7 +79,7 @@ export interface AimResult {
   played: number;
   won: number;
   lost: number;
-  /** Medals through a gate, and how many of those found four spins already held. */
+  /** Medals through a gate, and how many of those found the hold already full. */
   hits: number;
   wasted: number;
   spins: number;
@@ -179,7 +182,7 @@ export async function simulate(
       if (clock >= interval && session.machine.cooldown <= 1e-9) {
         if (session.inserted === WARM_UP) start = snapshot(session);
         clock -= interval;
-        const taken = insert(session, aimAt(id, session.inserted, pick));
+        const taken = insert(session, aimAt(id, session.inserted, pick, session.machine.time));
         if (taken && start) {
           const played = session.inserted - start.played;
           if (played % every === 0 || played === medals) points.push({ medals: played, rate: (session.won - start.won) / played });

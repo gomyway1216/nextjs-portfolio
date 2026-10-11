@@ -6,6 +6,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
+import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
 import styles from './MedalPusher.module.css';
 
@@ -94,7 +95,7 @@ export const MedalPusher = () => {
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay}>
-        {t.infoBody.map((p, i) => (
+        {t.infoBody(MAX_STOCK).map((p, i) => (
           <p key={i} className={styles.infoP}>
             {p}
           </p>

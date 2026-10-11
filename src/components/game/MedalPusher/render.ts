@@ -5,7 +5,7 @@
  * anything — it only shows the machine the engine is running.
  */
 
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, SETTLE, pusherFront, type Machine, type Medal } from './engine';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, SETTLE, checkerCentres, pusherFront, type Machine, type Medal } from './engine';
 import { HEIGHT, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -126,12 +126,12 @@ function onTable(g: CanvasRenderingContext2D, k: number, x: number, depth: numbe
   g.setTransform((u.x - o.x) * k, (u.y - o.y) * k, (v.x - o.x) * k, (v.y - o.y) * k, o.x * k, o.y * k);
 }
 
-/** The same for the back panel at (x, height): one unit across, one unit down. */
-function onPanel(g: CanvasRenderingContext2D, k: number, x: number, height: number): void {
+/** The same for the back panel at (x, height): one unit across, one unit down. `shift` moves it sideways, in the drawing's pixels. */
+function onPanel(g: CanvasRenderingContext2D, k: number, x: number, height: number, shift = 0): void {
   const o = project(x, height, 0);
   const u = project(x + 1, height, 0);
   const v = project(x, height - 1, 0);
-  g.setTransform((u.x - o.x) * k, (u.y - o.y) * k, (v.x - o.x) * k, (v.y - o.y) * k, o.x * k, o.y * k);
+  g.setTransform((u.x - o.x) * k, (u.y - o.y) * k, (v.x - o.x) * k, (v.y - o.y) * k, (o.x + shift) * k, o.y * k);
 }
 
 const starPath = (g: CanvasRenderingContext2D, cx: number, cy: number, outer: number, inner: number): void => {
@@ -335,16 +335,9 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
       g.fill();
     }
   }
-  // A sign over each gate.
+  // The gates and the sign over each are not here: they move, so every frame draws them where they are.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  for (const center of CHECKERS.positions) {
-    onPanel(g, ratio, center, P + GATE.height + 2.4);
-    g.font = '900 3.1px "Arial Black", Arial, sans-serif';
-    g.fillStyle = '#fff3a8';
-    g.fillText('START', 0, 0);
-  }
-  flat();
 
   // The lower table: a mirror-blue plate with lanes, an emblem and the words the player needs.
   const floor = [project(0, 0, 0), project(W, 0, 0), project(W, 0, D), project(0, 0, D)];
@@ -877,8 +870,10 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   drawMedals(g, stage, upper, P, shake);
   flat();
 
-  // The gates at the foot of the back panel.
-  CHECKERS.positions.forEach((center, index) => {
+  // The gates at the foot of the back panel, where their sweep has taken them, each with its sign riding above it.
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  checkerCentres(machine.time).forEach((center, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;
     const pulse = calm ? 0 : 0.5 + 0.5 * Math.sin(stage.clock * 4 + index * 2.1);
     const gate = [
@@ -902,6 +897,11 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     g.strokeStyle = lit > 0 ? '#fffbe0' : '#7df0ff';
     g.lineWidth = 2.5;
     g.stroke();
+    onPanel(g, k, center, P + GATE.height + 2.4, shake);
+    g.font = '900 3.1px "Arial Black", Arial, sans-serif';
+    g.fillStyle = '#fff3a8';
+    g.fillText('START', 0, 0);
+    flat();
   });
 
   // Where the next medal will be let go, and how far from that it can land.

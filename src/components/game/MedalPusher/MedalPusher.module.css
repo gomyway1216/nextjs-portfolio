@@ -1104,6 +1104,19 @@
   font-size: 0.82rem;
   line-height: 1.55;
 }
+/* The note that the machine is saved turns into a warning when it could not be. */
+.note[data-saved='false'] {
+  color: var(--mp-lose-text);
+}
+/* Reset, under the tally. Armed, it says so in words as well as in colour. */
+.reset {
+  margin-top: 0.75rem;
+  font-size: 0.88rem;
+}
+.reset[data-armed='true'] {
+  border-color: var(--mp-lose-text);
+  color: var(--mp-lose-text);
+}
 .srOnly {
   position: absolute;
   width: 1px;

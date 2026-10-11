@@ -21,6 +21,7 @@ import {
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
+import { STORAGE_KEY, restore, serialize } from './storage';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -32,6 +33,18 @@ const HOLD_DELAY = 0.2;
 const MAX_PIXEL_RATIO = 2;
 /** The longest stretch of time one frame may cover, so a stalled tab does not lurch forward. */
 const MAX_FRAME = 0.1;
+/** How often the machine is saved while it is showing, in seconds. */
+const SAVE_EVERY = 5;
+/** How long a first press of Reset waits for the second, in seconds. */
+export const RESET_WINDOW = 6;
+
+/**
+ * Whether a press of Reset at `now` is the second press, in time, of one made
+ * at `armedAt` (both in milliseconds; null when no first press stands). The
+ * label going back is only a timer, and timers run late, so this is what
+ * decides it. A clock that has gone backwards confirms nothing.
+ */
+export const confirmsReset = (armedAt: number | null, now: number): boolean => armedAt !== null && now >= armedAt && now - armedAt < RESET_WINDOW * 1000;
 
 /** The numbers shown around the cabinet. */
 interface Hud {
@@ -96,6 +109,13 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
+  const [armedAt, setArmedAt] = useState<number | null>(null);
+  const armed = armedAt !== null;
+  const [switchedOn, setSwitchedOn] = useState(0);
+  const startFresh = useRef(false);
+  // Whether the last attempt to save the machine took. Until one has been made, the page says what the server said.
+  const [kept, setKept] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
@@ -112,20 +132,57 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   });
 
   // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
-  // leaving the cabinet, cuts short whatever is still ringing.
+  // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
+  // fanfare and loop stop with it, and the loop starts again from the top for the new one.
   useEffect(() => {
     setMusic(sound && active);
     return () => setMusic(false);
-  }, [sound, active]);
-  useEffect(() => (sound && active ? hush : undefined), [sound, active]);
+  }, [sound, active, switchedOn]);
+  useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
-    const session = createSession(Math.floor(Math.random() * 2 ** 31));
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    // The machine this browser remembers, if it holds one that still reads. After a reset the
+    // save is thrown away instead.
+    let remembered: Session | null = null;
+    try {
+      if (startFresh.current) window.localStorage.removeItem(STORAGE_KEY);
+      else remembered = restore(window.localStorage.getItem(STORAGE_KEY), seed);
+    } catch {
+      // Storage is blocked or switched off: the machine is simply a new one.
+    }
+    startFresh.current = false;
+    const session = remembered ?? createSession(seed);
     sessionRef.current = session;
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
+    // or left, and when the cabinet is taken down. A write that fails means the machine is not
+    // remembered; the game goes on, and the note under the tally stops saying that it is.
+    const save = () => {
+      let took = false;
+      try {
+        window.localStorage.setItem(STORAGE_KEY, serialize(session));
+        took = true;
+      } catch {
+        // Storage is full, blocked or switched off.
+      }
+      setKept(took);
+    };
+    const saveWhileShowing = () => {
+      if (live.current.active && document.visibilityState === 'visible') save();
+    };
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save();
+    };
+    const saveTimer = window.setInterval(saveWhileShowing, SAVE_EVERY * 1000);
+    document.addEventListener('visibilitychange', saveWhenHidden);
+    window.addEventListener('pagehide', save);
+    // The first save also finds out whether this browser will keep the machine at all.
+    save();
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -336,9 +393,25 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     return () => {
       cancelAnimationFrame(frameId);
       observer.disconnect();
+      window.clearInterval(saveTimer);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
+      window.removeEventListener('pagehide', save);
+      // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
+      save();
       sessionRef.current = null;
     };
-  }, []);
+  }, [switchedOn]);
+
+  // An armed Reset waits a few seconds for the second press, then its label goes back and it says so.
+  // The timer only changes what is shown: whether a second press still counts is decided in `onReset`.
+  useEffect(() => {
+    if (armedAt === null) return;
+    const timer = window.setTimeout(() => {
+      setArmedAt(null);
+      setAnnouncement(live.current.strings.sayResetOff);
+    }, RESET_WINDOW * 1000);
+    return () => window.clearTimeout(timer);
+  }, [armedAt]);
 
   const drop = () => {
     const session = sessionRef.current;
@@ -385,6 +458,25 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const onPick = (chest: number) => {
     const session = sessionRef.current;
     if (session) pickChest(session, chest);
+  };
+
+  const onReset = () => {
+    // A press that does not follow a first one within the window is a first press itself,
+    // even if the label has not gone back yet.
+    const now = Date.now();
+    if (!confirmsReset(armedAt, now)) {
+      setArmedAt(now);
+      setAnnouncement(t.resetConfirm);
+      return;
+    }
+    // The second press came in time: the cabinet starts again with a new machine and nothing saved.
+    setArmedAt(null);
+    startFresh.current = true;
+    setSwitchedOn((times) => times + 1);
+    setHud(INITIAL_HUD);
+    setScreen(IDLE_SCREEN);
+    setAuto(false);
+    setAnnouncement(t.sayReset(START_CREDITS));
   };
 
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
@@ -524,6 +616,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </dl>
         <p className={styles.note}>{t.tallyNote}</p>
+        <p className={styles.note} data-saved={kept} data-testid="pusher-saved">
+          {kept ? t.savedNote : t.unsavedNote}
+        </p>
+        <button type="button" className={`${styles.btn} ${styles.reset}`} data-armed={armed} data-testid="pusher-reset" onClick={onReset}>
+          {armed ? t.resetConfirm : t.reset}
+        </button>
       </section>
 
       <p className={styles.srOnly} aria-live="polite" data-testid="pusher-announcement">

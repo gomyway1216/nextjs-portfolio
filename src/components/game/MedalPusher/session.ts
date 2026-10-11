@@ -230,7 +230,7 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
   };
 }
 
-/** Drops one of the player's medals at `aimX`. Returns whether the machine took it. */
+/** Feeds one of the player's medals into the arm on the side of `aimX`, the arms pointed there. Returns whether the machine took it. */
 export function insert(session: Session, aimX: number): boolean {
   if (session.credits <= 0) return false;
   if (!dropMedal(session.machine, aimX)) return false;
@@ -262,7 +262,7 @@ export function pickChest(session: Session, chest: number): boolean {
   return true;
 }
 
-/** Whether anything is still in motion on the screen or queued to drop. */
+/** Whether anything is still in motion on the screen, on an arm, or queued to drop. */
 export const isBusy = (session: Session): boolean =>
   session.spin !== null ||
   session.bonus !== null ||
@@ -271,6 +271,7 @@ export const isBusy = (session: Session): boolean =>
   session.balls > 0 ||
   session.machine.payoutQueue > 0 ||
   session.machine.growing > 0 ||
+  session.machine.rolling.length > 0 ||
   session.machine.falling.length > 0;
 
 /** Pays a prize onto the field: thrown on loose, or stacked on the pusher as towers. */

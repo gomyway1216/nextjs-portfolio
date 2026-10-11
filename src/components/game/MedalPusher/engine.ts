@@ -10,6 +10,13 @@
  * squeezed out there are lost. Prize balls lie among the medals and are pushed
  * the same way, and big prizes stand on the pusher as towers of medals.
  *
+ * The player's medals come in by two feed arms, one from each upper corner. A
+ * medal is fed into the arm on the side it is aimed at, rolls down that arm's
+ * rail on its edge, and drops off the tip onto the back of the pusher. The arms
+ * swing to wherever the player is aiming, so a medal comes down where its arm
+ * is pointing at the moment it leaves the tip, not where it was when the medal
+ * went in.
+ *
  * Medals lie flat, two deep at most. The lower tier lies on the table. A
  * medal that comes down where there is no room for it stays on top of the
  * others: it rides along with the medals under it, slides over them when it
@@ -37,7 +44,11 @@ export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
 
 /** A dropped medal lands in this band of depth, on the pusher, a little off its aim. */
 export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
-/** Where it is let go: this high above the lower table, this close to the back panel. */
+/**
+ * Where it is let go: this close to the back panel, and, for a medal the
+ * machine pays out, this high above the lower table. The tips of the feed arms
+ * hang as close to the panel and lower down (see arms.ts).
+ */
 export const RELEASE = { height: 34, depth: 1.2 } as const;
 /**
  * A medal lying on others drops into the lower tier when no medal of that tier
@@ -51,6 +62,13 @@ export const SETTLE = { from: 0.3, time: 0.32 } as const;
 /** How long a medal is in the air, and how often one can be dropped. */
 export const FALL_TIME = 0.45;
 export const DROP_INTERVAL = 0.18;
+/**
+ * How long a medal the player feeds is on its arm's rail before it drops off
+ * the tip: long enough to watch it roll, short enough that the machine still
+ * answers a press. The slot feeds faster than that, so a stream of medals has
+ * two or three on the rail at once.
+ */
+export const ROLL_TIME = 0.5;
 
 /** The chuckers: a medal that lands within `halfWidth` of one starts the slot on the screen. */
 export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.2 } as const;
@@ -140,6 +158,20 @@ export interface Medal {
   grown: number;
 }
 
+/** A feed arm: the left one (0) or the right one (1). */
+export type Arm = 0 | 1;
+
+/**
+ * A medal on its way down an arm's rail. Where it will land is not settled
+ * yet: that depends on where its arm is pointing when it gets to the tip.
+ */
+export interface RollingMedal {
+  id: number;
+  arm: Arm;
+  /** Seconds until it reaches the tip and drops off. */
+  remaining: number;
+}
+
 export interface FallingMedal {
   id: number;
   /** Where it will land, and on which table. */
@@ -162,6 +194,8 @@ export interface FallingMedal {
 export interface Machine {
   time: number;
   medals: Medal[];
+  /** Medals on the arms' rails, in the order they were fed. */
+  rolling: RollingMedal[];
   falling: FallingMedal[];
   /** Payout medals still to be thrown onto the field. */
   payoutQueue: number;
@@ -171,6 +205,8 @@ export interface Machine {
   towerClock: number;
   /** Seconds until the next medal can be dropped. */
   cooldown: number;
+  /** Where across the field the arms are pointed. Whoever plays the machine sets it, with `aimArms`. */
+  aim: number;
   nextId: number;
   rng: () => number;
 }
@@ -433,12 +469,14 @@ export function createMachine(seed: number, balls = 0): Machine {
   const machine: Machine = {
     time: 0,
     medals: [],
+    rolling: [],
     falling: [],
     payoutQueue: 0,
     payoutClock: 0,
     growing: 0,
     towerClock: 0,
     cooldown: 0,
+    aim: FIELD.width / 2,
     nextId: 1,
     rng: seededRng(seed),
   };
@@ -470,18 +508,40 @@ export const AIM = { min: R + 1, max: FIELD.width - R - 1 } as const;
 export const clampAim = (x: number): number => Math.min(AIM.max, Math.max(AIM.min, x));
 
 /**
- * Drops one medal, aimed at `aimX`. It lands a little to one side of the aim.
+ * How far across the field each arm's tip can be, the left arm's first. Each
+ * reaches a little past the middle, so that either can feed the centre gate
+ * wherever its sweep has taken it.
+ */
+export const ARM_REACH: readonly [{ min: number; max: number }, { min: number; max: number }] = [
+  { min: AIM.min, max: FIELD.width / 2 + 10 },
+  { min: FIELD.width / 2 - 10, max: AIM.max },
+];
+/** The arm a medal aimed at `x` is fed into: the one on that side of the field. */
+export const armFor = (x: number): Arm => (x < FIELD.width / 2 ? 0 : 1);
+/** Where an arm's tip is when the arms are pointed at `aim`: over the aim, as far as that arm reaches. */
+export const tipOf = (arm: Arm, aim: number): number => Math.min(ARM_REACH[arm].max, Math.max(ARM_REACH[arm].min, aim));
+
+/**
+ * Points the arms at `aimX`. A medal on a rail drops where its arm is pointing
+ * when it gets to the tip, so whoever plays the machine calls this before every
+ * step, with where the arms will be by the end of it.
+ */
+export function aimArms(machine: Machine, aimX: number): void {
+  if (!Number.isFinite(aimX)) throw new Error('the aim must be a number');
+  machine.aim = clampAim(aimX);
+}
+
+/**
+ * Drops one medal, aimed at `aimX`: the arms are pointed there and the medal
+ * is fed into the arm on that side. It rolls down the rail and lands a little
+ * to one side of wherever that arm is pointing by then.
  * Returns whether the machine took it: the slot only feeds one every DROP_INTERVAL.
  */
 export function dropMedal(machine: Machine, aimX: number): boolean {
   if (!Number.isFinite(aimX)) throw new Error('the aim must be a number');
   if (machine.cooldown > 1e-9) return false;
-  // Two draws make the scatter bunch around the aim instead of spreading evenly.
-  const from = clampAim(aimX);
-  const offset = (machine.rng() + machine.rng() - 1) * LANDING.scatter;
-  const x = Math.min(FIELD.width - R, Math.max(R, from + offset));
-  const y = LANDING.from + machine.rng() * (LANDING.to - LANDING.from);
-  machine.falling.push({ id: machine.nextId++, x, y, level: 1, fromX: from, fromY: RELEASE.depth, rank: 0, ball: false, remaining: FALL_TIME, duration: FALL_TIME, source: 'player' });
+  aimArms(machine, aimX);
+  machine.rolling.push({ id: machine.nextId++, arm: armFor(machine.aim), remaining: ROLL_TIME });
   machine.cooldown = DROP_INTERVAL;
   return true;
 }
@@ -548,9 +608,9 @@ export function buildTowers(machine: Machine, medals: number): void {
   machine.payoutQueue += medals - stacked;
 }
 
-/** Every medal the field holds: lying, stacked, still to be stacked, in the air, or waiting to be thrown on. Balls are not medals. */
+/** Every medal the field holds: lying, stacked, still to be stacked, on an arm, in the air, or waiting to be thrown on. Balls are not medals. */
 export function medalsOnField(machine: Machine): number {
-  let count = machine.payoutQueue;
+  let count = machine.payoutQueue + machine.rolling.length;
   for (const medal of machine.falling) if (!medal.ball) count += 1;
   for (const medal of machine.medals) if (!medal.ball) count += medal.stack + medal.grow;
   return count;
@@ -651,7 +711,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     machine.towerClock = 0;
   }
 
-  // Medals in the air come down: from the chute onto the pusher, off a tower onto the lower table.
+  // Medals in the air come down: off an arm or down the back panel onto the pusher, off a tower onto the lower table.
   if (machine.falling.length > 0) {
     const stillFalling: FallingMedal[] = [];
     for (const medal of machine.falling) {
@@ -671,6 +731,30 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
       }
     }
     machine.falling = stillFalling;
+  }
+
+  // Medals on the arms roll on. One that gets to the tip drops off where its arm is pointing now, and
+  // only now is it settled where it will land: a little to one side of that. From here it is a medal
+  // in the air like any other. `remaining` has run that far past zero, and its fall is that much
+  // shorter, so it lands a fall's length after the moment it left, however long the step. A roll
+  // that ends within a billionth of a second of the step's end, either way, ends with the step.
+  if (machine.rolling.length > 0) {
+    const stillRolling: RollingMedal[] = [];
+    for (const medal of machine.rolling) {
+      medal.remaining -= dt;
+      if (medal.remaining > 1e-9) {
+        stillRolling.push(medal);
+        continue;
+      }
+      const from = tipOf(medal.arm, machine.aim);
+      // Two draws make the scatter bunch around the aim instead of spreading evenly.
+      const offset = (machine.rng() + machine.rng() - 1) * LANDING.scatter;
+      const x = Math.min(FIELD.width - R, Math.max(R, from + offset));
+      const y = LANDING.from + machine.rng() * (LANDING.to - LANDING.from);
+      const remaining = medal.remaining < -1e-9 ? FALL_TIME + medal.remaining : FALL_TIME;
+      machine.falling.push({ id: medal.id, x, y, level: 1, fromX: from, fromY: RELEASE.depth, rank: 0, ball: false, remaining, duration: FALL_TIME, source: 'player' });
+    }
+    machine.rolling = stillRolling;
   }
 
   // The pusher carries what lies on it; the walls and its front face hold their ground.

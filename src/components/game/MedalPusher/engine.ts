@@ -54,6 +54,15 @@ export const DROP_INTERVAL = 0.18;
 
 /** The chuckers: a medal that lands within `halfWidth` of one starts the slot on the screen. */
 export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.4 } as const;
+/**
+ * The chuckers do not stand still. They sweep from side to side together:
+ * `amplitude` to either side of the positions above, there and back once
+ * every `period` seconds, and a medal has to come down where one is by then.
+ * A player who follows a chucker sends about a fifth of the medals through
+ * it: that share is set by `halfWidth` and the scatter alone. The sweep
+ * decides how much less an aim that stays put gets.
+ */
+export const SWEEP = { amplitude: 7, period: 6 } as const;
 
 /**
  * Payout medals are thrown onto the pusher across this band, a few per second;
@@ -198,9 +207,20 @@ export function pusherFront(time: number): number {
   return PUSHER.min + (PUSHER.max - PUSHER.min) * phase;
 }
 
-/** The chucker a medal landing at `x` falls into, or −1. */
-export function checkerAt(x: number): number {
-  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
+/** How far to the right of the middle of their sweep the chuckers stand at a given time: a smooth swing that starts in the middle. */
+export function checkerShift(time: number): number {
+  return SWEEP.amplitude * Math.sin((2 * Math.PI * time) / SWEEP.period);
+}
+
+/** Where the centre of each chucker is at a given time. */
+export function checkerCentres(time: number): number[] {
+  const shift = checkerShift(time);
+  return CHECKERS.positions.map((center) => center + shift);
+}
+
+/** The chucker a medal landing at `x` at `time` falls into, or −1. */
+export function checkerAt(x: number, time: number): number {
+  return checkerCentres(time).findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
 }
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
@@ -645,7 +665,8 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
       machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
       events.landed++;
       if (medal.source === 'player') {
-        const checker = checkerAt(medal.x);
+        // The chuckers are where they were when it touched down: `remaining` has run that far past zero.
+        const checker = checkerAt(medal.x, machine.time + medal.remaining);
         if (checker >= 0) events.checkers.push(checker);
       }
     }

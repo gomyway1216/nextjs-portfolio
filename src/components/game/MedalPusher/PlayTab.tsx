@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, FIELD, clampAim } from './engine';
+import { AIM, FIELD, aimArms, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
@@ -157,6 +157,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     startFresh.current = false;
     const session = remembered ?? createSession(seed);
     sessionRef.current = session;
+    // A machine that is remembered has its arms where they were left, and the aim goes back there with them.
+    if (remembered) {
+      live.current.aim = remembered.machine.aim;
+      setAim(remembered.machine.aim);
+    }
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
@@ -236,6 +241,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         }
       }
 
+      // The arms follow the aim, so a medal on a rail drops where the aim is when it gets to the tip.
+      aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);
 

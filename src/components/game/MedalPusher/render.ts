@@ -1,11 +1,13 @@
 /**
- * Draws the field on a canvas: the back panel with its gates, the pusher, the
- * two tables of medals, the open sides and the tray at the front, and over
- * them the lights, sparks and glass of an arcade cabinet. Nothing here decides
- * anything — it only shows the machine the engine is running.
+ * Draws the field on a canvas: the back panel with its gates and the two feed
+ * arms, the pusher, the two tables of medals, the open sides and the tray at
+ * the front, and over them the lights, sparks and glass of an arcade cabinet.
+ * Nothing here decides anything — it only shows the machine the engine is
+ * running.
  */
 
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, SETTLE, checkerCentres, pusherFront, type Machine, type Medal } from './engine';
+import { ARMS, armCollar, armGoal, armRest, armTip, letGoAt, rollingSpot, swing } from './arms';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, checkerCentres, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import { HEIGHT, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -25,7 +27,10 @@ const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
 const RIDE = 1.4;
 /** Seconds a gate, the tray or a side stays lit after a medal passes. */
 const GLOW_TIME = 0.5;
-const RELEASE_HEIGHT = RELEASE.height;
+/** How round a medal standing on its edge with its face to the player looks: its height on the drawing over its width. */
+const UPRIGHT = rise(project(0, 0, 0)) / project(0, 0, 0).scale;
+/** A feed arm's rail: the room left over a medal's head, how far its track runs on behind the collar, and how big the collar is. */
+const RAIL = { headroom: 0.7, tail: 2, collar: 3.4 } as const;
 /** A prize ball is drawn this large. It overhangs the flat medals round it, so it touches them over less. */
 const BALL_RADIUS = 4.3;
 /** How far a gate's opening reaches up the back panel. */
@@ -93,6 +98,9 @@ export interface Stage {
   /** Medals won since the last count floated up, and the seconds since then. */
   tally: number;
   tallyAge: number;
+  /** Where across the field each arm's tip is drawn, and where it is swinging to; no goal until the machine has been looked at. */
+  arms: [number, number];
+  armGoals: [number, number] | null;
   /** Seconds each light has left to shine. */
   gateGlow: number[];
   trayGlow: number;
@@ -335,6 +343,20 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
       g.fill();
     }
   }
+  // The brackets the feed arms hang from, one in each upper corner. The arms themselves move, so every frame draws them.
+  for (const arm of [0, 1] as const) {
+    const collar = armCollar(arm);
+    const hub = project(collar.x, collar.height, 0);
+    const half = 2.6 * hub.scale;
+    const plate = g.createLinearGradient(hub.x - half, 0, hub.x + half, 0);
+    plate.addColorStop(0, '#39416a');
+    plate.addColorStop(0.5, '#8d97b8');
+    plate.addColorStop(1, '#2a3154');
+    g.fillStyle = 'rgba(8, 2, 30, 0.45)';
+    g.fillRect(hub.x - half + 3, -4, half * 2, hub.y + 9);
+    g.fillStyle = plate;
+    g.fillRect(hub.x - half, -4, half * 2, hub.y + 4);
+  }
   // The gates and the sign over each are not here: they move, so every frame draws them where they are.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -452,6 +474,8 @@ export function createStage(ratio: number): Stage {
     popups: [],
     tally: 0,
     tallyAge: 0,
+    arms: [armRest(0), armRest(1)],
+    armGoals: null,
     gateGlow: CHECKERS.positions.map(() => 0),
     trayGlow: 0,
     sideGlow: [0, 0],
@@ -526,11 +550,19 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
   }
   stage.seen = present;
   stage.tally += won;
+  // Where the arms belong now. A stage that has not seen the machine before finds them already there.
+  const goals: [number, number] = [armGoal(machine, 0), armGoal(machine, 1)];
+  if (!stage.armGoals) stage.arms = [goals[0], goals[1]];
+  stage.armGoals = goals;
 }
 
-/** Ages the lights, the sparks and whatever is on its way out. `calm` leaves the confetti out. */
+/** Ages the lights, the sparks and whatever is on its way out, and swings the arms. `calm` leaves the confetti and the swing out. */
 export function ageStage(stage: Stage, dt: number, calm = false): void {
   stage.clock += dt;
+  // An arm swings to where it belongs. One that follows the aim keeps up with it; without motion it is simply there.
+  if (stage.armGoals) {
+    for (const arm of [0, 1] as const) stage.arms[arm] = calm ? stage.armGoals[arm] : swing(stage.arms[arm], stage.armGoals[arm], dt);
+  }
   for (const exit of stage.exits) exit.age += dt;
   if (stage.exits.length > 0 && stage.exits[0].age >= EXIT_TIME) stage.exits = stage.exits.filter((exit) => exit.age < EXIT_TIME);
   for (let i = 0; i < stage.gateGlow.length; i++) stage.gateGlow[i] = Math.max(0, stage.gateGlow[i] - dt);
@@ -774,6 +806,136 @@ function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, coun
   g.globalAlpha = 1;
 }
 
+/**
+ * One feed arm, its tip where the stage has it: a rail of clear acrylic between
+ * the track the medals run on and a guide over their heads, the hood at the tip
+ * that turns a medal down, the medals on their way, and the collar the rail
+ * slides through. `lit` is how bright its neon is, from 0 to 1.
+ */
+function drawArm(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, arm: Arm, lit: number, shift: number): void {
+  const k = stage.ratio;
+  const from = armCollar(arm);
+  const to = armTip(arm, stage.arms[arm]);
+  const length = Math.hypot(to.x - from.x, to.height - from.height);
+  // One unit along the rail, and one square to it on the side a medal rests on, both in the plane the arm hangs in.
+  const along = { x: (to.x - from.x) / length, height: (to.height - from.height) / length };
+  const side = arm === 0 ? 1 : -1;
+  const under = { x: along.height * side, height: -along.x * side };
+  /** The point `far` along the rail from the collar, and `below` the line a medal's middle runs on. */
+  const at = (far: number, below: number): Projected =>
+    project(from.x + along.x * far + under.x * below, from.height + along.height * far + under.height * below, ARMS.depth);
+  const head = -(R + RAIL.headroom);
+  const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
+  flat();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+
+  // The shadow it throws on the back panel.
+  const shadow = [at(RAIL.collar, R), at(length, R)];
+  g.strokeStyle = 'rgba(6, 2, 26, 0.32)';
+  g.lineWidth = 7;
+  g.beginPath();
+  g.moveTo(shadow[0].x + 4, shadow[0].y + 7);
+  g.lineTo(shadow[1].x + 4, shadow[1].y + 7);
+  g.stroke();
+
+  // The acrylic, with an arrowhead on it every so often that points down the rail. They are part of the rail, so they slide with it.
+  g.fillStyle = `rgba(150, 232, 255, ${0.07 + 0.07 * lit})`;
+  path(g, [at(0, head), at(length, head), at(length, R), at(0, R)]);
+  g.fill();
+  g.strokeStyle = `rgba(200, 244, 255, ${0.16 + 0.16 * lit})`;
+  g.lineWidth = 1.4;
+  const middle = (head + R) / 2;
+  for (let far = length - 5; far > RAIL.collar + 2; far -= 8) {
+    const points = [at(far - 1.5, middle - 2), at(far, middle), at(far - 1.5, middle + 2)];
+    g.beginPath();
+    g.moveTo(points[0].x, points[0].y);
+    g.lineTo(points[1].x, points[1].y);
+    g.lineTo(points[2].x, points[2].y);
+    g.stroke();
+  }
+
+  /** The track, and the guide with the hood it ends in: a quarter turn and a little more round the tip. */
+  const rails = () => {
+    const start = at(-RAIL.tail, R);
+    const end = at(length - 0.4, R);
+    g.beginPath();
+    g.moveTo(start.x, start.y);
+    g.lineTo(end.x, end.y);
+    const guide = at(-RAIL.tail, head);
+    g.moveTo(guide.x, guide.y);
+    for (let turn = 0; turn <= 100; turn += 10) {
+      const angle = (turn * Math.PI) / 180;
+      const point = at(length - Math.sin(angle) * head, Math.cos(angle) * head);
+      g.lineTo(point.x, point.y);
+    }
+  };
+  g.strokeStyle = `rgba(64, 226, 255, ${0.1 + 0.3 * lit})`;
+  g.lineWidth = 8;
+  rails();
+  g.stroke();
+  g.strokeStyle = lit > 0.5 ? '#ecfcff' : '#9fb6cc';
+  g.lineWidth = 2.4;
+  rails();
+  g.stroke();
+
+  // The medals on their way down, each turned as far as it has rolled. It gets to the tip the way round it will lie.
+  const arrives = rollingSpot(arm, stage.arms[arm], 0).turned;
+  for (const medal of machine.rolling) {
+    if (medal.arm !== arm) continue;
+    const spot = rollingSpot(arm, stage.arms[arm], medal.remaining);
+    const point = project(spot.x, spot.height, spot.depth);
+    // Its far rim shows over the top of its face.
+    const rim = project(spot.x, spot.height, spot.depth - T);
+    flat();
+    g.fillStyle = '#8a5a08';
+    g.beginPath();
+    g.ellipse(rim.x, rim.y, R * rim.scale, R * rim.scale * UPRIGHT, 0, 0, TAU);
+    g.fill();
+    stamp(g, stage, point, UPRIGHT, turnOf(medal.id) + spot.turned - arrives, shift);
+  }
+  flat();
+
+  // A streak of light along the acrylic in front of them.
+  g.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  path(g, [at(RAIL.collar, head * 0.78), at(length - 1, head * 0.78), at(length - 1, head * 0.42), at(RAIL.collar, head * 0.42)]);
+  g.fill();
+
+  // The collar, over the end of the rail and over a medal that has only just gone in.
+  const hub = project(from.x, from.height, from.depth);
+  const radius = RAIL.collar * hub.scale;
+  const round = (share: number) => {
+    g.beginPath();
+    g.ellipse(hub.x, hub.y, radius * share, radius * share * UPRIGHT, 0, 0, TAU);
+  };
+  g.fillStyle = 'rgba(6, 2, 26, 0.5)';
+  g.beginPath();
+  g.ellipse(hub.x + 3, hub.y + 5, radius, radius * UPRIGHT, 0, 0, TAU);
+  g.fill();
+  const chrome = g.createRadialGradient(hub.x - radius * 0.35, hub.y - radius * 0.35, radius * 0.1, hub.x, hub.y, radius);
+  chrome.addColorStop(0, '#ffffff');
+  chrome.addColorStop(0.45, '#aab4d0');
+  chrome.addColorStop(1, '#343c5e');
+  g.fillStyle = chrome;
+  round(1);
+  g.fill();
+  g.strokeStyle = '#232a48';
+  g.lineWidth = 1.2;
+  g.stroke();
+  g.strokeStyle = `rgba(64, 226, 255, ${0.2 + 0.8 * lit})`;
+  g.lineWidth = 2.4;
+  round(0.68);
+  g.stroke();
+  // The bolt it turns on.
+  g.fillStyle = '#e6ebf7';
+  round(0.3);
+  g.fill();
+  g.strokeStyle = '#3a4266';
+  g.lineWidth = 1.4;
+  g.stroke();
+  line(g, at(-0.7, 0), at(0.7, 0));
+}
+
 export interface DrawOptions {
   /** Where the next medal would be let go. */
   aim: number;
@@ -904,10 +1066,10 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     flat();
   });
 
-  // Where the next medal will be let go, and how far from that it can land.
+  // Where a medal that leaves its arm now is let go, and how far from that it can land.
   const aim = options.aim;
   if (options.showGuide) {
-    const tip = project(aim, RELEASE_HEIGHT, 0);
+    const tip = project(aim, ARMS.tip, 0);
     const left = project(Math.max(R, aim - LANDING.scatter), P, 0);
     const right = project(Math.min(W - R, aim + LANDING.scatter), P, 0);
     const spread = g.createLinearGradient(0, tip.y, 0, left.y);
@@ -917,24 +1079,15 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     path(g, [tip, right, left]);
     g.fill();
   }
-  const chute = [
-    project(aim - 5, HEIGHT.wall + 2, 0),
-    project(aim + 5, HEIGHT.wall + 2, 0),
-    project(aim + 2.8, RELEASE_HEIGHT, 0),
-    project(aim - 2.8, RELEASE_HEIGHT, 0),
-  ];
-  const chrome = g.createLinearGradient(chute[0].x, 0, chute[1].x, 0);
-  chrome.addColorStop(0, '#8d97b3');
-  chrome.addColorStop(0.5, '#f4f7fd');
-  chrome.addColorStop(1, '#8d97b3');
-  g.fillStyle = chrome;
-  path(g, chute);
-  g.fill();
-  g.strokeStyle = '#2b3350';
-  g.lineWidth = 1.5;
-  g.stroke();
 
-  // Medals in the air: down the back panel from the chute, or off a tower that is going over.
+  // The feed arms, each with the medals on its rail. The one that takes the next medal, and one with a medal on it, are lit.
+  for (const arm of [0, 1] as const) {
+    const busy = armFor(aim) === arm || machine.rolling.some((medal) => medal.arm === arm);
+    drawArm(g, stage, machine, arm, busy ? 1 : 0.2, shake);
+  }
+  flat();
+
+  // Medals in the air: off an arm's tip, down the back panel, or off a tower that is going over.
   for (const medal of machine.falling) {
     const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
     if (medal.source === 'spill') {
@@ -943,17 +1096,20 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
       stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake);
       continue;
     }
-    // Let go at the chute, it falls faster and faster, turning over as it comes, and lands flat.
+    // Let go, it falls faster and faster, turning over as it comes, and lands flat.
+    const offArm = medal.source === 'player';
     const x = medal.fromX + (medal.x - medal.fromX) * t;
-    const height = P + (RELEASE_HEIGHT - P) * (1 - t * t);
+    const height = P + (letGoAt(medal) - P) * (1 - t * t);
     const depth = medal.fromY + (medal.y - medal.fromY) * t;
     if (medal.ball) {
       drawBall(g, stage, x, height, depth, false, shake);
       continue;
     }
-    const point = project(x, height + T + T + RIDE * 0.5, depth);
-    // Two and a half turns on the way down, ending face up.
-    const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * 0.6));
+    // It is drawn where it will lie once it is down, on top of the pile. One off an arm starts where its rail left it.
+    const point = project(x, height + (T + T + RIDE * 0.5) * (offArm ? t : 1), depth);
+    // Two and a half turns on the way down, ending face up. One off an arm starts them standing on its edge, as it rolled.
+    const lean = offArm ? Math.asin((UPRIGHT - 0.14) / 0.78) : 0.6;
+    const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * lean));
     const landing = smooth(Math.max(0, (t - 0.8) / 0.2));
     const tilt = (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing;
     stamp(g, stage, point, tilt, turnOf(medal.id), shake);

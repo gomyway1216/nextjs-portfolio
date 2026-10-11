@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PlayTab } from '@/components/game/MedalPusher/PlayTab';
+import { PlayTab, RESET_WINDOW, confirmsReset } from '@/components/game/MedalPusher/PlayTab';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import { JACKPOT_START } from '@/components/game/MedalPusher/lottery';
 import { START_CREDITS, createSession, insert } from '@/components/game/MedalPusher/session';
@@ -16,12 +16,52 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('the second press of Reset', () => {
+  const first = 1_700_000_000_000;
+  const window = RESET_WINDOW * 1000;
+
+  it('counts from the moment of the first press until the window closes, and not at the instant it closes', () => {
+    expect(confirmsReset(first, first)).toBe(true);
+    expect(confirmsReset(first, first + 1)).toBe(true);
+    expect(confirmsReset(first, first + window - 1)).toBe(true);
+    expect(confirmsReset(first, first + window)).toBe(false);
+  });
+
+  it('does not count when it comes late, however late the label went back', () => {
+    expect(confirmsReset(first, first + window + 1)).toBe(false);
+    expect(confirmsReset(first, first + 60 * 60 * 1000)).toBe(false);
+  });
+
+  it('does not count with no first press, or when the clock has gone backwards', () => {
+    expect(confirmsReset(null, first)).toBe(false);
+    expect(confirmsReset(first, first - 1)).toBe(false);
+    expect(confirmsReset(first, first - 24 * 60 * 60 * 1000)).toBe(false);
+  });
+
+  it('waits a few seconds, long enough to press twice without hurry', () => {
+    expect(RESET_WINDOW).toBeGreaterThanOrEqual(3);
+    expect(RESET_WINDOW).toBeLessThanOrEqual(10);
+  });
+});
+
 describe('the cabinet and its save', () => {
   it('offers a reset that is not armed, and says the machine is kept on this device', () => {
     const html = render(<PlayTab />);
     expect(html).toMatch(/<button[^>]*data-armed="false"[^>]*data-testid="pusher-reset"[^>]*>Reset the machine<\/button>/);
     expect(html).toContain('This machine is saved on this device.');
     expect(html).not.toContain('Press again to reset');
+    // Until a save has been tried, the note is the one the server sent: the page cannot know better yet.
+    expect(html).toMatch(/<p[^>]*data-saved="true"[^>]*data-testid="pusher-saved"[^>]*>This machine is saved on this device\./);
+    expect(html).not.toContain('could not be saved');
+  });
+
+  it('has words for a machine that could not be saved, in both languages', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    expect(en.unsavedNote).toContain('could not be saved');
+    expect(ja.unsavedNote).toContain('保存できませんでした');
+    expect(en.unsavedNote).not.toBe(en.savedNote);
+    expect(ja.unsavedNote).not.toBe(ja.savedNote);
   });
 
   it('says so in Japanese', () => {

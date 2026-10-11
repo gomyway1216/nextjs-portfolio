@@ -63,6 +63,7 @@ export interface PusherStrings {
   savedNote: string;
   sayReset: (medals: number) => string;
   sayResetOff: string;
+  unsavedNote: string;
   // Announcements for screen readers
   saySugorokuStart: (digits: string) => string;
   saySugoroku: (medals: number) => string;
@@ -249,6 +250,7 @@ const en: PusherStrings = {
   savedNote: 'This machine is saved on this device. Your medals, the jackpot and the field are as you left them when you come back.',
   sayReset: (medals) => `The machine has been reset. You have ${medals} medals.`,
   sayResetOff: 'Reset cancelled.',
+  unsavedNote: 'This machine could not be saved on this device: the browser is blocking storage, or it is full. It will start again when the page is reloaded.',
   saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
@@ -470,6 +472,7 @@ const ja: PusherStrings = {
   savedNote: 'メダルはこの端末に預けてあります。次に来たときも、メダル・ジャックポット・フィールドはそのまま残っています。',
   sayReset: (medals) => `マシンをリセットしました。メダルは${medals}枚です。`,
   sayResetOff: 'リセットを取り消しました。',
+  unsavedNote: 'この端末には保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。ページを読み込み直すと、マシンは最初からになります。',
   saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,

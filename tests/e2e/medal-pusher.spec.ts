@@ -113,6 +113,7 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
 
   // The machine is saved every few seconds: wait for a save that has these medals in it.
   await expect.poll(async () => (await savedMachine(page))?.inserted ?? -1, { timeout: 20_000 }).toBe(dropped);
+  await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
 
   await page.reload();
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
@@ -133,6 +134,25 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   await expect(machine(page).getByTestId('pusher-announcement')).toContainText('has been reset');
   await expect.poll(async () => (await savedMachine(page))?.inserted ?? 0, { timeout: 20_000 }).toBe(0);
+});
+
+test('the note says so when the browser will not keep the machine', async ({ page }) => {
+  // Writing this game's save fails, as it does when storage is full or blocked. Nothing else on the site is touched.
+  await page.addInitScript((key) => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (this: Storage, name: string, value: string) {
+      if (name === key) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      write.call(this, name, value);
+    };
+  }, STORAGE_KEY);
+  await openGame(page);
+  const note = machine(page).getByTestId('pusher-saved');
+  await expect(note).toHaveAttribute('data-saved', 'false');
+  await expect(note).toContainText('could not be saved');
+  // The game itself goes on.
+  await dropOne(page);
+  await expectPurseToBalance(page);
+  expect(await savedMachine(page)).toBeNull();
 });
 
 test('clicking the field aims there and drops a medal', async ({ page }) => {

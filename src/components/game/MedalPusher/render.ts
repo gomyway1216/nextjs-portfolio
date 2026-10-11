@@ -5,7 +5,7 @@
  * anything — it only shows the machine the engine is running.
  */
 
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, pusherFront, type Machine, type Medal } from './engine';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, SETTLE, pusherFront, type Machine, type Medal } from './engine';
 import { HEIGHT, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -21,10 +21,7 @@ const LIP_FALL = 0.18;
 const EXIT_TIME = 0.6;
 /** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
 const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
-/**
- * How high a medal that has just landed rides above the pile. It is drawn full size, lying on the
- * medals round it, and comes down as they make room: its size never changes, only the room it has.
- */
+/** How much higher than the pile a medal that has just come down is drawn, before it has come to rest. */
 const RIDE = 1.4;
 /** Seconds a gate, the tray or a side stays lit after a medal passes. */
 const GLOW_TIME = 0.5;
@@ -669,9 +666,22 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
 }
 
 /**
- * A table's medals: the shadows they throw, the medals lying in the pile, the
- * ones that have just landed on top of it, and last whatever stands above
- * them all — towers and balls.
+ * How far above a medal lying settled on the table this one's face is drawn.
+ * One on top of the pile is a medal's thickness higher. One that has just come
+ * down is a little higher still, and one dropping into a gap comes down from
+ * the top of the pile as it makes room for itself.
+ */
+function liftOf(medal: Medal): number {
+  const settling = medal.grown < 1 ? 1 - (medal.grown - SETTLE.from) / (1 - SETTLE.from) : 0;
+  return medal.tier === 1 ? T + settling * RIDE * 0.5 : settling * T;
+}
+
+/**
+ * A table's medals, from the table up: the lower tier with the shadows it
+ * throws, the medals dropping into it, the upper tier with the shadows it
+ * throws on the lower, and last whatever stands above them all — towers and
+ * balls. Within a tier every rim is one fill, then the faces from the back
+ * forward.
  */
 function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], base: number, shift: number): void {
   if (medals.length === 0) return;
@@ -682,51 +692,56 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     // A medal that has just come over the lip is still on its way down to the lower table.
     const drop = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
     drops.push(drop);
-    points.push(medal.ball ? null : project(medal.x, base + drop + T + (1 - medal.grown) * RIDE, medal.y));
+    points.push(medal.ball ? null : project(medal.x, base + drop + T + liftOf(medal), medal.y));
   }
-  g.setTransform(k, 0, 0, k, shift * k, 0);
-  g.fillStyle = 'rgba(0, 4, 18, 0.34)';
-  g.beginPath();
-  for (const point of points) {
-    if (!point) continue;
-    const rx = R * point.scale * 1.06;
-    const thickness = T * rise(point);
-    g.moveTo(point.x + rx * 1.12, point.y + thickness * 1.9);
-    g.ellipse(point.x + rx * 0.12, point.y + thickness * 1.9, rx, rx * point.tilt, 0, 0, TAU);
-  }
-  g.fill();
-  // The medals lying in the pile: every rim in one fill, then the faces from the back forward.
-  g.fillStyle = '#8a5a08';
-  g.beginPath();
-  for (let i = 0; i < medals.length; i++) {
-    const point = points[i];
-    if (!point || medals[i].grown < 1) continue;
-    const rx = R * point.scale;
-    const thickness = T * rise(point);
-    g.moveTo(point.x + rx, point.y + thickness);
-    g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
-    g.rect(point.x - rx, point.y, rx * 2, thickness);
-  }
-  g.fill();
-  for (let i = 0; i < medals.length; i++) {
-    const point = points[i];
-    if (point && medals[i].grown >= 1) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
-  }
-  // A medal that has just landed lies on top of them until it has worked its way in,
-  // so it is drawn over its neighbours whichever of them is nearer, rim and face together.
-  for (let i = 0; i < medals.length; i++) {
-    const point = points[i];
-    if (!point || medals[i].grown >= 1) continue;
-    const rx = R * point.scale;
-    const thickness = T * rise(point);
-    g.setTransform(k, 0, 0, k, shift * k, 0);
+  const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
+
+  /** The shadows the chosen medals throw: `reach` says how far down and across, in thicknesses of a medal. */
+  const shadows = (chosen: (medal: Medal) => boolean, reach: number, shade: string) => {
+    flat();
+    g.fillStyle = shade;
+    g.beginPath();
+    for (let i = 0; i < medals.length; i++) {
+      const point = points[i];
+      if (!point || !chosen(medals[i])) continue;
+      const rx = R * point.scale * 1.06;
+      const thickness = T * rise(point);
+      g.moveTo(point.x + rx * 1.12, point.y + thickness * reach);
+      g.ellipse(point.x + rx * 0.12, point.y + thickness * reach, rx, rx * point.tilt, 0, 0, TAU);
+    }
+    g.fill();
+  };
+  /** The chosen medals themselves: rims, then faces. */
+  const pile = (chosen: (medal: Medal) => boolean) => {
+    flat();
     g.fillStyle = '#8a5a08';
     g.beginPath();
-    g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
-    g.rect(point.x - rx, point.y, rx * 2, thickness);
+    for (let i = 0; i < medals.length; i++) {
+      const point = points[i];
+      if (!point || !chosen(medals[i])) continue;
+      const rx = R * point.scale;
+      const thickness = T * rise(point);
+      g.moveTo(point.x + rx, point.y + thickness);
+      g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
+      g.rect(point.x - rx, point.y, rx * 2, thickness);
+    }
     g.fill();
-    stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
-  }
+    for (let i = 0; i < medals.length; i++) {
+      const point = points[i];
+      if (point && chosen(medals[i])) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+    }
+  };
+
+  const lying = (medal: Medal) => medal.tier === 0 && medal.grown >= 1;
+  const dropping = (medal: Medal) => medal.tier === 0 && medal.grown < 1;
+  const onTop = (medal: Medal) => medal.tier === 1;
+  shadows(lying, 1.9, 'rgba(0, 4, 18, 0.34)');
+  pile(lying);
+  // A medal on its way into the lower tier is still above its neighbours, so it is drawn over them.
+  pile(dropping);
+  // The upper tier throws its shadow on the medals it lies on.
+  shadows(onTop, 2.2, 'rgba(20, 10, 0, 0.42)');
+  pile(onTop);
   for (let i = 0; i < medals.length; i++) {
     const medal = medals[i];
     if (medal.ball) drawBall(g, stage, medal.x, base + drops[i], medal.y, drops[i] === 0, shift);
@@ -936,7 +951,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
       drawBall(g, stage, x, height, depth, false, shake);
       continue;
     }
-    const point = project(x, height + T + RIDE * 0.7, depth);
+    const point = project(x, height + T + T + RIDE * 0.5, depth);
     // Two and a half turns on the way down, ending face up.
     const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * 0.6));
     const landing = smooth(Math.max(0, (t - 0.8) / 0.2));

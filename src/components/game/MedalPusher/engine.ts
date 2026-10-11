@@ -53,7 +53,7 @@ export const FALL_TIME = 0.45;
 export const DROP_INTERVAL = 0.18;
 
 /** The chuckers: a medal that lands within `halfWidth` of one starts the slot on the screen. */
-export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.4 } as const;
+export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.2 } as const;
 /**
  * The chuckers do not stand still. They sweep from side to side together:
  * `amplitude` to either side of the positions above, there and back once

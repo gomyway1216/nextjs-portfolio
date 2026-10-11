@@ -39,8 +39,8 @@ import styles from './MedalPusher.module.css';
 const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
 /** Jackpot sizes the value table is worked out for. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
-/** What the calculator starts from: about what aiming at a gate measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 79, spins: 20 } as const;
+/** What the calculator starts from: about what following a gate at two medals a second measures on the Simulation tab. */
+export const CALC_DEFAULT = { front: 80, spins: 19 } as const;
 
 /** Rolls after which the Odds tab shows how even the board has become. */
 export const BOARD_ROLLS = 6;
@@ -372,7 +372,7 @@ export const OddsTab = () => {
             {needed <= 1 ? t.calcBreakEven(percent(Math.max(0, needed), 0)) : t.calcNever}
           </p>
         </div>
-        <p className={styles.note}>{t.calcNote}</p>
+        <p className={styles.note}>{t.calcNote(MAX_STOCK)}</p>
       </section>
     </div>
   );

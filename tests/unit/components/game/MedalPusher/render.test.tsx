@@ -8,7 +8,7 @@ import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { IDLE_DIGITS, Screen, bannerText, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { FIELD, PUSHER } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, LANDING, PUSHER, SWEEP } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -24,7 +24,7 @@ import {
   sugorokuSquare,
   type ScreenState,
 } from '@/components/game/MedalPusher/screen';
-import { START_CREDITS, TIMING, createSession, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
+import { MAX_STOCK, START_CREDITS, TIMING, createSession, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
 import { HEIGHT, VIEW, project, rise, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
@@ -219,9 +219,51 @@ describe('strings', () => {
     expect(Object.keys(en.partName).sort()).toEqual([...PART_IDS].sort());
     expect(Object.keys(ja.partText).sort()).toEqual([...PART_IDS].sort());
     expect(Object.keys(en.aimName).sort()).toEqual([...AIM_IDS].sort());
-    expect(en.infoBody).toHaveLength(ja.infoBody.length);
-    expect(en.simNotes('1.08')).toHaveLength(ja.simNotes('1.08').length);
+    expect(en.infoBody(MAX_STOCK)).toHaveLength(ja.infoBody(MAX_STOCK).length);
+    expect(en.simNotes('1.08', MAX_STOCK)).toHaveLength(ja.simNotes('1.08', MAX_STOCK).length);
     expect(en.edgeBody).toHaveLength(ja.edgeBody.length);
+  });
+
+  it('takes the size of the hold from the machine wherever it is mentioned', () => {
+    for (const language of ['en', 'ja'] as const) {
+      const t = getStrings(language);
+      const held = language === 'ja' ? (n: number) => `${n}回分` : (n: number) => `${n} spins`;
+      // Each of these says how many spins are held, and says whatever number it is given.
+      const texts = (n: number) => [t.infoBody(n).join(' '), t.simNotes('1.08', n).join(' '), t.calcNote(n)];
+      for (const text of texts(MAX_STOCK)) expect(text).toContain(held(MAX_STOCK));
+      for (const text of texts(11)) {
+        expect(text).toContain(held(11));
+        expect(text).not.toContain(held(MAX_STOCK));
+      }
+      expect(t.slotIntro(11).match(/11/g)).toHaveLength(2);
+      expect(t.stockAria(3, MAX_STOCK)).toContain(String(MAX_STOCK));
+    }
+    // Nothing is left over from the hold of four, in a string or in the source of one that is worked out.
+    const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
+    const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
+    expect(everything).not.toMatch(/four spins|4回分/);
+  });
+
+  it('describes the gates as the engine moves them', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    // The field is 100 wide, so a distance across it is a percentage of its width.
+    expect(FIELD.width).toBe(100);
+    expect(en.partText.gates).toContain(`${SWEEP.amplitude}% of the width each way`);
+    expect(en.partText.gates).toContain(`every ${SWEEP.period} seconds`);
+    expect(ja.partText.gates).toContain(`幅の${SWEEP.amplitude}%ずつ`);
+    expect(ja.partText.gates).toContain(`${SWEEP.period}秒で1往復`);
+    expect(en.infoBody(MAX_STOCK).join(' ')).toContain('sweep from side to side');
+    expect(ja.infoBody(MAX_STOCK).join(' ')).toContain('左右に動き続けて');
+    // The calculator's note quotes the share of followed medals that come through a gate: exactly this, from the scatter.
+    const through = 1 - (1 - CHECKERS.halfWidth / LANDING.scatter) ** 2;
+    expect(en.calcNote(MAX_STOCK)).toContain(`about ${Math.round(through * 100)}% start a spin`);
+    expect(ja.calcNote(MAX_STOCK)).toContain(`約${Math.round(through * 100)}%が抽選を始めます`);
+    expect(en.calcNote(MAX_STOCK)).toContain(`about ${CALC_DEFAULT.front}% of medals leave by the front`);
+    expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て`);
+    expect(CALC_DEFAULT.spins).toBe(Math.round(through * 100));
+    expect(en.aimName.centre).toBe('Following the centre gate');
+    expect(ja.aimName.centre).toBe('中央のチャッカーを追う');
   });
 });
 
@@ -245,7 +287,7 @@ describe('the page', () => {
     expect(html).toContain('<canvas');
     expect(html).toContain('aria-label="The field. Click or tap where a medal should drop."');
     expect(html).toContain('aria-valuetext="50% across"');
-    expect(html).toContain('aria-label="0 of 4 spins held"');
+    expect(html).toContain(`aria-label="0 of ${MAX_STOCK} spins held"`);
     expect(html).toContain('>DROP<');
     expect(html).toMatch(/aria-pressed="false"[^>]*data-testid="pusher-auto"|data-testid="pusher-auto"[^>]*aria-pressed="false"/);
     expect(html).toContain('aria-live="polite"');
@@ -379,8 +421,12 @@ describe('the screen', () => {
   it('shows the slot with its reels, the held spins and the legend', () => {
     const html = show(idle, 3);
     expect(html).toContain('data-mode="slot"');
-    expect(html).toContain('aria-label="3 of 4 spins held"');
+    expect(html).toContain('aria-label="3 of 8 spins held"');
     expect(html.match(/data-lit="true"/g)).toHaveLength(3);
+    // One lamp for every spin the machine can hold.
+    expect(html.match(/data-lit="(true|false)"/g)).toHaveLength(MAX_STOCK);
+    expect(show(idle, MAX_STOCK).match(/data-lit="true"/g)).toHaveLength(MAX_STOCK);
+    expect(show(idle, 2, 'ja')).toContain(`aria-label="保留 2／${MAX_STOCK}"`);
     expect(html).toContain('data-hidden="false"');
     expect(html).toContain('7·7·7 ▸ BALL');
     expect(html).not.toContain('pusher-die');

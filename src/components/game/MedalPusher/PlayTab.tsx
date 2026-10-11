@@ -331,9 +331,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
         }
       }
+      // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });
-      else if (lost) playSound('lost', soundOn);
-      else if (landed) playSound('land', soundOn);
+      if (lost) playSound('lost', soundOn);
+      if (landed) playSound('land', soundOn);
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);

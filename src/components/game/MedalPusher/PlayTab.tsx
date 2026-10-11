@@ -4,10 +4,21 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, FIELD, clampAim } from './engine';
 import { getStrings } from './i18n';
-import { CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
-import { IDLE_DIGITS, Screen, stripOffset } from './ScreenPanel';
-import { reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
+import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import {
+  ballSpot,
+  landTimes,
+  reelPositions,
+  reelsFast,
+  reelsWaiting,
+  sameScreen,
+  screenState,
+  stopTimes,
+  stoppedDigits,
+  type ScreenState,
+} from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
@@ -59,6 +70,7 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
+  hole: -1,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -87,6 +99,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
+  const ball = useRef<SVGGElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
   const live = useRef({ aim, auto, sound, active, strings: t });
@@ -198,7 +211,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'spinStart':
             lastSpinClock = 0;
-            if (session.spin && !calm.matches) playSound('spin', soundOn, { stops: stopTimes(session.spin) });
+            // Each reel whirrs until it is heard to stop: an outer one as it lands on its digit, the centre when the spin ends.
+            if (session.spin && !calm.matches) {
+              const lands = landTimes(session.spin);
+              playSound('spin', soundOn, { stops: [lands[0], session.spin.duration, lands[2]] });
+            }
             break;
           case 'spinEnd': {
             digits = event.result.digits;
@@ -238,12 +255,22 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           case 'rouletteStep':
             playSound('pocket', soundOn, { level: event.level });
             playSound('tower', soundOn);
-            setAnnouncement(strings.sayStep(event.medals, event.level));
+            setAnnouncement(event.level >= CHAIN_GOAL ? strings.sayGoal(event.medals, event.level) : strings.sayStep(event.medals, event.level));
             break;
           case 'rouletteEnd':
+            // The run ends here only on a cross; a full run goes on to the bowl.
+            playSound('cross', soundOn);
+            setAnnouncement(strings.sayFinish(event.total));
+            break;
+          case 'bowlStart':
+            playSound('reach', soundOn);
+            break;
+          case 'bowlEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
-            playSound(event.jackpot ? 'jackpot' : 'cross', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.total) : strings.sayFinish(event.total));
+            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
+            playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
+            if (!event.jackpot) playSound('tower', soundOn);
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
             break;
         }
       }
@@ -255,23 +282,39 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       ageStage(stage, elapsed, calm.matches);
       drawField(context, stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
 
-      // The reels act out the spin; without motion they simply change when it is over.
+      // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
       if (spin && !spin.done && !calm.matches) {
         const positions = reelPositions(spin);
+        const fast = reelsFast(spin);
         const stops = stopTimes(spin);
+        const lands = landTimes(spin);
         strips.current.forEach((strip, reel) => {
-          if (strip) strip.style.transform = stripOffset(positions[reel]);
-          if (lastSpinClock < stops[reel] && spin.elapsed >= stops[reel]) playSound('reelStop', soundOn);
+          if (strip) {
+            strip.style.transform = stripOffset(positions[reel]);
+            markStrip(strip, 'fast', fast[reel]);
+            markStrip(strip, 'waiting', false);
+          }
+          // An outer reel is heard as it lands on its digit; the centre's stop is the sound the spin ends with.
+          if (reel !== 1 && lastSpinClock < lands[reel] && spin.elapsed >= lands[reel]) playSound('reelStop', soundOn);
         });
         if (spin.result.reach && lastSpinClock < stops[2] && spin.elapsed >= stops[2]) playSound('reach', soundOn);
         lastSpinClock = spin.elapsed;
       } else {
-        const resting = spin && spin.done ? spin.result.digits : digits;
+        const resting = spin ? stoppedDigits(spin, digits) : digits;
+        const waiting = spin ? reelsWaiting(spin) : null;
         strips.current.forEach((strip, reel) => {
-          if (strip) strip.style.transform = stripOffset(resting[reel] - 1);
+          if (strip) {
+            strip.style.transform = stripOffset(resting[reel] - 1);
+            markStrip(strip, 'fast', false);
+            markStrip(strip, 'waiting', waiting?.[reel] ?? false);
+          }
         });
       }
+
+      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      const bowl = session.roulette?.bowl;
+      if (bowl && ball.current) ball.current.setAttribute('transform', ballTransform(ballSpot(bowl, calm.matches)));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -347,6 +390,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;
   };
+  const registerBall = (element: SVGGElement | null) => {
+    ball.current = element;
+  };
 
   const aimPercent = Math.round(((aim - AIM.min) / (AIM.max - AIM.min)) * 100);
 
@@ -367,7 +413,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </div>
 
-        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} onPick={onPick} />
+        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
 
         <div className={styles.fieldWrap}>
           <canvas

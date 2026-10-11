@@ -1,36 +1,73 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
-import { BOARD_ROLLS, CALC_DEFAULT, JACKPOT_LEVELS, OddsTab, boardSpread, breakEvenSpins, pocketGroups, returnFor } from '@/components/game/MedalPusher/OddsTab';
+import {
+  BOARD_ROLLS,
+  CALC_DEFAULT,
+  JACKPOT_LEVELS,
+  OddsTab,
+  REACH_ROWS,
+  boardSpread,
+  breakEvenSpins,
+  pocketGroups,
+  returnFor,
+} from '@/components/game/MedalPusher/OddsTab';
 import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
-import { IDLE_DIGITS, Screen, bannerText, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
+import { IDLE_DIGITS, Screen, ballTransform, bannerText, markStrip, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { FIELD, PUSHER } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, LANDING, PUSHER, SWEEP } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { BOARD, FEVER_SQUARE, JACKPOT_START, ROULETTE, spinValue } from '@/components/game/MedalPusher/lottery';
+import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
 import {
+  BOWL_SHAPE,
   REEL_DIGITS,
+  SWING,
+  ballSpot,
+  ballTipsAt,
+  bowlBall,
+  holeSpot,
   inReach,
+  landTimes,
   reelPositions,
+  reelsFast,
+  reelsWaiting,
   roulettePocket,
   rouletteSettled,
   sameScreen,
   screenState,
+  settleOffset,
   stopTimes,
+  stoppedDigits,
   sugorokuSquare,
   type ScreenState,
 } from '@/components/game/MedalPusher/screen';
-import { START_CREDITS, TIMING, createSession, sugorokuDuration, type ActiveRoulette, type ActiveSpin } from '@/components/game/MedalPusher/session';
+import {
+  MAX_STOCK,
+  START_CREDITS,
+  TIMING,
+  createSession,
+  reachTime,
+  sugorokuDuration,
+  type ActiveBowl,
+  type ActiveRoulette,
+  type ActiveSpin,
+} from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
 import { HEIGHT, VIEW, project, rise, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
+
+/** The markup of the table with this test id, from its opening tag to its end. */
+const table = (html: string, id: string): string => html.split(`data-testid="${id}"`)[1]?.split('</table>')[0] ?? '';
 
 describe('number formatting', () => {
   it('writes percentages to a fixed number of digits, or tidily', () => {
@@ -92,12 +129,12 @@ describe('the camera', () => {
 });
 
 describe('the reels', () => {
-  const spin = (reach: boolean, elapsed: number, digits: [number, number, number] = [4, 7, 2]): ActiveSpin => ({
-    result: { tier: 'miss', digits, reach },
-    elapsed,
-    duration: TIMING.spin + (reach ? TIMING.reach : 0),
-    done: false,
-  });
+  /** A losing spin `elapsed` seconds in: with no reach, with one, or with a long one. */
+  const spin = (reach: boolean | 'long', elapsed: number, digits: [number, number, number] = [4, 7, 2], plain: number = TIMING.spin): ActiveSpin => {
+    const reachKind = reach === 'long' ? 'long' : reach ? 'normal' : 'none';
+    const result: ActiveSpin['result'] = { tier: 'miss', digits, reach: reach !== false, reachKind };
+    return { result, elapsed, duration: plain + reachTime(result), done: false };
+  };
 
   it('stop left, then right, then centre', () => {
     const [left, centre, right] = stopTimes(spin(false, 0));
@@ -109,6 +146,11 @@ describe('the reels', () => {
     expect(reach[0]).toBeCloseTo(left, 9);
     expect(reach[2]).toBeCloseTo(right, 9);
     expect(reach[1]).toBeCloseTo(TIMING.spin + TIMING.reach, 9);
+    // A long reach holds it back longer still.
+    const long = stopTimes(spin('long', 0));
+    expect(long[0]).toBeCloseTo(left, 9);
+    expect(long[2]).toBeCloseTo(right, 9);
+    expect(long[1]).toBeCloseTo(TIMING.spin + TIMING.reach + TIMING.longReach, 9);
   });
 
   it('show the drawn digits once they have stopped, and keep inside the strip before', () => {
@@ -138,6 +180,183 @@ describe('the reels', () => {
     expect(inReach(spin(true, stops[2] + 0.01, [5, 6, 5]))).toBe(true);
     expect(inReach(spin(true, stops[1], [5, 6, 5]))).toBe(false);
     expect(inReach(spin(false, TIMING.spin * 0.9))).toBe(false);
+    // A long reach is a reach for all of its longer time.
+    const long = stopTimes(spin('long', 0, [5, 6, 5]));
+    expect(inReach(spin('long', long[2] + 0.01, [5, 6, 5]))).toBe(true);
+    expect(inReach(spin('long', long[1] - 0.01, [5, 6, 5]))).toBe(true);
+    expect(inReach(spin('long', long[1], [5, 6, 5]))).toBe(false);
+  });
+
+  const KINDS = [false, true, 'long'] as const;
+  /** How far round the strip it is from one position to another, the short way. */
+  const apart = (a: number, b: number) => Math.min(Math.abs(a - b), REEL_DIGITS.length - Math.abs(a - b));
+
+  it('swing a little past the digit as they stop, and settle exactly on it', () => {
+    expect(SWING.past).toBeGreaterThan(0);
+    expect(SWING.past).toBeLessThan(0.25);
+    // The swing itself: out and back, furthest a third of the way through, and still from then on.
+    const speed = (27 * SWING.past) / (4 * SWING.time);
+    expect(settleOffset(0, speed)).toBe(0);
+    expect(settleOffset(-1, speed)).toBe(0);
+    expect(settleOffset(SWING.time, speed)).toBe(0);
+    expect(settleOffset(SWING.time + 1, speed)).toBe(0);
+    expect(settleOffset(SWING.time / 3, speed)).toBeCloseTo(SWING.past, 12);
+    for (let since = 0.001; since < SWING.time; since += 0.001) {
+      expect(settleOffset(since, speed)).toBeGreaterThan(0);
+      expect(settleOffset(since, speed)).toBeLessThanOrEqual(SWING.past + 1e-12);
+    }
+    // It leaves the digit at the speed the reel came with, so there is no jolt.
+    expect(settleOffset(1e-6, speed) / 1e-6).toBeCloseTo(speed, 3);
+    // A reel lands on its digit one swing before it stops, and at that moment it is on the digit.
+    for (const kind of KINDS) {
+      const lands = landTimes(spin(kind, 0));
+      const stops = stopTimes(spin(kind, 0));
+      lands.forEach((land, reel) => expect(stops[reel] - land).toBeCloseTo(SWING.time, 12));
+      expect(lands.every((land) => land > 0)).toBe(true);
+      lands.forEach((land, reel) => expect(apart(reelPositions(spin(kind, land))[reel], [3, 6, 1][reel])).toBeLessThan(1e-9));
+    }
+
+    const count = REEL_DIGITS.length;
+    const homes = [8, 0, 3];
+    for (const kind of KINDS) {
+      for (const plain of [TIMING.spin, TIMING.quickSpin]) {
+        // Nine, one and four: the first and the last digit of the strip are the ones a swing could carry off its ends.
+        const at = (elapsed: number) => spin(kind, elapsed, [9, 1, 4], plain);
+        const stops = stopTimes(at(0));
+        const furthest = [0, 0, 0];
+        let last = reelPositions(at(0));
+        const step = 1 / 480;
+        for (let elapsed = step; elapsed <= at(0).duration + 0.05; elapsed += step) {
+          const now = reelPositions(at(elapsed));
+          now.forEach((position, reel) => {
+            // Always inside the strip, and never a jump: no further than the fastest reel goes in one step.
+            expect(position).toBeGreaterThanOrEqual(0);
+            expect(position).toBeLessThan(count);
+            expect(apart(position, last[reel])).toBeLessThanOrEqual(15 * step + 1e-9);
+            const past = (position - homes[reel] + count) % count;
+            if (elapsed >= stops[reel]) {
+              // Stopped: exactly on the digit, not nearly.
+              expect(position).toBe(homes[reel]);
+            } else if (elapsed > stops[reel] - SWING.time) {
+              // Swinging: a little past the digit, never short of it again.
+              expect(past).toBeLessThanOrEqual(SWING.past + 1e-9);
+              furthest[reel] = Math.max(furthest[reel], past);
+            } else if (elapsed > stops[reel] - SWING.time - 0.1) {
+              // About to arrive: still short of the digit, not past it.
+              expect(past === 0 || past > count / 2).toBe(true);
+            }
+          });
+          last = now;
+        }
+        // The outer reels come in fast and swing the full way; a centre reel that was held back swings less.
+        expect(furthest[0]).toBeCloseTo(SWING.past, 3);
+        expect(furthest[2]).toBeCloseTo(SWING.past, 3);
+        expect(furthest[1]).toBeGreaterThan(0.02);
+        expect(furthest[1]).toBeLessThanOrEqual(SWING.past + 1e-9);
+        if (kind !== false) expect(furthest[1]).toBeLessThan(furthest[0]);
+        if (kind === 'long') expect(furthest[1]).toBeLessThan(0.06);
+      }
+    }
+  });
+
+  it('run blurred while they are too fast to read', () => {
+    for (const kind of KINDS) {
+      const at = (elapsed: number) => spin(kind, elapsed, [5, 6, 5]);
+      const stops = stopTimes(at(0));
+      // Every reel starts out fast, and none is once it has stopped.
+      expect(reelsFast(at(0))).toEqual([true, true, true]);
+      expect(reelsFast(at(stops[0] - SWING.time / 2))).toEqual([false, true, true]);
+      expect(reelsFast(at(stops[0] + 0.01))).toEqual([false, true, true]);
+      expect(reelsFast(at(stops[2] - 0.001))).toEqual([false, true, false]);
+      expect(reelsFast(at(stops[1] - 0.01))).toEqual([false, false, false]);
+      expect(reelsFast(at(stops[1]))).toEqual([false, false, false]);
+      expect(reelsFast(at(stops[1] + 5))).toEqual([false, false, false]);
+      // A reel is fast for one stretch only: once it has slowed it does not speed up again.
+      for (let reel = 0; reel < 3; reel++) {
+        let slowed = false;
+        for (let elapsed = 0; elapsed <= stops[1]; elapsed += 0.01) {
+          const fast = reelsFast(at(elapsed))[reel];
+          if (slowed) expect(fast).toBe(false);
+          if (!fast) slowed = true;
+        }
+      }
+    }
+    // Until the right reel stops, the centre gives nothing away: with a reach to come it runs as it does without.
+    const stops = stopTimes(spin(false, 0));
+    for (let elapsed = 0; elapsed < stops[2]; elapsed += 0.05) {
+      const plain = reelsFast(spin(false, elapsed));
+      expect(reelsFast(spin(true, elapsed))).toEqual(plain);
+      expect(reelsFast(spin('long', elapsed))).toEqual(plain);
+    }
+    // Once the reach is on, the centre drops out of the blur at once and can be read.
+    expect(reelsFast(spin(true, stops[2] + 0.25, [5, 6, 5]))[1]).toBe(false);
+    expect(reelsFast(spin('long', stops[2] + 0.25, [5, 6, 5]))[1]).toBe(false);
+  });
+
+  it('crawl to the end of a long reach', () => {
+    /** Digits the centre reel goes by in the `seconds` before it stops. */
+    const lastDigits = (kind: boolean | 'long', seconds: number) => {
+      const stop = stopTimes(spin(kind, 0, [5, 6, 5]))[1];
+      let distance = 0;
+      let last = reelPositions(spin(kind, stop - seconds, [5, 6, 5]))[1];
+      for (let elapsed = stop - seconds + 0.005; elapsed <= stop + 1e-9; elapsed += 0.005) {
+        const now = reelPositions(spin(kind, elapsed, [5, 6, 5]))[1];
+        distance += apart(now, last);
+        last = now;
+      }
+      return distance;
+    };
+    // In its last second a reel with no reach goes by ten digits and more, one in a reach about four, and one in a long reach under two.
+    expect(lastDigits(false, 1)).toBeGreaterThan(10);
+    expect(lastDigits(true, 1)).toBeGreaterThan(3);
+    expect(lastDigits(true, 1)).toBeLessThan(6);
+    expect(lastDigits('long', 1)).toBeGreaterThan(1);
+    expect(lastDigits('long', 1)).toBeLessThan(2);
+    // All through what the long reach adds, it is slow enough to read every digit that goes by.
+    expect(lastDigits('long', TIMING.longReach)).toBeGreaterThan(2);
+    expect(lastDigits('long', TIMING.longReach)).toBeLessThan(4);
+  });
+
+  it('wait and then change one at a time when nothing may move', () => {
+    const before = [3, 1, 8];
+    const at = (elapsed: number) => spin(true, elapsed, [5, 6, 5]);
+    const stops = stopTimes(at(0));
+    expect(reelsWaiting(at(0))).toEqual([true, true, true]);
+    expect(stoppedDigits(at(0), before)).toEqual([3, 1, 8]);
+    expect(reelsWaiting(at(stops[0]))).toEqual([false, true, true]);
+    expect(stoppedDigits(at(stops[0]), before)).toEqual([5, 1, 8]);
+    // With the outer reels alike and the centre still waiting, the reach can be read off the reels.
+    expect(reelsWaiting(at(stops[2]))).toEqual([false, true, false]);
+    expect(stoppedDigits(at(stops[2]), before)).toEqual([5, 1, 5]);
+    expect(stoppedDigits(at(stops[1] - 0.01), before)).toEqual([5, 1, 5]);
+    expect(reelsWaiting(at(stops[1]))).toEqual([false, false, false]);
+    expect(stoppedDigits(at(stops[1]), before)).toEqual([5, 6, 5]);
+    // A spin that has been counted has nothing waiting, whatever its clock says.
+    expect(reelsWaiting({ ...at(0), done: true })).toEqual([false, false, false]);
+    expect(stoppedDigits({ ...at(0), done: true }, before)).toEqual([5, 6, 5]);
+  });
+
+  it('are marked for the stylesheet only when a mark changes', () => {
+    const writes: string[] = [];
+    const dataset: DOMStringMap = {};
+    const strip = {
+      dataset: new Proxy(dataset, {
+        set: (target, key, value) => {
+          writes.push(`${String(key)}=${value}`);
+          target[String(key)] = value;
+          return true;
+        },
+      }),
+    };
+    markStrip(strip, 'fast', true);
+    markStrip(strip, 'fast', true);
+    markStrip(strip, 'waiting', false);
+    markStrip(strip, 'fast', false);
+    markStrip(strip, 'fast', false);
+    markStrip(strip, 'waiting', true);
+    markStrip(strip, 'waiting', true);
+    expect(writes).toEqual(['fast=true', 'waiting=false', 'fast=false', 'waiting=true']);
+    expect(dataset).toEqual({ fast: 'false', waiting: 'true' });
   });
 });
 
@@ -153,6 +372,7 @@ describe('the roulette light', () => {
     gain: 0,
     over: false,
     jackpot: false,
+    bowl: null,
   });
 
   it('starts on the pocket it set off from and ends on the one that was drawn', () => {
@@ -182,6 +402,175 @@ describe('the roulette light', () => {
     expect(lastGap).toBeGreaterThan(firstGap * 5);
     expect(rouletteSettled(roulette(7, changes[changes.length - 1] - 0.01, 3))).toBe(false);
     expect(rouletteSettled(roulette(7, TIMING.roulette, 3))).toBe(true);
+  });
+});
+
+describe('the ball in the bowl', () => {
+  const T = TIMING.bowl;
+  const FRAME = 1 / 60;
+  const holes = BOWL.map((_, hole) => hole);
+  const fromCentre = (point: { x: number; y: number }) => Math.hypot(point.x, point.y);
+  const apart = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  /** The ball's whole roll to `hole`, a frame at a time, and a second past its end. */
+  const roll = (hole: number, frame = FRAME) => Array.from({ length: Math.ceil((T + 1) / frame) + 1 }, (_, index) => bowlBall(index * frame, hole));
+
+  it('has three holes evenly spaced on a ring, well apart and inside the rim', () => {
+    expect(holes).toHaveLength(3);
+    for (const hole of holes) expect(fromCentre(holeSpot(hole))).toBeCloseTo(BOWL_SHAPE.ring, 12);
+    // The first is at the top; the others follow clockwise.
+    expect(holeSpot(0).x).toBeCloseTo(0, 12);
+    expect(holeSpot(0).y).toBeCloseTo(-BOWL_SHAPE.ring, 12);
+    expect(holeSpot(1).x).toBeGreaterThan(0);
+    expect(holeSpot(2).x).toBeLessThan(0);
+    expect(apart(holeSpot(0), holeSpot(1))).toBeGreaterThan(BOWL_SHAPE.hole * 4);
+    // A ball on the lip of a hole is outside the hole, and a ball under the rim is clear of them all.
+    expect(BOWL_SHAPE.lip).toBeGreaterThan(BOWL_SHAPE.hole);
+    expect(BOWL_SHAPE.rim).toBeGreaterThan(BOWL_SHAPE.ring + BOWL_SHAPE.lip + BOWL_SHAPE.hole);
+    expect(BOWL_SHAPE.rim).toBeLessThan(1);
+  });
+
+  it('is let go at the same place under the rim whatever hole was drawn', () => {
+    const start = bowlBall(0, 0);
+    expect(fromCentre(start)).toBeCloseTo(BOWL_SHAPE.rim, 12);
+    expect(start.sunk).toBe(0);
+    for (const hole of holes) {
+      expect(apart(bowlBall(0, hole), start)).toBeLessThan(1e-12);
+      expect(apart(bowlBall(-3, hole), start)).toBeLessThan(1e-12);
+    }
+  });
+
+  it('never jumps from one frame to the next', () => {
+    for (const hole of holes) {
+      const frames = roll(hole);
+      const steps = frames.slice(1).map((spot, index) => apart(spot, frames[index]));
+      // At its fastest it covers about an eighth of the bowl's radius in a frame.
+      expect(Math.max(...steps)).toBeLessThan(0.14);
+      // Looked at four times as often, it moves a quarter as far: nowhere does it leap.
+      const fine = roll(hole, FRAME / 4);
+      const fineSteps = fine.slice(1).map((spot, index) => apart(spot, fine[index]));
+      expect(Math.max(...fineSteps)).toBeLessThan(0.14 / 4 + 0.001);
+      // It only ever sinks further into its hole, and smoothly.
+      const sinking = frames.slice(1).map((spot, index) => spot.sunk - frames[index].sunk);
+      expect(Math.min(...sinking)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...sinking)).toBeLessThan(0.1);
+    }
+  });
+
+  it('never rolls back up the bowl', () => {
+    for (const hole of holes) {
+      const frames = roll(hole, FRAME / 4);
+      const rises = frames.slice(1).map((spot, index) => fromCentre(spot) - fromCentre(frames[index]));
+      expect(Math.max(...rises)).toBeLessThan(1e-9);
+      expect(fromCentre(frames[0])).toBeCloseTo(BOWL_SHAPE.rim, 12);
+      expect(fromCentre(frames[frames.length - 1])).toBeCloseTo(BOWL_SHAPE.ring, 12);
+    }
+  });
+
+  it('circles under the rim, spirals in and goes round the holes before it drops', () => {
+    for (const hole of holes) {
+      const frames = roll(hole);
+      // Turns clockwise, added up frame by frame.
+      let turned = 0;
+      let backwards = 0;
+      frames.slice(1).forEach((spot, index) => {
+        const before = frames[index];
+        const angle = Math.atan2(before.x * spot.y - before.y * spot.x, before.x * spot.x + before.y * spot.y);
+        if (angle < -1e-9) backwards++;
+        turned += angle / (2 * Math.PI);
+      });
+      expect(backwards).toBe(0);
+      expect(turned).toBeGreaterThan(4);
+      expect(turned).toBeLessThan(5);
+      // A good second under the rim, then inwards, and the last two seconds down among the holes.
+      expect(fromCentre(bowlBall(1, hole))).toBeCloseTo(BOWL_SHAPE.rim, 6);
+      expect(fromCentre(bowlBall(T * 0.4, hole))).toBeLessThan(BOWL_SHAPE.rim - 0.1);
+      expect(fromCentre(bowlBall(T * 0.4, hole))).toBeGreaterThan(BOWL_SHAPE.ring + BOWL_SHAPE.lip + 0.05);
+      expect(fromCentre(bowlBall(T - 2, hole))).toBeCloseTo(BOWL_SHAPE.ring + BOWL_SHAPE.lip, 6);
+      // It slows all the way: each second it covers less ground than the one before.
+      const ground = (second: number) => {
+        const from = second * 60;
+        return frames.slice(from + 1, from + 61).reduce((sum, spot, index) => sum + apart(spot, frames[from + index]), 0);
+      };
+      for (let second = 1; second < 6; second++) expect(ground(second)).toBeLessThan(ground(second - 1));
+    }
+  });
+
+  it('hesitates on the lip of each hole it passes, without going in', () => {
+    for (const hole of holes) {
+      const frames = roll(hole, FRAME / 4);
+      const among = frames.filter((spot) => spot.sunk === 0 && fromCentre(spot) < BOWL_SHAPE.ring + BOWL_SHAPE.lip + 1e-6);
+      for (const other of holes.filter((index) => index !== hole)) {
+        // It passes right by the other holes, on their lip and not inside them.
+        const nearest = Math.min(...among.map((spot) => apart(spot, holeSpot(other))));
+        expect(nearest).toBeCloseTo(BOWL_SHAPE.lip, 3);
+        expect(nearest).toBeGreaterThan(BOWL_SHAPE.hole);
+      }
+      // Its pace among the holes rises and falls: slowest on a lip, quickest half way between two.
+      const pace = among.slice(1).map((spot, index) => apart(spot, among[index]));
+      let dips = 0;
+      for (let i = 1; i < pace.length - 1; i++) if (pace[i] < pace[i - 1] && pace[i] <= pace[i + 1] && pace[i] > 1e-6) dips++;
+      expect(dips).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('comes to rest on the lip of its hole, tips in and stays exactly there', () => {
+    for (const hole of holes) {
+      const home = holeSpot(hole);
+      // Just before it tips it is on the lip, radially outside its hole and all but still.
+      const tip = ballTipsAt();
+      expect(tip).toBeGreaterThan(T - 0.6);
+      expect(tip).toBeLessThan(T - 0.2);
+      const edge = bowlBall(tip - 0.001, hole);
+      expect(edge.sunk).toBe(0);
+      expect(apart(edge, home)).toBeCloseTo(BOWL_SHAPE.lip, 3);
+      expect(apart(edge, bowlBall(tip - 0.001 - FRAME, hole))).toBeLessThan(0.001);
+      // Half way through the fall it is part of the way in.
+      const falling = bowlBall((tip + T) / 2, hole);
+      expect(falling.sunk).toBeGreaterThan(0);
+      expect(falling.sunk).toBeLessThan(1);
+      expect(apart(falling, home)).toBeLessThan(BOWL_SHAPE.lip);
+      expect(apart(falling, home)).toBeGreaterThan(0);
+      for (const later of [T, T + FRAME, T + 5, T * 100]) expect(bowlBall(later, hole)).toEqual({ x: home.x, y: home.y, sunk: 1 });
+    }
+  });
+
+  it('ends somewhere else for each hole, and is on its way there well before', () => {
+    for (const a of holes) {
+      for (const b of holes.filter((hole) => hole > a)) {
+        expect(apart(bowlBall(T, a), bowlBall(T, b))).toBeGreaterThan(0.6);
+        // A second before the end the three rolls are already in different parts of the bowl.
+        expect(apart(bowlBall(T - 1, a), bowlBall(T - 1, b))).toBeGreaterThan(0.5);
+      }
+    }
+  });
+
+  it('acts out the same roll over any length of time', () => {
+    for (const hole of holes) {
+      for (const share of [0, 0.13, 0.5, 0.8, 0.95, 0.99, 1]) {
+        const usual = bowlBall(T * share, hole);
+        const slow = bowlBall(20 * share, hole, 20);
+        expect(apart(usual, slow)).toBeLessThan(1e-9);
+        expect(slow.sunk).toBeCloseTo(usual.sunk, 9);
+      }
+    }
+  });
+
+  it('does not roll for a player who has asked for less motion', () => {
+    const bowl: ActiveBowl = { hole: 1, elapsed: 3, duration: T, payout: -1 };
+    // With motion it is wherever its roll has got to.
+    expect(ballSpot(bowl, false)).toEqual(bowlBall(3, 1));
+    expect(ballSpot({ ...bowl, duration: 13 }, false)).toEqual(bowlBall(3, 1, 13));
+    // Without, it waits where it was let go, and is in its hole once it has dropped.
+    for (const elapsed of [0, 3, T - 0.01]) expect(ballSpot({ ...bowl, elapsed }, true)).toEqual(bowlBall(0, 1));
+    const dropped = { ...bowl, elapsed: T + 0.01, payout: 50 };
+    expect(ballSpot(dropped, true)).toEqual({ ...holeSpot(1), sunk: 1 });
+    expect(ballSpot(dropped, false)).toEqual({ ...holeSpot(1), sunk: 1 });
+  });
+
+  it('is drawn where it is, and smaller once it has sunk', () => {
+    expect(ballTransform({ x: 0, y: 0, sunk: 0 })).toBe('translate(50.00 50.00) scale(1.000)');
+    expect(ballTransform({ x: 1, y: -1, sunk: 0 })).toBe('translate(96.00 4.00) scale(1.000)');
+    expect(ballTransform({ x: -0.5, y: 0.25, sunk: 1 })).toBe('translate(27.00 61.50) scale(0.700)');
   });
 });
 
@@ -219,9 +608,51 @@ describe('strings', () => {
     expect(Object.keys(en.partName).sort()).toEqual([...PART_IDS].sort());
     expect(Object.keys(ja.partText).sort()).toEqual([...PART_IDS].sort());
     expect(Object.keys(en.aimName).sort()).toEqual([...AIM_IDS].sort());
-    expect(en.infoBody).toHaveLength(ja.infoBody.length);
-    expect(en.simNotes('1.08')).toHaveLength(ja.simNotes('1.08').length);
+    expect(en.infoBody(MAX_STOCK)).toHaveLength(ja.infoBody(MAX_STOCK).length);
+    expect(en.simNotes('1.08', MAX_STOCK)).toHaveLength(ja.simNotes('1.08', MAX_STOCK).length);
     expect(en.edgeBody).toHaveLength(ja.edgeBody.length);
+  });
+
+  it('takes the size of the hold from the machine wherever it is mentioned', () => {
+    for (const language of ['en', 'ja'] as const) {
+      const t = getStrings(language);
+      const held = language === 'ja' ? (n: number) => `${n}回分` : (n: number) => `${n} spins`;
+      // Each of these says how many spins are held, and says whatever number it is given.
+      const texts = (n: number) => [t.infoBody(n).join(' '), t.simNotes('1.08', n).join(' '), t.calcNote(n)];
+      for (const text of texts(MAX_STOCK)) expect(text).toContain(held(MAX_STOCK));
+      for (const text of texts(11)) {
+        expect(text).toContain(held(11));
+        expect(text).not.toContain(held(MAX_STOCK));
+      }
+      expect(t.slotIntro(11).match(/11/g)).toHaveLength(2);
+      expect(t.stockAria(3, MAX_STOCK)).toContain(String(MAX_STOCK));
+    }
+    // Nothing is left over from the hold of four, in a string or in the source of one that is worked out.
+    const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
+    const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
+    expect(everything).not.toMatch(/four spins|4回分/);
+  });
+
+  it('describes the gates as the engine moves them', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    // The field is 100 wide, so a distance across it is a percentage of its width.
+    expect(FIELD.width).toBe(100);
+    expect(en.partText.gates).toContain(`${SWEEP.amplitude}% of the width each way`);
+    expect(en.partText.gates).toContain(`every ${SWEEP.period} seconds`);
+    expect(ja.partText.gates).toContain(`幅の${SWEEP.amplitude}%ずつ`);
+    expect(ja.partText.gates).toContain(`${SWEEP.period}秒で1往復`);
+    expect(en.infoBody(MAX_STOCK).join(' ')).toContain('sweep from side to side');
+    expect(ja.infoBody(MAX_STOCK).join(' ')).toContain('左右に動き続けて');
+    // The calculator's note quotes the share of followed medals that come through a gate: exactly this, from the scatter.
+    const through = 1 - (1 - CHECKERS.halfWidth / LANDING.scatter) ** 2;
+    expect(en.calcNote(MAX_STOCK)).toContain(`about ${Math.round(through * 100)}% start a spin`);
+    expect(ja.calcNote(MAX_STOCK)).toContain(`約${Math.round(through * 100)}%が抽選を始めます`);
+    expect(en.calcNote(MAX_STOCK)).toContain(`about ${CALC_DEFAULT.front}% of medals leave by the front`);
+    expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て`);
+    expect(CALC_DEFAULT.spins).toBe(Math.round(through * 100));
+    expect(en.aimName.centre).toBe('Following the centre gate');
+    expect(ja.aimName.centre).toBe('中央のチャッカーを追う');
   });
 });
 
@@ -245,7 +676,7 @@ describe('the page', () => {
     expect(html).toContain('<canvas');
     expect(html).toContain('aria-label="The field. Click or tap where a medal should drop."');
     expect(html).toContain('aria-valuetext="50% across"');
-    expect(html).toContain('aria-label="0 of 4 spins held"');
+    expect(html).toContain(`aria-label="0 of ${MAX_STOCK} spins held"`);
     expect(html).toContain('>DROP<');
     expect(html).toMatch(/aria-pressed="false"[^>]*data-testid="pusher-auto"|data-testid="pusher-auto"[^>]*aria-pressed="false"/);
     expect(html).toContain('aria-live="polite"');
@@ -279,21 +710,78 @@ describe('the page', () => {
     for (const text of ['0.7%', '1 in 143', '1.5%', '1 in 67', '4%', '1 in 25', '93.8%']) expect(html).toContain(text);
     for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
     // What each line is worth: the board's average, the chests' average, the roulette's.
-    for (const text of ['8.8 medals', '20 medals', '65.1 medals']) expect(html).toContain(text);
+    for (const text of ['8.8 medals', '20 medals', '63.7 medals']) expect(html).toContain(text);
     // The roulette: four crosses in twelve, and the chance of each number of pockets in a row.
     for (const text of ['A cross: the run ends', 'A tower of 50 medals', '33.3%', '25.0%', '8.3%', 'Medals thrown onto the field']) expect(html).toContain(text);
-    for (const text of ['66.7%', '44.4%', '29.6%', '19.8%', '13.2%', '8.8%']) expect(html).toContain(text);
-    expect(html).toContain('One ball in 11.4 wins it, and one spin in 1,627 leads to it');
+    expect(html).toContain('4 numbers in a row start the jackpot challenge');
+    const chain = table(html, 'pusher-chain-table');
+    expect(chain.match(/<td[^>]*>[^<]*</g)?.map((cell) => cell.replace(/<td[^>]*>/, '').slice(0, -1))).toEqual(['66.7%', '44.4%', '29.6%', '19.8%']);
+    expect(chain.match(/<th scope="col"/g)).toHaveLength(4);
+    // The bowl a full run ends in: three holes, each one time in three.
+    const bowl = table(html, 'pusher-bowl-table');
+    expect(bowl.match(/<tr data-hole="[a-z0-9]+"/g)).toEqual(['<tr data-hole="jackpot"', '<tr data-hole="50"', '<tr data-hole="100"']);
+    expect(bowl.match(/33\.3%/g)).toHaveLength(3);
+    const holes = ['The jackpot', '12 towers on the pusher when it stands at 300', '50 medals', '2 towers on the pusher', '100 medals', '4 towers on the pusher'];
+    for (const text of holes) expect(bowl).toContain(text);
+    expect(html).toContain('The jackpot challenge is a bowl with 3 holes.');
+    expect(html).toContain('With the jackpot at 300 medals the bowl pays 150 medals on average');
+    expect(html).toContain('About 19.8% of all balls get this far.');
+    expect(html).toContain('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
     expect(html).toContain('One tower on the pusher');
     expect(html).toContain('the average of the board: 8.75 medals');
     expect(html).toContain(`after ${BOARD_ROLLS} rolls from the start, no square is more than ${percent(boardSpread(BOARD_ROLLS))} away`);
-    expect(html).toContain('1.106 medals');
+    expect(html).toContain('1.096 medals');
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    expect(html.match(/<caption/g)).toHaveLength(6);
+    // Slot, reach, board, chests, roulette, run, bowl and what a spin is worth.
+    expect(html.match(/<caption/g)).toHaveLength(8);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
+  });
+
+  it('says how far to trust a reach', () => {
+    const html = render(<OddsTab />);
+    const table = html.match(/<table[^>]*data-testid="pusher-reach-table"[\s\S]*?<\/table>/)?.[0] ?? '';
+    expect(REACH_ROWS).toEqual(['long', 'normal', 'any']);
+    expect(table.match(/data-reach="(long|normal|any)"/g)).toEqual(['data-reach="long"', 'data-reach="normal"', 'data-reach="any"']);
+    // Each row: how often the reach comes up, and how often it then hits.
+    const row = (kind: string) => table.match(new RegExp(`<tr data-reach="${kind}">[\\s\\S]*?</tr>`))?.[0] ?? '';
+    for (const kind of REACH_ROWS) {
+      expect(row(kind)).toContain(`>${percent(reachChance(kind))}<`);
+      expect(row(kind)).toContain(`>${percent(reachHitChance(kind))}<`);
+    }
+    expect(row('long')).toContain('Super reach (the long one)');
+    expect(row('long')).toContain('>5.8%<');
+    expect(row('long')).toContain('>63.8%<');
+    expect(row('normal')).toContain('>14.4%<');
+    expect(row('normal')).toContain('>17.2%<');
+    expect(row('any')).toContain('>20.3%<');
+    expect(row('any')).toContain('>30.6%<');
+    // The note after it puts the two side by side and says where the difference comes from.
+    expect(html).toContain('a super reach goes on to hit 63.8% of the time and an ordinary reach 17.2%, so the long one is about 3.7 times as likely to hit');
+    expect(html).toContain('played with the long reach 60% of the time');
+    expect(html).toContain('lost with a reach only 15% of the time');
+    // The reach note that was there before still comes first.
+    expect(html.indexOf('About 15% of losing spins')).toBeGreaterThan(-1);
+    expect(html.indexOf('About 15% of losing spins')).toBeLessThan(html.indexOf('pusher-reach-table'));
+
+    const ja = render(<OddsTab />, 'ja');
+    for (const text of ['ノーマルリーチ', 'スーパーリーチ', 'リーチ全体', '出現率', '信頼度', '約3.7倍']) expect(ja).toContain(text);
+    expect(ja).toContain('スーパーリーチが63.8%、ノーマルリーチが17.2%');
+  });
+
+  it('explains the jackpot challenge in Japanese', () => {
+    const html = render(<OddsTab />, 'ja');
+    expect(html).toContain('数字が4回続くとジャックポットチャレンジが始まります');
+    expect(html).toContain('クルーン');
+    expect(html).toContain('300枚のとき、プッシャーの上にタワー12本');
+    expect(html).toContain('クルーンの払い出しは平均150枚です');
+    expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では2,170回に1回がそこにつながります');
+    const info = getStrings('ja').infoBody(MAX_STOCK).join('');
+    expect(info).toContain('数字が4回続くと「ジャックポットチャレンジ」です');
+    expect(info).not.toContain('6回');
+    expect(getStrings('en').infoBody(MAX_STOCK).join(' ')).toContain('Four numbers in a row start the jackpot challenge');
   });
 
   it('offers the simulation before any run', () => {
@@ -364,10 +852,11 @@ describe('the screen', () => {
     secondsLeft: 0,
     level: 0,
     total: 0,
+    hole: -1,
   };
   const en = getStrings('en');
   const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
-    render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} onPick={() => {}} />, lang);
+    render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} registerBall={() => {}} onPick={() => {}} />, lang);
 
   it('puts each digit on the pay line of its window', () => {
     // A strip of twelve cells, the window showing three tenths of the cell above.
@@ -379,12 +868,19 @@ describe('the screen', () => {
   it('shows the slot with its reels, the held spins and the legend', () => {
     const html = show(idle, 3);
     expect(html).toContain('data-mode="slot"');
-    expect(html).toContain('aria-label="3 of 4 spins held"');
+    expect(html).toContain('aria-label="3 of 8 spins held"');
     expect(html.match(/data-lit="true"/g)).toHaveLength(3);
+    // One lamp for every spin the machine can hold.
+    expect(html.match(/data-lit="(true|false)"/g)).toHaveLength(MAX_STOCK);
+    expect(show(idle, MAX_STOCK).match(/data-lit="true"/g)).toHaveLength(MAX_STOCK);
+    expect(show(idle, 2, 'ja')).toContain(`aria-label="保留 2／${MAX_STOCK}"`);
     expect(html).toContain('data-hidden="false"');
+    // The strips start out neither blurred nor dimmed; the cabinet marks them as they run.
+    expect(html.match(/data-fast="false" data-waiting="false"/g)).toHaveLength(3);
     expect(html).toContain('7·7·7 ▸ BALL');
     expect(html).not.toContain('pusher-die');
     expect(html).not.toContain('pusher-wheel');
+    expect(html).not.toContain('pusher-bowl');
     expect(html).toContain('aria-label="Sugoroku board: the piece is on square 1 of 12, which pays 10 medals"');
   });
 
@@ -393,6 +889,9 @@ describe('the screen', () => {
     expect(bannerText({ ...idle, banner: 'line', line: 'big' }, en)).toBe('TREASURE CHANCE');
     expect(bannerText({ ...idle, banner: 'ball', line: 'seven' }, en)).toBe('BALL GET!');
     expect(bannerText({ ...idle, banner: 'reach' }, en)).toBe('REACH!');
+    expect(bannerText({ ...idle, banner: 'superReach' }, en)).toBe('SUPER REACH!');
+    expect(bannerText({ ...idle, banner: 'reach' }, getStrings('ja'))).toBe('リーチ！');
+    expect(bannerText({ ...idle, banner: 'superReach' }, getStrings('ja'))).toBe('スーパーリーチ！');
     expect(bannerText({ ...idle, banner: 'medals', amount: 8 }, en)).toBe('+8 MEDALS');
     expect(bannerText({ ...idle, banner: 'towers', amount: 30 }, en)).toBe('TOWER +30');
     expect(bannerText({ ...idle, banner: 'fever', amount: 30 }, en)).toBe('FEVER! +30');
@@ -403,11 +902,61 @@ describe('the screen', () => {
     expect(show({ ...idle, banner: 'line', line: 'big' })).toContain('data-line="big"');
   });
 
+  it('badges every digit on the reels with what three of it lead to', () => {
+    const html = show(idle);
+    // A strip is twelve tiles: a nine, the nine digits, and a one and a two again.
+    const tiles = [...html.matchAll(/<span[^>]*data-tier="(seven|big|small)"[^>]*>(\d)<svg[^>]*data-leads="(ball|chest|sugoroku)"[^>]*aria-hidden="true"/g)];
+    expect(tiles).toHaveLength(3 * 12);
+    for (const [, tier, digit, leads] of tiles) {
+      const expected = digit === '7' ? ['seven', 'ball'] : Number(digit) % 2 === 1 ? ['big', 'chest'] : ['small', 'sugoroku'];
+      expect([tier, leads]).toEqual(expected);
+    }
+    expect(html.match(/data-leads="ball"/g)).toHaveLength(3);
+    expect(html.match(/data-leads="chest"/g)).toHaveLength(3 * 6);
+    expect(html.match(/data-leads="sugoroku"/g)).toHaveLength(3 * 5);
+  });
+
+  it('cuts a reach in across the reels, and a long one as a super reach', () => {
+    expect(show(idle)).not.toContain('pusher-cut-in');
+    expect(show({ ...idle, banner: 'line', line: 'small' })).not.toContain('pusher-cut-in');
+
+    const reach = show({ ...idle, banner: 'reach' });
+    expect(reach).toContain('data-banner="reach"');
+    expect(reach).toMatch(/data-kind="reach"[^>]*aria-hidden="true"[^>]*data-testid="pusher-cut-in"/);
+    // Once across the reels and once in the caption, which is all that is left of it without motion.
+    expect(reach.match(/>REACH!</g)).toHaveLength(2);
+    expect(reach).not.toContain('SUPER REACH!');
+    expect(reach).not.toContain('7·7·7 ▸ BALL');
+
+    const long = show({ ...idle, banner: 'superReach' });
+    expect(long).toContain('data-banner="superReach"');
+    expect(long).toMatch(/data-kind="superReach"[^>]*data-testid="pusher-cut-in"/);
+    expect(long.match(/>SUPER REACH!</g)).toHaveLength(2);
+    expect(show({ ...idle, banner: 'superReach' }, 0, 'ja').match(/>スーパーリーチ！</g)).toHaveLength(2);
+    expect(show({ ...idle, banner: 'reach' }, 0, 'ja').match(/>リーチ！</g)).toHaveLength(2);
+  });
+
+  it('has the cut-in off the reels well before the centre reel decides the reach', () => {
+    const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
+    const plain = Number(/animation: mp-cut-in ([\d.]+)s/.exec(css)?.[1]);
+    const long = Number(/\.cutIn\[data-kind='superReach'\] \{[^}]*animation-duration: ([\d.]+)s/.exec(css)?.[1]);
+    // The stylesheet's own note gives these two figures; the band holds for a little over half of each.
+    expect(plain).toBe(0.75);
+    expect(long).toBe(1.1);
+    const superReach = Number((TIMING.reach + TIMING.longReach).toFixed(2));
+    expect(css).toContain(`It takes ${plain} s of a reach's ${TIMING.reach} s; a super reach's takes ${long} s of its ${superReach} s`);
+    // Either way it has gone with at least half a second of the reach still to run.
+    expect(TIMING.reach - plain).toBeGreaterThanOrEqual(0.5);
+    expect(superReach - long).toBeGreaterThanOrEqual(0.5);
+  });
+
   it('shows the die and moves the piece along the board', () => {
     const html = show({ ...idle, mode: 'sugoroku', die: 4, square: 6 });
     expect(html).toContain('SUGOROKU CHANCE');
     expect(html).toContain('data-face="4"');
-    expect(html.match(/<circle/g)).toHaveLength(4);
+    // Four pips on the die itself; the reels behind it have circles of their own.
+    const die = html.match(/<svg[^>]*data-testid="pusher-die"[\s\S]*?<\/svg>/)?.[0] ?? '';
+    expect(die.match(/<circle/g)).toHaveLength(4);
     expect(html).toContain('MOVE 4');
     expect(html).toContain('data-square="6"');
     expect(html).toContain('data-hidden="true"');
@@ -453,10 +1002,45 @@ describe('the screen', () => {
     expect(html.match(/data-pocket="\d+" data-lit="true"/g)).toHaveLength(1);
     // Four crosses on the wheel, and beside it how far the run has got.
     expect(html.match(/>×</g)).toHaveLength(4);
-    expect(html).toContain('LEVEL 2 / 6');
+    expect(html).toContain('LEVEL 2 / 4');
     expect(html).toContain('TOWER 40');
     expect(html).toContain('data-level="2"');
+    expect(html.match(/class="[^"]*lamp[^"]*" data-lit="(true|false)" data-goal/g)).toHaveLength(4);
     expect(html.match(/data-goal="true"/g)).toHaveLength(1);
+    expect(html).not.toContain('pusher-bowl');
+  });
+
+  it('puts the bowl up for the jackpot challenge, the ball where it is let go', () => {
+    const html = show({ ...idle, mode: 'bowl', level: 4, total: 60 });
+    expect(html).toContain('data-mode="bowl"');
+    expect(html).toContain('JACKPOT CHALLENGE');
+    expect(html).not.toContain('JACKPOT CHANCE');
+    expect(html).not.toContain('pusher-wheel');
+    expect(html).toContain('data-testid="pusher-bowl" data-landed="-1"');
+    // A hole for each prize, labelled, and none of them taken yet.
+    expect(html.match(/<g data-hole="\d" data-in="(true|false)"/g)).toHaveLength(BOWL.length);
+    expect(html).not.toContain('data-in="true"');
+    for (const label of ['JACKPOT', '50', '100']) expect(html).toContain(`>${label}</text>`);
+    // The ball waits where the cabinet will pick it up.
+    expect(html).toContain(`transform="${ballTransform(bowlBall(0, 0))}" data-testid="pusher-bowl-ball"`);
+    // The run that got here is still beside it.
+    expect(html).toContain('LEVEL 4 / 4');
+    expect(html).toContain('TOWER 60');
+    expect(html).toContain('data-hidden="true"');
+    expect(show({ ...idle, mode: 'bowl', level: 4, total: 60 }, 0, 'ja')).toContain('ジャックポットチャレンジ');
+  });
+
+  it('lights the hole the ball dropped into and says what it paid', () => {
+    const medals = show({ ...idle, mode: 'bowl', level: 4, total: 160, hole: 2, banner: 'towers', amount: 100 });
+    expect(medals).toContain('data-landed="2"');
+    expect(medals.match(/data-in="true"/g)).toHaveLength(1);
+    expect(medals).toContain('<g data-hole="2" data-in="true"');
+    expect(medals).toContain('TOWER +100');
+    expect(medals).toContain('TOWER 160');
+    const jackpot = show({ ...idle, mode: 'bowl', level: 4, total: 372, hole: 0, banner: 'jackpot', amount: 312 });
+    expect(jackpot).toContain('<g data-hole="0" data-in="true"');
+    expect(jackpot).toContain('data-banner="jackpot"');
+    expect(jackpot).toContain('JACKPOT! +312');
   });
 
   it('marks the fever square', () => {
@@ -476,15 +1060,44 @@ describe('what the screen shows for a session', () => {
 
   it('follows a spin from a reach to the line it stops on', () => {
     const session = createSession(1, { balls: 0 });
-    session.spin = { result: { tier: 'big', digits: [5, 5, 5], reach: true }, elapsed: 0, duration: TIMING.spin + TIMING.reach, done: false };
+    const result: ActiveSpin['result'] = { tier: 'big', digits: [5, 5, 5], reach: true, reachKind: 'normal' };
+    const spin: ActiveSpin = { result, elapsed: 0, duration: TIMING.spin + TIMING.reach, done: false };
+    session.spin = spin;
     expect(screenState(session, false).banner).toBe('none');
-    session.spin.elapsed = TIMING.spin + 0.2;
+    spin.elapsed = TIMING.spin + 0.2;
     expect(screenState(session, false).banner).toBe('reach');
-    expect(screenState(session, true).banner).toBe('none');
-    session.spin.done = true;
+    // Without motion the reach is still called: the words are all there is of it.
+    expect(screenState(session, true).banner).toBe('reach');
+    spin.done = true;
     expect(screenState(session, false)).toMatchObject({ banner: 'line', line: 'big' });
-    session.spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true };
+    spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true, reachKind: 'normal' };
     expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
+  });
+
+  it('calls a long reach a super reach for as long as it lasts', () => {
+    const session = createSession(1, { balls: 0 });
+    const result: ActiveSpin['result'] = { tier: 'miss', digits: [7, 8, 7], reach: true, reachKind: 'long' };
+    const spin: ActiveSpin = { result, elapsed: 0, duration: TIMING.spin + reachTime(result), done: false };
+    session.spin = spin;
+    const [, centre, right] = stopTimes(spin);
+    spin.elapsed = right - 0.01;
+    expect(screenState(session, false).banner).toBe('none');
+    spin.elapsed = right + 0.01;
+    expect(screenState(session, false).banner).toBe('superReach');
+    expect(screenState(session, true).banner).toBe('superReach');
+    // Still on when an ordinary reach would have been over.
+    spin.elapsed = TIMING.spin + TIMING.reach + 0.5;
+    expect(screenState(session, false).banner).toBe('superReach');
+    spin.elapsed = centre - 0.01;
+    expect(screenState(session, false).banner).toBe('superReach');
+    // It missed: the reels have stopped and there is nothing to announce.
+    spin.elapsed = centre;
+    spin.done = true;
+    expect(screenState(session, false)).toMatchObject({ banner: 'none', line: null });
+    // The same reach with three alike behind it ends in the line it was always going to.
+    spin.result = { tier: 'seven', digits: [7, 7, 7], reach: true, reachKind: 'long' };
+    expect(screenState(session, false)).toMatchObject({ banner: 'ball', line: 'seven' });
+    expect(sameScreen({ ...screenState(session, false), banner: 'reach' }, { ...screenState(session, false), banner: 'superReach' })).toBe(false);
   });
 
   it('tumbles the die, then hops the piece a square at a time', () => {
@@ -536,9 +1149,9 @@ describe('what the screen shows for a session', () => {
 
   it('follows the roulette through a run to its end', () => {
     const session = createSession(1, { balls: 0 });
-    const run = { pocket: 3, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
+    const run = { pocket: 3, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
     session.roulette = run;
-    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none', level: 0, total: 0 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none', level: 0, total: 0, hole: -1 });
     expect(screenState(session, true).lit).toBe(-1);
     // A number: the tower goes up and the run goes on.
     Object.assign(run, { landed: true, level: 1, total: 30, gain: 30 });
@@ -546,9 +1159,44 @@ describe('what the screen shows for a session', () => {
     // A cross: the total the run built.
     Object.assign(run, { pocket: 4, from: 3, landed: true, gain: 0, over: true });
     expect(screenState(session, false)).toMatchObject({ lit: 4, banner: 'finish', amount: 30, level: 1 });
-    // A full run: the jackpot.
-    Object.assign(run, { pocket: 1, level: 6, total: 400, gain: 300, over: true, jackpot: true });
-    expect(screenState(session, false)).toMatchObject({ lit: 1, banner: 'jackpot', amount: 300, level: 6, total: 400 });
+  });
+
+  it('follows the ball from the last number of a full run to its hole', () => {
+    const session = createSession(1, { balls: 0 });
+    const bowl: ActiveBowl = { hole: 2, elapsed: 0, duration: TIMING.bowl, payout: -1 };
+    const run: ActiveRoulette = {
+      pocket: 1,
+      from: 7,
+      elapsed: TIMING.roulette + 0.5,
+      duration: TIMING.roulette,
+      landed: true,
+      level: 4,
+      total: 60,
+      gain: 10,
+      over: false,
+      jackpot: false,
+      bowl: null,
+    };
+    session.roulette = run;
+    // The fourth number is a tower like any other while it is up.
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 1, banner: 'towers', amount: 10, level: 4, total: 60 });
+    // Then the bowl takes the wheel's place. Where the ball will drop is not on the screen until it has.
+    run.bowl = bowl;
+    for (const elapsed of [0, 3, TIMING.bowl - 0.01]) {
+      bowl.elapsed = elapsed;
+      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', banner: 'none', hole: -1, lit: -1, level: 4, total: 60 });
+      // The ball is moved by the cabinet, so the screen is the same with or without motion.
+      expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
+    }
+    // A hundred medals: more towers.
+    Object.assign(bowl, { elapsed: TIMING.bowl, payout: 100 });
+    Object.assign(run, { gain: 100, total: 160, over: true });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', hole: 2, banner: 'towers', amount: 100, total: 160, lit: -1 });
+    expect(screenState(session, true)).toMatchObject({ mode: 'bowl', hole: 2, banner: 'towers', amount: 100 });
+    // The jackpot's hole.
+    Object.assign(bowl, { hole: 0, payout: 312 });
+    Object.assign(run, { gain: 312, total: 372, jackpot: true });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', hole: 0, banner: 'jackpot', amount: 312, total: 372 });
   });
 
   it('knows when nothing on the screen has changed', () => {
@@ -557,6 +1205,8 @@ describe('what the screen shows for a session', () => {
     expect(sameScreen(a, screenState(session, false))).toBe(true);
     expect(sameScreen(a, { ...a, square: 1 })).toBe(false);
     expect(sameScreen(a, { ...a, die: 2 })).toBe(false);
+    expect(sameScreen(a, { ...a, hole: 1 })).toBe(false);
+    expect(sameScreen({ ...a, mode: 'bowl' }, { ...a, mode: 'roulette' })).toBe(false);
     const chests = [{ state: 'closed' as const, prize: null, chosen: false }];
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0] }] })).toBe(true);
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0], state: 'picked' }] })).toBe(false);

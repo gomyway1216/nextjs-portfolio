@@ -6,9 +6,12 @@ import { FieldDiagram } from './charts';
 import { percent, tidyPercent } from './format';
 import { PART_IDS, getStrings } from './i18n';
 import {
+  BALL_JACKPOT_CHANCE,
   BOARD,
   BOARD_VALUE,
+  BOWL,
   CHAIN_GOAL,
+  CHALLENGE_CHANCE,
   CHESTS,
   CHEST_TOWERS_FROM,
   CHEST_VALUE,
@@ -16,6 +19,7 @@ import {
   JACKPOT_CHANCE,
   JACKPOT_START,
   JACKPOT_STEP,
+  LONG_REACH,
   POCKET_VALUE,
   REACH_RATE,
   ROULETTE,
@@ -23,12 +27,16 @@ import {
   SPIN_TOTAL,
   TIER_BONUS,
   boardAfter,
+  bowlValue,
   chainChance,
+  reachChance,
+  reachHitChance,
   rouletteValue,
   spinValue,
   tierChance,
   tierValue,
   type Pocket,
+  type ReachShown,
   type Tier,
 } from './lottery';
 import { towerSizes } from './engine';
@@ -37,10 +45,12 @@ import styles from './MedalPusher.module.css';
 
 /** The slot's lines, best first. */
 const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
+/** The reaches the Odds tab weighs up: the long one, the usual one, and the two together. */
+export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
-/** What the calculator starts from: about what aiming at a gate measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 79, spins: 20 } as const;
+/** What the calculator starts from: about what following a gate at two medals a second measures on the Simulation tab. */
+export const CALC_DEFAULT = { front: 80, spins: 19 } as const;
 
 /** Rolls after which the Odds tab shows how even the board has become. */
 export const BOARD_ROLLS = 6;
@@ -152,6 +162,40 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.reachNote(tidyPercent(REACH_RATE))}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-reach-table">
+            <caption className={styles.srOnly}>{t.reachCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colReach}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colReachShare}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colReachHits}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {REACH_ROWS.map((kind) => (
+                <tr key={kind} data-reach={kind}>
+                  <th scope="row">{t.reachName[kind]}</th>
+                  <td className={styles.num}>{percent(reachChance(kind))}</td>
+                  <td className={styles.num}>{percent(reachHitChance(kind))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>
+          {t.reachTrustNote(
+            percent(reachHitChance('long')),
+            percent(reachHitChance('normal')),
+            trim(reachHitChance('long') / reachHitChance('normal'), 1),
+            tidyPercent(LONG_REACH.win),
+            tidyPercent(LONG_REACH.miss),
+          )}
+        </p>
       </section>
 
       <section className={styles.panelBox}>
@@ -270,8 +314,35 @@ export const OddsTab = () => {
             </tbody>
           </table>
         </div>
+        <p className={styles.body}>{t.bowlIntro(BOWL.length)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-bowl-table">
+            <caption className={styles.srOnly}>{t.bowlCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colHole}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colChance}
+                </th>
+                <th scope="col">{t.colPaidAs}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {BOWL.map((hole) => (
+                <tr key={hole} data-hole={hole}>
+                  <th scope="row">{hole === 'jackpot' ? t.holeJackpot : t.paysMedals(hole)}</th>
+                  <td className={styles.num}>{percent(1 / BOWL.length)}</td>
+                  <td>
+                    {hole === 'jackpot' ? t.holeJackpotPaid(towerSizes(JACKPOT_START).length, JACKPOT_START) : t.chestPaidTowers(towerSizes(hole).length)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE))}</p>
         <p className={styles.note}>
-          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / chainChance(CHAIN_GOAL), 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
+          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
         </p>
       </section>
 
@@ -372,7 +443,7 @@ export const OddsTab = () => {
             {needed <= 1 ? t.calcBreakEven(percent(Math.max(0, needed), 0)) : t.calcNever}
           </p>
         </div>
-        <p className={styles.note}>{t.calcNote}</p>
+        <p className={styles.note}>{t.calcNote(MAX_STOCK)}</p>
       </section>
     </div>
   );

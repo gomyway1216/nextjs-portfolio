@@ -55,11 +55,16 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: /Medal Pusher/ })).toBeVisible();
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   await expect(machine(page).getByTestId('pusher-jackpot')).toHaveText(String(JACKPOT_START));
-  await expect(machine(page).getByRole('img', { name: '0 of 4 spins held' })).toBeVisible();
+  await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeVisible();
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('NUMBER SLOT');
+  // Every digit on the three reels is badged with what it leads to.
+  await expect(machine(page).locator('[data-leads="ball"]')).toHaveCount(3);
+  await expect(machine(page).locator('[data-leads]')).toHaveCount(36);
+  // No reach is cut in across them before the first spin.
+  await expect(machine(page).getByTestId('pusher-cut-in')).toHaveCount(0);
   // The sugoroku board is always on, the piece on its first square.
   await expect(machine(page).getByTestId('pusher-board')).toHaveAttribute('data-square', '0');
   await expect(machine(page).getByTestId('pusher-board').locator('li')).toHaveCount(12);
@@ -208,26 +213,37 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-board-table').locator('tbody td')).toHaveCount(12);
   await expect(odds(page).getByTestId('pusher-chest-table').locator('tbody tr')).toHaveCount(3);
   await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
+  // How far to trust a reach: the long one hits far more often than the ordinary one.
+  const reach = odds(page).getByTestId('pusher-reach-table');
+  await expect(reach.locator('tbody tr')).toHaveCount(3);
+  await expect(reach.locator('tr[data-reach="long"]')).toContainText('63.8%');
+  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('17.2%');
+  await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(6);
-  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('8.8%');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.106 medals');
+  // Four numbers in a row lead to the bowl, and each of its three holes is as likely as the next.
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
+  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
 
-  // 79% by the front and 0.20 spins a medal at 1.106 medals a spin.
+  // 80% by the front and 0.19 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('96.5%');
+  await expect(result).toHaveText('96.7%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('24%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('122.1%');
+  await expect(result).toHaveText('120.8%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('61.1%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
+  await expect(result).toHaveText('60.4%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -245,7 +261,7 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // From the edges no medal can reach a gate; over the centre gate about one in five does.
+  // From the edges no medal can reach a gate, wherever its sweep has taken it; following the centre gate about one in five does.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
   await expect(cells('edges').nth(3)).toHaveText('0.0%');
   await expect(cells('edges').nth(5)).toHaveText('0');
@@ -282,6 +298,10 @@ test('reads in Japanese', async ({ page }) => {
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
+  await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
+  await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
+  await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
+  await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {
@@ -294,6 +314,27 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   expect(box?.width).toBeGreaterThan(300);
   expect(box?.width).toBeLessThanOrEqual(375);
   await expect(dropButton(page)).toBeVisible();
+
+  // The hold's eight lamps sit in one row inside the screen, to the right of its title.
+  const screenBox = await machine(page).getByTestId('pusher-screen').boundingBox();
+  const title = await machine(page).getByTestId('pusher-mode').boundingBox();
+  if (!screenBox || !title) throw new Error('the screen has no box');
+  const lamps = machine(page).getByTestId('pusher-stock').locator('[data-lit]');
+  await expect(lamps).toHaveCount(8);
+  const lampBoxes = await lamps.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }),
+  );
+  for (const lamp of lampBoxes) {
+    expect(lamp.width).toBeGreaterThanOrEqual(6);
+    expect(Math.abs(lamp.height - lamp.width)).toBeLessThan(1);
+    expect(Math.abs(lamp.y - lampBoxes[0].y)).toBeLessThan(1);
+    expect(lamp.x).toBeGreaterThanOrEqual(title.x + title.width);
+    expect(lamp.x + lamp.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
+  }
+
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(oddsSizes.scroll).toBeLessThanOrEqual(oddsSizes.inner);

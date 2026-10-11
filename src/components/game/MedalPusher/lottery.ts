@@ -1,7 +1,8 @@
 /**
  * The digital half of the machine: the number slot on the centre screen and
  * the three games it leads to — a sugoroku board, a choice of treasure chests,
- * and the roulette a prize ball starts when it is pushed over the front.
+ * and the roulette a prize ball starts when it is pushed over the front, which
+ * ends in a bowl with the jackpot in one of its holes when its run is full.
  * Unlike the field, these are pure lotteries — every result is drawn first and
  * the screen only acts it out — so their odds are exact and are listed on the
  * Odds tab.
@@ -28,12 +29,24 @@ export const TIER_DIGITS: Record<Exclude<Tier, 'miss'>, readonly number[]> = {
 /** Share of losing spins that tease with two matching digits before missing. */
 export const REACH_RATE = 0.15;
 
+/** How a spin's reach is played: not at all, the usual one, or the long one that draws the suspense out. */
+export const REACH_KINDS = ['none', 'normal', 'long'] as const;
+export type ReachKind = (typeof REACH_KINDS)[number];
+
+/**
+ * The chance that a reach is played long: for a spin that has won, and for one
+ * that has lost. The spin is drawn first, so this decides only how it is shown.
+ */
+export const LONG_REACH = { win: 0.6, miss: 0.15 } as const;
+
 export interface SpinResult {
   tier: Tier;
   /** Left, centre and right reel. The centre stops last. */
   digits: [number, number, number];
   /** Whether the left and right reels match, so the centre decides it. */
   reach: boolean;
+  /** How that reach is played: 'none' exactly when there is no reach. */
+  reachKind: ReachKind;
 }
 
 const pick = <T>(items: readonly T[], rng: () => number): T => items[Math.min(items.length - 1, Math.floor(rng() * items.length))];
@@ -49,22 +62,25 @@ export function tierFor(roll: number): Tier {
   return 'miss';
 }
 
-/** Draws one spin: the tier first, then digits that show it. */
+/** How a reach is played, drawn once the spin itself is settled: long more often when the line has won. */
+const reachKindFor = (won: boolean, rng: () => number): ReachKind => (rng() < (won ? LONG_REACH.win : LONG_REACH.miss) ? 'long' : 'normal');
+
+/** Draws one spin: the tier first, then digits that show it, then how its reach is played. */
 export function drawSpin(rng: () => number): SpinResult {
   const tier = tierFor(rng());
   if (tier !== 'miss') {
     const d = pick(TIER_DIGITS[tier], rng);
-    return { tier, digits: [d, d, d], reach: true };
+    return { tier, digits: [d, d, d], reach: true, reachKind: reachKindFor(true, rng) };
   }
   const left = digit(rng);
   if (rng() < REACH_RATE) {
     // Two alike and a centre reel that stops one short or one past.
     const centre = ((left - 1 + (rng() < 0.5 ? 1 : 8)) % 9) + 1;
-    return { tier, digits: [left, centre, left], reach: true };
+    return { tier, digits: [left, centre, left], reach: true, reachKind: reachKindFor(false, rng) };
   }
   let right = digit(rng);
   if (right === left) right = (right % 9) + 1;
-  return { tier, digits: [left, digit(rng), right], reach: false };
+  return { tier, digits: [left, digit(rng), right], reach: false, reachKind: 'none' };
 }
 
 // ── The sugoroku board ──────────────────────────────────────────────────────
@@ -140,8 +156,8 @@ export type Pocket = 'stop' | number;
  */
 export const ROULETTE: readonly Pocket[] = ['stop', 10, 20, 30, 'stop', 10, 20, 50, 'stop', 10, 20, 'stop'];
 
-/** Numbers in a row, with no cross, that win the jackpot on top of them. */
-export const CHAIN_GOAL = 6;
+/** Numbers in a row, with no cross, that start the jackpot challenge: the ball in the bowl. */
+export const CHAIN_GOAL = 4;
 
 /** The jackpot starts here and grows by one medal for every `JACKPOT_STEP` medals played. */
 export const JACKPOT_START = 300;
@@ -158,24 +174,76 @@ export const POCKET_VALUE = NUMBERS.reduce((sum, medals) => sum + medals, 0) / N
 /** The chance that a run gets as far as `level` numbers in a row. */
 export const chainChance = (level: number): number => CONTINUE_CHANCE ** level;
 
+// ── The jackpot challenge: a ball in a bowl ─────────────────────────────────
+
+/** One hole of the bowl: the jackpot, or that many medals. */
+export type Hole = 'jackpot' | number;
+
+/**
+ * The bowl a full run ends in: a ball rolls round it and drops into one of
+ * its holes, each as likely as the next. Whatever the hole pays is stacked on
+ * the pusher as towers.
+ */
+export const BOWL: readonly Hole[] = ['jackpot', 50, 100];
+
+/** Draws the hole the ball will drop into, as an index into the bowl. */
+export const drawHole = (rng: () => number): number => Math.min(BOWL.length - 1, Math.floor(rng() * BOWL.length));
+
+/** Medals a hole pays when the jackpot stands at `jackpot`. */
+export const holePays = (hole: Hole, jackpot: number): number => (hole === 'jackpot' ? jackpot : hole);
+
+/** Medals the bowl pays on average when the jackpot stands at `jackpot`. */
+export const bowlValue = (jackpot: number): number => BOWL.reduce<number>((sum, hole) => sum + holePays(hole, jackpot), 0) / BOWL.length;
+
+/** The chance that a ball's run gets as far as the bowl. */
+export const CHALLENGE_CHANCE = chainChance(CHAIN_GOAL);
+/** The chance that the ball in the bowl drops into the jackpot's hole. */
+export const HOLE_JACKPOT_CHANCE = BOWL.filter((hole) => hole === 'jackpot').length / BOWL.length;
+/** The chance that a ball pushed over the front wins the jackpot: a full run, then the right hole. */
+export const BALL_JACKPOT_CHANCE = CHALLENGE_CHANCE * HOLE_JACKPOT_CHANCE;
+
 // ── Exact odds ──────────────────────────────────────────────────────────────
 
 /** The chance of each tier on one spin. */
 export const tierChance = (tier: Tier): number => SPIN_TABLE[tier] / SPIN_TOTAL;
 
+/** A reach as the player meets it: the usual one, the long one, or either. */
+export type ReachShown = Exclude<ReachKind, 'none'> | 'any';
+
+/** The share of reaches that are of this kind, among spins that have won or among those that have lost with a reach. */
+const kindShare = (kind: ReachShown, won: boolean): number => {
+  const long = won ? LONG_REACH.win : LONG_REACH.miss;
+  return kind === 'any' ? 1 : kind === 'long' ? long : 1 - long;
+};
+
+/** The chance that one spin shows a reach of this kind and wins, and that it shows one and misses. */
+const reachAndWin = (kind: ReachShown): number => (1 - tierChance('miss')) * kindShare(kind, true);
+const reachAndMiss = (kind: ReachShown): number => tierChance('miss') * REACH_RATE * kindShare(kind, false);
+
+/** The chance that one spin shows a reach of this kind. */
+export const reachChance = (kind: ReachShown = 'any'): number => reachAndWin(kind) + reachAndMiss(kind);
+
+/**
+ * How far a reach can be trusted: the chance that a spin has won, given that
+ * it shows a reach of this kind. Every winning spin shows a reach and only
+ * some losing ones do, and a winning one is played long more often, so a reach
+ * is a hint at what was already drawn, and a long one a stronger hint.
+ */
+export const reachHitChance = (kind: ReachShown = 'any'): number => reachAndWin(kind) / reachChance(kind);
+
 /**
  * Medals a ball's roulette pays on average when the jackpot stands at
  * `jackpot`: every number it gets to, each worth the average pocket, and the
- * jackpot for the runs that reach the goal.
+ * bowl for the runs that reach the goal.
  */
 export function rouletteValue(jackpot: number): number {
   let numbers = 0;
   for (let level = 1; level <= CHAIN_GOAL; level++) numbers += chainChance(level);
-  return numbers * POCKET_VALUE + chainChance(CHAIN_GOAL) * jackpot;
+  return numbers * POCKET_VALUE + CHALLENGE_CHANCE * bowlValue(jackpot);
 }
 
-/** The chance that one spin leads to the jackpot: three sevens for a ball, then a full run once it falls. */
-export const JACKPOT_CHANCE = tierChance('seven') * chainChance(CHAIN_GOAL);
+/** The chance that one spin leads to the jackpot: three sevens for a ball, a full run once it falls, then the jackpot's hole. */
+export const JACKPOT_CHANCE = tierChance('seven') * BALL_JACKPOT_CHANCE;
 
 /** Medals each line is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
 export function tierValue(tier: Tier, jackpot: number): number {

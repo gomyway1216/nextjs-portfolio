@@ -8,7 +8,7 @@
 import { letGoAt, rollingSpot } from './arms';
 import { FIELD, MEDAL_RADIUS, RELEASE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
-import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal, type Stage } from './render';
+import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
 import { HEIGHT, VIEW, project } from './view';
 
 const R = MEDAL_RADIUS;
@@ -155,11 +155,11 @@ function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn:
 }
 
 /**
- * Where across the field the tip of a feed arm is. Everything that draws an
- * arm or a medal on one asks here, so there is one place that knows who
- * keeps the tips: the stage, which swings each toward where it belongs.
+ * Where across the field the tip of a feed arm is. The machine swings each
+ * tip itself and lets a medal go from wherever it has got to, so everything
+ * that draws an arm or a medal on one reads the tip here and eases nothing.
  */
-export const armTipAt = (stage: Pick<Stage, 'arms'>, arm: Arm): number => stage.arms[arm];
+export const armTipAt = (machine: Pick<Machine, 'tips'>, arm: Arm): number => machine.tips[arm];
 
 /**
  * A medal in the air. Let go on its edge, it turns over one and a quarter
@@ -196,7 +196,7 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
  * tower's column, the ones rolling down the feed arms, the ones in the air
  * and the ones that have just gone over an edge. Balls are not among them.
  */
-export function writeMedals(rows: Rows, machine: Machine, stage: Pick<Stage, 'arms' | 'exits'>): void {
+export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball) continue;
@@ -224,13 +224,13 @@ export function writeMedals(rows: Rows, machine: Machine, stage: Pick<Stage, 'ar
   // On a feed arm a medal stands on its edge, its face to the player, and turns as it rolls. It
   // reaches the tip the way round it will lie, so nothing jumps as it tips over and falls.
   for (const medal of machine.rolling) {
-    const tip = armTipAt(stage, medal.arm);
+    const tip = armTipAt(machine, medal.arm);
     const spot = rollingSpot(medal.arm, tip, medal.remaining);
     const still = rollingSpot(medal.arm, tip, 0).turned - spot.turned;
     medalRow(rows, medal.id, spot.x, spot.height, spot.depth, turnOf(medal.id) + still, Math.PI / 2, 0, 0, 0, 1);
   }
   for (const medal of machine.falling) if (!medal.ball) fallingRow(rows, medal);
-  for (const exit of stage.exits) {
+  for (const exit of exits) {
     if (exit.ball) continue;
     const a = exit.age;
     const won = exit.kind === 'won';

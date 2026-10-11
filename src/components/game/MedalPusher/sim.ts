@@ -181,9 +181,11 @@ export async function simulate(
     // The spot each medal on a rail is meant for, in the order they were fed.
     const meant: number[] = [];
     /**
-     * A medal drops where its arm is pointing when it leaves the tip, a roll after it was fed. So
-     * before every step the arms are put where the medal that leaves next is meant to drop.
-     * Following the gate, that is where the gate will be once a medal let go in this step has fallen.
+     * A medal drops where its arm's tip is when it leaves it, a roll after it was fed. So before
+     * every step the arms are pointed where the medal that leaves next is meant to drop. An arm
+     * crosses its whole reach in less time than the slot waits between two medals, so it is always
+     * there by then. Following the gate, the spot is where the gate will be once a medal let go in
+     * this step has fallen.
      */
     const holdArms = () => {
       meant.splice(0, meant.length - session.machine.rolling.length);

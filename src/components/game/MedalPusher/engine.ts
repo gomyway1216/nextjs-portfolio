@@ -13,9 +13,9 @@
  * The player's medals come in by two feed arms, one from each upper corner. A
  * medal is fed into the arm on the side it is aimed at, rolls down that arm's
  * rail on its edge, and drops off the tip onto the back of the pusher. The arms
- * swing to wherever the player is aiming, so a medal comes down where its arm
- * is pointing at the moment it leaves the tip, not where it was when the medal
- * went in.
+ * swing to wherever the player is aiming, each at its own speed, so a medal
+ * comes down where its arm's tip has got to at the moment it leaves, not where
+ * the aim was when the medal went in.
  *
  * Medals lie flat, two deep at most. The lower tier lies on the table. A
  * medal that comes down where there is no room for it stays on top of the
@@ -207,6 +207,12 @@ export interface Machine {
   cooldown: number;
   /** Where across the field the arms are pointed. Whoever plays the machine sets it, with `aimArms`. */
   aim: number;
+  /**
+   * Where across the field each arm's tip is, the left arm's first. A tip
+   * swings to where it belongs as the machine runs, and a medal is let go
+   * wherever its arm's tip is by then.
+   */
+  tips: [number, number];
   nextId: number;
   rng: () => number;
 }
@@ -476,7 +482,9 @@ export function createMachine(seed: number, balls = 0): Machine {
     growing: 0,
     towerClock: 0,
     cooldown: 0,
+    // The arms point at the middle, which is the right arm's side: its tip is over it, and the left arm rests.
     aim: FIELD.width / 2,
+    tips: [armRest(0), FIELD.width / 2],
     nextId: 1,
     rng: seededRng(seed),
   };
@@ -518,13 +526,45 @@ export const ARM_REACH: readonly [{ min: number; max: number }, { min: number; m
 ];
 /** The arm a medal aimed at `x` is fed into: the one on that side of the field. */
 export const armFor = (x: number): Arm => (x < FIELD.width / 2 ? 0 : 1);
-/** Where an arm's tip is when the arms are pointed at `aim`: over the aim, as far as that arm reaches. */
+/** Where an arm's tip is once it has swung to an aim of `aim`: over the aim, as far as that arm reaches. */
 export const tipOf = (arm: Arm, aim: number): number => Math.min(ARM_REACH[arm].max, Math.max(ARM_REACH[arm].min, aim));
 
+/** An arm with nothing to do rests with its tip this far short of the middle. */
+export const ARM_REST = 14;
 /**
- * Points the arms at `aimX`. A medal on a rail drops where its arm is pointing
- * when it gets to the tip, so whoever plays the machine calls this before every
- * step, with where the arms will be by the end of it.
+ * How fast a tip swings to where it belongs, in field units a second: fast
+ * enough to cross its arm's whole reach in less time than the slot waits
+ * between two medals. So whoever knows where each medal is meant to drop can
+ * have its arm there by the time it leaves, however fast the medals are fed.
+ * An aim that jumps as a medal gets to the tip is another matter: that medal
+ * leaves from wherever the tip has got to.
+ */
+export const ARM_SPEED = 320;
+
+/** Where across the field an arm rests its tip when it has nothing to do. */
+export const armRest = (arm: Arm): number => FIELD.width / 2 + (arm === 0 ? -ARM_REST : ARM_REST);
+
+/**
+ * Where across the field an arm's tip belongs: over the aim, as far as the arm
+ * reaches, when the aim is on its side or a medal is on its rail, and at rest
+ * otherwise.
+ */
+export function armGoal(machine: Machine, arm: Arm): number {
+  const loaded = machine.rolling.some((medal) => medal.arm === arm);
+  return loaded || armFor(machine.aim) === arm ? tipOf(arm, machine.aim) : armRest(arm);
+}
+
+/** A tip on its way to where it belongs, `dt` seconds on: it swings there at the arms' speed and stops. */
+export function swing(tipX: number, goal: number, dt: number): number {
+  const reach = ARM_SPEED * dt;
+  return Math.abs(goal - tipX) <= reach ? goal : tipX + Math.sign(goal - tipX) * reach;
+}
+
+/**
+ * Points the arms at `aimX`. They swing there as the machine runs, and a medal
+ * on a rail drops wherever its arm's tip has got to when it reaches it. So
+ * whoever plays the machine calls this before every step, with where the arms
+ * should be by the end of it.
  */
 export function aimArms(machine: Machine, aimX: number): void {
   if (!Number.isFinite(aimX)) throw new Error('the aim must be a number');
@@ -534,7 +574,7 @@ export function aimArms(machine: Machine, aimX: number): void {
 /**
  * Drops one medal, aimed at `aimX`: the arms are pointed there and the medal
  * is fed into the arm on that side. It rolls down the rail and lands a little
- * to one side of wherever that arm is pointing by then.
+ * to one side of wherever that arm's tip is by then.
  * Returns whether the machine took it: the slot only feeds one every DROP_INTERVAL.
  */
 export function dropMedal(machine: Machine, aimX: number): boolean {
@@ -733,7 +773,12 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     machine.falling = stillFalling;
   }
 
-  // Medals on the arms roll on. One that gets to the tip drops off where its arm is pointing now, and
+  // The arms swing towards where they belong: over the aim, or to rest. An arm with a medal on its
+  // rail still counts as having one in the step the medal leaves, so it keeps after the aim till then.
+  machine.tips[0] = swing(machine.tips[0], armGoal(machine, 0), dt);
+  machine.tips[1] = swing(machine.tips[1], armGoal(machine, 1), dt);
+
+  // Medals on the arms roll on. One that gets to the tip drops off where its arm's tip is now, and
   // only now is it settled where it will land: a little to one side of that. From here it is a medal
   // in the air like any other. `remaining` has run that far past zero, and its fall is that much
   // shorter, so it lands a fall's length after the moment it left, however long the step. A roll
@@ -746,8 +791,8 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
         stillRolling.push(medal);
         continue;
       }
-      const from = tipOf(medal.arm, machine.aim);
-      // Two draws make the scatter bunch around the aim instead of spreading evenly.
+      const from = machine.tips[medal.arm];
+      // Two draws make the scatter bunch around the tip instead of spreading evenly.
       const offset = (machine.rng() + machine.rng() - 1) * LANDING.scatter;
       const x = Math.min(FIELD.width - R, Math.max(R, from + offset));
       const y = LANDING.from + machine.rng() * (LANDING.to - LANDING.from);

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { ARMS, armCollar, armGoal, armRest, armTip, letGoAt, rolled, rollingSpot, swing } from '@/components/game/MedalPusher/arms';
+import * as engine from '@/components/game/MedalPusher/engine';
 import {
   AIM,
   ARM_REACH,
+  ARM_REST,
+  ARM_SPEED,
   CHECKERS,
   FIELD,
   MEDAL_RADIUS,
@@ -48,14 +51,29 @@ describe('where the arms hang', () => {
         expect(tip.x).toBeLessThanOrEqual(ARM_REACH[arm].max);
       }
     }
-    // The engine lets a medal go at the very place the arm's tip is drawn.
+    // The engine lets a medal go at the very place the arm's tip is: the machine's own tip, which is what gets drawn.
     const machine = createMachine(4);
     machine.rng = () => 0.5;
     dropMedal(machine, 33);
     step(machine, ROLL_TIME);
     const [medal] = machine.falling;
-    expect({ x: medal.fromX, depth: medal.fromY }).toEqual({ x: armTip(0, machine.aim).x, depth: armTip(0, machine.aim).depth });
+    expect(machine.tips[0]).toBe(33);
+    expect({ x: medal.fromX, depth: medal.fromY }).toEqual({ x: armTip(0, machine.tips[0]).x, depth: armTip(0, machine.tips[0]).depth });
     expect(ARMS.depth).toBe(RELEASE.depth);
+  });
+
+  it('leaves the moving of the arms to the engine, and hands its rules on unchanged', () => {
+    // How far short of the middle an arm rests and how fast a tip swings are the machine's own numbers.
+    expect(ARMS.rest).toBe(ARM_REST);
+    expect(ARMS.speed).toBe(ARM_SPEED);
+    expect(armGoal).toBe(engine.armGoal);
+    expect(armRest).toBe(engine.armRest);
+    expect(swing).toBe(engine.swing);
+    // A place the arm cannot reach is taken as the end of its reach, so a tip can be handed over as it is.
+    expect(armTip(0, 90).x).toBe(ARM_REACH[0].max);
+    expect(armTip(1, 5).x).toBe(ARM_REACH[1].min);
+    const machine = createMachine(4);
+    for (const arm of BOTH) expect(armTip(arm, machine.tips[arm]).x).toBe(machine.tips[arm]);
   });
 
   it('has a rail long enough to reach from the collar to the tip wherever the tip is', () => {

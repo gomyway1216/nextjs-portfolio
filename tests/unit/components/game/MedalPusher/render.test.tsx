@@ -21,7 +21,7 @@ import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { IDLE_DIGITS, Screen, ballTransform, bannerText, markStrip, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { ARM_REACH, CHECKERS, FALL_TIME, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
+import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -675,6 +675,10 @@ describe('strings', () => {
     expect(ARM_REACH[0].max).toBeGreaterThan(FIELD.width / 2);
     expect(en.partText.arms).toContain('each to a little past the middle');
     expect(ja.partText.arms).toContain('中央を少し越えるところまで');
+    // And how long an arm takes to swing from one end of its reach to the other.
+    for (const reach of ARM_REACH) expect((reach.max - reach.min) / ARM_SPEED).toBeLessThan(0.2);
+    expect(en.partText.arms).toContain('crosses its whole reach in under a fifth of a second');
+    expect(ja.partText.arms).toContain('端から端まで動くのに0.2秒かかりません');
     expect(en.simNotes('1.08', MAX_STOCK).join(' ')).toContain('where its arm is pointing when it leaves the tip');
     expect(ja.simNotes('1.08', MAX_STOCK).join('')).toContain('先端を離れるときにアームが向いている位置');
     // Nothing still speaks of the chute the arms replaced.

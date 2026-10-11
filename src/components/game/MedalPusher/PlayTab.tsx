@@ -97,6 +97,12 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.spins === b.spins &&
   a.paid === b.paid;
 
+/** A medal going into its arm is heard twice over: through the slot, and then down the rail it rolls on. */
+const feedSound = (on: boolean): void => {
+  playSound('insert', on);
+  playSound('roll', on);
+};
+
 export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -236,16 +242,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (session.credits === 0) press.current = null;
       const held = press.current;
       if (held && !held.streaming && now / 1000 - held.since >= HOLD_DELAY) held.streaming = true;
-      if (held?.streaming) insert(session, aimNow);
+      if (held?.streaming && insert(session, aimNow)) feedSound(soundOn);
       if (autoNow) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
-          insert(session, aimNow);
+          if (insert(session, aimNow)) feedSound(soundOn);
         }
       }
 
-      // The arms follow the aim, so a medal on a rail drops where the aim is when it gets to the tip.
+      // The arms swing after the aim, and a medal on a rail drops where its arm's tip is when it gets there.
       aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);
@@ -342,9 +348,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
         }
       }
-      if (won > 0) playSound('win', soundOn);
-      else if (lost) playSound('lost', soundOn);
-      else if (landed) playSound('land', soundOn);
+      // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
+      if (won > 0) playSound('win', soundOn, { count: won });
+      if (lost) playSound('lost', soundOn);
+      if (landed) playSound('land', soundOn);
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
@@ -427,7 +434,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const drop = () => {
     const session = sessionRef.current;
-    if (session) insert(session, live.current.aim);
+    if (session && insert(session, live.current.aim)) feedSound(sound);
   };
 
   const aimAtPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {

@@ -345,13 +345,13 @@ function armLit(machine: Machine, arm: Arm, aim: number): number {
  * themselves are among the other medals, and the clear walls of the channel
  * are among the flat touches. Whatever feeds the field is drawn here.
  */
-function buildFeed(solid: Solid, machine: Machine, stage: Stage, options: DrawOptions): void {
+function buildFeed(solid: Solid, machine: Machine, options: DrawOptions): void {
   const { back, front, bar } = CHANNEL;
   const head = R + CHANNEL.headroom;
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
     const lit = armLit(machine, arm, options.aim);
-    hang(arm, armTipAt(stage, arm));
+    hang(arm, armTipAt(machine, arm));
     const end = rail.length;
     // The tops of the two bars are polished and catch the lamp; their fronts are tubes of light.
     solid.finish(1).paint(CHROME);
@@ -396,7 +396,7 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   cast.first = solid.count;
   solid.map().finish(1).paint(STEEL_BRIGHT).quad(0, P, front - BEVEL, W, P, front - BEVEL, W, P - BEVEL, front, 0, P - BEVEL, front);
   solid.finish(0.45).paint(FACE_TOP, FACE_FOOT).quad(0, P - BEVEL, front, W, P - BEVEL, front, W, 0, front, 0, 0, front);
-  buildFeed(solid, machine, stage, options);
+  buildFeed(solid, machine, options);
   cast.count = solid.count - cast.first;
 
   // A gate is a frame of neon tube round its opening, and turns gold for a moment when a medal comes through.
@@ -598,13 +598,13 @@ function piece(flat: Flat, far0: number, far1: number, below0: number, below1: n
  * two walls of the channel, a streak of light along the front one, the
  * arrowheads that point down the rail, and the glow of its bars.
  */
-function armTouches(flat: Flat, machine: Machine, stage: Stage, options: DrawOptions): void {
+function armTouches(flat: Flat, machine: Machine, options: DrawOptions): void {
   const { back, front, bar, collar } = CHANNEL;
   const head = R + CHANNEL.headroom;
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
     const lit = armLit(machine, arm, options.aim);
-    const tip = armTipAt(stage, arm);
+    const tip = armTipAt(machine, arm);
     hang(arm, tip);
     const end = rail.length;
 
@@ -700,13 +700,14 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
     flat.quad(centre - half - reach, top + reach, 0.08, centre + half + reach, top + reach, 0.08, centre + half + reach, top - reach, 0.08, centre - half - reach, top - reach, 0.08, SHAPE.line);
   }
 
-  // Where a medal that leaves its arm now is let go, and how far from that it can land.
+  // Where a medal that leaves now is let go, and how far from that it can land: under the tip of the
+  // arm on the side of the aim, which is over the aim once it has swung there.
   if (options.showGuide) {
-    const { aim } = options;
+    const over = armTipAt(machine, armFor(options.aim));
     flat.ink(WHITE, 0.22).fade(WHITE, 0.03);
-    flat.wedge(aim, ARMS.tip, 0.1, Math.max(R, aim - LANDING.scatter), P, 0.1, Math.min(W - R, aim + LANDING.scatter), P, 0.1);
+    flat.wedge(over, ARMS.tip, 0.1, Math.max(R, over - LANDING.scatter), P, 0.1, Math.min(W - R, over + LANDING.scatter), P, 0.1);
   }
-  armTouches(flat, machine, stage, options);
+  armTouches(flat, machine, options);
 
   // A ball rests in the dark it throws on whatever it stands on.
   flat.ink(BLACK, 0.5);

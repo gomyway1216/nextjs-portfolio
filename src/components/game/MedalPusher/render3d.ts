@@ -204,7 +204,7 @@ function build(gpu: Gpu): Scene3d {
     cameraMatrix(camera, shake);
 
     // This frame's numbers, and each list sent to the graphics card once.
-    writeMedals(medals, machine, stage);
+    writeMedals(medals, machine, stage.exits);
     writeBalls(balls, machine, stage.exits);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();

@@ -26,6 +26,14 @@ export interface PusherStrings {
   legendOdd: string;
   legendEven: string;
   reach: string;
+  superReach: string;
+  // Odds: how far to trust a reach
+  reachCaption: string;
+  colReach: string;
+  colReachShare: string;
+  colReachHits: string;
+  reachName: Record<'normal' | 'long' | 'any', string>;
+  reachTrustNote: (long: string, normal: string, times: string, afterWin: string, afterMiss: string) => string;
   spinWin: (medals: number) => string;
   towerWin: (medals: number) => string;
   feverWin: (medals: number) => string;
@@ -217,6 +225,14 @@ const en: PusherStrings = {
   legendOdd: '1·3·5·9 ▸ TREASURE',
   legendEven: '2·4·6·8 ▸ SUGOROKU',
   reach: 'REACH!',
+  superReach: 'SUPER REACH!',
+  reachCaption: 'How often each kind of reach comes up, and the chance that it then hits',
+  colReach: 'Reach',
+  colReachShare: 'Share of spins',
+  colReachHits: 'Chance it hits',
+  reachName: { normal: 'Reach', long: 'Super reach (the long one)', any: 'Any reach' },
+  reachTrustNote: (long, normal, times, afterWin, afterMiss) =>
+    `How far to trust a reach: a super reach goes on to hit ${long} of the time and an ordinary reach ${normal}, so the long one is about ${times} times as likely to hit. The reach is not changing your luck. It is a hint: a spin that has already won is played with the long reach ${afterWin} of the time, and a spin that has already lost with a reach only ${afterMiss} of the time, so a long reach is more often a win being acted out. These chances are exact.`,
   spinWin: (medals) => `+${medals} MEDALS`,
   towerWin: (medals) => `TOWER +${medals}`,
   feverWin: (medals) => `FEVER! +${medals}`,
@@ -446,6 +462,14 @@ const ja: PusherStrings = {
   legendOdd: '1·3·5·9 ▸ 宝箱',
   legendEven: '2·4·6·8 ▸ すごろく',
   reach: 'リーチ！',
+  superReach: 'スーパーリーチ！',
+  reachCaption: 'リーチの種類ごとの出現率と信頼度',
+  colReach: 'リーチ',
+  colReachShare: '出現率',
+  colReachHits: '信頼度',
+  reachName: { normal: 'ノーマルリーチ', long: 'スーパーリーチ', any: 'リーチ全体' },
+  reachTrustNote: (long, normal, times, afterWin, afterMiss) =>
+    `リーチの信頼度（そのリーチが当たりになる確率）は、スーパーリーチが${long}、ノーマルリーチが${normal}です。スーパーリーチのほうが約${times}倍当たりやすくなっています。ただし、リーチが運を変えているわけではありません。結果のヒントが出ているだけです。当たりが決まった抽選の${afterWin}、リーチはずれが決まった抽選の${afterMiss}がスーパーリーチに発展するので、スーパーリーチが出たときは当たりである可能性が高くなります。どれも正確な値です。`,
   spinWin: (medals) => `${medals}枚 GET`,
   towerWin: (medals) => `タワー ${medals}枚`,
   feverWin: (medals) => `フィーバー！ ${medals}枚`,

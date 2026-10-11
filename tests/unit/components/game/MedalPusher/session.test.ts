@@ -23,6 +23,7 @@ import {
   insert,
   isBusy,
   pickChest,
+  reachTime,
   refill,
   sugorokuDuration,
   type Session,
@@ -54,7 +55,10 @@ const withSpin = (seed = 5): Session => {
   session.stock = 1;
   return session;
 };
-/** The seconds a winning line takes from the start of its spin to the game it leads to. */
+/** The draw that plays a reach the usual way, and the one that plays it long. It comes last in a spin with a reach. */
+const ORDINARY = 0.9;
+const DRAWN_OUT = 0.1;
+/** The seconds a winning line takes from the start of its spin to the game it leads to, with an ordinary reach. */
 const LINE = TIMING.spin + TIMING.reach + TIMING.celebrate;
 /** Where to let a medal go now for it to come down through the centre gate: where that gate will be by then. */
 const centreGate = (session: Session): number => checkerCentres(session.machine.time + FALL_TIME)[1];
@@ -185,7 +189,7 @@ describe('the slot', () => {
 
   it('holds a winning line up before the game it leads to begins', () => {
     const session = withSpin();
-    script(session, [0.03, 0.3, 0.5]);
+    script(session, [0.03, 0.3, ORDINARY, 0.5]);
     play(session, TIMING.spin + TIMING.reach + 0.05);
     expect(session.spin?.done).toBe(true);
     expect(session.tiers.small).toBe(1);
@@ -196,10 +200,61 @@ describe('the slot', () => {
     expect(session.bonus?.kind).toBe('sugoroku');
   });
 
+  it('draws a long reach out, and pays the line behind it exactly as it would have', () => {
+    expect(reachTime({ tier: 'miss', digits: [4, 7, 2], reach: false, reachKind: 'none' })).toBe(0);
+    expect(reachTime({ tier: 'miss', digits: [5, 6, 5], reach: true, reachKind: 'normal' })).toBe(TIMING.reach);
+    expect(reachTime({ tier: 'big', digits: [5, 5, 5], reach: true, reachKind: 'long' })).toBeCloseTo(TIMING.reach + TIMING.longReach, 12);
+    expect(TIMING.longReach).toBeGreaterThan(0);
+
+    // The same line twice, a four on the die both times: once with an ordinary reach, once with a long one.
+    const ordinary = withSpin();
+    script(ordinary, [0.03, 0.3, ORDINARY, 0.5]);
+    const long = withSpin();
+    script(long, [0.03, 0.3, DRAWN_OUT, 0.5]);
+    advance(ordinary, DT);
+    advance(long, DT);
+    expect(ordinary.spin?.result).toEqual({ tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'normal' });
+    expect(long.spin?.result).toEqual({ tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'long' });
+    expect(ordinary.spin?.duration).toBeCloseTo(TIMING.spin + TIMING.reach, 9);
+    expect(long.spin?.duration).toBeCloseTo(TIMING.spin + TIMING.reach + TIMING.longReach, 9);
+    // When the ordinary reach has stopped, the long one is still turning.
+    play(ordinary, TIMING.spin + TIMING.reach + 0.05);
+    play(long, TIMING.spin + TIMING.reach + 0.05);
+    expect(ordinary.spin?.done).toBe(true);
+    expect(long.spin?.done).toBe(false);
+    expect(long.tiers.small).toBe(0);
+    play(long, TIMING.longReach);
+    expect(long.spin?.done).toBe(true);
+    expect(long.tiers.small).toBe(1);
+    // Both lead to the same roll, the same square and the same medals.
+    play(ordinary, TIMING.celebrate + sugorokuDuration(4) + 0.2);
+    play(long, TIMING.celebrate + sugorokuDuration(4) + 0.2);
+    expect(long.square).toBe(ordinary.square);
+    expect(long.paidOut).toBe(ordinary.paidOut);
+    expect(long.paidOut).toBe(BOARD[4]);
+  });
+
+  it('holds a losing spin as long as its reach lasts, and pays nothing for it', () => {
+    const session = withSpin();
+    // A miss, a five on the left, a reach, the centre one past, and the reach played long.
+    script(session, [0.5, 0.45, 0.1, 0.2, DRAWN_OUT]);
+    advance(session, DT);
+    expect(session.spin?.result).toEqual({ tier: 'miss', digits: [5, 6, 5], reach: true, reachKind: 'long' });
+    expect(session.spin?.duration).toBeCloseTo(TIMING.spin + TIMING.reach + TIMING.longReach, 9);
+    play(session, TIMING.spin + TIMING.reach + TIMING.longReach - 0.1);
+    expect(session.spin).not.toBeNull();
+    expect(session.tiers.miss).toBe(0);
+    play(session, 0.2);
+    expect(session.spin).toBeNull();
+    expect(session.tiers.miss).toBe(1);
+    expect(session.paidOut).toBe(0);
+    expect(session.bonus).toBeNull();
+  });
+
   it('pays three sevens as a ball, with no medals and no game on the screen', () => {
     const session = withSpin();
     const before = medalsOnField(session.machine);
-    script(session, [0.001]);
+    script(session, [0.001, 0.5, ORDINARY]);
     const events = play(session, LINE + 0.1);
     expect(session.tiers.seven).toBe(1);
     expect(session.paidOut).toBe(0);
@@ -215,7 +270,7 @@ describe('the sugoroku board', () => {
   it('rolls the die, moves the piece and pays the square it lands on', () => {
     const session = withSpin();
     // Three even digits, then a four on the die.
-    script(session, [0.03, 0.3, 0.5]);
+    script(session, [0.03, 0.3, ORDINARY, 0.5]);
     const before = play(session, LINE + 0.05);
     expect(before.find((event) => event.type === 'sugorokuStart')).toMatchObject({ roll: 4, from: 0 });
     expect(session.bonus).toMatchObject({ kind: 'sugoroku', roll: 4, from: 0, payout: -1 });
@@ -240,7 +295,7 @@ describe('the sugoroku board', () => {
     const session = withSpin();
     session.square = FEVER_SQUARE - 2;
     // A two on the die.
-    script(session, [0.03, 0.3, 0.2]);
+    script(session, [0.03, 0.3, ORDINARY, 0.2]);
     const events = play(session, LINE + sugorokuDuration(2) + 0.2);
     expect(events.find((event) => event.type === 'sugorokuEnd')).toMatchObject({ square: FEVER_SQUARE, payout: 30, fever: true });
     expect(session.fevers).toBe(1);
@@ -252,7 +307,7 @@ describe('the sugoroku board', () => {
     const session = withSpin();
     session.square = 10;
     // A six on the die: ten, eleven, and on round to four.
-    script(session, [0.03, 0.3, 0.99]);
+    script(session, [0.03, 0.3, ORDINARY, 0.99]);
     play(session, LINE + sugorokuDuration(6) + 0.2);
     expect(session.square).toBe(4);
     expect(session.paidOut).toBe(BOARD[4]);
@@ -264,7 +319,7 @@ describe('the treasure chests', () => {
   const withChests = (options: { quickPick?: boolean } = {}): Session => {
     const session = createSession(5, { balls: 0, ...options });
     session.stock = 1;
-    script(session, [0.01, 0.3, 0.99, 0.99, 0.5]);
+    script(session, [0.01, 0.3, ORDINARY, 0.99, 0.99, 0.5]);
     play(session, LINE + 0.05);
     return session;
   };
@@ -398,7 +453,7 @@ describe('the roulette', () => {
     session.stock = 2;
     // Three even digits and a two on the die. Every draw after that picks pocket 1,
     // whatever the medals thrown onto the field have drawn in between.
-    script(session, [0.03, 0.3, 0.2], draw(1));
+    script(session, [0.03, 0.3, ORDINARY, 0.2], draw(1));
     play(session, TIMING.spin + 0.5);
     // A ball goes over while the reels are still turning.
     session.balls = 1;

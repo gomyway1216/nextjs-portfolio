@@ -19,6 +19,7 @@ import {
   JACKPOT_CHANCE,
   JACKPOT_START,
   JACKPOT_STEP,
+  LONG_REACH,
   POCKET_VALUE,
   REACH_RATE,
   ROULETTE,
@@ -28,11 +29,14 @@ import {
   boardAfter,
   bowlValue,
   chainChance,
+  reachChance,
+  reachHitChance,
   rouletteValue,
   spinValue,
   tierChance,
   tierValue,
   type Pocket,
+  type ReachShown,
   type Tier,
 } from './lottery';
 import { towerSizes } from './engine';
@@ -41,6 +45,8 @@ import styles from './MedalPusher.module.css';
 
 /** The slot's lines, best first. */
 const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
+/** The reaches the Odds tab weighs up: the long one, the usual one, and the two together. */
+export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
 /** What the calculator starts from: about what following a gate at two medals a second measures on the Simulation tab. */
@@ -156,6 +162,40 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.reachNote(tidyPercent(REACH_RATE))}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-reach-table">
+            <caption className={styles.srOnly}>{t.reachCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colReach}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colReachShare}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colReachHits}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {REACH_ROWS.map((kind) => (
+                <tr key={kind} data-reach={kind}>
+                  <th scope="row">{t.reachName[kind]}</th>
+                  <td className={styles.num}>{percent(reachChance(kind))}</td>
+                  <td className={styles.num}>{percent(reachHitChance(kind))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>
+          {t.reachTrustNote(
+            percent(reachHitChance('long')),
+            percent(reachHitChance('normal')),
+            trim(reachHitChance('long') / reachHitChance('normal'), 1),
+            tidyPercent(LONG_REACH.win),
+            tidyPercent(LONG_REACH.miss),
+          )}
+        </p>
       </section>
 
       <section className={styles.panelBox}>

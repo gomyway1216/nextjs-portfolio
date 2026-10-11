@@ -6,8 +6,19 @@ import { AIM, FIELD, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
-import { IDLE_DIGITS, Screen, ballTransform, stripOffset } from './ScreenPanel';
-import { ballSpot, reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
+import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import {
+  ballSpot,
+  landTimes,
+  reelPositions,
+  reelsFast,
+  reelsWaiting,
+  sameScreen,
+  screenState,
+  stopTimes,
+  stoppedDigits,
+  type ScreenState,
+} from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { playSound, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
@@ -252,21 +263,33 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       ageStage(stage, elapsed, calm.matches);
       drawField(context, stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
 
-      // The reels act out the spin; without motion they simply change when it is over.
+      // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
       if (spin && !spin.done && !calm.matches) {
         const positions = reelPositions(spin);
+        const fast = reelsFast(spin);
         const stops = stopTimes(spin);
+        const lands = landTimes(spin);
         strips.current.forEach((strip, reel) => {
-          if (strip) strip.style.transform = stripOffset(positions[reel]);
-          if (lastSpinClock < stops[reel] && spin.elapsed >= stops[reel]) playSound('reelStop', soundOn);
+          if (strip) {
+            strip.style.transform = stripOffset(positions[reel]);
+            markStrip(strip, 'fast', fast[reel]);
+            markStrip(strip, 'waiting', false);
+          }
+          // An outer reel is heard as it lands on its digit; the centre's stop is the sound the spin ends with.
+          if (reel !== 1 && lastSpinClock < lands[reel] && spin.elapsed >= lands[reel]) playSound('reelStop', soundOn);
         });
         if (spin.result.reach && lastSpinClock < stops[2] && spin.elapsed >= stops[2]) playSound('reach', soundOn);
         lastSpinClock = spin.elapsed;
       } else {
-        const resting = spin && spin.done ? spin.result.digits : digits;
+        const resting = spin ? stoppedDigits(spin, digits) : digits;
+        const waiting = spin ? reelsWaiting(spin) : null;
         strips.current.forEach((strip, reel) => {
-          if (strip) strip.style.transform = stripOffset(resting[reel] - 1);
+          if (strip) {
+            strip.style.transform = stripOffset(resting[reel] - 1);
+            markStrip(strip, 'fast', false);
+            markStrip(strip, 'waiting', waiting?.[reel] ?? false);
+          }
         });
       }
 

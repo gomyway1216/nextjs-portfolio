@@ -5,21 +5,40 @@
  */
 
 import { BOARD, BOWL, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
-import { TIMING, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import { TIMING, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
 export const REEL_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 /** When each reel stops, as a share of the spin without its reach: left, then right. The centre goes last. */
 const STOP = { left: 0.45, right: 0.75 } as const;
-/** Digits a second while a reel runs, and the seconds it takes to ease onto its digit. */
-const SPEED = { fast: 15, slow: 6 } as const;
-const EASE = { fast: 0.22, slow: 0.7 } as const;
+/**
+ * Digits a second while a reel runs, while the centre holds a reach and while
+ * it crawls to the end of a long one, and the seconds each takes to ease onto its digit.
+ */
+const SPEED = { fast: 15, slow: 6, crawl: 2.6 } as const;
+const EASE = { fast: 0.22, slow: 0.7, crawl: 1 } as const;
+/** The seconds the centre reel takes to drop from one speed to the next as a reach sets in. */
+const SHIFT = 0.25;
+/** How far past its digit a reel swings as it stops, in digits, and the seconds it takes to swing out and settle back. */
+export const SWING = { past: 0.12, time: 0.18 } as const;
+/** The speed a reel still has as it reaches its digit: just enough to carry it SWING.past beyond. A slow reel arrives with less. */
+const KICK = (27 * SWING.past) / (4 * SWING.time);
+/** A reel is too fast to read, and is drawn blurred, from this many digits a second. */
+const BLUR_FROM = 10;
 
 /** The moment each reel stops, in seconds from the start of the spin: left, centre, right. */
 export function stopTimes(spin: ActiveSpin): [number, number, number] {
-  const plain = spin.duration - (spin.result.reach ? TIMING.reach : 0);
+  const plain = spin.duration - reachTime(spin.result);
   return [plain * STOP.left, spin.duration, plain * STOP.right];
+}
+
+/**
+ * The moment each reel lands on its digit: a beat before it stops, which it
+ * spends swinging a little past the digit and back. This is when a reel is heard to stop.
+ */
+export function landTimes(spin: ActiveSpin): [number, number, number] {
+  return stopTimes(spin).map((stop) => stop - SWING.time) as [number, number, number];
 }
 
 /** Whether the outer reels have stopped alike and the centre is still to decide it. */
@@ -35,19 +54,104 @@ function travel(left: number, speed: number, ease: number): number {
 }
 
 /**
+ * One stretch of a reel's run, told backwards from the moment it lands on its
+ * digit. Until `from + ease` seconds before that moment the reel runs `gain`
+ * digits a second faster than it does afterwards; it sheds that evenly over
+ * the next `ease` seconds, and has shed it all with `from` seconds to go.
+ */
+interface Stretch {
+  from: number;
+  ease: number;
+  gain: number;
+}
+
+/** How a reel comes to its digit: the speed it arrives with, the stretches before that, and the seconds it has left to get there. */
+interface Run {
+  kick: number;
+  stretches: Stretch[];
+  left: number;
+}
+
+/**
+ * The run of one reel. The outer reels run fast and ease onto their digit. On
+ * a reach the centre runs with them until the right reel has stopped, then
+ * holds back; on a long reach it drops again to a crawl for the last of it.
+ */
+function reelRun(spin: ActiveSpin, reel: number): Run {
+  const stops = stopTimes(spin);
+  // A reel lands on its digit a beat before it stops.
+  const land = stops[reel] - SWING.time;
+  const held = reel === 1 && spin.result.reach;
+  const long = held && spin.result.reachKind === 'long';
+  const last = long ? 'crawl' : held ? 'slow' : 'fast';
+  // It never arrives with more than half the speed it came at, so a slow reel swings less far past.
+  const kick = Math.min(KICK, SPEED[last] / 2);
+  const stretches: Stretch[] = [{ from: 0, ease: EASE[last], gain: SPEED[last] - kick }];
+  if (long) stretches.push({ from: TIMING.longReach - SWING.time - SHIFT, ease: SHIFT, gain: SPEED.slow - SPEED.crawl });
+  if (held) stretches.push({ from: land - stops[2] - SHIFT, ease: SHIFT, gain: SPEED.fast - SPEED.slow });
+  return { kick, stretches, left: land - spin.elapsed };
+}
+
+/** Digits a second a reel on this run is doing; 0 once it has reached its digit. */
+function runSpeed({ kick, stretches, left }: Run): number {
+  if (left <= 0) return 0;
+  return stretches.reduce((speed, { from, ease, gain }) => speed + gain * Math.min(1, Math.max(0, (left - from) / ease)), kick);
+}
+
+/** Digits a reel on this run still has to go by before it reaches its digit. */
+function runDistance({ kick, stretches, left }: Run): number {
+  if (left <= 0) return 0;
+  return stretches.reduce((distance, { from, ease, gain }) => distance + travel(left - from, gain, ease), kick * left);
+}
+
+/**
+ * How far past its digit a reel stands `since` seconds after reaching it at
+ * `speed` digits a second: it swings out, then back, and from SWING.time on
+ * it is at rest exactly on the digit.
+ */
+export function settleOffset(since: number, speed: number): number {
+  if (since <= 0 || since >= SWING.time) return 0;
+  const progress = since / SWING.time;
+  // Leaves at the speed it came with and is back, at rest, at the end; furthest out a third of the way through.
+  return speed * SWING.time * progress * (1 - progress) ** 2;
+}
+
+/**
  * Where each reel stands, as a position along REEL_DIGITS (0 shows the first
- * digit, 0.5 is halfway to the second), wrapped into the strip.
+ * digit, 0.5 is halfway to the second), wrapped into the strip. A reel that
+ * has stopped is exactly on its digit.
  */
 export function reelPositions(spin: ActiveSpin): [number, number, number] {
   const stops = stopTimes(spin);
   const count = REEL_DIGITS.length;
   return spin.result.digits.map((digit, reel) => {
-    // On a reach the centre reel slows down for the suspense.
-    const slow = reel === 1 && spin.result.reach;
-    const behind = travel(stops[reel] - spin.elapsed, slow ? SPEED.slow : SPEED.fast, slow ? EASE.slow : EASE.fast);
     const home = REEL_DIGITS.indexOf(digit as (typeof REEL_DIGITS)[number]);
-    return (((home - behind) % count) + count) % count;
+    if (spin.elapsed >= stops[reel]) return home;
+    const run = reelRun(spin, reel);
+    // Still on its way, or swinging a little past its digit and back onto it.
+    const ahead = run.left > 0 ? -runDistance(run) : settleOffset(-run.left, run.kick);
+    return (((home + ahead) % count) + count) % count;
   }) as [number, number, number];
+}
+
+/** Whether each reel is still running too fast to read. The cabinet marks those reels so that they are drawn blurred. */
+export function reelsFast(spin: ActiveSpin): [boolean, boolean, boolean] {
+  return spin.result.digits.map((_, reel) => runSpeed(reelRun(spin, reel)) >= BLUR_FROM) as [boolean, boolean, boolean];
+}
+
+/** Whether each reel has still to stop. When nothing may move, the cabinet dims those reels instead of turning them. */
+export function reelsWaiting(spin: ActiveSpin): [boolean, boolean, boolean] {
+  const stops = stopTimes(spin);
+  return stops.map((stop) => !spin.done && spin.elapsed < stop) as [boolean, boolean, boolean];
+}
+
+/**
+ * The digits the reels show when nothing may move: each reel keeps the digit
+ * it had `before` until the moment it would have stopped, then shows its own.
+ */
+export function stoppedDigits(spin: ActiveSpin, before: readonly number[]): [number, number, number] {
+  const waiting = reelsWaiting(spin);
+  return spin.result.digits.map((digit, reel) => (waiting[reel] ? before[reel] : digit)) as [number, number, number];
 }
 
 /** How many times the light goes round before it settles, and the share of the time it takes to get there. */
@@ -162,8 +266,8 @@ export function ballSpot(bowl: ActiveBowl, calm: boolean): BallSpot {
 // ── What the whole screen shows ─────────────────────────────────────────────
 
 export type ScreenMode = 'slot' | 'sugoroku' | 'chest' | 'roulette' | 'bowl';
-/** The headline across the screen: nothing, a reach, a winning line, or a prize and the way it is paid. */
-export type Banner = 'none' | 'reach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'finish' | 'jackpot';
+/** The headline across the screen: nothing, a reach or a long one, a winning line, or a prize and the way it is paid. */
+export type Banner = 'none' | 'reach' | 'superReach' | 'line' | 'ball' | 'medals' | 'towers' | 'fever' | 'finish' | 'jackpot';
 
 export interface ChestView {
   state: 'closed' | 'picked' | 'open';
@@ -266,7 +370,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
   if (spin) {
     const { tier } = spin.result;
     if (spin.done && tier !== 'miss') return { ...idle, line: tier, banner: tier === 'seven' ? 'ball' : 'line' };
-    if (!calm && inReach(spin)) return { ...idle, banner: 'reach' };
+    // A reach is called with or without motion: the words stay, and only what moves round them is left out.
+    if (inReach(spin)) return { ...idle, banner: spin.result.reachKind === 'long' ? 'superReach' : 'reach' };
   }
   return idle;
 }

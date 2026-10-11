@@ -1012,7 +1012,12 @@ function start(target: Rig, sound: PusherSound, options: SoundOptions): void {
   const speed = clink ? 1 - WANDER.pitch / 2 + Math.random() * WANDER.pitch : 1;
   const level = SOUND_LEVELS[sound] * (clink ? 1 - Math.random() * WANDER.level : 1);
   begin(target, target.voices, buffer, now, level, speed);
-  if (tune && RESTS.has(sound)) tune.restUntil = now + buffer.duration;
+  if (tune && RESTS.has(sound)) {
+    tune.restUntil = now + buffer.duration;
+    // What the loop has in the air, or lined up within its look-ahead, would ring on over the fanfare.
+    for (const note of target.notes) cut(target, note);
+    target.notes.length = 0;
+  }
 }
 
 /** Schedules the notes of the loop that fall within the next `MUSIC.ahead` seconds. */

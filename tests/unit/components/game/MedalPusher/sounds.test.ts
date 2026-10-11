@@ -390,7 +390,9 @@ describe('every sound', () => {
     for (const source of audio.sources) {
       expect(source.started).toHaveLength(1);
       expect(source.stopped.length).toBeGreaterThanOrEqual(1);
-      expect(source.ends).toBeGreaterThan(source.begins);
+      // Left to itself a source ends after it begins. One that was cut short may have been a note of the loop that
+      // a fanfare stopped before its time came, which a browser then never plays at all.
+      if (source.stopped.length === 1) expect(source.ends).toBeGreaterThan(source.begins);
     }
   });
 
@@ -738,14 +740,25 @@ describe('the background loop', () => {
     setMusic(true);
     wait(audio, 2);
     const before = audio.sources.length;
+    // The loop has notes in the air, and at least one more lined up within its look-ahead.
+    expect(audio.sounding().some((note) => note.begins <= audio.currentTime)).toBe(true);
+    expect(audio.sources.some((note) => note.begins > audio.currentTime)).toBe(true);
     playSound('jackpot', true);
     const fanfare = audio.sources[before];
-    const from = audio.currentTime + MUSIC.ahead;
+    // All of them are cut short there and then, faded rather than clicked off: only the fanfare is left.
+    expect(audio.sounding(FADE)).toEqual([fanfare]);
+    for (const note of audio.sources.slice(0, before)) {
+      if (note.stopped.length > 1) {
+        const levels = audio.gainOf(note).gain.seen;
+        expect(levels[levels.length - 1]).toBe(0);
+      }
+    }
+    expect(audio.sources.slice(0, before).some((note) => note.stopped.length > 1)).toBe(true);
     wait(audio, 10);
+    // Nothing of the loop starts until the fanfare is over, and then it carries on.
     const after = audio.sources.slice(before + 1);
     expect(after.length).toBeGreaterThan(0);
-    for (const note of after) expect(note.begins < from || note.begins >= fanfare.ends).toBe(true);
-    expect(after.some((note) => note.begins >= fanfare.ends)).toBe(true);
+    for (const note of after) expect(note.begins).toBeGreaterThanOrEqual(fanfare.ends);
     // A jingle is short enough to play over.
     const made = audio.sources.length;
     playSound('prize', true);

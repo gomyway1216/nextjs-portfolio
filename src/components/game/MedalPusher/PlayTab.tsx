@@ -104,7 +104,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     setMusic(sound && active);
     return () => setMusic(false);
   }, [sound, active]);
-  useEffect(() => (sound ? hush : undefined), [sound]);
+  useEffect(() => (sound && active ? hush : undefined), [sound, active]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

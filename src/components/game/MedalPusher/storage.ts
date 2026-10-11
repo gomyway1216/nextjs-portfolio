@@ -10,8 +10,9 @@
  * What comes back out of storage is not trusted. It may have been written by
  * an older version of the game, cut short, damaged, or edited by hand, so
  * every value is checked before a machine is built from it: its type, its
- * range, and that it agrees with the tables in lottery.ts. A save that fails
- * is refused as a whole and the cabinet starts a new machine. The one
+ * range, that it agrees with the tables in lottery.ts, and that whatever the
+ * screen shows is at a moment the machine really passes through. A save that
+ * fails is refused as a whole and the cabinet starts a new machine. The one
  * exception is the screen, described at `restore`.
  *
  * To store a new field, add it to `Machine`, `Session` or one of the things
@@ -36,7 +37,17 @@ import {
   type SpinResult,
   type Tier,
 } from './lottery';
-import { MAX_STOCK, type ActiveBonus, type ActiveChest, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import {
+  MAX_STOCK,
+  TIMING,
+  sugorokuDuration,
+  type ActiveBonus,
+  type ActiveChest,
+  type ActiveRoulette,
+  type ActiveSpin,
+  type ActiveSugoroku,
+  type Session,
+} from './session';
 
 export const STORAGE_KEY = 'medal-pusher-machine';
 /** A save carrying any other number is refused. */
@@ -236,6 +247,15 @@ const storedNumbers = shape<StoredNumbers>({
 });
 
 // ── The screen ──────────────────────────────────────────────────────────────
+//
+// Each thing the screen shows goes through a few phases, and `advance` in
+// session.ts leaves it in one of them every time it returns. The cabinet saves
+// between two calls, so something that is in none of its phases was not
+// written by this game — and letting it through would make the machine do
+// something twice: count a line again, pay a prize again. The checks below
+// accept exactly the phases listed above each of them. A clock is compared
+// with its thresholds the way `advance` compares them, with the same sums, so
+// a clock that stands exactly on a threshold is past it here as it is there.
 
 /** Three digits, each one a reel can show. */
 const digits: Check<[number, number, number]> = (value) => {
@@ -243,51 +263,118 @@ const digits: Check<[number, number, number]> = (value) => {
   return reels?.length === 3 ? [reels[0], reels[1], reels[2]] : undefined;
 };
 
-const spinResult = shape<SpinResult>({ tier: oneOf(TIERS), digits, reach: flag }, ({ tier, digits: [left, centre, right] }) => {
-  // A winning tier shows three of one of its own digits, and a miss is not a line.
+const spinResult = shape<SpinResult>({ tier: oneOf(TIERS), digits, reach: flag }, ({ tier, digits: [left, centre, right], reach }) => {
+  // A winning tier shows three of one of its own digits, a miss is not a line, and a reach is the two outer reels alike.
   const line = left === centre && centre === right;
-  return tier === 'miss' ? !line : line && TIER_DIGITS[tier].includes(left);
+  return reach === (left === right) && (tier === 'miss' ? !line : line && TIER_DIGITS[tier].includes(left));
 });
 
-const activeSpin = shape<ActiveSpin>({ result: spinResult, elapsed: timer, duration: lasting, done: flag });
+/**
+ * A spin. Its reels take one of the machine's two spin times, and the
+ * suspense of a reach on top.
+ *
+ *   reels running   elapsed < duration                         not done
+ *   line held up    duration ≤ elapsed < duration + celebrate  done
+ *
+ * Only a winning line is held up. A miss is taken off in the step its reels
+ * stop, so it is never seen done.
+ */
+const activeSpin = shape<ActiveSpin>({ result: spinResult, elapsed: timer, duration: lasting, done: flag }, (spin) => {
+  const { tier, reach } = spin.result;
+  const suspense = reach ? TIMING.reach : 0;
+  if (spin.duration !== TIMING.spin + suspense && spin.duration !== TIMING.quickSpin + suspense) return false;
+  return spin.done === spin.elapsed >= spin.duration && spin.elapsed < spin.duration + (tier === 'miss' ? 0 : TIMING.celebrate);
+});
 
-const activeSugoroku = shape<ActiveSugoroku>(
-  {
-    kind: oneOf(['sugoroku']),
-    roll: whole(1, DIE_FACES),
-    from: whole(0, BOARD.length - 1),
-    elapsed: timer,
-    duration: lasting,
-    payout: whole(-1, LIMITS.purse),
-  },
-  // Once it has paid, it paid what the square it reached says.
-  (b) => b.payout === -1 || b.payout === BOARD[squareAfter(b.from, b.roll)],
-);
+/**
+ * A roll on the board: the die, then a hop for each square. `square` is where
+ * the session has the piece standing.
+ *
+ *   die and hops    elapsed < duration                         unpaid, the piece still on `from`
+ *   prize shown     duration ≤ elapsed < duration + prize      paid what the square it reached holds, the piece on that square
+ */
+const activeSugoroku = (square: number) =>
+  shape<ActiveSugoroku>(
+    {
+      kind: oneOf(['sugoroku']),
+      roll: whole(1, DIE_FACES),
+      from: whole(0, BOARD.length - 1),
+      elapsed: timer,
+      duration: lasting,
+      payout: whole(-1, LIMITS.purse),
+    },
+    (b) => {
+      if (b.duration !== sugorokuDuration(b.roll) || b.elapsed >= b.duration + TIMING.prize) return false;
+      const reached = squareAfter(b.from, b.roll);
+      return b.elapsed >= b.duration ? b.payout === BOARD[reached] && square === reached : b.payout === -1 && square === b.from;
+    },
+  );
 
 const inOrder = (medals: readonly number[]): string => [...medals].sort((a, b) => a - b).join();
 
-const activeChest = shape<ActiveChest>(
-  {
-    kind: oneOf(['chest']),
-    prizes: list(whole(0, LIMITS.purse), CHESTS.length),
-    fallback: whole(0, CHESTS.length - 1),
-    picked: whole(-1, CHESTS.length - 1),
-    elapsed: timer,
-    pickedAt: real(-1, LIMITS.timer),
-    told: flag,
-    payout: whole(-1, LIMITS.purse),
-  },
-  (c) => {
-    // The chests hold the three prizes, in some order.
-    if (inOrder(c.prizes) !== inOrder(CHESTS)) return false;
-    // Until one is picked nothing has happened; after that it pays what the picked chest holds.
-    if (c.picked < 0) return c.pickedAt === -1 && !c.told && c.payout === -1;
-    return c.pickedAt >= 0 && c.pickedAt <= c.elapsed && (c.payout === -1 || c.payout === c.prizes[c.picked]);
-  },
-);
+/**
+ * A choice of chests, which hold the three prizes in some order. `quickPick`
+ * is whether the session picks the moment a chest is offered.
+ *
+ *   choosing        nothing picked, told or paid; elapsed < choose
+ *   just picked     picked by the player since the last step: pickedAt = elapsed, not yet told, unpaid
+ *   picked          told, unpaid; pickedAt ≤ elapsed < pickedAt + open
+ *   open            told, paid what the picked chest holds; pickedAt + open ≤ elapsed < pickedAt + open + prize
+ *
+ * The clock picks when the time to choose is up, and only ever its own chest;
+ * the player picks before that. A machine that picks at once has no time to
+ * choose in: its clock picks on the first step, so it is only seen choosing
+ * at 0, and only there can the player get in first.
+ */
+const activeChest = (quickPick: boolean) =>
+  shape<ActiveChest>(
+    {
+      kind: oneOf(['chest']),
+      prizes: list(whole(0, LIMITS.purse), CHESTS.length),
+      fallback: whole(0, CHESTS.length - 1),
+      picked: whole(-1, CHESTS.length - 1),
+      elapsed: timer,
+      pickedAt: real(-1, LIMITS.timer),
+      told: flag,
+      payout: whole(-1, LIMITS.purse),
+    },
+    (c) => {
+      if (inOrder(c.prizes) !== inOrder(CHESTS)) return false;
+      if (c.picked < 0) return c.pickedAt === -1 && !c.told && c.payout === -1 && (quickPick ? c.elapsed === 0 : c.elapsed < TIMING.choose);
+      if (c.pickedAt < 0 || c.pickedAt > c.elapsed) return false;
+      const byClock = quickPick ? c.pickedAt > 0 : c.pickedAt >= TIMING.choose;
+      if (byClock && c.picked !== c.fallback) return false;
+      if (!c.told) return !byClock && c.pickedAt === c.elapsed && c.payout === -1;
+      const open = c.elapsed >= c.pickedAt + TIMING.open;
+      return c.payout === (open ? c.prizes[c.picked] : -1) && c.elapsed < c.pickedAt + TIMING.open + TIMING.prize;
+    },
+  );
 
-const activeBonus: Check<ActiveBonus> = (value) => activeSugoroku(value) ?? activeChest(value);
+const activeBonus =
+  ({ square, quickPick }: StoredNumbers): Check<ActiveBonus> =>
+  (value) =>
+    activeSugoroku(square)(value) ?? activeChest(quickPick)(value);
 
+/** The numbers on the wheel, and what a run can have come to after none of them, one, two … up to one short of the goal. */
+const NUMBERS = [...new Set(ROULETTE.filter((pocket): pocket is number => pocket !== 'stop'))];
+const RUN_TOTALS: ReadonlySet<number>[] = [new Set([0])];
+for (let length = 1; length < CHAIN_GOAL; length++) {
+  RUN_TOTALS.push(new Set([...RUN_TOTALS[length - 1]].flatMap((sum) => NUMBERS.map((medals) => sum + medals))));
+}
+
+/**
+ * A ball's roulette: a run of turns, each as long as the last.
+ *
+ *   turning         not landed; elapsed < duration; gain 0; fewer numbers than the goal
+ *   on a number     landed; duration ≤ elapsed < duration + step; gain that number; 1 … goal − 1 numbers
+ *   on a cross      landed and over; duration ≤ elapsed < duration + prize; gain 0; fewer numbers than the goal
+ *   jackpot         landed, over and jackpot, on a number; duration ≤ elapsed < duration + prize;
+ *                   the goal reached; gain the jackpot that was paid
+ *
+ * `from` is where the light set off from: pocket 0 on the first turn, and after
+ * that the number it last stopped on. `total` is what the numbers so far have
+ * come to, with the jackpot on top once it is won.
+ */
 const activeRoulette = shape<ActiveRoulette>(
   {
     pocket: whole(0, ROULETTE.length - 1),
@@ -301,12 +388,46 @@ const activeRoulette = shape<ActiveRoulette>(
     over: flag,
     jackpot: flag,
   },
-  // A run ends on a pocket it has reached, and the jackpot ends the run.
-  (r) => (!r.over || r.landed) && (!r.jackpot || r.over),
+  (r) => {
+    if (r.duration !== TIMING.roulette) return false;
+    const pocket = ROULETTE[r.pocket];
+    // The numbers the run had behind it before this turn's pocket, and what they had come to.
+    let behind = r.level;
+    let paid = r.total;
+    if (!r.landed) {
+      if (r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration) return false;
+    } else if (r.elapsed < r.duration) {
+      return false;
+    } else if (pocket === 'stop') {
+      if (!r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration + TIMING.prize) return false;
+    } else if (r.level < CHAIN_GOAL) {
+      if (r.over || r.jackpot || r.gain !== pocket || r.level < 1 || r.elapsed >= r.duration + TIMING.step) return false;
+      behind -= 1;
+      paid -= pocket;
+    } else {
+      if (!r.over || !r.jackpot || r.gain < JACKPOT_START || r.elapsed >= r.duration + TIMING.prize) return false;
+      behind -= 1;
+      paid -= pocket + r.gain;
+    }
+    if (behind === 0) return r.from === 0 && paid === 0;
+    const last = ROULETTE[r.from];
+    return last !== 'stop' && RUN_TOTALS[behind - 1].has(paid - last);
+  },
 );
 
-/** What one of the screen's three places holds: the thing stored there if it passes its check, and nothing otherwise. */
-const shown = <T>(check: Check<T>, value: unknown): T | null => (value === null || value === undefined ? null : (check(value) ?? null));
+/**
+ * What one of the screen's three places holds: the thing stored there if it
+ * passes its check, and nothing otherwise. A check that throws has not passed,
+ * so nothing wrong with the screen can cost the player the machine.
+ */
+const shown = <T>(check: Check<T>, value: unknown): T | null => {
+  if (value === null || value === undefined) return null;
+  try {
+    return check(value) ?? null;
+  } catch {
+    return null;
+  }
+};
 
 // ── Writing and reading ─────────────────────────────────────────────────────
 
@@ -333,8 +454,9 @@ export function serialize(session: Session): string {
  * The field, the purse and the counters have to pass every check, or there is
  * no machine. The screen is treated more gently, so that a spin gone wrong does
  * not cost the player the medals: whatever it holds that is not a spin, a bonus
- * game or a roulette this machine could be showing is simply left off, and if
- * more than one of them is on at once, which the machine never does, all are.
+ * game or a roulette in one of the phases this machine passes through is simply
+ * left off, and if more than one of them is on at once, which the machine never
+ * does, all are. Nothing that is left off is paid or counted again.
  * A roulette that is left off gives its ball back: the ball waits again, and
  * its roulette is counted when it starts afresh, not twice.
  */
@@ -349,7 +471,11 @@ export function restore(text: string | null, seed: number): Session | null {
     const { screen } = save;
     if (!field || !numbers || !isRecord(screen)) return null;
 
-    const on: OnScreen = { spin: shown(activeSpin, screen.spin), bonus: shown(activeBonus, screen.bonus), roulette: shown(activeRoulette, screen.roulette) };
+    const on: OnScreen = {
+      spin: shown(activeSpin, screen.spin),
+      bonus: shown(activeBonus(numbers), screen.bonus),
+      roulette: shown(activeRoulette, screen.roulette),
+    };
     const busy = [on.spin, on.bonus, on.roulette].filter((thing) => thing !== null).length;
     const session: Session = { ...numbers, ...(busy > 1 ? { spin: null, bonus: null, roulette: null } : on), machine: { ...field, rng: seededRng(seed) } };
     if (screen.roulette !== null && screen.roulette !== undefined && session.roulette === null) {

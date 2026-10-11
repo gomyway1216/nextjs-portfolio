@@ -227,12 +227,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (session.credits === 0) press.current = null;
       const held = press.current;
       if (held && !held.streaming && now / 1000 - held.since >= HOLD_DELAY) held.streaming = true;
-      if (held?.streaming) insert(session, aimNow);
+      if (held?.streaming && insert(session, aimNow)) playSound('insert', soundOn);
       if (autoNow) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
-          insert(session, aimNow);
+          if (insert(session, aimNow)) playSound('insert', soundOn);
         }
       }
 
@@ -331,7 +331,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
         }
       }
-      if (won > 0) playSound('win', soundOn);
+      if (won > 0) playSound('win', soundOn, { count: won });
       else if (lost) playSound('lost', soundOn);
       else if (landed) playSound('land', soundOn);
 
@@ -415,7 +415,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const drop = () => {
     const session = sessionRef.current;
-    if (session) insert(session, live.current.aim);
+    if (session && insert(session, live.current.aim)) playSound('insert', sound);
   };
 
   const aimAtPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {

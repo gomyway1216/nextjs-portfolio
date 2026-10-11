@@ -84,9 +84,12 @@ export const COMPRESSOR = { threshold: -18, knee: 0, ratio: 12, attack: 0.003, r
 /**
  * A DynamicsCompressorNode turns everything up by itself: by 0.6 of what it
  * would take off a full-scale signal, in decibels. With no knee that is exact.
- * The rule is the Web Audio specification's; it has not been measured in a
- * browser. One that did not follow it would come out quieter, or at the very
- * worst 6.6 dB louder: a jackpot at 0.24 of full scale instead of 0.11.
+ * The rule is the Web Audio specification's, and Chrome keeps to it: measured
+ * there (version 152), a steady tone leaves the chain at exactly the level it
+ * went in at up to 0.39, at 0.43 for a full-scale one and at 0.49 for four of
+ * them. No other browser has been measured. One that did not follow the rule
+ * would come out quieter, or at the very worst 6.6 dB louder: a jackpot at
+ * 0.24 of full scale instead of 0.11.
  */
 const MAKE_UP = -0.6 * COMPRESSOR.threshold * (1 - 1 / COMPRESSOR.ratio);
 

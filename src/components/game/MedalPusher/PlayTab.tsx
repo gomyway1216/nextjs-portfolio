@@ -9,7 +9,7 @@ import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, ty
 import { IDLE_DIGITS, Screen, stripOffset } from './ScreenPanel';
 import { reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
-import { playSound, unlockAudio } from './sounds';
+import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -97,6 +97,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   useEffect(() => {
     live.current = { aim, auto, sound, active, strings: t };
   });
+
+  // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
+  // leaving the cabinet, cuts short whatever is still ringing.
+  useEffect(() => {
+    setMusic(sound && active);
+    return () => setMusic(false);
+  }, [sound, active]);
+  useEffect(() => (sound ? hush : undefined), [sound]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -190,6 +198,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'spinStart':
             lastSpinClock = 0;
+            if (session.spin && !calm.matches) playSound('spin', soundOn, { stops: stopTimes(session.spin) });
             break;
           case 'spinEnd': {
             digits = event.result.digits;
@@ -216,21 +225,24 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound('chest', soundOn);
             break;
           case 'chestPicked':
-            playSound('reelStop', soundOn);
+            playSound('open', soundOn);
             break;
           case 'chestEnd':
             playSound('prize', soundOn);
+            if (event.payout >= CHEST_TOWERS_FROM) playSound('tower', soundOn);
             setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
             break;
           case 'rouletteStart':
+            playSound('roulette', soundOn);
             break;
           case 'rouletteStep':
-            playSound('prize', soundOn);
+            playSound('pocket', soundOn, { level: event.level });
+            playSound('tower', soundOn);
             setAnnouncement(strings.sayStep(event.medals, event.level));
             break;
           case 'rouletteEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
-            playSound(event.jackpot ? 'jackpot' : 'full', soundOn);
+            playSound(event.jackpot ? 'jackpot' : 'cross', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.total) : strings.sayFinish(event.total));
             break;
         }
@@ -265,7 +277,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (!sameScreen(nextScreen, shownScreen)) {
         const ticking = nextScreen.mode === 'roulette' && nextScreen.banner === 'none' && nextScreen.lit !== shownScreen.lit;
         const hopping = nextScreen.mode === 'sugoroku' && nextScreen.square !== shownScreen.square;
-        if (ticking || hopping) playSound('tick', soundOn);
+        if (ticking || hopping) playSound(ticking ? 'tick' : 'hop', soundOn);
         shownScreen = nextScreen;
         setScreen(nextScreen);
       }

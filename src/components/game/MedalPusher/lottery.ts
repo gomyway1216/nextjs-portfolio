@@ -1,7 +1,8 @@
 /**
  * The digital half of the machine: the number slot on the centre screen and
  * the three games it leads to — a sugoroku board, a choice of treasure chests,
- * and the roulette a prize ball starts when it is pushed over the front.
+ * and the roulette a prize ball starts when it is pushed over the front, which
+ * ends in a bowl with the jackpot in one of its holes when its run is full.
  * Unlike the field, these are pure lotteries — every result is drawn first and
  * the screen only acts it out — so their odds are exact and are listed on the
  * Odds tab.
@@ -140,8 +141,8 @@ export type Pocket = 'stop' | number;
  */
 export const ROULETTE: readonly Pocket[] = ['stop', 10, 20, 30, 'stop', 10, 20, 50, 'stop', 10, 20, 'stop'];
 
-/** Numbers in a row, with no cross, that win the jackpot on top of them. */
-export const CHAIN_GOAL = 6;
+/** Numbers in a row, with no cross, that start the jackpot challenge: the ball in the bowl. */
+export const CHAIN_GOAL = 4;
 
 /** The jackpot starts here and grows by one medal for every `JACKPOT_STEP` medals played. */
 export const JACKPOT_START = 300;
@@ -158,6 +159,34 @@ export const POCKET_VALUE = NUMBERS.reduce((sum, medals) => sum + medals, 0) / N
 /** The chance that a run gets as far as `level` numbers in a row. */
 export const chainChance = (level: number): number => CONTINUE_CHANCE ** level;
 
+// ── The jackpot challenge: a ball in a bowl ─────────────────────────────────
+
+/** One hole of the bowl: the jackpot, or that many medals. */
+export type Hole = 'jackpot' | number;
+
+/**
+ * The bowl a full run ends in: a ball rolls round it and drops into one of
+ * its holes, each as likely as the next. Whatever the hole pays is stacked on
+ * the pusher as towers.
+ */
+export const BOWL: readonly Hole[] = ['jackpot', 50, 100];
+
+/** Draws the hole the ball will drop into, as an index into the bowl. */
+export const drawHole = (rng: () => number): number => Math.min(BOWL.length - 1, Math.floor(rng() * BOWL.length));
+
+/** Medals a hole pays when the jackpot stands at `jackpot`. */
+export const holePays = (hole: Hole, jackpot: number): number => (hole === 'jackpot' ? jackpot : hole);
+
+/** Medals the bowl pays on average when the jackpot stands at `jackpot`. */
+export const bowlValue = (jackpot: number): number => BOWL.reduce<number>((sum, hole) => sum + holePays(hole, jackpot), 0) / BOWL.length;
+
+/** The chance that a ball's run gets as far as the bowl. */
+export const CHALLENGE_CHANCE = chainChance(CHAIN_GOAL);
+/** The chance that the ball in the bowl drops into the jackpot's hole. */
+export const HOLE_JACKPOT_CHANCE = BOWL.filter((hole) => hole === 'jackpot').length / BOWL.length;
+/** The chance that a ball pushed over the front wins the jackpot: a full run, then the right hole. */
+export const BALL_JACKPOT_CHANCE = CHALLENGE_CHANCE * HOLE_JACKPOT_CHANCE;
+
 // ── Exact odds ──────────────────────────────────────────────────────────────
 
 /** The chance of each tier on one spin. */
@@ -166,16 +195,16 @@ export const tierChance = (tier: Tier): number => SPIN_TABLE[tier] / SPIN_TOTAL;
 /**
  * Medals a ball's roulette pays on average when the jackpot stands at
  * `jackpot`: every number it gets to, each worth the average pocket, and the
- * jackpot for the runs that reach the goal.
+ * bowl for the runs that reach the goal.
  */
 export function rouletteValue(jackpot: number): number {
   let numbers = 0;
   for (let level = 1; level <= CHAIN_GOAL; level++) numbers += chainChance(level);
-  return numbers * POCKET_VALUE + chainChance(CHAIN_GOAL) * jackpot;
+  return numbers * POCKET_VALUE + CHALLENGE_CHANCE * bowlValue(jackpot);
 }
 
-/** The chance that one spin leads to the jackpot: three sevens for a ball, then a full run once it falls. */
-export const JACKPOT_CHANCE = tierChance('seven') * chainChance(CHAIN_GOAL);
+/** The chance that one spin leads to the jackpot: three sevens for a ball, a full run once it falls, then the jackpot's hole. */
+export const JACKPOT_CHANCE = tierChance('seven') * BALL_JACKPOT_CHANCE;
 
 /** Medals each line is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
 export function tierValue(tier: Tier, jackpot: number): number {

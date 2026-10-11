@@ -210,13 +210,16 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(6);
-  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('8.8%');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.106 medals');
+  // Four numbers in a row lead to the bowl.
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
+  await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
+  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
 
-  // 79% by the front and 0.20 spins a medal at 1.106 medals a spin.
+  // 79% by the front and 0.20 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('96.5%');
+  await expect(result).toHaveText('96.3%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('24%');
 
@@ -224,10 +227,10 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('122.1%');
+  await expect(result).toHaveText('121.9%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('61.1%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
+  await expect(result).toHaveText('61.0%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -282,6 +285,7 @@ test('reads in Japanese', async ({ page }) => {
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
+  await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {

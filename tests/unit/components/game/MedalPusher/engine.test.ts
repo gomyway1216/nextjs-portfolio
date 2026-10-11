@@ -525,7 +525,7 @@ describe('medal towers', () => {
       }
       return { count: towers.length, nearest };
     };
-    // Six numbers of a run, one after another with no time passing, then a jackpot on top.
+    // Six prizes, one after another with no time passing, then a jackpot on top.
     let paid = 0;
     for (const medals of [10, 20, 30, 50, 10, 20]) {
       buildTowers(machine, medals);

@@ -6,6 +6,7 @@ import { FieldDiagram } from './charts';
 import { percent, tidyPercent } from './format';
 import { PART_IDS, getStrings } from './i18n';
 import {
+  BALL_JACKPOT_CHANCE,
   BOARD,
   BOARD_VALUE,
   CHAIN_GOAL,
@@ -271,7 +272,7 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>
-          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / chainChance(CHAIN_GOAL), 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
+          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
         </p>
       </section>
 

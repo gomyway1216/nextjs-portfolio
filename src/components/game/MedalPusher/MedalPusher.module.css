@@ -309,6 +309,9 @@
 .screen[data-mode='roulette'] {
   background: radial-gradient(120% 120% at 50% 20%, #8a0f5a 0%, #36052a 55%, var(--mp-screen) 100%);
 }
+.screen[data-mode='bowl'] {
+  background: radial-gradient(120% 120% at 50% 20%, #9c1230 0%, #3c0714 55%, var(--mp-screen) 100%);
+}
 /* Rays turning slowly behind whatever is on. */
 .rays {
   position: absolute;
@@ -566,6 +569,12 @@
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 }
 .wheel {
+  height: 100cqh;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));
+}
+/* The bowl of the jackpot challenge. The cabinet moves its ball every frame. */
+.bowl {
   height: 100cqh;
   aspect-ratio: 1;
   filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));

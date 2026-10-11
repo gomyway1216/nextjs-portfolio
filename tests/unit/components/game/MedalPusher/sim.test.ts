@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS } from '@/components/game/MedalPusher/engine';
+import { AIM, CHECKERS, FALL_TIME, SWEEP, checkerAt, checkerCentres } from '@/components/game/MedalPusher/engine';
 import { JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import {
@@ -21,15 +21,37 @@ describe('the ways of aiming', () => {
     const never = () => {
       throw new Error('only aiming anywhere draws a number');
     };
-    expect(aimAt('centre', 0, never)).toBe(CHECKERS.positions[1]);
-    expect(aimAt('centre', 9, never)).toBe(CHECKERS.positions[1]);
     expect(aimAt('between', 0, never)).toBe(37.5);
     expect(aimAt('between', 1, never)).toBe(62.5);
     expect(aimAt('edges', 0, never)).toBe(AIM.min);
     expect(aimAt('edges', 1, never)).toBe(AIM.max);
+    // None of those looks at the clock: they stay where they are while the gates move.
+    expect(aimAt('between', 0, never, 1.7)).toBe(37.5);
+    expect(aimAt('edges', 1, never, 4.1)).toBe(AIM.max);
     expect(aimAt('anywhere', 0, () => 0)).toBe(AIM.min);
     expect(aimAt('anywhere', 0, () => 0.5)).toBeCloseTo(50, 9);
     expect(aimAt('anywhere', 0, () => 1)).toBe(AIM.max);
+  });
+
+  it('follows the centre gate by aiming where it will be when the medal lands', () => {
+    const never = () => {
+      throw new Error('following a gate draws no number');
+    };
+    for (const time of [0, 0.7, SWEEP.period / 4 - FALL_TIME, 2.9, 4.4, 17.3]) {
+      const aim = aimAt('centre', 3, never, time);
+      // Not where the gate is now, but where it will have got to once the medal has fallen: dead centre of it.
+      expect(aim).toBe(checkerCentres(time + FALL_TIME)[1]);
+      expect(checkerAt(aim, time + FALL_TIME)).toBe(1);
+      expect(aim).toBeGreaterThanOrEqual(CHECKERS.positions[1] - SWEEP.amplitude);
+      expect(aim).toBeLessThanOrEqual(CHECKERS.positions[1] + SWEEP.amplitude);
+      // It never has to be let go further out than the chute can reach.
+      expect(aim).toBeGreaterThan(AIM.min);
+      expect(aim).toBeLessThan(AIM.max);
+    }
+    // Let go a fall's length before the gate reaches the end of its sweep, the medal is aimed at that end.
+    expect(aimAt('centre', 0, never, SWEEP.period / 4 - FALL_TIME)).toBeCloseTo(CHECKERS.positions[1] + SWEEP.amplitude, 9);
+    // The gate moves further than its own half-width while a medal falls, so aiming at where it is now would miss.
+    expect(checkerAt(checkerCentres(0)[1], FALL_TIME)).toBe(-1);
   });
 
   it('gives every aim a colour and a shape of its own', () => {
@@ -91,11 +113,12 @@ describe('the simulation', () => {
       expect(frontShare(aim)).toBeGreaterThan(0.5);
       expect(frontShare(aim)).toBeLessThan(0.95);
     }
-    // From the edges the gates are out of reach; over the centre gate about one medal in five goes through.
+    // From the edges the gates are out of reach wherever they are; following the centre gate, about one medal in five goes through.
     expect(result.edges.hits).toBe(0);
     expect(result.edges.spins).toBe(0);
     expect(result.centre.hits).toBeGreaterThan(medals * 0.1);
     expect(result.centre.hits).toBeGreaterThan(result.anywhere.hits);
+    expect(result.centre.hits).toBeGreaterThan(result.between.hits);
     expect(progress[progress.length - 1]).toBe(1);
     expect(progress.every((share, index) => index === 0 || share >= progress[index - 1])).toBe(true);
   }, 30_000);

@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { DROP_INTERVAL, FIELD, SETTLE, TOWER, ballsOnField, buildTowers, medalsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
-import { BOARD, CHAIN_GOAL, CHESTS, JACKPOT_START, JACKPOT_STEP, ROULETTE, squareAfter } from '@/components/game/MedalPusher/lottery';
+import {
+  DROP_INTERVAL,
+  FIELD,
+  SETTLE,
+  TOWER,
+  ballsOnField,
+  buildTowers,
+  checkerCentres,
+  checkerShift,
+  medalsOnField,
+  pusherFront,
+  queuePayout,
+  seededRng,
+} from '@/components/game/MedalPusher/engine';
+import { BOARD, BOWL, CHAIN_GOAL, CHESTS, JACKPOT_START, JACKPOT_STEP, REACH_KINDS, ROULETTE, squareAfter } from '@/components/game/MedalPusher/lottery';
 import {
   MAX_STOCK,
   START_CREDITS,
@@ -50,8 +63,11 @@ function script(session: Session, values: number[], then = 0.5): void {
 /** A session with no balls lying about and no spins held, so that nothing comes onto its screen unasked. */
 const quiet = (): Session => createSession(5, { balls: 0 });
 
-/** The roll that stops the roulette on a given pocket. */
+/** The roll that stops the roulette on a given pocket, and the one that drops the ball into a given hole of the bowl. */
 const pocketRoll = (pocket: number): number => (pocket + 0.5) / ROULETTE.length;
+const holeRoll = (hole: number): number => (hole + 0.5) / BOWL.length;
+/** The pockets of a full run: as many numbers as it takes to send the ball into the bowl. */
+const FULL_RUN = [1, 2, 3, 5, 6, 7].slice(0, CHAIN_GOAL);
 
 const everyPosition = (session: Session): number[] => [
   ...session.machine.medals.flatMap((medal) => [medal.x, medal.y, medal.grown, medal.sinceDrop]),
@@ -130,6 +146,21 @@ describe('a save', () => {
     expect(plain(reread(back))).toEqual(plain(back));
   });
 
+  it('has its gates and its pusher where they were, and keeps them in step', { timeout: LONG }, () => {
+    const session = played(12, 7.3);
+    const back = reread(session);
+    // Both move with the machine's own clock, which the save holds: there is nothing else to restore.
+    expect(back.machine.time).toBe(session.machine.time);
+    expect(checkerShift(back.machine.time)).not.toBe(0);
+    expect(checkerCentres(back.machine.time)).toEqual(checkerCentres(session.machine.time));
+    expect(pusherFront(back.machine.time)).toBe(pusherFront(session.machine.time));
+    for (const machine of [session, back]) for (let i = 0; i < 113; i++) advance(machine, DT);
+    expect(back.machine.time).toBe(session.machine.time);
+    expect(checkerCentres(back.machine.time)).toEqual(checkerCentres(session.machine.time));
+    expect(checkerCentres(back.machine.time)).not.toEqual(checkerCentres(back.machine.time - 113 * DT));
+    expect(pusherFront(back.machine.time)).toBe(pusherFront(session.machine.time));
+  });
+
   it('holds a machine in the middle of a jackpot, however full the field gets', { timeout: LONG }, () => {
     const session = played(5, 10);
     buildTowers(session.machine, TOWER.max * 18);
@@ -158,10 +189,11 @@ describe('what the screen is in the middle of', () => {
       advance(session, DT);
       if (i % 6 !== 0) continue;
       const { spin, bonus, roulette } = session;
-      if (spin) seen.add(spin.done ? 'spin done' : 'spin');
+      if (spin) seen.add(spin.done ? 'spin done' : spin.result.reachKind === 'long' ? 'long reach' : 'spin');
       if (bonus?.kind === 'sugoroku') seen.add(bonus.payout < 0 ? 'sugoroku' : 'sugoroku paid');
       if (bonus?.kind === 'chest') seen.add(bonus.payout >= 0 ? 'chest paid' : bonus.picked >= 0 ? 'chest picked' : 'chest');
-      if (roulette) seen.add(roulette.jackpot ? 'jackpot' : roulette.over ? 'roulette over' : roulette.landed ? 'roulette landed' : 'roulette');
+      if (roulette?.bowl) seen.add(roulette.bowl.payout < 0 ? 'ball rolling' : roulette.jackpot ? 'jackpot' : 'ball in a hole');
+      else if (roulette) seen.add(roulette.over ? 'roulette over' : roulette.landed ? 'roulette landed' : 'roulette');
       const back = reread(session);
       expect(serialize(back)).toBe(serialize(session));
       expect(back.spin).toEqual(session.spin);
@@ -170,7 +202,7 @@ describe('what the screen is in the middle of', () => {
     }
   }
 
-  it('comes back at every moment of a spin, a bonus game and a roulette', { timeout: LONG }, () => {
+  it('comes back at every moment of a spin, a bonus game, a roulette and the bowl', { timeout: LONG }, () => {
     const seen = new Set<string>();
 
     // Two spins that miss: every draw is one no line comes of.
@@ -180,20 +212,20 @@ describe('what the screen is in the middle of', () => {
     follow(session, 7, seen);
     expect(session.tiers.miss).toBe(2);
 
-    // 2·2·2 and a roll on the board.
+    // 2·2·2 with the usual reach, and a roll on the board.
     session = quiet();
     session.stock = 1;
-    script(session, [0.03, 0, 0.5]);
+    script(session, [0.03, 0, 0.9]);
     follow(session, 9, seen);
     expect(session.tiers.small).toBe(1);
     expect(session.square).toBeGreaterThan(0);
 
-    // 1·1·1 and the chests, once left to the clock and once picked by the player.
+    // 1·1·1 with the long reach and the chests, once left to the clock and once picked by the player.
     for (const pick of [false, true]) {
       session = quiet();
       session.stock = 1;
-      script(session, [0.01, 0]);
-      follow(session, 17, seen, () => {
+      script(session, [0.01, 0, 0.1]);
+      follow(session, 19, seen, () => {
         if (pick && session.bonus?.kind === 'chest' && session.bonus.elapsed > 1) pickChest(session, 1);
       });
       expect(session.tiers.big).toBe(1);
@@ -208,15 +240,23 @@ describe('what the screen is in the middle of', () => {
     expect(session.roulettes).toBe(1);
     expect(session.jackpots).toBe(0);
 
-    // And one that goes all the way.
+    // A full run, and the ball into the jackpot's hole.
     session = quiet();
     session.balls = 1;
-    script(session, [1, 2, 3, 5, 6, 7].map(pocketRoll));
-    follow(session, 30, seen);
+    script(session, [...FULL_RUN.map(pocketRoll), holeRoll(0)]);
+    follow(session, 27, seen);
     expect(session.jackpots).toBe(1);
 
-    const everything = ['spin', 'spin done', 'sugoroku', 'sugoroku paid', 'chest', 'chest picked', 'chest paid', 'roulette', 'roulette landed', 'roulette over', 'jackpot'];
-    expect([...seen].sort()).toEqual(everything.sort());
+    // The same run, and the ball into a hole that holds medals.
+    session = quiet();
+    session.balls = 1;
+    script(session, [...FULL_RUN.map(pocketRoll), holeRoll(1)]);
+    follow(session, 27, seen);
+    expect(session.jackpots).toBe(0);
+    expect(session.paidOut).toBe(FULL_RUN.reduce((sum, pocket) => sum + (ROULETTE[pocket] as number), 0) + (BOWL[1] as number));
+
+    const everything = ['spin', 'long reach', 'spin done', 'sugoroku', 'sugoroku paid', 'chest', 'chest picked', 'chest paid'];
+    expect([...seen].sort()).toEqual([...everything, 'roulette', 'roulette landed', 'roulette over', 'ball rolling', 'jackpot', 'ball in a hole'].sort());
   });
 });
 
@@ -500,28 +540,36 @@ describe('a save at the very edge of what a machine can be', () => {
 
 describe('a screen that has been damaged', () => {
   // Each of these is written by hand, at a moment the machine does pass through.
-  const SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false };
+  const SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'normal' }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false };
+  const MISS = { tier: 'miss', digits: [5, 5, 6], reach: false, reachKind: 'none' };
   const SUGOROKU = { kind: 'sugoroku', roll: 3, from: 0, elapsed: 0.4, duration: sugorokuDuration(3), payout: -1 };
   const CHEST = { kind: 'chest', prizes: [20, 10, 30], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1 };
   const PICKED = { ...CHEST, picked: 0, pickedAt: 0.5, told: true, elapsed: 3, payout: 20 };
-  const ROULETTE_RUN = { pocket: 1, from: 0, elapsed: 0.2, duration: 2.8, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
-  const ENDED = { ...ROULETTE_RUN, elapsed: 3, landed: true, over: true, pocket: 0, from: 2, level: 2, total: 30 };
+  const TURN = { pocket: 1, from: 0, elapsed: 0.2, duration: 2.8, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
+  const ENDED = { ...TURN, elapsed: 3, landed: true, over: true, pocket: 0, from: 2, level: 2, total: 30 };
+  // A full run of 10, 20, 30 and 10, and the ball two seconds into the bowl.
+  const ROLLING = { hole: 1, elapsed: 2, duration: TIMING.bowl, payout: -1 };
+  const BOWLED = { ...TURN, pocket: 5, from: 3, elapsed: TIMING.roulette + TIMING.step, landed: true, level: 4, total: 70, bowl: ROLLING };
 
   const withScreen = (screen: Row): Session | null => restore(damaged((save) => (save.screen = screen)), 1);
   const untouched = plain(reread(restore(GOOD, 1) as Session));
 
   it('keeps what is in order', () => {
+    expect(CHAIN_GOAL).toBe(BOWLED.level);
     expect([...CHESTS].sort()).toEqual([...CHEST.prizes].sort());
     expect(ROULETTE[ENDED.from]).toBe(20);
+    expect([ROULETTE[BOWLED.from], ROULETTE[BOWLED.pocket]]).toEqual([30, 10]);
     expect(withScreen({ spin: SPIN, bonus: null, roulette: null })?.spin).toEqual(SPIN);
+    expect(withScreen({ spin: { ...SPIN, result: MISS, duration: TIMING.spin }, bonus: null, roulette: null })?.spin?.result).toEqual(MISS);
     expect(withScreen({ spin: null, bonus: SUGOROKU, roulette: null })?.bonus).toEqual(SUGOROKU);
     expect(withScreen({ spin: null, bonus: CHEST, roulette: null })?.bonus).toEqual(CHEST);
     expect(withScreen({ spin: null, bonus: PICKED, roulette: null })?.bonus).toEqual(PICKED);
-    const run = withScreen({ spin: null, bonus: null, roulette: ROULETTE_RUN });
-    expect(run?.roulette).toEqual(ROULETTE_RUN);
+    const run = withScreen({ spin: null, bonus: null, roulette: TURN });
+    expect(run?.roulette).toEqual(TURN);
     expect(run?.balls).toBe(0);
     expect(run?.roulettes).toBe(3);
     expect(withScreen({ spin: null, bonus: null, roulette: ENDED })?.roulette).toEqual(ENDED);
+    expect(withScreen({ spin: null, bonus: null, roulette: BOWLED })?.roulette).toEqual(BOWLED);
   });
 
   const spins: [string, unknown][] = [
@@ -529,14 +577,16 @@ describe('a screen that has been damaged', () => {
     ['a spin that is a list', []],
     ['a spin with no result', { ...SPIN, result: null }],
     ['a spin of a tier the slot does not have', { ...SPIN, result: { ...SPIN.result, tier: 'jackpot' } }],
-    ['a reel showing a digit it does not have', { ...SPIN, result: { tier: 'miss', digits: [0, 1, 2], reach: false } }],
-    ['a reel showing ten', { ...SPIN, result: { tier: 'miss', digits: [10, 1, 2], reach: false } }],
+    ['a reel showing a digit it does not have', { ...SPIN, duration: TIMING.spin, result: { ...MISS, digits: [0, 1, 2] } }],
+    ['a reel showing ten', { ...SPIN, duration: TIMING.spin, result: { ...MISS, digits: [10, 1, 2] } }],
     ['two reels', { ...SPIN, result: { ...SPIN.result, digits: [4, 4] } }],
     ['four reels', { ...SPIN, result: { ...SPIN.result, digits: [4, 4, 4, 4] } }],
-    ['a winning tier without a line', { ...SPIN, result: { tier: 'small', digits: [4, 4, 6], reach: true } }],
-    ['a line of another tier', { ...SPIN, result: { tier: 'seven', digits: [3, 3, 3], reach: true } }],
-    ['a miss that is a line', { ...SPIN, result: { tier: 'miss', digits: [7, 7, 7], reach: true } }],
+    ['a winning tier without a line', { ...SPIN, result: { ...SPIN.result, digits: [4, 6, 4] } }],
+    ['a line of another tier', { ...SPIN, result: { ...SPIN.result, tier: 'seven', digits: [3, 3, 3] } }],
+    ['a miss that is a line', { ...SPIN, result: { ...SPIN.result, tier: 'miss', digits: [7, 7, 7] } }],
     ['a reach that is a number', { ...SPIN, result: { ...SPIN.result, reach: 1 } }],
+    ['a reach played a way the slot does not have', { ...SPIN, result: { ...SPIN.result, reachKind: 'super' } }],
+    ['a reach with no word on how it is played', { ...SPIN, result: { tier: 'small', digits: [4, 4, 4], reach: true } }],
     ['a spin that takes no time', { ...SPIN, duration: 0 }],
     ['a spin that takes for ever', { ...SPIN, duration: 1e9 }],
     ['a spin that began before it began', { ...SPIN, elapsed: -1 }],
@@ -585,19 +635,28 @@ describe('a screen that has been damaged', () => {
   const roulettes: [string, unknown][] = [
     ['a roulette that is a number', 5],
     ['a roulette that is true', true],
-    ['a pocket past the last', { ...ROULETTE_RUN, pocket: ROULETTE.length }],
-    ['a pocket before the first', { ...ROULETTE_RUN, from: -1 }],
-    ['a pocket between two', { ...ROULETTE_RUN, pocket: 1.5 }],
-    ['a turn that takes no time', { ...ROULETTE_RUN, duration: 0 }],
-    ['a turn whose time is not a number', { ...ROULETTE_RUN, duration: Number.NaN }],
-    ['a run past its goal', { ...ROULETTE_RUN, level: 7 }],
-    ['a run of fewer than no numbers', { ...ROULETTE_RUN, level: -1 }],
-    ['a run that has paid less than nothing', { ...ROULETTE_RUN, total: -10 }],
-    ['a pocket that paid an absurd amount', { ...ROULETTE_RUN, gain: LIMITS.purse + 1 }],
-    ['a run that ended before the light stopped', { ...ROULETTE_RUN, over: true }],
-    ['a jackpot in a run that has not ended', { ...ROULETTE_RUN, landed: true, jackpot: true }],
+    ['a pocket past the last', { ...TURN, pocket: ROULETTE.length }],
+    ['a pocket before the first', { ...TURN, from: -1 }],
+    ['a pocket between two', { ...TURN, pocket: 1.5 }],
+    ['a turn that takes no time', { ...TURN, duration: 0 }],
+    ['a turn whose time is not a number', { ...TURN, duration: Number.NaN }],
+    ['a run past its goal', { ...TURN, level: CHAIN_GOAL + 1 }],
+    ['a run of fewer than no numbers', { ...TURN, level: -1 }],
+    ['a run that has paid less than nothing', { ...TURN, total: -10 }],
+    ['a pocket that paid an absurd amount', { ...TURN, gain: LIMITS.purse + 1 }],
+    ['a run that ended before the light stopped', { ...TURN, over: true }],
+    ['a jackpot in a run that has not ended', { ...TURN, landed: true, jackpot: true }],
     ['a roulette with a field missing', { pocket: 1, from: 0 }],
-    ['a roulette with a field too many', { ...ROULETTE_RUN, bowl: 3 }],
+    ['a roulette with a field too many', { ...TURN, lamp: 3 }],
+    ['a bowl that is a number', { ...TURN, bowl: 3 }],
+    ['a bowl that is a list', { ...BOWLED, bowl: [] }],
+    ['a hole the bowl does not have', { ...BOWLED, bowl: { ...ROLLING, hole: BOWL.length } }],
+    ['a hole before the first', { ...BOWLED, bowl: { ...ROLLING, hole: -1 } }],
+    ['a ball that rolls for no time', { ...BOWLED, bowl: { ...ROLLING, duration: 0 } }],
+    ['a ball let go before it was let go', { ...BOWLED, bowl: { ...ROLLING, elapsed: -1 } }],
+    ['a hole that paid less than nothing', { ...BOWLED, bowl: { ...ROLLING, payout: -2 } }],
+    ['a bowl with a field missing', { ...BOWLED, bowl: { hole: 1, elapsed: 2, duration: TIMING.bowl } }],
+    ['a bowl with a field too many', { ...BOWLED, bowl: { ...ROLLING, spin: 3 } }],
   ];
 
   it.each(roulettes)('leaves off %s, keeps the machine and gives the ball back', (_name, roulette) => {
@@ -608,8 +667,9 @@ describe('a screen that has been damaged', () => {
 
   it('leaves everything off when more than one thing is on, and still gives the ball back', () => {
     expect(plain(withScreen({ spin: SPIN, bonus: CHEST, roulette: null }) as Session)).toEqual(untouched);
-    expect(plain(withScreen({ spin: SPIN, bonus: null, roulette: ROULETTE_RUN }) as Session)).toEqual({ ...untouched, balls: 1, roulettes: 2 });
+    expect(plain(withScreen({ spin: SPIN, bonus: null, roulette: TURN }) as Session)).toEqual({ ...untouched, balls: 1, roulettes: 2 });
     expect(plain(withScreen({ spin: SPIN, bonus: SUGOROKU, roulette: ENDED }) as Session)).toEqual({ ...untouched, balls: 1, roulettes: 2 });
+    expect(plain(withScreen({ spin: null, bonus: CHEST, roulette: BOWLED }) as Session)).toEqual({ ...untouched, balls: 1, roulettes: 2 });
   });
 
   it('takes a screen with nothing written on it as an empty one', () => {
@@ -646,21 +706,38 @@ const PHASES = (() => {
   };
   const chest = (session: Session) => (session.bonus?.kind === 'chest' ? session.bonus : null);
   const board = (session: Session) => (session.bonus?.kind === 'sugoroku' ? session.bonus : null);
+  const reels = (session: Session) => (session.spin?.elapsed ?? 0) > 0.5;
 
-  // A spin that misses.
+  // A spin that misses with no reach.
   let session = quiet();
   session.stock = 1;
   script(session, [0.99]);
-  until(session, 'a spin that will miss', () => (session.spin?.elapsed ?? 0) > 0.5);
+  until(session, 'a spin that will miss', () => reels(session));
 
-  // 2·2·2, and the roll on the board it leads to.
+  // A reach that misses: the usual one, and the long one.
   session = quiet();
   session.stock = 1;
-  script(session, [0.03, 0, 0.5]);
-  until(session, 'a spin that will win', () => (session.spin?.elapsed ?? 0) > 0.5);
+  script(session, [0.99, 0.5, 0.1, 0.2, 0.9]);
+  until(session, 'a reach that will miss', () => reels(session));
+  session = quiet();
+  session.stock = 1;
+  script(session, [0.99, 0.5, 0.1, 0.2, 0.1]);
+  until(session, 'a long reach that will miss', () => reels(session));
+
+  // 2·2·2 with the usual reach, and the roll on the board it leads to.
+  session = quiet();
+  session.stock = 1;
+  script(session, [0.03, 0, 0.9]);
+  until(session, 'a spin that will win', () => reels(session));
   until(session, 'a line held up', () => session.spin?.done === true);
   until(session, 'a piece on its way', () => (board(session)?.elapsed ?? 0) > 0.5);
   until(session, 'a square that has paid', () => (board(session)?.payout ?? -1) >= 0);
+
+  // 2·2·2 with the long reach.
+  session = quiet();
+  session.stock = 1;
+  script(session, [0.03, 0, 0.1]);
+  until(session, 'a long reach that will win', () => reels(session));
 
   // 1·1·1 and the chests, left to the clock.
   session = quiet();
@@ -698,11 +775,19 @@ const PHASES = (() => {
   script(session, [pocketRoll(0)]);
   until(session, 'a cross on the first turn', () => session.roulette?.over === true);
 
-  // And a run that goes all the way.
+  // A full run, and the ball into the jackpot's hole.
   session = quiet();
   session.balls = 1;
-  script(session, [1, 2, 3, 5, 6, 7].map(pocketRoll));
-  until(session, 'the jackpot', () => session.roulette?.jackpot === true);
+  script(session, [...FULL_RUN.map(pocketRoll), holeRoll(0)]);
+  until(session, 'the last number', () => session.roulette?.level === CHAIN_GOAL && session.roulette.bowl === null);
+  until(session, 'the ball rolling', () => (session.roulette?.bowl?.elapsed ?? 0) > 0.5);
+  until(session, 'the ball in the jackpot', () => (session.roulette?.bowl?.payout ?? -1) >= 0);
+
+  // The same run, and the ball into a hole that holds medals.
+  session = quiet();
+  session.balls = 1;
+  script(session, [...FULL_RUN.map(pocketRoll), holeRoll(1)]);
+  until(session, 'the ball in a hole', () => (session.roulette?.bowl?.payout ?? -1) >= 0);
   return caught;
 })();
 
@@ -721,6 +806,9 @@ const leftOff = (save: Save) => {
   return { ...plain(bare), balls: bare.balls + 1, roulettes: bare.roulettes - 1 };
 };
 
+/** What the numbers of a full run come to. */
+const RUN_PAID = FULL_RUN.reduce((sum, pocket) => sum + (ROULETTE[pocket] as number), 0);
+
 describe('a screen caught at each of its phases', () => {
   it.each(Object.keys(PHASES))('comes back as it was: %s', (name) => {
     const back = restore(PHASES[name], 1);
@@ -731,9 +819,13 @@ describe('a screen caught at each of its phases', () => {
 
   it('is the phase its name says', () => {
     const at = (name: string) => JSON.parse(PHASES[name]) as Save;
-    expect(Object.keys(PHASES)).toHaveLength(19);
-    expect(at('a spin that will miss').screen.spin).toMatchObject({ done: false, result: { tier: 'miss', reach: false } });
-    expect(at('a spin that will win').screen.spin).toMatchObject({ done: false, result: { tier: 'small', reach: true } });
+    expect(Object.keys(PHASES)).toHaveLength(25);
+    expect(at('a spin that will miss').screen.spin).toMatchObject({ done: false, duration: TIMING.spin, result: { tier: 'miss', reach: false, reachKind: 'none' } });
+    expect(at('a reach that will miss').screen.spin).toMatchObject({ done: false, duration: TIMING.spin + TIMING.reach, result: { tier: 'miss', reach: true, reachKind: 'normal' } });
+    expect(at('a long reach that will miss').screen.spin).toMatchObject({ done: false, result: { tier: 'miss', reach: true, reachKind: 'long' } });
+    expect(at('a spin that will win').screen.spin).toMatchObject({ done: false, duration: TIMING.spin + TIMING.reach, result: { tier: 'small', reach: true, reachKind: 'normal' } });
+    expect(at('a long reach that will win').screen.spin).toMatchObject({ done: false, result: { tier: 'small', reach: true, reachKind: 'long' } });
+    expect((at('a long reach that will win').screen.spin as Row).duration).toBe(TIMING.spin + (TIMING.reach + TIMING.longReach));
     expect(at('a line held up').screen.spin).toMatchObject({ done: true });
     expect(at('a piece on its way').screen.bonus).toMatchObject({ kind: 'sugoroku', payout: -1 });
     expect(at('a square that has paid').screen.bonus).toMatchObject({ kind: 'sugoroku', payout: BOARD[4] });
@@ -748,26 +840,44 @@ describe('a screen caught at each of its phases', () => {
     expect(justPicked.picked).not.toBe(justPicked.fallback);
     expect(at('a chest picked').screen.bonus).toMatchObject({ told: true, payout: -1 });
     expect((at('a chest open').screen.bonus as Row).payout).toBeGreaterThan(0);
-    expect(at('the first turn').screen.roulette).toMatchObject({ landed: false, level: 0, total: 0, from: 0 });
-    expect(at('a number').screen.roulette).toMatchObject({ landed: true, over: false, level: 1, gain: 10, total: 10 });
+    expect(at('the first turn').screen.roulette).toMatchObject({ landed: false, level: 0, total: 0, from: 0, bowl: null });
+    expect(at('a number').screen.roulette).toMatchObject({ landed: true, over: false, level: 1, gain: 10, total: 10, bowl: null });
     expect(at('a second turn').screen.roulette).toMatchObject({ landed: false, level: 1, gain: 0, total: 10, from: 1 });
     expect(at('a second number').screen.roulette).toMatchObject({ landed: true, over: false, level: 2, gain: 20, total: 30 });
     expect(at('a third turn').screen.roulette).toMatchObject({ landed: false, level: 2, total: 30, from: 2 });
-    expect(at('a cross').screen.roulette).toMatchObject({ landed: true, over: true, jackpot: false, level: 2, gain: 0, total: 30 });
+    expect(at('a cross').screen.roulette).toMatchObject({ landed: true, over: true, jackpot: false, level: 2, gain: 0, total: 30, bowl: null });
     expect(at('a cross on the first turn').screen.roulette).toMatchObject({ landed: true, over: true, level: 0, total: 0, from: 0 });
-    expect(at('the jackpot').screen.roulette).toMatchObject({ landed: true, over: true, jackpot: true, level: CHAIN_GOAL, gain: JACKPOT_START });
+    expect(at('the last number').screen.roulette).toMatchObject({ landed: true, over: false, jackpot: false, level: CHAIN_GOAL, total: RUN_PAID, bowl: null });
+    expect(at('the ball rolling').screen.roulette).toMatchObject({ landed: true, over: false, jackpot: false, level: CHAIN_GOAL, gain: 0, total: RUN_PAID });
+    expect(at('the ball rolling').screen.roulette).toMatchObject({ bowl: { hole: 0, duration: TIMING.bowl, payout: -1 } });
+    expect(at('the ball in the jackpot').screen.roulette).toMatchObject({ over: true, jackpot: true, gain: JACKPOT_START, total: RUN_PAID + JACKPOT_START });
+    expect(at('the ball in the jackpot').screen.roulette).toMatchObject({ bowl: { hole: 0, payout: JACKPOT_START } });
+    expect(at('the ball in the jackpot').session.jackpots).toBe(1);
+    expect(at('the ball in a hole').screen.roulette).toMatchObject({ over: true, jackpot: false, gain: BOWL[1], total: RUN_PAID + (BOWL[1] as number) });
+    expect(at('the ball in a hole').screen.roulette).toMatchObject({ bowl: { hole: 1, payout: BOWL[1] } });
   });
 
   // One field of a good save changed, into something the machine never passes through.
   const other = (chest: Row): number => ((chest.picked as number) + 1) % CHESTS.length;
+  const result = (spin: Row): Row => spin.result as Row;
+  const bowl = (run: Row): Row => run.bowl as Row;
   const impossible: [string, string, (thing: Row, save: Save) => void][] = [
     // A spin
     ['a spin that will win', 'is done before its reels have stopped', (spin) => (spin.done = true)],
     ['a spin that will win', 'is still running at the moment its reels stop', (spin) => (spin.elapsed = spin.duration)],
     ['a spin that will win', 'runs for a time the machine gives no spin', (spin) => (spin.duration = 2)],
     ['a spin that will win', 'runs for the time of a spin with no reach', (spin) => (spin.duration = TIMING.spin)],
-    ['a spin that will win', 'has no reach, its outer reels alike', (spin) => ((spin.result as Row).reach = false)],
-    ['a spin that will miss', 'has a reach, its outer reels apart', (spin) => ((spin.result as Row).reach = true)],
+    ['a spin that will win', 'has no reach, its outer reels alike', (spin) => (result(spin).reach = false)],
+    ['a spin that will win', 'has a reach that is played no way at all', (spin) => (result(spin).reachKind = 'none')],
+    ['a spin that will win', 'has a long reach in the time of the usual one', (spin) => (result(spin).reachKind = 'long')],
+    ['a long reach that will win', 'has the usual reach in the time of a long one', (spin) => (result(spin).reachKind = 'normal')],
+    ['a long reach that will win', 'runs for the time of the usual reach', (spin) => (spin.duration = TIMING.spin + TIMING.reach)],
+    ['a long reach that will miss', 'runs for the time of the usual reach', (spin) => (spin.duration = TIMING.spin + TIMING.reach)],
+    ['a reach that will miss', 'runs for the time of a long reach', (spin) => (spin.duration = TIMING.spin + (TIMING.reach + TIMING.longReach))],
+    ['a reach that will miss', 'has a reach that is played no way at all', (spin) => (result(spin).reachKind = 'none')],
+    ['a reach that will miss', 'is done', (spin) => (spin.done = true)],
+    ['a spin that will miss', 'has a reach, its outer reels apart', (spin) => (result(spin).reach = true)],
+    ['a spin that will miss', 'has a way of playing a reach it does not have', (spin) => (result(spin).reachKind = 'normal')],
     ['a spin that will miss', 'is done', (spin) => (spin.done = true)],
     ['a spin that will miss', 'has stopped and is still on the screen', (spin) => (spin.elapsed = spin.duration)],
     ['a line held up', 'is not done, its reels long stopped', (spin) => (spin.done = false)],
@@ -811,7 +921,7 @@ describe('a screen caught at each of its phases', () => {
     ['a chest the clock picked', 'has not been taken in', (chest) => (chest.told = false)],
     ['a chest the clock picked, open', 'is unpaid again', (chest) => (chest.payout = -1)],
 
-    // A ball's roulette
+    // A ball's roulette, turn by turn
     ['the first turn', 'has landed while the light is going round', (run) => (run.landed = true)],
     ['the first turn', 'is still turning at the moment the light stops', (run) => (run.elapsed = run.duration)],
     ['the first turn', 'takes a time the machine gives no turn', (run) => (run.duration = 3)],
@@ -821,6 +931,7 @@ describe('a screen caught at each of its phases', () => {
     ['the first turn', 'set off from a pocket other than the first', (run) => (run.from = 1)],
     ['the first turn', 'is over', (run) => (run.over = true)],
     ['the first turn', 'is a jackpot', (run) => (run.jackpot = true)],
+    ['the first turn', 'has a ball in the bowl already', (run) => (run.bowl = { hole: 0, elapsed: 0, duration: TIMING.bowl, payout: -1 })],
     ['a number', 'has not landed, its turn long done', (run) => (run.landed = false)],
     ['a number', 'has ended the run', (run) => (run.over = true)],
     ['a number', 'is a jackpot', (run) => (run.jackpot = true)],
@@ -828,12 +939,13 @@ describe('a screen caught at each of its phases', () => {
     ['a number', 'has no gain', (run) => (run.gain = 0)],
     ['a number', 'has the gain of another pocket', (run) => (run.gain = 20)],
     ['a number', 'counts for nothing', (run) => (run.level = 0)],
-    ['a number', 'has reached the goal without the jackpot', (run) => (run.level = CHAIN_GOAL)],
+    ['a number', 'counts as the last of a full run', (run) => (run.level = CHAIN_GOAL)],
     ['a number', 'has a total its number does not make', (run) => (run.total = 5)],
     ['a number', 'is overdue for the next turn', (run) => (run.elapsed = (run.duration as number) + TIMING.step)],
     ['a number', 'is on a cross', (run) => (run.pocket = 0)],
     ['a number', 'is on another number', (run) => (run.pocket = 2)],
-    ['a second turn', 'has reached the goal and is still turning', (run) => (run.level = CHAIN_GOAL)],
+    ['a number', 'has a ball in the bowl with the run not full', (run) => (run.bowl = { hole: 0, elapsed: 0, duration: TIMING.bowl, payout: -1 })],
+    ['a second turn', 'has made a full run and is still turning', (run) => (run.level = CHAIN_GOAL)],
     ['a second turn', 'set off from a cross', (run) => (run.from = 0)],
     ['a second turn', 'set off from a number it did not land on', (run) => (run.from = 2)],
     ['a second turn', 'has a total no number makes', (run) => (run.total = 15)],
@@ -848,18 +960,44 @@ describe('a screen caught at each of its phases', () => {
     ['a cross', 'has a gain', (run) => (run.gain = 10)],
     ['a cross', 'is a jackpot', (run) => (run.jackpot = true)],
     ['a cross', 'is shown past its time', (run) => (run.elapsed = (run.duration as number) + TIMING.prize)],
-    ['a cross', 'has reached the goal', (run) => (run.level = CHAIN_GOAL)],
+    ['a cross', 'has made a full run', (run) => (run.level = CHAIN_GOAL)],
     ['a cross', 'is on a number', (run) => (run.pocket = 1)],
     ['a cross on the first turn', 'has a number behind it', (run) => (run.level = 1)],
-    ['the jackpot', 'has not landed', (run) => (run.landed = false)],
-    ['the jackpot', 'is no jackpot', (run) => (run.jackpot = false)],
-    ['the jackpot', 'has not ended the run', (run) => (run.over = false)],
-    ['the jackpot', 'is one number short of the goal', (run) => (run.level = CHAIN_GOAL - 1)],
-    ['the jackpot', 'paid less than a jackpot starts at', (run) => (run.gain = JACKPOT_START - 1)],
-    ['the jackpot', 'has a total without the jackpot in it', (run) => (run.total = (run.total as number) - (run.gain as number))],
-    ['the jackpot', 'has a total its numbers do not make', (run) => (run.total = (run.total as number) + 5)],
-    ['the jackpot', 'is shown past its time', (run) => (run.elapsed = (run.duration as number) + TIMING.prize)],
-    ['the jackpot', 'is on a cross', (run) => (run.pocket = 0)],
+
+    // The end of a full run: the last number, and the ball in the bowl
+    ['the last number', 'has not landed', (run) => (run.landed = false)],
+    ['the last number', 'has ended the run', (run) => (run.over = true)],
+    ['the last number', 'is a jackpot', (run) => (run.jackpot = true)],
+    ['the last number', 'has kept the ball out of the bowl past its time', (run) => (run.elapsed = (run.duration as number) + TIMING.step)],
+    ['the last number', 'has the ball in the bowl before its time', (run) => (run.bowl = { hole: 0, elapsed: 0, duration: TIMING.bowl, payout: -1 })],
+    ['the last number', 'has a total its numbers do not make', (run) => (run.total = (run.total as number) + 5)],
+    ['the ball rolling', 'has dropped while it is rolling', (run) => (bowl(run).payout = 50)],
+    ['the ball rolling', 'is still rolling at the moment it drops', (run) => (bowl(run).elapsed = bowl(run).duration)],
+    ['the ball rolling', 'rolls for a time the machine gives no ball', (run) => (bowl(run).duration = 5)],
+    ['the ball rolling', 'is in a bowl whose run has ended', (run) => (run.over = true)],
+    ['the ball rolling', 'is a jackpot before it has dropped', (run) => (run.jackpot = true)],
+    ['the ball rolling', 'still shows the last number as its gain', (run) => (run.gain = ROULETTE[run.pocket as number])],
+    ['the ball rolling', 'is in a bowl whose last number never landed', (run) => (run.landed = false)],
+    ['the ball rolling', 'is in a bowl after a run one number short', (run) => (run.level = CHAIN_GOAL - 1)],
+    ['the ball rolling', 'was let go before the last number had its time', (run) => (run.elapsed = run.duration)],
+    ['the ball rolling', 'is in a bowl after a cross', (run) => (run.pocket = 0)],
+    ['the ball rolling', 'has a total its numbers do not make', (run) => (run.total = (run.total as number) + 5)],
+    ['the ball rolling', 'is in a bowl with no ball in it', (run) => (run.bowl = null)],
+    ['the ball in the jackpot', 'has not dropped after all', (run) => (bowl(run).payout = -1)],
+    ['the ball in the jackpot', 'is no jackpot', (run) => (run.jackpot = false)],
+    ['the ball in the jackpot', 'has not ended the run', (run) => (run.over = false)],
+    ['the ball in the jackpot', 'has no gain', (run) => (run.gain = 0)],
+    ['the ball in the jackpot', 'paid less than its gain says', (run) => (bowl(run).payout = JACKPOT_START - 1)],
+    ['the ball in the jackpot', 'is in another hole', (run) => (bowl(run).hole = 1)],
+    ['the ball in the jackpot', 'dropped before its time', (run) => (bowl(run).elapsed = 0.5)],
+    ['the ball in the jackpot', 'is shown past its time', (run) => (bowl(run).elapsed = (bowl(run).duration as number) + TIMING.prize)],
+    ['the ball in the jackpot', 'has a total without the jackpot in it', (run) => (run.total = (run.total as number) - (run.gain as number))],
+    ['the ball in the jackpot', 'won with no bowl at all', (run) => (run.bowl = null)],
+    ['the ball in a hole', 'has not dropped after all', (run) => (bowl(run).payout = -1)],
+    ['the ball in a hole', 'is a jackpot', (run) => (run.jackpot = true)],
+    ['the ball in a hole', 'paid what another hole holds', (run) => (bowl(run).payout = BOWL[2])],
+    ['the ball in a hole', 'is in the hole of the jackpot', (run) => (bowl(run).hole = 0)],
+    ['the ball in a hole', 'has a total without the hole in it', (run) => (run.total = RUN_PAID)],
   ];
 
   // Several fields changed together, so that everything agrees but the one rule each of these breaks.
@@ -868,7 +1006,8 @@ describe('a screen caught at each of its phases', () => {
       'a spin that will win',
       'has no reach and the time of a plain spin, its outer reels alike',
       (spin) => {
-        (spin.result as Row).reach = false;
+        result(spin).reach = false;
+        result(spin).reachKind = 'none';
         spin.duration = TIMING.spin;
       },
     ],
@@ -876,7 +1015,8 @@ describe('a screen caught at each of its phases', () => {
       'a spin that will miss',
       'has a reach and the time of one, its outer reels apart',
       (spin) => {
-        (spin.result as Row).reach = true;
+        result(spin).reach = true;
+        result(spin).reachKind = 'normal';
         spin.duration = TIMING.spin + TIMING.reach;
       },
     ],
@@ -890,7 +1030,7 @@ describe('a screen caught at each of its phases', () => {
     ],
     [
       'the first turn',
-      'is at the goal with the numbers to match, and still turning',
+      'has made a full run with the numbers to match, and is still turning',
       (run) => {
         run.level = CHAIN_GOAL;
         run.from = 1;
@@ -899,7 +1039,7 @@ describe('a screen caught at each of its phases', () => {
     ],
     [
       'a cross',
-      'is at the goal with the numbers to match',
+      'has made a full run with the numbers to match',
       (run) => {
         run.level = CHAIN_GOAL;
         run.from = 1;
@@ -915,11 +1055,39 @@ describe('a screen caught at each of its phases', () => {
       },
     ],
     [
-      'the jackpot',
-      'paid less than a jackpot starts at, its total to match',
+      'the ball in the jackpot',
+      'paid less than a jackpot starts at, its gain and its total to match',
       (run) => {
+        bowl(run).payout = JACKPOT_START - 1;
         run.gain = JACKPOT_START - 1;
         run.total = (run.total as number) - 1;
+      },
+    ],
+    [
+      'the ball in a hole',
+      'paid more than its hole holds, its gain and its total to match',
+      (run) => {
+        bowl(run).payout = (BOWL[1] as number) + 10;
+        run.gain = (BOWL[1] as number) + 10;
+        run.total = (run.total as number) + 10;
+      },
+    ],
+    [
+      'the ball in a hole',
+      'is in the hole of the jackpot with a jackpot to match, and is not called one',
+      (run) => {
+        bowl(run).hole = 0;
+        bowl(run).payout = JACKPOT_START;
+        run.gain = JACKPOT_START;
+        run.total = RUN_PAID + JACKPOT_START;
+      },
+    ],
+    [
+      'the ball rolling',
+      'is in a bowl after a run one number short, with the numbers to match',
+      (run) => {
+        run.level = CHAIN_GOAL - 1;
+        run.total = (run.total as number) - (ROULETTE[FULL_RUN[0]] as number);
       },
     ],
   ];
@@ -937,6 +1105,16 @@ describe('a screen caught at each of its phases', () => {
   });
 
   // The changes that would make the machine do something a second time.
+  const unpay = (session: Session): void => {
+    if (session.bonus) session.bonus.payout = -1;
+  };
+  const unland = (session: Session): void => {
+    if (session.roulette) session.roulette.landed = false;
+  };
+  const undrop = (session: Session): void => {
+    if (session.roulette?.bowl) session.roulette.bowl.payout = -1;
+  };
+  const paid = (session: Session): number => session.paidOut;
   const twice: [string, string, (session: Session) => void, (session: Session) => number][] = [
     [
       'a line held up',
@@ -946,54 +1124,15 @@ describe('a screen caught at each of its phases', () => {
       },
       (session) => session.tiers.small,
     ],
-    [
-      'a square that has paid',
-      'pay the square again',
-      (session) => {
-        if (session.bonus) session.bonus.payout = -1;
-      },
-      (session) => session.paidOut,
-    ],
-    [
-      'a chest open',
-      'pay the chest again',
-      (session) => {
-        if (session.bonus) session.bonus.payout = -1;
-      },
-      (session) => session.paidOut,
-    ],
-    [
-      'a chest the clock picked, open',
-      'pay the chest again',
-      (session) => {
-        if (session.bonus) session.bonus.payout = -1;
-      },
-      (session) => session.paidOut,
-    ],
-    [
-      'a number',
-      'pay the pocket again',
-      (session) => {
-        if (session.roulette) session.roulette.landed = false;
-      },
-      (session) => session.paidOut,
-    ],
-    [
-      'a second number',
-      'pay the pocket again',
-      (session) => {
-        if (session.roulette) session.roulette.landed = false;
-      },
-      (session) => session.paidOut,
-    ],
-    [
-      'the jackpot',
-      'pay the jackpot again',
-      (session) => {
-        if (session.roulette) session.roulette.landed = false;
-      },
-      (session) => session.paidOut,
-    ],
+    ['a square that has paid', 'pay the square again', unpay, paid],
+    ['a chest open', 'pay the chest again', unpay, paid],
+    ['a chest the clock picked, open', 'pay the chest again', unpay, paid],
+    ['a number', 'pay the pocket again', unland, paid],
+    ['a second number', 'pay the pocket again', unland, paid],
+    ['the last number', 'pay the pocket again', unland, paid],
+    ['the ball in the jackpot', 'pay the jackpot again', undrop, paid],
+    ['the ball in the jackpot', 'count the jackpot again', undrop, (session) => session.jackpots],
+    ['the ball in a hole', 'pay the hole again', undrop, paid],
   ];
 
   /** Everything the screen pays or counts. */
@@ -1046,6 +1185,7 @@ describe('a screen exactly on a threshold', () => {
     script(session, [0.03, 0, 0.5]);
     advance(session, 0);
     const duration = session.spin?.duration ?? 0;
+    expect(duration).toBe(TIMING.spin + (TIMING.reach + TIMING.longReach));
     advance(session, duration);
     expect(session.spin).toMatchObject({ elapsed: duration, done: true });
     expect(serialize(reread(session))).toBe(serialize(session));
@@ -1111,7 +1251,7 @@ describe('a screen exactly on a threshold', () => {
     expect(session.bonus).toBeNull();
   });
 
-  it('reads back a roulette at the instant the light stops, on a number, a cross and the jackpot', () => {
+  it('reads back a roulette at the instant the light stops, on a number and on a cross', () => {
     const session = quiet();
     session.balls = 1;
     script(session, [pocketRoll(1), pocketRoll(0)]);
@@ -1127,25 +1267,35 @@ describe('a screen exactly on a threshold', () => {
     expect(serialize(reread(session))).toBe(serialize(session));
     advance(session, TIMING.prize);
     expect(session.roulette).toBeNull();
+  });
 
-    const lucky = quiet();
-    lucky.balls = 1;
-    script(lucky, [1, 2, 3, 5, 6, 7].map(pocketRoll));
-    advance(lucky, 0);
-    for (let turn = 1; turn < CHAIN_GOAL; turn++) {
-      advance(lucky, TIMING.roulette);
-      expect(serialize(reread(lucky))).toBe(serialize(lucky));
-      advance(lucky, TIMING.step);
-      expect(serialize(reread(lucky))).toBe(serialize(lucky));
+  it('reads back a full run at the instant the ball is let go, and at the instant it drops', () => {
+    const session = quiet();
+    session.balls = 1;
+    script(session, [...FULL_RUN.map(pocketRoll), holeRoll(0)]);
+    advance(session, 0);
+    for (let turn = 1; turn <= CHAIN_GOAL; turn++) {
+      advance(session, TIMING.roulette);
+      expect(session.roulette).toMatchObject({ elapsed: TIMING.roulette, landed: true, level: turn, bowl: null });
+      expect(serialize(reread(session))).toBe(serialize(session));
+      advance(session, TIMING.step);
+      expect(serialize(reread(session))).toBe(serialize(session));
     }
-    advance(lucky, TIMING.roulette);
-    expect(lucky.roulette).toMatchObject({ elapsed: TIMING.roulette, jackpot: true, level: CHAIN_GOAL });
-    expect(serialize(reread(lucky))).toBe(serialize(lucky));
+    // The last number's time is up to the instant, and the ball has only just been let go.
+    expect(session.roulette).toMatchObject({ elapsed: TIMING.roulette + TIMING.step, level: CHAIN_GOAL, gain: 0, over: false });
+    expect(session.roulette?.bowl).toEqual({ hole: 0, elapsed: 0, duration: TIMING.bowl, payout: -1 });
+    advance(session, TIMING.bowl);
+    expect(session.roulette?.bowl).toEqual({ hole: 0, elapsed: TIMING.bowl, duration: TIMING.bowl, payout: JACKPOT_START });
+    expect(session.roulette).toMatchObject({ over: true, jackpot: true, gain: JACKPOT_START });
+    expect(serialize(reread(session))).toBe(serialize(session));
+    advance(session, TIMING.prize);
+    expect(session.roulette).toBeNull();
+    expect(session.jackpots).toBe(1);
   });
 });
 
 describe('any moment of any session', () => {
-  it('is a save that reads back as it was', { timeout: LONG }, () => {
+  it('is a save that reads back as it was, and plays on as the session would have', { timeout: LONG }, () => {
     const chance = seededRng(20261011);
     const seen = new Map<string, number>();
     const note = (phase: string) => seen.set(phase, (seen.get(phase) ?? 0) + 1);
@@ -1160,21 +1310,33 @@ describe('any moment of any session', () => {
         if (bonus.picked < 0) at.push(TIMING.choose - bonus.elapsed);
         else at.push(bonus.pickedAt + TIMING.open - bonus.elapsed, bonus.pickedAt + TIMING.open + TIMING.prize - bonus.elapsed);
       }
-      if (roulette) at.push(roulette.duration - roulette.elapsed, roulette.duration + TIMING.step - roulette.elapsed, roulette.duration + TIMING.prize - roulette.elapsed);
+      if (roulette?.bowl) at.push(roulette.bowl.duration - roulette.bowl.elapsed, roulette.bowl.duration + TIMING.prize - roulette.bowl.elapsed);
+      else if (roulette) at.push(roulette.duration - roulette.elapsed, roulette.duration + TIMING.step - roulette.elapsed, roulette.duration + TIMING.prize - roulette.elapsed);
       const soon = at.filter((seconds) => seconds > 0 && seconds <= 0.25);
       return soon.length > 0 ? soon[Math.floor(chance() * soon.length)] : 0;
     };
 
-    const check = (session: Session): void => {
+    /** The draws of a machine: fair ones, or far more winning lines than a slot gives. */
+    const drawsFor = (seed: number, lucky: boolean): (() => number) => {
+      const draws = seededRng(seed);
+      return lucky ? () => (draws() < 0.3 ? draws() * 0.06 : draws()) : draws;
+    };
+
+    let saves = 0;
+    let replays = 0;
+    const check = (session: Session, lucky: boolean): void => {
       const text = serialize(session);
       const back = restore(text, 1);
       if (!back || serialize(back) !== text) {
         const { screen, session: numbers } = JSON.parse(text);
         throw new Error(`a save taken from a session did not read back: ${JSON.stringify({ screen, square: numbers.square, quickPick: numbers.quickPick })}`);
       }
+      saves += 1;
       const { spin, bonus, roulette } = session;
       if (spin) {
         note(spin.done ? 'line held up' : 'reels running');
+        if (spin.result.reachKind === 'long') note(spin.result.tier === 'miss' ? 'long reach that misses' : 'long reach that wins');
+        if (spin.result.reachKind === 'normal') note(spin.result.tier === 'miss' ? 'reach that misses' : 'reach that wins');
         if (spin.elapsed === spin.duration) note('on a threshold');
       } else if (bonus?.kind === 'sugoroku') {
         note(bonus.payout < 0 ? 'die and hops' : 'prize shown');
@@ -1182,12 +1344,30 @@ describe('any moment of any session', () => {
       } else if (bonus?.kind === 'chest') {
         note(bonus.picked < 0 ? 'choosing' : !bonus.told ? 'just picked' : bonus.payout < 0 ? 'picked' : 'open');
         if (bonus.picked >= 0 && (bonus.elapsed === bonus.pickedAt + TIMING.open || bonus.pickedAt === TIMING.choose)) note('on a threshold');
+      } else if (roulette?.bowl) {
+        note(roulette.bowl.payout < 0 ? 'ball rolling' : roulette.jackpot ? 'ball in the jackpot' : 'ball in a hole');
+        if (roulette.bowl.elapsed === roulette.bowl.duration) note('on a threshold');
       } else if (roulette) {
-        note(!roulette.landed ? 'turning' : roulette.jackpot ? 'jackpot' : roulette.over ? 'on a cross' : 'on a number');
+        note(!roulette.landed ? 'turning' : roulette.over ? 'on a cross' : roulette.level === CHAIN_GOAL ? 'on the last number' : 'on a number');
         if (roulette.elapsed === roulette.duration) note('on a threshold');
       } else {
         note('nothing on');
       }
+
+      // Now and then, play the save on beside the session it was taken from. A save does not hold the
+      // generator, so both are given the same one; with the same play they must end in the same place.
+      if (saves % 40 !== 0) return;
+      replays += 1;
+      session.machine.rng = drawsFor(7000 + saves, lucky);
+      back.machine.rng = drawsFor(7000 + saves, lucky);
+      for (let step = 0; step < 30; step++) {
+        for (const machine of [session, back]) {
+          if (machine.credits === 0) refill(machine);
+          if (step % 6 === 0) insert(machine, 15 + ((step * 11) % 70));
+          advance(machine, step % 5 === 0 ? 0.1 : DT);
+        }
+      }
+      if (serialize(back) !== serialize(session)) throw new Error('a save that was read back did not play on as its session did');
     };
 
     for (let n = 0; n < 24; n++) {
@@ -1197,11 +1377,9 @@ describe('any moment of any session', () => {
       // the screen does not care what lies on the field, and a bare field runs many times faster.
       const swept = n % 4 !== 0;
       // Two machines in three draw far more winning lines than a slot gives, so that every game comes up often.
-      // The third draws fairly and is fed balls, so that its screen is all roulette and some runs go all the way.
+      // The third draws fairly and is fed balls, so that its screen is all roulette and many runs reach the bowl.
       const lucky = n % 3 !== 0;
-      const draws = seededRng(900 + n);
-      if (lucky) session.machine.rng = () => (draws() < 0.3 ? draws() * 0.06 : draws());
-      else session.machine.rng = draws;
+      session.machine.rng = drawsFor(900 + n, lucky);
 
       for (let i = 0; i < (swept ? 3000 : 500); i++) {
         if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0 });
@@ -1213,20 +1391,92 @@ describe('any moment of any session', () => {
         // The player picks at some moment while there is a choice. On a machine that picks at once,
         // that is only the moment the chests appear. Either way the save is taken before the next step.
         const offered = session.bonus?.kind === 'chest' && session.bonus.picked < 0;
-        if (offered && chance() < (session.quickPick ? 0.5 : 0.004) && pickChest(session, Math.floor(chance() * CHESTS.length))) check(session);
+        if (offered && chance() < (session.quickPick ? 0.5 : 0.004) && pickChest(session, Math.floor(chance() * CHESTS.length))) check(session, lucky);
 
         // A frame: none at all, a sixtieth, the longest the cabinet allows, anything between, or just what it takes to reach a threshold.
         const roll = chance();
         const exact = roll >= 0.7 ? untilThreshold(session) : 0;
         advance(session, exact > 0 ? exact : roll < 0.05 ? 0 : roll < 0.4 ? DT : roll < 0.5 ? 0.1 : chance() * 0.1);
-        if (chance() < 0.4) check(session);
+        if (chance() < 0.4) check(session, lucky);
       }
     }
 
-    const phases = ['nothing on', 'reels running', 'line held up', 'die and hops', 'prize shown', 'choosing', 'just picked', 'picked', 'open'];
-    for (const phase of [...phases, 'turning', 'on a number', 'on a cross', 'jackpot']) expect(seen.get(phase) ?? 0, phase).toBeGreaterThan(5);
+    const spins = ['reels running', 'line held up', 'reach that wins', 'reach that misses', 'long reach that wins', 'long reach that misses'];
+    const games = ['die and hops', 'prize shown', 'choosing', 'just picked', 'picked', 'open'];
+    const runs = ['turning', 'on a number', 'on a cross', 'on the last number', 'ball rolling', 'ball in the jackpot', 'ball in a hole'];
+    for (const phase of ['nothing on', ...spins, ...games, ...runs]) expect(seen.get(phase) ?? 0, phase).toBeGreaterThan(5);
     expect(seen.get('on a threshold') ?? 0).toBeGreaterThan(20);
-    expect([...seen.values()].reduce((sum, times) => sum + times, 0)).toBeGreaterThan(10_000);
+    expect(saves).toBeGreaterThan(10_000);
+    expect(replays).toBeGreaterThan(200);
+  });
+});
+
+describe('a save written before a reach had a kind and the roulette its bowl', () => {
+  // What the game wrote then: a spin's result with no `reachKind`, a roulette with no `bowl`, a run of six
+  // numbers that ended in the jackpot itself, and at most four spins held. Nothing else had another shape.
+  const OLD_SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false };
+  const OLD_TURN = { pocket: 1, from: 0, elapsed: 0.2, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
+  const OLD_FIFTH = { ...OLD_TURN, pocket: 6, from: 5, level: 5, total: 80 };
+  const OLD_JACKPOT = { ...OLD_TURN, pocket: 7, from: 6, elapsed: 3, landed: true, level: 6, total: 440, gain: 300, over: true, jackpot: true };
+  const old = (screen: Row): string =>
+    damaged((save) => {
+      save.session.stock = 4;
+      save.screen = { spin: null, bonus: null, roulette: null, ...screen };
+    });
+  /** The machine under an old save's screen: every such save has the same one. */
+  const machine = plain(restore(old({}), 1) as Session);
+
+  it('is the machine it was when nothing was on its screen: that much has not changed shape', () => {
+    expect(machine).toMatchObject({ stock: 4, spin: null, bonus: null, roulette: null, roulettes: 3, balls: 0 });
+    expect(machine.machine.medals).toHaveLength(good().machine.medals.length);
+  });
+
+  it('loses the spin it was in the middle of, whole, and keeps the machine', () => {
+    const back = restore(old({ spin: OLD_SPIN }), 1);
+    expect(back).not.toBeNull();
+    expect(plain(back as Session)).toEqual(machine);
+  });
+
+  const runs: [string, Row][] = [
+    ['a roulette that had no bowl to end in', OLD_TURN],
+    ['a fifth number, more than a full run is now', OLD_FIFTH],
+    ['a jackpot won on the wheel itself', OLD_JACKPOT],
+  ];
+
+  it.each(runs)('loses %s, whole, keeps the machine and gets the ball back', (_name, roulette) => {
+    const back = restore(old({ roulette }), 1);
+    expect(back).not.toBeNull();
+    expect(plain(back as Session)).toEqual({ ...machine, balls: 1, roulettes: 2 });
+    // Giving it the field the new game adds does not make a run of five or six one the new game has.
+    const patched = restore(old({ roulette: { ...roulette, bowl: null } }), 1);
+    expect(patched?.roulette).toEqual(roulette === OLD_TURN ? { ...OLD_TURN, bowl: null } : null);
+  });
+
+  it('is never half read: what comes back is a whole machine of this game, and it plays', { timeout: LONG }, () => {
+    for (const screen of [{}, { spin: OLD_SPIN }, { roulette: OLD_TURN }, { roulette: OLD_FIFTH }, { roulette: OLD_JACKPOT }, { spin: OLD_SPIN, roulette: OLD_TURN }]) {
+      const back = restore(old(screen), 7) as Session;
+      expect([back.spin, back.bonus, back.roulette]).toEqual([null, null, null]);
+      // It goes on to spin its held spins, and first the roulette of any ball it was given back, in today's shapes.
+      let shown = 0;
+      for (let i = 0; i < 600; i++) {
+        if (i % 20 === 0) insert(back, 20 + (i % 60));
+        advance(back, DT);
+        if (back.spin) expect(REACH_KINDS).toContain(back.spin.result.reachKind);
+        if (back.roulette) expect(back.roulette).toHaveProperty('bowl');
+        if (back.spin || back.roulette) shown += 1;
+      }
+      expect(shown).toBeGreaterThan(100);
+      const again = restore(serialize(back), 1);
+      expect(again).not.toBeNull();
+      expect(serialize(again as Session)).toBe(serialize(back));
+    }
+  });
+
+  it('is refused as a whole, without throwing, when the machine itself is of another shape', () => {
+    // No version before this one differed there. If one had, there would be no machine to keep.
+    expect(restore(damaged((save) => delete save.session.quickPick), 1)).toBeNull();
+    expect(restore(damaged((save) => delete save.machine.cooldown), 1)).toBeNull();
+    expect(restore(damaged((save) => (save.version = 0)), 1)).toBeNull();
   });
 });
 

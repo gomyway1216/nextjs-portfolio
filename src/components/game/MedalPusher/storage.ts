@@ -18,21 +18,32 @@
  * To store a new field, add it to `Machine`, `Session` or one of the things
  * the screen shows: this file then stops compiling until the field has a
  * check in the matching list below. A save written before the field existed
- * lacks it and is refused. Raise STORAGE_VERSION when a stored value changes
- * its meaning without changing its shape.
+ * lacks it and is refused: as a whole if the field is the machine's or the
+ * session's, and the one thing on the screen if the field is its own. Raise
+ * STORAGE_VERSION when a stored value changes its meaning without changing
+ * its shape.
+ *
+ * That is how saves written before a reach had a kind and before the roulette
+ * had its bowl are read, with the version still 1: nothing else about the
+ * machine has changed shape or meaning, so such a save is the machine it was,
+ * less the spin or the roulette it was in the middle of, which is not one this
+ * game can show. None was ever written outside development.
  */
 
 import { DROP_INTERVAL, FIELD, MEDAL_RADIUS, SETTLE, TOWER, seededRng, type FallingMedal, type Machine, type Medal } from './engine';
 import {
   BOARD,
+  BOWL,
   CHAIN_GOAL,
   CHESTS,
   DIE_FACES,
   JACKPOT_START,
   JACKPOT_STEP,
+  REACH_KINDS,
   ROULETTE,
   TIERS,
   TIER_DIGITS,
+  holePays,
   squareAfter,
   type SpinResult,
   type Tier,
@@ -40,8 +51,10 @@ import {
 import {
   MAX_STOCK,
   TIMING,
+  reachTime,
   sugorokuDuration,
   type ActiveBonus,
+  type ActiveBowl,
   type ActiveChest,
   type ActiveRoulette,
   type ActiveSpin,
@@ -263,15 +276,19 @@ const digits: Check<[number, number, number]> = (value) => {
   return reels?.length === 3 ? [reels[0], reels[1], reels[2]] : undefined;
 };
 
-const spinResult = shape<SpinResult>({ tier: oneOf(TIERS), digits, reach: flag }, ({ tier, digits: [left, centre, right], reach }) => {
-  // A winning tier shows three of one of its own digits, a miss is not a line, and a reach is the two outer reels alike.
-  const line = left === centre && centre === right;
-  return reach === (left === right) && (tier === 'miss' ? !line : line && TIER_DIGITS[tier].includes(left));
-});
+const spinResult = shape<SpinResult>(
+  { tier: oneOf(TIERS), digits, reach: flag, reachKind: oneOf(REACH_KINDS) },
+  ({ tier, digits: [left, centre, right], reach, reachKind }) => {
+    // A winning tier shows three of one of its own digits and a miss is not a line. A reach is the
+    // two outer reels alike, and it is played one way or the other exactly when there is one.
+    const line = left === centre && centre === right;
+    return reach === (left === right) && reach === (reachKind !== 'none') && (tier === 'miss' ? !line : line && TIER_DIGITS[tier].includes(left));
+  },
+);
 
 /**
- * A spin. Its reels take one of the machine's two spin times, and the
- * suspense of a reach on top.
+ * A spin. Its reels take one of the machine's two spin times, and on top the
+ * suspense of its reach: none, the usual, or the long one.
  *
  *   reels running   elapsed < duration                         not done
  *   line held up    duration ≤ elapsed < duration + celebrate  done
@@ -280,10 +297,9 @@ const spinResult = shape<SpinResult>({ tier: oneOf(TIERS), digits, reach: flag }
  * stop, so it is never seen done.
  */
 const activeSpin = shape<ActiveSpin>({ result: spinResult, elapsed: timer, duration: lasting, done: flag }, (spin) => {
-  const { tier, reach } = spin.result;
-  const suspense = reach ? TIMING.reach : 0;
+  const suspense = reachTime(spin.result);
   if (spin.duration !== TIMING.spin + suspense && spin.duration !== TIMING.quickSpin + suspense) return false;
-  return spin.done === spin.elapsed >= spin.duration && spin.elapsed < spin.duration + (tier === 'miss' ? 0 : TIMING.celebrate);
+  return spin.done === spin.elapsed >= spin.duration && spin.elapsed < spin.duration + (spin.result.tier === 'miss' ? 0 : TIMING.celebrate);
 });
 
 /**
@@ -362,18 +378,32 @@ for (let length = 1; length < CHAIN_GOAL; length++) {
   RUN_TOTALS.push(new Set([...RUN_TOTALS[length - 1]].flatMap((sum) => NUMBERS.map((medals) => sum + medals))));
 }
 
+/** The ball in the bowl, on its own: any hole, any moment. Where it fits into its run is checked with the roulette. */
+const activeBowl = shape<ActiveBowl>({
+  hole: whole(0, BOWL.length - 1),
+  elapsed: timer,
+  duration: lasting,
+  payout: whole(-1, LIMITS.purse),
+});
+
 /**
- * A ball's roulette: a run of turns, each as long as the last.
+ * A ball's roulette: a run of turns, each as long as the last, and for a full
+ * run the bowl after them.
  *
- *   turning         not landed; elapsed < duration; gain 0; fewer numbers than the goal
- *   on a number     landed; duration ≤ elapsed < duration + step; gain that number; 1 … goal − 1 numbers
- *   on a cross      landed and over; duration ≤ elapsed < duration + prize; gain 0; fewer numbers than the goal
- *   jackpot         landed, over and jackpot, on a number; duration ≤ elapsed < duration + prize;
- *                   the goal reached; gain the jackpot that was paid
+ *   turning         no bowl; not landed; elapsed < duration; gain 0; fewer numbers than the goal
+ *   on a number     no bowl; landed; duration ≤ elapsed < duration + step; gain that number; 1 … goal numbers
+ *   on a cross      no bowl; landed and over; duration ≤ elapsed < duration + prize; gain 0; fewer numbers than the goal
+ *   ball rolling    bowl unpaid, its clock short of its time; the run as its last number left it, a step
+ *                   or more ago: landed, the goal reached, not over; gain 0
+ *   ball dropped    bowl paid what its hole holds, its time ≤ its clock < its time + prize; the run over,
+ *                   a jackpot exactly when the hole is the jackpot's; gain what the hole paid
  *
- * `from` is where the light set off from: pocket 0 on the first turn, and after
- * that the number it last stopped on. `total` is what the numbers so far have
- * come to, with the jackpot on top once it is won.
+ * The goal is reached on a number like any other, and the ball goes into the
+ * bowl one step later. `from` is where the light set off from: pocket 0 on the
+ * first turn, and after that the number it last stopped on. `total` is what the
+ * numbers so far have come to, with the hole's medals on top once the ball has
+ * dropped. The jackpot's hole paid the jackpot as it then stood, which the save
+ * no longer holds: all that can be told is that it was no less than a jackpot starts at.
  */
 const activeRoulette = shape<ActiveRoulette>(
   {
@@ -387,27 +417,37 @@ const activeRoulette = shape<ActiveRoulette>(
     gain: whole(0, LIMITS.purse),
     over: flag,
     jackpot: flag,
+    bowl: (value) => (value === null ? null : activeBowl(value)),
   },
   (r) => {
     if (r.duration !== TIMING.roulette) return false;
     const pocket = ROULETTE[r.pocket];
+    const { bowl } = r;
     // The numbers the run had behind it before this turn's pocket, and what they had come to.
     let behind = r.level;
     let paid = r.total;
-    if (!r.landed) {
+    if (bowl) {
+      if (!r.landed || pocket === 'stop' || r.level !== CHAIN_GOAL || r.elapsed < r.duration + TIMING.step || bowl.duration !== TIMING.bowl) return false;
+      behind -= 1;
+      paid -= pocket;
+      if (bowl.elapsed < bowl.duration) {
+        if (bowl.payout !== -1 || r.over || r.jackpot || r.gain !== 0) return false;
+      } else {
+        const hole = BOWL[bowl.hole];
+        const held = hole === 'jackpot' ? bowl.payout >= JACKPOT_START : bowl.payout === holePays(hole, JACKPOT_START);
+        if (!held || !r.over || r.jackpot !== (hole === 'jackpot') || r.gain !== bowl.payout || bowl.elapsed >= bowl.duration + TIMING.prize) return false;
+        paid -= bowl.payout;
+      }
+    } else if (!r.landed) {
       if (r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration) return false;
     } else if (r.elapsed < r.duration) {
       return false;
     } else if (pocket === 'stop') {
       if (!r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration + TIMING.prize) return false;
-    } else if (r.level < CHAIN_GOAL) {
+    } else {
       if (r.over || r.jackpot || r.gain !== pocket || r.level < 1 || r.elapsed >= r.duration + TIMING.step) return false;
       behind -= 1;
       paid -= pocket;
-    } else {
-      if (!r.over || !r.jackpot || r.gain < JACKPOT_START || r.elapsed >= r.duration + TIMING.prize) return false;
-      behind -= 1;
-      paid -= pocket + r.gain;
     }
     if (behind === 0) return r.from === 0 && paid === 0;
     const last = ROULETTE[r.from];

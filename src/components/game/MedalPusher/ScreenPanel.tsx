@@ -1,8 +1,19 @@
 'use client';
 
 import type { PusherStrings } from './i18n';
-import { CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_DIGITS, type Tier } from './lottery';
-import { BOARD_SQUARES, REEL_DIGITS, type Banner, type ChestView, type ScreenState } from './screen';
+import { BOWL, CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_BONUS, TIER_DIGITS, type Bonus, type Tier } from './lottery';
+import {
+  BOARD_SQUARES,
+  BOWL_SHAPE,
+  REEL_DIGITS,
+  bowlBall,
+  holeSpot,
+  type BallSpot,
+  type Banner,
+  type BowlPoint,
+  type ChestView,
+  type ScreenState,
+} from './screen';
 import { MAX_STOCK } from './session';
 import styles from './MedalPusher.module.css';
 
@@ -19,6 +30,49 @@ export const stripOffset = (position: number): string => `translateY(${(-(positi
 
 /** Which prize a digit belongs to, for its colour on the reel. */
 const tierOfDigit = (digit: number): Exclude<Tier, 'miss'> => (digit === 7 ? 'seven' : TIER_DIGITS.big.includes(digit) ? 'big' : 'small');
+
+/**
+ * Marks a reel's strip for the stylesheet: `fast` while it runs too fast to
+ * read and is drawn blurred, `waiting` while it stands dimmed, when nothing
+ * may move, with its digit still to come. Written only when it changes.
+ */
+export const markStrip = (strip: { dataset: DOMStringMap }, mark: 'fast' | 'waiting', on: boolean): void => {
+  const value = String(on);
+  if (strip.dataset[mark] !== value) strip.dataset[mark] = value;
+};
+
+/** The colour of each game's badge: the colour of the digits that lead to it. */
+const BADGE_COLOR: Record<Bonus, string> = { ball: '#d1123f', chest: '#1d4ed8', sugoroku: '#15803d' };
+/** A five-pointed star, as on the prize ball. */
+const STAR = 'M12 7.1 L13.29 10.52 L16.95 10.69 L14.09 12.98 L15.06 16.51 L12 14.5 L8.94 16.51 L9.91 12.98 L7.05 10.69 L10.71 10.52 Z';
+
+/** What three of a digit lead to, as a small badge in the corner of its tile: a prize ball, a treasure chest or the sugoroku die. */
+const Badge = ({ leadsTo }: { leadsTo: Bonus }) => (
+  <svg className={styles.badge} viewBox="0 0 24 24" data-leads={leadsTo} aria-hidden>
+    <circle cx="12" cy="12" r="11" fill={BADGE_COLOR[leadsTo]} stroke="#ffffff" strokeWidth="1.6" />
+    {leadsTo === 'ball' && (
+      <>
+        <circle cx="12" cy="12" r="7.4" fill="#fff3b0" />
+        <path d={STAR} fill={BADGE_COLOR.ball} />
+      </>
+    )}
+    {leadsTo === 'chest' && (
+      <>
+        <path d="M5.5 11.5 Q5.5 6 12 6 Q18.5 6 18.5 11.5 Z" fill="#fff3b0" />
+        <rect x="5.5" y="12.7" width="13" height="5.6" rx="1" fill="#fff3b0" />
+        <rect x="10.6" y="10.6" width="2.8" height="3.8" rx="0.7" fill={BADGE_COLOR.chest} />
+      </>
+    )}
+    {leadsTo === 'sugoroku' && (
+      <>
+        <rect x="5.6" y="5.6" width="12.8" height="12.8" rx="2.6" fill="#fff3b0" />
+        {[8.6, 12, 15.4].map((at) => (
+          <circle key={at} cx={at} cy={at} r="1.5" fill={BADGE_COLOR.sugoroku} />
+        ))}
+      </>
+    )}
+  </svg>
+);
 
 /** Where the dots of each face of a die sit, on a 3 × 3 grid counted from the top left. */
 const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
@@ -82,12 +136,74 @@ const Wheel = ({ lit }: { lit: number }) => {
   );
 };
 
+/** The bowl's drawing, in the units of its view box: its middle, its radius, the ball's, and the share of its size the ball loses as it sinks. */
+const BOWL_VIEW = { middle: 50, radius: 46, ball: 3.9, sink: 0.3 } as const;
+
+const inBowl = (point: BowlPoint): [number, number] => [BOWL_VIEW.middle + point.x * BOWL_VIEW.radius, BOWL_VIEW.middle + point.y * BOWL_VIEW.radius];
+
+/** The SVG transform that draws the ball on `spot`. */
+export function ballTransform(spot: BallSpot): string {
+  const [x, y] = inBowl(spot);
+  return `translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${(1 - BOWL_VIEW.sink * spot.sunk).toFixed(3)})`;
+}
+
+/**
+ * Where a hole's label is written: above the hole at the top, and out to the side of the two
+ * below it, so that the ball does not cover it while it rests on the hole's lip.
+ */
+function labelSpot(hole: number): [number, number] {
+  const [x, y] = inBowl(holeSpot(hole));
+  const side = Math.sign(Math.round(x - BOWL_VIEW.middle));
+  return side === 0 ? [x, y - 15.6] : [x + side * 17, y - 3];
+}
+
+/**
+ * The jackpot challenge: a bowl seen from above with a hole for each prize.
+ * The ball is moved by whoever it is registered with; here it only waits where it is let go.
+ */
+const Bowl = ({ hole, jackpot, registerBall }: { hole: number; jackpot: string; registerBall: (element: SVGGElement | null) => void }) => (
+  <svg className={styles.bowl} viewBox="0 0 100 100" data-testid="pusher-bowl" data-landed={hole}>
+    <circle cx="50" cy="50" r="49" fill="#12061f" stroke="#ffd65c" strokeWidth="1.5" />
+    <circle cx="50" cy="50" r={BOWL_VIEW.radius} fill="#2a1c5c" stroke="#0a0520" strokeWidth="0.6" />
+    {/* The floor the holes are in, out to where the ball runs round them. */}
+    <circle cx="50" cy="50" r={((BOWL_SHAPE.ring + BOWL_SHAPE.lip) * BOWL_VIEW.radius + BOWL_VIEW.ball).toFixed(2)} fill="#1b1140" />
+    {BOWL.map((prize, index) => {
+      const [cx, cy] = inBowl(holeSpot(index));
+      const [tx, ty] = labelSpot(index);
+      const best = prize === 'jackpot';
+      const on = hole === index;
+      const size = best ? 6.5 : 7.5;
+      return (
+        <g key={index} data-hole={index} data-in={on}>
+          <circle
+            cx={cx.toFixed(2)}
+            cy={cy.toFixed(2)}
+            r={(BOWL_SHAPE.hole * BOWL_VIEW.radius).toFixed(2)}
+            fill={on ? (best ? '#ffd65c' : '#ff6b81') : '#05020f'}
+            stroke={best ? '#ffd65c' : '#ff9db1'}
+            strokeWidth="1.2"
+          />
+          <text x={tx.toFixed(2)} y={(ty + size * 0.36).toFixed(2)} textAnchor="middle" fontSize={size} fontWeight={900} fill={best ? '#ffe98a' : '#ffe0f1'}>
+            {best ? jackpot : prize}
+          </text>
+        </g>
+      );
+    })}
+    <g ref={registerBall} transform={ballTransform(bowlBall(0, 0))} data-testid="pusher-bowl-ball">
+      <circle r={BOWL_VIEW.ball} fill="#f4f4fb" stroke="#4a4a66" strokeWidth="0.6" />
+      <circle cx={(-BOWL_VIEW.ball * 0.3).toFixed(2)} cy={(-BOWL_VIEW.ball * 0.34).toFixed(2)} r={(BOWL_VIEW.ball * 0.3).toFixed(2)} fill="#ffffff" />
+    </g>
+  </svg>
+);
+
 export interface ScreenProps {
   state: ScreenState;
   stock: number;
   strings: PusherStrings;
   /** Hands the screen's three reel strips to whoever drives them. */
   registerStrip: (reel: number, element: HTMLDivElement | null) => void;
+  /** Hands over the ball in the bowl, while the bowl is on. */
+  registerBall: (element: SVGGElement | null) => void;
   onPick: (chest: number) => void;
 }
 
@@ -96,6 +212,7 @@ export function bannerText(state: ScreenState, t: PusherStrings): string | null 
   const text: Record<Banner, string | null> = {
     none: null,
     reach: t.reach,
+    superReach: t.superReach,
     line: state.line === 'big' ? t.chestTitle : t.sugorokuTitle,
     ball: t.ballWin,
     medals: t.spinWin(state.amount),
@@ -108,10 +225,19 @@ export function bannerText(state: ScreenState, t: PusherStrings): string | null 
 }
 
 /** The centre screen: the slot, the three games it leads to, and the sugoroku board along the bottom. */
-export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: ScreenProps) => {
+export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, onPick }: ScreenProps) => {
   const banner = bannerText(state, t);
-  const title = state.mode === 'sugoroku' ? t.sugorokuTitle : state.mode === 'chest' ? t.chestTitle : state.mode === 'roulette' ? t.chance : t.slotName;
+  const titles: Record<ScreenState['mode'], string> = {
+    slot: t.slotName,
+    sugoroku: t.sugorokuTitle,
+    chest: t.chestTitle,
+    roulette: t.chance,
+    bowl: t.challenge,
+  };
+  const title = titles[state.mode];
   const choosing = state.mode === 'chest' && state.chests?.every((chest) => chest.state === 'closed');
+  // A reach is cut in across the reels as it is called; the caption below keeps the words up for as long as it lasts.
+  const reach = state.banner === 'reach' || state.banner === 'superReach';
   return (
     <div className={styles.screen} role="group" aria-label={t.screenAria} data-mode={state.mode} data-banner={state.banner} data-testid="pusher-screen">
       <div className={styles.rays} aria-hidden />
@@ -133,16 +259,29 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
         <div className={styles.reels} aria-hidden data-hidden={state.mode !== 'slot'} data-line={state.line ?? 'none'}>
           {IDLE_DIGITS.map((idle, reel) => (
             <div key={reel} className={styles.reel}>
-              <div className={styles.strip} ref={(element) => registerStrip(reel, element)} style={{ transform: stripOffset(idle - 1) }}>
+              <div
+                className={styles.strip}
+                ref={(element) => registerStrip(reel, element)}
+                style={{ transform: stripOffset(idle - 1) }}
+                data-fast="false"
+                data-waiting="false"
+              >
                 {STRIP.map((digit, index) => (
                   <span key={index} className={styles.digit} data-tier={tierOfDigit(digit)}>
                     {digit}
+                    <Badge leadsTo={TIER_BONUS[tierOfDigit(digit)]} />
                   </span>
                 ))}
               </div>
             </div>
           ))}
         </div>
+
+        {reach && (
+          <div className={styles.cutIn} data-kind={state.banner} aria-hidden data-testid="pusher-cut-in">
+            <span className={styles.cutInText}>{banner}</span>
+          </div>
+        )}
 
         {state.mode === 'sugoroku' && (
           <div className={styles.bonus} aria-hidden>
@@ -179,9 +318,9 @@ export const Screen = ({ state, stock, strings: t, registerStrip, onPick }: Scre
           </div>
         )}
 
-        {state.mode === 'roulette' && (
+        {(state.mode === 'roulette' || state.mode === 'bowl') && (
           <div className={styles.bonus} data-row="true" aria-hidden>
-            <Wheel lit={state.lit} />
+            {state.mode === 'bowl' ? <Bowl hole={state.hole} jackpot={t.jackpot} registerBall={registerBall} /> : <Wheel lit={state.lit} />}
             <div className={styles.chain} data-testid="pusher-chain" data-level={state.level}>
               <span className={styles.chainLabel}>{t.chainLevel(state.level, CHAIN_GOAL)}</span>
               <span className={styles.chainLamps}>

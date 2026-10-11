@@ -9,6 +9,7 @@
 import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Machine } from './engine';
 import {
   BOARD,
+  BOWL,
   CHESTS,
   CHAIN_GOAL,
   CHEST_TOWERS_FROM,
@@ -18,8 +19,10 @@ import {
   ROULETTE,
   TIER_BONUS,
   drawDie,
+  drawHole,
   drawPocket,
   drawSpin,
+  holePays,
   shuffleChests,
   squareAfter,
   type SpinResult,
@@ -28,20 +31,22 @@ import {
 
 export const START_CREDITS = 100;
 /** Spins the machine holds while the screen is busy; a chucker hit beyond that is wasted. */
-export const MAX_STOCK = 4;
+export const MAX_STOCK = 8;
 /** Prize balls lying on the field when a machine is switched on. */
 export const START_BALLS = 2;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
- * spins are queueing up, the extra suspense of a reach, how long a winning
- * line stays up, the die and each hop of the piece, the time to choose a
- * chest and for it to open, one turn of the roulette and the pause before the
- * next, and how long a prize stays up.
+ * spins are queueing up, the extra suspense of a reach and what a long reach
+ * adds to it, how long a winning line stays up, the die and each hop of the
+ * piece, the time to choose a chest and for it to open, one turn of the
+ * roulette and the pause before the next, the ball's time in the bowl, and
+ * how long a prize stays up.
  */
 export const TIMING = {
   spin: 1.6,
   quickSpin: 0.9,
   reach: 1.3,
+  longReach: 1.6,
   celebrate: 1.2,
   dice: 1.3,
   hop: 0.28,
@@ -49,6 +54,7 @@ export const TIMING = {
   open: 1.1,
   roulette: 2.8,
   step: 1.1,
+  bowl: 6.5,
   prize: 2.2,
 } as const;
 
@@ -94,10 +100,24 @@ export interface ActiveChest {
 export type ActiveBonus = ActiveSugoroku | ActiveChest;
 
 /**
+ * The jackpot challenge a full run ends in: the ball rolls round a bowl and
+ * drops into one of its holes. The hole is drawn before the ball is let go.
+ */
+export interface ActiveBowl {
+  /** Index of the hole the ball will drop into. */
+  hole: number;
+  /** Seconds since the ball was let go, and how long it rolls before it drops. */
+  elapsed: number;
+  duration: number;
+  /** Medals the hole paid; −1 while the ball is still rolling. */
+  payout: number;
+}
+
+/**
  * The roulette a ball starts: a run of turns. Each turn the light goes round
  * and stops on a pocket. A number is stacked on the pusher as a tower and the
- * roulette turns again; a cross ends the run; enough numbers in a row win the
- * jackpot on top.
+ * roulette turns again; a cross ends the run; enough numbers in a row send the
+ * ball into the bowl, where the jackpot is one of the holes.
  */
 export interface ActiveRoulette {
   /** Index of the pocket this turn will stop on, and of the one the light set off from. */
@@ -108,14 +128,16 @@ export interface ActiveRoulette {
   duration: number;
   /** Whether this turn's pocket has been reached and paid. */
   landed: boolean;
-  /** Numbers in a row so far, and the medals the run has paid, the jackpot included. */
+  /** Numbers in a row so far, and the medals the run has paid, the bowl's hole included. */
   level: number;
   total: number;
-  /** Medals the last pocket paid: its number, the jackpot when the run is complete, 0 for a cross. */
+  /** Medals the last pocket paid: its number, or 0 for a cross. Once the ball has dropped, what its hole paid. */
   gain: number;
   /** Whether the run has ended, and whether it ended in the jackpot. */
   over: boolean;
   jackpot: boolean;
+  /** The ball in the bowl, once the run is complete. */
+  bowl: ActiveBowl | null;
 }
 
 export interface Session {
@@ -169,7 +191,9 @@ export type SessionEvent =
   | { type: 'chestEnd'; chest: number; payout: number }
   | { type: 'rouletteStart'; pocket: number; duration: number }
   | { type: 'rouletteStep'; pocket: number; medals: number; level: number }
-  | { type: 'rouletteEnd'; total: number; level: number; jackpot: boolean };
+  | { type: 'rouletteEnd'; total: number; level: number }
+  | { type: 'bowlStart'; hole: number; duration: number }
+  | { type: 'bowlEnd'; hole: number; payout: number; total: number; jackpot: boolean };
 
 export interface SessionOptions {
   /** Prize balls on the field at the start. */
@@ -260,6 +284,9 @@ function pay(session: Session, medals: number, towers: boolean): void {
 /** The seconds a roll takes from the die to the piece landing. */
 export const sugorokuDuration = (roll: number): number => TIMING.dice + roll * TIMING.hop;
 
+/** The seconds of suspense a spin's reach adds before the centre reel stops: none, the usual, or the long one. */
+export const reachTime = (result: SpinResult): number => (result.reach ? TIMING.reach + (result.reachKind === 'long' ? TIMING.longReach : 0) : 0);
+
 function advanceSugoroku(session: Session, bonus: ActiveSugoroku, dt: number, events?: SessionEvent[]): void {
   bonus.elapsed += dt;
   if (bonus.payout < 0 && bonus.elapsed >= bonus.duration) {
@@ -290,6 +317,35 @@ function advanceChest(session: Session, bonus: ActiveChest, dt: number, events?:
     events?.push({ type: 'chestEnd', chest: bonus.picked, payout: bonus.payout });
   }
   if (bonus.payout >= 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open + TIMING.prize) session.bonus = null;
+}
+
+/** Lets the ball go in the bowl. Where it will drop is drawn here, before it moves. */
+function startBowl(session: Session, roulette: ActiveRoulette, events?: SessionEvent[]): void {
+  const hole = drawHole(session.machine.rng);
+  roulette.bowl = { hole, elapsed: 0, duration: TIMING.bowl, payout: -1 };
+  roulette.gain = 0;
+  events?.push({ type: 'bowlStart', hole, duration: TIMING.bowl });
+}
+
+/** The ball rolls, drops into its hole and is paid, and with that the run is over. */
+function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBowl, dt: number, events?: SessionEvent[]): void {
+  bowl.elapsed += dt;
+  if (bowl.payout < 0 && bowl.elapsed >= bowl.duration) {
+    const hole = BOWL[bowl.hole];
+    bowl.payout = holePays(hole, session.jackpot);
+    roulette.gain = bowl.payout;
+    roulette.total += bowl.payout;
+    roulette.over = true;
+    roulette.jackpot = hole === 'jackpot';
+    pay(session, bowl.payout, true);
+    if (roulette.jackpot) {
+      session.jackpots += 1;
+      session.jackpot = JACKPOT_START;
+      session.jackpotProgress = 0;
+    }
+    events?.push({ type: 'bowlEnd', hole: bowl.hole, payout: bowl.payout, total: roulette.total, jackpot: roulette.jackpot });
+  }
+  if (bowl.payout >= 0 && bowl.elapsed >= bowl.duration + TIMING.prize) session.roulette = null;
 }
 
 /** Moves the machine forward by `dt` seconds. Events are appended to `events` when it is given. */
@@ -323,6 +379,10 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
   // line at once, even if a ball has gone over in the meantime. When the screen
   // is free, a ball's roulette comes next, and only then a held spin.
   const { roulette, bonus, spin } = session;
+  if (roulette?.bowl) {
+    advanceBowl(session, roulette, roulette.bowl, dt, events);
+    return;
+  }
   if (roulette) {
     roulette.elapsed += dt;
     if (!roulette.landed && roulette.elapsed >= roulette.duration) {
@@ -338,23 +398,18 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
         roulette.total += pocket;
         pay(session, pocket, true);
         events?.push({ type: 'rouletteStep', pocket: roulette.pocket, medals: pocket, level: roulette.level });
-        if (roulette.level >= CHAIN_GOAL) {
-          roulette.gain = session.jackpot;
-          roulette.total += session.jackpot;
-          roulette.over = true;
-          roulette.jackpot = true;
-          pay(session, session.jackpot, true);
-          session.jackpots += 1;
-          session.jackpot = JACKPOT_START;
-          session.jackpotProgress = 0;
-        }
       }
-      if (roulette.over) events?.push({ type: 'rouletteEnd', total: roulette.total, level: roulette.level, jackpot: roulette.jackpot });
+      if (roulette.over) events?.push({ type: 'rouletteEnd', total: roulette.total, level: roulette.level });
     }
     if (roulette.landed) {
       if (roulette.over) {
         if (roulette.elapsed >= roulette.duration + TIMING.prize) session.roulette = null;
       } else if (roulette.elapsed >= roulette.duration + TIMING.step) {
+        if (roulette.level >= CHAIN_GOAL) {
+          // A full run: the ball goes into the bowl.
+          startBowl(session, roulette, events);
+          return;
+        }
         // The light sets off again from where it stopped.
         roulette.from = roulette.pocket;
         roulette.pocket = drawPocket(session.machine.rng);
@@ -407,7 +462,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     session.balls -= 1;
     session.roulettes += 1;
     const pocket = drawPocket(session.machine.rng);
-    session.roulette = { pocket, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false };
+    session.roulette = { pocket, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
     events?.push({ type: 'rouletteStart', pocket, duration: TIMING.roulette });
     return;
   }
@@ -417,7 +472,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     session.spins += 1;
     const result = drawSpin(session.machine.rng);
     // With spins queueing behind it, the reels hurry.
-    const duration = (session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + (result.reach ? TIMING.reach : 0);
+    const duration = (session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + reachTime(result);
     session.spin = { result, elapsed: 0, duration, done: false };
     events?.push({ type: 'spinStart', result, duration });
   }

@@ -12,11 +12,14 @@ import {
   LANDING,
   MEDAL_RADIUS,
   PUSHER,
+  SWEEP,
   TOWER,
   TOWER_SITES,
   ballsOnField,
   buildTowers,
   checkerAt,
+  checkerCentres,
+  checkerShift,
   clampAim,
   createMachine,
   dropBall,
@@ -102,11 +105,54 @@ describe('the generator and the pusher', () => {
     expect(pusherFront(1.3 + PUSHER.period * 3)).toBeCloseTo(pusherFront(1.3), 9);
   });
 
-  it('knows which gate a landing spot is under', () => {
-    expect(CHECKERS.positions.map(checkerAt)).toEqual([0, 1, 2]);
-    expect(checkerAt(50 + CHECKERS.halfWidth)).toBe(1);
-    expect(checkerAt(50 + CHECKERS.halfWidth + 0.01)).toBe(-1);
-    expect(checkerAt(37.5)).toBe(-1);
+  it('sweeps the three gates from side to side together, once a period', () => {
+    const { amplitude, period } = SWEEP;
+    // They start in the middle, are furthest right a quarter of a period later, and furthest left at three quarters.
+    expect(checkerShift(0)).toBe(0);
+    expect(checkerShift(period / 4)).toBeCloseTo(amplitude, 9);
+    expect(checkerShift(period / 2)).toBeCloseTo(0, 9);
+    expect(checkerShift((period * 3) / 4)).toBeCloseTo(-amplitude, 9);
+    expect(checkerShift(1.3 + period * 5)).toBeCloseTo(checkerShift(1.3), 9);
+    expect(checkerCentres(0)).toEqual([...CHECKERS.positions]);
+
+    // Never further than the amplitude, and never with a jump: a sine's fastest is 2π × amplitude / period.
+    const fastest = (2 * Math.PI * amplitude) / period;
+    let left = 0;
+    let right = 0;
+    for (let time = 0; time < period; time += DT) {
+      const shift = checkerShift(time);
+      left = Math.min(left, shift);
+      right = Math.max(right, shift);
+      expect(Math.abs(checkerShift(time + DT) - shift)).toBeLessThanOrEqual(fastest * DT + 1e-9);
+      // The three keep their places relative to each other.
+      checkerCentres(time).forEach((center, gate) => expect(center - CHECKERS.positions[gate]).toBeCloseTo(shift, 9));
+    }
+    expect(right).toBeLessThanOrEqual(amplitude);
+    expect(right).toBeGreaterThan(amplitude * 0.999);
+    expect(left).toBeGreaterThanOrEqual(-amplitude);
+    expect(left).toBeLessThan(-amplitude * 0.999);
+
+    // No two gates ever cover the same spot, and even at the end of its sweep the outer
+    // gate stays out of reach of a medal let go at the very edge of the field.
+    expect(2 * (amplitude + CHECKERS.halfWidth)).toBeLessThan(CHECKERS.positions[1] - CHECKERS.positions[0]);
+    expect(CHECKERS.positions[0] - amplitude - CHECKERS.halfWidth).toBeGreaterThan(AIM.min + LANDING.scatter);
+    expect(CHECKERS.positions[2] + amplitude + CHECKERS.halfWidth).toBeLessThan(AIM.max - LANDING.scatter);
+  });
+
+  it('knows which gate a landing spot is under, wherever the gates are by then', () => {
+    // In the middle of the sweep.
+    expect(CHECKERS.positions.map((x) => checkerAt(x, 0))).toEqual([0, 1, 2]);
+    expect(checkerAt(50 + CHECKERS.halfWidth - 0.01, 0)).toBe(1);
+    expect(checkerAt(50 + CHECKERS.halfWidth + 0.01, 0)).toBe(-1);
+    expect(checkerAt(37.5, 0)).toBe(-1);
+    // A quarter of a period later every gate is as far right as it goes, and the spots they left are empty.
+    const right = SWEEP.period / 4;
+    expect(CHECKERS.positions.map((x) => checkerAt(x, right))).toEqual([-1, -1, -1]);
+    expect(CHECKERS.positions.map((x) => checkerAt(x + SWEEP.amplitude, right))).toEqual([0, 1, 2]);
+    expect(checkerAt(50 + SWEEP.amplitude - CHECKERS.halfWidth + 0.01, right)).toBe(1);
+    expect(checkerAt(50 + SWEEP.amplitude - CHECKERS.halfWidth - 0.01, right)).toBe(-1);
+    // And at three quarters, as far left.
+    expect(CHECKERS.positions.map((x) => checkerAt(x - SWEEP.amplitude, (SWEEP.period * 3) / 4))).toEqual([0, 1, 2]);
     expect(clampAim(-5)).toBe(AIM.min);
     expect(clampAim(500)).toBe(AIM.max);
     expect(clampAim(40)).toBe(40);
@@ -299,18 +345,50 @@ describe('a machine in play', () => {
     expect(strays).toEqual([]);
   }, LONG);
 
+  it('counts a medal only where a gate is at the moment it lands', () => {
+    /** Drops one medal `at` seconds into a machine's life, with no scatter, and says which gates it came through. */
+    const land = (at: number, aim: number, wait = FALL_TIME + DT) => {
+      const machine = createMachine(9);
+      step(machine, at);
+      // Both draws of the scatter in the middle: the medal lands exactly where it is aimed.
+      machine.rng = () => 0.5;
+      expect(dropMedal(machine, aim)).toBe(true);
+      const before = step(machine, FALL_TIME - 2 * DT).checkers;
+      expect(before).toEqual([]);
+      return step(machine, wait - (FALL_TIME - 2 * DT)).checkers;
+    };
+    // Let go over the centre gate, it misses: by the time it is down the gate has moved on.
+    expect(Math.abs(checkerShift(FALL_TIME))).toBeGreaterThan(CHECKERS.halfWidth);
+    expect(land(0, checkerCentres(0)[1])).toEqual([]);
+    // Let go where the gate will be, it goes through. So for each gate, and anywhere in the sweep.
+    expect(land(0, checkerCentres(FALL_TIME)[1])).toEqual([1]);
+    expect(land(0, checkerCentres(FALL_TIME)[0])).toEqual([0]);
+    expect(land(0, checkerCentres(FALL_TIME)[2])).toEqual([2]);
+    expect(land(2.3, checkerCentres(2.3 + FALL_TIME)[1])).toEqual([1]);
+    expect(land(SWEEP.period / 4 - FALL_TIME, 50 + SWEEP.amplitude)).toEqual([1]);
+    // What counts is where the gate is when the medal touches down, to the edge of the gate,
+    // however long the step that brings it down.
+    const centre = checkerCentres(1 + FALL_TIME)[1];
+    expect(land(1, centre + CHECKERS.halfWidth - 0.02)).toEqual([1]);
+    expect(land(1, centre + CHECKERS.halfWidth + 0.02)).toEqual([]);
+    expect(land(1, centre - CHECKERS.halfWidth + 0.02, 3)).toEqual([1]);
+    expect(land(1, centre - CHECKERS.halfWidth - 0.02, 3)).toEqual([]);
+  });
+
   it('counts a medal the player dropped through a gate, and no other', () => {
-    const aimed = createMachine(5);
-    const hits = run(aimed, 50, 50, 0.25).checkers;
-    expect(hits.length).toBeGreaterThan(20);
+    // Followed, the centre gate takes about one medal in five: each is let go where the gate will be when it lands.
+    const followed = createMachine(5);
+    const hits = run(followed, 100, () => checkerCentres(followed.time + FALL_TIME)[1], 0.25).checkers;
+    expect(hits.length).toBeGreaterThan(50);
     expect(hits.every((gate) => gate === 1)).toBe(true);
 
-    // Aimed between two gates, a medal would have to stray 11.1 to reach one, of the 12 it can.
-    const between = createMachine(5);
-    const stray = run(between, 50, 37.5, 0.25);
-    expect(stray.checkers.length).toBeLessThan(hits.length / 8);
+    // Aimed at the middle of its sweep and left there, it takes fewer: the gate is somewhere else most of the time.
+    const still = createMachine(5);
+    const fixed = run(still, 100, 50, 0.25).checkers;
+    expect(fixed.length).toBeGreaterThan(0);
+    expect(fixed.length).toBeLessThan(hits.length);
 
-    // From the edge the nearest gate is out of reach altogether.
+    // From the edge the nearest gate is out of reach altogether, even at the end of its sweep.
     const edge = createMachine(5);
     expect(run(edge, 50, AIM.min, 0.25).checkers).toEqual([]);
 
@@ -525,7 +603,7 @@ describe('medal towers', () => {
       }
       return { count: towers.length, nearest };
     };
-    // Six numbers of a run, one after another with no time passing, then a jackpot on top.
+    // Six prizes, one after another with no time passing, then a jackpot on top.
     let paid = 0;
     for (const medals of [10, 20, 30, 50, 10, 20]) {
       buildTowers(machine, medals);

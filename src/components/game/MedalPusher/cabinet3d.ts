@@ -1,15 +1,16 @@
 /**
  * The cabinet as shapes: the tables, the back panel, the walls and gutters
- * that never move, the pusher, chute and gates that do, the bulbs and pins,
- * and the flat touches laid over them — glows, the dark where two surfaces
- * meet, the aim guide. Like the rest of the scene it is only numbers; the
- * renderer hands them to the graphics card.
+ * that never move, the pusher, feed arms and gates that do, the bulbs and
+ * pins, and the flat touches laid over them — glows, the dark where two
+ * surfaces meet, the aim guide. Like the rest of the scene it is only
+ * numbers; the renderer hands them to the graphics card.
  */
 
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, RELEASE, checkerShift, type Machine } from './engine';
+import { ARMS, armCollar, rollingSpot } from './arms';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, armFor, checkerShift, tipOf, type Arm, type Machine } from './engine';
 import { PANEL_TOP, SIGN, TRAY_DROP, pinSpots } from './art3d';
 import { BALL_RADIUS, GATE, GLOW_TIME, LIP_FALL, SPARK_COLORS, type DrawOptions, type Stage } from './render';
-import { BEAD, EYE, beadRow, type Rows } from './scene3d';
+import { BEAD, EYE, armTipAt, beadRow, type Rows } from './scene3d';
 import { HEIGHT } from './view';
 
 const TAU = Math.PI * 2;
@@ -27,8 +28,18 @@ const OUT = 34;
 const GUTTER = -12;
 /** The slanted edge along the pusher's lip. */
 const BEVEL = 0.4;
-/** How far the chute stands out from the back panel. */
-const CHUTE = RELEASE.depth * 2 + 0.2;
+/**
+ * A feed arm's channel, as the canvas renderer draws it: the room left over
+ * a medal's head, how far its track runs on behind the collar and how big
+ * the collar is. And what only a solid one has: how thick its two bars are,
+ * and how far from the back panel its back and its front stand, with the
+ * medal rolling between them.
+ */
+const CHANNEL = { headroom: 0.7, tail: 2, collar: 3.4, bar: 0.34, back: ARMS.depth - 0.85, front: ARMS.depth + 0.85 } as const;
+/** How far a collar stands out from the back panel: past the front of the channel, so the rail and a medal going in are inside it. */
+const COLLAR_FACE = CHANNEL.front + 0.85;
+/** The collars never move. */
+const COLLARS = [armCollar(0), armCollar(1)] as const;
 
 export type Rgb = readonly [number, number, number];
 
@@ -173,6 +184,36 @@ const PIT_FAR = light('#0b0307');
 const NEON_RED = light('#ff6b81', 1.5);
 const NEON_GOLD = light('#ffd65c', 1.5);
 const NEON_PINK = light('#ff9bd0', 1.6);
+const NEON_CYAN = light('#40e2ff', 1.3);
+const BRACKET_TOP = light('#8d97b8');
+const BRACKET_FOOT = light('#39416a');
+const HUB_RIM = light('#343c5e');
+const HUB_MID = light('#aab4d0');
+const HUB_BOLT = light('#e6ebf7');
+/** Flat sides to a round thing: enough that a collar reads as turned on a lathe. */
+const SIDES = 20;
+
+/** The curved side of a round boss whose axis runs out of the back panel: `radius` about (x, y), from depth z0 to z1. */
+function band(solid: Solid, x: number, y: number, radius: number, z0: number, z1: number): void {
+  for (let i = 0; i < SIDES; i++) {
+    const x0 = x + Math.cos((i / SIDES) * TAU) * radius;
+    const y0 = y + Math.sin((i / SIDES) * TAU) * radius;
+    const x1 = x + Math.cos(((i + 1) / SIDES) * TAU) * radius;
+    const y1 = y + Math.sin(((i + 1) / SIDES) * TAU) * radius;
+    solid.quad(x0, y0, z0, x1, y1, z0, x1, y1, z1, x0, y0, z1);
+  }
+}
+
+/** A flat ring facing the player at depth z, from `outer` in to `inner`; with no inner radius, a disc. It shades from the first colour at its outside to the second. */
+function ring(solid: Solid, x: number, y: number, outer: number, inner: number, z: number): void {
+  for (let i = 0; i < SIDES; i++) {
+    const c0 = Math.cos((i / SIDES) * TAU);
+    const s0 = Math.sin((i / SIDES) * TAU);
+    const c1 = Math.cos(((i + 1) / SIDES) * TAU);
+    const s1 = Math.sin(((i + 1) / SIDES) * TAU);
+    solid.quad(x + c0 * outer, y + s0 * outer, z, x + c1 * outer, y + s1 * outer, z, x + c1 * inner, y + s1 * inner, z, x + c0 * inner, y + s0 * inner, z);
+  }
+}
 
 /**
  * Everything that stands still: the lower table and its front, the back
@@ -222,6 +263,25 @@ export function buildCabinet(solid: Solid): Part[] {
       solid.quad(x, 0.04, OPEN, inner, 0.04, OPEN, inner, 0.04, D, x, 0.04, D);
       solid.paint(NEON_PINK).box(Math.min(x, x + side * 0.6), 1, OPEN - 0.3, Math.max(x, x + side * 0.6), WALL - 2, OPEN + 0.3);
     }
+    // The brackets the feed arms hang from, one in each upper corner of the back panel, and on each the collar
+    // its rail slides through: a turned boss of polished metal with a ring of light in its face and the bolt it swivels on.
+    for (const collar of COLLARS) {
+      const { x, height: y } = collar;
+      solid.finish(0.7).paint(BRACKET_TOP, BRACKET_FOOT).box(x - 2.6, y - 1.5, 0, x + 2.6, PANEL_TOP, 0.45);
+      solid.finish(1).paint(CHROME);
+      band(solid, x, y, CHANNEL.collar, 0, COLLAR_FACE);
+      solid.finish(0.55).paint(HUB_RIM, HUB_MID);
+      ring(solid, x, y, CHANNEL.collar, CHANNEL.collar * 0.74, COLLAR_FACE);
+      solid.finish(0, 0.9).paint(NEON_CYAN);
+      ring(solid, x, y, CHANNEL.collar * 0.74, CHANNEL.collar * 0.62, COLLAR_FACE);
+      solid.finish(0.55).paint(HUB_MID, WHITE);
+      ring(solid, x, y, CHANNEL.collar * 0.62, 0, COLLAR_FACE);
+      solid.finish(1).paint(CHROME);
+      band(solid, x, y, CHANNEL.collar * 0.3, COLLAR_FACE, COLLAR_FACE + 0.4);
+      solid.finish(0.4).paint(HUB_BOLT);
+      ring(solid, x, y, CHANNEL.collar * 0.3, 0, COLLAR_FACE + 0.4);
+      solid.finish(0).paint(HUB_RIM).quad(x - 0.7, y + 0.11, COLLAR_FACE + 0.42, x + 0.7, y + 0.11, COLLAR_FACE + 0.42, x + 0.7, y - 0.11, COLLAR_FACE + 0.42, x - 0.7, y - 0.11, COLLAR_FACE + 0.42);
+    }
     // The gold edge the winnings go over.
     solid.finish(0, 1).paint(NEON_GOLD);
     solid.quad(0, 0.04, D - 0.45, W, 0.04, D - 0.45, W, 0.04, D, 0, 0.04, D);
@@ -233,8 +293,8 @@ export function buildCabinet(solid: Solid): Part[] {
 const FACE_TOP = light('#c2cbe2');
 const FACE_FOOT = light('#2a3148');
 const CHROME = light('#f4f7fd');
-const CHROME_EDGE = light('#8d97b3');
-const CHROME_DARK = light('#2b3350');
+const BAR_IDLE = light('#8fa6c0');
+const BAR_LIT = light('#c9f4ff');
 const GATE_NEON = light('#7df0ff', 1.5);
 const GATE_LIT = light('#fffbe0', 1.7);
 
@@ -248,27 +308,77 @@ export const MOVING_PARTS: Part[] = [
 export const MOVING_CAST = 2;
 
 /**
- * The chute the next medal is let go from, hanging on the back panel over
- * the aim. Whatever feeds the field is drawn here.
+ * Where one arm hangs this frame: its collar, one step along its rail toward
+ * the tip, one step square to that on the side a medal rests on, and how far
+ * the tip is from the collar. Everything on an arm is placed by how far
+ * along the rail it is and how far below the line a medal's middle runs on.
  */
-function buildFeed(solid: Solid, aim: number): void {
-  const top = PANEL_TOP;
-  const foot = RELEASE.height;
-  solid.finish(0.6, 0.3);
-  // Its front, bright down the middle, and its two flanks.
-  solid.paint(CHROME_EDGE, CHROME).quad(aim - 5, top, CHUTE, aim - 2.8, foot, CHUTE, aim, foot, CHUTE, aim, top, CHUTE);
-  solid.paint(CHROME_EDGE, CHROME).quad(aim + 5, top, CHUTE, aim + 2.8, foot, CHUTE, aim, foot, CHUTE, aim, top, CHUTE);
-  solid.paint(CHROME_EDGE, CHROME_DARK);
-  solid.quad(aim - 5, top, 0, aim - 5, top, CHUTE, aim - 2.8, foot, CHUTE, aim - 2.8, foot, 0);
-  solid.quad(aim + 5, top, 0, aim + 5, top, CHUTE, aim + 2.8, foot, CHUTE, aim + 2.8, foot, 0);
-  // The mouth the medals drop out of.
-  solid.finish(0).paint(CHROME_DARK).quad(aim - 2.8, foot, 0, aim + 2.8, foot, 0, aim + 2.8, foot, CHUTE, aim - 2.8, foot, CHUTE);
+const rail = { x: 0, y: 0, alongX: 0, alongY: 0, underX: 0, underY: 0, length: 0 };
+
+function hang(arm: Arm, tip: number): void {
+  const from = COLLARS[arm];
+  const dx = tipOf(arm, tip) - from.x;
+  const dy = ARMS.tip - from.height;
+  const side = arm === 0 ? 1 : -1;
+  rail.length = Math.hypot(dx, dy);
+  rail.x = from.x;
+  rail.y = from.height;
+  rail.alongX = dx / rail.length;
+  rail.alongY = dy / rail.length;
+  rail.underX = rail.alongY * side;
+  rail.underY = -rail.alongX * side;
+}
+
+const railX = (far: number, below: number): number => rail.x + rail.alongX * far + rail.underX * below;
+const railY = (far: number, below: number): number => rail.y + rail.alongY * far + rail.underY * below;
+
+/** How bright an arm's neon is: full on the one that takes the next medal and on one with a medal on its rail, low on the other. */
+function armLit(machine: Machine, arm: Arm, aim: number): number {
+  if (armFor(aim) === arm) return 1;
+  for (let i = 0; i < machine.rolling.length; i++) if (machine.rolling[i].arm === arm) return 1;
+  return 0.2;
 }
 
 /**
- * Everything that moves: the pusher where its stroke has taken it, the
- * chute over the aim, and the three gates where their sweep has taken them,
- * each with its sign.
+ * The two feed arms: for each, the track its medals roll on, the guide over
+ * their heads and the hood at the tip that turns a medal down. The medals
+ * themselves are among the other medals, and the clear walls of the channel
+ * are among the flat touches. Whatever feeds the field is drawn here.
+ */
+function buildFeed(solid: Solid, machine: Machine, stage: Stage, options: DrawOptions): void {
+  const { back, front, bar } = CHANNEL;
+  const head = R + CHANNEL.headroom;
+  for (let index = 0; index < 2; index++) {
+    const arm = index as Arm;
+    const lit = armLit(machine, arm, options.aim);
+    hang(arm, armTipAt(stage, arm));
+    const end = rail.length;
+    // The tops of the two bars are polished and catch the lamp; their fronts are tubes of light.
+    solid.finish(1).paint(CHROME);
+    solid.quad(railX(-CHANNEL.tail, R), railY(-CHANNEL.tail, R), back, railX(end - 0.4, R), railY(end - 0.4, R), back, railX(end - 0.4, R), railY(end - 0.4, R), front, railX(-CHANNEL.tail, R), railY(-CHANNEL.tail, R), front);
+    solid.quad(railX(-CHANNEL.tail, -head - bar), railY(-CHANNEL.tail, -head - bar), back, railX(end, -head - bar), railY(end, -head - bar), back, railX(end, -head - bar), railY(end, -head - bar), front, railX(-CHANNEL.tail, -head - bar), railY(-CHANNEL.tail, -head - bar), front);
+    solid.finish(0, 0.5 + 0.6 * lit).paint(lit > 0.5 ? BAR_LIT : BAR_IDLE);
+    solid.quad(railX(-CHANNEL.tail, R), railY(-CHANNEL.tail, R), front, railX(end - 0.4, R), railY(end - 0.4, R), front, railX(end - 0.4, R + bar), railY(end - 0.4, R + bar), front, railX(-CHANNEL.tail, R + bar), railY(-CHANNEL.tail, R + bar), front);
+    solid.quad(railX(-CHANNEL.tail, -head - bar), railY(-CHANNEL.tail, -head - bar), front, railX(end, -head - bar), railY(end, -head - bar), front, railX(end, -head), railY(end, -head), front, railX(-CHANNEL.tail, -head), railY(-CHANNEL.tail, -head), front);
+    // The hood: the guide carried a quarter turn and a little more round the tip.
+    for (let turn = 0; turn < 100; turn += 20) {
+      const s0 = Math.sin((turn * Math.PI) / 180);
+      const c0 = Math.cos((turn * Math.PI) / 180);
+      const s1 = Math.sin(((turn + 20) * Math.PI) / 180);
+      const c1 = Math.cos(((turn + 20) * Math.PI) / 180);
+      const outer = head + bar;
+      solid.finish(1).paint(CHROME);
+      solid.quad(railX(end + s0 * outer, -c0 * outer), railY(end + s0 * outer, -c0 * outer), back, railX(end + s1 * outer, -c1 * outer), railY(end + s1 * outer, -c1 * outer), back, railX(end + s1 * outer, -c1 * outer), railY(end + s1 * outer, -c1 * outer), front, railX(end + s0 * outer, -c0 * outer), railY(end + s0 * outer, -c0 * outer), front);
+      solid.finish(0, 0.5 + 0.6 * lit).paint(lit > 0.5 ? BAR_LIT : BAR_IDLE);
+      solid.quad(railX(end + s0 * outer, -c0 * outer), railY(end + s0 * outer, -c0 * outer), front, railX(end + s1 * outer, -c1 * outer), railY(end + s1 * outer, -c1 * outer), front, railX(end + s1 * head, -c1 * head), railY(end + s1 * head, -c1 * head), front, railX(end + s0 * head, -c0 * head), railY(end + s0 * head, -c0 * head), front);
+    }
+  }
+}
+
+/**
+ * Everything that moves: the pusher where its stroke has taken it, the two
+ * feed arms where they point, and the three gates where their sweep has
+ * taken them, each with its sign.
  */
 export function buildMoving(solid: Solid, machine: Machine, front: number, stage: Stage, options: DrawOptions): void {
   solid.clear().map().paint(WHITE);
@@ -286,7 +396,7 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   cast.first = solid.count;
   solid.map().finish(1).paint(STEEL_BRIGHT).quad(0, P, front - BEVEL, W, P, front - BEVEL, W, P - BEVEL, front, 0, P - BEVEL, front);
   solid.finish(0.45).paint(FACE_TOP, FACE_FOOT).quad(0, P - BEVEL, front, W, P - BEVEL, front, W, 0, front, 0, 0, front);
-  buildFeed(solid, options.aim);
+  buildFeed(solid, machine, stage, options);
   cast.count = solid.count - cast.first;
 
   // A gate is a frame of neon tube round its opening, and turns gold for a moment when a medal comes through.
@@ -471,12 +581,76 @@ const GLOW_PINK = light('#ff56aa');
 const GLOW_CYAN = light('#40e2ff');
 const GLOW_LIT = light('#fff496');
 const GATE_DARK = light('#06021e');
+const ACRYLIC = light('#96e8ff');
+const ICE = light('#c8f4ff');
+/** How far a shadow on the back panel lies from what throws it: the room's light comes from the upper left. */
+const CAST = { x: 1.5, y: -2.4 } as const;
+
+/** A flat piece of the arm hung last, at one depth: from `far0` to `far1` along its rail and from `below0` to `below1` across it, moved over by (dx, dy). */
+function piece(flat: Flat, far0: number, far1: number, below0: number, below1: number, z: number, shape: number = SHAPE.even, dx = 0, dy = 0): void {
+  flat.quad(railX(far0, below0) + dx, railY(far0, below0) + dy, z, railX(far1, below0) + dx, railY(far1, below0) + dy, z, railX(far1, below1) + dx, railY(far1, below1) + dy, z, railX(far0, below1) + dx, railY(far0, below1) + dy, z, shape);
+}
+
+/**
+ * What is clear or only light about the feed arms: the shadow each throws
+ * on the back panel behind it — dark under its bars and its collar and under
+ * every medal on its rail, faint under the clear channel between — then the
+ * two walls of the channel, a streak of light along the front one, the
+ * arrowheads that point down the rail, and the glow of its bars.
+ */
+function armTouches(flat: Flat, machine: Machine, stage: Stage, options: DrawOptions): void {
+  const { back, front, bar, collar } = CHANNEL;
+  const head = R + CHANNEL.headroom;
+  for (let index = 0; index < 2; index++) {
+    const arm = index as Arm;
+    const lit = armLit(machine, arm, options.aim);
+    const tip = armTipAt(stage, arm);
+    hang(arm, tip);
+    const end = rail.length;
+
+    // Its shadow on the back panel.
+    flat.ink(BLACK, 0.1);
+    piece(flat, 0, end, -head, R, 0.07, SHAPE.even, CAST.x, CAST.y);
+    flat.ink(BLACK, 0.34);
+    piece(flat, 0, end - 0.4, R - 0.25, R + bar + 0.25, 0.07, SHAPE.even, CAST.x, CAST.y);
+    piece(flat, 0, end + head * 0.6, -head - bar - 0.25, -head + 0.25, 0.07, SHAPE.even, CAST.x, CAST.y);
+    flat.ink(BLACK, 0.55);
+    flat.onPanel(rail.x + CAST.x * 1.6, rail.y + CAST.y * 1.6, 0.07, collar * 1.5);
+    for (let i = 0; i < machine.rolling.length; i++) {
+      if (machine.rolling[i].arm !== arm) continue;
+      const spot = rollingSpot(arm, tip, machine.rolling[i].remaining);
+      flat.onPanel(spot.x + CAST.x, spot.height + CAST.y, 0.08, R * 1.35);
+    }
+    // The channel's back wall and its front one, clear with a tint of ice, and brighter on the arm at work.
+    flat.ink(ACRYLIC, 0.05, 0.02 + 0.04 * lit);
+    piece(flat, collar - 0.6, end, -head, R, back);
+    flat.ink(ACRYLIC, 0.03, 0.04 + 0.05 * lit);
+    piece(flat, collar - 0.6, end, -head, R, front + 0.02);
+    flat.ink(WHITE, 0, 0.12);
+    piece(flat, collar, end - 1, -head * 0.8, -head * 0.5, front + 0.03);
+    // Arrowheads on the front wall that point down the rail. They are part of the rail, so they slide with it.
+    flat.ink(ICE, 0, 0.2 + 0.25 * lit);
+    const middle = (R - head) / 2;
+    for (let far = end - 5; far > collar + 2; far -= 8) {
+      for (let wing = -1; wing <= 1; wing += 2) {
+        flat.quad(railX(far - 1.5, middle + wing * 2), railY(far - 1.5, middle + wing * 2), front + 0.04, railX(far, middle), railY(far, middle), front + 0.04, railX(far + 0.32, middle), railY(far + 0.32, middle), front + 0.04, railX(far - 1.18, middle + wing * 2), railY(far - 1.18, middle + wing * 2), front + 0.04);
+      }
+    }
+    // The glow of the two bars, and of the ring in the collar's face: on the panel round it, and on the face itself.
+    flat.ink(GLOW_CYAN, 0, 0.08 + 0.3 * lit);
+    piece(flat, collar, end, R + bar / 2 - 1.3, R + bar / 2 + 1.3, front + 0.05, SHAPE.line);
+    piece(flat, collar, end + head * 0.6, -head - bar / 2 - 1.3, -head - bar / 2 + 1.3, front + 0.05, SHAPE.line);
+    flat.ink(GLOW_CYAN, 0, 0.1 + 0.4 * lit).onPanel(rail.x, rail.y, 0.06, collar * 1.9);
+    flat.ink(GLOW_CYAN, 0, 0.5 * lit).onPanel(rail.x, rail.y, COLLAR_FACE + 0.5, collar * 1.15);
+  }
+}
 
 /**
  * The flat touches of one frame: the dark where the pusher meets the lower
  * table and where the tables meet the walls, the glow round every lit edge,
- * the aim guide on the back panel, the light a medal leaves on the tray or
- * in a gutter as it goes, and the dark under each ball.
+ * the aim guide on the back panel, what is clear about the feed arms, the
+ * light a medal leaves on the tray or in a gutter as it goes, and the dark
+ * under each ball.
  */
 export function buildTouches(flat: Flat, machine: Machine, front: number, stage: Stage, options: DrawOptions): void {
   const calm = options.calm ?? false;
@@ -526,12 +700,13 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
     flat.quad(centre - half - reach, top + reach, 0.08, centre + half + reach, top + reach, 0.08, centre + half + reach, top - reach, 0.08, centre - half - reach, top - reach, 0.08, SHAPE.line);
   }
 
-  // Where the next medal will be let go, and how far from that it can land.
+  // Where a medal that leaves its arm now is let go, and how far from that it can land.
   if (options.showGuide) {
     const { aim } = options;
     flat.ink(WHITE, 0.22).fade(WHITE, 0.03);
-    flat.wedge(aim, RELEASE.height, 0.1, Math.max(R, aim - LANDING.scatter), P, 0.1, Math.min(W - R, aim + LANDING.scatter), P, 0.1);
+    flat.wedge(aim, ARMS.tip, 0.1, Math.max(R, aim - LANDING.scatter), P, 0.1, Math.min(W - R, aim + LANDING.scatter), P, 0.1);
   }
+  armTouches(flat, machine, stage, options);
 
   // A ball rests in the dark it throws on whatever it stands on.
   flat.ink(BLACK, 0.5);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ARMS, armCollar, armGoal, armTip } from '@/components/game/MedalPusher/arms';
+import { ARMS, armCollar, armGoal, armTip, rollingSpot } from '@/components/game/MedalPusher/arms';
 import { PANEL_TOP, pinSpots, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
 import {
   FLAT_STRIDE,
@@ -674,12 +674,37 @@ describe('the cabinet as shapes', () => {
     const walls = corners(solid, parts[3].first, parts[3].count);
     expect(Math.max(...walls.map((corner) => corner.z))).toBe(FIELD.sideOpenFrom);
     expect(new Set(walls.map((corner) => corner.normal[0]))).toEqual(new Set([1, -1]));
-    // Nothing of the cabinet reaches into the field above the tables: no medal is ever drawn inside a wall.
+    // Nothing of the cabinet reaches into the field above the tables, so no medal is ever drawn inside a wall.
+    // What does stand over it hangs on the back panel, higher than the tallest tower: the arms' brackets and collars.
     for (const corner of corners(solid)) {
       const inside = corner.x > 0.5 && corner.x < FIELD.width - 0.5 && corner.z > 0.5 && corner.z < FIELD.depth - 0.5;
-      if (inside) expect(corner.y).toBeLessThanOrEqual(0.05);
+      if (inside) expect(corner.y <= 0.05 || (corner.y > P + TOWER.max * T + R && corner.z < 5)).toBe(true);
       expect(Number.isFinite(corner.x + corner.y + corner.z)).toBe(true);
     }
+  });
+
+  it('hangs a collar of polished metal in each upper corner, big enough to take the rail and a medal going in', () => {
+    const solid = new Solid(600);
+    const plain = buildCabinet(solid).find((part) => part.art === 'plain');
+    if (!plain) throw new Error('no plain part');
+    const all = corners(solid, plain.first, plain.count);
+    for (const arm of [0, 1] as const) {
+      const collar = armCollar(arm);
+      const round = all.filter((corner) => Math.hypot(corner.x - collar.x, corner.y - collar.height) < 3.5 && corner.y < collar.height + 3.5);
+      const widest = Math.max(...round.map((corner) => Math.hypot(corner.x - collar.x, corner.y - collar.height)));
+      // Wider than a medal, and standing out past the plane the medals roll in by more than a medal is thick.
+      expect(widest).toBeGreaterThan(R);
+      expect(widest).toBeLessThan(R + 0.5);
+      expect(Math.max(...round.map((corner) => corner.z))).toBeGreaterThan(collar.depth + T);
+      expect(Math.min(...round.map((corner) => corner.z))).toBe(0);
+      // Its side is polished, and there is a ring of light in its face.
+      expect(round.some((corner) => corner.gloss === 1 && Math.abs(corner.normal[2]) < 1e-6)).toBe(true);
+      expect(round.some((corner) => corner.glow > 0.5 && corner.normal[2] === 1)).toBe(true);
+    }
+    // The two are the same, one in each corner.
+    const near = (arm: 0 | 1) => all.filter((corner) => Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) < 3.5 && corner.z > 0.5).length;
+    expect(near(0)).toBe(near(1));
+    expect(near(0)).toBeGreaterThan(100);
   });
 
   /** The moving parts at a moment of a new machine's life. */
@@ -712,22 +737,108 @@ describe('the cabinet as shapes', () => {
     }
   });
 
-  it('hangs the chute over the aim', () => {
+  it('hangs each feed arm from its collar to its tip, wherever the tip is', () => {
     fakeDocument();
-    for (const aim of [20, 50, 83.5]) {
-      const { solid } = moving(1, aim);
+    for (const tips of [
+      [20, 80],
+      [36, 64],
+      [9, 55],
+    ] as [number, number][]) {
+      const stage = createStage(1, false);
+      stage.arms = tips;
+      const { solid } = moving(1, 50, stage);
       const cast = corners(solid, MOVING_PARTS[1].first, MOVING_PARTS[1].count);
-      const chute = cast.filter((corner) => corner.y >= RELEASE.height - 1e-6);
-      expect(chute.length).toBeGreaterThan(0);
-      const xs = chute.map((corner) => corner.x);
-      expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(aim, 4);
-      expect(Math.min(...chute.map((corner) => corner.y))).toBeCloseTo(RELEASE.height, 4);
-      // The medal is let go inside it.
-      expect(Math.max(...chute.map((corner) => corner.z))).toBeGreaterThan(RELEASE.depth);
+      // The pusher's face is down on the table; everything higher is the two arms, one each side of the middle here.
+      const rails = cast.filter((corner) => corner.y > P + 1);
+      for (const arm of [0, 1] as const) {
+        const own = rails.filter((corner) => (arm === 0 ? corner.x < tips[0] + 5 : corner.x > tips[1] - 5));
+        expect(own.length).toBeGreaterThan(50);
+        const from = armCollar(arm);
+        const to = armTip(arm, armTipAt(stage, arm));
+        const length = Math.hypot(to.x - from.x, to.height - from.height);
+        const along = [(to.x - from.x) / length, (to.height - from.height) / length];
+        const far = own.map((corner) => (corner.x - from.x) * along[0] + (corner.y - from.height) * along[1]);
+        const off = own.map((corner) => Math.abs((corner.x - from.x) * along[1] - (corner.y - from.height) * along[0]));
+        // The rail runs from behind the collar, where the collar hides its end, to a hood that goes round the tip.
+        expect(Math.min(...far)).toBeLessThan(0);
+        expect(Math.min(...far)).toBeGreaterThan(-3);
+        expect(Math.max(...far)).toBeGreaterThan(length + R);
+        expect(Math.max(...far)).toBeLessThan(length + R + 1.2);
+        // Its two bars leave room for a medal between them, and it is nowhere wider than that and a little.
+        expect(Math.max(...off)).toBeGreaterThan(R);
+        expect(Math.max(...off)).toBeLessThan(R + 1.2);
+        // The channel has the plane the medals roll in between its back and its front, with room for a medal's thickness.
+        expect(Math.min(...own.map((corner) => corner.z))).toBeLessThan(ARMS.depth - T / 2);
+        expect(Math.min(...own.map((corner) => corner.z))).toBeGreaterThan(0);
+        expect(Math.max(...own.map((corner) => corner.z))).toBeGreaterThan(ARMS.depth + T / 2);
+        // A medal anywhere on the rail is inside it.
+        for (const remaining of [ROLL_TIME, ROLL_TIME / 2, 0]) {
+          const spot = rollingSpot(arm, armTipAt(stage, arm), remaining);
+          const offLine = Math.abs((spot.x - from.x) * along[1] - (spot.height - from.height) * along[0]);
+          expect(offLine).toBeLessThan(1e-9);
+        }
+      }
     }
-    // The pusher and the chute throw shadows; the gates and their signs, being lights, do not.
+    // The pusher and the arms throw shadows; the gates and their signs, being lights, do not.
     expect(MOVING_CAST).toBe(2);
     expect(MOVING_PARTS.map((part) => part.art)).toEqual(['pusher', 'plain', 'plain', 'sign']);
+  });
+
+  it('lights the arm that takes the next medal, and one with a medal on its rail', () => {
+    fakeDocument();
+    /** How bright the bars of each arm are: the self-lit corners left and right of the middle, above the pusher. */
+    const lit = (machine: Machine, aim: number) => {
+      const stage = createStage(1, false);
+      stage.arms = [20, 80];
+      const solid = new Solid(100);
+      buildMoving(solid, machine, 40, stage, { aim, showGuide: true });
+      const bars = corners(solid, MOVING_PARTS[1].first, MOVING_PARTS[1].count).filter((corner) => corner.y > P + 1 && corner.glow > 0);
+      const of = (left: boolean) => Math.max(...bars.filter((corner) => corner.x < 50 === left).map((corner) => corner.glow));
+      return [of(true), of(false)];
+    };
+    const machine = createMachine(3);
+    const [leftAtLeft, rightAtLeft] = lit(machine, 20);
+    expect(leftAtLeft).toBeGreaterThan(rightAtLeft);
+    const [leftAtRight, rightAtRight] = lit(machine, 80);
+    expect(rightAtRight).toBe(leftAtLeft);
+    expect(leftAtRight).toBe(rightAtLeft);
+    // A medal still rolling down the left arm keeps it lit after the aim has gone over to the right.
+    dropMedal(machine, 20);
+    aimArms(machine, 80);
+    expect(lit(machine, 80)).toEqual([leftAtLeft, leftAtLeft]);
+  });
+
+  it('throws the shadow of an arm, and of each medal on it, on the back panel', () => {
+    fakeDocument();
+    const machine = createMachine(3);
+    const touches = () => {
+      const stage = createStage(1, false);
+      trackMedals(stage, machine, 0);
+      const flat = new Flat(600);
+      buildTouches(flat, machine, 40, stage, { aim: 30, showGuide: false });
+      return { flat, stage };
+    };
+    aimArms(machine, 30);
+    const empty = touches().flat;
+    dropMedal(machine, 30);
+    step(machine, ROLL_TIME / 2);
+    const { flat, stage } = touches();
+    // One more touch than with nothing on the rail: the medal's shadow, a round spot of dark just off the panel.
+    expect(flat.count).toBe(empty.count + 6);
+    const spot = rollingSpot(0, armTipAt(stage, 0), machine.rolling[0].remaining);
+    // The middle of every round spot of dark laid on the panel: each is six corners, the first and the third opposite.
+    const spots: { x: number; y: number }[] = [];
+    for (let at = 0; at < flat.count * FLAT_STRIDE; at += 6 * FLAT_STRIDE) {
+      const opposite = at + 2 * FLAT_STRIDE;
+      if (flat.data[at + 10] !== SHAPE.spot || flat.data[at + 6] < 0.3 || flat.data[at + 2] > 0.1) continue;
+      spots.push({ x: (flat.data[at] + flat.data[opposite]) / 2, y: (flat.data[at + 1] + flat.data[opposite + 1]) / 2 });
+    }
+    // Each collar has one, and so has the medal: to its lower right, as the 2D drawing has it, and close by.
+    expect(spots).toHaveLength(3);
+    const own = spots.filter((shadow) => Math.hypot(shadow.x - spot.x, shadow.y - spot.height) < R);
+    expect(own).toHaveLength(1);
+    expect(own[0].x).toBeGreaterThan(spot.x);
+    expect(own[0].y).toBeLessThan(spot.height);
   });
 
   it('draws every gate and its sign where the sweep has taken it, and lights one a medal came through', () => {
@@ -810,10 +921,10 @@ describe('the cabinet as shapes', () => {
     const without = touches(false);
     const withGuide = touches(true, 30);
     expect(withGuide.count - without.count).toBe(3);
-    // Its tip is where the medal is let go, straight over the aim.
+    // Its tip is where a medal drops off its arm, straight over the aim.
     const tip = (withGuide.count - without.count === 3 ? Array.from({ length: withGuide.count }, (_, i) => i) : []).find((i) => {
       const at = i * FLAT_STRIDE;
-      return Math.abs(withGuide.data[at] - 30) < 1e-6 && Math.abs(withGuide.data[at + 1] - RELEASE.height) < 1e-6;
+      return Math.abs(withGuide.data[at] - 30) < 1e-6 && Math.abs(withGuide.data[at + 1] - ARMS.tip) < 1e-6;
     });
     expect(tip).toBeDefined();
     // A touch either hides what is under it or adds light to it; its shape is one of the three.

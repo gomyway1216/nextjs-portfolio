@@ -5,22 +5,30 @@ import {
   LEVEL,
   LIMITS,
   MASTER_GAIN,
+  MEDAL,
   MUSIC,
   MUSIC_ON,
   POCKET_NOTES,
+  POURS,
+  POUR_SAMPLES,
   SAMPLES,
   SCORES,
   SOUNDS,
   SOUND_LEVELS,
+  TRAY,
   VARIANTS,
   hush,
   pitch,
   playSound,
+  pourHits,
+  pourLevel,
+  pourSeed,
   renderSound,
   resetAudio,
   setMusic,
   unlockAudio,
   type Note,
+  type Pour,
   type PusherSound,
   type Sample,
 } from '@/components/game/MedalPusher/sounds';
@@ -55,7 +63,18 @@ class FakeParam {
     return this;
   }
 
-  cancelScheduledValues(): this {
+  /** The targets it has been set, with the moment each starts, and the moments its schedule was cleared from. */
+  readonly targets: { value: number; at: number }[] = [];
+  readonly cancelled: number[] = [];
+
+  setTargetAtTime(value: number, at = 0): this {
+    this.seen.push(value);
+    this.targets.push({ value, at });
+    return this;
+  }
+
+  cancelScheduledValues(from = 0): this {
+    this.cancelled.push(from);
     return this;
   }
 }
@@ -192,6 +211,11 @@ class FakeContext {
     return this.gains[0];
   }
 
+  /** The gain the loop alone goes through on its way to the master. */
+  get bus(): FakeGain {
+    return this.gains[1];
+  }
+
   /** The gain a source plays through. */
   gainOf(source: FakeSource): FakeGain {
     return source.outputs[0] as FakeGain;
@@ -224,12 +248,22 @@ function firstDifference(a: Float32Array, b: Float32Array): number {
 const FADE = 0.031;
 const EVERY_TAKE = SAMPLES.reduce((sum, sample) => sum + (VARIANTS[sample] ?? 1), 0);
 
-/** Presses the Sound toggle and lets the cabinet finish working its buffers out. */
-async function switchOn(): Promise<FakeContext> {
+/**
+ * Presses the Sound toggle. The cabinet then works its buffers out one by one in the background; a test that
+ * is about that lets it finish (`warm`), and every other test calls it off, so that only the sounds it plays
+ * are worked out and it stays quick.
+ */
+async function switchOn(warm = false): Promise<FakeContext> {
   vi.stubGlobal('AudioContext', FakeContext);
   await unlockAudio();
-  vi.advanceTimersByTime(5000);
+  if (warm) vi.advanceTimersByTime(5000);
+  else vi.clearAllTimers();
   return FakeContext.made[FakeContext.made.length - 1];
+}
+
+/** Makes every roll of the dice come out as `value`: with 0 a medal is its first take, at its full level, a shade slow. */
+function fix(value: number): void {
+  vi.spyOn(Math, 'random').mockReturnValue(value);
 }
 
 /** Lets `seconds` go by on the audio clock and the page's timers together. */
@@ -310,6 +344,10 @@ describe('the chain', () => {
     expect(audio.master.outputs).toEqual([audio.compressors[0]]);
     expect(audio.compressors[0].outputs).toEqual([audio.destination]);
     expect(audio.master.gain.value).toBe(MASTER_GAIN);
+    // And one more gain in front, wide open, that only the loop goes through.
+    expect(audio.gains).toHaveLength(2);
+    expect(audio.bus.outputs).toEqual([audio.master]);
+    expect(audio.bus.gain.value).toBe(1);
   });
 
   it('sets the compressor as a limiter', async () => {
@@ -351,6 +389,20 @@ describe('the chain', () => {
     }
     for (const part of MUSIC.parts) expect(part.level).toBeLessThan(Math.min(...Object.values(SOUND_LEVELS).filter((level) => level > SOUND_LEVELS.spin)));
   });
+
+  it('plays the medals well above the loop, and a rattle louder the more medals are in it', () => {
+    const loop = MUSIC.parts.reduce((sum, part) => sum + part.level, 0);
+    for (const sound of ['land', 'insert', 'win', 'lost'] as const) expect(SOUND_LEVELS[sound], sound).toBeGreaterThanOrEqual(loop * 2.5);
+    expect(pourLevel(1)).toBe(SOUND_LEVELS.win);
+    expect(pourLevel(POURS[POURS.length - 1])).toBeCloseTo(LEVEL.ceiling, 12);
+    POURS.forEach((size, index) => {
+      if (index > 0) expect(pourLevel(size)).toBeGreaterThan(pourLevel(POURS[index - 1]));
+      expect(pourLevel(size)).toBeLessThanOrEqual(LEVEL.ceiling + 1e-12);
+    });
+    // Under the medals the loop is turned well down, but not off.
+    expect(MUSIC.ducked).toBeGreaterThan(0.2);
+    expect(MUSIC.ducked).toBeLessThan(0.6);
+  });
 });
 
 describe('every sound', () => {
@@ -372,13 +424,16 @@ describe('every sound', () => {
   it('never schedules a gain above the ceiling', async () => {
     const audio = await switchOn();
     setMusic(true);
+    // A tower into the tray first, while there is room for all of it, then everything at once for four seconds.
+    playSound('win', true, { count: 30 });
+    wait(audio, 2);
     for (let round = 0; round < 40; round++) {
-      for (const sound of SOUNDS) playSound(sound, true, { level: round % 8, stops: [0.3 + round * 0.01, 1.4, 0.9] });
+      for (const sound of SOUNDS) playSound(sound, true, { level: round % 8, count: 1 + ((round * 7) % 40), stops: [0.3 + round * 0.01, 1.4, 0.9] });
       wait(audio, 0.1);
     }
     hush();
     expect(audio.sources.length).toBeGreaterThan(100);
-    const voices = audio.gains.filter((gain) => gain !== audio.master);
+    const voices = audio.gains.filter((gain) => gain !== audio.master && gain !== audio.bus);
     expect(voices).toHaveLength(audio.sources.length);
     for (const gain of voices) {
       expect(gain.gain.seen.length).toBeGreaterThan(0);
@@ -388,6 +443,9 @@ describe('every sound', () => {
       }
     }
     expect(audio.master.gain.seen).toEqual([MASTER_GAIN]);
+    // The loop's own gain only ever goes down from wide open, and comes back.
+    expect(audio.bus.gain.seen.length).toBeGreaterThan(1);
+    for (const value of audio.bus.gain.seen) expect([1, MUSIC.ducked]).toContain(value);
   });
 
   it('stops every source it starts, the loop and the reels included', async () => {
@@ -407,11 +465,11 @@ describe('every sound', () => {
   });
 
   it('works each buffer out once', async () => {
-    const audio = await switchOn();
+    const audio = await switchOn(true);
     expect(audio.buffers).toHaveLength(EVERY_TAKE);
     setMusic(true);
     for (let round = 0; round < 20; round++) {
-      for (const sound of SOUNDS) playSound(sound, true, { level: 1 + (round % 6) });
+      for (const sound of SOUNDS) playSound(sound, true, { level: 1 + (round % 6), count: 1 + round * 3 });
       wait(audio, 0.2);
     }
     expect(audio.buffers).toHaveLength(EVERY_TAKE);
@@ -428,23 +486,44 @@ describe('every sound', () => {
     expect(audio.buffers).toHaveLength(1);
   });
 
-  it('gives each medal a clink of its own: one of several takes, at its own pitch and level', async () => {
+  it.each(['land', 'insert', 'lost', 'roll'] as const)('gives each %s a sound of its own: one of several takes, at its own pitch and level', async (sound) => {
     const audio = await switchOn();
     for (let medal = 0; medal < 60; medal++) {
-      playSound('land', true);
-      wait(audio, 0.05, 0.05);
+      playSound(sound, true, { bare: false });
+      audio.currentTime += 0.05;
     }
     expect(audio.sources).toHaveLength(60);
     const speeds = audio.sources.map((source) => source.playbackRate.value);
     const levels = audio.sources.map((source) => audio.gainOf(source).gain.value);
     expect(new Set(speeds).size).toBeGreaterThan(50);
     expect(new Set(levels).size).toBeGreaterThan(50);
-    expect(new Set(audio.sources.map((source) => source.buffer)).size).toBe(VARIANTS.land);
+    expect(new Set(audio.sources.map((source) => source.buffer)).size).toBe(VARIANTS[sound]);
     for (const speed of speeds) expect(Math.abs(speed - 1)).toBeLessThanOrEqual(0.05 + 1e-9);
     for (const level of levels) {
-      expect(level).toBeLessThanOrEqual(SOUND_LEVELS.land);
-      expect(level).toBeGreaterThanOrEqual(SOUND_LEVELS.land * 0.7 - 1e-9);
+      expect(level).toBeLessThanOrEqual(SOUND_LEVELS[sound]);
+      expect(level).toBeGreaterThanOrEqual(SOUND_LEVELS[sound] * 0.7 - 1e-9);
     }
+  });
+
+  it('lands a medal on the table or on other medals, as it is told, and more often on medals when it is not', async () => {
+    const audio = await switchOn();
+    const lengths = (sample: Sample) => Array.from({ length: VARIANTS[sample] ?? 1 }, (_, variant) => rendered(sample, variant).length);
+    const [onMedals, onTable] = [lengths('land'), lengths('plate')];
+    expect(onMedals.some((length) => onTable.includes(length))).toBe(false);
+    const landed = (options?: { bare?: boolean }): number => {
+      audio.currentTime += 1;
+      playSound('land', true, options);
+      return audio.sources[audio.sources.length - 1].buffer?.length ?? 0;
+    };
+    for (let medal = 0; medal < 12; medal++) expect(onTable).toContain(landed({ bare: true }));
+    for (let medal = 0; medal < 12; medal++) expect(onMedals).toContain(landed({ bare: false }));
+    // Left to chance, it is the table about one time in four.
+    fix(0.2);
+    expect(onTable).toContain(landed());
+    fix(0.3);
+    expect(onMedals).toContain(landed());
+    fix(0.99);
+    expect(onMedals).toContain(landed());
   });
 
   it('plays everything but a medal the same way every time', async () => {
@@ -520,7 +599,7 @@ describe('the limits', () => {
     expect(audio.sources).toHaveLength(1);
   });
 
-  it.each(['land', 'win', 'lost'] as const)('holds a burst of two hundred %s clinks to a few', async (sound) => {
+  it.each(['land', 'insert', 'lost', 'roll'] as const)('holds a burst of two hundred %s clinks to a few', async (sound) => {
     const audio = await switchOn();
     for (let i = 0; i < 200; i++) {
       playSound(sound, true);
@@ -534,7 +613,7 @@ describe('the limits', () => {
     const audio = await switchOn();
     for (let i = 0; i < 4000; i++) {
       playSound('land', true);
-      playSound('win', true);
+      playSound('insert', true);
       playSound('lost', true);
       audio.currentTime += 0.0007;
     }
@@ -554,7 +633,7 @@ describe('the limits', () => {
     const audio = await switchOn();
     let most = 0;
     for (let i = 0; i < 3000; i++) {
-      for (const sound of SOUNDS) playSound(sound, true, { level: 1 + (i % 6) });
+      for (const sound of SOUNDS) playSound(sound, true, { level: 1 + (i % 6), count: 1 + (i % 50) });
       most = Math.max(most, audio.sounding(FADE).length);
       expect(audio.sounding(FADE).length).toBeLessThanOrEqual(LIMITS.voices);
       audio.currentTime += 0.004;
@@ -575,7 +654,8 @@ describe('the limits', () => {
     }
     const before = audio.sources.length;
     playSound('land', true);
-    playSound('win', true);
+    playSound('insert', true);
+    playSound('win', true, { count: 30 });
     playSound('lost', true);
     expect(audio.sources).toHaveLength(before);
     playSound('gate', true);
@@ -599,6 +679,264 @@ describe('the limits', () => {
     }
     expect(audio.sources.length).toBeGreaterThan(1 / LIMITS.gap);
     expect(audio.sources.length).toBeLessThanOrEqual(Math.ceil(1 / LIMITS.quickGap) + 1);
+  });
+});
+
+describe('the tray', () => {
+  /** How many medals a source of the tray holds, told by its level: with the dice fixed at 0 each size has its own. */
+  const sizeOf = (audio: FakeContext, source: FakeSource): Pour | undefined => POURS.find((size) => Math.abs(audio.gainOf(source).gain.value - pourLevel(size)) < 1e-9);
+  const sizes = (audio: FakeContext, from = 0) => audio.sources.slice(from).map((source) => sizeOf(audio, source));
+  const total = (audio: FakeContext, from = 0) => sizes(audio, from).reduce<number>((sum, size) => sum + (size ?? 0), 0);
+
+  it('makes 1, 5 and 30 medals three different things to hear', async () => {
+    fix(0);
+    const audio = await switchOn();
+    const won = (count: number) => {
+      audio.currentTime += 5;
+      const from = audio.sources.length;
+      playSound('win', true, { count });
+      return audio.sources.slice(from);
+    };
+    const [one, five, thirty] = [won(1), won(5), won(30)];
+    // One medal is one clink. Five are a rattle of four and one more. Thirty are four rattles, the largest of sixteen.
+    expect(one.map((source) => sizeOf(audio, source))).toEqual([1]);
+    expect(five.map((source) => sizeOf(audio, source))).toEqual([4, 1]);
+    expect(thirty.map((source) => sizeOf(audio, source))).toEqual([16, 8, 4, 2]);
+    // Each is the buffer of its size, so they differ in what is played, for how long and how loud.
+    for (const source of [...one, ...five, ...thirty]) {
+      const size = sizeOf(audio, source) ?? 1;
+      expect(source.buffer?.length).toBe(rendered(POUR_SAMPLES[size], 0).length);
+    }
+    const lasts = (sources: FakeSource[]) => Math.max(...sources.map((source) => source.ends)) - Math.min(...sources.map((source) => source.begins));
+    const loudest = (sources: FakeSource[]) => Math.max(...sources.map((source) => audio.gainOf(source).gain.value));
+    expect(lasts(five)).toBeGreaterThan(lasts(one));
+    expect(lasts(thirty)).toBeGreaterThan(lasts(five) * 1.2);
+    expect(loudest(five)).toBeGreaterThan(loudest(one));
+    expect(loudest(thirty)).toBeGreaterThan(loudest(five));
+  });
+
+  it('is heard a moment after the medal goes over, never at once and never long after', async () => {
+    const audio = await switchOn();
+    for (let medal = 0; medal < 40; medal++) {
+      audio.currentTime += 1;
+      playSound('win', true);
+      const source = audio.sources[audio.sources.length - 1];
+      expect(source.begins - audio.currentTime).toBeGreaterThanOrEqual(TRAY.fall[0]);
+      expect(source.begins - audio.currentTime).toBeLessThanOrEqual(TRAY.fall[1]);
+      expect(audio.gainOf(source).outputs).toEqual([audio.master]);
+    }
+    expect(audio.sources).toHaveLength(40);
+    expect(new Set(audio.sources.map((source) => (source.begins % 1).toFixed(4))).size).toBeGreaterThan(30);
+  });
+
+  it('plays every medal of a steady trickle as a clink of its own, each a little different', async () => {
+    const audio = await switchOn();
+    for (let medal = 0; medal < 80; medal++) {
+      playSound('win', true, { count: 1 });
+      audio.currentTime += 0.25;
+    }
+    expect(audio.sources).toHaveLength(80);
+    const single = Array.from({ length: VARIANTS.win ?? 1 }, (_, variant) => rendered('win', variant).length);
+    for (const source of audio.sources) {
+      expect(single).toContain(source.buffer?.length);
+      expect(Math.abs(source.playbackRate.value - 1)).toBeLessThanOrEqual(0.05 + 1e-9);
+      expect(audio.gainOf(source).gain.value).toBeLessThanOrEqual(SOUND_LEVELS.win);
+      expect(audio.gainOf(source).gain.value).toBeGreaterThanOrEqual(SOUND_LEVELS.win * (1 - TRAY.wander) - 1e-9);
+    }
+    expect(new Set(audio.sources.map((source) => source.buffer)).size).toBe(VARIANTS.win);
+    expect(new Set(audio.sources.map((source) => source.playbackRate.value)).size).toBeGreaterThan(60);
+  });
+
+  it('never starts two sources in step', async () => {
+    const audio = await switchOn();
+    for (let frame = 0; frame < 600; frame++) {
+      playSound('win', true, { count: 1 + (frame % 7) });
+      audio.currentTime += 1 / 60;
+    }
+    const begins = audio.sources.map((source) => source.begins).sort((a, b) => a - b);
+    expect(begins.length).toBeGreaterThan(20);
+    begins.forEach((at, index) => {
+      if (index > 0) expect(at - begins[index - 1]).toBeGreaterThanOrEqual(TRAY.spacing - 1e-9);
+    });
+  });
+
+  it('never has more sources than its limit, however many medals fall', async () => {
+    fix(0);
+    const audio = await switchOn();
+    let asked = 0;
+    let most = 0;
+    for (let frame = 0; frame < 1200; frame++) {
+      // A trickle, then a tower going over, then a flood no machine could pay, then a trickle again.
+      const count = frame < 300 ? (frame % 20 === 0 ? 1 : 0) : frame < 600 ? 1 + (frame % 3) : frame < 900 ? 500 : frame % 30 === 0 ? 2 : 0;
+      if (count > 0) playSound('win', true, { count });
+      asked += count;
+      most = Math.max(most, audio.sounding().length);
+      expect(audio.sounding().length).toBeLessThanOrEqual(LIMITS.tray);
+      audio.currentTime += 1 / 60;
+    }
+    expect(most).toBe(LIMITS.tray);
+    // Hundreds of thousands of medals were a few hundred sources, and no source held more than the largest rattle.
+    expect(asked).toBeGreaterThan(100_000);
+    expect(audio.sources.length).toBeLessThan(400);
+    expect(total(audio)).toBeLessThanOrEqual(audio.sources.length * POURS[POURS.length - 1]);
+    expect(LIMITS.tray).toBeLessThanOrEqual(LIMITS.voices - LIMITS.kept);
+  });
+
+  it('lets the first few be single medals and asks more of each source after that', async () => {
+    fix(0);
+    const audio = await switchOn();
+    const alone = LIMITS.tray - POURS.length + 1;
+    // One medal a frame: the first few are clinks of their own.
+    for (let frame = 0; frame < alone; frame++) {
+      playSound('win', true);
+      audio.currentTime += 1 / 60;
+    }
+    expect(sizes(audio)).toEqual(Array.from({ length: alone }, () => 1));
+    // The next medal has to wait for another: then the two are a rattle of two.
+    playSound('win', true);
+    expect(audio.sources).toHaveLength(alone);
+    audio.currentTime += 1 / 60;
+    playSound('win', true);
+    expect(sizes(audio, alone)).toEqual([2]);
+    // And then for three more: a rattle of four.
+    for (let frame = 0; frame < 4; frame++) {
+      expect(audio.sources).toHaveLength(alone + 1);
+      audio.currentTime += 1 / 60;
+      playSound('win', true);
+    }
+    expect(sizes(audio, alone + 1)).toEqual([4]);
+  });
+
+  it('plays as many medals as went over while it keeps up, and close to it when a tower goes', async () => {
+    fix(0);
+    const audio = await switchOn();
+    // Five medals a second for four seconds: every one is a clink of its own.
+    for (let frame = 0; frame < 240; frame++) {
+      if (frame % 12 === 0) playSound('win', true);
+      audio.currentTime += 1 / 60;
+    }
+    expect(sizes(audio)).toEqual(Array.from({ length: 20 }, () => 1));
+    audio.currentTime += 5;
+    // Ninety medals in half a second: most of them are heard, in a handful of sources that grow as the tray fills.
+    const from = audio.sources.length;
+    for (let frame = 0; frame < 30; frame++) {
+      playSound('win', true, { count: 3 });
+      audio.currentTime += 1 / 60;
+    }
+    expect(total(audio, from)).toBeGreaterThanOrEqual(60);
+    expect(total(audio, from)).toBeLessThanOrEqual(90);
+    expect(audio.sources.length - from).toBeLessThanOrEqual(LIMITS.tray);
+    expect(Math.max(...sizes(audio, from).map((size) => size ?? 0))).toBeGreaterThanOrEqual(16);
+    const grown = sizes(audio, from).map((size) => size ?? 0);
+    expect(grown[grown.length - 1]).toBeGreaterThan(grown[0]);
+  });
+
+  it('forgets medals it could not play once the winning has stopped', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (let frame = 0; frame < 10; frame++) {
+      playSound('win', true, { count: 500 });
+      audio.currentTime += 1 / 60;
+    }
+    const flood = audio.sources.length;
+    expect(flood).toBe(LIMITS.tray);
+    // Long after, one medal is one clink: nothing was left over to come out with it.
+    audio.currentTime += 5;
+    playSound('win', true);
+    expect(sizes(audio, flood)).toEqual([1]);
+  });
+
+  it('is emptied by a hush: what was owed is not heard afterwards', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (let frame = 0; frame < 6; frame++) playSound('win', true, { count: 500 });
+    expect(audio.sounding().length).toBeGreaterThan(0);
+    hush();
+    expect(audio.sounding(FADE)).toHaveLength(0);
+    const before = audio.sources.length;
+    audio.currentTime += 0.2;
+    playSound('win', true);
+    expect(sizes(audio, before)).toEqual([1]);
+    expect(audio.sources[before].begins - audio.currentTime).toBeCloseTo(TRAY.fall[0], 9);
+  });
+
+  it('takes a count that makes no sense for one medal', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (const count of [0, -5, Number.NaN, 0.2, undefined]) {
+      audio.currentTime += 5;
+      const from = audio.sources.length;
+      expect(() => playSound('win', true, { count })).not.toThrow();
+      expect(sizes(audio, from)).toEqual([1]);
+    }
+    audio.currentTime += 5;
+    const from = audio.sources.length;
+    playSound('win', true, { count: 2.6 });
+    expect(total(audio, from)).toBe(3);
+    audio.currentTime += 5;
+    const flood = audio.sources.length;
+    expect(() => playSound('win', true, { count: Number.POSITIVE_INFINITY })).not.toThrow();
+    expect(total(audio, flood)).toBe(LIMITS.owed);
+  });
+
+  it('starts nothing while the sound is off', async () => {
+    const audio = await switchOn();
+    playSound('win', false, { count: 30 });
+    playSound('insert', false);
+    playSound('land', false, { bare: true });
+    expect(audio.sources).toHaveLength(0);
+    expect(audio.bus.gain.seen).toEqual([1]);
+    // And owes nothing for it: the first medal after the sound comes on is one clink.
+    fix(0);
+    playSound('win', true);
+    expect(sizes(audio)).toEqual([1]);
+  });
+
+  it('turns the loop down while medals are falling into it, and lets it come back', async () => {
+    const audio = await switchOn();
+    setMusic(true);
+    wait(audio, 1);
+    // The loop's notes go through the gain of their own; nothing else does.
+    for (const note of audio.sources) expect(audio.gainOf(note).outputs).toEqual([audio.bus]);
+    expect(audio.bus.gain.seen).toEqual([1]);
+    // A medal going in, landing, lost, or by itself in the tray is heard over the loop as it is.
+    playSound('insert', true);
+    playSound('land', true);
+    playSound('lost', true);
+    playSound('win', true);
+    expect(audio.bus.gain.seen).toEqual([1]);
+    // A rattle turns it down, and each rattle that follows puts off its coming back.
+    audio.currentTime += 1;
+    playSound('win', true, { count: 12 });
+    expect(audio.bus.gain.seen.slice(1)).toEqual([MUSIC.ducked, 1, MUSIC.ducked, 1]);
+    // It goes on playing underneath.
+    const made = audio.sources.length;
+    wait(audio, 2);
+    expect(audio.sources.length).toBeGreaterThan(made + 4);
+  });
+
+  it('gives the loop its level back when everything is hushed, and forgets the rattle it was making room for', async () => {
+    const audio = await switchOn();
+    setMusic(true);
+    wait(audio, 1);
+    const last = () => audio.bus.gain.targets[audio.bus.gain.targets.length - 1];
+    // A long rattle: the loop is to come back when it ends, more than half a second from now.
+    playSound('win', true, { count: 32 });
+    const long = last();
+    expect(long.value).toBe(1);
+    expect(long.at).toBeGreaterThan(audio.currentTime + 0.5);
+    // The sound is switched off in the middle of it. The schedule is cleared and the loop's gain is on its way back at once.
+    wait(audio, 0.1);
+    hush();
+    expect(audio.bus.gain.cancelled[audio.bus.gain.cancelled.length - 1]).toBe(audio.currentTime);
+    expect(last().value).toBe(1);
+    expect(last().at).toBeLessThan(audio.currentTime + 0.05);
+    // A short rattle afterwards waits for its own end, not for the end of the long one that was cut.
+    wait(audio, 0.2);
+    playSound('win', true, { count: 2 });
+    expect(last().value).toBe(1);
+    expect(last().at).toBeGreaterThan(audio.currentTime);
+    expect(last().at).toBeLessThan(long.at);
   });
 });
 
@@ -936,10 +1274,26 @@ describe('the notes', () => {
 
 const RATE = 48000;
 const takes: [Sample, number][] = SAMPLES.flatMap((sample) => Array.from({ length: VARIANTS[sample] ?? 1 }, (_, variant): [Sample, number] => [sample, variant]));
+const takesOf = (sample: Sample): number[] => Array.from({ length: VARIANTS[sample] ?? 1 }, (_, variant) => variant);
+
+/**
+ * A take as the cabinet would work it out, kept from one test to the next: working every sound out afresh in
+ * every test that looks at one would take longer than all the looking.
+ */
+const kept = new Map<string, Float32Array>();
+function rendered(sample: Sample, variant = 0, rate = RATE): Float32Array {
+  const key = `${sample}:${variant}:${rate}`;
+  let samples = kept.get(key);
+  if (!samples) {
+    samples = renderSound(sample, rate, variant);
+    kept.set(key, samples);
+  }
+  return samples;
+}
 
 const energy = (samples: Float32Array, from = 0, to = samples.length): number => {
   let sum = 0;
-  for (let i = from; i < to; i++) sum += samples[i] * samples[i];
+  for (let i = Math.max(0, Math.floor(from)); i < Math.min(samples.length, Math.floor(to)); i++) sum += samples[i] * samples[i];
   return sum;
 };
 
@@ -966,23 +1320,127 @@ function shareBelow(samples: Float32Array, hz: number, rate: number): number {
     for (let i = 0; i < low.length; i++) next[i] = b * (low[i] + 2 * (low[i - 1] ?? 0) + (low[i - 2] ?? 0)) - a1 * (next[i - 1] ?? 0) - a2 * (next[i - 2] ?? 0);
     low = next;
   }
-  let kept = 0;
-  for (const value of low) kept += value * value;
-  return kept / energy(samples);
+  let below = 0;
+  for (const value of low) below += value * value;
+  return below / energy(samples);
 }
 
+/** The power of a take at every frequency up to half the sample rate, `RATE / (2 · (length − 1))` hertz apart: a Fourier transform. */
+const spectra = new Map<string, Float64Array>();
+function spectrum(sample: Sample, variant: number): Float64Array {
+  const key = `${sample}:${variant}`;
+  const known = spectra.get(key);
+  if (known) return known;
+  const samples = rendered(sample, variant);
+  let size = 1;
+  while (size < samples.length) size *= 2;
+  const re = new Float64Array(size);
+  const im = new Float64Array(size);
+  re.set(samples);
+  for (let i = 1, j = 0; i < size; i++) {
+    let bit = size >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) [re[i], re[j]] = [re[j], re[i]];
+  }
+  for (let span = 2; span <= size; span *= 2) {
+    const turn = (-2 * Math.PI) / span;
+    for (let from = 0; from < size; from += span) {
+      for (let k = 0; k < span / 2; k++) {
+        const cos = Math.cos(turn * k);
+        const sin = Math.sin(turn * k);
+        const a = from + k;
+        const b = a + span / 2;
+        const x = re[b] * cos - im[b] * sin;
+        const y = re[b] * sin + im[b] * cos;
+        re[b] = re[a] - x;
+        im[b] = im[a] - y;
+        re[a] += x;
+        im[a] += y;
+      }
+    }
+  }
+  const power = new Float64Array(size / 2 + 1);
+  for (let i = 0; i < power.length; i++) power[i] = re[i] * re[i] + im[i] * im[i];
+  spectra.set(key, power);
+  return power;
+}
+
+/** The share of a take's energy that lies between `low` and `high` hertz. */
+function shareBetween(sample: Sample, variant: number, low: number, high: number): number {
+  const power = spectrum(sample, variant);
+  const apart = RATE / (2 * (power.length - 1));
+  let within = 0;
+  let all = 0;
+  power.forEach((value, index) => {
+    all += value;
+    if (index * apart >= low && index * apart < high) within += value;
+  });
+  return within / all;
+}
+
+/** The seconds by which nine tenths of a sound's energy has gone by. */
+function mostlyOverBy(samples: Float32Array): number {
+  const all = energy(samples);
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+    if (sum >= all * 0.9) return i / RATE;
+  }
+  return samples.length / RATE;
+}
+
+/**
+ * When the strikes that can be told apart in a sound come: the two-millisecond stretches that are at least
+ * `over` times as strong as the two before them, and not within six milliseconds of the last. Strikes that
+ * fall on top of one another count once, so their number lags behind the true one in a thick rattle, but it
+ * still grows with it.
+ */
+function strikeTimes(samples: Float32Array, over = 3): number[] {
+  const width = Math.round(0.002 * RATE);
+  const levels: number[] = [];
+  for (let i = 0; i + width <= samples.length; i += width) levels.push(energy(samples, i, i + width));
+  const floor = Math.max(...levels) * 0.002;
+  const times: number[] = [];
+  levels.forEach((level, index) => {
+    const at = (index * width) / RATE;
+    const fresh = times.length === 0 || at - times[times.length - 1] >= 0.006;
+    if (fresh && level > floor && level > (((levels[index - 1] ?? 0) + (levels[index - 2] ?? 0)) / 2) * over) times.push(at);
+  });
+  return times;
+}
+
+const strikes = (samples: Float32Array): number => strikeTimes(samples).length;
+
+/** The loudest twentieth of a second of a sound played at `level`, as an average level. */
+function loudest(samples: Float32Array, level: number): number {
+  const width = Math.round(0.05 * RATE);
+  let most = 0;
+  for (let i = 0; i < samples.length; i += width / 2) most = Math.max(most, energy(samples, i, i + width));
+  return level * Math.sqrt(most / width);
+}
+
+const mean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+
 describe('what is worked out', () => {
-  it('covers every sound and the two notes of the loop', () => {
+  it('covers every sound, the medals first, and the two notes of the loop', () => {
     expect(new Set(SOUNDS).size).toBe(SOUNDS.length);
-    expect(SAMPLES).toHaveLength(SOUNDS.length + MUSIC.parts.length);
+    expect(new Set(SAMPLES).size).toBe(SAMPLES.length);
+    for (const sound of SOUNDS) expect(SAMPLES).toContain(sound);
+    for (const size of POURS) expect(SAMPLES).toContain(POUR_SAMPLES[size]);
+    expect(SAMPLES).toContain('plate');
+    // A medal on the table, five sizes of rattle and the loop's two notes are kept besides the sounds that have names.
+    expect(SAMPLES).toHaveLength(SOUNDS.length + 1 + (POURS.length - 1) + MUSIC.parts.length);
+    expect(SAMPLES.slice(0, 4)).toEqual(['land', 'plate', 'insert', 'win']);
     for (const name of Object.keys(SCORES)) expect(SOUNDS).toContain(name);
     // The names the cabinet has always used are still there.
-    const old = ['land', 'win', 'lost', 'gate', 'full', 'reelStop', 'reach', 'small', 'big', 'seven', 'tick', 'prize', 'jackpot', 'crash', 'ball', 'dice', 'chest', 'fever'];
-    for (const name of old) expect(SOUNDS).toContain(name);
+    const old = ['land', 'win', 'lost', 'gate', 'full', 'spin', 'reelStop', 'tick', 'hop', 'reach', 'small', 'big', 'seven', 'dice', 'chest', 'open'];
+    for (const name of [...old, 'prize', 'ball', 'roulette', 'pocket', 'tower', 'cross', 'crash', 'fever', 'jackpot']) expect(SOUNDS).toContain(name);
   });
 
-  it.each(takes)('%s (take %i) is finite, peaks at exactly 1, and begins and ends in silence', (sample, variant) => {
+  it.each(takes)('%s (take %i) is finite, peaks at exactly 1, begins and ends in silence, and is the same every time', (sample, variant) => {
     const samples = renderSound(sample, RATE, variant);
+    expect(firstDifference(samples, rendered(sample, variant))).toBe(-1);
     expect(samples.length).toBeGreaterThan(RATE * 0.03);
     expect(samples.length).toBeLessThan(RATE * 6);
     let sum = 0;
@@ -998,76 +1456,46 @@ describe('what is worked out', () => {
     expect(energy(samples)).toBeGreaterThan(20);
   });
 
-  it('comes out the same every time, and at another sample rate too', () => {
-    for (const [sample, variant] of takes) {
-      expect(firstDifference(renderSound(sample, RATE, variant), renderSound(sample, RATE, variant)), `${sample}:${variant}`).toBe(-1);
-    }
-    for (const sample of ['land', 'jackpot', 'spin', 'crash'] as const) {
-      const usual = renderSound(sample, RATE);
-      const slower = renderSound(sample, 44100);
+  it('comes out much the same at another sample rate', () => {
+    for (const sample of ['land', 'insert', 'win', 'pour8', 'jackpot', 'spin', 'crash'] as const) {
+      const usual = rendered(sample);
+      const slower = rendered(sample, 0, 44100);
       expect(slower.length / 44100).toBeCloseTo(usual.length / RATE, 3);
       expect(peakOf(slower)).toBeCloseTo(1, 6);
       const ratio = brightness(slower, 44100) / brightness(usual, RATE);
-      expect(ratio).toBeGreaterThan(0.9);
-      expect(ratio).toBeLessThan(1.1);
+      expect(ratio, sample).toBeGreaterThan(0.9);
+      expect(ratio, sample).toBeLessThan(1.1);
     }
   });
 
   it('still makes sense on a sound card that runs slowly', () => {
     // A telephone headset can run at 16,000 samples a second: nothing may be asked to sound above half of that.
-    for (const sample of ['land', 'win', 'tick', 'gate', 'prize', 'jackpot', 'crash'] as const) {
-      const samples = renderSound(sample, 16000);
-      expect(samples.length / 16000).toBeCloseTo(renderSound(sample, RATE).length / RATE, 3);
+    for (const sample of ['land', 'plate', 'insert', 'win', 'pour4', 'lost', 'roll', 'tick', 'gate', 'prize', 'crash'] as const) {
+      const samples = rendered(sample, 0, 16000);
+      expect(samples.length / 16000).toBeCloseTo(rendered(sample).length / RATE, 3);
       expect(peakOf(samples)).toBeCloseTo(1, 6);
-      expect(brightness(samples, 16000)).toBeLessThan(8000 * 0.9);
+      expect(brightness(samples, 16000), sample).toBeLessThan(8000 * 0.9);
     }
   });
 
-  it('keeps several takes of each clink, no two alike', () => {
-    for (const sound of ['land', 'win', 'lost'] as const) {
-      const count = VARIANTS[sound] ?? 1;
-      expect(count).toBeGreaterThanOrEqual(3);
-      const seen = new Set(Array.from({ length: count }, (_, variant) => brightness(renderSound(sound, RATE, variant), RATE).toFixed(1)));
-      expect(seen.size).toBe(count);
-    }
-    // A take that does not exist is the nearest one that does.
-    expect(renderSound('land', RATE, 99)).toEqual(renderSound('land', RATE, (VARIANTS.land ?? 1) - 1));
-    expect(renderSound('land', RATE, -3)).toEqual(renderSound('land', RATE, 0));
-  });
-
-  it('makes a medal that is won brighter than one that lands, and one that is lost duller than both', () => {
-    const of = (sound: 'land' | 'win' | 'lost') => Array.from({ length: VARIANTS[sound] ?? 1 }, (_, variant) => brightness(renderSound(sound, RATE, variant), RATE));
-    const [land, win, lost] = [of('land'), of('win'), of('lost')];
-    expect(Math.min(...win)).toBeGreaterThan(Math.max(...land) * 1.15);
-    expect(Math.min(...land)).toBeGreaterThan(Math.max(...lost) * 2);
-    // Metal, not a beep: up where a coin rings, and not so high that it is all hiss.
-    for (const value of [...land, ...win]) {
-      expect(value).toBeGreaterThan(2000);
-      expect(value).toBeLessThan(8000);
+  it('holds no long tone except in the fanfares: everything else is over in a second and a half', () => {
+    for (const [sample, variant] of takes) {
+      if (sample === 'fever' || sample === 'jackpot') continue;
+      expect(rendered(sample, variant).length / RATE, sample).toBeLessThan(1.5);
     }
   });
 
-  it('lets a clink die away quickly, the one that is won bouncing before it does', () => {
-    for (const sound of ['land', 'win', 'lost'] as const) {
-      for (let variant = 0; variant < (VARIANTS[sound] ?? 1); variant++) {
-        const samples = renderSound(sound, RATE, variant);
-        expect(samples.length / RATE).toBeLessThan(0.4);
-        const quarter = Math.floor(samples.length / 4);
-        expect(energy(samples, 3 * quarter)).toBeLessThan(energy(samples, 0, quarter) * 0.01);
-      }
+  it('lasts about as long as the notes say, and the jackpot longer than anything', () => {
+    for (const [name, score] of scores) {
+      expect(rendered(name as PusherSound).length / RATE).toBeCloseTo(score.length + score.tail, 3);
     }
-    // The strike is the loudest thing in a clink, and it comes at once.
-    const land = renderSound('land', RATE);
-    expect(land.findIndex((value) => Math.abs(value) === 1) / RATE).toBeLessThan(0.005);
-    // The second bounce: the level falls and comes back up.
-    const win = renderSound('win', RATE);
-    const window = Math.round(0.01 * RATE);
-    const levels = Array.from({ length: Math.floor(win.length / window) }, (_, index) => energy(win, index * window, (index + 1) * window));
-    expect(levels.some((level, index) => index > 2 && level > levels[index - 1] * 2)).toBe(true);
+    const jackpot = rendered('jackpot').length;
+    for (const [sample, variant] of takes) if (sample !== 'jackpot') expect(rendered(sample, variant).length).toBeLessThan(jackpot);
+    expect(rendered('fever').length / RATE).toBeGreaterThan(1.5);
   });
 
   it('makes the reel loop a whole second that joins up with itself', () => {
-    const samples = renderSound('spin', RATE);
+    const samples = rendered('spin');
     expect(samples).toHaveLength(RATE);
     expect(Math.abs(samples[0])).toBe(0);
     expect(Math.abs(samples[samples.length - 1])).toBeLessThan(1e-3);
@@ -1077,9 +1505,9 @@ describe('what is worked out', () => {
   });
 
   it('gives the things that should be low a low voice and the lamps a high one', () => {
-    const of = (sample: Sample, variant = 0) => brightness(renderSound(sample, RATE, variant), RATE);
-    for (const low of ['reelStop', 'tower', 'cross', 'lost'] as const) expect(of(low), low).toBeLessThan(1200);
-    for (const high of ['tick', 'land', 'win', 'dice'] as const) expect(of(high), high).toBeGreaterThan(1500);
+    const of = (sample: Sample, variant = 0) => brightness(rendered(sample, variant), RATE);
+    for (const low of ['reelStop', 'tower', 'cross'] as const) expect(of(low), low).toBeLessThan(1200);
+    for (const high of ['tick', 'dice'] as const) expect(of(high), high).toBeGreaterThan(1500);
     expect(of('cross')).toBeLessThan(of('prize'));
     expect(of('reelStop')).toBeLessThan(of('tick'));
     // The pocket's tone climbs.
@@ -1088,20 +1516,259 @@ describe('what is worked out', () => {
       if (index > 0) expect(value).toBeGreaterThan(pockets[index - 1]);
     });
   });
+});
 
-  it('lasts about as long as the notes say, and the jackpot longer than anything', () => {
-    for (const [name, score] of scores) {
-      expect(renderSound(name as PusherSound, RATE).length / RATE).toBeCloseTo(score.length + score.tail, 3);
-    }
-    const jackpot = renderSound('jackpot', RATE).length;
-    for (const [sample, variant] of takes) if (sample !== 'jackpot') expect(renderSound(sample, RATE, variant).length).toBeLessThan(jackpot);
-    expect(renderSound('fever', RATE).length / RATE).toBeGreaterThan(1.5);
+// ── The medals ──────────────────────────────────────────────────────────────
+
+/** Every sound a medal makes by itself, and the rattles of several. */
+const SINGLES = ['land', 'plate', 'insert', 'win', 'lost'] as const;
+const RATTLES = POURS.map((size) => POUR_SAMPLES[size]);
+const brightOf = (sample: Sample): number[] => takesOf(sample).map((variant) => brightness(rendered(sample, variant), RATE));
+const sharesOf = (sample: Sample, low: number, high: number): number[] => takesOf(sample).map((variant) => shareBetween(sample, variant, low, high));
+
+describe('the medals', () => {
+  it('ring where a brass medal rings, in modes that are not harmonics of one another', () => {
+    // 5.25 · h / (2π a²) · √(E / 12ρ(1 − ν²)) for brass: about 6 kHz for 30 mm by 1.5 mm, 9 kHz for 25 mm.
+    const lowest = (across: number, thick: number) => ((5.25 * thick) / (2 * Math.PI * (across / 2) ** 2)) * Math.sqrt(105e9 / (12 * 8500 * (1 - 0.34 ** 2)));
+    expect(lowest(0.03, 0.0015)).toBeGreaterThan(5500);
+    expect(lowest(0.03, 0.0015)).toBeLessThan(6500);
+    expect(lowest(0.025, 0.0015)).toBeGreaterThan(8000);
+    expect(MEDAL.hz).toBeGreaterThanOrEqual(lowest(0.03, 0.0015) * 0.95);
+    expect(MEDAL.hz).toBeLessThanOrEqual(lowest(0.025, 0.0015));
+    expect(MEDAL.modes).toEqual([1, 1.73, 2.33]);
+    expect(MEDAL.hz * MEDAL.modes[2]).toBeLessThan(MEDAL.top);
+    MEDAL.weights.forEach((weight, mode) => {
+      if (mode > 0) {
+        expect(weight).toBeLessThan(MEDAL.weights[mode - 1]);
+        expect(MEDAL.lives[mode]).toBeLessThan(MEDAL.lives[mode - 1]);
+      }
+    });
   });
 
-  it('holds no long tone except in the fanfares: everything else is over in a second and a half', () => {
-    for (const [sample, variant] of takes) {
-      if (sample === 'fever' || sample === 'jackpot') continue;
-      expect(renderSound(sample, RATE, variant).length / RATE, sample).toBeLessThan(1.5);
+  it('keep several takes of each sound, no two alike', () => {
+    for (const sample of [...SINGLES, 'roll', ...RATTLES] as const) {
+      const count = VARIANTS[sample] ?? 1;
+      expect(count, sample).toBeGreaterThanOrEqual(2);
+      takesOf(sample).forEach((variant) => {
+        for (let other = 0; other < variant; other++) expect(firstDifference(rendered(sample, variant), rendered(sample, other)), sample).not.toBe(-1);
+      });
     }
+    for (const sample of SINGLES) expect(VARIANTS[sample], sample).toBeGreaterThanOrEqual(3);
+    // A take that does not exist is the nearest one that does.
+    expect(firstDifference(renderSound('land', RATE, 99), rendered('land', (VARIANTS.land ?? 1) - 1))).toBe(-1);
+    expect(firstDifference(renderSound('land', RATE, -3), rendered('land', 0))).toBe(-1);
+  });
+
+  it('are bright going in and bright in the tray, and dull in the gutter', () => {
+    const [land, plate, insert, lost] = [brightOf('land'), brightOf('plate'), brightOf('insert'), brightOf('lost')];
+    const tray = RATTLES.flatMap(brightOf);
+    // Up where a coin rings, well above anything else on the cabinet, and not so high that it is all hiss.
+    for (const value of [...land, ...plate, ...insert, ...tray]) {
+      expect(value).toBeGreaterThan(4000);
+      expect(value).toBeLessThan(9000);
+    }
+    for (const other of ['tick', 'gate', 'prize', 'jackpot', 'dice'] as const) expect(brightness(rendered(other), RATE), other).toBeLessThan(Math.min(...insert, ...tray));
+    // The gutter is plastic: duller and lower than the tray by a long way, but a coin all the same and not a thud.
+    expect(Math.max(...lost)).toBeLessThan(Math.min(...tray) * 0.75);
+    expect(Math.max(...lost)).toBeLessThan(Math.min(...insert) * 0.6);
+    expect(Math.min(...lost)).toBeGreaterThan(2000);
+    for (const share of sharesOf('lost', 5000, 8000)) expect(share).toBeGreaterThan(0.08);
+    for (const share of sharesOf('lost', 60, 1000)) expect(share).toBeGreaterThan(0.4);
+  });
+
+  it('have the medal in every one of them and the tray only where there is a tray', () => {
+    // The medal's own ring lies between 5 and 8 kHz. The tray answers between 1 and 3.
+    for (const sample of ['land', 'plate', 'insert'] as const) {
+      for (const share of sharesOf(sample, 5000, 8000)) expect(share, sample).toBeGreaterThan(0.45);
+      for (const share of sharesOf(sample, 1000, 3200)) expect(share, sample).toBeLessThan(0.2);
+    }
+    for (const sample of RATTLES) {
+      for (const share of sharesOf(sample, 5000, 8000)) expect(share, sample).toBeGreaterThan(0.15);
+      // Most of what a rattle is: the tray is far bigger than a medal, and struck by the same blow.
+      for (const share of sharesOf(sample, 1000, 3200)) expect(share, sample).toBeGreaterThan(0.25);
+    }
+    // And it is the same tray every time: the more medals, the more of it, never less.
+    const tray = RATTLES.map((sample) => mean(sharesOf(sample, 1000, 3200)));
+    expect(tray[tray.length - 1]).toBeGreaterThanOrEqual(tray[0]);
+  });
+
+  it('strike at once, and are over in tens of milliseconds unless they are left to ring', () => {
+    for (const sample of SINGLES) {
+      for (const variant of takesOf(sample)) {
+        const samples = rendered(sample, variant);
+        // The first strike is in the first hundredth of a second. In the slot it is the lighter one, the catch on the edge.
+        expect(energy(samples, 0, RATE * 0.01), sample).toBeGreaterThan(energy(samples) * (sample === 'insert' ? 0.03 : 0.1));
+        expect(strikeTimes(samples)[0], sample).toBeLessThan(0.004);
+        // The last quarter is silence, near enough.
+        expect(energy(samples, (samples.length * 3) / 4, samples.length), sample).toBeLessThan(energy(samples) * 0.01);
+      }
+    }
+    const over = (sample: Sample) => takesOf(sample).map((variant) => mostlyOverBy(rendered(sample, variant)));
+    // Among other medals a medal is damped at once. On the bare table it rings and chatters; in the slot it is left ringing longest.
+    expect(Math.max(...over('land'))).toBeLessThan(0.04);
+    expect(Math.min(...over('plate'))).toBeGreaterThan(Math.max(...over('land')) * 2);
+    expect(Math.min(...over('insert'))).toBeGreaterThan(0.08);
+    expect(Math.max(...over('insert'))).toBeLessThan(0.2);
+  });
+
+  it('bounce: on the table, in the slot and in the tray a medal strikes more than once', () => {
+    for (const sample of ['plate', 'insert', 'win'] as const) {
+      for (const variant of takesOf(sample)) expect(strikes(rendered(sample, variant)), sample).toBeGreaterThanOrEqual(3);
+    }
+    // On the table the taps come quicker and quicker: a medal chattering to rest.
+    for (const variant of takesOf('plate')) {
+      const taps = strikeTimes(rendered('plate', variant));
+      const gaps = taps.slice(1).map((at, index) => at - taps[index]);
+      expect(gaps.length).toBeGreaterThanOrEqual(2);
+      expect(gaps[0]).toBeGreaterThan(0.03);
+      expect(gaps[gaps.length - 1]).toBeLessThan(gaps[0] * 0.8);
+    }
+  });
+
+  it('roll for half a second, steadily, quieter than a medal that strikes', () => {
+    for (const variant of takesOf('roll')) {
+      const samples = rendered('roll', variant);
+      expect(samples.length / RATE).toBeCloseTo(0.5, 2);
+      // Rolling, not striking: the middle of it is as loud as the start, and the level is even.
+      const tenths = Array.from({ length: 6 }, (_, index) => energy(samples, (0.1 + index * 0.05) * RATE, (0.15 + index * 0.05) * RATE));
+      expect(Math.max(...tenths) / Math.min(...tenths)).toBeLessThan(4);
+      expect(mostlyOverBy(samples)).toBeGreaterThan(0.3);
+      expect(brightness(samples, RATE)).toBeLessThan(Math.min(...brightOf('insert')));
+    }
+    expect(SOUND_LEVELS.roll).toBeLessThan(SOUND_LEVELS.land);
+  });
+
+  it('are heard over the loop: a single medal has more in its loudest moment than the loop has in its own', () => {
+    // The loop is at its loudest when both its notes are struck together.
+    const notes = MUSIC.parts.map((part) => loudest(rendered(part.sample), part.level));
+    const loop = Math.hypot(...notes);
+    for (const sample of ['land', 'plate', 'insert', 'win'] as const) {
+      const level = sample === 'plate' ? SOUND_LEVELS.land : SOUND_LEVELS[sample];
+      for (const variant of takesOf(sample)) {
+        // Half as much again at the bottom of its wander, twice as much at the top.
+        expect(loudest(rendered(sample, variant), level * 0.7), sample).toBeGreaterThan(loop * 1.5);
+        expect(loudest(rendered(sample, variant), level), sample).toBeGreaterThan(loop * 2);
+      }
+    }
+    // A rattle turns the loop down, and at its quietest is six times what is left of it.
+    for (const size of POURS.slice(1)) {
+      for (const variant of takesOf(POUR_SAMPLES[size])) {
+        expect(loudest(rendered(POUR_SAMPLES[size], variant), pourLevel(size) * (1 - TRAY.wander)), `rattle of ${size}`).toBeGreaterThan(loop * MUSIC.ducked * 6);
+      }
+    }
+    // A medal that is lost is over the loop too, but it is not what the player is listening for: it stays under the tray.
+    for (const variant of takesOf('lost')) {
+      expect(loudest(rendered('lost', variant), SOUND_LEVELS.lost * 0.7)).toBeGreaterThan(loop * 1.2);
+      expect(loudest(rendered('lost', variant), SOUND_LEVELS.lost)).toBeLessThan(Math.min(...takesOf('win').map((take) => loudest(rendered('win', take), SOUND_LEVELS.win))));
+    }
+    // And a rattle of thirty-two is louder than a single medal by a long way, though its peak is hardly higher.
+    const single = mean(takesOf('win').map((variant) => energy(rendered('win', variant)) * pourLevel(1) ** 2));
+    const most = mean(takesOf('pour32').map((variant) => energy(rendered('pour32', variant)) * pourLevel(32) ** 2));
+    expect(most).toBeGreaterThan(single * 8);
+  });
+});
+
+describe('a rattle', () => {
+  const hitsOf = (size: Pour, variant: number) => pourHits(size, pourSeed(size, variant));
+  const every = POURS.flatMap((size) => takesOf(POUR_SAMPLES[size]).map((variant): [Pour, number] => [size, variant]));
+
+  it.each(every)('of %i medals (take %i) has every medal strike the tray, and bounce', (size, variant) => {
+    const hits = hitsOf(size, variant);
+    // As many first strikes as medals, and one or two bounces for each: more strikes the more medals.
+    expect(hits.filter((hit) => hit.bounce === 0)).toHaveLength(size);
+    expect(hits.length).toBeGreaterThanOrEqual(size * 2);
+    expect(hits.length).toBeLessThanOrEqual(size * 4);
+    expect(hits[0].at).toBe(0);
+    expect(hits[0].level).toBe(1);
+    hits.forEach((hit, index) => {
+      if (index > 0) expect(hit.at).toBeGreaterThanOrEqual(hits[index - 1].at);
+      // Every medal is its own: a little off the next in pitch, never far from what a medal is.
+      expect(hit.hz).toBeGreaterThan(MEDAL.hz * 0.9);
+      expect(hit.hz).toBeLessThan(MEDAL.hz * 1.12);
+      expect(hit.level).toBeGreaterThan(0);
+      expect(hit.level).toBeLessThanOrEqual(1);
+      expect(hit.ring).toBeGreaterThan(0.005);
+      expect(hit.ring).toBeLessThan(0.06);
+      // A bounce is softer than the strike before it.
+      if (hit.bounce > 0) expect(hit.level).toBeLessThan(0.5);
+    });
+    expect(new Set(hits.filter((hit) => hit.bounce === 0).map((hit) => hit.hz.toFixed(1))).size).toBe(size);
+    // The same every time, and the buffer is as long as its last strike and the time that is left to ring.
+    expect(pourHits(size, pourSeed(size, variant))).toEqual(hits);
+    expect(rendered(POUR_SAMPLES[size], variant).length / RATE).toBeCloseTo(0.001 + hits[hits.length - 1].at + 0.2, 3);
+  });
+
+  it('lasts longer the more medals are in it, and they come thick at first', () => {
+    const lastIn = (size: Pour, variant: number) => Math.max(...hitsOf(size, variant).filter((hit) => hit.bounce === 0).map((hit) => hit.at));
+    const spread = POURS.map((size) => mean(takesOf(POUR_SAMPLES[size]).map((variant) => lastIn(size, variant))));
+    expect(spread[0]).toBe(0);
+    spread.forEach((seconds, index) => {
+      if (index > 0) expect(seconds).toBeGreaterThan(spread[index - 1]);
+    });
+    // Two medals are a tenth of a second apart at most; thirty-two take most of a second, not several.
+    expect(spread[1]).toBeLessThan(0.1);
+    expect(spread[spread.length - 1]).toBeGreaterThan(0.4);
+    expect(spread[spread.length - 1]).toBeLessThan(1);
+    for (const variant of takesOf('pour32')) {
+      const firsts = hitsOf(32, variant).filter((hit) => hit.bounce === 0).map((hit) => hit.at);
+      const half = Math.max(...firsts) / 2;
+      expect(firsts.filter((at) => at < half).length).toBeGreaterThan(firsts.length / 2);
+    }
+  });
+
+  it('lets a medal by itself ring and damps the ones in a crowd', () => {
+    const ring = POURS.map((size) => mean(hitsOf(size, 0).filter((hit) => hit.bounce === 0).map((hit) => hit.ring)));
+    expect(ring[0]).toBeGreaterThan(ring[ring.length - 1] * 1.5);
+    expect(ring[ring.length - 1]).toBeGreaterThan(0.01);
+    expect(ring[0]).toBeLessThan(0.05);
+  });
+
+  it('can be heard to hold more: more strikes, more time and more sound with every size', () => {
+    const of = (measure: (samples: Float32Array, size: Pour) => number) =>
+      POURS.map((size) => mean(takesOf(POUR_SAMPLES[size]).map((variant) => measure(rendered(POUR_SAMPLES[size], variant), size))));
+    const told = of((samples) => strikes(samples));
+    const seconds = of((samples) => mostlyOverBy(samples));
+    const sound = of((samples, size) => energy(samples) * pourLevel(size) ** 2);
+    POURS.forEach((size, index) => {
+      if (index === 0) return;
+      // Each size carries more than the one below it, at the level it is played at.
+      expect(sound[index], `sound of ${size}`).toBeGreaterThan(sound[index - 1] * 1.15);
+      // From four medals up it also goes on longer, and has more strikes that can be told apart than the size two below.
+      if (index >= 2) {
+        expect(seconds[index], `seconds of ${size}`).toBeGreaterThan(seconds[index - 1]);
+        expect(told[index], `strikes of ${size}`).toBeGreaterThan(told[index - 2]);
+      }
+    });
+    // One, five (a four and a one) and thirty (sixteen and more) are far apart on every count.
+    expect(told[2]).toBeGreaterThan(told[0] * 1.5);
+    expect(told[4]).toBeGreaterThan(told[2] * 1.5);
+    expect(seconds[4]).toBeGreaterThan(seconds[0] * 2.5);
+    expect(sound[4]).toBeGreaterThan(sound[2] * 2);
+    expect(sound[2]).toBeGreaterThan(sound[0] * 2);
+  });
+
+  it('stays under the limiter when the tray is as full as its rule lets it be', () => {
+    /** The loudest instant of takes laid one over another, each a spacing after the last and at the top of its level. */
+    const piled = (sizes: readonly Pour[]): number => {
+      const longest = Math.max(...POURS.flatMap((size) => takesOf(POUR_SAMPLES[size]).map((variant) => rendered(POUR_SAMPLES[size], variant).length)));
+      const mix = new Float32Array(longest + Math.ceil(sizes.length * TRAY.spacing * RATE));
+      sizes.forEach((size, source) => {
+        const sample = POUR_SAMPLES[size];
+        const samples = rendered(sample, source % (VARIANTS[sample] ?? 1));
+        const from = Math.round(source * TRAY.spacing * RATE);
+        for (let i = 0; i < samples.length; i++) mix[from + i] += samples[i] * pourLevel(size);
+      });
+      return peakOf(mix);
+    };
+    // Five single medals, then a rattle of every size, the way a tower going over fills it. 0.39 is where the
+    // compressor begins to work: below it the chain passes the mix untouched.
+    const full = piled([...Array.from({ length: LIMITS.tray - POURS.length + 1 }, (): Pour => 1), ...POURS.slice(1)]);
+    expect(full).toBeGreaterThan(LEVEL.ceiling);
+    expect(full).toBeLessThan(0.39);
+    // A flood no machine could pay, ten of the largest rattle at once, is still only a little over it: work for
+    // the compressor, and a long way short of full scale.
+    const flood = piled(Array.from({ length: LIMITS.tray }, (): Pour => 32));
+    expect(flood).toBeGreaterThan(full);
+    expect(flood).toBeLessThan(0.6);
   });
 });

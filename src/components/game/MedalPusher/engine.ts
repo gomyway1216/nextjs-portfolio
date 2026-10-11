@@ -10,9 +10,12 @@
  * squeezed out there are lost. Prize balls lie among the medals and are pushed
  * the same way, and big prizes stand on the pusher as towers of medals.
  *
- * Medals lie flat in one layer per table and move only when something pushes
- * them, so the engine resolves overlaps directly instead of integrating
- * velocities. It takes its random numbers from a seeded generator and no
+ * Medals lie flat, two deep at most. The lower tier lies on the table. A
+ * medal that comes down where there is no room for it stays on top of the
+ * others: it rides along with the medals under it, slides over them when it
+ * is pushed, and drops into the lower tier as soon as a gap opens beneath it.
+ * Nothing moves unless something pushes it, so the engine resolves overlaps
+ * directly instead of integrating velocities. It takes its random numbers from a seeded generator and no
  * clock, so the table, the tests and the simulation tab all run the same
  * machine, and a given seed always plays out the same way.
  */
@@ -36,6 +39,13 @@ export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
 export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
 /** Where it is let go: this high above the lower table, this close to the back panel. */
 export const RELEASE = { height: 34, depth: 1.2 } as const;
+/**
+ * A medal lying on others drops into the lower tier when no medal of that tier
+ * has its centre within this share of a diameter of it. Three medals touching
+ * leave a hollow whose middle is 0.58 of a diameter from each, where a fourth
+ * rests without falling through; anything roomier than this is a gap.
+ */
+export const GAP = 0.72;
 /** A landing medal starts with this share of its room among the others and takes this long, in seconds, to have all of it. */
 export const SETTLE = { from: 0.3, time: 0.32 } as const;
 /** How long a medal is in the air, and how often one can be dropped. */
@@ -76,7 +86,7 @@ export const TOWER = {
  * many as lie there once it has been played for a while, so the first medal
  * dropped already pushes another one out. A few that will not fit are left out.
  */
-export const INITIAL = { upper: 74, lower: 132 } as const;
+export const INITIAL = { upper: 74, lower: 132, onTop: { upper: 8, lower: 14 } } as const;
 /** Where the balls a machine starts with lie: the first on the lower table, the second on the pusher. */
 export const BALL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
   { level: 0, x: 38, y: 70 },
@@ -93,12 +103,15 @@ const MAX_STEP = 1 / 60;
 
 /** Where a medal lies: on the pusher (1) or on the lower table (0). */
 export type Level = 0 | 1;
+/** How deep in the pile it lies: on the table itself (0), or on top of other medals (1). */
+export type Tier = 0 | 1;
 
 export interface Medal {
   id: number;
   x: number;
   y: number;
   level: Level;
+  tier: Tier;
   /** Seconds since it dropped from the pusher to the lower table (for drawing the fall); −1 before that. */
   sinceDrop: number;
   /** Medals stacked here: 1 for a medal lying on its own, more for a tower. */
@@ -199,30 +212,48 @@ export function checkerAt(x: number): number {
 const CELL = DIAMETER * 1.3;
 const COLUMNS = Math.ceil(FIELD.width / CELL) + 4;
 const ROWS = Math.ceil(FIELD.depth / CELL) + 6;
-const heads = new Int32Array(COLUMNS * ROWS * 2);
+/** Lists per cell of the floor plan: two tables, two tiers each. */
+const LISTS = 4;
+const heads = new Int32Array(COLUMNS * ROWS * LISTS);
 let links = new Int32Array(512);
 let cells = new Int32Array(512);
+/** Where each medal was before a step's pushing apart, to tell how far it has been moved. */
+let startX = new Float64Array(512);
+let startY = new Float64Array(512);
+/** How many towers and balls stand on each table: they block the upper tier as well as the lower. */
+const tall = [0, 0];
+
+/** Whether something stands taller than a medal lying flat: a tower, even one still going up, or a ball. */
+const isTall = (medal: Medal): boolean => medal.ball || medal.stack + medal.grow > 1;
 
 function buildGrid(medals: Medal[]): void {
   const count = medals.length;
   if (links.length < count) {
     links = new Int32Array(count * 2);
     cells = new Int32Array(count * 2);
+    startX = new Float64Array(count * 2);
+    startY = new Float64Array(count * 2);
   }
   heads.fill(-1);
+  tall[0] = tall[1] = 0;
   for (let i = 0; i < count; i++) {
     const medal = medals[i];
     const column = Math.min(COLUMNS - 2, Math.max(1, Math.floor(medal.x / CELL) + 2));
     const row = Math.min(ROWS - 2, Math.max(1, Math.floor(medal.y / CELL) + 2));
-    const cell = (row * COLUMNS + column) * 2 + medal.level;
+    const cell = (row * COLUMNS + column) * LISTS + medal.level * 2 + medal.tier;
     cells[i] = cell;
     links[i] = heads[cell];
     heads[cell] = i;
+    startX[i] = medal.x;
+    startY[i] = medal.y;
+    if (isTall(medal)) tall[medal.level]++;
   }
 }
 
 /** The cells ahead of a medal's own: with them, every neighbouring pair of cells is visited once. */
-const AHEAD = [1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * 2);
+const AHEAD = [1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LISTS);
+/** A medal's own cell and the eight round it. */
+const AROUND = [-COLUMNS - 1, -COLUMNS, -COLUMNS + 1, -1, 0, 1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LISTS);
 
 /** Pushes two touching medals apart: half the overlap each, or less for a tower and more for what leans on it. */
 function part(a: Medal, b: Medal): void {
@@ -248,7 +279,11 @@ function part(a: Medal, b: Medal): void {
   b.y += dy * push * weightA;
 }
 
-/** Separates every pair of touching medals on the same table. */
+/**
+ * Separates every pair of touching medals that lie on the same table and in
+ * the same tier. A medal of the upper tier is also kept off whatever stands
+ * taller than a medal, since a tower or a ball is in its way too.
+ */
 function separate(medals: Medal[]): void {
   const count = medals.length;
   for (let i = 0; i < count; i++) {
@@ -259,7 +294,62 @@ function separate(medals: Medal[]): void {
     for (let n = 0; n < 4; n++) {
       for (let j = heads[cell + AHEAD[n]]; j !== -1; j = links[j]) part(a, medals[j]);
     }
+    if (a.tier === 1 && tall[a.level] > 0) {
+      const below = cell - 1;
+      for (let n = 0; n < 9; n++) {
+        for (let j = heads[below + AROUND[n]]; j !== -1; j = links[j]) if (isTall(medals[j])) part(a, medals[j]);
+      }
+    }
   }
+}
+
+/**
+ * What lies under each medal of the upper tier. It is carried along by the
+ * medals it rests on, as far as they were moved in this step, and it drops
+ * into the lower tier where a gap has opened beneath it.
+ */
+function settleUpperTier(medals: Medal[]): void {
+  const count = medals.length;
+  const gap = (GAP * DIAMETER) ** 2;
+  for (let i = 0; i < count; i++) {
+    const a = medals[i];
+    if (a.tier !== 1) continue;
+    const below = cells[i] - 1;
+    let nearest = Infinity;
+    let under = 0;
+    let moveX = 0;
+    let moveY = 0;
+    for (let n = 0; n < 9; n++) {
+      for (let j = heads[below + AROUND[n]]; j !== -1; j = links[j]) {
+        const b = medals[j];
+        // Where the two were before the pushing apart, so the order they are visited in does not matter.
+        const squared = (startX[j] - startX[i]) ** 2 + (startY[j] - startY[i]) ** 2;
+        if (squared < nearest) nearest = squared;
+        if (squared < DIAMETER * DIAMETER) {
+          under++;
+          moveX += b.x - startX[j];
+          moveY += b.y - startY[j];
+        }
+      }
+    }
+    if (under > 0) {
+      a.x += moveX / under;
+      a.y += moveY / under;
+    }
+    if (nearest >= gap) {
+      a.tier = 0;
+      a.grown = SETTLE.from;
+    }
+  }
+}
+
+/** Whether a medal coming down at (x, y) on a table finds room in the lower tier, or has to lie on top. */
+function roomBelow(medals: Medal[], level: Level, x: number, y: number): boolean {
+  const gap = (GAP * DIAMETER) ** 2;
+  for (const medal of medals) {
+    if (medal.level === level && medal.tier === 0 && (medal.x - x) ** 2 + (medal.y - y) ** 2 < gap) return false;
+  }
+  return true;
 }
 
 /**
@@ -281,7 +371,7 @@ function fillTable(machine: Machine, count: number, level: Level, yFrom: number,
   for (let i = 0; i < count; i++) {
     const x = R + machine.rng() * (FIELD.width - DIAMETER);
     const y = yFrom + machine.rng() * (yTo - yFrom);
-    medals.push({ id: machine.nextId++, x, y, level, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    medals.push({ id: machine.nextId++, x, y, level, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
   }
   for (let pass = 0; pass < SETTLE_PASSES; pass++) {
     buildGrid(medals);
@@ -298,6 +388,26 @@ function fillTable(machine: Machine, count: number, level: Level, yFrom: number,
     if (kept.every((other) => Math.hypot(other.x - medal.x, other.y - medal.y) >= DIAMETER * (1 - SETTLED))) kept.push(medal);
   }
   machine.medals.push(...kept);
+}
+
+/**
+ * Lays a few medals on top of a table's pile, each resting on a medal of the
+ * lower tier and clear of the others on top, of any ball, and of the edge.
+ */
+function strewOnTop(machine: Machine, count: number, level: Level, yMin: number, yMax: number): void {
+  const under = machine.medals.filter((medal) => medal.level === level && medal.tier === 0);
+  const balls = under.filter((medal) => medal.ball);
+  const placed: Medal[] = [];
+  for (let attempt = 0; attempt < count * 40 && placed.length < count; attempt++) {
+    const rest = under[Math.min(under.length - 1, Math.floor(machine.rng() * under.length))];
+    const x = Math.min(FIELD.width - R, Math.max(R, rest.x + (machine.rng() - 0.5) * R * 0.5));
+    const y = Math.min(yMax, Math.max(yMin, rest.y + (machine.rng() - 0.5) * R * 0.5));
+    const clear = (others: Medal[], distance: number) => others.every((other) => Math.hypot(other.x - x, other.y - y) >= distance);
+    if (!rest.ball && clear(placed, DIAMETER * 1.05) && clear(balls, DIAMETER * 1.6)) {
+      placed.push({ id: machine.nextId++, x, y, level, tier: 1, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    }
+  }
+  machine.medals.push(...placed);
 }
 
 /**
@@ -335,6 +445,8 @@ export function createMachine(seed: number, balls = 0): Machine {
     }
     if (nearest) nearest.ball = true;
   }
+  strewOnTop(machine, INITIAL.onTop.upper, 1, R, PUSHER.min - 0.5);
+  strewOnTop(machine, INITIAL.onTop.lower, 0, PUSHER.max + R, FIELD.depth - 0.5);
   return machine;
 }
 
@@ -414,7 +526,7 @@ export function buildTowers(machine: Machine, medals: number): void {
   let stacked = 0;
   sizes.forEach((size, index) => {
     const { x, y } = free[index];
-    machine.medals.push({ id: machine.nextId++, x, y, level: 1, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: 1 });
+    machine.medals.push({ id: machine.nextId++, x, y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: 1 });
     machine.growing += size - 1;
     stacked += size;
   });
@@ -533,7 +645,9 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
         stillFalling.push(medal);
         continue;
       }
-      machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
+      // It lies on the table where there is room for it, and on top of the others where there is not. A ball always makes room.
+      const tier: Tier = medal.ball || roomBelow(machine.medals, medal.level, medal.x, medal.y) ? 0 : 1;
+      machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
       events.landed++;
       if (medal.source === 'player') {
         const checker = checkerAt(medal.x);
@@ -556,6 +670,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     separate(machine.medals);
     constrain(machine.medals, front);
   }
+  settleUpperTier(machine.medals);
   constrain(machine.medals, front);
 
   // Over the lip, over the front edge, or out of an open side.
@@ -568,8 +683,11 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
           events.toppled++;
           continue;
         }
+        // Over the lip it comes down on the lower table: onto the table if there is room, onto the pile if not.
+        medal.tier = medal.ball || roomBelow(machine.medals, 0, medal.x, medal.y) ? 0 : 1;
         medal.level = 0;
         medal.sinceDrop = 0;
+        medal.grown = SETTLE.from;
       }
       kept.push(medal);
     } else if (medal.y > FIELD.depth) {
@@ -598,8 +716,8 @@ export function step(machine: Machine, dt: number): StepEvents {
 }
 
 /**
- * The deepest overlap between two medals on the same table, as a fraction of a
- * diameter (0 = none). On the pusher a medal that has just landed lies on top
+ * The deepest overlap between two medals on the same table and in the same
+ * tier, as a fraction of a diameter (0 = none). On the pusher a medal that has just landed lies on top
  * of others for a moment; the lower table is the one that should stay clean.
  */
 export function worstOverlap(machine: Machine, level?: Level): number {
@@ -607,7 +725,7 @@ export function worstOverlap(machine: Machine, level?: Level): number {
   const medals = level === undefined ? machine.medals : machine.medals.filter((medal) => medal.level === level);
   for (let i = 0; i < medals.length; i++) {
     for (let j = i + 1; j < medals.length; j++) {
-      if (medals[i].level !== medals[j].level) continue;
+      if (medals[i].level !== medals[j].level || medals[i].tier !== medals[j].tier) continue;
       const distance = Math.hypot(medals[i].x - medals[j].x, medals[i].y - medals[j].y);
       if (distance < DIAMETER) worst = Math.max(worst, (DIAMETER - distance) / DIAMETER);
     }

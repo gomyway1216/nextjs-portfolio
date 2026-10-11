@@ -7,6 +7,7 @@ import {
   DROP_INTERVAL,
   FALL_TIME,
   FIELD,
+  GAP,
   INITIAL,
   LANDING,
   MEDAL_RADIUS,
@@ -28,6 +29,7 @@ import {
   towerSizes,
   worstOverlap,
   type Machine,
+  type Medal,
   type StepEvents,
 } from '@/components/game/MedalPusher/engine';
 
@@ -57,7 +59,29 @@ function run(machine: Machine, seconds: number, aim?: number | ((n: number) => n
   return { ...total, dropped };
 }
 
-const snapshot = (machine: Machine) => machine.medals.map((m) => `${m.id}:${m.level}:${m.x.toFixed(6)}:${m.y.toFixed(6)}:${m.stack}`).join('|');
+const snapshot = (machine: Machine) => machine.medals.map((m) => `${m.id}:${m.level}:${m.tier}:${m.x.toFixed(6)}:${m.y.toFixed(6)}:${m.stack}`).join('|');
+
+let nextId = 10_000;
+/** A medal lying settled on the lower table, with whatever is different about it. */
+const medalAt = (x: number, y: number, over: Partial<Medal> = {}): Medal => ({
+  id: nextId++,
+  x,
+  y,
+  level: 0,
+  tier: 0,
+  sinceDrop: -1,
+  stack: 1,
+  grow: 0,
+  ball: false,
+  grown: 1,
+  ...over,
+});
+/** An empty machine with just these medals on it. */
+const machineWith = (medals: Medal[]): Machine => {
+  const machine = createMachine(1);
+  machine.medals = medals;
+  return machine;
+};
 
 describe('the generator and the pusher', () => {
   it('replays the same numbers from the same seed', () => {
@@ -98,8 +122,17 @@ describe('a machine that has just been switched on', () => {
   it('has both tables packed, with no medal on another and every medal inside the walls', () => {
     for (const seed of [1, 2, 3, 99, 12345]) {
       const machine = createMachine(seed);
-      const upper = machine.medals.filter((m) => m.level === 1);
-      const lower = machine.medals.filter((m) => m.level === 0);
+      const upper = machine.medals.filter((m) => m.level === 1 && m.tier === 0);
+      const lower = machine.medals.filter((m) => m.level === 0 && m.tier === 0);
+      // A few more lie on top of each pile, every one resting on a medal beneath it.
+      const onTop = machine.medals.filter((m) => m.tier === 1);
+      expect(onTop.filter((m) => m.level === 1).length).toBeLessThanOrEqual(INITIAL.onTop.upper);
+      expect(onTop.filter((m) => m.level === 0).length).toBeLessThanOrEqual(INITIAL.onTop.lower);
+      expect(onTop.length).toBeGreaterThan(10);
+      for (const medal of onTop) {
+        const under = [...upper, ...lower].filter((m) => m.level === medal.level);
+        expect(Math.min(...under.map((m) => Math.hypot(m.x - medal.x, m.y - medal.y)))).toBeLessThan(MEDAL_RADIUS * 2 * GAP);
+      }
       // A few medals that would not fit are left out, never added.
       expect(upper.length).toBeGreaterThan(INITIAL.upper * 0.8);
       expect(upper.length).toBeLessThanOrEqual(INITIAL.upper);
@@ -176,7 +209,7 @@ describe('dropping a medal', () => {
     expect(step(machine, 0.1).landed).toBe(1);
     expect(machine.falling).toHaveLength(0);
     expect(machine.medals.length).toBe(before + 1);
-    expect(machine.medals[machine.medals.length - 1].level).toBe(1);
+    expect(machine.medals.some((m) => m.level === 1 && m.grown < 1)).toBe(true);
   });
 
   it('bunches its landings round the aim', () => {
@@ -282,6 +315,122 @@ describe('a machine in play', () => {
     expect(payout.checkers).toEqual([]);
     expect(() => queuePayout(paid, 1.5)).toThrow();
     expect(() => queuePayout(paid, -1)).toThrow();
+  }, LONG);
+});
+
+describe('medals two deep', () => {
+  const D = MEDAL_RADIUS * 2;
+
+  it('lands a medal on the table where there is room and on the pile where there is not', () => {
+    const machine = machineWith([medalAt(50, 9, { level: 1 })]);
+    // One comes down right on top of the medal that is there, one well clear of it.
+    machine.falling.push(
+      { id: nextId++, x: 50.5, y: 9, level: 1, fromX: 50, fromY: 1, rank: 0, ball: false, remaining: 0.01, duration: 0.4, source: 'payout' },
+      { id: nextId++, x: 70, y: 9, level: 1, fromX: 70, fromY: 1, rank: 0, ball: false, remaining: 0.01, duration: 0.4, source: 'payout' },
+    );
+    expect(step(machine, DT).landed).toBe(2);
+    const [, onPile, onTable] = machine.medals;
+    expect(onPile.tier).toBe(1);
+    expect(onTable.tier).toBe(0);
+    // A ball always makes room for itself on the table.
+    machine.falling.push({ id: nextId++, x: 50, y: 9, level: 1, fromX: 50, fromY: 1, rank: 0, ball: true, remaining: 0.01, duration: 0.4, source: 'payout' });
+    step(machine, DT);
+    expect(machine.medals.find((m) => m.ball)?.tier).toBe(0);
+  });
+
+  it('carries a medal along with the one it lies on', () => {
+    // A medal on the lower table with one lying on its far half, and a third pressed in behind that pushes the first forward.
+    const under = medalAt(50, 70);
+    const rider = medalAt(50.4, 72, { tier: 1 });
+    const behind = medalAt(50, 64.4);
+    const machine = machineWith([under, rider, behind]);
+    const before = { under: under.y, rider: rider.y };
+    for (let i = 0; i < 5; i++) step(machine, DT);
+    expect(under.y - before.under).toBeGreaterThan(0.3);
+    expect(rider.tier).toBe(1);
+    expect(rider.y - before.rider).toBeCloseTo(under.y - before.under, 6);
+    expect(rider.x).toBeCloseTo(50.4, 6);
+  });
+
+  it('stays put on two medals that are pushed apart beneath it', () => {
+    // It rests on both, and they move the same distance in opposite directions.
+    const rider = medalAt(50, 68, { tier: 1 });
+    const machine = machineWith([medalAt(50, 70), rider, medalAt(50, 66)]);
+    for (let i = 0; i < 5; i++) step(machine, DT);
+    expect(rider.y).toBeCloseTo(68, 6);
+    expect(rider.tier).toBe(1);
+  });
+
+  it('lets a medal slide over the pile when another on top pushes it', () => {
+    const base = [medalAt(40, 70), medalAt(46.4, 70), medalAt(52.8, 70)];
+    const pushed = medalAt(46.4, 70.2, { tier: 1 });
+    const pusher = medalAt(44, 70.2, { tier: 1 });
+    const machine = machineWith([...base, pushed, pusher]);
+    for (let i = 0; i < 3; i++) step(machine, DT);
+    // The two on top have parted; the three under them have not moved.
+    expect(Math.hypot(pushed.x - pusher.x, pushed.y - pusher.y)).toBeGreaterThanOrEqual(D - 1e-6);
+    expect(base.map((m) => m.x)).toEqual([40, 46.4, 52.8]);
+    expect(pushed.tier).toBe(1);
+  });
+
+  it('drops a medal into the lower tier when a gap opens beneath it', () => {
+    const under = medalAt(50, 70);
+    const rider = medalAt(50.5, 70, { tier: 1 });
+    const machine = machineWith([under, rider]);
+    step(machine, DT);
+    expect(rider.tier).toBe(1);
+    // The medal under it is taken away; a neighbour too far off to hold it up does not count.
+    machine.medals = [rider, medalAt(50.5 + D * GAP + 0.3, 70)];
+    step(machine, DT);
+    expect(rider.tier).toBe(0);
+    expect(rider.grown).toBeLessThan(1);
+    // In the hollow between three touching medals it stays where it is.
+    const hollow = medalAt(50, 60 + D / Math.sqrt(3), { tier: 1 });
+    const three = machineWith([medalAt(50, 60), medalAt(50 - D / 2, 60 + (D * Math.sqrt(3)) / 2), medalAt(50 + D / 2, 60 + (D * Math.sqrt(3)) / 2), hollow]);
+    for (let i = 0; i < 30; i++) step(three, DT);
+    expect(hollow.tier).toBe(1);
+  });
+
+  it('keeps a medal on top of the pile off a tower and off a ball', () => {
+    const tower = medalAt(50, 15, { level: 1, stack: 20 });
+    const ball = medalAt(70, 15, { level: 1, ball: true });
+    const nearTower = medalAt(52, 15, { level: 1, tier: 1 });
+    const nearBall = medalAt(72, 15, { level: 1, tier: 1 });
+    // Something for the two on top to lie on, so they do not simply drop.
+    const floor = [medalAt(56.5, 15, { level: 1 }), medalAt(76.5, 15, { level: 1 })];
+    const machine = machineWith([tower, ball, nearTower, nearBall, ...floor]);
+    for (let i = 0; i < 20; i++) step(machine, DT);
+    expect(Math.hypot(nearTower.x - tower.x, nearTower.y - tower.y)).toBeGreaterThan(D * 0.95);
+    expect(Math.hypot(nearBall.x - ball.x, nearBall.y - ball.y)).toBeGreaterThan(D * 0.95);
+  });
+
+  it('takes a medal on top over the lip with the one beneath it', () => {
+    // Both are past the lip of a pusher that is fully back, so the next step drops them.
+    const under = medalAt(50, PUSHER.min + 0.5, { level: 1 });
+    const rider = medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
+    const machine = machineWith([under, rider]);
+    const events = step(machine, DT);
+    expect(events.won + events.lost + events.toppled).toBe(0);
+    expect(under.level).toBe(0);
+    expect(rider.level).toBe(0);
+    // The first lands on the empty table and the second on top of it.
+    expect(under.tier).toBe(0);
+    expect(rider.tier).toBe(1);
+    expect(under.sinceDrop).toBe(0);
+    expect(rider.sinceDrop).toBe(0);
+  });
+
+  it('has a pile two deep on both tables once it has been played', () => {
+    const machine = createMachine(31);
+    run(machine, 120, (n) => [25, 50, 75, 40, 60][n % 5], 0.3);
+    const onTop = (level: number) => machine.medals.filter((m) => m.level === level && m.tier === 1).length;
+    expect(onTop(1)).toBeGreaterThan(15);
+    expect(onTop(0)).toBeGreaterThan(3);
+    // Whatever lies on top has something under it.
+    for (const medal of machine.medals.filter((m) => m.tier === 1)) {
+      const under = machine.medals.filter((m) => m.level === medal.level && m.tier === 0);
+      expect(Math.min(...under.map((m) => Math.hypot(m.x - medal.x, m.y - medal.y)))).toBeLessThan(D);
+    }
   }, LONG);
 });
 

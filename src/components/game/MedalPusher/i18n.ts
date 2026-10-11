@@ -35,6 +35,16 @@ export interface PusherStrings {
   chainTotal: (medals: number) => string;
   ballWin: string;
   chance: string;
+  // The jackpot challenge: the ball in the bowl
+  challenge: string;
+  sayGoal: (medals: number, level: number) => string;
+  sayHole: (medals: number, total: number) => string;
+  bowlIntro: (holes: number) => string;
+  bowlCaption: string;
+  colHole: string;
+  holeJackpot: string;
+  holeJackpotPaid: (towers: number, start: number) => string;
+  bowlNote: (start: number, average: string, perBall: string) => string;
   slotName: string;
   sugorokuTitle: string;
   sugorokuRolling: string;
@@ -196,7 +206,7 @@ const en: PusherStrings = {
     'Three odd digits open the treasure chance: pick one of three chests. They hold 10, 20 and 30 medals, and the bigger two are stacked on the pusher as medal towers.',
     'A tower rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it.',
     'Three sevens drop a prize ball onto the field.',
-    'Push a ball over the front edge and the jackpot chance starts: a roulette that keeps turning. Every number it stops on is stacked on the pusher as a medal tower, and it turns again until it stops on a cross. Six numbers in a row win the jackpot on top, which begins at 300 medals and grows as the machine is played. Two balls are already lying on the field.',
+    'Push a ball over the front edge and the jackpot chance starts: a roulette that keeps turning. Every number it stops on is stacked on the pusher as a medal tower, and it turns again until it stops on a cross. Four numbers in a row start the jackpot challenge: the ball rolls round a bowl and drops into one of three holes. One pays 50 medals, one 100, and one the jackpot, which begins at 300 medals and grows as the machine is played. Two balls are already lying on the field.',
     'The Odds tab lists the exact chances on the screen, and the Simulation tab measures what cannot be calculated: how much of what you drop comes back, depending on where and how fast you drop it.',
   ],
 
@@ -216,6 +226,18 @@ const en: PusherStrings = {
   chainTotal: (medals) => `TOWER ${medals}`,
   ballWin: 'BALL GET!',
   chance: 'JACKPOT CHANCE',
+  challenge: 'JACKPOT CHALLENGE',
+  sayGoal: (medals, level) =>
+    `${medals} medals go up as a tower. Level ${level}: the jackpot challenge. The ball rolls round a bowl and will drop into one of three holes.`,
+  sayHole: (medals, total) => `The ball dropped into the ${medals} hole. ${medals} more medals go up as towers. The run is over: ${total} medals in towers.`,
+  bowlIntro: (holes) =>
+    `The jackpot challenge is a bowl with ${holes} holes. The ball circles under the rim, spirals in as it slows, hesitates on the lip of each hole it passes and drops into one. Each hole is as likely as the next, and the ball only acts it out: its hole is drawn before it is let go.`,
+  bowlCaption: 'The bowl’s holes, the chance of each and how it is paid',
+  colHole: 'The ball drops into',
+  holeJackpot: 'The jackpot',
+  holeJackpotPaid: (towers, start) => `${towers} towers on the pusher when it stands at ${start}`,
+  bowlNote: (start, average, perBall) =>
+    `With the jackpot at ${start} medals the bowl pays ${average} medals on average: the three holes added up, divided by three. About ${perBall} of all balls get this far.`,
   slotName: 'NUMBER SLOT',
   sugorokuTitle: 'SUGOROKU CHANCE',
   sugorokuRolling: 'Rolling…',
@@ -248,7 +270,7 @@ const en: PusherStrings = {
   sayToppled: 'A tower came down onto the lower table.',
   sayStep: (medals, level) => `${medals} medals go up as a tower. Level ${level}. The roulette turns again.`,
   sayFinish: (medals) => `A cross. The run is over: ${medals} medals in towers.`,
-  sayJackpot: (medals) => `Jackpot. ${medals} medals.`,
+  sayJackpot: (medals) => `The ball dropped into the jackpot hole. Jackpot: ${medals} medals.`,
   sayEmpty: 'You are out of medals.',
   tallyTitle: 'This machine so far',
   tallyPlayed: 'Dropped',
@@ -321,7 +343,7 @@ const en: PusherStrings = {
     `The result is drawn the moment a spin starts, and the reels only act it out. About ${percent} of losing spins stop the two outer reels alike first — a “reach” — before the centre misses. It looks close. It changes nothing: the spin was lost before the reels moved.`,
   rouletteTitle: 'The jackpot chance',
   rouletteIntro: (pockets, goal) =>
-    `A ball pushed over the front edge starts the roulette. Each turn it stops on one of ${pockets} pockets, each as likely as the next. A number is stacked on the pusher as a medal tower and the roulette turns again; a cross ends the run. ${goal} numbers in a row win the jackpot on top. A ball is never lost: it does not fit through the open sides, so sooner or later it goes over the front.`,
+    `A ball pushed over the front edge starts the roulette. Each turn it stops on one of ${pockets} pockets, each as likely as the next. A number is stacked on the pusher as a medal tower and the roulette turns again; a cross ends the run. ${goal} numbers in a row start the jackpot challenge. A ball is never lost: it does not fit through the open sides, so sooner or later it goes over the front.`,
   rouletteCaption: 'The roulette’s pockets and the chance of each on one turn',
   colPocket: 'Pocket',
   colPockets: 'Pockets',
@@ -332,7 +354,7 @@ const en: PusherStrings = {
   colInARow: 'Numbers in a row',
   colGetsThere: 'Chance of getting there',
   jackpotNote: (start, step, perBall, perSpin, average) =>
-    `A numbered pocket pays ${average} medals on average. The jackpot starts at ${start} medals and grows by one for every ${step} medals dropped on this machine. One ball in ${perBall} wins it, and one spin in ${perSpin} leads to it: three sevens for the ball, then a full run once the ball goes over.`,
+    `A numbered pocket pays ${average} medals on average. The jackpot starts at ${start} medals and grows by one for every ${step} medals dropped on this machine. One ball in ${perBall} wins it, and one spin in ${perSpin} leads to it: three sevens for the ball, a full run once the ball goes over, and then the jackpot’s hole.`,
   valueTitle: 'What a spin is worth',
   valueIntro: 'Each prize times its chance, added up, with a ball counted as the roulette it will start. The jackpot is the only thing that moves it.',
   valueCaption: 'The average roulette prize and the average a spin pays, by the size of the jackpot',
@@ -413,7 +435,7 @@ const ja: PusherStrings = {
     '奇数が3つそろうと「宝箱チャンス」です。3つの宝箱から1つ選びます。中身は10枚・20枚・30枚で、20枚と30枚はプッシャーの上にメダルタワーとして積まれます。',
     'タワーはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。',
     '7が3つそろうと、ボールが1個フィールドに落ちてきます。',
-    'ボールを手前の端から落とすとジャックポットチャンスが始まります。ルーレットが回り続け、止まった数字の枚数がプッシャーの上にメダルタワーとして積まれ、×に止まるまで続きます。数字が6回続くと、さらにジャックポットがもらえます。ジャックポットは300枚から始まり、遊ぶほど増えていきます。ボールは最初から2個フィールドに置いてあります。',
+    'ボールを手前の端から落とすとジャックポットチャンスが始まります。ルーレットが回り続け、止まった数字の枚数がプッシャーの上にメダルタワーとして積まれ、×に止まるまで続きます。数字が4回続くと「ジャックポットチャレンジ」です。ボールがクルーン（すり鉢状の皿）を転がり、3つの穴のどれかに落ちます。穴は50枚、100枚、ジャックポットの3つです。ジャックポットは300枚から始まり、遊ぶほど増えていきます。ボールは最初から2個フィールドに置いてあります。',
     '「確率」タブには画面の抽選の正確な確率を載せています。「シミュレーション」タブでは計算では出せないもの、つまり落とす場所と速さによって何割戻ってくるかを実測します。',
   ],
 
@@ -433,6 +455,18 @@ const ja: PusherStrings = {
   chainTotal: (medals) => `タワー ${medals}枚`,
   ballWin: 'ボール GET！',
   chance: 'ジャックポットチャンス',
+  challenge: 'ジャックポットチャレンジ',
+  sayGoal: (medals, level) =>
+    `${medals}枚がタワーに積まれます。レベル${level}。ジャックポットチャレンジです。ボールがクルーンを転がり、3つの穴のどれかに落ちます。`,
+  sayHole: (medals, total) => `ボールが${medals}枚の穴に落ちました。さらに${medals}枚がタワーに積まれます。終了です。タワーは合計${total}枚です。`,
+  bowlIntro: (holes) =>
+    `ジャックポットチャレンジは、穴が${holes}つ開いたクルーン（すり鉢状の皿）での抽選です。ボールは縁の内側を回り、勢いが落ちるにつれて内側へ寄っていき、穴の縁で何度かためらってから、どれか1つに落ちます。どの穴も同じ確率です。ボールは結果を演じているだけで、落ちる穴はボールが放たれる前に決まっています。`,
+  bowlCaption: 'クルーンの穴ごとの確率と出方',
+  colHole: 'ボールが落ちる穴',
+  holeJackpot: 'ジャックポット',
+  holeJackpotPaid: (towers, start) => `${start}枚のとき、プッシャーの上にタワー${towers}本`,
+  bowlNote: (start, average, perBall) =>
+    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3つの穴の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。`,
   slotName: 'ナンバースロット',
   sugorokuTitle: 'すごろくチャンス',
   sugorokuRolling: 'サイコロを振っています…',
@@ -465,7 +499,7 @@ const ja: PusherStrings = {
   sayToppled: 'タワーが崩れて下のテーブルに落ちました。',
   sayStep: (medals, level) => `${medals}枚がタワーに積まれます。レベル${level}。ルーレットがもう一度回ります。`,
   sayFinish: (medals) => `×に止まりました。終了です。タワーは合計${medals}枚です。`,
-  sayJackpot: (medals) => `ジャックポットです。${medals}枚。`,
+  sayJackpot: (medals) => `ボールがジャックポットの穴に落ちました。ジャックポット、${medals}枚です。`,
   sayEmpty: 'メダルがなくなりました。',
   tallyTitle: 'このマシンのここまで',
   tallyPlayed: '落とした',
@@ -537,7 +571,7 @@ const ja: PusherStrings = {
     `結果は抽選が始まった瞬間に決まっていて、リールはそれを演じているだけです。はずれの約${percent}では、左右のリールが先に同じ数字で止まり（リーチ）、最後に中央がはずれます。惜しく見えますが、確率は何も変わりません。リールが動く前にはずれは決まっています。`,
   rouletteTitle: 'ジャックポットチャンス',
   rouletteIntro: (pockets, goal) =>
-    `ボールを手前の端から落とすとルーレットが始まります。1回ごとに${pockets}個のポケットのどれかに止まり、どのポケットも同じ確率です。数字に止まるとその枚数がプッシャーの上にメダルタワーとして積まれ、もう一度回ります。×に止まると終了です。数字が${goal}回続くと、さらにジャックポットがもらえます。ボールが失われることはありません。開いた両脇は通れないので、いつかは必ず手前から落ちます。`,
+    `ボールを手前の端から落とすとルーレットが始まります。1回ごとに${pockets}個のポケットのどれかに止まり、どのポケットも同じ確率です。数字に止まるとその枚数がプッシャーの上にメダルタワーとして積まれ、もう一度回ります。×に止まると終了です。数字が${goal}回続くとジャックポットチャレンジが始まります。ボールが失われることはありません。開いた両脇は通れないので、いつかは必ず手前から落ちます。`,
   rouletteCaption: 'ルーレットのポケットと、1回あたりのそれぞれの確率',
   colPocket: 'ポケット',
   colPockets: '個数',
@@ -548,7 +582,7 @@ const ja: PusherStrings = {
   colInARow: '数字が続いた回数',
   colGetsThere: 'そこまで届く確率',
   jackpotNote: (start, step, perBall, perSpin, average) =>
-    `数字のポケットの平均は${average}枚です。ジャックポットは${start}枚から始まり、このマシンに${step}枚落とされるごとに1枚増えます。ボール${perBall}個に1個がジャックポットまで届き、抽選では${perSpin}回に1回がそこにつながります。7が3つそろってボールが出て、そのボールが落ちたあとに数字が最後まで続いた場合です。`,
+    `数字のポケットの平均は${average}枚です。ジャックポットは${start}枚から始まり、このマシンに${step}枚落とされるごとに1枚増えます。ボール${perBall}個に1個がジャックポットを獲得し、抽選では${perSpin}回に1回がそこにつながります。7が3つそろってボールが出て、そのボールが落ちたあとに数字が最後まで続き、クルーンでジャックポットの穴に落ちた場合です。`,
   valueTitle: '抽選1回の価値',
   valueIntro: 'それぞれの賞に確率を掛けて足し合わせます。ボールは、落ちたあとに始まるルーレットの分として数えます。変わるのはジャックポットの大きさだけです。',
   valueCaption: 'ジャックポットの大きさごとの、ルーレットの平均の賞と抽選1回あたりの平均払い出し',

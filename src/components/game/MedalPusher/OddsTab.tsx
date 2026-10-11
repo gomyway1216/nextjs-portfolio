@@ -6,9 +6,12 @@ import { FieldDiagram } from './charts';
 import { percent, tidyPercent } from './format';
 import { PART_IDS, getStrings } from './i18n';
 import {
+  BALL_JACKPOT_CHANCE,
   BOARD,
   BOARD_VALUE,
+  BOWL,
   CHAIN_GOAL,
+  CHALLENGE_CHANCE,
   CHESTS,
   CHEST_TOWERS_FROM,
   CHEST_VALUE,
@@ -23,6 +26,7 @@ import {
   SPIN_TOTAL,
   TIER_BONUS,
   boardAfter,
+  bowlValue,
   chainChance,
   rouletteValue,
   spinValue,
@@ -270,8 +274,35 @@ export const OddsTab = () => {
             </tbody>
           </table>
         </div>
+        <p className={styles.body}>{t.bowlIntro(BOWL.length)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-bowl-table">
+            <caption className={styles.srOnly}>{t.bowlCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colHole}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colChance}
+                </th>
+                <th scope="col">{t.colPaidAs}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {BOWL.map((hole) => (
+                <tr key={hole} data-hole={hole}>
+                  <th scope="row">{hole === 'jackpot' ? t.holeJackpot : t.paysMedals(hole)}</th>
+                  <td className={styles.num}>{percent(1 / BOWL.length)}</td>
+                  <td>
+                    {hole === 'jackpot' ? t.holeJackpotPaid(towerSizes(JACKPOT_START).length, JACKPOT_START) : t.chestPaidTowers(towerSizes(hole).length)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE))}</p>
         <p className={styles.note}>
-          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / chainChance(CHAIN_GOAL), 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
+          {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
         </p>
       </section>
 

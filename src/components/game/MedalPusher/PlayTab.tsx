@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, FIELD, clampAim } from './engine';
 import { getStrings } from './i18n';
-import { CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
-import { IDLE_DIGITS, Screen, stripOffset } from './ScreenPanel';
-import { reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
+import { IDLE_DIGITS, Screen, ballTransform, stripOffset } from './ScreenPanel';
+import { ballSpot, reelPositions, sameScreen, screenState, stopTimes, type ScreenState } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { playSound, unlockAudio } from './sounds';
 import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
@@ -59,6 +59,7 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
+  hole: -1,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -87,6 +88,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
+  const ball = useRef<SVGGElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
   const live = useRef({ aim, auto, sound, active, strings: t });
@@ -226,12 +228,19 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'rouletteStep':
             playSound('prize', soundOn);
-            setAnnouncement(strings.sayStep(event.medals, event.level));
+            setAnnouncement(event.level >= CHAIN_GOAL ? strings.sayGoal(event.medals, event.level) : strings.sayStep(event.medals, event.level));
             break;
           case 'rouletteEnd':
+            playSound('full', soundOn);
+            setAnnouncement(strings.sayFinish(event.total));
+            break;
+          case 'bowlStart':
+            playSound('reach', soundOn);
+            break;
+          case 'bowlEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
-            playSound(event.jackpot ? 'jackpot' : 'full', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.total) : strings.sayFinish(event.total));
+            playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
             break;
         }
       }
@@ -260,6 +269,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           if (strip) strip.style.transform = stripOffset(resting[reel] - 1);
         });
       }
+
+      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      const bowl = session.roulette?.bowl;
+      if (bowl && ball.current) ball.current.setAttribute('transform', ballTransform(ballSpot(bowl, calm.matches)));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -335,6 +348,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;
   };
+  const registerBall = (element: SVGGElement | null) => {
+    ball.current = element;
+  };
 
   const aimPercent = Math.round(((aim - AIM.min) / (AIM.max - AIM.min)) * 100);
 
@@ -355,7 +371,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </div>
 
-        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} onPick={onPick} />
+        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
 
         <div className={styles.fieldWrap}>
           <canvas

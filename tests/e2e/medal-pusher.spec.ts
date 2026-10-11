@@ -214,19 +214,19 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('8.8%');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.106 medals');
 
-  // 78% by the front and 0.22 spins a medal at 1.106 medals a spin.
+  // 79% by the front and 0.20 spins a medal at 1.106 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('97.0%');
+  await expect(result).toHaveText('96.5%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('26%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('24%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('124.3%');
+  await expect(result).toHaveText('122.1%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('62.2%');
+  await expect(result).toHaveText('61.1%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
 });
 

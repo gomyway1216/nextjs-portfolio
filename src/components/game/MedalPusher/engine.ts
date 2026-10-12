@@ -10,12 +10,12 @@
  * squeezed out there are lost. Prize balls lie among the medals and are pushed
  * the same way, and big prizes stand on the pusher as towers of medals.
  *
- * The player's medals come in by two feed arms, one from each upper corner. A
- * medal is fed into the arm on the side it is aimed at, rolls down that arm's
- * rail on its edge, and drops off the tip onto the back of the pusher. The arms
- * swing to wherever the player is aiming, each at its own speed, so a medal
- * comes down where its arm's tip has got to at the moment it leaves, not where
- * the aim was when the medal went in.
+ * The player's medals come in by two feed arms, the left and the right, each
+ * with a slot of its own. A medal fed into an arm rolls down that arm's rail
+ * on its edge and drops off the tip onto the back of the pusher. Each arm has
+ * an aim of its own and swings its tip there, so a medal comes down where its
+ * arm's tip has got to at the moment it leaves, not where the aim was when
+ * the medal went in. Both arms can be fed at once.
  *
  * Medals lie flat, two deep at most. The lower tier lies on the table. A
  * medal that comes down where there is no room for it stays on top of the
@@ -60,15 +60,15 @@ export const RELEASE = { height: 34, depth: 1.2 } as const;
 export const GAP = 0.72;
 /** A landing medal starts with this share of its room among the others and takes this long, in seconds, to have all of it. */
 export const SETTLE = { from: 0.3, time: 0.32 } as const;
-/** How long a medal is in the air, and how often one can be dropped. */
+/** How long a medal is in the air, and how often one arm's slot takes a medal. Each arm waits on its own. */
 export const FALL_TIME = 0.45;
 export const DROP_INTERVAL = 0.18;
 /**
  * How long a medal the player feeds is on its way before it drops off the tip
  * of its arm: long enough to watch it go in at the slot by the player's hand
  * and roll the length of the rail to the back of the cabinet, short enough
- * that the machine still answers a press. The slot feeds faster than that,
- * so a stream of medals has five on the way at once.
+ * that the machine still answers a press. A slot feeds faster than that,
+ * so a stream of medals has five on the way down each arm at once.
  */
 export const ROLL_TIME = 0.9;
 /**
@@ -226,13 +226,17 @@ export interface Machine {
   /** Medals the towers that are going up have yet to gain, all told. */
   growing: number;
   towerClock: number;
-  /** Seconds until the next medal can be dropped. */
-  cooldown: number;
-  /** Where across the field the arms are pointed. Whoever plays the machine sets it, with `aimArms`. */
-  aim: number;
+  /** Seconds until each arm's slot can take its next medal, the left arm's first. */
+  waits: [number, number];
+  /**
+   * Where across the field each arm is pointed, the left arm's first: within
+   * its own reach, and the left never to the right of the right. Whoever
+   * plays the machine sets them, with `aimArm`.
+   */
+  aims: [number, number];
   /**
    * Where across the field each arm's tip is, the left arm's first. A tip
-   * swings to where it belongs as the machine runs, and a medal is let go
+   * swings to its arm's aim as the machine runs, and a medal is let go
    * wherever its arm's tip is by then.
    */
   tips: [number, number];
@@ -493,10 +497,10 @@ export function createMachine(seed: number, balls = 0): Machine {
     payoutClock: 0,
     growing: 0,
     towerClock: 0,
-    cooldown: 0,
-    // The arms point at the middle, which is the right arm's side: its tip is over it, and the left arm rests.
-    aim: FIELD.width / 2,
-    tips: [armRest(0), FIELD.width / 2],
+    waits: [0, 0],
+    // Each arm points a little to its own side of the middle, and its tip is there already.
+    aims: [armStart(0), armStart(1)],
+    tips: [armStart(0), armStart(1)],
     nextId: 1,
     rng: seededRng(seed),
   };
@@ -536,13 +540,17 @@ export const ARM_REACH: readonly [{ min: number; max: number }, { min: number; m
   { min: AIM.min, max: FIELD.width / 2 + 10 },
   { min: FIELD.width / 2 - 10, max: AIM.max },
 ];
-/** The arm a medal aimed at `x` is fed into: the one on that side of the field. */
+/** The arm on the side of the field that `x` is on: the left arm for the left half. */
 export const armFor = (x: number): Arm => (x < FIELD.width / 2 ? 0 : 1);
 /** Where an arm's tip is once it has swung to an aim of `aim`: over the aim, as far as that arm reaches. */
 export const tipOf = (arm: Arm, aim: number): number => Math.min(ARM_REACH[arm].max, Math.max(ARM_REACH[arm].min, aim));
 
-/** An arm with nothing to do rests with its tip this far short of the middle. */
-export const ARM_REST = 14;
+/**
+ * A new machine's arms each point this far to their own side of the middle:
+ * over the lip between the centre chucker and the outer one on that side, which
+ * is as good a place to feed as the middle itself.
+ */
+export const ARM_START = 7;
 /**
  * How fast a tip swings to where it belongs, in field units a second: fast
  * enough to cross its arm's whole reach in less time than the slot waits
@@ -553,17 +561,12 @@ export const ARM_REST = 14;
  */
 export const ARM_SPEED = 320;
 
-/** Where across the field an arm rests its tip when it has nothing to do. */
-export const armRest = (arm: Arm): number => FIELD.width / 2 + (arm === 0 ? -ARM_REST : ARM_REST);
+/** Where across the field an arm points when the machine is new. */
+export const armStart = (arm: Arm): number => FIELD.width / 2 + (arm === 0 ? -ARM_START : ARM_START);
 
-/**
- * Where across the field an arm's tip belongs: over the aim, as far as the arm
- * reaches, when the aim is on its side or a medal is on its rail, and at rest
- * otherwise.
- */
+/** Where across the field an arm's tip belongs: over its own aim, always. An arm has no other place to be. */
 export function armGoal(machine: Machine, arm: Arm): number {
-  const loaded = machine.rolling.some((medal) => medal.arm === arm);
-  return loaded || armFor(machine.aim) === arm ? tipOf(arm, machine.aim) : armRest(arm);
+  return machine.aims[arm];
 }
 
 /** A tip on its way to where it belongs, `dt` seconds on: it swings there at the arms' speed and stops. */
@@ -573,28 +576,30 @@ export function swing(tipX: number, goal: number, dt: number): number {
 }
 
 /**
- * Points the arms at `aimX`. They swing there as the machine runs, and a medal
- * on a rail drops wherever its arm's tip has got to when it reaches it. So
- * whoever plays the machine calls this before every step, with where the arms
- * should be by the end of it.
+ * Points one arm at `aimX`, as near to it as the arm can point: within its
+ * own reach, and no further than the other arm's aim, since the two rails do
+ * not cross. Its tip swings there as the machine runs, and a medal on its
+ * rail drops wherever the tip has got to when it reaches it. The other arm is
+ * left as it is.
  */
-export function aimArms(machine: Machine, aimX: number): void {
+export function aimArm(machine: Machine, arm: Arm, aimX: number): void {
   if (!Number.isFinite(aimX)) throw new Error('the aim must be a number');
-  machine.aim = clampAim(aimX);
+  const own = tipOf(arm, aimX);
+  machine.aims[arm] = arm === 0 ? Math.min(own, machine.aims[1]) : Math.max(own, machine.aims[0]);
 }
 
 /**
- * Drops one medal, aimed at `aimX`: the arms are pointed there and the medal
- * is fed into the arm on that side. It rolls down the rail and lands a little
- * to one side of wherever that arm's tip is by then.
- * Returns whether the machine took it: the slot only feeds one every DROP_INTERVAL.
+ * Feeds one medal into an arm. It rolls down that arm's rail and lands a
+ * little to one side of wherever the arm's tip is by then. Neither arm's aim
+ * is touched. Returns whether the arm took it: each slot feeds one medal
+ * every DROP_INTERVAL, and the two slots wait on their own, so both arms can
+ * be fed in the same instant.
  */
-export function dropMedal(machine: Machine, aimX: number): boolean {
-  if (!Number.isFinite(aimX)) throw new Error('the aim must be a number');
-  if (machine.cooldown > 1e-9) return false;
-  aimArms(machine, aimX);
-  machine.rolling.push({ id: machine.nextId++, arm: armFor(machine.aim), remaining: ROLL_TIME });
-  machine.cooldown = DROP_INTERVAL;
+export function dropMedal(machine: Machine, arm: Arm): boolean {
+  if (arm !== 0 && arm !== 1) throw new Error('there is a left arm (0) and a right arm (1)');
+  if (machine.waits[arm] > 1e-9) return false;
+  machine.rolling.push({ id: machine.nextId++, arm, remaining: ROLL_TIME });
+  machine.waits[arm] = DROP_INTERVAL;
   return true;
 }
 
@@ -730,7 +735,8 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   machine.time += dt;
   const front = pusherFront(machine.time);
   const carried = front - before;
-  machine.cooldown = Math.max(0, machine.cooldown - dt);
+  machine.waits[0] = Math.max(0, machine.waits[0] - dt);
+  machine.waits[1] = Math.max(0, machine.waits[1] - dt);
 
   // The machine throws its payout medals onto the pusher, a few per second.
   if (machine.payoutQueue > 0) {
@@ -780,8 +786,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     machine.falling = stillFalling;
   }
 
-  // The arms swing towards where they belong: over the aim, or to rest. An arm with a medal on its
-  // rail still counts as having one in the step the medal leaves, so it keeps after the aim till then.
+  // Each arm swings towards its own aim.
   machine.tips[0] = swing(machine.tips[0], armGoal(machine, 0), dt);
   machine.tips[1] = swing(machine.tips[1], armGoal(machine, 1), dt);
 

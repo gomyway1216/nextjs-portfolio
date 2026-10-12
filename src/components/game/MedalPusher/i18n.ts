@@ -67,10 +67,7 @@ export interface PusherStrings {
   screenAria: string;
   fieldAria: string;
   medals: string;
-  aim: string;
   aimValue: (percent: number) => string;
-  drop: string;
-  dropHint: string;
   auto: string;
   autoHint: string;
   sound: string;
@@ -203,6 +200,14 @@ export interface PusherStrings {
   slotCheckCaption: string;
   colSeen: string;
   colExact: string;
+  /** What is written on each rail's feed button, the left one's first, and what the button is called. */
+  feedName: [string, string];
+  feedAria: [string, string];
+  feedHint: (key: string) => string;
+  /** The label of each rail's aim slider, the left one's first. */
+  aimLabel: [string, string];
+  /** The line under the controls that says what the keys do. */
+  keysNote: string;
 }
 
 const en: PusherStrings = {
@@ -213,10 +218,11 @@ const en: PusherStrings = {
   tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: (held) => [
-    'You start with 100 medals. Choose where to aim and drop them: each one goes in at the slot on that side, by your hand, rolls along its feed arm’s rail to the back of the cabinet, drops off the tip onto the pusher a little to one side of your aim, and gets shoved forward with the rest.',
+    'You start with 100 medals. Two rails feed them in, one from each side: the L button feeds the left rail and the R button the right, and both can be pressed at once. A medal goes in at the slot by that button, rolls along its feed arm’s rail to the back of the cabinet, drops off the tip onto the pusher a little to one side of where that rail is aimed, and gets shoved forward with the rest.',
+    'Press a button to feed one medal and hold it to keep feeding: each rail takes a medal about every fifth of a second. Aiming is separate. Press or drag on the left half of the field to move the left rail’s tip, and on the right half to move the right rail’s, or use the slider under each button. Nothing is fed from the field. On a keyboard, F feeds the left rail and J the right, held like the buttons, while S and D move the left rail’s aim and K and L the right rail’s. Auto feeds two medals a second, the two rails by turns.',
     'Medals pile two deep. One that comes down where there is no room lies on top of the others, rides along with them, slides over them when it is pushed, and drops in as soon as a gap opens under it.',
     'Medals pushed over the front edge are yours. Near the front the sides of the table are open, and medals squeezed out there are gone.',
-    `A medal that goes over the pusher’s lip through one of the three START pockets starts a spin on the screen, on its way down to the lower table. Any medal does: one you dropped, one the screen paid, or one off a tower. The pockets sit side by side in the middle of the lip and ride out and back with it, so the place to feed is the middle of the pusher: what you drop there pushes the pile out through them. A medal takes most of a second to go in at its slot and roll the length of its arm, and about half a second more to fall, and it drops wherever the arm is pointing when it gets to the tip. Press and hold on the field to keep dropping, and slide sideways to move the aim. The machine holds up to ${held} spins at a time.`,
+    `A medal that goes over the pusher’s lip through one of the three START pockets starts a spin on the screen, on its way down to the lower table. Any medal does: one you dropped, one the screen paid, or one off a tower. The pockets sit side by side in the middle of the lip and ride out and back with it, so the place to feed is the middle of the pusher: what you drop there pushes the pile out through them. A medal takes most of a second to go in at its slot and roll the length of its arm, and about half a second more to fall, and it drops wherever the arm is pointing when it gets to the tip. The machine holds up to ${held} spins at a time.`,
     'Three even digits, the ones drawn as ways of travelling (a car, a boat, a balloon and a rocket), roll the die on the sugoroku board that lies across the front of the screen: the piece hops on and you are paid what its square says, 3 to 15 medals, or a fever of 30.',
     'Three odd digits, the ones drawn as treasures (a medal, a jewel, a crown and a sack of gold), open the treasure chance: pick one of three chests. They hold 10, 20 and 30 medals, and the bigger two are stacked on the pusher as medal towers.',
     'A tower rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it. If it goes over at a START pocket, every medal in it drops through.',
@@ -273,14 +279,11 @@ const en: PusherStrings = {
   chestCountdown: (seconds) => `PICK ONE!  ${seconds}`,
   jackpotWon: (medals) => `JACKPOT! +${medals}`,
   screenAria: 'The screen',
-  fieldAria: 'The field. Click or tap where a medal should drop.',
+  fieldAria: 'The field. Press or drag on its left half to aim the left rail, and on its right half to aim the right rail. This feeds no medals: the L and R buttons do.',
   medals: 'MEDALS',
-  aim: 'Aim',
   aimValue: (percent) => `${percent}% across`,
-  drop: 'DROP',
-  dropHint: 'Hold to keep dropping',
   auto: 'Auto',
-  autoHint: 'Drops two medals a second at your aim',
+  autoHint: 'Feeds two medals a second, the left and right rails by turns, each at its own aim',
   sound: 'Sound',
   refill: (medals) => `Out of medals — take ${medals} more`,
   reset: 'Reset the machine',
@@ -323,7 +326,7 @@ const en: PusherStrings = {
     front: 'Front edge',
   },
   partText: {
-    arms: 'One runs back from each front corner, where its slot is, to end over the pusher. A medal goes in at the slot on the side you aim at, rolls along the rail and drops off the tip. Both arms swing after your aim, each to a little past the middle, and an arm crosses its whole reach in under a fifth of a second. A medal is let go wherever its arm’s tip is when it gets there. It lands up to 12% of the width to either side of that, most often close to it.',
+    arms: 'One runs back from each front corner, where its slot is, to end over the pusher. A medal goes in at the slot of the rail you feed, rolls along the rail and drops off the tip. Each arm has an aim of its own and swings after it, each to a little past the middle, though the two never cross; an arm crosses its whole reach in under a fifth of a second. A medal is let go wherever its arm’s tip is when it gets there. It lands up to 12% of the width to either side of that, most often close to it.',
     pusher: 'Slides back and forth under the back panel, carrying a heap two medals deep. The panel scrapes the rearmost medals forward, and the front ones tip over the lip.',
     chuckers: 'Three of them side by side in the middle of the pusher’s lip. They ride out and back with it and do not move along it. Any medal that goes over the lip wholly inside one drops through it and starts a spin: one you dropped, one the screen paid, or one off a tower, which sends every medal in it through if it goes over there. A pocket’s mouth is as wide as a medal and 1.7% of the field’s width more on either side. A ball does not fit.',
     table: 'The pusher’s face shoves these medals toward you, a row at a time. Here too they lie two deep, and the ones on top slide forward over the rest.',
@@ -405,11 +408,11 @@ const en: PusherStrings = {
   calcBreakEven: (percent) => `At this front share you would break even with a spin for ${percent} of the medals you drop.`,
   calcNever: 'At this front share you could not break even even with a spin for every medal you drop.',
   calcNote: (held) =>
-    `The Simulation tab measures both. Feeding the middle of the pusher at two medals a second, about 80% of medals leave by the front and a spin starts about 18 times for every 100 medals dropped. They are not all your own medals’ doing: what the screen pays lands on the pusher as well, and about a sixth of the medals that go over the lip are ones it paid. Those come down all over the pusher, so few of them find a pocket: more than nine in ten of the medals through one are medals you dropped. The machine holds up to ${held} spins, so at that pace only about one medal in twenty through a pocket finds the hold full, mostly when a tower goes over through one and all its medals arrive at once. Drop anywhere at all instead and it is about 11 times. At five a second the screen cannot keep up: nearly a third of the medals through a pocket start nothing. Dropping more slowly than two a second gains a point or so, and no more than that.`,
+    `The Simulation tab measures both. Feeding both rails down the middle of the pusher, two medals a second between them, about 80% of medals leave by the front and a spin starts about 18 times for every 100 medals dropped. They are not all your own medals’ doing: what the screen pays lands on the pusher as well, and about a sixth of the medals that go over the lip are ones it paid. Those come down all over the pusher, so few of them find a pocket: more than nine in ten of the medals through one are medals you dropped. The machine holds up to ${held} spins, so at that pace fewer than one medal in ten through a pocket finds the hold full, mostly when a tower goes over through one and all its medals arrive at once. Drop anywhere at all instead and it is about 11 times. At five a second the screen cannot keep up: nearly a third of the medals through a pocket start nothing. Hold both buttons down, which feeds about eleven a second, and it is about three in five: about 87% of the medals come back. Dropping more slowly than two a second gains a point or so, and no more than that.`,
 
   simTitle: 'Where to drop, measured',
   simIntro: (warmUp) =>
-    `Four ways of aiming, each on a machine of its own that starts from the same field. Each plays the same number of medals at the same pace, after ${warmUp} uncounted medals to fill its tables.`,
+    `Four ways of aiming the two rails, each on a machine of its own that starts from the same field. Each plays the same number of medals at the same pace, counted between the two rails, after ${warmUp} uncounted medals to fill its tables.`,
   paceLabel: 'Pace',
   paceOption: (perSecond) => `${perSecond} medals a second`,
   medalsLabel: 'Medals per aim',
@@ -417,10 +420,10 @@ const en: PusherStrings = {
   running: (pct) => `Running… ${pct}%`,
   cancel: 'Cancel',
   aimName: {
-    centre: 'Down the middle, behind the pockets',
-    anywhere: 'Anywhere at all',
-    beside: 'Fixed spots beside the pockets',
-    edges: 'At the two edges',
+    centre: 'Both rails down the middle, behind the pockets',
+    anywhere: 'Anywhere at all, from the rail on that side',
+    beside: 'Each rail at its fixed spot beside the pockets',
+    edges: 'Each rail at its own edge',
   },
   resultTitle: (medals, pace) => `${medals} medals per aim, ${pace} a second`,
   simCaption: 'What each way of aiming returned and how its medals left the field',
@@ -439,13 +442,18 @@ const en: PusherStrings = {
     '“Return, this run” is what the machine actually handed back. It swings with the screen: one roulette can pay more than a hundred medals, and a ball still lying on the field has paid nothing yet.',
     `“With average luck” takes the luck out. It keeps what this run measured — the share of medals that left by the front and the spins started per medal — and pays each spin its exact average of ${exactPerSpin} medals.`,
     `A medal through a START pocket is wasted when ${held} spins are already held. Dropping faster than the screen can spin does that, and so does a tower that goes over through a pocket: all its medals arrive at once.`,
-    'A medal drops where its arm is pointing when it leaves the tip, so every aim here keeps the arm on its spot until the medal has gone. The START pockets do not move, so an aim is only a choice of column. “Through a pocket” counts every medal that dropped through one, whoever put it on the field, against the medals dropped: what the screen pays goes over the lip too. The fixed spots beside the pockets lie as far outside the outer two as those are from the middle one. By the time a medal reaches the lip the pile has carried it well to one side or the other, which is why even medals dropped at the edges find a pocket now and then.',
+    'A medal drops where its arm is pointing when it leaves the tip, so every aim here keeps each arm on its spot until the medal has gone. Three of the four feed the left and the right rail by turns and never move them; the fourth picks a new spot for every medal and feeds it from the rail on that side. The START pockets do not move, so an aim is only a choice of column for each rail. “Through a pocket” counts every medal that dropped through one, whoever put it on the field, against the medals dropped: what the screen pays goes over the lip too. The fixed spots beside the pockets lie as far outside the outer two as those are from the middle one. By the time a medal reaches the lip the pile has carried it well to one side or the other, which is why even medals dropped at the edges find a pocket now and then.',
   ],
   slotCheckTitle: 'The screen in this run, against its exact odds',
   slotCheckIntro: (spins) => `All four machines together spun ${spins} times.`,
   slotCheckCaption: 'How often each line came up in this run, next to its exact chance',
   colSeen: 'This run',
   colExact: 'Exact',
+  feedName: ['L', 'R'],
+  feedAria: ['Feed the left rail', 'Feed the right rail'],
+  feedHint: (key) => `Hold to keep feeding. Key: ${key}`,
+  aimLabel: ['Left rail aim', 'Right rail aim'],
+  keysNote: 'Keys: F and J feed the left and right rails, and can be held together. S and D aim the left rail, K and L the right.',
 };
 
 const ja: PusherStrings = {
@@ -456,10 +464,11 @@ const ja: PusherStrings = {
   tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: (held) => [
-    'メダル100枚から始めます。狙う位置を決めて落とすと、メダルは狙った側の手前の入り口から入り、アームのレールを奥まで転がって先端から落ち、狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
+    'メダル100枚から始めます。メダルは左右2本のレールから入れます。Lボタンで左のレール、Rボタンで右のレールに入り、両方を同時に押すこともできます。メダルはそのボタンのそばの入り口から入り、アームのレールを奥まで転がって先端から落ち、そのレールの狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
+    'ボタンを押すと1枚入り、押し続けると連続で入ります。1本のレールが受け取るのは約0.2秒に1枚です。狙いは別に決めます。フィールドの左半分を押すかドラッグすると左のレールの先端が、右半分なら右のレールの先端が動きます。ボタンの下のスライダーでも動かせます。フィールドを押してもメダルは入りません。キーボードでは、Fで左、Jで右のレールにメダルが入り（押し続けると連続）、SとDで左のレール、KとLで右のレールの狙いが動きます。オートは左右のレールに交互に、毎秒2枚入れます。',
     'メダルは2段まで重なります。置く場所がないところに落ちたメダルはほかのメダルの上に乗り、下のメダルと一緒に運ばれ、押されるとその上を滑り、下にすき間ができると落ち込みます。',
     '手前の端から落ちたメダルがあなたのものです。テーブルの手前側は両脇が開いていて、そこから押し出されたメダルは戻りません。',
-    `プッシャーの縁から下のテーブルへ落ちるメダルが、縁にある3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも同じです。チャッカーは縁の中央に3つ並んでいて、プッシャーと一緒に前後に動きます。だから狙い目はプッシャーの中央です。そこに落としたメダルが、山をチャッカーのほうへ押し出します。メダルは入り口から入ってアームのレールを奥まで転がるのに1秒近く、先端から落ちるのにもう0.5秒ほどかかります。落ちる場所は、メダルが先端に着いたときにアームが向いている位置で決まります。フィールドを押したままにすると連続で落とせて、そのまま左右に動かすと狙いを変えられます。抽選は${held}回分までためられます。`,
+    `プッシャーの縁から下のテーブルへ落ちるメダルが、縁にある3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも同じです。チャッカーは縁の中央に3つ並んでいて、プッシャーと一緒に前後に動きます。だから狙い目はプッシャーの中央です。そこに落としたメダルが、山をチャッカーのほうへ押し出します。メダルは入り口から入ってアームのレールを奥まで転がるのに1秒近く、先端から落ちるのにもう0.5秒ほどかかります。落ちる場所は、メダルが先端に着いたときにアームが向いている位置で決まります。抽選は${held}回分までためられます。`,
     '偶数（車・ヨット・気球・ロケットの、乗り物の絵柄）が3つそろうと「すごろくチャンス」です。画面の手前に置かれたすごろく盤でサイコロを振り、コマが止まったマスの枚数（3〜15枚、フィーバーなら30枚）がもらえます。',
     '奇数（メダル・宝石・王冠・金貨の袋の、宝物の絵柄）が3つそろうと「宝箱チャンス」です。3つの宝箱から1つ選びます。中身は10枚・20枚・30枚で、20枚と30枚はプッシャーの上にメダルタワーとして積まれます。',
     'タワーはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。チャッカーのところで縁を越えると、タワーのメダルが全部チャッカーを通ります。',
@@ -516,14 +525,11 @@ const ja: PusherStrings = {
   chestCountdown: (seconds) => `1つ選んでね！ あと${seconds}秒`,
   jackpotWon: (medals) => `JACKPOT！ ${medals}枚`,
   screenAria: '中央画面',
-  fieldAria: 'フィールド。クリックまたはタップした位置にメダルを落とします。',
+  fieldAria: 'フィールド。左半分を押すかドラッグすると左のレール、右半分なら右のレールの狙いが動きます。メダルは入りません。メダルを入れるのはLとRのボタンです。',
   medals: 'メダル',
-  aim: '狙う位置',
   aimValue: (percent) => `左から${percent}%`,
-  drop: '落とす',
-  dropHint: '押し続けると連続で落とします',
   auto: 'オート',
-  autoHint: '狙った位置に毎秒2枚落とします',
+  autoHint: '左右のレールに交互に、毎秒2枚入れます。それぞれのレールの狙いに落ちます',
   sound: '音',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
   reset: 'マシンをリセット',
@@ -566,7 +572,7 @@ const ja: PusherStrings = {
     front: '手前の端',
   },
   partText: {
-    arms: '手前の左右の角にある入り口から、プッシャーの上まで1本ずつ伸びています。メダルは狙った側の入り口から入り、レールを転がって先端から落ちます。アームは狙いを追って動き、どちらも中央を少し越えるところまで届きます。端から端まで動くのに0.2秒かかりません。メダルが放されるのは、先端に着いたときにアームの先端がある位置です。そこから左右に幅の12%までずれますが、多くは近くに落ちます。',
+    arms: '手前の左右の角にある入り口から、プッシャーの上まで1本ずつ伸びています。メダルは入れたほうのレールの入り口から入り、レールを転がって先端から落ちます。アームにはそれぞれ自分の狙いがあり、それを追って動きます。どちらも中央を少し越えるところまで届きますが、2本が交差することはありません。端から端まで動くのに0.2秒かかりません。メダルが放されるのは、先端に着いたときにアームの先端がある位置です。そこから左右に幅の12%までずれますが、多くは近くに落ちます。',
     pusher: '2段に積もったメダルを乗せて、奥のパネルの下を前後に動きます。引くときにパネルが奥のメダルを前へかき出し、先頭のメダルが縁から落ちます。',
     chuckers: '3つがプッシャーの縁の中央に並んでいます。プッシャーと一緒に前後に動き、左右には動きません。縁を越えるメダルがチャッカーにすっぽり収まると、そこを通って抽選が1回始まります。自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも数えます。タワーがそこで縁を越えると、タワーのメダルが全部通ります。チャッカーの口は、メダル1枚分に左右それぞれ幅の1.7%を足した広さです。ボールは通れません。',
     table: 'プッシャーの前面が、ここのメダルを一列ずつ手前へ押します。ここでもメダルは2段に重なり、上のメダルは下のメダルの上を滑って前へ進みます。',
@@ -647,11 +653,11 @@ const ja: PusherStrings = {
   calcBreakEven: (percent) => `この割合なら、落としたメダルの${percent}にあたる回数の抽選があれば収支がゼロになります。`,
   calcNever: 'この割合では、落としたメダルと同じ回数の抽選があっても収支はゼロに届きません。',
   calcNote: (held) =>
-    `どちらも「シミュレーション」タブで実測できます。プッシャーの中央に毎秒2枚落とすと、約80%が手前から出て、落としたメダル100枚につき約18回の抽選が始まります。すべてが自分のメダルによるものではありません。払い出されたメダルもプッシャーの上に乗るので、縁を越えるメダルの約6分の1は払い出されたメダルです。ただし払い出されたメダルはプッシャーのあちこちに落ちるので、チャッカーを通るものは多くありません。チャッカーを通るメダルの10枚に9枚以上は、自分で落としたメダルです。保留は${held}回分までためられるので、この速さなら、チャッカーを通ったメダルのうち保留が満杯で無駄になるのは20枚に1枚ほどです。無駄になるのは、おもにタワーがチャッカーのところで崩れて、メダルが一度に通るときです。場所を決めずに落とすと、抽選は約11回になります。毎秒5枚で落とすと画面が追いつかず、チャッカーを通ったメダルの3分の1近くは抽選を始められません。毎秒2枚よりゆっくり落とすと還元率は1ポイントほど上がりますが、それ以上は上がりません。`,
+    `どちらも「シミュレーション」タブで実測できます。左右のレールを両方ともプッシャーの中央に向け、合わせて毎秒2枚入れると、約80%が手前から出て、落としたメダル100枚につき約18回の抽選が始まります。すべてが自分のメダルによるものではありません。払い出されたメダルもプッシャーの上に乗るので、縁を越えるメダルの約6分の1は払い出されたメダルです。ただし払い出されたメダルはプッシャーのあちこちに落ちるので、チャッカーを通るものは多くありません。チャッカーを通るメダルの10枚に9枚以上は、自分で落としたメダルです。保留は${held}回分までためられるので、この速さなら、チャッカーを通ったメダルのうち保留が満杯で無駄になるのは10枚に1枚もありません。無駄になるのは、おもにタワーがチャッカーのところで崩れて、メダルが一度に通るときです。場所を決めずに落とすと、抽選は約11回になります。毎秒5枚で落とすと画面が追いつかず、チャッカーを通ったメダルの3分の1近くは抽選を始められません。両方のボタンを押し続けると毎秒11枚ほど入りますが、抽選を始められないメダルは5枚に3枚ほどに増え、戻ってくるのは約87%です。毎秒2枚よりゆっくり落とすと還元率は1ポイントほど上がりますが、それ以上は上がりません。`,
 
   simTitle: 'どこに落とすかを実測する',
   simIntro: (warmUp) =>
-    `4通りの狙い方を、同じフィールドから始めた別々のマシンで試します。どれも同じ枚数を同じ速さで落とします。数え始める前に、テーブルを満たすためのメダルを${warmUp}枚落とします。`,
+    `2本のレールの4通りの狙い方を、同じフィールドから始めた別々のマシンで試します。どれも同じ枚数を同じ速さで落とします。速さは2本のレールを合わせた枚数です。数え始める前に、テーブルを満たすためのメダルを${warmUp}枚落とします。`,
   paceLabel: '速さ',
   paceOption: (perSecond) => `毎秒${perSecond}枚`,
   medalsLabel: '狙い方ごとの枚数',
@@ -659,10 +665,10 @@ const ja: PusherStrings = {
   running: (pct) => `実行中… ${pct}%`,
   cancel: '中止',
   aimName: {
-    centre: 'チャッカーの奥、中央に落とす',
-    anywhere: '場所を決めずに',
-    beside: 'チャッカーの両脇に固定',
-    edges: '左右の端',
+    centre: '両方のレールをチャッカーの奥、中央に',
+    anywhere: '場所を決めずに、その側のレールから',
+    beside: '左右のレールをチャッカーの両脇に固定',
+    edges: '左右のレールをそれぞれの端に',
   },
   resultTitle: (medals, pace) => `狙い方ごとに${medals}枚・毎秒${pace}枚`,
   simCaption: '狙い方ごとの還元率と、メダルがフィールドから出ていった先',
@@ -681,13 +687,18 @@ const ja: PusherStrings = {
     '「今回の還元率」は、マシンが実際に返した枚数です。画面の運で大きく振れます。ルーレット1回で100枚以上払い出されることもあれば、フィールドに残ったボールはまだ1枚も払い出していません。',
     `「運を平均にすると」は、その運を取り除いた値です。今回実測した「手前から出た割合」と「メダル1枚あたりの抽選回数」はそのまま使い、抽選1回の払い出しを正確な平均の${exactPerSpin}枚に置き換えています。`,
     `保留が${held}回分たまっているときにチャッカーを通ると、その通過は無駄になります。画面の抽選より速く落とすとそうなります。タワーがチャッカーのところで崩れて、メダルが一度に通るときもそうです。`,
-    'メダルは先端を離れるときにアームが向いている位置に落ちるので、どの狙い方でも、メダルが離れるまでアームをその位置に合わせておきます。チャッカーは動かないので、狙い方の違いは落とす列の違いだけです。「チャッカー通過」は、だれがフィールドに乗せたメダルかを問わず、チャッカーを通ったメダルをすべて数え、落とした枚数に対する割合で示します。払い出されたメダルも縁を越えるからです。「チャッカーの両脇に固定」の位置は、外側の2つのチャッカーから、チャッカーどうしの間隔と同じだけ外にあります。メダルは縁に着くまでに山に押されて左右に大きくずれるので、端に落としたメダルもときどきチャッカーを通ります。',
+    'メダルは先端を離れるときにアームが向いている位置に落ちるので、どの狙い方でも、メダルが離れるまでアームをその位置に合わせておきます。4通りのうち3通りは左右のレールに交互に入れ、レールは動かしません。残りの1通りは1枚ごとに場所を選び、その側のレールから入れます。チャッカーは動かないので、狙い方の違いは、それぞれのレールで落とす列の違いだけです。「チャッカー通過」は、だれがフィールドに乗せたメダルかを問わず、チャッカーを通ったメダルをすべて数え、落とした枚数に対する割合で示します。払い出されたメダルも縁を越えるからです。「チャッカーの両脇に固定」の位置は、外側の2つのチャッカーから、チャッカーどうしの間隔と同じだけ外にあります。メダルは縁に着くまでに山に押されて左右に大きくずれるので、端に落としたメダルもときどきチャッカーを通ります。',
   ],
   slotCheckTitle: '今回の画面の抽選と、正確な確率',
   slotCheckIntro: (spins) => `4台のマシンを合わせて${spins}回抽選しました。`,
   slotCheckCaption: '今回それぞれの並びが出た割合と、正確な確率',
   colSeen: '今回',
   colExact: '厳密値',
+  feedName: ['L', 'R'],
+  feedAria: ['左のレールにメダルを入れる', '右のレールにメダルを入れる'],
+  feedHint: (key) => `押し続けると連続で入ります。キー: ${key}`,
+  aimLabel: ['左のレールの狙い', '右のレールの狙い'],
+  keysNote: 'キー操作: FとJで左右のレールにメダルを入れます（同時に押せます）。SとDで左のレール、KとLで右のレールの狙いを動かします。',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

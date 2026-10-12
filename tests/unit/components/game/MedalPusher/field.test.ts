@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ARMS, SLOT, armCollar, armRest, armTip, fedSpot, legOf, letGo, railFrame, rollingSpot } from '@/components/game/MedalPusher/arms';
+import { ARMS, SLOT, armCollar, armStart, armTip, fedSpot, legOf, letGo, railFrame, rollingSpot } from '@/components/game/MedalPusher/arms';
 import { CHUCKERS, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
   AIM,
@@ -12,9 +12,7 @@ import {
   FEED,
   PUSHER,
   ROLL_TIME,
-  aimArms,
   createMachine,
-  dropMedal,
   pusherFront,
   step,
   type Arm,
@@ -22,6 +20,8 @@ import {
 } from '@/components/game/MedalPusher/engine';
 import { PANEL_SPAN, START_PANEL, createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
 import { HEIGHT, project } from '@/components/game/MedalPusher/view';
+
+import { aimBoth, aimSide, dropAt } from './feeding';
 
 /**
  * A medal's face as it was stamped on the canvas: where its middle is, how wide and how tall it was drawn, how far
@@ -118,7 +118,7 @@ describe('the START panel on the canvas', () => {
     const machine = createMachine(3);
     machine.time = time;
     const screen = recorder();
-    drawField(screen.context, stage, machine, { aim: 50, showGuide: true, calm });
+    drawField(screen.context, stage, machine, { showGuide: true, calm });
     return screen;
   };
   /** Moments all through the pusher's stroke: out, back, and on the way. */
@@ -222,7 +222,7 @@ describe('the START panel on the canvas', () => {
     /** Whether a pocket's own stretch of the face was filled over: it is, when the pocket is lit. */
     const stretch = (pocket: number) => project(CHECKERS.positions[pocket] - START_PANEL.tile / 2, P, front);
     const dark = recorder();
-    drawField(dark.context, stage, machine, { aim: 50, showGuide: false });
+    drawField(dark.context, stage, machine, { showGuide: false });
     expect(near(dark.starts, stretch(2).x, stretch(2).y)).toBe(false);
     lightGate(stage, 2);
     expect(stage.gateGlow).toEqual([0, 0, expect.any(Number)]);
@@ -230,7 +230,7 @@ describe('the START panel on the canvas', () => {
     lightGate(stage, 7);
     expect(stage.gateGlow).toHaveLength(CHUCKERS.count);
     const screen = recorder();
-    expect(() => drawField(screen.context, stage, machine, { aim: 50, showGuide: false })).not.toThrow();
+    expect(() => drawField(screen.context, stage, machine, { showGuide: false })).not.toThrow();
     expect(screen.texts.filter((entry) => entry.text === 'START')).toHaveLength(3);
     expect(near(screen.starts, stretch(2).x, stretch(2).y)).toBe(true);
     expect(near(screen.starts, stretch(1).x, stretch(1).y)).toBe(false);
@@ -243,12 +243,12 @@ describe('the feed arms on the canvas', () => {
   const frame = (machine: Machine, showGuide = false, calm = false) => {
     const stage = createStage(1);
     const screen = recorder();
-    drawField(screen.context, stage, machine, { aim: machine.aim, showGuide, calm });
+    drawField(screen.context, stage, machine, { showGuide, calm });
     return screen;
   };
   /** Points the arms and gives them time to get there. Nothing else moves: the machine has not been fed. */
   const point = (machine: Machine, aim: number): void => {
-    aimArms(machine, aim);
+    aimSide(machine, aim);
     step(machine, 0.5);
   };
   /** The medal stamped nearest a place in the cabinet, and how far off that place it is, in pixels. */
@@ -282,19 +282,19 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     const machine = createMachine(3);
     point(machine, 12);
-    expect(machine.tips).toEqual([12, armRest(1)]);
+    expect(machine.tips).toEqual([12, armStart(1)]);
     const { lines, starts } = frame(machine);
     const drawn = [...starts, ...lines];
-    // The left one ends over the aim, the right one where it rests; each begins at its own collar.
+    // The left one ends over its aim, the right one where a new machine has it pointed; each begins at its own collar.
     expect(endsAt(drawn, 0, 12)).toBe(true);
-    expect(endsAt(drawn, 1, armRest(1))).toBe(true);
+    expect(endsAt(drawn, 1, armStart(1))).toBe(true);
     expect(startsAt(drawn, 0, 12)).toBe(true);
-    expect(startsAt(drawn, 1, armRest(1))).toBe(true);
-    // And nothing is drawn where the left arm would be resting.
-    expect(endsAt(drawn, 0, armRest(0))).toBe(false);
+    expect(startsAt(drawn, 1, armStart(1))).toBe(true);
+    // And nothing is drawn where the left arm was before it was pointed.
+    expect(endsAt(drawn, 0, armStart(0))).toBe(false);
     // The near end is by the player: low on the drawing and at its side. The far end is over the pusher, further up and nearer the middle.
     const from = onRail(0, 12, 3);
-    const to = onRail(0, armRest(0), railFrame(0, armRest(0)).length);
+    const to = onRail(0, armStart(0), railFrame(0, armStart(0)).length);
     expect(from.y).toBeGreaterThan(to.y + 200);
     expect(from.x).toBeLessThan(to.x - 100);
   });
@@ -305,7 +305,7 @@ describe('the feed arms on the canvas', () => {
     const once = made.flatMap((canvas) => [...canvas.starts, ...canvas.lines]);
     expect(once.length).toBeGreaterThan(0);
     for (const arm of [0, 1] as const) {
-      for (const tipX of [armRest(arm), FIELD.width / 2]) {
+      for (const tipX of [armStart(arm), FIELD.width / 2]) {
         expect(endsAt(once, arm, tipX)).toBe(false);
         expect(startsAt(once, arm, tipX)).toBe(false);
       }
@@ -313,12 +313,12 @@ describe('the feed arms on the canvas', () => {
     expect(armCollar(0).height).toBeGreaterThan(ARMS.tip);
   });
 
-  it('draws each arm where the machine has its tip, wherever the aim is', () => {
+  it('draws each arm where the machine has its tip, wherever it is pointed', () => {
     fakeDocument();
     for (const aim of [AIM.min, 20, 49, 50, 63, AIM.max]) {
       const machine = createMachine(3);
       point(machine, aim);
-      expect(machine.tips).toEqual(aim < FIELD.width / 2 ? [aim, armRest(1)] : [armRest(0), aim]);
+      expect(machine.tips).toEqual(aim < FIELD.width / 2 ? [aim, armStart(1)] : [armStart(0), aim]);
       const { lines, starts } = frame(machine);
       for (const arm of [0, 1] as const) expect(endsAt([...starts, ...lines], arm, machine.tips[arm])).toBe(true);
     }
@@ -328,7 +328,7 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     for (const [aim, arm] of [[30, 0], [70, 1]] as const) {
       const machine = createMachine(3);
-      dropMedal(machine, aim);
+      dropAt(machine, aim);
       step(machine, FEED.slot + 0.4);
       expect(machine.tips[arm]).toBe(aim);
       const [medal] = machine.rolling;
@@ -352,7 +352,7 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     const after = (aim: number, arm: Arm, seconds: number) => {
       const machine = createMachine(3);
-      dropMedal(machine, aim);
+      dropAt(machine, aim);
       step(machine, seconds);
       const spot = rollingSpot(arm, machine.tips[arm], machine.rolling[0].remaining);
       return { stamp: stampAt(frame(machine).stamps, spot.x, spot.height, spot.depth).stamp, turned: spot.turned };
@@ -377,7 +377,7 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     const machine = createMachine(3);
     for (let i = 0; i < 46; i++) {
-      dropMedal(machine, 40);
+      dropAt(machine, 40);
       step(machine, 1 / 60);
     }
     // Five on their way in: four on the rail and one at the slot. Each is drawn where its way has taken it.
@@ -401,7 +401,7 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     for (const [aim, arm] of [[30, 0], [70, 1]] as const) {
       const machine = createMachine(3);
-      dropMedal(machine, aim);
+      dropAt(machine, aim);
       const collar = armCollar(arm);
       // Fed: in front of the mouth, nearer the player than the slot, its whole face showing.
       const fed = fedSpot(arm, machine.tips[arm], machine.rolling[0].remaining);
@@ -427,7 +427,7 @@ describe('the feed arms on the canvas', () => {
     fakeDocument();
     for (const aim of [25, 50, 75]) {
       const machine = createMachine(3);
-      dropMedal(machine, aim);
+      dropAt(machine, aim);
       step(machine, ROLL_TIME - 1e-4);
       expect(machine.rolling).toHaveLength(1);
       const tip = armTip(aim < FIELD.width / 2 ? 0 : 1, aim);
@@ -452,14 +452,14 @@ describe('the feed arms on the canvas', () => {
     const machine = createMachine(3);
     point(machine, 12);
     // A medal goes into the left arm, and the aim jumps across the field: the arm sets off after it.
-    dropMedal(machine, 12);
+    dropAt(machine, 12);
     step(machine, FEED.slot + 0.2);
-    aimArms(machine, 90);
+    aimBoth(machine, 90);
     step(machine, 4 / 60);
     const [left, right] = machine.tips;
     expect(left).toBeCloseTo(12 + (4 * ARMS.speed) / 60, 9);
     expect(left).toBeLessThan(ARM_REACH[0].max - 20);
-    expect(right).toBeGreaterThan(armRest(1));
+    expect(right).toBeGreaterThan(armStart(1));
     expect(right).toBeLessThan(90);
     const spot = rollingSpot(0, left, machine.rolling[0].remaining);
     const pictures = [false, true].map((calm) => {
@@ -486,11 +486,11 @@ describe('the feed arms on the canvas', () => {
     const machine = createMachine(3);
     machine.rng = () => 0.5;
     point(machine, 10);
-    dropMedal(machine, 10);
+    dropAt(machine, 10);
     step(machine, ROLL_TIME - 1 / 60);
     expect(machine.tips[0]).toBe(10);
     // The aim jumps to the far side in the very step the medal reaches the end of its rail.
-    aimArms(machine, 90);
+    aimBoth(machine, 90);
     step(machine, 1 / 60);
     expect(machine.rolling).toEqual([]);
     const [medal] = machine.falling;
@@ -515,33 +515,41 @@ describe('the feed arms on the canvas', () => {
   it('keeps an arm over the aim past the middle while a medal is on its rail, and draws the medal on it there', () => {
     fakeDocument();
     const machine = createMachine(3);
-    dropMedal(machine, 45);
+    dropAt(machine, 45);
     step(machine, FEED.slot + 0.3);
-    aimArms(machine, 58);
+    aimBoth(machine, 58);
     step(machine, 0.1);
     expect(machine.tips).toEqual([58, 58]);
     const spot = rollingSpot(0, 58, machine.rolling[0].remaining);
     expect(stampAt(frame(machine).stamps, spot.x, spot.height, spot.depth).off).toBeLessThan(1e-6);
   });
 
-  it('shows under the tip how far from it a medal can land, when it is asked to', () => {
+  it('shows under each arm’s tip how far from it a medal can land, when it is asked to', () => {
     fakeDocument();
     const machine = createMachine(3);
     point(machine, 40);
-    // It hangs from the foot of a medal at the tip, out over the pusher where the tip is.
+    // A guide hangs from the foot of a medal at each tip, out over the pusher where the tip is: one for the left
+    // arm, which has been pointed, and one for the right, which is where a new machine has it.
     const apex = project(40, ARMS.tip - MEDAL_RADIUS, ARMS.depth);
-    expect(near(frame(machine, true).starts, apex.x, apex.y)).toBe(true);
-    expect(near(frame(machine, false).starts, apex.x, apex.y)).toBe(false);
-    // It hangs under the tip of the arm that takes the next medal, so while that arm is still on its way to an aim
-    // that has jumped, it is where a medal leaving now would be let go, not where the aim is.
-    aimArms(machine, 85);
+    const other = project(armStart(1), ARMS.tip - MEDAL_RADIUS, ARMS.depth);
+    const shown = frame(machine, true).starts;
+    expect(near(shown, apex.x, apex.y)).toBe(true);
+    expect(near(shown, other.x, other.y)).toBe(true);
+    const hidden = frame(machine, false).starts;
+    expect(near(hidden, apex.x, apex.y)).toBe(false);
+    expect(near(hidden, other.x, other.y)).toBe(false);
+    // Each hangs under its own arm's tip, so while an arm is still on its way to an aim that has jumped, its guide
+    // is where a medal leaving it now would be let go, not where the aim is. The other arm's guide has not moved.
+    aimSide(machine, 85);
     step(machine, 1 / 60);
-    const [, right] = machine.tips;
+    const [left, right] = machine.tips;
+    expect(left).toBe(40);
     expect(right).toBeLessThan(85);
     const swinging = project(right, ARMS.tip - MEDAL_RADIUS, ARMS.depth);
     const there = project(85, ARMS.tip - MEDAL_RADIUS, ARMS.depth);
     const { starts } = frame(machine, true);
     expect(near(starts, swinging.x, swinging.y)).toBe(true);
     expect(near(starts, there.x, there.y)).toBe(false);
+    expect(near(starts, apex.x, apex.y)).toBe(true);
   });
 });

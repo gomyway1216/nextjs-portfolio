@@ -1733,8 +1733,8 @@
   width: 100%;
   /* The drawing's own shape; the cabinet sets it from the camera's numbers. */
   aspect-ratio: 640 / 860;
-  cursor: crosshair;
-  /* A vertical swipe still scrolls the page; a tap or a sideways drag aims. */
+  cursor: ew-resize;
+  /* A vertical swipe still scrolls the page; a tap or a sideways drag aims the rail on that half. */
   touch-action: pan-y;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -1850,15 +1850,17 @@
   margin-top: 6px;
 }
 
-/* The control panel */
+/* The control panel: a feed button for each rail at either end, the medals on a plate between them, and under
+   them an aim for each rail and the switches. */
 .panel {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    'credit aim drop'
-    'credit toggles drop';
+    'left credit right'
+    'aims aims aims'
+    'toggles toggles toggles';
   align-items: center;
-  gap: 0.45rem 0.7rem;
+  gap: 0.55rem 0.7rem;
   margin-top: 8px;
   padding: 0.6rem 0.7rem;
   border-radius: 6px 6px 14px 14px;
@@ -1867,11 +1869,12 @@
 }
 .credit {
   grid-area: credit;
+  justify-self: center;
   display: grid;
   justify-items: center;
   gap: 0.1rem;
-  min-width: 4.6rem;
-  padding: 0.35rem 0.6rem;
+  min-width: min(100%, 7.5rem);
+  padding: 0.45rem 0.9rem;
   border-radius: 10px;
   border: 1px solid #4b3f8a;
   background: #0b0620;
@@ -1890,17 +1893,67 @@
   color: #ffe98a;
   text-shadow: 0 0 10px rgba(255, 214, 92, 0.6);
 }
+.aims {
+  grid-area: aims;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.7rem;
+}
 .aim {
-  grid-area: aim;
   display: grid;
   gap: 0.15rem;
   min-width: 0;
 }
+.aim[data-arm='1'] .aimLabel {
+  flex-direction: row-reverse;
+}
 .aimLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
   font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: #cfc6ff;
+}
+.aimKeys {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+/* A key of the keyboard, written on what it works. It is shown only where there is likely to be a keyboard: a
+   device with a pointer that can hover and point finely. A phone or a tablet shows none. */
+.keyCap {
+  display: none;
+  min-width: 1.35em;
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-bottom-width: 2px;
+  background: #0b0620;
+  color: #f4f1ff;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-align: center;
+}
+.keysNote {
+  display: none;
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #cfc6ff;
+}
+@media (hover: hover) and (pointer: fine) {
+  .keyCap {
+    display: inline-block;
+  }
+  .keysNote {
+    display: block;
+  }
 }
 .aimSlider {
   width: 100%;
@@ -1910,6 +1963,7 @@
   grid-area: toggles;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
 }
 .toggle {
@@ -1931,32 +1985,54 @@
   background: var(--mp-neon);
   color: #03202a;
 }
-.drop {
-  grid-area: drop;
+/* A rail's feed button: a big round arcade button at its own end of the panel. Two of them are held down at once
+   with two fingers, so a touch on one is the button's alone: the browser does not scroll, zoom or select with it. */
+.feed {
+  position: relative;
   appearance: none;
-  width: clamp(4.4rem, 19vw, 5.6rem);
+  display: grid;
+  place-items: center;
+  width: clamp(4.8rem, 23vw, 6rem);
   aspect-ratio: 1;
   border-radius: 50%;
   border: 3px solid #fff3b0;
   background: radial-gradient(circle at 35% 30%, #fff3b0 0%, #f6c544 45%, #b97c0c 100%);
   color: #2a1700;
-  font-size: clamp(0.85rem, 3.4vw, 1.05rem);
-  font-weight: 900;
-  letter-spacing: 0.06em;
   box-shadow:
     0 5px 0 #6b4504,
     0 8px 16px rgba(0, 0, 0, 0.5);
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.drop:active:not(:disabled) {
+.feed[data-arm='0'] {
+  grid-area: left;
+}
+.feed[data-arm='1'] {
+  grid-area: right;
+}
+.feedLetter {
+  font-size: clamp(1.7rem, 8vw, 2.2rem);
+  font-weight: 900;
+  line-height: 1;
+}
+.feed .keyCap {
+  position: absolute;
+  bottom: 9%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+/* Held down, by a finger or by its key. */
+.feed[data-held='true']:not(:disabled) {
   transform: translateY(3px);
   box-shadow:
     0 2px 0 #6b4504,
     0 4px 10px rgba(0, 0, 0, 0.5);
 }
-.drop:disabled {
+.feed:disabled {
   border-color: #6a6480;
   background: #3b3555;
   color: #b9b3d0;
@@ -1977,14 +2053,14 @@
 }
 .chest:focus-visible,
 .toggle:focus-visible,
-.drop:focus-visible,
+.feed:focus-visible,
 .refill:focus-visible,
 .aimSlider:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .drop:active:not(:disabled) {
+  .feed[data-held='true']:not(:disabled) {
     transform: none;
   }
 }

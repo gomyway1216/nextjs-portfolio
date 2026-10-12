@@ -23,11 +23,11 @@
  * back of the pusher.
  */
 
-import { ARM_REST, ARM_SPEED, FEED, FIELD, MEDAL_RADIUS, ROLL_TIME, armFor, tipOf, type Arm, type FallingMedal } from './engine';
+import { ARM_SPEED, ARM_START, FEED, FIELD, MEDAL_RADIUS, ROLL_TIME, armFor, tipOf, type Arm, type FallingMedal } from './engine';
 import { HEIGHT, HOUSING } from './view';
 
 // How a tip moves is the engine's business; it is handed on from here so that the arms can be read about in one place.
-export { armGoal, armRest, swing } from './engine';
+export { armGoal, armStart, swing } from './engine';
 
 /** A place in the cabinet: across the field, above the lower table, and out from the back wall. */
 export interface Spot {
@@ -54,8 +54,8 @@ export const ARMS = {
    * medal at its tip is ever in front of the screen or the lamps under it.
    */
   depth: 22,
-  /** An arm with nothing to do rests with its tip this far short of the middle. */
-  rest: ARM_REST,
+  /** A new machine's arms each point this far to their own side of the middle. */
+  start: ARM_START,
   /** How fast the machine swings a tip to where it belongs, in field units a second. */
   speed: ARM_SPEED,
   /** How far a medal on a rail leans back against the wall of its channel, in radians from upright. Its face is turned up toward the middle of the cabinet, where the player looks from. */
@@ -239,8 +239,8 @@ export function airSpot(medal: FallingMedal, rest: number): Spot {
  * How a medal that has just left an arm is held: as it was on the rail,
  * which is how its fall begins. A falling medal does not say which arm it
  * left. Whoever watched it roll says so with `arm`; otherwise it is taken to
- * be the arm on the side it left from, which is the arm the machine feeds
- * for an aim there.
+ * be the arm on the side it left from, which is a guess where the two arms'
+ * reaches overlap.
  */
 export function leftHeld(medal: FallingMedal, arm: Arm = armFor(medal.fromX)): { tilt: number; heading: number } {
   return { tilt: Math.PI / 2 - ARMS.lean, heading: railHeading(arm, medal.fromX) };

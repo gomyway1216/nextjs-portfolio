@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AIM,
   ARM_REACH,
-  ARM_REST,
+  ARM_START,
   ARM_SPEED,
   BALL_SPOTS,
   CHECKERS,
@@ -19,17 +19,17 @@ import {
   ROLL_TIME,
   TOWER,
   TOWER_SITES,
-  aimArms,
   armFor,
   armGoal,
-  armRest,
+  aimArm,
+  armStart,
+  dropMedal,
   ballsOnField,
   buildTowers,
   checkerAt,
   clampAim,
   createMachine,
   dropBall,
-  dropMedal,
   medalsOnField,
   pusherFront,
   queuePayout,
@@ -38,10 +38,13 @@ import {
   tipOf,
   towerSizes,
   worstOverlap,
+  type Arm,
   type Machine,
   type Medal,
   type StepEvents,
 } from '@/components/game/MedalPusher/engine';
+
+import { aimBoth, dropAt } from './feeding';
 
 const DT = 1 / 60;
 /** Tests that run the field for a minute or more of its own time get room on a slow machine. */
@@ -66,14 +69,14 @@ function run(machine: Machine, seconds: number, aim?: Aim, every = 0.25) {
     if (aim !== undefined && clock >= every) {
       clock = 0;
       const spot = followed ?? (typeof aim === 'function' ? aim(dropped) : (aim as number));
-      if (dropMedal(machine, spot)) {
+      if (dropAt(machine, spot)) {
         dropped++;
         meant.push(spot);
       }
     }
     meant.splice(0, meant.length - machine.rolling.length);
-    if (followed !== undefined) aimArms(machine, followed);
-    else if (meant.length > 0) aimArms(machine, meant[0]);
+    if (followed !== undefined) aimBoth(machine, followed);
+    else if (meant.length > 0) aimBoth(machine, meant[0]);
     const events = step(machine, DT);
     total.won += events.won;
     total.lost += events.lost;
@@ -251,12 +254,12 @@ describe('a machine that has just been switched on', () => {
 describe('dropping a medal', () => {
   it('takes one medal every drop interval and lands it near the aim', () => {
     const machine = createMachine(11);
-    expect(dropMedal(machine, 40)).toBe(true);
-    expect(dropMedal(machine, 40)).toBe(false);
+    expect(dropAt(machine, 40)).toBe(true);
+    expect(dropAt(machine, 40)).toBe(false);
     step(machine, DROP_INTERVAL / 2);
-    expect(dropMedal(machine, 40)).toBe(false);
+    expect(dropAt(machine, 40)).toBe(false);
     step(machine, DROP_INTERVAL / 2 + 1e-6);
-    expect(dropMedal(machine, 40)).toBe(true);
+    expect(dropAt(machine, 40)).toBe(true);
     // Both are on the left arm's rail, the first a drop interval further down it. Neither is in the air yet.
     expect(machine.falling).toHaveLength(0);
     expect(machine.rolling.map((medal) => medal.arm)).toEqual([0, 0]);
@@ -280,13 +283,13 @@ describe('dropping a medal', () => {
     expect(machine.falling[0].remaining).toBeCloseTo(FALL_TIME - DROP_INTERVAL, 5);
     expect(machine.falling[1].remaining).toBeCloseTo(FALL_TIME, 9);
     expect(machine.falling[1].remaining).toBeLessThanOrEqual(FALL_TIME);
-    expect(() => dropMedal(machine, Number.NaN)).toThrow();
+    expect(() => dropAt(machine, Number.NaN)).toThrow();
   });
 
   it('lands a roll and a fall after it is fed, on the pusher', () => {
     const machine = createMachine(11);
     const before = machine.medals.length;
-    dropMedal(machine, 60);
+    dropAt(machine, 60);
     expect(step(machine, ROLL_TIME + FALL_TIME - 0.05).landed).toBe(0);
     expect(machine.falling).toHaveLength(1);
     expect(step(machine, 0.1).landed).toBe(1);
@@ -299,8 +302,8 @@ describe('dropping a medal', () => {
   it('bunches its landings round the aim', () => {
     const machine = createMachine(3);
     for (let i = 0; i < 4000; i++) {
-      machine.cooldown = 0;
-      dropMedal(machine, 50);
+      machine.waits = [0, 0];
+      dropAt(machine, 50);
     }
     // All of them drop off the tip together, each a little to one side of it.
     step(machine, ROLL_TIME);
@@ -313,34 +316,91 @@ describe('dropping a medal', () => {
     expect(Math.abs(offsets.reduce((sum, offset) => sum + offset, 0) / offsets.length)).toBeLessThan(0.3);
   });
 
-  it('feeds the arm on the side a medal is aimed at', () => {
+  it('feeds the arm it is told to, and each arm’s slot waits on its own', () => {
+    const machine = createMachine(11);
+    // A new machine's arms each point a little to their own side of the middle, and both slots are free.
+    expect(machine.aims).toEqual([armStart(0), armStart(1)]);
+    expect(machine.waits).toEqual([0, 0]);
+    expect(machine.rolling).toEqual([]);
+    // Both arms take a medal in the same instant. Feeding moves neither arm's aim.
+    expect(dropMedal(machine, 0)).toBe(true);
+    expect(dropMedal(machine, 1)).toBe(true);
+    expect(machine.rolling).toEqual([
+      { id: expect.any(Number), arm: 0, remaining: ROLL_TIME },
+      { id: expect.any(Number), arm: 1, remaining: ROLL_TIME },
+    ]);
+    expect(machine.aims).toEqual([armStart(0), armStart(1)]);
+    expect(machine.waits).toEqual([DROP_INTERVAL, DROP_INTERVAL]);
+    // Neither takes another until its own wait is over.
+    expect(dropMedal(machine, 0)).toBe(false);
+    expect(dropMedal(machine, 1)).toBe(false);
+    expect(machine.rolling).toHaveLength(2);
+    // The two waits run side by side, and one arm's wait is nothing to the other: the left arm, fed again a
+    // moment after the right, is still waiting when the right arm's slot is free.
+    step(machine, DROP_INTERVAL - 0.05);
+    machine.waits[0] = DROP_INTERVAL;
+    step(machine, 0.05 + 1e-6);
+    expect(machine.waits[1]).toBe(0);
+    expect(machine.waits[0]).toBeCloseTo(DROP_INTERVAL - 0.05, 5);
+    expect(dropMedal(machine, 0)).toBe(false);
+    expect(dropMedal(machine, 1)).toBe(true);
+    step(machine, DROP_INTERVAL - 0.05);
+    expect(dropMedal(machine, 0)).toBe(true);
+    expect(dropMedal(machine, 1)).toBe(false);
+    expect(machine.rolling.map((medal) => medal.arm)).toEqual([0, 1, 1, 0]);
+    // Flat out, two arms feed twice what one does: a medal each, every wait.
+    const both = createMachine(11);
+    let fed = 0;
+    for (let i = 0; i < 120; i++) {
+      for (const arm of [0, 1] as const) if (dropMedal(both, arm)) fed++;
+      step(both, DT);
+    }
+    expect(fed).toBe(2 * Math.ceil(2 / (Math.ceil(DROP_INTERVAL / DT - 1e-6) * DT)));
+    // There is a left arm and a right arm, and no other.
+    expect(() => dropMedal(machine, 2 as Arm)).toThrow();
+    expect(() => dropMedal(machine, Number.NaN as Arm)).toThrow();
+    // The arm on a side of the field is the one whose half that is.
     expect(armFor(AIM.min)).toBe(0);
     expect(armFor(FIELD.width / 2 - 0.01)).toBe(0);
     expect(armFor(FIELD.width / 2)).toBe(1);
     expect(armFor(AIM.max)).toBe(1);
+  });
+
+  it('points each arm on its own, within its reach, and never past the other', () => {
     const machine = createMachine(11);
-    // A new machine's arms point at the middle.
-    expect(machine.aim).toBe(FIELD.width / 2);
-    expect(machine.rolling).toEqual([]);
-    const aims: [number, number][] = [[30, 0], [70, 1], [49, 0], [51, 1]];
-    for (const [aim, arm] of aims) {
-      machine.cooldown = 0;
-      expect(dropMedal(machine, aim)).toBe(true);
-      expect(machine.rolling[machine.rolling.length - 1]).toMatchObject({ arm, remaining: ROLL_TIME });
-      // Feeding a medal points the arms where it was aimed.
-      expect(machine.aim).toBe(aim);
-    }
-    // A medal the slot does not take leaves the arms where they are.
-    expect(dropMedal(machine, 20)).toBe(false);
-    expect(machine.aim).toBe(51);
-    // The aim is held inside the field, and has to be a number.
-    aimArms(machine, -40);
-    expect(machine.aim).toBe(AIM.min);
-    aimArms(machine, 400);
-    expect(machine.aim).toBe(AIM.max);
-    expect(() => aimArms(machine, Number.NaN)).toThrow();
-    expect(() => aimArms(machine, Number.POSITIVE_INFINITY)).toThrow();
-    expect(machine.aim).toBe(AIM.max);
+    aimArm(machine, 0, 20);
+    expect(machine.aims).toEqual([20, armStart(1)]);
+    aimArm(machine, 1, 80);
+    expect(machine.aims).toEqual([20, 80]);
+    // An aim is held inside the arm's own reach.
+    aimArm(machine, 0, -40);
+    expect(machine.aims[0]).toBe(ARM_REACH[0].min);
+    aimArm(machine, 1, 400);
+    expect(machine.aims[1]).toBe(ARM_REACH[1].max);
+    aimArm(machine, 0, 400);
+    expect(machine.aims).toEqual([ARM_REACH[0].max, ARM_REACH[1].max]);
+    // The rails do not cross: an arm can be brought up to the other's aim and no further, from either side.
+    aimArm(machine, 1, -40);
+    expect(machine.aims).toEqual([ARM_REACH[0].max, ARM_REACH[0].max]);
+    aimArm(machine, 0, 45);
+    aimArm(machine, 1, 42);
+    expect(machine.aims).toEqual([45, 45]);
+    aimArm(machine, 1, 70);
+    aimArm(machine, 0, 90);
+    expect(machine.aims).toEqual([ARM_REACH[0].max, 70]);
+    aimArm(machine, 1, 52);
+    expect(machine.aims).toEqual([ARM_REACH[0].max, ARM_REACH[0].max]);
+    aimArm(machine, 0, 58);
+    expect(machine.aims).toEqual([58, ARM_REACH[0].max]);
+    // Both can point down the middle at once.
+    aimArm(machine, 0, 10);
+    aimArm(machine, 1, 50);
+    aimArm(machine, 0, 50);
+    expect(machine.aims).toEqual([50, 50]);
+    // An aim has to be a number, and one that is not changes nothing.
+    expect(() => aimArm(machine, 0, Number.NaN)).toThrow();
+    expect(() => aimArm(machine, 1, Number.POSITIVE_INFINITY)).toThrow();
+    expect(machine.aims).toEqual([50, 50]);
   });
 
   it('gives each arm its own side and a little of the other, enough for the column behind the centre chucker', () => {
@@ -375,10 +435,10 @@ describe('dropping a medal', () => {
       machine.rng = () => {
         throw new Error('nothing is drawn while a medal is on its rail');
       };
-      dropMedal(machine, fed);
+      dropAt(machine, fed);
       step(machine, ROLL_TIME / 2);
       expect(machine.rolling).toHaveLength(1);
-      aimArms(machine, then);
+      aimBoth(machine, then);
       machine.rng = () => 0.5;
       step(machine, ROLL_TIME / 2);
       expect(machine.rolling).toHaveLength(0);
@@ -396,98 +456,112 @@ describe('dropping a medal', () => {
     expect(letGo(70, 8)).toEqual({ from: ARM_REACH[1].min, x: ARM_REACH[1].min });
   });
 
-  it('has its arms where they belong when it is switched on, and swings a tip there at the arms’ own speed', () => {
+  it('has its arms over their aims when it is switched on, and swings a tip to a new aim at the arms’ own speed', () => {
     const machine = createMachine(11);
-    // The aim is on the middle, which is the right arm's side: its tip is over it, and the left arm rests.
-    expect(armRest(0)).toBe(FIELD.width / 2 - ARM_REST);
-    expect(armRest(1)).toBe(FIELD.width / 2 + ARM_REST);
-    expect(machine.tips).toEqual([armRest(0), FIELD.width / 2]);
+    // Each arm points a little to its own side of the middle, and its tip is there already.
+    expect(armStart(0)).toBe(FIELD.width / 2 - ARM_START);
+    expect(armStart(1)).toBe(FIELD.width / 2 + ARM_START);
+    expect(machine.tips).toEqual([armStart(0), armStart(1)]);
     expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual(machine.tips);
     step(machine, 1);
-    expect(machine.tips).toEqual([armRest(0), FIELD.width / 2]);
-    // Pointing the arms moves nothing by itself: they swing as the machine runs, a step's worth at a time.
-    aimArms(machine, 10);
-    expect(machine.tips).toEqual([armRest(0), FIELD.width / 2]);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([10, armRest(1)]);
+    expect(machine.tips).toEqual([armStart(0), armStart(1)]);
+    // Pointing an arm moves nothing by itself: it swings as the machine runs, a step's worth at a time.
+    // The other arm has not been pointed anywhere new, and stays.
+    aimArm(machine, 0, 10);
+    expect(machine.tips).toEqual([armStart(0), armStart(1)]);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([10, armStart(1)]);
     step(machine, DT);
-    expect(machine.tips[0]).toBeCloseTo(armRest(0) - ARM_SPEED * DT, 9);
-    expect(machine.tips[1]).toBeCloseTo(FIELD.width / 2 + ARM_SPEED * DT, 9);
-    // They get there and stop, neither a hair past it.
+    expect(machine.tips[0]).toBeCloseTo(armStart(0) - ARM_SPEED * DT, 9);
+    expect(machine.tips[1]).toBe(armStart(1));
+    // It gets there and stops, not a hair past it.
     step(machine, 0.2);
-    expect(machine.tips).toEqual([10, armRest(1)]);
+    expect(machine.tips).toEqual([10, armStart(1)]);
     // An aim that moves no faster than the arms is followed to the digit, step by step.
     for (let i = 1; i <= 20; i++) {
-      aimArms(machine, 10 + i);
+      aimArm(machine, 0, 10 + i);
       step(machine, DT);
       expect(machine.tips[0]).toBe(10 + i);
     }
-    // One long step takes a tip as far as the short ones it is cut into. The left arm, with the aim gone
-    // to the other side and nothing on its rail, is back at rest in that time.
-    expect(machine.tips).toEqual([30, armRest(1)]);
-    aimArms(machine, 90);
+    // One long step takes a tip as far as the short ones it is cut into. The left arm, with nothing on its
+    // rail and nobody moving its aim, stays where it is pointed: an arm has no other place to go back to.
+    expect(machine.tips).toEqual([30, armStart(1)]);
+    aimArm(machine, 1, 90);
     step(machine, 0.05);
-    expect(machine.tips[1]).toBeCloseTo(armRest(1) + ARM_SPEED * 0.05, 9);
-    expect(machine.tips[0]).toBe(armRest(0));
+    expect(machine.tips[1]).toBeCloseTo(armStart(1) + ARM_SPEED * 0.05, 9);
+    expect(machine.tips[0]).toBe(30);
+    step(machine, 5);
+    expect(machine.tips).toEqual([30, 90]);
     // No time, no movement.
     const before = [...machine.tips];
     step(machine, 0);
     expect(machine.tips).toEqual(before);
   });
 
-  it('keeps an arm with a medal on its rail after the aim, as far as it reaches, and sends it to rest when the rail is empty', () => {
+  it('keeps each arm on its own aim, whatever the other does and whether or not a medal is on its rail', () => {
     const machine = createMachine(11);
     machine.rng = () => 0.5;
-    dropMedal(machine, 30);
+    dropAt(machine, 30);
     step(machine, 0.1);
-    expect(machine.tips).toEqual([30, armRest(1)]);
-    // The aim crosses to the other side: both arms are over it, past the middle.
-    aimArms(machine, 56);
+    expect(machine.tips).toEqual([30, armStart(1)]);
+    // The right arm is swung away. The left arm, with the medal on it, is not moved by that.
+    aimArm(machine, 1, 80);
     step(machine, 0.1);
-    expect(machine.tips).toEqual([56, 56]);
-    // Further than the left arm reaches, it stops at the end of its reach, and its medal leaves from there
-    // when it has come all its way: this is all of that but the last tenth of a second.
-    aimArms(machine, 80);
+    expect(machine.tips[0]).toBe(30);
+    // The left arm is pointed further than it reaches: it stops at the end of its reach, and its medal leaves
+    // from there when it has come all its way. This is all of that but the last tenth of a second.
+    aimArm(machine, 0, 80);
     step(machine, ROLL_TIME - 0.3);
     expect(machine.tips).toEqual([ARM_REACH[0].max, 80]);
     expect(machine.falling).toEqual([]);
     step(machine, 0.1);
     expect(machine.falling[0].fromX).toBe(ARM_REACH[0].max);
-    step(machine, 0.2);
-    expect(machine.tips).toEqual([armRest(0), 80]);
+    // Its rail empty, it stays where it is pointed.
+    step(machine, 0.5);
+    expect(machine.tips).toEqual([ARM_REACH[0].max, 80]);
   });
 
-  it('crosses an arm’s whole reach in less than the slot’s wait, so a medal’s arm can always be over its spot in time', () => {
+  it('crosses an arm’s whole reach in less than its slot’s wait, so a medal’s arm can always be over its spot in time', () => {
     for (const arm of [0, 1] as const) expect((ARM_REACH[arm].max - ARM_REACH[arm].min) / ARM_SPEED).toBeLessThan(DROP_INTERVAL);
-    // The most a stream can ask of an arm: medals as fast as the slot feeds them, meant by turns for
-    // the two ends of one arm's reach. The medals for its far end go into the other arm, which takes
-    // this one with it. Then the two edges by turns, which asks the same of both arms at once.
-    const streams: ((n: number) => number)[] = [
-      (n) => (n % 2 === 0 ? ARM_REACH[0].min : ARM_REACH[0].max),
-      (n) => (n % 2 === 0 ? ARM_REACH[1].max : ARM_REACH[1].min),
-      (n) => (n % 2 === 0 ? AIM.min : AIM.max),
+    // The most a stream can ask of an arm: medals as fast as its slot feeds them, meant by turns for the two
+    // ends of its reach. Each arm is asked that with the other out of its way, and then both are at once, each
+    // over its own half of the field.
+    const asked: { spots: [(n: number) => number, (n: number) => number]; feed: Arm[] }[] = [
+      { spots: [(n) => (n % 2 === 0 ? ARM_REACH[0].min : ARM_REACH[0].max), () => AIM.max], feed: [0] },
+      { spots: [() => AIM.min, (n) => (n % 2 === 0 ? ARM_REACH[1].max : ARM_REACH[1].min)], feed: [1] },
+      { spots: [(n) => (n % 2 === 0 ? AIM.min : FIELD.width / 2), (n) => (n % 2 === 0 ? AIM.max : FIELD.width / 2)], feed: [0, 1] },
     ];
-    for (const spot of streams) {
+    for (const { spots, feed } of asked) {
       const machine = createMachine(11);
       machine.rng = () => 0.5;
-      const meant: number[] = [];
-      const fed: number[] = [];
-      const letGo = new Map<number, number>();
+      aimArm(machine, 0, spots[0](0));
+      aimArm(machine, 1, spots[1](0));
+      const meant: [number[], number[]] = [[], []];
+      const fed: [number[], number[]] = [[], []];
+      const letGo: [Map<number, number>, Map<number, number>] = [new Map(), new Map()];
       for (let i = 0; i < 60 * 6; i++) {
-        if (dropMedal(machine, spot(fed.length))) {
-          meant.push(spot(fed.length));
-          fed.push(spot(fed.length));
+        for (const arm of feed) {
+          if (dropMedal(machine, arm)) {
+            meant[arm].push(spots[arm](fed[arm].length));
+            fed[arm].push(spots[arm](fed[arm].length));
+          }
+          // Each arm is held where the medal that leaves it next is meant to drop.
+          meant[arm].splice(0, meant[arm].length - machine.rolling.filter((medal) => medal.arm === arm).length);
+          aimArm(machine, arm, meant[arm][0]);
         }
-        // The arms are held where the medal that leaves next is meant to drop.
-        meant.splice(0, meant.length - machine.rolling.length);
-        aimArms(machine, meant[0]);
+        const onRail = new Map(machine.rolling.map((medal) => [medal.id, medal.arm]));
         step(machine, DT);
-        for (const medal of machine.falling) letGo.set(medal.id, medal.fromX);
+        for (const medal of machine.falling) {
+          const arm = onRail.get(medal.id);
+          if (arm !== undefined) letGo[arm].set(medal.id, medal.fromX);
+        }
       }
-      // One medal every eleven steps, and each left its arm exactly over its own spot.
-      expect(fed.length).toBeGreaterThan(30);
-      // All but the few still on their way in at the end.
-      expect(letGo.size).toBeGreaterThanOrEqual(fed.length - Math.ceil(ROLL_TIME / DROP_INTERVAL));
-      expect([...letGo.values()]).toEqual(fed.slice(0, letGo.size));
+      for (const arm of feed) {
+        // One medal every eleven steps, and each left its arm exactly over its own spot.
+        expect(fed[arm].length).toBeGreaterThan(30);
+        // All but the few still on their way in at the end.
+        expect(letGo[arm].size).toBeGreaterThanOrEqual(fed[arm].length - Math.ceil(ROLL_TIME / DROP_INTERVAL));
+        expect([...letGo[arm].values()]).toEqual(fed[arm].slice(0, letGo[arm].size));
+      }
     }
   });
 
@@ -496,12 +570,12 @@ describe('dropping a medal', () => {
     const jump = (early: number) => {
       const machine = createMachine(11);
       machine.rng = () => 0.5;
-      aimArms(machine, 10);
+      aimBoth(machine, 10);
       step(machine, 0.5);
-      dropMedal(machine, 10);
+      dropAt(machine, 10);
       for (let i = 0; i < Math.round(ROLL_TIME / DT) - early; i++) step(machine, DT);
       expect(machine.tips[0]).toBe(10);
-      aimArms(machine, 90);
+      aimBoth(machine, 90);
       for (let i = 0; i < early; i++) step(machine, DT);
       expect(machine.rolling).toEqual([]);
       const [medal] = machine.falling;
@@ -518,21 +592,26 @@ describe('dropping a medal', () => {
     expect(jump(4).tips[0]).toBeCloseTo(10 + 4 * ARM_SPEED * DT, 9);
     // Given the time, the arm is at the end of its reach before the medal is at the tip.
     expect(jump(12).tips[0]).toBe(ARM_REACH[0].max);
-    // Its rail empty and the aim on the other side, the arm goes to rest.
+    // Its rail empty, the arm carries on to where it is pointed, and stays there.
     step(late, 0.2);
-    expect(late.tips).toEqual([armRest(0), 90]);
+    expect(late.tips).toEqual([ARM_REACH[0].max, 90]);
+    step(late, 2);
+    expect(late.tips).toEqual([ARM_REACH[0].max, 90]);
   });
 
-  it('never lets the two tips pass each other or leave their reach, wherever the aim goes', () => {
+  it('never lets the two tips pass each other or leave their reach, wherever each arm is pointed', () => {
     const machine = createMachine(11);
     const random = seededRng(3);
     const anywhere = () => AIM.min + random() * (AIM.max - AIM.min);
+    const either = (): Arm => (random() < 0.5 ? 0 : 1);
     let apart = 0;
     let together = 0;
     for (let i = 0; i < 2500; i++) {
-      if (random() < 0.25) aimArms(machine, anywhere());
-      if (random() < 0.15) dropMedal(machine, anywhere());
+      if (random() < 0.25) aimArm(machine, either(), anywhere());
+      if (random() < 0.15) dropMedal(machine, either());
       step(machine, random() < 0.2 ? random() * 0.1 : DT);
+      // The aims are held that way round, and so are the tips, which only ever swing towards them.
+      expect(machine.aims[0]).toBeLessThanOrEqual(machine.aims[1]);
       const [left, right] = machine.tips;
       expect(left).toBeLessThanOrEqual(right);
       expect(left).toBeGreaterThanOrEqual(ARM_REACH[0].min);
@@ -542,7 +621,7 @@ describe('dropping a medal', () => {
       if (left < right) apart++;
       else together++;
     }
-    // Most of the time they are apart; now and then both are over an aim near the middle.
+    // Most of the time they are apart; now and then one has been brought right up to the other.
     expect(apart).toBeGreaterThan(1500);
     expect(together).toBeGreaterThan(0);
   }, LONG);
@@ -554,10 +633,10 @@ describe('dropping a medal', () => {
       // Two machines alike. One has arms and is fed a roll before the moment; the other is left alone until then.
       const [armed, bare] = [createMachine(seed, 2), createMachine(seed, 2)];
       for (const machine of [armed, bare]) step(machine, at);
-      expect(dropMedal(armed, aim)).toBe(true);
+      expect(dropAt(armed, aim)).toBe(true);
       const steps = Math.round(ROLL_TIME / DT);
       for (let i = 0; i < steps; i++) {
-        if (jumpTo !== undefined && i === steps - 2) aimArms(armed, jumpTo);
+        if (jumpTo !== undefined && i === steps - 2) aimBoth(armed, jumpTo);
         for (const machine of [armed, bare]) step(machine, DT);
       }
       // The medal left from where its arm's tip was: over the aim if the arm had got there, and on the way if the aim had just jumped.
@@ -589,7 +668,7 @@ describe('dropping a medal', () => {
     for (const pieces of cuts) {
       expect(pieces.reduce((sum, piece) => sum + piece, 0)).toBeCloseTo(ROLL_TIME + FALL_TIME, 9);
       const machine = createMachine(11);
-      dropMedal(machine, 60);
+      dropAt(machine, 60);
       // An instant short of its roll and its fall it is still in the air, and at the end of them it is down.
       let landed = 0;
       for (const piece of pieces.slice(0, -1)) landed += step(machine, piece).landed;
@@ -642,7 +721,7 @@ describe('a machine in play', () => {
     for (let i = 0; i < 60 * 30; i++) {
       if (clock >= 0.2) {
         clock = 0;
-        dropMedal(machine, 8 + ((dropped++ * 53) % 84));
+        dropAt(machine, 8 + ((dropped++ * 53) % 84));
       }
       step(machine, DT);
       clock += DT;
@@ -725,7 +804,7 @@ describe('a machine in play', () => {
     for (const aim of CHECKERS.positions) {
       const machine = createMachine(9);
       machine.rng = () => 0.5;
-      dropMedal(machine, aim);
+      dropAt(machine, aim);
       const events = step(machine, ROLL_TIME + FALL_TIME + DT);
       expect(events.landed).toBe(1);
       expect(events.checkers).toEqual([]);
@@ -1008,7 +1087,7 @@ describe('medal towers', () => {
     for (let i = 0; i < 60 * 90 && toppled === 0; i++) {
       if (clock >= 0.25) {
         clock = 0;
-        if (dropMedal(machine, 50)) dropped++;
+        if (dropAt(machine, 50)) dropped++;
       }
       const events = step(machine, DT);
       clock += DT;

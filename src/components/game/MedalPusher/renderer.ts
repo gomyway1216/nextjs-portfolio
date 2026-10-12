@@ -35,6 +35,13 @@ export function askedFor(search: string): RendererKind | null {
  */
 export const sceneContext = (insist: boolean): WebGLContextAttributes => ({ alpha: false, antialias: true, depth: true, stencil: false, failIfMajorPerformanceCaveat: !insist });
 
+/**
+ * How much of a fever's wash of colour goes over the 3D scene. The wash was
+ * made for the canvas renderer's darker gold; at full strength it turns the
+ * 3D medals pale.
+ */
+export const WASH_OVER_3D = 0.5;
+
 export interface FieldRenderer {
   /** Which renderer draws the next frame. It changes only if the graphics card drops the 3D scene, or hands it back. */
   readonly kind: RendererKind;
@@ -111,7 +118,7 @@ export function createRenderer(field: HTMLCanvasElement, under: HTMLCanvasElemen
       if (lively || busy || cleared !== stage) {
         context.setTransform(1, 0, 0, 1, 0, 0);
         context.clearRect(0, 0, field.width, field.height);
-        drawOverlay(context, stage, options.calm);
+        drawOverlay(context, stage, options.calm, WASH_OVER_3D);
         cleared = stage;
         busy = lively;
       }

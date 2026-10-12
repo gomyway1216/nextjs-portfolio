@@ -25,6 +25,7 @@ import {
   PUSHER,
   RELEASE,
   ROLL_TIME,
+  SETTLE,
   SWEEP,
   TOWER,
   aimArms,
@@ -41,12 +42,13 @@ import {
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
 import { BALL_RADIUS, EXIT_TIME, GATE, LIP_FALL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
-import { askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
+import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
 import {
   BEAD,
   BEAD_STRIDE,
   EYE,
   KEY_LIGHT,
+  LEAN,
   MEDAL_STRIDE,
   armTipAt,
   ballShape,
@@ -220,24 +222,63 @@ describe('the medals of the 3D field', () => {
       const medal = medals[index];
       expect(row.x).toBeCloseTo(medal.x, 4);
       expect(row.z).toBeCloseTo(medal.y, 4);
-      // Its middle is half a thickness above what it lies on: the table, the pusher, or the medals of the lower tier.
+      // Its middle is half a thickness above what it lies on: the table, the pusher, or the medals of the lower
+      // tier. One on other medals leans on their edges, which holds it up by a hair more.
       const ground = (medal.level === 1 ? P : 0) + (medal.tier === 1 ? T : 0);
-      expect(row.y).toBeCloseTo(ground + T / 2, 4);
+      if (medal.tier === 0) expect(row.y).toBeCloseTo(ground + T / 2, 4);
+      else expect(row.y - ground - T / 2).toBeCloseTo(R * Math.sqrt(1 - row.up[1] ** 2), 4);
       expect(row.ground).toBeCloseTo(ground, 4);
       expect(row.contact).toBe(1);
       expect(row.light).toBe(1);
-      // It lies very nearly level, and its attitude is a rotation and nothing more.
+      // It lies nearly level, but never quite, and its attitude is a rotation and nothing more.
       expect(Math.hypot(...row.turn)).toBeCloseTo(1, 5);
-      expect(row.up[1]).toBeGreaterThan(0.995);
+      const lean = Math.acos(Math.min(1, row.up[1]));
+      const range = medal.tier === 1 ? LEAN.pile : LEAN.table;
+      expect(lean).toBeGreaterThan(range.least - 1e-4);
+      expect(lean).toBeLessThan(range.most + 1e-4);
     });
+  });
+
+  it('leans every lying medal its own way, a degree or two on the table and more on other medals', () => {
+    // On the table: between two thirds of a degree and three. On other medals: three degrees to seven and a half.
+    expect(LEAN.table.least).toBeGreaterThan(0.01);
+    expect(LEAN.table.most).toBeLessThan(0.055);
+    expect(LEAN.pile.least).toBeGreaterThanOrEqual(LEAN.table.most);
+    expect(LEAN.pile.most).toBeLessThan(0.14);
+    const medals = Array.from({ length: 60 }, (_, i) => lying(i + 1, 5 + i * 1.5, 60, 0, i % 2 === 0 ? 0 : 1));
+    const rows = medalRows(holding(medals));
+    // Which way each one leans is all round the compass, not one way for the whole pile.
+    const headings = rows.map((row) => Math.atan2(row.up[2], row.up[0]));
+    for (let quarter = 0; quarter < 4; quarter++) {
+      const from = -Math.PI + (quarter * Math.PI) / 2;
+      expect(headings.filter((heading) => heading >= from && heading < from + Math.PI / 2).length).toBeGreaterThan(5);
+    }
+    // The lean is fixed by the medal's id: drawn again, or moved by the pusher, it leans exactly as before, so nothing flickers.
+    const again = medalRows(holding(medals.map((medal) => ({ ...medal, x: medal.x + 3, y: medal.y + 7 }))));
+    again.forEach((row, i) => expect(row.turn).toEqual(rows[i].turn));
+    // A medal leaning on others has its low side resting on them, not sunk into them: the lowest point of its under face is where they are.
+    for (const row of rows.filter((_, i) => i % 2 === 1)) {
+      const sine = Math.sqrt(1 - row.up[1] ** 2);
+      expect(row.y - (T / 2) * row.up[1] - R * sine).toBeGreaterThan(T - 0.02);
+      expect(row.y - (T / 2) * row.up[1] - R * sine).toBeLessThan(T + 0.01);
+    }
+    // One that has just come down is level, and leans over as it settles: no jump as it lands.
+    const settling = (grown: number) => Math.acos(Math.min(1, medalRows(holding([lying(7, 40, 20, 1, 1, { grown })]))[0].up[1]));
+    expect(settling(SETTLE.from)).toBeCloseTo(0, 6);
+    expect(settling(0.65)).toBeGreaterThan(0);
+    expect(settling(0.65)).toBeLessThan(settling(1));
+    expect(settling(1)).toBeGreaterThanOrEqual(LEAN.pile.least - 1e-4);
   });
 
   it('lays a medal of the upper tier one thickness higher, and one on the pusher higher by the pusher', () => {
     const [table, onTop, pusher, pusherTop] = medalRows(holding([lying(1, 30, 70, 0), lying(2, 31, 71, 0, 1), lying(3, 30, 20, 1), lying(4, 31, 21, 1, 1)]));
     expect(table.y).toBeCloseTo(T / 2, 5);
-    expect(onTop.y - table.y).toBeCloseTo(T, 5);
     expect(pusher.y - table.y).toBeCloseTo(P, 5);
-    expect(pusherTop.y - pusher.y).toBeCloseTo(T, 5);
+    // One thickness, and the little its lean holds it up by.
+    for (const rise of [onTop.y - table.y, pusherTop.y - pusher.y]) {
+      expect(rise).toBeGreaterThan(T + R * Math.sin(LEAN.pile.least) - 1e-4);
+      expect(rise).toBeLessThan(T + R * Math.sin(LEAN.pile.most) + 1e-4);
+    }
     // The contact shadow of each lies on what the medal lies on.
     expect([table.ground, onTop.ground, pusher.ground, pusherTop.ground].map((value) => Math.round(value * 100) / 100)).toEqual([0, T, P, P + T]);
   });
@@ -249,8 +290,8 @@ describe('the medals of the 3D field', () => {
     expect(turns.size).toBe(rows.length);
     const lean = (tier: number) => rows.filter((_, i) => i % 2 === tier).map((row) => Math.acos(Math.min(1, row.up[1])));
     const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
-    expect(mean(lean(1))).toBeGreaterThan(mean(lean(0)));
-    expect(Math.max(...lean(1))).toBeLessThan(0.1);
+    expect(mean(lean(1))).toBeGreaterThan(mean(lean(0)) * 2);
+    expect(Math.max(...lean(1))).toBeLessThan(LEAN.pile.most + 1e-4);
     // Each also has a number of its own, the same every frame.
     expect(new Set(rows.map((row) => row.own)).size).toBeGreaterThan(35);
     expect(medalRows(holding(medals)).map((row) => row.own)).toEqual(rows.map((row) => row.own));
@@ -581,8 +622,8 @@ describe('the face of a medal', () => {
     const bytes = reliefMap(size);
     expect(bytes).toHaveLength(size * size * 4);
     const texel = (i: number, j: number) => Array.from(bytes.subarray((j * size + i) * 4, (j * size + i) * 4 + 4));
-    // The corner of the square is outside the medal: level, and at the height of the field.
-    expect(texel(0, 0)).toEqual([128, 128, 0, 255]);
+    // The corner of the square is outside the medal: level, at the height of the field, and with no edge near.
+    expect(texel(0, 0)).toEqual([128, 128, 0, 0]);
     // The middle of the star is its top, and level too.
     const [leanX, leanY, height] = texel(size / 2, size / 2);
     expect(height).toBe(255);
@@ -591,8 +632,19 @@ describe('the face of a medal', () => {
     // Somewhere it leans: the edges of the border and the facets of the star.
     let leaning = 0;
     for (let i = 0; i < bytes.length; i += 4) if (Math.abs(bytes[i] - 128) > 20 || Math.abs(bytes[i + 1] - 128) > 20) leaning++;
-    expect(leaning).toBeGreaterThan(size * size * 0.05);
+    expect(leaning).toBeGreaterThan(size * size * 0.03);
     expect(leaning).toBeLessThan(size * size * 0.6);
+    // The fourth number is how steep the relief is: nothing in the middle of the star or out in the field, a
+    // good deal on the edge of the border, and never more where it leans less. It is what outlines the star and the ring.
+    const steep = (i: number, j: number) => texel(i, j)[3];
+    expect(steep(size / 2, size / 2)).toBe(0);
+    let edges = 0;
+    for (let i = 0; i < bytes.length; i += 4) {
+      if (bytes[i + 3] > 100) edges++;
+      if (bytes[i + 3] === 0) expect(Math.abs(bytes[i] - 128) + Math.abs(bytes[i + 1] - 128)).toBeLessThanOrEqual(1);
+    }
+    expect(edges).toBeGreaterThan(size * size * 0.03);
+    expect(edges).toBeLessThan(size * size * 0.4);
   });
 });
 
@@ -749,9 +801,9 @@ describe('the cabinet as shapes', () => {
       [9, 55],
     ] as [number, number][]) {
       const { solid, machine } = moving(1, 50, undefined, tips);
-      const cast = corners(solid, MOVING_PARTS[1].first, MOVING_PARTS[1].count);
-      // The pusher's face is down on the table; everything higher is the two arms, one each side of the middle here.
-      const rails = cast.filter((corner) => corner.y > P + 1);
+      // The arms have a run of their own; here one is on each side of the middle.
+      const rails = corners(solid, MOVING_PARTS[2].first, MOVING_PARTS[2].count);
+      expect(rails.every((corner) => corner.y > P + 1)).toBe(true);
       for (const arm of [0, 1] as const) {
         const own = rails.filter((corner) => (arm === 0 ? corner.x < tips[0] + 5 : corner.x > tips[1] - 5));
         expect(own.length).toBeGreaterThan(50);
@@ -781,9 +833,14 @@ describe('the cabinet as shapes', () => {
         }
       }
     }
-    // The pusher and the arms throw shadows; the gates and their signs, being lights, do not.
+    // Only the pusher throws a shadow. A rail's would be two thin lines on the pusher under it, which look like
+    // scratches; the gates and their signs are lights. So the arms come after everything that casts.
     expect(MOVING_CAST).toBe(2);
-    expect(MOVING_PARTS.map((part) => part.art)).toEqual(['pusher', 'plain', 'plain', 'sign']);
+    expect(MOVING_PARTS.map((part) => part.art)).toEqual(['pusher', 'plain', 'plain', 'plain', 'sign']);
+    const { solid } = moving(1);
+    const casting = corners(solid, 0, MOVING_PARTS[0].count + MOVING_PARTS[1].count);
+    expect(MOVING_PARTS[1].first).toBe(MOVING_PARTS[0].count);
+    expect(Math.max(...casting.map((corner) => corner.y))).toBe(P);
   });
 
   it('lights the arm that takes the next medal, and one with a medal on its rail', () => {
@@ -793,7 +850,7 @@ describe('the cabinet as shapes', () => {
       machine.tips = [20, 80];
       const solid = new Solid(100);
       buildMoving(solid, machine, 40, createStage(1, false), { aim, showGuide: true });
-      const bars = corners(solid, MOVING_PARTS[1].first, MOVING_PARTS[1].count).filter((corner) => corner.y > P + 1 && corner.glow > 0);
+      const bars = corners(solid, MOVING_PARTS[2].first, MOVING_PARTS[2].count).filter((corner) => corner.glow > 0);
       const of = (left: boolean) => Math.max(...bars.filter((corner) => corner.x < 50 === left).map((corner) => corner.glow));
       return [of(true), of(false)];
     };
@@ -847,8 +904,8 @@ describe('the cabinet as shapes', () => {
     for (const time of [0, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4]) {
       const { solid } = moving(time);
       const centres = checkerCentres(time);
-      const gates = corners(solid, MOVING_PARTS[2].first, MOVING_PARTS[2].count);
-      const signs = corners(solid, MOVING_PARTS[3].first, MOVING_PARTS[3].count);
+      const gates = corners(solid, MOVING_PARTS[3].first, MOVING_PARTS[3].count);
+      const signs = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
       expect(signs).toHaveLength(6 * CHECKERS.positions.length);
       centres.forEach((centre, gate) => {
         const sign = signs.slice(gate * 6, gate * 6 + 6);
@@ -869,10 +926,10 @@ describe('the cabinet as shapes', () => {
     const stage = createStage(1, false);
     lightGate(stage, 2);
     const lit = moving(1, 50, stage);
-    const tube = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[2].first + gate * 72, 1)[0].colour;
+    const tube = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[3].first + gate * 72, 1)[0].colour;
     expect(tube(lit.solid, 2)).not.toEqual(tube(dark.solid, 2));
     expect(tube(lit.solid, 0)).toEqual(tube(dark.solid, 0));
-    const sign = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[3].first + gate * 6, 1)[0].glow;
+    const sign = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[4].first + gate * 6, 1)[0].glow;
     expect(sign(lit.solid, 2)).toBeGreaterThan(sign(dark.solid, 2));
   });
 
@@ -1052,9 +1109,10 @@ function fakeCanvas(contexts: { '2d'?: unknown; webgl2?: unknown }) {
   return { canvas: canvas as unknown as HTMLCanvasElement, asked, listeners };
 }
 
-/** A 2D context that counts what is done to it. */
+/** A 2D context that counts what is done to it, and keeps every colour it is told to fill with. */
 function fake2d() {
   const calls: Record<string, number> = {};
+  const fills: string[] = [];
   const gradient = { addColorStop: () => undefined };
   const context = new Proxy(
     {},
@@ -1063,10 +1121,13 @@ function fake2d() {
         calls[name] = (calls[name] ?? 0) + 1;
         return gradient;
       },
-      set: () => true,
+      set: (_target, name: string, value: unknown) => {
+        if (name === 'fillStyle' && typeof value === 'string') fills.push(value);
+        return true;
+      },
     },
   );
-  return { context, calls };
+  return { context, calls, fills };
 }
 
 describe('the 3D scene on a graphics card', () => {
@@ -1205,6 +1266,27 @@ describe('the choice of renderer', () => {
     renderer.dispose();
     expect(fake.alive()).toEqual({});
     expect(under.listeners.size).toBe(0);
+  });
+
+  it('puts a lighter wash of colour over the 3D scene than the canvas renderer puts over its own', () => {
+    /** How strong the wash of a fever is, a moment into it, with the renderer this address gives. */
+    const wash = (search: string, calm = false) => {
+      const { renderer, flat, machine, stage } = setUp(search, true);
+      const feverish = stage(search !== '');
+      feverish.party = { kind: 'fever', left: 3 };
+      feverish.clock = 1.23;
+      renderer.draw(feverish, machine, { ...options, calm });
+      const colour = flat.fills.find((fill) => fill.startsWith('hsla('));
+      return colour ? Number(colour.slice(colour.lastIndexOf(',') + 1, -1)) : 0;
+    };
+    // The 3D medals are a brighter gold than the drawn ones, and a full wash turns them pale.
+    expect(WASH_OVER_3D).toBeGreaterThan(0.2);
+    expect(WASH_OVER_3D).toBeLessThan(0.8);
+    expect(wash('?renderer=2d')).toBeGreaterThan(0.02);
+    expect(wash('')).toBeCloseTo(wash('?renderer=2d') * WASH_OVER_3D, 9);
+    // With motion reduced there is none over either.
+    expect(wash('', true)).toBe(0);
+    expect(wash('?renderer=2d', true)).toBe(0);
   });
 
   it('draws on the canvas where there is no WebGL2', () => {

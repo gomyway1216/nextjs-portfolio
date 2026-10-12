@@ -1151,9 +1151,11 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
  * What lies flat on the glass rather than in the cabinet: sparks, confetti,
  * the counts floating up from the tray, the wash of a fever and the glass
  * itself. It closes every frame of this renderer, and it is all the 3D
- * renderer draws on the canvas it keeps over its own.
+ * renderer draws on the canvas it keeps over its own. `wash` is how much of
+ * the fever's colour goes on: all of it here, less over the 3D scene, whose
+ * brighter gold a full wash turns pale.
  */
-export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = false): void {
+export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = false, wash = 1): void {
   const k = stage.ratio;
   const partying = stage.party !== null && stage.party.kind !== 'crash';
   g.setTransform(k, 0, 0, k, 0, 0);
@@ -1182,7 +1184,7 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
   // A fever or a jackpot washes the cabinet with colour.
   if (!calm && partying) {
     const hue = (stage.clock * 160) % 360;
-    g.fillStyle = `hsla(${hue}, 100%, 60%, ${0.07 + 0.05 * Math.sin(stage.clock * 12)})`;
+    g.fillStyle = `hsla(${hue}, 100%, 60%, ${(0.07 + 0.05 * Math.sin(stage.clock * 12)) * wash})`;
     g.fillRect(0, 0, VIEW.width, VIEW.height);
   }
   // The glass in front of it all: two bands of reflected light.

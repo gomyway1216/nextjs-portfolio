@@ -41,7 +41,9 @@ const RELIEF_SIZE = 256;
 /** The colour behind everything, where the cabinet ends. */
 const BACKDROP = [0.035, 0.02, 0.085] as const;
 /** How dark the contact shadow under a lying medal is at its darkest. */
-const CONTACT_DARK = 0.5;
+const CONTACT_DARK = 0.72;
+/** How far the roof's lamps drift, in rows of them, and how many seconds a drift there and back takes. */
+const LAMP_DRIFT = { reach: 0.24, period: 9 } as const;
 
 export interface Scene3d {
   /** Draws one frame. */
@@ -157,7 +159,7 @@ function build(gpu: Gpu): Scene3d {
 
   const camera = new Float32Array(16);
   const sun = lightMatrix(new Float32Array(16));
-  let wave = 0;
+  let drift = 0;
   const last = { medals: 0, balls: 0, calls: 0 };
 
   /** Makes a program the one in use and tells it about the camera, the lamp and the canvas. */
@@ -168,7 +170,7 @@ function build(gpu: Gpu): Scene3d {
     gl.uniformMatrix4fv(uniforms.uSun ?? null, false, sun);
     gl.uniform3f(uniforms.uEye ?? null, EYE[0], EYE[1], EYE[2]);
     gl.uniform3f(uniforms.uKey ?? null, KEY_LIGHT[0], KEY_LIGHT[1], KEY_LIGHT[2]);
-    gl.uniform4f(uniforms.uView ?? null, 1 / gl.drawingBufferWidth, 1 / gl.drawingBufferHeight, 1 / SHADOW_SIZE, wave);
+    gl.uniform4f(uniforms.uView ?? null, 1 / gl.drawingBufferWidth, 1 / gl.drawingBufferHeight, 1 / SHADOW_SIZE, drift);
     gl.uniform1i(uniforms.uShadow ?? null, 1);
     gl.uniform1i(uniforms.uArt ?? null, 0);
     gl.uniform1i(uniforms.uRelief ?? null, 0);
@@ -210,8 +212,9 @@ function build(gpu: Gpu): Scene3d {
     flat.clear();
     buildTouches(flat, machine, front, stage, options);
     // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
-    wave = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
-    buildLamps(beads, flat, front, wave, partying);
+    buildLamps(beads, flat, front, calm ? 0 : stage.clock * (partying ? 7 : 1.6), partying);
+    // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.
+    drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);
     sendRows(ballBuffer, balls);
     sendRows(beadBuffer, beads);

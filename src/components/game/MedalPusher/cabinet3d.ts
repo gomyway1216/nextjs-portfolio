@@ -298,9 +298,17 @@ const BAR_LIT = light('#c9f4ff');
 const GATE_NEON = light('#7df0ff', 1.5);
 const GATE_LIT = light('#fffbe0', 1.7);
 
-/** The runs of surfaces that move, in the order `buildMoving` writes them. The first `MOVING_CAST` of them throw shadows. */
+/**
+ * The runs of surfaces that move, in the order `buildMoving` writes them:
+ * the pusher's top, the rest of the pusher, the feed arms, the gates, and
+ * the signs over the gates. The first `MOVING_CAST` of them throw shadows:
+ * the pusher does. The arms do not, because on the pusher under them the
+ * shadow of a rail is two thin lines that look like scratches; the medals
+ * rolling on them throw theirs all the same. The gates and signs are lights.
+ */
 export const MOVING_PARTS: Part[] = [
   { art: 'pusher', first: 0, count: 0 },
+  { art: 'plain', first: 0, count: 0 },
   { art: 'plain', first: 0, count: 0 },
   { art: 'plain', first: 0, count: 0 },
   { art: 'sign', first: 0, count: 0 },
@@ -384,8 +392,9 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   solid.clear().map().paint(WHITE);
   const top = MOVING_PARTS[0];
   const cast = MOVING_PARTS[1];
-  const gates = MOVING_PARTS[2];
-  const signs = MOVING_PARTS[3];
+  const arms = MOVING_PARTS[2];
+  const gates = MOVING_PARTS[3];
+  const signs = MOVING_PARTS[4];
 
   // The pusher's top is one picture that rides with its lip.
   top.first = solid.count;
@@ -396,8 +405,11 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   cast.first = solid.count;
   solid.map().finish(1).paint(STEEL_BRIGHT).quad(0, P, front - BEVEL, W, P, front - BEVEL, W, P - BEVEL, front, 0, P - BEVEL, front);
   solid.finish(0.45).paint(FACE_TOP, FACE_FOOT).quad(0, P - BEVEL, front, W, P - BEVEL, front, W, 0, front, 0, 0, front);
-  buildFeed(solid, machine, options);
   cast.count = solid.count - cast.first;
+
+  arms.first = solid.count;
+  buildFeed(solid, machine, options);
+  arms.count = solid.count - arms.first;
 
   // A gate is a frame of neon tube round its opening, and turns gold for a moment when a medal comes through.
   gates.first = solid.count;

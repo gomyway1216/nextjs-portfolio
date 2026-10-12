@@ -277,9 +277,12 @@ export function reliefHeight(x: number, y: number): number {
 
 /**
  * The relief as a texture, `size` texels square over the medal's full width:
- * in each texel the way the surface leans (two bytes) and how high it stands
- * (one). The shader bends the light with the first and darkens the hollows
- * with the second.
+ * in each texel the way the surface leans (two bytes), how high it stands
+ * (one), and how steep it is (one). The shader bends the light with the
+ * first, brightens what stands up with the second, and with the third
+ * darkens the foot of every edge, where a medal that has been handled is
+ * dark: that outline is what still shows the star and the ring when the
+ * medal is too small on the screen for the light to draw them.
  */
 export function reliefMap(size: number): Uint8Array {
   const heights = new Float32Array(size * size);
@@ -287,8 +290,8 @@ export function reliefMap(size: number): Uint8Array {
   for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) heights[j * size + i] = reliefHeight(at(i), at(j));
   const bytes = new Uint8Array(size * size * 4);
   const height = (i: number, j: number) => heights[Math.min(size - 1, Math.max(0, j)) * size + Math.min(size - 1, Math.max(0, i))];
-  // The relief is about a thirtieth of the radius deep; a texel is 2 / size of the radius wide.
-  const steep = (0.034 * size) / 4;
+  // The relief is about a fiftieth of the radius deep; a texel is 2 / size of the radius wide.
+  const steep = (0.02 * size) / 4;
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
       const dx = (height(i + 1, j) - height(i - 1, j)) * steep;
@@ -298,7 +301,7 @@ export function reliefMap(size: number): Uint8Array {
       bytes[o] = Math.round((-dx / length) * 127.5 + 127.5);
       bytes[o + 1] = Math.round((-dy / length) * 127.5 + 127.5);
       bytes[o + 2] = Math.round(heights[j * size + i] * 255);
-      bytes[o + 3] = 255;
+      bytes[o + 3] = Math.round(Math.min(1, Math.hypot(dx, dy) * 2.4) * 255);
     }
   }
   return bytes;

@@ -6,7 +6,7 @@
  */
 
 import { letGoAt, rollingSpot } from './arms';
-import { FIELD, MEDAL_RADIUS, RELEASE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
+import { FIELD, MEDAL_RADIUS, RELEASE, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
 import { HEIGHT, VIEW, project } from './view';
@@ -136,6 +136,15 @@ export function chance(id: number, salt: number): number {
   return (h >>> 0) / 4294967296;
 }
 
+/**
+ * How far out of level a medal lies, in radians. No medal in a heap lies
+ * quite flat: one on the table by a degree or two, one on other medals by
+ * several, since it rests on their edges. The engine knows nothing of this;
+ * it is only how the medal is drawn, fixed by its id so that it never
+ * flickers, and it is what makes each medal catch the lamps its own way.
+ */
+export const LEAN = { table: { least: 0.012, most: 0.05 }, pile: { least: 0.05, most: 0.13 } } as const;
+
 /** How far a medal that has just come over the pusher's lip still is above the lower table. */
 const lipDrop = (medal: Medal): number =>
   medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
@@ -204,16 +213,21 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const drop = lipDrop(medal);
     const lift = liftOf(medal);
     const { id } = medal;
-    // No medal lies quite level: one on the table by a hair, one on other medals by a little more. A tower stands straight.
-    let tilt = medal.stack > 1 ? 0 : medal.tier === 1 ? 0.025 + 0.06 * chance(id, 1) : 0.04 * chance(id, 1);
+    // It leans its own way and its own amount. A tower stands straight, and a medal that has just come
+    // down is level and leans over as it settles, so nothing jumps as it lands.
+    const lean = medal.tier === 1 ? LEAN.pile : LEAN.table;
+    const settled = medal.grown < 1 ? (medal.grown - SETTLE.from) / (1 - SETTLE.from) : 1;
+    let tilt = medal.stack > 1 ? 0 : (lean.least + (lean.most - lean.least) * chance(id, 1)) * settled;
     let heading = TAU * chance(id, 2);
+    // One lying on others is held up by the edge it leans on, so its low side rests on them instead of sinking in.
+    const propped = medal.tier === 1 ? R * Math.sin(tilt) : 0;
     // Coming over the lip it tips forward, and is level again as it lands.
     if (drop > 0) {
       tilt = 0.75 * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
       heading = (chance(id, 2) - 0.5) * 0.8;
     }
     const ground = base + (medal.tier === 1 ? T : 0);
-    medalRow(rows, id, medal.x, base + drop + lift + T / 2, medal.y, turnOf(id), tilt, heading, ground, drop > 0 ? 0 : 1, 1);
+    medalRow(rows, id, medal.x, base + drop + lift + propped + T / 2, medal.y, turnOf(id), tilt, heading, ground, drop > 0 ? 0 : 1, 1);
     // A tower: the rest of its medals, each a hair out of line with the one below.
     for (let i = 1; i < medal.stack; i++) {
       const dx = (chance(id, i * 2 + 5) - 0.5) * 0.2;

@@ -7,7 +7,7 @@
  * and plays the same number of medals at the same pace.
  */
 
-import { AIM, CHECKERS, FALL_TIME, checkerCentres, medalsOnField, seededRng } from './engine';
+import { AIM, CHECKERS, FALL_TIME, aimArms, checkerCentres, medalsOnField, seededRng } from './engine';
 import { JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
@@ -17,11 +17,12 @@ export type AimId = (typeof AIM_IDS)[number];
 const [LEFT_GATE, CENTRE_GATE, RIGHT_GATE] = CHECKERS.positions;
 
 /**
- * Where each way of aiming lets its `n`-th medal go at `time` on the machine's
- * clock: following the centre gate, anywhere at all (`pick` chooses), at a
- * fixed spot halfway between the middles of two gates' sweeps, or at the edges.
- * Only the first looks at the clock. The gates move while a medal is in the
- * air, so it aims where the centre gate will be when the medal comes down.
+ * Where each way of aiming has its arm pointing when its `n`-th medal drops
+ * off the tip at `time` on the machine's clock: following the centre gate,
+ * anywhere at all (`pick` chooses), at a fixed spot halfway between the
+ * middles of two gates' sweeps, or at the edges. Only the first looks at the
+ * clock. The gates move while a medal is in the air, so it aims where the
+ * centre gate will be when the medal comes down.
  */
 export function aimAt(id: AimId, n: number, pick: () => number, time = 0): number {
   switch (id) {
@@ -177,23 +178,42 @@ export async function simulate(
     let start: Counts | null = null;
     const points: RatePoint[] = [];
     let clock = interval;
+    // The spot each medal on a rail is meant for, in the order they were fed.
+    const meant: number[] = [];
+    /**
+     * A medal drops where its arm's tip is when it leaves it, a roll after it was fed. So before
+     * every step the arms are pointed where the medal that leaves next is meant to drop. An arm
+     * crosses its whole reach in less time than the slot waits between two medals, so it is always
+     * there by then. Following the gate, the spot is where the gate will be once a medal let go in
+     * this step has fallen.
+     */
+    const holdArms = () => {
+      meant.splice(0, meant.length - session.machine.rolling.length);
+      if (id === 'centre') aimArms(session.machine, aimAt(id, session.inserted, pick, session.machine.time + dt));
+      else if (meant.length > 0) aimArms(session.machine, meant[0]);
+    };
 
     while (session.inserted < perAim) {
       if (clock >= interval && session.machine.cooldown <= 1e-9) {
         if (session.inserted === WARM_UP) start = snapshot(session);
         clock -= interval;
-        const taken = insert(session, aimAt(id, session.inserted, pick, session.machine.time));
+        // It goes into the arm on the side of the spot it is meant for.
+        const spot = aimAt(id, session.inserted, pick, session.machine.time);
+        const taken = insert(session, spot);
+        if (taken) meant.push(spot);
         if (taken && start) {
           const played = session.inserted - start.played;
           if (played % every === 0 || played === medals) points.push({ medals: played, rate: (session.won - start.won) / played });
         }
       }
+      holdArms();
       advance(session, dt);
       clock += dt;
       if (!(await breathe(a * perAim + session.inserted))) return null;
     }
-    // Let the spins it is still holding play out and the prizes land.
+    // Let the last medals drop, the spins it is still holding play out and the prizes land.
     for (let i = 0; i < RUN_OUT * STEPS_PER_SECOND && isBusy(session); i++) {
+      holdArms();
       advance(session, dt);
       if (!(await breathe((a + 1) * perAim))) return null;
     }

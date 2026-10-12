@@ -2,10 +2,11 @@
 
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, FIELD, clampAim } from './engine';
+import { AIM, FIELD, aimArms, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
-import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
+import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
@@ -96,6 +97,12 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.spins === b.spins &&
   a.paid === b.paid;
 
+/** A medal going into its arm is heard twice over: through the slot, and then down the rail it rolls on. */
+const feedSound = (on: boolean): void => {
+  playSound('insert', on);
+  playSound('roll', on);
+};
+
 export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -118,6 +125,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [kept, setKept] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The canvas under the field, for the 3D scene.
+  const sceneRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -142,8 +151,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if (!canvas || !context) return;
+    // In 3D where the browser can, and on the canvas alone where it cannot; `?renderer=2d` asks for the second.
+    const renderer = canvas && createRenderer(canvas, sceneRef.current, window.location.search);
+    if (!canvas || !renderer) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
     // The machine this browser remembers, if it holds one that still reads. After a reset the
     // save is thrown away instead.
@@ -157,6 +167,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     startFresh.current = false;
     const session = remembered ?? createSession(seed);
     sessionRef.current = session;
+    // A machine that is remembered has its arms where they were left, and the aim goes back there with them.
+    if (remembered) {
+      live.current.aim = remembered.machine.aim;
+      setAim(remembered.machine.aim);
+    }
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
@@ -194,7 +209,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       canvas.width = width;
       canvas.height = Math.round(VIEW.height * ratio);
       const previous = stage;
-      stage = createStage(ratio);
+      stage = createStage(ratio, renderer.kind === '2d');
       // A resize keeps what the stage has seen, so no medal is taken for one that just left.
       if (previous) {
         stage.seen = previous.seen;
@@ -227,15 +242,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (session.credits === 0) press.current = null;
       const held = press.current;
       if (held && !held.streaming && now / 1000 - held.since >= HOLD_DELAY) held.streaming = true;
-      if (held?.streaming && insert(session, aimNow)) playSound('insert', soundOn);
+      if (held?.streaming && insert(session, aimNow)) feedSound(soundOn);
       if (autoNow) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
-          if (insert(session, aimNow)) playSound('insert', soundOn);
+          if (insert(session, aimNow)) feedSound(soundOn);
         }
       }
 
+      // The arms swing after the aim, and a medal on a rail drops where its arm's tip is when it gets there.
+      aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);
 
@@ -338,7 +355,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      drawField(context, stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
+      renderer.draw(stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -394,6 +411,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     return () => {
       cancelAnimationFrame(frameId);
       observer.disconnect();
+      renderer.dispose();
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', save);
@@ -416,7 +434,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const drop = () => {
     const session = sessionRef.current;
-    if (session && insert(session, live.current.aim)) playSound('insert', sound);
+    if (session && insert(session, live.current.aim)) feedSound(sound);
   };
 
   const aimAtPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -509,6 +527,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
 
         <div className={styles.fieldWrap}>
+          <canvas ref={sceneRef} className={styles.scene} aria-hidden />
           <canvas
             ref={canvasRef}
             className={styles.field}

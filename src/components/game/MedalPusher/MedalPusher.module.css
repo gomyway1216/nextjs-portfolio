@@ -626,6 +626,17 @@
   stroke: #4d000f;
   stroke-width: 5px;
 }
+/* The same pictures in the Odds tab's table, under the name of the line they make. */
+.lineSymbols {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+.lineSymbols .symbol {
+  width: 1.75rem;
+  height: auto;
+  border-radius: 0.3rem;
+}
 /* A reel running too fast to read is smeared. */
 .strip[data-fast='true'] .symbol {
   filter: blur(0.05em);

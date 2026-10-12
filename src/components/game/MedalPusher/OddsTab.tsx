@@ -26,6 +26,7 @@ import {
   SPIN_TABLE,
   SPIN_TOTAL,
   TIER_BONUS,
+  TIER_DIGITS,
   boardAfter,
   bowlValue,
   chainChance,
@@ -40,6 +41,7 @@ import {
   type Tier,
 } from './lottery';
 import { towerSizes } from './engine';
+import { ReelSymbol } from './ReelSymbols';
 import { MAX_STOCK, TIMING } from './session';
 import styles from './MedalPusher.module.css';
 
@@ -151,7 +153,17 @@ export const OddsTab = () => {
             <tbody>
               {LINES.map((tier) => (
                 <tr key={tier} data-tier={tier}>
-                  <th scope="row">{lineName[tier]}</th>
+                  <th scope="row">
+                    {lineName[tier]}
+                    {/* The pictures those digits wear on the reels, for the eye: the name above them says the digits. */}
+                    {tier !== 'miss' && (
+                      <span className={styles.lineSymbols} aria-hidden>
+                        {TIER_DIGITS[tier].map((digit) => (
+                          <ReelSymbol key={digit} digit={digit} />
+                        ))}
+                      </span>
+                    )}
+                  </th>
                   <td className={styles.num}>{tidyPercent(tierChance(tier))}</td>
                   <td className={styles.num}>{tier === 'miss' ? '—' : t.oneIn(fmt(Math.round(SPIN_TOTAL / SPIN_TABLE[tier])))}</td>
                   <td>{linePays(tier)}</td>

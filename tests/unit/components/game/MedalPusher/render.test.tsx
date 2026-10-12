@@ -724,6 +724,17 @@ describe('the page', () => {
     const html = render(<OddsTab />);
     for (const text of ['0.7%', '1 in 143', '1.5%', '1 in 67', '4%', '1 in 25', '93.8%']) expect(html).toContain(text);
     for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
+    // Each winning line is shown with the pictures its digits wear on the reels, for the eye only: the line's name says the digits.
+    const slot = table(html, 'pusher-slot-table');
+    const pictures = (tier: string) => {
+      const row = slot.split(`<tr data-tier="${tier}">`)[1]?.split('</tr>')[0] ?? '';
+      return [...row.matchAll(/<svg[^>]*aria-hidden="true">[\s\S]*?<text[^>]*>(\d)<\/text><\/svg>/g)].map(([, digit]) => Number(digit));
+    };
+    expect(pictures('seven')).toEqual([7]);
+    expect(pictures('big')).toEqual([1, 3, 5, 9]);
+    expect(pictures('small')).toEqual([2, 4, 6, 8]);
+    expect(pictures('miss')).toEqual([]);
+    expect(slot.match(/<span[^>]*aria-hidden="true"><svg/g)).toHaveLength(3);
     // What each line is worth: the board's average, the chests' average, the roulette's.
     for (const text of ['8.8 medals', '20 medals', '63.7 medals']) expect(html).toContain(text);
     // The roulette: four crosses in twelve, and the chance of each number of pockets in a row.

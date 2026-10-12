@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PlayTab, RESET_WINDOW, confirmsReset } from '@/components/game/MedalPusher/PlayTab';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import { JACKPOT_START } from '@/components/game/MedalPusher/lottery';
-import { START_CREDITS, createSession, insert } from '@/components/game/MedalPusher/session';
+import { START_CREDITS, createSession } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, serialize } from '@/components/game/MedalPusher/storage';
 import { createI18nInstance } from '@/lib/i18n';
+
+import { insertAt } from './feeding';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
@@ -77,7 +79,7 @@ describe('the cabinet and its save', () => {
   it('renders a new machine on the server whatever the browser remembers, and never touches storage there', () => {
     // A save with a medal played, in a storage that counts every call made to it.
     const session = createSession(9);
-    insert(session, 50);
+    insertAt(session, 50);
     const calls: string[] = [];
     const storage = {
       getItem: (key: string) => {

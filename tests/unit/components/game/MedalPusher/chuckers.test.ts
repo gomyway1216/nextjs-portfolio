@@ -9,7 +9,6 @@ import {
   TOWER,
   checkerAt,
   createMachine,
-  dropMedal,
   pusherFront,
   step,
   type Machine,
@@ -17,6 +16,8 @@ import {
 } from '@/components/game/MedalPusher/engine';
 import { LIP_FALL } from '@/components/game/MedalPusher/render';
 import { HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
+
+import { dropAt } from './feeding';
 
 const DT = 1 / 60;
 /** Moments all through the pusher's stroke, and one long after. */
@@ -165,7 +166,7 @@ describe('the chucker a medal came through', () => {
     let counted = 0;
     let seen = 0;
     for (let i = 0; i < 60 * 60; i++) {
-      if (i % 20 === 0) dropMedal(machine, FIELD.width / 2);
+      if (i % 20 === 0) dropAt(machine, FIELD.width / 2);
       const events = step(machine, DT);
       // No tower is on this machine, so every entry is a single medal: the ones that have just come over, and are in a mouth.
       counted += events.checkers.length;

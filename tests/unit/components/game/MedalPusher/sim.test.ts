@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, TOWER, checkerAt, tipOf } from '@/components/game/MedalPusher/engine';
+import { AIM, CHECKERS, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
 import { JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import {
@@ -18,27 +18,43 @@ import {
 } from '@/components/game/MedalPusher/sim';
 
 describe('the ways of aiming', () => {
-  it('lets each medal go where its aim says', () => {
+  it('says for each medal which rail feeds it, and where that rail lets it go', () => {
     const never = () => {
       throw new Error('only aiming anywhere draws a number');
     };
-    // Down the middle is the same column for every medal: the pockets do not move along the lip, so there is nothing to follow.
     expect(AIM_IDS).toEqual(['centre', 'anywhere', 'beside', 'edges']);
-    for (const n of [0, 1, 2, 77]) expect(aimAt('centre', n, never)).toBe(CHECKERS.positions[1]);
-    expect(aimAt('beside', 0, never)).toBe(BESIDE[0]);
-    expect(aimAt('beside', 1, never)).toBe(BESIDE[1]);
-    expect(aimAt('beside', 2, never)).toBe(BESIDE[0]);
-    expect(aimAt('edges', 0, never)).toBe(AIM.min);
-    expect(aimAt('edges', 1, never)).toBe(AIM.max);
-    expect(aimAt('anywhere', 0, () => 0)).toBe(AIM.min);
-    expect(aimAt('anywhere', 0, () => 0.5)).toBeCloseTo(50, 9);
-    expect(aimAt('anywhere', 0, () => 1)).toBe(AIM.max);
+    // Three of the four feed the two rails by turns, the left first, and keep each rail on one spot.
+    // Down the middle, both rails feed the same column: the pockets do not move along the lip, so there is nothing to follow.
+    for (const n of [0, 2, 76]) expect(aimAt('centre', n, never)).toEqual({ arm: 0, x: CHECKERS.positions[1] });
+    for (const n of [1, 3, 77]) expect(aimAt('centre', n, never)).toEqual({ arm: 1, x: CHECKERS.positions[1] });
+    // Beside the pockets and at the edges, each rail has the spot on its own side.
+    expect(aimAt('beside', 0, never)).toEqual({ arm: 0, x: BESIDE[0] });
+    expect(aimAt('beside', 1, never)).toEqual({ arm: 1, x: BESIDE[1] });
+    expect(aimAt('beside', 2, never)).toEqual({ arm: 0, x: BESIDE[0] });
+    expect(aimAt('edges', 0, never)).toEqual({ arm: 0, x: AIM.min });
+    expect(aimAt('edges', 1, never)).toEqual({ arm: 1, x: AIM.max });
+    // Anywhere at all is a new spot for every medal, fed by the rail on that side of the field, whichever medal it is.
+    for (const n of [0, 1]) {
+      expect(aimAt('anywhere', n, () => 0)).toEqual({ arm: 0, x: AIM.min });
+      expect(aimAt('anywhere', n, () => 0.49)).toMatchObject({ arm: 0 });
+      expect(aimAt('anywhere', n, () => 0.5)).toEqual({ arm: 1, x: expect.closeTo(50, 9) });
+      expect(aimAt('anywhere', n, () => 1)).toEqual({ arm: 1, x: AIM.max });
+    }
+    // Every spot is one the rail that feeds it can point at, and the left rail's is never to the right of the right rail's.
+    for (const id of AIM_IDS) {
+      const pick = seededRng(5);
+      for (let n = 0; n < 200; n++) {
+        const feed = aimAt(id, n, pick);
+        expect(tipOf(feed.arm, feed.x)).toBe(feed.x);
+      }
+    }
   });
 
   it('has its fixed columns behind the middle pocket, beside the pockets and at the edges, all within reach', () => {
     const [left, middle, right] = CHECKERS.positions;
     // Down the middle is the column behind the middle pocket, and either arm can feed it.
-    expect(checkerAt(aimAt('centre', 0, Math.random))).toBe(1);
+    expect(checkerAt(aimAt('centre', 0, Math.random).x)).toBe(1);
+    expect(checkerAt(aimAt('centre', 1, Math.random).x)).toBe(1);
     expect(tipOf(0, middle)).toBe(middle);
     expect(tipOf(1, middle)).toBe(middle);
     // Beside the pockets: one pocket's spacing outside the outer two, a column each for the left arm and the right.

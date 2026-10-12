@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, FEED, FIELD, aimArms, clampAim } from './engine';
+import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
@@ -26,10 +26,64 @@ import { STORAGE_KEY, restore, serialize } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
-/** Medals a second when Auto is on. */
+/** Medals a second when Auto is on, between the two rails: it feeds them by turns. */
 export const AUTO_PACE = 2;
-/** How long a press has to last before it becomes a stream of medals, in seconds. */
-const HOLD_DELAY = 0.2;
+/** How long a press has to last before it becomes a stream of medals, in seconds. The press itself feeds one. */
+export const HOLD_DELAY = 0.2;
+/**
+ * The keys that feed the two rails, by where they are on the keyboard: the home key of each hand's first finger,
+ * so that both can be held at once. `KEY_CAPS` is what is written on them.
+ */
+export const FEED_KEYS: Readonly<Record<string, Arm | undefined>> = { KeyF: 0, KeyJ: 1 };
+export const KEY_CAPS = ['F', 'J'] as const;
+/** The keys that move a rail's aim, beside its feed key: which rail, and which way across the field. */
+export const AIM_KEYS: Readonly<Record<string, { arm: Arm; by: -1 | 1 } | undefined>> = {
+  KeyS: { arm: 0, by: -1 },
+  KeyD: { arm: 0, by: 1 },
+  KeyK: { arm: 1, by: -1 },
+  KeyL: { arm: 1, by: 1 },
+};
+export const AIM_CAPS = [
+  ['S', 'D'],
+  ['K', 'L'],
+] as const;
+/** How far one press of an aim key moves a rail's tip, in field units, and how fast holding it does, in units a second. */
+export const AIM_KEY = { tap: 1, speed: 40 } as const;
+
+/** Where across the field a spot is, as the whole number of percent the aim sliders work in. */
+export const aimPercent = (x: number): number => Math.round(((x - AIM.min) / (AIM.max - AIM.min)) * 100);
+/** The spot across the field that a slider's value stands for. */
+export const percentAim = (percent: number): number => AIM.min + (percent / 100) * (AIM.max - AIM.min);
+/** The ends of each rail's slider, in the same percent: as far as that rail's arm reaches. */
+export const AIM_RANGE = [
+  { min: aimPercent(ARM_REACH[0].min), max: aimPercent(ARM_REACH[0].max) },
+  { min: aimPercent(ARM_REACH[1].min), max: aimPercent(ARM_REACH[1].max) },
+] as const;
+
+/** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
+const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
+/**
+ * Whether a key was pressed in something the player types or chooses in: a text field, a text area, a list to pick
+ * from, or anything that can be edited. Such a key is the field's, and the machine leaves it alone.
+ */
+export function typingIn(target: unknown): boolean {
+  if (typeof target !== 'object' || target === null) return false;
+  const { tagName, type, isContentEditable } = target as { tagName?: unknown; type?: unknown; isContentEditable?: unknown };
+  if (isContentEditable === true) return true;
+  if (tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
+  return tagName === 'INPUT' && !(typeof type === 'string' && NOT_TYPED_IN.includes(type));
+}
+
+/**
+ * Who is holding a rail's feed down: any number of fingers on its button, each a pointer of its own, and its key.
+ * The rail streams for as long as anyone is, counted from the first of them.
+ */
+interface Hold {
+  by: Set<string>;
+  since: number;
+}
+const KEY = 'key';
+const pointerName = (id: number): string => `pointer ${id}`;
 /** The canvas never draws more than this many pixels per CSS pixel. */
 const MAX_PIXEL_RATIO = 2;
 /** The longest stretch of time one frame may cover, so a stalled tab does not lurch forward. */
@@ -127,7 +181,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const [hud, setHud] = useState<Hud>(INITIAL_HUD);
   const [screen, setScreen] = useState<ScreenState>(IDLE_SCREEN);
-  const [aim, setAim] = useState<number>(FIELD.width / 2);
+  // Where each rail is pointed, the left one's first, as the machine has it: this is only what the sliders show.
+  const [aims, setAims] = useState<[number, number]>([armStart(0), armStart(1)]);
+  // Whether each rail's feed is being held down, by a finger or a key: its button shows it.
+  const [held, setHeld] = useState<[boolean, boolean]>([false, false]);
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -151,14 +208,97 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
-  const live = useRef({ aim, auto, sound, active, strings: t });
-  const press = useRef<{ since: number; streaming: boolean } | null>(null);
-  // Set when a press has streamed medals, so the click that ends it does not drop one more.
-  const swallowClick = useRef(false);
+  const live = useRef({ auto, sound, active, strings: t });
+  // Who is holding each rail's feed down. The two rails are held apart, so two fingers, or two keys, feed both at once.
+  const holds = useRef<[Hold, Hold]>([
+    { by: new Set(), since: 0 },
+    { by: new Set(), since: 0 },
+  ]);
+  // The aim keys that are down, and the rail each pointer on the field is aiming.
+  const aimKeys = useRef(new Set<string>());
+  const aimers = useRef(new Map<number, Arm>());
 
   useEffect(() => {
-    live.current = { aim, auto, sound, active, strings: t };
+    live.current = { auto, sound, active, strings: t };
   });
+
+  /** Shows on the buttons which rails are held, when that has changed. */
+  const showHeld = () => {
+    const now: [boolean, boolean] = [holds.current[0].by.size > 0, holds.current[1].by.size > 0];
+    setHeld((was) => (was[0] === now[0] && was[1] === now[1] ? was : now));
+  };
+  /** Feeds one medal into a rail, if the purse has one and that rail's slot is free. Neither rail's aim moves. */
+  const feedOnce = (arm: Arm) => {
+    const session = sessionRef.current;
+    if (session && insert(session, arm)) feedSound(live.current.sound);
+  };
+  /** A finger or a key goes down on a rail's feed. The first one feeds a medal at once; held, the rail streams. */
+  const pressRail = (arm: Arm, by: string) => {
+    const hold = holds.current[arm];
+    if (hold.by.has(by)) return;
+    if (hold.by.size === 0) {
+      hold.since = performance.now() / 1000;
+      feedOnce(arm);
+    }
+    hold.by.add(by);
+    showHeld();
+  };
+  const releaseRail = (arm: Arm, by: string) => {
+    if (holds.current[arm].by.delete(by)) showHeld();
+  };
+  /** Points one rail at a spot across the field, as near as it can point, and shows where that is. */
+  const aimRail = (arm: Arm, x: number) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    aimArm(session.machine, arm, x);
+    setAims([session.machine.aims[0], session.machine.aims[1]]);
+  };
+  // The keys are listened for on the window, outside React: they reach the cabinet through this.
+  const controls = useRef({ pressRail, releaseRail, aimRail });
+  useEffect(() => {
+    controls.current = { pressRail, releaseRail, aimRail };
+  });
+
+  // F and J feed the left and the right rail, and S, D and K, L move their aims, while this tab is the one showing.
+  // A key held down is one press, however often the keyboard repeats it; it ends when the key comes up, and when
+  // the window loses the keyboard, which is when a key can come up unheard. A key pressed with a modifier, or in
+  // something the player types in, is not the machine's and is left alone.
+  useEffect(() => {
+    if (!active) return;
+    const letGo = () => {
+      controls.current.releaseRail(0, KEY);
+      controls.current.releaseRail(1, KEY);
+      aimKeys.current.clear();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const rail = FEED_KEYS[event.code];
+      const turn = AIM_KEYS[event.code];
+      if (rail === undefined && turn === undefined) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || typingIn(event.target)) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      if (rail !== undefined) controls.current.pressRail(rail, KEY);
+      if (turn !== undefined) {
+        aimKeys.current.add(event.code);
+        const session = sessionRef.current;
+        if (session) controls.current.aimRail(turn.arm, session.machine.aims[turn.arm] + turn.by * AIM_KEY.tap);
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      const rail = FEED_KEYS[event.code];
+      if (rail !== undefined) controls.current.releaseRail(rail, KEY);
+      aimKeys.current.delete(event.code);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', letGo);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', letGo);
+      letGo();
+    };
+  }, [active]);
 
   // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
   // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
@@ -187,11 +327,13 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     startFresh.current = false;
     const session = remembered ?? createSession(seed);
     sessionRef.current = session;
-    // A machine that is remembered has its arms where they were left, and the aim goes back there with them.
-    if (remembered) {
-      live.current.aim = remembered.machine.aim;
-      setAim(remembered.machine.aim);
-    }
+    // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
+    setAims([session.machine.aims[0], session.machine.aims[1]]);
+    // Nothing is held over from the machine before.
+    for (const hold of holds.current) hold.by.clear();
+    aimKeys.current.clear();
+    aimers.current.clear();
+    setHeld([false, false]);
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
@@ -244,7 +386,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let shownHud = INITIAL_HUD;
     let shownScreen = IDLE_SCREEN;
     let digits = IDLE_DIGITS;
+    let shownAims: [number, number] = [session.machine.aims[0], session.machine.aims[1]];
     let autoClock = 0;
+    let autoArm: Arm = 0;
     let lastSpinClock = 0;
     let last = performance.now();
     const events: SessionEvent[] = [];
@@ -255,25 +399,40 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       // A frame's timestamp can be a touch earlier than the clock read when the loop was set up.
       const elapsed = Math.max(0, Math.min(MAX_FRAME, (now - last) / 1000));
       last = now;
-      const { aim: aimNow, auto: autoNow, sound: soundOn, active: activeNow, strings } = live.current;
+      const { auto: autoNow, sound: soundOn, active: activeNow, strings } = live.current;
       if (!activeNow || !stage) return;
 
-      // The player's medals: a held press streams them, and Auto feeds two a second.
-      // A press that outlasts the medals ends there, so a refill does not start pouring them again.
-      if (session.credits === 0) press.current = null;
-      const held = press.current;
-      if (held && !held.streaming && now / 1000 - held.since >= HOLD_DELAY) held.streaming = true;
-      if (held?.streaming && insert(session, aimNow)) feedSound(soundOn);
+      // The player's medals. A rail whose feed is held down streams them, as fast as its own slot takes them, and
+      // the other rail does the same on its own: both at once is twice the medals. Auto feeds two a second, the
+      // two rails by turns. A press that outlasts the medals ends there, so a refill does not start pouring them again.
+      if (session.credits === 0 && holds.current.some((hold) => hold.by.size > 0)) {
+        for (const hold of holds.current) hold.by.clear();
+        setHeld([false, false]);
+      }
+      for (const arm of [0, 1] as const) {
+        const hold = holds.current[arm];
+        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && insert(session, arm)) feedSound(soundOn);
+      }
       if (autoNow) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
-          if (insert(session, aimNow)) feedSound(soundOn);
+          if (insert(session, autoArm)) feedSound(soundOn);
+          autoArm = autoArm === 0 ? 1 : 0;
         }
       }
 
-      // The arms swing after the aim, and a medal on a rail drops where its arm's tip is when it gets there.
-      aimArms(session.machine, aimNow);
+      // An aim key that is held down moves its rail's aim. Each arm swings after its own aim, and a medal on a
+      // rail drops where its arm's tip is when it gets there.
+      for (const code of aimKeys.current) {
+        const turn = AIM_KEYS[code];
+        if (turn) aimArm(session.machine, turn.arm, session.machine.aims[turn.arm] + turn.by * AIM_KEY.speed * elapsed);
+      }
+      const [leftAim, rightAim] = session.machine.aims;
+      if (leftAim !== shownAims[0] || rightAim !== shownAims[1]) {
+        shownAims = [leftAim, rightAim];
+        setAims(shownAims);
+      }
       events.length = 0;
       advance(session, elapsed, events);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
@@ -378,7 +537,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches, stock: session.stock });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -455,23 +614,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     return () => window.clearTimeout(timer);
   }, [armedAt]);
 
-  const drop = () => {
-    const session = sessionRef.current;
-    if (session && insert(session, live.current.aim)) feedSound(sound);
-  };
-
-  const aimAtPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  /** How far across the field the pointer is, or null where the picture shows no part of it. */
+  const acrossAt = (event: ReactPointerEvent<HTMLCanvasElement>): number | null => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    if (bounds.width === 0) return;
+    if (bounds.width === 0) return null;
     const px = ((event.clientX - bounds.left) / bounds.width) * VIEW.width;
     const py = ((event.clientY - bounds.top) / bounds.height) * VIEW.height;
-    // On the back wall, the screen included, the aim is the spot under the pointer; lower down, the spot on the pusher.
+    // On the back wall, the screen included, it is the spot under the pointer; lower down, the spot on the pusher.
     const panel = unprojectPanel(px, py);
     const point = panel && panel.height >= HEIGHT.pusher ? panel : unproject(px, py, HEIGHT.pusher);
-    if (!point) return;
-    const next = clampAim(point.x);
-    live.current.aim = next;
-    setAim(next);
+    return point ? point.x : null;
   };
 
   /**
@@ -498,18 +650,51 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     field.style.cursor = chest ? 'pointer' : '';
   };
 
-  const startPress = () => {
-    press.current = { since: performance.now() / 1000, streaming: false };
-    swallowClick.current = false;
-  };
-  const endPress = () => {
-    if (press.current?.streaming) swallowClick.current = true;
-    press.current = null;
-  };
-  const onDropClick = () => {
-    if (swallowClick.current) swallowClick.current = false;
-    else drop();
-  };
+  /**
+   * A rail's feed button. Every pointer that goes down on it is held on its own, and the button keeps hold of it
+   * until it comes up, so a second finger on the other button, or a slip of this one off the edge, changes nothing.
+   * A press feeds at once; the click that follows a press is not a second one, and a click that follows none is the
+   * button being worked from the keyboard or by assistive technology, which feeds one medal.
+   */
+  const feedButton = (arm: Arm) => (
+    <button
+      type="button"
+      className={styles.feed}
+      data-arm={arm}
+      data-held={held[arm]}
+      aria-label={t.feedAria[arm]}
+      aria-keyshortcuts={KEY_CAPS[arm]}
+      title={t.feedHint(KEY_CAPS[arm])}
+      data-testid={arm === 0 ? 'pusher-feed-left' : 'pusher-feed-right'}
+      disabled={hud.credits === 0}
+      onPointerDown={(event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // A pointer that cannot be kept hold of is let go when it leaves the button instead.
+        }
+        pressRail(arm, pointerName(event.pointerId));
+      }}
+      onPointerUp={(event) => releaseRail(arm, pointerName(event.pointerId))}
+      onPointerCancel={(event) => releaseRail(arm, pointerName(event.pointerId))}
+      onLostPointerCapture={(event) => releaseRail(arm, pointerName(event.pointerId))}
+      onPointerLeave={(event) => {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) releaseRail(arm, pointerName(event.pointerId));
+      }}
+      onContextMenu={(event) => event.preventDefault()}
+      onClick={(event) => {
+        if (event.detail === 0) feedOnce(arm);
+      }}
+    >
+      <span className={styles.feedLetter} aria-hidden>
+        {t.feedName[arm]}
+      </span>
+      <kbd className={styles.keyCap} aria-hidden>
+        {KEY_CAPS[arm]}
+      </kbd>
+    </button>
+  );
 
   const toggleSound = () => {
     if (!sound) void unlockAudio();
@@ -552,8 +737,6 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     ball.current = element;
   };
 
-  const aimPercent = Math.round(((aim - AIM.min) / (AIM.max - AIM.min)) * 100);
-
   return (
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
@@ -587,32 +770,46 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             aria-label={t.fieldAria}
             data-testid="pusher-field"
             onPointerDown={(event) => {
-              // A press on a chest the screen is offering is for the chest: it neither aims nor feeds.
+              // A press on a chest the screen is offering is for the chest: it does not aim.
               pressedChest.current = chestAt(event.clientX, event.clientY);
               if (pressedChest.current) return;
-              aimAtPointer(event);
-              startPress();
+              // Anywhere else it aims, and only aims: the left half of the field is the left rail's and the right
+              // half the right rail's. The rail a press began on is the one it goes on moving, wherever it is dragged
+              // to, and a second finger on the other half moves the other rail meanwhile. No medal is fed from here.
+              const x = acrossAt(event);
+              if (x === null) return;
+              const arm = armFor(x);
+              aimers.current.set(event.pointerId, arm);
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              } catch {
+                // Without it the drag ends where the pointer leaves the field.
+              }
+              aimRail(arm, x);
             }}
             onPointerMove={(event) => {
-              if (press.current) aimAtPointer(event);
-              else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
+              const arm = aimers.current.get(event.pointerId);
+              if (arm !== undefined) {
+                const x = acrossAt(event);
+                if (x !== null) aimRail(arm, x);
+              } else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
             }}
-            onPointerUp={endPress}
-            onPointerCancel={() => {
-              // The browser took the gesture for a scroll: nothing was meant to drop, and no click follows.
-              press.current = null;
+            onPointerUp={(event) => aimers.current.delete(event.pointerId)}
+            onPointerCancel={(event) => {
+              // The browser took the gesture for a scroll: the aim stays where the drag had got to, and no click follows.
+              aimers.current.delete(event.pointerId);
               pressedChest.current = null;
             }}
+            onLostPointerCapture={(event) => aimers.current.delete(event.pointerId)}
             onPointerLeave={(event) => {
-              endPress();
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) aimers.current.delete(event.pointerId);
               hoverChest(null, event.currentTarget);
             }}
             onClick={(event) => {
-              // A press that began on a chest picks it, if it ends there too, and drops nothing either way.
+              // A press that began on a chest picks it, if it ends there too. A click anywhere else has done its aiming already.
               const chest = pressedChest.current;
               pressedChest.current = null;
-              if (!chest) onDropClick();
-              else if (chest === chestAt(event.clientX, event.clientY)) chest.click();
+              if (chest && chest === chestAt(event.clientX, event.clientY)) chest.click();
             }}
           />
         </div>
@@ -625,44 +822,41 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </span>
         </div>
 
-        <div className={styles.panel}>
+        {/* The controls: a feed button for each rail at either end, the medals on a plate between them, and under them an aim for each rail. */}
+        <div className={styles.panel} data-testid="pusher-controls">
+          {feedButton(0)}
           <div className={styles.credit}>
             <span className={styles.creditLabel}>{t.medals}</span>
             <strong className={styles.creditValue} data-testid="pusher-credits">
               {fmt(hud.credits)}
             </strong>
           </div>
-          <div className={styles.aim}>
-            <label htmlFor={aimId} className={styles.aimLabel}>
-              {t.aim}
-            </label>
-            <input
-              id={aimId}
-              type="range"
-              className={styles.aimSlider}
-              min={0}
-              max={100}
-              step={1}
-              value={aimPercent}
-              aria-valuetext={t.aimValue(aimPercent)}
-              data-testid="pusher-aim"
-              onChange={(event) => setAim(AIM.min + (Number(event.target.value) / 100) * (AIM.max - AIM.min))}
-            />
+          {feedButton(1)}
+          <div className={styles.aims}>
+            {([0, 1] as const).map((arm) => (
+              <div key={arm} className={styles.aim} data-arm={arm}>
+                <label htmlFor={`${aimId}-${arm}`} className={styles.aimLabel}>
+                  {t.aimLabel[arm]}
+                  <span className={styles.aimKeys} aria-hidden>
+                    <kbd className={styles.keyCap}>{AIM_CAPS[arm][0]}</kbd>
+                    <kbd className={styles.keyCap}>{AIM_CAPS[arm][1]}</kbd>
+                  </span>
+                </label>
+                <input
+                  id={`${aimId}-${arm}`}
+                  type="range"
+                  className={styles.aimSlider}
+                  min={AIM_RANGE[arm].min}
+                  max={AIM_RANGE[arm].max}
+                  step={1}
+                  value={aimPercent(aims[arm])}
+                  aria-valuetext={t.aimValue(aimPercent(aims[arm]))}
+                  data-testid={arm === 0 ? 'pusher-aim-left' : 'pusher-aim-right'}
+                  onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
+                />
+              </div>
+            ))}
           </div>
-          <button
-            type="button"
-            className={styles.drop}
-            title={t.dropHint}
-            data-testid="pusher-drop"
-            disabled={hud.credits === 0}
-            onPointerDown={startPress}
-            onPointerUp={endPress}
-            onPointerCancel={endPress}
-            onPointerLeave={endPress}
-            onClick={onDropClick}
-          >
-            {t.drop}
-          </button>
           <div className={styles.toggles}>
             <button type="button" className={styles.toggle} aria-pressed={auto} title={t.autoHint} data-testid="pusher-auto" onClick={() => setAuto(!auto)}>
               {t.auto}
@@ -672,6 +866,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             </button>
           </div>
         </div>
+
+        <p className={styles.keysNote} data-testid="pusher-keys">
+          {t.keysNote}
+        </p>
 
         {hud.credits === 0 && (
           <button type="button" className={styles.refill} data-testid="pusher-refill" onClick={onRefill}>

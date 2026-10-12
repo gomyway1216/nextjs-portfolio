@@ -6,7 +6,7 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Machine } from './engine';
+import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
 import {
   BOARD,
   BOWL,
@@ -230,10 +230,13 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
   };
 }
 
-/** Feeds one of the player's medals into the arm on the side of `aimX`, the arms pointed there. Returns whether the machine took it. */
-export function insert(session: Session, aimX: number): boolean {
+/**
+ * Feeds one of the player's medals into an arm, the left (0) or the right (1), wherever that arm is pointed.
+ * Returns whether the machine took it: the purse has to hold a medal, and that arm's slot has to be free.
+ */
+export function insert(session: Session, arm: Arm): boolean {
   if (session.credits <= 0) return false;
-  if (!dropMedal(session.machine, aimX)) return false;
+  if (!dropMedal(session.machine, arm)) return false;
   session.credits -= 1;
   session.inserted += 1;
   session.jackpotProgress += 1;

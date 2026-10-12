@@ -20,8 +20,8 @@ import {
   TIMING,
   advance,
   createSession,
-  insert,
   isBusy,
+  insert,
   pickChest,
   reachTime,
   refill,
@@ -29,6 +29,8 @@ import {
   type Session,
   type SessionEvent,
 } from '@/components/game/MedalPusher/session';
+
+import { insertAt } from './feeding';
 
 const DT = 1 / 60;
 /** Tests that run the machine for a minute or more of its own time get room on a slow machine. */
@@ -95,25 +97,57 @@ describe('a new session', () => {
 
   it('takes a medal from the purse for every drop the machine accepts', () => {
     const session = createSession(2);
-    expect(insert(session, 50)).toBe(true);
+    expect(insertAt(session, 50)).toBe(true);
     expect(session.credits).toBe(START_CREDITS - 1);
     expect(session.inserted).toBe(1);
-    // The slot is still feeding the first one.
-    expect(insert(session, 50)).toBe(false);
+    // That arm's slot is still feeding the first one.
+    expect(insertAt(session, 50)).toBe(false);
     expect(session.credits).toBe(START_CREDITS - 1);
     expect(isBusy(session)).toBe(true);
     advance(session, DROP_INTERVAL + 0.01);
-    expect(insert(session, 50)).toBe(true);
+    expect(insertAt(session, 50)).toBe(true);
     expect(session.inserted).toBe(2);
+  });
+
+  it('takes a medal into either arm, and into both at once: each arm’s slot waits on its own', () => {
+    const session = createSession(2, { balls: 0 });
+    const aims = [...session.machine.aims];
+    // The left arm and the right arm in the same instant: two medals out of the purse, one on each rail.
+    expect(insert(session, 0)).toBe(true);
+    expect(insert(session, 1)).toBe(true);
+    expect(session.credits).toBe(START_CREDITS - 2);
+    expect(session.inserted).toBe(2);
+    expect(session.machine.rolling.map((medal) => medal.arm)).toEqual([0, 1]);
+    // Feeding does not aim: both arms point where they did.
+    expect(session.machine.aims).toEqual(aims);
+    // Each is busy with its own medal, and neither takes another yet.
+    expect(insert(session, 0)).toBe(false);
+    expect(insert(session, 1)).toBe(false);
+    expect(session.inserted).toBe(2);
+    // Held down together, the two feed twice what one does: here for two seconds, a medal each every eleven steps.
+    let fed = 0;
+    for (let i = 0; i < 120; i++) {
+      for (const arm of [0, 1] as const) if (insert(session, arm)) fed++;
+      advance(session, DT);
+    }
+    expect(fed).toBe(20);
+    expect(session.inserted).toBe(22);
+    expect(session.credits).toBe(START_CREDITS - 22);
+    // The last medal in the purse goes into whichever arm asks first, and the other gets none.
+    session.credits = 1;
+    session.machine.waits = [0, 0];
+    expect(insert(session, 1)).toBe(true);
+    expect(insert(session, 0)).toBe(false);
+    expect(session.credits).toBe(0);
   });
 
   it('feeds a medal into an arm, where it is one of the field’s medals and keeps the machine busy until it is down', () => {
     const session = createSession(2, { balls: 0 });
     const medals = medalsOnField(session.machine);
     // Landing starts nothing on the screen, here or anywhere: the pockets are at the far end of the pusher.
-    expect(insert(session, AIM.min)).toBe(true);
+    expect(insertAt(session, AIM.min)).toBe(true);
     expect(session.machine.rolling).toEqual([{ id: expect.any(Number), arm: 0, remaining: ROLL_TIME }]);
-    expect(session.machine.aim).toBe(AIM.min);
+    expect(session.machine.aims[0]).toBe(AIM.min);
     expect(medalsOnField(session.machine)).toBe(medals + 1);
     expect(isBusy(session)).toBe(true);
     // It rolls down the rail, drops off the tip, falls and lands, and only then is the machine at rest.
@@ -133,7 +167,7 @@ describe('a new session', () => {
     const session = createSession(3);
     expect(refill(session)).toBe(false);
     session.credits = 0;
-    expect(insert(session, 50)).toBe(false);
+    expect(insertAt(session, 50)).toBe(false);
     expect(session.inserted).toBe(0);
     expect(refill(session)).toBe(true);
     expect(session.credits).toBe(START_CREDITS);
@@ -144,8 +178,8 @@ describe('a new session', () => {
     const session = createSession(4);
     session.credits = 1000;
     for (let i = 0; i < JACKPOT_STEP * 3 + 5; i++) {
-      session.machine.cooldown = 0;
-      insert(session, 50);
+      session.machine.waits = [0, 0];
+      insertAt(session, 50);
     }
     expect(session.jackpot).toBe(JACKPOT_START + 3);
     expect(session.jackpotProgress).toBe(5);
@@ -250,7 +284,7 @@ describe('the slot', () => {
     }
     // And a medal the player feeds starts nothing by landing, even right behind a pocket: it has the pusher to cross first.
     const fed = emptied();
-    expect(insert(fed, CHECKERS.positions[1])).toBe(true);
+    expect(insertAt(fed, CHECKERS.positions[1])).toBe(true);
     expect(types(play(fed, ROLL_TIME + FALL_TIME + 0.1))).toEqual(['landed']);
     expect(fed.hits).toBe(0);
   });
@@ -720,7 +754,7 @@ describe('a session played for a while', () => {
       if (clock >= 0.2) {
         clock = 0;
         if (session.credits === 0) refill(session);
-        insert(session, CHECKERS.positions[1]);
+        insertAt(session, CHECKERS.positions[1]);
       }
       advance(session, DT, events);
       clock += DT;
@@ -758,7 +792,7 @@ describe('a session played for a while', () => {
       for (let i = 0; i < 60 * 60; i++) {
         if (clock >= 0.25) {
           clock = 0;
-          insert(session, [25, 50, 75][session.inserted % 3]);
+          insertAt(session, [25, 50, 75][session.inserted % 3]);
         }
         advance(session, DT);
         clock += DT;

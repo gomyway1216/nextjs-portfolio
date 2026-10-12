@@ -8,7 +8,7 @@ import {
   airSpot,
   armCollar,
   armGoal,
-  armRest,
+  armStart,
   armTip,
   fedSpot,
   leftHeld,
@@ -26,7 +26,7 @@ import * as engine from '@/components/game/MedalPusher/engine';
 import {
   AIM,
   ARM_REACH,
-  ARM_REST,
+  ARM_START,
   ARM_SPEED,
   CHECKERS,
   FALL_TIME,
@@ -37,15 +37,16 @@ import {
   PUSHER,
   ROLL_TIME,
   TOWER,
-  aimArms,
+  aimArm,
   createMachine,
-  dropMedal,
   step,
   tipOf,
   type Arm,
   type FallingMedal,
 } from '@/components/game/MedalPusher/engine';
 import { HEIGHT, HOUSING, SCREEN, VIEW, project, wallBehind } from '@/components/game/MedalPusher/view';
+
+import { dropAt } from './feeding';
 
 const DT = 1 / 60;
 const BOTH: Arm[] = [0, 1];
@@ -89,7 +90,7 @@ describe('where the arms hang', () => {
     // The engine lets a medal go where the arm's tip is across the field: the machine's own tip, which is what gets drawn.
     const machine = createMachine(4);
     machine.rng = () => 0.5;
-    dropMedal(machine, 33);
+    dropAt(machine, 33);
     step(machine, ROLL_TIME);
     const [medal] = machine.falling;
     expect(machine.tips[0]).toBe(33);
@@ -98,11 +99,11 @@ describe('where the arms hang', () => {
   });
 
   it('leaves the moving of the arms to the engine, and hands its rules on unchanged', () => {
-    // How far short of the middle an arm rests and how fast a tip swings are the machine's own numbers.
-    expect(ARMS.rest).toBe(ARM_REST);
+    // How far to its own side of the middle a new machine's arm points and how fast a tip swings are the machine's own numbers.
+    expect(ARMS.start).toBe(ARM_START);
     expect(ARMS.speed).toBe(ARM_SPEED);
     expect(armGoal).toBe(engine.armGoal);
-    expect(armRest).toBe(engine.armRest);
+    expect(armStart).toBe(engine.armStart);
     expect(swing).toBe(engine.swing);
     // A place the arm cannot reach is taken as the end of its reach, so a tip can be handed over as it is.
     expect(armTip(0, 90).x).toBe(ARM_REACH[0].max);
@@ -113,7 +114,7 @@ describe('where the arms hang', () => {
 
   it('is one straight rail from the slot to the tip, away from the player and gently downhill', () => {
     for (const arm of BOTH) {
-      for (const aim of [ARM_REACH[arm].min, armRest(arm), ARM_REACH[arm].max]) {
+      for (const aim of [ARM_REACH[arm].min, armStart(arm), ARM_REACH[arm].max]) {
         const collar = armCollar(arm);
         const tip = armTip(arm, aim);
         const length = railLength(arm, aim);
@@ -138,7 +139,7 @@ describe('where the arms hang', () => {
 
   it('is never in front of the screen or the lamps under it, rail or medal, wherever it points', () => {
     for (const arm of BOTH) {
-      for (const aim of [ARM_REACH[arm].min, armRest(arm), FIELD.width / 2, ARM_REACH[arm].max]) {
+      for (const aim of [ARM_REACH[arm].min, armStart(arm), FIELD.width / 2, ARM_REACH[arm].max]) {
         for (let remaining = FEED.arm; remaining >= 0; remaining -= FEED.arm / 40) {
           const spot = rollingSpot(arm, aim, remaining);
           // The highest point of a medal there, and the point of the back wall the camera sees it against.
@@ -150,16 +151,15 @@ describe('where the arms hang', () => {
     expect(HOUSING.shelf).toBeLessThan(SCREEN.foot);
   });
 
-  it('rests an arm with its tip short of the middle, inside its own reach and out of the other arm’s way', () => {
-    expect(armRest(0)).toBe(FIELD.width / 2 - ARMS.rest);
-    expect(armRest(1)).toBe(FIELD.width / 2 + ARMS.rest);
-    for (const arm of BOTH) expect(tipOf(arm, armRest(arm))).toBe(armRest(arm));
-    // A resting tip is well clear of the column behind the middle chucker, where the other arm is likeliest to be feeding,
-    // and of anywhere else the other arm can be.
-    expect(armRest(0)).toBeLessThan(CHECKERS.positions[1] - MEDAL_RADIUS * 4);
-    expect(armRest(1)).toBeGreaterThan(CHECKERS.positions[1] + MEDAL_RADIUS * 4);
-    expect(armRest(0)).toBeLessThan(ARM_REACH[1].min);
-    expect(armRest(1)).toBeGreaterThan(ARM_REACH[0].max);
+  it('starts each arm a little to its own side of the middle, inside its own reach and clear of the other', () => {
+    expect(armStart(0)).toBe(FIELD.width / 2 - ARMS.start);
+    expect(armStart(1)).toBe(FIELD.width / 2 + ARMS.start);
+    for (const arm of BOTH) expect(tipOf(arm, armStart(arm))).toBe(armStart(arm));
+    // The two tips start a good two medals apart, each over the lip halfway between the middle chucker and the
+    // outer one on its side, which is as good a place to feed as the middle.
+    expect(armStart(1) - armStart(0)).toBeGreaterThan(MEDAL_RADIUS * 4);
+    expect(armStart(0)).toBe((CHECKERS.positions[0] + CHECKERS.positions[1]) / 2);
+    expect(armStart(1)).toBe((CHECKERS.positions[1] + CHECKERS.positions[2]) / 2);
   });
 
   it('fits the picture: a medal anywhere on its way in is inside the drawing, from the slot to the tip', () => {
@@ -180,31 +180,31 @@ describe('where the arms hang', () => {
 });
 
 describe('where an arm’s tip belongs', () => {
-  it('is over the aim for the arm on that side, and at rest for the other', () => {
+  it('is over its own arm’s aim, whatever the other arm’s is', () => {
     const machine = createMachine(4);
-    aimArms(machine, 30);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([30, armRest(1)]);
-    aimArms(machine, 72);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([armRest(0), 72]);
-    // A new machine's arms point at the middle, which is the right arm's side.
-    expect(armGoal(createMachine(4), 1)).toBe(FIELD.width / 2);
-    expect(armGoal(createMachine(4), 0)).toBe(armRest(0));
+    // A new machine's arms each point a little to their own side of the middle.
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([armStart(0), armStart(1)]);
+    aimArm(machine, 0, 30);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([30, armStart(1)]);
+    aimArm(machine, 1, 72);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([30, 72]);
   });
 
-  it('stays over the aim while a medal is on its rail, as far as it reaches, and goes to rest when the rail is empty', () => {
+  it('stays over its aim while a medal is on its rail, as far as it reaches, and after the rail is empty', () => {
     const machine = createMachine(4);
     machine.rng = () => 0.5;
-    dropMedal(machine, 30);
+    dropAt(machine, 30);
     step(machine, 0.1);
-    // The aim crosses to the other side: the left arm, with a medal on it, follows as far as it can.
-    aimArms(machine, 56);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([56, 56]);
-    aimArms(machine, 80);
+    // The left arm's aim is moved past the middle, and then further than the arm reaches.
+    aimArm(machine, 1, 80);
+    aimArm(machine, 0, 56);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([56, 80]);
+    aimArm(machine, 0, 80);
     expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([ARM_REACH[0].max, 80]);
-    // That is where the medal is let go.
+    // That is where the medal is let go, and where the arm stays.
     step(machine, ROLL_TIME);
     expect(machine.falling[0].fromX).toBe(ARM_REACH[0].max);
-    expect(armGoal(machine, 0)).toBe(armRest(0));
+    expect(armGoal(machine, 0)).toBe(ARM_REACH[0].max);
   });
 
   it('swings there at its own speed and stops, and is over the middle long before a medal fed there is', () => {
@@ -214,16 +214,16 @@ describe('where an arm’s tip belongs', () => {
     expect(swing(40, 41, DT)).toBe(41);
     expect(swing(40, 39.5, DT)).toBe(39.5);
     expect(swing(40, 90, 0)).toBe(40);
-    // From rest to the far side of the field in well under the time a medal takes to get to the tip.
-    let tip = armRest(0);
+    // From where it starts to the far side of the field in well under the time a medal takes to get to the tip.
+    let tip = armStart(0);
     let steps = 0;
     while (tip !== AIM.min && steps < 100) {
       tip = swing(tip, AIM.min, DT);
       steps++;
     }
     expect(steps * DT).toBeLessThan(ROLL_TIME / 2);
-    // From its rest to the column behind the middle chucker is a few steps: either arm is there before its medal has rolled a quarter of the way.
-    for (const arm of BOTH) expect(Math.abs(armRest(arm) - CHECKERS.positions[1]) / ARMS.speed).toBeLessThan(ROLL_TIME / 4);
+    // From where it starts to the column behind the middle chucker is a step or two: either arm is there before its medal has rolled a quarter of the way.
+    for (const arm of BOTH) expect(Math.abs(armStart(arm) - CHECKERS.positions[1]) / ARMS.speed).toBeLessThan(ROLL_TIME / 4);
   });
 });
 
@@ -311,7 +311,7 @@ describe('a medal on a rail', () => {
 
   it('rolls in a channel: an edge to stand on, a wall to lean back on, its face turned up toward the middle', () => {
     for (const arm of BOTH) {
-      for (const aim of [ARM_REACH[arm].min, armRest(arm), ARM_REACH[arm].max]) {
+      for (const aim of [ARM_REACH[arm].min, armStart(arm), ARM_REACH[arm].max]) {
         const frame = railFrame(arm, aim);
         expect(frame.from).toEqual(armCollar(arm));
         expect(frame.to).toEqual(armTip(arm, aim));
@@ -359,7 +359,7 @@ describe('the way in: a slot, then the rail', () => {
     expect(legOf(0)).toBe('arm');
     // What the machine keeps is one number per medal, as before: the legs are only where it is drawn.
     const machine = createMachine(3);
-    dropMedal(machine, 30);
+    dropAt(machine, 30);
     expect(machine.rolling).toEqual([{ id: expect.any(Number), arm: 0, remaining: ROLL_TIME }]);
   });
 

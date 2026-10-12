@@ -4,10 +4,11 @@
  * odds these numbers cannot be worked out — they have to be measured.
  *
  * Each way of aiming gets a machine of its own, started from the same seed,
- * and plays the same number of medals at the same pace.
+ * and plays the same number of medals at the same pace: so many a second
+ * between the two rails, which every way of aiming but one feeds by turns.
  */
 
-import { AIM, CHECKERS, aimArms, medalsOnField, seededRng } from './engine';
+import { AIM, CHECKERS, aimArm, armFor, medalsOnField, seededRng, type Arm } from './engine';
 import { JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
@@ -18,24 +19,36 @@ const [LEFT_POCKET, CENTRE_POCKET, RIGHT_POCKET] = CHECKERS.positions;
 /** The two fixed spots beside the START pockets: as far outside the outer two as those are from the middle one. */
 export const BESIDE = [LEFT_POCKET - (CENTRE_POCKET - LEFT_POCKET), RIGHT_POCKET + (RIGHT_POCKET - CENTRE_POCKET)] as const;
 
+/** One medal as a way of aiming feeds it: into which rail, and where that rail's arm is pointing when the medal drops off its tip. */
+export interface Feed {
+  arm: Arm;
+  x: number;
+}
+
 /**
- * Where each way of aiming has its arm pointing when its `n`-th medal drops
- * off the tip: down the middle, behind the centre START pocket; anywhere at
- * all (`pick` chooses); at the two fixed spots beside the pockets by turns; or
- * at the two edges by turns. The pockets sit still on the pusher's lip and a
- * medal takes its time getting there, so there is nothing to follow and
- * nothing to lead: a way of aiming is only a choice of column.
+ * How each way of aiming feeds its `n`-th medal. Three of them feed the two
+ * rails by turns, the left first, each rail kept on a spot of its own: both
+ * down the middle, behind the centre START pocket; the left at the fixed spot
+ * beside the pockets on its side and the right at the one on its; or each at
+ * its own edge. The fourth drops anywhere at all (`pick` chooses), from the
+ * rail on that side of the field, which swings there. The pockets sit still
+ * on the pusher's lip and a medal takes its time getting there, so there is
+ * nothing to follow and nothing to lead: a way of aiming is only a choice of
+ * column for each rail.
  */
-export function aimAt(id: AimId, n: number, pick: () => number): number {
+export function aimAt(id: AimId, n: number, pick: () => number): Feed {
+  const arm: Arm = n % 2 === 0 ? 0 : 1;
   switch (id) {
     case 'centre':
-      return CENTRE_POCKET;
-    case 'anywhere':
-      return AIM.min + pick() * (AIM.max - AIM.min);
+      return { arm, x: CENTRE_POCKET };
+    case 'anywhere': {
+      const x = AIM.min + pick() * (AIM.max - AIM.min);
+      return { arm: armFor(x), x };
+    }
     case 'beside':
-      return BESIDE[n % 2];
+      return { arm, x: BESIDE[arm] };
     case 'edges':
-      return n % 2 === 0 ? AIM.min : AIM.max;
+      return { arm, x: arm === 0 ? AIM.min : AIM.max };
   }
 }
 
@@ -61,7 +74,7 @@ export const AIM_MARKERS: Record<AimId, MarkerShape> = {
   edges: 'diamond',
 };
 
-/** Medals per second on offer. The machine itself takes at most one every 0.18 s. */
+/** Medals per second on offer, between the two rails. Each rail's slot takes at most one every 0.18 s. */
 export const PACES = [2, 5] as const;
 export type Pace = (typeof PACES)[number];
 
@@ -181,27 +194,32 @@ export async function simulate(
     let start: Counts | null = null;
     const points: RatePoint[] = [];
     let clock = interval;
-    // The spot each medal on a rail is meant for, in the order they were fed.
-    const meant: number[] = [];
+    // The spot each medal on a rail is meant for, rail by rail, in the order they were fed.
+    const meant: [number[], number[]] = [[], []];
     /**
      * A medal drops where its arm's tip is when it leaves it, a roll after it was fed. So before
-     * every step the arms are pointed where the medal that leaves next is meant to drop. An arm
-     * crosses its whole reach in less time than the slot waits between two medals, so it is always
+     * every step each arm is pointed where the medal that leaves it next is meant to drop. An arm
+     * crosses its whole reach in less time than its slot waits between two medals, so it is always
      * there by then.
      */
     const holdArms = () => {
-      meant.splice(0, meant.length - session.machine.rolling.length);
-      if (meant.length > 0) aimArms(session.machine, meant[0]);
+      for (const arm of [0, 1] as const) {
+        const onRail = session.machine.rolling.reduce((count, medal) => count + (medal.arm === arm ? 1 : 0), 0);
+        meant[arm].splice(0, meant[arm].length - onRail);
+        if (meant[arm].length > 0) aimArm(session.machine, arm, meant[arm][0]);
+      }
     };
+    // The medal that goes in next, once it has been decided: it waits for its rail's slot if that is not free yet.
+    let next: Feed | null = null;
 
     while (session.inserted < perAim) {
-      if (clock >= interval && session.machine.cooldown <= 1e-9) {
+      if (clock >= interval) next ??= aimAt(id, session.inserted, pick);
+      if (next && session.machine.waits[next.arm] <= 1e-9) {
         if (session.inserted === WARM_UP) start = snapshot(session);
         clock -= interval;
-        // It goes into the arm on the side of the spot it is meant for.
-        const spot = aimAt(id, session.inserted, pick);
-        const taken = insert(session, spot);
-        if (taken) meant.push(spot);
+        const taken = insert(session, next.arm);
+        if (taken) meant[next.arm].push(next.x);
+        next = null;
         if (taken && start) {
           const played = session.inserted - start.played;
           if (played % every === 0 || played === medals) points.push({ medals: played, rate: (session.won - start.won) / played });

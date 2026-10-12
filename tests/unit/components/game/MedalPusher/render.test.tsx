@@ -17,7 +17,7 @@ import {
   pocketGroups,
   returnFor,
 } from '@/components/game/MedalPusher/OddsTab';
-import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
+import { AIM_CAPS, AIM_KEY, AIM_KEYS, AIM_RANGE, AUTO_PACE, FEED_KEYS, HOLD_DELAY, KEY_CAPS, PlayTab, aimPercent, percentAim, typingIn } from '@/components/game/MedalPusher/PlayTab';
 import { ReelSymbol } from '@/components/game/MedalPusher/ReelSymbols';
 import {
   IDLE_DIGITS,
@@ -32,7 +32,7 @@ import {
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME } from '@/components/game/MedalPusher/engine';
+import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -713,15 +713,19 @@ describe('strings', () => {
     expect(CALC_DEFAULT).toEqual({ front: 80, spins: 18 });
     expect(en.calcNote(MAX_STOCK)).toContain(`about ${CALC_DEFAULT.front}% of medals leave by the front and a spin starts about ${CALC_DEFAULT.spins} times for every 100 medals dropped`);
     expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て、落としたメダル100枚につき約${CALC_DEFAULT.spins}回の抽選が始まります`);
-    // The ways of aiming are named for where they feed, now that there is nothing to follow.
+    // The ways of aiming are named for where each rail feeds, now that there is nothing to follow.
     expect(en.aimName).toEqual({
-      centre: 'Down the middle, behind the pockets',
-      anywhere: en.aimName.anywhere,
-      beside: 'Fixed spots beside the pockets',
-      edges: en.aimName.edges,
+      centre: 'Both rails down the middle, behind the pockets',
+      anywhere: 'Anywhere at all, from the rail on that side',
+      beside: 'Each rail at its fixed spot beside the pockets',
+      edges: 'Each rail at its own edge',
     });
-    expect(ja.aimName.centre).toBe('チャッカーの奥、中央に落とす');
-    expect(ja.aimName.beside).toBe('チャッカーの両脇に固定');
+    expect(ja.aimName).toEqual({
+      centre: '両方のレールをチャッカーの奥、中央に',
+      anywhere: '場所を決めずに、その側のレールから',
+      beside: '左右のレールをチャッカーの両脇に固定',
+      edges: '左右のレールをそれぞれの端に',
+    });
     expect(en.colGate).toBe('Through a pocket');
     // Nothing still speaks of gates on the back panel, of their sweep, or of following one.
     const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
@@ -739,10 +743,10 @@ describe('strings', () => {
     expect(ROLL_TIME).toBeLessThan(1);
     expect(Math.round(FALL_TIME * 2) / 2).toBe(0.5);
     const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
-    expect(info.en).toContain('goes in at the slot on that side, by your hand, rolls along its feed arm’s rail to the back of the cabinet');
+    expect(info.en).toContain('goes in at the slot by that button, rolls along its feed arm’s rail to the back of the cabinet');
     expect(info.en).toContain('takes most of a second to go in at its slot and roll the length of its arm, and about half a second more to fall');
     expect(info.en).toContain('wherever the arm is pointing when it gets to the tip');
-    expect(info.ja).toContain('狙った側の手前の入り口から入り、アームのレールを奥まで転がって先端から落ち');
+    expect(info.ja).toContain('そのボタンのそばの入り口から入り、アームのレールを奥まで転がって先端から落ち');
     expect(info.ja).toContain('入り口から入ってアームのレールを奥まで転がるのに1秒近く、先端から落ちるのにもう0.5秒ほどかかります');
     expect(info.ja).toContain('先端に着いたときにアームが向いている位置');
     // The diagram's first part is the arms, and its text gives the scatter the engine uses and how far an arm reaches.
@@ -787,10 +791,37 @@ describe('the page', () => {
     expect(html).toMatch(new RegExp(`data-testid="pusher-credits"[^>]*>${START_CREDITS}<`));
     expect(html).toMatch(new RegExp(`data-testid="pusher-jackpot"[^>]*>${JACKPOT_START}<`));
     expect(html).toContain('<canvas');
-    expect(html).toContain('aria-label="The field. Click or tap where a medal should drop."');
-    expect(html).toContain('aria-valuetext="50% across"');
+    // The field only aims, and says so.
+    expect(html).toContain('aria-label="The field. Press or drag on its left half to aim the left rail, and on its right half to aim the right rail. This feeds no medals: the L and R buttons do."');
     expect(html).toContain(`aria-label="0 of ${MAX_STOCK} spins held"`);
-    expect(html).toContain('>DROP<');
+    // A feed button for each rail, the left one before the medals and the right one after them, each with its key written on it.
+    const controls = html.split('data-testid="pusher-controls"')[1].split('data-testid="pusher-keys"')[0];
+    const order = ['pusher-feed-left', 'pusher-credits', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto'].map((id) => controls.indexOf(`data-testid="${id}"`));
+    expect(order.every((at) => at > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const button = (id: string) => html.match(new RegExp(`<button[^>]*data-testid="${id}"[^>]*>[\\s\\S]*?</button>`))?.[0] ?? '';
+    expect(button('pusher-feed-left')).toContain('aria-label="Feed the left rail"');
+    expect(button('pusher-feed-left')).toContain('aria-keyshortcuts="F"');
+    expect(button('pusher-feed-left')).toContain('data-arm="0"');
+    expect(button('pusher-feed-left')).toContain('data-held="false"');
+    expect(button('pusher-feed-left')).toMatch(/>L<[\s\S]*<kbd[^>]*>F<\/kbd>/);
+    expect(button('pusher-feed-right')).toContain('aria-label="Feed the right rail"');
+    expect(button('pusher-feed-right')).toContain('aria-keyshortcuts="J"');
+    expect(button('pusher-feed-right')).toMatch(/>R<[\s\S]*<kbd[^>]*>J<\/kbd>/);
+    expect(html).not.toContain('pusher-drop');
+    expect(html).not.toContain('>DROP<');
+    // An aim for each rail: a slider with a label of its own, as far as that rail's arm reaches, on where a new machine points it.
+    const slider = (id: string) => html.match(new RegExp(`<input[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? '';
+    expect(slider('pusher-aim-left')).toContain(`min="${AIM_RANGE[0].min}"`);
+    expect(slider('pusher-aim-left')).toContain(`max="${AIM_RANGE[0].max}"`);
+    expect(slider('pusher-aim-left')).toContain(`value="${aimPercent(armStart(0))}"`);
+    expect(slider('pusher-aim-left')).toContain('aria-valuetext="42% across"');
+    expect(slider('pusher-aim-right')).toContain(`min="${AIM_RANGE[1].min}"`);
+    expect(slider('pusher-aim-right')).toContain(`max="${AIM_RANGE[1].max}"`);
+    expect(slider('pusher-aim-right')).toContain('aria-valuetext="58% across"');
+    expect(html).toMatch(/<label[^>]*>Left rail aim/);
+    expect(html).toMatch(/<label[^>]*>Right rail aim/);
+    expect(html).toContain('Keys: F and J feed the left and right rails, and can be held together. S and D aim the left rail, K and L the right.');
     expect(html).toMatch(/aria-pressed="false"[^>]*data-testid="pusher-auto"|data-testid="pusher-auto"[^>]*aria-pressed="false"/);
     expect(html).toContain('aria-live="polite"');
     // Three reels, each a drum with the nine digits round it: a seven on every one.
@@ -853,14 +884,81 @@ describe('the page', () => {
     }
   });
 
+  it('feeds from two keys under two hands and aims with the keys beside them', () => {
+    // F and J are the home keys of the two first fingers: both can be held at once. Each has its aim keys beside it.
+    expect(FEED_KEYS).toEqual({ KeyF: 0, KeyJ: 1 });
+    expect(KEY_CAPS).toEqual(['F', 'J']);
+    expect(AIM_KEYS).toEqual({ KeyS: { arm: 0, by: -1 }, KeyD: { arm: 0, by: 1 }, KeyK: { arm: 1, by: -1 }, KeyL: { arm: 1, by: 1 } });
+    expect(AIM_CAPS).toEqual([
+      ['S', 'D'],
+      ['K', 'L'],
+    ]);
+    // Every key is a letter of its own, and what is written on a key is the key that works.
+    const codes = [...Object.keys(FEED_KEYS), ...Object.keys(AIM_KEYS)];
+    expect(new Set(codes).size).toBe(6);
+    for (const arm of [0, 1] as const) {
+      expect(FEED_KEYS[`Key${KEY_CAPS[arm]}`]).toBe(arm);
+      expect(AIM_KEYS[`Key${AIM_CAPS[arm][0]}`]).toEqual({ arm, by: -1 });
+      expect(AIM_KEYS[`Key${AIM_CAPS[arm][1]}`]).toEqual({ arm, by: 1 });
+    }
+    // Nothing else on the keyboard is the machine's.
+    for (const code of ['KeyA', 'KeyG', 'KeyH', 'Space', 'Enter', 'ArrowLeft']) expect([FEED_KEYS[code], AIM_KEYS[code]]).toEqual([undefined, undefined]);
+    // A tap of an aim key is a small step, and a held one crosses an arm's reach in a second or two.
+    expect(AIM_KEY.tap).toBeLessThanOrEqual(2);
+    expect((ARM_REACH[0].max - ARM_REACH[0].min) / AIM_KEY.speed).toBeGreaterThan(1);
+    expect((ARM_REACH[0].max - ARM_REACH[0].min) / AIM_KEY.speed).toBeLessThan(2);
+    // A press feeds at once, and becomes a stream when it has been held a fifth of a second.
+    expect(HOLD_DELAY).toBe(0.2);
+  });
+
+  it('leaves a key alone when it is pressed in something the player types or chooses in', () => {
+    for (const type of ['text', 'search', 'email', 'number', 'password', 'url', 'tel', undefined]) expect(typingIn({ tagName: 'INPUT', type })).toBe(true);
+    expect(typingIn({ tagName: 'TEXTAREA' })).toBe(true);
+    expect(typingIn({ tagName: 'SELECT' })).toBe(true);
+    expect(typingIn({ tagName: 'DIV', isContentEditable: true })).toBe(true);
+    // The aim sliders are inputs too, and a letter does nothing in one: the keys still work with the focus there.
+    for (const type of ['range', 'checkbox', 'radio', 'button', 'submit']) expect(typingIn({ tagName: 'INPUT', type })).toBe(false);
+    for (const tagName of ['BUTTON', 'CANVAS', 'BODY', 'DIV', 'A']) expect(typingIn({ tagName })).toBe(false);
+    expect(typingIn({ tagName: 'DIV', isContentEditable: false })).toBe(false);
+    expect(typingIn(null)).toBe(false);
+    expect(typingIn(undefined)).toBe(false);
+    expect(typingIn('INPUT')).toBe(false);
+  });
+
+  it('gives each rail a slider over its own reach, in whole percent across the field', () => {
+    expect(aimPercent(AIM.min)).toBe(0);
+    expect(aimPercent(AIM.max)).toBe(100);
+    expect(aimPercent(FIELD.width / 2)).toBe(50);
+    expect(percentAim(0)).toBe(AIM.min);
+    expect(percentAim(100)).toBe(AIM.max);
+    expect(percentAim(50)).toBeCloseTo(FIELD.width / 2, 9);
+    // The left rail's slider runs from the left edge to a little past the middle, and the right rail's the other way.
+    expect(AIM_RANGE[0]).toEqual({ min: 0, max: aimPercent(ARM_REACH[0].max) });
+    expect(AIM_RANGE[1]).toEqual({ min: aimPercent(ARM_REACH[1].min), max: 100 });
+    expect(AIM_RANGE[0].max).toBeGreaterThan(50);
+    expect(AIM_RANGE[1].min).toBeLessThan(50);
+    expect(AIM_RANGE[0].max + AIM_RANGE[1].min).toBe(100);
+    // Every stop of a slider is a spot its rail's arm points at, to the percent: the ends too.
+    for (const arm of [0, 1] as const) {
+      for (let percent = AIM_RANGE[arm].min; percent <= AIM_RANGE[arm].max; percent++) {
+        expect(aimPercent(tipOf(arm, percentAim(percent)))).toBe(percent);
+      }
+    }
+  });
+
   it('renders the cabinet in Japanese', () => {
     const html = render(<PlayTab />, 'ja');
-    expect(html).toContain('落とす');
+    expect(html).toContain('aria-label="左のレールにメダルを入れる"');
+    expect(html).toContain('aria-label="右のレールにメダルを入れる"');
+    expect(html).toContain('左のレールの狙い');
+    expect(html).toContain('右のレールの狙い');
+    expect(html).toContain('キー操作: FとJで左右のレールにメダルを入れます');
     expect(html).toContain('オート');
     expect(html).toContain('1·3·5·9 ▸ 宝箱');
     expect(html).toContain('2·4·6·8 ▸ すごろく');
     expect(html).toContain('ナンバースロット');
-    expect(html).toContain('左から50%');
+    expect(html).toContain('左から42%');
+    expect(html).toContain('左から58%');
   });
 
   it('lists the exact odds', () => {

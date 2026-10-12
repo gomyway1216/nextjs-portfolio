@@ -33,9 +33,13 @@ const ON_SCREEN = 0.26;
 const machine = (page: Page) => page.locator('#pusher-panel-machine');
 const odds = (page: Page) => page.locator('#pusher-panel-odds');
 const sim = (page: Page) => page.locator('#pusher-panel-sim');
-const dropButton = (page: Page) => machine(page).getByTestId('pusher-drop');
+type Rail = 'left' | 'right';
+/** The feed button of a rail: L for the left one, R for the right. */
+const feedButton = (page: Page, rail: Rail) => machine(page).getByTestId(`pusher-feed-${rail}`);
 const autoButton = (page: Page) => machine(page).getByTestId('pusher-auto');
-const aimSlider = (page: Page) => machine(page).getByTestId('pusher-aim');
+/** The slider that aims a rail. Its value is how far across the field the rail's tip is, in percent. */
+const aimSlider = (page: Page, rail: Rail) => machine(page).getByTestId(`pusher-aim-${rail}`);
+const aimOf = async (page: Page, rail: Rail) => Number(await aimSlider(page, rail).inputValue());
 
 /** A counter of the machine as a number. It is read from the DOM, so it works while the tab is hidden too. */
 async function counter(page: Page, id: string): Promise<number> {
@@ -105,13 +109,19 @@ async function expectFieldPainted(page: Page, timeout = 5_000) {
     .toBe(true);
 }
 
-/** Drops one medal with the button, retrying until hydration has attached the handlers. */
-async function dropOne(page: Page) {
+/** Feeds one medal into a rail with its button, retrying until hydration has attached the handlers. */
+async function feedOne(page: Page, rail: Rail = 'left') {
   const before = await counter(page, 'played');
   await expect(async () => {
-    await dropButton(page).click({ timeout: 1_000 });
+    await feedButton(page, rail).click({ timeout: 1_000 });
     expect(await counter(page, 'played')).toBeGreaterThan(before);
   }).toPass({ timeout: 20_000 });
+}
+
+/** The rails that have a medal on them in the save the browser holds: 0 for the left, 1 for the right. */
+async function railsInUse(page: Page): Promise<number[]> {
+  const saved = await savedMachine(page);
+  return [...new Set((saved?.machine.rolling ?? []).map((medal) => medal.arm))].sort();
 }
 
 /** The purse always holds what it started with, less what was dropped, plus what was won. */
@@ -176,7 +186,7 @@ test('the field says which renderer draws it, and nothing goes wrong while the m
   await expectFieldPainted(page);
 
   // Feed it for a few seconds: medals fall, land, and are pushed about.
-  await dropOne(page);
+  await feedOne(page);
   await autoButton(page).click();
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(5);
   await autoButton(page).click();
@@ -213,15 +223,16 @@ test('the canvas renderer draws the field when the address asks for it', async (
   expect(clear).toBeGreaterThanOrEqual(0);
   expect(clear).toBeLessThan(40);
 
-  // The game plays as it does in 3D: a click on the field aims there and drops a medal.
-  await dropOne(page);
+  // The game plays as it does in 3D: the L button feeds a medal, and a press on the left of the field aims the left rail and feeds nothing.
+  await feedOne(page);
   const box = await field.boundingBox();
   if (!box) throw new Error('the field has no box');
   const before = await counter(page, 'played');
   await page.waitForTimeout(300);
   await field.click({ position: { x: box.width * 0.25, y: box.height * ON_WALL } });
-  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
-  expect(Number(await aimSlider(page).inputValue())).toBeLessThan(35);
+  await expect.poll(() => aimOf(page, 'left')).toBeLessThan(35);
+  await page.waitForTimeout(400);
+  expect(await counter(page, 'played')).toBe(before);
   await expectPurseToBalance(page);
   expect(trouble).toEqual([]);
 });
@@ -253,11 +264,17 @@ test('the 3D renderer draws the field wherever the browser has WebGL2 at all, wh
   expect(trouble).toEqual([]);
 });
 
-test('DROP takes a medal from the purse', async ({ page }) => {
+test('the L and R buttons each take a medal from the purse', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
+  await expect(feedButton(page, 'left')).toHaveAccessibleName('Feed the left rail');
+  await expect(feedButton(page, 'right')).toHaveAccessibleName('Feed the right rail');
+  await feedOne(page, 'left');
+  await page.waitForTimeout(300);
+  await feedOne(page, 'right');
   const played = await counter(page, 'played');
-  expect(played).toBeGreaterThanOrEqual(1);
+  expect(played).toBeGreaterThanOrEqual(2);
+  // Feeding does not aim: both rails point where a new machine has them.
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual([42, 58]);
   await expectPurseToBalance(page);
   await expect(machine(page).getByTestId('pusher-return')).not.toHaveText('—');
 });
@@ -271,13 +288,16 @@ async function savedMachine(page: Page) {
 test('the machine is still there after a reload, until it is reset', async ({ page }) => {
   test.setTimeout(90_000);
   await openGame(page);
-  await dropOne(page);
-  await dropOne(page);
-  await dropOne(page);
-  // The feed arms are part of the machine too: swing them as far right as they go.
-  await aimSlider(page).focus();
+  await feedOne(page);
+  await feedOne(page);
+  await feedOne(page);
+  // The feed arms are part of the machine too: swing each as far to its own side as it goes.
+  await aimSlider(page, 'right').focus();
   await page.keyboard.press('End');
-  await expect(aimSlider(page)).toHaveValue('100');
+  await expect(aimSlider(page, 'right')).toHaveValue('100');
+  await aimSlider(page, 'left').focus();
+  await page.keyboard.press('Home');
+  await expect(aimSlider(page, 'left')).toHaveValue('0');
   // Let the counter catch up with the last press before reading it.
   await page.waitForTimeout(500);
   const dropped = await counter(page, 'played');
@@ -285,7 +305,8 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
 
   // The machine is saved every few seconds: wait for a save that has these medals in it, and the arms where they were put.
   await expect.poll(async () => (await savedMachine(page))?.inserted ?? -1, { timeout: 20_000 }).toBe(dropped);
-  await expect.poll(async () => (await savedMachine(page))?.machine.aim ?? -1, { timeout: 20_000 }).toBeGreaterThan(95);
+  await expect.poll(async () => (await savedMachine(page))?.machine.aims[1] ?? -1, { timeout: 20_000 }).toBeGreaterThan(95);
+  await expect.poll(async () => (await savedMachine(page))?.machine.aims[0] ?? 99, { timeout: 20_000 }).toBeLessThan(5);
   await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
 
   await page.reload();
@@ -293,8 +314,9 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   // The page is first drawn as a new machine, and then shows the one it remembers.
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(dropped);
-  // Its arms are where they were left, and the aim with them.
-  await expect(aimSlider(page)).toHaveValue('100');
+  // Its arms are pointed where they were left, each on its own.
+  await expect(aimSlider(page, 'right')).toHaveValue('100');
+  await expect(aimSlider(page, 'left')).toHaveValue('0');
   await expectPurseToBalance(page);
 
   // Reset takes two presses, and leaves a new machine with nothing of the old one saved.
@@ -325,36 +347,50 @@ test('the note says so when the browser will not keep the machine', async ({ pag
   await expect(note).toHaveAttribute('data-saved', 'false');
   await expect(note).toContainText('could not be saved');
   // The game itself goes on.
-  await dropOne(page);
+  await feedOne(page);
   await expectPurseToBalance(page);
   expect(await savedMachine(page)).toBeNull();
 });
 
-test('clicking the field aims there and drops a medal', async ({ page }) => {
+test('a press on the field aims the rail on that side and feeds nothing', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
+  await feedOne(page);
   const field = machine(page).getByTestId('pusher-field');
   const box = await field.boundingBox();
   if (!box) throw new Error('the field has no box');
+  await page.waitForTimeout(600);
+  const played = await counter(page, 'played');
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual([42, 58]);
 
-  let before = await counter(page, 'played');
-  await page.waitForTimeout(300);
+  // On the left half it is the left rail that moves, and the right rail stays.
   await field.click({ position: { x: box.width * 0.25, y: box.height * ON_WALL } });
-  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
-  expect(Number(await aimSlider(page).inputValue())).toBeLessThan(35);
+  await expect.poll(() => aimOf(page, 'left')).toBeLessThan(35);
+  expect(await aimOf(page, 'right')).toBe(58);
 
-  before = await counter(page, 'played');
-  await page.waitForTimeout(300);
+  // On the right half it is the right rail, and the left one stays where the last press put it.
+  const left = await aimOf(page, 'left');
   await field.click({ position: { x: box.width * 0.8, y: box.height * ON_WALL } });
-  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
-  expect(Number(await aimSlider(page).inputValue())).toBeGreaterThan(65);
+  await expect.poll(() => aimOf(page, 'right')).toBeGreaterThan(65);
+  expect(await aimOf(page, 'left')).toBe(left);
 
-  // The screen is part of the back wall, and the picture is over it: a click on it aims under the pointer and feeds a medal, as anywhere else.
-  before = await counter(page, 'played');
-  await page.waitForTimeout(300);
+  // The screen is part of the back wall, and the picture is over it: a press on it aims under the pointer, as anywhere else.
   await field.click({ position: { x: box.width * 0.3, y: box.height * ON_SCREEN } });
-  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
-  expect(Number(await aimSlider(page).inputValue())).toBeLessThan(40);
+  await expect.poll(() => aimOf(page, 'left')).toBeLessThan(40);
+
+  // A drag moves the rail it began on, and goes on moving it past the middle, as far as that rail reaches.
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * ON_WALL);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.48, box.y + box.height * ON_WALL, { steps: 4 });
+  await expect.poll(() => aimOf(page, 'left')).toBeGreaterThan(35);
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * ON_WALL, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => aimOf(page, 'left')).toBeGreaterThan(50);
+  expect(await aimOf(page, 'left')).toBeLessThanOrEqual(61);
+  expect(await aimOf(page, 'right')).toBeGreaterThan(65);
+
+  // None of that fed a medal: the field only aims.
+  await page.waitForTimeout(500);
+  expect(await counter(page, 'played')).toBe(played);
   await expectPurseToBalance(page);
 });
 
@@ -427,7 +463,7 @@ test('a chest on the screen is picked by pressing it, though the picture is over
     middles.push({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
   }
   const played = await counter(page, 'played');
-  const aimed = await aimSlider(page).inputValue();
+  const aimed = [await aimOf(page, 'left'), await aimOf(page, 'right')];
   // The pointer over a chest shows it as it would if it could reach it, and the field shows that a press there picks.
   await page.mouse.move(middles[2].x, middles[2].y);
   await expect(machine(page).getByTestId('pusher-chest-2')).toHaveAttribute('data-hover', 'true');
@@ -436,17 +472,20 @@ test('a chest on the screen is picked by pressing it, though the picture is over
   await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-hover', 'true');
   await expect(machine(page).getByTestId('pusher-chest-2')).not.toHaveAttribute('data-hover', 'true');
   // Left alone the clock would pick the first. A press on the last picks the last: it lands on the field, which
-  // hands it to the chest under the pointer, and neither aims nor feeds a medal.
+  // hands it to the chest under the pointer, and moves neither rail's aim.
   await field.click({ position: { x: middles[2].x - stage.x, y: middles[2].y - stage.y } });
   await expect(machine(page).getByTestId('pusher-chest-2')).toHaveAttribute('data-chosen', 'true');
   await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-chosen', 'false');
   await page.waitForTimeout(400);
   expect(await counter(page, 'played')).toBe(played);
-  expect(await aimSlider(page).inputValue()).toBe(aimed);
-  // Once one is picked they are chests no longer to be pressed: a press there is a press on the field again.
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual(aimed);
+  // Once one is picked they are chests no longer to be pressed: a press there is a press on the field again,
+  // which aims the rail on that side and still feeds nothing.
   await expect(machine(page).getByTestId('pusher-chest-1')).toBeDisabled();
   await field.click({ position: { x: middles[1].x - stage.x, y: middles[1].y - stage.y } });
-  await expect.poll(() => counter(page, 'played')).toBe(played + 1);
+  await expect.poll(async () => [await aimOf(page, 'left'), await aimOf(page, 'right')]).not.toEqual(aimed);
+  await page.waitForTimeout(400);
+  expect(await counter(page, 'played')).toBe(played);
 });
 
 test('a chest on the screen is picked from the keyboard too', async ({ page }) => {
@@ -463,27 +502,173 @@ test('a chest on the screen is picked from the keyboard too', async ({ page }) =
   expect(await counter(page, 'played')).toBe(played);
 });
 
-test('holding DROP streams medals and letting go stops them', async ({ page }) => {
+test('holding L streams medals into the left rail and letting go stops them', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
+  await feedOne(page);
   const before = await counter(page, 'played');
-  const box = await dropButton(page).boundingBox();
+  const box = await feedButton(page, 'left').boundingBox();
   if (!box) throw new Error('the button has no box');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
   await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThanOrEqual(before + 4);
+  // The button keeps hold of the pointer: sliding off its edge does not stop the stream.
+  await page.mouse.move(box.x + box.width + 40, box.y - 40, { steps: 3 });
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
   await page.mouse.up();
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
   await page.waitForTimeout(300);
   const after = await counter(page, 'played');
   await page.waitForTimeout(900);
-  // The click that ends a stream does not drop one more.
+  // The click that ends a stream does not feed one more.
   expect(await counter(page, 'played')).toBe(after);
   await expectPurseToBalance(page);
 });
 
+test('both buttons held at once, by two pointers, feed from both rails', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  await feedOne(page);
+  await page.waitForTimeout(400);
+  const before = await counter(page, 'played');
+  // Two fingers, each a pointer of its own, as a touch screen sends them: one goes down on L and stays, then one on R.
+  const finger = (pointerId: number) => ({ pointerId, pointerType: 'touch', isPrimary: pointerId === 21, button: 0, buttons: 1, bubbles: true, cancelable: true });
+  await feedButton(page, 'left').dispatchEvent('pointerdown', finger(21));
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+  await feedButton(page, 'right').dispatchEvent('pointerdown', finger(22));
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+  // Both rails stream. The machine is saved every few seconds, and a save taken meanwhile has medals on both.
+  await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThanOrEqual(before + 8);
+  await expect.poll(() => railsInUse(page), { timeout: 20_000 }).toEqual([0, 1]);
+  // The first finger comes up: its rail stops, and the other, still held, goes on.
+  await feedButton(page, 'left').dispatchEvent('pointerup', finger(21));
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+  const one = await counter(page, 'played');
+  await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThan(one);
+  // A touch the browser takes away ends its press like one that is lifted.
+  await feedButton(page, 'right').dispatchEvent('pointercancel', finger(22));
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+  await page.waitForTimeout(300);
+  const after = await counter(page, 'played');
+  await page.waitForTimeout(900);
+  expect(await counter(page, 'played')).toBe(after);
+  await expectPurseToBalance(page);
+});
+
+test('F and J feed the left and right rails, and held together feed both', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  await feedOne(page);
+  await page.waitForTimeout(400);
+  // Where there is a keyboard, each button has its key written on it.
+  await expect(feedButton(page, 'left').locator('kbd')).toHaveText('F');
+  await expect(feedButton(page, 'right').locator('kbd')).toHaveText('J');
+  await expect(machine(page).getByTestId('pusher-keys')).toContainText('F and J feed the left and right rails');
+
+  // A tap of a key feeds one medal, like a press of its button.
+  let before = await counter(page, 'played');
+  await page.keyboard.press('f');
+  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('j');
+  await expect.poll(() => counter(page, 'played')).toBe(before + 2);
+
+  // Held, a key streams, and its button shows that it is down. The keyboard repeating the key is not more presses.
+  await page.waitForTimeout(300);
+  before = await counter(page, 'played');
+  await page.keyboard.down('f');
+  await page.keyboard.down('f');
+  await page.keyboard.down('f');
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+  await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThanOrEqual(before + 4);
+  // The other key goes down as well: both rails feed, and a save taken meanwhile has medals on both.
+  await page.keyboard.down('j');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+  await expect.poll(() => railsInUse(page), { timeout: 20_000 }).toEqual([0, 1]);
+  // Each stops when its own key comes up.
+  await page.keyboard.up('f');
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+  await page.keyboard.up('j');
+  await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+  await page.waitForTimeout(300);
+  const after = await counter(page, 'played');
+  await page.waitForTimeout(900);
+  expect(await counter(page, 'played')).toBe(after);
+
+  // A key that is still down when the window loses the keyboard is let go.
+  if ((await counter(page, 'credits')) > 0) {
+    await page.keyboard.down('j');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+    await page.keyboard.up('j');
+  }
+  // With a modifier held, the keys are the browser's and not the machine's.
+  await page.waitForTimeout(300);
+  const unmoved = await counter(page, 'played');
+  await page.keyboard.press('Shift+F');
+  await page.keyboard.press('Alt+j');
+  await page.waitForTimeout(500);
+  expect(await counter(page, 'played')).toBe(unmoved);
+  await expectPurseToBalance(page);
+});
+
+test('the keys do nothing while another tab is showing or the focus is in a field', async ({ page }) => {
+  await openGame(page);
+  await feedOne(page);
+  await page.waitForTimeout(400);
+  const played = await counter(page, 'played');
+  const aims = [await aimOf(page, 'left'), await aimOf(page, 'right')];
+
+  // In a text field the keys are letters, and they are typed: the machine neither takes them nor acts on them.
+  await page.evaluate(() => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'pusher-probe';
+    document.querySelector('#pusher-panel-machine')?.append(input);
+    input.focus();
+  });
+  await page.keyboard.type('fjsdkl');
+  await expect(page.locator('#pusher-probe')).toHaveValue('fjsdkl');
+  await page.keyboard.down('f');
+  await page.waitForTimeout(500);
+  await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+  await page.keyboard.up('f');
+  expect(await counter(page, 'played')).toBe(played);
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual(aims);
+  await page.evaluate(() => document.querySelector('#pusher-probe')?.remove());
+
+  // With the Odds tab showing, the machine is out of sight and the keys are not its own.
+  await page.getByRole('tab', { name: 'Odds' }).click();
+  await expect(odds(page)).toBeVisible();
+  await page.keyboard.down('f');
+  await page.keyboard.down('j');
+  await page.keyboard.press('d');
+  await page.keyboard.press('k');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('f');
+  await page.keyboard.up('j');
+  expect(await counter(page, 'played')).toBe(played);
+
+  // Back on the Machine tab nothing has been fed and nothing has moved, and the keys work again.
+  await page.getByRole('tab', { name: 'Machine' }).click();
+  await expect(machine(page)).toBeVisible();
+  expect(await counter(page, 'played')).toBe(played);
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual(aims);
+  await page.keyboard.press('j');
+  await expect.poll(() => counter(page, 'played')).toBe(played + 1);
+});
+
 test('Auto drops medals until it is switched off', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
+  await feedOne(page);
   const before = await counter(page, 'played');
   await autoButton(page).click();
   await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -497,25 +682,63 @@ test('Auto drops medals until it is switched off', async ({ page }) => {
   await expectPurseToBalance(page);
 });
 
-test('the aim can be set from the keyboard', async ({ page }) => {
+test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
-  await aimSlider(page).focus();
-  await expect(aimSlider(page)).toHaveValue('50');
+  await feedOne(page);
+  await page.waitForTimeout(400);
+  const fed = await counter(page, 'played');
+  // A slider for each rail, with a name of its own, on where a new machine points it.
+  await expect(aimSlider(page, 'left')).toHaveAccessibleName(/Left rail aim/);
+  await expect(aimSlider(page, 'right')).toHaveAccessibleName(/Right rail aim/);
+  await aimSlider(page, 'left').focus();
+  await expect(aimSlider(page, 'left')).toHaveValue('42');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
-  await expect(aimSlider(page)).toHaveValue('53');
-  await expect(aimSlider(page)).toHaveAttribute('aria-valuetext', '53% across');
+  await expect(aimSlider(page, 'left')).toHaveValue('45');
+  await expect(aimSlider(page, 'left')).toHaveAttribute('aria-valuetext', '45% across');
+  await expect(aimSlider(page, 'right')).toHaveValue('58');
+  // Each goes as far as its own rail reaches: the left one from the left edge to a little past the middle.
   await page.keyboard.press('Home');
-  await expect(aimSlider(page)).toHaveValue('0');
+  await expect(aimSlider(page, 'left')).toHaveValue('0');
+  await aimSlider(page, 'right').focus();
   await page.keyboard.press('End');
-  await expect(aimSlider(page)).toHaveValue('100');
+  await expect(aimSlider(page, 'right')).toHaveValue('100');
+  await aimSlider(page, 'left').focus();
+  await page.keyboard.press('End');
+  await expect(aimSlider(page, 'left')).toHaveValue('61');
+  await aimSlider(page, 'right').focus();
+  await page.keyboard.press('Home');
+  // The rails do not cross: the right one comes as far left as the left one is, and no further.
+  await expect(aimSlider(page, 'right')).toHaveValue('61');
+  await page.keyboard.press('End');
+  await aimSlider(page, 'left').focus();
+  await page.keyboard.press('Home');
+
+  // S and D move the left rail's aim and K and L the right rail's, wherever the focus is but in a field.
+  await feedButton(page, 'left').focus();
+  await page.keyboard.press('d');
+  await expect.poll(() => aimOf(page, 'left')).toBeGreaterThan(0);
+  await page.keyboard.down('d');
+  await expect.poll(() => aimOf(page, 'left'), { timeout: 10_000 }).toBeGreaterThan(15);
+  await page.keyboard.up('d');
+  const left = await aimOf(page, 'left');
+  await page.keyboard.down('k');
+  await expect.poll(() => aimOf(page, 'right'), { timeout: 10_000 }).toBeLessThan(85);
+  await page.keyboard.up('k');
+  await page.waitForTimeout(200);
+  const right = await aimOf(page, 'right');
+  await page.keyboard.press('s');
+  await expect.poll(() => aimOf(page, 'left')).toBeLessThan(left);
+  await page.keyboard.press('l');
+  await expect.poll(() => aimOf(page, 'right')).toBeGreaterThan(right);
+  // Aiming feeds nothing.
+  expect(await counter(page, 'played')).toBe(fed);
 });
 
 test('the tabs work from the keyboard and the machine waits while it is out of sight', async ({ page }) => {
   await openGame(page);
-  await dropOne(page);
+  await feedOne(page);
   await autoButton(page).click();
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(3);
 
@@ -637,7 +860,9 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 test('reads in Japanese', async ({ page }) => {
   await openGame(page, 'ja');
   await expect(page.getByRole('heading', { level: 1, name: /メダルプッシャー/ })).toBeVisible();
-  await expect(dropButton(page)).toHaveText('落とす');
+  await expect(feedButton(page, 'left')).toHaveAccessibleName('左のレールにメダルを入れる');
+  await expect(feedButton(page, 'right')).toHaveAccessibleName('右のレールにメダルを入れる');
+  await expect(aimSlider(page, 'left')).toHaveAccessibleName(/左のレールの狙い/);
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('1·3·5·9 ▸ 宝箱');
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('ナンバースロット');
   await expect(page.getByRole('tab', { name: '確率' })).toBeVisible();
@@ -653,13 +878,32 @@ test('reads in Japanese', async ({ page }) => {
 test('fits a phone without scrolling sideways', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await openGame(page);
-  await dropOne(page);
+  await feedOne(page);
   const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
   const box = await machine(page).getByTestId('pusher-field').boundingBox();
   expect(box?.width).toBeGreaterThan(300);
   expect(box?.width).toBeLessThanOrEqual(375);
-  await expect(dropButton(page)).toBeVisible();
+  // The two feed buttons are at the two ends of the controls, the medals on a plate between them, and each is big enough for a thumb.
+  const [leftButton, plate, rightButton] = await Promise.all([
+    feedButton(page, 'left').boundingBox(),
+    machine(page).getByTestId('pusher-credits').boundingBox(),
+    feedButton(page, 'right').boundingBox(),
+  ]);
+  if (!leftButton || !plate || !rightButton) throw new Error('the controls have no boxes');
+  expect(leftButton.x).toBeGreaterThanOrEqual(0);
+  expect(leftButton.x + leftButton.width).toBeLessThan(plate.x);
+  expect(plate.x + plate.width).toBeLessThan(rightButton.x);
+  expect(rightButton.x + rightButton.width).toBeLessThanOrEqual(375);
+  expect(Math.abs(leftButton.y - rightButton.y)).toBeLessThan(2);
+  for (const button of [leftButton, rightButton]) {
+    expect(button.width).toBeGreaterThanOrEqual(64);
+    expect(Math.abs(button.width - button.height)).toBeLessThan(2);
+  }
+  // A touch on one is the button's alone, so two can be held: the browser does not scroll or zoom with it.
+  for (const rail of ['left', 'right'] as const) await expect(feedButton(page, rail)).toHaveCSS('touch-action', 'none');
+  await expect(aimSlider(page, 'left')).toBeVisible();
+  await expect(aimSlider(page, 'right')).toBeVisible();
 
   // The screen is inside the stage, in its upper part, and nearly as wide.
   const screenBox = await machine(page).getByTestId('pusher-screen').boundingBox();

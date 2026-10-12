@@ -14,9 +14,9 @@
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, legOf, railFrame } from './arms';
 import { CHUCKERS, chuckerSpots } from './chuckers';
-import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, armFor, type Arm, type Machine } from './engine';
+import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, type Arm, type Machine } from './engine';
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
-import { BALL_RADIUS, GLOW_TIME, LIP_FALL, PANEL_SPAN, SPARK_COLORS, START_PANEL, type DrawOptions, type Stage } from './render';
+import { BALL_RADIUS, GLOW_TIME, LIP_FALL, PANEL_SPAN, REST_LIGHT, SPARK_COLORS, START_PANEL, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
@@ -446,11 +446,10 @@ function lay(to: Solid | Flat, c: Float64Array, shape: number = SHAPE.even): voi
   else to.quad(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11]);
 }
 
-/** How bright an arm's light is: full on the one that takes the next medal and on one with a medal on its rail, low on the other. */
-function armLit(machine: Machine, arm: Arm, aim: number): number {
-  if (armFor(aim) === arm) return 1;
+/** How bright an arm's light is: full while a medal is on its rail, and a glow otherwise, since either arm can be fed at any moment. */
+function armLit(machine: Machine, arm: Arm): number {
   for (let i = 0; i < machine.rolling.length; i++) if (machine.rolling[i].arm === arm) return 1;
-  return 0.2;
+  return REST_LIGHT;
 }
 
 /** Whether a slot is taking a medal in at this moment. */
@@ -477,11 +476,11 @@ function hatchOpen(machine: Machine): boolean {
  * and along the top of the wall a tube of light. The medals themselves are
  * among the other medals.
  */
-function buildRails(solid: Solid, machine: Machine, options: DrawOptions): void {
+function buildRails(solid: Solid, machine: Machine): void {
   const { half, wall, lip, tube, from, past } = CHANNEL;
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
-    const lit = armLit(machine, arm, options.aim);
+    const lit = armLit(machine, arm);
     hang(arm, armTipAt(machine, arm));
     const end = rail.length + past;
     solid.finish(1).paint(STEEL_TOP);
@@ -513,13 +512,13 @@ function buildShades(solid: Solid, machine: Machine): void {
  * in at, and flashes gold as one is taken. And the door of the hatch, which
  * stands open for a moment behind a prize ball.
  */
-function buildFittings(solid: Solid, machine: Machine, options: DrawOptions): void {
+function buildFittings(solid: Solid, machine: Machine): void {
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
     const { x, height: y, depth } = COLLARS[index];
     const face = depth + SLOT_BODY.face;
     const busy = taking(machine, arm);
-    const lit = busy ? 1 : armFor(options.aim) === arm ? 0.7 : 0.25;
+    const lit = busy ? 1 : REST_LIGHT;
     solid.finish(1).paint(CHROME);
     band(solid, x, y, SLOT.ring, depth - SLOT_BODY.back, face);
     solid.finish(0.55).paint(HUB_RIM, HUB_MID);
@@ -650,7 +649,7 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   cast.count = solid.count - cast.first;
 
   rails.first = solid.count;
-  buildRails(solid, machine, options);
+  buildRails(solid, machine);
   rails.count = solid.count - rails.first;
 
   shades.first = solid.count;
@@ -658,7 +657,7 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   shades.count = solid.count - shades.first;
 
   fittings.first = solid.count;
-  buildFittings(solid, machine, options);
+  buildFittings(solid, machine);
   fittings.count = solid.count - fittings.first;
 
   buildPanel(solid, machine, stage, options, hoops, signs);
@@ -856,7 +855,7 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
   // The lamp at the tip of each arm, on the end of the wall of its channel.
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
-    const lit = armLit(machine, arm, options.aim);
+    const lit = armLit(machine, arm);
     hang(arm, armTipAt(machine, arm));
     const far = rail.length + CHANNEL.past;
     const down = R - CHANNEL.wall - CHANNEL.tube - 0.5;
@@ -886,17 +885,17 @@ const CAST = { x: 0.3, y: -0.55 } as const;
  * rail, and round each slot the light of its ring, which flashes as a medal
  * goes in.
  */
-function armTouches(flat: Flat, machine: Machine, options: DrawOptions): void {
+function armTouches(flat: Flat, machine: Machine): void {
   const { half, wall, tube, from, past } = CHANNEL;
   for (let index = 0; index < 2; index++) {
     const arm = index as Arm;
-    const lit = armLit(machine, arm, options.aim);
+    const lit = armLit(machine, arm);
     hang(arm, armTipAt(machine, arm));
     flat.ink(GLOW_CYAN, 0, 0.1 + 0.34 * lit);
     lay(flat, strip(from, rail.length + past, R - wall - tube / 2 - 1.5, -half + 0.03, R - wall - tube / 2 + 1.5, -half + 0.03), SHAPE.line);
     const { x, height: y, depth } = COLLARS[index];
     const busy = taking(machine, arm);
-    const glow = busy ? 1 : armFor(options.aim) === arm ? 0.6 : 0.2;
+    const glow = busy ? 1 : REST_LIGHT;
     flat.ink(busy ? GLOW_LIT : GLOW_CYAN, 0, 0.75 * glow).onPanel(x, y, depth + SLOT_BODY.face + 0.4, SLOT.ring * 1.5);
   }
 }
@@ -976,15 +975,17 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
 
   panelTouches(flat, machine, stage, calm);
 
-  // Where a medal that leaves now is let go, and how far from that it can land: from the tip of the
-  // arm on the side of the aim, which is over the aim once it has swung there, down to the pusher.
+  // Where a medal that leaves each arm now is let go, and how far from that it can land: from the
+  // arm's tip, which is over its aim once it has swung there, down to the pusher. One guide for each arm.
   if (options.showGuide) {
-    const over = armTipAt(machine, armFor(options.aim));
     const lands = (LANDING.from + LANDING.to) / 2;
-    flat.ink(WHITE, 0.24).fade(WHITE, 0.03);
-    flat.wedge(over, ARMS.tip - R, ARMS.depth, Math.max(R, over - LANDING.scatter), P + 0.2, lands, Math.min(W - R, over + LANDING.scatter), P + 0.2, lands);
+    for (let index = 0; index < 2; index++) {
+      const over = armTipAt(machine, index as Arm);
+      flat.ink(WHITE, 0.24).fade(WHITE, 0.03);
+      flat.wedge(over, ARMS.tip - R, ARMS.depth, Math.max(R, over - LANDING.scatter), P + 0.2, lands, Math.min(W - R, over + LANDING.scatter), P + 0.2, lands);
+    }
   }
-  armTouches(flat, machine, options);
+  armTouches(flat, machine);
   screenTouches(flat, machine);
 
   // A ball rests in the dark it throws on whatever it stands on.

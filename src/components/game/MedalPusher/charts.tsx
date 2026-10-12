@@ -1,6 +1,6 @@
 'use client';
 
-import { armCollar, armRest, armTip } from './arms';
+import { armCollar, armStart, armTip } from './arms';
 import { CHECKERS, FIELD, MEDAL_RADIUS, PUSHER } from './engine';
 import type { MarkerShape, RatePoint } from './sim';
 
@@ -182,10 +182,10 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
           />
         </g>
       ))}
-      {/* The two feed arms, each at rest: a rail over the tables from the slot at its front corner to its tip over the pusher, and a medal on its way along one */}
+      {/* The two feed arms, each where a new machine has it pointed: a rail over the tables from the slot at its front corner to its tip over the pusher, and a medal on its way along one */}
       {([0, 1] as const).map((arm) => {
         const from = armCollar(arm);
-        const to = armTip(arm, armRest(arm));
+        const to = armTip(arm, armStart(arm));
         return (
           <g key={arm} data-arm={arm}>
             <line x1={X(from.x)} y1={Y(from.depth)} x2={X(to.x)} y2={Y(to.depth)} stroke={LINE} strokeWidth={3.2} strokeLinecap="round" />

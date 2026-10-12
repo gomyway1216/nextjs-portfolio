@@ -13,7 +13,7 @@
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, type Spot } from './arms';
 import { CHUCKERS, chuckerSpots } from './chuckers';
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, pusherFront, type Arm, type Machine, type Medal } from './engine';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import { EYE_AT, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -29,6 +29,8 @@ export const LIP_FALL = 0.18;
 export const EXIT_TIME = 0.6;
 /** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
 export const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
+/** How bright an arm's lights are while nothing is on its rail, out of the 1 they have while a medal is. Either arm can be fed at any moment, so both glow. */
+export const REST_LIGHT = 0.5;
 /** How much higher than the pile a medal that has just come down is drawn, before it has come to rest. */
 export const RIDE = 1.4;
 /** Seconds a START pocket, the tray or a side stays lit after a medal passes. */
@@ -1173,11 +1175,11 @@ function drawArm(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, ar
 /**
  * The slot at the near end of an arm: a boss of polished metal that faces
  * the player, with a mouth cut upright in its face inside a ring of light.
- * The ring is bright on the side the next medal goes in at, and flashes gold
- * as one is taken. A medal being fed is shown face on in front of the mouth
+ * The ring of either slot glows, since either takes a medal at any moment,
+ * and flashes gold as one is taken. A medal being fed is shown face on in front of the mouth
  * and turns edge on as it goes in; once it is inside, the slot hides it.
  */
-function drawSlot(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, arm: Arm, aim: number, shift: number): void {
+function drawSlot(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, arm: Arm, shift: number): void {
   const k = stage.ratio;
   const tipX = machine.tips[arm];
   const collar = armCollar(arm);
@@ -1218,7 +1220,7 @@ function drawSlot(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, a
   round(0.72);
   g.fill();
   const taking = machine.rolling.some((medal) => medal.arm === arm && fedSpot(arm, tipX, medal.remaining).leg === 'slot');
-  const lit = taking ? 1 : armFor(aim) === arm ? 0.6 : 0.2;
+  const lit = taking ? 1 : REST_LIGHT;
   for (const [width, colour] of [
     [0.9, taking ? 'rgba(255, 244, 150, 0.5)' : `rgba(64, 226, 255, ${0.15 + 0.4 * lit})`],
     [0.3, taking ? '#fffbe0' : `rgba(125, 240, 255, ${0.3 + 0.7 * lit})`],
@@ -1361,9 +1363,7 @@ function drawHoops(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, 
 }
 
 export interface DrawOptions {
-  /** Where the player is aiming: the arm on that side takes the next medal. */
-  aim: number;
-  /** Whether to show how far a dropped medal can land from its aim. */
+  /** Whether to show, under each arm's tip, how far a medal let go there can land from it. */
   showGuide: boolean;
   /** Leave out the motion that only decorates: running lights, flashes and the shake. */
   calm?: boolean;
@@ -1496,35 +1496,35 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   drawMedals(g, stage, upper, P, shake);
   flat();
 
-  // Where a medal that leaves now is let go, and how far from that it can land: from the tip of the
-  // arm on the side of the aim, which is over the aim once it has swung there, down to the pusher.
-  const aim = options.aim;
+  // Where a medal that leaves each arm now is let go, and how far from that it can land: from the
+  // arm's tip, which is over its aim once it has swung there, down to the pusher. One guide for each arm.
   if (options.showGuide) {
-    const over = machine.tips[armFor(aim)];
     const lands = (LANDING.from + LANDING.to) / 2;
-    const tip = project(over, ARMS.tip - R, ARMS.depth);
-    const left = project(Math.max(R, over - LANDING.scatter), P, lands);
-    const right = project(Math.min(W - R, over + LANDING.scatter), P, lands);
-    const spread = g.createLinearGradient(0, tip.y, 0, left.y);
-    spread.addColorStop(0, 'rgba(255, 255, 255, 0.24)');
-    spread.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-    g.fillStyle = spread;
-    path(g, [tip, right, left]);
-    g.fill();
+    for (const over of machine.tips) {
+      const tip = project(over, ARMS.tip - R, ARMS.depth);
+      const left = project(Math.max(R, over - LANDING.scatter), P, lands);
+      const right = project(Math.min(W - R, over + LANDING.scatter), P, lands);
+      const spread = g.createLinearGradient(0, tip.y, 0, left.y);
+      spread.addColorStop(0, 'rgba(255, 255, 255, 0.24)');
+      spread.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+      g.fillStyle = spread;
+      path(g, [tip, right, left]);
+      g.fill();
+    }
   }
 
   // The feed arms. First the shadows their rails lay on the tables, then each rail with the medals on it,
-  // then the slots, which are nearest the player. The arm that takes the next medal, and one with a medal on it, are lit.
+  // then the slots, which are nearest the player. An arm glows, and is lit in full while a medal is on its rail.
   g.strokeStyle = 'rgba(0, 4, 18, 0.32)';
   g.lineWidth = 14;
   g.lineCap = 'round';
   g.lineJoin = 'round';
   for (const arm of [0, 1] as const) railShadow(g, machine, arm, front);
   for (const arm of [0, 1] as const) {
-    const busy = armFor(aim) === arm || machine.rolling.some((medal) => medal.arm === arm);
-    drawArm(g, stage, machine, arm, busy ? 1 : 0.2, shake);
+    const busy = machine.rolling.some((medal) => medal.arm === arm);
+    drawArm(g, stage, machine, arm, busy ? 1 : REST_LIGHT, shake);
   }
-  for (const arm of [0, 1] as const) drawSlot(g, stage, machine, arm, aim, shake);
+  for (const arm of [0, 1] as const) drawSlot(g, stage, machine, arm, shake);
   flat();
 
   // What the machine lets go comes down in front of the screen and is seen against it: first its shadow on the glass.

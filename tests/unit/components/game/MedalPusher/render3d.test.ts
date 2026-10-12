@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ARMS, HATCH, PAYOUT_SLOT, SLOT, airSpot, armCollar, armGoal, armTip, railFrame, rollingSpot, type Spot } from '@/components/game/MedalPusher/arms';
+import { ARMS, HATCH, PAYOUT_SLOT, SLOT, airSpot, armCollar, armGoal, armStart, armTip, railFrame, rollingSpot, type Spot } from '@/components/game/MedalPusher/arms';
 import { SHELF_SHARE, SIGN, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
 import { CHUCKERS, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
@@ -31,18 +31,16 @@ import {
   ROLL_TIME,
   SETTLE,
   TOWER,
-  aimArms,
   buildTowers,
   createMachine,
   dropBall,
-  dropMedal,
   pusherFront,
   step,
   type Machine,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
-import { BALL_RADIUS, EXIT_TIME, LIP_FALL, PANEL_SPAN, START_PANEL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
+import { BALL_RADIUS, EXIT_TIME, LIP_FALL, PANEL_SPAN, REST_LIGHT, START_PANEL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
 import * as shaders from '@/components/game/MedalPusher/shaders3d';
 import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
@@ -67,6 +65,8 @@ import {
   type Shape,
 } from '@/components/game/MedalPusher/scene3d';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, UPPER, VIEW, project, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
+
+import { aimBoth, aimSide, dropAt } from './feeding';
 
 const P = HEIGHT.pusher;
 const T = MEDAL_THICKNESS;
@@ -394,8 +394,8 @@ describe('the medals of the 3D field', () => {
   it('rolls a fed medal along its rail on its edge, leaning back with its face to the middle, turning as it goes', () => {
     for (const aim of [30, 70]) {
       const machine = holding([]);
-      aimArms(machine, aim);
-      dropMedal(machine, aim);
+      aimBoth(machine, aim);
+      dropAt(machine, aim);
       const [rolling] = machine.rolling;
       expect(machine.falling).toHaveLength(0);
       // The tip is wherever the machine has swung it to: here it has not moved yet, and the rail is drawn to it all the same.
@@ -454,9 +454,9 @@ describe('the medals of the 3D field', () => {
   it('leaves the rail it rolled down when the arm has let it go past the middle, if it is told which arm that was', () => {
     // The left arm follows an aim past the middle while a medal is on it, and lets the medal go there.
     const machine = holding([]);
-    dropMedal(machine, 40);
+    dropAt(machine, 40);
     step(machine, 0.3);
-    aimArms(machine, 58);
+    aimBoth(machine, 58);
     const onRail = { ...machine.rolling[0] };
     step(machine, ROLL_TIME);
     const [falling] = machine.falling;
@@ -479,7 +479,7 @@ describe('the medals of the 3D field', () => {
     fakeDocument();
     const stage = createStage(1, false);
     const watched = holding([]);
-    dropMedal(watched, 40);
+    dropAt(watched, 40);
     trackMedals(stage, watched, 0);
     const id = watched.rolling[0].id;
     expect(stage.fed.get(id)).toBe(0);
@@ -495,7 +495,7 @@ describe('the medals of the 3D field', () => {
   it('shows a fed medal to its slot face on, takes it in edge first, and brings it out onto the rail', () => {
     for (const arm of [0, 1] as const) {
       const machine = holding([]);
-      dropMedal(machine, arm === 0 ? 30 : 70);
+      dropAt(machine, arm === 0 ? 30 : 70);
       const [fed] = machine.rolling;
       expect(fed).toMatchObject({ arm, remaining: ROLL_TIME });
       const at = (remaining: number) => medalRows({ ...machine, rolling: [{ ...fed, remaining }] })[0];
@@ -530,7 +530,7 @@ describe('the medals of the 3D field', () => {
 
   it('lets a medal go off its arm leaning on its edge, and out of the slot under the hood on its edge, and brings each down flat where it lands', () => {
     const machine = holding([]);
-    dropMedal(machine, 40);
+    dropAt(machine, 40);
     step(machine, ROLL_TIME + 1e-6);
     const [falling] = machine.falling;
     const at = (remaining: number, source: 'player' | 'payout' = 'player') => medalRows({ ...machine, falling: [{ ...falling, source, remaining }] })[0];
@@ -999,12 +999,12 @@ describe('the cabinet as shapes', () => {
   });
 
   /** The moving parts at a moment of a new machine's life, its arms' tips wherever they are put. */
-  const moving = (time: number, aim = 50, stage: Stage = createStage(1, false), tips?: [number, number]) => {
+  const moving = (time: number, _aim = 50, stage: Stage = createStage(1, false), tips?: [number, number]) => {
     const machine = createMachine(3);
     machine.time = time;
     if (tips) machine.tips = tips;
     const solid = new Solid(100);
-    buildMoving(solid, machine, pusherFront(time), stage, { aim, showGuide: true });
+    buildMoving(solid, machine, pusherFront(time), stage, { showGuide: true });
     return { solid, machine, stage };
   };
 
@@ -1111,16 +1111,16 @@ describe('the cabinet as shapes', () => {
   it('builds each slot as a boss with a mouth for a medal inside a ring of light, which flashes as a medal is taken', () => {
     fakeDocument();
     /** The corners of one slot, and the hatch's door, as the fittings were last built. */
-    const fittings = (machine: Machine, aim: number) => {
+    const fittings = (machine: Machine) => {
       const solid = new Solid(100);
-      buildMoving(solid, machine, 40, createStage(1, false), { aim, showGuide: false });
+      buildMoving(solid, machine, 40, createStage(1, false), { showGuide: false });
       const all = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
       const slot = (arm: 0 | 1) => all.filter((corner) => Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) < SLOT.ring + 1e-3 && corner.z > 100);
       const door = all.filter((corner) => Math.hypot(corner.x - HATCH.x, corner.y - HATCH.height) < HATCH.radius && corner.z < 10);
       return { all, slot, door };
     };
     const machine = createMachine(3);
-    const idle = fittings(machine, 30);
+    const idle = fittings(machine);
     expect(idle.all).toHaveLength(idle.slot(0).length + idle.slot(1).length + idle.door.length);
     for (const arm of [0, 1] as const) {
       const collar = armCollar(arm);
@@ -1146,53 +1146,55 @@ describe('the cabinet as shapes', () => {
     }
     /** How bright the ring in a slot's face is: its brightest self-lit corner outside the mouth's own edge. */
     const ring = (slot: ReturnType<typeof corners>, arm: 0 | 1) => Math.max(...slot.filter((corner) => corner.glow > 0 && Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) > SLOT.ring * 0.6).map((corner) => corner.glow));
-    // The slot on the side of the aim is the brighter of the two, whichever side that is.
-    expect(ring(idle.slot(0), 0)).toBeGreaterThan(ring(idle.slot(1), 1));
-    const right = fittings(machine, 70);
-    expect(ring(right.slot(1), 1)).toBe(ring(idle.slot(0), 0));
-    expect(ring(right.slot(0), 0)).toBe(ring(idle.slot(1), 1));
-    // While a medal is being taken in, that slot's ring is brighter still, and another colour.
-    dropMedal(machine, 30);
-    const taking = fittings(machine, 30);
+    // Either slot takes a medal at any moment, so the two rings glow alike, wherever the arms are pointed.
+    expect(ring(idle.slot(0), 0)).toBe(ring(idle.slot(1), 1));
+    expect(ring(idle.slot(0), 0)).toBeGreaterThan(0);
+    // While a medal is being taken in, that slot's ring is brighter, and another colour. The other slot's is as it was.
+    dropAt(machine, 30);
+    const taking = fittings(machine);
     expect(ring(taking.slot(0), 0)).toBeGreaterThan(ring(idle.slot(0), 0));
+    expect(ring(taking.slot(1), 1)).toBe(ring(idle.slot(1), 1));
     const colour = (slot: ReturnType<typeof corners>, arm: 0 | 1) => slot.filter((corner) => corner.glow > 1 || (corner.glow > 0 && Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) > SLOT.ring * 0.75))[0].colour;
     expect(colour(taking.slot(0), 0)).not.toEqual(colour(idle.slot(0), 0));
     // Once it is on the rail the ring goes back.
     step(machine, FEED.slot + 0.05);
-    expect(ring(fittings(machine, 30).slot(0), 0)).toBe(ring(idle.slot(0), 0));
+    expect(ring(fittings(machine).slot(0), 0)).toBe(ring(idle.slot(0), 0));
     // The door of the hatch is shut, glossy and coloured, until a ball is let go: then it stands open, dark, for a moment.
     expect(idle.door.length).toBeGreaterThan(50);
     expect(idle.door.every((corner) => corner.gloss > 0.5)).toBe(true);
     dropBall(machine);
-    const open = fittings(machine, 30).door;
+    const open = fittings(machine).door;
     expect(open).toHaveLength(idle.door.length);
     expect(open.every((corner) => corner.gloss === 0)).toBe(true);
     expect(Math.max(...open.flatMap((corner) => corner.colour))).toBeLessThan(Math.max(...idle.door.flatMap((corner) => corner.colour)) / 4);
     step(machine, FALL_TIME * 0.8);
-    expect(fittings(machine, 30).door.every((corner) => corner.gloss > 0.5)).toBe(true);
+    expect(fittings(machine).door.every((corner) => corner.gloss > 0.5)).toBe(true);
   });
 
-  it('lights the arm that takes the next medal, and one with a medal on its rail', () => {
+  it('lets both arms glow, and lights in full the one with a medal on its rail', () => {
     fakeDocument();
     /** How bright the bars of each arm are: the self-lit corners left and right of the middle, above the pusher. */
-    const lit = (machine: Machine, aim: number) => {
+    const lit = (machine: Machine) => {
       machine.tips = [20, 80];
       const solid = new Solid(100);
-      buildMoving(solid, machine, 40, createStage(1, false), { aim, showGuide: true });
+      buildMoving(solid, machine, 40, createStage(1, false), { showGuide: true });
       const bars = corners(solid, MOVING_PARTS[2].first, MOVING_PARTS[2].count).filter((corner) => corner.glow > 0);
       const of = (left: boolean) => Math.max(...bars.filter((corner) => corner.x < 50 === left).map((corner) => corner.glow));
       return [of(true), of(false)];
     };
     const machine = createMachine(3);
-    const [leftAtLeft, rightAtLeft] = lit(machine, 20);
-    expect(leftAtLeft).toBeGreaterThan(rightAtLeft);
-    const [leftAtRight, rightAtRight] = lit(machine, 80);
-    expect(rightAtRight).toBe(leftAtLeft);
-    expect(leftAtRight).toBe(rightAtLeft);
-    // A medal still rolling down the left arm keeps it lit after the aim has gone over to the right.
-    dropMedal(machine, 20);
-    aimArms(machine, 80);
-    expect(lit(machine, 80)).toEqual([leftAtLeft, leftAtLeft]);
+    // With nothing on either rail the two glow alike: either can be fed at any moment, wherever it is pointed.
+    const [left, right] = lit(machine);
+    expect(left).toBe(right);
+    expect(left).toBeGreaterThan(0);
+    // A medal rolling down the left arm lights it in full. The right arm glows as before.
+    dropAt(machine, 20);
+    const [fed, other] = lit(machine);
+    expect(fed).toBeGreaterThan(left);
+    expect(other).toBe(right);
+    // Both fed at once, both are lit.
+    dropAt(machine, 80);
+    expect(lit(machine)).toEqual([fed, fed]);
   });
 
   it('lays on the screen the shadow of whatever the machine lets go in front of it, and nothing of the arms', () => {
@@ -1200,7 +1202,7 @@ describe('the cabinet as shapes', () => {
     const machine = holding([]);
     const touches = () => {
       const flat = new Flat(600);
-      buildTouches(flat, machine, 40, createStage(1, false), { aim: 30, showGuide: false });
+      buildTouches(flat, machine, 40, createStage(1, false), { showGuide: false });
       return flat;
     };
     /** The middle and the size of every round spot of dark laid just off the wall: each is six corners, the first and the third opposite. */
@@ -1216,8 +1218,8 @@ describe('the cabinet as shapes', () => {
     const empty = touches();
     expect(spots(empty)).toEqual([]);
     // A medal on a rail lays nothing on the wall. The rails are out over the tables, and what they shade there is the lamp's doing.
-    aimArms(machine, 30);
-    dropMedal(machine, 30);
+    aimBoth(machine, 30);
+    dropAt(machine, 30);
     step(machine, FEED.slot + 0.3);
     expect(machine.rolling).toHaveLength(1);
     expect(touches().count).toBe(empty.count);
@@ -1259,7 +1261,7 @@ describe('the cabinet as shapes', () => {
   it('lays a shade under the hood on the top of the screen and two bands of light across the glass, every frame', () => {
     fakeDocument();
     const flat = new Flat(600);
-    buildTouches(flat, holding([]), 40, createStage(1, false), { aim: 50, showGuide: false });
+    buildTouches(flat, holding([]), 40, createStage(1, false), { showGuide: false });
     const onGlass: { xs: number[]; ys: number[]; cover: number; shine: number }[] = [];
     for (let at = 0; at < flat.count * FLAT_STRIDE; at += 6 * FLAT_STRIDE) {
       const cornersOf = [0, 1, 2, 5].map((corner) => at + corner * FLAT_STRIDE);
@@ -1365,7 +1367,7 @@ describe('the cabinet as shapes', () => {
     const stage = createStage(1, false);
     const touches = () => {
       const flat = new Flat(600);
-      buildTouches(flat, machine, pusherFront(machine.time), stage, { aim: 50, showGuide: false, calm: true });
+      buildTouches(flat, machine, pusherFront(machine.time), stage, { showGuide: false, calm: true });
       return flat;
     };
     /** The round touches laid level at a pocket: just over the lip, and, when it is lit, just under it. */
@@ -1408,12 +1410,12 @@ describe('the cabinet as shapes', () => {
   it('has the bulbs in their rows, the hold\u2019s lamps lit from the machine, a lamp at each arm\u2019s tip, and the studs', () => {
     fakeDocument();
     const machine = createMachine(3);
-    aimArms(machine, 30);
+    aimBoth(machine, 30);
     step(machine, 0.5);
     const lamps = (stock: number, front = 40, wave = 1, partying = false) => {
       const beads = createRows(BEAD_STRIDE, 16);
       const flat = new Flat(16);
-      buildLamps(beads, flat, machine, front, wave, partying, { aim: 30, showGuide: false, stock });
+      buildLamps(beads, flat, machine, front, wave, partying, { showGuide: false, stock });
       const bead = (index: number) => Array.from(beads.data.subarray(index * BEAD_STRIDE, (index + 1) * BEAD_STRIDE));
       return { beads, flat, bead, kinds: Array.from({ length: beads.count }, (_, index) => beads.data[index * BEAD_STRIDE + 7]) };
     };
@@ -1466,13 +1468,20 @@ describe('the cabinet as shapes', () => {
       expect(other.kinds.slice(bulbs, bulbs + LAMP_ROWS.hold).filter((kind) => kind > 2.5)).toHaveLength(lit);
       expect(other.flat.count).toBe((bulbs + lit) * 6);
     }
-    // A lamp at the far end of each rail marks where a medal will leave it: bright on the arm that takes the next medal.
+    // A lamp at the far end of each rail marks where a medal will leave it. Both glow, since either arm can be fed
+    // at any moment; one is at its brightest while a medal is on its rail.
     for (const arm of [0, 1] as const) {
       const [x, y, z, , , , , kind] = bead(bulbs + LAMP_ROWS.hold + arm);
       const tip = armTip(arm, machine.tips[arm]);
       expect(Math.hypot(x - tip.x, y - tip.height, z - tip.depth)).toBeLessThan(R + 1);
-      expect(kind).toBeCloseTo(arm === 0 ? BEAD.bulb(1) : BEAD.bulb(0.2), 5);
+      expect(kind).toBeCloseTo(BEAD.bulb(REST_LIGHT), 5);
     }
+    dropAt(machine, 30);
+    const fed = lamps(0);
+    const tipLamp = (arm: number) => fed.beads.data[(bulbs + LAMP_ROWS.hold + arm) * BEAD_STRIDE + 7];
+    expect(tipLamp(0)).toBeCloseTo(BEAD.bulb(1), 5);
+    expect(tipLamp(1)).toBeCloseTo(BEAD.bulb(REST_LIGHT), 5);
+    machine.rolling = [];
     expect(kinds.slice(-STUDS)).toEqual(Array.from({ length: STUDS }, () => BEAD.stud));
     // With motion reduced the wave stands still at its start, and the pusher's bulbs still ride on its face.
     const calm = lamps(3, 31, 0);
@@ -1488,12 +1497,12 @@ describe('the cabinet as shapes', () => {
     expect(party.bead(bulbs)).toEqual(calm.bead(bulbs));
   });
 
-  it('hangs the aim guide from the tip of the arm that takes the next medal, only when it is asked for', () => {
+  it('hangs an aim guide from the tip of each arm, only when it is asked for', () => {
     fakeDocument();
     const machine = createMachine(3);
-    const touches = (showGuide: boolean, aim = 50) => {
+    const touches = (showGuide: boolean) => {
       const flat = new Flat(600);
-      buildTouches(flat, machine, pusherFront(0), createStage(1, false), { aim, showGuide });
+      buildTouches(flat, machine, pusherFront(0), createStage(1, false), { showGuide });
       return flat;
     };
     /** Whether some touch has a corner at the foot of a medal at an arm's tip, this far across: out over the pusher, where the tip is. */
@@ -1501,20 +1510,24 @@ describe('the cabinet as shapes', () => {
       Array.from({ length: flat.count }, (_, i) => i * FLAT_STRIDE).some(
         (at) => Math.abs(flat.data[at] - x) < 1e-4 && Math.abs(flat.data[at + 1] - (ARMS.tip - R)) < 1e-4 && Math.abs(flat.data[at + 2] - ARMS.depth) < 1e-4,
       );
-    // The aim is to the left, and the left arm has not swung there yet: the guide hangs under its tip, where a medal would leave now.
-    aimArms(machine, 30);
-    const without = touches(false, 30);
-    const before = touches(true, 30);
-    expect(before.count - without.count).toBe(3);
+    // The left arm is pointed further left and has not swung there yet: its guide hangs under its tip, where a medal
+    // would leave now, and the right arm's hangs under the right arm's. Two guides, a wedge each.
+    aimSide(machine, 30);
+    const without = touches(false);
+    const before = touches(true);
+    expect(before.count - without.count).toBe(6);
     expect(machine.tips[0]).not.toBe(30);
     expect(tipAt(before, machine.tips[0])).toBe(true);
+    expect(tipAt(before, machine.tips[1])).toBe(true);
     expect(tipAt(before, 30)).toBe(false);
     expect(tipAt(without, machine.tips[0])).toBe(false);
-    // Once the machine has swung the arm over the aim, the guide is over the aim too.
+    expect(tipAt(without, machine.tips[1])).toBe(false);
+    // Once the machine has swung the arm over its aim, its guide is over the aim too, and the other has not moved.
     step(machine, 1);
-    const withGuide = touches(true, 30);
-    expect(machine.tips[0]).toBe(30);
+    const withGuide = touches(true);
+    expect(machine.tips).toEqual([30, armStart(1)]);
     expect(tipAt(withGuide, 30)).toBe(true);
+    expect(tipAt(withGuide, armStart(1))).toBe(true);
     // A touch either hides what is under it or adds light to it; its shape is one of the three.
     for (let i = 0; i < withGuide.count; i++) {
       const at = i * FLAT_STRIDE;
@@ -1531,17 +1544,17 @@ describe('the cabinet as shapes', () => {
     const stage = createStage(1, false);
     trackMedals(stage, machine, 0);
     const before = new Flat(600);
-    buildTouches(before, machine, 40, stage, { aim: 50, showGuide: false });
+    buildTouches(before, machine, 40, stage, { showGuide: false });
     // The medal leaves by the right side.
     machine.medals = [];
     trackMedals(stage, machine, 0);
     expect(stage.sideGlow[1]).toBeGreaterThan(0);
     const after = new Flat(600);
-    buildTouches(after, machine, 40, stage, { aim: 50, showGuide: false });
+    buildTouches(after, machine, 40, stage, { showGuide: false });
     expect(after.count).toBe(before.count + 6);
     ageStage(stage, 1);
     const later = new Flat(600);
-    buildTouches(later, machine, 40, stage, { aim: 50, showGuide: false });
+    buildTouches(later, machine, 40, stage, { showGuide: false });
     expect(later.count).toBe(before.count);
   });
 });
@@ -1709,7 +1722,7 @@ describe('the 3D scene on a graphics card', () => {
     const stage = createStage(1, false);
     trackMedals(stage, machine, 0);
     const before = { ...fake.calls };
-    scene.draw(stage, machine, { aim: 50, showGuide: true });
+    scene.draw(stage, machine, { showGuide: true });
     const during = (name: string) => (fake.calls[name] ?? 0) - (before[name] ?? 0);
     expect(scene.last.medals).toBe(machine.medals.length - 2);
     expect(scene.last.balls).toBe(2);
@@ -1727,15 +1740,15 @@ describe('the 3D scene on a graphics card', () => {
     expect(fake.cleared).toEqual([[0, 0, 0, 0]]);
 
     // A second frame with a medal on an arm and a gate lit makes nothing either, and a third with the medal in the air.
-    dropMedal(machine, 30);
+    dropAt(machine, 30);
     step(machine, 0.1);
     lightGate(stage, 1);
-    scene.draw(stage, machine, { aim: 30, showGuide: false, calm: true });
+    scene.draw(stage, machine, { showGuide: false, calm: true });
     expect(fake.alive()).toEqual(held);
     expect(machine.rolling).toHaveLength(1);
     expect(scene.last.medals).toBe(machine.medals.length - 2 + 1);
     step(machine, ROLL_TIME);
-    scene.draw(stage, machine, { aim: 30, showGuide: false, calm: true });
+    scene.draw(stage, machine, { showGuide: false, calm: true });
     expect(machine.falling).toHaveLength(1);
     expect(scene.last.medals).toBe(machine.medals.length - 2 + 1);
     expect(fake.alive()).toEqual(held);
@@ -1802,7 +1815,7 @@ describe('the 3D scene on a graphics card', () => {
     expect(asked).toBeLessThan(6);
     const machine = createMachine(7, 2);
     const stage = createStage(1, false);
-    for (let frame = 0; frame < 3; frame++) scene.draw(stage, machine, { aim: 50, showGuide: true });
+    for (let frame = 0; frame < 3; frame++) scene.draw(stage, machine, { showGuide: true });
     expect(fake.state.asked).toBe(asked);
     scene.dispose();
     expect(fake.alive()).toEqual({});
@@ -1897,7 +1910,7 @@ describe('the choice of renderer', () => {
     };
     return { renderer, field, under, fake, flat, machine, stage };
   };
-  const options = { aim: 50, showGuide: true };
+  const options = { showGuide: true };
 
   it('draws in 3D where the browser gives a WebGL2 context', () => {
     const { renderer, field, under, fake, flat, machine, stage } = setUp('', true);
@@ -2073,7 +2086,7 @@ describe('the choice of renderer', () => {
     const machine = createMachine(7, 2);
     const stage = createStage(1, false);
     trackMedals(stage, machine, 0);
-    renderer.draw(stage, machine, { aim: 50, showGuide: true });
+    renderer.draw(stage, machine, { showGuide: true });
     expect(flat.calls.drawImage).toBeGreaterThan(machine.medals.length);
     expect(fake.calls.drawElementsInstanced).toBeUndefined();
     renderer.dispose();

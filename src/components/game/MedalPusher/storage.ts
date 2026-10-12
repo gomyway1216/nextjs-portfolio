@@ -34,10 +34,12 @@
  *
  * Version 1 is the machine before its feed arms, when a medal was in the air
  * from the moment it was dropped. Version 2 adds the arms: where they are
- * pointed, where each tip has got to, and the medals on their rails. Each
- * version's field is held to its own exact shape, so a version-1 save comes
- * back as the machine it was, and one that has been given a field of the other
- * version is not a save of either.
+ * pointed, where each tip has got to, and the medals on their rails. In that
+ * version the two arms shared one slot and one aim. Version 3 gives each arm
+ * its own: an aim for each, and a wait for each slot. Each version's field is
+ * held to its own exact shape, so an older save comes back as the machine it
+ * was, and one that has been given a field of another version is not a save
+ * of any.
  */
 
 import {
@@ -49,8 +51,9 @@ import {
   ROLL_TIME,
   SETTLE,
   TOWER,
-  armRest,
+  armStart,
   seededRng,
+  tipOf,
   type FallingMedal,
   type Machine,
   type Medal,
@@ -89,8 +92,10 @@ import {
 
 export const STORAGE_KEY = 'medal-pusher-machine';
 /** The version every save is written with. */
-export const STORAGE_VERSION = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these two is refused. */
+export const STORAGE_VERSION = 3;
+/** The version the game wrote while its two arms shared one slot and one aim. */
+export const VERSION_WITH_ONE_AIM = 2;
+/** The version the game wrote before it had its feed arms. A save carrying any number but these three is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -101,8 +106,8 @@ export const VERSION_BEFORE_ARMS = 1;
 export const LIMITS = {
   /** Medals lying on the two tables. Packed two deep with every tower standing, they hold about 650. */
   medals: 1000,
-  /** Medals on their way in, at a slot or on an arm's rail: as many as the slot can feed in the time one takes to get to the tip. */
-  rolling: Math.ceil(ROLL_TIME / DROP_INTERVAL),
+  /** Medals on their way in, at a slot or on an arm's rail: as many as the two slots can feed in the time one takes to get to the tip. */
+  rolling: 2 * Math.ceil(ROLL_TIME / DROP_INTERVAL),
   /** Medals in the air. Every tower coming down at once is 450. */
   falling: 600,
   /** Prize balls, on the field or waiting for their roulette. */
@@ -242,78 +247,155 @@ const fallingMedal = shape<FallingMedal>(
 );
 
 /**
- * Where the two arms' tips are, the left arm's first: each within its own arm's
- * reach. The left one is never to the right of the right one: where they
- * belong is always that way round, both swing at one speed, and neither
- * overshoots, so they cannot pass each other.
+ * Two places across the field, one for each arm and the left arm's first:
+ * each within its own arm's reach, and the left one never to the right of
+ * the right one. That holds for where the arms are pointed, since the rails
+ * do not cross, and so for where their tips are: both swing at one speed
+ * and neither overshoots, so they cannot pass each other on the way.
  */
-const tips: Check<[number, number]> = (value) => {
+const acrossArms: Check<[number, number]> = (value) => {
   if (!Array.isArray(value) || value.length !== 2) return undefined;
   const left = real(ARM_REACH[0].min, ARM_REACH[0].max)(value[0]);
   const right = real(ARM_REACH[1].min, ARM_REACH[1].max)(value[1]);
   return left === undefined || right === undefined || left > right ? undefined : [left, right];
 };
 
+/** How long each arm's slot still has to wait, the left arm's first. */
+const waits: Check<[number, number]> = (value) => {
+  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  const left = real(0, DROP_INTERVAL)(value[0]);
+  const right = real(0, DROP_INTERVAL)(value[1]);
+  return left === undefined || right === undefined ? undefined : [left, right];
+};
+
 /** The field as it is stored: everything but the generator. */
 type StoredMachine = Omit<Machine, 'rng'>;
+/** The field as version 2 stored it: one slot's wait and one aim for both arms. */
+type MachineWithOneAim = Omit<StoredMachine, 'waits' | 'aims'> & { cooldown: number; aim: number };
 /** The field as version 1 stored it: no arms, so nothing on a rail, no aim and no tips. */
-type MachineBeforeArms = Omit<StoredMachine, 'rolling' | 'aim' | 'tips'>;
+type MachineBeforeArms = Omit<MachineWithOneAim, 'rolling' | 'aim' | 'tips'>;
 
 /**
- * How closely the medals on the rails are held to the slot's pace, in seconds.
- * The slot takes its own wait as over a billionth of a second before its end.
+ * How closely the medals on the rails are held to a slot's pace, in seconds.
+ * A slot takes its own wait as over a billionth of a second before its end.
  */
 const SLACK = 1e-6;
 
-const machineFields = {
+/** What every version of the field holds. */
+const tables = {
   time: real(0, LIMITS.clock),
   medals: list(medal, LIMITS.medals),
-  rolling: list(rollingMedal, LIMITS.rolling),
   falling: list(fallingMedal, LIMITS.falling),
   payoutQueue: whole(0, LIMITS.purse),
   payoutClock: timer,
   growing: whole(0, LIMITS.medals * TOWER.max),
   towerClock: timer,
-  cooldown: real(0, DROP_INTERVAL),
-  aim: real(AIM.min, AIM.max),
-  tips,
   nextId: whole(1, LIMITS.count),
 };
+const rolling = list(rollingMedal, LIMITS.rolling);
+/** The one wait and the one aim of the versions before each arm had its own. */
+const oneSlot = { cooldown: real(0, DROP_INTERVAL) };
+const oneAim = { aim: real(AIM.min, AIM.max) };
 
-const storedMachine = shape<StoredMachine>(machineFields, (machine) => {
+/** What has to agree in any field, whatever feeds it. */
+function tablesAgree(machine: Pick<StoredMachine, 'medals' | 'falling' | 'growing' | 'nextId'>, onRails: RollingMedal[]): boolean {
   // Every medal has an id of its own, lower than the next one to be given out.
   const ids = new Set<number>();
-  for (const { id } of [...machine.medals, ...machine.rolling, ...machine.falling]) {
+  for (const { id } of [...machine.medals, ...onRails, ...machine.falling]) {
     if (id >= machine.nextId || ids.has(id)) return false;
     ids.add(id);
   }
   const balls = [...machine.medals, ...machine.falling].filter((m) => m.ball).length;
-  // The slot feeds one medal and then waits. So the last medal fed has been on its way for as
-  // long as the slot has been waiting, or longer, and each one before it for a whole wait more.
-  let most = ROLL_TIME - DROP_INTERVAL + machine.cooldown;
-  for (let i = machine.rolling.length - 1; i >= 0; i--) {
-    if (machine.rolling[i].remaining > most + SLACK) return false;
-    most = machine.rolling[i].remaining - DROP_INTERVAL;
-  }
   // The medals still to be stacked are the ones the towers are waiting for.
   const growing = machine.medals.reduce((sum, m) => sum + m.grow, 0);
   return growing === machine.growing && balls <= LIMITS.balls;
-});
+}
 
-const { rolling: _rolling, aim: _aim, tips: _tips, ...fieldsBeforeArms } = machineFields;
-const machineBeforeArms = shape<MachineBeforeArms>(fieldsBeforeArms);
+/**
+ * Whether medals fed through one slot, in the order they were fed, keep to that slot's pace. A slot feeds one
+ * medal and then waits. So the last medal fed has been on its way for as long as the slot has been waiting, or
+ * longer, and each one before it for a whole wait more.
+ */
+function keepsPace(fed: RollingMedal[], wait: number): boolean {
+  let most = ROLL_TIME - DROP_INTERVAL + wait;
+  for (let i = fed.length - 1; i >= 0; i--) {
+    if (fed[i].remaining > most + SLACK) return false;
+    most = fed[i].remaining - DROP_INTERVAL;
+  }
+  return true;
+}
+
+const storedMachine = shape<StoredMachine>(
+  // In the order a machine holds them, which is the order they are written in: a machine read back and
+  // written again is the same text.
+  {
+    time: tables.time,
+    medals: tables.medals,
+    rolling,
+    falling: tables.falling,
+    payoutQueue: tables.payoutQueue,
+    payoutClock: tables.payoutClock,
+    growing: tables.growing,
+    towerClock: tables.towerClock,
+    waits,
+    aims: acrossArms,
+    tips: acrossArms,
+    nextId: tables.nextId,
+  },
+  // Each arm's slot keeps its own pace: what is on one rail says nothing about the other.
+  (machine) =>
+    tablesAgree(machine, machine.rolling) &&
+    keepsPace(
+      machine.rolling.filter((m) => m.arm === 0),
+      machine.waits[0],
+    ) &&
+    keepsPace(
+      machine.rolling.filter((m) => m.arm === 1),
+      machine.waits[1],
+    ),
+);
+
+/** Builds today's field from the parts of an older one, in the order a machine holds them, and checks it as a whole. */
+const asStored = (field: Pick<StoredMachine, keyof typeof tables>, rest: Pick<StoredMachine, 'rolling' | 'waits' | 'aims' | 'tips'>): StoredMachine | undefined => {
+  const { time, medals, falling, payoutQueue, payoutClock, growing, towerClock, nextId } = field;
+  return storedMachine({ time, medals, rolling: rest.rolling, falling, payoutQueue, payoutClock, growing, towerClock, waits: rest.waits, aims: rest.aims, tips: rest.tips, nextId });
+};
+
+// In version 2 one slot fed both rails, so the medals on the two rails together keep one slot's pace.
+const machineWithOneAim = shape<MachineWithOneAim>(
+  { ...tables, rolling, ...oneSlot, ...oneAim, tips: acrossArms },
+  (machine) => tablesAgree(machine, machine.rolling) && keepsPace(machine.rolling, machine.cooldown),
+);
+
+/**
+ * The field of a version-2 save, as today's machine. That game pointed both
+ * arms with one aim: each arm's tip went over it as far as the arm reached,
+ * when the aim was on its side or a medal was on its rail, and to a resting
+ * place otherwise. So each arm's aim is that one aim, as near as the arm can
+ * point to it: an arm that was following it goes on doing so, and a medal on
+ * its rail leaves from where it was going to. An arm that was at rest swings
+ * over, with nothing on its rail to mind. Its one slot fed either rail, so
+ * neither slot is free until that one would have been.
+ */
+const fieldWithOneAim: Check<StoredMachine> = (value) => {
+  const field = machineWithOneAim(value);
+  return field && asStored(field, { rolling: field.rolling, waits: [field.cooldown, field.cooldown], aims: [tipOf(0, field.aim), tipOf(1, field.aim)], tips: field.tips });
+};
+
+const machineBeforeArms = shape<MachineBeforeArms>({ ...tables, ...oneSlot }, (machine) => tablesAgree(machine, []));
 
 /**
  * The field of a version-1 save, as today's machine. That game had no arms: a
  * medal was in the air, with its landing spot, from the moment it was dropped.
  * So whatever such a save holds in the air is already in its fall, and lands
  * where and when it was going to, whatever the arms do; nothing is on a rail;
- * and with no aim to bring back, the arms are where a new machine's are: the
- * aim on the middle, the right arm's tip over it and the left arm at rest.
+ * and with no aim to bring back, the arms are where a new machine's are, each
+ * pointing a little to its own side of the middle. Neither slot is free until
+ * the one that game had would have been.
  */
 const fieldBeforeArms: Check<StoredMachine> = (value) => {
   const field = machineBeforeArms(value);
-  return field && storedMachine({ ...field, rolling: [], aim: FIELD.width / 2, tips: [armRest(0), FIELD.width / 2] });
+  return field && asStored(field, { rolling: [], waits: [field.cooldown, field.cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)] });
 };
 
 // ── The purse and the counters ──────────────────────────────────────────────
@@ -570,8 +652,8 @@ export function serialize(session: Session): string {
 
 /**
  * The session a text was written from, or null when the text is not a save
- * that this game, or the game before its feed arms, could have written. It
- * never throws.
+ * that this game, or one of the two versions of it before this one, could
+ * have written. It never throws.
  *
  * The generator's state is shut inside a closure and cannot be read, so it is
  * not stored: the machine that comes back draws from a new generator started
@@ -593,7 +675,8 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    const field = save.version === STORAGE_VERSION ? storedMachine(save.machine) : save.version === VERSION_BEFORE_ARMS ? fieldBeforeArms(save.machine) : undefined;
+    const read = save.version === STORAGE_VERSION ? storedMachine : save.version === VERSION_WITH_ONE_AIM ? fieldWithOneAim : save.version === VERSION_BEFORE_ARMS ? fieldBeforeArms : null;
+    const field = read?.(save.machine);
     const numbers = storedNumbers(save.session);
     const { screen } = save;
     if (!field || !numbers || !isRecord(screen)) return null;

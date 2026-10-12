@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, FIELD, aimArms, clampAim } from './engine';
+import { AIM, FEED, FIELD, aimArms, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
@@ -23,7 +23,7 @@ import {
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
-import { HEIGHT, VIEW, unproject, unprojectPanel } from './view';
+import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
 /** Medals a second when Auto is on. */
@@ -97,11 +97,26 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.spins === b.spins &&
   a.paid === b.paid;
 
-/** A medal going into its arm is heard twice over: through the slot, and then down the rail it rolls on. */
-const feedSound = (on: boolean): void => {
-  playSound('insert', on);
-  playSound('roll', on);
+/** A medal going in is heard at the slot. It is heard again, rolling, when it comes out onto its rail: the frame loop listens for that. */
+const feedSound = (on: boolean): void => playSound('insert', on);
+
+/**
+ * How the page's screen is stood in the back wall of the cabinet, behind the
+ * canvases: the scene's own camera, as the numbers a browser takes. They are
+ * in pixels of the drawing. One of those is `--mp-u` on the page, which is
+ * the width the stage has, shared out over the drawing's, so the screen and
+ * the scene in front of it are seen from the same place at any size.
+ */
+const WALL = screenPlacement();
+const drawn = (pixels: number): string => `calc(${pixels.toFixed(3)} * var(--mp-u))`;
+const STAGE_UNIT = { '--mp-u': `calc(100cqw / ${VIEW.width})` } as CSSProperties;
+const WALL_SPACE: CSSProperties = { perspective: drawn(WALL.perspective), perspectiveOrigin: `${drawn(WALL.origin.x)} ${drawn(WALL.origin.y)}` };
+const WALL_SHEET: CSSProperties = {
+  width: drawn(WALL.width),
+  height: drawn(WALL.height),
+  transform: `translate3d(${drawn(WALL.x)}, ${drawn(WALL.y)}, ${drawn(WALL.z)}) rotateX(${WALL.tilt.toFixed(5)}rad) scale(${WALL.scale})`,
 };
+const STAGE_SHAPE: CSSProperties = { aspectRatio: `${VIEW.width} / ${VIEW.height}` };
 
 export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
@@ -127,6 +142,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The canvas under the field, for the 3D scene.
   const sceneRef = useRef<HTMLCanvasElement | null>(null);
+  // The sheet the screen is laid out on, which stands in the back wall behind both canvases.
+  const wallRef = useRef<HTMLDivElement | null>(null);
+  // The chest a press on the stage began on, and the one the pointer is over.
+  const pressedChest = useRef<HTMLButtonElement | null>(null);
+  const hoveredChest = useRef<HTMLButtonElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -213,6 +233,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       // A resize keeps what the stage has seen, so no medal is taken for one that just left.
       if (previous) {
         stage.seen = previous.seen;
+        stage.fed = previous.fed;
         stage.exits = previous.exits;
       }
     };
@@ -255,6 +276,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);
+      // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
+      for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
       let landed = false;
       let won = 0;
@@ -355,7 +378,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
+      renderer.draw(stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches, stock: session.stock });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -442,13 +465,37 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     if (bounds.width === 0) return;
     const px = ((event.clientX - bounds.left) / bounds.width) * VIEW.width;
     const py = ((event.clientY - bounds.top) / bounds.height) * VIEW.height;
-    // On the back panel the aim is the spot under the pointer; lower down, the spot on the pusher.
+    // On the back wall, the screen included, the aim is the spot under the pointer; lower down, the spot on the pusher.
     const panel = unprojectPanel(px, py);
     const point = panel && panel.height >= HEIGHT.pusher ? panel : unproject(px, py, HEIGHT.pusher);
     if (!point) return;
     const next = clampAim(point.x);
     live.current.aim = next;
     setAim(next);
+  };
+
+  /**
+   * The chest under a point of the page, if the screen is offering one there to be picked. The screen stands behind the
+   * canvases, so a press meant for a chest lands on the field; this finds the button the player was pointing at.
+   */
+  const chestAt = (x: number, y: number): HTMLButtonElement | null => {
+    const wall = wallRef.current;
+    if (!wall || typeof document.elementsFromPoint !== 'function') return null;
+    for (const element of document.elementsFromPoint(x, y)) {
+      if (!wall.contains(element)) continue;
+      // The first thing of the screen's under the point is what is seen there.
+      const button = element.closest('button');
+      return button && wall.contains(button) && !button.disabled ? button : null;
+    }
+    return null;
+  };
+  /** Shows a chest as pointed at, the way it would show itself if the pointer could reach it. */
+  const hoverChest = (chest: HTMLButtonElement | null, field: HTMLCanvasElement) => {
+    if (hoveredChest.current === chest) return;
+    hoveredChest.current?.removeAttribute('data-hover');
+    chest?.setAttribute('data-hover', 'true');
+    hoveredChest.current = chest;
+    field.style.cursor = chest ? 'pointer' : '';
   };
 
   const startPress = () => {
@@ -524,31 +571,58 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </div>
 
-        <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
-
-        <div className={styles.fieldWrap}>
+        {/* One stage. The screen is the back wall of the cabinet: it stands behind the two canvases, where the picture is left clear for it, and everything else is drawn in front of it. */}
+        <div className={styles.fieldWrap} style={STAGE_UNIT}>
+          <div className={styles.wallSpace} style={WALL_SPACE}>
+            <div ref={wallRef} className={styles.wall} style={WALL_SHEET} data-testid="pusher-wall">
+              <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
+            </div>
+          </div>
           <canvas ref={sceneRef} className={styles.scene} aria-hidden />
           <canvas
             ref={canvasRef}
             className={styles.field}
+            style={STAGE_SHAPE}
             role="img"
             aria-label={t.fieldAria}
             data-testid="pusher-field"
             onPointerDown={(event) => {
+              // A press on a chest the screen is offering is for the chest: it neither aims nor feeds.
+              pressedChest.current = chestAt(event.clientX, event.clientY);
+              if (pressedChest.current) return;
               aimAtPointer(event);
               startPress();
             }}
             onPointerMove={(event) => {
               if (press.current) aimAtPointer(event);
+              else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
             }}
             onPointerUp={endPress}
             onPointerCancel={() => {
               // The browser took the gesture for a scroll: nothing was meant to drop, and no click follows.
               press.current = null;
+              pressedChest.current = null;
             }}
-            onPointerLeave={endPress}
-            onClick={onDropClick}
+            onPointerLeave={(event) => {
+              endPress();
+              hoverChest(null, event.currentTarget);
+            }}
+            onClick={(event) => {
+              // A press that began on a chest picks it, if it ends there too, and drops nothing either way.
+              const chest = pressedChest.current;
+              pressedChest.current = null;
+              if (!chest) onDropClick();
+              else if (chest === chestAt(event.clientX, event.clientY)) chest.click();
+            }}
           />
+        </div>
+        {/* What each line of the slot leads to. There is no room for it on the screen now that the screen is in the cabinet. */}
+        <div className={styles.legendBelow} aria-hidden data-testid="pusher-legend">
+          <span className={styles.legend}>
+            <span data-tier="seven">{t.legendSeven}</span>
+            <span data-tier="big">{t.legendOdd}</span>
+            <span data-tier="small">{t.legendEven}</span>
+          </span>
         </div>
 
         <div className={styles.panel}>

@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
-import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
-import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/storage';
+import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
+import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
+import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
+import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -16,6 +17,17 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en', query = '') {
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
 }
+
+/**
+ * Where things are on the stage, as shares of its height. The stage is the
+ * whole cabinet in one picture: the screen is the upper part of its back
+ * wall, with a panel under it down to the pusher, and the two tables are in
+ * front. These three are a spot in the middle of the lower table, a spot on
+ * the panel under the screen, and a spot on the screen itself.
+ */
+const ON_TABLE = 0.81;
+const ON_WALL = 0.5;
+const ON_SCREEN = 0.26;
 
 // Every tab panel stays mounted, so everything is looked up inside its own panel.
 const machine = (page: Page) => page.locator('#pusher-panel-machine');
@@ -59,7 +71,7 @@ function watchForTrouble(page: Page): string[] {
  */
 function fieldPixel(page: Page): Promise<number[]> {
   return page.evaluate(
-    () =>
+    (share) =>
       new Promise<number[]>((resolve) => {
         requestAnimationFrame(() => {
           const probe = document.createElement('canvas');
@@ -67,11 +79,12 @@ function fieldPixel(page: Page): Promise<number[]> {
           const context = probe.getContext('2d');
           if (!context) return resolve([]);
           for (const canvas of document.querySelectorAll<HTMLCanvasElement>('#pusher-panel-machine canvas')) {
-            context.drawImage(canvas, Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1, 0, 0, 1, 1);
+            context.drawImage(canvas, Math.floor(canvas.width / 2), Math.floor(canvas.height * share), 1, 1, 0, 0, 1, 1);
           }
           resolve(Array.from(context.getImageData(0, 0, 1, 1).data));
         });
       }),
+    ON_TABLE,
   );
 }
 
@@ -117,7 +130,9 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: /Medal Pusher/ })).toBeVisible();
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   await expect(machine(page).getByTestId('pusher-jackpot')).toHaveText(String(JACKPOT_START));
-  await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeVisible();
+  // The hold's lamps are drawn in the cabinet, under the screen. What says how many are lit is still on the page, by the name it had.
+  await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeAttached();
+  await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('data-held', '0');
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
@@ -179,13 +194,24 @@ test('the canvas renderer draws the field when the address asks for it', async (
   await expect(field).toHaveAttribute('data-renderer', '2d');
   await expectFieldPainted(page);
   // The whole picture is on the field's own canvas, as it was before there was a second one under it for the 3D scene.
-  const alphas = await page.evaluate(() =>
-    Array.from(document.querySelectorAll<HTMLCanvasElement>('#pusher-panel-machine canvas'), (canvas) => {
-      const context = canvas.dataset.testid === 'pusher-field' ? canvas.getContext('2d') : null;
-      return context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1).data[3] : -1;
-    }),
+  const alphas = await page.evaluate(
+    (share) =>
+      Array.from(document.querySelectorAll<HTMLCanvasElement>('#pusher-panel-machine canvas'), (canvas) => {
+        const context = canvas.dataset.testid === 'pusher-field' ? canvas.getContext('2d') : null;
+        return context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * share), 1, 1).data[3] : -1;
+      }),
+    ON_TABLE,
   );
   expect(alphas).toEqual([-1, 255]);
+  // Where the screen is, the picture is left clear, so the page's screen behind the canvas shows through: all that is
+  // there is the faint light on the glass.
+  const clear = await page.evaluate((share) => {
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="pusher-field"]');
+    const context = canvas?.getContext('2d');
+    return canvas && context ? context.getImageData(Math.floor(canvas.width * 0.3), Math.floor(canvas.height * share), 1, 1).data[3] : -1;
+  }, ON_SCREEN);
+  expect(clear).toBeGreaterThanOrEqual(0);
+  expect(clear).toBeLessThan(40);
 
   // The game plays as it does in 3D: a click on the field aims there and drops a medal.
   await dropOne(page);
@@ -193,7 +219,7 @@ test('the canvas renderer draws the field when the address asks for it', async (
   if (!box) throw new Error('the field has no box');
   const before = await counter(page, 'played');
   await page.waitForTimeout(300);
-  await field.click({ position: { x: box.width * 0.25, y: box.height * 0.12 } });
+  await field.click({ position: { x: box.width * 0.25, y: box.height * ON_WALL } });
   await expect.poll(() => counter(page, 'played')).toBe(before + 1);
   expect(Number(await aimSlider(page).inputValue())).toBeLessThan(35);
   await expectPurseToBalance(page);
@@ -213,11 +239,11 @@ test('the 3D renderer draws the field wherever the browser has WebGL2 at all, wh
   await expectFieldPainted(page, 30_000);
   if (hasWebgl2) {
     // The scene is on the canvas under the field, and the field's own canvas is only the glass over it: clear in the middle.
-    const glass = await page.evaluate(() => {
+    const glass = await page.evaluate((share) => {
       const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="pusher-field"]');
       const context = canvas?.getContext('2d');
-      return canvas && context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * 0.7), 1, 1).data[3] : -1;
-    });
+      return canvas && context ? context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * share), 1, 1).data[3] : -1;
+    }, ON_TABLE);
     expect(glass).toBeGreaterThanOrEqual(0);
     expect(glass).toBeLessThan(60);
   }
@@ -313,16 +339,128 @@ test('clicking the field aims there and drops a medal', async ({ page }) => {
 
   let before = await counter(page, 'played');
   await page.waitForTimeout(300);
-  await field.click({ position: { x: box.width * 0.25, y: box.height * 0.12 } });
+  await field.click({ position: { x: box.width * 0.25, y: box.height * ON_WALL } });
   await expect.poll(() => counter(page, 'played')).toBe(before + 1);
   expect(Number(await aimSlider(page).inputValue())).toBeLessThan(35);
 
   before = await counter(page, 'played');
   await page.waitForTimeout(300);
-  await field.click({ position: { x: box.width * 0.8, y: box.height * 0.12 } });
+  await field.click({ position: { x: box.width * 0.8, y: box.height * ON_WALL } });
   await expect.poll(() => counter(page, 'played')).toBe(before + 1);
   expect(Number(await aimSlider(page).inputValue())).toBeGreaterThan(65);
+
+  // The screen is part of the back wall, and the picture is over it: a click on it aims under the pointer and feeds a medal, as anywhere else.
+  before = await counter(page, 'played');
+  await page.waitForTimeout(300);
+  await field.click({ position: { x: box.width * 0.3, y: box.height * ON_SCREEN } });
+  await expect.poll(() => counter(page, 'played')).toBe(before + 1);
+  expect(Number(await aimSlider(page).inputValue())).toBeLessThan(40);
   await expectPurseToBalance(page);
+});
+
+test('the screen stands in the back wall of the cabinet, behind the picture, exactly where the housing leaves room for it', async ({ page }) => {
+  await openGame(page);
+  const stage = await machine(page).getByTestId('pusher-field').boundingBox();
+  const screen = await machine(page).getByTestId('pusher-screen').boundingBox();
+  if (!stage || !screen) throw new Error('the stage has no box');
+  // The stage is one picture, taller than it is wide: the whole cabinet.
+  expect(stage.height / stage.width).toBeCloseTo(VIEW.height / VIEW.width, 2);
+  expect(stage.height / stage.width).toBeGreaterThan(1.3);
+  // The screen is the upper part of it: in the middle, most of the stage wide, from under the hood down to about two fifths of the way.
+  expect(Math.abs(screen.x + screen.width / 2 - (stage.x + stage.width / 2))).toBeLessThan(1);
+  expect(screen.width / stage.width).toBeGreaterThan(0.75);
+  expect((screen.y - stage.y) / stage.height).toBeGreaterThan(0.04);
+  expect((screen.y - stage.y) / stage.height).toBeLessThan(0.12);
+  expect((screen.y + screen.height - stage.y) / stage.height).toBeGreaterThan(0.38);
+  expect((screen.y + screen.height - stage.y) / stage.height).toBeLessThan(0.48);
+  // It is where the scene's own camera puts that part of the wall, to the pixel: the top corners of the screen are the
+  // widest part of what the browser draws, and its foot the lowest.
+  const k = stage.width / VIEW.width;
+  const [left, right, foot] = [project(SCREEN.left, SCREEN.top, 0), project(SCREEN.right, SCREEN.top, 0), project(SCREEN.left, SCREEN.foot, 0)];
+  expect(Math.abs(screen.x - (stage.x + left.x * k))).toBeLessThan(1.5);
+  expect(Math.abs(screen.y - (stage.y + left.y * k))).toBeLessThan(1.5);
+  expect(Math.abs(screen.x + screen.width - (stage.x + right.x * k))).toBeLessThan(1.5);
+  expect(Math.abs(screen.y + screen.height - (stage.y + foot.y * k))).toBeLessThan(1.5);
+  // The picture is over it: the point in its middle belongs to the field, and the screen is under that.
+  const under = await page.evaluate(
+    ([x, y]) => document.elementsFromPoint(x, y).map((element) => element.closest('[data-testid="pusher-screen"], canvas')?.getAttribute('data-testid') ?? null),
+    [screen.x + screen.width / 2, screen.y + screen.height / 2],
+  );
+  expect(under[0]).toBe('pusher-field');
+  expect(under).toContain('pusher-screen');
+  expect(under.indexOf('pusher-screen')).toBeGreaterThan(under.indexOf('pusher-field'));
+});
+
+/** Opens the game on a machine with a choice of three chests on its screen, saved as the game saves one, for the page to find. */
+async function openOnChests(page: Page) {
+  const session = createSession(5);
+  session.bonus = { kind: 'chest', prizes: [...CHESTS], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  await expect(machine(page).getByTestId('pusher-screen')).toHaveAttribute('data-mode', 'chest');
+}
+
+test('a chest on the screen is picked by pressing it, though the picture is over it, and no medal is fed', async ({ page }) => {
+  await openOnChests(page);
+  const field = machine(page).getByTestId('pusher-field');
+  const stage = await field.boundingBox();
+  const screen = await machine(page).getByTestId('pusher-screen').boundingBox();
+  if (!stage || !screen) throw new Error('the stage has no box');
+  // The three chests are on the screen, and each is a button that can be pressed.
+  const middles: { x: number; y: number }[] = [];
+  for (const index of [0, 1, 2]) {
+    const chest = machine(page).getByTestId(`pusher-chest-${index}`);
+    await expect(chest).toBeEnabled();
+    const box = await chest.boundingBox();
+    if (!box) throw new Error('the chest has no box');
+    expect(box.x).toBeGreaterThanOrEqual(screen.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(screen.x + screen.width);
+    expect(box.y).toBeGreaterThanOrEqual(screen.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(screen.y + screen.height);
+    middles.push({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  }
+  const played = await counter(page, 'played');
+  const aimed = await aimSlider(page).inputValue();
+  // The pointer over a chest shows it as it would if it could reach it, and the field shows that a press there picks.
+  await page.mouse.move(middles[2].x, middles[2].y);
+  await expect(machine(page).getByTestId('pusher-chest-2')).toHaveAttribute('data-hover', 'true');
+  await expect(field).toHaveCSS('cursor', 'pointer');
+  await page.mouse.move(middles[0].x, middles[0].y);
+  await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-hover', 'true');
+  await expect(machine(page).getByTestId('pusher-chest-2')).not.toHaveAttribute('data-hover', 'true');
+  // Left alone the clock would pick the first. A press on the last picks the last: it lands on the field, which
+  // hands it to the chest under the pointer, and neither aims nor feeds a medal.
+  await field.click({ position: { x: middles[2].x - stage.x, y: middles[2].y - stage.y } });
+  await expect(machine(page).getByTestId('pusher-chest-2')).toHaveAttribute('data-chosen', 'true');
+  await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-chosen', 'false');
+  await page.waitForTimeout(400);
+  expect(await counter(page, 'played')).toBe(played);
+  expect(await aimSlider(page).inputValue()).toBe(aimed);
+  // Once one is picked they are chests no longer to be pressed: a press there is a press on the field again.
+  await expect(machine(page).getByTestId('pusher-chest-1')).toBeDisabled();
+  await field.click({ position: { x: middles[1].x - stage.x, y: middles[1].y - stage.y } });
+  await expect.poll(() => counter(page, 'played')).toBe(played + 1);
+});
+
+test('a chest on the screen is picked from the keyboard too', async ({ page }) => {
+  await openOnChests(page);
+  const played = await counter(page, 'played');
+  // They are real buttons, behind the picture: they take the focus and answer the keyboard as they did.
+  const chest = machine(page).getByTestId('pusher-chest-1');
+  await chest.focus();
+  await expect(chest).toBeFocused();
+  await expect(chest).toHaveAccessibleName(/chest/i);
+  await page.keyboard.press('Enter');
+  await expect(chest).toHaveAttribute('data-chosen', 'true');
+  await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-chosen', 'false');
+  expect(await counter(page, 'played')).toBe(played);
 });
 
 test('holding DROP streams medals and letting go stops them', async ({ page }) => {
@@ -436,9 +574,9 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
 
-  // 80% by the front and 0.19 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('96.7%');
+  await expect(result).toHaveText('95.8%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
 
@@ -446,9 +584,9 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('120.8%');
+  await expect(result).toHaveText('119.7%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('60.4%');
+  await expect(result).toHaveText('59.9%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
 });
 
@@ -467,14 +605,16 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // From the edges no medal can reach a gate, wherever its sweep has taken it; following the centre gate about one in five does.
+  // Fed down the middle, about one medal in six ends up through a START pocket on the pusher's lip (13% to 22% over
+  // twenty runs of this size, and more when a tower goes over through one). Fed at the edges far fewer do, though
+  // some: the pile carries medals across, and what the screen pays lands all over the pusher.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
-  await expect(cells('edges').nth(3)).toHaveText('0.0%');
-  await expect(cells('edges').nth(5)).toHaveText('0');
-  const centreGate = Number(((await cells('centre').nth(3).textContent()) ?? '').replace('%', ''));
-  expect(centreGate).toBeGreaterThan(12);
-  expect(centreGate).toBeLessThan(32);
-  for (const aim of ['centre', 'anywhere', 'between', 'edges']) {
+  const throughAPocket = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
+  const middle = await throughAPocket('centre');
+  expect(middle).toBeGreaterThan(8);
+  expect(middle).toBeLessThan(40);
+  expect(await throughAPocket('edges')).toBeLessThan(middle);
+  for (const aim of ['centre', 'anywhere', 'beside', 'edges']) {
     const front = Number(((await cells(aim).nth(2).textContent()) ?? '').replace('%', ''));
     expect(front).toBeGreaterThan(60);
     expect(front).toBeLessThan(92);
@@ -521,25 +661,34 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   expect(box?.width).toBeLessThanOrEqual(375);
   await expect(dropButton(page)).toBeVisible();
 
-  // The hold's eight lamps sit in one row inside the screen, to the right of its title.
+  // The screen is inside the stage, in its upper part, and nearly as wide.
   const screenBox = await machine(page).getByTestId('pusher-screen').boundingBox();
   const title = await machine(page).getByTestId('pusher-mode').boundingBox();
-  if (!screenBox || !title) throw new Error('the screen has no box');
+  if (!box || !screenBox || !title) throw new Error('the stage has no box');
+  expect(screenBox.x).toBeGreaterThan(box.x);
+  expect(screenBox.x + screenBox.width).toBeLessThan(box.x + box.width);
+  expect(screenBox.y).toBeGreaterThan(box.y);
+  expect(screenBox.y + screenBox.height).toBeLessThan(box.y + box.height / 2);
+  expect(screenBox.width).toBeGreaterThan(250);
+  // Its title is on it, in one line, large enough to read.
+  expect(title.x).toBeGreaterThanOrEqual(screenBox.x);
+  expect(title.x + title.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
+  expect(title.height).toBeGreaterThanOrEqual(11);
+  expect(title.height).toBeLessThan(20);
+  // What each line of the slot leads to is under the stage, where there is room to read it, and not on the screen as well.
+  await expect(machine(page).getByTestId('pusher-legend')).toBeVisible();
+  await expect(machine(page).getByTestId('pusher-legend')).toContainText('7·7·7 ▸ BALL');
+  await expect(machine(page).getByTestId('pusher-caption').locator('span span').first()).toBeHidden();
+  const legend = await machine(page).getByTestId('pusher-legend').boundingBox();
+  expect(legend?.y).toBeGreaterThanOrEqual(box.y + box.height);
+
+  // The hold's eight lamps are drawn in the cabinet, under the screen. The page still has one for each, under the
+  // name the hold always had, for whoever cannot see the picture: they take up no room on the screen.
   const lamps = machine(page).getByTestId('pusher-stock').locator('[data-lit]');
   await expect(lamps).toHaveCount(8);
-  const lampBoxes = await lamps.evaluateAll((nodes) =>
-    nodes.map((node) => {
-      const rect = node.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-    }),
-  );
-  for (const lamp of lampBoxes) {
-    expect(lamp.width).toBeGreaterThanOrEqual(6);
-    expect(Math.abs(lamp.height - lamp.width)).toBeLessThan(1);
-    expect(Math.abs(lamp.y - lampBoxes[0].y)).toBeLessThan(1);
-    expect(lamp.x).toBeGreaterThanOrEqual(title.x + title.width);
-    expect(lamp.x + lamp.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
-  }
+  await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('aria-label', /of 8 spins held/);
+  const held = await machine(page).getByTestId('pusher-stock').boundingBox();
+  expect(held?.width ?? 0).toBeLessThan(2);
 
   // All twelve tiles of the sugoroku board lie inside the screen, each wide enough to read, and the far side of the
   // board is drawn smaller than the near side: it is seen in perspective, whatever the screen is playing.

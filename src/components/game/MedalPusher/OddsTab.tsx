@@ -51,8 +51,8 @@ const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
 export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
-/** What the calculator starts from: about what following a gate at two medals a second measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 80, spins: 19 } as const;
+/** What the calculator starts from: about what feeding the middle of the pusher at two medals a second measures on the Simulation tab. */
+export const CALC_DEFAULT = { front: 80, spins: 18 } as const;
 
 /** Rolls after which the Odds tab shows how even the board has become. */
 export const BOARD_ROLLS = 6;

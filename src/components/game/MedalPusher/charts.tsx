@@ -1,5 +1,6 @@
 'use client';
 
+import { armCollar, armRest, armTip } from './arms';
 import { CHECKERS, FIELD, MEDAL_RADIUS, PUSHER } from './engine';
 import type { MarkerShape, RatePoint } from './sim';
 
@@ -107,9 +108,9 @@ const GATE = 'var(--mp-d-gate)';
 
 /** Where each numbered badge of the diagram sits, in field units (depth may be negative: on the back panel). */
 const BADGES: { x: number; depth: number }[] = [
-  { x: 50, depth: -14 },
-  { x: 88, depth: -3.5 },
+  { x: 23, depth: 72 },
   { x: 14, depth: 20 },
+  { x: 80, depth: 38 },
   { x: 50, depth: 62 },
   { x: 88, depth: 89 },
   { x: 50, depth: 108 },
@@ -133,46 +134,28 @@ const SAMPLE_MEDALS: { x: number; depth: number }[] = [
 export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
   const scale = 2.4;
   const left = 30;
-  const top = 46;
+  const top = 28;
   const width = left * 2 + FIELD.width * scale;
   const height = top + FIELD.depth * scale + 40;
   const X = (x: number) => left + x * scale;
   const Y = (depth: number) => top + depth * scale;
   const front = (PUSHER.min + PUSHER.max) / 2;
+  const pocket = MEDAL_RADIUS + CHECKERS.halfWidth;
   const right = FIELD.width;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', width: '100%', maxWidth: 300, margin: '0 auto', height: 'auto' }}>
-      {/* The back panel, seen edge on, with the two feed arms reaching in over it from the corners, a medal on its way down one */}
+      {/* The back panel, seen edge on */}
       <rect x={X(0)} y={Y(-9)} width={FIELD.width * scale} height={9 * scale} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
-      {[0, right].map((corner) => {
-        const toward = corner === 0 ? 1 : -1;
-        const at = (reach: number) => X(corner + toward * reach);
-        return (
-          <g key={corner}>
-            <path d={`M${at(3)} ${Y(-18.4)} L${at(41)} ${Y(-12.6)} L${at(41)} ${Y(-10.2)} L${at(3)} ${Y(-16)} Z`} fill={PUSHER_FILL} stroke={LINE} strokeWidth={1.2} />
-            <circle cx={at(3)} cy={Y(-17.2)} r={4.5} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
-          </g>
-        );
-      })}
-      <circle cx={X(24)} cy={Y(-17)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.35} stroke={WON} strokeWidth={1.2} />
-      {CHECKERS.positions.map((center) => (
-        <rect
-          key={center}
-          x={X(center - MEDAL_RADIUS - CHECKERS.halfWidth)}
-          y={Y(-7)}
-          width={(MEDAL_RADIUS + CHECKERS.halfWidth) * 2 * scale}
-          height={7 * scale}
-          fill="none"
-          stroke={GATE}
-          strokeWidth={2.4}
-        />
-      ))}
       {/* The lower table and the pusher on top of its back half */}
       <rect x={X(0)} y={Y(0)} width={FIELD.width * scale} height={FIELD.depth * scale} fill={TABLE} />
       <rect x={X(0)} y={Y(0)} width={FIELD.width * scale} height={front * scale} fill={PUSHER_FILL} stroke={LINE} strokeWidth={1.2} />
       {/* How far the pusher's lip travels */}
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.min)} y2={Y(PUSHER.min)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.max)} y2={Y(PUSHER.max)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
+      {/* The three START pockets, cut into the pusher's lip: each as wide as a medal that just fits */}
+      {CHECKERS.positions.map((center) => (
+        <circle key={center} data-chucker cx={X(center)} cy={Y(front - pocket)} r={pocket * scale} fill={TABLE} stroke={GATE} strokeWidth={2.4} />
+      ))}
       <path
         d={`M${X(26)} ${Y(PUSHER.min + 1.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} M${X(24)} ${Y(PUSHER.min + 4.5)} L${X(26)} ${Y(PUSHER.min + 1.5)} L${X(28)} ${Y(PUSHER.min + 4.5)} M${X(24)} ${Y(PUSHER.max - 4.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} L${X(28)} ${Y(PUSHER.max - 4.5)}`}
         fill="none"
@@ -199,6 +182,19 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
           />
         </g>
       ))}
+      {/* The two feed arms, each at rest: a rail over the tables from the slot at its front corner to its tip over the pusher, and a medal on its way along one */}
+      {([0, 1] as const).map((arm) => {
+        const from = armCollar(arm);
+        const to = armTip(arm, armRest(arm));
+        return (
+          <g key={arm} data-arm={arm}>
+            <line x1={X(from.x)} y1={Y(from.depth)} x2={X(to.x)} y2={Y(to.depth)} stroke={LINE} strokeWidth={3.2} strokeLinecap="round" />
+            <circle cx={X(from.x)} cy={Y(from.depth)} r={5.5} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
+            <circle cx={X(to.x)} cy={Y(to.depth)} r={2.6} fill={LINE} />
+          </g>
+        );
+      })}
+      <circle cx={X(19)} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.55} stroke={WON} strokeWidth={1.2} />
       {/* The front edge */}
       <line x1={X(0)} x2={X(right)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={WON} strokeWidth={3.5} />
       {[25, 75].map((x) => (

@@ -9,10 +9,16 @@
  * records how far its light gets (the shadow map). The second draws the
  * picture: every medal in one call, the balls and bulbs in two, the cabinet
  * in a handful, and last the flat touches that are laid over them.
+ *
+ * The picture has a hole in it. The screen in the back wall is the page's
+ * own, stood behind the canvas, so the canvas is cleared to nothing and
+ * nothing solid is drawn where the screen is: the page shows through there,
+ * with whatever is in front of the screen drawn over it. A flat touch laid
+ * on the hole shades or lights the page itself.
  */
 
 import { pusherFront, type Machine } from './engine';
-import { paintLip, paintPanel, paintPlain, paintPusher, paintSign, paintTable, paintWall, reliefMap } from './art3d';
+import { paintFoot, paintLip, paintPlain, paintPusher, paintSign, paintTable, paintWall, reliefMap } from './art3d';
 import { FLAT_STRIDE, Flat, MOVING_CAST, MOVING_PARTS, SOLID_STRIDE, Solid, buildCabinet, buildLamps, buildMoving, buildTouches, type Art, type Part } from './cabinet3d';
 import { Gpu, type Program } from './gl';
 import { PARTY_TIME, type DrawOptions, type Stage } from './render';
@@ -38,8 +44,6 @@ import {
 const SHADOW_SIZE = 2048;
 /** Texels across the relief of a medal's face. */
 const RELIEF_SIZE = 256;
-/** The colour behind everything, where the cabinet ends. */
-const BACKDROP = [0.035, 0.02, 0.085] as const;
 /** How dark the contact shadow under a lying medal is at its darkest. */
 const CONTACT_DARK = 0.72;
 /** How far the roof's lamps drift, in rows of them, and how many seconds a drift there and back takes. */
@@ -86,7 +90,7 @@ function build(gpu: Gpu): Scene3d {
 
   const art: Record<Art, WebGLTexture> = {
     table: gpu.picture(paintTable()),
-    panel: gpu.picture(paintPanel()),
+    foot: gpu.picture(paintFoot()),
     wall: gpu.picture(paintWall()),
     lip: gpu.picture(paintLip()),
     pusher: gpu.picture(paintPusher()),
@@ -193,7 +197,8 @@ function build(gpu: Gpu): Scene3d {
   const drawParts = (array: WebGLVertexArrayObject, parts: readonly Part[]) => {
     gl.bindVertexArray(array);
     for (const part of parts) {
-      if (part.count === 0) continue;
+      // A run that is there only for its shadow is left out of the picture.
+      if (part.count === 0 || part.unseen) continue;
       gl.bindTexture(gl.TEXTURE_2D, art[part.art]);
       gl.drawArrays(gl.TRIANGLES, part.first, part.count);
       last.calls++;
@@ -210,13 +215,13 @@ function build(gpu: Gpu): Scene3d {
     cameraMatrix(camera, shake);
 
     // This frame's numbers, and each list sent to the graphics card once.
-    writeMedals(medals, machine, stage.exits);
+    writeMedals(medals, machine, stage.exits, stage.fed);
     writeBalls(balls, machine, stage.exits);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
     buildTouches(flat, machine, front, stage, options);
     // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
-    buildLamps(beads, flat, front, calm ? 0 : stage.clock * (partying ? 7 : 1.6), partying);
+    buildLamps(beads, flat, machine, front, calm ? 0 : stage.clock * (partying ? 7 : 1.6), partying, options);
     // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);
@@ -253,10 +258,10 @@ function build(gpu: Gpu): Scene3d {
     last.calls++;
     gl.disable(gl.POLYGON_OFFSET_FILL);
 
-    // The picture.
+    // The picture, on a canvas cleared to nothing: where nothing is drawn, the page behind it shows.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    gl.clearColor(BACKDROP[0], BACKDROP[1], BACKDROP[2], 1);
+    gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, shadow.texture);
@@ -275,6 +280,8 @@ function build(gpu: Gpu): Scene3d {
     drawParts(movingArray, MOVING_PARTS);
 
     // The flat touches go on last and leave the depths alone: each darkens or lights what is already there.
+    // What they are given is already multiplied by how much they hide, which is also how the page lays this
+    // canvas over itself: a shade on the hole is so much black over the screen, a glow so much light added to it.
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);

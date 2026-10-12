@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, FALL_TIME, SWEEP, checkerAt, checkerCentres, tipOf } from '@/components/game/MedalPusher/engine';
+import { AIM, CHECKERS, TOWER, checkerAt, tipOf } from '@/components/game/MedalPusher/engine';
 import { JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
   AIM_IDS,
   AIM_MARKERS,
+  BESIDE,
   PACES,
   WARM_UP,
   aimAt,
@@ -21,40 +22,40 @@ describe('the ways of aiming', () => {
     const never = () => {
       throw new Error('only aiming anywhere draws a number');
     };
-    expect(aimAt('between', 0, never)).toBe(37.5);
-    expect(aimAt('between', 1, never)).toBe(62.5);
+    // Down the middle is the same column for every medal: the pockets do not move along the lip, so there is nothing to follow.
+    expect(AIM_IDS).toEqual(['centre', 'anywhere', 'beside', 'edges']);
+    for (const n of [0, 1, 2, 77]) expect(aimAt('centre', n, never)).toBe(CHECKERS.positions[1]);
+    expect(aimAt('beside', 0, never)).toBe(BESIDE[0]);
+    expect(aimAt('beside', 1, never)).toBe(BESIDE[1]);
+    expect(aimAt('beside', 2, never)).toBe(BESIDE[0]);
     expect(aimAt('edges', 0, never)).toBe(AIM.min);
     expect(aimAt('edges', 1, never)).toBe(AIM.max);
-    // None of those looks at the clock: they stay where they are while the gates move.
-    expect(aimAt('between', 0, never, 1.7)).toBe(37.5);
-    expect(aimAt('edges', 1, never, 4.1)).toBe(AIM.max);
     expect(aimAt('anywhere', 0, () => 0)).toBe(AIM.min);
     expect(aimAt('anywhere', 0, () => 0.5)).toBeCloseTo(50, 9);
     expect(aimAt('anywhere', 0, () => 1)).toBe(AIM.max);
   });
 
-  it('follows the centre gate by aiming where it will be when the medal lands', () => {
-    const never = () => {
-      throw new Error('following a gate draws no number');
-    };
-    for (const time of [0, 0.7, SWEEP.period / 4 - FALL_TIME, 2.9, 4.4, 17.3]) {
-      const aim = aimAt('centre', 3, never, time);
-      // Not where the gate is now, but where it will have got to once the medal has fallen: dead centre of it.
-      expect(aim).toBe(checkerCentres(time + FALL_TIME)[1]);
-      expect(checkerAt(aim, time + FALL_TIME)).toBe(1);
-      expect(aim).toBeGreaterThanOrEqual(CHECKERS.positions[1] - SWEEP.amplitude);
-      expect(aim).toBeLessThanOrEqual(CHECKERS.positions[1] + SWEEP.amplitude);
-      // It never has to be let go further out than an arm can reach, and either arm reaches it:
-      // a medal fed on one side of the middle can be let go after the gate has crossed to the other.
-      expect(aim).toBeGreaterThan(AIM.min);
-      expect(aim).toBeLessThan(AIM.max);
-      expect(tipOf(0, aim)).toBe(aim);
-      expect(tipOf(1, aim)).toBe(aim);
+  it('has its fixed columns behind the middle pocket, beside the pockets and at the edges, all within reach', () => {
+    const [left, middle, right] = CHECKERS.positions;
+    // Down the middle is the column behind the middle pocket, and either arm can feed it.
+    expect(checkerAt(aimAt('centre', 0, Math.random))).toBe(1);
+    expect(tipOf(0, middle)).toBe(middle);
+    expect(tipOf(1, middle)).toBe(middle);
+    // Beside the pockets: one pocket's spacing outside the outer two, a column each for the left arm and the right.
+    expect(BESIDE).toEqual([22, 78]);
+    expect(BESIDE[0]).toBe(left - TOWER.spacing);
+    expect(BESIDE[1]).toBe(right + TOWER.spacing);
+    expect(BESIDE[0] + BESIDE[1]).toBe(left + right);
+    for (const spot of BESIDE) {
+      expect(checkerAt(spot)).toBe(-1);
+      expect(spot).toBeGreaterThan(AIM.min);
+      expect(spot).toBeLessThan(AIM.max);
     }
-    // Let go a fall's length before the gate reaches the end of its sweep, the medal is aimed at that end.
-    expect(aimAt('centre', 0, never, SWEEP.period / 4 - FALL_TIME)).toBeCloseTo(CHECKERS.positions[1] + SWEEP.amplitude, 9);
-    // The gate moves further than its own half-width while a medal falls, so aiming at where it is now would miss.
-    expect(checkerAt(checkerCentres(0)[1], FALL_TIME)).toBe(-1);
+    expect(tipOf(0, BESIDE[0])).toBe(BESIDE[0]);
+    expect(tipOf(1, BESIDE[1])).toBe(BESIDE[1]);
+    // The edges are further from the pockets than that again.
+    expect(AIM.min).toBeLessThan(BESIDE[0] - TOWER.spacing / 2);
+    expect(AIM.max).toBeGreaterThan(BESIDE[1] + TOWER.spacing / 2);
   });
 
   it('gives every aim a colour and a shape of its own', () => {
@@ -105,7 +106,7 @@ describe('the simulation', () => {
       expect(aim.played).toBe(medals);
       // Every medal that came onto the field in the count either left it or is still there.
       expect(aim.won + aim.lost + aim.fieldChange).toBe(aim.played + aim.paidOut);
-      // Spins held or in progress when the count began are played in it without a gate hit of its own.
+      // Spins held or in progress when the count began are played in it without a medal through a pocket of their own.
       const carried = aim.spins + aim.wasted - aim.hits;
       expect(carried).toBeGreaterThanOrEqual(0);
       expect(carried).toBeLessThanOrEqual(MAX_STOCK);
@@ -116,12 +117,18 @@ describe('the simulation', () => {
       expect(frontShare(aim)).toBeGreaterThan(0.5);
       expect(frontShare(aim)).toBeLessThan(0.95);
     }
-    // From the edges the gates are out of reach wherever they are; following the centre gate, about one medal in five goes through.
-    expect(result.edges.hits).toBe(0);
-    expect(result.edges.spins).toBe(0);
+    // Aim still tells. Down the middle about one medal in six ends up through a pocket, and more in a run where a
+    // tower goes over through one; the further from the pockets a medal is fed, the fewer do, and from the edges
+    // fewer than half as many. But some do from anywhere: the pile carries medals across, and what the screen pays
+    // comes down all over the pusher.
     expect(result.centre.hits).toBeGreaterThan(medals * 0.1);
+    expect(result.centre.hits).toBeLessThan(medals * 0.5);
     expect(result.centre.hits).toBeGreaterThan(result.anywhere.hits);
-    expect(result.centre.hits).toBeGreaterThan(result.between.hits);
+    expect(result.centre.hits).toBeGreaterThan(result.beside.hits);
+    expect(result.anywhere.hits).toBeGreaterThan(result.edges.hits);
+    expect(result.beside.hits).toBeGreaterThan(result.edges.hits);
+    expect(result.edges.hits).toBeGreaterThan(0);
+    expect(result.edges.hits).toBeLessThan(result.centre.hits / 2);
     expect(progress[progress.length - 1]).toBe(1);
     expect(progress.every((share, index) => index === 0 || share >= progress[index - 1])).toBe(true);
   }, 30_000);

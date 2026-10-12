@@ -5,8 +5,9 @@
  * go. All of it is plain arithmetic, so the tests can check it.
  */
 
-import { letGoAt, rollingSpot } from './arms';
-import { FIELD, MEDAL_RADIUS, RELEASE, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
+import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
+import { droppedThrough } from './chuckers';
+import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
 import { HEIGHT, VIEW, project } from './view';
@@ -35,8 +36,8 @@ const ACROSS = sumOf((x, height, depth) => project(x, height, depth).x * distanc
 const DOWN = sumOf((x, height, depth) => project(x, height, depth).y * distance(x, height, depth));
 const AWAY = sumOf(distance);
 
-/** Nothing nearer or further than this is drawn: from in front of the tray to behind the back panel. */
-const NEAR = distance(FIELD.width / 2, HEIGHT.wall + 8, FIELD.depth + 14) * 0.6;
+/** Nothing nearer or further than this is drawn: from a medal held up to a slot, which is the nearest thing there is, to behind the back wall. */
+const NEAR = distance(FIELD.width / 2, ARMS.collar.height + R, ARMS.collar.depth + SLOT.out + R) * 0.6;
 const FAR = distance(-40, -30, -4) * 1.25;
 
 /** Where the camera is: the one point that is no distance from itself. */
@@ -70,8 +71,8 @@ export function cameraMatrix(out: Mat4, shake = 0): Mat4 {
  */
 export const KEY_LIGHT: Vec3 = normalize([-0.26, 0.9, -0.35]);
 
-/** The part of the cabinet whose shadows are worked out: both tables and everything that stands on them. */
-const LIT = { x: [-4, FIELD.width + 4], y: [-1, HEIGHT.wall + 6], z: [-2, FIELD.depth + 4] } as const;
+/** The part of the cabinet whose shadows are worked out: both tables, everything that stands on them, and the feed arms over them, out to their slots. */
+const LIT = { x: [-4, FIELD.width + 4], y: [-1, ARMS.collar.height + 6], z: [-2, ARMS.collar.depth + 8] } as const;
 
 /** The matrix that looks at the field from the key light, for the map of what its light reaches. */
 export function lightMatrix(out: Mat4): Mat4 {
@@ -105,7 +106,7 @@ export function lightMatrix(out: Mat4): Mat4 {
  * the dark, and one to spare.
  */
 export const MEDAL_STRIDE = 12;
-/** Numbers per ball, pin or bulb: where its middle is and how big it is; its colour; and what it is. */
+/** Numbers per ball, stud or bulb: where its middle is and how big it is; its colour; and what it is. */
 export const BEAD_STRIDE = 8;
 
 /** A growing list of rows for the graphics card. `count` rows are in use. */
@@ -170,31 +171,38 @@ function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn:
  */
 export const armTipAt = (machine: Pick<Machine, 'tips'>, arm: Arm): number => machine.tips[arm];
 
+/** How high the middle of a medal is when it has only just come down on the pusher: on top of the pile, and not yet settled into it. */
+export const LANDED = P + T * 1.5 + RIDE * 0.5;
+
 /**
- * A medal in the air. Let go on its edge, it turns over one and a quarter
- * times on the way down and lands flat: one the player fed starts at the tip
- * of its arm, standing as it rolled; one the machine pays, at the top of the
- * back panel. Off a falling tower it slides out, and the ones from high up
- * turn right over.
+ * A medal in the air. One the player fed leaves the tip of its arm held as
+ * it rolled, leaning on its edge, falls over onto its back on the way down
+ * and lands flat. One the machine pays drops out of the slot under the hood
+ * on its edge, and turns over one and a quarter times in front of the screen
+ * before it lands. Off a falling tower it slides out, and the ones from high
+ * up turn right over. `arm` is the arm a fed one left, if that is known.
  */
-function fallingRow(rows: Rows, medal: FallingMedal): void {
+function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined): void {
   const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
-  const x = medal.fromX + (medal.x - medal.fromX) * t;
-  const z = medal.fromY + (medal.y - medal.fromY) * t;
   if (medal.source === 'spill') {
+    const x = medal.fromX + (medal.x - medal.fromX) * t;
+    const z = medal.fromY + (medal.y - medal.fromY) * t;
     const from = P + T * (medal.rank + 1);
     const wobble = (0.5 + chance(medal.id, 3)) * 4 * t * (1 - t);
     const tilt = medal.rank > 9 ? Math.PI * t * t * (3 - 2 * t) + wobble * 0.4 : wobble;
     medalRow(rows, medal.id, x, T / 2 + (from - T) * (1 - t * t), z, turnOf(medal.id) + t * 5, tilt, (chance(medal.id, 4) - 0.5) * 1.2, 0, 0, 1);
     return;
   }
-  // It comes down to where it will lie once it has landed, on top of the pile. One off an arm starts
-  // where its rail left it, and only ever goes down from there.
-  const offArm = medal.source === 'player';
-  const height = P + (letGoAt(medal) - P) * (1 - t * t) + (T * 1.5 + RIDE * 0.5) * (offArm ? t * t : 1);
-  // No two tumble quite alike on the way, but each starts on its edge and ends flat.
-  const tilt = Math.PI * 2.5 * (1 - t) + (chance(medal.id, 3) - 0.5) * 1.2 * Math.sin(Math.PI * t);
-  medalRow(rows, medal.id, x, height, z, turnOf(medal.id), tilt, (chance(medal.id, 4) - 0.5) * 0.9 * (offArm ? t : 1), 0, 0, 1);
+  // It comes down to where it will lie once it has landed, on top of the pile.
+  const at = airSpot(medal, LANDED);
+  // No two come down quite alike, but each ends flat.
+  const wobble = (chance(medal.id, 3) - 0.5) * 1.2 * Math.sin(Math.PI * t);
+  if (medal.source === 'player') {
+    const held = leftHeld(medal, arm);
+    medalRow(rows, medal.id, at.x, at.height, at.depth, turnOf(medal.id), held.tilt * (1 - t * t * (3 - 2 * t)) + wobble * 0.5, held.heading, 0, 0, 1);
+    return;
+  }
+  medalRow(rows, medal.id, at.x, at.height, at.depth, turnOf(medal.id), Math.PI * 2.5 * (1 - t) + wobble, (chance(medal.id, 4) - 0.5) * 0.9, 0, 0, 1);
 }
 
 /** How long a medal that has left by a side is still lit on its way down into the dark. */
@@ -202,10 +210,12 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
 
 /**
  * Every medal there is to draw: the ones lying on the two tables, each
- * tower's column, the ones rolling down the feed arms, the ones in the air
- * and the ones that have just gone over an edge. Balls are not among them.
+ * tower's column, the ones on their way in along the feed arms, the ones in
+ * the air and the ones that have just gone over an edge. Balls are not among
+ * them. `fed` says which arm each medal that has been seen on a rail was on,
+ * so that one in the air leaves the rail it rolled down.
  */
-export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
+export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball) continue;
@@ -221,9 +231,10 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     let heading = TAU * chance(id, 2);
     // One lying on others is held up by the edge it leans on, so its low side rests on them instead of sinking in.
     const propped = medal.tier === 1 ? R * Math.sin(tilt) : 0;
-    // Coming over the lip it tips forward, and is level again as it lands.
+    // Coming over the lip it tips forward, and is level again as it lands. One that drops through a START pocket
+    // hardly tips at all: it goes down inside the hoop.
     if (drop > 0) {
-      tilt = 0.75 * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
+      tilt = (droppedThrough(medal) >= 0 ? 0.2 : 0.75) * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
       heading = (chance(id, 2) - 0.5) * 0.8;
     }
     const ground = base + (medal.tier === 1 ? T : 0);
@@ -235,15 +246,14 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
       medalRow(rows, id + i * 31, medal.x + dx, base + T * (i + 0.5), medal.y + dz, turnOf(id + i * 7), 0, 0, 0, 0, 1);
     }
   }
-  // On a feed arm a medal stands on its edge, its face to the player, and turns as it rolls. It
-  // reaches the tip the way round it will lie, so nothing jumps as it tips over and falls.
+  // A fed medal is shown to its slot face on, turned edge on and taken in. From there to the tip of
+  // its arm it rolls on its edge, leaning back in the channel. It reaches the tip the way round it
+  // will lie, so nothing jumps as it leaves and falls over.
   for (const medal of machine.rolling) {
-    const tip = armTipAt(machine, medal.arm);
-    const spot = rollingSpot(medal.arm, tip, medal.remaining);
-    const still = rollingSpot(medal.arm, tip, 0).turned - spot.turned;
-    medalRow(rows, medal.id, spot.x, spot.height, spot.depth, turnOf(medal.id) + still, Math.PI / 2, 0, 0, 0, 1);
+    const held = fedSpot(medal.arm, armTipAt(machine, medal.arm), medal.remaining);
+    medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id) + held.turn, held.tilt, held.heading, 0, 0, 1);
   }
-  for (const medal of machine.falling) if (!medal.ball) fallingRow(rows, medal);
+  for (const medal of machine.falling) if (!medal.ball) fallingRow(rows, medal, fed?.get(medal.id));
   for (const exit of exits) {
     if (exit.ball) continue;
     const a = exit.age;
@@ -259,8 +269,8 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
   }
 }
 
-/** What a bead is, as the number the shader reads: a prize ball, a pin of the back panel, or a bulb lit this far. */
-export const BEAD = { ball: 0, pin: 1, bulb: (glow: number): number => 2 + glow } as const;
+/** What a bead is, as the number the shader reads: a prize ball, a stud of polished metal, or a bulb lit this far. */
+export const BEAD = { ball: 0, stud: 1, bulb: (glow: number): number => 2 + glow } as const;
 
 export function beadRow(rows: Rows, x: number, y: number, z: number, radius: number, r: number, g: number, b: number, kind: number): void {
   const at = next(rows);
@@ -275,7 +285,7 @@ export function beadRow(rows: Rows, x: number, y: number, z: number, radius: num
   data[at + 7] = kind;
 }
 
-/** The prize balls: lying among the medals, on their way down the back panel, or going over the front. */
+/** The prize balls: lying among the medals, on their way down from the hatch, or going over the front. */
 export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
   rows.count = 0;
   for (const medal of machine.medals) {
@@ -283,9 +293,8 @@ export function writeBalls(rows: Rows, machine: Machine, exits: readonly Exiting
   }
   for (const medal of machine.falling) {
     if (!medal.ball) continue;
-    const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
-    const height = P + (RELEASE.height - P) * (1 - t * t);
-    beadRow(rows, medal.fromX + (medal.x - medal.fromX) * t, height + BALL_RADIUS, medal.fromY + (medal.y - medal.fromY) * t, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+    const at = airSpot(medal, P + BALL_RADIUS);
+    beadRow(rows, at.x, at.height, at.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }
   for (const exit of exits) {
     if (!exit.ball) continue;

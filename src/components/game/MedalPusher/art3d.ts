@@ -1,35 +1,26 @@
 /**
  * What is printed on the cabinet, painted flat with a canvas and handed to
  * the 3D renderer as textures: the lower table with its lanes and lettering,
- * the back panel, the side walls, the top of the pusher, the front of the
- * table and the sign over a gate. And one thing that is not paint: the relief
- * struck into a medal's face.
+ * the panel under the screen, the side walls, the top of the pusher with the
+ * START panel's plate along its lip, the front of the table, and the stretch
+ * of the pusher's face under a START pocket. And one thing that is not
+ * paint: the relief struck into a medal's face.
  */
 
-import { FIELD, PUSHER } from './engine';
-import { GATE, starPath } from './render';
-import { HEIGHT } from './view';
+import { CHUCKERS } from './chuckers';
+import { CHECKERS, FIELD, PUSHER } from './engine';
+import { PANEL_SPAN, START_PANEL, starPath } from './render';
+import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
 const TAU = Math.PI * 2;
 const W = FIELD.width;
 const D = FIELD.depth;
 const P = HEIGHT.pusher;
 
-/** How high the back panel stands, and how far down the front of the table goes. */
-export const PANEL_TOP = HEIGHT.wall + 2;
+/** How far down the front of the table goes. */
 export const TRAY_DROP = 18;
-/** The sign over a gate: how wide and how tall, in field units. */
-export const SIGN = { width: 12, height: 3.4 } as const;
-
-/** Where each pin of the back panel is: staggered rows above the gates. */
-export function pinSpots(): { x: number; height: number }[] {
-  const spots: { x: number; height: number }[] = [];
-  for (let row = 0; row < 5; row++) {
-    const height = P + GATE.height + 5 + row * 4.1;
-    for (let x = row % 2 === 0 ? 5 : 8.75; x < W; x += 7.5) spots.push({ x, height });
-  }
-  return spots;
-}
+/** The stretch of the pusher's face under a START pocket, with its word on it: how wide, and how tall, which is the face from under the lip's bevel down to the table. */
+export const SIGN = { width: START_PANEL.tile, height: P - 0.4 } as const;
 
 /** A canvas `width` by `height` field units, drawn on in those units. */
 function sheet(width: number, height: number, perUnit: number): { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D | null } {
@@ -81,94 +72,205 @@ export function paintTable(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The back panel from the front: its top edge is the top of the picture. */
-export function paintPanel(): HTMLCanvasElement {
-  const { canvas, g } = sheet(W, PANEL_TOP, 10.24);
+/** How much of the picture below is the front of the shelf: the rest is the panel under it. */
+export const SHELF_SHARE = (SCREEN.foot - HOUSING.shelf) / (SCREEN.foot - P);
+
+/**
+ * The wall under the screen, from the front. The top of the picture is the
+ * foot of the screen. First comes the front of the shelf, a gold bar with a
+ * dark bed let into it for the hold's lamps and the word that names them;
+ * under it, the panel down to the top of the pusher, which comes out from
+ * under it. The lamps themselves stand out of the bed and are not paint.
+ */
+export function paintFoot(): HTMLCanvasElement {
+  const tall = SCREEN.foot - P;
+  const shelf = SCREEN.foot - HOUSING.shelf;
+  const { canvas, g } = sheet(W, tall, 10.24);
   if (!g) return canvas;
-  const shade = g.createLinearGradient(0, 0, 0, PANEL_TOP);
-  shade.addColorStop(0, '#5a2ab8');
-  shade.addColorStop(0.6, '#33177c');
-  shade.addColorStop(1, '#1e0d52');
+  const shade = g.createLinearGradient(0, shelf, 0, tall);
+  shade.addColorStop(0, '#3a1a86');
+  shade.addColorStop(0.55, '#24105e');
+  shade.addColorStop(1, '#120735');
   g.fillStyle = shade;
-  g.fillRect(0, 0, W, PANEL_TOP);
-  // A sunburst from the top, behind the pins.
+  g.fillRect(0, shelf, W, tall - shelf);
+  // Rays fanning down from under the shelf, pink and cyan by turns.
   for (let i = 0; i < 18; i++) {
     const from = Math.PI * (i / 18);
-    g.fillStyle = i % 2 === 0 ? 'rgba(255, 120, 200, 0.09)' : 'rgba(120, 220, 255, 0.07)';
+    g.fillStyle = i % 2 === 0 ? 'rgba(255, 120, 200, 0.1)' : 'rgba(120, 220, 255, 0.08)';
     g.beginPath();
-    g.moveTo(W / 2, 0);
-    g.arc(W / 2, 0, 90, from, from + Math.PI / 18);
+    g.moveTo(W / 2, shelf - 6);
+    g.arc(W / 2, shelf - 6, 90, from, from + Math.PI / 18);
     g.closePath();
     g.fill();
   }
-  // The pins themselves stand out of the panel; here is only the dark each one leaves under it.
-  for (const pin of pinSpots()) {
-    const dark = g.createRadialGradient(pin.x + 0.2, PANEL_TOP - pin.height + 0.45, 0.1, pin.x + 0.2, PANEL_TOP - pin.height + 0.45, 1.1);
-    dark.addColorStop(0, 'rgba(8, 2, 30, 0.75)');
-    dark.addColorStop(1, 'rgba(8, 2, 30, 0)');
-    g.fillStyle = dark;
-    g.fillRect(pin.x - 1.2, PANEL_TOP - pin.height - 0.9, 2.8, 2.8);
+  // The shade the shelf throws on the panel, and the dark where the pusher goes in under it.
+  const under = g.createLinearGradient(0, shelf, 0, shelf + 4);
+  under.addColorStop(0, 'rgba(4, 0, 18, 0.7)');
+  under.addColorStop(1, 'rgba(4, 0, 18, 0)');
+  g.fillStyle = under;
+  g.fillRect(0, shelf, W, 4);
+  const dark = g.createLinearGradient(0, tall - 5, 0, tall);
+  dark.addColorStop(0, 'rgba(4, 0, 18, 0)');
+  dark.addColorStop(1, 'rgba(4, 0, 18, 0.8)');
+  g.fillStyle = dark;
+  g.fillRect(0, tall - 5, W, 5);
+
+  // The front of the shelf: gold, with the bed for the lamps.
+  const gold = g.createLinearGradient(0, 0, 0, shelf);
+  gold.addColorStop(0, '#fff0b4');
+  gold.addColorStop(0.2, '#f0bd3c');
+  gold.addColorStop(0.75, '#b77d12');
+  gold.addColorStop(1, '#6e4706');
+  g.fillStyle = gold;
+  g.fillRect(0, 0, W, shelf);
+  const last = HOLD_LAMPS.first + HOLD_LAMPS.step * 7;
+  const bed = { left: HOLD_LAMPS.label - 6.2, right: last + HOLD_LAMPS.radius + 1.3 };
+  g.fillStyle = '#12082e';
+  g.fillRect(bed.left, 0.45, bed.right - bed.left, shelf - 0.9);
+  g.strokeStyle = 'rgba(255, 236, 170, 0.9)';
+  g.lineWidth = 0.18;
+  g.strokeRect(bed.left, 0.45, bed.right - bed.left, shelf - 0.9);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = '900 2.1px "Arial Black", Arial, sans-serif';
+  g.fillStyle = '#ffe98a';
+  g.fillText('HOLD', HOLD_LAMPS.label, shelf / 2 + 0.1);
+  // A socket for each lamp.
+  for (let i = 0; i < 8; i++) {
+    g.fillStyle = '#05020f';
+    g.beginPath();
+    g.arc(HOLD_LAMPS.first + HOLD_LAMPS.step * i, shelf / 2, HOLD_LAMPS.radius + 0.28, 0, TAU);
+    g.fill();
   }
   return canvas;
 }
 
-/** A side wall above its rail, from inside: the back of the cabinet is on the left, the top at the top. */
+/**
+ * A side wall above its rail, from inside: the back of the cabinet is on the
+ * left, the top at the top. It is panelled in dark mirror, each panel in a
+ * gold frame with a strip of light up either side of it and a diamond of
+ * lamps in its middle.
+ */
 export function paintWall(): HTMLCanvasElement {
   const length = FIELD.sideOpenFrom;
-  const height = HEIGHT.wall - HEIGHT.sideWall;
+  const height = HEIGHT.top - HEIGHT.sideWall;
   const { canvas, g } = sheet(length, height, 6.5);
   if (!g) return canvas;
   const shade = g.createLinearGradient(0, 0, length, 0);
   shade.addColorStop(0, '#2c1b6c');
-  shade.addColorStop(1, '#130a36');
+  shade.addColorStop(1, '#170c40');
   g.fillStyle = shade;
   g.fillRect(0, 0, length, height);
   const lift = g.createLinearGradient(0, 0, 0, height);
-  lift.addColorStop(0, 'rgba(160, 130, 255, 0.16)');
-  lift.addColorStop(1, 'rgba(0, 0, 20, 0.2)');
+  lift.addColorStop(0, 'rgba(170, 140, 255, 0.22)');
+  lift.addColorStop(1, 'rgba(0, 0, 20, 0.25)');
   g.fillStyle = lift;
   g.fillRect(0, 0, length, height);
-  // Mirror panels: a dark seam and the bright edge of the next panel.
-  for (let depth = 10; depth < length; depth += 12) {
-    g.fillStyle = 'rgba(4, 0, 20, 0.5)';
-    g.fillRect(depth - 0.22, 0, 0.22, height);
-    g.fillStyle = 'rgba(200, 180, 255, 0.22)';
-    g.fillRect(depth, 0, 0.18, height);
+  const panel = 13;
+  for (let depth = 0; depth < length; depth += panel) {
+    // What a dark mirror shows of the lit field: a slanting band of light across each panel.
+    const gleam = g.createLinearGradient(depth, 0, depth + panel, height * 0.5);
+    gleam.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
+    gleam.addColorStop(0.45, 'rgba(190, 170, 255, 0.16)');
+    gleam.addColorStop(0.6, 'rgba(255, 255, 255, 0)');
+    g.fillStyle = gleam;
+    g.fillRect(depth, 0, panel, height);
+    // Its gold frame, and a strip of light inside each upright of it.
+    g.strokeStyle = 'rgba(255, 206, 96, 0.8)';
+    g.lineWidth = 0.5;
+    g.strokeRect(depth + 0.9, 2.2, panel - 1.8, height - 4.4);
+    g.fillStyle = 'rgba(255, 150, 215, 0.75)';
+    g.fillRect(depth + 1.7, 3.4, 0.45, height - 6.8);
+    g.fillStyle = 'rgba(125, 240, 255, 0.7)';
+    g.fillRect(depth + panel - 2.15, 3.4, 0.45, height - 6.8);
+    // A diamond of lamps in the middle of the panel, and one above and below it.
+    g.fillStyle = 'rgba(255, 243, 168, 0.9)';
+    for (const up of [0.28, 0.5, 0.72]) {
+      const size = up === 0.5 ? 1.5 : 0.8;
+      g.beginPath();
+      g.moveTo(depth + panel / 2, height * up - size * 1.5);
+      g.lineTo(depth + panel / 2 + size, height * up);
+      g.lineTo(depth + panel / 2, height * up + size * 1.5);
+      g.lineTo(depth + panel / 2 - size, height * up);
+      g.closePath();
+      g.fill();
+    }
   }
   return canvas;
 }
 
-/** The top of the pusher from above. The top of the picture is its front lip, which the grooves and chevrons travel with. */
+/**
+ * The top of the pusher from above: a box of clear acrylic, tinted like ice.
+ * The top of the picture is its front lip, which everything on it travels
+ * with. Clear plastic shows by its edges, which catch the light, and by what
+ * is seen through it, which here is the dark inside the box and the ribs
+ * that brace it.
+ */
 export function paintPusher(): HTMLCanvasElement {
   const { canvas, g } = sheet(W, PUSHER.max, 10.24);
   if (!g) return canvas;
-  const steel = g.createLinearGradient(0, 0, 0, PUSHER.max);
-  steel.addColorStop(0, '#f2f4fa');
-  steel.addColorStop(0.3, '#cfd5e4');
-  steel.addColorStop(1, '#7c86a3');
-  g.fillStyle = steel;
+  const inside = g.createLinearGradient(0, 0, 0, PUSHER.max);
+  inside.addColorStop(0, '#5ec4e6');
+  inside.addColorStop(0.25, '#2d86b4');
+  inside.addColorStop(1, '#12466f');
+  g.fillStyle = inside;
   g.fillRect(0, 0, W, PUSHER.max);
-  // Brushed across: fine streaks, light and dark, each at a place fixed by its number.
-  for (let i = 0; i < 900; i++) {
-    const y = ((i * 0.6180339) % 1) * PUSHER.max;
-    const x = ((i * 0.3819661 * 7) % 1) * W;
-    g.fillStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.07)' : 'rgba(30, 40, 80, 0.06)';
-    g.fillRect(x, y, 12 + (i % 23), 0.07);
-  }
-  // Grooves cut across it, and chevrons along the lip.
+  // The ribs inside the box, seen through its top: pale lines across it and along it, each with the dark of its own shadow beside it.
   for (let back = 9; back < PUSHER.max; back += 9) {
-    g.fillStyle = 'rgba(30, 40, 76, 0.42)';
-    g.fillRect(0, back, W, 0.28);
-    g.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    g.fillRect(0, back + 0.28, W, 0.14);
+    g.fillStyle = 'rgba(6, 30, 60, 0.45)';
+    g.fillRect(0, back + 0.35, W, 0.5);
+    g.fillStyle = 'rgba(214, 248, 255, 0.55)';
+    g.fillRect(0, back, W, 0.35);
   }
-  g.fillStyle = 'rgba(255, 184, 28, 0.78)';
+  for (let x = 12.5; x < W; x += 12.5) {
+    g.fillStyle = 'rgba(6, 30, 60, 0.3)';
+    g.fillRect(x + 0.3, 0, 0.4, PUSHER.max);
+    g.fillStyle = 'rgba(214, 248, 255, 0.35)';
+    g.fillRect(x, 0, 0.3, PUSHER.max);
+  }
+  // What the polished top mirrors of the lamps over it: broad soft bands across.
+  for (const [at, wide, strength] of [
+    [5, 5, 0.22],
+    [19, 3, 0.12],
+    [33, 6, 0.1],
+  ]) {
+    const band = g.createLinearGradient(0, at - wide, 0, at + wide);
+    band.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    band.addColorStop(0.5, `rgba(255, 255, 255, ${strength})`);
+    band.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    g.fillStyle = band;
+    g.fillRect(0, at - wide, W, wide * 2);
+  }
+  // The lip: the edge of the sheet, bright all along, and chevrons printed behind it, to either side of the START panel.
+  g.fillStyle = 'rgba(255, 196, 40, 0.8)';
   for (let x = 4; x < W; x += 8) {
+    if (x + 4 > PANEL_SPAN.from && x - 2 < PANEL_SPAN.to) continue;
     g.beginPath();
-    g.moveTo(x, 0.3);
-    g.lineTo(x + 4, 0.3);
-    g.lineTo(x + 2, 2.6);
-    g.lineTo(x - 2, 2.6);
+    g.moveTo(x, 0.9);
+    g.lineTo(x + 4, 0.9);
+    g.lineTo(x + 2, 3.2);
+    g.lineTo(x - 2, 3.2);
+    g.closePath();
+    g.fill();
+  }
+  g.fillStyle = 'rgba(236, 252, 255, 0.95)';
+  g.fillRect(0, 0, W, 0.6);
+  // The START panel's plate, let into the top along the middle of the lip, with a gold edge. In it, the far
+  // half of each pocket: the dark of the hole, on the lip's very edge. The hoops round them stand out of the picture.
+  const plate = g.createLinearGradient(0, 0, 0, START_PANEL.back);
+  plate.addColorStop(0, '#e0277f');
+  plate.addColorStop(1, '#7a0e44');
+  g.fillStyle = plate;
+  g.fillRect(PANEL_SPAN.from, 0, PANEL_SPAN.to - PANEL_SPAN.from, START_PANEL.back);
+  g.fillStyle = '#ffd65c';
+  g.fillRect(PANEL_SPAN.from, START_PANEL.back - 0.35, PANEL_SPAN.to - PANEL_SPAN.from, 0.35);
+  g.fillRect(PANEL_SPAN.from, 0, 0.35, START_PANEL.back);
+  g.fillRect(PANEL_SPAN.to - 0.35, 0, 0.35, START_PANEL.back);
+  g.fillRect(PANEL_SPAN.from, 0, PANEL_SPAN.to - PANEL_SPAN.from, 0.3);
+  g.fillStyle = '#0a0418';
+  for (const centre of CHECKERS.positions) {
+    g.beginPath();
+    g.arc(centre, 0, CHUCKERS.radius, 0, Math.PI);
     g.closePath();
     g.fill();
   }
@@ -198,20 +300,34 @@ export function paintLip(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The sign that rides over each gate. */
+/**
+ * The stretch of the pusher's face under a START pocket: the panel's plate,
+ * with a gold line along its top and its foot, and the word START in tall
+ * letters squeezed to fit, since it has to be read from across the cabinet.
+ * Three of them end to end are the panel's face.
+ */
 export function paintSign(): HTMLCanvasElement {
   const { canvas, g } = sheet(SIGN.width, SIGN.height, 24);
   if (!g) return canvas;
-  g.fillStyle = '#1b0c4a';
+  const plate = g.createLinearGradient(0, 0, 0, SIGN.height);
+  plate.addColorStop(0, '#e0277f');
+  plate.addColorStop(1, '#4a0626');
+  g.fillStyle = plate;
   g.fillRect(0, 0, SIGN.width, SIGN.height);
-  g.strokeStyle = '#7df0ff';
-  g.lineWidth = 0.22;
-  g.strokeRect(0.25, 0.25, SIGN.width - 0.5, SIGN.height - 0.5);
+  g.fillStyle = '#ffd65c';
+  g.fillRect(0, 0, SIGN.width, 0.3);
+  g.fillRect(0, SIGN.height - 0.3, SIGN.width, 0.3);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = '900 2.5px "Arial Black", Arial, sans-serif';
+  g.font = '900 4.6px "Arial Black", Arial, sans-serif';
+  g.translate(SIGN.width / 2, SIGN.height * 0.47);
+  g.scale(0.62, 1);
+  g.lineJoin = 'round';
+  g.lineWidth = 0.7;
+  g.strokeStyle = '#4a0626';
+  g.strokeText('START', 0, 0);
   g.fillStyle = '#fff3a8';
-  g.fillText('START', SIGN.width / 2, SIGN.height / 2 + 0.12);
+  g.fillText('START', 0, 0);
   return canvas;
 }
 

@@ -32,7 +32,7 @@ import {
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
+import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -71,7 +71,7 @@ import {
   type ActiveSpin,
 } from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
-import { HEIGHT, VIEW, project, rise, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
+import { HEIGHT, HOUSING, SCREEN, VIEW, onScreen, project, rise, screenPlacement, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -103,12 +103,51 @@ describe('the camera', () => {
     expect(front[0].scale).toBeGreaterThan(back[0].scale);
     // The field is centred, and all of it is inside the drawing.
     expect((front[0].x + front[1].x) / 2).toBeCloseTo(VIEW.width / 2, 9);
-    for (const point of [...back, ...front, project(0, HEIGHT.wall, 0), project(FIELD.width, HEIGHT.wall, 0)]) {
+    for (const point of [...back, ...front, project(SCREEN.left, SCREEN.top, 0), project(SCREEN.right, SCREEN.top, 0)]) {
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThanOrEqual(VIEW.width);
       expect(point.y).toBeGreaterThanOrEqual(0);
       expect(point.y).toBeLessThanOrEqual(VIEW.height);
     }
+  });
+
+  it('stands the page\u2019s screen where the opening in the wall is: a browser\u2019s camera, given these numbers, is this camera', () => {
+    const sheet = screenPlacement();
+    // The sheet is the screen, so many of its pixels to a field unit, and is made that much smaller before it is stood up.
+    expect(sheet.width).toBe((SCREEN.right - SCREEN.left) * SCREEN.perUnit);
+    expect(sheet.height).toBe((SCREEN.top - SCREEN.foot) * SCREEN.perUnit);
+    expect(sheet.scale).toBe(1 / SCREEN.perUnit);
+    // Tipped back: the foot of the wall is further from the eye than its top, as it is for a camera that looks down.
+    expect(sheet.tilt).toBeLessThan(0);
+    expect(sheet.tilt).toBeGreaterThan(-Math.PI / 2);
+    // Every point of the sheet lands on the pixel the scene's camera gives that point of the wall: corners, edges and middle.
+    for (const across of [0, 0.25, 0.5, 1]) {
+      for (const down of [0, 0.3, 0.5, 1]) {
+        const on = onScreen(across * sheet.width, down * sheet.height);
+        const wall = project(SCREEN.left + across * (SCREEN.right - SCREEN.left), SCREEN.top - down * (SCREEN.top - SCREEN.foot), 0);
+        expect(on.x).toBeCloseTo(wall.x, 9);
+        expect(on.y).toBeCloseTo(wall.y, 9);
+      }
+    }
+    // The sheet is shown at close to its own size all over, so it is laid out once and stays sharp: nowhere stretched or shrunk by a fifth.
+    for (const height of [SCREEN.top, SCREEN.foot]) {
+      const shown = project(0, height, 0).scale / SCREEN.perUnit;
+      expect(shown).toBeGreaterThan(0.85);
+      expect(shown).toBeLessThan(1.15);
+    }
+    // The screen is the upper part of the cabinet: nearly as wide as the drawing at its top, and about a third of its height.
+    const top = [project(SCREEN.left, SCREEN.top, 0), project(SCREEN.right, SCREEN.top, 0)];
+    const foot = project(SCREEN.left, SCREEN.foot, 0);
+    expect((top[1].x - top[0].x) / VIEW.width).toBeGreaterThan(0.75);
+    expect((foot.y - top[0].y) / VIEW.height).toBeGreaterThan(0.33);
+    expect(foot.y / VIEW.height).toBeLessThan(0.45);
+    // Round it is its housing: a strip to either side, the shelf under it and the hood over it, each lapping its edge a little.
+    expect(SCREEN.left).toBe(HOUSING.side);
+    expect(SCREEN.right).toBe(FIELD.width - HOUSING.side);
+    expect(SCREEN.foot).toBeGreaterThan(HOUSING.shelf);
+    expect(SCREEN.top).toBeLessThan(HOUSING.hood);
+    expect(HOUSING.hood).toBeLessThan(HEIGHT.top);
+    expect(HOUSING.lap).toBeGreaterThan(0);
   });
 
   it('draws what is higher further up, and a flat medal as an ellipse', () => {
@@ -673,18 +712,25 @@ describe('strings', () => {
   it('describes the feed arms as the engine works them', () => {
     const en = getStrings('en');
     const ja = getStrings('ja');
-    // A medal is on its rail for about half a second, and in the air for about as long again.
-    expect(Math.round(ROLL_TIME * 2) / 2).toBe(0.5);
+    // A medal is most of a second going in at its slot and rolling the length of its arm, and in the air for
+    // about half a second more.
+    expect(ROLL_TIME).toBeCloseTo(FEED.slot + FEED.arm, 12);
+    expect(ROLL_TIME).toBeGreaterThanOrEqual(0.75);
+    expect(ROLL_TIME).toBeLessThan(1);
     expect(Math.round(FALL_TIME * 2) / 2).toBe(0.5);
     const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
-    expect(info.en).toContain('about half a second to roll down its arm and about as long again to fall');
+    expect(info.en).toContain('goes in at the slot on that side, by your hand, rolls along its feed arm’s rail to the back of the cabinet');
+    expect(info.en).toContain('takes most of a second to go in at its slot and roll the length of its arm, and about half a second more to fall');
     expect(info.en).toContain('wherever the arm is pointing when it gets to the tip');
-    expect(info.ja).toContain('レールを0.5秒ほど転がり');
+    expect(info.ja).toContain('狙った側の手前の入り口から入り、アームのレールを奥まで転がって先端から落ち');
+    expect(info.ja).toContain('入り口から入ってアームのレールを奥まで転がるのに1秒近く、先端から落ちるのにもう0.5秒ほどかかります');
     expect(info.ja).toContain('先端に着いたときにアームが向いている位置');
     // The diagram's first part is the arms, and its text gives the scatter the engine uses and how far an arm reaches.
     expect(PART_IDS[0]).toBe('arms');
     expect(en.partName.arms).toBe('Feed arms');
     expect(ja.partName.arms).toBe('投入アーム');
+    expect(en.partText.arms).toContain('One runs back from each front corner, where its slot is, to end over the pusher');
+    expect(ja.partText.arms).toContain('手前の左右の角にある入り口から、プッシャーの上まで1本ずつ伸びています');
     expect(en.partText.arms).toContain(`up to ${LANDING.scatter}% of the width to either side`);
     expect(ja.partText.arms).toContain(`幅の${LANDING.scatter}%まで`);
     expect(ARM_REACH[0].max).toBeGreaterThan(FIELD.width / 2);
@@ -740,6 +786,51 @@ describe('the page', () => {
     expect(html).toContain('data-square="0"');
     expect(html).not.toContain('pusher-refill');
     expect(AUTO_PACE).toBe(2);
+  });
+
+  it('stands the screen in the back wall, behind the canvases, where the camera puts it', () => {
+    const html = render(<PlayTab />);
+    const sheet = screenPlacement();
+    const drawn = (pixels: number) => `calc(${pixels.toFixed(3)} * var(--mp-u))`;
+    // The stage has the drawing's own shape, and a pixel of the drawing is so much of the stage's width: nothing is in pixels of the page.
+    expect(html).toContain(`aspect-ratio:${VIEW.width} / ${VIEW.height}`);
+    expect(html).toContain(`--mp-u:calc(100cqw / ${VIEW.width})`);
+    // The room the sheet stands in is the scene's camera, and the sheet is stood where the opening in the housing is.
+    expect(html).toContain(`perspective:${drawn(sheet.perspective)};perspective-origin:${drawn(sheet.origin.x)} ${drawn(sheet.origin.y)}`);
+    const wall = html.match(/<div[^>]*data-testid="pusher-wall"[^>]*>/)?.[0] ?? '';
+    expect(wall).toContain(`width:${drawn(sheet.width)}`);
+    expect(wall).toContain(`height:${drawn(sheet.height)}`);
+    expect(wall).toContain(`transform:translate3d(${drawn(sheet.x)}, ${drawn(sheet.y)}, ${drawn(sheet.z)}) rotateX(${sheet.tilt.toFixed(5)}rad) scale(${sheet.scale})`);
+    // The screen is on the sheet, and the sheet comes before both canvases, so they are over it: whatever the scene draws is in front of the screen.
+    expect(html.match(/<canvas/g)).toHaveLength(2);
+    expect(html.indexOf('data-testid="pusher-wall"')).toBeGreaterThan(0);
+    expect(html.indexOf('data-testid="pusher-wall"')).toBeLessThan(html.indexOf('<canvas'));
+    expect(html.indexOf('data-testid="pusher-screen"')).toBeGreaterThan(html.indexOf('data-testid="pusher-wall"'));
+    expect(html.indexOf('data-testid="pusher-screen"')).toBeLessThan(html.indexOf('<canvas'));
+    expect(html.indexOf('data-testid="pusher-screen"')).toBe(html.lastIndexOf('data-testid="pusher-screen"'));
+    expect(html.indexOf('data-testid="pusher-field"')).toBeGreaterThan(html.indexOf('<canvas'));
+    // What each line leads to is under the stage; the copy on the screen is not shown in the wall.
+    expect(html.match(/7·7·7 ▸ BALL/g)).toHaveLength(2);
+    expect(html).toMatch(/<div[^>]*aria-hidden="true"[^>]*data-testid="pusher-legend"/);
+    expect(html.indexOf('data-testid="pusher-legend"')).toBeGreaterThan(html.indexOf('data-testid="pusher-field"'));
+    const css = stylesheet();
+    expect(css).toMatch(/\.wall \.legend \{\s*display: none;\s*\}/);
+    expect(css).toMatch(/\.legendBelow \{\s*display: flex;/);
+    // The hold's lamps are drawn in the cabinet now. What says how many are lit is still on the screen under the name it
+    // had, out of sight but not hidden from a screen reader; and so is the title.
+    expect(html).toContain(`aria-label="0 of ${MAX_STOCK} spins held"`);
+    expect(html).toContain('data-testid="pusher-mode"');
+    const stock = css.match(/\.wall \.stock \{[^}]*\}/)?.[0] ?? '';
+    expect(stock).toContain('clip-path: inset(50%)');
+    expect(stock).not.toContain('display: none');
+    expect(stock).not.toContain('visibility');
+    // On the sheet every size is so many pixels of the drawing, or a share of the screen's own stage: never an em or a rem.
+    const rules = css.match(/\.wall[^{]*\{[^}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(10);
+    for (const rule of rules) {
+      expect(rule).not.toMatch(/\d(rem|vw)\b/);
+      expect(rule).not.toMatch(/(?<!letter-spacing: 0\.\d+)\dem\b/);
+    }
   });
 
   it('renders the cabinet in Japanese', () => {
@@ -893,8 +984,16 @@ describe('charts', () => {
     expect(html).toContain('aria-label="the field"');
     expect(html.match(/data-badge=/g)).toHaveLength(6);
     expect(PUSHER.max).toBeLessThan(FIELD.sideOpenFrom);
-    // One feed arm reaches in from each upper corner, each with the collar it hangs from.
-    expect(html.match(/<circle[^>]*r="4.5"/g)).toHaveLength(2);
+    // One feed arm runs back from each front corner to its tip over the pusher, each with its slot at the near end.
+    expect(html.match(/data-arm=/g)).toHaveLength(2);
+    expect(html.match(/<circle[^>]*r="5.5"/g)).toHaveLength(2);
+    const rails = [...html.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"[^>]*stroke-linecap="round"/g)].map((match) => match.slice(1).map(Number));
+    expect(rails).toHaveLength(2);
+    for (const [x1, y1, x2, y2] of rails) {
+      // From below the front edge, at the side, up the picture to over the pusher, nearer the middle.
+      expect(y1).toBeGreaterThan(y2 + 150);
+      expect(Math.abs(x1 - (rails[0][0] + rails[1][0]) / 2)).toBeGreaterThan(Math.abs(x2 - (rails[0][0] + rails[1][0]) / 2));
+    }
   });
 });
 

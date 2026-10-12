@@ -457,10 +457,12 @@ describe('dropping a medal', () => {
     aimArms(machine, 56);
     step(machine, 0.1);
     expect(machine.tips).toEqual([56, 56]);
-    // Further than the left arm reaches, it stops at the end of its reach, and its medal leaves from there.
+    // Further than the left arm reaches, it stops at the end of its reach, and its medal leaves from there
+    // when it has come all its way: this is all of that but the last tenth of a second.
     aimArms(machine, 80);
-    step(machine, 0.2);
+    step(machine, ROLL_TIME - 0.3);
     expect(machine.tips).toEqual([ARM_REACH[0].max, 80]);
+    expect(machine.falling).toEqual([]);
     step(machine, 0.1);
     expect(machine.falling[0].fromX).toBe(ARM_REACH[0].max);
     step(machine, 0.2);
@@ -496,7 +498,8 @@ describe('dropping a medal', () => {
       }
       // One medal every eleven steps, and each left its arm exactly over its own spot.
       expect(fed.length).toBeGreaterThan(30);
-      expect(letGo.size).toBeGreaterThan(fed.length - 4);
+      // All but the few still on their way in at the end.
+      expect(letGo.size).toBeGreaterThanOrEqual(fed.length - Math.ceil(ROLL_TIME / DROP_INTERVAL));
       expect([...letGo.values()]).toEqual(fed.slice(0, letGo.size));
     }
   });
@@ -593,7 +596,9 @@ describe('dropping a medal', () => {
   });
 
   it('lands a medal a fall after it leaves the tip, however the time is cut into steps', () => {
-    const cuts = [[ROLL_TIME + FALL_TIME], [0.013, 0.2, 0.3, 0.1, 0.337], [0.05, 0.05, 0.4, 0.007, 0.443], [ROLL_TIME, FALL_TIME], [0.31, 0.64]];
+    // Before its arm a medal is in the slot and the track, which is the time `more` here.
+    const more = ROLL_TIME - 0.5;
+    const cuts = [[ROLL_TIME + FALL_TIME], [0.013, more, 0.2, 0.3, 0.1, 0.337], [0.05, 0.05, 0.4, 0.007, more, 0.443], [ROLL_TIME, FALL_TIME], [0.31 + more, 0.64]];
     for (const pieces of cuts) {
       expect(pieces.reduce((sum, piece) => sum + piece, 0)).toBeCloseTo(ROLL_TIME + FALL_TIME, 9);
       const machine = createMachine(11);

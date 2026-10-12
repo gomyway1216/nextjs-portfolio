@@ -45,9 +45,10 @@ export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
 /** A dropped medal lands in this band of depth, on the pusher, a little off its aim. */
 export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
 /**
- * Where it is let go: this close to the back panel, and, for a medal the
- * machine pays out, this high above the lower table. The tips of the feed arms
- * hang as close to the panel and lower down (see arms.ts).
+ * Where a medal the machine pays out, or a prize ball, is let go: this close
+ * to the back wall, and this high above the lower table when the wall was a
+ * low panel. Where on the cabinet that is drawn, and where the tips of the
+ * feed arms hang, is in arms.ts.
  */
 export const RELEASE = { height: 34, depth: 1.2 } as const;
 /**
@@ -63,12 +64,22 @@ export const SETTLE = { from: 0.3, time: 0.32 } as const;
 export const FALL_TIME = 0.45;
 export const DROP_INTERVAL = 0.18;
 /**
- * How long a medal the player feeds is on its arm's rail before it drops off
- * the tip: long enough to watch it roll, short enough that the machine still
- * answers a press. The slot feeds faster than that, so a stream of medals has
- * two or three on the rail at once.
+ * How long a medal the player feeds is on its way before it drops off the tip
+ * of its arm: long enough to watch it go in at the slot by the player's hand
+ * and roll the length of the rail to the back of the cabinet, short enough
+ * that the machine still answers a press. The slot feeds faster than that,
+ * so a stream of medals has five on the way at once.
  */
-export const ROLL_TIME = 0.5;
+export const ROLL_TIME = 0.9;
+/**
+ * The two legs of that way, in seconds: taken in at the slot at the near end
+ * of its arm, and along the arm's rail to the tip. They add up to the time
+ * above, which is all the machine goes by: it settles where a medal lands as
+ * it leaves the tip, and the legs only say where the medal is drawn
+ * meanwhile. The rail's leg is longer than the whole way was when the arms
+ * were short, so a medal saved on a rail then is on its rail now.
+ */
+export const FEED = { slot: 0.1, arm: 0.8 } as const;
 
 /** The chuckers: a medal that lands within `halfWidth` of one starts the slot on the screen. */
 export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.2 } as const;

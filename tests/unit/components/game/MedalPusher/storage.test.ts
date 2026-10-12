@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { fedSpot, legOf, rollingSpot } from '@/components/game/MedalPusher/arms';
 import {
   AIM,
   ARM_REACH,
   ARM_SPEED,
   DROP_INTERVAL,
   FALL_TIME,
+  FEED,
   FIELD,
   MEDAL_RADIUS,
   ROLL_TIME,
@@ -40,6 +42,7 @@ import {
 import { LIMITS, STORAGE_KEY, STORAGE_VERSION, VERSION_BEFORE_ARMS, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
+import beforeSlots from './fixtures/save-before-the-front-slots.json';
 
 const DT = 1 / 60;
 /** Tests that run the machine for a good while get room on a slow machine. */
@@ -185,7 +188,7 @@ describe('a save', () => {
     for (const machine of [session, back]) {
       machine.machine.rng = seededRng(4);
       aimArms(machine.machine, 44);
-      for (let i = 0; i < 25; i++) advance(machine, DT);
+      for (let i = 0; i < Math.round(ROLL_TIME / DT) - 5; i++) advance(machine, DT);
       expect(machine.machine.rolling).toEqual([]);
       expect(machine.machine.falling).toHaveLength(1);
       expect(machine.machine.falling[0].fromX).toBe(44);
@@ -720,7 +723,7 @@ const ARMS_AT: Record<string, () => Session> = {
   'a medal half way down its rail': () => {
     const session = createSession(8, { balls: 0 });
     insert(session, 70);
-    for (let i = 0; i < 15; i++) advance(session, DT);
+    for (let i = 0; i < Math.round(ROLL_TIME / 2 / DT); i++) advance(session, DT);
     return session;
   },
   'two medals on one rail': () => {
@@ -731,14 +734,18 @@ const ARMS_AT: Record<string, () => Session> = {
     }
     return session;
   },
-  'three medals on the rails, on both arms': () => {
+  'as many medals as the rails hold, on both arms': () => {
     const session = createSession(8, { balls: 0 });
-    stream(session, 0.45);
+    // The slot takes a medal every eleventh step. Three steps after the fifth, the first is still on its rail.
+    stream(session, (4 * 11 + 3) * DT);
     return session;
   },
-  'a medal in the air and two behind it': () => {
+  'a medal in the air and the rail full behind it': () => {
     const session = createSession(8, { balls: 0 });
-    stream(session, 0.55);
+    for (let i = 0; i < Math.round((ROLL_TIME + 0.05) / DT); i++) {
+      insert(session, 30);
+      advance(session, DT);
+    }
     return session;
   },
   'the arms swung away from under a medal': () => {
@@ -778,8 +785,8 @@ describe('the arms caught at each of their states', () => {
     expect(two.rolling.map((medal) => medal.arm)).toEqual([0, 0]);
     expect((two.rolling[1].remaining as number) - (two.rolling[0].remaining as number)).toBeCloseTo(11 * DT, 9);
     expect(two.tips).toEqual([30, armRest(1)]);
-    const three = saved('three medals on the rails, on both arms').machine;
-    expect(three.rolling.map((medal) => medal.arm)).toEqual([0, 1, 0]);
+    const three = saved('as many medals as the rails hold, on both arms').machine;
+    expect(three.rolling.map((medal) => medal.arm)).toEqual([0, 1, 0, 1, 0]);
     expect(three.rolling).toHaveLength(LIMITS.rolling);
     expect(three.falling).toEqual([]);
     // The aim went right and has just come back left, and both arms, each with a medal on it, are caught on their way after it.
@@ -790,13 +797,14 @@ describe('the arms caught at each of their states', () => {
     expect(right).toBeGreaterThan(ARM_REACH[1].min);
     expect(right).toBeLessThan(70);
     expect(left).toBeLessThan(right);
-    const off = saved('a medal in the air and two behind it').machine;
-    expect(off.rolling.map((medal) => medal.arm)).toEqual([1, 0]);
+    const off = saved('a medal in the air and the rail full behind it').machine;
+    expect(off.rolling.map((medal) => medal.arm)).toEqual([0, 0, 0, 0, 0]);
+    expect(off.rolling).toHaveLength(LIMITS.rolling);
     expect(off.falling).toHaveLength(1);
     expect(off.falling[0]).toMatchObject({ source: 'player', duration: FALL_TIME });
     expect(off.falling[0].id).toBeLessThan(off.rolling[0].id as number);
-    // By then both had arrived, and the medal left from where the left tip still is.
-    expect(off.tips).toEqual([30, ARM_REACH[1].min]);
+    // The left arm has been over the aim all the while, and the medal left from where its tip still is. The right one never stirred.
+    expect(off.tips).toEqual([30, armRest(1)]);
     expect(off.falling[0].fromX).toBe(30);
     const away = saved('the arms swung away from under a medal').machine;
     expect(away.rolling[0]).toMatchObject({ arm: 0 });
@@ -822,7 +830,7 @@ describe('the arms caught at each of their states', () => {
     ['two medals on one rail', 'have the second ahead of the first', (save) => rails(save).reverse()],
     ['two medals on one rail', 'have the first only just fed as well', (save) => (rails(save)[0].remaining = ROLL_TIME - DT)],
     [
-      'three medals on the rails, on both arms',
+      'as many medals as the rails hold, on both arms',
       'have a fourth behind them',
       (save) => {
         rails(save).push({ id: save.machine.nextId, arm: 1, remaining: ROLL_TIME });
@@ -830,18 +838,18 @@ describe('the arms caught at each of their states', () => {
         save.machine.cooldown = DROP_INTERVAL;
       },
     ],
-    ['three medals on the rails, on both arms', 'have the middle one as far down as the first', (save) => (rails(save)[1].remaining = rails(save)[0].remaining)],
-    ['three medals on the rails, on both arms', 'have the last one fed before the slot could', (save) => (rails(save)[2].remaining = (rails(save)[2].remaining as number) - 0.1)],
+    ['as many medals as the rails hold, on both arms', 'have the middle one as far down as the first', (save) => (rails(save)[1].remaining = rails(save)[0].remaining)],
+    ['as many medals as the rails hold, on both arms', 'have the last one fed before the slot could', (save) => (rails(save)[2].remaining = (rails(save)[2].remaining as number) - 0.1)],
     [
-      'a medal in the air and two behind it',
+      'a medal in the air and the rail full behind it',
       'still has that medal on its rail',
       (save) => {
         rails(save).unshift({ id: inAir(save).id, arm: 0, remaining: 0 });
       },
     ],
-    ['a medal in the air and two behind it', 'has it falling for longer than a fall takes', (save) => (inAir(save).remaining = FALL_TIME + 0.01)],
+    ['a medal in the air and the rail full behind it', 'has it falling for longer than a fall takes', (save) => (inAir(save).remaining = FALL_TIME + 0.01)],
     ['a medal only just fed', 'is on a machine with one arm’s tip missing', (save) => (save.machine.tips = [armRest(0)])],
-    ['three medals on the rails, on both arms', 'have the two tips past each other', (save) => (save.machine.tips as number[]).reverse()],
+    ['as many medals as the rails hold, on both arms', 'have the two tips past each other', (save) => (save.machine.tips as number[]).reverse()],
     ['the arms swung away from under a medal', 'has swung its left arm past the end of its reach', (save) => ((save.machine.tips as number[])[0] = ARM_REACH[0].max + 1)],
     ['the arms swung away from under a medal', 'has its right arm further left than it reaches', (save) => ((save.machine.tips as number[])[1] = ARM_REACH[1].min - 1)],
     ['the arms swung away from under a medal', 'has an arm that is nowhere', (save) => ((save.machine.tips as unknown[])[0] = null)],
@@ -2090,5 +2098,106 @@ describe('garbage', () => {
     // Most changes spoil the save; the ones that do not leave a machine that plays.
     expect(refused).toBeGreaterThan(300);
     expect(ran).toBeGreaterThan(50);
+  });
+});
+
+describe('a save written when the arms were short and a fed medal went straight onto its rail', () => {
+  // Written by the game as it was before the arms were made to run back from slots at the front corners, with
+  // that version's own `serialize`: see the fixture's `about`. It is a save of the same version as today's: the
+  // shape of a save has not changed, only how long a fed medal is on its way, and so how large its `remaining` can be.
+  const OLD = beforeSlots.save;
+  const old = (): Save => JSON.parse(OLD);
+  const { then } = beforeSlots;
+  const total = (events: SessionEvent[], type: 'landed' | 'won' | 'lost'): number =>
+    events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
+
+  it('is a save of this version, caught with three medals part of the way down a rail', () => {
+    const save = old();
+    expect(save.version).toBe(STORAGE_VERSION);
+    const rolling = save.machine.rolling as { id: number; arm: number; remaining: number }[];
+    expect(rolling).toHaveLength(3);
+    // Each had at most the old half second to go, and they are a slot's wait apart: the first fed the furthest down.
+    for (const medal of rolling) expect(medal.remaining).toBeLessThanOrEqual(0.5);
+    expect(rolling[1].remaining - rolling[0].remaining).toBeCloseTo(12 * DT, 9);
+    expect(rolling[2].remaining - rolling[1].remaining).toBeCloseTo(12 * DT, 9);
+    expect(save.machine.falling.filter((medal) => medal.source === 'player').length).toBeGreaterThanOrEqual(1);
+    expect(save.machine.cooldown).toBeGreaterThan(0);
+    expect(save.session.inserted).toBeGreaterThan(100);
+  });
+
+  it('reads back as the same machine to the last digit, every medal on a rail still on its rail', () => {
+    const back = restore(OLD, 1);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    // Nothing is added, dropped or changed: written again, it is the very text that was read.
+    expect(serialize(back)).toBe(OLD);
+    expect(back.machine.rolling).toEqual(old().machine.rolling);
+    // The rail's leg of the way in is longer than the whole way was then, so a medal that was on a rail is on
+    // its rail now, with as long to go as it had: not back at the slot.
+    expect(FEED.arm).toBeGreaterThanOrEqual(0.5);
+    for (const medal of back.machine.rolling) {
+      expect(legOf(medal.remaining)).toBe('arm');
+      const tip = back.machine.tips[medal.arm];
+      const { x, height, depth } = rollingSpot(medal.arm, tip, medal.remaining);
+      expect(fedSpot(medal.arm, tip, medal.remaining)).toMatchObject({ leg: 'arm', x, height, depth });
+    }
+    // A save can hold more medals on their way than it could, since the way is longer.
+    expect(ROLL_TIME).toBeGreaterThan(0.5);
+    expect(LIMITS.rolling).toBe(Math.ceil(ROLL_TIME / DROP_INTERVAL));
+    expect(LIMITS.rolling).toBeGreaterThan(3);
+  });
+
+  it('plays on exactly as the game that wrote it did: each medal leaves its arm in the same step, from the same place', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const events: SessionEvent[] = [];
+    const left: { id: number; step: number; fromX: number }[] = [];
+    for (let i = 0; i < then.steps; i++) {
+      const before = new Set(back.machine.rolling.map((medal) => medal.id));
+      advance(back, DT, events);
+      for (const medal of back.machine.falling) if (before.has(medal.id)) left.push({ id: medal.id, step: i + 1, fromX: medal.fromX });
+    }
+    expect(left).toEqual(then.left);
+    expect(left).toHaveLength(3);
+    expect(back.machine.time).toBeCloseTo(then.time, 9);
+    expect(total(events, 'landed')).toBe(then.landed);
+    expect(events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []))).toEqual(then.gates);
+    expect(total(events, 'won')).toBe(then.won);
+    expect(total(events, 'lost')).toBe(then.lost);
+    expect([back.credits, back.hits, back.stock, back.spins, back.paidOut]).toEqual([then.credits, then.hits, then.stock, then.spins, then.paidOut]);
+    expect(back.machine.medals).toHaveLength(then.medals);
+    expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
+    // And each of the medals that was on its way then lies where that game's machine left it.
+    expect(then.resting).toHaveLength(5);
+    for (const rest of then.resting) {
+      const medal = back.machine.medals.find((m) => m.id === rest.id);
+      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
+      expect(medal?.x).toBeCloseTo(rest.x, 6);
+      expect(medal?.y).toBeCloseTo(rest.y, 6);
+    }
+  });
+
+  it('feeds the next medal at the slot, behind the ones it was saved with', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const saved = back.machine.rolling.map((medal) => medal.id);
+    while (!insert(back, back.machine.aim)) advance(back, DT);
+    const fed = back.machine.rolling[back.machine.rolling.length - 1];
+    expect(saved).not.toContain(fed.id);
+    expect(fed.remaining).toBe(ROLL_TIME);
+    expect(legOf(fed.remaining)).toBe('slot');
+    // The save still reads with it on board, and the medals ahead of it leave first.
+    expect(restore(serialize(back), 1)).not.toBeNull();
+    for (let i = 0; i < Math.round(FEED.arm / DT); i++) advance(back, DT);
+    expect(back.machine.rolling.map((medal) => medal.id)).toEqual([fed.id]);
+    expect(legOf(back.machine.rolling[0].remaining)).toBe('arm');
+  });
+
+  it('is not taken for a machine once a medal on a rail has longer to go than the whole way in', () => {
+    const tooLong = old();
+    (tooLong.machine.rolling as { remaining: number }[])[2].remaining = ROLL_TIME + 0.01;
+    expect(restore(JSON.stringify(tooLong), 1)).toBeNull();
+    // As long as the whole way is fine in itself, but not for a medal with two more behind it that were fed after it.
+    const first = old();
+    (first.machine.rolling as { remaining: number }[])[0].remaining = ROLL_TIME;
+    expect(restore(JSON.stringify(first), 1)).toBeNull();
   });
 });

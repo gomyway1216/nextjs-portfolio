@@ -10,6 +10,10 @@
  * glass — sparks, confetti, the counts — while the scene is on the canvas
  * underneath. A canvas gives out one kind of context for good, so which of
  * the two is asked for which is settled before either is touched.
+ *
+ * Under both of them the page stands its screen, in the back wall of the
+ * cabinet. Whichever renderer draws leaves that part of its picture clear,
+ * so the screen shows through with everything else in front of it.
  */
 
 import type { Machine } from './engine';
@@ -29,11 +33,20 @@ export function askedFor(search: string): RendererKind | null {
 }
 
 /**
- * What the 3D scene asks of its context. Unless the address insists, a
- * browser that could only draw it in software says no instead, and the
- * canvas renderer, which is quick in software, takes over.
+ * What the 3D scene asks of its context. It is see-through, because the
+ * screen in the back wall is the page's own and shows through the picture.
+ * Unless the address insists, a browser that could only draw it in software
+ * says no instead, and the canvas renderer, which is quick in software,
+ * takes over.
  */
-export const sceneContext = (insist: boolean): WebGLContextAttributes => ({ alpha: false, antialias: true, depth: true, stencil: false, failIfMajorPerformanceCaveat: !insist });
+export const sceneContext = (insist: boolean): WebGLContextAttributes => ({
+  alpha: true,
+  premultipliedAlpha: true,
+  antialias: true,
+  depth: true,
+  stencil: false,
+  failIfMajorPerformanceCaveat: !insist,
+});
 
 /**
  * How much of a fever's wash of colour goes over the 3D scene. The wash was

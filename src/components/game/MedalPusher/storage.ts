@@ -101,7 +101,7 @@ export const VERSION_BEFORE_ARMS = 1;
 export const LIMITS = {
   /** Medals lying on the two tables. Packed two deep with every tower standing, they hold about 650. */
   medals: 1000,
-  /** Medals on the arms' rails: as many as the slot can feed in the time one takes to roll down. */
+  /** Medals on their way in, at a slot or on an arm's rail: as many as the slot can feed in the time one takes to get to the tip. */
   rolling: Math.ceil(ROLL_TIME / DROP_INTERVAL),
   /** Medals in the air. Every tower coming down at once is 450. */
   falling: 600,
@@ -212,6 +212,12 @@ const medal = shape<Medal>(
   (m) => m.stack + m.grow <= TOWER.max && (!m.ball || m.stack + m.grow === 1),
 );
 
+/**
+ * A medal on its way in. What is stored is how long it has to go to the tip of its arm, which means what it
+ * always meant. The way grew longer when the arms were made to run back from slots at the front corners, so a
+ * save from before then has every such medal within its last half second: on its rail, about a third of the way
+ * along it or further. It reads as it is, and the version did not have to change.
+ */
 const rollingMedal = shape<RollingMedal>({
   id: whole(1, LIMITS.count),
   arm: oneOf([0, 1]),
@@ -282,7 +288,7 @@ const storedMachine = shape<StoredMachine>(machineFields, (machine) => {
     ids.add(id);
   }
   const balls = [...machine.medals, ...machine.falling].filter((m) => m.ball).length;
-  // The slot feeds one medal and then waits. So the last medal onto a rail has been rolling for as
+  // The slot feeds one medal and then waits. So the last medal fed has been on its way for as
   // long as the slot has been waiting, or longer, and each one before it for a whole wait more.
   let most = ROLL_TIME - DROP_INTERVAL + machine.cooldown;
   for (let i = machine.rolling.length - 1; i >= 0; i--) {

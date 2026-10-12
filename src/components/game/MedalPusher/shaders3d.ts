@@ -36,6 +36,8 @@ const float LAMP_HEAT = 3.0;
 /** How much of the key light reaches a point: 1 in the open, 0 in full shadow, in between along a shadow's edge. */
 float sunlit(vec3 world, vec3 normal) {
   vec4 seen = uSun * vec4(world + normal * 0.07, 1.0);
+  // The map covers the tables, what stands on them and the feed arms over them. The housing of the screen, up the back wall, is outside it and in the open.
+  if (max(abs(seen.x), max(abs(seen.y), abs(seen.z))) >= 1.0) return 1.0;
   vec3 at = seen.xyz * 0.5 + 0.5;
   float texel = uView.z;
   float lit = texture(uShadow, vec3(at.xy + texel * vec2(-0.75, -0.25), at.z));
@@ -215,7 +217,7 @@ void main() {
 }
 `;
 
-// ── Balls, pins and bulbs ───────────────────────────────────────────────────
+// ── Balls, studs and bulbs ──────────────────────────────────────────────────
 
 export const BEAD_VERTEX = `${HEAD}
 layout(location = 0) in vec3 aPosition;
@@ -271,7 +273,7 @@ void main() {
     float lit = smoothstep(-0.1, 0.3, toward);
     if (lit > 0.0) lit *= sunlit(vWorld, normal);
     if (kind >= 1.0) {
-      // A pin of the back panel: polished metal.
+      // A stud on the screen's housing: polished metal.
       c = vPaint.rgb * (surroundings(mirrored) * 1.9 + gleam(mirrored) * 0.6 + 0.12);
     } else {
       // A prize ball: glossy pink, with a star on the side the player sees.

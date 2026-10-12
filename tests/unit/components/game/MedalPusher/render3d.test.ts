@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ARMS, armCollar, armGoal, armTip, rollingSpot } from '@/components/game/MedalPusher/arms';
-import { PANEL_TOP, pinSpots, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
+import { ARMS, HATCH, PAYOUT_SLOT, SLOT, airSpot, armCollar, armGoal, armTip, railFrame, rollingSpot, type Spot } from '@/components/game/MedalPusher/arms';
+import { SHELF_SHARE, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
 import {
   FLAT_STRIDE,
   Flat,
@@ -10,6 +10,7 @@ import {
   MOVING_PARTS,
   SHAPE,
   SOLID_STRIDE,
+  STUDS,
   Solid,
   buildCabinet,
   buildLamps,
@@ -19,6 +20,8 @@ import {
 } from '@/components/game/MedalPusher/cabinet3d';
 import {
   CHECKERS,
+  FALL_TIME,
+  FEED,
   FIELD,
   MEDAL_RADIUS,
   MEDAL_THICKNESS,
@@ -49,6 +52,7 @@ import {
   BEAD_STRIDE,
   EYE,
   KEY_LIGHT,
+  LANDED,
   LEAN,
   MEDAL_STRIDE,
   armTipAt,
@@ -63,7 +67,7 @@ import {
   type Rows,
   type Shape,
 } from '@/components/game/MedalPusher/scene3d';
-import { HEIGHT, VIEW, project, unproject } from '@/components/game/MedalPusher/view';
+import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, UPPER, VIEW, project, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 
 const P = HEIGHT.pusher;
 const T = MEDAL_THICKNESS;
@@ -100,14 +104,72 @@ describe('the camera of the 3D field', () => {
     expect(worst).toBeLessThan(0.005);
   });
 
+  it('is the camera the field always had: the drawing only grew upward, to take in the wall with the screen in it', () => {
+    // The camera as it was when the drawing was 540 high and ended at the top of the field's back panel.
+    const old = (x: number, height: number, depth: number) => {
+      const reach = Math.hypot(150, 215 - 52);
+      const forward = { y: -150 / reach, z: (52 - 215) / reach };
+      const distance = (height - 150) * forward.y + (depth - 215) * forward.z;
+      const scale = 1095 / distance;
+      return { x: 320 + (x - 50) * scale, y: 306 - ((height - 150) * -forward.z + (depth - 215) * forward.y) * scale, scale };
+    };
+    expect(VIEW.width).toBe(640);
+    expect(VIEW.height).toBe(540 + UPPER);
+    expect(UPPER).toBeGreaterThan(250);
+    for (let x = -10; x <= 110; x += 15) {
+      for (const height of [-18, 0, HEIGHT.pusher, 20, 40]) {
+        for (let depth = 0; depth <= 100; depth += 12.5) {
+          const now = project(x, height, depth);
+          const then = old(x, height, depth);
+          // As far from either side as it was, and as far from the bottom edge: the picture grew at the top only.
+          expect(now.x).toBeCloseTo(then.x, 9);
+          expect(VIEW.height - now.y).toBeCloseTo(540 - then.y, 9);
+          expect(now.scale).toBeCloseTo(then.scale, 12);
+        }
+      }
+    }
+    // A pixel still means the point it shows: on the pusher, on the wall under the screen, and now on the screen itself.
+    for (const [x, depth] of [
+      [20, 80],
+      [77, 12],
+      [50, 50],
+    ]) {
+      const at = project(x, HEIGHT.pusher, depth);
+      const back = unproject(at.x, at.y, HEIGHT.pusher);
+      expect(back?.x).toBeCloseTo(x, 6);
+      expect(back?.depth).toBeCloseTo(depth, 6);
+    }
+    for (const [x, height] of [
+      [31, 18],
+      [5, 80],
+      [96, 70],
+      [50, SCREEN.top],
+    ]) {
+      const at = project(x, height, 0);
+      const panel = unprojectPanel(at.x, at.y);
+      expect(panel?.x).toBeCloseTo(x, 6);
+      expect(panel?.height).toBeCloseTo(height, 6);
+    }
+    // The picture goes up as far as the hood: the top edge of the hood's face is on it, a few pixels down, and the
+    // wall behind the hood only just off it. And the screen reaches down into what was the top of the old picture.
+    expect(project(50, HEIGHT.top, HOUSING.out).y).toBeGreaterThan(0);
+    expect(project(50, HEIGHT.top, HOUSING.out).y).toBeLessThan(12);
+    expect(project(50, HEIGHT.top, 0).y).toBeGreaterThan(-12);
+    expect(project(50, SCREEN.foot, 0).y).toBeGreaterThan(UPPER);
+  });
+
   it('keeps the whole cabinet between its near and far planes, the nearer the smaller', () => {
     for (const [x, height, depth] of [
       [50, 0, 0],
-      [0, HEIGHT.wall, 0],
+      [0, HEIGHT.top, 0],
       [-34, -12, 0],
       [50, 0, FIELD.depth],
       [50, -40, FIELD.depth + 12],
-      [50, HEIGHT.wall + 6, 2],
+      [50, HEIGHT.top, HOUSING.out],
+      // A medal shown to a slot is the nearest thing there is.
+      [ARMS.collar.inset, ARMS.collar.height + R, ARMS.collar.depth + SLOT.out + R],
+      [FIELD.width - ARMS.collar.inset, ARMS.collar.height - R, ARMS.collar.depth + SLOT.out + R],
+      [50, 62, 40],
     ]) {
       const point = seen(camera, x, height, depth);
       expect(point.w).toBeGreaterThan(0);
@@ -124,9 +186,9 @@ describe('the camera of the 3D field', () => {
   it('stands where the 2D camera stands', () => {
     // Every pixel's line of sight goes through the camera: two points one pixel shows, and the eye, lie on a line.
     for (const [px, py] of [
-      [100, 120],
-      [320, 300],
-      [600, 500],
+      [100, 120 + UPPER],
+      [320, 300 + UPPER],
+      [600, 500 + UPPER],
     ]) {
       const a = unproject(px, py, 0);
       const b = unproject(px, py, 30);
@@ -136,8 +198,8 @@ describe('the camera of the 3D field', () => {
       expect(a.depth + (b.depth - a.depth) * t).toBeCloseTo(EYE[2], 6);
     }
     expect(EYE[0]).toBeCloseTo(FIELD.width / 2, 9);
-    expect(EYE[1]).toBeGreaterThan(HEIGHT.wall);
-    expect(EYE[2]).toBeGreaterThan(FIELD.depth);
+    expect(EYE[1]).toBeGreaterThan(HEIGHT.top);
+    expect(EYE[2]).toBeGreaterThan(ARMS.collar.depth);
   });
 
   it('shakes the picture sideways by whole pixels of the drawing', () => {
@@ -167,10 +229,10 @@ describe('the key light', () => {
     expect(KEY_LIGHT[0]).toBeLessThan(0);
   });
 
-  it('sees both tables and everything that can stand on them', () => {
+  it('sees both tables, everything that can stand on them, and the feed arms over them out to their slots', () => {
     for (const x of [0, 50, FIELD.width]) {
-      for (const y of [0, P, P + TOWER.max * T, RELEASE.height + P]) {
-        for (const z of [0, 40, FIELD.depth]) {
+      for (const y of [0, P, P + TOWER.max * T, ARMS.collar.height + SLOT.ring]) {
+        for (const z of [0, 40, FIELD.depth, ARMS.collar.depth + SLOT.out]) {
           const [cx, cy, cz, cw] = lit(x, y, z);
           expect(cw).toBe(1);
           for (const value of [cx, cy, cz]) {
@@ -330,7 +392,7 @@ describe('the medals of the 3D field', () => {
     expect(Math.max(...rows.map((row) => row.y))).toBeCloseTo(P + T * (tallest - 0.5), 4);
   });
 
-  it('rolls a fed medal down its arm on its edge, its face to the player, turning as it goes', () => {
+  it('rolls a fed medal along its rail on its edge, leaning back with its face to the middle, turning as it goes', () => {
     for (const aim of [30, 70]) {
       const machine = holding([]);
       aimArms(machine, aim);
@@ -342,37 +404,40 @@ describe('the medals of the 3D field', () => {
       expect(tip).toBe(machine.tips[rolling.arm]);
       expect(tip).not.toBe(armGoal(machine, rolling.arm));
       const at = (remaining: number) => medalRows({ ...machine, rolling: [{ ...rolling, remaining }] })[0];
-      // It goes in at the collar and comes off at the tip, in the plane the arm hangs in.
+      // It comes out at the collar and leaves at the tip.
       const collar = armCollar(rolling.arm);
       const end = armTip(rolling.arm, tip);
-      expect([at(ROLL_TIME).x, at(ROLL_TIME).y, at(ROLL_TIME).z]).toEqual([collar.x, collar.height, collar.depth].map(Math.fround));
-      expect([at(0).x, at(0).y, at(0).z]).toEqual([end.x, end.height, end.depth].map(Math.fround));
-      expect(at(0).y).toBeCloseTo(ARMS.tip, 5);
-      let last = at(ROLL_TIME);
+      expect([at(FEED.arm).x, at(FEED.arm).y, at(FEED.arm).z]).toEqual([collar.x, collar.height, collar.depth].map(Math.fround));
+      expect(at(0).x).toBeCloseTo(end.x, 4);
+      expect(at(0).y).toBeCloseTo(ARMS.tip, 4);
+      expect(at(0).z).toBeCloseTo(ARMS.depth, 4);
+      let last = at(FEED.arm);
       for (let step = 1; step <= 20; step++) {
-        const row = at(ROLL_TIME * (1 - step / 20));
-        // Downhill all the way, toward the middle of the field.
+        const row = at(FEED.arm * (1 - step / 20));
+        // Downhill all the way, and away from the player.
         expect(row.y).toBeLessThan(last.y);
-        expect(Math.abs(row.x - 50)).toBeLessThan(Math.abs(last.x - 50));
-        // On its edge with a face to the player: neither face looks up or across.
-        expect(Math.abs(row.up[1])).toBeLessThan(1e-6);
-        expect(row.up[2]).toBeCloseTo(1, 6);
+        expect(row.z).toBeLessThan(last.z);
+        // Once it is clear of the slot it leans back in its channel: its face looks up by that much, and in toward the middle.
+        if (step >= 3) {
+          expect(row.up[1]).toBeCloseTo(Math.sin(ARMS.lean), 5);
+          expect(row.up[0] * (rolling.arm === 0 ? 1 : -1)).toBeGreaterThan(0.6);
+        }
         expect(row.contact).toBe(0);
         last = row;
       }
-      // It rolls: a mark on its rim goes round, clockwise for the player on the left arm and the other way on the right.
+      // It rolls: a mark on its rim goes round by as much as the medal has rolled along the rail.
       const mark = (remaining: number) => {
         const rows = createRows(MEDAL_STRIDE, 4);
         writeMedals(rows, { ...machine, rolling: [{ ...rolling, remaining }] }, []);
-        const [x, y] = rotate(rows.data, 4, [1, 0, 0]);
-        return Math.atan2(y, x);
+        return rotate(rows.data, 4, [1, 0, 0]);
       };
-      // Seen from the player's side an angle grows anticlockwise, so going clockwise the mark's falls with time.
-      const earlier = mark(ROLL_TIME * 0.52);
-      const later = mark(ROLL_TIME * 0.5);
-      expect(Math.sign(Math.sin(earlier - later))).toBe(rolling.arm === 0 ? 1 : -1);
+      const earlier = mark(FEED.arm * 0.52);
+      const later = mark(FEED.arm * 0.5);
+      const turned = Math.acos(Math.min(1, earlier[0] * later[0] + earlier[1] * later[1] + earlier[2] * later[2]));
+      expect(turned).toBeCloseTo(rollingSpot(rolling.arm, tip, FEED.arm * 0.5).turned - rollingSpot(rolling.arm, tip, FEED.arm * 0.52).turned, 4);
+      expect(turned).toBeGreaterThan(0.2);
       // By the tip it is the way round it will fall and lie, so nothing jumps as it leaves the rail. By then
-      // the machine has swung the arm over the aim, and the medal drops from where the tip is, which is where it is drawn.
+      // the machine has swung the arm over the aim, and the medal leaves from where the tip is, which is where it is drawn.
       step(machine, ROLL_TIME + 1e-6);
       expect(machine.rolling).toHaveLength(0);
       expect(armTipAt(machine, rolling.arm)).toBe(armGoal(machine, rolling.arm));
@@ -387,44 +452,130 @@ describe('the medals of the 3D field', () => {
     }
   });
 
-  it('lets a medal go on its edge and brings it down flat where it lands', () => {
+  it('leaves the rail it rolled down when the arm has let it go past the middle, if it is told which arm that was', () => {
+    // The left arm follows an aim past the middle while a medal is on it, and lets the medal go there.
+    const machine = holding([]);
+    dropMedal(machine, 40);
+    step(machine, 0.3);
+    aimArms(machine, 58);
+    const onRail = { ...machine.rolling[0] };
+    step(machine, ROLL_TIME);
+    const [falling] = machine.falling;
+    expect(falling.fromX).toBe(58);
+    // With nothing on it any more the arm is already on its way back to rest: the rail as it was when the medal left is asked for.
+    const lastOnRail = medalRows({ ...machine, tips: [58, machine.tips[1]], falling: [], rolling: [{ ...onRail, remaining: 0 }] })[0];
+    const leaving = (fed?: Map<number, 0 | 1>) => {
+      const rows = createRows(MEDAL_STRIDE, 4);
+      writeMedals(rows, { ...machine, falling: [{ ...falling, remaining: falling.duration }] }, [], fed);
+      return readMedals(rows)[0];
+    };
+    // Told it was the left arm, it leaves as that arm held it: the same picture as its last on the rail.
+    const told = leaving(new Map([[falling.id, 0]]));
+    told.up.forEach((value, i) => expect(value).toBeCloseTo(lastOnRail.up[i], 5));
+    // Left to guess, it is taken for the arm of the side it left from, which here is the other one: it faces the other way.
+    const guessed = leaving();
+    expect(guessed.up[0]).toBeLessThan(0);
+    expect(told.up[0]).toBeGreaterThan(0);
+    // The stage remembers which arm every medal on its way in is on, until it has landed.
+    fakeDocument();
+    const stage = createStage(1, false);
+    const watched = holding([]);
+    dropMedal(watched, 40);
+    trackMedals(stage, watched, 0);
+    const id = watched.rolling[0].id;
+    expect(stage.fed.get(id)).toBe(0);
+    step(watched, ROLL_TIME + 0.01);
+    trackMedals(stage, watched, 0);
+    expect(watched.falling.map((medal) => medal.id)).toEqual([id]);
+    expect(stage.fed.get(id)).toBe(0);
+    step(watched, FALL_TIME + 0.01);
+    trackMedals(stage, watched, 0);
+    expect(stage.fed.size).toBe(0);
+  });
+
+  it('shows a fed medal to its slot face on, takes it in edge first, and brings it out onto the rail', () => {
+    for (const arm of [0, 1] as const) {
+      const machine = holding([]);
+      dropMedal(machine, arm === 0 ? 30 : 70);
+      const [fed] = machine.rolling;
+      expect(fed).toMatchObject({ arm, remaining: ROLL_TIME });
+      const at = (remaining: number) => medalRows({ ...machine, rolling: [{ ...fed, remaining }] })[0];
+      const collar = armCollar(arm);
+      // The moment it is fed it is in front of the slot's mouth, nearer the player, upright with its face to the player.
+      const shown = at(ROLL_TIME);
+      expect(shown.x).toBeCloseTo(collar.x, 5);
+      expect(shown.y).toBeCloseTo(collar.height, 5);
+      expect(shown.z).toBeCloseTo(collar.depth + SLOT.out, 5);
+      expect(Math.abs(shown.up[1])).toBeLessThan(1e-6);
+      expect(shown.up[2]).toBeCloseTo(1, 6);
+      // As it is taken in it goes to the mouth and turns edge on, still upright, to stand along the rail.
+      let last = shown;
+      for (let step = 1; step <= 6; step++) {
+        const row = at(ROLL_TIME - (FEED.slot * step) / 6 + 1e-9);
+        expect(row.z).toBeLessThan(last.z + 1e-6);
+        expect(row.up[2]).toBeLessThan(last.up[2] + 1e-6);
+        expect(Math.abs(row.up[1])).toBeLessThan(1e-6);
+        last = row;
+      }
+      expect(last.z).toBeCloseTo(collar.depth, 4);
+      // Along the rail: its face is square to the way the rail runs across the floor.
+      const tip = armTip(arm, machine.tips[arm]);
+      const run = Math.hypot(tip.x - collar.x, tip.depth - collar.depth);
+      expect((last.up[0] * (tip.x - collar.x) + last.up[2] * (tip.depth - collar.depth)) / run).toBeCloseTo(0, 4);
+      // And there the rail has it: the same place, held the same way. Nothing jumps between the two.
+      const start = at(FEED.arm);
+      expect([start.x, start.y, start.z]).toEqual([collar.x, collar.height, collar.depth].map(Math.fround));
+      last.turn.forEach((value, i) => expect(Math.abs(value)).toBeCloseTo(Math.abs(start.turn[i]), 4));
+    }
+  });
+
+  it('lets a medal go off its arm leaning on its edge, and out of the slot under the hood on its edge, and brings each down flat where it lands', () => {
     const machine = holding([]);
     dropMedal(machine, 40);
     step(machine, ROLL_TIME + 1e-6);
     const [falling] = machine.falling;
-    const at = (remaining: number) => medalRows({ ...machine, falling: [{ ...falling, remaining }] })[0];
+    const at = (remaining: number, source: 'player' | 'payout' = 'player') => medalRows({ ...machine, falling: [{ ...falling, source, remaining }] })[0];
+    // One the player fed leaves the tip of its arm, held as it rolled.
     const start = at(falling.duration);
     expect(start.x).toBeCloseTo(falling.fromX, 4);
-    expect(start.z).toBeCloseTo(RELEASE.depth, 4);
-    // One the player fed drops off the tip of its arm; one the machine pays comes from the top of the back panel.
     expect(start.y).toBeCloseTo(ARMS.tip, 4);
-    const paid = medalRows({ ...machine, falling: [{ ...falling, source: 'payout', remaining: falling.duration }] })[0];
-    expect(paid.y).toBeGreaterThan(RELEASE.height);
-    // On its edge: its faces look along the table, not up.
-    expect(Math.abs(start.up[1])).toBeLessThan(0.05);
+    expect(start.z).toBeCloseTo(ARMS.depth, 4);
+    expect(start.up[1]).toBeCloseTo(Math.sin(ARMS.lean), 4);
+    // One the machine pays starts inside the hood over the screen, straight above where the machine has it, on its edge.
+    const paid = at(falling.duration, 'payout');
+    expect(paid.x).toBeCloseTo(falling.fromX, 4);
+    expect(paid.y).toBeCloseTo(PAYOUT_SLOT.height, 4);
+    expect(paid.z).toBeCloseTo(PAYOUT_SLOT.depth, 4);
+    expect(paid.y).toBeGreaterThan(HOUSING.hood);
     expect(Math.abs(paid.up[1])).toBeLessThan(0.05);
-    const end = at(0);
-    expect(end.x).toBeCloseTo(falling.x, 4);
-    expect(end.z).toBeCloseTo(falling.y, 4);
-    expect(Math.abs(end.up[1])).toBeCloseTo(1, 5);
-    // It only ever comes down, faster and faster, and it turns over on the way.
-    let last = start.y;
-    let flips = 0;
-    let side = Math.sign(start.up[1]) || 1;
-    for (let step = 1; step <= 60; step++) {
-      const row = at(falling.duration * (1 - step / 60));
-      expect(row.y).toBeLessThanOrEqual(last + 1e-6);
-      last = row.y;
-      if (Math.sign(row.up[1]) !== side && Math.abs(row.up[1]) > 0.05) {
-        side = Math.sign(row.up[1]);
-        flips++;
-      }
-      expect(row.contact).toBe(0);
-    }
-    expect(flips).toBeGreaterThanOrEqual(2);
-    // Where it ends is where it lies the moment it has landed on other medals: no jump between the two.
+    // Where either ends is where it lies the moment it has landed on other medals: no jump between the two.
     const landed = medalRows(holding([lying(falling.id, falling.x, falling.y, 1, 1, { grown: 0.3 })]))[0];
-    expect(end.y).toBeCloseTo(landed.y, 4);
+    expect(landed.y).toBeCloseTo(LANDED, 5);
+    for (const source of ['player', 'payout'] as const) {
+      const end = at(0, source);
+      expect(end.x).toBeCloseTo(falling.x, 4);
+      expect(end.z).toBeCloseTo(falling.y, 4);
+      expect(end.y).toBeCloseTo(landed.y, 4);
+      expect(Math.abs(end.up[1])).toBeCloseTo(1, 5);
+      // It only ever comes down. One out of the slot turns over on the way, in front of the screen; one off an
+      // arm only falls over onto its back, and its face never looks down.
+      let last = at(falling.duration, source).y;
+      let flips = 0;
+      let side = Math.sign(at(falling.duration, source).up[1]) || 1;
+      for (let step = 1; step <= 60; step++) {
+        const row = at(falling.duration * (1 - step / 60), source);
+        expect(row.y).toBeLessThanOrEqual(last + 1e-6);
+        last = row.y;
+        if (Math.sign(row.up[1]) !== side && Math.abs(row.up[1]) > 0.05) {
+          side = Math.sign(row.up[1]);
+          flips++;
+        }
+        if (source === 'player') expect(row.up[1]).toBeGreaterThan(0);
+        expect(row.contact).toBe(0);
+      }
+      if (source === 'payout') expect(flips).toBeGreaterThanOrEqual(2);
+      else expect(flips).toBe(0);
+    }
   });
 
   it('brings the medals of a falling tower down from where they stood to the lower table', () => {
@@ -523,15 +674,26 @@ describe('the balls of the 3D field', () => {
     expect(medalRows(machine)).toHaveLength(machine.medals.length - 2);
   });
 
-  it('follows a ball down the back panel and over the front', () => {
+  it('follows a ball out of the hatch, down in front of the screen and over the front', () => {
     const machine = holding([]);
     dropBall(machine);
     const [falling] = machine.falling;
+    // It starts in the hatch, wherever the machine means it to land: its middle just behind the door, in the hood's face.
     const start = ballRows(machine)[0];
-    expect(start[1]).toBeCloseTo(RELEASE.height + BALL_RADIUS, 4);
+    expect(start[0]).toBeCloseTo(HATCH.x, 4);
+    expect(start[1]).toBeCloseTo(HATCH.height, 4);
+    expect(start[2]).toBeLessThan(HATCH.depth);
+    expect(start[2] + BALL_RADIUS).toBeGreaterThan(HATCH.depth);
+    expect(HATCH.radius).toBeGreaterThan(BALL_RADIUS);
+    // On its way down it is in front of the screen, out from the wall by more than its own size.
+    const midway = ballRows({ ...machine, falling: [{ ...falling, remaining: falling.duration / 2 }] })[0];
+    expect(midway[1]).toBeGreaterThan(SCREEN.foot);
+    expect(midway[1]).toBeLessThan(SCREEN.top);
+    expect(midway[2]).toBeGreaterThan(BALL_RADIUS);
     const end = ballRows({ ...machine, falling: [{ ...falling, remaining: 0 }] })[0];
     expect(end[0]).toBeCloseTo(falling.x, 4);
     expect(end[1]).toBeCloseTo(P + BALL_RADIUS, 4);
+    expect(end[2]).toBeCloseTo(falling.y, 4);
     const exit: ExitingMedal = { id: 1, x: 30, y: 100.2, kind: 'won', side: -1, ball: true, age: 0.3 };
     const gone = ballRows(holding([]), [exit])[0];
     expect(gone[1]).toBeLessThan(0);
@@ -698,10 +860,10 @@ describe('the cabinet as shapes', () => {
     expect(solid.data.length).toBeGreaterThanOrEqual(252 * SOLID_STRIDE);
   });
 
-  it('builds the table, the back panel, the walls and the gutters, each run with its picture', () => {
+  it('builds the table, the wall under the screen, the side walls and the gutters, each run with its picture', () => {
     const solid = new Solid(600);
     const parts = buildCabinet(solid);
-    expect(parts.map((part) => part.art)).toEqual(['table', 'panel', 'lip', 'wall', 'plain']);
+    expect(parts.map((part) => part.art)).toEqual(['table', 'foot', 'lip', 'wall', 'plain']);
     // The runs follow one another and take in every corner.
     let next = 0;
     for (const part of parts) {
@@ -719,48 +881,108 @@ describe('the cabinet as shapes', () => {
       expect(corner.u).toBeCloseTo(corner.x / FIELD.width, 6);
       expect(corner.v).toBeCloseTo(corner.z / FIELD.depth, 6);
     }
-    // The back panel stands at depth 0 from the table to its top, facing the player.
-    const panel = corners(solid, parts[1].first, parts[1].count);
-    expect(Math.max(...panel.map((corner) => corner.y))).toBe(PANEL_TOP);
-    for (const corner of panel) {
-      expect(corner.z).toBe(0);
+    // The wall under the screen is one picture on two surfaces: the front of the shelf, which stands out from
+    // the wall, and under it the panel, down to the top of the pusher. Both face the player.
+    const foot = corners(solid, parts[1].first, parts[1].count);
+    expect(foot).toHaveLength(12);
+    const [shelf, panel] = [foot.slice(0, 6), foot.slice(6)];
+    expect([Math.min(...shelf.map((corner) => corner.y)), Math.max(...shelf.map((corner) => corner.y))]).toEqual([HOUSING.shelf, SCREEN.foot]);
+    expect([Math.min(...panel.map((corner) => corner.y)), Math.max(...panel.map((corner) => corner.y))]).toEqual([P, HOUSING.shelf]);
+    for (const corner of shelf) expect(corner.z).toBe(Math.fround(HOUSING.ledge));
+    for (const corner of panel) expect(corner.z).toBe(0);
+    for (const corner of foot) {
       expect(corner.normal).toEqual([0, 0, 1]);
+      // The picture's top is the foot of the screen and its bottom the top of the pusher, whichever of the two a point is on.
+      expect(corner.v).toBeCloseTo((SCREEN.foot - corner.y) / (SCREEN.foot - P), 6);
     }
-    // The walls stop where the sides open, and the two face each other.
+    expect(SHELF_SHARE).toBeCloseTo((SCREEN.foot - HOUSING.shelf) / (SCREEN.foot - P), 12);
+    // The walls stop where the sides open, the two face each other, and they go up to the top, beside the screen.
     const walls = corners(solid, parts[3].first, parts[3].count);
     expect(Math.max(...walls.map((corner) => corner.z))).toBe(FIELD.sideOpenFrom);
     expect(new Set(walls.map((corner) => corner.normal[0]))).toEqual(new Set([1, -1]));
-    // Nothing of the cabinet reaches into the field above the tables, so no medal is ever drawn inside a wall.
-    // What does stand over it hangs on the back panel, higher than the tallest tower: the arms' brackets and collars.
+    expect(Math.max(...walls.map((corner) => corner.y))).toBe(HEIGHT.top);
+    // Nothing of the cabinet reaches into the field above the tables but the housing of the screen, which is
+    // against the back wall: no further out than the hood, and under the hood no further out than a tower can come to.
     for (const corner of corners(solid)) {
       const inside = corner.x > 0.5 && corner.x < FIELD.width - 0.5 && corner.z > 0.5 && corner.z < FIELD.depth - 0.5;
-      if (inside) expect(corner.y <= 0.05 || (corner.y > P + TOWER.max * T + R && corner.z < 5)).toBe(true);
+      if (inside) expect(corner.y <= 0.05 || (corner.y >= HOUSING.shelf && corner.z <= (corner.y >= HOUSING.hood ? HOUSING.out + 0.6 : HOUSING.ledge + 0.1))).toBe(true);
       expect(Number.isFinite(corner.x + corner.y + corner.z)).toBe(true);
     }
+    expect(HOUSING.ledge).toBeLessThan(PUSHER.min - Math.max(...TOWER.rows) - R);
+    expect(HOUSING.shelf).toBeGreaterThan(P + T * 3 + BALL_RADIUS * 2);
   });
 
-  it('hangs a collar of polished metal in each upper corner, big enough to take the rail and a medal going in', () => {
+  it('builds the housing round the screen and leaves the opening in it clear for the page\u2019s screen', () => {
+    const solid = new Solid(600);
+    const all = corners(solid, 0, buildCabinet(solid).reduce((sum, part) => sum + part.count, 0));
+    const opening = { left: SCREEN.left + HOUSING.lap, right: SCREEN.right - HOUSING.lap, foot: SCREEN.foot + HOUSING.lap, top: SCREEN.top - HOUSING.lap };
+    // Nothing solid is drawn over the opening: no surface on the wall covers any point inside it, and nothing stands in front of it.
+    const covers = (a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }, x: number, y: number) => {
+      const side = (p: { x: number; y: number }, q: { x: number; y: number }) => (q.x - p.x) * (y - p.y) - (q.y - p.y) * (x - p.x);
+      const [d1, d2, d3] = [side(a, b), side(b, c), side(c, a)];
+      return (d1 > 1e-6 && d2 > 1e-6 && d3 > 1e-6) || (d1 < -1e-6 && d2 < -1e-6 && d3 < -1e-6);
+    };
+    let onWall = 0;
+    for (let i = 0; i < all.length; i += 3) {
+      const [a, b, c] = [all[i], all[i + 1], all[i + 2]];
+      // A surface that faces the player, on the wall or out from it: the strips, the shelf, the hood, the wall itself.
+      if (Math.abs(a.normal[2]) < 0.2 || Math.min(a.z, b.z, c.z) > HOUSING.out + 1 || Math.max(a.x, b.x, c.x) < 0 || Math.min(a.x, b.x, c.x) > FIELD.width) continue;
+      onWall++;
+      for (const x of [opening.left + 0.01, 30, 50, 70, opening.right - 0.01]) {
+        for (const y of [opening.foot + 0.01, 45, 60, 75, opening.top - 0.01]) expect(covers(a, b, c, x, y)).toBe(false);
+      }
+    }
+    expect(onWall).toBeGreaterThan(40);
+    // The housing laps over each edge of the screen: the wall is closed right up to the opening on every side.
+    const at = (x: number, y: number, z: number) => all.some((corner) => Math.abs(corner.x - x) < 1e-4 && Math.abs(corner.y - y) < 1e-4 && Math.abs(corner.z - z) < 1e-4);
+    expect(at(opening.left, HOUSING.hood, 0)).toBe(true);
+    expect(at(opening.right, HOUSING.hood, 0)).toBe(true);
+    expect(at(FIELD.width + 0.8, opening.foot, 0)).toBe(true);
+    expect(at(FIELD.width + 0.8, opening.top, 0)).toBe(true);
+    expect(opening.left).toBeGreaterThan(SCREEN.left);
+    expect(opening.top).toBeLessThan(SCREEN.top);
+    // The strips beside it and the shelf under it stand out from the wall by the same; the hood over it stands out further, up to the top of the wall.
+    const strips = all.filter((corner) => corner.z === Math.fround(HOUSING.ledge) && corner.y > SCREEN.foot && corner.normal[2] === 1);
+    expect(strips.some((corner) => corner.x < SCREEN.left)).toBe(true);
+    expect(strips.some((corner) => corner.x > SCREEN.right)).toBe(true);
+    expect(Math.max(...strips.map((corner) => corner.y))).toBe(HOUSING.hood);
+    const hood = all.filter((corner) => corner.z === HOUSING.out && corner.normal[2] === 1);
+    expect([Math.min(...hood.map((corner) => corner.y)), Math.max(...hood.map((corner) => corner.y))]).toEqual([HOUSING.hood, HEIGHT.top]);
+    expect(Math.min(...hood.map((corner) => corner.x))).toBeLessThanOrEqual(0);
+    expect(Math.max(...hood.map((corner) => corner.x))).toBeGreaterThanOrEqual(FIELD.width);
+    // Its top is seen from above, and under its face is the lit lip of the gap the machine pays from, all the way across.
+    expect(all.some((corner) => corner.y === HEIGHT.top && corner.normal[1] === 1 && corner.z === HOUSING.out)).toBe(true);
+    const lip = all.filter((corner) => corner.glow >= 1 && corner.z > HOUSING.out && corner.z < HOUSING.out + 0.1 && corner.y <= HOUSING.hood + 0.71);
+    expect(lip).toHaveLength(6);
+    expect(Math.max(...lip.map((corner) => corner.x)) - Math.min(...lip.map((corner) => corner.x))).toBeGreaterThanOrEqual(FIELD.width);
+    // In the middle of the hood's face is the frame of the hatch, round, big enough for a ball, and all of it on the face.
+    const frame = all.filter((corner) => corner.z === HOUSING.out + 0.5 && Math.hypot(corner.x - HATCH.x, corner.y - HATCH.height) < HATCH.radius + 1e-3);
+    expect(frame.length).toBeGreaterThan(100);
+    expect(Math.max(...frame.map((corner) => Math.hypot(corner.x - HATCH.x, corner.y - HATCH.height)))).toBeCloseTo(HATCH.radius, 4);
+    expect(HATCH.radius).toBeGreaterThan(BALL_RADIUS);
+    // None of it is behind the wall.
+    expect(Math.min(...all.map((corner) => corner.z))).toBeGreaterThanOrEqual(0);
+  });
+
+  it('hangs each slot on a bracket that comes in from the cabinet\u2019s frame at a front corner', () => {
     const solid = new Solid(600);
     const plain = buildCabinet(solid).find((part) => part.art === 'plain');
     if (!plain) throw new Error('no plain part');
     const all = corners(solid, plain.first, plain.count);
     for (const arm of [0, 1] as const) {
       const collar = armCollar(arm);
-      const round = all.filter((corner) => Math.hypot(corner.x - collar.x, corner.y - collar.height) < 3.5 && corner.y < collar.height + 3.5);
-      const widest = Math.max(...round.map((corner) => Math.hypot(corner.x - collar.x, corner.y - collar.height)));
-      // Wider than a medal, and standing out past the plane the medals roll in by more than a medal is thick.
-      expect(widest).toBeGreaterThan(R);
-      expect(widest).toBeLessThan(R + 0.5);
-      expect(Math.max(...round.map((corner) => corner.z))).toBeGreaterThan(collar.depth + T);
-      expect(Math.min(...round.map((corner) => corner.z))).toBe(0);
-      // Its side is polished, and there is a ring of light in its face.
-      expect(round.some((corner) => corner.gloss === 1 && Math.abs(corner.normal[2]) < 1e-6)).toBe(true);
-      expect(round.some((corner) => corner.glow > 0.5 && corner.normal[2] === 1)).toBe(true);
+      const out = arm === 0 ? -1 : 1;
+      const bar = all.filter((corner) => (corner.x - FIELD.width / 2) * out > 0 && Math.abs(corner.y - collar.height) < 1.31 && corner.z > collar.depth - 3.5 && corner.z < collar.depth);
+      expect(bar).toHaveLength(24);
+      // From inside the slot's body, out past the side of the field to where the picture ends.
+      const reach = bar.map((corner) => (corner.x - collar.x) * out);
+      expect(Math.min(...reach)).toBeLessThan(SLOT.ring);
+      expect(Math.min(...reach)).toBeGreaterThan(0);
+      const edge = project(arm === 0 ? 0 : FIELD.width, collar.height, collar.depth);
+      const end = project(collar.x + Math.max(...reach) * out, collar.height, collar.depth);
+      expect(arm === 0 ? end.x : VIEW.width - end.x).toBeLessThan(0);
+      expect(arm === 0 ? edge.x : VIEW.width - edge.x).toBeLessThan(0);
     }
-    // The two are the same, one in each corner.
-    const near = (arm: 0 | 1) => all.filter((corner) => Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) < 3.5 && corner.z > 0.5).length;
-    expect(near(0)).toBe(near(1));
-    expect(near(0)).toBeGreaterThan(100);
   });
 
   /** The moving parts at a moment of a new machine's life, its arms' tips wherever they are put. */
@@ -794,7 +1016,16 @@ describe('the cabinet as shapes', () => {
     }
   });
 
-  it('hangs each feed arm from its collar to its tip, wherever the tip is', () => {
+  /** Where a point is on an arm's rail: how far along it from the collar, how far down toward the edge a medal stands on, and how far across to the side its face looks to. */
+  const onRail = (frame: ReturnType<typeof railFrame>, point: { x: number; y: number; z: number }) => {
+    const v: Spot = { x: point.x - frame.from.x, height: point.y - frame.from.height, depth: point.z - frame.from.depth };
+    // The three directions are not quite square to one another, so the point is worked out from all three at once.
+    const det = (a: Spot, b: Spot, c: Spot) => a.x * (b.height * c.depth - b.depth * c.height) - a.height * (b.x * c.depth - b.depth * c.x) + a.depth * (b.x * c.height - b.height * c.x);
+    const whole = det(frame.along, frame.foot, frame.face);
+    return { far: det(v, frame.foot, frame.face) / whole, down: det(frame.along, v, frame.face) / whole, across: det(frame.along, frame.foot, v) / whole };
+  };
+
+  it('runs each rail from its slot to its tip, wherever the tip is: a thin channel with a medal\u2019s edge in it', () => {
     fakeDocument();
     for (const tips of [
       [20, 80],
@@ -802,46 +1033,130 @@ describe('the cabinet as shapes', () => {
       [9, 55],
     ] as [number, number][]) {
       const { solid, machine } = moving(1, 50, undefined, tips);
-      // The arms have a run of their own; here one is on each side of the middle.
+      // The rails have a run of their own: five strips each, the left arm's first.
       const rails = corners(solid, MOVING_PARTS[2].first, MOVING_PARTS[2].count);
-      expect(rails.every((corner) => corner.y > P + 1)).toBe(true);
+      expect(rails).toHaveLength(2 * 5 * 6);
       for (const arm of [0, 1] as const) {
-        const own = rails.filter((corner) => (arm === 0 ? corner.x < tips[0] + 5 : corner.x > tips[1] - 5));
-        expect(own.length).toBeGreaterThan(50);
-        const from = armCollar(arm);
-        const to = armTip(arm, armTipAt(machine, arm));
-        const length = Math.hypot(to.x - from.x, to.height - from.height);
-        const along = [(to.x - from.x) / length, (to.height - from.height) / length];
-        const far = own.map((corner) => (corner.x - from.x) * along[0] + (corner.y - from.height) * along[1]);
-        const off = own.map((corner) => Math.abs((corner.x - from.x) * along[1] - (corner.y - from.height) * along[0]));
-        // The rail runs from behind the collar, where the collar hides its end, to a hood that goes round the tip.
-        expect(Math.min(...far)).toBeLessThan(0);
-        expect(Math.min(...far)).toBeGreaterThan(-3);
-        expect(Math.max(...far)).toBeGreaterThan(length + R);
-        expect(Math.max(...far)).toBeLessThan(length + R + 1.2);
-        // Its two bars leave room for a medal between them, and it is nowhere wider than that and a little.
-        expect(Math.max(...off)).toBeGreaterThan(R);
-        expect(Math.max(...off)).toBeLessThan(R + 1.2);
-        // The channel has the plane the medals roll in between its back and its front, with room for a medal's thickness.
-        expect(Math.min(...own.map((corner) => corner.z))).toBeLessThan(ARMS.depth - T / 2);
-        expect(Math.min(...own.map((corner) => corner.z))).toBeGreaterThan(0);
-        expect(Math.max(...own.map((corner) => corner.z))).toBeGreaterThan(ARMS.depth + T / 2);
-        // A medal anywhere on the rail is inside it.
-        for (const remaining of [ROLL_TIME, ROLL_TIME / 2, 0]) {
+        const frame = railFrame(arm, armTipAt(machine, arm));
+        const own = rails.slice(arm * 30, arm * 30 + 30).map((corner) => onRail(frame, corner));
+        // From where it comes out of the slot's body to a little past the tip.
+        expect(Math.min(...own.map((at) => at.far))).toBeCloseTo(3, 3);
+        expect(Math.max(...own.map((at) => at.far))).toBeCloseTo(frame.length + 0.6, 3);
+        expect(3).toBeLessThan(4.2);
+        // Its floor is under the edge a medal stands on; the wall the medal leans on and the tube of light along
+        // the top of it come up behind the medal, but not as far as its middle.
+        expect(Math.max(...own.map((at) => at.down))).toBeCloseTo(R, 4);
+        expect(Math.min(...own.map((at) => at.down))).toBeGreaterThan(0);
+        expect(Math.min(...own.map((at) => at.down))).toBeLessThan(R - 2);
+        // Thin: wider than a medal is thick, so the medal stands in it, and much narrower than a medal is wide.
+        const across = own.map((at) => at.across);
+        expect(Math.max(...across) - Math.min(...across)).toBeGreaterThan(T);
+        expect(Math.max(...across) - Math.min(...across)).toBeLessThan(R / 2);
+        expect(Math.min(...across)).toBeCloseTo(-Math.max(...across), 4);
+        // All of it is over the tables, higher than the tallest tower.
+        for (const corner of rails.slice(arm * 30, arm * 30 + 30)) expect(corner.y).toBeGreaterThan(P + TOWER.max * T);
+        // A medal anywhere on the rail has its edge on the floor, in the middle of the channel.
+        for (const remaining of [FEED.arm, FEED.arm / 2, 0]) {
           const spot = rollingSpot(arm, armTipAt(machine, arm), remaining);
-          const offLine = Math.abs((spot.x - from.x) * along[1] - (spot.height - from.height) * along[0]);
-          expect(offLine).toBeLessThan(1e-9);
+          const edge = onRail(frame, { x: spot.x + frame.foot.x * R, y: spot.height + frame.foot.height * R, z: spot.depth + frame.foot.depth * R });
+          expect(edge.down).toBeCloseTo(R, 9);
+          expect(edge.across).toBeCloseTo(0, 9);
+          expect(edge.far).toBeGreaterThanOrEqual(-1e-9);
+          expect(edge.far).toBeLessThanOrEqual(frame.length + 1e-9);
         }
       }
+      // Under each rail is its shade: broader than the rail, just under its floor, and as long.
+      const shades = corners(solid, MOVING_PARTS[3].first, MOVING_PARTS[3].count);
+      expect(shades).toHaveLength(2 * 6);
+      for (const arm of [0, 1] as const) {
+        const frame = railFrame(arm, armTipAt(machine, arm));
+        const own = shades.slice(arm * 6, arm * 6 + 6).map((corner) => onRail(frame, corner));
+        expect(Math.max(...own.map((at) => at.across))).toBeGreaterThan(1.2);
+        expect(Math.min(...own.map((at) => at.across))).toBeLessThan(-1.2);
+        for (const at of own) expect(at.down).toBeGreaterThan(R);
+        expect(Math.max(...own.map((at) => at.far))).toBeCloseTo(frame.length + 0.6, 3);
+      }
     }
-    // Only the pusher throws a shadow. A rail's would be two thin lines on the pusher under it, which look like
-    // scratches; the gates and their signs are lights. So the arms come after everything that casts.
-    expect(MOVING_CAST).toBe(2);
-    expect(MOVING_PARTS.map((part) => part.art)).toEqual(['pusher', 'plain', 'plain', 'plain', 'sign']);
+    // The pusher throws a shadow, and so do the rails, by way of the shades under them, which are not in the
+    // picture. Everything that casts comes first, in one stretch; the slots, the gates and their signs are lights.
+    expect(MOVING_CAST).toBe(4);
+    expect(MOVING_PARTS.map((part) => part.art)).toEqual(['pusher', 'plain', 'plain', 'plain', 'plain', 'plain', 'sign']);
+    expect(MOVING_PARTS.map((part) => part.unseen === true)).toEqual([false, false, false, true, false, false, false]);
     const { solid } = moving(1);
-    const casting = corners(solid, 0, MOVING_PARTS[0].count + MOVING_PARTS[1].count);
-    expect(MOVING_PARTS[1].first).toBe(MOVING_PARTS[0].count);
-    expect(Math.max(...casting.map((corner) => corner.y))).toBe(P);
+    let next = 0;
+    for (const part of MOVING_PARTS) {
+      expect(part.first).toBe(next);
+      expect(part.count % 6).toBe(0);
+      expect(part.count).toBeGreaterThan(0);
+      next += part.count;
+    }
+    expect(next).toBe(solid.count);
+    const pusher = corners(solid, 0, MOVING_PARTS[0].count + MOVING_PARTS[1].count);
+    expect(Math.max(...pusher.map((corner) => corner.y))).toBe(P);
+  });
+
+  it('builds each slot as a boss with a mouth for a medal inside a ring of light, which flashes as a medal is taken', () => {
+    fakeDocument();
+    /** The corners of one slot, and the hatch's door, as the fittings were last built. */
+    const fittings = (machine: Machine, aim: number) => {
+      const solid = new Solid(100);
+      buildMoving(solid, machine, 40, createStage(1, false), { aim, showGuide: false });
+      const all = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
+      const slot = (arm: 0 | 1) => all.filter((corner) => Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) < SLOT.ring + 1e-3 && corner.z > 100);
+      const door = all.filter((corner) => Math.hypot(corner.x - HATCH.x, corner.y - HATCH.height) < HATCH.radius && corner.z < 10);
+      return { all, slot, door };
+    };
+    const machine = createMachine(3);
+    const idle = fittings(machine, 30);
+    expect(idle.all).toHaveLength(idle.slot(0).length + idle.slot(1).length + idle.door.length);
+    for (const arm of [0, 1] as const) {
+      const collar = armCollar(arm);
+      const slot = idle.slot(arm);
+      // Round, wider than a medal, with its face toward the player in front of the collar and its body behind it, round the end of the rail.
+      expect(Math.max(...slot.map((corner) => Math.hypot(corner.x - collar.x, corner.y - collar.height)))).toBeCloseTo(SLOT.ring, 4);
+      expect(SLOT.ring).toBeGreaterThan(R);
+      const face = Math.max(...slot.filter((corner) => corner.gloss === 1).map((corner) => corner.z));
+      expect(face).toBeGreaterThan(collar.depth);
+      expect(Math.min(...slot.map((corner) => corner.z))).toBeLessThan(collar.depth - 3);
+      // Its side is polished; in its face is a ring of light, and inside that the mouth: dark, upright, as wide
+      // as a medal is thick and a little taller than a medal.
+      expect(slot.some((corner) => corner.gloss === 1 && Math.abs(corner.normal[2]) < 1e-6)).toBe(true);
+      const mouth = slot.filter((corner) => corner.colour.every((value) => value === 0));
+      expect(mouth).toHaveLength(6);
+      const wide = Math.max(...mouth.map((corner) => corner.x)) - Math.min(...mouth.map((corner) => corner.x));
+      const tall = Math.max(...mouth.map((corner) => corner.y)) - Math.min(...mouth.map((corner) => corner.y));
+      expect(wide).toBeGreaterThan(T);
+      expect(wide).toBeLessThan(T * 2);
+      expect(tall).toBeGreaterThan(R * 2);
+      expect(tall).toBeLessThan(R * 2 + 1);
+      for (const corner of mouth) expect(corner.z).toBeGreaterThan(face);
+    }
+    /** How bright the ring in a slot's face is: its brightest self-lit corner outside the mouth's own edge. */
+    const ring = (slot: ReturnType<typeof corners>, arm: 0 | 1) => Math.max(...slot.filter((corner) => corner.glow > 0 && Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) > SLOT.ring * 0.6).map((corner) => corner.glow));
+    // The slot on the side of the aim is the brighter of the two, whichever side that is.
+    expect(ring(idle.slot(0), 0)).toBeGreaterThan(ring(idle.slot(1), 1));
+    const right = fittings(machine, 70);
+    expect(ring(right.slot(1), 1)).toBe(ring(idle.slot(0), 0));
+    expect(ring(right.slot(0), 0)).toBe(ring(idle.slot(1), 1));
+    // While a medal is being taken in, that slot's ring is brighter still, and another colour.
+    dropMedal(machine, 30);
+    const taking = fittings(machine, 30);
+    expect(ring(taking.slot(0), 0)).toBeGreaterThan(ring(idle.slot(0), 0));
+    const colour = (slot: ReturnType<typeof corners>, arm: 0 | 1) => slot.filter((corner) => corner.glow > 1 || (corner.glow > 0 && Math.hypot(corner.x - armCollar(arm).x, corner.y - armCollar(arm).height) > SLOT.ring * 0.75))[0].colour;
+    expect(colour(taking.slot(0), 0)).not.toEqual(colour(idle.slot(0), 0));
+    // Once it is on the rail the ring goes back.
+    step(machine, FEED.slot + 0.05);
+    expect(ring(fittings(machine, 30).slot(0), 0)).toBe(ring(idle.slot(0), 0));
+    // The door of the hatch is shut, glossy and coloured, until a ball is let go: then it stands open, dark, for a moment.
+    expect(idle.door.length).toBeGreaterThan(50);
+    expect(idle.door.every((corner) => corner.gloss > 0.5)).toBe(true);
+    dropBall(machine);
+    const open = fittings(machine, 30).door;
+    expect(open).toHaveLength(idle.door.length);
+    expect(open.every((corner) => corner.gloss === 0)).toBe(true);
+    expect(Math.max(...open.flatMap((corner) => corner.colour))).toBeLessThan(Math.max(...idle.door.flatMap((corner) => corner.colour)) / 4);
+    step(machine, FALL_TIME * 0.8);
+    expect(fittings(machine, 30).door.every((corner) => corner.gloss > 0.5)).toBe(true);
   });
 
   it('lights the arm that takes the next medal, and one with a medal on its rail', () => {
@@ -867,37 +1182,97 @@ describe('the cabinet as shapes', () => {
     expect(lit(machine, 80)).toEqual([leftAtLeft, leftAtLeft]);
   });
 
-  it('throws the shadow of an arm, and of each medal on it, on the back panel', () => {
+  it('lays on the screen the shadow of whatever the machine lets go in front of it, and nothing of the arms', () => {
     fakeDocument();
-    const machine = createMachine(3);
+    const machine = holding([]);
     const touches = () => {
       const flat = new Flat(600);
       buildTouches(flat, machine, 40, createStage(1, false), { aim: 30, showGuide: false });
       return flat;
     };
-    // The arms are swung over the aim first, so the rail is as long with a medal on it as without.
-    aimArms(machine, 30);
-    step(machine, 1);
+    /** The middle and the size of every round spot of dark laid just off the wall: each is six corners, the first and the third opposite. */
+    const spots = (flat: Flat) => {
+      const found: { x: number; y: number; size: number; cover: number }[] = [];
+      for (let at = 0; at < flat.count * FLAT_STRIDE; at += 6 * FLAT_STRIDE) {
+        const opposite = at + 2 * FLAT_STRIDE;
+        if (flat.data[at + 10] !== SHAPE.spot || flat.data[at + 6] < 0.1 || flat.data[at + 2] > 0.1) continue;
+        found.push({ x: (flat.data[at] + flat.data[opposite]) / 2, y: (flat.data[at + 1] + flat.data[opposite + 1]) / 2, size: Math.abs(flat.data[opposite] - flat.data[at]) / 2, cover: flat.data[at + 6] });
+      }
+      return found;
+    };
     const empty = touches();
+    expect(spots(empty)).toEqual([]);
+    // A medal on a rail lays nothing on the wall. The rails are out over the tables, and what they shade there is the lamp's doing.
+    aimArms(machine, 30);
     dropMedal(machine, 30);
-    step(machine, ROLL_TIME / 2);
+    step(machine, FEED.slot + 0.3);
+    expect(machine.rolling).toHaveLength(1);
+    expect(touches().count).toBe(empty.count);
+    step(machine, ROLL_TIME);
+    expect(machine.falling.map((medal) => medal.source)).toEqual(['player']);
+    expect(spots(touches())).toEqual([]);
+    step(machine, FALL_TIME);
+    // A medal the machine pays, half way down in front of the screen: one round spot of dark on the glass, down and to the right of it.
+    const paid = { id: 900, x: 40, y: 10, level: 1 as const, fromX: 40, fromY: RELEASE.depth, rank: 0, ball: false, remaining: FALL_TIME * 0.5, duration: FALL_TIME, source: 'payout' as const };
+    machine.falling = [paid];
     const flat = touches();
-    // One more touch than with nothing on the rail: the medal's shadow, a round spot of dark just off the panel.
     expect(flat.count).toBe(empty.count + 6);
-    const spot = rollingSpot(0, armTipAt(machine, 0), machine.rolling[0].remaining);
-    // The middle of every round spot of dark laid on the panel: each is six corners, the first and the third opposite.
-    const spots: { x: number; y: number }[] = [];
+    const [shadow] = spots(flat);
+    const at = airSpot(paid, LANDED);
+    expect(at.height).toBeGreaterThan(SCREEN.foot);
+    expect(shadow.x).toBeGreaterThan(at.x);
+    expect(shadow.x - at.x).toBeLessThan(R * 2);
+    expect(shadow.y).toBeLessThan(at.height);
+    expect(at.height - shadow.y).toBeLessThan(R * 3);
+    // A little bigger than the medal, and soft.
+    expect(shadow.size).toBeGreaterThan(R);
+    expect(shadow.size).toBeLessThan(R * 2);
+    expect(shadow.cover).toBeLessThan(0.5);
+    // A ball throws a bigger and darker one, from the hatch on down.
+    machine.falling = [{ ...paid, ball: true, remaining: FALL_TIME * 0.6 }];
+    const [round] = spots(touches());
+    expect(round.size).toBeGreaterThan(BALL_RADIUS);
+    expect(round.cover).toBeGreaterThan(shadow.cover);
+    // By the time either is down past the shelf it is over the heap, and there is nothing of it on the glass.
+    machine.falling = [{ ...paid, remaining: FALL_TIME * 0.05 }];
+    expect(spots(touches())).toEqual([]);
+    // While the ball has only just left, the hatch behind it is open and glows.
+    machine.falling = [{ ...paid, ball: true, remaining: FALL_TIME * 0.9 }];
+    const glowing = touches();
+    machine.falling = [{ ...paid, ball: true, remaining: FALL_TIME * 0.2 }];
+    expect(glowing.count - touches().count).toBeGreaterThanOrEqual(0);
+  });
+
+  it('lays a shade under the hood on the top of the screen and two bands of light across the glass, every frame', () => {
+    fakeDocument();
+    const flat = new Flat(600);
+    buildTouches(flat, holding([]), 40, createStage(1, false), { aim: 50, showGuide: false });
+    const onGlass: { xs: number[]; ys: number[]; cover: number; shine: number }[] = [];
     for (let at = 0; at < flat.count * FLAT_STRIDE; at += 6 * FLAT_STRIDE) {
-      const opposite = at + 2 * FLAT_STRIDE;
-      if (flat.data[at + 10] !== SHAPE.spot || flat.data[at + 6] < 0.3 || flat.data[at + 2] > 0.1) continue;
-      spots.push({ x: (flat.data[at] + flat.data[opposite]) / 2, y: (flat.data[at + 1] + flat.data[opposite + 1]) / 2 });
+      const cornersOf = [0, 1, 2, 5].map((corner) => at + corner * FLAT_STRIDE);
+      if (cornersOf.some((corner) => Math.abs(flat.data[corner + 2]) > 0.06)) continue;
+      const ys = cornersOf.map((corner) => flat.data[corner + 1]);
+      if (Math.min(...ys) < SCREEN.foot) continue;
+      onGlass.push({ xs: cornersOf.map((corner) => flat.data[corner]), ys, cover: flat.data[at + 6], shine: flat.data[at + 7] });
     }
-    // Each collar has one, and so has the medal: to its lower right, as the 2D drawing has it, and close by.
-    expect(spots).toHaveLength(3);
-    const own = spots.filter((shadow) => Math.hypot(shadow.x - spot.x, shadow.y - spot.height) < R);
-    expect(own).toHaveLength(1);
-    expect(own[0].x).toBeGreaterThan(spot.x);
-    expect(own[0].y).toBeLessThan(spot.height);
+    expect(onGlass).toHaveLength(3);
+    for (const touch of onGlass) {
+      // Each is inside the opening: it is the page's screen it shades or lights.
+      expect(Math.min(...touch.xs)).toBeGreaterThanOrEqual(SCREEN.left + HOUSING.lap - 1e-4);
+      expect(Math.max(...touch.xs)).toBeLessThanOrEqual(SCREEN.right - HOUSING.lap + 1e-4);
+      expect(Math.max(...touch.ys)).toBeLessThanOrEqual(SCREEN.top - HOUSING.lap + 1e-4);
+    }
+    const [shade, ...bands] = onGlass;
+    expect(shade.cover).toBeGreaterThan(0.3);
+    expect(Math.min(...shade.ys)).toBeGreaterThan(SCREEN.top - 12);
+    // The bands are light only, faint, and slant across the glass from top to foot.
+    for (const band of bands) {
+      expect(band.cover).toBe(0);
+      expect(band.shine).toBeGreaterThan(0);
+      expect(band.shine).toBeLessThan(0.1);
+      expect(Math.max(...band.ys) - Math.min(...band.ys)).toBeGreaterThan(50);
+      expect(band.xs[0]).not.toBeCloseTo(band.xs[3], 0);
+    }
   });
 
   it('draws every gate and its sign where the sweep has taken it, and lights one a medal came through', () => {
@@ -905,16 +1280,16 @@ describe('the cabinet as shapes', () => {
     for (const time of [0, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4]) {
       const { solid } = moving(time);
       const centres = checkerCentres(time);
-      const gates = corners(solid, MOVING_PARTS[3].first, MOVING_PARTS[3].count);
-      const signs = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
+      const gates = corners(solid, MOVING_PARTS[5].first, MOVING_PARTS[5].count);
+      const signs = corners(solid, MOVING_PARTS[6].first, MOVING_PARTS[6].count);
       expect(signs).toHaveLength(6 * CHECKERS.positions.length);
       centres.forEach((centre, gate) => {
         const sign = signs.slice(gate * 6, gate * 6 + 6);
         const xs = sign.map((corner) => corner.x);
         expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(centre, 4);
-        // The sign rides above the gate's opening, on the back panel.
+        // The sign rides above the gate's opening, on the wall under the shelf.
         expect(Math.min(...sign.map((corner) => corner.y))).toBeGreaterThan(P + GATE.height);
-        expect(Math.max(...sign.map((corner) => corner.y))).toBeLessThan(HEIGHT.wall);
+        expect(Math.max(...sign.map((corner) => corner.y))).toBeLessThan(HOUSING.shelf);
         // Each gate is three tubes round an opening as wide as a medal that just goes through on either side.
         const tubes = gates.slice(gate * 72, gate * 72 + 72).map((corner) => corner.x);
         expect((Math.min(...tubes) + Math.max(...tubes)) / 2).toBeCloseTo(centre, 4);
@@ -927,49 +1302,97 @@ describe('the cabinet as shapes', () => {
     const stage = createStage(1, false);
     lightGate(stage, 2);
     const lit = moving(1, 50, stage);
-    const tube = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[3].first + gate * 72, 1)[0].colour;
+    const tube = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[5].first + gate * 72, 1)[0].colour;
     expect(tube(lit.solid, 2)).not.toEqual(tube(dark.solid, 2));
     expect(tube(lit.solid, 0)).toEqual(tube(dark.solid, 0));
-    const sign = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[4].first + gate * 6, 1)[0].glow;
+    const sign = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[6].first + gate * 6, 1)[0].glow;
     expect(sign(lit.solid, 2)).toBeGreaterThan(sign(dark.solid, 2));
   });
 
-  it('has a pin for every pin of the 2D panel, and the bulbs in their rows', () => {
+  it('has the bulbs in their rows, the hold\u2019s lamps lit from the machine, a lamp at each arm\u2019s tip, and the studs', () => {
     fakeDocument();
-    const beads = createRows(BEAD_STRIDE, 16);
-    const flat = new Flat(16);
-    buildLamps(beads, flat, 40, 1, false);
-    const bulbs = LAMP_ROWS.top + LAMP_ROWS.rail * 2 + LAMP_ROWS.tray + LAMP_ROWS.face;
-    expect(beads.count).toBe(pinSpots().length + bulbs);
-    expect(pinSpots()).toHaveLength(65);
-    // Every bulb lights the surface it is on: one round touch each.
-    expect(flat.count).toBe(bulbs * 6);
-    const kinds = Array.from({ length: beads.count }, (_, index) => beads.data[index * BEAD_STRIDE + 7]);
-    expect(kinds.filter((kind) => kind === BEAD.pin)).toHaveLength(65);
-    for (const kind of kinds.slice(65)) {
+    const machine = createMachine(3);
+    aimArms(machine, 30);
+    step(machine, 0.5);
+    const lamps = (stock: number, front = 40, wave = 1, partying = false) => {
+      const beads = createRows(BEAD_STRIDE, 16);
+      const flat = new Flat(16);
+      buildLamps(beads, flat, machine, front, wave, partying, { aim: 30, showGuide: false, stock });
+      const bead = (index: number) => Array.from(beads.data.subarray(index * BEAD_STRIDE, (index + 1) * BEAD_STRIDE));
+      return { beads, flat, bead, kinds: Array.from({ length: beads.count }, (_, index) => beads.data[index * BEAD_STRIDE + 7]) };
+    };
+    const bulbs = LAMP_ROWS.hood + LAMP_ROWS.strip * 2 + LAMP_ROWS.rail * 2 + LAMP_ROWS.tray + LAMP_ROWS.face;
+    const { beads, flat, bead, kinds } = lamps(3);
+    expect(LAMP_ROWS.hold).toBe(8);
+    expect(beads.count).toBe(bulbs + LAMP_ROWS.hold + 2 + STUDS);
+    // Every bulb in a row lights the surface it is on, one round touch each; and so does each lamp of the hold that is lit.
+    expect(flat.count).toBe((bulbs + 3) * 6);
+    for (const kind of kinds.slice(0, bulbs)) {
       expect(kind).toBeGreaterThanOrEqual(2);
       expect(kind).toBeLessThanOrEqual(3);
     }
     // The glow travels: a third of a cycle from one bulb to the next, so every third bulb is as bright.
-    const top = kinds.slice(65, 65 + LAMP_ROWS.top);
-    expect(top[3]).toBeCloseTo(top[0], 5);
-    expect(top[1]).not.toBeCloseTo(top[0], 2);
+    expect(kinds[3]).toBeCloseTo(kinds[0], 5);
+    expect(kinds[1]).not.toBeCloseTo(kinds[0], 2);
+    // The first row is across the hood's face, on it, clear of the hatch; the next two are down the strips beside the screen.
+    for (let i = 0; i < LAMP_ROWS.hood; i++) {
+      const [x, y, z] = bead(i);
+      expect(y).toBeGreaterThan(HOUSING.hood);
+      expect(y).toBeLessThan(HEIGHT.top);
+      expect(z).toBeGreaterThan(HOUSING.out);
+      expect(Math.abs(x - HATCH.x)).toBeGreaterThan(HATCH.radius + 2);
+    }
+    for (let i = LAMP_ROWS.hood; i < LAMP_ROWS.hood + LAMP_ROWS.strip * 2; i++) {
+      const [x, y] = bead(i);
+      expect(x < SCREEN.left || x > SCREEN.right).toBe(true);
+      expect(y).toBeGreaterThan(SCREEN.foot);
+      expect(y).toBeLessThan(HOUSING.hood);
+    }
+    // The hold: eight lamps in a row on the front of the shelf, under the screen, as many lit as the machine holds spins, from the left.
+    const hold = Array.from({ length: LAMP_ROWS.hold }, (_, i) => bead(bulbs + i));
+    hold.forEach(([x, y, z, radius, , , , kind], i) => {
+      expect(x).toBeCloseTo(HOLD_LAMPS.first + HOLD_LAMPS.step * i, 5);
+      expect(y).toBeGreaterThan(HOUSING.shelf);
+      expect(y).toBeLessThan(SCREEN.foot);
+      expect(z).toBeGreaterThan(HOUSING.ledge);
+      expect(radius).toBeCloseTo(HOLD_LAMPS.radius, 5);
+      expect(kind).toBeCloseTo(i < 3 ? BEAD.bulb(1) : BEAD.bulb(0.03), 5);
+    });
+    expect(HOLD_LAMPS.step).toBeGreaterThan(HOLD_LAMPS.radius * 2);
+    expect(hold[7][0] + HOLD_LAMPS.radius).toBeLessThan(SCREEN.right);
+    expect(HOLD_LAMPS.label).toBeLessThan(HOLD_LAMPS.first - HOLD_LAMPS.radius);
+    for (const [stock, lit] of [
+      [0, 0],
+      [8, 8],
+      [11, 8],
+    ]) {
+      const other = lamps(stock);
+      expect(other.kinds.slice(bulbs, bulbs + LAMP_ROWS.hold).filter((kind) => kind > 2.5)).toHaveLength(lit);
+      expect(other.flat.count).toBe((bulbs + lit) * 6);
+    }
+    // A lamp at the far end of each rail marks where a medal will leave it: bright on the arm that takes the next medal.
+    for (const arm of [0, 1] as const) {
+      const [x, y, z, , , , , kind] = bead(bulbs + LAMP_ROWS.hold + arm);
+      const tip = armTip(arm, machine.tips[arm]);
+      expect(Math.hypot(x - tip.x, y - tip.height, z - tip.depth)).toBeLessThan(R + 1);
+      expect(kind).toBeCloseTo(arm === 0 ? BEAD.bulb(1) : BEAD.bulb(0.2), 5);
+    }
+    expect(kinds.slice(-STUDS)).toEqual(Array.from({ length: STUDS }, () => BEAD.stud));
     // With motion reduced the wave stands still at its start, and the pusher's bulbs still ride on its face.
-    const calm = createRows(BEAD_STRIDE, 256);
-    buildLamps(calm, new Flat(1200), 31, 0, false);
-    buildLamps(beads, flat.clear(), 31, 0, false);
-    expect(Array.from(calm.data.subarray(0, calm.count * BEAD_STRIDE))).toEqual(Array.from(beads.data.subarray(0, beads.count * BEAD_STRIDE)));
-    const face = (beads.count - 1) * BEAD_STRIDE;
-    expect(beads.data[face + 2]).toBeGreaterThan(31);
-    expect(beads.data[face + 2]).toBeLessThan(31.5);
-    // A fever or a jackpot changes the colours of the lamps and nothing else.
-    const party = createRows(BEAD_STRIDE, 256);
-    buildLamps(party, new Flat(1200), 31, 0, true);
-    expect(party.count).toBe(beads.count);
-    expect(Array.from(party.data.subarray(65 * BEAD_STRIDE, 70 * BEAD_STRIDE))).not.toEqual(Array.from(beads.data.subarray(65 * BEAD_STRIDE, 70 * BEAD_STRIDE)));
+    const calm = lamps(3, 31, 0);
+    const again = lamps(3, 31, 0);
+    expect(Array.from(calm.beads.data.subarray(0, calm.beads.count * BEAD_STRIDE))).toEqual(Array.from(again.beads.data.subarray(0, again.beads.count * BEAD_STRIDE)));
+    const face = calm.bead(bulbs - 1);
+    expect(face[2]).toBeGreaterThan(31);
+    expect(face[2]).toBeLessThan(31.5);
+    // A fever or a jackpot changes the colours of the running lamps and nothing else.
+    const party = lamps(3, 31, 0, true);
+    expect(party.beads.count).toBe(calm.beads.count);
+    expect(party.bead(2).slice(4, 7)).not.toEqual(calm.bead(2).slice(4, 7));
+    expect(party.bead(bulbs)).toEqual(calm.bead(bulbs));
   });
 
-  it('lays the aim guide on the back panel only when it is asked for', () => {
+  it('hangs the aim guide from the tip of the arm that takes the next medal, only when it is asked for', () => {
     fakeDocument();
     const machine = createMachine(3);
     const touches = (showGuide: boolean, aim = 50) => {
@@ -977,9 +1400,11 @@ describe('the cabinet as shapes', () => {
       buildTouches(flat, machine, pusherFront(0), createStage(1, false), { aim, showGuide });
       return flat;
     };
-    /** Whether some touch has a corner on the back panel at the height a medal drops off an arm, this far across. */
+    /** Whether some touch has a corner at the foot of a medal at an arm's tip, this far across: out over the pusher, where the tip is. */
     const tipAt = (flat: Flat, x: number) =>
-      Array.from({ length: flat.count }, (_, i) => i * FLAT_STRIDE).some((at) => Math.abs(flat.data[at] - x) < 1e-4 && Math.abs(flat.data[at + 1] - ARMS.tip) < 1e-6 && Math.abs(flat.data[at + 2] - 0.1) < 1e-6);
+      Array.from({ length: flat.count }, (_, i) => i * FLAT_STRIDE).some(
+        (at) => Math.abs(flat.data[at] - x) < 1e-4 && Math.abs(flat.data[at + 1] - (ARMS.tip - R)) < 1e-4 && Math.abs(flat.data[at + 2] - ARMS.depth) < 1e-4,
+      );
     // The aim is to the left, and the left arm has not swung there yet: the guide hangs under its tip, where a medal would leave now.
     aimArms(machine, 30);
     const without = touches(false, 30);
@@ -1033,6 +1458,8 @@ interface FakeGl {
   alive: () => Record<string, number>;
   made: () => number;
   calls: Record<string, number>;
+  /** Every colour a clear was set to, as it was asked for. */
+  cleared: number[][];
   /** Every sharpness a texture was asked to have when seen at a slant. */
   sharpness: number[];
   state: {
@@ -1065,6 +1492,7 @@ function fakeGl(): FakeGl {
   const constants = new Map<string, number>([['NO_ERROR', 0]]);
   const state: FakeGl['state'] = { lost: false, compiles: true, anisotropy: null, errors: [], refuses: null, refusal: 'OUT_OF_MEMORY', asked: 0 };
   const sharpness: number[] = [];
+  const cleared: number[][] = [];
   let made = 0;
   const constant = (name: string) => {
     if (!constants.has(name)) constants.set(name, 1000 + constants.size);
@@ -1091,6 +1519,9 @@ function fakeGl(): FakeGl {
       return state.errors.shift() ?? 0;
     },
     checkFramebufferStatus: () => constant('FRAMEBUFFER_COMPLETE'),
+    clearColor: (...colour: number[]) => {
+      cleared.push(colour);
+    },
   };
   const gl = new Proxy(own, {
     get: (target, name: string) => {
@@ -1119,6 +1550,7 @@ function fakeGl(): FakeGl {
     },
     made: () => made,
     calls,
+    cleared,
     sharpness,
     state,
   };
@@ -1195,6 +1627,8 @@ describe('the 3D scene on a graphics card', () => {
     expect(during('bufferData')).toBe(5);
     // Nothing is made while drawing.
     expect(fake.alive()).toEqual(held);
+    // The picture is cleared to nothing at all, so the page's screen, behind the canvas, shows wherever nothing is drawn over it.
+    expect(fake.cleared).toEqual([[0, 0, 0, 0]]);
 
     // A second frame with a medal on an arm and a gate lit makes nothing either, and a third with the medal in the air.
     dropMedal(machine, 30);
@@ -1344,7 +1778,10 @@ describe('the choice of renderer', () => {
     // Unless the address insists, a browser that would draw the scene in software is told not to.
     expect(sceneContext(false).failIfMajorPerformanceCaveat).toBe(true);
     expect(sceneContext(true).failIfMajorPerformanceCaveat).toBe(false);
-    expect(sceneContext(false).alpha).toBe(false);
+    // The canvas is see-through, for the page's screen behind it, and what is drawn on it is already multiplied by how much it hides.
+    expect(sceneContext(false).alpha).toBe(true);
+    expect(sceneContext(true).alpha).toBe(true);
+    expect(sceneContext(false).premultipliedAlpha).toBe(true);
   });
 
   /** A cabinet's two canvases and a renderer for them. */

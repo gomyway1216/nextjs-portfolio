@@ -1117,7 +1117,10 @@
 .chest[data-chosen='true'] .chestBox {
   transform: translate3d(var(--mp-step), 0.1em, 1.7em) rotateX(-20deg);
 }
+/* The screen stands behind the field's canvas, where a pointer cannot reach it. The cabinet marks the chest the
+   pointer is over instead, and it shows itself the same way. */
 .chest:not(:disabled):hover .chestBox,
+.chest:not(:disabled)[data-hover='true'] .chestBox,
 .chest:not(:disabled):focus-visible .chestBox {
   transform: translate3d(0, -0.3em, 0.6em) rotateX(-20deg);
 }
@@ -1213,6 +1216,7 @@
   transform-style: preserve-3d;
 }
 .chest:not(:disabled):hover .chestLid,
+.chest:not(:disabled)[data-hover='true'] .chestLid,
 .chest:not(:disabled):focus-visible .chestLid {
   transform: rotateX(14deg);
 }
@@ -1703,6 +1707,7 @@
 }
 
 /* The field */
+/* The stage: the whole cabinet in one picture. The screen is its back wall, and stands behind the two canvases. */
 .fieldWrap {
   position: relative;
   margin-top: 8px;
@@ -1711,6 +1716,8 @@
   background: #05030d;
   overflow: hidden;
   line-height: 0;
+  /* What stands in the wall is placed and sized in shares of the stage's width. */
+  container-type: inline-size;
 }
 /* The 3D scene, on a canvas of its own under the field. With the canvas renderer it stays empty. */
 .scene {
@@ -1723,12 +1730,123 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 640 / 540;
+  /* The drawing's own shape; the cabinet sets it from the camera's numbers. */
+  aspect-ratio: 640 / 860;
   cursor: crosshair;
   /* A vertical swipe still scrolls the page; a tap or a sideways drag aims. */
   touch-action: pan-y;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* The screen, in the back wall. The room it stands in is seen through the scene's own camera, and the sheet it is
+   laid out on is stood exactly where the opening in the housing is: the cabinet works both out from the camera's
+   numbers, so the screen's picture and the scene in front of it agree at any size. Both canvases are over it, and
+   clear where it is. A press on the stage lands on the upper canvas, which finds the chest it was meant for.
+   Every size on the sheet is so many pixels of the drawing (--mp-u), so it is the same screen on a phone as on a
+   desk, only smaller. Nothing here is sized in em: a browser's smallest letter would hold a size up as the rest
+   went on shrinking. */
+.wallSpace {
+  position: absolute;
+  inset: 0;
+  line-height: normal;
+}
+.wall {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+/* On the sheet: one line across the top, with the name of the game at its left, and under it the stage, as wide
+   as the sheet. When the machine has something to call out, that takes the whole line and the name gives way to
+   it until it is over. The words stay in one line, so the stage never moves. */
+.wall .screen {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: calc(5 * var(--mp-u)) calc(6 * var(--mp-u)) calc(4 * var(--mp-u));
+  gap: calc(3 * var(--mp-u)) calc(8 * var(--mp-u));
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+}
+.wall .screenTop {
+  grid-area: 1 / 1;
+  align-self: center;
+  gap: 0;
+}
+.wall .screenTitle {
+  padding: calc(1.5 * var(--mp-u)) calc(8 * var(--mp-u));
+  font-size: calc(16 * var(--mp-u));
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+}
+/* Out of sight while a banner has the line, but still there to be read out. */
+.wall .screen:not([data-banner='none']) .screenTitle {
+  opacity: 0;
+}
+/* The hold's lamps are in the cabinet now, on the shelf under the screen, where the scene draws them. What says
+   how many are lit stays here for whoever cannot see them. */
+.wall .stock {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.wall .stage {
+  grid-area: 2 / 1 / 3 / 3;
+}
+.wall .caption {
+  grid-area: 1 / 1 / 2 / 3;
+  align-self: center;
+  height: auto;
+  min-width: 0;
+}
+/* What each line of the slot leads to is under the stage instead: there is no room for it here. */
+.wall .legend {
+  display: none;
+}
+.wall .banner {
+  padding: 0 calc(4 * var(--mp-u));
+  font-size: calc(27 * var(--mp-u));
+  line-height: 1.2;
+  white-space: nowrap;
+  -webkit-text-stroke-width: max(0.5px, calc(1 * var(--mp-u)));
+}
+/* What stands on the stage beside a wheel or over a board has sizes of its own that stop getting smaller at some
+   point. In the wall they go on following the stage. Inside the stage a cqw or a cqh is the stage's. */
+.wall .rollHint {
+  font-size: 8cqh;
+}
+.wall .bonusHint {
+  font-size: 7.6cqh;
+}
+.wall .chainLabel {
+  font-size: 7.2cqh;
+  letter-spacing: 0.04em;
+}
+.wall .chainLamps {
+  gap: 1cqw;
+}
+.wall .chainLamps .lamp {
+  box-sizing: border-box;
+  width: 5.8cqw;
+  border-width: max(1px, 0.5cqw);
+}
+.wall .chainTotal {
+  padding: 0.5cqh 1.6cqw;
+  font-size: 7.8cqh;
+}
+/* What each line of the slot leads to, under the stage. */
+.legendBelow {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
 }
 
 /* The control panel */

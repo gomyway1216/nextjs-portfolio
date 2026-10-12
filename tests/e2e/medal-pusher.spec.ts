@@ -61,14 +61,22 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('NUMBER SLOT');
-  // Every digit on the three reels is badged with what it leads to.
+  // Each of the three reels is a drum with nine faces, and every face says what three of its digit lead to.
   await expect(machine(page).locator('[data-leads="ball"]')).toHaveCount(3);
-  await expect(machine(page).locator('[data-leads]')).toHaveCount(36);
+  await expect(machine(page).locator('[data-leads]')).toHaveCount(27);
+  // A face is a picture with its digit written on it.
+  for (const digit of [3, 5, 8]) await expect(machine(page).locator(`[data-digit="${digit}"] svg text`).first()).toHaveText(String(digit));
+  // A new machine's drums stand turned to 3, 5 and 8: the nine faces are 40 degrees apart, the 1 at no turn at all.
+  const turns = await machine(page)
+    .locator('[data-fast]')
+    .evaluateAll((strips) => strips.map((strip) => Number(/rotateX\((-?[\d.]+)deg\)/.exec((strip as HTMLElement).style.transform)?.[1])));
+  expect(turns).toEqual([-80, -160, -280]);
   // No reach is cut in across them before the first spin.
   await expect(machine(page).getByTestId('pusher-cut-in')).toHaveCount(0);
-  // The sugoroku board is always on, the piece on its first square.
+  // The sugoroku board lies in front of the slot, the piece on its first square, which is the tile at the front left.
   await expect(machine(page).getByTestId('pusher-board')).toHaveAttribute('data-square', '0');
   await expect(machine(page).getByTestId('pusher-board').locator('li')).toHaveCount(12);
+  await expect(machine(page).getByTestId('pusher-board').locator('li[data-here="true"]')).toHaveCount(1);
   await expect(machine(page).getByTestId('pusher-refill')).toHaveCount(0);
 
   // The field is painted: its middle is the lower table and its medals, not an empty canvas.
@@ -396,6 +404,28 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
     expect(lamp.x).toBeGreaterThanOrEqual(title.x + title.width);
     expect(lamp.x + lamp.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
   }
+
+  // All twelve tiles of the sugoroku board lie inside the screen, each wide enough to read, and the far side of the
+  // board is drawn smaller than the near side: it is seen in perspective, whatever the screen is playing.
+  const tiles = await machine(page)
+    .getByTestId('pusher-board')
+    .locator('li')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }),
+    );
+  expect(tiles).toHaveLength(12);
+  for (const tile of tiles) {
+    expect(tile.width).toBeGreaterThanOrEqual(24);
+    expect(tile.x).toBeGreaterThanOrEqual(screenBox.x);
+    expect(tile.x + tile.width).toBeLessThanOrEqual(screenBox.x + screenBox.width);
+    expect(tile.y).toBeGreaterThanOrEqual(screenBox.y);
+    expect(tile.y + tile.height).toBeLessThanOrEqual(screenBox.y + screenBox.height);
+  }
+  // Square 2 is on the near side and square 8, the fever, on the far side.
+  expect(tiles[7].width).toBeLessThan(tiles[1].width);
 
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));

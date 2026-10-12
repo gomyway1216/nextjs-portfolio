@@ -356,21 +356,30 @@
     animation-duration: 3.5s;
   }
   /* The two reels that stopped alike flash while the centre decides it. */
-  .screen[data-banner='reach'] .reel:not(:nth-child(2)),
-  .screen[data-banner='superReach'] .reel:not(:nth-child(2)) {
-    animation: mp-flash 0.45s ease-in-out infinite alternate;
+  .screen[data-banner='reach'] .reel:not(:nth-child(2))::before,
+  .screen[data-banner='superReach'] .reel:not(:nth-child(2))::before {
+    animation: mp-glow 0.45s ease-in-out infinite alternate;
   }
-  .screen[data-banner='superReach'] .reel:not(:nth-child(2)) {
+  .screen[data-banner='superReach'] .reel:not(:nth-child(2))::before {
     animation-duration: 0.34s;
   }
-  /* A long reach draws slowly in on the reels, and lets go at once when the centre stops. */
+  /* A long reach draws slowly in on the reels, and lets go at once when the centre stops. They leave the stage and come back to it as gently. */
   .reels {
     scale: 1;
-    transition: scale 0.25s ease-out;
+    transition:
+      scale 0.25s ease-out,
+      opacity 0.25s ease-out,
+      transform 0.25s ease-out;
   }
   .screen[data-banner='superReach'] .reels {
-    scale: 1.1;
+    scale: 1.08;
     transition: scale 2.4s ease-in-out 0.4s;
+  }
+  .reels[data-hidden='true'] {
+    transition:
+      opacity 0.25s ease-out,
+      transform 0.25s ease-out,
+      visibility 0s linear 0.25s;
   }
   .cabinet[data-banner='superReach'] .bulbs::before,
   .cabinet[data-banner='superReach'] .bulbs::after {
@@ -433,103 +442,197 @@
 .stock .lamp {
   width: clamp(0.5rem, 2.2vw, 1.05rem);
 }
-/* Everything the screen plays happens on this stage, which keeps one size whatever is on it. */
+/* Everything the screen plays happens on this stage, which keeps one size whatever is on it. It is a small stage
+   seen from the front and a little above: the slot stands at the back of it, the sugoroku board lies across the
+   front, and each game the slot leads to takes the stage in its turn. The light comes from the front and the left,
+   and what stands on the stage throws its shadow on the floor. Every size here is a share of the stage's own
+   (cqw and cqh), so a scene is the same at any width; nothing but transforms and opacity is ever animated.
+   The scenes are built of flat sheets stood in 3D. Three rules keep a browser drawing them whole: no sheet cuts
+   through another (they meet edge to edge, or one stands on the other); none is clipped by a box it sticks out of;
+   and nothing that other sheets stand on has a filter, an opacity or a clip of its own, which would flatten them. */
 .stage {
   position: relative;
-  aspect-ratio: 16 / 5.6;
+  aspect-ratio: 16 / 9.2;
   container-type: size;
 }
-.reels,
-.bonus {
+/* The floor, from the front of the stage back to the wall. */
+.stage::before {
+  content: '';
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  inset: 57cqh -6cqw -3cqh;
+  border-top: 1px solid rgba(255, 255, 255, 0.34);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 30%, rgba(0, 0, 0, 0.35) 100%);
+  transform-origin: 50% 100%;
 }
+/* With the view lifted over the board, the floor is all there is to see. */
+.screen[data-mode='sugoroku'] .stage::before {
+  transform: scaleY(3.6);
+}
+
+/* The slot: three drums in one housing at the back of the stage. One face of a drum is 1em high. */
 .reels {
-  gap: 2.4cqw;
-  font-size: 58cqh;
+  position: absolute;
+  left: 50%;
+  top: 31.5cqh;
+  translate: -50% -50%;
+  display: flex;
+  gap: 0.22em;
+  padding: 0.16em 0.2em;
+  font-size: 28cqh;
+  border-radius: 5cqh;
+  background: linear-gradient(180deg, #5a45b8 0%, #2a1763 42%, #120828 100%);
+  box-shadow:
+    inset 0 0.5cqh 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1.2cqh 1.6cqh rgba(0, 0, 0, 0.6),
+    0 0 0 0.5cqh #ffd65c,
+    0 0 0 0.9cqh #7a4f06,
+    1.2cqh 3.4cqh 3cqh rgba(0, 0, 0, 0.55);
 }
+/* A pointer at each end of the pay line. */
+.reels::before,
+.reels::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 0.13em;
+  height: 0.2em;
+  margin-top: -0.1em;
+  background: #fff3a8;
+}
+.reels::before {
+  left: 0.03em;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.reels::after {
+  right: 0.03em;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+/* A game that takes the stage sends the slot off it, and once it is off, its drums are not drawn at all. */
 .reels[data-hidden='true'] {
+  opacity: 0;
+  transform: translateY(6cqh) scale(0.92);
   visibility: hidden;
 }
+/* The window of a drum. The drum's axle lies behind it, so the symbol on the pay line is square on and those above
+   and below it turn away. The window does not clip the drum, since in Chromium a clip here cut into the faces that
+   are turned away. Seen from this close, a drum is never more than 0.07em taller than its window at either end,
+   whichever way it is turned, and the frame, which is drawn over it and is wider than that, covers what is left over. */
 .reel {
-  width: 1.12em;
-  height: 1.6em;
-  overflow: hidden;
-  border-radius: 0.12em;
-  background: linear-gradient(180deg, #7d7d96 0%, #f4f4fb 22%, #ffffff 50%, #f4f4fb 78%, #7d7d96 100%);
+  position: relative;
+  width: 1.3em;
+  height: 1.9em;
+  border-radius: 0.15em;
+  background: #05020f;
+  perspective: 2.5em;
+}
+/* The frame, and inside it the light on the drum: full on the pay line, falling away to the dark at the top and the
+   bottom of the window. */
+.reel::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: -0.075em;
+  border: 0.075em solid #ffd65c;
+  border-radius: 0.225em;
+  background: linear-gradient(
+      180deg,
+      rgba(5, 2, 15, 0.92) 0%,
+      rgba(5, 2, 15, 0.5) 14%,
+      rgba(5, 2, 15, 0) 30%,
+      rgba(255, 255, 255, 0.16) 40%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(5, 2, 15, 0) 70%,
+      rgba(5, 2, 15, 0.5) 86%,
+      rgba(5, 2, 15, 0.92) 100%
+    )
+    padding-box;
   box-shadow:
-    inset 0 0.16em 0.14em rgba(0, 0, 0, 0.55),
-    inset 0 -0.16em 0.14em rgba(0, 0, 0, 0.55),
-    0 0 0 0.05em #ffd65c,
-    0 0 0 0.09em #7a4f06,
-    0 0.08em 0.2em rgba(0, 0, 0, 0.6);
+    0 0 0 0.03em #7a4f06,
+    inset 0 0 0 0.03em #7a4f06,
+    inset 0 0 0.14em rgba(0, 0, 0, 0.85);
+  pointer-events: none;
 }
-.reels[data-line='small'] .reel,
-.reels[data-line='big'] .reel,
-.reels[data-line='seven'] .reel {
-  animation: mp-flash 0.7s ease-in-out infinite alternate;
+/* A window that is lit up: every window of a winning line, and the two that stopped alike in a reach. */
+.reel::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 0.05em #fff3a8,
+    inset 0 0 0.3em 0.05em rgba(255, 226, 120, 0.95);
+  opacity: 0;
+  pointer-events: none;
 }
+.reels[data-line='small'] .reel::before,
+.reels[data-line='big'] .reel::before,
+.reels[data-line='seven'] .reel::before {
+  opacity: 0.85;
+  animation: mp-glow 0.7s ease-in-out infinite alternate;
+}
+@keyframes mp-glow {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* The strip of symbols, wrapped round the drum. The cabinet turns it every frame. */
 .strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1em;
+  margin-top: -0.5em;
+  /* Nine faces 1em high meet edge to edge this far from the axle; the axle is that far behind the window. */
+  --mp-drum: 1.374em;
+  translate: 0 0 calc(var(--mp-drum) * -1);
+  transform-style: preserve-3d;
   will-change: transform;
 }
+/* One symbol on its face of the drum. */
 .digit {
+  position: absolute;
+  inset: 0;
   display: block;
-  height: 1em;
-  line-height: 1em;
-  text-align: center;
+  transform: rotateX(calc(var(--mp-face) * 40deg)) translateZ(var(--mp-drum));
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* The picture of a digit, with the digit on it. */
+.symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.symbolDigit {
   font-weight: 900;
   font-style: italic;
   font-variant-numeric: tabular-nums;
-  -webkit-text-stroke: 0.03em rgba(0, 0, 0, 0.35);
+  fill: #ffffff;
+  stroke: #2f1a00;
+  stroke-width: 7px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
-.digit[data-tier='seven'] {
-  color: #d1123f;
+.symbol[data-family='small'] .symbolDigit {
+  stroke: #0e1f47;
 }
-.digit[data-tier='big'] {
-  color: #1d4ed8;
+.symbol[data-family='seven'] .symbolDigit {
+  fill: #e0173f;
+  stroke: #4d000f;
+  stroke-width: 5px;
 }
-.digit[data-tier='small'] {
-  color: #15803d;
-}
-/* What three of a digit lead to, in the corner of its tile. */
-.digit {
-  position: relative;
-}
-.badge {
-  position: absolute;
-  right: 0.04em;
-  bottom: 0.03em;
-  width: 0.25em;
-  height: 0.25em;
-}
-/* A reel running too fast to read is smeared along the way it runs. */
-.digit[data-tier='seven'] {
-  --mp-streak: 209, 18, 63;
-}
-.digit[data-tier='big'] {
-  --mp-streak: 29, 78, 216;
-}
-.digit[data-tier='small'] {
-  --mp-streak: 21, 128, 61;
-}
-.strip[data-fast='true'] {
-  filter: blur(0.02em);
-}
-.strip[data-fast='true'] .digit {
-  text-shadow:
-    0 0.1em 0 rgba(var(--mp-streak), 0.45),
-    0 -0.1em 0 rgba(var(--mp-streak), 0.45),
-    0 0.2em 0 rgba(var(--mp-streak), 0.2),
-    0 -0.2em 0 rgba(var(--mp-streak), 0.2);
-}
-.strip[data-fast='true'] .badge {
-  opacity: 0.55;
+/* A reel running too fast to read is smeared. */
+.strip[data-fast='true'] .symbol {
+  filter: blur(0.05em);
+  opacity: 0.85;
 }
 /* For a player who asked for less motion the reels do not turn: one whose digit is still to come stands dimmed instead. */
-.strip[data-waiting='true'] {
+.strip[data-waiting='true'] .digit {
   opacity: 0.22;
 }
 /* A reach is cut in across the reels as it is called: a band that sweeps over them and is gone again, so that
@@ -544,29 +647,29 @@
     z-index: 2;
     left: -8%;
     right: -8%;
-    top: 50%;
-    height: 44cqh;
+    top: 31.5cqh;
+    height: 29cqh;
     display: grid;
     place-items: center;
     translate: 0 -50%;
     rotate: -4deg;
-    border-block: 1cqh solid #ffd65c;
+    border-block: 0.7cqh solid #ffd65c;
     background: linear-gradient(90deg, #7a0026 0%, #d61f4c 22%, #ff4f7d 50%, #d61f4c 78%, #7a0026 100%);
-    box-shadow: 0 0 5cqh rgba(255, 79, 125, 0.75);
+    box-shadow: 0 0 3.4cqh rgba(255, 79, 125, 0.75);
     pointer-events: none;
     animation: mp-cut-in 0.75s ease-out both;
   }
   .cutIn[data-kind='superReach'] {
-    height: 58cqh;
+    height: 38cqh;
     rotate: -5deg;
     border-block-color: #ffffff;
     background: linear-gradient(90deg, #b8860b 0%, #ffd65c 22%, #fff7c2 50%, #ffd65c 78%, #b8860b 100%);
-    box-shadow: 0 0 7cqh rgba(255, 226, 120, 0.9);
+    box-shadow: 0 0 4.6cqh rgba(255, 226, 120, 0.9);
     animation-duration: 1.1s;
   }
 }
 .cutInText {
-  font-size: min(27cqh, 9.4cqw);
+  font-size: min(18cqh, 9.4cqw);
   font-weight: 900;
   font-style: italic;
   letter-spacing: 0.08em;
@@ -579,7 +682,7 @@
     0 0 0.4em rgba(255, 240, 160, 0.9);
 }
 .cutIn[data-kind='superReach'] .cutInText {
-  font-size: min(31cqh, 8.4cqw);
+  font-size: min(20cqh, 8.4cqw);
   color: #8a0029;
   -webkit-text-stroke: 1px #fffbe0;
   text-shadow:
@@ -604,23 +707,878 @@
     opacity: 0;
   }
 }
+
+/* The sugoroku board lies on the stage as a slab seen in perspective: far tiles are smaller, which is what lets
+   twelve of them be read in so little room. While the slot is on, it is seen low, across the front of the stage;
+   for a roll the view is lifted over it (--mp-tilt), and everything that stands on it turns to keep facing the player. */
+.boardScene {
+  position: absolute;
+  inset: 0;
+  perspective: 320cqh;
+  perspective-origin: 50% 6%;
+  pointer-events: none;
+}
+/* The bonus games play on a bare stage. */
+.screen[data-mode='chest'] .boardScene,
+.screen[data-mode='roulette'] .boardScene,
+.screen[data-mode='bowl'] .boardScene {
+  opacity: 0;
+}
+.boardPlane {
+  --mp-tilt: 79deg;
+  --mp-stand: 1;
+  --mp-board-width: 95cqw;
+  --mp-board-depth: 100cqh;
+  position: absolute;
+  left: 2.5cqw;
+  bottom: 4cqh;
+  width: var(--mp-board-width);
+  height: var(--mp-board-depth);
+  border: 0.7cqh solid #37c592;
+  border-radius: 10cqh;
+  background: radial-gradient(90% 90% at 50% 50%, #0d6146 0%, #0a4a36 60%, #083a2a 100%);
+  box-shadow:
+    0 1.8cqh 0 #04261b,
+    0 2.6cqh 1.6cqh rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  transform-origin: 50% 100%;
+  transform: rotateX(var(--mp-tilt));
+  transform-style: preserve-3d;
+}
+.screen[data-mode='sugoroku'] .boardPlane {
+  --mp-tilt: 37deg;
+  --mp-stand: 1.3;
+}
+/* The line the piece walks, from square to square round the loop. */
+.track {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.track polygon {
+  fill: none;
+  stroke: rgba(255, 226, 120, 0.55);
+  stroke-width: 0.9cqh;
+  stroke-dasharray: 1.6cqh 1.6cqh;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.board {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transform-style: preserve-3d;
+}
+/* One square of the loop: a tile lying on the slab, and standing on it the medals it pays and their number. */
+.square {
+  position: absolute;
+  left: calc(var(--mp-column) * 100% / var(--mp-columns));
+  top: calc(var(--mp-row) * 100% / var(--mp-rows));
+  width: calc(100% / var(--mp-columns));
+  height: calc(100% / var(--mp-rows));
+  transform-style: preserve-3d;
+}
+.square::before {
+  content: '';
+  position: absolute;
+  inset: 9% 6%;
+  border: 0.5cqh solid #a4f5c0;
+  border-radius: 3cqh;
+  background: linear-gradient(180deg, #2fb886 0%, #17805a 100%);
+  box-shadow: 0 1.4cqh 0 #05291d;
+}
+.square[data-fever='true']::before {
+  border-color: #ffe98a;
+  background: linear-gradient(135deg, #ff4f7d 0%, #f59e0b 50%, #22c55e 100%);
+}
+/* The fever square shines. */
+.square[data-fever='true']::after {
+  content: '';
+  position: absolute;
+  inset: -22% -18%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 240, 160, 0.75) 0%, rgba(255, 214, 92, 0.3) 55%, rgba(255, 214, 92, 0) 100%);
+}
+.square[data-here='true']::before {
+  border-color: #fffbe0;
+  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
+  box-shadow:
+    0 1.4cqh 0 #7a4f06,
+    0 0 4cqh rgba(255, 226, 120, 0.9);
+}
+/* What stands on a square, turned up to face the player whatever the view. */
+.squareUp {
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5cqh;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotateX(calc(var(--mp-tilt) * -1)) scale(var(--mp-stand));
+}
+.heap {
+  display: block;
+  flex: none;
+  width: 7cqh;
+  height: auto;
+}
+.squarePays {
+  position: relative;
+  font-size: 8.6cqh;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow:
+    0 0.08em 0 #03170f,
+    0.06em 0 0 #03170f,
+    -0.06em 0 0 #03170f,
+    0 -0.06em 0 #03170f;
+}
+.squareTag {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  translate: -50% 0;
+  padding: 0 0.3em;
+  border-radius: 0.3em;
+  background: #d1123f;
+  color: #ffffff;
+  font-size: 0.5em;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  text-shadow: none;
+  white-space: nowrap;
+}
+/* The piece stands on its square and hops to the next. */
+.piece {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform: translate3d(
+    calc((var(--mp-column) + 0.26) * var(--mp-board-width) / var(--mp-columns)),
+    calc((var(--mp-row) + 0.8) * var(--mp-board-depth) / var(--mp-rows)),
+    0
+  );
+  transform-style: preserve-3d;
+}
+.pieceUp {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotateX(calc(var(--mp-tilt) * -1)) scale(var(--mp-stand));
+}
+.pieceHop {
+  display: block;
+}
+.pawn {
+  display: block;
+  width: 8cqh;
+  height: auto;
+}
+/* Two names for one hop, taken in turn, so that each move of the piece starts it again. */
+@keyframes mp-hop-odd {
+  50% {
+    transform: translateY(-10cqh);
+  }
+}
+@keyframes mp-hop-even {
+  50% {
+    transform: translateY(-10cqh);
+  }
+}
+/* The die is thrown into the middle of the loop: a cube --mp-die on a side. Its faces are stood round it here as
+   ScreenPanel's DIE_OUT says, and --mp-die-turn lays it down with the face that was rolled on top. */
+.dieSpot {
+  --mp-die: 19cqh;
+  position: absolute;
+  left: calc(2.25 * 100% / var(--mp-columns));
+  top: 54%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+.dieShadow {
+  position: absolute;
+  left: calc(var(--mp-die) * -0.7);
+  top: calc(var(--mp-die) * -0.6);
+  width: calc(var(--mp-die) * 1.7);
+  height: calc(var(--mp-die) * 1.5);
+  border-radius: 40%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6) 40%, rgba(0, 0, 0, 0) 100%);
+}
+.die {
+  position: absolute;
+  left: calc(var(--mp-die) / -2);
+  top: calc(var(--mp-die) / -2);
+  width: var(--mp-die);
+  height: var(--mp-die);
+  transform: translateZ(calc(var(--mp-die) / 2)) var(--mp-die-turn);
+  transform-style: preserve-3d;
+}
+.dieFace {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.dieFace[data-pips='1'] {
+  transform: translateZ(calc(var(--mp-die) / 2));
+}
+.dieFace[data-pips='6'] {
+  transform: rotateY(180deg) translateZ(calc(var(--mp-die) / 2));
+}
+.dieFace[data-pips='3'] {
+  transform: rotateY(90deg) translateZ(calc(var(--mp-die) / 2));
+}
+.dieFace[data-pips='4'] {
+  transform: rotateY(-90deg) translateZ(calc(var(--mp-die) / 2));
+}
+.dieFace[data-pips='2'] {
+  transform: rotateX(90deg) translateZ(calc(var(--mp-die) / 2));
+}
+.dieFace[data-pips='5'] {
+  transform: rotateX(-90deg) translateZ(calc(var(--mp-die) / 2));
+}
+.dieBody {
+  fill: #ded5bd;
+  stroke: #8a6208;
+  stroke-width: 5px;
+}
+.dieFace[data-shade='top'] .dieBody {
+  fill: #fffdf5;
+}
+.dieFace[data-shade='front'] .dieBody {
+  fill: #ece4cf;
+}
+.dieFace[data-shade='side'] .dieBody {
+  fill: #cfc4a6;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .die[data-rolling='true'] {
+    animation: mp-tumble 0.44s linear infinite;
+  }
+  .die[data-rolling='false'] {
+    animation: mp-die-land 0.3s cubic-bezier(0.3, 1.5, 0.5, 1);
+  }
+}
+/* In the air, turning over and over. */
+@keyframes mp-tumble {
+  from {
+    transform: translateZ(calc(var(--mp-die) * 1.5)) rotate3d(1, 0.7, 0.3, 0deg);
+  }
+  to {
+    transform: translateZ(calc(var(--mp-die) * 1.5)) rotate3d(1, 0.7, 0.3, 360deg);
+  }
+}
+/* Down onto the board, the last half turn bringing up the face that was rolled. */
+@keyframes mp-die-land {
+  from {
+    transform: translateZ(calc(var(--mp-die) * 1.5)) var(--mp-die-turn) rotateX(-170deg) rotateY(-80deg);
+  }
+  to {
+    transform: translateZ(calc(var(--mp-die) / 2)) var(--mp-die-turn) rotateX(0deg) rotateY(0deg);
+  }
+}
+/* What the roll is doing, in words, beside the die. */
+.rollHint {
+  position: absolute;
+  left: 50%;
+  top: 49cqh;
+  translate: -50% -50%;
+  font-size: clamp(0.72rem, 8cqh, 1.25rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #fff3a8;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.7),
+    0 0 8px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.rollHint[data-beside='true'] {
+  translate: 2cqw -50%;
+}
+
+/* A game the slot leads to, on the stage. It comes on from the floor. */
 .bonus {
+  position: absolute;
+  inset: 0;
+  display: flex;
   flex-direction: column;
-  gap: 4cqh;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqh;
 }
 .bonus[data-row='true'] {
   flex-direction: row;
-  gap: 5cqw;
+  gap: 1cqw;
 }
+@keyframes mp-come-on {
+  from {
+    opacity: 0;
+    transform: translateY(8cqh) scale(0.94);
+  }
+}
+.bonusHint {
+  font-size: clamp(0.72rem, 7.6cqh, 1.15rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff3a8;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* The treasure chests: three boxes side by side, each seen from where the player stands, so the outer two show
+   the side that faces the middle. A chest is 4em wide, 2.1em high and 2.4em deep, under a lid 1em high. */
+.chests {
+  display: flex;
+  justify-content: center;
+  gap: 2cqw;
+}
+.chest {
+  appearance: none;
+  position: relative;
+  width: 5.1em;
+  height: 6em;
+  padding: 0;
+  border: 0;
+  border-radius: 0.6em;
+  background: transparent;
+  color: inherit;
+  font-size: 6.1cqw;
+  cursor: pointer;
+  --mp-eye: 50%;
+  --mp-step: 0em;
+}
+/* A chest to one side is seen from the middle, and steps forward towards the player and not out to the side. */
+.chest:first-child {
+  --mp-eye: 160%;
+  --mp-step: 0.5em;
+}
+.chest:last-child {
+  --mp-eye: -60%;
+  --mp-step: -0.5em;
+}
+.chest:disabled {
+  cursor: default;
+}
+/* Once one is picked the other two fall back into the shade. */
+.chest:disabled[data-chosen='false'] {
+  filter: brightness(0.55) saturate(0.7);
+}
+.chestScene {
+  position: absolute;
+  inset: 0;
+  display: block;
+  perspective: 20em;
+  perspective-origin: var(--mp-eye) 12%;
+}
+.chestShadow {
+  position: absolute;
+  left: 8%;
+  right: 4%;
+  bottom: 0.25em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.62) 45%, rgba(0, 0, 0, 0) 100%);
+}
+.chestBox {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25em;
+  width: 4em;
+  height: 2.1em;
+  margin-left: -2em;
+  transform: rotateX(-20deg);
+  transform-style: preserve-3d;
+}
+/* The one that was picked steps forward, and stays there. */
+.chest[data-chosen='true'] .chestBox {
+  transform: translate3d(var(--mp-step), 0.1em, 1.7em) rotateX(-20deg);
+}
+.chest:not(:disabled):hover .chestBox,
+.chest:not(:disabled):focus-visible .chestBox {
+  transform: translate3d(0, -0.3em, 0.6em) rotateX(-20deg);
+}
+.chestWall,
+.chestPlank,
+.chestEnd {
+  --mp-wood: #a85d18;
+  --mp-grain: #7d4310;
+  --mp-brass: #f6c544;
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  border: 0.09em solid #3a1d04;
+  /* Planks, with a band of brass round each end. */
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 9%, var(--mp-brass) 9% 17%, rgba(0, 0, 0, 0) 17% 83%, var(--mp-brass) 83% 91%, rgba(0, 0, 0, 0) 91%),
+    repeating-linear-gradient(180deg, var(--mp-wood) 0 0.56em, var(--mp-grain) 0.56em 0.64em);
+}
+/* The light is in front: the sides and the back of a chest are in shade, and the top of its lid catches the most. */
+.chestWall[data-wall='left'],
+.chestWall[data-wall='right'],
+.chestPlank[data-plank='back'] {
+  --mp-wood: #7c4512;
+  --mp-grain: #5c320c;
+  --mp-brass: #b69232;
+}
+.chestPlank[data-plank='top'] {
+  --mp-wood: #cd711d;
+  --mp-grain: #985214;
+  --mp-brass: #fff053;
+}
+.chestWall[data-wall='front'] {
+  inset: 0;
+  transform: translateZ(1.2em);
+  border-top-color: #f6c544;
+}
+/* The lock, and on it the question the chest asks. */
+.chestWall[data-wall='front']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -0.2em;
+  width: 1.3em;
+  height: 1.45em;
+  margin-left: -0.65em;
+  border: 0.09em solid #3a1d04;
+  border-radius: 0.2em;
+  background: linear-gradient(180deg, #fff3a8 0%, #f6c544 60%, #c9900a 100%);
+}
+.chestWall[data-wall='back'] {
+  inset: 0;
+  transform: translateZ(-1.2em);
+  background: linear-gradient(180deg, #5a2f0a 0%, #2a1503 100%);
+}
+.chestWall[data-wall='left'] {
+  top: 0;
+  bottom: 0;
+  left: -1.2em;
+  width: 2.4em;
+  transform: rotateY(-90deg);
+}
+.chestWall[data-wall='right'] {
+  top: 0;
+  bottom: 0;
+  right: -1.2em;
+  width: 2.4em;
+  transform: rotateY(90deg);
+}
+/* The gold inside, lying just under the rim. */
+.chestGold {
+  position: absolute;
+  left: 0.1em;
+  right: 0.1em;
+  top: -0.9em;
+  height: 2.4em;
+  display: block;
+  background:
+    radial-gradient(circle at 30% 40%, #fffbe0 0 6%, rgba(0, 0, 0, 0) 7%),
+    radial-gradient(circle at 68% 62%, #fffbe0 0 5%, rgba(0, 0, 0, 0) 6%),
+    radial-gradient(circle, #ffe98a 0 40%, #f6c544 41% 60%, #b47c06 61%) 0 0 / 0.8em 0.8em;
+  transform: rotateX(90deg);
+}
+/* The lid swings back on a hinge along the top of the back wall. */
+.chestLid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  display: block;
+  transform-origin: 50% 0 -1.2em;
+  transform: rotateX(0deg);
+  transform-style: preserve-3d;
+}
+.chest:not(:disabled):hover .chestLid,
+.chest:not(:disabled):focus-visible .chestLid {
+  transform: rotateX(14deg);
+}
+.chest[data-state='open'] .chestLid {
+  transform: rotateX(100deg);
+}
+/* The lining of the lid, which is what an open chest shows of it. */
+.chestLining {
+  position: absolute;
+  left: 0.02em;
+  right: 0.02em;
+  top: -1.2em;
+  height: 2.4em;
+  display: block;
+  border: 0.14em solid #c9900a;
+  border-radius: 0.1em;
+  box-sizing: border-box;
+  background: radial-gradient(120% 90% at 50% 40%, #b0123a 0%, #6b0a24 100%);
+  transform: rotateX(90deg);
+  opacity: 0;
+}
+.chest[data-state='open'] .chestLining {
+  opacity: 1;
+}
+.chestPlank {
+  left: 0;
+  right: 0;
+}
+.chestPlank[data-plank='front'] {
+  bottom: 0;
+  height: 1.17em;
+  transform-origin: 50% 100%;
+  transform: translateZ(1.2em) rotateX(31deg);
+}
+.chestPlank[data-plank='back'] {
+  bottom: 0;
+  height: 1.17em;
+  transform-origin: 50% 100%;
+  transform: translateZ(-1.2em) rotateX(-31deg);
+}
+.chestPlank[data-plank='top'] {
+  top: -1.6em;
+  height: 1.2em;
+  transform: rotateX(90deg);
+}
+.chestEnd {
+  top: -1em;
+  width: 2.4em;
+  height: 1em;
+  border: 0;
+  background: #7d4310;
+  clip-path: polygon(25% 0, 75% 0, 100% 100%, 0 100%);
+}
+.chestEnd[data-end='left'] {
+  left: -1.2em;
+  transform: rotateY(-90deg);
+}
+.chestEnd[data-end='right'] {
+  right: -1.2em;
+  transform: rotateY(90deg);
+}
+/* What the chest holds: a question mark on its lock until it opens, then the prize, standing over the gold. */
+.chestPrize {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  font-size: 1.2em;
+  font-weight: 900;
+  line-height: 1;
+  color: #4a2504;
+  transform: translate(-50%, -66%) translateZ(1.24em);
+}
+.chest[data-state='open'] .chestPrize {
+  font-size: 2em;
+  color: #fff3a8;
+  -webkit-text-stroke: 0.04em #4a2504;
+  text-shadow: 0 0.08em 0 #4a2504;
+  transform: translate(-50%, -50%) translate3d(0, -2.1em, 0) rotateX(20deg) scale(1);
+}
+.chest[data-state='open'][data-chosen='true'] .chestPrize {
+  color: #ffffff;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bonus {
+    animation: mp-come-on 0.35s ease-out backwards;
+  }
+  .boardScene {
+    transition: opacity 0.25s ease-out;
+  }
+  /* The view over the board, and everything standing on it, turn together. */
+  .stage::before,
+  .boardPlane,
+  .squareUp,
+  .pieceUp {
+    transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.3, 1);
+  }
+  .piece {
+    transition: transform 0.2s ease-in-out;
+  }
+  .square[data-fever='true']::after {
+    animation: mp-glow 1.1s ease-in-out infinite alternate;
+  }
+  .pieceHop[data-hop='odd'] {
+    animation: mp-hop-odd 0.24s ease-out;
+  }
+  .pieceHop[data-hop='even'] {
+    animation: mp-hop-even 0.24s ease-out;
+  }
+  .chestBox {
+    transition: transform 0.25s ease-out;
+  }
+  /* While they wait to be picked the chests hop in turn. */
+  .chest:not(:disabled) .chestScene {
+    animation: mp-chest-hop 2.4s ease-in-out infinite;
+  }
+  .chest:not(:disabled):nth-child(2) .chestScene {
+    animation-delay: 0.3s;
+  }
+  .chest:not(:disabled):nth-child(3) .chestScene {
+    animation-delay: 0.6s;
+  }
+  .chestLid {
+    transition: transform 0.4s cubic-bezier(0.3, 1.5, 0.5, 1);
+  }
+  /* A chest that has been picked rattles its lid until it opens. */
+  .chest[data-state='picked'] .chestLid {
+    animation: mp-rattle 0.16s ease-in-out infinite alternate;
+  }
+  .chest[data-state='open'] .chestPrize {
+    animation: mp-prize-rise 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+  }
+}
+@keyframes mp-chest-hop {
+  0%,
+  22%,
+  100% {
+    transform: none;
+  }
+  8% {
+    transform: translateY(-0.45em);
+  }
+  15% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-0.12em);
+  }
+}
+@keyframes mp-rattle {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(11deg);
+  }
+}
+@keyframes mp-prize-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate3d(0, -1.1em, 0) rotateX(20deg) scale(0.3);
+  }
+}
+
+/* The roulette and the bowl are each a dish lying on the stage, 1em from its middle to its rim, with the run it
+   belongs to beside it. What stands on a dish turns up to face the player (--mp-dish-tilt). A dish is one flat sheet
+   with its side below it, so that nothing standing on it cuts through another sheet. */
+.dishScene {
+  position: relative;
+  flex: none;
+  width: 63cqw;
+  height: 100cqh;
+  perspective: 300cqh;
+  perspective-origin: 50% 0%;
+}
+.dishTilt {
+  --mp-dish-tilt: 52deg;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2em;
+  height: 2em;
+  margin: -1em 0 0 -1em;
+  font-size: 50cqh;
+  transform: rotateX(var(--mp-dish-tilt));
+  transform-style: preserve-3d;
+}
+.dishShadow {
+  position: absolute;
+  inset: -3%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7) 80%, rgba(0, 0, 0, 0) 100%);
+  transform: translate3d(0.03em, 0.03em, -0.1em);
+}
+/* The side of the dish: the ring of its edge again, lower and lower. */
+.dishSide,
+.dishSide::before,
+.dishSide::after {
+  --mp-side: #b8860b;
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0) 86.5%, var(--mp-side) 87%);
+  transform: translateZ(-0.035em);
+  transform-style: preserve-3d;
+}
+.dishSide::before,
+.dishSide::after {
+  --mp-side: #8a6208;
+  content: '';
+}
+.dishSide::after {
+  --mp-side: #5c4005;
+  transform: translateZ(-0.07em);
+}
+.wheel,
+.bowl {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* The boss in the middle of a dish, stepped up to a dome. */
+.dishHub,
+.dishHub::before,
+.dishHub::after {
+  position: absolute;
+  border-radius: 50%;
+  transform-style: preserve-3d;
+}
+.dishHub {
+  left: 50%;
+  top: 50%;
+  width: 0.36em;
+  height: 0.36em;
+  margin: -0.18em 0 0 -0.18em;
+  background: radial-gradient(circle at 38% 32%, #fff3b0 0%, #ffd65c 45%, #a86b00 100%);
+  transform: translateZ(0.03em);
+}
+.dishHub::before,
+.dishHub::after {
+  content: '';
+  inset: 14%;
+  background: radial-gradient(circle at 38% 32%, #fff3b0 0%, #f6c544 50%, #a86b00 100%);
+  transform: translateZ(0.03em);
+}
+.dishHub::after {
+  inset: 30%;
+  background: radial-gradient(circle at 38% 32%, #ffd0da 0%, #e0173f 55%, #7a0026 100%);
+  transform: translateZ(0.06em);
+}
+/* A pocket's number, standing in it. */
+.pocketLabel {
+  position: absolute;
+  font-size: 9.6cqh;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #f4f0ff;
+  text-shadow:
+    0 0.09em 0 #0a0520,
+    0.07em 0 0 #0a0520,
+    -0.07em 0 0 #0a0520,
+    0 -0.07em 0 #0a0520;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -78%) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+.pocketLabel[data-stop='true'] {
+  color: #ff9db1;
+}
+.pocketLabel[data-on='true'] {
+  color: #ffffff;
+  text-shadow:
+    0 0.09em 0 #5a3a00,
+    0.07em 0 0 #5a3a00,
+    -0.07em 0 0 #5a3a00,
+    0 -0.07em 0 #5a3a00;
+  transform: translate(-50%, -78%) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.35);
+}
+/* The lamps round the rim: the light runs from one to the next. The lit one is bigger and brighter, with no glow:
+   in Chromium a blurred shadow on a small card stood up to face the player came out cut off square, so none of
+   those cards has one. */
+.rimLamp {
+  position: absolute;
+  width: 0.11em;
+  height: 0.11em;
+  margin: -0.055em 0 0 -0.055em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #b9a8ff 0%, #5a4691 55%, #2a1c5c 100%);
+  transform: translateZ(0.05em) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+.rimLamp[data-on='true'] {
+  background: radial-gradient(circle at 38% 32%, #ffffff 0%, #ffffff 30%, #fff3a8 62%, #ffd65c 100%);
+  transform: translateZ(0.1em) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.8);
+}
+/* The bowl of the jackpot challenge has a smaller boss, in the middle of its floor. The cabinet moves its ball every frame. */
+.dishHub[data-dish='bowl'] {
+  width: 0.24em;
+  height: 0.24em;
+  margin: -0.12em 0 0 -0.12em;
+}
+/* The sign behind a hole, saying what it pays. */
+.holeSign {
+  position: absolute;
+  padding: 0.16em 0.42em;
+  border: 1px solid #ff9db1;
+  border-radius: 0.36em;
+  background: rgba(10, 5, 32, 0.9);
+  color: #ffe0f1;
+  font-size: 7.6cqh;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+.holeSign[data-best='true'] {
+  border-color: #fff3b0;
+  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
+  color: #3a1d00;
+}
+/* A sign to one side of the boss grows away from it, keeping the edge next to it where it is, so as not to cut through it. */
+.holeSign[data-side='left'] {
+  transform-origin: 100% 100%;
+}
+.holeSign[data-side='right'] {
+  transform-origin: 0% 100%;
+}
+/* The sign of the hole the ball dropped into. */
+.holeSign[data-on='true'] {
+  border-color: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #ffd65c 100%);
+  color: #3a1d00;
+  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.25);
+}
+.ballSpot {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.ballShadow {
+  position: absolute;
+  left: calc(var(--mp-ball) * -1.1);
+  top: calc(var(--mp-ball) * -0.9);
+  width: calc(var(--mp-ball) * 2.9);
+  height: calc(var(--mp-ball) * 2.2);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7) 30%, rgba(0, 0, 0, 0) 100%);
+}
+.ball {
+  position: absolute;
+  left: calc(var(--mp-ball) * -1);
+  top: calc(var(--mp-ball) * -1);
+  width: calc(var(--mp-ball) * 2);
+  height: calc(var(--mp-ball) * 2);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #ffffff 0%, #f4f4fb 22%, #b4b4c8 62%, #5a5a78 100%);
+  transform: translateZ(var(--mp-ball)) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+/* The run a ball is on: how many numbers in a row, a lamp for each, and the tower they have built. */
 .chain {
+  flex: none;
+  width: 33cqw;
   display: grid;
   justify-items: center;
-  gap: 5cqh;
+  align-content: center;
+  gap: 2.6cqh;
 }
 .chainLabel {
-  font-size: clamp(0.7rem, 10cqh, 1.05rem);
+  font-size: clamp(0.62rem, 7.2cqh, 1.05rem);
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
   color: #ffe0f1;
 }
 .chainLamps {
@@ -630,123 +1588,29 @@
 .chainLamps .lamp[data-goal='true'] {
   border-color: #ffd65c;
 }
+.chainTower {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 27cqh;
+}
+.chainTower .heap {
+  width: 11.5cqh;
+}
 .chainTotal {
-  padding: 0.1rem 0.8rem;
+  padding: 0.1rem 0.55rem;
   border-radius: 999px;
   border: 1px solid #ffd65c;
   background: rgba(10, 5, 32, 0.7);
-  font-size: clamp(0.85rem, 13cqh, 1.35rem);
+  font-size: clamp(0.74rem, 7.8cqh, 1.35rem);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: #ffe98a;
-}
-.bonusHint {
-  font-size: clamp(0.72rem, 11cqh, 1.15rem);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: #fff3a8;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
-}
-.die {
-  height: 62cqh;
-  aspect-ratio: 1;
-  filter: drop-shadow(0 0.3rem 0.4rem rgba(0, 0, 0, 0.5));
-}
-.die[data-rolling='true'] {
-  animation: mp-tumble 0.32s linear infinite;
-}
-@keyframes mp-tumble {
-  from {
-    rotate: -14deg;
-    scale: 0.94;
-  }
-  50% {
-    rotate: 14deg;
-    scale: 1.04;
-  }
-  to {
-    rotate: -14deg;
-    scale: 0.94;
-  }
-}
-.chests {
-  display: flex;
-  justify-content: center;
-  gap: 3cqw;
-}
-.chest {
-  appearance: none;
-  position: relative;
-  height: 70cqh;
-  aspect-ratio: 1.2;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  background: rgba(10, 5, 32, 0.35);
-  cursor: pointer;
-}
-.chest:disabled {
-  cursor: default;
-}
-.chest:not(:disabled):hover,
-.chest[data-state='picked'],
-.chest[data-state='open'][data-chosen='true'] {
-  border-color: #ffd65c;
-  background: rgba(255, 214, 92, 0.2);
-}
-.chest[data-state='picked'] {
-  animation: mp-shake 0.14s linear infinite;
-}
-.chest[data-state='open'][data-chosen='false'] {
-  opacity: 0.6;
-}
-@keyframes mp-shake {
-  from {
-    rotate: -3deg;
-  }
-  50% {
-    rotate: 3deg;
-  }
-  to {
-    rotate: -3deg;
-  }
-}
-.chestArt {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.chestPrize {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 2%;
-  font-size: 26cqh;
-  font-weight: 900;
-  color: #1a1200;
-  text-shadow: 0 0 6px #fff7c2;
-}
-.chest[data-state='closed'] .chestPrize,
-.chest[data-state='picked'] .chestPrize {
-  top: 46%;
-  font-size: 20cqh;
-  color: #fff3a8;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
-}
-.wheel {
-  height: 100cqh;
-  aspect-ratio: 1;
-  filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));
-}
-/* The bowl of the jackpot challenge. The cabinet moves its ball every frame. */
-.bowl {
-  height: 100cqh;
-  aspect-ratio: 1;
-  filter: drop-shadow(0 0 0.5rem rgba(255, 214, 92, 0.5));
 }
 .caption {
   /* One height whatever is in it, so a banner coming and going never moves the field below. */
-  height: 2.9em;
+  height: 2.3em;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -765,7 +1629,7 @@
   color: #ffb3c2;
 }
 .legend [data-tier='big'] {
-  color: #b9d4ff;
+  color: #d9c8ff;
 }
 .legend [data-tier='small'] {
   color: #a4f5c0;
@@ -807,67 +1671,6 @@
     scale: 1.06;
   }
 }
-/* The sugoroku board: a loop of squares laid out in a row, the piece on one of them. */
-.board {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 3px;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  border-radius: 8px;
-  background: rgba(6, 3, 18, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-}
-.square {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1 / 1.05;
-  border-radius: 5px;
-  border: 1px solid #2f7a5c;
-  background: linear-gradient(180deg, #145c44, #0b3a2b);
-  color: #dfffee;
-  font-size: clamp(0.62rem, 2.5vw, 0.9rem);
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-.square[data-fever='true'] {
-  border-color: #ffd65c;
-  background: linear-gradient(135deg, #d61f4c, #c9770a 50%, #1f8a57);
-  color: #ffffff;
-}
-.squareTag {
-  position: absolute;
-  top: 1px;
-  left: 0;
-  right: 0;
-  font-size: 0.42em;
-  letter-spacing: 0;
-  line-height: 1;
-  text-align: center;
-  overflow: hidden;
-}
-.square[data-fever='true'] {
-  padding-top: 0.4em;
-}
-.square[data-here='true'] {
-  border-color: #fffbe0;
-  background: #ffd65c;
-  color: #1a1200;
-  box-shadow: 0 0 12px rgba(255, 214, 92, 0.95);
-  z-index: 1;
-}
-.square[data-here='true']::after {
-  content: '';
-  position: absolute;
-  top: -7px;
-  left: 50%;
-  translate: -50% 0;
-  border: 5px solid transparent;
-  border-top-color: #ff4f9a;
-  border-bottom-width: 0;
-}
 @keyframes mp-flash {
   from {
     filter: brightness(1);
@@ -879,11 +1682,9 @@
 @media (prefers-reduced-motion: reduce) {
   .banner,
   .rays,
-  .die[data-rolling='true'],
-  .chest[data-state='picked'],
   .bulbs::before,
   .bulbs::after,
-  .reels[data-line] .reel,
+  .reels[data-line] .reel::before,
   .cabinet[data-banner='jackpot'] .jackpotBox,
   .cabinet[data-banner='jackpot'] .marquee {
     animation: none;

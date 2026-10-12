@@ -119,7 +119,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
-  const ball = useRef<SVGGElement | null>(null);
+  const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
   const live = useRef({ aim, auto, sound, active, strings: t });
@@ -372,7 +372,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
       const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) ball.current.setAttribute('transform', ballTransform(ballSpot(bowl, calm.matches)));
+      if (bowl && ball.current) ball.current.style.transform = ballTransform(ballSpot(bowl, calm.matches));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -483,7 +483,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;
   };
-  const registerBall = (element: SVGGElement | null) => {
+  const registerBall = (element: HTMLDivElement | null) => {
     ball.current = element;
   };
 

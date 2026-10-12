@@ -5,7 +5,8 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, FIELD, aimArms, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
-import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
+import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
@@ -124,6 +125,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [kept, setKept] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The canvas under the field, for the 3D scene.
+  const sceneRef = useRef<HTMLCanvasElement | null>(null);
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const ball = useRef<SVGGElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -148,8 +151,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if (!canvas || !context) return;
+    // In 3D where the browser can, and on the canvas alone where it cannot; `?renderer=2d` asks for the second.
+    const renderer = canvas && createRenderer(canvas, sceneRef.current, window.location.search);
+    if (!canvas || !renderer) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
     // The machine this browser remembers, if it holds one that still reads. After a reset the
     // save is thrown away instead.
@@ -205,7 +209,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       canvas.width = width;
       canvas.height = Math.round(VIEW.height * ratio);
       const previous = stage;
-      stage = createStage(ratio);
+      stage = createStage(ratio, renderer.kind === '2d');
       // A resize keeps what the stage has seen, so no medal is taken for one that just left.
       if (previous) {
         stage.seen = previous.seen;
@@ -351,7 +355,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      drawField(context, stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
+      renderer.draw(stage, session.machine, { aim: aimNow, showGuide: true, calm: calm.matches });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -407,6 +411,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     return () => {
       cancelAnimationFrame(frameId);
       observer.disconnect();
+      renderer.dispose();
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', save);
@@ -522,6 +527,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         <Screen state={screen} stock={hud.stock} strings={t} registerStrip={registerStrip} registerBall={registerBall} onPick={onPick} />
 
         <div className={styles.fieldWrap}>
+          <canvas ref={sceneRef} className={styles.scene} aria-hidden />
           <canvas
             ref={canvasRef}
             className={styles.field}

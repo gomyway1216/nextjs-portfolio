@@ -1,9 +1,9 @@
 /**
  * Draws the cabinet on a canvas: the housing round the screen in the back
- * wall, the pusher that comes out from under it, the two tables of medals,
- * the two feed arms with a slot at the near end of each, the gates, the open
- * sides and the tray at the front, and over them the lights, sparks and
- * glass of an arcade cabinet. Nothing here decides anything — it only shows
+ * wall, the pusher that comes out from under it with the START panel on its
+ * lip, the two tables of medals, the two feed arms with a slot at the near
+ * end of each, the open sides and the tray at the front, and over them the
+ * lights, sparks and glass of an arcade cabinet. Nothing here decides anything — it only shows
  * the machine the engine is running.
  *
  * The screen itself is not drawn. It is the page's own, stood behind the
@@ -12,7 +12,8 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, type Spot } from './arms';
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, checkerCentres, pusherFront, type Arm, type Machine, type Medal } from './engine';
+import { CHUCKERS, chuckerSpots } from './chuckers';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import { EYE_AT, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -30,7 +31,7 @@ export const EXIT_TIME = 0.6;
 export const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
 /** How much higher than the pile a medal that has just come down is drawn, before it has come to rest. */
 export const RIDE = 1.4;
-/** Seconds a gate, the tray or a side stays lit after a medal passes. */
+/** Seconds a START pocket, the tray or a side stays lit after a medal passes. */
 export const GLOW_TIME = 0.5;
 /** How round a circle on a wall that faces the player looks: its height on the drawing over its width. */
 const UPRIGHT = rise(project(0, 0, 0)) / project(0, 0, 0).scale;
@@ -58,8 +59,25 @@ const SUN = { x: 0.29, depth: 0.39 } as const;
 const CAST = { x: 0.3, y: -0.55 } as const;
 /** A prize ball is drawn this large. It overhangs the flat medals round it, so it touches them over less. */
 export const BALL_RADIUS = 4.3;
-/** How far a gate's opening reaches up the back panel. */
-export const GATE = { halfWidth: R + CHECKERS.halfWidth, height: 11 } as const;
+/**
+ * The START panel: the one piece of furniture along the middle of the
+ * pusher's lip that carries the three pockets. It is a plate let into the
+ * pusher's top and carried down its face. On it each pocket is a hoop of
+ * light, half of it lying on the pusher and half standing out in front of
+ * the lip, so that a medal which goes over the lip inside one drops through
+ * it; and under each hoop, on the face, is the word START, which is seen
+ * through the hoop from where the player sits. The hoop is a thin tube, so
+ * that it does not hide the word. `tile` is how much of the panel's length
+ * belongs to each pocket, which is how far apart the pockets are; `back` is
+ * how far back from the lip the plate lies on the pusher's top; `rim` is how
+ * thick a hoop's tube is.
+ */
+export const START_PANEL = { tile: CHECKERS.positions[1] - CHECKERS.positions[0], back: 7.4, rim: 0.55 } as const;
+/** Where the START panel begins and ends across the field. */
+export const PANEL_SPAN = {
+  from: CHECKERS.positions[0] - START_PANEL.tile / 2,
+  to: CHECKERS.positions[CHECKERS.positions.length - 1] + START_PANEL.tile / 2,
+} as const;
 /** How long each kind of celebration lights the cabinet, in seconds. */
 export const PARTY_TIME = { crash: 0.5, fever: 5, jackpot: 9 } as const;
 export type Party = keyof typeof PARTY_TIME;
@@ -539,7 +557,6 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     g.lineWidth = 2.6 * from.scale * UPRIGHT;
     line(g, from, to);
   }
-  // The gates and the sign over each are not here: they move, so every frame draws them where they are.
   g.lineCap = 'round';
   g.lineJoin = 'round';
   g.textAlign = 'center';
@@ -682,7 +699,7 @@ export function paintStage(stage: Stage): void {
   stage.painted = true;
 }
 
-/** Lights the gate a medal has just come through. */
+/** Lights the START pocket a medal has just dropped through. */
 export function lightGate(stage: Stage, gate: number): void {
   if (gate >= 0 && gate < stage.gateGlow.length) stage.gateGlow[gate] = GLOW_TIME;
 }
@@ -1226,47 +1243,121 @@ function drawSlot(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, a
   flat();
 }
 
-// ── The gates ───────────────────────────────────────────────────────────────
-// The three gates stand at the foot of the wall under the screen for as long as the engine has them
-// there. They are kept to this one function, and one call to it, so that they can be taken out in
-// one piece when the engine moves them.
+// ── The START panel ─────────────────────────────────────────────────────────
 
-/** The gates where their sweep has taken them, each a frame of neon tube that turns gold for a moment when a medal comes through, with its sign riding above it. */
-function drawGates(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, calm: boolean, shift: number): void {
+/** The corners of a stretch of the pusher's face, from x0 to x1 across, when its lip is at `front`. */
+const onFace = (x0: number, x1: number, front: number): Projected[] => [project(x0, P, front), project(x1, P, front), project(x1, 0, front), project(x0, 0, front)];
+
+/**
+ * The START panel on the pusher's face: its plate, from one end of the panel
+ * to the other, and under each pocket the word START. The stretch under a
+ * pocket a medal has just dropped through is lit.
+ */
+function drawPanelFace(g: CanvasRenderingContext2D, stage: Stage, front: number, shift: number): void {
   const k = stage.ratio;
+  const half = START_PANEL.tile / 2;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  const plate = onFace(PANEL_SPAN.from, PANEL_SPAN.to, front);
+  const shade = g.createLinearGradient(0, plate[0].y, 0, plate[2].y);
+  shade.addColorStop(0, '#e0277f');
+  shade.addColorStop(1, '#4a0626');
+  g.fillStyle = shade;
+  path(g, plate);
+  g.fill();
+  g.strokeStyle = '#ffd65c';
+  g.lineWidth = 1.6;
+  g.lineJoin = 'round';
+  g.stroke();
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  checkerCentres(machine.time).forEach((center, index) => {
+  CHECKERS.positions.forEach((centre, index) => {
+    const lit = stage.gateGlow[index] / GLOW_TIME;
+    if (lit > 0) {
+      g.fillStyle = `rgba(255, 244, 150, ${0.6 * lit})`;
+      path(g, onFace(centre - half, centre + half, front));
+      g.fill();
+    }
+    // Tall letters, squeezed to fit under their pocket: the word has to be read from across the cabinet.
+    onPanel(g, k, centre, P * 0.54, shift, front);
+    g.scale(0.62, 1);
+    g.font = '900 4.6px "Arial Black", Arial, sans-serif';
+    g.fillStyle = lit > 0 ? '#ffffff' : '#fff3a8';
+    g.fillText('START', 0, 0);
+    g.setTransform(k, 0, 0, k, shift * k, 0);
+  });
+}
+
+/** One half of a pocket's hoop on the drawing: the far half, which lies on the pusher's top, or the near one, which stands out in front of the lip. */
+function hoopHalf(g: CanvasRenderingContext2D, middle: Projected, radius: number, near: boolean): void {
+  const rx = radius * middle.scale;
+  g.beginPath();
+  g.ellipse(middle.x, middle.y, rx, rx * middle.tilt, 0, near ? 0 : Math.PI, near ? Math.PI : TAU);
+}
+
+/**
+ * The START panel on the pusher's top: its plate, along the lip, and on it
+ * the far half of each pocket's hoop with the dark of the pocket inside it.
+ * Medals that lie on the pusher lie over all of this.
+ */
+function drawPanelTop(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, front: number, shift: number): void {
+  const k = stage.ratio;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  const plate = [project(PANEL_SPAN.from, P, front - START_PANEL.back), project(PANEL_SPAN.to, P, front - START_PANEL.back), project(PANEL_SPAN.to, P, front), project(PANEL_SPAN.from, P, front)];
+  const shade = g.createLinearGradient(0, plate[0].y, 0, plate[2].y);
+  shade.addColorStop(0, '#7a0e44');
+  shade.addColorStop(1, '#e0277f');
+  g.fillStyle = shade;
+  path(g, plate);
+  g.fill();
+  g.strokeStyle = '#ffd65c';
+  g.lineWidth = 1.6;
+  g.lineJoin = 'round';
+  g.stroke();
+  chuckerSpots(machine.time).forEach((spot, index) => {
+    const lit = stage.gateGlow[index] / GLOW_TIME;
+    const middle = project(spot.x, spot.height, spot.depth);
+    g.fillStyle = lit > 0 ? `rgba(255, 244, 150, ${0.4 + 0.5 * lit})` : 'rgba(6, 2, 20, 0.78)';
+    hoopHalf(g, middle, CHUCKERS.radius, false);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = lit > 0 ? '#fffbe0' : '#ffc4e2';
+    g.lineWidth = START_PANEL.rim * middle.scale;
+    hoopHalf(g, middle, CHUCKERS.radius + START_PANEL.rim / 2, false);
+    g.stroke();
+  });
+}
+
+/**
+ * The near half of each pocket's hoop, out in front of the lip: a thin tube
+ * of light, which turns gold for a moment when a medal drops through. It is
+ * drawn over the medals on their way down from the lip, so one that drops
+ * through a pocket is seen to go down inside it.
+ */
+function drawHoops(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, calm: boolean, shift: number): void {
+  const k = stage.ratio;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.lineCap = 'butt';
+  chuckerSpots(machine.time).forEach((spot, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;
     const pulse = calm ? 0 : 0.5 + 0.5 * Math.sin(stage.clock * 4 + index * 2.1);
-    const gate = [
-      project(center - GATE.halfWidth, P, 0),
-      project(center - GATE.halfWidth, P + GATE.height, 0),
-      project(center + GATE.halfWidth, P + GATE.height, 0),
-      project(center + GATE.halfWidth, P, 0),
-    ];
-    g.setTransform(k, 0, 0, k, shift * k, 0);
-    g.fillStyle = lit > 0 ? `rgba(255, 244, 150, ${0.25 + 0.5 * lit})` : 'rgba(6, 2, 20, 0.6)';
-    path(g, gate);
-    g.fill();
-    g.lineJoin = 'round';
-    g.beginPath();
-    g.moveTo(gate[0].x, gate[0].y);
-    g.lineTo(gate[1].x, gate[1].y);
-    g.lineTo(gate[2].x, gate[2].y);
-    g.lineTo(gate[3].x, gate[3].y);
-    g.strokeStyle = lit > 0 ? 'rgba(255, 244, 150, 0.55)' : `rgba(64, 226, 255, ${0.22 + 0.2 * pulse})`;
-    g.lineWidth = 9;
+    const middle = project(spot.x, spot.height, spot.depth);
+    // The flash of a medal that has just gone down the pocket.
+    if (lit > 0) {
+      g.fillStyle = `rgba(255, 244, 150, ${0.45 * lit})`;
+      hoopHalf(g, middle, CHUCKERS.radius, true);
+      g.closePath();
+      g.fill();
+    }
+    g.strokeStyle = lit > 0 ? 'rgba(255, 244, 150, 0.55)' : `rgba(255, 124, 192, ${0.4 + 0.2 * pulse})`;
+    g.lineWidth = (START_PANEL.rim + 1.1) * middle.scale;
+    hoopHalf(g, middle, CHUCKERS.radius + START_PANEL.rim / 2, true);
     g.stroke();
-    g.strokeStyle = lit > 0 ? '#fffbe0' : '#7df0ff';
-    g.lineWidth = 2.5;
+    g.strokeStyle = lit > 0 ? '#fffbe0' : '#ffc4e2';
+    g.lineWidth = START_PANEL.rim * middle.scale;
+    hoopHalf(g, middle, CHUCKERS.radius + START_PANEL.rim / 2, true);
     g.stroke();
-    onPanel(g, k, center, P + GATE.height + 2.4, shift);
-    g.font = '900 3.1px "Arial Black", Arial, sans-serif';
-    g.fillStyle = '#fff3a8';
-    g.fillText('START', 0, 0);
   });
-  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.lineCap = 'round';
 }
 
 export interface DrawOptions {
@@ -1362,7 +1453,10 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.fillStyle = faceShade;
   path(g, face);
   g.fill();
-  bulbs(g, project(3, P / 2, front), project(W - 3, P / 2, front), 24, phase, ['#7df0ff', '#d6fbff'], 2.2);
+  // The face's bulbs are to either side of the START panel, which has the middle of it.
+  bulbs(g, project(3, P / 2, front), project(PANEL_SPAN.from - 2, P / 2, front), 12, phase, ['#7df0ff', '#d6fbff'], 2.2);
+  bulbs(g, project(PANEL_SPAN.to + 2, P / 2, front), project(W - 3, P / 2, front), 12, phase, ['#7df0ff', '#d6fbff'], 2.2);
+  drawPanelFace(g, stage, front, shake);
 
   const lower: Medal[] = [];
   const upper: Medal[] = [];
@@ -1370,6 +1464,8 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   lower.sort(byDepth);
   upper.sort(byDepth);
   drawMedals(g, stage, lower, 0, shake);
+  // The near halves of the pockets' hoops are in front of whatever is on its way down from the lip.
+  drawHoops(g, stage, machine, calm, shake);
 
   // The pusher's top: through it, the dark inside the box and the ribs that brace it, which travel with it; along its lip, chevrons and the bright edge of the sheet.
   flat();
@@ -1388,16 +1484,17 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   for (let x = 12.5; x < W; x += 12.5) line(g, project(x, P, 0), project(x, P, front));
   g.fillStyle = 'rgba(255, 196, 40, 0.6)';
   for (let x = 4; x < W; x += 8) {
+    // The chevrons stop where the START panel is.
+    if (x + 4 > PANEL_SPAN.from && x - 2 < PANEL_SPAN.to) continue;
     path(g, [project(x, P, front - 0.9), project(x + 4, P, front - 0.9), project(x + 2, P, front - 3.2), project(x - 2, P, front - 3.2)]);
     g.fill();
   }
   g.strokeStyle = 'rgba(236, 252, 255, 0.95)';
   g.lineWidth = 2.5;
   line(g, top[3], top[2]);
+  drawPanelTop(g, stage, machine, front, shake);
   drawMedals(g, stage, upper, P, shake);
   flat();
-
-  drawGates(g, stage, machine, calm, shake);
 
   // Where a medal that leaves now is let go, and how far from that it can land: from the tip of the
   // arm on the side of the aim, which is over the aim once it has swung there, down to the pusher.

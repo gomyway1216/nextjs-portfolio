@@ -6,6 +6,7 @@
  */
 
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
+import { droppedThrough } from './chuckers';
 import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
@@ -230,9 +231,10 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     let heading = TAU * chance(id, 2);
     // One lying on others is held up by the edge it leans on, so its low side rests on them instead of sinking in.
     const propped = medal.tier === 1 ? R * Math.sin(tilt) : 0;
-    // Coming over the lip it tips forward, and is level again as it lands.
+    // Coming over the lip it tips forward, and is level again as it lands. One that drops through a START pocket
+    // hardly tips at all: it goes down inside the hoop.
     if (drop > 0) {
-      tilt = 0.75 * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
+      tilt = (droppedThrough(medal) >= 0 ? 0.2 : 0.75) * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
       heading = (chance(id, 2) - 0.5) * 0.8;
     }
     const ground = base + (medal.tier === 1 ? T : 0);

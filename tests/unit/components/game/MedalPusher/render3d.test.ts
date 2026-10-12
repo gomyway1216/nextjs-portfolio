@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ARMS, HATCH, PAYOUT_SLOT, SLOT, airSpot, armCollar, armGoal, armTip, railFrame, rollingSpot, type Spot } from '@/components/game/MedalPusher/arms';
-import { SHELF_SHARE, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
+import { SHELF_SHARE, SIGN, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
+import { CHUCKERS, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
   FLAT_STRIDE,
   Flat,
@@ -29,11 +30,9 @@ import {
   RELEASE,
   ROLL_TIME,
   SETTLE,
-  SWEEP,
   TOWER,
   aimArms,
   buildTowers,
-  checkerCentres,
   createMachine,
   dropBall,
   dropMedal,
@@ -43,7 +42,7 @@ import {
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
-import { BALL_RADIUS, EXIT_TIME, GATE, LIP_FALL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
+import { BALL_RADIUS, EXIT_TIME, LIP_FALL, PANEL_SPAN, START_PANEL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
 import * as shaders from '@/components/game/MedalPusher/shaders3d';
 import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
@@ -614,13 +613,27 @@ describe('the medals of the 3D field', () => {
   });
 
   it('tips a medal forward as it comes over the lip of the pusher', () => {
-    const over = (sinceDrop: number) => medalRows(holding([lying(3, 50, 48, 0, 0, { sinceDrop, grown: 1 })]))[0];
+    // Between two of the START pockets, where a medal goes over the lip like any other.
+    const between = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
+    const over = (sinceDrop: number) => medalRows(holding([lying(3, between, 48, 0, 0, { sinceDrop, grown: 1 })]))[0];
     expect(over(0).y).toBeCloseTo(P + T / 2, 5);
     expect(over(LIP_FALL / 2).y).toBeLessThan(P);
     expect(over(LIP_FALL / 2).up[2]).toBeGreaterThan(0.4);
     expect(over(LIP_FALL / 2).contact).toBe(0);
     expect(over(LIP_FALL).y).toBeCloseTo(T / 2, 5);
     expect(over(LIP_FALL).up[1]).toBeGreaterThan(0.995);
+  });
+
+  it('lets a medal that drops through a START pocket go down level, inside the hoop, where one beside it tips over', () => {
+    const over = (x: number) => medalRows(holding([lying(3, x, 48, 0, 0, { sinceDrop: LIP_FALL / 2, grown: 1 })]))[0];
+    const through = over(CHECKERS.positions[1] + CHECKERS.halfWidth * 0.9);
+    const beside = over(CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5);
+    // Both are as far down, half way through the drop; only how they are held differs.
+    expect(through.y).toBeCloseTo(beside.y, 5);
+    expect(through.up[1]).toBeGreaterThan(0.97);
+    expect(beside.up[1]).toBeLessThan(0.8);
+    // A ball is too big for a pocket, and one that lies on the pusher has not dropped at all.
+    expect(medalRows(holding([lying(3, CHECKERS.positions[1], 20, 1)]))[0].up[1]).toBeGreaterThan(0.99);
   });
 
   it('makes room for more medals than it started with', () => {
@@ -1275,38 +1288,121 @@ describe('the cabinet as shapes', () => {
     }
   });
 
-  it('draws every gate and its sign where the sweep has taken it, and lights one a medal came through', () => {
+  it('rides the START panel on the pusher\u2019s lip: a hoop round every pocket, half of it out in front, and its word on the face under it', () => {
     fakeDocument();
-    for (const time of [0, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4]) {
+    /** Corners to one pocket's hoop: its far half and its near half, fourteen surfaces each. */
+    const each = 2 * 14 * 6;
+    for (const time of [0, 0.9, 2.2, 4.5]) {
       const { solid } = moving(time);
-      const centres = checkerCentres(time);
-      const gates = corners(solid, MOVING_PARTS[5].first, MOVING_PARTS[5].count);
+      const front = pusherFront(time);
+      const spots = chuckerSpots(time);
+      const hoops = corners(solid, MOVING_PARTS[5].first, MOVING_PARTS[5].count);
       const signs = corners(solid, MOVING_PARTS[6].first, MOVING_PARTS[6].count);
-      expect(signs).toHaveLength(6 * CHECKERS.positions.length);
-      centres.forEach((centre, gate) => {
-        const sign = signs.slice(gate * 6, gate * 6 + 6);
+      // The hoops, and after them a gold end to the panel at either side.
+      expect(hoops).toHaveLength(CHUCKERS.count * each + 2 * 6);
+      expect(signs).toHaveLength(6 * CHUCKERS.count);
+      spots.forEach((spot, pocket) => {
+        expect(spot.depth).toBe(front);
+        const hoop = hoops.slice(pocket * each, pocket * each + each);
+        // Round the place a medal's middle is as it goes over the lip there, and as wide inside as a medal that just fits.
+        const reach = hoop.map((corner) => Math.hypot(corner.x - spot.x, corner.z - spot.depth));
+        expect(Math.min(...reach)).toBeCloseTo(CHUCKERS.radius, 3);
+        expect(Math.max(...reach)).toBeCloseTo(CHUCKERS.radius + START_PANEL.rim, 3);
+        // Half of it lies on the pusher, behind the lip, and half stands out in front of it.
+        expect(Math.min(...hoop.map((corner) => corner.z))).toBeCloseTo(front - CHUCKERS.radius - START_PANEL.rim, 3);
+        expect(Math.max(...hoop.map((corner) => corner.z))).toBeCloseTo(front + CHUCKERS.radius + START_PANEL.rim, 3);
+        // It is a flat ring at the height of the lip: the far half on the pusher's top, the near half level with it out in the open.
+        for (const corner of hoop) {
+          expect(Math.abs(corner.y - P)).toBeLessThan(0.05);
+          expect(corner.normal).toEqual([0, 1, 0]);
+          // A tube of light: it gives off its own, and mirrors nothing.
+          expect(corner.gloss).toBe(0);
+          expect(corner.glow).toBeGreaterThanOrEqual(1);
+        }
+        // Thin, so that the word on the face under it is read through it.
+        expect(START_PANEL.rim).toBeLessThan(CHUCKERS.radius / 6);
+        // Under it, on the pusher's face, its stretch of the panel: as long as the pockets are apart, from under the lip to the table.
+        const sign = signs.slice(pocket * 6, pocket * 6 + 6);
         const xs = sign.map((corner) => corner.x);
-        expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(centre, 4);
-        // The sign rides above the gate's opening, on the wall under the shelf.
-        expect(Math.min(...sign.map((corner) => corner.y))).toBeGreaterThan(P + GATE.height);
-        expect(Math.max(...sign.map((corner) => corner.y))).toBeLessThan(HOUSING.shelf);
-        // Each gate is three tubes round an opening as wide as a medal that just goes through on either side.
-        const tubes = gates.slice(gate * 72, gate * 72 + 72).map((corner) => corner.x);
-        expect((Math.min(...tubes) + Math.max(...tubes)) / 2).toBeCloseTo(centre, 4);
-        expect(Math.max(...tubes) - Math.min(...tubes)).toBeGreaterThan(2 * (R + CHECKERS.halfWidth));
-        expect(Math.max(...tubes) - Math.min(...tubes)).toBeLessThan(2 * (R + CHECKERS.halfWidth) + 1);
+        expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(spot.x, 4);
+        expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(START_PANEL.tile, 4);
+        expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(SIGN.width, 4);
+        expect(Math.min(...sign.map((corner) => corner.y))).toBe(0);
+        expect(Math.max(...sign.map((corner) => corner.y))).toBeCloseTo(SIGN.height, 4);
+        for (const corner of sign) {
+          expect(corner.normal).toEqual([0, 0, 1]);
+          expect(corner.z).toBeGreaterThan(front);
+          expect(corner.z).toBeLessThan(front + 0.1);
+        }
       });
-      expect(gates).toHaveLength(72 * CHECKERS.positions.length);
+      // The three stretches are end to end: one plate, from one end of the panel to the other.
+      expect(Math.min(...signs.map((corner) => corner.x))).toBeCloseTo(PANEL_SPAN.from, 4);
+      expect(Math.max(...signs.map((corner) => corner.x))).toBeCloseTo(PANEL_SPAN.to, 4);
     }
+    // The panel is one piece of furniture: each pocket has as much of it as the pockets are apart, and the hoops do not touch.
+    expect(START_PANEL.tile).toBe(CHECKERS.positions[1] - CHECKERS.positions[0]);
+    expect(CHUCKERS.radius + START_PANEL.rim).toBeLessThan(START_PANEL.tile / 2);
+    expect(PANEL_SPAN.to - PANEL_SPAN.from).toBe(START_PANEL.tile * CHUCKERS.count);
+    expect(PANEL_SPAN.from).toBeGreaterThan(0);
+    expect(PANEL_SPAN.to).toBeLessThan(FIELD.width);
+    // A pocket a medal has just dropped through turns to light, and its stretch of the face lights up. No other does.
     const dark = moving(1);
     const stage = createStage(1, false);
     lightGate(stage, 2);
     const lit = moving(1, 50, stage);
-    const tube = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[5].first + gate * 72, 1)[0].colour;
-    expect(tube(lit.solid, 2)).not.toEqual(tube(dark.solid, 2));
-    expect(tube(lit.solid, 0)).toEqual(tube(dark.solid, 0));
-    const sign = (solid: Solid, gate: number) => corners(solid, MOVING_PARTS[6].first + gate * 6, 1)[0].glow;
+    const rim = (solid: Solid, pocket: number) => corners(solid, MOVING_PARTS[5].first + pocket * each, 1)[0];
+    expect(rim(lit.solid, 2).glow).toBeGreaterThan(rim(dark.solid, 2).glow);
+    expect(rim(lit.solid, 2).colour).not.toEqual(rim(dark.solid, 2).colour);
+    expect(rim(lit.solid, 0)).toEqual(rim(dark.solid, 0));
+    const sign = (solid: Solid, pocket: number) => corners(solid, MOVING_PARTS[6].first + pocket * 6, 1)[0].glow;
     expect(sign(lit.solid, 2)).toBeGreaterThan(sign(dark.solid, 2));
+    expect(sign(lit.solid, 1)).toBe(sign(dark.solid, 1));
+  });
+
+  it('glows round each START pocket, and flashes down one a medal has just gone through', () => {
+    fakeDocument();
+    const machine = createMachine(3);
+    const stage = createStage(1, false);
+    const touches = () => {
+      const flat = new Flat(600);
+      buildTouches(flat, machine, pusherFront(machine.time), stage, { aim: 50, showGuide: false, calm: true });
+      return flat;
+    };
+    /** The round touches laid level at a pocket: just over the lip, and, when it is lit, just under it. */
+    const at = (flat: Flat, pocket: number) => {
+      const spot = chuckerSpots(machine.time)[pocket];
+      const found: { y: number; cover: number; shine: number }[] = [];
+      for (let i = 0; i < flat.count * FLAT_STRIDE; i += 6 * FLAT_STRIDE) {
+        const opposite = i + 2 * FLAT_STRIDE;
+        const [x, y, z] = [(flat.data[i] + flat.data[opposite]) / 2, flat.data[i + 1], (flat.data[i + 2] + flat.data[opposite + 2]) / 2];
+        if (flat.data[i + 10] === SHAPE.spot && flat.data[opposite + 1] === y && Math.abs(x - spot.x) < 1e-3 && Math.abs(z - spot.depth) < CHUCKERS.radius && Math.abs(y - P) < 0.5) found.push({ y, cover: flat.data[i + 6], shine: flat.data[i + 7] });
+      }
+      return found;
+    };
+    const idle = touches();
+    for (let pocket = 0; pocket < CHUCKERS.count; pocket++) {
+      // Round each, a little of its hoop's light, and nothing that hides the word on the face under it.
+      const found = at(idle, pocket);
+      expect(found).toHaveLength(1);
+      expect(found[0].y).toBeGreaterThan(P);
+      expect(found[0].cover).toBe(0);
+      expect(found[0].shine).toBeGreaterThan(0);
+    }
+    lightGate(stage, 1);
+    const lit = touches();
+    // Two more touches than before: the flash down the pocket, just under the lip so that the half of it behind
+    // the lip is under the pusher's top, and the light on the face under the pocket. And its hoop's glow is brighter.
+    expect(lit.count).toBe(idle.count + 12);
+    const [glow, flash] = at(lit, 1);
+    expect(glow.shine).toBeGreaterThan(at(idle, 1)[0].shine * 2);
+    expect(flash.y).toBeLessThan(P);
+    expect(flash.shine).toBeGreaterThan(0.5);
+    expect(at(lit, 0)).toEqual(at(idle, 0));
+    // The pockets ride with the pusher: half a stroke on, every touch of theirs has moved with the lip.
+    machine.time = PUSHER.period / 2;
+    ageStage(stage, 1);
+    expect(at(touches(), 2)).toHaveLength(1);
+    expect(pusherFront(machine.time)).not.toBeCloseTo(pusherFront(0), 0);
   });
 
   it('has the bulbs in their rows, the hold\u2019s lamps lit from the machine, a lamp at each arm\u2019s tip, and the studs', () => {

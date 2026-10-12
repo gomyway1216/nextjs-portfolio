@@ -36,7 +36,6 @@ import {
   MEDAL_RADIUS,
   PUSHER,
   ROLL_TIME,
-  SWEEP,
   TOWER,
   aimArms,
   createMachine,
@@ -155,9 +154,10 @@ describe('where the arms hang', () => {
     expect(armRest(0)).toBe(FIELD.width / 2 - ARMS.rest);
     expect(armRest(1)).toBe(FIELD.width / 2 + ARMS.rest);
     for (const arm of BOTH) expect(tipOf(arm, armRest(arm))).toBe(armRest(arm));
-    // A resting tip is clear of the centre gate wherever its sweep has taken it, and of anywhere the other arm can be.
-    expect(armRest(0)).toBeLessThan(CHECKERS.positions[1] - SWEEP.amplitude - MEDAL_RADIUS);
-    expect(armRest(1)).toBeGreaterThan(CHECKERS.positions[1] + SWEEP.amplitude + MEDAL_RADIUS);
+    // A resting tip is well clear of the column behind the middle chucker, where the other arm is likeliest to be feeding,
+    // and of anywhere else the other arm can be.
+    expect(armRest(0)).toBeLessThan(CHECKERS.positions[1] - MEDAL_RADIUS * 4);
+    expect(armRest(1)).toBeGreaterThan(CHECKERS.positions[1] + MEDAL_RADIUS * 4);
     expect(armRest(0)).toBeLessThan(ARM_REACH[1].min);
     expect(armRest(1)).toBeGreaterThan(ARM_REACH[0].max);
   });
@@ -207,7 +207,7 @@ describe('where an arm’s tip belongs', () => {
     expect(armGoal(machine, 0)).toBe(armRest(0));
   });
 
-  it('swings there at its own speed and stops, and keeps up with an aim that follows a gate', () => {
+  it('swings there at its own speed and stops, and is over the middle long before a medal fed there is', () => {
     expect(swing(40, 40, DT)).toBe(40);
     expect(swing(40, 90, DT)).toBeCloseTo(40 + ARMS.speed * DT, 9);
     expect(swing(40, 10, DT)).toBeCloseTo(40 - ARMS.speed * DT, 9);
@@ -222,9 +222,8 @@ describe('where an arm’s tip belongs', () => {
       steps++;
     }
     expect(steps * DT).toBeLessThan(ROLL_TIME / 2);
-    // A gate at its fastest moves much less in a step than a tip can: a tip that is on it stays on it.
-    const fastest = (2 * Math.PI * SWEEP.amplitude) / SWEEP.period;
-    expect(fastest * 10).toBeLessThan(ARMS.speed);
+    // From its rest to the column behind the middle chucker is a few steps: either arm is there before its medal has rolled a quarter of the way.
+    for (const arm of BOTH) expect(Math.abs(armRest(arm) - CHECKERS.positions[1]) / ARMS.speed).toBeLessThan(ROLL_TIME / 4);
   });
 });
 

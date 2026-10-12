@@ -32,7 +32,7 @@ import {
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
+import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -687,26 +687,46 @@ describe('strings', () => {
     expect(everything).not.toMatch(/four spins|4回分/);
   });
 
-  it('describes the gates as the engine moves them', () => {
+  it('describes the START pockets as the engine has them', () => {
     const en = getStrings('en');
     const ja = getStrings('ja');
     // The field is 100 wide, so a distance across it is a percentage of its width.
     expect(FIELD.width).toBe(100);
-    expect(en.partText.gates).toContain(`${SWEEP.amplitude}% of the width each way`);
-    expect(en.partText.gates).toContain(`every ${SWEEP.period} seconds`);
-    expect(ja.partText.gates).toContain(`幅の${SWEEP.amplitude}%ずつ`);
-    expect(ja.partText.gates).toContain(`${SWEEP.period}秒で1往復`);
-    expect(en.infoBody(MAX_STOCK).join(' ')).toContain('sweep from side to side');
-    expect(ja.infoBody(MAX_STOCK).join(' ')).toContain('左右に動き続けて');
-    // The calculator's note quotes the share of followed medals that come through a gate: exactly this, from the scatter.
-    const through = 1 - (1 - CHECKERS.halfWidth / LANDING.scatter) ** 2;
-    expect(en.calcNote(MAX_STOCK)).toContain(`about ${Math.round(through * 100)}% start a spin`);
-    expect(ja.calcNote(MAX_STOCK)).toContain(`約${Math.round(through * 100)}%が抽選を始めます`);
-    expect(en.calcNote(MAX_STOCK)).toContain(`about ${CALC_DEFAULT.front}% of medals leave by the front`);
-    expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て`);
-    expect(CALC_DEFAULT.spins).toBe(Math.round(through * 100));
-    expect(en.aimName.centre).toBe('Following the centre gate');
-    expect(ja.aimName.centre).toBe('中央のチャッカーを追う');
+    expect(PART_IDS).toEqual(['arms', 'pusher', 'chuckers', 'table', 'sides', 'front']);
+    expect(en.partName.chuckers).toBe('START pockets');
+    expect(ja.partName.chuckers).toBe('チャッカー');
+    // How wide a pocket is, where the three are, and that they do not move along the lip.
+    expect(en.partText.chuckers).toContain(`as wide as a medal and ${CHECKERS.halfWidth}% of the field’s width more on either side`);
+    expect(ja.partText.chuckers).toContain(`メダル1枚分に左右それぞれ幅の${CHECKERS.halfWidth}%を足した広さ`);
+    expect(CHECKERS.positions[1]).toBe(FIELD.width / 2);
+    expect(en.partText.chuckers).toContain('side by side in the middle of the pusher’s lip');
+    expect(en.partText.chuckers).toContain('do not move along it');
+    expect(ja.partText.chuckers).toContain('プッシャーの縁の中央に並んでいます');
+    expect(ja.partText.chuckers).toContain('左右には動きません');
+    // Which medals count: any of them, and a ball never.
+    const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
+    expect(info.en).toContain('Any medal does: one you dropped, one the screen paid, or one off a tower');
+    expect(info.ja).toContain('自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも同じです');
+    expect(en.partText.chuckers).toContain('A ball does not fit');
+    expect(ja.partText.chuckers).toContain('ボールは通れません');
+    // The calculator's note quotes what the calculator starts from, which is what the Simulation tab measures.
+    expect(CALC_DEFAULT).toEqual({ front: 80, spins: 18 });
+    expect(en.calcNote(MAX_STOCK)).toContain(`about ${CALC_DEFAULT.front}% of medals leave by the front and a spin starts about ${CALC_DEFAULT.spins} times for every 100 medals dropped`);
+    expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て、落としたメダル100枚につき約${CALC_DEFAULT.spins}回の抽選が始まります`);
+    // The ways of aiming are named for where they feed, now that there is nothing to follow.
+    expect(en.aimName).toEqual({
+      centre: 'Down the middle, behind the pockets',
+      anywhere: en.aimName.anywhere,
+      beside: 'Fixed spots beside the pockets',
+      edges: en.aimName.edges,
+    });
+    expect(ja.aimName.centre).toBe('チャッカーの奥、中央に落とす');
+    expect(ja.aimName.beside).toBe('チャッカーの両脇に固定');
+    expect(en.colGate).toBe('Through a pocket');
+    // Nothing still speaks of gates on the back panel, of their sweep, or of following one.
+    const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
+    const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
+    expect(everything).not.toMatch(/\bgates?\b|sweep|follow(s|ing)? (a|the) |side to side|左右に動き続け|を追う|追いかけ/i);
   });
 
   it('describes the feed arms as the engine works them', () => {
@@ -984,6 +1004,20 @@ describe('charts', () => {
     expect(html).toContain('aria-label="the field"');
     expect(html.match(/data-badge=/g)).toHaveLength(6);
     expect(PUSHER.max).toBeLessThan(FIELD.sideOpenFrom);
+    // The three START pockets are on the pusher's lip: in a row, as far apart as the engine has them, each as wide as a medal that just fits.
+    const pockets = [...html.matchAll(/<circle[^>]*data-chucker[^>]*>/g)].map(([tag]) => {
+      const number = (name: string) => Number(new RegExp(` ${name}="([\\d.]+)"`).exec(tag)?.[1]);
+      return { x: number('cx'), y: number('cy'), radius: number('r') };
+    });
+    expect(pockets).toHaveLength(CHECKERS.positions.length);
+    const scale = pockets[0].radius / (MEDAL_RADIUS + CHECKERS.halfWidth);
+    pockets.forEach((pocket, index) => {
+      expect(pocket.radius).toBeCloseTo(pockets[0].radius, 9);
+      expect(pocket.y).toBeCloseTo(pockets[0].y, 9);
+      expect((pocket.x - pockets[0].x) / scale).toBeCloseTo(CHECKERS.positions[index] - CHECKERS.positions[0], 6);
+    });
+    // They do not run into one another.
+    expect(pockets[1].x - pockets[0].x).toBeGreaterThan(pockets[0].radius * 2);
     // One feed arm runs back from each front corner to its tip over the pusher, each with its slot at the near end.
     expect(html.match(/data-arm=/g)).toHaveLength(2);
     expect(html.match(/<circle[^>]*r="5.5"/g)).toHaveLength(2);

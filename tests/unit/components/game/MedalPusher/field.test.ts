@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ARMS, SLOT, armCollar, armRest, armTip, fedSpot, legOf, letGo, railFrame, rollingSpot } from '@/components/game/MedalPusher/arms';
+import { CHUCKERS, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
   AIM,
   ARM_REACH,
@@ -9,18 +10,18 @@ import {
   FIELD,
   MEDAL_RADIUS,
   FEED,
+  PUSHER,
   ROLL_TIME,
-  SWEEP,
   aimArms,
-  checkerCentres,
   createMachine,
   dropMedal,
+  pusherFront,
   step,
   type Arm,
   type Machine,
 } from '@/components/game/MedalPusher/engine';
-import { createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
-import { HEIGHT, HOUSING, project, unprojectPanel } from '@/components/game/MedalPusher/view';
+import { PANEL_SPAN, START_PANEL, createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
+import { HEIGHT, project } from '@/components/game/MedalPusher/view';
 
 /**
  * A medal's face as it was stamped on the canvas: where its middle is, how wide and how tall it was drawn, how far
@@ -36,12 +37,24 @@ interface Stamp {
   down: [number, number];
 }
 
+/** A stretch of an ellipse as it was drawn: its middle, how far it reaches across and down, and from what angle to what. */
+interface Arc {
+  x: number;
+  y: number;
+  across: number;
+  down: number;
+  from: number;
+  to: number;
+}
+
 /**
  * A stand-in for a canvas's 2D context. It draws nothing and remembers what
  * the tests look for: every piece of text, at the pixel it was drawn, every
- * point a path was started from or carried on to, and every image stamped.
+ * point a path was started from or carried on to, every stretch of an
+ * ellipse, and every image stamped.
  */
 function recorder() {
+  const arcs: Arc[] = [];
   const texts: { text: string; x: number; y: number }[] = [];
   const starts: { x: number; y: number }[] = [];
   const lines: { x: number; y: number }[] = [];
@@ -62,6 +75,9 @@ function recorder() {
     lineTo: (x: number, y: number) => {
       lines.push(at(x, y));
     },
+    ellipse: (x: number, y: number, rx: number, ry: number, _turn: number, from: number, to: number) => {
+      arcs.push({ ...at(x, y), across: rx * matrix[0], down: ry * matrix[3], from, to });
+    },
     drawImage: () => {
       // A sprite is stamped on a square of two units about the origin: the transform says the rest.
       const [a, b, c, d, x, y] = matrix;
@@ -73,7 +89,7 @@ function recorder() {
     get: (target, name: string) => target[name] ?? (() => gradient),
     set: () => true,
   }) as unknown as CanvasRenderingContext2D;
-  return { context, texts, starts, lines, stamps };
+  return { context, texts, starts, lines, stamps, arcs };
 }
 
 type Recorder = ReturnType<typeof recorder>;
@@ -95,7 +111,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('the gates on the canvas', () => {
+describe('the START panel on the canvas', () => {
   /** One frame of the field at `time`, and what it drew. */
   const frame = (time: number, calm: boolean) => {
     const stage = createStage(1);
@@ -105,87 +121,119 @@ describe('the gates on the canvas', () => {
     drawField(screen.context, stage, machine, { aim: 50, showGuide: true, calm });
     return screen;
   };
-  /** A quarter of the way through the sweep, an eighth, the far left, and somewhere on the way back. */
-  const TIMES = [0, SWEEP.period / 8, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4, 5.3];
+  /** Moments all through the pusher's stroke: out, back, and on the way. */
+  const TIMES = [0, 0.75, 1.5, 2.2, 4.5, 5.3];
+  const P = HEIGHT.pusher;
+  const near = (points: { x: number; y: number }[], x: number, y: number) => points.some((point) => Math.hypot(point.x - x, point.y - y) < 1e-6);
 
-  it('paints no gate sign into the layer that is drawn once', () => {
+  it('paints nothing of the panel into the layer that is drawn once: it rides with the pusher', () => {
     const made = fakeDocument();
     createStage(1);
     const once = made.flatMap((canvas) => canvas.texts.map((entry) => entry.text));
-    // The words on the table are there, so the layer was recorded; the signs are not.
+    // The words on the table and under the screen are there, so the layer was recorded; the panel's are not.
     expect(once.filter((text) => text === 'GET')).toHaveLength(3);
     expect(once.filter((text) => text === 'OUT')).toHaveLength(2);
+    expect(once.filter((text) => text === 'HOLD')).toHaveLength(1);
     expect(once).not.toContain('START');
   });
 
-  it('draws every START sign over its gate, wherever the sweep has taken it', () => {
+  it('writes START under every pocket, on the pusher\u2019s face, wherever the stroke has taken it', () => {
     fakeDocument();
-    const heights: number[] = [];
+    const heights = new Set<number>();
     for (const time of TIMES) {
-      const signs = frame(time, false).texts.filter((entry) => entry.text === 'START');
-      expect(signs).toHaveLength(CHECKERS.positions.length);
-      const centres = checkerCentres(time);
-      signs.forEach((sign, gate) => {
-        // The spot of the back panel the sign was drawn on: straight above the gate's centre.
-        const spot = unprojectPanel(sign.x, sign.y);
-        expect(spot?.x).toBeCloseTo(centres[gate], 6);
-        heights.push(spot?.height ?? Number.NaN);
+      const front = pusherFront(time);
+      const words = frame(time, false).texts.filter((entry) => entry.text === 'START');
+      expect(words).toHaveLength(CHUCKERS.count);
+      words.forEach((word, pocket) => {
+        // Straight under the pocket, on the face, between the lip and the lower table.
+        const under = project(CHECKERS.positions[pocket], P * 0.54, front);
+        expect(word.x).toBeCloseTo(under.x, 6);
+        expect(word.y).toBeCloseTo(under.y, 6);
+        expect(word.y).toBeGreaterThan(project(CHECKERS.positions[pocket], P, front).y);
+        expect(word.y).toBeLessThan(project(CHECKERS.positions[pocket], 0, front).y);
+        heights.add(Math.round(word.y));
       });
     }
-    // Always at the same height on the wall: above the pusher, under the shelf the screen stands on.
-    for (const height of heights) {
-      expect(height).toBeCloseTo(heights[0], 6);
-      expect(height).toBeGreaterThan(HEIGHT.pusher);
-      expect(height).toBeLessThan(HOUSING.shelf);
-    }
+    // It rides out and back with the pusher: lower on the drawing the further out the lip is.
+    expect(heights.size).toBeGreaterThan(3);
+    expect(frame(PUSHER.period / 2, false).texts.find((entry) => entry.text === 'START')?.y).toBeGreaterThan((frame(0, false).texts.find((entry) => entry.text === 'START')?.y ?? 0) + 30);
   });
 
-  it('draws every gate where a medal has to land to go through it', () => {
-    fakeDocument();
-    // A gate's opening is as wide as a medal that just goes through on either side.
-    const halfWidth = MEDAL_RADIUS + CHECKERS.halfWidth;
-    const near = (points: { x: number; y: number }[], x: number, y: number) => points.some((point) => Math.hypot(point.x - x, point.y - y) < 1e-6);
-    for (const time of TIMES) {
-      const { starts } = frame(time, false);
-      for (const centre of checkerCentres(time)) {
-        const corner = project(centre - halfWidth, HEIGHT.pusher, 0);
-        expect(near(starts, corner.x, corner.y)).toBe(true);
-      }
-      // And nowhere else: away from the middle of the sweep, nothing is left behind where the gates used to stand.
-      if (Math.abs(checkerCentres(time)[0] - CHECKERS.positions[0]) > 0.5) {
-        for (const centre of CHECKERS.positions) {
-          const corner = project(centre - halfWidth, HEIGHT.pusher, 0);
-          expect(near(starts, corner.x, corner.y)).toBe(false);
-        }
-      }
-    }
-  });
-
-  it('moves the gates and their signs with reduced motion too', () => {
+  it('draws a hoop round every pocket, on the lip: half of it on the pusher and half out in front', () => {
     fakeDocument();
     for (const time of TIMES) {
-      const moving = frame(time, false).texts.filter((entry) => entry.text === 'START');
-      const calm = frame(time, true).texts.filter((entry) => entry.text === 'START');
-      expect(calm).toEqual(moving);
+      const { arcs } = frame(time, false);
+      chuckerSpots(time).forEach((spot) => {
+        const middle = project(spot.x, spot.height, spot.depth);
+        const own = arcs.filter((arc) => Math.hypot(arc.x - middle.x, arc.y - middle.y) < 1e-6);
+        // On the pusher's side of the lip, the dark of the pocket and the hoop round it; on the player's, the hoop and its glow.
+        const far = own.filter((arc) => arc.from === Math.PI && arc.to === Math.PI * 2);
+        const front = own.filter((arc) => arc.from === 0 && arc.to === Math.PI);
+        expect(far).toHaveLength(2);
+        expect(front).toHaveLength(2);
+        // As wide inside as a medal that just fits, and seen from above like anything lying level there.
+        expect(Math.min(...far.map((arc) => arc.across))).toBeCloseTo(CHUCKERS.radius * middle.scale, 6);
+        for (const arc of [far[1], ...front]) expect(arc.across).toBeCloseTo((CHUCKERS.radius + START_PANEL.rim / 2) * middle.scale, 6);
+        for (const arc of own) expect(arc.down / arc.across).toBeCloseTo(middle.tilt, 6);
+        expect(CHUCKERS.radius).toBeCloseTo(MEDAL_RADIUS + CHECKERS.halfWidth, 12);
+      });
     }
-    const middle = frame(0, true).texts.find((entry) => entry.text === 'START');
-    const right = frame(SWEEP.period / 4, true).texts.find((entry) => entry.text === 'START');
-    expect((right?.x ?? 0) - (middle?.x ?? 0)).toBeGreaterThan(SWEEP.amplitude);
   });
 
-  it('lights a gate that a medal has come through, wherever it is', () => {
+  it('is one piece: a plate along the middle of the lip, on the pusher\u2019s top and down its face, as long as the three pockets take', () => {
+    fakeDocument();
+    expect(START_PANEL.tile).toBe(CHECKERS.positions[1] - CHECKERS.positions[0]);
+    expect(PANEL_SPAN).toEqual({ from: CHECKERS.positions[0] - START_PANEL.tile / 2, to: CHECKERS.positions[2] + START_PANEL.tile / 2 });
+    // The hoops do not touch one another, and the plate takes them all in.
+    expect(CHUCKERS.radius + START_PANEL.rim).toBeLessThan(START_PANEL.tile / 2);
+    expect(START_PANEL.back).toBeGreaterThan(CHUCKERS.radius + START_PANEL.rim);
+    for (const time of TIMES) {
+      const front = pusherFront(time);
+      const { starts, lines } = frame(time, false);
+      // On the face, from the lip down to the table; on the top, from the lip back.
+      for (const [x, height, depth] of [
+        [PANEL_SPAN.from, P, front],
+        [PANEL_SPAN.to, 0, front],
+        [PANEL_SPAN.from, P, front - START_PANEL.back],
+        [PANEL_SPAN.to, P, front - START_PANEL.back],
+      ]) {
+        const corner = project(x, height, depth);
+        expect(near([...starts, ...lines], corner.x, corner.y)).toBe(true);
+      }
+    }
+  });
+
+  it('draws the panel the same with reduced motion: it is part of the machine', () => {
+    fakeDocument();
+    for (const time of TIMES) {
+      const moving = frame(time, false);
+      const calm = frame(time, true);
+      expect(calm.texts.filter((entry) => entry.text === 'START')).toEqual(moving.texts.filter((entry) => entry.text === 'START'));
+      expect(calm.arcs).toEqual(moving.arcs);
+    }
+  });
+
+  it('lights the pocket of the number it is told, and no other', () => {
     fakeDocument();
     const stage = createStage(1);
     const machine = createMachine(3);
-    machine.time = SWEEP.period / 4;
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    /** Whether a pocket's own stretch of the face was filled over: it is, when the pocket is lit. */
+    const stretch = (pocket: number) => project(CHECKERS.positions[pocket] - START_PANEL.tile / 2, P, front);
+    const dark = recorder();
+    drawField(dark.context, stage, machine, { aim: 50, showGuide: false });
+    expect(near(dark.starts, stretch(2).x, stretch(2).y)).toBe(false);
     lightGate(stage, 2);
     expect(stage.gateGlow).toEqual([0, 0, expect.any(Number)]);
     expect(stage.gateGlow[2]).toBeGreaterThan(0);
     lightGate(stage, 7);
-    expect(stage.gateGlow).toHaveLength(CHECKERS.positions.length);
+    expect(stage.gateGlow).toHaveLength(CHUCKERS.count);
     const screen = recorder();
     expect(() => drawField(screen.context, stage, machine, { aim: 50, showGuide: false })).not.toThrow();
     expect(screen.texts.filter((entry) => entry.text === 'START')).toHaveLength(3);
+    expect(near(screen.starts, stretch(2).x, stretch(2).y)).toBe(true);
+    expect(near(screen.starts, stretch(1).x, stretch(1).y)).toBe(false);
   });
 });
 
@@ -428,7 +476,7 @@ describe('the feed arms on the canvas', () => {
       const end = onRail(0, left, railFrame(0, left).length + 0.6);
       return lines.filter((line) => Math.hypot(line.x - end.x, line.y - end.y) < 30);
     });
-    // The arms are part of the machine, like the gates: with reduced motion the rail is drawn in the very same place.
+    // The arms are part of the machine, like the START panel: with reduced motion the rail is drawn in the very same place.
     expect(pictures[0].length).toBeGreaterThan(0);
     expect(pictures[1]).toEqual(pictures[0]);
   });

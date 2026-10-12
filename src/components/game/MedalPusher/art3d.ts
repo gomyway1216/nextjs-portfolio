@@ -1,13 +1,15 @@
 /**
  * What is printed on the cabinet, painted flat with a canvas and handed to
  * the 3D renderer as textures: the lower table with its lanes and lettering,
- * the panel under the screen, the side walls, the top of the pusher, the
- * front of the table and the sign over a gate. And one thing that is not
+ * the panel under the screen, the side walls, the top of the pusher with the
+ * START panel's plate along its lip, the front of the table, and the stretch
+ * of the pusher's face under a START pocket. And one thing that is not
  * paint: the relief struck into a medal's face.
  */
 
-import { FIELD, PUSHER } from './engine';
-import { starPath } from './render';
+import { CHUCKERS } from './chuckers';
+import { CHECKERS, FIELD, PUSHER } from './engine';
+import { PANEL_SPAN, START_PANEL, starPath } from './render';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
 const TAU = Math.PI * 2;
@@ -17,8 +19,8 @@ const P = HEIGHT.pusher;
 
 /** How far down the front of the table goes. */
 export const TRAY_DROP = 18;
-/** The sign over a gate: how wide and how tall, in field units. */
-export const SIGN = { width: 12, height: 3.4 } as const;
+/** The stretch of the pusher's face under a START pocket, with its word on it: how wide, and how tall, which is the face from under the lip's bevel down to the table. */
+export const SIGN = { width: START_PANEL.tile, height: P - 0.4 } as const;
 
 /** A canvas `width` by `height` field units, drawn on in those units. */
 function sheet(width: number, height: number, perUnit: number): { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D | null } {
@@ -239,9 +241,10 @@ export function paintPusher(): HTMLCanvasElement {
     g.fillStyle = band;
     g.fillRect(0, at - wide, W, wide * 2);
   }
-  // The lip: the edge of the sheet, bright all along, and chevrons printed behind it.
+  // The lip: the edge of the sheet, bright all along, and chevrons printed behind it, to either side of the START panel.
   g.fillStyle = 'rgba(255, 196, 40, 0.8)';
   for (let x = 4; x < W; x += 8) {
+    if (x + 4 > PANEL_SPAN.from && x - 2 < PANEL_SPAN.to) continue;
     g.beginPath();
     g.moveTo(x, 0.9);
     g.lineTo(x + 4, 0.9);
@@ -252,6 +255,25 @@ export function paintPusher(): HTMLCanvasElement {
   }
   g.fillStyle = 'rgba(236, 252, 255, 0.95)';
   g.fillRect(0, 0, W, 0.6);
+  // The START panel's plate, let into the top along the middle of the lip, with a gold edge. In it, the far
+  // half of each pocket: the dark of the hole, on the lip's very edge. The hoops round them stand out of the picture.
+  const plate = g.createLinearGradient(0, 0, 0, START_PANEL.back);
+  plate.addColorStop(0, '#e0277f');
+  plate.addColorStop(1, '#7a0e44');
+  g.fillStyle = plate;
+  g.fillRect(PANEL_SPAN.from, 0, PANEL_SPAN.to - PANEL_SPAN.from, START_PANEL.back);
+  g.fillStyle = '#ffd65c';
+  g.fillRect(PANEL_SPAN.from, START_PANEL.back - 0.35, PANEL_SPAN.to - PANEL_SPAN.from, 0.35);
+  g.fillRect(PANEL_SPAN.from, 0, 0.35, START_PANEL.back);
+  g.fillRect(PANEL_SPAN.to - 0.35, 0, 0.35, START_PANEL.back);
+  g.fillRect(PANEL_SPAN.from, 0, PANEL_SPAN.to - PANEL_SPAN.from, 0.3);
+  g.fillStyle = '#0a0418';
+  for (const centre of CHECKERS.positions) {
+    g.beginPath();
+    g.arc(centre, 0, CHUCKERS.radius, 0, Math.PI);
+    g.closePath();
+    g.fill();
+  }
   return canvas;
 }
 
@@ -278,20 +300,34 @@ export function paintLip(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The sign that rides over each gate. */
+/**
+ * The stretch of the pusher's face under a START pocket: the panel's plate,
+ * with a gold line along its top and its foot, and the word START in tall
+ * letters squeezed to fit, since it has to be read from across the cabinet.
+ * Three of them end to end are the panel's face.
+ */
 export function paintSign(): HTMLCanvasElement {
   const { canvas, g } = sheet(SIGN.width, SIGN.height, 24);
   if (!g) return canvas;
-  g.fillStyle = '#1b0c4a';
+  const plate = g.createLinearGradient(0, 0, 0, SIGN.height);
+  plate.addColorStop(0, '#e0277f');
+  plate.addColorStop(1, '#4a0626');
+  g.fillStyle = plate;
   g.fillRect(0, 0, SIGN.width, SIGN.height);
-  g.strokeStyle = '#7df0ff';
-  g.lineWidth = 0.22;
-  g.strokeRect(0.25, 0.25, SIGN.width - 0.5, SIGN.height - 0.5);
+  g.fillStyle = '#ffd65c';
+  g.fillRect(0, 0, SIGN.width, 0.3);
+  g.fillRect(0, SIGN.height - 0.3, SIGN.width, 0.3);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = '900 2.5px "Arial Black", Arial, sans-serif';
+  g.font = '900 4.6px "Arial Black", Arial, sans-serif';
+  g.translate(SIGN.width / 2, SIGN.height * 0.47);
+  g.scale(0.62, 1);
+  g.lineJoin = 'round';
+  g.lineWidth = 0.7;
+  g.strokeStyle = '#4a0626';
+  g.strokeText('START', 0, 0);
   g.fillStyle = '#fff3a8';
-  g.fillText('START', SIGN.width / 2, SIGN.height / 2 + 0.12);
+  g.fillText('START', 0, 0);
   return canvas;
 }
 

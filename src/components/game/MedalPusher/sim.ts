@@ -7,31 +7,33 @@
  * and plays the same number of medals at the same pace.
  */
 
-import { AIM, CHECKERS, FALL_TIME, aimArms, checkerCentres, medalsOnField, seededRng } from './engine';
+import { AIM, CHECKERS, aimArms, medalsOnField, seededRng } from './engine';
 import { JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
-export const AIM_IDS = ['centre', 'anywhere', 'between', 'edges'] as const;
+export const AIM_IDS = ['centre', 'anywhere', 'beside', 'edges'] as const;
 export type AimId = (typeof AIM_IDS)[number];
 
-const [LEFT_GATE, CENTRE_GATE, RIGHT_GATE] = CHECKERS.positions;
+const [LEFT_POCKET, CENTRE_POCKET, RIGHT_POCKET] = CHECKERS.positions;
+/** The two fixed spots beside the START pockets: as far outside the outer two as those are from the middle one. */
+export const BESIDE = [LEFT_POCKET - (CENTRE_POCKET - LEFT_POCKET), RIGHT_POCKET + (RIGHT_POCKET - CENTRE_POCKET)] as const;
 
 /**
  * Where each way of aiming has its arm pointing when its `n`-th medal drops
- * off the tip at `time` on the machine's clock: following the centre gate,
- * anywhere at all (`pick` chooses), at a fixed spot halfway between the
- * middles of two gates' sweeps, or at the edges. Only the first looks at the
- * clock. The gates move while a medal is in the air, so it aims where the
- * centre gate will be when the medal comes down.
+ * off the tip: down the middle, behind the centre START pocket; anywhere at
+ * all (`pick` chooses); at the two fixed spots beside the pockets by turns; or
+ * at the two edges by turns. The pockets sit still on the pusher's lip and a
+ * medal takes its time getting there, so there is nothing to follow and
+ * nothing to lead: a way of aiming is only a choice of column.
  */
-export function aimAt(id: AimId, n: number, pick: () => number, time = 0): number {
+export function aimAt(id: AimId, n: number, pick: () => number): number {
   switch (id) {
     case 'centre':
-      return checkerCentres(time + FALL_TIME)[1];
+      return CENTRE_POCKET;
     case 'anywhere':
       return AIM.min + pick() * (AIM.max - AIM.min);
-    case 'between':
-      return n % 2 === 0 ? (LEFT_GATE + CENTRE_GATE) / 2 : (CENTRE_GATE + RIGHT_GATE) / 2;
+    case 'beside':
+      return BESIDE[n % 2];
     case 'edges':
       return n % 2 === 0 ? AIM.min : AIM.max;
   }
@@ -39,12 +41,13 @@ export function aimAt(id: AimId, n: number, pick: () => number, time = 0): numbe
 
 /**
  * Each aim's colour, as a variable that the stylesheet sets for the light and
- * the dark theme so the lines keep their contrast on both.
+ * the dark theme so the lines keep their contrast on both. The spots beside
+ * the pockets keep the colour that the spots between the gates had.
  */
 export const AIM_COLORS: Record<AimId, string> = {
   centre: 'var(--mp-s-centre)',
   anywhere: 'var(--mp-s-anywhere)',
-  between: 'var(--mp-s-between)',
+  beside: 'var(--mp-s-between)',
   edges: 'var(--mp-s-edges)',
 };
 
@@ -54,7 +57,7 @@ export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond';
 export const AIM_MARKERS: Record<AimId, MarkerShape> = {
   centre: 'circle',
   anywhere: 'square',
-  between: 'triangle',
+  beside: 'triangle',
   edges: 'diamond',
 };
 
@@ -80,7 +83,7 @@ export interface AimResult {
   played: number;
   won: number;
   lost: number;
-  /** Medals through a gate, and how many of those found the hold already full. */
+  /** Medals that dropped through a START pocket, whoever fed or paid them, and how many of those found the hold already full. */
   hits: number;
   wasted: number;
   spins: number;
@@ -184,13 +187,11 @@ export async function simulate(
      * A medal drops where its arm's tip is when it leaves it, a roll after it was fed. So before
      * every step the arms are pointed where the medal that leaves next is meant to drop. An arm
      * crosses its whole reach in less time than the slot waits between two medals, so it is always
-     * there by then. Following the gate, the spot is where the gate will be once a medal let go in
-     * this step has fallen.
+     * there by then.
      */
     const holdArms = () => {
       meant.splice(0, meant.length - session.machine.rolling.length);
-      if (id === 'centre') aimArms(session.machine, aimAt(id, session.inserted, pick, session.machine.time + dt));
-      else if (meant.length > 0) aimArms(session.machine, meant[0]);
+      if (meant.length > 0) aimArms(session.machine, meant[0]);
     };
 
     while (session.inserted < perAim) {
@@ -198,7 +199,7 @@ export async function simulate(
         if (session.inserted === WARM_UP) start = snapshot(session);
         clock -= interval;
         // It goes into the arm on the side of the spot it is meant for.
-        const spot = aimAt(id, session.inserted, pick, session.machine.time);
+        const spot = aimAt(id, session.inserted, pick);
         const taken = insert(session, spot);
         if (taken) meant.push(spot);
         if (taken && start) {

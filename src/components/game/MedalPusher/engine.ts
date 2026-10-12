@@ -81,17 +81,29 @@ export const ROLL_TIME = 0.9;
  */
 export const FEED = { slot: 0.1, arm: 0.8 } as const;
 
-/** The chuckers: a medal that lands within `halfWidth` of one starts the slot on the screen. */
-export const CHECKERS = { positions: [25, 50, 75], halfWidth: 1.2 } as const;
 /**
- * The chuckers do not stand still. They sweep from side to side together:
- * `amplitude` to either side of the positions above, there and back once
- * every `period` seconds, and a medal has to come down where one is by then.
- * A player who follows a chucker sends about a fifth of the medals through
- * it: that share is set by `halfWidth` and the scatter alone. The sweep
- * decides how much less an aim that stays put gets.
+ * The chuckers: three START pockets in a row on the pusher's lip, at these
+ * places across the field. They ride out and back with the lip and do not move
+ * along it. A medal that goes over the lip with its middle within `halfWidth`
+ * of one drops through it, and starts the slot on the screen, on its way down
+ * to the lower table. Any medal does: one the player fed, one the machine paid
+ * out, or one off a tower that goes over there. A ball does not fit.
+ *
+ * They stand together in the middle of the lip because that is the only place
+ * where aiming still tells. By the time a medal has been pushed the length of
+ * the pusher the pile has spread it far to either side, so pockets spaced
+ * evenly across the lip take much the same share whatever column is fed. With
+ * the three in the middle, getting on for one medal in five ends up through
+ * one when the middle is fed, about one in ten when medals are fed anywhere at
+ * all, and about one in twenty when they are fed at the edges. The pockets are
+ * as far apart as the towers are, so the towers, which go up to either side of
+ * the middle, stand between them.
+ *
+ * `halfWidth` is what the machine's return is tuned with. At this width the
+ * best a player can do, feeding the middle slowly, gets about 97% back with
+ * average luck on the screen, and about 95% at two medals a second.
  */
-export const SWEEP = { amplitude: 7, period: 6 } as const;
+export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.7 } as const;
 
 /**
  * Payout medals are thrown onto the pusher across this band, a few per second;
@@ -234,7 +246,7 @@ export interface StepEvents {
   won: number;
   /** Medals that went out of the open sides. */
   lost: number;
-  /** The chucker each of the player's medals came down through, one entry per medal. */
+  /** The chucker each medal that went over the lip through one dropped through, one entry per medal. */
   checkers: number[];
   /** Medals that touched down on a table. */
   landed: number;
@@ -260,20 +272,9 @@ export function pusherFront(time: number): number {
   return PUSHER.min + (PUSHER.max - PUSHER.min) * phase;
 }
 
-/** How far to the right of the middle of their sweep the chuckers stand at a given time: a smooth swing that starts in the middle. */
-export function checkerShift(time: number): number {
-  return SWEEP.amplitude * Math.sin((2 * Math.PI * time) / SWEEP.period);
-}
-
-/** Where the centre of each chucker is at a given time. */
-export function checkerCentres(time: number): number[] {
-  const shift = checkerShift(time);
-  return CHECKERS.positions.map((center) => center + shift);
-}
-
-/** The chucker a medal landing at `x` at `time` falls into, or −1. */
-export function checkerAt(x: number, time: number): number {
-  return checkerCentres(time).findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
+/** The chucker a medal that goes over the lip at `x` drops through, or −1 when it goes over between two of them. */
+export function checkerAt(x: number): number {
+  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
 }
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
@@ -528,8 +529,8 @@ export const clampAim = (x: number): number => Math.min(AIM.max, Math.max(AIM.mi
 
 /**
  * How far across the field each arm's tip can be, the left arm's first. Each
- * reaches a little past the middle, so that either can feed the centre gate
- * wherever its sweep has taken it.
+ * reaches a little past the middle, so that either can feed the column behind
+ * the centre chucker.
  */
 export const ARM_REACH: readonly [{ min: number; max: number }, { min: number; max: number }] = [
   { min: AIM.min, max: FIELD.width / 2 + 10 },
@@ -775,11 +776,6 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
       const tier: Tier = medal.ball || roomBelow(machine.medals, medal.level, medal.x, medal.y) ? 0 : 1;
       machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
       events.landed++;
-      if (medal.source === 'player') {
-        // The chuckers are where they were when it touched down: `remaining` has run that far past zero.
-        const checker = checkerAt(medal.x, machine.time + medal.remaining);
-        if (checker >= 0) events.checkers.push(checker);
-      }
     }
     machine.falling = stillFalling;
   }
@@ -829,12 +825,16 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   settleUpperTier(machine.medals);
   constrain(machine.medals, front);
 
-  // Over the lip, over the front edge, or out of an open side.
+  // Over the lip, over the front edge, or out of an open side. A medal that goes over the lip where
+  // a chucker is drops through it. A tower that goes over there sends every one of its medals
+  // through, one after another; a ball is too big for one.
   const kept: Medal[] = [];
   const crossing: Medal[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
+        const checker = medal.ball ? -1 : checkerAt(medal.x);
+        for (let n = 0; checker >= 0 && n < medal.stack; n++) events.checkers.push(checker);
         if (medal.stack > 1) {
           spill(machine, medal, front);
           events.toppled++;

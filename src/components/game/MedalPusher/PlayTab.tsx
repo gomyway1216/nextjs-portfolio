@@ -770,6 +770,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             aria-label={t.fieldAria}
             data-testid="pusher-field"
             onPointerDown={(event) => {
+              // Only the main button of a mouse: a right or a middle click is the browser's, for its menu or its scrolling.
+              if (event.pointerType === 'mouse' && event.button !== 0) return;
               // A press on a chest the screen is offering is for the chest: it does not aim.
               pressedChest.current = chestAt(event.clientX, event.clientY);
               if (pressedChest.current) return;

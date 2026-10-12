@@ -373,6 +373,14 @@ test('a press on the field aims the rail on that side and feeds nothing', async 
   await expect.poll(() => aimOf(page, 'right')).toBeGreaterThan(65);
   expect(await aimOf(page, 'left')).toBe(left);
 
+  // Only the main button aims: a right or a middle click is left to the browser.
+  const aims = [await aimOf(page, 'left'), await aimOf(page, 'right')];
+  await field.click({ button: 'right', position: { x: box.width * 0.4, y: box.height * ON_WALL } });
+  await field.click({ button: 'middle', position: { x: box.width * 0.7, y: box.height * ON_WALL } });
+  await page.waitForTimeout(200);
+  expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual(aims);
+  await page.keyboard.press('Escape');
+
   // The screen is part of the back wall, and the picture is over it: a press on it aims under the pointer, as anywhere else.
   await field.click({ position: { x: box.width * 0.3, y: box.height * ON_SCREEN } });
   await expect.poll(() => aimOf(page, 'left')).toBeLessThan(40);

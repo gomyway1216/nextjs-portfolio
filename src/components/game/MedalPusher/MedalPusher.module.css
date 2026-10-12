@@ -721,11 +721,12 @@
 
 /* The sugoroku board lies on the stage as a slab seen in perspective: far tiles are smaller, which is what lets
    twelve of them be read in so little room. While the slot is on, it is seen low, across the front of the stage;
-   for a roll the view is lifted over it (--mp-tilt), and everything that stands on it turns to keep facing the player. */
+   for a roll the view is lifted over it (--mp-tilt), and everything that stands on it turns to keep facing the player.
+   The eye stands well back: nearer, and on a phone the far tiles came out narrower than a number can be read in. */
 .boardScene {
   position: absolute;
   inset: 0;
-  perspective: 320cqh;
+  perspective: 480cqh;
   perspective-origin: 50% 6%;
   pointer-events: none;
 }

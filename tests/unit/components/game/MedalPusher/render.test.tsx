@@ -18,7 +18,18 @@ import {
   returnFor,
 } from '@/components/game/MedalPusher/OddsTab';
 import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
-import { IDLE_DIGITS, Screen, ballTransform, bannerText, markStrip, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
+import { ReelSymbol } from '@/components/game/MedalPusher/ReelSymbols';
+import {
+  IDLE_DIGITS,
+  Screen,
+  ballTransform,
+  bannerText,
+  dieShade,
+  dieTurn,
+  markStrip,
+  squarePlace,
+  stripOffset,
+} from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
@@ -65,6 +76,9 @@ import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
+
+/** The game's stylesheet, for what the screen leaves to it. */
+const stylesheet = () => readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
 
 /** The markup of the table with this test id, from its opening tag to its end. */
 const table = (html: string, id: string): string => html.split(`data-testid="${id}"`)[1]?.split('</table>')[0] ?? '';
@@ -568,9 +582,10 @@ describe('the ball in the bowl', () => {
   });
 
   it('is drawn where it is, and smaller once it has sunk', () => {
-    expect(ballTransform({ x: 0, y: 0, sunk: 0 })).toBe('translate(50.00 50.00) scale(1.000)');
-    expect(ballTransform({ x: 1, y: -1, sunk: 0 })).toBe('translate(96.00 4.00) scale(1.000)');
-    expect(ballTransform({ x: -0.5, y: 0.25, sunk: 1 })).toBe('translate(27.00 61.50) scale(0.700)');
+    // In ems of the dish, which is 1em from its middle to its rim; the bowl the ball rolls in is a little smaller.
+    expect(ballTransform({ x: 0, y: 0, sunk: 0 })).toBe('translate(0.000em, 0.000em) scale(1.000)');
+    expect(ballTransform({ x: 1, y: -1, sunk: 0 })).toBe('translate(0.840em, -0.840em) scale(1.000)');
+    expect(ballTransform({ x: -0.5, y: 0.25, sunk: 1 })).toBe('translate(-0.420em, 0.210em) scale(0.700)');
   });
 });
 
@@ -712,7 +727,7 @@ describe('the page', () => {
     expect(html).toContain('>DROP<');
     expect(html).toMatch(/aria-pressed="false"[^>]*data-testid="pusher-auto"|data-testid="pusher-auto"[^>]*aria-pressed="false"/);
     expect(html).toContain('aria-live="polite"');
-    // Three reels, each a strip of the nine digits and the first again.
+    // Three reels, each a drum with the nine digits round it: a seven on every one.
     expect(html.match(/data-tier="seven"/g)?.length).toBeGreaterThanOrEqual(3);
     expect(html).toContain('7·7·7 ▸ BALL');
     expect(html).toContain('1·3·5·9 ▸ TREASURE');
@@ -741,6 +756,17 @@ describe('the page', () => {
     const html = render(<OddsTab />);
     for (const text of ['0.7%', '1 in 143', '1.5%', '1 in 67', '4%', '1 in 25', '93.8%']) expect(html).toContain(text);
     for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
+    // Each winning line is shown with the pictures its digits wear on the reels, for the eye only: the line's name says the digits.
+    const slot = table(html, 'pusher-slot-table');
+    const pictures = (tier: string) => {
+      const row = slot.split(`<tr data-tier="${tier}">`)[1]?.split('</tr>')[0] ?? '';
+      return [...row.matchAll(/<svg[^>]*aria-hidden="true">[\s\S]*?<text[^>]*>(\d)<\/text><\/svg>/g)].map(([, digit]) => Number(digit));
+    };
+    expect(pictures('seven')).toEqual([7]);
+    expect(pictures('big')).toEqual([1, 3, 5, 9]);
+    expect(pictures('small')).toEqual([2, 4, 6, 8]);
+    expect(pictures('miss')).toEqual([]);
+    expect(slot.match(/<span[^>]*aria-hidden="true"><svg/g)).toHaveLength(3);
     // What each line is worth: the board's average, the chests' average, the roulette's.
     for (const text of ['8.8 medals', '20 medals', '63.7 medals']) expect(html).toContain(text);
     // The roulette: four crosses in twelve, and the chance of each number of pockets in a row.
@@ -892,11 +918,45 @@ describe('the screen', () => {
   const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
     render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} registerBall={() => {}} onPick={() => {}} />, lang);
 
-  it('puts each digit on the pay line of its window', () => {
-    // A strip of twelve cells, the window showing three tenths of the cell above.
-    expect(stripOffset(0)).toBe(`translateY(${(-0.7 * 100) / 12}%)`);
-    expect(stripOffset(8)).toBe(`translateY(${(-8.7 * 100) / 12}%)`);
+  it('turns each digit onto the pay line of its drum', () => {
+    // Nine symbols round a drum are 40 degrees apart, and the strip turns back by as much to bring the next one down.
+    expect(stripOffset(0)).toBe('rotateX(0.00deg)');
+    expect(stripOffset(1)).toBe('rotateX(-40.00deg)');
+    expect(stripOffset(8)).toBe('rotateX(-320.00deg)');
+    // Between two digits it is part of the way round, which is how a reel is seen to turn and to swing past its digit.
+    expect(stripOffset(2.25)).toBe('rotateX(-90.00deg)');
     expect(IDLE_DIGITS).toHaveLength(3);
+    // The stylesheet stands the faces the same angle apart, on a drum just big enough for nine faces 1em high to meet edge to edge.
+    const css = stylesheet();
+    expect(css).toContain(`transform: rotateX(calc(var(--mp-face) * ${360 / REEL_DIGITS.length}deg)) translateZ(var(--mp-drum));`);
+    expect(Number(/--mp-drum: ([\d.]+)em;/.exec(css)?.[1])).toBeCloseTo(1 / (2 * Math.tan(Math.PI / REEL_DIGITS.length)), 3);
+    // A drum's faces are turned away for most of a turn, and are not drawn from behind.
+    expect(/\.digit \{[^}]*backface-visibility: hidden;/.test(css)).toBe(true);
+  });
+
+  it('keeps every drum inside its frame, however it is turned', () => {
+    // The window does not clip the drum, so the frame drawn over it has to cover whatever of the drum is taller than the window.
+    const css = stylesheet();
+    const reel = /\.reel \{[^}]*\}/.exec(css)?.[0] ?? '';
+    expect(reel).not.toContain('overflow');
+    const eye = Number(/perspective: ([\d.]+)em;/.exec(reel)?.[1]);
+    const half = Number(/height: ([\d.]+)em;/.exec(reel)?.[1]) / 2;
+    const frame = Number(/\.reel::after \{[^}]*inset: -([\d.]+)em;\s*border: \1em solid/.exec(css)?.[1]);
+    expect(eye).toBeGreaterThan(0);
+    expect(frame).toBeGreaterThan(0);
+    // Two faces meet a little further from the axle than the middle of a face is, and that edge is what reaches furthest.
+    const axle = 1 / (2 * Math.tan(Math.PI / REEL_DIGITS.length));
+    const edge = axle / Math.cos(Math.PI / REEL_DIGITS.length);
+    let furthest = 0;
+    for (let turn = 0; turn <= 180; turn += 0.25) {
+      const angle = (turn * Math.PI) / 180;
+      // How far behind the window the edge is, and where the eye then sees it, in ems above the pay line.
+      const behind = axle - edge * Math.cos(angle);
+      furthest = Math.max(furthest, (edge * Math.sin(angle) * eye) / (eye + behind));
+    }
+    // The drum is taller than its window, which is why the faces above and below are seen to turn away, and the frame covers the rest.
+    expect(furthest).toBeGreaterThan(half);
+    expect(furthest).toBeLessThan(half + frame);
   });
 
   it('shows the slot with its reels, the held spins and the legend', () => {
@@ -911,6 +971,8 @@ describe('the screen', () => {
     expect(html).toContain('data-hidden="false"');
     // The strips start out neither blurred nor dimmed; the cabinet marks them as they run.
     expect(html.match(/data-fast="false" data-waiting="false"/g)).toHaveLength(3);
+    // Each starts turned to its own digit.
+    for (const digit of IDLE_DIGITS) expect(html).toContain(`style="transform:${stripOffset(digit - 1)}" data-fast="false"`);
     expect(html).toContain('7·7·7 ▸ BALL');
     expect(html).not.toContain('pusher-die');
     expect(html).not.toContain('pusher-wheel');
@@ -936,18 +998,39 @@ describe('the screen', () => {
     expect(show({ ...idle, banner: 'line', line: 'big' })).toContain('data-line="big"');
   });
 
-  it('badges every digit on the reels with what three of it lead to', () => {
+  it('puts a picture on every face of the drums, with its digit on it and what three of it lead to', () => {
     const html = show(idle);
-    // A strip is twelve tiles: a nine, the nine digits, and a one and a two again.
-    const tiles = [...html.matchAll(/<span[^>]*data-tier="(seven|big|small)"[^>]*>(\d)<svg[^>]*data-leads="(ball|chest|sugoroku)"[^>]*aria-hidden="true"/g)];
-    expect(tiles).toHaveLength(3 * 12);
-    for (const [, tier, digit, leads] of tiles) {
+    // A drum has nine faces, one for each digit in the order they come round, and each is a picture with the digit written on it.
+    const face = new RegExp(
+      [
+        '<span[^>]*style="--mp-face:(\\d)" data-digit="(\\d)" data-tier="(seven|big|small)" data-leads="(ball|chest|sugoroku)">',
+        '<svg[^>]*data-family="(seven|big|small)" aria-hidden="true">[\\s\\S]*?<text[^>]*>(\\d)</text></svg></span>',
+      ].join(''),
+      'g',
+    );
+    const faces = [...html.matchAll(face)];
+    expect(faces).toHaveLength(3 * REEL_DIGITS.length);
+    faces.forEach(([, place, digit, tier, leads, family, written], index) => {
+      expect(Number(place)).toBe(index % REEL_DIGITS.length);
+      expect(Number(digit)).toBe(REEL_DIGITS[index % REEL_DIGITS.length]);
+      expect(written).toBe(digit);
       const expected = digit === '7' ? ['seven', 'ball'] : Number(digit) % 2 === 1 ? ['big', 'chest'] : ['small', 'sugoroku'];
       expect([tier, leads]).toEqual(expected);
-    }
+      expect(family).toBe(tier);
+    });
     expect(html.match(/data-leads="ball"/g)).toHaveLength(3);
-    expect(html.match(/data-leads="chest"/g)).toHaveLength(3 * 6);
-    expect(html.match(/data-leads="sugoroku"/g)).toHaveLength(3 * 5);
+    expect(html.match(/data-leads="chest"/g)).toHaveLength(3 * 4);
+    expect(html.match(/data-leads="sugoroku"/g)).toHaveLength(3 * 4);
+
+    // No two digits wear the same picture, and a family can be told by the colour of its tile alone.
+    const symbol = (digit: number) => renderToStaticMarkup(<ReelSymbol digit={digit} />);
+    expect(new Set(REEL_DIGITS.map((digit) => symbol(digit).replace(/<text[\s\S]*<\/text>/, ''))).size).toBe(REEL_DIGITS.length);
+    const tile = (digit: number) => /<rect[^>]*fill="(#[0-9a-f]{6})"/.exec(symbol(digit))?.[1];
+    expect(new Set([1, 3, 5, 9].map(tile)).size).toBe(1);
+    expect(new Set([2, 4, 6, 8].map(tile)).size).toBe(1);
+    expect(new Set([tile(7), tile(1), tile(2)]).size).toBe(3);
+    // The pictures are decoration: whoever shows one says the digit in words.
+    for (const digit of REEL_DIGITS) expect(symbol(digit)).toContain('aria-hidden="true"');
   });
 
   it('cuts a reach in across the reels, and a long one as a super reach', () => {
@@ -984,19 +1067,111 @@ describe('the screen', () => {
     expect(superReach - long).toBeGreaterThanOrEqual(0.5);
   });
 
+  it('lays the board out as a loop the piece can walk a square at a time', () => {
+    const places = BOARD.map((_, square) => squarePlace(square));
+    // Every square has a place of its own on a grid seven wide and three deep.
+    expect(new Set(places.map(({ column, row }) => `${column},${row}`)).size).toBe(BOARD.length);
+    for (const { column, row } of places) {
+      expect(column).toBeGreaterThanOrEqual(0);
+      expect(column).toBeLessThan(7);
+      expect(row).toBeGreaterThanOrEqual(0);
+      expect(row).toBeLessThan(3);
+    }
+    // Each square adjoins the next and the last adjoins the first, so no hop crosses the board.
+    places.forEach((place, square) => {
+      const next = places[(square + 1) % BOARD.length];
+      expect(Math.max(Math.abs(next.column - place.column), Math.abs(next.row - place.row))).toBe(1);
+    });
+    // The first square is at the front, where the piece is biggest; the fever is on the far side, where its tower stands clear.
+    expect(squarePlace(0).row).toBe(2);
+    expect(squarePlace(FEVER_SQUARE).row).toBe(0);
+
+    // The markup stands every tile, and the piece, where the loop says.
+    const html = show({ ...idle, square: 5 });
+    places.forEach(({ column, row }, square) => {
+      expect(html).toContain(`style="--mp-column:${column};--mp-row:${row}" data-here="${square === 5}" data-fever="${square === FEVER_SQUARE}"`);
+    });
+    const piece = `style="--mp-column:${places[5].column};--mp-row:${places[5].row}" aria-hidden="true"`;
+    expect(html.match(/style="--mp-column:\d;--mp-row:\d" aria-hidden="true"/g)).toEqual([piece]);
+    // On each tile stand the medals it pays, and their number: a square that pays more carries a taller stack.
+    const stacks = [...html.matchAll(/<svg[^>]*data-coins="(\d+)">([\s\S]*?)<\/svg><span[^>]*>(?:<span[^>]*>FEVER<\/span>)?(\d+)<\/span>/g)];
+    expect(stacks.map(([, , , pays]) => Number(pays))).toEqual([...BOARD]);
+    const coins = stacks.map(([, count]) => Number(count));
+    // A stack is drawn as that many medals and the face of the top one.
+    stacks.forEach(([, count, drawing]) => expect(drawing.match(/<ellipse/g)).toHaveLength(Number(count) + 2));
+    BOARD.forEach((medals, a) => {
+      BOARD.forEach((other, b) => {
+        if (medals > other) expect(coins[a]).toBeGreaterThan(coins[b]);
+        if (medals === other) expect(coins[a]).toBe(coins[b]);
+      });
+    });
+    // Until the piece has moved, nothing has hopped.
+    expect(html).toContain('data-hop="none"');
+  });
+
   it('shows the die and moves the piece along the board', () => {
     const html = show({ ...idle, mode: 'sugoroku', die: 4, square: 6 });
     expect(html).toContain('SUGOROKU CHANCE');
     expect(html).toContain('data-face="4"');
-    // Four pips on the die itself; the reels behind it have circles of their own.
-    const die = html.match(/<svg[^>]*data-testid="pusher-die"[\s\S]*?<\/svg>/)?.[0] ?? '';
-    expect(die.match(/<circle/g)).toHaveLength(4);
+    // The die is a cube: six faces, each with its own number of pips, and the one that was rolled lit as the top.
+    const die = html.match(/<span[^>]*data-testid="pusher-die"[\s\S]*?<\/span>/)?.[0] ?? '';
+    const faces = [...die.matchAll(/<svg[^>]*data-pips="(\d)" data-shade="(\w+)">([\s\S]*?)<\/svg>/g)];
+    expect(faces.map(([, pips]) => Number(pips))).toEqual([1, 2, 3, 4, 5, 6]);
+    for (const [, pips, shade, drawing] of faces) {
+      expect(drawing.match(/<circle/g)).toHaveLength(Number(pips));
+      expect(shade === 'top').toBe(pips === '4');
+    }
+    expect(die).toContain(`style="--mp-die-turn:${dieTurn(4)}"`);
     expect(html).toContain('MOVE 4');
     expect(html).toContain('data-square="6"');
     expect(html).toContain('data-hidden="true"');
-    expect(show({ ...idle, mode: 'sugoroku', die: 2, rolling: true })).not.toContain('MOVE 2');
+    // While it tumbles no face is the top one yet, and nothing says how far to move.
+    const rolling = show({ ...idle, mode: 'sugoroku', die: 2, rolling: true });
+    expect(rolling).toContain('data-rolling="true"');
+    expect(rolling).not.toContain('data-shade="top"');
+    expect(rolling).not.toContain('MOVE 2');
+    // Without motion there is no die until it has been rolled: only the words.
     expect(show({ ...idle, mode: 'sugoroku' })).toContain('Rolling…');
+    expect(show({ ...idle, mode: 'sugoroku' })).not.toContain('pusher-die');
     expect(show({ ...idle, mode: 'sugoroku', die: 3 }, 0, 'ja')).toContain('3マス進む');
+    // The die is thrown only for a roll.
+    expect(show({ ...idle, die: 4 })).not.toContain('pusher-die');
+  });
+
+  it('lays the die down with the face that was rolled on top', () => {
+    const css = stylesheet();
+    type Vector = [number, number, number];
+    /** A direction after the turns in a CSS transform, the last of them applied first. */
+    const after = (transform: string, start: Vector): Vector =>
+      [...transform.matchAll(/rotate([XYZ])\((-?[\d.]+)deg\)/g)].reverse().reduce<Vector>(([x, y, z], [, axis, degrees]) => {
+        const cos = Math.cos((Number(degrees) * Math.PI) / 180);
+        const sin = Math.sin((Number(degrees) * Math.PI) / 180);
+        if (axis === 'X') return [x, y * cos - z * sin, y * sin + z * cos];
+        if (axis === 'Y') return [x * cos + z * sin, y, -x * sin + z * cos];
+        return [x * cos - y * sin, x * sin + y * cos, z];
+      }, start);
+    /** The way a face looks out of the cube as the stylesheet stands it there. Before it is turned, a face looks straight up off the board. */
+    const out = (pips: number): Vector => {
+      const placed = new RegExp(`\\.dieFace\\[data-pips='${pips}'\\] \\{\\s*transform: ([^;]+);`).exec(css)?.[1] ?? '';
+      // Half the cube's width out from its middle.
+      expect(placed).toMatch(/translateZ\(calc\(var\(--mp-die\) \/ 2\)\)$/);
+      return after(placed, [0, 0, 1]);
+    };
+    const values = [1, 2, 3, 4, 5, 6];
+    for (const face of values) {
+      // Opposite faces add up to seven.
+      out(face).forEach((part, axis) => expect(part + out(7 - face)[axis]).toBeCloseTo(0, 9));
+      // Laid down for this roll, the face that was rolled looks straight up.
+      const [across, towards, up] = after(dieTurn(face), out(face));
+      expect([across, towards, up].map((part) => Math.round(part * 1e9) / 1e9)).toEqual([0, 0, 1]);
+      expect(dieShade(face, face)).toBe('top');
+      expect(dieShade(face, 7 - face)).toBe('away');
+      // Of the other four the player sees two, one more squarely than the other, and each is lit less than the top.
+      const sides = values.filter((value) => value !== face && value !== 7 - face).map((value) => dieShade(face, value));
+      expect([...sides].sort()).toEqual(['away', 'away', 'front', 'side']);
+    }
+    // A face that is turned away is not drawn from behind, so the cube is never seen through.
+    expect(/\.dieFace \{[^}]*backface-visibility: hidden;/.test(css)).toBe(true);
   });
 
   it('offers three chests to pick from, then shows what each held', () => {
@@ -1036,6 +1211,15 @@ describe('the screen', () => {
     expect(html.match(/data-pocket="\d+" data-lit="true"/g)).toHaveLength(1);
     // Four crosses on the wheel, and beside it how far the run has got.
     expect(html.match(/>×</g)).toHaveLength(4);
+    // Every pocket's number stands in it and has a lamp on the rim; the light is on one of each.
+    expect(html.match(/class="[^"]*pocketLabel[^"]*"[^>]*data-on="(true|false)"/g)).toHaveLength(ROULETTE.length);
+    expect(html.match(/class="[^"]*rimLamp[^"]*"[^>]*data-on="(true|false)"/g)).toHaveLength(ROULETTE.length);
+    expect(html.match(/class="[^"]*pocketLabel[^"]*"[^>]*data-on="true">×</g)).toHaveLength(1);
+    expect(html.match(/class="[^"]*rimLamp[^"]*"[^>]*data-on="true"/g)).toHaveLength(1);
+    // The tower the run has built so far stands beside the wheel: a medal for every ten.
+    expect(html).toContain('data-coins="4"');
+    expect(show({ ...idle, mode: 'roulette', lit: -1 })).toContain('data-coins="0"');
+    expect(show({ ...idle, mode: 'roulette', lit: -1 })).not.toContain('data-on="true"');
     expect(html).toContain('LEVEL 2 / 4');
     expect(html).toContain('TOWER 40');
     expect(html).toContain('data-level="2"');
@@ -1054,9 +1238,10 @@ describe('the screen', () => {
     // A hole for each prize, labelled, and none of them taken yet.
     expect(html.match(/<g data-hole="\d" data-in="(true|false)"/g)).toHaveLength(BOWL.length);
     expect(html).not.toContain('data-in="true"');
-    for (const label of ['JACKPOT', '50', '100']) expect(html).toContain(`>${label}</text>`);
+    for (const label of ['JACKPOT', '50', '100']) expect(html).toContain(`>${label}</span>`);
+    expect(html.match(/class="[^"]*holeSign[^"]*"/g)).toHaveLength(BOWL.length);
     // The ball waits where the cabinet will pick it up.
-    expect(html).toContain(`transform="${ballTransform(bowlBall(0, 0))}" data-testid="pusher-bowl-ball"`);
+    expect(html).toContain(`transform:${ballTransform(bowlBall(0, 0))}" data-testid="pusher-bowl-ball"`);
     // The run that got here is still beside it.
     expect(html).toContain('LEVEL 4 / 4');
     expect(html).toContain('TOWER 60');

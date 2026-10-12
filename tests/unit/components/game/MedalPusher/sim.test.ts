@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, FALL_TIME, SWEEP, checkerAt, checkerCentres } from '@/components/game/MedalPusher/engine';
+import { AIM, CHECKERS, FALL_TIME, SWEEP, checkerAt, checkerCentres, tipOf } from '@/components/game/MedalPusher/engine';
 import { JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import {
@@ -44,9 +44,12 @@ describe('the ways of aiming', () => {
       expect(checkerAt(aim, time + FALL_TIME)).toBe(1);
       expect(aim).toBeGreaterThanOrEqual(CHECKERS.positions[1] - SWEEP.amplitude);
       expect(aim).toBeLessThanOrEqual(CHECKERS.positions[1] + SWEEP.amplitude);
-      // It never has to be let go further out than the chute can reach.
+      // It never has to be let go further out than an arm can reach, and either arm reaches it:
+      // a medal fed on one side of the middle can be let go after the gate has crossed to the other.
       expect(aim).toBeGreaterThan(AIM.min);
       expect(aim).toBeLessThan(AIM.max);
+      expect(tipOf(0, aim)).toBe(aim);
+      expect(tipOf(1, aim)).toBe(aim);
     }
     // Let go a fall's length before the gate reaches the end of its sweep, the medal is aimed at that end.
     expect(aimAt('centre', 0, never, SWEEP.period / 4 - FALL_TIME)).toBeCloseTo(CHECKERS.positions[1] + SWEEP.amplitude, 9);

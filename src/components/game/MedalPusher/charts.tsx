@@ -107,7 +107,7 @@ const GATE = 'var(--mp-d-gate)';
 
 /** Where each numbered badge of the diagram sits, in field units (depth may be negative: on the back panel). */
 const BADGES: { x: number; depth: number }[] = [
-  { x: 50, depth: -13 },
+  { x: 50, depth: -14 },
   { x: 88, depth: -3.5 },
   { x: 14, depth: 20 },
   { x: 50, depth: 62 },
@@ -142,9 +142,19 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
   const right = FIELD.width;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', width: '100%', maxWidth: 300, margin: '0 auto', height: 'auto' }}>
-      {/* The back panel, seen edge on, with the chute above it */}
+      {/* The back panel, seen edge on, with the two feed arms reaching in over it from the corners, a medal on its way down one */}
       <rect x={X(0)} y={Y(-9)} width={FIELD.width * scale} height={9 * scale} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
-      <path d={`M${X(44)} ${Y(-17)} L${X(56)} ${Y(-17)} L${X(52.5)} ${Y(-10)} L${X(47.5)} ${Y(-10)} Z`} fill={PUSHER_FILL} stroke={LINE} strokeWidth={1.2} />
+      {[0, right].map((corner) => {
+        const toward = corner === 0 ? 1 : -1;
+        const at = (reach: number) => X(corner + toward * reach);
+        return (
+          <g key={corner}>
+            <path d={`M${at(3)} ${Y(-18.4)} L${at(41)} ${Y(-12.6)} L${at(41)} ${Y(-10.2)} L${at(3)} ${Y(-16)} Z`} fill={PUSHER_FILL} stroke={LINE} strokeWidth={1.2} />
+            <circle cx={at(3)} cy={Y(-17.2)} r={4.5} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
+          </g>
+        );
+      })}
+      <circle cx={X(24)} cy={Y(-17)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.35} stroke={WON} strokeWidth={1.2} />
       {CHECKERS.positions.map((center) => (
         <rect
           key={center}

@@ -21,7 +21,7 @@ import { AUTO_PACE, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { IDLE_DIGITS, Screen, ballTransform, bannerText, markStrip, stripOffset } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
-import { CHECKERS, FIELD, LANDING, PUSHER, SWEEP } from '@/components/game/MedalPusher/engine';
+import { ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FIELD, LANDING, PUSHER, ROLL_TIME, SWEEP } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
@@ -654,6 +654,38 @@ describe('strings', () => {
     expect(en.aimName.centre).toBe('Following the centre gate');
     expect(ja.aimName.centre).toBe('中央のチャッカーを追う');
   });
+
+  it('describes the feed arms as the engine works them', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    // A medal is on its rail for about half a second, and in the air for about as long again.
+    expect(Math.round(ROLL_TIME * 2) / 2).toBe(0.5);
+    expect(Math.round(FALL_TIME * 2) / 2).toBe(0.5);
+    const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
+    expect(info.en).toContain('about half a second to roll down its arm and about as long again to fall');
+    expect(info.en).toContain('wherever the arm is pointing when it gets to the tip');
+    expect(info.ja).toContain('レールを0.5秒ほど転がり');
+    expect(info.ja).toContain('先端に着いたときにアームが向いている位置');
+    // The diagram's first part is the arms, and its text gives the scatter the engine uses and how far an arm reaches.
+    expect(PART_IDS[0]).toBe('arms');
+    expect(en.partName.arms).toBe('Feed arms');
+    expect(ja.partName.arms).toBe('投入アーム');
+    expect(en.partText.arms).toContain(`up to ${LANDING.scatter}% of the width to either side`);
+    expect(ja.partText.arms).toContain(`幅の${LANDING.scatter}%まで`);
+    expect(ARM_REACH[0].max).toBeGreaterThan(FIELD.width / 2);
+    expect(en.partText.arms).toContain('each to a little past the middle');
+    expect(ja.partText.arms).toContain('中央を少し越えるところまで');
+    // And how long an arm takes to swing from one end of its reach to the other.
+    for (const reach of ARM_REACH) expect((reach.max - reach.min) / ARM_SPEED).toBeLessThan(0.2);
+    expect(en.partText.arms).toContain('crosses its whole reach in under a fifth of a second');
+    expect(ja.partText.arms).toContain('端から端まで動くのに0.2秒かかりません');
+    expect(en.simNotes('1.08', MAX_STOCK).join(' ')).toContain('where its arm is pointing when it leaves the tip');
+    expect(ja.simNotes('1.08', MAX_STOCK).join('')).toContain('先端を離れるときにアームが向いている位置');
+    // Nothing still speaks of the chute the arms replaced.
+    const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
+    const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
+    expect(everything).not.toMatch(/chute|投入口/i);
+  });
 });
 
 describe('the page', () => {
@@ -835,6 +867,8 @@ describe('charts', () => {
     expect(html).toContain('aria-label="the field"');
     expect(html.match(/data-badge=/g)).toHaveLength(6);
     expect(PUSHER.max).toBeLessThan(FIELD.sideOpenFrom);
+    // One feed arm reaches in from each upper corner, each with the collar it hangs from.
+    expect(html.match(/<circle[^>]*r="4.5"/g)).toHaveLength(2);
   });
 });
 

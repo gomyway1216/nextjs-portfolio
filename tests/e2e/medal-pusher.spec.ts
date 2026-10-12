@@ -111,13 +111,18 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await dropOne(page);
   await dropOne(page);
   await dropOne(page);
+  // The feed arms are part of the machine too: swing them as far right as they go.
+  await aimSlider(page).focus();
+  await page.keyboard.press('End');
+  await expect(aimSlider(page)).toHaveValue('100');
   // Let the counter catch up with the last press before reading it.
   await page.waitForTimeout(500);
   const dropped = await counter(page, 'played');
   expect(dropped).toBeGreaterThanOrEqual(3);
 
-  // The machine is saved every few seconds: wait for a save that has these medals in it.
+  // The machine is saved every few seconds: wait for a save that has these medals in it, and the arms where they were put.
   await expect.poll(async () => (await savedMachine(page))?.inserted ?? -1, { timeout: 20_000 }).toBe(dropped);
+  await expect.poll(async () => (await savedMachine(page))?.machine.aim ?? -1, { timeout: 20_000 }).toBeGreaterThan(95);
   await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
 
   await page.reload();
@@ -125,6 +130,8 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   // The page is first drawn as a new machine, and then shows the one it remembers.
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(dropped);
+  // Its arms are where they were left, and the aim with them.
+  await expect(aimSlider(page)).toHaveValue('100');
   await expectPurseToBalance(page);
 
   // Reset takes two presses, and leaves a new machine with nothing of the old one saved.

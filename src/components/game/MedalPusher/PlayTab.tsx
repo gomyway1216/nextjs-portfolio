@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, FIELD, clampAim } from './engine';
+import { AIM, FIELD, aimArms, clampAim } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, drawField, lightGate, trackMedals, type Stage } from './render';
@@ -96,6 +96,12 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.spins === b.spins &&
   a.paid === b.paid;
 
+/** A medal going into its arm is heard twice over: through the slot, and then down the rail it rolls on. */
+const feedSound = (on: boolean): void => {
+  playSound('insert', on);
+  playSound('roll', on);
+};
+
 export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -157,6 +163,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     startFresh.current = false;
     const session = remembered ?? createSession(seed);
     sessionRef.current = session;
+    // A machine that is remembered has its arms where they were left, and the aim goes back there with them.
+    if (remembered) {
+      live.current.aim = remembered.machine.aim;
+      setAim(remembered.machine.aim);
+    }
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
@@ -227,15 +238,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (session.credits === 0) press.current = null;
       const held = press.current;
       if (held && !held.streaming && now / 1000 - held.since >= HOLD_DELAY) held.streaming = true;
-      if (held?.streaming && insert(session, aimNow)) playSound('insert', soundOn);
+      if (held?.streaming && insert(session, aimNow)) feedSound(soundOn);
       if (autoNow) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
-          if (insert(session, aimNow)) playSound('insert', soundOn);
+          if (insert(session, aimNow)) feedSound(soundOn);
         }
       }
 
+      // The arms swing after the aim, and a medal on a rail drops where its arm's tip is when it gets there.
+      aimArms(session.machine, aimNow);
       events.length = 0;
       advance(session, elapsed, events);
 
@@ -416,7 +429,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const drop = () => {
     const session = sessionRef.current;
-    if (session && insert(session, live.current.aim)) playSound('insert', sound);
+    if (session && insert(session, live.current.aim)) feedSound(sound);
   };
 
   const aimAtPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {

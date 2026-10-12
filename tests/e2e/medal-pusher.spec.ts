@@ -378,11 +378,13 @@ test('a press on the field aims the rail on that side and feeds nothing', async 
   await expect.poll(() => aimOf(page, 'left')).toBeLessThan(40);
 
   // A drag moves the rail it began on, and goes on moving it past the middle, as far as that rail reaches.
-  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * ON_WALL);
+  // The pointer is taken to places on the field itself, not to where the field stood when the test began: the
+  // stage is taller than the window, and the clicks above have scrolled it.
+  await field.hover({ position: { x: box.width * 0.3, y: box.height * ON_WALL } });
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.48, box.y + box.height * ON_WALL, { steps: 4 });
+  await field.hover({ position: { x: box.width * 0.48, y: box.height * ON_WALL } });
   await expect.poll(() => aimOf(page, 'left')).toBeGreaterThan(35);
-  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * ON_WALL, { steps: 4 });
+  await field.hover({ position: { x: box.width * 0.6, y: box.height * ON_WALL } });
   await page.mouse.up();
   await expect.poll(() => aimOf(page, 'left')).toBeGreaterThan(50);
   expect(await aimOf(page, 'left')).toBeLessThanOrEqual(61);

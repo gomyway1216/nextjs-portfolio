@@ -95,6 +95,23 @@ export function unprojectPanel(px: number, py: number): { x: number; height: num
   return { x: FIELD.width / 2 + t * across, height: CAMERA.height + t * (FORWARD.y + upward * UP.y) };
 }
 
+// ── The open sides ──────────────────────────────────────────────────────────
+
+/**
+ * The chute beside each open stretch of the lower table, which a medal
+ * pushed off that side goes down. It starts `drop` below the table's edge
+ * and falls away by `slope` for every unit out from it: gently, since the
+ * steeper it is the more it turns away from the player, who looks down on it
+ * from the middle of the cabinet. On it are arrows that point the way out,
+ * one at each of the depths in `marks`: an arrow's barbs start `near` out
+ * from the table's edge and meet at its point, `far` out, and it is `span`
+ * from the end of one barb to the end of the other.
+ */
+export const CHUTE = { drop: 1.5, slope: 0.3, marks: [82.5, 89, 95.5], near: 1.4, far: 5.5, span: 5 } as const;
+
+/** How high the chute is `out` from the edge of the table: under the table, so less than nothing. */
+export const chuteHeight = (out: number): number => -(CHUTE.drop + out * CHUTE.slope);
+
 // ── The screen ──────────────────────────────────────────────────────────────
 
 /**

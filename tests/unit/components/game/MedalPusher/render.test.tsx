@@ -31,6 +31,7 @@ import {
   stripOffset,
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
+import { CATCHER } from '@/components/game/MedalPusher/catcher';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
@@ -1102,7 +1103,7 @@ describe('charts', () => {
     expect(html).toContain('aria-label="the field"');
     expect(html.match(/data-badge=/g)).toHaveLength(6);
     expect(PUSHER.max).toBeLessThan(FIELD.sideOpenFrom);
-    // The three START pockets are on the pusher's lip: in a row, as far apart as the engine has them, each as wide as a medal that just fits.
+    // The three START pockets are mouths in the catcher on the pusher's front: in a row, as far apart as the engine has them, each as wide as a medal that just fits.
     const pockets = [...html.matchAll(/<circle[^>]*data-chucker[^>]*>/g)].map(([tag]) => {
       const number = (name: string) => Number(new RegExp(` ${name}="([\\d.]+)"`).exec(tag)?.[1]);
       return { x: number('cx'), y: number('cy'), radius: number('r') };
@@ -1116,6 +1117,18 @@ describe('charts', () => {
     });
     // They do not run into one another.
     expect(pockets[1].x - pockets[0].x).toBeGreaterThan(pockets[0].radius * 2);
+    // The catcher is drawn out past the pusher's lip, as long as the three pockets take, and every mouth is wholly inside it: beyond the lip, not cut into the pusher.
+    const catcher = /<rect[^>]*data-catcher[^>]*>/.exec(html)?.[0] ?? '';
+    const side = (name: string) => Number(new RegExp(` ${name}="([\\d.]+)"`).exec(catcher)?.[1]);
+    expect(side('width') / scale).toBeCloseTo(CATCHER.to - CATCHER.from, 6);
+    expect(side('height') / scale).toBeCloseTo(CATCHER.foot.out, 6);
+    for (const pocket of pockets) {
+      expect(pocket.x - pocket.radius).toBeGreaterThan(side('x'));
+      expect(pocket.x + pocket.radius).toBeLessThan(side('x') + side('width'));
+      expect(pocket.y - pocket.radius).toBeGreaterThan(side('y'));
+      expect(pocket.y + pocket.radius).toBeLessThan(side('y') + side('height'));
+      expect((pocket.y - side('y')) / scale).toBeCloseTo(CATCHER.back + MEDAL_RADIUS + CHECKERS.halfWidth, 6);
+    }
     // One feed arm runs back from each front corner to its tip over the pusher, each with its slot at the near end.
     expect(html.match(/data-arm=/g)).toHaveLength(2);
     expect(html.match(/<circle[^>]*r="5.5"/g)).toHaveLength(2);

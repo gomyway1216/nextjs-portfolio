@@ -31,7 +31,7 @@ export const CHUCKERS = {
   radius: MEDAL_RADIUS + CHECKERS.halfWidth,
   /** How high the mouths are: the top of the pusher, whose lip they are on. */
   height: HEIGHT.pusher,
-  /** Seconds a medal that has come over the lip is drawn falling to the lower table: as long as it can be seen in a mouth. */
+  /** Seconds a medal that has come over the lip is drawn falling to the lower table. One that drops through a mouth is seen for longer: catcher.ts says how long. */
   drop: 0.18,
 } as const;
 
@@ -39,8 +39,8 @@ export const CHUCKERS = {
  * The middle of a chucker's mouth at `time`, where a medal's middle is as it
  * drops through: across the field where the engine has it, at the height of
  * the pusher's top, and on the lip's very edge wherever the stroke has taken
- * it. A mouth drawn as a hole in the top of the pusher belongs one `radius`
- * behind that, as the Odds tab's diagram has it.
+ * it. The mouth a medal is seen to go into is drawn out beyond that edge, in
+ * the catcher that hangs on the pusher's front: catcher.ts says where.
  */
 export function chuckerSpot(chucker: number, time: number): Spot {
   if (!Number.isInteger(chucker) || chucker < 0 || chucker >= CHUCKERS.count) throw new Error('there is no such chucker');

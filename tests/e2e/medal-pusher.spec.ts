@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
 import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
@@ -235,6 +236,86 @@ test('the canvas renderer draws the field when the address asks for it', async (
   expect(await counter(page, 'played')).toBe(before);
   await expectPurseToBalance(page);
   expect(trouble).toEqual([]);
+});
+
+test('on a phone the START pockets are three holes side by side, and each slot has a mouth a medal fits', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  // The canvas renderer draws the same cabinet as the 3D one, and its picture can be read back.
+  await openGame(page, 'en', '?renderer=2d');
+  const field = machine(page).getByTestId('pusher-field');
+  await expect(field).toHaveAttribute('data-renderer', '2d');
+  await expectFieldPainted(page);
+  const box = await field.boundingBox();
+  if (!box) throw new Error('the field has no box');
+  // Where the middle of each slot's mouth is, as shares of the picture: the slots never move.
+  const mouths = ([0, 1] as const).map((arm) => {
+    const middle = slotSpot(arm, 0, 0, SLOT.face - SLOT.deep);
+    const at = project(middle.x, middle.height, middle.depth);
+    return { x: at.x / VIEW.width, y: at.y / VIEW.height };
+  });
+  /**
+   * The black in the picture, which is the inside of a hole and nothing else: how long the stretch of it is down
+   * the middle of the picture, where the middle pocket is, and every stretch of it on the line across the picture
+   * through the middle of that; and, for each slot, how far it reaches across and down through the middle of the
+   * slot's mouth. Lengths are in pixels of the page.
+   */
+  const black = () =>
+    page.evaluate((slots) => {
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="pusher-field"]');
+      const context = canvas?.getContext('2d');
+      if (!canvas || !context) return null;
+      const each = canvas.getBoundingClientRect().width / canvas.width;
+      /** The stretches of black along a line of pixels, each as where it begins and how long it is. */
+      const runs = (data: Uint8ClampedArray) => {
+        const found: { from: number; length: number }[] = [];
+        let start = -1;
+        for (let i = 0; i <= data.length / 4; i++) {
+          const dark = i < data.length / 4 && data[i * 4 + 3] === 255 && data[i * 4] < 16 && data[i * 4 + 1] < 16 && data[i * 4 + 2] < 16;
+          if (dark && start < 0) start = i;
+          if (!dark && start >= 0) {
+            found.push({ from: start * each, length: (i - start) * each });
+            start = -1;
+          }
+        }
+        return found;
+      };
+      const through = (data: Uint8ClampedArray, pixel: number) => runs(data).find((run) => run.from <= pixel * each && run.from + run.length >= pixel * each)?.length ?? 0;
+      // The catcher rides with the pusher, so the pockets are looked for from where the lip is at the back of its stroke to where the catcher's foot is at the front of it.
+      const top = Math.floor(canvas.height * 0.55);
+      const tall = Math.floor(canvas.height * 0.25);
+      const [down] = runs(context.getImageData(Math.floor(canvas.width / 2), top, 1, tall).data).sort((a, b) => b.length - a.length);
+      const row = down ? top + Math.round((down.from + down.length / 2) / each) : -1;
+      return {
+        down: down ? { from: down.from + top * each, length: down.length } : null,
+        across: row < 0 ? [] : runs(context.getImageData(0, row, canvas.width, 1).data),
+        slots: slots.map((slot) => {
+          const [x, y] = [Math.round(slot.x * canvas.width), Math.round(slot.y * canvas.height)];
+          return { wide: through(context.getImageData(0, y, canvas.width, 1).data, x), tall: through(context.getImageData(x, 0, 1, canvas.height).data, y) };
+        }),
+      };
+    }, mouths);
+  // Three of them, each a good many pixels of a phone's screen across. A medal on its way down one covers some of the black for a moment, so the picture is looked at until none is.
+  await expect.poll(async () => (await black())?.across.filter((run) => run.length >= 14).length, { timeout: 10_000 }).toBe(3);
+  const seen = await black();
+  if (!seen?.down) throw new Error('no pocket was found in the picture');
+  const pockets = seen.across.filter((run) => run.length >= 14);
+  expect(pockets).toHaveLength(3);
+  // Deep enough to be seen into, all inside the stage, side by side at even steps, the middle one in the middle.
+  expect(seen.down.length).toBeGreaterThanOrEqual(5);
+  expect(seen.down.from).toBeGreaterThan(box.height * 0.55);
+  expect(seen.down.from + seen.down.length).toBeLessThan(box.height * 0.8);
+  const middles = pockets.map((run) => run.from + run.length / 2);
+  expect(pockets[0].from).toBeGreaterThan(box.width * 0.25);
+  expect(pockets[2].from + pockets[2].length).toBeLessThan(box.width * 0.75);
+  expect(Math.abs(middles[1] - box.width / 2)).toBeLessThan(3);
+  expect(Math.abs(middles[1] - middles[0] - (middles[2] - middles[1]))).toBeLessThan(3);
+  expect(middles[1] - middles[0]).toBeGreaterThan(pockets[1].length + 4);
+  // Each slot's mouth is dark too, a medal's height tall and a good deal wider than a medal is thick.
+  for (const slot of seen.slots) {
+    expect(slot.wide).toBeGreaterThanOrEqual(10);
+    expect(slot.tall).toBeGreaterThanOrEqual(20);
+    expect(slot.tall).toBeGreaterThan(slot.wide * 1.5);
+  }
 });
 
 test('the 3D renderer draws the field wherever the browser has WebGL2 at all, when the address insists', async ({ page }) => {

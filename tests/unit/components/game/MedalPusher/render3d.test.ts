@@ -18,7 +18,6 @@ import {
   light,
 } from '@/components/game/MedalPusher/cabinet3d';
 import {
-  CHECKERS,
   FIELD,
   MEDAL_RADIUS,
   MEDAL_THICKNESS,
@@ -26,11 +25,9 @@ import {
   RELEASE,
   ROLL_TIME,
   SETTLE,
-  SWEEP,
   TOWER,
   aimArms,
   buildTowers,
-  checkerCentres,
   createMachine,
   dropBall,
   dropMedal,
@@ -900,14 +897,14 @@ describe('the cabinet as shapes', () => {
     expect(own[0].y).toBeLessThan(spot.height);
   });
 
-  it('draws every gate and its sign where the sweep has taken it, and lights one a medal came through', () => {
+  it('draws every gate and its sign where it stands, the same at every moment, and lights one a medal came through', () => {
     fakeDocument();
-    for (const time of [0, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4]) {
+    for (const time of [0, 0.9, 2.2, 4.5]) {
       const { solid } = moving(time);
-      const centres = checkerCentres(time);
+      const centres = GATE.positions;
       const gates = corners(solid, MOVING_PARTS[3].first, MOVING_PARTS[3].count);
       const signs = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
-      expect(signs).toHaveLength(6 * CHECKERS.positions.length);
+      expect(signs).toHaveLength(6 * GATE.positions.length);
       centres.forEach((centre, gate) => {
         const sign = signs.slice(gate * 6, gate * 6 + 6);
         const xs = sign.map((corner) => corner.x);
@@ -915,13 +912,13 @@ describe('the cabinet as shapes', () => {
         // The sign rides above the gate's opening, on the back panel.
         expect(Math.min(...sign.map((corner) => corner.y))).toBeGreaterThan(P + GATE.height);
         expect(Math.max(...sign.map((corner) => corner.y))).toBeLessThan(HEIGHT.wall);
-        // Each gate is three tubes round an opening as wide as a medal that just goes through on either side.
+        // Each gate is three tubes round its opening.
         const tubes = gates.slice(gate * 72, gate * 72 + 72).map((corner) => corner.x);
         expect((Math.min(...tubes) + Math.max(...tubes)) / 2).toBeCloseTo(centre, 4);
-        expect(Math.max(...tubes) - Math.min(...tubes)).toBeGreaterThan(2 * (R + CHECKERS.halfWidth));
-        expect(Math.max(...tubes) - Math.min(...tubes)).toBeLessThan(2 * (R + CHECKERS.halfWidth) + 1);
+        expect(Math.max(...tubes) - Math.min(...tubes)).toBeGreaterThan(2 * GATE.halfWidth);
+        expect(Math.max(...tubes) - Math.min(...tubes)).toBeLessThan(2 * GATE.halfWidth + 1);
       });
-      expect(gates).toHaveLength(72 * CHECKERS.positions.length);
+      expect(gates).toHaveLength(72 * GATE.positions.length);
     }
     const dark = moving(1);
     const stage = createStage(1, false);

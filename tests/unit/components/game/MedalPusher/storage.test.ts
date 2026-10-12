@@ -4,10 +4,12 @@ import {
   AIM,
   ARM_REACH,
   ARM_SPEED,
+  CHECKERS,
   DROP_INTERVAL,
   FALL_TIME,
   FIELD,
   MEDAL_RADIUS,
+  PUSHER,
   ROLL_TIME,
   SETTLE,
   TOWER,
@@ -16,13 +18,12 @@ import {
   armRest,
   ballsOnField,
   buildTowers,
-  checkerCentres,
-  checkerShift,
   medalsOnField,
   pusherFront,
   queuePayout,
   seededRng,
 } from '@/components/game/MedalPusher/engine';
+import { chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import { BOARD, BOWL, CHAIN_GOAL, CHESTS, JACKPOT_START, JACKPOT_STEP, REACH_KINDS, ROULETTE, squareAfter } from '@/components/game/MedalPusher/lottery';
 import {
   MAX_STOCK,
@@ -40,6 +41,7 @@ import {
 import { LIMITS, STORAGE_KEY, STORAGE_VERSION, VERSION_BEFORE_ARMS, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
+import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 
 const DT = 1 / 60;
 /** Tests that run the machine for a good while get room on a slow machine. */
@@ -195,19 +197,21 @@ describe('a save', () => {
     expect(serialize(back)).toBe(serialize(session));
   });
 
-  it('has its gates and its pusher where they were, and keeps them in step', { timeout: LONG }, () => {
+  it('has its pusher, and the chuckers on its lip, where they were, and keeps them in step', { timeout: LONG }, () => {
     const session = played(12, 7.3);
     const back = reread(session);
-    // Both move with the machine's own clock, which the save holds: there is nothing else to restore.
+    // The pusher moves with the machine's own clock, which the save holds, and the chuckers ride on its lip:
+    // there is nothing else to restore.
     expect(back.machine.time).toBe(session.machine.time);
-    expect(checkerShift(back.machine.time)).not.toBe(0);
-    expect(checkerCentres(back.machine.time)).toEqual(checkerCentres(session.machine.time));
+    expect(pusherFront(back.machine.time)).toBeGreaterThan(PUSHER.min);
     expect(pusherFront(back.machine.time)).toBe(pusherFront(session.machine.time));
+    expect(chuckerSpots(back.machine.time)).toEqual(chuckerSpots(session.machine.time));
     for (const machine of [session, back]) for (let i = 0; i < 113; i++) advance(machine, DT);
     expect(back.machine.time).toBe(session.machine.time);
-    expect(checkerCentres(back.machine.time)).toEqual(checkerCentres(session.machine.time));
-    expect(checkerCentres(back.machine.time)).not.toEqual(checkerCentres(back.machine.time - 113 * DT));
+    expect(chuckerSpots(back.machine.time)).toEqual(chuckerSpots(session.machine.time));
+    expect(chuckerSpots(back.machine.time)).not.toEqual(chuckerSpots(back.machine.time - 113 * DT));
     expect(pusherFront(back.machine.time)).toBe(pusherFront(session.machine.time));
+    expect(back.hits).toBe(session.hits);
   });
 
   it('holds a machine in the middle of a jackpot, however full the field gets', { timeout: LONG }, () => {
@@ -962,18 +966,31 @@ describe('a save written before the machine had its feed arms', () => {
     }
   });
 
-  it('plays on exactly as the game that wrote it did', () => {
+  it('plays on as the game that wrote it did: the same field to the last medal, and spins by today’s rule', () => {
     const back = restore(OLD, then.seed) as Session;
+    const at = { hits: back.hits, stock: back.stock, spins: back.spins, wasted: back.wasted };
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps; i++) advance(back, DT, events);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
+    // The field is the field it was: as many medals land, as many leave by the front and by the sides, and the purse is the same.
     expect(total(events, 'landed')).toBe(then.landed);
-    // One of the medals that was in the air came down through the centre gate, as it did then.
-    expect(events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []))).toEqual(then.gates);
-    expect(then.gates).toEqual([1]);
     expect(total(events, 'won')).toBe(then.won);
     expect(total(events, 'lost')).toBe(then.lost);
-    expect([back.credits, back.hits, back.stock, back.spins, back.paidOut]).toEqual([then.credits, then.hits, then.stock, then.spins, then.paidOut]);
+    expect([back.credits, back.paidOut]).toEqual([then.credits, then.paidOut]);
+    // What starts a spin is not what it was. Then, one of the medals in the air came down through the centre gate
+    // as it swept by. Now landing starts nothing: the medals that count are the ones the pusher takes over its lip
+    // through a chucker, and some of this machine's were on their way there.
+    expect(then.gates).toEqual([1]);
+    const through = events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []));
+    expect(through.length).toBeGreaterThan(0);
+    expect(through.every((chucker) => chucker >= 0 && chucker < CHECKERS.positions.length)).toBe(true);
+    expect(back.hits - at.hits).toBe(through.length);
+    // Each of them was spun, is held, or found the hold full, and the hold never went over what it holds.
+    expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+    expect(back.stock).toBeLessThanOrEqual(MAX_STOCK);
+    // It was holding seven when it was saved, more than the screen could play in the time: as many spins as then.
+    expect(at.stock).toBe(7);
+    expect(back.spins).toBe(then.spins);
     expect(back.machine.medals).toHaveLength(then.medals);
     expect(back.machine.falling).toHaveLength(then.falling);
     // And each of them lies where that game's machine left it.
@@ -1055,6 +1072,110 @@ describe('a save written before the machine had its feed arms', () => {
     const save = old();
     spoil(save);
     expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+});
+
+describe('a save written while the START gates still swept the back panel', () => {
+  // Written by the game as it was the day before the chuckers moved to the pusher's lip, with that day's own
+  // `serialize`: see the fixture's `about`. The rule has changed since and the shape of a save has not.
+  const OLD = beforeLipChuckers.save;
+  const old = (): Save => JSON.parse(OLD);
+
+  it('is a save of this version, caught in the middle of a stream', () => {
+    const save = old();
+    expect(save.version).toBe(STORAGE_VERSION);
+    expect(Object.keys(save.machine).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    expect(Object.keys(save.session).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session).sort());
+    // Three medals on a rail, three of the player's and four the machine paid in the air, more to be paid,
+    // the slot still waiting from the last one fed, a spin on the screen and seven more held.
+    expect(save.machine.rolling).toHaveLength(3);
+    expect(save.machine.falling.filter((medal) => medal.source === 'player')).toHaveLength(3);
+    expect(save.machine.falling.filter((medal) => medal.source === 'payout')).toHaveLength(4);
+    expect(save.machine.payoutQueue).toBeGreaterThan(0);
+    expect(save.machine.cooldown).toBeGreaterThan(0);
+    expect(save.screen.spin).toMatchObject({ done: false });
+    expect(save.session.stock).toBe(7);
+    expect(save.session.inserted).toBeGreaterThan(1000);
+    expect(save.machine.medals.length).toBeGreaterThan(300);
+  });
+
+  it('reads back as the same machine, to the last digit', () => {
+    const back = restore(OLD, 1);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    const save = old();
+    expect(serialize(back)).toBe(OLD);
+    const { rng: _rng, ...field } = back.machine;
+    expect(JSON.stringify(field)).toBe(JSON.stringify(save.machine));
+    const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
+    expect(JSON.stringify(numbers)).toBe(JSON.stringify(save.session));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    // Its arms are where they were, the one with medals on its rail over the aim and the other at rest.
+    expect(back.machine.tips).toEqual([armRest(0), back.machine.aim]);
+    expect(back.machine.rolling.every((medal) => medal.arm === 1)).toBe(true);
+  });
+
+  it('brings its medals down where they were going, and none of them starts a spin by landing', () => {
+    const back = restore(OLD, 77) as Session;
+    const save = old();
+    const waiting = save.machine.rolling.length + save.machine.falling.length;
+    const before = { hits: back.hits, medals: back.machine.medals.length };
+    const events: SessionEvent[] = [];
+    // Long enough for the last medal on a rail to roll off and fall; nothing is fed meanwhile.
+    for (let i = 0; i < Math.round((ROLL_TIME + FALL_TIME) / DT) + 2; i++) advance(back, DT, events);
+    expect(back.machine.rolling).toEqual([]);
+    const landed = events.reduce((sum, event) => sum + (event.type === 'landed' ? event.count : 0), 0);
+    expect(landed).toBeGreaterThanOrEqual(waiting);
+    // Every one of them came down on the pusher, well behind its lip, where there is no chucker to go through.
+    for (const medal of save.machine.falling) {
+      expect(medal.level).toBe(1);
+      expect(medal.y as number).toBeLessThan(PUSHER.min - MEDAL_RADIUS);
+    }
+    // Whatever went through a chucker in that second went over the lip to do it: there are that many more medals on the lower table's books.
+    const through = events.filter((event) => event.type === 'checker').length;
+    expect(back.hits - before.hits).toBe(through);
+    expect(through).toBeLessThan(waiting);
+  });
+
+  it('plays on under the rule as it is now, and its books balance', { timeout: LONG }, () => {
+    const back = restore(OLD, 77) as Session;
+    const at = { hits: back.hits, stock: back.stock, spins: back.spins, wasted: back.wasted, inserted: back.inserted, paidOut: back.paidOut, won: back.won, lost: back.lost };
+    const field = medalsOnField(back.machine);
+    const events: SessionEvent[] = [];
+    // Twenty seconds, two medals a second down the middle, the purse refilled when it is empty.
+    for (let i = 0; i < 20 * 60; i++) {
+      if (back.credits === 0) refill(back);
+      if (i % 30 === 0) insert(back, FIELD.width / 2);
+      advance(back, DT, events);
+      if (i % 240 === 0) expect(restore(serialize(back), 1)).not.toBeNull();
+    }
+    expect(back.inserted - at.inserted).toBeGreaterThanOrEqual(39);
+    // Not a medal has gone missing or come from nowhere, and the purse is what was fed and won.
+    expect(field + (back.inserted - at.inserted) + (back.paidOut - at.paidOut)).toBe(medalsOnField(back.machine) + (back.won - at.won) + (back.lost - at.lost));
+    expect(back.credits).toBe(START_CREDITS * (1 + back.refills) - back.inserted + back.won);
+    // Medals went over the lip through the chuckers, and each was spun, is held, or found the hold full.
+    const through = events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []));
+    expect(through.length).toBeGreaterThan(0);
+    expect(through.every((chucker) => chucker >= 0 && chucker < CHECKERS.positions.length)).toBe(true);
+    expect(back.hits - at.hits).toBe(through.length);
+    expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+    expect(back.spins).toBeGreaterThan(at.spins);
+    expect(back.stock).toBeLessThanOrEqual(MAX_STOCK);
+    expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+    // And it is written down and read back like any machine of today's.
+    expect(plain(reread(back))).toEqual(plain(back));
+  });
+
+  it('carries on the same way each time it is read', () => {
+    const [first, second] = [restore(OLD, 5) as Session, restore(OLD, 5) as Session];
+    for (let i = 0; i < 240; i++) {
+      for (const machine of [first, second]) {
+        if (machine.credits === 0) refill(machine);
+        if (i % 12 === 0) insert(machine, 20 + ((i * 7) % 60));
+        advance(machine, DT);
+      }
+    }
+    expect(serialize(second)).toBe(serialize(first));
   });
 });
 
@@ -1667,6 +1788,9 @@ describe('a screen caught at each of its phases', () => {
     square: session.square,
   });
 
+  /** Spins out of nowhere: every spin was a medal through a chucker first, and each of those is spun, held or wasted. */
+  const unaccounted = (session: Session): number => session.spins + session.stock + session.wasted - session.hits;
+
   it.each(twice)('%s: the change that would %s does not get the chance', (name, _what, change, counted) => {
     const good = restore(PHASES[name], 1) as Session;
     const before = books(good);
@@ -1689,7 +1813,11 @@ describe('a screen caught at each of its phases', () => {
     expect(back).not.toBeNull();
     expect([back.spin, back.bonus, back.roulette]).toEqual([null, null, null]);
     advance(back, DT);
-    expect(books(back)).toEqual(before);
+    // Nothing is paid or counted a second time. The reels are free now, though, so a spin the machine was holding
+    // may start: what its prize threw onto the pusher has been going over the lip, and some of it through a chucker.
+    expect({ ...books(back), spins: before.spins }).toEqual(before);
+    expect([0, 1]).toContain(back.spins - before.spins);
+    expect(unaccounted(back)).toBe(unaccounted(good));
     // A second and a tenth step pay nothing either: a roulette whose ball came back has only just set off again.
     for (let i = 0; i < 9; i++) advance(back, DT);
     expect(back.paidOut).toBe(before.paidOut);
@@ -1908,7 +2036,7 @@ describe('any moment of any session', () => {
 
       for (let i = 0; i < (swept ? 3000 : 500); i++) {
         if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0 });
-        // The player and the field: medals dropped, a medal through a gate, a ball over the front, a chest picked.
+        // The player and the field: medals dropped, a medal through a chucker, a ball over the front, a chest picked.
         if (session.credits === 0) refill(session);
         if (chance() < 0.2) insert(session, 10 + chance() * 80);
         if (session.stock < MAX_STOCK && chance() < (lucky ? 0.3 : 0.02)) session.stock += 1;

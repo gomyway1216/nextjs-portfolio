@@ -436,9 +436,9 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
 
-  // 80% by the front and 0.19 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('96.7%');
+  await expect(result).toHaveText('95.8%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
 
@@ -446,9 +446,9 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('120.8%');
+  await expect(result).toHaveText('119.7%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('60.4%');
+  await expect(result).toHaveText('59.9%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
 });
 
@@ -467,14 +467,16 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // From the edges no medal can reach a gate, wherever its sweep has taken it; following the centre gate about one in five does.
+  // Fed down the middle, about one medal in six ends up through a START pocket on the pusher's lip (13% to 22% over
+  // twenty runs of this size, and more when a tower goes over through one). Fed at the edges far fewer do, though
+  // some: the pile carries medals across, and what the screen pays lands all over the pusher.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
-  await expect(cells('edges').nth(3)).toHaveText('0.0%');
-  await expect(cells('edges').nth(5)).toHaveText('0');
-  const centreGate = Number(((await cells('centre').nth(3).textContent()) ?? '').replace('%', ''));
-  expect(centreGate).toBeGreaterThan(12);
-  expect(centreGate).toBeLessThan(32);
-  for (const aim of ['centre', 'anywhere', 'between', 'edges']) {
+  const throughAPocket = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
+  const middle = await throughAPocket('centre');
+  expect(middle).toBeGreaterThan(8);
+  expect(middle).toBeLessThan(40);
+  expect(await throughAPocket('edges')).toBeLessThan(middle);
+  for (const aim of ['centre', 'anywhere', 'beside', 'edges']) {
     const front = Number(((await cells(aim).nth(2).textContent()) ?? '').replace('%', ''));
     expect(front).toBeGreaterThan(60);
     expect(front).toBeLessThan(92);

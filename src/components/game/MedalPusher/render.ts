@@ -7,7 +7,7 @@
  */
 
 import { ARMS, armCollar, armTip, letGoAt, rollingSpot } from './arms';
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, checkerCentres, pusherFront, type Arm, type Machine, type Medal } from './engine';
+import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, armFor, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import { HEIGHT, VIEW, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -33,8 +33,14 @@ const UPRIGHT = rise(project(0, 0, 0)) / project(0, 0, 0).scale;
 const RAIL = { headroom: 0.7, tail: 2, collar: 3.4 } as const;
 /** A prize ball is drawn this large. It overhangs the flat medals round it, so it touches them over less. */
 export const BALL_RADIUS = 4.3;
-/** How far a gate's opening reaches up the back panel. */
-export const GATE = { halfWidth: R + CHECKERS.halfWidth, height: 11 } as const;
+/**
+ * The three START gates still drawn at the foot of the back panel: where each
+ * stands across the field, how wide its opening is, and how far it reaches up.
+ * They are only a picture now, and they no longer sweep. The chuckers are on
+ * the pusher's lip (see chuckers.ts), and a gate lights when a medal drops
+ * through the chucker of its number.
+ */
+export const GATE = { positions: [25, 50, 75], halfWidth: 4.4, height: 11 } as const;
 /** How long each kind of celebration lights the cabinet, in seconds. */
 export const PARTY_TIME = { crash: 0.5, fever: 5, jackpot: 9 } as const;
 export type Party = keyof typeof PARTY_TIME;
@@ -356,7 +362,7 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     g.fillStyle = plate;
     g.fillRect(hub.x - half, -4, half * 2, hub.y + 4);
   }
-  // The gates and the sign over each are not here: they move, so every frame draws them where they are.
+  // The gates and the sign over each are not here: they light up, so every frame draws them.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
 
@@ -480,7 +486,7 @@ export function createStage(ratio: number, painted = true): Stage {
     popups: [],
     tally: 0,
     tallyAge: 0,
-    gateGlow: CHECKERS.positions.map(() => 0),
+    gateGlow: GATE.positions.map(() => 0),
     trayGlow: 0,
     sideGlow: [0, 0],
     party: null,
@@ -1041,10 +1047,10 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   drawMedals(g, stage, upper, P, shake);
   flat();
 
-  // The gates at the foot of the back panel, where their sweep has taken them, each with its sign riding above it.
+  // The gates at the foot of the back panel, each with its sign above it.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  checkerCentres(machine.time).forEach((center, index) => {
+  GATE.positions.forEach((center, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;
     const pulse = calm ? 0 : 0.5 + 0.5 * Math.sin(stage.clock * 4 + index * 2.1);
     const gate = [

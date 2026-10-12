@@ -108,8 +108,8 @@ const GATE = 'var(--mp-d-gate)';
 /** Where each numbered badge of the diagram sits, in field units (depth may be negative: on the back panel). */
 const BADGES: { x: number; depth: number }[] = [
   { x: 50, depth: -14 },
-  { x: 88, depth: -3.5 },
   { x: 14, depth: 20 },
+  { x: 80, depth: 38 },
   { x: 50, depth: 62 },
   { x: 88, depth: 89 },
   { x: 50, depth: 108 },
@@ -139,6 +139,7 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
   const X = (x: number) => left + x * scale;
   const Y = (depth: number) => top + depth * scale;
   const front = (PUSHER.min + PUSHER.max) / 2;
+  const pocket = MEDAL_RADIUS + CHECKERS.halfWidth;
   const right = FIELD.width;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', width: '100%', maxWidth: 300, margin: '0 auto', height: 'auto' }}>
@@ -155,24 +156,16 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
         );
       })}
       <circle cx={X(24)} cy={Y(-17)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.35} stroke={WON} strokeWidth={1.2} />
-      {CHECKERS.positions.map((center) => (
-        <rect
-          key={center}
-          x={X(center - MEDAL_RADIUS - CHECKERS.halfWidth)}
-          y={Y(-7)}
-          width={(MEDAL_RADIUS + CHECKERS.halfWidth) * 2 * scale}
-          height={7 * scale}
-          fill="none"
-          stroke={GATE}
-          strokeWidth={2.4}
-        />
-      ))}
       {/* The lower table and the pusher on top of its back half */}
       <rect x={X(0)} y={Y(0)} width={FIELD.width * scale} height={FIELD.depth * scale} fill={TABLE} />
       <rect x={X(0)} y={Y(0)} width={FIELD.width * scale} height={front * scale} fill={PUSHER_FILL} stroke={LINE} strokeWidth={1.2} />
       {/* How far the pusher's lip travels */}
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.min)} y2={Y(PUSHER.min)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.max)} y2={Y(PUSHER.max)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
+      {/* The three START pockets, cut into the pusher's lip: each as wide as a medal that just fits */}
+      {CHECKERS.positions.map((center) => (
+        <circle key={center} data-chucker cx={X(center)} cy={Y(front - pocket)} r={pocket * scale} fill={TABLE} stroke={GATE} strokeWidth={2.4} />
+      ))}
       <path
         d={`M${X(26)} ${Y(PUSHER.min + 1.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} M${X(24)} ${Y(PUSHER.min + 4.5)} L${X(26)} ${Y(PUSHER.min + 1.5)} L${X(28)} ${Y(PUSHER.min + 4.5)} M${X(24)} ${Y(PUSHER.max - 4.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} L${X(28)} ${Y(PUSHER.max - 4.5)}`}
         fill="none"

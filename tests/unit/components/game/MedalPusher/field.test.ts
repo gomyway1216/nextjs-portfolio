@@ -4,20 +4,17 @@ import { ARMS, armCollar, armRest, armTip, rollingSpot } from '@/components/game
 import {
   AIM,
   ARM_REACH,
-  CHECKERS,
   FALL_TIME,
   FIELD,
   MEDAL_RADIUS,
   ROLL_TIME,
-  SWEEP,
   aimArms,
-  checkerCentres,
   createMachine,
   dropMedal,
   step,
   type Machine,
 } from '@/components/game/MedalPusher/engine';
-import { createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
+import { GATE, createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
 import { HEIGHT, project, rise, unprojectPanel } from '@/components/game/MedalPusher/view';
 
 /** A medal's face as it was stamped on the canvas: where its middle is, how wide and how tall it was drawn, and how far it was turned. */
@@ -98,8 +95,8 @@ describe('the gates on the canvas', () => {
     drawField(screen.context, stage, machine, { aim: 50, showGuide: true, calm });
     return screen;
   };
-  /** A quarter of the way through the sweep, an eighth, the far left, and somewhere on the way back. */
-  const TIMES = [0, SWEEP.period / 8, SWEEP.period / 4, 2.2, (SWEEP.period * 3) / 4, 5.3];
+  /** Moments all through the pusher's stroke: the gates are the same picture at every one. */
+  const TIMES = [0, 0.75, 1.5, 2.2, 4.5, 5.3];
 
   it('paints no gate sign into the layer that is drawn once', () => {
     const made = fakeDocument();
@@ -111,17 +108,16 @@ describe('the gates on the canvas', () => {
     expect(once).not.toContain('START');
   });
 
-  it('draws every START sign over its gate, wherever the sweep has taken it', () => {
+  it('draws every START sign over its gate, and the gates stand still', () => {
     fakeDocument();
     const heights: number[] = [];
     for (const time of TIMES) {
       const signs = frame(time, false).texts.filter((entry) => entry.text === 'START');
-      expect(signs).toHaveLength(CHECKERS.positions.length);
-      const centres = checkerCentres(time);
+      expect(signs).toHaveLength(GATE.positions.length);
       signs.forEach((sign, gate) => {
-        // The spot of the back panel the sign was drawn on: straight above the gate's centre.
+        // The spot of the back panel the sign was drawn on: straight above the gate's centre, whatever the time.
         const spot = unprojectPanel(sign.x, sign.y);
-        expect(spot?.x).toBeCloseTo(centres[gate], 6);
+        expect(spot?.x).toBeCloseTo(GATE.positions[gate], 6);
         heights.push(spot?.height ?? Number.NaN);
       });
     }
@@ -133,49 +129,42 @@ describe('the gates on the canvas', () => {
     }
   });
 
-  it('draws every gate where a medal has to land to go through it', () => {
+  it('draws every gate where it stands at the foot of the back panel', () => {
     fakeDocument();
-    // A gate's opening is as wide as a medal that just goes through on either side.
-    const halfWidth = MEDAL_RADIUS + CHECKERS.halfWidth;
+    expect(GATE.positions).toEqual([25, 50, 75]);
     const near = (points: { x: number; y: number }[], x: number, y: number) => points.some((point) => Math.hypot(point.x - x, point.y - y) < 1e-6);
     for (const time of TIMES) {
       const { starts } = frame(time, false);
-      for (const centre of checkerCentres(time)) {
-        const corner = project(centre - halfWidth, HEIGHT.pusher, 0);
+      for (const centre of GATE.positions) {
+        const corner = project(centre - GATE.halfWidth, HEIGHT.pusher, 0);
         expect(near(starts, corner.x, corner.y)).toBe(true);
       }
-      // And nowhere else: away from the middle of the sweep, nothing is left behind where the gates used to stand.
-      if (Math.abs(checkerCentres(time)[0] - CHECKERS.positions[0]) > 0.5) {
-        for (const centre of CHECKERS.positions) {
-          const corner = project(centre - halfWidth, HEIGHT.pusher, 0);
-          expect(near(starts, corner.x, corner.y)).toBe(false);
-        }
-      }
     }
+    // The openings do not run into one another, and none runs off the panel.
+    expect(GATE.positions[1] - GATE.positions[0]).toBeGreaterThan(GATE.halfWidth * 2);
+    expect(GATE.positions[0] - GATE.halfWidth).toBeGreaterThan(0);
+    expect(GATE.positions[2] + GATE.halfWidth).toBeLessThan(FIELD.width);
   });
 
-  it('moves the gates and their signs with reduced motion too', () => {
+  it('draws the gates and their signs the same with reduced motion, and the same from one moment to the next', () => {
     fakeDocument();
+    const signsAt = (time: number, calm: boolean) => frame(time, calm).texts.filter((entry) => entry.text === 'START');
     for (const time of TIMES) {
-      const moving = frame(time, false).texts.filter((entry) => entry.text === 'START');
-      const calm = frame(time, true).texts.filter((entry) => entry.text === 'START');
-      expect(calm).toEqual(moving);
+      expect(signsAt(time, true)).toEqual(signsAt(time, false));
+      expect(signsAt(time, true)).toEqual(signsAt(0, true));
     }
-    const middle = frame(0, true).texts.find((entry) => entry.text === 'START');
-    const right = frame(SWEEP.period / 4, true).texts.find((entry) => entry.text === 'START');
-    expect((right?.x ?? 0) - (middle?.x ?? 0)).toBeGreaterThan(SWEEP.amplitude);
   });
 
-  it('lights a gate that a medal has come through, wherever it is', () => {
+  it('lights the gate of the number it is told, and no other', () => {
     fakeDocument();
     const stage = createStage(1);
     const machine = createMachine(3);
-    machine.time = SWEEP.period / 4;
+    machine.time = 1.5;
     lightGate(stage, 2);
     expect(stage.gateGlow).toEqual([0, 0, expect.any(Number)]);
     expect(stage.gateGlow[2]).toBeGreaterThan(0);
     lightGate(stage, 7);
-    expect(stage.gateGlow).toHaveLength(CHECKERS.positions.length);
+    expect(stage.gateGlow).toHaveLength(GATE.positions.length);
     const screen = recorder();
     expect(() => drawField(screen.context, stage, machine, { aim: 50, showGuide: false })).not.toThrow();
     expect(screen.texts.filter((entry) => entry.text === 'START')).toHaveLength(3);

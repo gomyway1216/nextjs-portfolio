@@ -7,7 +7,7 @@
  */
 
 import { ARMS, armCollar, rollingSpot } from './arms';
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, armFor, checkerShift, tipOf, type Arm, type Machine } from './engine';
+import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, armFor, tipOf, type Arm, type Machine } from './engine';
 import { PANEL_TOP, SIGN, TRAY_DROP, pinSpots } from './art3d';
 import { BALL_RADIUS, GATE, GLOW_TIME, LIP_FALL, SPARK_COLORS, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, armTipAt, beadRow, type Rows } from './scene3d';
@@ -413,11 +413,10 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
 
   // A gate is a frame of neon tube round its opening, and turns gold for a moment when a medal comes through.
   gates.first = solid.count;
-  const shift = checkerShift(machine.time);
   const half = GATE.halfWidth;
   const tube = 0.32;
-  for (let i = 0; i < CHECKERS.positions.length; i++) {
-    const centre = CHECKERS.positions[i] + shift;
+  for (let i = 0; i < GATE.positions.length; i++) {
+    const centre = GATE.positions[i];
     solid.finish(0, 1).paint(stage.gateGlow[i] > 0 ? GATE_LIT : GATE_NEON);
     solid.box(centre - half - tube, P, 0, centre - half + tube, P + GATE.height, 0.7);
     solid.box(centre + half - tube, P, 0, centre + half + tube, P + GATE.height, 0.7);
@@ -427,8 +426,8 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
 
   signs.first = solid.count;
   const foot = P + GATE.height + 2.4 - SIGN.height / 2;
-  for (let i = 0; i < CHECKERS.positions.length; i++) {
-    const centre = CHECKERS.positions[i] + shift;
+  for (let i = 0; i < GATE.positions.length; i++) {
+    const centre = GATE.positions[i];
     const lit = stage.gateGlow[i] / GLOW_TIME;
     solid.finish(0, 0.85 + 0.6 * lit).paint(WHITE);
     solid.quad(centre - SIGN.width / 2, foot + SIGN.height, 0.5, centre + SIGN.width / 2, foot + SIGN.height, 0.5, centre + SIGN.width / 2, foot, 0.5, centre - SIGN.width / 2, foot, 0.5);
@@ -692,10 +691,9 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
   flat.ink(GLOW_GOLD, 0, 0.14 + 0.36 * tray).fade(GLOW_GOLD, 0, 0.22 * tray).quad(0, 0, D + 0.04, W, 0, D + 0.04, W, -TRAY_DROP, D + 0.04, 0, -TRAY_DROP, D + 0.04);
 
   // The gates: the dark of each opening, lit when a medal has come through, and the glow of its tubes.
-  const shift = checkerShift(machine.time);
   const half = GATE.halfWidth;
-  for (let i = 0; i < CHECKERS.positions.length; i++) {
-    const centre = CHECKERS.positions[i] + shift;
+  for (let i = 0; i < GATE.positions.length; i++) {
+    const centre = GATE.positions[i];
     const lit = stage.gateGlow[i] / GLOW_TIME;
     const pulse = calm ? 0 : 0.5 + 0.5 * Math.sin(stage.clock * 4 + i * 2.1);
     const top = P + GATE.height;

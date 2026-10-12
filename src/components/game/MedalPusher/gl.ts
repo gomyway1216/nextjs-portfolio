@@ -17,11 +17,40 @@ export interface Attribute {
   offset: number;
 }
 
+/** How much sharper a picture seen at a slant is asked to be, where the device can do it. */
+const SHARPER = 4;
+
 export class Gpu {
   /** How to delete each thing made so far, in the order it was made. */
   private made: (() => void)[] = [];
 
   constructor(readonly gl: WebGL2RenderingContext) {}
+
+  /**
+   * Forgets whatever the context has refused up to now, so that what
+   * `refused` finds later is this scene's doing and nobody else's.
+   */
+  forget(): void {
+    const { gl } = this;
+    // A context keeps one flag for each kind of error, so there are only a handful to clear.
+    for (let i = 0; i < 8 && gl.getError() !== gl.NO_ERROR; i++);
+  }
+
+  /**
+   * Throws if the context has refused anything since `forget`. WebGL does not
+   * throw when it runs out of memory for a texture or will not take an
+   * upload: it sets a flag and carries on, and the scene would be drawn with
+   * a texture missing. Asking is slow on some drivers, so it is done once,
+   * after everything has been set up, and never in a frame.
+   */
+  verify(): void {
+    const { gl } = this;
+    const error = gl.getError();
+    if (error === gl.NO_ERROR) return;
+    const names = ['OUT_OF_MEMORY', 'INVALID_VALUE', 'INVALID_OPERATION', 'INVALID_ENUM', 'INVALID_FRAMEBUFFER_OPERATION', 'CONTEXT_LOST_WEBGL'] as const;
+    const name = names.find((candidate) => gl[candidate] === error) ?? `error ${error}`;
+    throw new Error(`the graphics card refused part of the scene: ${name}`);
+  }
 
   private shader(type: number, source: string): WebGLShader {
     const { gl } = this;
@@ -106,8 +135,10 @@ export class Gpu {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     // Most of these pictures lie on a table seen at a slant; this keeps their lettering sharp there.
+    // A device says how far it can go, and asking for more than that is an error, not a best effort.
     const sharper = gl.getExtension('EXT_texture_filter_anisotropic');
-    if (sharper) gl.texParameterf(gl.TEXTURE_2D, sharper.TEXTURE_MAX_ANISOTROPY_EXT, 4);
+    const most = sharper ? Number(gl.getParameter(sharper.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) : 0;
+    if (sharper && most > 1) gl.texParameterf(gl.TEXTURE_2D, sharper.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(SHARPER, most));
   }
 
   /** A texture of something painted on a canvas. Its colours are stored so the shader reads them as amounts of light. */

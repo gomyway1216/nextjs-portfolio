@@ -2,6 +2,13 @@
  * The shaders of the 3D field. Colours inside them are amounts of light, not
  * the numbers a screen is sent, so that light adds up the way it does in a
  * real cabinet; `finish` turns the sum into a pixel at the very end.
+ *
+ * Some things the shading language leaves to the driver, and a graphics card
+ * does not complain about them: it just draws something else on somebody's
+ * phone. So nothing here asks for one. `smoothstep` always has its lower
+ * edge first (a falling one is written `1.0 - smoothstep(…)`), nothing below
+ * zero is raised to a power, no two-argument `atan` is given two zeros, and
+ * nothing is divided by what could be zero.
  */
 
 import { MEDAL_RADIUS } from './engine';
@@ -67,9 +74,11 @@ vec3 surroundings(vec3 r) {
  * glints they make travel across the pile with them.
  */
 float lamps(vec3 r) {
+  // A mirror looking straight along the field sees no lamp, and has no angle to work one out from.
+  if (abs(r.y) + abs(r.z) < 1e-4) return 0.0;
   float row = atan(r.y, -r.z) / LAMP_ROW + uView.w;
   float along = r.x / LAMP_COLUMN + 0.5 * floor(row + 0.5);
-  float tube = smoothstep(0.42, 0.05, abs(fract(row + 0.5) - 0.5)) * smoothstep(0.48, 0.1, abs(fract(along + 0.5) - 0.5));
+  float tube = (1.0 - smoothstep(0.05, 0.42, abs(fract(row + 0.5) - 0.5))) * (1.0 - smoothstep(0.1, 0.48, abs(fract(along + 0.5) - 0.5)));
   return tube * smoothstep(0.08, 0.3, r.y);
 }
 
@@ -183,7 +192,8 @@ void main() {
   vec3 normal = turned(vTurn, n);
   vec3 solid = turned(vTurn, flatNormal);
   vec3 toEye = normalize(uEye - vWorld);
-  float facing = max(dot(normal, toEye), 0.03);
+  // Two directions of length one can come out a hair more than 1 apart, and 1 minus that is raised to a power below.
+  float facing = clamp(dot(normal, toEye), 0.03, 1.0);
   vec3 mirrored = reflect(-toEye, normal);
 
   float lit = smoothstep(0.0, 0.2, dot(solid, uKey));
@@ -247,7 +257,7 @@ float star(vec2 p, float r) {
 void main() {
   vec3 normal = normalize(vLocal);
   vec3 toEye = normalize(uEye - vWorld);
-  float facing = max(dot(normal, toEye), 0.0);
+  float facing = clamp(dot(normal, toEye), 0.0, 1.0);
   vec3 mirrored = reflect(-toEye, normal);
   float kind = vPaint.a;
   vec3 c;
@@ -268,7 +278,7 @@ void main() {
       vec3 up = normalize(vec3(0.0, 0.55, 0.84));
       vec2 on = vec2(dot(normal, vec3(1.0, 0.0, 0.0)), dot(normal, cross(up, vec3(1.0, 0.0, 0.0))));
       float edge = dot(normal, up) > 0.0 ? star(vec2(on.x, -on.y) * 1.05, 0.52) : 1.0;
-      vec3 body = mix(vec3(0.95, 0.04, 0.26), vec3(0.3, 0.0, 0.07), smoothstep(0.5, -0.7, normal.y));
+      vec3 body = mix(vec3(0.95, 0.04, 0.26), vec3(0.3, 0.0, 0.07), 1.0 - smoothstep(-0.7, 0.5, normal.y));
       vec3 paint = mix(vec3(1.0, 0.86, 0.4), body, smoothstep(-0.012, 0.012, edge));
       paint = mix(vec3(0.24, 0.0, 0.07), paint, smoothstep(0.012, 0.03, abs(edge)));
       float wrap = clamp(toward * 0.6 + 0.4, 0.0, 1.0);
@@ -319,7 +329,7 @@ void main() {
   vec3 normal = normalize(vNormal);
   vec3 paint = texture(uArt, vSpot).rgb * vColour;
   vec3 toEye = normalize(uEye - vWorld);
-  float facing = max(dot(normal, toEye), 0.0);
+  float facing = clamp(dot(normal, toEye), 0.0, 1.0);
   vec3 mirrored = reflect(-toEye, normal);
   float toward = dot(normal, uKey);
   float lit = smoothstep(0.0, 0.15, toward);
@@ -366,7 +376,8 @@ void main() {
   else if (vSpot.z > 0.5) amount = max(0.0, 1.0 - length(vSpot.xy));
   amount *= amount;
   // It hides what is under it by its cover, and adds its colour once for the cover and once more for its shine.
-  colour = vec4(pow(vColour, vec3(1.0 / 2.2)) * (vWeight.x + vWeight.y) * amount, vWeight.x * amount);
+  // At the edge of a touch a colour between black and another can come out a hair below black.
+  colour = vec4(pow(max(vColour, 0.0), vec3(1.0 / 2.2)) * (vWeight.x + vWeight.y) * amount, vWeight.x * amount);
 }
 `;
 
@@ -389,7 +400,7 @@ in vec3 vSpot;
 uniform float uDark;
 out vec4 colour;
 void main() {
-  float near = smoothstep(1.0, 0.5, length(vSpot.xy));
+  float near = 1.0 - smoothstep(0.5, 1.0, length(vSpot.xy));
   colour = vec4(0.0, 0.0, 0.0, near * vSpot.z * uDark);
 }
 `;

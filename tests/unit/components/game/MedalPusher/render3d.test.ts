@@ -42,6 +42,7 @@ import {
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
 import { BALL_RADIUS, EXIT_TIME, GATE, LIP_FALL, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
+import * as shaders from '@/components/game/MedalPusher/shaders3d';
 import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
 import {
   BEAD,
@@ -1032,8 +1033,25 @@ interface FakeGl {
   alive: () => Record<string, number>;
   made: () => number;
   calls: Record<string, number>;
-  state: { lost: boolean; compiles: boolean };
+  /** Every sharpness a texture was asked to have when seen at a slant. */
+  sharpness: number[];
+  state: {
+    lost: boolean;
+    compiles: boolean;
+    /** The most sharpness at a slant the device can give, or null if it has no such extension. */
+    anisotropy: number | null;
+    /** The errors the context has flagged and not yet been asked about. */
+    errors: number[];
+    /** A call the device refuses, and the error it flags for it: the call goes through, as in WebGL, and only the flag says so. */
+    refuses: string | null;
+    refusal: string;
+    /** How often the context has been asked for an error. */
+    asked: number;
+  };
 }
+
+/** The numbers the anisotropy extension gives its two names. */
+const SHARPNESS = { TEXTURE_MAX_ANISOTROPY_EXT: 0x84fe, MAX_TEXTURE_MAX_ANISOTROPY_EXT: 0x84ff } as const;
 
 /**
  * A WebGL2 context that draws nothing. It hands out a new object for every
@@ -1043,8 +1061,10 @@ interface FakeGl {
 function fakeGl(): FakeGl {
   const alive = new Map<object, string>();
   const calls: Record<string, number> = {};
-  const constants = new Map<string, number>();
-  const state = { lost: false, compiles: true };
+  // No error is 0 in WebGL, and code is free to count on that.
+  const constants = new Map<string, number>([['NO_ERROR', 0]]);
+  const state: FakeGl['state'] = { lost: false, compiles: true, anisotropy: null, errors: [], refuses: null, refusal: 'OUT_OF_MEMORY', asked: 0 };
+  const sharpness: number[] = [];
   let made = 0;
   const constant = (name: string) => {
     if (!constants.has(name)) constants.set(name, 1000 + constants.size);
@@ -1058,7 +1078,18 @@ function fakeGl(): FakeGl {
     getProgramParameter: (_program: object, name: number) => (name === constant('LINK_STATUS') ? true : 0),
     getShaderInfoLog: () => 'it will not compile',
     getProgramInfoLog: () => '',
-    getExtension: () => null,
+    getExtension: (name: string) => (name === 'EXT_texture_filter_anisotropic' && state.anisotropy !== null ? SHARPNESS : null),
+    getParameter: (name: number) => (name === SHARPNESS.MAX_TEXTURE_MAX_ANISOTROPY_EXT ? state.anisotropy : 0),
+    // As in WebGL: asking for more sharpness than the device has is refused, with a flag and nothing else.
+    texParameterf: (_target: number, name: number, value: number) => {
+      if (name !== SHARPNESS.TEXTURE_MAX_ANISOTROPY_EXT) return;
+      sharpness.push(value);
+      if (state.anisotropy === null || value > state.anisotropy || value < 1) state.errors.push(constant('INVALID_VALUE'));
+    },
+    getError: () => {
+      state.asked++;
+      return state.errors.shift() ?? 0;
+    },
     checkFramebufferStatus: () => constant('FRAMEBUFFER_COMPLETE'),
   };
   const gl = new Proxy(own, {
@@ -1067,6 +1098,7 @@ function fakeGl(): FakeGl {
       if (/^[A-Z][A-Z0-9_]*$/.test(name)) return constant(name);
       return (...args: unknown[]) => {
         calls[name] = (calls[name] ?? 0) + 1;
+        if (name === state.refuses) state.errors.push(constant(state.refusal));
         if (name.startsWith('create')) {
           const thing = {};
           alive.set(thing, name.slice(6));
@@ -1087,6 +1119,7 @@ function fakeGl(): FakeGl {
     },
     made: () => made,
     calls,
+    sharpness,
     state,
   };
 }
@@ -1189,6 +1222,114 @@ describe('the 3D scene on a graphics card', () => {
     expect(() => createScene3d(fake.gl)).toThrow(/did not compile: it will not compile/);
     expect(fake.alive()).toEqual({});
     expect(fake.made()).toBeGreaterThan(0);
+  });
+
+  it('asks a texture to be only as sharp at a slant as the device can make it', () => {
+    fakeDocument();
+    /** What the scene's textures were asked for on a device that can do this much, and whether the device took it. */
+    const asked = (anisotropy: number | null) => {
+      const fake = fakeGl();
+      fake.state.anisotropy = anisotropy;
+      const scene = createScene3d(fake.gl);
+      scene.dispose();
+      return fake.sharpness;
+    };
+    // Seven pictures and the relief: eight textures that are seen at a slant. The shadow map is not one of them.
+    expect(asked(16)).toEqual(Array(8).fill(4));
+    expect(asked(4)).toEqual(Array(8).fill(4));
+    // A device that can only do 2 is asked for 2: asking it for 4 is an error, and the scene would not start.
+    expect(asked(2)).toEqual(Array(8).fill(2));
+    // One that says it can do no better than plain, and one without the extension, are asked for nothing.
+    expect(asked(1)).toEqual([]);
+    expect(asked(null)).toEqual([]);
+  });
+
+  it('finds out, once, when the graphics card has no memory for part of the scene, and gives everything back', () => {
+    fakeDocument();
+    // WebGL does not throw when a texture, a buffer or the shadow map cannot be had: it flags an error and carries on.
+    for (const call of ['texImage2D', 'bufferData', 'generateMipmap', 'framebufferTexture2D']) {
+      const fake = fakeGl();
+      fake.state.refuses = call;
+      expect(() => createScene3d(fake.gl)).toThrow(/refused part of the scene: OUT_OF_MEMORY/);
+      expect(fake.calls[call]).toBeGreaterThan(0);
+      expect(fake.alive()).toEqual({});
+      expect(fake.made()).toBeGreaterThan(40);
+    }
+    // Any other refusal counts too, and is named.
+    const refused = fakeGl();
+    refused.state.refuses = 'texParameteri';
+    refused.state.refusal = 'INVALID_ENUM';
+    expect(() => createScene3d(refused.gl)).toThrow(/refused part of the scene: INVALID_ENUM/);
+    expect(refused.alive()).toEqual({});
+
+    // What the context had refused before the scene was set up is not held against the scene.
+    const fake = fakeGl();
+    fake.state.errors.push(fake.gl.INVALID_ENUM, fake.gl.INVALID_OPERATION);
+    const scene = createScene3d(fake.gl);
+    expect(fake.state.errors).toEqual([]);
+    // Asking is slow on some drivers: it is done at set-up and never while drawing.
+    const asked = fake.state.asked;
+    expect(asked).toBeLessThan(6);
+    const machine = createMachine(7, 2);
+    const stage = createStage(1, false);
+    for (let frame = 0; frame < 3; frame++) scene.draw(stage, machine, { aim: 50, showGuide: true });
+    expect(fake.state.asked).toBe(asked);
+    scene.dispose();
+    expect(fake.alive()).toEqual({});
+  });
+});
+
+describe('the shaders', () => {
+  const sources = Object.entries(shaders).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+
+  it('are all there, each a whole program for the version of the language WebGL2 speaks', () => {
+    expect(sources.length).toBeGreaterThanOrEqual(13);
+    for (const [, source] of sources) {
+      expect(source.startsWith('#version 300 es\n')).toBe(true);
+      expect(source).toContain('void main()');
+    }
+  });
+
+  it('never ask for a smoothstep with its upper edge first, which the language leaves to the driver', () => {
+    const number = String.raw`\s*(-?\d+(?:\.\d+)?)\s*`;
+    const literal = new RegExp(String.raw`smoothstep\(${number},${number},`, 'g');
+    let found = 0;
+    for (const [name, source] of sources) {
+      for (const [call, low, high] of source.matchAll(literal)) {
+        found++;
+        // Equal edges are no better: that divides nothing by nothing.
+        expect(Number(low), `${call} in ${name}`).toBeLessThan(Number(high));
+      }
+      // Every smoothstep in a shader has edges that can be read off here, so none slips past the check.
+      expect(source.match(/smoothstep\(/g)?.length ?? 0).toBe([...source.matchAll(literal)].length);
+    }
+    expect(found).toBeGreaterThan(30);
+    // The check does catch one written the wrong way round.
+    expect([...'smoothstep(0.5, -0.7, x)'.matchAll(literal)].map((match) => Number(match[1]) < Number(match[2]))).toEqual([false]);
+  });
+
+  it('never ask for the other things a driver may work out its own way', () => {
+    for (const [name, source] of sources) {
+      // Nothing is raised to a power that could be below zero: every base is a `max` or a `clamp`, a
+      // direction's own measure, or a value already kept in range a line or two before.
+      for (const [call, base] of source.matchAll(/pow\(([^,]+),/g)) {
+        expect(base.trim(), `${call} in ${name}`).toMatch(/^(max\(|clamp\(|toward$|facing$|1\.0 - facing$|c$)/);
+      }
+      // An angle is never worked out from two numbers that can both be zero without a look first.
+      for (const match of source.matchAll(/atan\(([^,()]+),([^()]+)\)/g)) {
+        const before = source.slice(0, match.index);
+        const guarded = /if \(abs\(r\.y\) \+ abs\(r\.z\) < 1e-4\) return 0\.0;\s*$/.test(before.slice(0, before.lastIndexOf('float row'))) || match[1].includes('vLocal');
+        expect(guarded, `${match[0]} in ${name}`).toBe(true);
+      }
+      // `clamp` always has its lower bound first.
+      for (const [call, low, high] of source.matchAll(/clamp\([^;]*?,\s*(-?\d+\.\d+),\s*(-?\d+\.\d+|r)\)/g)) {
+        if (high !== 'r') expect(Number(low), `${call} in ${name}`).toBeLessThan(Number(high));
+      }
+    }
+    // `facing`, which 1 is taken from before raising to a power, is kept to 1 at most wherever it is worked out.
+    const facing = sources.flatMap(([, source]) => [...source.matchAll(/float facing = ([^;]+);/g)].map((match) => match[1]));
+    expect(facing).toHaveLength(3);
+    for (const worked of facing) expect(worked).toMatch(/^clamp\(dot\(normal, toEye\), 0\.0?3?, 1\.0\)$/);
   });
 });
 
@@ -1379,6 +1520,30 @@ describe('the choice of renderer', () => {
     expect(renderer?.kind).toBe('2d');
     expect(field.canvas.dataset.renderer).toBe('2d');
     expect(fake.alive()).toEqual({});
+  });
+
+  it('falls back to the canvas when the graphics card runs out of memory for the scene, with nothing left behind', () => {
+    fakeDocument();
+    const fake = fakeGl();
+    // A texture's upload goes through without a word, as it does in WebGL, and only the error flag says it failed.
+    fake.state.refuses = 'texImage2D';
+    const flat = fake2d();
+    const field = fakeCanvas({ '2d': flat.context });
+    const under = fakeCanvas({ webgl2: fake.gl });
+    const renderer = createRenderer(field.canvas, under.canvas, '');
+    if (!renderer) throw new Error('no renderer');
+    expect(renderer.kind).toBe('2d');
+    expect(field.canvas.dataset.renderer).toBe('2d');
+    expect(fake.made()).toBeGreaterThan(40);
+    expect(fake.alive()).toEqual({});
+    // And the field is drawn all the same, by the canvas renderer.
+    const machine = createMachine(7, 2);
+    const stage = createStage(1, false);
+    trackMedals(stage, machine, 0);
+    renderer.draw(stage, machine, { aim: 50, showGuide: true });
+    expect(flat.calls.drawImage).toBeGreaterThan(machine.medals.length);
+    expect(fake.calls.drawElementsInstanced).toBeUndefined();
+    renderer.dispose();
   });
 
   it('draws nothing at all only if the field has no 2D context, and does without a second canvas', () => {

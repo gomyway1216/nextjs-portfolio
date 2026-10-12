@@ -57,12 +57,16 @@ export interface Scene3d {
 /**
  * Sets the scene up on a WebGL2 context: compiles the shaders, paints the
  * textures and makes the buffers. Throws if the graphics card refuses any of
- * it, having given back whatever it had made by then.
+ * it — a shader, or, which it reports only if asked, the memory for a
+ * texture or a buffer — having given back whatever it had made by then.
  */
 export function createScene3d(gl: WebGL2RenderingContext): Scene3d {
   const gpu = new Gpu(gl);
   try {
-    return build(gpu);
+    gpu.forget();
+    const scene = build(gpu);
+    gpu.verify();
+    return scene;
   } catch (error) {
     gpu.dispose();
     throw error;

@@ -643,6 +643,17 @@ export const MONITOR: Readonly<Record<MonitorMode, { colour: string; light: numb
 };
 
 /**
+ * The light the monitor throws into the cabinet in a mode, as the renderers
+ * take it (`DrawOptions.glow`): the mode's colour with each part from 0 to 1,
+ * and how strong it is.
+ */
+export function monitorGlow(mode: MonitorMode): { colour: [number, number, number]; level: number } {
+  const { colour, light } = MONITOR[mode];
+  const part = (at: number) => parseInt(colour.slice(at, at + 2), 16) / 255;
+  return { colour: [part(1), part(3), part(5)], level: light };
+}
+
+/**
  * The scene the monitor is set for: its mode, and within the ball's lottery
  * which board of the wheel is up, or the bowls. The monitor changes gear,
  * shutters and all, whenever this changes: between modes, from one board to

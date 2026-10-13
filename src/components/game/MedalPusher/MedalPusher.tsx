@@ -5,14 +5,15 @@ import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
-import { PlayTab } from './PlayTab';
+import { PlayTab, type PlayTabProps } from './PlayTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
 import styles from './MedalPusher.module.css';
 
 type Tab = 'machine' | 'odds' | 'sim';
 
-export const MedalPusher = () => {
+/** The game. Who is playing and where their machine is kept is the cabinet's business: it is passed straight on. */
+export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> = {}) => {
   const [tab, setTab] = useState<Tab>('machine');
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
@@ -84,7 +85,7 @@ export const MedalPusher = () => {
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs never
             resets the machine or drops a finished simulation. The machine only runs while its tab is showing. */}
         <div role="tabpanel" id="pusher-panel-machine" aria-labelledby="pusher-tab-machine" hidden={tab !== 'machine'}>
-          <PlayTab active={tab === 'machine'} />
+          <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
         </div>
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

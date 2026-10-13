@@ -40,6 +40,12 @@
  * held to its own exact shape, so an older save comes back as the machine it
  * was, and one that has been given a field of another version is not a save
  * of any.
+ *
+ * Version 4 changes nothing on the field. In the versions before it a full
+ * run ended in one bowl with a hole for each prize; now it ends in three
+ * bowls, one under another, and the ball in them is written down as the way
+ * it goes and the bowl it has got to. An older save's ball is read as that
+ * game wrote it and comes back in today's bowls (see `ballInOneBowl`).
  */
 
 import {
@@ -62,23 +68,29 @@ import {
 import {
   BOARD,
   BOWL,
+  BOWLS,
   CHAIN_GOAL,
   CHESTS,
   DIE_FACES,
+  FALLS,
   JACKPOT_START,
   JACKPOT_STEP,
   REACH_KINDS,
   ROULETTE,
   TIERS,
   TIER_DIGITS,
+  fallEnd,
   holePays,
   squareAfter,
+  type Hole,
   type SpinResult,
   type Tier,
 } from './lottery';
 import {
+  BOWL_TIMES,
   MAX_STOCK,
   TIMING,
+  bowlShowTime,
   reachTime,
   sugorokuDuration,
   type ActiveBonus,
@@ -92,10 +104,12 @@ import {
 
 export const STORAGE_KEY = 'medal-pusher-machine';
 /** The version every save is written with. */
-export const STORAGE_VERSION = 3;
+export const STORAGE_VERSION = 4;
+/** The version the game wrote while a full run ended in one bowl. Its field is today's. */
+export const VERSION_WITH_ONE_BOWL = 3;
 /** The version the game wrote while its two arms shared one slot and one aim. */
 export const VERSION_WITH_ONE_AIM = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these three is refused. */
+/** The version the game wrote before it had its feed arms. A save carrying any number but these four is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -546,82 +560,163 @@ for (let length = 1; length < CHAIN_GOAL; length++) {
   RUN_TOTALS.push(new Set([...RUN_TOTALS[length - 1]].flatMap((sum) => NUMBERS.map((medals) => sum + medals))));
 }
 
-/** The ball in the bowl, on its own: any hole, any moment. Where it fits into its run is checked with the roulette. */
-const activeBowl = shape<ActiveBowl>({
-  hole: whole(0, BOWL.length - 1),
+/** The ball in the bowls as a run sees it: still on its way down, or dropped for good into a hole that paid. */
+type Ball = { dropped: false } | { dropped: true; hole: Hole; payout: number };
+
+/** A roulette without its bowls, which each version writes down in its own way. */
+type Run = Omit<ActiveRoulette, 'bowl'>;
+const run = {
+  pocket: whole(0, ROULETTE.length - 1),
+  from: whole(0, ROULETTE.length - 1),
   elapsed: timer,
   duration: lasting,
-  payout: whole(-1, LIMITS.purse),
-});
+  landed: flag,
+  level: whole(0, CHAIN_GOAL),
+  total: count,
+  gain: whole(0, LIMITS.purse),
+  over: flag,
+  jackpot: flag,
+};
+
+/**
+ * Whether a roulette is at a moment the machine passes through. `ball` is the
+ * ball in the bowls, when the run has got that far; whether the ball's own
+ * clock is in order is for the version that wrote it to say.
+ *
+ *   turning         no ball; not landed; elapsed < duration; gain 0; fewer numbers than the goal
+ *   on a number     no ball; landed; duration ≤ elapsed < duration + step; gain that number; 1 … goal numbers
+ *   on a cross      no ball; landed and over; duration ≤ elapsed < duration + prize; gain 0; fewer numbers than the goal
+ *   ball on its way the run as its last number left it, a step or more ago: landed, the goal reached,
+ *                   not over; gain 0
+ *   ball dropped    the run over, a jackpot exactly when the hole is the jackpot's; gain what the hole paid
+ *
+ * The goal is reached on a number like any other, and the ball goes into the
+ * top bowl one step later. `from` is where the light set off from: pocket 0 on
+ * the first turn, and after that the number it last stopped on. `total` is what
+ * the numbers so far have come to, with the bowls' prize on top once the ball
+ * has dropped for good. The jackpot's hole paid the jackpot as it then stood,
+ * which the save no longer holds: all that can be told is that it was no less
+ * than a jackpot starts at.
+ */
+function runAgrees(r: Run, ball: Ball | null): boolean {
+  if (r.duration !== TIMING.roulette) return false;
+  const pocket = ROULETTE[r.pocket];
+  // The numbers the run had behind it before this turn's pocket, and what they had come to.
+  let behind = r.level;
+  let paid = r.total;
+  if (ball) {
+    if (!r.landed || pocket === 'stop' || r.level !== CHAIN_GOAL || r.elapsed < r.duration + TIMING.step) return false;
+    behind -= 1;
+    paid -= pocket;
+    if (!ball.dropped) {
+      if (r.over || r.jackpot || r.gain !== 0) return false;
+    } else {
+      const held = ball.hole === 'jackpot' ? ball.payout >= JACKPOT_START : ball.payout === holePays(ball.hole, JACKPOT_START);
+      if (!held || !r.over || r.jackpot !== (ball.hole === 'jackpot') || r.gain !== ball.payout) return false;
+      paid -= ball.payout;
+    }
+  } else if (!r.landed) {
+    if (r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration) return false;
+  } else if (r.elapsed < r.duration) {
+    return false;
+  } else if (pocket === 'stop') {
+    if (!r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration + TIMING.prize) return false;
+  } else {
+    if (r.over || r.jackpot || r.gain !== pocket || r.level < 1 || r.elapsed >= r.duration + TIMING.step) return false;
+    behind -= 1;
+    paid -= pocket;
+  }
+  if (behind === 0) return r.from === 0 && paid === 0;
+  const last = ROULETTE[r.from];
+  return last !== 'stop' && RUN_TOTALS[behind - 1].has(paid - last);
+}
+
+/**
+ * The ball in the three bowls: the way down that was drawn for it, which is
+ * one of the ways there are, the bowl it has got to on that way, and its clock
+ * there.
+ *
+ *   rolling         unpaid; in any bowl of its way; elapsed < that bowl's time
+ *   dropped         in the last bowl of its way; paid; that bowl's time ≤ elapsed
+ *
+ * A hole that leads down puts the ball in the bowl below in the step it drops,
+ * with its clock at nothing, so it is never seen at the end of a bowl's time
+ * with further to go. How long a prize stays up depends on whether it is the
+ * jackpot, which only the run knows: that is checked with the roulette.
+ */
+const activeBowl = shape<ActiveBowl>(
+  {
+    holes: list(whole(0, Math.max(...BOWLS.map((holes) => holes.length)) - 1), BOWLS.length),
+    stage: whole(0, BOWLS.length - 1),
+    elapsed: timer,
+    duration: lasting,
+    payout: whole(-1, LIMITS.purse),
+  },
+  (bowl) => {
+    if (!FALLS.some((fall) => fall.join() === bowl.holes.join()) || bowl.stage >= bowl.holes.length || bowl.duration !== BOWL_TIMES[bowl.stage]) return false;
+    return bowl.elapsed < bowl.duration ? bowl.payout === -1 : bowl.payout >= 0 && bowl.stage === bowl.holes.length - 1;
+  },
+);
+
+/** What the run is told of a ball in today's bowls. */
+const ballOf = (bowl: ActiveBowl): Ball => (bowl.payout < 0 ? { dropped: false } : { dropped: true, hole: fallEnd(bowl.holes), payout: bowl.payout });
 
 /**
  * A ball's roulette: a run of turns, each as long as the last, and for a full
- * run the bowl after them.
- *
- *   turning         no bowl; not landed; elapsed < duration; gain 0; fewer numbers than the goal
- *   on a number     no bowl; landed; duration ≤ elapsed < duration + step; gain that number; 1 … goal numbers
- *   on a cross      no bowl; landed and over; duration ≤ elapsed < duration + prize; gain 0; fewer numbers than the goal
- *   ball rolling    bowl unpaid, its clock short of its time; the run as its last number left it, a step
- *                   or more ago: landed, the goal reached, not over; gain 0
- *   ball dropped    bowl paid what its hole holds, its time ≤ its clock < its time + prize; the run over,
- *                   a jackpot exactly when the hole is the jackpot's; gain what the hole paid
- *
- * The goal is reached on a number like any other, and the ball goes into the
- * bowl one step later. `from` is where the light set off from: pocket 0 on the
- * first turn, and after that the number it last stopped on. `total` is what the
- * numbers so far have come to, with the hole's medals on top once the ball has
- * dropped. The jackpot's hole paid the jackpot as it then stood, which the save
- * no longer holds: all that can be told is that it was no less than a jackpot starts at.
+ * run the bowls after them. What they paid stays up for as long as that prize
+ * is counted out, and no longer.
  */
-const activeRoulette = shape<ActiveRoulette>(
-  {
-    pocket: whole(0, ROULETTE.length - 1),
-    from: whole(0, ROULETTE.length - 1),
-    elapsed: timer,
-    duration: lasting,
-    landed: flag,
-    level: whole(0, CHAIN_GOAL),
-    total: count,
-    gain: whole(0, LIMITS.purse),
-    over: flag,
-    jackpot: flag,
-    bowl: (value) => (value === null ? null : activeBowl(value)),
-  },
-  (r) => {
-    if (r.duration !== TIMING.roulette) return false;
-    const pocket = ROULETTE[r.pocket];
-    const { bowl } = r;
-    // The numbers the run had behind it before this turn's pocket, and what they had come to.
-    let behind = r.level;
-    let paid = r.total;
-    if (bowl) {
-      if (!r.landed || pocket === 'stop' || r.level !== CHAIN_GOAL || r.elapsed < r.duration + TIMING.step || bowl.duration !== TIMING.bowl) return false;
-      behind -= 1;
-      paid -= pocket;
-      if (bowl.elapsed < bowl.duration) {
-        if (bowl.payout !== -1 || r.over || r.jackpot || r.gain !== 0) return false;
-      } else {
-        const hole = BOWL[bowl.hole];
-        const held = hole === 'jackpot' ? bowl.payout >= JACKPOT_START : bowl.payout === holePays(hole, JACKPOT_START);
-        if (!held || !r.over || r.jackpot !== (hole === 'jackpot') || r.gain !== bowl.payout || bowl.elapsed >= bowl.duration + TIMING.prize) return false;
-        paid -= bowl.payout;
-      }
-    } else if (!r.landed) {
-      if (r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration) return false;
-    } else if (r.elapsed < r.duration) {
-      return false;
-    } else if (pocket === 'stop') {
-      if (!r.over || r.jackpot || r.gain !== 0 || r.level >= CHAIN_GOAL || r.elapsed >= r.duration + TIMING.prize) return false;
-    } else {
-      if (r.over || r.jackpot || r.gain !== pocket || r.level < 1 || r.elapsed >= r.duration + TIMING.step) return false;
-      behind -= 1;
-      paid -= pocket;
-    }
-    if (behind === 0) return r.from === 0 && paid === 0;
-    const last = ROULETTE[r.from];
-    return last !== 'stop' && RUN_TOTALS[behind - 1].has(paid - last);
-  },
-);
+const activeRoulette = shape<ActiveRoulette>({ ...run, bowl: (value) => (value === null ? null : activeBowl(value)) }, (r) => {
+  if (!runAgrees(r, r.bowl && ballOf(r.bowl))) return false;
+  return !r.bowl || r.bowl.payout < 0 || r.bowl.elapsed < r.bowl.duration + bowlShowTime(r.jackpot);
+});
+
+/**
+ * The one bowl of the versions before the three: the hole the ball was to
+ * drop into, as an index into the three ends in BOWL, and one clock for the
+ * whole of it. Its time and the time its prize stayed up are written here as
+ * that game had them.
+ */
+interface OneBowl {
+  hole: number;
+  elapsed: number;
+  duration: number;
+  payout: number;
+}
+const ONE_BOWL = { time: 6.5, prize: 2.2 } as const;
+
+/**
+ *   rolling         unpaid; elapsed < its time
+ *   dropped         paid; its time ≤ elapsed < its time + prize
+ */
+const oneBowl = shape<OneBowl>({ hole: whole(0, BOWL.length - 1), elapsed: timer, duration: lasting, payout: whole(-1, LIMITS.purse) }, (bowl) => {
+  if (bowl.duration !== ONE_BOWL.time) return false;
+  return bowl.elapsed < bowl.duration ? bowl.payout === -1 : bowl.payout >= 0 && bowl.elapsed < bowl.duration + ONE_BOWL.prize;
+});
+
+/**
+ * The ball of an older save, in today's bowls. Its end had been drawn, and it
+ * comes to the same end: it is given the first way down that leads there.
+ * While it was still rolling it had only been let go, so it is in the top
+ * bowl, as far into its time there as it was into its time in the one bowl,
+ * which was as long. Once it had dropped it had been paid, in full and as
+ * that game paid it, and it lies in the last hole of its way for as long as
+ * it had lain in its hole then. Nothing is paid again.
+ */
+function ballInOneBowl(bowl: OneBowl): ActiveBowl {
+  const holes = [...(FALLS.find((fall) => fallEnd(fall) === BOWL[bowl.hole]) ?? FALLS[0])];
+  if (bowl.payout < 0) return { holes, stage: 0, elapsed: bowl.elapsed, duration: BOWL_TIMES[0], payout: -1 };
+  const stage = holes.length - 1;
+  return { holes, stage, elapsed: BOWL_TIMES[stage] + (bowl.elapsed - bowl.duration), duration: BOWL_TIMES[stage], payout: bowl.payout };
+}
+
+/** A roulette as the versions with one bowl wrote it, held to that shape and to that game's moments, as today's. */
+const rouletteWithOneBowl: Check<ActiveRoulette> = (value) => {
+  const old = shape<Run & { bowl: OneBowl | null }>({ ...run, bowl: (bowl) => (bowl === null ? null : oneBowl(bowl)) }, (r) =>
+    runAgrees(r, r.bowl && (r.bowl.payout < 0 ? { dropped: false } : { dropped: true, hole: BOWL[r.bowl.hole], payout: r.bowl.payout })),
+  )(value);
+  return old && activeRoulette({ ...old, bowl: old.bowl && ballInOneBowl(old.bowl) });
+};
 
 /**
  * What one of the screen's three places holds: the thing stored there if it
@@ -652,7 +747,7 @@ export function serialize(session: Session): string {
 
 /**
  * The session a text was written from, or null when the text is not a save
- * that this game, or one of the two versions of it before this one, could
+ * that this game, or one of the three versions of it before this one, could
  * have written. It never throws.
  *
  * The generator's state is shut inside a closure and cannot be read, so it is
@@ -675,7 +770,9 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    const read = save.version === STORAGE_VERSION ? storedMachine : save.version === VERSION_WITH_ONE_AIM ? fieldWithOneAim : save.version === VERSION_BEFORE_ARMS ? fieldBeforeArms : null;
+    const { version } = save;
+    const read =
+      version === STORAGE_VERSION || version === VERSION_WITH_ONE_BOWL ? storedMachine : version === VERSION_WITH_ONE_AIM ? fieldWithOneAim : version === VERSION_BEFORE_ARMS ? fieldBeforeArms : null;
     const field = read?.(save.machine);
     const numbers = storedNumbers(save.session);
     const { screen } = save;
@@ -684,7 +781,8 @@ export function restore(text: string | null, seed: number): Session | null {
     const on: OnScreen = {
       spin: shown(activeSpin, screen.spin),
       bonus: shown(activeBonus(numbers), screen.bonus),
-      roulette: shown(activeRoulette, screen.roulette),
+      // Every version before this one had one bowl, whatever its field was.
+      roulette: shown(version === STORAGE_VERSION ? activeRoulette : rouletteWithOneBowl, screen.roulette),
     };
     const busy = [on.spin, on.bonus, on.roulette].filter((thing) => thing !== null).length;
     const session: Session = { ...numbers, ...(busy > 1 ? { spin: null, bonus: null, roulette: null } : on), machine: { ...field, rng: seededRng(seed) } };

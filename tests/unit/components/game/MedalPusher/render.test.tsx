@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
 import {
@@ -13,7 +13,9 @@ import {
   OddsTab,
   REACH_ROWS,
   boardSpread,
+  bowlSplit,
   breakEvenSpins,
+  holeGroups,
   pocketGroups,
   returnFor,
 } from '@/components/game/MedalPusher/OddsTab';
@@ -27,6 +29,8 @@ import {
   dieShade,
   dieTurn,
   markStrip,
+  placeBall,
+  shadowTransform,
   squarePlace,
   stripOffset,
 } from '@/components/game/MedalPusher/ScreenPanel';
@@ -36,14 +40,17 @@ import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher
 import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
+import { BOARD, BOWLS, FEVER_SQUARE, JACKPOT_START, ROULETTE, pouredOf, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
 import {
+  BALL_FALL,
   BOWL_SHAPE,
   REEL_DIGITS,
   SWING,
+  ballRollsAt,
   ballSpot,
   ballTipsAt,
   bowlBall,
+  countedUp,
   holeSpot,
   inReach,
   landTimes,
@@ -61,9 +68,11 @@ import {
   type ScreenState,
 } from '@/components/game/MedalPusher/screen';
 import {
+  BOWL_TIMES,
   MAX_STOCK,
   START_CREDITS,
   TIMING,
+  bowlShowTime,
   createSession,
   reachTime,
   sugorokuDuration,
@@ -459,16 +468,38 @@ describe('the roulette light', () => {
   });
 });
 
-describe('the ball in the bowl', () => {
+describe('the ball in the bowls', () => {
   const T = TIMING.bowl;
   const FRAME = 1 / 60;
-  const holes = BOWL.map((_, hole) => hole);
+  const holes = BOWLS[0].map((_, hole) => hole);
   const fromCentre = (point: { x: number; y: number }) => Math.hypot(point.x, point.y);
   const apart = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
-  /** The ball's whole roll to `hole`, a frame at a time, and a second past its end. */
+  /** How far round the middle of its bowl the ball went from one place to the next, in turns clockwise. */
+  const turnedBy = (before: { x: number; y: number }, after: { x: number; y: number }) =>
+    Math.atan2(before.x * after.y - before.y * after.x, before.x * after.x + before.y * after.y) / (2 * Math.PI);
+  /** The ball's whole roll to `hole` of the top bowl, a frame at a time, and a second past its end. */
   const roll = (hole: number, frame = FRAME) => Array.from({ length: Math.ceil((T + 1) / frame) + 1 }, (_, index) => bowlBall(index * frame, hole));
 
-  it('has three holes evenly spaced on a ring, well apart and inside the rim', () => {
+  /** A way through one bowl: to which of its holes, and from which hole of the bowl above. */
+  interface Way {
+    bowl: number;
+    hole: number;
+    from: number;
+  }
+  /** The holes of a bowl that lead down to the next. */
+  const downs = (bowl: number) => BOWLS[bowl].flatMap((hole, index) => (hole === 'down' ? [index] : []));
+  /** Every way there is through every bowl. */
+  const WAYS: Way[] = BOWLS.flatMap((all, bowl) => all.flatMap((_, hole) => (bowl === 0 ? [0] : downs(bowl - 1)).map((from) => ({ bowl, hole, from }))));
+  const lower = WAYS.filter((way) => way.bowl > 0);
+  /** Where the ball is on this way, so long after it came into the bowl. */
+  const at = (way: Way, since: number) => bowlBall(since, way.hole, BOWL_TIMES[way.bowl], way.bowl, way.from);
+  /** Its whole time in the bowl, a frame at a time and each with its moment, and a second past its end. */
+  const frames = (way: Way, frame = FRAME) =>
+    Array.from({ length: Math.ceil((BOWL_TIMES[way.bowl] + 1) / frame) + 1 }, (_, index) => ({ time: index * frame, spot: at(way, index * frame) }));
+
+  it('has three holes on a ring in the top bowl, two across the middle one and one in the middle of the last', () => {
+    expect(BOWLS.map((bowl) => bowl.length)).toEqual([3, 2, 1]);
+    expect(BOWL_TIMES).toHaveLength(BOWLS.length);
     expect(holes).toHaveLength(3);
     for (const hole of holes) expect(fromCentre(holeSpot(hole))).toBeCloseTo(BOWL_SHAPE.ring, 12);
     // The first is at the top; the others follow clockwise.
@@ -477,60 +508,125 @@ describe('the ball in the bowl', () => {
     expect(holeSpot(1).x).toBeGreaterThan(0);
     expect(holeSpot(2).x).toBeLessThan(0);
     expect(apart(holeSpot(0), holeSpot(1))).toBeGreaterThan(BOWL_SHAPE.hole * 4);
+    // The middle bowl's two are to the right and to the left, level with each other, so that neither is behind the other.
+    expect(holeSpot(0, 1).x).toBeCloseTo(BOWL_SHAPE.ring, 12);
+    expect(holeSpot(1, 1).x).toBeCloseTo(-BOWL_SHAPE.ring, 12);
+    for (const hole of [0, 1]) expect(holeSpot(hole, 1).y).toBeCloseTo(0, 12);
+    // The last bowl is a funnel: its one hole is in the middle, and wider than the others.
+    expect(fromCentre(holeSpot(0, 2))).toBe(0);
+    expect(BOWL_SHAPE.last).toBeGreaterThan(BOWL_SHAPE.hole);
     // A ball on the lip of a hole is outside the hole, and a ball under the rim is clear of them all.
     expect(BOWL_SHAPE.lip).toBeGreaterThan(BOWL_SHAPE.hole);
     expect(BOWL_SHAPE.rim).toBeGreaterThan(BOWL_SHAPE.ring + BOWL_SHAPE.lip + BOWL_SHAPE.hole);
     expect(BOWL_SHAPE.rim).toBeLessThan(1);
   });
 
-  it('is let go at the same place under the rim whatever hole was drawn', () => {
+  it('is let go at the same place under the rim of the top bowl whatever hole was drawn', () => {
     const start = bowlBall(0, 0);
     expect(fromCentre(start)).toBeCloseTo(BOWL_SHAPE.rim, 12);
-    expect(start.sunk).toBe(0);
+    expect(start).toMatchObject({ bowl: 0, lift: 0, sunk: 0 });
+    expect(ballRollsAt(0)).toBe(0);
     for (const hole of holes) {
       expect(apart(bowlBall(0, hole), start)).toBeLessThan(1e-12);
       expect(apart(bowlBall(-3, hole), start)).toBeLessThan(1e-12);
     }
   });
 
-  it('never jumps from one frame to the next', () => {
-    for (const hole of holes) {
-      const frames = roll(hole);
-      const steps = frames.slice(1).map((spot, index) => apart(spot, frames[index]));
-      // At its fastest it covers about an eighth of the bowl's radius in a frame.
-      expect(Math.max(...steps)).toBeLessThan(0.14);
-      // Looked at four times as often, it moves a quarter as far: nowhere does it leap.
-      const fine = roll(hole, FRAME / 4);
-      const fineSteps = fine.slice(1).map((spot, index) => apart(spot, fine[index]));
-      expect(Math.max(...fineSteps)).toBeLessThan(0.14 / 4 + 0.001);
-      // It only ever sinks further into its hole, and smoothly.
-      const sinking = frames.slice(1).map((spot, index) => spot.sunk - frames[index].sunk);
-      expect(Math.min(...sinking)).toBeGreaterThanOrEqual(0);
-      expect(Math.max(...sinking)).toBeLessThan(0.1);
+  it('falls into a lower bowl from the hole it went through above, forward to where it can be seen', () => {
+    expect(lower.map(({ bowl, hole, from }) => [bowl, hole, from])).toEqual([
+      [1, 0, 0],
+      [1, 0, 1],
+      [1, 1, 0],
+      [1, 1, 1],
+      [2, 0, 0],
+    ]);
+    for (const way of lower) {
+      expect(ballRollsAt(way.bowl)).toBe(BALL_FALL);
+      // It sets off over the hole it went through, a bowl's drop above the floor it is falling to, and still as small as it was drawn down the hole.
+      const above = holeSpot(way.from, way.bowl - 1);
+      const start = at(way, 0);
+      expect(apart(start, above)).toBeLessThan(1e-12);
+      expect(start).toMatchObject({ bowl: way.bowl, lift: BOWL_SHAPE.drop, sunk: 1 });
+      // It lands under the rim at the front, on the player's side, where the bowl above is not in the way: the same place wherever it came from.
+      const landed = at(way, BALL_FALL);
+      expect(fromCentre(landed)).toBeCloseTo(BOWL_SHAPE.rim, 12);
+      expect(landed.y).toBeGreaterThan(BOWL_SHAPE.rim * 0.7);
+      expect(landed).toMatchObject({ lift: 0, sunk: 0 });
+      expect(apart(landed, at({ ...way, from: downs(way.bowl - 1)[0] }, BALL_FALL))).toBeLessThan(1e-12);
+      // Straight there as seen from above, and down faster and faster.
+      const half = at(way, BALL_FALL / 2);
+      expect(half.x).toBeCloseTo((above.x + landed.x) / 2, 12);
+      expect(half.y).toBeCloseTo((above.y + landed.y) / 2, 12);
+      expect(half.lift).toBeCloseTo(BOWL_SHAPE.drop * 0.75, 12);
+      const fall = Array.from({ length: 31 }, (_, index) => at(way, (index / 30) * BALL_FALL).lift);
+      const drops = fall.slice(1).map((lift, index) => fall[index] - lift);
+      expect(drops[0]).toBeGreaterThan(0);
+      for (let i = 1; i < drops.length; i++) expect(drops[i]).toBeGreaterThan(drops[i - 1]);
+      // It is its own size again by the middle of the fall, while the bowl above still hides it.
+      expect(half.sunk).toBe(0);
     }
   });
 
-  it('never rolls back up the bowl', () => {
-    for (const hole of holes) {
-      const frames = roll(hole, FRAME / 4);
-      const rises = frames.slice(1).map((spot, index) => fromCentre(spot) - fromCentre(frames[index]));
-      expect(Math.max(...rises)).toBeLessThan(1e-9);
-      expect(fromCentre(frames[0])).toBeCloseTo(BOWL_SHAPE.rim, 12);
-      expect(fromCentre(frames[frames.length - 1])).toBeCloseTo(BOWL_SHAPE.ring, 12);
+  it('never jumps from one frame to the next, in a bowl or from one bowl to the next', () => {
+    for (const way of WAYS) {
+      const coarse = frames(way).map(({ spot }) => spot);
+      const steps = coarse.slice(1).map((spot, index) => apart(spot, coarse[index]));
+      // At its fastest it covers about an eighth of the bowl's radius in a frame.
+      expect(Math.max(...steps)).toBeLessThan(0.14);
+      // Looked at four times as often, it moves a quarter as far: nowhere does it leap.
+      const fine = frames(way, FRAME / 4).map(({ spot }) => spot);
+      const fineSteps = fine.slice(1).map((spot, index) => apart(spot, fine[index]));
+      expect(Math.max(...fineSteps)).toBeLessThan(0.14 / 4 + 0.001);
+      // It only ever comes down, a little at a time, and what it is drawn at changes as smoothly.
+      const coming = coarse.slice(1).map((spot, index) => coarse[index].lift - spot.lift);
+      expect(Math.min(...coming)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...coming)).toBeLessThan(0.1);
+      const sinking = coarse.slice(1).map((spot, index) => Math.abs(spot.sunk - coarse[index].sunk));
+      expect(Math.max(...sinking)).toBeLessThan(0.14);
+    }
+    // In the top bowl and in the funnel it only ever sinks further into its hole.
+    for (const way of WAYS.filter((one) => one.bowl !== 1)) {
+      const rolling = frames(way).filter(({ time }) => time >= BALL_FALL);
+      const sinking = rolling.slice(1).map(({ spot }, index) => spot.sunk - rolling[index].spot.sunk);
+      expect(Math.min(...sinking)).toBeGreaterThanOrEqual(0);
+    }
+    // The bowl below takes the ball up exactly where the bowl above left it: the same place in the cabinet, drawn the same.
+    for (const way of lower) {
+      const left = bowlBall(BOWL_TIMES[way.bowl - 1], way.from, BOWL_TIMES[way.bowl - 1], way.bowl - 1);
+      expect(left.sunk).toBe(1);
+      expect(ballTransform(at(way, 0))).toBe(ballTransform(left));
+    }
+  });
+
+  it('never rolls back up the bowl, but out from over the hole it nearly took', () => {
+    for (const way of WAYS) {
+      const rolling = frames(way, FRAME / 4)
+        .filter(({ spot }) => spot.lift === 0)
+        .map(({ spot }) => spot);
+      const rises = rolling.slice(1).map((spot, index) => fromCentre(spot) - fromCentre(rolling[index]));
+      expect(fromCentre(rolling[0])).toBeCloseTo(BOWL_SHAPE.rim, 2);
+      expect(fromCentre(rolling[rolling.length - 1])).toBeCloseTo(way.bowl === 2 ? 0 : BOWL_SHAPE.ring, 12);
+      if (way.bowl === 1) {
+        // In the middle bowl it leans in over the other hole and comes back out by as much: less than the lip is wide.
+        const back = rises.filter((rise) => rise > 0).reduce((sum, rise) => sum + rise, 0);
+        expect(back).toBeGreaterThan(BOWL_SHAPE.lip / 2);
+        expect(back).toBeLessThan(BOWL_SHAPE.lip);
+      } else {
+        expect(Math.max(...rises)).toBeLessThan(1e-9);
+      }
     }
   });
 
   it('circles under the rim, spirals in and goes round the holes before it drops', () => {
     for (const hole of holes) {
-      const frames = roll(hole);
+      const all = roll(hole);
       // Turns clockwise, added up frame by frame.
       let turned = 0;
       let backwards = 0;
-      frames.slice(1).forEach((spot, index) => {
-        const before = frames[index];
-        const angle = Math.atan2(before.x * spot.y - before.y * spot.x, before.x * spot.x + before.y * spot.y);
-        if (angle < -1e-9) backwards++;
-        turned += angle / (2 * Math.PI);
+      all.slice(1).forEach((spot, index) => {
+        const turn = turnedBy(all[index], spot);
+        if (turn < -1e-9) backwards++;
+        turned += turn;
       });
       expect(backwards).toBe(0);
       expect(turned).toBeGreaterThan(4);
@@ -543,16 +639,29 @@ describe('the ball in the bowl', () => {
       // It slows all the way: each second it covers less ground than the one before.
       const ground = (second: number) => {
         const from = second * 60;
-        return frames.slice(from + 1, from + 61).reduce((sum, spot, index) => sum + apart(spot, frames[from + index]), 0);
+        return all.slice(from + 1, from + 61).reduce((sum, spot, index) => sum + apart(spot, all[from + index]), 0);
       };
       for (let second = 1; second < 6; second++) expect(ground(second)).toBeLessThan(ground(second - 1));
     }
   });
 
+  it('goes round every lower bowl too, always the same way, three times and more', () => {
+    for (const way of lower) {
+      const rolling = frames(way)
+        .filter(({ spot }) => spot.lift === 0)
+        .map(({ spot }) => spot);
+      const turns = rolling.slice(1).map((spot, index) => turnedBy(rolling[index], spot));
+      expect(turns.filter((turn) => turn < -1e-9)).toHaveLength(0);
+      const turned = turns.reduce((sum, turn) => sum + turn, 0);
+      expect(turned).toBeGreaterThan(3);
+      expect(turned).toBeLessThan(4.05);
+    }
+  });
+
   it('hesitates on the lip of each hole it passes, without going in', () => {
     for (const hole of holes) {
-      const frames = roll(hole, FRAME / 4);
-      const among = frames.filter((spot) => spot.sunk === 0 && fromCentre(spot) < BOWL_SHAPE.ring + BOWL_SHAPE.lip + 1e-6);
+      const all = roll(hole, FRAME / 4);
+      const among = all.filter((spot) => spot.sunk === 0 && fromCentre(spot) < BOWL_SHAPE.ring + BOWL_SHAPE.lip + 1e-6);
       for (const other of holes.filter((index) => index !== hole)) {
         // It passes right by the other holes, on their lip and not inside them.
         const nearest = Math.min(...among.map((spot) => apart(spot, holeSpot(other))));
@@ -567,24 +676,71 @@ describe('the ball in the bowl', () => {
     }
   });
 
+  it('all but goes down the other hole of the middle bowl before it rolls on to its own', () => {
+    for (const way of WAYS.filter((one) => one.bowl === 1)) {
+      const tip = ballTipsAt(BOWL_TIMES[1]);
+      const other = holeSpot(1 - way.hole, 1);
+      const rolling = frames(way, FRAME / 4).filter(({ time }) => time > BALL_FALL && time < tip);
+      // The moment it is furthest down a hole before it tips into its own.
+      const miss = rolling.reduce((deepest, one) => (one.spot.sunk > deepest.spot.sunk ? one : deepest));
+      expect(miss.spot.sunk).toBeCloseTo(0.3, 2);
+      // It is over the other hole then, nearer its middle than its edge, and half the bowl away from its own.
+      expect(apart(miss.spot, other)).toBeLessThan(BOWL_SHAPE.hole / 2);
+      expect(apart(miss.spot, holeSpot(way.hole, 1))).toBeGreaterThan(BOWL_SHAPE.ring * 2);
+      // It comes late, when the ball is slow, and a good second before the ball goes for good.
+      expect(miss.time).toBeGreaterThan(BOWL_TIMES[1] * 0.6);
+      expect(miss.time).toBeLessThan(tip - 1);
+      // It is the only one: up to a little before it and from a little after, the ball rolls at its own size.
+      for (const { time, spot } of rolling) if (Math.abs(time - miss.time) > 0.6) expect(spot.sunk).toBeLessThan(0.01);
+    }
+  });
+
+  it('spirals down the funnel of the last bowl, faster as it closes on the hole in the middle', () => {
+    const [way] = WAYS.filter((one) => one.bowl === 2);
+    const tip = ballTipsAt(BOWL_TIMES[2]);
+    const rolling = frames(way)
+      .filter(({ time }) => time > BALL_FALL && time < tip)
+      .map(({ spot }) => spot);
+    const closing = rolling.slice(1).map((spot, index) => fromCentre(rolling[index]) - fromCentre(spot));
+    const turning = rolling.slice(1).map((spot, index) => turnedBy(rolling[index], spot));
+    // In towards the middle all the way at an even pace, and round faster with every frame.
+    expect(closing[0]).toBeGreaterThan(0);
+    for (let i = 1; i < closing.length; i++) {
+      expect(closing[i]).toBeCloseTo(closing[0], 9);
+      expect(turning[i]).toBeGreaterThan(turning[i - 1]);
+    }
+    expect(turning[turning.length - 1]).toBeGreaterThan(turning[0] * 4);
+    // It is on the edge of the hole when it tips, and then it is in, in the very middle of the bowl.
+    const edge = at(way, tip - 0.001);
+    expect(fromCentre(edge)).toBeCloseTo(BOWL_SHAPE.last, 2);
+    expect(edge.sunk).toBe(0);
+    const falling = at(way, (tip + BOWL_TIMES[2]) / 2);
+    expect(falling.sunk).toBeGreaterThan(0);
+    expect(falling.sunk).toBeLessThan(1);
+    expect(fromCentre(falling)).toBeLessThan(BOWL_SHAPE.last);
+    for (const later of [BOWL_TIMES[2], BOWL_TIMES[2] + FRAME, BOWL_TIMES[2] + 5]) expect(at(way, later)).toEqual({ ...holeSpot(0, 2), bowl: 2, lift: 0, sunk: 1 });
+  });
+
   it('comes to rest on the lip of its hole, tips in and stays exactly there', () => {
-    for (const hole of holes) {
-      const home = holeSpot(hole);
+    for (const way of WAYS.filter((one) => one.bowl < 2)) {
+      const time = BOWL_TIMES[way.bowl];
+      const home = holeSpot(way.hole, way.bowl);
       // Just before it tips it is on the lip, radially outside its hole and all but still.
-      const tip = ballTipsAt();
-      expect(tip).toBeGreaterThan(T - 0.6);
-      expect(tip).toBeLessThan(T - 0.2);
-      const edge = bowlBall(tip - 0.001, hole);
-      expect(edge.sunk).toBe(0);
+      const tip = ballTipsAt(time);
+      expect(tip).toBeGreaterThan(time - 0.6);
+      expect(tip).toBeLessThan(time - 0.2);
+      const edge = at(way, tip - 0.001);
+      expect(edge.sunk).toBeCloseTo(0, 12);
       expect(apart(edge, home)).toBeCloseTo(BOWL_SHAPE.lip, 3);
-      expect(apart(edge, bowlBall(tip - 0.001 - FRAME, hole))).toBeLessThan(0.001);
+      expect(fromCentre(edge)).toBeCloseTo(BOWL_SHAPE.ring + BOWL_SHAPE.lip, 3);
+      expect(apart(edge, at(way, tip - 0.001 - FRAME))).toBeLessThan(0.001);
       // Half way through the fall it is part of the way in.
-      const falling = bowlBall((tip + T) / 2, hole);
+      const falling = at(way, (tip + time) / 2);
       expect(falling.sunk).toBeGreaterThan(0);
       expect(falling.sunk).toBeLessThan(1);
       expect(apart(falling, home)).toBeLessThan(BOWL_SHAPE.lip);
       expect(apart(falling, home)).toBeGreaterThan(0);
-      for (const later of [T, T + FRAME, T + 5, T * 100]) expect(bowlBall(later, hole)).toEqual({ x: home.x, y: home.y, sunk: 1 });
+      for (const later of [time, time + FRAME, time + 5, time * 100]) expect(at(way, later)).toEqual({ ...home, bowl: way.bowl, lift: 0, sunk: 1 });
     }
   });
 
@@ -596,9 +752,13 @@ describe('the ball in the bowl', () => {
         expect(apart(bowlBall(T - 1, a), bowlBall(T - 1, b))).toBeGreaterThan(0.5);
       }
     }
+    // The middle bowl's two holes are right across it from each other.
+    const [right, , left] = WAYS.filter((one) => one.bowl === 1);
+    expect([right.hole, left.hole]).toEqual([0, 1]);
+    expect(apart(at(right, BOWL_TIMES[1]), at(left, BOWL_TIMES[1]))).toBeCloseTo(BOWL_SHAPE.ring * 2, 12);
   });
 
-  it('acts out the same roll over any length of time', () => {
+  it('acts out the same roll in the top bowl over any length of time', () => {
     for (const hole of holes) {
       for (const share of [0, 0.13, 0.5, 0.8, 0.95, 0.99, 1]) {
         const usual = bowlBall(T * share, hole);
@@ -609,23 +769,101 @@ describe('the ball in the bowl', () => {
     }
   });
 
-  it('does not roll for a player who has asked for less motion', () => {
-    const bowl: ActiveBowl = { hole: 1, elapsed: 3, duration: T, payout: -1 };
+  it('neither falls nor rolls for a player who has asked for less motion', () => {
+    const bowl: ActiveBowl = { holes: [1, 0, 0], stage: 0, elapsed: 3, duration: T, payout: -1 };
     // With motion it is wherever its roll has got to.
     expect(ballSpot(bowl, false)).toEqual(bowlBall(3, 1));
     expect(ballSpot({ ...bowl, duration: 13 }, false)).toEqual(bowlBall(3, 1, 13));
-    // Without, it waits where it was let go, and is in its hole once it has dropped.
+    // Without, it waits where it was let go.
     for (const elapsed of [0, 3, T - 0.01]) expect(ballSpot({ ...bowl, elapsed }, true)).toEqual(bowlBall(0, 1));
-    const dropped = { ...bowl, elapsed: T + 0.01, payout: 50 };
-    expect(ballSpot(dropped, true)).toEqual({ ...holeSpot(1), sunk: 1 });
-    expect(ballSpot(dropped, false)).toEqual({ ...holeSpot(1), sunk: 1 });
+    // In a lower bowl it is on its way from the hole it came through, with motion.
+    const middle: ActiveBowl = { ...bowl, stage: 1, elapsed: 0.3, duration: BOWL_TIMES[1] };
+    expect(ballSpot(middle, false)).toEqual(bowlBall(0.3, 0, BOWL_TIMES[1], 1, 1));
+    expect(ballSpot(middle, false).lift).toBeGreaterThan(0);
+    expect(ballSpot({ ...middle, elapsed: 2 }, false)).toEqual(bowlBall(2, 0, BOWL_TIMES[1], 1, 1));
+    // Without, it is at once where it comes in under that bowl's rim, on the floor, and waits there.
+    for (const elapsed of [0, 0.3, 2, BOWL_TIMES[1] - 0.01]) {
+      const waiting = ballSpot({ ...middle, elapsed }, true);
+      expect(waiting).toEqual(bowlBall(BALL_FALL, 0, BOWL_TIMES[1], 1, 1));
+      expect(waiting).toMatchObject({ bowl: 1, lift: 0, sunk: 0 });
+      expect(fromCentre(waiting)).toBeCloseTo(BOWL_SHAPE.rim, 12);
+    }
+    // Either way it is in its hole once it has dropped there for good, in whichever bowl that was.
+    const fifty: ActiveBowl = { holes: [2], stage: 0, elapsed: T + 0.01, duration: T, payout: 50 };
+    const jackpot: ActiveBowl = { holes: [1, 0, 0], stage: 2, elapsed: BOWL_TIMES[2] + 0.01, duration: BOWL_TIMES[2], payout: 312 };
+    for (const calm of [true, false]) {
+      expect(ballSpot(fifty, calm)).toEqual({ ...holeSpot(2), bowl: 0, lift: 0, sunk: 1 });
+      expect(ballSpot(jackpot, calm)).toEqual({ ...holeSpot(0, 2), bowl: 2, lift: 0, sunk: 1 });
+    }
   });
 
-  it('is drawn where it is, and smaller once it has sunk', () => {
+  it('is drawn where it is, in the bowl it is in, and smaller once it has sunk', () => {
     // In ems of the dish, which is 1em from its middle to its rim; the bowl the ball rolls in is a little smaller.
-    expect(ballTransform({ x: 0, y: 0, sunk: 0 })).toBe('translate(0.000em, 0.000em) scale(1.000)');
-    expect(ballTransform({ x: 1, y: -1, sunk: 0 })).toBe('translate(0.840em, -0.840em) scale(1.000)');
-    expect(ballTransform({ x: -0.5, y: 0.25, sunk: 1 })).toBe('translate(-0.420em, 0.210em) scale(0.700)');
+    expect(ballTransform({ x: 0, y: 0, bowl: 0, lift: 0, sunk: 0 })).toBe('translate3d(0.000em, 0.000em, 0.000em) scale(1.000)');
+    expect(ballTransform({ x: 1, y: -1, bowl: 0, lift: 0, sunk: 0 })).toBe('translate3d(0.840em, -0.840em, 0.000em) scale(1.000)');
+    expect(ballTransform({ x: -0.5, y: 0.25, bowl: 0, lift: 0, sunk: 1 })).toBe('translate3d(-0.420em, 0.210em, 0.000em) scale(0.700)');
+    // Each bowl is a drop below the one above, and the ball is that far down with it, less whatever it still has to fall.
+    expect(ballTransform({ x: 0, y: 0, bowl: 1, lift: 0, sunk: 0 })).toBe('translate3d(0.000em, 0.000em, -1.764em) scale(1.000)');
+    expect(ballTransform({ x: 0, y: 0, bowl: 2, lift: 0, sunk: 0 })).toBe('translate3d(0.000em, 0.000em, -3.528em) scale(1.000)');
+    expect(ballTransform({ x: 0, y: 0, bowl: 1, lift: BOWL_SHAPE.drop, sunk: 0 })).toBe(ballTransform({ x: 0, y: 0, bowl: 0, lift: 0, sunk: 0 }));
+    expect(ballTransform({ x: 0, y: 0, bowl: 1, lift: 1.05, sunk: 0 })).toBe('translate3d(0.000em, 0.000em, -0.882em) scale(1.000)');
+    // Its shadow stays on the floor it is falling to.
+    expect(shadowTransform({ x: 0, y: 0, bowl: 1, lift: 0, sunk: 0 })).toBe('translateZ(0.000em)');
+    expect(shadowTransform({ x: 0, y: 0, bowl: 1, lift: 1.05, sunk: 0 })).toBe('translateZ(-0.882em)');
+    expect(shadowTransform({ x: 0, y: 0, bowl: 2, lift: BOWL_SHAPE.drop, sunk: 1 })).toBe('translateZ(-1.764em)');
+  });
+
+  it('moves the ball the cabinet holds, and its shadow with it', () => {
+    // An element as far as this goes: something with a style, and perhaps another inside it.
+    class Part {
+      style = { transform: '' };
+      firstElementChild: Part | null = null;
+    }
+    vi.stubGlobal('HTMLElement', Part);
+    try {
+      const ball = new Part();
+      const shadow = new Part();
+      ball.firstElementChild = shadow;
+      const spot = { x: 0.2, y: -0.3, bowl: 1, lift: 1.05, sunk: 0 };
+      placeBall(ball as unknown as HTMLElement, spot);
+      expect(ball.style.transform).toBe(ballTransform(spot));
+      expect(ball.style.transform).toBe('translate3d(0.168em, -0.252em, -0.882em) scale(1.000)');
+      expect(shadow.style.transform).toBe('translateZ(-0.882em)');
+      // A ball with nothing in it is still moved.
+      const bare = new Part();
+      placeBall(bare as unknown as HTMLElement, spot);
+      expect(bare.style.transform).toBe(ballTransform(spot));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('counts a prize up from nothing in steps, and never past what was paid', () => {
+    expect(countedUp(100, -1, false)).toBe(0);
+    expect(countedUp(100, 0, false)).toBe(0);
+    // A prize from an upper bowl in 1.4 seconds, the jackpot in five.
+    expect(countedUp(100, 0.72, false)).toBe(50);
+    expect(countedUp(100, 1.38, false)).toBeLessThan(100);
+    expect(countedUp(100, 1.4, false)).toBe(100);
+    expect(countedUp(312, 2.52, true)).toBe(156);
+    expect(countedUp(312, 4.98, true)).toBeLessThan(312);
+    expect(countedUp(312, 5, true)).toBe(312);
+    expect(countedUp(312, 500, true)).toBe(312);
+    // The count is over well before the prize comes off the screen.
+    expect(countedUp(50, bowlShowTime(false) - 2, false)).toBe(50);
+    expect(countedUp(5000, bowlShowTime(true) - 2, true)).toBe(5000);
+    for (const jackpot of [false, true]) {
+      for (const payout of [50, 100, 300, 337, 1200]) {
+        const counts = Array.from({ length: 6 * 240 + 1 }, (_, index) => countedUp(payout, index / 240, jackpot));
+        // Whole medals, only ever more of them, and the number moves on twenty times a second and no more often.
+        for (const count of counts) expect(Number.isInteger(count)).toBe(true);
+        for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
+        const shown = new Set(counts);
+        expect(shown.size).toBeGreaterThan(jackpot ? 50 : 20);
+        expect(shown.size).toBeLessThanOrEqual(Math.round((jackpot ? 5 : 1.4) * 20) + 1);
+        expect(counts[counts.length - 1]).toBe(payout);
+      }
+    }
   });
 });
 
@@ -638,6 +876,29 @@ describe('the odds', () => {
       { pocket: 20, count: 3 },
       { pocket: 10, count: 3 },
     ]);
+  });
+
+  it('groups the holes of each bowl by what they do, with the chance of each overall', () => {
+    const groups = holeGroups();
+    expect(groups.map(({ bowl, hole, count, holes }) => [bowl, hole, count, holes])).toEqual([
+      [0, 'down', 2, 3],
+      [0, 50, 1, 3],
+      [1, 'down', 1, 2],
+      [1, 100, 1, 2],
+      [2, 'jackpot', 1, 1],
+    ]);
+    // Two balls in three go on from the top bowl, and half of those from the middle one.
+    const overall = [2 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3];
+    groups.forEach((group, index) => expect(group.overall).toBeCloseTo(overall[index], 12));
+    // The holes that end the challenge are the three ways it can end, each one time in three.
+    const ends = groups.filter(({ hole }) => hole !== 'down');
+    expect(ends.map(({ hole }) => hole)).toEqual([50, 100, 'jackpot']);
+    expect(ends.reduce((sum, { overall: chance }) => sum + chance, 0)).toBeCloseTo(1, 12);
+    // What a prize is paid as: so many poured loose, and the towers the rest stands in.
+    expect(bowlSplit(50)).toEqual([15, 2]);
+    expect(bowlSplit(100)).toEqual([30, 3]);
+    expect(bowlSplit(JACKPOT_START)).toEqual([90, 9]);
+    for (const medals of [50, 100, 300, 337, 1200]) expect(bowlSplit(medals)[0]).toBe(pouredOf(medals));
   });
 
   it('works out the return and what it would take to break even', () => {
@@ -985,14 +1246,60 @@ describe('the page', () => {
     const chain = table(html, 'pusher-chain-table');
     expect(chain.match(/<td[^>]*>[^<]*</g)?.map((cell) => cell.replace(/<td[^>]*>/, '').slice(0, -1))).toEqual(['66.7%', '44.4%', '29.6%', '19.8%']);
     expect(chain.match(/<th scope="col"/g)).toHaveLength(4);
-    // The bowl a full run ends in: three holes, each one time in three.
+    // The bowls a full run ends in, by stage: a part for each bowl under a row that names it, and in it what the holes
+    // of that bowl do, with the chance of each in its bowl and overall.
     const bowl = table(html, 'pusher-bowl-table');
-    expect(bowl.match(/<tr data-hole="[a-z0-9]+"/g)).toEqual(['<tr data-hole="jackpot"', '<tr data-hole="50"', '<tr data-hole="100"']);
-    expect(bowl.match(/33\.3%/g)).toHaveLength(3);
-    const holes = ['The jackpot', '12 towers on the pusher when it stands at 300', '50 medals', '2 towers on the pusher', '100 medals', '4 towers on the pusher'];
+    expect(bowl.match(/<tbody data-bowl="\d">/g)).toEqual(['<tbody data-bowl="1">', '<tbody data-bowl="2">', '<tbody data-bowl="3">']);
+    expect(bowl.match(/<th colSpan="3" scope="rowgroup"[^>]*>[^<]*/g)?.map((head) => head.split('>')[1])).toEqual(['Top bowl: 3 holes', 'Middle bowl: 2 holes', 'Bottom bowl: one hole']);
+    expect(bowl.match(/<tr data-bowl="\d" data-hole="[a-z0-9]+"/g)).toEqual([
+      '<tr data-bowl="1" data-hole="down"',
+      '<tr data-bowl="1" data-hole="50"',
+      '<tr data-bowl="2" data-hole="down"',
+      '<tr data-bowl="2" data-hole="100"',
+      '<tr data-bowl="3" data-hole="jackpot"',
+    ]);
+    const numbers = bowl
+      .split('<tr data-bowl=')
+      .slice(1)
+      .map((row) => row.match(/<td class="[^"]*">[^<]*/g)?.map((cell) => cell.split('>')[1]));
+    expect(numbers).toEqual([
+      ['66.7%', '66.7%'],
+      ['33.3%', '33.3%'],
+      ['50.0%', '33.3%'],
+      ['50.0%', '33.3%'],
+      ['100.0%', '33.3%'],
+    ]);
+    // Three columns, which is what fits a phone: what is said of a hole beyond its chances is written under it.
+    expect(bowl.match(/<th scope="col"/g)).toHaveLength(3);
+    // The two heads over the chances may break into two lines, which the numbers under them may not.
+    expect(bowl.match(/<th scope="col" class="[^"]*numHead[^"]*">[^<]*/g)?.map((head) => head.split('>')[1])).toEqual(['Chance in that bowl', 'Chance overall']);
+    expect(/\.oddsTable \.numHead \{[^}]*\}/.exec(stylesheet())?.[0]).not.toContain('nowrap');
+    expect(bowl.match(/class="[^"]*holeNote[^"]*">[^<]*/g)?.map((note) => note.split('>')[1])).toEqual([
+      '2 of its 3 holes',
+      'Nothing yet: the ball rolls on in the bowl below',
+      '1 of its 3 holes',
+      '15 poured onto the field and 2 towers on the pusher',
+      '1 of its 2 holes',
+      'Nothing yet: the ball rolls on in the bowl below',
+      '1 of its 2 holes',
+      '30 poured onto the field and 3 towers on the pusher',
+      'Its only hole',
+      '90 poured onto the field and 9 towers on the pusher when it stands at 300',
+    ]);
+    const holes = [
+      'A hole down to the next bowl',
+      'Nothing yet: the ball rolls on in the bowl below',
+      'The jackpot',
+      '90 poured onto the field and 9 towers on the pusher when it stands at 300',
+      '50 medals',
+      '15 poured onto the field and 2 towers on the pusher',
+      '100 medals',
+      '30 poured onto the field and 3 towers on the pusher',
+    ];
     for (const text of holes) expect(bowl).toContain(text);
-    expect(html).toContain('The jackpot challenge is a bowl with 3 holes.');
-    expect(html).toContain('With the jackpot at 300 medals the bowl pays 150 medals on average');
+    expect(html).toContain('The jackpot challenge is 3 bowls, one under another.');
+    expect(html).toContain('With the jackpot at 300 medals the bowls pay 150 medals on average');
+    expect(html).toContain('Of whatever the bowls pay, 30% is poured onto the field loose and the rest is stacked as towers.');
     expect(html).toContain('About 19.8% of all balls get this far.');
     expect(html).toContain('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
     expect(html).toContain('One tower on the pusher');
@@ -1043,7 +1350,10 @@ describe('the page', () => {
     const html = render(<OddsTab />, 'ja');
     expect(html).toContain('数字が4回続くとジャックポットチャレンジが始まります');
     expect(html).toContain('クルーン');
-    expect(html).toContain('300枚のとき、プッシャーの上にタワー12本');
+    expect(html).toContain('ジャックポットチャレンジは、3段に重なったクルーン');
+    for (const text of ['1段目：穴3つ', '2段目：穴2つ', '3段目：穴1つ', '下の段へ進む穴', '3つの穴のうち2つ', 'この段の穴はこれだけ', '全体での確率']) expect(html).toContain(text);
+    expect(html).toContain('300枚のとき、90枚がフィールドに降り、プッシャーの上にタワー9本');
+    expect(html).toContain('その30%がそのままフィールドに降り、残りがタワーとして積まれます');
     expect(html).toContain('クルーンの払い出しは平均150枚です');
     expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では2,170回に1回がそこにつながります');
     const info = getStrings('ja').infoBody(MAX_STOCK).join('');
@@ -1156,7 +1466,8 @@ describe('the screen', () => {
     secondsLeft: 0,
     level: 0,
     total: 0,
-    hole: -1,
+    stage: -1,
+    fallen: [],
   };
   const en = getStrings('en');
   const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
@@ -1472,38 +1783,170 @@ describe('the screen', () => {
     expect(html).not.toContain('pusher-bowl');
   });
 
-  it('puts the bowl up for the jackpot challenge, the ball where it is let go', () => {
-    const html = show({ ...idle, mode: 'bowl', level: 4, total: 60 });
+  /** The markup of each dish of the bowls, the top one first. */
+  const dishes = (html: string) => html.split('data-bowl="').slice(1);
+  /** Which holes of a dish are marked, and how. */
+  const holesOf = (dish: string) => dish.match(/data-hole="\d" data-kind="[a-z]+" data-in="(true|false)"/g);
+  /** The rungs of the ladder beside the bowls. */
+  const rungs = (html: string) => (html.split('data-testid="pusher-ladder"')[1]?.split('</ol>')[0] ?? '').match(/data-on="(true|false)" data-done="(true|false)"/g);
+  /** The first rule the stylesheet has for this selector, outside any media query. */
+  const rule = (css: string, selector: string) => new RegExp(`\\n\\${selector} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
+
+  it('puts the three bowls up for the jackpot challenge, the ball where it is let go', () => {
+    const html = show({ ...idle, mode: 'bowl', level: 4, total: 60, stage: 0 });
     expect(html).toContain('data-mode="bowl"');
     expect(html).toContain('JACKPOT CHALLENGE');
     expect(html).not.toContain('JACKPOT CHANCE');
     expect(html).not.toContain('pusher-wheel');
-    expect(html).toContain('data-testid="pusher-bowl" data-landed="-1"');
-    // A hole for each prize, labelled, and none of them taken yet.
-    expect(html.match(/<g data-hole="\d" data-in="(true|false)"/g)).toHaveLength(BOWL.length);
-    expect(html).not.toContain('data-in="true"');
-    for (const label of ['JACKPOT', '50', '100']) expect(html).toContain(`>${label}</span>`);
-    expect(html.match(/class="[^"]*holeSign[^"]*"/g)).toHaveLength(BOWL.length);
-    // The ball waits where the cabinet will pick it up.
+    expect(html).toContain('data-testid="pusher-bowl" data-stage="0" data-fallen=""');
+    // Three dishes one under another, each a drop below the one above; only the one the ball is in is out of the shade.
+    expect(html.match(/style="--mp-bowl:\d" data-bowl="\d" data-on="(true|false)"/g)).toEqual([
+      'style="--mp-bowl:0" data-bowl="0" data-on="true"',
+      'style="--mp-bowl:1" data-bowl="1" data-on="false"',
+      'style="--mp-bowl:2" data-bowl="2" data-on="false"',
+    ]);
+    expect(html).toContain(`--mp-drop:${(BOWL_SHAPE.drop * 0.84).toFixed(4)}em`);
+    expect(html).toContain('style="--mp-stage:0"');
+    // Every hole of every bowl with what it does, and none of them taken yet.
+    expect(dishes(html).map(holesOf)).toEqual([
+      ['data-hole="0" data-kind="down" data-in="false"', 'data-hole="1" data-kind="down" data-in="false"', 'data-hole="2" data-kind="prize" data-in="false"'],
+      ['data-hole="0" data-kind="down" data-in="false"', 'data-hole="1" data-kind="prize" data-in="false"'],
+      ['data-hole="0" data-kind="jackpot" data-in="false"'],
+    ]);
+    // What each hole does is painted on the floor beside it: an arrow on one that leads down, or what it pays.
+    expect(html.match(/<text class="[^"]*holeLabel[^"]*"[^>]*>[^<]+<\/text>/g)?.map((label) => label.replace(/<[^>]+>/g, ''))).toEqual(['▼', '▼', '50', '▼', '100', 'JACKPOT']);
+    // The ball waits where the cabinet will pick it up, its shadow first inside it, which is where the cabinet looks for it.
     expect(html).toContain(`transform:${ballTransform(bowlBall(0, 0))}" data-testid="pusher-bowl-ball"`);
+    expect(html).toMatch(/data-testid="pusher-bowl-ball"><span class="[^"]*ballShadow[^"]*" style="transform:translateZ\(0\.000em\)"><\/span><span class="[^"]*ball[^"]*"><\/span><\/div>/);
+    // Beside the bowls, the way down: a rung for each with what it holds, the ball's lit. It takes the place of the run's lamps.
+    expect(rungs(html)).toEqual(['data-on="true" data-done="false"', 'data-on="false" data-done="false"', 'data-on="false" data-done="false"']);
+    expect(html.match(/rungPrize[^>]*>[^<]+/g)?.map((prize) => prize.split('>')[1])).toEqual(['50', '100', 'JACKPOT']);
+    expect(html).not.toContain('LEVEL 4 / 4');
     // The run that got here is still beside it.
-    expect(html).toContain('LEVEL 4 / 4');
+    expect(html).toContain('data-level="4"');
     expect(html).toContain('TOWER 60');
     expect(html).toContain('data-hidden="true"');
-    expect(show({ ...idle, mode: 'bowl', level: 4, total: 60 }, 0, 'ja')).toContain('ジャックポットチャレンジ');
+    // Nothing has been paid yet.
+    expect(html).not.toContain('pusher-pay-show');
+    expect(show({ ...idle, mode: 'bowl', level: 4, total: 60, stage: 0 }, 0, 'ja')).toContain('ジャックポットチャレンジ');
   });
 
-  it('lights the hole the ball dropped into and says what it paid', () => {
-    const medals = show({ ...idle, mode: 'bowl', level: 4, total: 160, hole: 2, banner: 'towers', amount: 100 });
-    expect(medals).toContain('data-landed="2"');
-    expect(medals.match(/data-in="true"/g)).toHaveLength(1);
-    expect(medals).toContain('<g data-hole="2" data-in="true"');
-    expect(medals).toContain('TOWER +100');
-    expect(medals).toContain('TOWER 160');
-    const jackpot = show({ ...idle, mode: 'bowl', level: 4, total: 372, hole: 0, banner: 'jackpot', amount: 312 });
-    expect(jackpot).toContain('<g data-hole="0" data-in="true"');
+  it('follows the ball down: the stack is lifted to its bowl and the hole it came through is lit', () => {
+    const html = show({ ...idle, mode: 'bowl', level: 4, total: 60, stage: 1, fallen: [1] });
+    expect(html).toContain('data-testid="pusher-bowl" data-stage="1" data-fallen="1"');
+    expect(html).toContain('style="--mp-stage:1"');
+    expect(html.match(/data-bowl="\d" data-on="(true|false)" data-above="(true|false)"/g)).toEqual([
+      'data-bowl="0" data-on="false" data-above="true"',
+      'data-bowl="1" data-on="true" data-above="false"',
+      'data-bowl="2" data-on="false" data-above="false"',
+    ]);
+    const [top, middle, bottom] = dishes(html).map(holesOf);
+    expect(top).toEqual(['data-hole="0" data-kind="down" data-in="false"', 'data-hole="1" data-kind="down" data-in="true"', 'data-hole="2" data-kind="prize" data-in="false"']);
+    expect(middle?.join(' ')).not.toContain('data-in="true"');
+    expect(bottom?.join(' ')).not.toContain('data-in="true"');
+    expect(rungs(html)).toEqual(['data-on="false" data-done="true"', 'data-on="true" data-done="false"', 'data-on="false" data-done="false"']);
+    expect(html).not.toContain('pusher-pay-show');
+    // The stylesheet lifts the whole stack by a drop for every bowl the ball has gone down, and stands each dish a drop below the last.
+    const css = stylesheet();
+    expect(rule(css, '.bowlLift')).toContain('transform: translateZ(calc(var(--mp-stage) * var(--mp-drop)));');
+    expect(rule(css, '.dish')).toContain('transform: translateZ(calc(var(--mp-bowl) * var(--mp-drop) * -1));');
+  });
+
+  it('builds the bowls so that nothing in them is flattened or cut into', () => {
+    const css = stylesheet();
+    // The window cuts the stack off at the edges of the stage, and the scene inside it is what is looked into: never one box for both.
+    expect(rule(css, '.bowlWindow')).toContain('overflow: hidden;');
+    expect(rule(css, '.bowlWindow')).not.toContain('perspective');
+    expect(rule(css, '.bowlScene')).toContain('perspective: ');
+    expect(rule(css, '.bowlScene')).not.toContain('overflow');
+    // Everything that holds something standing in depth keeps it in depth, and has nothing on it that would flatten it.
+    for (const selector of ['.bowlTilt', '.bowlLift', '.dish', '.ballSpot']) {
+      const block = rule(css, selector);
+      expect(block).toContain('transform-style: preserve-3d;');
+      for (const flattening of ['opacity', 'filter', 'overflow', 'clip-path', 'mask', 'mix-blend-mode']) expect(block).not.toContain(`${flattening}:`);
+    }
+    // A bowl the ball has dropped out of is glass while the ball falls out from under it. It is the flat sheet of its
+    // floor that fades for that, and never the dish, which would be flattened by it.
+    const glass = /\n {2}\.dish\[data-above='true'\] > \.bowl \{[^}]*\}/.exec(css)?.[0] ?? '';
+    expect(glass).toContain('animation: mp-glass');
+    expect(/@keyframes mp-glass \{[^@]*opacity: 0\.\d+;/.test(css)).toBe(true);
+    expect(rule(css, '.bowl')).not.toContain('preserve-3d');
+    expect(css).not.toMatch(/\.dish\[data-above='true'\] \{/);
+    // The shade over a bowl the ball is not in is a sheet of its own just above the dish, so it is the sheet that fades and not the dish.
+    expect(rule(css, '.dishShade')).toContain('opacity: 0.5;');
+    expect(rule(css, '.dishShade')).toContain('transform: translateZ(');
+    expect(css).toContain(".dish[data-on='true'] .dishShade {\n  opacity: 0;\n}");
+  });
+
+  it('counts out over the stage what the hole the ball took paid', () => {
+    const medals = show({ ...idle, mode: 'bowl', level: 4, total: 97, stage: 1, fallen: [1, 1], banner: 'medals', amount: 37 });
+    expect(medals).toContain('data-stage="1" data-fallen="1 1"');
+    const [top, middle] = dishes(medals).map(holesOf);
+    expect(top?.[1]).toBe('data-hole="1" data-kind="down" data-in="true"');
+    expect(middle).toEqual(['data-hole="0" data-kind="down" data-in="false"', 'data-hole="1" data-kind="prize" data-in="true"']);
+    expect(medals.match(/data-in="true"/g)).toHaveLength(2);
+    // The number as far as it has been counted, over the bowl, in the caption and in the run's total; no rain for a prize of this size.
+    expect(medals).toContain('data-kind="prize" data-digits="2" aria-hidden="true" data-testid="pusher-pay-show"');
+    expect(medals).toContain('data-testid="pusher-pay-count">+37</span>');
+    expect(medals).not.toContain('payCoin');
+    expect(medals).toContain('data-banner="medals"');
+    expect(medals).toContain('+37 MEDALS');
+    expect(medals).toContain('TOWER 97');
+    // The jackpot: every bowl's hole lit, the whole stage for the count, and medals raining down it.
+    const jackpot = show({ ...idle, mode: 'bowl', level: 4, total: 372, stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 312 });
+    expect(jackpot.match(/data-in="true"/g)).toHaveLength(3);
+    expect(dishes(jackpot).map(holesOf)[2]).toEqual(['data-hole="0" data-kind="jackpot" data-in="true"']);
+    expect(rungs(jackpot)).toEqual(['data-on="false" data-done="true"', 'data-on="false" data-done="true"', 'data-on="true" data-done="false"']);
     expect(jackpot).toContain('data-banner="jackpot"');
+    expect(jackpot).toContain('data-kind="jackpot" data-digits="3" aria-hidden="true" data-testid="pusher-pay-show"');
+    // A jackpot that has grown past a thousand is written smaller, and smaller again past ten thousand, to stay inside the stage.
+    const grown = (amount: number) => show({ ...idle, mode: 'bowl', level: 4, total: 40 + amount, stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount });
+    expect(grown(1234)).toContain('data-kind="jackpot" data-digits="4"');
+    expect(grown(12345)).toContain('data-kind="jackpot" data-digits="5"');
+    expect(grown(123456)).toContain('data-kind="jackpot" data-digits="5"');
+    const sizes = ['', "[data-digits='4']", "[data-digits='5']"].map((digits) =>
+      Number(new RegExp(`\\.payShow\\[data-kind='jackpot'\\]${digits.replace(/[[\]]/g, '\\$&')} \\.payCount \\{\\s*font-size: ([\\d.]+)cqh;`).exec(stylesheet())?.[1]),
+    );
+    expect(sizes[0]).toBeGreaterThan(sizes[1]);
+    expect(sizes[1]).toBeGreaterThan(sizes[2]);
+    expect(sizes[2]).toBeGreaterThan(20);
+    expect(jackpot).toContain('data-testid="pusher-pay-count">+312</span>');
     expect(jackpot).toContain('JACKPOT! +312');
+    expect(jackpot).toContain('TOWER 372');
+    // Each medal of the rain has its own place across the stage and its own moment to start.
+    const rain = jackpot.match(/--mp-across:[\d.]+;--mp-wait:\d+/g) ?? [];
+    expect(rain).toHaveLength(18);
+    expect(new Set(rain.map((coin) => coin.split(';')[0])).size).toBe(18);
+    expect(new Set(rain.map((coin) => coin.split(';')[1])).size).toBe(18);
+    for (const coin of rain) {
+      const across = Number(/--mp-across:([\d.]+)/.exec(coin)?.[1]);
+      expect(across).toBeGreaterThanOrEqual(0);
+      expect(across).toBeLessThanOrEqual(1);
+    }
+    expect(show({ ...idle, mode: 'bowl', level: 4, total: 372, stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 312 }, 0, 'ja')).toContain('JACKPOT！ 312枚');
+    // The pay show is the bowls' own: a prize on the board or from a chest does not have it.
+    expect(show({ ...idle, mode: 'sugoroku', banner: 'medals', amount: 10 })).not.toContain('pusher-pay-show');
+  });
+
+  it('leaves out of the pay show all that only moves, for a player who has asked for less motion', () => {
+    const css = stylesheet();
+    // A medal of the rain is not drawn at all unless motion is welcome.
+    expect(rule(css, '.payCoin')).toBe('\n.payCoin {\n  display: none;\n}');
+    // What moves is all in one block for players who have not asked for less: the view going down the stack, the shade, the count coming in, the rain.
+    const moving = css.split(rule(css, '.payCoin'))[1]?.split('\n@keyframes mp-pay-in')[0] ?? '';
+    expect(moving.startsWith('\n@media (prefers-reduced-motion: no-preference) {')).toBe(true);
+    for (const text of ['.bowlLift {\n    transition: transform', '.dishShade {\n    transition: opacity', 'animation: mp-glass', 'animation: mp-pay-in', 'animation: mp-rain', 'display: block;']) {
+      expect(moving).toContain(text);
+    }
+    // And nowhere else: each animation is named once where it is used and once where it is defined.
+    for (const name of ['mp-rain', 'mp-pay-in', 'mp-glass']) expect(css.split(name)).toHaveLength(3);
+    expect(css.split('.bowlLift {')).toHaveLength(3);
+    for (const selector of ['.bowlLift', '.dishShade', '.payShow', '.payCount']) {
+      expect(rule(css, selector)).not.toContain('transition');
+      expect(rule(css, selector)).not.toContain('animation');
+    }
+    // The number itself is there either way: it is what is paid, counted up by the clock and not by a transition.
+    expect(rule(css, '.payCount')).not.toContain('display: none');
   });
 
   it('marks the fever square', () => {
@@ -1614,7 +2057,7 @@ describe('what the screen shows for a session', () => {
     const session = createSession(1, { balls: 0 });
     const run = { pocket: 3, from: 0, elapsed: 0, duration: TIMING.roulette, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
     session.roulette = run;
-    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none', level: 0, total: 0, hole: -1 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 0, banner: 'none', level: 0, total: 0, stage: -1, fallen: [] });
     expect(screenState(session, true).lit).toBe(-1);
     // A number: the tower goes up and the run goes on.
     Object.assign(run, { landed: true, level: 1, total: 30, gain: 30 });
@@ -1624,9 +2067,9 @@ describe('what the screen shows for a session', () => {
     expect(screenState(session, false)).toMatchObject({ lit: 4, banner: 'finish', amount: 30, level: 1 });
   });
 
-  it('follows the ball from the last number of a full run to its hole', () => {
+  it('follows the ball from the last number of a full run down the bowls to its hole', () => {
     const session = createSession(1, { balls: 0 });
-    const bowl: ActiveBowl = { hole: 2, elapsed: 0, duration: TIMING.bowl, payout: -1 };
+    const bowl: ActiveBowl = { holes: [1, 1], stage: 0, elapsed: 0, duration: BOWL_TIMES[0], payout: -1 };
     const run: ActiveRoulette = {
       pocket: 1,
       from: 7,
@@ -1642,24 +2085,54 @@ describe('what the screen shows for a session', () => {
     };
     session.roulette = run;
     // The fourth number is a tower like any other while it is up.
-    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 1, banner: 'towers', amount: 10, level: 4, total: 60 });
-    // Then the bowl takes the wheel's place. Where the ball will drop is not on the screen until it has.
+    expect(screenState(session, false)).toMatchObject({ mode: 'roulette', lit: 1, banner: 'towers', amount: 10, level: 4, total: 60, stage: -1, fallen: [] });
+    // Then the bowls take the wheel's place. Where the ball will drop is not on the screen until it has.
     run.bowl = bowl;
-    for (const elapsed of [0, 3, TIMING.bowl - 0.01]) {
+    for (const elapsed of [0, 3, BOWL_TIMES[0] - 0.01]) {
       bowl.elapsed = elapsed;
-      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', banner: 'none', hole: -1, lit: -1, level: 4, total: 60 });
+      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', banner: 'none', stage: 0, fallen: [], lit: -1, level: 4, total: 60 });
       // The ball is moved by the cabinet, so the screen is the same with or without motion.
       expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
     }
-    // A hundred medals: more towers.
-    Object.assign(bowl, { elapsed: TIMING.bowl, payout: 100 });
+    // Down a hole: the bowl below is the one that is on, and the hole it came through is lit above it.
+    Object.assign(bowl, { stage: 1, elapsed: 0.2, duration: BOWL_TIMES[1] });
+    for (const elapsed of [0.2, 3, BOWL_TIMES[1] - 0.01]) {
+      bowl.elapsed = elapsed;
+      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', banner: 'none', stage: 1, fallen: [1], lit: -1, level: 4, total: 60 });
+      expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
+    }
+    // A hundred medals from the middle bowl: counted up from nothing, and the run's total with it.
+    Object.assign(bowl, { elapsed: BOWL_TIMES[1], payout: 100 });
     Object.assign(run, { gain: 100, total: 160, over: true });
-    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', hole: 2, banner: 'towers', amount: 100, total: 160, lit: -1 });
-    expect(screenState(session, true)).toMatchObject({ mode: 'bowl', hole: 2, banner: 'towers', amount: 100 });
-    // The jackpot's hole.
-    Object.assign(bowl, { hole: 0, payout: 312 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 1, fallen: [1, 1], banner: 'medals', amount: 0, total: 60, lit: -1 });
+    bowl.elapsed = BOWL_TIMES[1] + 0.72;
+    expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: 50, total: 110 });
+    // The count is the number that is paid, so a player who asked for less motion has it too.
+    expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
+    for (const elapsed of [BOWL_TIMES[1] + 1.4, BOWL_TIMES[1] + bowlShowTime(false) - 0.01]) {
+      bowl.elapsed = elapsed;
+      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 1, fallen: [1, 1], banner: 'medals', amount: 100, total: 160 });
+      expect(screenState(session, true)).toMatchObject({ banner: 'medals', amount: 100, total: 160 });
+    }
+    // The jackpot's hole, at the bottom of the last bowl: a longer count, and its own banner.
+    const last: ActiveBowl = { holes: [0, 0, 0], stage: 2, elapsed: BOWL_TIMES[2], duration: BOWL_TIMES[2], payout: 312 };
+    run.bowl = last;
     Object.assign(run, { gain: 312, total: 372, jackpot: true });
-    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', hole: 0, banner: 'jackpot', amount: 312, total: 372 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 0, total: 60 });
+    last.elapsed = BOWL_TIMES[2] + 2.52;
+    expect(screenState(session, false)).toMatchObject({ banner: 'jackpot', amount: 156, total: 216 });
+    expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
+    for (const elapsed of [BOWL_TIMES[2] + 5, BOWL_TIMES[2] + bowlShowTime(true) - 0.01]) {
+      last.elapsed = elapsed;
+      expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 312, total: 372 });
+    }
+    // The screen changes with every step of the count, which is how the cabinet knows to draw it again.
+    const counting = [0.5, 0.55, 0.6].map((since) => {
+      last.elapsed = BOWL_TIMES[2] + since + 0.02;
+      return screenState(session, false);
+    });
+    expect(sameScreen(counting[0], counting[1])).toBe(false);
+    expect(sameScreen(counting[1], counting[2])).toBe(false);
   });
 
   it('knows when nothing on the screen has changed', () => {
@@ -1668,7 +2141,11 @@ describe('what the screen shows for a session', () => {
     expect(sameScreen(a, screenState(session, false))).toBe(true);
     expect(sameScreen(a, { ...a, square: 1 })).toBe(false);
     expect(sameScreen(a, { ...a, die: 2 })).toBe(false);
-    expect(sameScreen(a, { ...a, hole: 1 })).toBe(false);
+    // The bowl the ball is in, and the holes it has been through: the same holes in a list of their own are the same screen.
+    expect(sameScreen(a, { ...a, stage: 1 })).toBe(false);
+    expect(sameScreen(a, { ...a, fallen: [1] })).toBe(false);
+    expect(sameScreen({ ...a, fallen: [1, 0] }, { ...a, fallen: [1, 1] })).toBe(false);
+    expect(sameScreen({ ...a, fallen: [1, 0] }, { ...a, fallen: [1, 0] })).toBe(true);
     expect(sameScreen({ ...a, mode: 'bowl' }, { ...a, mode: 'roulette' })).toBe(false);
     const chests = [{ state: 'closed' as const, prize: null, chosen: false }];
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0] }] })).toBe(true);

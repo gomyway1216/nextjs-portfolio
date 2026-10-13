@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEve
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { getStrings } from './i18n';
-import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
   landTimes,
@@ -138,7 +138,8 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
-  hole: -1,
+  stage: -1,
+  fallen: [],
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -522,11 +523,18 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound('reach', soundOn);
             break;
           case 'bowlEnd':
-            if (event.jackpot) celebrate(stage, 'jackpot');
-            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
+            // The jackpot has the cabinet's lights for as long as it is counted out, and its fanfare. A prize from
+            // one of the upper bowls has a shorter show of them. Either way part is poured and the rest goes up as towers.
+            celebrate(stage, event.jackpot ? 'jackpot' : 'fever');
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.total));
+            break;
+          case 'bowlDrop':
+            // Through a hole and into the bowl below: a step up, and the suspense starts again.
+            playSound('pocket', soundOn, { level: CHAIN_GOAL });
+            playSound('reach', soundOn);
+            setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
         }
       }
@@ -569,9 +577,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
       const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) ball.current.style.transform = ballTransform(ballSpot(bowl, calm.matches));
+      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -748,8 +756,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
           <div className={styles.jackpotBox}>
             <span className={styles.jackpotLabel}>{t.jackpot}</span>
-            <span className={styles.jackpotValue} data-testid="pusher-jackpot">
-              {fmt(hud.jackpot)}
+            {/* While a jackpot is being counted out the plate counts with it; the jackpot itself has started over by then. */}
+            <span className={styles.jackpotValue} data-testid="pusher-jackpot" data-counting={screen.banner === 'jackpot'}>
+              {fmt(screen.banner === 'jackpot' ? screen.amount : hud.jackpot)}
             </span>
           </div>
         </div>

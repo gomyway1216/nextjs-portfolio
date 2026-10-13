@@ -4,7 +4,7 @@
  * has got, so the reels and the lamps can be drawn from the session's clock.
  */
 
-import { BOARD, BOWL, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
+import { BOARD, BOWLS, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
 import { TIMING, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
@@ -170,23 +170,31 @@ export function roulettePocket(roulette: ActiveRoulette): number {
 /** Whether the light has reached its pocket and is only holding there. */
 export const rouletteSettled = (roulette: ActiveRoulette): boolean => roulette.elapsed >= roulette.duration * SETTLE;
 
-// ── The ball in the bowl ────────────────────────────────────────────────────
+// ── The ball in the bowls ───────────────────────────────────────────────────
 
 /**
- * The bowl seen from above, as a disc of radius 1: the circle the ball runs
+ * A bowl seen from above, as a disc of radius 1: the circle the ball runs
  * round under the rim, the ring the holes' centres lie on, the size of a
  * hole, and how far outside a hole's centre the ball rolls by on its lip.
+ * `drop` is how far below one bowl's floor the next bowl's is. The bottom
+ * bowl is a funnel with its one hole, `last` across, in the middle.
  */
-export const BOWL_SHAPE = { rim: 0.86, ring: 0.4, hole: 0.16, lip: 0.18 } as const;
+export const BOWL_SHAPE = { rim: 0.86, ring: 0.4, hole: 0.16, lip: 0.18, drop: 2.1, last: 0.22 } as const;
 
-/** A point of the bowl, from its centre: x to the right, y down the screen. */
+/** A point of a bowl, from its centre: x to the right, y down the screen. */
 export interface BowlPoint {
   x: number;
   y: number;
 }
 
-/** Where the ball is, and how far it has sunk into its hole: 0 while it rolls, 1 once it has dropped. */
+/**
+ * Where the ball is: which bowl it is in, counted from the top, where in it,
+ * how far above its floor while it is still falling in from the bowl above,
+ * and how far it has sunk into its hole: 0 while it rolls, 1 once it has dropped.
+ */
 export interface BallSpot extends BowlPoint {
+  bowl: number;
+  lift: number;
   sunk: number;
 }
 
@@ -196,15 +204,30 @@ const bowlPoint = (radius: number, turn: number): BowlPoint => ({
   y: -radius * Math.cos(turn * 2 * Math.PI),
 });
 
-/** Where a hole lies, in turns clockwise from the top: they are evenly spaced, the first at the top. */
-const holeTurn = (hole: number): number => hole / BOWL.length;
+/**
+ * Where the first hole of each bowl lies, in turns clockwise from the top.
+ * The top bowl's three start at the far side; the middle bowl's two are to
+ * the right and the left, so that neither hides the other.
+ */
+const FIRST_HOLE: readonly number[] = [0, 0.25, 0];
 
-/** The centre of a hole. */
-export const holeSpot = (hole: number): BowlPoint => bowlPoint(BOWL_SHAPE.ring, holeTurn(hole));
+/** Where a hole lies, in turns clockwise from the top: a bowl's holes are evenly spaced. */
+const holeTurn = (hole: number, bowl: number): number => FIRST_HOLE[bowl] + hole / BOWLS[bowl].length;
+/** How far from the middle of its bowl a hole is. Only the bottom bowl's is in the middle. */
+const holeRing = (bowl: number): number => (BOWLS[bowl].length > 1 ? BOWL_SHAPE.ring : 0);
 
-/** Where the ball is let go, in turns clockwise from the top, and the whole laps it makes before it heads for its hole. */
-const LET_GO = 1 / 6;
-const BALL_LAPS = 4;
+/** The centre of a hole of a bowl; of the top bowl, when no other is named. */
+export const holeSpot = (hole: number, bowl = 0): BowlPoint => bowlPoint(holeRing(bowl), holeTurn(hole, bowl));
+
+/**
+ * Where the ball comes into each bowl, in turns clockwise from the top, and
+ * the whole laps it makes there before it heads for its hole. The machine
+ * lets it go at the far side of the top bowl. Into the bowls below it comes
+ * at the front, on the player's side, where the bowl above is not in the way
+ * and its fall can be seen.
+ */
+const LET_GO: readonly number[] = [1 / 6, 0.4, 0.4];
+const BALL_LAPS: readonly number[] = [4, 3, 4];
 /** How sharply the ball slows: the higher, the faster it sets off and the longer it crawls at the end. */
 const SLOWING = 1.8;
 /**
@@ -212,10 +235,22 @@ const SLOWING = 1.8;
  * the holes, and is down among them.
  */
 const ROLL = { rim: 0.2, nearing: 0.48, holes: 0.6 } as const;
-/** The share of its pace the ball loses on the lip of a hole, and gains again between two. */
-const HESITATE = 0.6;
+/** The share of its pace the ball loses on the lip of a hole, and gains again between two: in the top bowl, and in the middle one. */
+const HESITATE: readonly number[] = [0.6, 0.78];
 /** The share of its time the ball takes, at the very end, to tip off the lip into its hole. */
 const TIP = 0.06;
+/** The seconds the ball takes to fall from a hole into the bowl below. */
+export const BALL_FALL = 0.75;
+/** The share of that fall in which the ball, drawn smaller while it was down its hole, is its own size again; it is under the bowl above all that while. */
+const OUT_OF_HOLE = 0.4;
+/**
+ * The near miss in the middle bowl. On its last pass of the other hole the
+ * ball leans in over it by this share of the lip, sinking by `sink` as it
+ * does, for about `width` turns either side, and then rolls on to its own.
+ */
+const TEETER = { lean: 0.62, sink: 0.3, width: 0.06 } as const;
+/** In the funnel the ball turns faster as it closes on the middle: the share of its turns it would make at an even pace, and how sharply the rest speed up. */
+const FUNNEL = { even: 0.3, quicken: 2.4 } as const;
 
 /** 0 to 1 with no jolt at either end. */
 const smooth = (t: number): number => {
@@ -223,44 +258,96 @@ const smooth = (t: number): number => {
   return x * x * (3 - 2 * x);
 };
 
-/** The moment the ball tips off the lip into its hole, in seconds after it was let go. */
+/** The moment the ball tips off the lip into its hole, in seconds after it came into its bowl. */
 export const ballTipsAt = (duration: number = TIMING.bowl): number => duration * (1 - TIP);
 
+/** When the ball starts to roll in a bowl: at once in the top one, and after its fall from the bowl above in the others. */
+export const ballRollsAt = (bowl: number): number => (bowl === 0 ? 0 : BALL_FALL);
+
 /**
- * Where the ball is `elapsed` seconds after it was let go, on its way to the
- * hole already drawn. It circles under the rim, spirals in as it slows,
- * hesitates on the lip of each hole it passes, comes to rest on the lip of
- * its own and tips in. It never moves away from the centre, and from
- * `duration` on it lies exactly on its hole.
+ * Where the ball is `since` seconds after it came into a bowl, on its way
+ * to the hole of that bowl already drawn for it. `from` is the hole of the
+ * bowl above that it dropped through; the top bowl has none, and the machine
+ * lets the ball go under its rim.
+ *
+ * In the top bowl it circles under the rim, spirals in as it slows, hesitates
+ * on the lip of each hole it passes, comes to rest on the lip of its own and
+ * tips in. In the middle bowl it first falls in from the hole above, forward
+ * to the rim, and does the same with a near miss: on its last pass of the other
+ * hole it leans in over it before rolling on. The bottom bowl is a funnel:
+ * the ball spirals to the middle, faster and faster, and drops into the one
+ * hole there. From `duration` on it lies exactly on its hole.
  */
-export function bowlBall(elapsed: number, hole: number, duration: number = TIMING.bowl): BallSpot {
-  const { rim, ring, lip } = BOWL_SHAPE;
-  const home = holeTurn(hole);
-  if (elapsed >= duration) return { ...holeSpot(hole), sunk: 1 };
+export function bowlBall(since: number, hole: number, duration: number = TIMING.bowl, bowl = 0, from = 0): BallSpot {
+  const elapsed = Math.max(0, since);
+  const { rim, lip, drop, last } = BOWL_SHAPE;
+  const ring = holeRing(bowl);
+  const home = holeTurn(hole, bowl);
+  const at = (point: BowlPoint, sunk = 0, lift = 0): BallSpot => ({ ...point, bowl, lift, sunk });
+  if (elapsed >= duration) return at(holeSpot(hole, bowl), 1);
+  const entry = LET_GO[bowl];
+  const start = ballRollsAt(bowl);
+  if (elapsed < start) {
+    // Through the air from the hole above to where it comes in under the rim, faster as it falls. It sets off
+    // exactly as it was left in the hole above, so that nothing jumps as one bowl hands it to the next.
+    const fallen = elapsed / start;
+    const above = holeSpot(from, bowl - 1);
+    const below = bowlPoint(rim, entry);
+    return at({ x: above.x + (below.x - above.x) * fallen, y: above.y + (below.y - above.y) * fallen }, 1 - smooth(fallen / OUT_OF_HOLE), drop * (1 - fallen * fallen));
+  }
   const rolling = ballTipsAt(duration);
+  // The lip it comes to rest on: beside its hole, or round the one in the middle of the funnel.
+  const edge = ring > 0 ? ring + lip : last;
+  // Where it is turned to when it gets there: over its hole, or wherever the funnel has brought it round to.
+  const rest = ring > 0 ? home : entry + BALL_LAPS[bowl];
   if (elapsed >= rolling) {
     // Off the lip and down, faster as it goes.
     const fallen = ((elapsed - rolling) / (duration - rolling)) ** 2;
-    return { ...bowlPoint(ring + lip * (1 - fallen), home), sunk: fallen };
+    return at(bowlPoint(ring + (edge - ring) * (1 - fallen), rest), fallen);
   }
-  const progress = Math.max(0, elapsed) / rolling;
-  // Round `BALL_LAPS` times and on to the lip of its hole, slowing all the way.
-  const turns = BALL_LAPS + ((((home - LET_GO) % 1) + 1) % 1);
-  const even = LET_GO + turns * (1 - (1 - progress) ** SLOWING);
+  const progress = (elapsed - start) / (rolling - start);
+  if (ring === 0) {
+    // The funnel: in to the middle all the way, turning faster as the circle tightens.
+    const turned = FUNNEL.even * progress + (1 - FUNNEL.even) * progress ** FUNNEL.quicken;
+    return at(bowlPoint(rim - (rim - edge) * progress, entry + BALL_LAPS[bowl] * turned));
+  }
+  const holes = BOWLS[bowl].length;
+  // Round its laps and on to the lip of its hole, slowing all the way.
+  const turns = BALL_LAPS[bowl] + ((((home - entry) % 1) + 1) % 1);
+  const even = entry + turns * (1 - (1 - progress) ** SLOWING);
   // Once it is down among the holes it lingers over each and hurries between them. The holes are
   // where this sine is zero, so it shifts the ball along its way without moving where it ends.
   const among = smooth((progress - ROLL.nearing) / (ROLL.holes - ROLL.nearing));
-  const turn = even - (HESITATE * among * Math.sin(even * BOWL.length * 2 * Math.PI)) / (BOWL.length * 2 * Math.PI);
-  const radius = rim - (rim - ring - lip) * smooth((progress - ROLL.rim) / (ROLL.holes - ROLL.rim));
-  return { ...bowlPoint(radius, turn), sunk: 0 };
+  const beat = (even - FIRST_HOLE[bowl]) * holes * 2 * Math.PI;
+  const turn = even - (HESITATE[bowl] * among * Math.sin(beat)) / (holes * 2 * Math.PI);
+  const radius = rim - (rim - edge) * smooth((progress - ROLL.rim) / (ROLL.holes - ROLL.rim));
+  if (bowl === 0) return at(bowlPoint(radius, turn));
+  // The near miss: over the other hole, the last time it passes it, it leans in and all but goes.
+  const lean = Math.exp(-(((even - (entry + turns - 1 / holes)) / TEETER.width) ** 2));
+  return at(bowlPoint(radius - lip * TEETER.lean * lean, turn), TEETER.sink * lean);
 }
 
 /**
  * Where the cabinet draws the ball of a challenge in play. With `calm` it does
- * not roll: it waits where it was let go and is in its hole once it has dropped.
+ * not fall or roll: it waits where it came into its bowl, and is in its hole
+ * once it has dropped there for good.
  */
 export function ballSpot(bowl: ActiveBowl, calm: boolean): BallSpot {
-  return bowlBall(calm && bowl.payout < 0 ? 0 : bowl.elapsed, bowl.hole, bowl.duration);
+  const waits = calm && bowl.payout < 0;
+  return bowlBall(waits ? ballRollsAt(bowl.stage) : bowl.elapsed, bowl.holes[bowl.stage], bowl.duration, bowl.stage, bowl.stage > 0 ? bowl.holes[bowl.stage - 1] : 0);
+}
+
+/**
+ * How what the bowls paid is counted out: the number runs up from nothing,
+ * a prize from an upper bowl in `prize` seconds and the jackpot in `jackpot`,
+ * moving on `rate` times a second.
+ */
+const COUNT = { prize: 1.4, jackpot: 5, rate: 20 } as const;
+
+/** What the bowls paid, as far as it has been counted out `since` seconds after the ball dropped. */
+export function countedUp(payout: number, since: number, jackpot: boolean): number {
+  const share = Math.floor(Math.max(0, since) * COUNT.rate + 1e-9) / COUNT.rate / (jackpot ? COUNT.jackpot : COUNT.prize);
+  return share >= 1 ? payout : Math.floor(payout * share);
 }
 
 // ── What the whole screen shows ─────────────────────────────────────────────
@@ -298,8 +385,10 @@ export interface ScreenState {
   /** The roulette's run: numbers in a row so far, and the medals it has stacked. */
   level: number;
   total: number;
-  /** The hole the bowl's ball has dropped into, or −1. */
-  hole: number;
+  /** The bowl the ball is in, counted from the top, or −1 when the bowls are not on. */
+  stage: number;
+  /** The hole the ball has dropped through in each bowl so far, the top bowl's first. */
+  fallen: readonly number[];
 }
 
 /** How long the die tumbles before it shows what was rolled, as a share of its time on screen. */
@@ -314,11 +403,16 @@ export function sugorokuSquare(bonus: ActiveSugoroku): number {
   return squareAfter(bonus.from, hops);
 }
 
-/** The jackpot challenge: the bowl while the ball rolls, then the hole it dropped into and what that paid. */
+/**
+ * The jackpot challenge: the bowl the ball is in, with the holes it has gone
+ * through above, and once it has dropped for good the hole it ended in and
+ * what that paid, counted up from nothing. The run's total counts up with it.
+ */
 function bowlState(run: ScreenState, roulette: ActiveRoulette, bowl: ActiveBowl): ScreenState {
-  const state: ScreenState = { ...run, mode: 'bowl', lit: -1 };
+  const state: ScreenState = { ...run, mode: 'bowl', lit: -1, stage: bowl.stage, fallen: bowl.holes.slice(0, bowl.stage) };
   if (bowl.payout < 0) return state;
-  return { ...state, hole: bowl.hole, banner: roulette.jackpot ? 'jackpot' : 'towers', amount: bowl.payout };
+  const counted = countedUp(bowl.payout, bowl.elapsed - bowl.duration, roulette.jackpot);
+  return { ...state, fallen: bowl.holes.slice(0, bowl.stage + 1), banner: roulette.jackpot ? 'jackpot' : 'medals', amount: counted, total: roulette.total - bowl.payout + counted };
 }
 
 /** What the screen shows for the session as it stands. `calm` leaves out the motion that only decorates. */
@@ -336,7 +430,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     secondsLeft: 0,
     level: 0,
     total: 0,
-    hole: -1,
+    stage: -1,
+    fallen: [],
   };
   const { roulette, bonus, spin } = session;
   if (roulette) {
@@ -390,7 +485,9 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.secondsLeft !== b.secondsLeft ||
     a.level !== b.level ||
     a.total !== b.total ||
-    a.hole !== b.hole
+    a.stage !== b.stage ||
+    a.fallen.length !== b.fallen.length ||
+    a.fallen.some((hole, bowl) => hole !== b.fallen[bowl])
   ) {
     return false;
   }

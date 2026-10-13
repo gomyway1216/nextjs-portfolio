@@ -111,6 +111,13 @@
     font-size: 0.84rem;
   }
 }
+/* Four tabs across the narrowest phones. */
+@media (max-width: 359px) {
+  .tab {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
 .btn {
   appearance: none;
   border: 1px solid var(--games-route-border);
@@ -149,6 +156,16 @@
 @media (max-width: 980px) {
   .machine {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The day's bonus plate comes between the cabinet and the tally. Where there are two columns the cabinet fills
+   the first from top to bottom, and the plate and the tally share the second, the plate on top. */
+@media (min-width: 981px) {
+  .machine {
+    grid-template-rows: auto 1fr;
+  }
+  .cabinet {
+    grid-row: 1 / span 2;
   }
 }
 .cabinet {

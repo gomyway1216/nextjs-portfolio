@@ -20,7 +20,7 @@ import {
   stoppedDigits,
   type ScreenState,
 } from './screen';
-import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
@@ -100,6 +100,24 @@ export const RESET_WINDOW = 6;
  * decides it. A clock that has gone backwards confirms nothing.
  */
 export const confirmsReset = (armedAt: number | null, now: number): boolean => armedAt !== null && now >= armedAt && now - armedAt < RESET_WINDOW * 1000;
+
+/**
+ * Keeps the cabinet's lights in step with what the bowls paid. A celebration
+ * of the stage's own lasts as long as its kind does, which is not as long as
+ * a prize from the bowls is up; this one is lit again in every frame the
+ * prize is on the screen and put out in the frame the screen is free, so it
+ * is exactly as long as the show, whatever that takes. `lit` is the
+ * celebration this lit the frame before, and what comes back is the one it
+ * has lit now. A celebration it did not light is left to run its own time.
+ */
+export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, lit: Stage['party']): Stage['party'] {
+  if (roulette?.bowl && roulette.bowl.payout >= 0) {
+    celebrate(stage, roulette.jackpot ? 'jackpot' : 'fever');
+    return stage.party;
+  }
+  if (lit && stage.party === lit) stage.party = null;
+  return null;
+}
 
 /** The numbers shown around the cabinet. */
 interface Hud {
@@ -391,6 +409,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let autoClock = 0;
     let autoArm: Arm = 0;
     let lastSpinClock = 0;
+    let bowlLights: Stage['party'] = null;
     let last = performance.now();
     const events: SessionEvent[] = [];
     let frameId = 0;
@@ -436,6 +455,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       }
       events.length = 0;
       advance(session, elapsed, events);
+      // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
+      bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -523,9 +544,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound('reach', soundOn);
             break;
           case 'bowlEnd':
-            // The jackpot has the cabinet's lights for as long as it is counted out, and its fanfare. A prize from
-            // one of the upper bowls has a shorter show of them. Either way part is poured and the rest goes up as towers.
-            celebrate(stage, event.jackpot ? 'jackpot' : 'fever');
+            // The jackpot has its fanfare. The cabinet's lights are lit for either prize by the frame itself, for as
+            // long as the prize is up. Part of it is poured and the rest goes up as towers.
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));

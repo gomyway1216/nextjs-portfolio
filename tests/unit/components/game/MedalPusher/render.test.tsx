@@ -19,7 +19,7 @@ import {
   pocketGroups,
   returnFor,
 } from '@/components/game/MedalPusher/OddsTab';
-import { AIM_CAPS, AIM_KEY, AIM_KEYS, AIM_RANGE, AUTO_PACE, FEED_KEYS, HOLD_DELAY, KEY_CAPS, PlayTab, aimPercent, percentAim, typingIn } from '@/components/game/MedalPusher/PlayTab';
+import { AIM_CAPS, AIM_KEY, AIM_KEYS, AIM_RANGE, AUTO_PACE, FEED_KEYS, HOLD_DELAY, KEY_CAPS, PlayTab, aimPercent, lightBowlPrize, percentAim, typingIn } from '@/components/game/MedalPusher/PlayTab';
 import { ReelSymbol } from '@/components/game/MedalPusher/ReelSymbols';
 import {
   IDLE_DIGITS,
@@ -41,6 +41,7 @@ import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, M
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
 import { BOARD, BOWLS, FEVER_SQUARE, JACKPOT_START, ROULETTE, pouredOf, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
+import { PARTY_TIME, ageStage, celebrate, createStage, type Stage } from '@/components/game/MedalPusher/render';
 import {
   BALL_FALL,
   BOWL_SHAPE,
@@ -72,6 +73,7 @@ import {
   MAX_STOCK,
   START_CREDITS,
   TIMING,
+  advance,
   bowlShowTime,
   createSession,
   reachTime,
@@ -79,6 +81,8 @@ import {
   type ActiveBowl,
   type ActiveRoulette,
   type ActiveSpin,
+  type Session,
+  type SessionEvent,
 } from '@/components/game/MedalPusher/session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS } from '@/components/game/MedalPusher/sim';
 import { HEIGHT, HOUSING, SCREEN, VIEW, onScreen, project, rise, screenPlacement, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
@@ -2177,5 +2181,156 @@ describe('what the screen shows for a session', () => {
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0] }] })).toBe(true);
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0], state: 'picked' }] })).toBe(false);
     expect(sameScreen({ ...a, chests }, a)).toBe(false);
+  });
+});
+
+describe('the cabinet’s lights for what the bowls paid', () => {
+  const DT = 1 / 60;
+  /** The three ends: the way down to each, whether it is the jackpot, and what it pays on a new machine. */
+  const ENDS = [
+    ['the jackpot', [0, 0, 0], true, 300],
+    ['the fifty of the top bowl', [2], false, 50],
+    ['the hundred of the middle bowl', [0, 1], false, 100],
+  ] as const;
+  /** A machine with a full run behind it and the ball a fifth of a second from dropping into the last hole of `way`. */
+  const nearTheDrop = (way: readonly number[]): Session => {
+    const session = createSession(7, { balls: 0 });
+    const stage = way.length - 1;
+    session.roulettes = 1;
+    session.roulette = {
+      pocket: 1,
+      from: 1,
+      elapsed: TIMING.roulette + TIMING.step,
+      duration: TIMING.roulette,
+      landed: true,
+      level: 4,
+      total: 40,
+      gain: 0,
+      over: false,
+      jackpot: false,
+      bowl: { holes: [...way], stage, elapsed: BOWL_TIMES[stage] - 0.2, duration: BOWL_TIMES[stage], payout: -1 },
+    };
+    return session;
+  };
+  /** A stage for the lights to be on, made without anything to paint it with. */
+  const bareStage = (): Stage => {
+    vi.stubGlobal('document', { createElement: () => ({}) });
+    try {
+      return createStage(1, false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+  /**
+   * One frame as the cabinet runs it: the machine moves on, the bowls' lights are seen to, whatever else happened
+   * in the frame is celebrated, and the stage ages. What comes back is the celebration the bowls have lit.
+   */
+  const frame = (session: Session, stage: Stage, lit: Stage['party']): Stage['party'] => {
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    const now = lightBowlPrize(stage, session.roulette, lit);
+    for (const event of events) if (event.type === 'toppled') celebrate(stage, 'crash');
+    ageStage(stage, DT);
+    return now;
+  };
+  const prizeUp = (session: Session): boolean => (session.roulette?.bowl?.payout ?? -1) >= 0;
+  /** Whether the cabinet is lit as it is for a prize. A tower coming down shakes it for a moment, which is another thing. */
+  const festive = (stage: Stage): boolean => stage.party !== null && stage.party.kind !== 'crash';
+
+  it.each(ENDS)('are on for exactly as long as %s is up on the screen, and out in the frame the screen is free', { timeout: 30_000 }, (_name, way, jackpot, payout) => {
+    const session = nearTheDrop(way);
+    const stage = bareStage();
+    let lit: Stage['party'] = null;
+    let shown = 0;
+    let freed = -1;
+    for (let i = 0; i < 60 * 12; i++) {
+      const busy = session.roulette !== null;
+      lit = frame(session, stage, lit);
+      // In every frame that is drawn the lights are on if, and only if, the prize is on the screen.
+      expect(festive(stage), `frame ${i}`).toBe(prizeUp(session));
+      if (prizeUp(session)) {
+        shown += 1;
+        expect(stage.party?.kind).toBe(jackpot ? 'jackpot' : 'fever');
+        expect(session.roulette?.bowl?.payout).toBe(payout);
+      }
+      if (busy && session.roulette === null) freed = i;
+    }
+    // The screen was freed, the prize having been up for its own time to the frame, and the lights went with it.
+    expect(freed).toBeGreaterThan(0);
+    expect(Math.abs(shown * DT - bowlShowTime(jackpot))).toBeLessThanOrEqual(DT);
+    expect(festive(stage)).toBe(false);
+    // The stage's own time for a celebration of that kind is longer than the show: left to it, the lights would have outlasted the screen.
+    expect(PARTY_TIME[jackpot ? 'jackpot' : 'fever']).toBeGreaterThan(bowlShowTime(jackpot));
+  });
+
+  it.each(ENDS)('are out before the next game is on the screen after %s, a ball’s roulette or a held spin', { timeout: 30_000 }, (_name, way) => {
+    for (const next of ['roulette', 'spin'] as const) {
+      const session = nearTheDrop(way);
+      // Something is waiting for the screen: another ball has gone over, or a spin is held.
+      if (next === 'roulette') session.balls = 1;
+      else session.stock = 1;
+      const stage = bareStage();
+      let lit: Stage['party'] = null;
+      let started = false;
+      for (let i = 0; i < 60 * 12 && !started; i++) {
+        lit = frame(session, stage, lit);
+        started = next === 'roulette' ? session.roulette?.bowl === null : session.spin !== null;
+        if (started) expect(festive(stage), next).toBe(false);
+      }
+      expect(started, next).toBe(true);
+    }
+  });
+
+  it('are not taken by a tower that comes down in the middle of the show, and do not stay on for it', () => {
+    const session = nearTheDrop([0, 0, 0]);
+    const stage = bareStage();
+    let lit: Stage['party'] = null;
+    while (!prizeUp(session)) lit = frame(session, stage, lit);
+    for (let i = 0; i < 60; i++) lit = frame(session, stage, lit);
+    // A tower falls: the jackpot's lights are still the jackpot's, in that frame and the next.
+    celebrate(stage, 'crash');
+    expect(stage.party?.kind).toBe('jackpot');
+    lit = frame(session, stage, lit);
+    expect(stage.party?.kind).toBe('jackpot');
+    while (session.roulette) lit = frame(session, stage, lit);
+    expect(stage.party).toBeNull();
+    expect(lit).toBeNull();
+  });
+
+  it('come back on a stage made anew in the middle of the show, as one is when the cabinet changes size', () => {
+    const session = nearTheDrop([0, 1]);
+    let stage = bareStage();
+    let lit: Stage['party'] = null;
+    while (!prizeUp(session)) lit = frame(session, stage, lit);
+    for (let i = 0; i < 30; i++) lit = frame(session, stage, lit);
+    stage = bareStage();
+    expect(stage.party).toBeNull();
+    lit = frame(session, stage, lit);
+    expect(stage.party?.kind).toBe('fever');
+    while (session.roulette) lit = frame(session, stage, lit);
+    expect(stage.party).toBeNull();
+  });
+
+  it('leave a celebration they did not light to run its own time', () => {
+    // The fever square of the board lights the cabinet for as long as its kind lasts, with no ball anywhere near a bowl.
+    const session = createSession(7, { balls: 0 });
+    const stage = bareStage();
+    celebrate(stage, 'fever');
+    let lit: Stage['party'] = null;
+    for (let i = 0; i < 60; i++) {
+      lit = frame(session, stage, lit);
+      expect(lit).toBeNull();
+      expect(stage.party?.kind).toBe('fever');
+    }
+    expect(stage.party?.left).toBeCloseTo(PARTY_TIME.fever - 1, 6);
+    // Nor do they put out one that took their place: only the very celebration they lit.
+    const theirs = { kind: 'fever' as const, left: 1 };
+    const other = { kind: 'fever' as const, left: 1 };
+    stage.party = other;
+    expect(lightBowlPrize(stage, null, theirs)).toBeNull();
+    expect(stage.party).toBe(other);
+    stage.party = theirs;
+    expect(lightBowlPrize(stage, null, theirs)).toBeNull();
+    expect(stage.party).toBeNull();
   });
 });

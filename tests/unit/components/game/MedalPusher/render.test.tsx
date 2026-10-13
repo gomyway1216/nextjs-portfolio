@@ -88,6 +88,7 @@ import {
   holeSpot,
   inReach,
   landTimes,
+  monitorGlow,
   monitorMode,
   monitorScene,
   pocketPlace,
@@ -2179,6 +2180,20 @@ describe('the screen', () => {
     // The dome is drawn over the scene, not in it, and nothing can be pressed through it.
     expect(rule(css, '.dome')).toContain('pointer-events: none;');
     expect(rule(css, '.dome')).not.toContain('transform');
+  });
+
+  it('gives the cabinet the light of the mode the monitor is in', () => {
+    for (const mode of MONITOR_MODES) {
+      const glow = monitorGlow(mode);
+      expect(glow.level).toBe(MONITOR[mode].light);
+      // Each part of the colour is the mode's own, from 0 to 1, as the renderers take it.
+      for (const part of glow.colour) expect(part >= 0 && part <= 1).toBe(true);
+      const hex = `#${glow.colour.map((part) => Math.round(part * 255).toString(16).padStart(2, '0')).join('')}`;
+      expect(hex).toBe(MONITOR[mode].colour);
+    }
+    // Chance time is gold: all the red there is, and little blue.
+    expect(monitorGlow('chance').colour[0]).toBe(1);
+    expect(monitorGlow('chance').colour[2]).toBeLessThan(0.25);
   });
 
   it('puts the monitor in one of five modes for what is on it, the rarer thing counting for more', () => {

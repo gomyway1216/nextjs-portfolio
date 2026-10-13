@@ -50,11 +50,13 @@ import {
   BALL_RADIUS,
   CHUTE_LEAN,
   EXIT_TIME,
+  GLASS,
   GOLD_FLASH,
   LIP_FALL,
   REST_LIGHT,
   ageStage,
   createStage,
+  glassShift,
   goldFlash,
   lightGate,
   showJewel,
@@ -2469,9 +2471,10 @@ describe('the choice of renderer', () => {
     expect(fake.calls.drawElementsInstanced).toBeGreaterThan(0);
     // The scene's canvas is kept the size of the field's.
     expect([under.canvas.width, under.canvas.height]).toEqual([686, 579]);
-    // On the field's canvas only the glass is drawn, over a clear sheet: no background, no medal stamped.
+    // On the field's canvas only the glass is drawn, over a clear sheet: its bands, its dust and the line of light
+    // along its top, and no background and no medal stamped.
     expect(flat.calls.clearRect).toBe(1);
-    expect(flat.calls.fillRect).toBe(1);
+    expect(flat.calls.fillRect).toBe(3);
     expect(flat.calls.drawImage).toBeUndefined();
     expect(first.painted).toBe(false);
 
@@ -2496,6 +2499,41 @@ describe('the choice of renderer', () => {
     renderer.dispose();
     expect(fake.alive()).toEqual({});
     expect(under.listeners.size).toBe(0);
+  });
+
+  it('lets the bands on the glass drift over the 3D scene, drawn again a few times a second at most and never in a calm cabinet', () => {
+    const { renderer, flat, machine, stage } = setUp('', true);
+    const first = stage(false);
+    renderer.draw(first, machine, options);
+    expect(flat.calls.clearRect).toBe(1);
+    // A frame later the bands have not moved half a pixel, and the glass is left alone.
+    first.clock = 1 / 60;
+    renderer.draw(first, machine, options);
+    expect(flat.calls.clearRect).toBe(1);
+    // A second later they have moved some three pixels: it is drawn again, once.
+    first.clock = 1;
+    expect(glassShift(1)).toBeGreaterThan(2);
+    renderer.draw(first, machine, options);
+    renderer.draw(first, machine, options);
+    expect(flat.calls.clearRect).toBe(2);
+    // At their fastest, as they pass the middle of their drift, that is seven times in a second and no more.
+    first.clock = GLASS.period;
+    renderer.draw(first, machine, options);
+    const before = flat.calls.clearRect;
+    for (let frame = 0; frame < 60; frame++) {
+      first.clock += 1 / 60;
+      renderer.draw(first, machine, options);
+    }
+    expect(flat.calls.clearRect - before).toBeGreaterThan(3);
+    expect(flat.calls.clearRect - before).toBeLessThanOrEqual(7);
+    // In a calm cabinet they stand still, and so does the canvas.
+    const calm = setUp('', true);
+    const still = calm.stage(false);
+    for (let frame = 0; frame < 30; frame++) {
+      still.clock += 0.5;
+      calm.renderer.draw(still, calm.machine, { ...options, calm: true });
+    }
+    expect(calm.flat.calls.clearRect).toBe(1);
   });
 
   it('puts a lighter wash of colour over the 3D scene than the canvas renderer puts over its own', () => {

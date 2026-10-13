@@ -15,6 +15,8 @@ import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
 import {
   landTimes,
+  monitorGlow,
+  monitorMode,
   reelPositions,
   reelsFast,
   reelsWaiting,
@@ -749,7 +751,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels });
+      // The monitor lights what stands in front of it, in the colour of the mode it is in.
+      const glow = monitorGlow(monitorMode(screenState(session, calm.matches)));
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels, glow });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;

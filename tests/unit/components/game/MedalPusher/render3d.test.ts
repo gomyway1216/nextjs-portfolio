@@ -44,7 +44,21 @@ import {
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
-import { BALL_RADIUS, CHUTE_LEAN, EXIT_TIME, LIP_FALL, REST_LIGHT, ageStage, createStage, lightGate, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
+import {
+  BALL_RADIUS,
+  CHUTE_LEAN,
+  EXIT_TIME,
+  GOLD_FLASH,
+  LIP_FALL,
+  REST_LIGHT,
+  ageStage,
+  createStage,
+  goldFlash,
+  lightGate,
+  trackMedals,
+  type ExitingMedal,
+  type Stage,
+} from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
 import * as shaders from '@/components/game/MedalPusher/shaders3d';
 import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
@@ -1732,7 +1746,7 @@ describe('the cabinet as shapes', () => {
     const lamps = (stock: number, front = 40, wave = 1, partying = false) => {
       const beads = createRows(BEAD_STRIDE, 16);
       const flat = new Flat(16);
-      buildLamps(beads, flat, machine, front, wave, partying, { showGuide: false, stock });
+      buildLamps(beads, flat, machine, front, wave, partying, { showGuide: false, stock }, 0);
       const bead = (index: number) => Array.from(beads.data.subarray(index * BEAD_STRIDE, (index + 1) * BEAD_STRIDE));
       return { beads, flat, bead, kinds: Array.from({ length: beads.count }, (_, index) => beads.data[index * BEAD_STRIDE + 7]) };
     };
@@ -2428,5 +2442,58 @@ describe('the choice of renderer', () => {
     expect(createRenderer(fakeCanvas({}).canvas, fakeCanvas({ webgl2: fakeGl().gl }).canvas, '')).toBeNull();
     const alone = createRenderer(fakeCanvas({ '2d': fake2d().context }).canvas, null, '');
     expect(alone?.kind).toBe('2d');
+  });
+});
+
+describe('the gold spins’ lamps in the 3D scene', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const bulbs = LAMP_ROWS.hood + LAMP_ROWS.strip * 2 + LAMP_ROWS.rail * 2 + LAMP_ROWS.tray + LAMP_ROWS.face;
+  /**
+   * How bright one lamp of the hold is built, as the kind of its bead, when the stage's clock says `clock`. The wave
+   * is what the renderer hands on with it: the same clock, hurried more than four times over while a fever or a jackpot is on.
+   */
+  const kindOf = (machine: Machine, lamp: number, clock: number, partying: boolean, calm = false): number => {
+    const beads = createRows(BEAD_STRIDE, 16);
+    const flat = new Flat(16);
+    const wave = calm ? 0 : clock * (partying ? 7 : 1.6);
+    buildLamps(beads, flat, machine, 40, wave, partying, { showGuide: false, calm, stock: 8, gold: 3 }, clock);
+    return beads.data[(bulbs + lamp) * BEAD_STRIDE + 7];
+  };
+  const risings = (seen: number[]) => seen.filter((bright, frame) => frame > 0 && seen[frame - 1] < 0.5 && bright >= 0.5).length;
+
+  it('flash at the cabinet’s one rate by the stage’s own clock, however a celebration hurries the wave', () => {
+    const machine = createMachine(3);
+    expect(GOLD_FLASH.perSecond).toBeLessThanOrEqual(3);
+    for (const partying of [false, true]) {
+      for (const lamp of [0, 2]) {
+        const seen: number[] = [];
+        for (let frame = 0; frame <= 120; frame++) {
+          const clock = 3 + frame / 120;
+          // A gold lamp's bead runs from 0.4 of a bulb's light to all of it.
+          const flash = (kindOf(machine, lamp, clock, partying) - BEAD.bulb(0.4)) / 0.6;
+          expect(flash).toBeCloseTo(goldFlash(clock, lamp, false), 5);
+          seen.push(flash);
+        }
+        // Twice in the second, in a jackpot too: by the wave it would have been more than a dozen times.
+        expect(risings(seen)).toBe(GOLD_FLASH.perSecond);
+      }
+      // The same clock gives the same lamp whatever the wave is doing.
+      expect(kindOf(machine, 1, 4.2, partying)).toBe(kindOf(machine, 1, 4.2, !partying));
+    }
+  });
+
+  it('do not flash at all with motion reduced, and a held spin that is not gold never does', () => {
+    const machine = createMachine(3);
+    for (const partying of [false, true]) {
+      for (const clock of [3, 3.1, 3.25, 3.4, 9.99]) {
+        for (const lamp of [0, 1, 2]) expect(kindOf(machine, lamp, clock, partying, true)).toBeCloseTo(BEAD.bulb(1), 5);
+        for (const lamp of [3, 7]) {
+          expect(kindOf(machine, lamp, clock, partying)).toBeCloseTo(BEAD.bulb(1), 5);
+          expect(kindOf(machine, lamp, clock, partying, true)).toBeCloseTo(BEAD.bulb(1), 5);
+        }
+      }
+    }
   });
 });

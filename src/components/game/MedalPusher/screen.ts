@@ -5,7 +5,7 @@
  */
 
 import { BOARD, BOWLS, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
-import { TIMING, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import { TIMING, chanceLeft, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
 export const REEL_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -391,6 +391,10 @@ export interface ScreenState {
   stage: number;
   /** The hole the ball has dropped through in each bowl so far, the top bowl's first. */
   fallen: readonly number[];
+  /** Chance time: how many gold spins are still to come, the one on the screen included. 0 when there is none. */
+  chance: number;
+  /** Whether what is on the screen now is a gold spin, or the game its line led to: its square or its chest pays over. */
+  gold: boolean;
 }
 
 /** How long the die tumbles before it shows what was rolled, as a share of its time on screen. */
@@ -434,6 +438,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     total: 0,
     stage: -1,
     fallen: [],
+    chance: chanceLeft(session),
+    gold: session.chance,
   };
   const { roulette, bonus, spin } = session;
   if (roulette) {
@@ -489,7 +495,9 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.total !== b.total ||
     a.stage !== b.stage ||
     a.fallen.length !== b.fallen.length ||
-    a.fallen.some((hole, bowl) => hole !== b.fallen[bowl])
+    a.fallen.some((hole, bowl) => hole !== b.fallen[bowl]) ||
+    a.chance !== b.chance ||
+    a.gold !== b.gold
   ) {
     return false;
   }

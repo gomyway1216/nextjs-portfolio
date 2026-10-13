@@ -17,7 +17,9 @@ import {
   SOUND_LEVELS,
   TRAY,
   VARIANTS,
+  VOLUME,
   hush,
+  masterGain,
   pitch,
   playSound,
   pourHits,
@@ -26,6 +28,7 @@ import {
   renderSound,
   resetAudio,
   setMusic,
+  setVolume,
   unlockAudio,
   type Note,
   type Pour,
@@ -63,13 +66,16 @@ class FakeParam {
     return this;
   }
 
-  /** The targets it has been set, with the moment each starts, and the moments its schedule was cleared from. */
-  readonly targets: { value: number; at: number }[] = [];
+  /**
+   * The targets it has been set, with the moment each starts and the time constant it is approached with, and the
+   * moments its schedule was cleared from.
+   */
+  readonly targets: { value: number; at: number; over: number }[] = [];
   readonly cancelled: number[] = [];
 
-  setTargetAtTime(value: number, at = 0): this {
+  setTargetAtTime(value: number, at = 0, over = 0): this {
     this.seen.push(value);
-    this.targets.push({ value, at });
+    this.targets.push({ value, at, over });
     return this;
   }
 
@@ -402,6 +408,236 @@ describe('the chain', () => {
     // Under the medals the loop is turned well down, but not off.
     expect(MUSIC.ducked).toBeGreaterThan(0.2);
     expect(MUSIC.ducked).toBeLessThan(0.6);
+  });
+});
+
+describe('the volume', () => {
+  /** What comes out of the chain for a steady level going in with the volume at `volume`, by the compressor's own rule. */
+  const through = (level: number, volume: number = VOLUME.usual): number => {
+    const makeUp = -0.6 * COMPRESSOR.threshold * (1 - 1 / COMPRESSOR.ratio);
+    const into = 20 * Math.log10(level * masterGain(volume));
+    const out = into <= COMPRESSOR.threshold ? into : COMPRESSOR.threshold + (into - COMPRESSOR.threshold) / COMPRESSOR.ratio;
+    return 10 ** ((out + makeUp) / 20);
+  };
+
+  it('runs from silent, through the level the cabinet was made at, to twice that', () => {
+    expect(VOLUME.least).toBe(0);
+    expect(VOLUME.usual).toBe(LEVEL.master);
+    expect(VOLUME.most).toBe(2);
+    expect(masterGain(VOLUME.usual)).toBe(MASTER_GAIN);
+    expect(masterGain(VOLUME.least)).toBe(0);
+    expect(masterGain(VOLUME.most)).toBeCloseTo(MASTER_GAIN * 2, 12);
+    // Half way up the slider is half the level, and a volume outside the range is brought into it.
+    expect(masterGain(0.5)).toBeCloseTo(MASTER_GAIN / 2, 12);
+    expect(masterGain(-3)).toBe(0);
+    expect(masterGain(50)).toBe(masterGain(VOLUME.most));
+  });
+
+  it('says what a medal and a jackpot peak at, at each end of it', () => {
+    // Silent is silent.
+    expect(through(SOUND_LEVELS.win, VOLUME.least)).toBe(0);
+    expect(through(SOUND_LEVELS.jackpot, VOLUME.least)).toBe(0);
+    // In the middle they are what they were made at: 0.10 and 0.11 of full scale.
+    expect(through(SOUND_LEVELS.win)).toBeCloseTo(0.1, 10);
+    expect(through(SOUND_LEVELS.jackpot)).toBeCloseTo(0.11, 10);
+    // Right up they are twice that, and still under where the compressor begins: 0.20 and 0.22, the loudest single sound 0.24.
+    expect(through(SOUND_LEVELS.win, VOLUME.most)).toBeCloseTo(0.2, 10);
+    expect(through(SOUND_LEVELS.jackpot, VOLUME.most)).toBeCloseTo(0.22, 10);
+    expect(through(LEVEL.ceiling, VOLUME.most)).toBeCloseTo(0.24, 10);
+    expect(through(LEVEL.ceiling, VOLUME.most)).toBeLessThan(0.39);
+    // The background loop, which peaks at about 0.024, goes from nothing to about 0.05.
+    const loop = MUSIC.parts.reduce((sum, part) => sum + part.level, 0);
+    expect(through(loop, VOLUME.most)).toBeCloseTo(loop * 2, 10);
+    expect(through(loop, VOLUME.most)).toBeLessThan(0.06);
+  });
+
+  it("keeps the limiter's promise with the volume right up", () => {
+    // The compressor begins to work where what comes out reaches 0.39, at any volume: that is on half as much going in.
+    expect(through(0.39 / VOLUME.most, VOLUME.most)).toBeCloseTo(0.39, 2);
+    expect(through(0.19, VOLUME.most)).toBeCloseTo(0.38, 10);
+    expect(through(0.3, VOLUME.most)).toBeLessThan(0.6 * 0.72);
+    // The tray as full as its rule lets it be peaks under 0.39 as it is played, and a flood no machine could pay under
+    // 0.6: the tests of the rattles hold them to that. Twice as loud, both still come out well under half of full
+    // scale, at 0.42 and 0.43.
+    expect(through(0.39, VOLUME.most)).toBeLessThan(0.42);
+    expect(through(0.6, VOLUME.most)).toBeLessThan(0.44);
+    // Every voice there can be, each at the ceiling and all of them in step, which cannot happen: 0.48 as the cabinet
+    // was made, and 0.51 with the volume right up.
+    const everything = (LIMITS.voices + MUSIC.voices) * LEVEL.ceiling;
+    expect(through(everything)).toBeLessThan(0.49);
+    expect(through(everything, VOLUME.most)).toBeGreaterThan(through(everything));
+    expect(through(everything, VOLUME.most)).toBeLessThan(0.51);
+    // And nothing at all gets to full scale.
+    expect(through(100, VOLUME.most)).toBeLessThan(1);
+    // Turned down, the compressor has less to do, never more.
+    for (const volume of [0.25, 0.5, 0.75]) expect(through(everything, volume)).toBeLessThan(through(everything));
+  });
+
+  it('is what the cabinet starts at when it is set before the sound is switched on, and makes nothing by itself', async () => {
+    vi.stubGlobal('AudioContext', FakeContext);
+    setVolume(0.5);
+    setVolume(0.35);
+    expect(FakeContext.made).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+    const audio = await switchOn();
+    expect(audio.master.gain.value).toBeCloseTo(MASTER_GAIN * 0.35, 12);
+    // It began there: there was nothing to glide from.
+    expect(audio.master.gain.targets).toHaveLength(0);
+  });
+
+  it('glides to a new level instead of jumping to it, whatever is playing', async () => {
+    const audio = await switchOn();
+    setMusic(true);
+    playSound('jackpot', true);
+    wait(audio, 1);
+    const playing = audio.sounding().length;
+    const stops = () => audio.sources.reduce((sum, source) => sum + source.stopped.length, 0);
+    const stopped = stops();
+    expect(playing).toBeGreaterThan(0);
+    setVolume(1.5);
+    const { targets, cancelled } = audio.master.gain;
+    expect(targets).toEqual([{ value: masterGain(1.5), at: audio.currentTime, over: VOLUME.glide }]);
+    expect(cancelled).toEqual([audio.currentTime]);
+    // The gain was never set outright after it was built: only ever approached. Fast enough to follow a finger
+    // on a slider, slow enough not to click.
+    expect(audio.master.gain.value).toBe(MASTER_GAIN);
+    expect(VOLUME.glide).toBeGreaterThanOrEqual(0.01);
+    expect(VOLUME.glide).toBeLessThanOrEqual(0.1);
+    // What was playing plays on: nothing was stopped or started for it.
+    expect(audio.sounding()).toHaveLength(playing);
+    expect(stops()).toBe(stopped);
+
+    // A slider being dragged: a change every few milliseconds, each a glide from wherever the last had got to.
+    for (let step = 1; step <= 40; step++) {
+      audio.currentTime += 0.008;
+      setVolume(1.5 - step * 0.03);
+    }
+    expect(targets).toHaveLength(41);
+    expect(cancelled).toHaveLength(41);
+    targets.forEach((target, index) => {
+      expect(target.over).toBe(VOLUME.glide);
+      expect(target.at).toBe(cancelled[index]);
+      if (index > 0) expect(target.at).toBeGreaterThan(targets[index - 1].at);
+    });
+    expect(targets[40].value).toBeCloseTo(masterGain(0.3), 12);
+    expect(audio.master.gain.value).toBe(MASTER_GAIN);
+  });
+
+  it('goes all the way down to silent and all the way up, and no further either way', async () => {
+    const audio = await switchOn();
+    const last = () => audio.master.gain.targets[audio.master.gain.targets.length - 1].value;
+    setVolume(VOLUME.least);
+    expect(last()).toBe(0);
+    setVolume(VOLUME.most);
+    expect(last()).toBeCloseTo(MASTER_GAIN * 2, 12);
+    setVolume(9);
+    expect(last()).toBe(masterGain(VOLUME.most));
+    setVolume(-1);
+    expect(last()).toBe(0);
+    // What is not a number is not a volume: the level stays where it was.
+    const asked = audio.master.gain.targets.length;
+    for (const nonsense of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) setVolume(nonsense);
+    expect(audio.master.gain.targets).toHaveLength(asked);
+    // And the next cabinet starts at the last volume that made sense.
+    resetAudio();
+    setVolume(0.25);
+    setVolume(Number.NaN);
+    const next = await switchOn();
+    expect(next.master.gain.value).toBeCloseTo(MASTER_GAIN * 0.25, 12);
+  });
+
+  it('changes how loud the cabinet is, not what any sound is played at', async () => {
+    fix(0);
+    const audio = await switchOn();
+    setVolume(VOLUME.most);
+    for (const sound of ['insert', 'land', 'lost', 'prize', 'jackpot'] as const) playSound(sound, true, { bare: false });
+    setMusic(true);
+    playSound('win', true, { count: 30 });
+    wait(audio, 0.5);
+    setVolume(VOLUME.least);
+    playSound('fever', true);
+    const voices = audio.gains.filter((gain) => gain !== audio.master && gain !== audio.bus);
+    expect(voices.length).toBeGreaterThan(8);
+    for (const gain of voices) for (const value of gain.gain.seen) expect(value).toBeLessThanOrEqual(LEVEL.ceiling);
+    const levelOf = (index: number) => audio.gainOf(audio.sources[index]).gain.value;
+    expect([0, 1, 2, 3, 4].map(levelOf)).toEqual([SOUND_LEVELS.insert, SOUND_LEVELS.land, SOUND_LEVELS.lost, SOUND_LEVELS.prize, SOUND_LEVELS.jackpot]);
+    // The loop's own gain is the loop's: the volume is one gain, the one everything goes through.
+    expect(audio.bus.outputs).toEqual([audio.master]);
+    for (const value of audio.bus.gain.seen) expect([1, MUSIC.ducked]).toContain(value);
+    // With the volume at nothing the cabinet goes on playing into silence, so that turning it up is heard at once.
+    expect(audio.sources[audio.sources.length - 1].started).toHaveLength(1);
+  });
+
+  it('is harmless where there is no audio, and where the audio will not have it', async () => {
+    expect(() => setVolume(1.2)).not.toThrow();
+    resetAudio();
+    const audio = await switchOn();
+    vi.spyOn(audio.master.gain, 'setTargetAtTime').mockImplementation(() => {
+      throw new Error('the context is closed');
+    });
+    expect(() => setVolume(0.4)).not.toThrow();
+    expect(() => playSound('land', true)).not.toThrow();
+    expect(audio.sources).toHaveLength(1);
+  });
+
+  it('is forgotten with everything else when the audio is', async () => {
+    setVolume(0.3);
+    resetAudio();
+    const audio = await switchOn();
+    expect(audio.master.gain.value).toBe(MASTER_GAIN);
+  });
+});
+
+describe('the loop switched off by itself', () => {
+  it('leaves the medals exactly as they are and starts nothing of its own', async () => {
+    fix(0);
+    const audio = await switchOn();
+    setMusic(false);
+    for (const sound of ['insert', 'land', 'win', 'lost'] as const) playSound(sound, true, { bare: false });
+    // Longer than the loop is: not one note of it.
+    wait(audio, MUSIC.length + 4);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(audio.sources).toHaveLength(4);
+    for (const source of audio.sources) {
+      expect(audio.gainOf(source).outputs).toEqual([audio.master]);
+      expect(source.stopped).toHaveLength(1);
+    }
+    expect(audio.sources.map((source) => audio.gainOf(source).gain.value)).toEqual([SOUND_LEVELS.insert, SOUND_LEVELS.land, pourLevel(1), SOUND_LEVELS.lost]);
+    // A rattle, which would turn the loop down, and a fanfare, which would rest it, play as they always do.
+    playSound('win', true, { count: 12 });
+    playSound('jackpot', true);
+    expect(audio.sources).toHaveLength(7);
+    expect(audio.sources.slice(4).map((source) => audio.gainOf(source).gain.value)).toEqual([pourLevel(8), pourLevel(4), SOUND_LEVELS.jackpot]);
+    wait(audio, 6);
+    expect(audio.sources).toHaveLength(7);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('can be switched off in the middle of everything: the loop stops and nothing else does', async () => {
+    fix(0);
+    const audio = await switchOn();
+    setMusic(true);
+    wait(audio, 1);
+    const loop = audio.sources.length;
+    expect(loop).toBeGreaterThan(2);
+    playSound('seven', true);
+    playSound('win', true, { count: 4 });
+    const others = audio.sources.slice(loop);
+    expect(others).toHaveLength(2);
+    setMusic(false);
+    // Every note of the loop that was sounding or lined up is cut; the jingle and the rattle are not touched.
+    expect(audio.sounding(FADE)).toEqual(others);
+    for (const source of others) expect(source.stopped).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+    const made = audio.sources.length;
+    wait(audio, 5);
+    expect(audio.sources).toHaveLength(made);
+    // Medals go on being heard, at their own level, and switching the loop back on brings it back from the top.
+    playSound('land', true, { bare: false });
+    expect(audio.gainOf(audio.sources[made]).gain.value).toBe(SOUND_LEVELS.land);
+    setMusic(true);
+    expect(audio.sources.length).toBeGreaterThan(made + 1);
+    expect(audio.gainOf(audio.sources[audio.sources.length - 1]).outputs).toEqual([audio.bus]);
   });
 });
 

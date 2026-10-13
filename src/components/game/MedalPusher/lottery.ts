@@ -303,3 +303,29 @@ export function tierValue(tier: Tier, jackpot: number): number {
 export function spinValue(jackpot: number): number {
   return TIERS.reduce((sum, tier) => sum + tierChance(tier) * tierValue(tier, jackpot), 0);
 }
+
+/**
+ * Chance time. A medal that goes through a START pocket when the hold is full
+ * starts no spin of its own: it turns one of the held spins gold. A gold spin
+ * is drawn from the same table as any other, and what its line pays on the
+ * spot, the sugoroku square or the chest, is paid `multiplier` times over. A
+ * ball is a ball: three sevens are worth what they always are.
+ *
+ * So a gold spin has cost two medals through a pocket, and is worth less than
+ * the two spins they would have been with room in the hold. Filling the hold
+ * is never better than not filling it; it is only less of a loss than it was.
+ */
+export const CHANCE = { multiplier: 2 } as const;
+
+/** Medals each line of a gold spin is worth on average with the jackpot at `jackpot`. */
+export function chanceTierValue(tier: Tier, jackpot: number): number {
+  return tierValue(tier, jackpot) * (tier === 'small' || tier === 'big' ? CHANCE.multiplier : 1);
+}
+
+/** Medals one gold spin is worth on average with the jackpot at `jackpot`. */
+export function chanceSpinValue(jackpot: number): number {
+  return TIERS.reduce((sum, tier) => sum + tierChance(tier) * chanceTierValue(tier, jackpot), 0);
+}
+
+/** What turning a spin gold adds to it, on average. It is the same at any size of jackpot, since the ball's prize is not touched. */
+export const CHANCE_BONUS = chanceSpinValue(JACKPOT_START) - spinValue(JACKPOT_START);

@@ -10,6 +10,7 @@ import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, typ
 import {
   BOARD,
   BOWLS,
+  CHANCE,
   CHESTS,
   CHAIN_GOAL,
   CHEST_TOWERS_FROM,
@@ -50,6 +51,8 @@ export const START_BALLS = 2;
 export const TIMING = {
   spin: 1.6,
   quickSpin: 0.9,
+  /** A gold spin's reels: quicker again than a spin with others queueing behind it. */
+  chanceSpin: 0.45,
   reach: 1.3,
   longReach: 1.6,
   celebrate: 1.2,
@@ -169,6 +172,18 @@ export interface Session {
   /** Chucker hits, and how many of them found the stock already full. */
   hits: number;
   wasted: number;
+  /**
+   * Chance time. A medal that finds the hold full starts no spin of its own:
+   * it turns one of the held spins gold, if one is left to turn. `gold` is how
+   * many of the held spins are gold, never more than `stock`; they are played
+   * before the others. `gilded` counts the medals that turned one, which is
+   * every gold spin there has been. `chance` says that what is on the screen
+   * now is a gold spin, or the game its line led to: its reels are quick, and
+   * its sugoroku square or its chest pays `CHANCE.multiplier` times over.
+   */
+  gold: number;
+  gilded: number;
+  chance: boolean;
   jackpot: number;
   /** Medals played since the jackpot last grew. */
   jackpotProgress: number;
@@ -197,7 +212,9 @@ export type SessionEvent =
   | { type: 'landed'; count: number }
   | { type: 'toppled'; count: number }
   | { type: 'ball'; count: number }
-  | { type: 'checker'; gate: number; held: boolean }
+  | { type: 'checker'; gate: number; held: boolean; gold: boolean }
+  | { type: 'chanceStart' }
+  | { type: 'chanceEnd' }
   | { type: 'spinStart'; result: SpinResult; duration: number }
   | { type: 'spinEnd'; result: SpinResult }
   | { type: 'sugorokuStart'; roll: number; from: number }
@@ -229,6 +246,9 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     lost: 0,
     paidOut: 0,
     stock: 0,
+    gold: 0,
+    gilded: 0,
+    chance: false,
     hits: 0,
     wasted: 0,
     jackpot: JACKPOT_START,
@@ -313,13 +333,16 @@ function advanceSugoroku(session: Session, bonus: ActiveSugoroku, dt: number, ev
   bonus.elapsed += dt;
   if (bonus.payout < 0 && bonus.elapsed >= bonus.duration) {
     session.square = squareAfter(bonus.from, bonus.roll);
-    bonus.payout = BOARD[session.square];
+    bonus.payout = BOARD[session.square] * (session.chance ? CHANCE.multiplier : 1);
     const fever = session.square === FEVER_SQUARE;
     if (fever) session.fevers += 1;
     pay(session, bonus.payout, false);
     events?.push({ type: 'sugorokuEnd', square: session.square, payout: bonus.payout, fever });
   }
-  if (bonus.elapsed >= bonus.duration + TIMING.prize) session.bonus = null;
+  if (bonus.elapsed >= bonus.duration + TIMING.prize) {
+    session.bonus = null;
+    session.chance = false;
+  }
 }
 
 function advanceChest(session: Session, bonus: ActiveChest, dt: number, events?: SessionEvent[]): void {
@@ -334,11 +357,14 @@ function advanceChest(session: Session, bonus: ActiveChest, dt: number, events?:
     events?.push({ type: 'chestPicked', chest: bonus.picked });
   }
   if (bonus.payout < 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open) {
-    bonus.payout = bonus.prizes[bonus.picked];
+    bonus.payout = bonus.prizes[bonus.picked] * (session.chance ? CHANCE.multiplier : 1);
     pay(session, bonus.payout, bonus.payout >= CHEST_TOWERS_FROM);
     events?.push({ type: 'chestEnd', chest: bonus.picked, payout: bonus.payout });
   }
-  if (bonus.payout >= 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open + TIMING.prize) session.bonus = null;
+  if (bonus.payout >= 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open + TIMING.prize) {
+    session.bonus = null;
+    session.chance = false;
+  }
 }
 
 /** Lets the ball go in the top bowl. The whole way down is drawn here, before it moves. */
@@ -393,8 +419,19 @@ function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBow
   if (bowl.payout >= 0 && bowl.elapsed >= bowl.duration + bowlShowTime(roulette.jackpot)) session.roulette = null;
 }
 
+/** How many gold spins are still to come, the one on the screen and the game it led to included. Chance time lasts while there is one. */
+export const chanceLeft = (session: Pick<Session, 'gold' | 'chance'>): number => session.gold + (session.chance ? 1 : 0);
+
 /** Moves the machine forward by `dt` seconds. Events are appended to `events` when it is given. */
 export function advance(session: Session, dt: number, events?: SessionEvent[]): void {
+  const before = chanceLeft(session);
+  run(session, dt, events);
+  const after = chanceLeft(session);
+  if (before === 0 && after > 0) events?.push({ type: 'chanceStart' });
+  else if (before > 0 && after === 0) events?.push({ type: 'chanceEnd' });
+}
+
+function run(session: Session, dt: number, events?: SessionEvent[]): void {
   const field = step(session.machine, dt);
   if (field.won > 0) {
     session.won += field.won;
@@ -414,9 +451,15 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
   for (const gate of field.checkers) {
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
+    // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
+    const gold = !held && session.gold < session.stock;
     if (held) session.stock += 1;
     else session.wasted += 1;
-    events?.push({ type: 'checker', gate, held });
+    if (gold) {
+      session.gold += 1;
+      session.gilded += 1;
+    }
+    events?.push({ type: 'checker', gate, held, gold });
   }
 
   // One thing at a time on the screen, and nothing that has started is cut short.
@@ -482,13 +525,18 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     }
     if (spin.elapsed < spin.duration + (tier === 'miss' ? 0 : TIMING.celebrate)) return;
     session.spin = null;
-    if (tier === 'miss') return;
+    if (tier === 'miss') {
+      session.chance = false;
+      return;
+    }
     // The line stays up, then the game it leads to begins. A roulette that is
     // waiting on a ball waits for that game too, so the screen never announces
     // one game and plays another.
     const leadsTo = TIER_BONUS[tier];
     if (leadsTo === 'ball') {
+      // A ball is a ball, gold spin or not.
       dropBall(session.machine);
+      session.chance = false;
     } else if (leadsTo === 'sugoroku') {
       const roll = drawDie(session.machine.rng);
       session.bonus = { kind: 'sugoroku', roll, from: session.square, elapsed: 0, duration: sugorokuDuration(roll), payout: -1 };
@@ -515,9 +563,12 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
   if (session.stock > 0) {
     session.stock -= 1;
     session.spins += 1;
+    // The gold spins are played first.
+    session.chance = session.gold > 0;
+    if (session.chance) session.gold -= 1;
     const result = drawSpin(session.machine.rng);
-    // With spins queueing behind it, the reels hurry.
-    const duration = (session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + reachTime(result);
+    // With spins queueing behind it, the reels hurry, and a gold spin's hurry more.
+    const duration = (session.chance ? TIMING.chanceSpin : session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + reachTime(result);
     session.spin = { result, elapsed: 0, duration, done: false };
     events?.push({ type: 'spinStart', result, duration });
   }

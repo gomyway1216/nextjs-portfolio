@@ -148,6 +148,9 @@ export const SimTab = () => {
                   <th scope="col" className={styles.num}>
                     {t.colSpins}
                   </th>
+                  <th scope="col" className={styles.num}>
+                    {t.colGold}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -170,6 +173,7 @@ export const SimTab = () => {
                       <td className={styles.num}>{percent(aim.hits / aim.played)}</td>
                       <td className={styles.num}>{aim.hits === 0 ? '—' : percent(aim.wasted / aim.hits, 0)}</td>
                       <td className={styles.num}>{fmt(aim.spins)}</td>
+                      <td className={styles.num}>{fmt(aim.gold)}</td>
                     </tr>
                   );
                 })}

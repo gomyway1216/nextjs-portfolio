@@ -12,6 +12,8 @@ import {
   BOWLS,
   BOWL_POURED,
   CHAIN_GOAL,
+  CHANCE,
+  CHANCE_BONUS,
   CHALLENGE_CHANCE,
   CHESTS,
   CHEST_TOWERS_FROM,
@@ -35,6 +37,7 @@ import {
   pouredOf,
   reachChance,
   reachHitChance,
+  chanceSpinValue,
   rouletteValue,
   spinValue,
   tierChance,
@@ -425,6 +428,42 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.valueNote(spinValue(JACKPOT_START).toFixed(2))}</p>
+      </section>
+
+      {/* Chance time: the rule, and what a gold spin is worth next to an ordinary one, to five places. */}
+      <section className={styles.panelBox}>
+        <h2 className={styles.blockTitle}>{t.chanceOddsTitle}</h2>
+        <p className={styles.body}>{t.chanceOddsBody(MAX_STOCK, CHANCE.multiplier)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-chance-table">
+            <caption className={styles.srOnly}>{t.chanceCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colJackpotAt}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colSpinValue}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colChanceValue}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colChanceMore}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {JACKPOT_LEVELS.map((level) => (
+                <tr key={level}>
+                  <th scope="row">{t.paysMedals(fmt(level))}</th>
+                  <td className={styles.num}>{t.paysMedals(spinValue(level).toFixed(5))}</td>
+                  <td className={styles.num}>{t.paysMedals(chanceSpinValue(level).toFixed(5))}</td>
+                  <td className={styles.num}>{t.paysMedals((chanceSpinValue(level) - spinValue(level)).toFixed(5))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.chanceOddsNote(CHANCE_BONUS.toFixed(2))}</p>
       </section>
 
       <section className={styles.panelBox}>

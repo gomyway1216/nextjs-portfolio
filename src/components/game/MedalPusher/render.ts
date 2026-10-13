@@ -31,6 +31,19 @@ export const LIP_FALL = 0.18;
 export const EXIT_TIME = 0.6;
 /** How a medal that has gone over an edge moves: carried on at the pace it was pushed, and pulled down. */
 export const EXIT = { forward: 15, sideways: 11, gravity: 190, turn: 5.5 } as const;
+/**
+ * How often a gold spin's hold lamp flashes, wherever it is drawn: on the canvas, in the 3D scene and on the page.
+ * Twice a second, which is under the three flashes a second that are safe for anyone to look at (WCAG 2.3.1),
+ * and it is the same during a fever or a jackpot, when the cabinet's other lights hurry.
+ */
+export const GOLD_FLASH = { perSecond: 2 } as const;
+/**
+ * How bright a gold spin's hold lamp is, from 0 to 1, when the stage's own clock says `clock` seconds: it goes
+ * bright and dim `GOLD_FLASH.perSecond` times a second, a beat behind the lamp to its left. With motion reduced
+ * (`calm`) it does not flash at all: it is steadily at its brightest.
+ */
+export const goldFlash = (clock: number, lamp: number, calm: boolean): number =>
+  calm ? 1 : 0.5 + 0.5 * Math.sin(clock * 2 * Math.PI * GOLD_FLASH.perSecond - lamp * 0.9);
 /** How bright an arm's lights are while nothing is on its rail, out of the 1 they have while a medal is. Either arm can be fed at any moment, so both glow. */
 export const REST_LIGHT = 0.5;
 /** How much higher than the pile a medal that has just come down is drawn, before it has come to rest. */
@@ -1568,6 +1581,8 @@ export interface DrawOptions {
   calm?: boolean;
   /** How many spins the machine is holding, which is how many of the lamps under the screen are lit. */
   stock?: number;
+  /** How many of those are gold: chance time. Their lamps, the first so many from the left, flash. */
+  gold?: number;
 }
 
 /** Draws one frame of the field. */
@@ -1599,16 +1614,19 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   }
   // The hold: a lamp for each spin the machine is holding, lit from the left.
   const held = options.stock ?? 0;
+  const gold = Math.min(held, options.gold ?? 0);
   for (let i = 0; i < 8; i++) {
     const lamp = project(HOLD_LAMPS.first + HOLD_LAMPS.step * i, (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
     const r = HOLD_LAMPS.radius * lamp.scale;
+    // A gold spin's lamp flashes by the stage's own clock, each a beat behind the one before it; with motion reduced it is steadily bright.
+    const flash = i < gold ? goldFlash(stage.clock, i, calm) : 0;
     if (i < held) {
-      g.fillStyle = 'rgba(255, 214, 92, 0.3)';
+      g.fillStyle = i < gold ? `rgba(255, 244, 150, ${0.3 + 0.5 * flash})` : 'rgba(255, 214, 92, 0.3)';
       g.beginPath();
-      g.arc(lamp.x, lamp.y, r * 2.2, 0, TAU);
+      g.arc(lamp.x, lamp.y, r * (2.2 + 1.4 * flash), 0, TAU);
       g.fill();
     }
-    g.fillStyle = i < held ? '#ffd65c' : '#2a1f5c';
+    g.fillStyle = i < gold && flash > 0.5 ? '#fffbe0' : i < held ? '#ffd65c' : '#2a1f5c';
     g.beginPath();
     g.arc(lamp.x, lamp.y, r, 0, TAU);
     g.fill();

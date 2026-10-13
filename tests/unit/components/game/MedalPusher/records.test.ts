@@ -170,7 +170,10 @@ describe('recording what the machine did', () => {
       { type: 'landed', count: 30 },
       { type: 'checker', gate: 0, held: true, gold: false },
       { type: 'checker', gate: 1, held: true, gold: false },
-      { type: 'checker', gate: 2, held: false, gold: false },
+      // The third found the hold full, and turned a held spin gold: chance time began with it.
+      { type: 'checker', gate: 2, held: false, gold: true },
+      { type: 'chanceStart' },
+      { type: 'chanceEnd' },
       { type: 'holdFilled' },
       { type: 'spinStart', result: { tier: 'miss', digits: [1, 2, 3], reach: false, reachKind: 'none' }, duration: 1.6 },
       spin('miss'),
@@ -201,7 +204,9 @@ describe('recording what the machine did', () => {
       lost: 2,
       hits: 3,
       wasted: 1,
+      golds: 1,
       fulls: 1,
+      chances: 1,
       spins: 6,
       reaches: 5,
       supers: 3,
@@ -1043,7 +1048,11 @@ describe('the hold filling', () => {
     ]);
     expect(session.stock).toBe(MAX_STOCK);
     expect(session.wasted).toBe(3);
-    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ fulls: 1, hits: MAX_STOCK + 3, wasted: 3 });
+    // Each of the three that found it full turned a held spin gold, and the first of them began chance time. The
+    // hold filling and a medal finding it full are two things, and the book counts each from what the machine says.
+    expect(session.gilded).toBe(3);
+    expect(events.filter((event) => event.type === 'chanceStart')).toHaveLength(1);
+    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ fulls: 1, hits: MAX_STOCK + 3, wasted: 3, golds: 3, chances: 1 });
   });
 
   it('is said again when the hold has emptied a little and fills anew, and never while it only stands full or short', () => {

@@ -18,7 +18,7 @@ export interface AchievementNumbers {
 /** The rows of the record board, in the order it lists them under each heading. */
 export const BOARD_ROWS = {
   medals: ['fed', 'won', 'lost', 'return', 'bonus', 'refills'],
-  slot: ['hits', 'wasted', 'fulls', 'spins', 'reaches', 'reachWins', 'supers', 'superWins', 'small', 'big', 'seven'],
+  slot: ['hits', 'wasted', 'golds', 'fulls', 'chances', 'spins', 'reaches', 'reachWins', 'supers', 'superWins', 'small', 'big', 'seven'],
   games: ['fevers', 'chests', 'topChests', 'towers', 'balls', 'run', 'challenges', 'jackpots', 'jackpot', 'prize'],
   days: ['days', 'streakNow', 'streak', 'claims'],
 } as const;
@@ -43,6 +43,8 @@ export interface RecordStrings {
   bonusNotKept: string;
   bonusNotApart: string;
   bonusNoMachine: string;
+  /** While the account is asked whether another device has taken today's bonus. */
+  bonusAsking: string;
   pipsAria: (stamped: number, squares: number) => string;
 
   // The stamp card
@@ -81,12 +83,24 @@ export interface RecordStrings {
   toastTitle: string;
   sayStamp: (name: string) => string;
 
-  // Keeping and clearing
+  // Keeping and clearing. Where the book is kept is two things, the account and this device, and there is a note for
+  // every pairing of them (recordsNote.ts): the first two are a guest's, whose book is this device's alone.
   keptNote: string;
   notKeptNote: string;
+  accountKeptNote: string;
+  accountNotKeptNote: string;
+  offlineKeptNote: string;
+  offlineNotKeptNote: string;
+  unreadableKeptNote: string;
+  unreadableNotKeptNote: string;
+  checkingKeptNote: string;
+  checkingNotKeptNote: string;
   clear: string;
   clearConfirm: string;
+  /** The same, for a player who is signed in: the book on their account is cleared too. */
+  clearConfirmAccount: string;
   clearNote: string;
+  clearNoteAccount: string;
   sayCleared: string;
   sayClearOff: string;
 
@@ -113,6 +127,7 @@ const en: RecordStrings = {
   bonusNotKept: 'No daily bonus here: this browser is not keeping the record book.',
   bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
   bonusNoMachine: 'The machine is not running, so there is nowhere to pay today’s bonus.',
+  bonusAsking: 'Asking your account whether today’s bonus has been taken on another device…',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
 
   cardTitle: 'Daily stamp card',
@@ -144,8 +159,10 @@ const en: RecordStrings = {
     bonus: 'Bonus medals taken',
     refills: 'Refills taken',
     hits: 'Medals through a START pocket',
-    wasted: 'Of those, lost to a full hold',
+    wasted: 'Of those, found the hold full',
+    golds: 'Held spins turned gold',
     fulls: 'Times the hold filled up',
+    chances: 'Chance times',
     spins: 'Spins',
     reaches: 'Reaches seen',
     reachWins: 'Reaches that hit',
@@ -198,9 +215,24 @@ const en: RecordStrings = {
 
   keptNote: 'The record book is kept on this device, apart from the machine.',
   notKeptNote: 'This browser is not keeping the record book: it lasts until the page is closed, and there is no daily bonus.',
+  accountKeptNote:
+    'The record book is kept on your account, apart from the machine, so it follows you to your other devices: what each one has counted is added together. It is sent when a stamp is earned or the bonus is taken, and otherwise every five minutes while it is changing. This device keeps a copy, and whatever has not been sent when the page is closed goes the next time the game is opened here.',
+  accountNotKeptNote:
+    'The record book is kept on your account, apart from the machine, so it follows you to your other devices. This device could not keep a copy of its own: the browser is blocking storage, or it is full. So there is no daily bonus here, and what is counted here is lost if the page is closed before it is sent.',
+  offlineKeptNote: 'Could not reach your account just now. The record book is kept on this device, and will be joined with the one on your account when it can be reached again.',
+  offlineNotKeptNote:
+    'Could not reach your account just now, and this device could not keep the record book either: the browser is blocking storage, or it is full. There is no daily bonus here, and what is counted is lost if the page is closed before the account can be reached.',
+  unreadableKeptNote:
+    'The record book on your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is, and the book here is kept on this device only. Reloading the page may help.',
+  unreadableNotKeptNote:
+    'The record book on your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is. The book here is not kept anywhere: this device could not keep it, because the browser is blocking storage or it is full. Reloading the page may help.',
+  checkingKeptNote: 'Looking for the record book on your account… Until it is found, the book shown is the one kept on this device.',
+  checkingNotKeptNote: 'Looking for the record book on your account… Meanwhile this device could not keep the book here: the browser is blocking storage, or it is full.',
   clear: 'Clear the records',
   clearConfirm: 'Press again to clear the records',
+  clearConfirmAccount: 'Press again to clear the records on your account',
   clearNote: 'Clearing wipes the board and the achievement stamps. The daily stamp card stays, so clearing is not a way to take a day’s bonus twice.',
+  clearNoteAccount: 'You are signed in, so the records on your account are cleared too, and those on your other devices the next time each of them reaches it.',
   sayCleared: 'The records have been cleared.',
   sayClearOff: 'The records were not cleared.',
 
@@ -225,6 +257,7 @@ const ja: RecordStrings = {
   bonusNotKept: 'このブラウザでは記録を保存できないため、デイリーボーナスはありません。',
   bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
   bonusNoMachine: 'マシンが動いていないため、ボーナスを受け取れません。',
+  bonusAsking: 'ほかの端末で今日のボーナスを受け取っていないか、アカウントに確認しています…',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
 
   cardTitle: 'デイリースタンプカード',
@@ -256,8 +289,10 @@ const ja: RecordStrings = {
     bonus: 'ボーナスでもらったメダル',
     refills: 'メダルを補充した回数',
     hits: 'STARTポケットを通ったメダル',
-    wasted: 'うち、ホールド満杯で無効',
-    fulls: 'ホールドが満杯になった回数',
+    wasted: 'うち、保留が満杯だったメダル',
+    golds: '金の抽選に変わった保留',
+    fulls: '保留が満杯になった回数',
+    chances: 'チャンスタイム',
     spins: '抽選した回数',
     reaches: 'リーチの回数',
     reachWins: 'リーチからの当たり',
@@ -291,7 +326,7 @@ const ja: RecordStrings = {
   sheetCount: (earned, all) => `${all}個中${earned}個`,
   achievement: ({ hold, chest, run, medals, days }) => ({
     firstLine: { name: '初ヒット', how: 'スロットで数字を3つそろえる。' },
-    holdFull: { name: 'ホールド満タン', how: `ホールドを${hold}個ためる。` },
+    holdFull: { name: '保留満タン', how: `保留を${hold}個ためる。` },
     superWin: { name: 'スーパーリーチ的中', how: 'スーパーリーチから当てる。' },
     fever: { name: 'フィーバー', how: 'すごろくのフィーバーマスに止まる。' },
     treasure: { name: 'お宝発見', how: `${chest}枚入りの宝箱を開ける。` },
@@ -310,9 +345,24 @@ const ja: RecordStrings = {
 
   keptNote: '記録は、マシンとは別に、この端末に保存しています。',
   notKeptNote: 'このブラウザでは記録を保存できません。ページを閉じると消え、デイリーボーナスもありません。',
+  accountKeptNote:
+    '記録は、マシンとは別に、アカウントに預けてあります。ほかの端末でも続きが見られ、それぞれの端末で数えた分は合算されます。スタンプを獲得したときとボーナスを受け取ったとき、それ以外は変更があるあいだ5分ごとに送られます。この端末にも控えが残り、ページを閉じたときにまだ送っていない分は、次にこの端末でゲームを開いたときに送られます。',
+  accountNotKeptNote:
+    '記録は、マシンとは別に、アカウントに預けてあります。ほかの端末でも続きが見られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。そのため、この端末ではデイリーボーナスを受け取れず、送る前にページを閉じると、ここで数えた分は失われます。',
+  offlineKeptNote: 'いまアカウントに接続できません。記録はこの端末に保存してあり、接続できしだいアカウントの記録と合わせます。',
+  offlineNotKeptNote:
+    'いまアカウントに接続できず、この端末にも記録を保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。デイリーボーナスは受け取れず、接続できる前にページを閉じると、ここで数えた分は失われます。',
+  unreadableKeptNote:
+    'アカウントに預けてある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここの記録はこの端末にだけ保存しています。ページを読み込み直すと直ることがあります。',
+  unreadableNotKeptNote:
+    'アカウントに預けてある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残してあります。ここの記録はどこにも保存されていません。この端末には保存できませんでした（ブラウザが保存を許可していないか、空き容量がありません）。ページを読み込み直すと直ることがあります。',
+  checkingKeptNote: 'アカウントに預けた記録を確認しています… 見つかるまでは、この端末に保存してある記録を表示しています。',
+  checkingNotKeptNote: 'アカウントに預けた記録を確認しています… その間、この端末には記録を保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
   clear: '記録を消去',
   clearConfirm: 'もう一度押すと記録を消去します',
+  clearConfirmAccount: 'もう一度押すと、アカウントの記録を消去します',
   clearNote: '消去すると記録ボードと実績スタンプが消えます。デイリースタンプカードは残るので、消去しても同じ日のボーナスを2回受け取ることはできません。',
+  clearNoteAccount: 'サインイン中のため、アカウントの記録も消去されます。ほかの端末の記録も、その端末が次にアカウントに接続したときに消去されます。',
   sayCleared: '記録を消去しました。',
   sayClearOff: '記録の消去を取りやめました。',
 

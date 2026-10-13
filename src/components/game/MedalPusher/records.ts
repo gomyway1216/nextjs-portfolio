@@ -227,11 +227,14 @@ export const COUNTERS = {
   fed: on('fed', (event) => event.count),
   won: on('won', (event) => event.count),
   lost: on('lost', (event) => event.count),
-  /** Medals through a START pocket, and the ones that found the hold full already. */
+  /** Medals through a START pocket, the ones that found the hold full already, and of those the ones that turned a held spin gold. */
   hits: on('checker'),
   wasted: on('checker', (event) => (event.held ? 0 : 1)),
+  golds: on('checker', (event) => (event.gold ? 1 : 0)),
   /** Times the hold filled right up: the machine says so at the moment its last place is taken. */
   fulls: on('holdFilled'),
+  /** Chance times: the machine says when one begins, with the first held spin to turn gold. */
+  chances: on('chanceStart'),
   /** Spins that have stopped, and of those the ones that showed a reach, and a super reach. */
   spins: on('spinEnd'),
   reaches: on('spinEnd', (event) => (event.result.reach ? 1 : 0)),

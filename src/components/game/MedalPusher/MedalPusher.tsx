@@ -1,12 +1,14 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import type { AccountStore } from './account';
 import { BonusDot } from './DailyBonus';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
+import { records } from './recordsStore';
 import { RecordsTab } from './RecordsTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
@@ -14,9 +16,20 @@ import styles from './MedalPusher.module.css';
 
 type Tab = 'machine' | 'odds' | 'sim' | 'records';
 
+export interface MedalPusherProps extends Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> {
+  /** The account's store for the record book, which is a document of its own beside the machine. Without one the book is this device's alone. */
+  recordsStore?: AccountStore | null;
+}
+
 /** The game. Who is playing and where their machine is kept is the cabinet's business: it is passed straight on. */
-export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> = {}) => {
+export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: MedalPusherProps = {}) => {
   const [tab, setTab] = useState<Tab>('machine');
+  // The record book follows the player as the machine does. It is told who they are before anything on the page
+  // listens to it (a layout effect runs before the effects that listen), so the first book it opens is theirs.
+  const { uid = null, settled = true, expected = false } = player ?? {};
+  useLayoutEffect(() => {
+    records.attend({ uid, settled, expected }, recordsStore);
+  }, [uid, settled, expected, recordsStore]);
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);

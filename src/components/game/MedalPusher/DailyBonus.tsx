@@ -28,7 +28,8 @@ const cardOf = ({ book, day }: RecordsState): BonusCard | null => (book && day ?
 export const paysBonus = (state: RecordsState): boolean => state.kept && state.apart;
 
 /** Whether today's bonus can be taken here and now: it is ready, this browser pays one, and a machine is there to be paid. */
-export const canTake = (state: RecordsState, card: BonusCard | null): boolean => card !== null && card.state === 'ready' && paysBonus(state) && state.purse;
+export const canTake = (state: RecordsState, card: BonusCard | null): boolean =>
+  card !== null && card.state === 'ready' && paysBonus(state) && state.purse && !state.asking;
 
 /** What the card has to say for itself, in a sentence or two. */
 export function bonusStatus(t: RecordStrings, state: RecordsState, card: BonusCard | null): string {
@@ -38,6 +39,8 @@ export function bonusStatus(t: RecordStrings, state: RecordsState, card: BonusCa
   switch (card.state) {
     case 'ready':
       if (!state.purse) return t.bonusNoMachine;
+      // A press is waiting to hear whether another device has taken today's already.
+      if (state.asking) return t.bonusAsking;
       return `${card.restarted ? `${t.bonusRestarted} ` : ''}${t.bonusReady(card.today, card.medals)}`;
     case 'taken':
       return `${t.bonusTaken(card.medals)} ${card.stamped === BONUS_CARD.length ? t.bonusNewCard(card.next) : t.bonusTomorrow(card.next)}`;

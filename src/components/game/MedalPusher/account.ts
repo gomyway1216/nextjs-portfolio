@@ -167,6 +167,8 @@ export interface Sync {
   player(next: Player): void;
   /** The text to open with: the account's copy, the device's own, a guest's, or null for a new one. */
   open(): string | null;
+  /** Whose copy that was, and is on the table now: an account's id, or null for a guest's. */
+  owner(): string | null;
   /** Writes the current copy to the device and, when it is due, to the account. Returns whether the device's write took. */
   save(why: Why): boolean;
   /** The next `open` starts a new document and throws the old one away, on the device and on the account. */
@@ -187,6 +189,8 @@ export interface SyncDeps {
   mark: () => string;
   /** Told whenever what the player can be told has changed. */
   onStatus: (status: Status) => void;
+  /** How often a changed copy goes to the account, in seconds, for a document that is not worth a write every minute. */
+  every?: number;
 }
 
 /**
@@ -305,7 +309,7 @@ function readCopy(written: string | null): Copy | null {
 
 // ── Keeping them in step ────────────────────────────────────────────────────
 
-export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps): Sync {
+export function createSync({ kept, store, slots, now, mark, onStatus, every = SEND_EVERY }: SyncDeps): Sync {
   /** Who the site says is playing. */
   let wanted: Player = GUEST;
   /** Whose slot the copy on the device is written to: an account's, or null for the guest's. */
@@ -521,7 +525,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
   const sendIfDue = (): void => {
     const time = now();
     const waited = time - sentAt;
-    if (mayWrite() && dirty && !flying() && time >= sendAgainAt && (waited >= SEND_EVERY * 1000 || (urgent && waited >= MOMENT_GAP * 1000))) send('wait');
+    if (mayWrite() && dirty && !flying() && time >= sendAgainAt && (waited >= every * 1000 || (urgent && waited >= MOMENT_GAP * 1000))) send('wait');
   };
 
   /** Does what the rule says once the account's copy has been read. */
@@ -758,6 +762,8 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
       tell();
       return text;
     },
+
+    owner: () => owner,
 
     save(why) {
       if (!opened || closed) return keptOnDevice;

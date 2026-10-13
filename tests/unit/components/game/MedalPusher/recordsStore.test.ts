@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { ACCOUNT_LIMIT, GUEST, MOMENT_GAP, RETRY_AFTER, fromCloud, toCloud, type AccountStore, type Player, type Standing } from '@/components/game/MedalPusher/account';
 import { seededRng } from '@/components/game/MedalPusher/engine';
 import {
+  ACHIEVEMENT_IDS,
+  BEST_IDS,
   BONUS_CARD,
+  COUNTER_IDS,
+  LIMITS,
   RECORDS_KEY,
   cardFor,
   claim,
@@ -20,19 +25,28 @@ import {
   type RecordBook,
 } from '@/components/game/MedalPusher/records';
 import {
+  ASK_SECONDS,
+  BOOK_LOOK_EVERY,
+  BOOK_SEND_EVERY,
+  RECORDS_GAME_KEY,
   RECORDS_LOCK,
   SAVE_EVERY,
   WAITING,
   WRITE_TRIES,
+  bookKey,
   createRecords,
   deviceName,
   finish,
   localDay,
+  printOf,
+  settleBooks,
   type Records,
   type RecordsEnv,
   type Steps,
 } from '@/components/game/MedalPusher/recordsStore';
 import { MAX_STOCK, START_CREDITS, createSession, grant, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
+
+import { FakeAccounts, RESTORING, settled, signedIn } from './accountFakes';
 
 const MONDAY: Day = '2026-10-12';
 const after = (days: number): Day => dayOf((dayNumber(MONDAY) as number) + days);
@@ -52,8 +66,9 @@ const line: SessionEvent = { type: 'spinEnd', result: { tier: 'small', digits: [
  * that one puts their reads and writes in any order that two tabs running
  * side by side could fall into.
  */
-function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) {
+function browser(day: Day = MONDAY, { locks = true, clock = { now: Date.UTC(2026, 9, 12, 9, 0, 0) }, name = 'device' }: { locks?: boolean; clock?: { now: number }; name?: string } = {}) {
   const held = new Map<string, string>();
+  let marks = 0;
   const disk = {
     blocked: false,
     full: false,
@@ -91,7 +106,12 @@ function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) 
   /** No lock: the task runs beside whatever any other tab is doing, and is told so. */
   const beside: RecordsEnv['lock'] = (task) => task(false, () => undefined);
 
-  const open = ({ stepped = false, lock = locks ? 'granted' : 'none' }: { stepped?: boolean; lock?: 'granted' | 'refused' | 'none' } = {}) => {
+  const open = ({
+    stepped = false,
+    lock = locks ? 'granted' : 'none',
+    account = null,
+    player = GUEST,
+  }: { stepped?: boolean; lock?: 'granted' | 'refused' | 'none'; account?: AccountStore | null; player?: Player } = {}) => {
     let handlers: Parameters<RecordsEnv['watch']>[0] | null = null;
     const pending: { steps: Steps; done: () => void }[] = [];
     const env: RecordsEnv = {
@@ -107,8 +127,15 @@ function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) 
         if (key === RECORDS_KEY) disk.writes += 1;
         held.set(key, text);
       },
+      remove: (key) => {
+        disk.touched += 1;
+        if (disk.blocked) throw new Error('storage is blocked');
+        held.delete(key);
+      },
       today: () => today,
-      device: () => `device${String((named += 1)).padStart(4, '0')}`,
+      device: () => `${name}${String((named += 1)).padStart(4, '0')}`,
+      now: () => clock.now,
+      mark: () => `mark-${(marks += 1)}`,
       watch: (given) => {
         handlers = given;
         return () => {
@@ -125,6 +152,8 @@ function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) 
           },
     };
     const store = createRecords(env);
+    // A page with an account's store says who is playing before anything listens, as the game does.
+    if (account) store.attend(player, account);
     let told = 0;
     const tab = {
       store,
@@ -133,7 +162,7 @@ function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) 
       tick: (times = 1) => {
         for (let i = 0; i < times; i++) handlers?.tick();
       },
-      changed: () => handlers?.changed(),
+      changed: (key?: string | null) => handlers?.changed(key),
       leaving: () => handlers?.leaving(),
       watching: () => handlers !== null,
       told: () => told,
@@ -173,6 +202,12 @@ function browser(day: Day = MONDAY, { locks = true }: { locks?: boolean } = {}) 
     disk,
     held,
     open,
+    /** What storage holds under a name. */
+    at: (key: string): string | null => held.get(key) ?? null,
+    /** Lets time pass on this device's clock. */
+    wait: (seconds: number) => {
+      clock.now += seconds * 1000;
+    },
     setDay: (next: Day) => {
       today = next;
     },
@@ -222,7 +257,7 @@ describe('the record book in the browser', () => {
     const world = browser();
     const tab = world.open();
     expect(tab.store.getState()).toBe(WAITING);
-    expect(WAITING).toEqual({ book: null, day: null, kept: true, purse: false, apart: true, fresh: [], claims: 0, paid: 0 });
+    expect(WAITING).toEqual({ book: null, day: null, kept: true, purse: false, apart: true, where: 'device', asking: false, fresh: [], claims: 0, paid: 0 });
     // Nothing that is done to it reads or writes, and nothing is paid.
     const { session, paid } = machine(tab.store);
     tab.store.note(session, [line]);
@@ -1247,5 +1282,677 @@ describe('what the store asks of the browser', () => {
       return 7;
     }
     expect(finish(count())).toBe(7);
+  });
+});
+
+// ── The account ─────────────────────────────────────────────────────────────
+
+// Two players who do not exist. Nothing here is fetched: the account's side is the fake that account.test.ts runs on.
+const ANNA = 'account-of-anna';
+const BEN = 'account-of-ben';
+
+type World = ReturnType<typeof browser>;
+
+/** Devices with one account's side between them. Each is a browser of its own; they share a clock. */
+function devices() {
+  const clock = { now: Date.UTC(2026, 9, 12, 9, 0, 0) };
+  const accounts = new FakeAccounts(() => clock.now);
+  return {
+    accounts,
+    device: (name: string): World => browser(MONDAY, { clock, name }),
+    /** The book an account holds, as any device would read it. */
+    held: (uid: string): RecordBook | null => parseBook(accounts.text(uid)),
+  };
+}
+
+/** Opens the game on a device for a player, lets the account answer, and gives the tab with a machine to play on it. */
+async function sit(world: World, accounts: FakeAccounts, player: Player = GUEST) {
+  const tab = world.open({ account: accounts.store, player });
+  const stop = tab.listen();
+  await settled();
+  const session = counters();
+  tab.store.note(session, []);
+  const paid: number[] = [];
+  tab.store.openPurse((medals) => {
+    paid.push(medals);
+    return grant(session, medals);
+  });
+  return {
+    tab,
+    store: tab.store,
+    paid,
+    /** Closes the page. */
+    stop,
+    state: () => tab.store.getState(),
+    total: () => tab.total(),
+    /** Feeds medals, with whatever else the machine says happened. */
+    play: (medals: number, events: SessionEvent[] = []) => {
+      feed(session, medals);
+      tab.store.note(session, events);
+    },
+    /** Lets seconds pass: on the clock, and on the page's timer with it. */
+    pass: (seconds: number) => {
+      for (let second = 0; second < seconds; second++) {
+        world.wait(1);
+        tab.tick();
+      }
+    },
+    /** Presses for today's bonus and lets the account answer. */
+    take: async () => {
+      tab.store.claimBonus();
+      await settled();
+    },
+    /** Says who is playing now. */
+    attend: async (next: Player) => {
+      tab.store.attend(next, accounts.store);
+      await settled();
+    },
+  };
+}
+
+const standing = (over: Partial<Standing>): Standing => ({ account: { kind: 'none' }, device: null, guest: null, skew: 0, ...over });
+const asDevice = (book: RecordBook): Standing['device'] => ({ text: serializeBook(book), dirty: false, known: null, sent: null, sentIsLatest: false, changedAt: 0 });
+const asAccount = (book: RecordBook): Standing['account'] => ({ kind: 'save', text: serializeBook(book), mark: 'a-mark', updatedAt: 0 });
+const some = (device: string, medals: number, day: Day = MONDAY): RecordBook => record(createBook(device), [{ type: 'fed', count: medals }], day);
+
+describe('which copy of the book wins: neither', () => {
+  const name = () => 'named00001';
+
+  it('joins the two, as this device’s book, and sends the joined book only when the account lacks some of it', () => {
+    const here = some('phone00001', 30);
+    const there = some('laptop0001', 20, after(-1));
+    const { verdict, fromGuest } = settleBooks(standing({ account: asAccount(there), device: asDevice(here) }), name);
+    expect(fromGuest).toBe(false);
+    if (verdict.kind !== 'take') throw new Error(`not joined: ${verdict.kind}`);
+    const joined = parseBook(verdict.text) as RecordBook;
+    expect(joined.device).toBe('phone00001');
+    expect(viewOf(joined).total.fed).toBe(50);
+    expect(verdict.send).toBe(true);
+    // The account already holds everything this device does: the joined book is taken, and nothing is sent, though the
+    // two texts differ in whose device each is kept on.
+    const both = parseBook(verdict.text) as RecordBook;
+    const again = settleBooks(standing({ account: asAccount({ ...both, device: 'laptop0001' }), device: asDevice(here) }), name).verdict;
+    expect(again).toEqual({ kind: 'take', text: verdict.text, send: false });
+    expect(printOf(serializeBook(both))).toBe(printOf(serializeBook({ ...both, device: 'laptop0001' })));
+    expect(printOf(serializeBook(both))).not.toBe(printOf(serializeBook(here)));
+    expect(printOf('not a book')).toBe('not a book');
+  });
+
+  it('takes the guest’s book into the account’s when this device keeps none for the account, and says so', () => {
+    const guest = some('phone00001', 30);
+    const there = some('laptop0001', 20);
+    const met = settleBooks(standing({ account: asAccount(there), guest: serializeBook(guest) }), name);
+    expect(met.fromGuest).toBe(true);
+    expect(met.verdict.kind === 'take' && viewOf(parseBook(met.verdict.text) as RecordBook).total.fed).toBe(50);
+    // An account with nothing on it gets the book, unless the book has nothing in it either: that is not worth a document.
+    expect(settleBooks(standing({ guest: serializeBook(guest) }), name)).toEqual({ verdict: { kind: 'take', text: serializeBook(guest), send: true }, fromGuest: true });
+    const blank = serializeBook(createBook('phone00001'));
+    expect(settleBooks(standing({ guest: blank }), name)).toEqual({ verdict: { kind: 'take', text: blank, send: false }, fromGuest: true });
+    expect(settleBooks(standing({ device: asDevice(guest) }), name)).toEqual({ verdict: { kind: 'take', text: serializeBook(guest), send: true }, fromGuest: false });
+  });
+
+  it('holds when the account’s copy cannot be read, and never takes a book under another device’s name', () => {
+    const here = some('phone00001', 30);
+    expect(settleBooks(standing({ account: { kind: 'unreadable' }, device: asDevice(here) }), name).verdict).toEqual({ kind: 'hold' });
+    expect(settleBooks(standing({ account: { kind: 'save', text: '{"v":99}', mark: null, updatedAt: null }, device: asDevice(here) }), name).verdict).toEqual({ kind: 'hold' });
+    // Nothing on the table at all: nothing is touched when the account has none, and the account's is taken as a book of this device's own.
+    expect(settleBooks(standing({}), name).verdict).toEqual({ kind: 'adopt' });
+    const taken = settleBooks(standing({ account: asAccount(some('laptop0001', 20)) }), name);
+    expect(taken.fromGuest).toBe(false);
+    expect(taken.verdict.kind === 'take' && (parseBook(taken.verdict.text) as RecordBook).device).toBe('named00001');
+    expect(taken.verdict.kind === 'take' && taken.verdict.send).toBe(false);
+  });
+});
+
+describe('the book of a player who is signed in', () => {
+  it('touches no account for a guest, and the keeper never writes the book’s own key', async () => {
+    const { accounts, device } = devices();
+    const phone = device('phone');
+    const guest = await sit(phone, accounts);
+    guest.play(12, [line]);
+    guest.tab.tick(SAVE_EVERY);
+    const writes = phone.disk.writes;
+    guest.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
+    guest.tab.leaving();
+    await settled();
+    expect(accounts.calls).toEqual([]);
+    expect(guest.state().where).toBe('device');
+    // Only a transaction writes the book: looking at it for the account, every ten seconds, writes nothing.
+    expect(phone.disk.writes).toBe(writes);
+    expect([...phone.held.keys()]).toEqual([RECORDS_KEY]);
+  });
+
+  it('joins a guest’s book with the account’s the first time the account is met here, and moves it: it does not become a second account’s', async () => {
+    const { accounts, device, held } = devices();
+    // Another device has played on this account already.
+    accounts.put(ANNA, serializeBook(record(createBook('tablet0001'), [{ type: 'fed', count: 70 }, { type: 'won', count: 40 }], after(-1))), 'their-mark');
+    // Here, a guest has played, and earned a stamp.
+    const phone = device('phone');
+    const page = await sit(phone, accounts);
+    page.play(30, [line]);
+    page.tab.tick(SAVE_EVERY);
+    const guests = page.tab.book().device;
+    expect(viewOf(parseBook(phone.at(RECORDS_KEY)) as RecordBook).total.fed).toBe(30);
+
+    // They sign in. Until the account answers, the book on the table is still the guest's.
+    page.store.attend(signedIn(ANNA), accounts.store);
+    expect(page.state().where).toBe('checking');
+    expect(page.total().fed).toBe(30);
+    await settled();
+    expect(page.state().where).toBe('account');
+    expect(page.total()).toMatchObject({ fed: 100, won: 40, small: 1 });
+    expect(page.tab.book().stamps.firstLine).toBe(MONDAY);
+    expect(page.tab.book().device).toBe(guests);
+    // It is the account's now, under the account's key, and has left the guest's.
+    expect(phone.at(RECORDS_KEY)).toBeNull();
+    expect(viewOf(parseBook(phone.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(100);
+    // The account lacked the guest's part, so it was sent the joined book, once.
+    expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 100, won: 40, small: 1 });
+    expect(accounts.count('store')).toBe(1);
+    expect(Object.keys((held(ANNA) as RecordBook).counters).sort()).toEqual([guests, 'tablet0001'].sort());
+
+    // They sign out: the guest's book is a new one, with nothing of theirs in it and a name of its own.
+    await page.attend(GUEST);
+    expect(page.state().where).toBe('device');
+    expect(page.total().fed).toBe(0);
+    expect(page.tab.book().stamps).toEqual({});
+    expect(page.tab.book().device).not.toBe(guests);
+    expect(page.state().fresh).toEqual([]);
+    // Somebody else signs in at the same computer, and gets nothing of the first player's. Their empty book is not
+    // worth a document on their account.
+    await page.attend(signedIn(BEN));
+    expect(page.state().where).toBe('account');
+    expect(page.total().fed).toBe(0);
+    expect(accounts.text(BEN)).toBeNull();
+    page.play(5);
+    page.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(BEN) as RecordBook).total.fed).toBe(5);
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(100);
+    // And the first player, back again, finds their own.
+    await page.attend(signedIn(ANNA));
+    expect(page.total()).toMatchObject({ fed: 100, won: 40 });
+  });
+
+  it('adds together what two devices have each counted, whichever of them comes to the account second', async () => {
+    const { accounts, device, held } = devices();
+    const [phone, laptop] = [device('phone'), device('laptop')];
+    const a = await sit(phone, accounts, signedIn(ANNA));
+    a.play(30);
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(30);
+
+    // The second device opens with the first's counts, and adds its own.
+    const b = await sit(laptop, accounts, signedIn(ANNA));
+    expect(b.total().fed).toBe(30);
+    b.play(20);
+    b.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(50);
+
+    // The first has played on meanwhile, without hearing of the second. Loaded again, it has both, and so has the account.
+    a.play(5);
+    a.tab.tick(SAVE_EVERY);
+    expect(a.total().fed).toBe(35);
+    // Leaving the cabinet sends what has not gone, joined with what the account has come to hold meanwhile.
+    a.stop();
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(55);
+    const again = await sit(phone, accounts, signedIn(ANNA));
+    expect(again.total().fed).toBe(55);
+    expect(Object.keys((held(ANNA) as RecordBook).counters)).toHaveLength(2);
+    b.stop();
+    expect((await sit(laptop, accounts, signedIn(ANNA))).total().fed).toBe(55);
+  });
+
+  it('asks the account before it pays a day’s bonus, and does not pay a day another device has taken', async () => {
+    const { accounts, device, held } = devices();
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    const b = await sit(device('laptop'), accounts, signedIn(ANNA));
+    // Both pages are open, and both say today's is ready.
+    expect([cardFor(a.tab.book(), MONDAY).state, cardFor(b.tab.book(), MONDAY).state]).toEqual(['ready', 'ready']);
+
+    a.store.claimBonus();
+    // The press waits to hear from the account, and the page says so.
+    expect(a.state().asking).toBe(true);
+    expect(a.paid).toEqual([]);
+    await settled();
+    expect(a.state().asking).toBe(false);
+    expect(a.paid).toEqual([BONUS_CARD[0]]);
+    // A day that has been taken goes to the account at once.
+    expect(hasDay((held(ANNA) as RecordBook).claimed, MONDAY)).toBe(true);
+
+    // The other device has not been loaded again. Its press asks, hears that the day is taken, and pays nothing.
+    await b.take();
+    expect(b.paid).toEqual([]);
+    expect(cardFor(b.tab.book(), MONDAY).state).toBe('taken');
+    expect(b.total()).toMatchObject({ claims: 1, bonus: BONUS_CARD[0] });
+    expect(b.state().claims).toBe(0);
+  });
+
+  it('does not wait long for an account that is slow to answer, and not at all for one that fails: the day is paid from what this device knows', async () => {
+    const { accounts, device, held } = devices();
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    accounts.heldReads = [];
+    const asked = accounts.count('load');
+    a.store.claimBonus();
+    await settled();
+    expect(a.state().asking).toBe(true);
+    // A second press while it waits is not a second question, and not a second bonus.
+    a.store.claimBonus();
+    await settled();
+    expect(accounts.count('load')).toBe(asked + 1);
+    a.tab.tick(ASK_SECONDS - 1);
+    expect(a.paid).toEqual([]);
+    a.tab.tick();
+    expect(a.paid).toEqual([BONUS_CARD[0]]);
+    expect(a.state().asking).toBe(false);
+    // The answer, when it comes at last, pays nothing more. What it says the account holds is still taken in.
+    a.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
+    const there = held(ANNA) as RecordBook;
+    expect(hasDay(there.claimed, MONDAY)).toBe(true);
+    // (Another device has counted nine medals meanwhile.)
+    accounts.put(ANNA, serializeBook({ ...there, counters: { ...there.counters, tablet0001: { fed: 9 } } }), 'their-mark');
+    for (const answer of accounts.heldReads) answer();
+    accounts.heldReads = null;
+    await settled();
+    expect(a.paid).toEqual([BONUS_CARD[0]]);
+    expect(a.total()).toMatchObject({ fed: 9, claims: 1 });
+
+    // The next day the account cannot be reached at all when the press comes.
+    const world = device('laptop');
+    const b = await sit(world, accounts, signedIn(ANNA));
+    expect(b.state().where).toBe('account');
+    world.setDay(after(1));
+    b.tab.tick();
+    accounts.down = true;
+    await b.take();
+    expect(b.paid).toEqual([BONUS_CARD[1]]);
+  });
+
+  it('counts a day taken on two devices that could not reach the account as one day on the card and two bonuses', async () => {
+    const { accounts, device, held } = devices();
+    accounts.down = true;
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    const b = await sit(device('laptop'), accounts, signedIn(ANNA));
+    expect([a.state().where, b.state().where]).toEqual(['offline', 'offline']);
+    // Neither can ask, so each pays from what it knows. This is the double that is accepted.
+    await a.take();
+    await b.take();
+    expect([a.paid, b.paid]).toEqual([[BONUS_CARD[0]], [BONUS_CARD[0]]]);
+
+    // The account comes back, and each device reaches it when its wait is over.
+    accounts.down = false;
+    a.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
+    await settled();
+    b.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
+    await settled();
+    expect([a.state().where, b.state().where]).toEqual(['account', 'account']);
+    const joined = held(ANNA) as RecordBook;
+    expect(countDays(joined.claimed)).toBe(1);
+    expect(viewOf(joined).total).toMatchObject({ claims: 2, bonus: 2 * BONUS_CARD[0] });
+    expect(cardFor(joined, MONDAY)).toMatchObject({ state: 'taken', stamped: 1 });
+    // Nothing more is paid on either, today.
+    await a.take();
+    await b.take();
+    expect([a.paid.length, b.paid.length]).toEqual([1, 1]);
+    expect(b.total()).toMatchObject({ claims: 2, bonus: 2 * BONUS_CARD[0] });
+  });
+
+  it('clears the account’s book with this device’s, and the other device’s when it next reaches the account', async () => {
+    const { accounts, device, held } = devices();
+    const [phone, laptop] = [device('phone'), device('laptop')];
+    const a = await sit(phone, accounts, signedIn(ANNA));
+    a.play(30, [line]);
+    await a.take();
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    const b = await sit(laptop, accounts, signedIn(ANNA));
+    b.play(20);
+    b.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(50);
+
+    // The second device clears the records. The account's are cleared at once.
+    b.pass(MOMENT_GAP);
+    const sent = accounts.count('store');
+    b.store.clearRecords();
+    await settled();
+    expect(accounts.count('store')).toBe(sent + 1);
+    expect(held(ANNA)).toMatchObject({ era: 1, counters: {}, stamps: {} });
+    // The day the bonus was taken stays, on the account as here: clearing is not a way to take it again.
+    expect(hasDay((held(ANNA) as RecordBook).claimed, MONDAY)).toBe(true);
+
+    // The first device still shows its own, and has played on. When it next reaches the account its old records go:
+    // what it counted before the clearing does not come back, there or here.
+    a.play(7);
+    a.tab.tick(SAVE_EVERY);
+    expect(a.total().fed).toBe(37);
+    a.stop();
+    const again = await sit(phone, accounts, signedIn(ANNA));
+    expect(again.tab.book().era).toBe(1);
+    expect(again.total().fed).toBe(0);
+    expect(again.tab.book().stamps).toEqual({});
+    expect(cardFor(again.tab.book(), MONDAY).state).toBe('taken');
+    expect(viewOf(parseBook(phone.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(0);
+    expect(held(ANNA)).toMatchObject({ era: 1, counters: {} });
+  });
+
+  it('leaves a copy on the account that it cannot read exactly as it is, and keeps this device’s book on this device', async () => {
+    const { accounts, device } = devices();
+    for (const state of [{ format: 99, data: 'from a later game' }, toCloud(JSON.stringify({ v: 99, device: 'tablet0001' }), 'their-mark', 0)]) {
+      accounts.docs.set(ANNA, { state, updatedAt: 1 });
+      accounts.calls.length = 0;
+      const world = device('phone');
+      const page = await sit(world, accounts, signedIn(ANNA));
+      expect(page.state().where).toBe('unreadable');
+      page.play(30, [line]);
+      await page.take();
+      page.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
+      page.tab.leaving();
+      page.stop();
+      await settled();
+      expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+      expect(accounts.docs.get(ANNA)).toEqual({ state, updatedAt: 1 });
+      // What was played is kept here, and the bonus was paid from what this device knows.
+      expect(page.paid).toEqual([BONUS_CARD[0]]);
+      expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 30, small: 1, claims: 1 });
+    }
+  });
+
+  it('reads the account before every write, so that what another device has written since is not wiped out', async () => {
+    const { accounts, device, held } = devices();
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    const b = await sit(device('laptop'), accounts, signedIn(ANNA));
+    a.play(10);
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    // The second device, open all the while, earns a stamp and takes the day's bonus. Both go up.
+    b.play(20, [line]);
+    await b.take();
+    expect(b.paid).toEqual([BONUS_CARD[0]]);
+    b.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 30, claims: 1 });
+
+    // The first device has heard none of it. Its next write, five minutes on, carries what it has counted and leaves
+    // what the other wrote where it is.
+    expect(cardFor(a.tab.book(), MONDAY).state).toBe('ready');
+    a.play(5);
+    a.pass(BOOK_SEND_EVERY);
+    await settled();
+    const there = held(ANNA) as RecordBook;
+    expect(viewOf(there).total).toMatchObject({ fed: 35, claims: 1, small: 1 });
+    expect(hasDay(there.claimed, MONDAY)).toBe(true);
+    // And reading told this device what it had missed: the day is taken here too, without the page being loaded again.
+    expect(cardFor(a.tab.book(), MONDAY).state).toBe('taken');
+    expect(a.total()).toMatchObject({ fed: 35, claims: 1 });
+    expect(a.tab.book().stamps.firstLine).toBe(MONDAY);
+    await a.take();
+    expect(a.paid).toEqual([]);
+
+    // What it learnt is news to the keeper, which has it sent in its turn. The account holds all of it already, so
+    // the account is read and nothing is written.
+    const [reads, writes] = [accounts.count('load'), accounts.count('store')];
+    a.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
+    await settled();
+    expect(accounts.count('load')).toBe(reads + 1);
+    expect(accounts.count('store')).toBe(writes);
+
+    // A copy this page cannot read, put there since it last asked, is not written over either.
+    a.pass(BOOK_LOOK_EVERY);
+    const later = { state: { format: 99, data: 'from a later game' }, updatedAt: 1 };
+    accounts.docs.set(ANNA, later);
+    a.play(1, [{ type: 'toppled', count: 1 }]);
+    a.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
+    expect(accounts.docs.get(ANNA)).toEqual(later);
+    expect(accounts.count('store')).toBe(writes);
+    expect(a.total().towers).toBe(1);
+  });
+
+  it('keeps on this device what a player had not sent when they signed out, sends nothing as them afterwards, and sends it when they are back', async () => {
+    const { accounts, device, held } = devices();
+    const [phone, laptop] = [device('phone'), device('laptop')];
+    const a = await sit(phone, accounts, signedIn(ANNA));
+    a.play(10);
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(10);
+    // More is counted, and they sign out before its five minutes are up, and before it has even been written here.
+    a.play(40);
+    const calls = accounts.calls.length;
+    await a.attend(GUEST);
+    expect(accounts.forgotten).toEqual([ANNA]);
+    expect(a.total().fed).toBe(0);
+    // Nothing goes to the account as them: not now, not on the clock, and not as the page is left.
+    a.play(3);
+    a.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
+    a.tab.leaving();
+    await settled();
+    expect(accounts.calls.slice(calls)).toEqual([]);
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(10);
+    // It is all under their own key on this device.
+    expect(viewOf(parseBook(phone.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(50);
+
+    // Signed in on another device, they find what the account has.
+    const b = await sit(laptop, accounts, signedIn(ANNA));
+    expect(b.total().fed).toBe(10);
+    // Back on the first, the rest goes up, and the guest's three medals stay the guest's.
+    await a.attend(signedIn(ANNA));
+    expect(a.total().fed).toBe(50);
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(50);
+    expect(viewOf(parseBook(phone.at(RECORDS_KEY)) as RecordBook).total.fed).toBe(3);
+  });
+
+  it('goes to the account at once for a stamp, every five minutes otherwise, and when the page is hidden, and never in the way that outlives the page', async () => {
+    const { accounts, device, held } = devices();
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    const sends = () => accounts.count('store');
+    // Nothing has been counted: nothing is sent.
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(sends()).toBe(0);
+    // The first medals go up the next time the keeper looks.
+    a.play(10);
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(sends()).toBe(1);
+    // After that, medals wait for the five minutes.
+    a.play(10);
+    a.pass(BOOK_SEND_EVERY - BOOK_LOOK_EVERY);
+    await settled();
+    expect(sends()).toBe(1);
+    a.pass(BOOK_LOOK_EVERY);
+    await settled();
+    expect(sends()).toBe(2);
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(20);
+    // A stamp does not wait, beyond the few seconds any two writes are kept apart by.
+    a.play(1, [line]);
+    await settled();
+    expect(sends()).toBe(2);
+    a.pass(MOMENT_GAP);
+    await settled();
+    expect(sends()).toBe(3);
+    expect((held(ANNA) as RecordBook).stamps.firstLine).toBe(MONDAY);
+    // A page that is hidden sends what has not gone, and says it once.
+    a.pass(MOMENT_GAP);
+    a.play(4);
+    a.tab.leaving();
+    await settled();
+    expect(sends()).toBe(4);
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(25);
+    a.tab.leaving();
+    a.stop();
+    await settled();
+    expect(sends()).toBe(4);
+    // A page left with nothing new says nothing.
+    const again = await sit(device('laptop'), accounts, signedIn(ANNA));
+    again.tab.leaving();
+    again.stop();
+    await settled();
+    expect(sends()).toBe(4);
+    // Nothing was ever sent in the way that outlives the page, and no token was got ready for it.
+    expect([accounts.count('storeNow'), accounts.count('prepare')]).toEqual([0, 0]);
+  });
+
+  it('tries an account it could not reach again when its wait is over, and says where the book is meanwhile', async () => {
+    const { accounts, device, held } = devices();
+    accounts.down = true;
+    const a = await sit(device('phone'), accounts, signedIn(ANNA));
+    expect(a.state()).toMatchObject({ where: 'offline', kept: true });
+    a.play(10);
+    accounts.down = false;
+    a.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
+    await settled();
+    expect(a.state().where).toBe('account');
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(10);
+    // A write that fails is tried again after its wait, not after the book's five minutes.
+    accounts.down = true;
+    a.play(1, [line]);
+    a.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
+    expect(a.state().where).toBe('offline');
+    accounts.down = false;
+    a.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
+    await settled();
+    expect(a.state().where).toBe('account');
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(11);
+  });
+
+  it('does not count twice what another tab of this device counted, when it hears of it from the account before it reads it here', async () => {
+    const { accounts, device } = devices();
+    const world = device('phone');
+    const one = await sit(world, accounts, signedIn(ANNA));
+    const two = await sit(world, accounts, signedIn(ANNA));
+    // Two tabs of one browser count into the same row of the book.
+    expect(two.tab.book().device).toBe(one.tab.book().device);
+    two.play(100);
+    two.pass(BOOK_LOOK_EVERY);
+    await settled();
+    // The first tab has not looked at storage since. A press on the bonus asks the account, which tells it of the hundred.
+    expect(one.total().fed).toBe(0);
+    await one.take();
+    one.tab.tick(SAVE_EVERY);
+    expect(one.total().fed).toBe(100);
+    expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(100);
+    // And what it counts itself from here is added, once.
+    one.play(5);
+    one.tab.tick(SAVE_EVERY);
+    two.tab.changed(bookKey(ANNA));
+    expect([one.total().fed, two.total().fed]).toEqual([105, 105]);
+  });
+
+  it('reads storage when another tab has written this player’s book, and not for anything else another tab writes', async () => {
+    const { accounts, device } = devices();
+    const world = device('phone');
+    const one = await sit(world, accounts, signedIn(ANNA));
+    const two = await sit(world, accounts, signedIn(ANNA));
+    two.play(7);
+    two.tab.tick(SAVE_EVERY);
+    const touched = world.disk.touched;
+    one.tab.changed('medal-pusher');
+    one.tab.changed(RECORDS_KEY);
+    one.tab.changed(bookKey(BEN));
+    expect(world.disk.touched).toBe(touched);
+    expect(one.total().fed).toBe(0);
+    one.tab.changed(bookKey(ANNA));
+    expect(world.disk.touched).toBe(touched + 1);
+    expect(one.total().fed).toBe(7);
+  });
+
+  it('pays a day once to two tabs of a player who is signed in, and moves the guest’s book once', async () => {
+    const { accounts, device, held } = devices();
+    const world = device('phone');
+    // A guest has played in one tab. Signed in, the two tabs of this browser each hear from the account.
+    const one = await sit(world, accounts);
+    one.play(12);
+    one.tab.tick(SAVE_EVERY);
+    const two = await sit(world, accounts);
+    await one.attend(signedIn(ANNA));
+    await two.attend(signedIn(ANNA));
+    expect(world.at(RECORDS_KEY)).toBeNull();
+    // The guest's medals are in the account's book once, in whichever tab it is read.
+    one.tab.tick(SAVE_EVERY);
+    two.tab.tick(SAVE_EVERY);
+    two.tab.changed();
+    expect([one.total().fed, two.total().fed]).toEqual([12, 12]);
+    expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(12);
+    // Both press for the day at once: each asks the account, and the lock lets one of them pay.
+    one.store.claimBonus();
+    two.store.claimBonus();
+    await settled();
+    expect([...one.paid, ...two.paid]).toEqual([BONUS_CARD[0]]);
+    one.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    two.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 12, claims: 1, bonus: BONUS_CARD[0] });
+  });
+
+  it('opens with the book of whoever played here last while the site is still finding out who is signed in, and touches no account until it knows', async () => {
+    const { accounts, device, held } = devices();
+    const world = device('phone');
+    const first = await sit(world, accounts, signedIn(ANNA));
+    first.play(25, [line]);
+    first.pass(BOOK_LOOK_EVERY);
+    first.stop();
+    await settled();
+    expect(viewOf(held(ANNA) as RecordBook).total.fed).toBe(25);
+
+    // The page is loaded again. The site expects somebody and has not yet said who.
+    const calls = accounts.calls.length;
+    const page = await sit(world, accounts, RESTORING);
+    expect(page.total()).toMatchObject({ fed: 25, small: 1 });
+    expect(page.state().where).toBe('device');
+    expect(accounts.calls.slice(calls)).toEqual([]);
+    // It is them: the account is asked now, and the book stays theirs.
+    await page.attend(signedIn(ANNA));
+    expect(page.state().where).toBe('account');
+    expect(page.total().fed).toBe(25);
+    page.stop();
+
+    // Another time it turns out that nobody is signed in after all: their book leaves the table for a guest's.
+    const other = await sit(world, accounts, RESTORING);
+    expect(other.total().fed).toBe(25);
+    const before = accounts.calls.length;
+    await other.attend(GUEST);
+    expect(other.total().fed).toBe(0);
+    expect(other.state().where).toBe('device');
+    expect(accounts.calls.slice(before)).toEqual([]);
+    // Theirs is still under their own key, for when they are back.
+    expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(25);
+  });
+
+  it('is a small part of what the account takes, however full the book is', () => {
+    // The fullest book there can be: every counter at its most on every device it has room for, every best, every
+    // stamp, and every day of four years played and taken.
+    const days: Record<string, number> = {};
+    for (let month = 0; month < LIMITS.months; month++) days[`${2026 + Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, '0')}`] = 2 ** 31 - 1;
+    const row = Object.fromEntries(COUNTER_IDS.map((id) => [id, LIMITS.count]));
+    const fullest = parseBook(
+      JSON.stringify({
+        v: 1,
+        device: 'zzzzzzzzzzzzzzzz',
+        era: LIMITS.eras,
+        counters: Object.fromEntries(Array.from({ length: LIMITS.devices }, (_, index) => [`zzzzzzzzzzzzzzz${index}`, row])),
+        bests: Object.fromEntries(BEST_IDS.map((id) => [id, LIMITS.count])),
+        stamps: Object.fromEntries(ACHIEVEMENT_IDS.map((id) => [id, '2026-10-12'])),
+        played: days,
+        claimed: days,
+      }),
+    ) as RecordBook;
+    expect(Object.keys(fullest.counters)).toHaveLength(LIMITS.devices);
+    expect(Object.keys(fullest.claimed)).toHaveLength(LIMITS.months);
+    const text = serializeBook(fullest);
+    const state = toCloud(text, 'a-mark-of-16-hex', Date.UTC(2099, 11, 31));
+    if (!state) throw new Error('the fullest book cannot be sent at all');
+    expect(fromCloud(state)?.text).toBe(text);
+    const request = new TextEncoder().encode(JSON.stringify({ gameKey: RECORDS_GAME_KEY, state })).length;
+    // About 7 KB, of the 64 KB the route takes. It is never sent as the page is left, so it takes nothing from what a
+    // browser allows the machine's leaving write.
+    expect(request).toBeLessThan(ACCOUNT_LIMIT / 8);
+    expect(request).toBeGreaterThan(text.length);
   });
 });

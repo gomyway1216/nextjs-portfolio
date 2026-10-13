@@ -31,6 +31,7 @@ import {
   type RecordBook,
   type RecordEvent,
 } from '@/components/game/MedalPusher/records';
+import { keepNoteFor } from '@/components/game/MedalPusher/recordsNote';
 import { WAITING, type RecordsState } from '@/components/game/MedalPusher/recordsStore';
 import { BOARD_GROUPS, BOARD_ROWS, getRecordStrings, type BoardRow } from '@/components/game/MedalPusher/recordsStrings';
 import { MAX_STOCK, START_CREDITS } from '@/components/game/MedalPusher/session';
@@ -71,7 +72,8 @@ function played(): RecordBook {
     { type: 'won', count: 1080 },
     { type: 'lost', count: 96 },
     { type: 'checker', gate: 0, held: true, gold: false },
-    { type: 'checker', gate: 0, held: false, gold: false },
+    { type: 'checker', gate: 0, held: false, gold: true },
+    { type: 'chanceStart' },
     { type: 'spinEnd', result: { tier: 'small', digits: [2, 2, 2], reach: true, reachKind: 'long' } },
     { type: 'spinEnd', result: { tier: 'miss', digits: [2, 3, 2], reach: true, reachKind: 'normal' } },
     { type: 'spinEnd', result: { tier: 'miss', digits: [1, 2, 3], reach: false, reachKind: 'none' } },
@@ -324,7 +326,9 @@ describe('the record board and the achievement sheet', () => {
       refills: '2',
       hits: '2',
       wasted: '1',
+      golds: '1',
       fulls: '0',
+      chances: '1',
       spins: '3',
       reaches: '2',
       reachWins: '1',
@@ -401,6 +405,60 @@ describe('the record board and the achievement sheet', () => {
     expect(html).toMatch(/data-kept="false"[^>]*>This browser is not keeping the record book/);
     expect(html).not.toContain('pusher-card-take');
     expect(render(<RecordsView state={reading(createBook('device0001'))} />)).toMatch(/data-kept="true"[^>]*>The record book is kept on this device, apart from the machine\./);
+  });
+
+  it('says where the book is kept, with a note for every pairing of the account and this device', () => {
+    const places = ['device', 'account', 'offline', 'unreadable', 'checking'] as const;
+    for (const lang of ['en', 'ja'] as const) {
+      const t = getRecordStrings(lang);
+      const notes = new Set<string>();
+      for (const where of places) {
+        for (const kept of [true, false]) {
+          const html = render(<RecordsView state={reading(played(), MONDAY, { where, kept })} />, lang);
+          const note = shown(html, 'pusher-records-kept');
+          expect(note).toBe(t[keepNoteFor({ where, kept })]);
+          expect(html).toMatch(new RegExp(`data-kept="${kept}" data-where="${where}"`));
+          notes.add(note);
+          // A note never says that this device keeps a copy when it does not, wherever else the book is.
+          const keepsHere = lang === 'en' ? /keeps a copy|kept on this device/ : /控えが残り|この端末に保存して|この端末にだけ保存/;
+          if (!kept) expect(note).not.toMatch(keepsHere);
+          else if (where !== 'checking') expect(note).toMatch(keepsHere);
+          // Only a guest's book is this device's alone: every other note names the account.
+          expect(/account|アカウント/.test(note)).toBe(where !== 'device');
+        }
+      }
+      expect(notes.size).toBe(2 * places.length);
+    }
+  });
+
+  it('says before the second press that clearing reaches the account, for a player who is signed in', () => {
+    for (const lang of ['en', 'ja'] as const) {
+      const t = getRecordStrings(lang);
+      const guest = render(<RecordsView state={reading(played())} />, lang);
+      expect(guest).toContain(t.clearNote);
+      expect(guest).not.toContain('pusher-records-clear-account');
+      for (const where of ['account', 'offline', 'unreadable', 'checking'] as const) {
+        const html = render(<RecordsView state={reading(played(), MONDAY, { where })} />, lang);
+        expect(html).toContain(t.clearNote);
+        expect(shown(html, 'pusher-records-clear-account')).toBe(t.clearNoteAccount);
+      }
+      expect(t.clearConfirmAccount).not.toBe(t.clearConfirm);
+      expect(t.clearConfirmAccount).toMatch(/account|アカウント/);
+    }
+  });
+
+  it('holds the bonus back, and says why, while the account is asked whether another device has taken it', () => {
+    for (const lang of ['en', 'ja'] as const) {
+      const t = getRecordStrings(lang);
+      const ready = reading(createBook('device0001'));
+      const asking = { ...ready, where: 'account' as const, asking: true };
+      expect(canTake(ready, cardFor(ready.book as RecordBook, MONDAY))).toBe(true);
+      expect(canTake(asking, cardFor(ready.book as RecordBook, MONDAY))).toBe(false);
+      const html = render(<BonusStripView state={asking} />, lang);
+      expect(shown(html, 'pusher-bonus-status')).toBe(t.bonusAsking);
+      expect(html).not.toContain('pusher-bonus-take');
+      expect(render(<StampCard state={asking} />, lang)).not.toContain('pusher-card-take');
+    }
   });
 
   it('works out each row from the book', () => {

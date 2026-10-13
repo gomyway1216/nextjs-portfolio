@@ -169,6 +169,12 @@ test('the bonus plate and the Records tab fit a phone, cover nothing, and read i
   await expect(records(page).getByTestId('pusher-achievements-count')).toHaveText(`0 of ${ACHIEVEMENT_IDS.length} stamped`);
   await expect(records(page).getByTestId('pusher-achievements').locator('li')).toHaveCount(ACHIEVEMENT_IDS.length);
   await expect(records(page).getByTestId('pusher-records-kept')).toHaveAttribute('data-kept', 'true');
+  // Nobody is signed in: the book is this device's alone, and clearing it is said to reach no account.
+  await expect(records(page).getByTestId('pusher-records-kept')).toHaveAttribute('data-where', 'device');
+  await expect(records(page).getByTestId('pusher-records-clear-account')).toHaveCount(0);
+  // The rows that chance time added to the board.
+  await expect(records(page).getByTestId('pusher-record-golds')).toHaveText('0');
+  await expect(records(page).getByTestId('pusher-record-chances')).toHaveText('0');
 
   // In Japanese.
   await openGame(page, 'ja');

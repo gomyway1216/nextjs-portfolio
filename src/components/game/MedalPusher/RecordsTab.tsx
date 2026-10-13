@@ -5,6 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ACHIEVEMENT_NUMBERS, StampCard } from './DailyBonus';
 import { percent } from './format';
 import { RESET_WINDOW, confirmsReset } from './PlayTab';
+import { keepNoteFor } from './recordsNote';
 import { ACHIEVEMENT_IDS, currentStreak, lifetimeReturn, viewOf, type BookView, type Day } from './records';
 import { records, useRecords, type RecordsState } from './recordsStore';
 import { BOARD_GROUPS, BOARD_ROWS, getRecordStrings, type BoardRow, type RecordStrings } from './recordsStrings';
@@ -41,6 +42,7 @@ export function boardValue(row: BoardRow, view: BookView, streakNow: number, t: 
       return t.daysCount(fmt(view.streak));
     case 'refills':
     case 'fulls':
+    case 'chances':
     case 'spins':
     case 'claims':
       return t.times(fmt(total[row]));
@@ -65,7 +67,9 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const fmt = (n: number) => n.toLocaleString(locale);
   const ink = useInk();
-  const { book, day, kept } = state;
+  const { book, day, kept, where } = state;
+  // A player who is signed in clears the book on their account with the one here, and is told so before the second press.
+  const confirm = where === 'device' ? t.clearConfirm : t.clearConfirmAccount;
   const view = book ? viewOf(book) : null;
   const streakNow = book && day ? currentStreak(book, day) : 0;
   const shown = (value: (view: BookView) => string): string => (view ? value(view) : t.none);
@@ -86,7 +90,7 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
     const now = Date.now();
     if (!confirmsReset(armedAt, now)) {
       setArmedAt(now);
-      setSaid(t.clearConfirm);
+      setSaid(confirm);
       return;
     }
     setArmedAt(null);
@@ -181,12 +185,17 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
       </section>
 
       <section className={styles.keeping}>
-        <p className={styles.keepNote} data-kept={kept} data-testid="pusher-records-kept">
-          {kept ? t.keptNote : t.notKeptNote}
+        <p className={styles.keepNote} data-kept={kept} data-where={where} data-testid="pusher-records-kept">
+          {t[keepNoteFor(state)]}
         </p>
         <p className={styles.keepNote}>{t.clearNote}</p>
+        {where !== 'device' && (
+          <p className={styles.keepNote} data-testid="pusher-records-clear-account">
+            {t.clearNoteAccount}
+          </p>
+        )}
         <button type="button" className={styles.clear} data-armed={armed} data-testid="pusher-records-clear" disabled={book === null} onClick={onClear}>
-          {armed ? t.clearConfirm : t.clear}
+          {armed ? confirm : t.clear}
         </button>
         <p className={styles.srOnly} aria-live="polite" data-testid="pusher-records-said">
           {said}

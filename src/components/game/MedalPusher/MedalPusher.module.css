@@ -2056,21 +2056,37 @@
   height: 1.05rem;
 }
 /* The sound settings, in a row of their own under the switches, as wide as the panel: the volume, and beside it the
-   switch for the background loop alone. On a phone the row is as short as an aim slider. */
+   switch for the background loop alone and the switch for the arcade round the cabinet. On a phone the row is as
+   short as an aim slider. */
 .soundPanel {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 0.4rem 0.7rem;
+  gap: 0.4rem 0.5rem;
   padding: 0.45rem 0.65rem 0.5rem;
   border-radius: 10px;
   border: 1px solid #4b3f8a;
   background: #0b0620;
 }
-/* Its switch is as tall as the switches above it, which a picture on one of them makes taller than their words. */
+/* Its switches are as tall as the switches above them, which a picture on one of them makes taller than their words.
+   They keep their words on one line and are no wider than those need, so that the slider has the rest of the row. */
 .soundPanel .toggle {
   min-height: 2.15rem;
+  padding-inline: 0.6rem;
+  white-space: nowrap;
+}
+/* On the narrowest phones the volume has a line to itself, and the two switches share the one under it. */
+@media (max-width: 350px) {
+  .soundPanel {
+    grid-template-columns: 1fr 1fr;
+  }
+  .soundPanel .volume {
+    grid-column: 1 / -1;
+  }
+  .soundPanel .toggle {
+    justify-content: center;
+  }
 }
 .volume {
   display: grid;

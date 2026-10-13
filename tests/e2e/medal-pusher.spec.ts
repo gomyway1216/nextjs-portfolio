@@ -774,13 +774,14 @@ test('Auto drops medals until it is switched off', async ({ page }) => {
   await expectPurseToBalance(page);
 });
 
-// ── The sound settings: a volume and a switch for the music, in a row that opens from a button beside Sound ──
+// ── The sound settings: a volume, a switch for the music and one for the arcade round the cabinet, in a row that opens from a button beside Sound ──
 
 const soundButton = (page: Page) => machine(page).getByTestId('pusher-sound');
 const soundSettings = (page: Page) => machine(page).getByTestId('pusher-sound-settings');
 const soundRow = (page: Page) => machine(page).getByTestId('pusher-sound-panel');
 const volumeSlider = (page: Page) => machine(page).getByTestId('pusher-volume');
 const musicSwitch = (page: Page) => machine(page).getByTestId('pusher-music');
+const arcadeSwitch = (page: Page) => machine(page).getByTestId('pusher-arcade');
 
 /** Opens the row of sound settings with its button, retrying until hydration has attached the handler. */
 async function openSoundSettings(page: Page) {
@@ -826,6 +827,19 @@ test('the sound has a volume and a switch for the music, worked from the keyboar
   await page.keyboard.press('Space');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
 
+  // The arcade round the cabinet has a switch of its own beside it, which is off until it is asked for. Tab goes
+  // on to it from the music's, and neither switch moves the other.
+  await expect(arcadeSwitch(page)).toHaveAccessibleName('Arcade');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Tab');
+  await expect(arcadeSwitch(page)).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Enter');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(volumeSlider(page)).toHaveValue('170');
+
   // A letter does nothing in a slider, so with the focus there the machine's keys are still the machine's,
   // as they are in the aim sliders: J feeds the right rail and the volume stays where it was.
   const played = await counter(page, 'played');
@@ -853,11 +867,14 @@ test('the sound settings are remembered on this device, apart from the machine, 
   await expect(volumeSlider(page)).toHaveValue('60');
   await musicSwitch(page).click();
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await arcadeSwitch(page).click();
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
   // They are kept under a key of their own, and the machine's save says nothing about them.
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false}');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false,"arcade":true}');
   const saved = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
   expect(saved).not.toBeNull();
-  expect(saved).not.toMatch(/volume|music/);
+  expect(saved).not.toMatch(/volume|music|arcade/);
 
   // After a reload the row is shut and the sound is off, as on any visit, and the settings are as they were left.
   await page.reload();
@@ -868,21 +885,25 @@ test('the sound settings are remembered on this device, apart from the machine, 
   await expect(volumeSlider(page)).toHaveValue('60');
   await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '60%');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
 
-  // What is kept there but makes no sense is not believed: the settings are the usual ones.
-  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7}'), SOUND_SETTINGS_KEY);
+  // What is kept there but makes no sense is not believed: the settings are the usual ones, and the arcade is off.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7,"arcade":"yes"}'), SOUND_SETTINGS_KEY);
   await page.reload();
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('100');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
-  // A volume that is a number but out of range is brought into it.
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  // A volume that is a number but out of range is brought into it. This is also what a device kept before there
+  // was an arcade to switch on: the rest is read as it was, and the arcade is off.
   await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":9000,"music":false}'), SOUND_SETTINGS_KEY);
   await page.reload();
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('200');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('on a phone the sound settings are one short row inside the controls, and the page does not scroll sideways', async ({ page }) => {
@@ -902,8 +923,14 @@ test('on a phone the sound settings are one short row inside the controls, and t
   await openSoundSettings(page);
   const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
-  const [row, slider, music, open] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), controls.boundingBox()]);
-  if (!row || !slider || !music || !open) throw new Error('the sound settings have no boxes');
+  const [row, slider, music, arcade, open] = await Promise.all([
+    soundRow(page).boundingBox(),
+    volumeSlider(page).boundingBox(),
+    musicSwitch(page).boundingBox(),
+    arcadeSwitch(page).boundingBox(),
+    controls.boundingBox(),
+  ]);
+  if (!row || !slider || !music || !arcade || !open) throw new Error('the sound settings have no boxes');
   // The row is inside the controls, under the switches, and short: it adds less than the height of a feed button.
   expect(row.x).toBeGreaterThanOrEqual(open.x);
   expect(row.x + row.width).toBeLessThanOrEqual(open.x + open.width);
@@ -911,17 +938,48 @@ test('on a phone the sound settings are one short row inside the controls, and t
   expect(row.height).toBeLessThanOrEqual(72);
   expect(open.height - closed.height).toBeLessThanOrEqual(80);
   // The slider has room to be dragged, and the music's switch is beside it, both inside the row.
-  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.width).toBeGreaterThanOrEqual(120);
   expect(slider.x).toBeGreaterThanOrEqual(row.x);
   expect(music.x).toBeGreaterThanOrEqual(slider.x + slider.width);
   expect(music.x + music.width).toBeLessThanOrEqual(row.x + row.width);
   expect(music.y).toBeGreaterThanOrEqual(row.y);
   expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // The arcade's switch is beside the music's on the same line, as tall as it, wide enough for a finger, and inside the row.
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(Math.abs(arcade.height - music.height)).toBeLessThan(2);
+  expect(arcade.width).toBeGreaterThanOrEqual(44);
   // The feed buttons and the aims are where they were: the row opened under them.
   await expect(feedButton(page, 'left')).toBeVisible();
   await expect(aimSlider(page, 'right')).toBeVisible();
   const aim = await aimSlider(page, 'left').boundingBox();
   expect(aim && aim.y + aim.height).toBeLessThan(row.y);
+});
+
+test('the sound settings read in Japanese on a phone, the arcade switch with them, and still do not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page, 'ja');
+  await feedOne(page);
+  await expect(soundSettings(page)).toHaveAccessibleName('音の設定');
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveAccessibleName('音量');
+  await expect(musicSwitch(page)).toHaveAccessibleName('BGM');
+  await expect(arcadeSwitch(page)).toHaveAccessibleName('店内の音');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await arcadeSwitch(page).click();
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+  // Its words are longer than the English ones and still fit on the one line beside the music's, inside the row.
+  const [row, slider, music, arcade] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), arcadeSwitch(page).boundingBox()]);
+  if (!row || !slider || !music || !arcade) throw new Error('the sound settings have no boxes');
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(slider.width).toBeGreaterThanOrEqual(120);
+  expect(row.height).toBeLessThanOrEqual(72);
 });
 
 test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {

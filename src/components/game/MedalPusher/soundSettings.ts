@@ -1,8 +1,9 @@
 /**
- * What the player has set the sound to: how loud the cabinet is, and whether
- * its background loop plays. It is kept on this device under a key of its own,
- * apart from the machine's save: it belongs to the device and its speakers, not
- * to the machine, and it should not travel with the machine to another one.
+ * What the player has set the sound to: how loud the cabinet is, whether its
+ * background loop plays, and whether the arcade round it is heard. It is kept
+ * on this device under a key of its own, apart from the machine's save: it
+ * belongs to the device and its speakers, not to the machine, and it should
+ * not travel with the machine to another one.
  *
  * Whether the sound is on at all is not kept. A browser lets a page make noise
  * only after a press, so the sound is switched on by hand on every visit, and
@@ -25,10 +26,15 @@ export interface SoundSettings {
   volume: number;
   /** Whether the background loop plays while the sound is on. */
   music: boolean;
+  /** Whether the room the cabinet stands in is heard while the sound is on: the floor of an arcade, far off. */
+  arcade: boolean;
 }
 
-/** What a player who has set nothing gets: the level the cabinet was made at, with its loop. */
-export const USUAL_SOUND_SETTINGS: Readonly<SoundSettings> = { volume: VOLUME_PERCENT.usual, music: true };
+/** What a player who has set nothing gets: the level the cabinet was made at, with its loop, and no room round it. */
+export const USUAL_SOUND_SETTINGS: Readonly<SoundSettings> = { volume: VOLUME_PERCENT.usual, music: true, arcade: false };
+
+/** Settings with everything in them brought to what can be kept: the volume to a step, each switch to on or off. */
+const tidy = (settings: SoundSettings): SoundSettings => ({ volume: tidyVolume(settings.volume), music: settings.music !== false, arcade: settings.arcade === true });
 
 /** A volume in percent, brought to the nearest step inside the range. Anything that is not a number is the usual volume. */
 export function tidyVolume(percent: unknown): number {
@@ -41,12 +47,13 @@ export function tidyVolume(percent: unknown): number {
 export const volumeOf = (percent: number): number => tidyVolume(percent) / 100;
 
 /** The text that is kept for some settings. */
-export const packSoundSettings = (settings: SoundSettings): string => JSON.stringify({ volume: tidyVolume(settings.volume), music: settings.music !== false });
+export const packSoundSettings = (settings: SoundSettings): string => JSON.stringify(tidy(settings));
 
 /**
  * The settings in a text that was kept. Each of them is read on its own: a
  * volume that makes no sense is the usual volume, and does not take the
- * music's switch with it. A text that is missing, or is not the kind of thing
+ * music's switch with it, and a text kept before there was a room to switch
+ * on has the room off. A text that is missing, or is not the kind of thing
  * that was written, gives the usual settings.
  */
 export function readSoundSettings(text: unknown): SoundSettings {
@@ -58,8 +65,12 @@ export function readSoundSettings(text: unknown): SoundSettings {
     return { ...USUAL_SOUND_SETTINGS };
   }
   if (typeof kept !== 'object' || kept === null || Array.isArray(kept)) return { ...USUAL_SOUND_SETTINGS };
-  const { volume, music } = kept as { volume?: unknown; music?: unknown };
-  return { volume: tidyVolume(volume), music: typeof music === 'boolean' ? music : USUAL_SOUND_SETTINGS.music };
+  const { volume, music, arcade } = kept as { volume?: unknown; music?: unknown; arcade?: unknown };
+  return {
+    volume: tidyVolume(volume),
+    music: typeof music === 'boolean' ? music : USUAL_SOUND_SETTINGS.music,
+    arcade: typeof arcade === 'boolean' ? arcade : USUAL_SOUND_SETTINGS.arcade,
+  };
 }
 
 /** Where the settings are kept. Asking a browser for its storage can itself be refused, so it is asked for inside the attempt. */
@@ -112,7 +123,7 @@ export const soundSettingsStore = {
     return USUAL_SOUND_SETTINGS;
   },
   change(next: SoundSettings): void {
-    held = { volume: tidyVolume(next.volume), music: next.music !== false };
+    held = tidy(next);
     saveSoundSettings(held);
     for (const watcher of [...watchers]) watcher();
   },

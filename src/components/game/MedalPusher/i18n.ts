@@ -15,6 +15,7 @@ export interface PusherStrings {
   tabMachine: string;
   tabOdds: string;
   tabSim: string;
+  tabRecords: string;
   howToPlay: string;
   infoBody: (held: number) => string[];
 
@@ -104,6 +105,7 @@ export interface PusherStrings {
   sayFinish: (medals: number) => string;
   sayJackpot: (medals: number, poured: number) => string;
   sayEmpty: string;
+  sayBonus: (medals: number) => string;
   // Tally
   tallyTitle: string;
   tallyPlayed: string;
@@ -277,6 +279,7 @@ const en: PusherStrings = {
   tabMachine: 'Machine',
   tabOdds: 'Odds',
   tabSim: 'Simulation',
+  tabRecords: 'Records',
   howToPlay: 'How to play',
   infoBody: (held) => [
     'You start with 100 medals. Two rails feed them in, one from each side: the L button feeds the left rail and the R button the right, and both can be pressed at once. A medal goes in at the slot by that button, rolls along its feed arm’s rail to the back of the cabinet, drops off the tip onto the pusher a little to one side of where that rail is aimed, and gets shoved forward with the rest.',
@@ -385,6 +388,7 @@ const en: PusherStrings = {
       poured >= medals ? 'All of them are poured onto the field: the pusher has no room for a tower.' : `${poured} of them are poured onto the field and the rest go up as towers.`
     }`,
   sayEmpty: 'You are out of medals.',
+  sayBonus: (medals) => `Daily bonus: ${medals} medals added to your medals.`,
   tallyTitle: 'This machine so far',
   tallyPlayed: 'Dropped',
   tallyWon: 'Won',
@@ -581,6 +585,7 @@ const ja: PusherStrings = {
   tabMachine: 'マシン',
   tabOdds: '確率',
   tabSim: 'シミュレーション',
+  tabRecords: '記録',
   howToPlay: '遊び方',
   infoBody: (held) => [
     'メダル100枚から始めます。メダルは左右2本のレールから入れます。Lボタンで左のレール、Rボタンで右のレールに入り、両方を同時に押すこともできます。メダルはそのボタンのそばの入り口から入り、アームのレールを奥まで転がって先端から落ち、そのレールの狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
@@ -689,6 +694,7 @@ const ja: PusherStrings = {
       poured >= medals ? 'プッシャーにタワーを積む場所がないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
     }`,
   sayEmpty: 'メダルがなくなりました。',
+  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
   tallyTitle: 'このマシンのここまで',
   tallyPlayed: '落とした',
   tallyWon: '獲得',

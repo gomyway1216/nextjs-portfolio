@@ -52,6 +52,7 @@ describe('the sound settings as the server renders the cabinet', () => {
     expect(html).not.toContain('data-testid="pusher-sound-panel"');
     expect(html).not.toContain('data-testid="pusher-volume"');
     expect(html).not.toContain('data-testid="pusher-music"');
+    expect(html).not.toContain('data-testid="pusher-arcade"');
     expect(tagOf(html, 'pusher-sound')).toContain('aria-pressed="false"');
   });
 
@@ -60,7 +61,7 @@ describe('the sound settings as the server renders the cabinet', () => {
       const { settings, open } = useSoundSettings();
       return <output>{JSON.stringify({ settings, open })}</output>;
     };
-    expect(render(<Probe />)).toContain(JSON.stringify({ settings: { volume: 100, music: true }, open: false }).replace(/"/g, '&quot;'));
+    expect(render(<Probe />)).toContain(JSON.stringify({ settings: { volume: 100, music: true, arcade: false }, open: false }).replace(/"/g, '&quot;'));
   });
 });
 
@@ -69,7 +70,7 @@ describe('the row of sound settings', () => {
   const ja = getStrings('ja');
 
   it('is a named group that its button points at', () => {
-    const settings = { volume: 100, music: true };
+    const settings = { volume: 100, music: true, arcade: false };
     const row = render(<SoundSettingsPanel control={control(settings)} strings={en} />);
     const group = tagOf(row, 'pusher-sound-panel');
     expect(group).toContain('role="group"');
@@ -84,7 +85,7 @@ describe('the row of sound settings', () => {
   });
 
   it('has a slider for the volume, labelled, from silent to twice the usual in steps, with the usual in its middle', () => {
-    const row = render(<SoundSettingsPanel control={control({ volume: 100, music: true })} strings={en} />);
+    const row = render(<SoundSettingsPanel control={control({ volume: 100, music: true, arcade: false })} strings={en} />);
     const slider = tagOf(row, 'pusher-volume');
     expect(slider).toContain('type="range"');
     expect(slider).toContain(`min="${VOLUME_PERCENT.min}"`);
@@ -108,8 +109,8 @@ describe('the row of sound settings', () => {
     [130, '130%', '130%', '', ''],
     [200, '200%', '200%', '', ''],
   ])('reads a volume of %i out as "%s" and "%s"', (volume, english, japanese, mark, markJa) => {
-    const rowEn = render(<SoundSettingsPanel control={control({ volume, music: true })} strings={en} />);
-    const rowJa = render(<SoundSettingsPanel control={control({ volume, music: true })} strings={ja} />, 'ja');
+    const rowEn = render(<SoundSettingsPanel control={control({ volume, music: true, arcade: false })} strings={en} />);
+    const rowJa = render(<SoundSettingsPanel control={control({ volume, music: true, arcade: false })} strings={ja} />, 'ja');
     expect(tagOf(rowEn, 'pusher-volume')).toContain(`value="${volume}"`);
     expect(tagOf(rowEn, 'pusher-volume')).toContain(`aria-valuetext="${english}"`);
     expect(tagOf(rowJa, 'pusher-volume')).toContain(`aria-valuetext="${japanese}"`);
@@ -124,20 +125,40 @@ describe('the row of sound settings', () => {
   });
 
   it('has a switch for the loop alone, which says which way it is', () => {
-    const on = render(<SoundSettingsPanel control={control({ volume: 100, music: true })} strings={en} />);
-    const off = render(<SoundSettingsPanel control={control({ volume: 100, music: false })} strings={en} />);
+    const on = render(<SoundSettingsPanel control={control({ volume: 100, music: true, arcade: false })} strings={en} />);
+    const off = render(<SoundSettingsPanel control={control({ volume: 100, music: false, arcade: false })} strings={en} />);
     expect(tagOf(on, 'pusher-music')).toContain('aria-pressed="true"');
     expect(tagOf(off, 'pusher-music')).toContain('aria-pressed="false"');
     expect(tagOf(on, 'pusher-music')).toContain('type="button"');
     expect(on).toMatch(/<span aria-hidden="true">♪<\/span>\s*Music<\/button>/);
   });
 
+  it('has a switch for the arcade round the cabinet, beside the one for the loop, which says which way it is', () => {
+    const off = render(<SoundSettingsPanel control={control({ volume: 100, music: true, arcade: false })} strings={en} />);
+    const on = render(<SoundSettingsPanel control={control({ volume: 100, music: true, arcade: true })} strings={en} />);
+    expect(tagOf(off, 'pusher-arcade')).toContain('aria-pressed="false"');
+    expect(tagOf(on, 'pusher-arcade')).toContain('aria-pressed="true"');
+    expect(tagOf(on, 'pusher-arcade')).toContain('type="button"');
+    // It is named by the word on it, and says what it is when it is pointed at.
+    expect(on).toMatch(/data-testid="pusher-arcade"[^>]*>Arcade<\/button>/);
+    expect(tagOf(on, 'pusher-arcade')).toContain('title="The sound of the arcade around this machine"');
+    // It comes straight after the loop's switch, in the same row, and is the last thing in it.
+    expect(on).toMatch(/Music<\/button><button[^>]*data-testid="pusher-arcade"[^>]*>Arcade<\/button><\/div>$/);
+    // Neither switch moves the other.
+    expect(tagOf(on, 'pusher-music')).toContain('aria-pressed="true"');
+    const alone = render(<SoundSettingsPanel control={control({ volume: 100, music: false, arcade: true })} strings={en} />);
+    expect(tagOf(alone, 'pusher-music')).toContain('aria-pressed="false"');
+    expect(tagOf(alone, 'pusher-arcade')).toContain('aria-pressed="true"');
+  });
+
   it('reads in Japanese', () => {
-    const row = render(<SoundSettingsPanel control={control({ volume: 100, music: true })} strings={ja} />, 'ja');
+    const row = render(<SoundSettingsPanel control={control({ volume: 100, music: true, arcade: false })} strings={ja} />, 'ja');
     expect(tagOf(row, 'pusher-sound-panel')).toContain('aria-label="音の設定"');
     expect(row).toMatch(/<label[^>]*>音量</);
     expect(row).toMatch(/♪<\/span>\s*BGM<\/button>/);
-    const button = tagOf(render(<SoundSettingsButton control={control({ volume: 100, music: true }, false)} strings={ja} />, 'ja'), 'pusher-sound-settings');
+    expect(row).toMatch(/data-testid="pusher-arcade"[^>]*>店内の音<\/button>/);
+    expect(tagOf(row, 'pusher-arcade')).toContain('title="まわりの台のメダルの音や、店内のざわめき"');
+    const button = tagOf(render(<SoundSettingsButton control={control({ volume: 100, music: true, arcade: false }, false)} strings={ja} />, 'ja'), 'pusher-sound-settings');
     expect(button).toContain('aria-label="音の設定"');
     expect(button).toContain('aria-expanded="false"');
   });

@@ -2190,7 +2190,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   drawJewelLamps(g, stage, options.jewels ?? 0, calm, shake);
   flat();
   // The hopper's doors in the hood's face, and the medals pouring out of them (works2d.ts).
-  drawHopper(g, k, machine, calm, shake, P + T * 2 + RIDE * 0.5, (point, round, id) => stamp(g, stage, point, round, turnOf(id), shake));
+  drawHopper(g, k, machine, calm, shake, P + T * 2 + RIDE * 0.5, (point, round, id) => stamp(g, stage, point, round, turnOf(id), shake, 1, id));
 
   // Whatever has just left the field: it goes on the way it was pushed, tips over the edge and falls.
   for (const exit of stage.exits) {

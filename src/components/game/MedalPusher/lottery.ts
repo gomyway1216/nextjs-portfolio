@@ -2,7 +2,7 @@
  * The digital half of the machine: the number slot on the centre screen and
  * the three games it leads to — a sugoroku board, a choice of treasure chests,
  * and the roulette a prize ball starts when it is pushed over the front, which
- * ends in a bowl with the jackpot in one of its holes when its run is full.
+ * ends in three bowls with the jackpot at the bottom when its run is full.
  * Unlike the field, these are pure lotteries — every result is drawn first and
  * the screen only acts it out — so their odds are exact and are listed on the
  * Odds tab.
@@ -174,32 +174,80 @@ export const POCKET_VALUE = NUMBERS.reduce((sum, medals) => sum + medals, 0) / N
 /** The chance that a run gets as far as `level` numbers in a row. */
 export const chainChance = (level: number): number => CONTINUE_CHANCE ** level;
 
-// ── The jackpot challenge: a ball in a bowl ─────────────────────────────────
+// ── The jackpot challenge: three bowls, one under another ───────────────────
 
-/** One hole of the bowl: the jackpot, or that many medals. */
+/** What the challenge can end in: the jackpot, or that many medals. */
 export type Hole = 'jackpot' | number;
 
 /**
- * The bowl a full run ends in: a ball rolls round it and drops into one of
- * its holes, each as likely as the next. Whatever the hole pays is stacked on
- * the pusher as towers.
+ * The three ends the challenge can come to, each as likely as the next. They
+ * are what they were when the challenge was one bowl with a hole for each.
  */
 export const BOWL: readonly Hole[] = ['jackpot', 50, 100];
 
-/** Draws the hole the ball will drop into, as an index into the bowl. */
-export const drawHole = (rng: () => number): number => Math.min(BOWL.length - 1, Math.floor(rng() * BOWL.length));
+/** A hole of one of the bowls: it lets the ball down into the bowl below, or ends the challenge with what it holds. */
+export type BowlHole = 'down' | Hole;
+
+/**
+ * The bowls a full run ends in, the top one first, and what each of their
+ * holes does. The ball rolls round a bowl and drops into one of its holes,
+ * each as likely as the next: through to the bowl below, or out with a prize.
+ * Two of the top bowl's three holes lead down and one of the middle bowl's
+ * two, so a third of the balls get to the bottom bowl, whose one hole is the
+ * jackpot's. The top bowl's other hole takes a third of them, and the middle
+ * bowl's other hole half of the two thirds it is left with. So the three
+ * ends in BOWL are as likely as each other, as they always were.
+ */
+export const BOWLS: readonly (readonly BowlHole[])[] = [['down', 'down', 50], ['down', 100], ['jackpot']];
+
+/** One way down the bowls: the hole the ball takes in each bowl it gets to, the top bowl's first. */
+export type Fall = readonly number[];
+
+/** What a fall ends in: what the last hole it takes holds. */
+export function fallEnd(fall: Fall): Hole {
+  const hole = BOWLS[fall.length - 1]?.[fall[fall.length - 1]];
+  if (hole === undefined || hole === 'down') throw new Error('a fall ends in a hole that holds a prize');
+  return hole;
+}
+
+/**
+ * Every way down, listed so that each entry is as likely as the next: a fall
+ * that ends in the top bowl stands twice, once for each hole of the middle
+ * bowl it never gets to. A fall is drawn by picking one of the six. They are
+ * in the order of the ends in BOWL, two for each, so a draw comes to the end
+ * it came to when the challenge was one bowl: the first third of the draws to
+ * the jackpot, the next to 50 and the last to 100.
+ */
+export const FALLS: readonly Fall[] = [[0, 0, 0], [1, 0, 0], [2], [2], [0, 1], [1, 1]];
+
+/** Draws the way the ball will go down the bowls, as an index into FALLS. */
+export const drawFall = (rng: () => number): number => Math.min(FALLS.length - 1, Math.floor(rng() * FALLS.length));
+
+/** The chance that the ball, once it is in the top bowl, gets as far as `bowl`, counted from the top. */
+export const bowlChance = (bowl: number): number => FALLS.filter((fall) => fall.length > bowl).length / FALLS.length;
+/** The chance that it gets there and drops into that bowl's hole `hole`. */
+export const holeChance = (bowl: number, hole: number): number => FALLS.filter((fall) => fall[bowl] === hole).length / FALLS.length;
 
 /** Medals a hole pays when the jackpot stands at `jackpot`. */
 export const holePays = (hole: Hole, jackpot: number): number => (hole === 'jackpot' ? jackpot : hole);
 
-/** Medals the bowl pays on average when the jackpot stands at `jackpot`. */
-export const bowlValue = (jackpot: number): number => BOWL.reduce<number>((sum, hole) => sum + holePays(hole, jackpot), 0) / BOWL.length;
+/**
+ * The share of what the bowls pay that the machine pours onto the field
+ * loose. The rest goes up on the pusher as towers, as far as the pusher has
+ * free places for them: what those cannot hold is poured as well.
+ */
+export const BOWL_POURED = 0.3;
+/** How many of `medals` paid by the bowls are poured loose whatever room the pusher has: the fewest that ever are. */
+export const pouredOf = (medals: number): number => Math.round(medals * BOWL_POURED);
 
-/** The chance that a ball's run gets as far as the bowl. */
+/** Medals the bowls pay on average when the jackpot stands at `jackpot`. */
+export const bowlValue = (jackpot: number): number => FALLS.reduce<number>((sum, fall) => sum + holePays(fallEnd(fall), jackpot), 0) / FALLS.length;
+
+/** The chance that a ball's run gets as far as the bowls. */
 export const CHALLENGE_CHANCE = chainChance(CHAIN_GOAL);
-/** The chance that the ball in the bowl drops into the jackpot's hole. */
-export const HOLE_JACKPOT_CHANCE = BOWL.filter((hole) => hole === 'jackpot').length / BOWL.length;
-/** The chance that a ball pushed over the front wins the jackpot: a full run, then the right hole. */
+/** The chance that a ball in the top bowl gets down to the jackpot's hole. */
+export const HOLE_JACKPOT_CHANCE = FALLS.filter((fall) => fallEnd(fall) === 'jackpot').length / FALLS.length;
+/** The chance that a ball pushed over the front wins the jackpot: a full run, then all the way down. */
 export const BALL_JACKPOT_CHANCE = CHALLENGE_CHANCE * HOLE_JACKPOT_CHANCE;
 
 // ── Exact odds ──────────────────────────────────────────────────────────────
@@ -234,7 +282,7 @@ export const reachHitChance = (kind: ReachShown = 'any'): number => reachAndWin(
 /**
  * Medals a ball's roulette pays on average when the jackpot stands at
  * `jackpot`: every number it gets to, each worth the average pocket, and the
- * bowl for the runs that reach the goal.
+ * bowls for the runs that reach the goal.
  */
 export function rouletteValue(jackpot: number): number {
   let numbers = 0;
@@ -279,18 +327,53 @@ export const JEWEL_VALUE = JEWEL_SET / JEWEL.lamps;
  */
 export const JEWEL_SPIN_VALUE = JEWEL_CHANCE * JEWEL_VALUE;
 
+/** Medals the game a line leads to is worth on average with the jackpot at `jackpot`: the board, the chests, or the roulette a ball will start. */
+function gameValue(tier: Tier, jackpot: number): number {
+  if (tier === 'miss') return 0;
+  return tier === 'small' ? BOARD_VALUE : tier === 'big' ? CHEST_VALUE : rouletteValue(jackpot);
+}
+
+/** Medals the jewel that comes with a line is worth: what it pays once it is collected. Only a treasure line has one. */
+const jewelValue = (tier: Tier): number => (tier === JEWEL_TIER ? JEWEL_VALUE : 0);
+
 /**
  * Medals each line is worth on average with the jackpot at `jackpot`, counting
  * a ball as the roulette it will start and a jewel as what it pays once it is
  * collected.
  */
 export function tierValue(tier: Tier, jackpot: number): number {
-  if (tier === 'miss') return 0;
-  const game = tier === 'small' ? BOARD_VALUE : tier === 'big' ? CHEST_VALUE : rouletteValue(jackpot);
-  return game + (tier === JEWEL_TIER ? JEWEL_VALUE : 0);
+  return gameValue(tier, jackpot) + jewelValue(tier);
 }
 
 /** Medals one spin is worth on average with the jackpot at `jackpot`. */
 export function spinValue(jackpot: number): number {
   return TIERS.reduce((sum, tier) => sum + tierChance(tier) * tierValue(tier, jackpot), 0);
 }
+
+/**
+ * Chance time. A medal that goes through a START pocket when the hold is full
+ * starts no spin of its own: it turns one of the held spins gold. A gold spin
+ * is drawn from the same table as any other, and what its line pays on the
+ * spot, the sugoroku square or the chest, is paid `multiplier` times over. A
+ * ball is a ball: three sevens are worth what they always are. And a jewel is
+ * a jewel: a gold treasure line lets one go, as any treasure line does, and
+ * what a jewel pays when it is collected is never paid twice over.
+ *
+ * So a gold spin has cost two medals through a pocket, and is worth less than
+ * the two spins they would have been with room in the hold. Filling the hold
+ * is never better than not filling it; it is only less of a loss than it was.
+ */
+export const CHANCE = { multiplier: 2 } as const;
+
+/** Medals each line of a gold spin is worth on average with the jackpot at `jackpot`. */
+export function chanceTierValue(tier: Tier, jackpot: number): number {
+  return gameValue(tier, jackpot) * (tier === 'small' || tier === 'big' ? CHANCE.multiplier : 1) + jewelValue(tier);
+}
+
+/** Medals one gold spin is worth on average with the jackpot at `jackpot`. */
+export function chanceSpinValue(jackpot: number): number {
+  return TIERS.reduce((sum, tier) => sum + tierChance(tier) * chanceTierValue(tier, jackpot), 0);
+}
+
+/** What turning a spin gold adds to it, on average. It is the same at any size of jackpot, since the ball's prize is not touched. */
+export const CHANCE_BONUS = chanceSpinValue(JACKPOT_START) - spinValue(JACKPOT_START);

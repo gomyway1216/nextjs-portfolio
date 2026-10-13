@@ -9,7 +9,7 @@
  */
 
 import { AIM, CHECKERS, aimArm, armFor, medalsOnField, seededRng, type Arm } from './engine';
-import { JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
+import { CHANCE_BONUS, JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
 export const AIM_IDS = ['centre', 'anywhere', 'beside', 'edges'] as const;
@@ -74,8 +74,8 @@ export const AIM_MARKERS: Record<AimId, MarkerShape> = {
   edges: 'diamond',
 };
 
-/** Medals per second on offer, between the two rails. Each rail's slot takes at most one every 0.18 s. */
-export const PACES = [2, 5] as const;
+/** Medals per second on offer, between the two rails. Each rail's slot takes at most one every 0.18 s, so the last is both feed buttons held down. */
+export const PACES = [2, 5, 11] as const;
 export type Pace = (typeof PACES)[number];
 
 /** Medals played before the count starts, so every machine is measured once its tables have filled. */
@@ -100,6 +100,8 @@ export interface AimResult {
   hits: number;
   wasted: number;
   spins: number;
+  /** Gold spins that were started: each was turned gold by a medal that found the hold full. They are among `spins`. */
+  gold: number;
   /** Medals the slot and the roulette threw onto the field. */
   paidOut: number;
   tiers: Record<Tier, number>;
@@ -127,6 +129,7 @@ interface Counts {
   hits: number;
   wasted: number;
   spins: number;
+  gold: number;
   paidOut: number;
   tiers: Record<Tier, number>;
   jackpots: number;
@@ -135,6 +138,14 @@ interface Counts {
 
 const onField = (session: Session): number => medalsOnField(session.machine);
 
+/**
+ * How many gold spins a session has started so far: every medal that turned a held spin gold, less the gold
+ * spins still held, which have not been spun yet. A stretch of play is measured by the difference between its
+ * two ends, so a gold spin belongs to the stretch its reels turned in, like any other spin, and not to the one
+ * its medal went through the pocket in.
+ */
+export const goldStarted = (session: Pick<Session, 'gilded' | 'gold'>): number => session.gilded - session.gold;
+
 const snapshot = (session: Session): Counts => ({
   played: session.inserted,
   won: session.won,
@@ -142,6 +153,7 @@ const snapshot = (session: Session): Counts => ({
   hits: session.hits,
   wasted: session.wasted,
   spins: session.spins,
+  gold: goldStarted(session),
   paidOut: session.paidOut,
   tiers: { ...session.tiers },
   jackpots: session.jackpots,
@@ -248,6 +260,7 @@ export async function simulate(
       hits: session.hits - from.hits,
       wasted: session.wasted - from.wasted,
       spins: session.spins - from.spins,
+      gold: goldStarted(session) - from.gold,
       paidOut: session.paidOut - from.paidOut,
       tiers: Object.fromEntries(TIERS.map((tier) => [tier, session.tiers[tier] - from.tiers[tier]])) as Record<Tier, number>,
       jackpots: session.jackpots - from.jackpots,
@@ -266,7 +279,8 @@ export const frontShare = (result: AimResult): number => (result.won + result.lo
  * The return this run would have had with average luck on the screen: every
  * medal on the field, dropped or paid out, leaves by the front with the share
  * measured here, and each spin pays its exact average instead of what it
- * happened to pay.
+ * happened to pay: an ordinary spin's, and for a gold spin what being gold
+ * adds to that.
  */
 export const steadyReturn = (result: AimResult): number =>
-  result.played === 0 ? 0 : frontShare(result) * (1 + (result.spins / result.played) * spinValue(JACKPOT_START));
+  result.played === 0 ? 0 : frontShare(result) * (1 + (result.spins * spinValue(JACKPOT_START) + result.gold * CHANCE_BONUS) / result.played);

@@ -1,27 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, DROP_INTERVAL, FALL_TIME, FIELD, JEWEL_DROP, ROLL_TIME, ballsOnField, jewelsOnField, medalsOnField, pusherFront, seededRng, towerSizes } from '@/components/game/MedalPusher/engine';
+import {
+  AIM,
+  CHECKERS,
+  DROP_INTERVAL,
+  FALL_TIME,
+  FIELD,
+  JEWEL_DROP,
+  ROLL_TIME,
+  TOWER,
+  TOWER_SITES,
+  ballsOnField,
+  buildTowers,
+  jewelsOnField,
+  medalsOnField,
+  pusherFront,
+  seededRng,
+  towerSizes,
+} from '@/components/game/MedalPusher/engine';
 import {
   BALL_JACKPOT_CHANCE,
   BOARD,
   BOWL,
+  BOWLS,
   CHAIN_GOAL,
   CHALLENGE_CHANCE,
+  CHANCE,
+  CHANCE_BONUS,
+  CHEST_TOWERS_FROM,
+  FALLS,
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
   JEWEL,
   JEWEL_SET,
   ROULETTE,
+  bowlChance,
+  chanceSpinValue,
+  drawFall,
+  pouredOf,
   rouletteValue,
+  spinValue,
+  squareAfter,
 } from '@/components/game/MedalPusher/lottery';
 import {
+  BOWL_TIMES,
   MAX_STOCK,
   START_BALLS,
   START_CREDITS,
   START_JEWELS,
   TIMING,
   advance,
+  bowlShowTime,
+  chanceLeft,
   createSession,
   isBusy,
   insert,
@@ -273,7 +304,7 @@ describe('the slot', () => {
     // Through a pocket: a hit, held for a moment and spun at once. The screen is told which pocket it was.
     CHECKERS.positions.forEach((x, pocket) => {
       const through = over(x);
-      expect(pocketed(through.events)).toEqual([{ type: 'checker', gate: pocket, held: true }]);
+      expect(pocketed(through.events)).toEqual([{ type: 'checker', gate: pocket, held: true, gold: false }]);
       expect(through.session.hits).toBe(1);
       expect(through.session.spins).toBe(1);
       expect(through.session.stock).toBe(0);
@@ -597,35 +628,67 @@ describe('the jackpot challenge', () => {
   const TURN = TIMING.roulette;
   /** The seconds a full run takes, from the start of its first turn to its last number landing. */
   const RUN = (TURN + TIMING.step) * (CHAIN_GOAL - 1) + TURN;
+  /** The seconds from the start of a ball's roulette to the ball being let go in the top bowl. */
+  const TO_BOWLS = RUN + TIMING.step;
+  /** The three ends, as the draws below come to them: the way down, the bowl it ends in, and the seconds the ball is in the bowls. */
+  const ENDS = [
+    { way: [0, 0, 0], last: 2, rolling: TIMING.bowl + TIMING.bowlMiddle + TIMING.bowlLast },
+    { way: [2], last: 0, rolling: TIMING.bowl },
+    { way: [0, 1], last: 1, rolling: TIMING.bowl + TIMING.bowlMiddle },
+  ] as const;
   /**
    * A ball whose every draw comes out the same, whatever the field draws in between.
-   * Pockets 1, 5 and 9 are all tens, and the draws that pick them pick the first, second and third hole.
+   * Pockets 1, 5 and 9 are all tens, and the draws that pick them pick a way down to the jackpot, to fifty and to a hundred.
+   * No jewel lies on its field: one that the pour pushed over the front would be paid for, and these are the bowls' books.
    */
-  const withRun = (hole: number): Session => {
-    const session = createSession(6, { balls: 0 });
+  const withRun = (end: number): Session => {
+    const session = createSession(6, { balls: 0, jewels: 0 });
     session.balls = 1;
-    script(session, [], draw([1, 5, 9][hole]));
+    script(session, [], draw([1, 5, 9][end]));
     return session;
   };
+  /** Runs the session a step at a time until something of this type happens, and returns it with everything else that happened on the way. */
+  function until<T extends SessionEvent['type']>(session: Session, type: T, steps = 60 * 60): { event: Extract<SessionEvent, { type: T }>; events: SessionEvent[] } {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < steps; i++) {
+      advance(session, DT, events);
+      const event = events.find((one): one is Extract<SessionEvent, { type: T }> => one.type === type);
+      if (event) return { event, events };
+    }
+    throw new Error(`no ${type} in ${steps} steps`);
+  }
+  /** The medals standing in towers, with what each tower has still to gain. */
+  const inTowers = (session: Session) => towersOf(session).reduce((sum, tower) => sum + tower.stack + tower.grow, 0);
 
-  it('has the holes and the pockets its tests rely on', () => {
+  it('has the bowls, the pockets and the times its tests rely on', () => {
     expect(CHAIN_GOAL).toBe(4);
     expect(BOWL).toEqual(['jackpot', 50, 100]);
+    expect(BOWLS).toEqual([['down', 'down', 50], ['down', 100], ['jackpot']]);
     expect([1, 5, 9].map((pocket) => ROULETTE[pocket])).toEqual([10, 10, 10]);
+    expect([1, 5, 9].map((pocket) => FALLS[drawFall(() => draw(pocket))])).toEqual(ENDS.map((end) => end.way));
     expect(TIMING.bowl).toBeCloseTo(6.5, 9);
+    // Each bowl has its own time, and none of them is over in a moment.
+    expect(BOWL_TIMES).toEqual([TIMING.bowl, TIMING.bowlMiddle, TIMING.bowlLast]);
+    expect(BOWL_TIMES).toHaveLength(BOWLS.length);
+    for (const time of BOWL_TIMES) expect(time).toBeGreaterThanOrEqual(4);
+    // The jackpot is counted out for longer than a prize from one of the upper bowls.
+    expect(bowlShowTime(true)).toBe(TIMING.jackpot);
+    expect(bowlShowTime(false)).toBe(TIMING.bowlPrize);
+    expect(TIMING.jackpot).toBeGreaterThan(TIMING.bowlPrize);
+    expect(TIMING.bowlPrize).toBeGreaterThan(TIMING.prize);
   });
 
-  it('lets the ball go in the bowl after four numbers in a row, its hole already drawn', () => {
+  it('lets the ball go in the top bowl after four numbers in a row, its whole way down already drawn', () => {
     const session = withRun(1);
     const run = play(session, RUN + 0.1);
     expect(run.filter((event) => event.type === 'rouletteStep')).toHaveLength(CHAIN_GOAL);
-    // The last number is up, and the run is neither over nor in the bowl yet.
+    // The last number is up, and the run is neither over nor in the bowls yet.
     expect(types(run)).not.toContain('bowlStart');
     expect(types(run)).not.toContain('rouletteEnd');
     expect(session.roulette).toMatchObject({ level: 4, total: 40, gain: 10, landed: true, over: false, bowl: null });
     const start = play(session, TIMING.step);
-    expect(start.find((event) => event.type === 'bowlStart')).toMatchObject({ hole: 1, duration: TIMING.bowl });
-    expect(session.roulette?.bowl).toMatchObject({ hole: 1, duration: TIMING.bowl, payout: -1 });
+    expect(start.find((event) => event.type === 'bowlStart')).toEqual({ type: 'bowlStart', holes: [2], duration: TIMING.bowl });
+    expect(session.roulette?.bowl).toMatchObject({ holes: [2], stage: 0, duration: TIMING.bowl, payout: -1 });
     // While the ball rolls there is no fifth turn and nothing more is paid.
     const rolling = play(session, TIMING.bowl - 0.3);
     expect(types(rolling)).not.toContain('rouletteStep');
@@ -635,78 +698,294 @@ describe('the jackpot challenge', () => {
     expect(isBusy(session)).toBe(true);
   });
 
-  it('pays fifty or a hundred medals as towers and leaves the jackpot alone', () => {
-    for (const [hole, medals] of [
+  it('lets the ball down from bowl to bowl through the holes that lead down, each bowl in its own time', () => {
+    const session = withRun(0);
+    play(session, TO_BOWLS - 0.1);
+    const { events: first } = until(session, 'bowlStart');
+    expect(types(first).filter((type) => type.startsWith('bowl'))).toEqual(['bowlStart']);
+    // Through the first hole of the top bowl into the middle one, where its time starts again.
+    let steps = 0;
+    const count = () => (steps += 1);
+    const dropped: SessionEvent[] = [];
+    while (!dropped.some((event) => event.type === 'bowlDrop')) {
+      advance(session, DT, dropped);
+      count();
+    }
+    expect(dropped).toContainEqual({ type: 'bowlDrop', bowl: 1, hole: 0, duration: TIMING.bowlMiddle });
+    expect(Math.abs(steps * DT - TIMING.bowl)).toBeLessThan(2 * DT);
+    expect(session.roulette?.bowl).toEqual({ holes: [0, 0, 0], stage: 1, elapsed: 0, duration: TIMING.bowlMiddle, payout: -1 });
+    // Nothing is paid for getting down a bowl, and the run goes on.
+    expect(session.paidOut).toBe(40);
+    expect(session.roulette).toMatchObject({ over: false, jackpot: false, gain: 0, total: 40 });
+    // Then through the middle bowl's hole into the bottom one.
+    const { event: second } = until(session, 'bowlDrop');
+    expect(second).toEqual({ type: 'bowlDrop', bowl: 2, hole: 0, duration: TIMING.bowlLast });
+    expect(session.roulette?.bowl).toMatchObject({ stage: 2, elapsed: 0, duration: TIMING.bowlLast, payout: -1 });
+    expect(session.paidOut).toBe(40);
+    // And the bottom bowl's one hole is the jackpot's.
+    const { event: end, events: last } = until(session, 'bowlEnd');
+    expect(types(last).filter((type) => type.startsWith('bowl'))).toEqual(['bowlEnd']);
+    expect(end).toMatchObject({ bowl: 2, hole: 0, jackpot: true, payout: JACKPOT_START });
+  });
+
+  it('pays fifty from the top bowl or a hundred from the middle one, part poured and the rest as towers, and leaves the jackpot alone', () => {
+    for (const [end, medals] of [
       [1, 50],
       [2, 100],
     ]) {
-      const session = withRun(hole);
+      const { way, last, rolling } = ENDS[end];
+      const session = withRun(end);
       session.jackpot = 337;
       session.jackpotProgress = 12;
       const before = medalsOnField(session.machine);
-      const events = play(session, RUN + TIMING.step + TIMING.bowl + 0.2);
-      expect(events.find((event) => event.type === 'bowlEnd')).toMatchObject({ hole, payout: medals, total: 40 + medals, jackpot: false });
+      play(session, TO_BOWLS + rolling - 0.2);
+      const stacked = inTowers(session);
+      const { event, events } = until(session, 'bowlEnd');
+      expect(event).toEqual({ type: 'bowlEnd', bowl: last, hole: way[last], payout: medals, poured: pouredOf(medals), total: 40 + medals, jackpot: false });
       // The ball ends the run: there is no cross to announce.
       expect(types(events)).not.toContain('rouletteEnd');
       expect(session.roulette).toMatchObject({ over: true, jackpot: false, gain: medals, total: 40 + medals });
-      expect(session.roulette?.bowl).toMatchObject({ hole, payout: medals });
+      expect(session.roulette?.bowl).toMatchObject({ holes: way, stage: last, payout: medals });
+      // In the step it is paid: so many waiting to be poured, and the rest in towers that have still to go up.
+      expect(session.machine.payoutQueue).toBe(pouredOf(medals));
+      expect(inTowers(session) - stacked).toBe(medals - pouredOf(medals));
       expect(session.paidOut).toBe(40 + medals);
-      expect(session.machine.payoutQueue).toBe(0);
       expect(medalsOnField(session.machine) + session.won + session.lost).toBe(before + 40 + medals);
       expect(session.jackpots).toBe(0);
       expect(session.jackpot).toBe(337);
       expect(session.jackpotProgress).toBe(12);
-      // The prize stays up, then the screen is free.
-      play(session, TIMING.prize - 0.4);
+      // The prize stays up while it is counted out, then the screen is free.
+      play(session, TIMING.bowlPrize - 0.4);
       expect(session.roulette).not.toBeNull();
       play(session, 0.5);
       expect(session.roulette).toBeNull();
+      // And every medal of it has been thrown on or stacked by then, or is about to be.
+      play(session, 3);
+      expect(session.machine.payoutQueue).toBe(0);
+      expect(session.machine.growing).toBe(0);
+      expect(medalsOnField(session.machine) + session.won + session.lost).toBe(before + 40 + medals);
     }
   });
 
-  it('pays the jackpot as towers when the ball drops into its hole, and starts it over', () => {
+  it('pays the jackpot when the ball drops into the hole of the bottom bowl, part poured and the rest as towers, and starts it over', () => {
     const session = withRun(0);
     session.jackpot = 337;
     session.jackpotProgress = 12;
     const before = medalsOnField(session.machine);
-    const events = play(session, RUN + TIMING.step + TIMING.bowl + 0.2);
-    expect(events.filter((event) => event.type === 'bowlStart')).toHaveLength(1);
-    expect(events.find((event) => event.type === 'bowlEnd')).toMatchObject({ hole: 0, payout: 337, total: 40 + 337, jackpot: true });
-    expect(types(events)).not.toContain('rouletteEnd');
+    const events = play(session, TO_BOWLS + ENDS[0].rolling - 0.2);
+    expect(types(events).filter((type) => type.startsWith('bowl'))).toEqual(['bowlStart', 'bowlDrop', 'bowlDrop']);
+    const stacked = inTowers(session);
+    const { event, events: last } = until(session, 'bowlEnd');
+    expect(event).toEqual({ type: 'bowlEnd', bowl: 2, hole: 0, payout: 337, poured: 101, total: 40 + 337, jackpot: true });
+    expect(types(last)).not.toContain('rouletteEnd');
     expect(session.roulette).toMatchObject({ over: true, jackpot: true, gain: 337, total: 377 });
     expect(session.jackpots).toBe(1);
     expect(session.jackpot).toBe(JACKPOT_START);
     expect(session.jackpotProgress).toBe(0);
+    // A hundred and one medals wait to be poured from the lip, and the other 236 are towers going up.
+    expect(session.machine.payoutQueue).toBe(101);
+    expect(inTowers(session) - stacked).toBe(236);
     expect(session.paidOut).toBe(377);
     expect(medalsOnField(session.machine) + session.won + session.lost).toBe(before + 377);
     expect(isBusy(session)).toBe(true);
-    // It is paid once, and then the run is over.
-    const after = play(session, TIMING.prize + 0.2);
+    // It is paid once, it stays up while it is counted out, and then the run is over.
+    const during = play(session, TIMING.jackpot - 0.3);
+    expect(types(during).filter((type) => type.startsWith('roulette') || type.startsWith('bowl'))).toEqual([]);
+    expect(session.roulette).not.toBeNull();
+    const after = play(session, 0.5);
     expect(types(after).filter((type) => type.startsWith('roulette') || type.startsWith('bowl'))).toEqual([]);
     expect(session.roulette).toBeNull();
     expect(session.paidOut).toBe(377);
+    // The pour goes on after the screen has moved on, until every medal owed is on the field.
+    play(session, 8);
+    expect(session.machine.payoutQueue).toBe(0);
+    expect(session.machine.growing).toBe(0);
+    expect(medalsOnField(session.machine) + session.won + session.lost).toBe(before + 377);
   });
 
   it('pays the jackpot as it stands when the ball drops', () => {
     const session = withRun(0);
-    play(session, RUN + TIMING.step + 1);
-    // Medals dropped while the ball rolls still count.
+    play(session, TO_BOWLS + 1);
+    // Medals dropped while the ball is in the bowls still count.
     session.jackpot = JACKPOT_START + 3;
-    const events = play(session, TIMING.bowl);
-    expect(events.find((event) => event.type === 'bowlEnd')).toMatchObject({ payout: JACKPOT_START + 3, jackpot: true });
+    const { event } = until(session, 'bowlEnd');
+    expect(event).toMatchObject({ payout: JACKPOT_START + 3, poured: pouredOf(JACKPOT_START + 3), jackpot: true });
     expect(session.jackpot).toBe(JACKPOT_START);
   });
 
-  it('holds the screen until the ball has dropped and its prize has been up', () => {
+  it('pays every jackpot of a few hundred exactly what is owed, whichever way the ball went and however big it is', () => {
+    const session = createSession(12, { balls: 0 });
+    // Nobody is feeding this machine: its field starts bare, and is swept bare again as soon as each prize has been counted.
+    const sweep = () => {
+      session.machine.medals = [];
+      session.machine.falling = [];
+      session.machine.payoutQueue = 0;
+      session.machine.growing = 0;
+    };
+    sweep();
+    const runs = 300;
+    let owed = 0;
+    for (let i = 0; i < runs; i++) {
+      // Jackpots from where one starts up to more than the pusher has places for in towers, down either of the top bowl's holes.
+      const jackpot = JACKPOT_START + ((i * 37) % 900);
+      const down = i % 2;
+      session.jackpot = jackpot;
+      session.jackpotProgress = i % 40;
+      session.balls = 1;
+      // Four tens, then the draw that goes down this hole of the top bowl and on to the jackpot.
+      const draws = [draw(1), draw(1), draw(1), draw(1), (down + 0.5) / FALLS.length];
+      session.machine.rng = () => draws.shift() ?? draw(1);
+      const paidBefore = session.paidOut;
+      let end: SessionEvent | undefined;
+      const drops: number[][] = [];
+      for (let step = 0; session.roulette || step === 0; step++) {
+        if (step > 400) throw new Error('the run never ended');
+        const events: SessionEvent[] = [];
+        const lying = medalsOnField(session.machine);
+        const gone = session.won + session.lost;
+        advance(session, 0.5, events);
+        for (const event of events) if (event.type === 'bowlDrop') drops.push([event.bowl, event.hole]);
+        // A tower from one of the four tens is swept as it is paid: this is about the jackpot.
+        if (events.some((event) => event.type === 'rouletteStep')) sweep();
+        const paid = events.find((event) => event.type === 'bowlEnd');
+        if (!paid || paid.type !== 'bowlEnd') continue;
+        end = paid;
+        // In the step it is paid, every medal of it is on the field: waiting to be poured, or in a tower, standing or still to go up.
+        const poured = pouredOf(jackpot);
+        expect(medalsOnField(session.machine) + session.won + session.lost - lying - gone).toBe(jackpot);
+        const stacked = session.machine.medals.reduce((sum, medal) => sum + medal.stack + medal.grow, 0);
+        expect(stacked + session.machine.payoutQueue).toBe(jackpot);
+        // What the towers cannot hold is poured with the rest: the pusher has places for 450 in towers.
+        expect(stacked).toBe(Math.min(jackpot - poured, TOWER_SITES * TOWER.max));
+        expect(session.machine.payoutQueue).toBe(jackpot - stacked);
+        sweep();
+      }
+      // The count it gives of what is poured is what was really poured, the towers' overflow with the rest.
+      const towers = Math.min(jackpot - pouredOf(jackpot), TOWER_SITES * TOWER.max);
+      expect(end).toEqual({ type: 'bowlEnd', bowl: 2, hole: 0, payout: jackpot, poured: jackpot - towers, total: 40 + jackpot, jackpot: true });
+      expect(drops).toEqual([
+        [1, down],
+        [2, 0],
+      ]);
+      // Paid once, and all of it: four tens and the jackpot to the medal.
+      expect(session.paidOut - paidBefore).toBe(40 + jackpot);
+      expect(session.jackpots).toBe(i + 1);
+      expect(session.jackpot).toBe(JACKPOT_START);
+      expect(session.jackpotProgress).toBe(0);
+      owed += 40 + jackpot;
+    }
+    expect(session.paidOut).toBe(owed);
+    expect(owed).toBeGreaterThan(runs * 600);
+  });
+
+  /**
+   * A machine with a bare field and a full run behind it, the ball at the very moment it drops into the last hole of
+   * `way`, and `taken` of the pusher's places for towers already standing full. The prize is paid in a step of no
+   * time, so the pusher is where it was when those towers went up and each still stands on its place.
+   */
+  const atTheDrop = (way: readonly number[], taken: number, jackpot = JACKPOT_START): Session => {
+    const session = createSession(12, { balls: 0 });
+    Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0 });
+    session.jackpot = jackpot;
+    session.roulettes = 1;
+    const stage = way.length - 1;
+    session.roulette = {
+      pocket: 1,
+      from: 1,
+      elapsed: TURN + TIMING.step,
+      duration: TURN,
+      landed: true,
+      level: CHAIN_GOAL,
+      total: 40,
+      gain: 0,
+      over: false,
+      jackpot: false,
+      bowl: { holes: [...way], stage, elapsed: BOWL_TIMES[stage], duration: BOWL_TIMES[stage], payout: -1 },
+    };
+    buildTowers(session.machine, TOWER.max * taken);
+    return session;
+  };
+
+  it.each([
+    ['a jackpot with every place for a tower free', ENDS[0].way, 0, 300, 90],
+    ['a jackpot with some of the places taken', ENDS[0].way, 14, 300, 200],
+    ['a jackpot with one place left', ENDS[0].way, TOWER_SITES - 1, 300, 275],
+    ['a jackpot with no place free', ENDS[0].way, TOWER_SITES, 300, 300],
+    ['a jackpot of 1,199 medals, more than the pusher has places for', ENDS[0].way, 0, 1199, 749],
+    ['a jackpot of 1,199 medals with some of the places taken', ENDS[0].way, 10, 1199, 999],
+    ['fifty with every place free', ENDS[1].way, 0, 300, 15],
+    ['fifty with one place left', ENDS[1].way, TOWER_SITES - 1, 300, 25],
+    ['fifty with no place free', ENDS[1].way, TOWER_SITES, 300, 50],
+    ['a hundred with two places left', ENDS[2].way, TOWER_SITES - 2, 300, 50],
+    ['a hundred with no place free', ENDS[2].way, TOWER_SITES, 300, 100],
+  ] as const)('says how many medals are really poured: %s', (_name, way, taken, jackpot, poured) => {
+    const session = atTheDrop(way, taken, jackpot);
+    // The towers in the way stand full, each on a place of its own, and nothing waits to be poured.
+    expect(towersOf(session)).toHaveLength(taken);
+    expect(inTowers(session)).toBe(TOWER.max * taken);
+    expect(session.machine.payoutQueue).toBe(0);
+    const before = medalsOnField(session.machine);
+    const events: SessionEvent[] = [];
+    advance(session, 0, events);
+    const end = events.find((event): event is Extract<SessionEvent, { type: 'bowlEnd' }> => event.type === 'bowlEnd');
+    if (!end) throw new Error('the ball did not drop');
+    const last = way.length - 1;
+    const payout = last === 2 ? jackpot : last === 0 ? 50 : 100;
+    expect(end).toEqual({ type: 'bowlEnd', bowl: last, hole: way[last], payout, poured, total: 40 + payout, jackpot: last === 2 });
+    // What it says is poured is what the prize added to the queue: the share that always is, and all the free places could not hold.
+    const room = (TOWER_SITES - taken) * TOWER.max;
+    expect(poured).toBe(payout - Math.min(payout - pouredOf(payout), room));
+    expect(poured).toBeGreaterThanOrEqual(pouredOf(payout));
+    expect(session.machine.payoutQueue).toBe(poured);
+    // The rest went up as towers, on free places only, and the two together are the prize to the medal.
+    expect(inTowers(session) - TOWER.max * taken).toBe(payout - poured);
+    expect(towersOf(session).length).toBeLessThanOrEqual(TOWER_SITES);
+    expect(session.paidOut).toBe(payout);
+    expect(medalsOnField(session.machine) - before).toBe(payout);
+    expect(session.roulette).toMatchObject({ over: true, gain: payout, total: 40 + payout });
+  });
+
+  it.each([
+    ['the jackpot', ENDS[0].way, 300],
+    ['the fifty', ENDS[1].way, 50],
+    ['the hundred', ENDS[2].way, 100],
+  ] as const)('pays %s the same with gold spins held: chance time pays a square or a chest over, never a ball', (_name, way, payout) => {
+    const ended = (session: Session) => {
+      const events: SessionEvent[] = [];
+      advance(session, 0, events);
+      return events.find((event) => event.type === 'bowlEnd');
+    };
+    const ordinary = atTheDrop(way, 0);
+    // The same machine with the hold full and three of the held spins gold; and, though the machine is never
+    // there with a ball in the bowls, with the screen itself marked as a gold spin's.
+    const held = atTheDrop(way, 0);
+    Object.assign(held, { stock: MAX_STOCK, gold: 3, gilded: 3, wasted: 3 });
+    const marked = atTheDrop(way, 0);
+    Object.assign(marked, { stock: MAX_STOCK, gold: 3, gilded: 4, wasted: 4, chance: true });
+    const end = ended(ordinary);
+    expect(end).toMatchObject({ type: 'bowlEnd', payout, total: 40 + payout });
+    for (const session of [held, marked]) {
+      expect(ended(session)).toEqual(end);
+      expect(session.paidOut).toBe(payout);
+      expect(session.machine.payoutQueue).toBe(ordinary.machine.payoutQueue);
+      expect(inTowers(session)).toBe(inTowers(ordinary));
+      // The gold spins are still held, as gold as they were.
+      expect(session.gold).toBe(3);
+    }
+    expect(chanceLeft(held)).toBe(3);
+    expect(CHANCE.multiplier).toBeGreaterThan(1);
+  });
+
+  it('holds the screen until the ball has dropped for good and its prize has been up', () => {
     const session = withRun(2);
     session.stock = 2;
-    play(session, RUN + TIMING.step + 0.1);
+    play(session, TO_BOWLS + 0.1);
     expect(session.roulette?.bowl).not.toBeNull();
-    // Another ball goes over while this one is in the bowl.
+    // Another ball goes over while this one is in the bowls.
     session.balls = 1;
-    const during = play(session, TIMING.bowl + TIMING.prize - 0.3);
+    const during = play(session, ENDS[2].rolling + TIMING.bowlPrize - 0.3);
     expect(types(during).filter((type) => ['rouletteStart', 'spinStart', 'sugorokuStart', 'chestStart'].includes(type))).toEqual([]);
-    expect(types(during).filter((type) => type.startsWith('bowl'))).toEqual(['bowlEnd']);
+    expect(types(during).filter((type) => type.startsWith('bowl'))).toEqual(['bowlDrop', 'bowlEnd']);
     expect(session.spins).toBe(0);
     expect(session.roulettes).toBe(1);
     // Then the waiting ball has its roulette, ahead of the held spins.
@@ -719,28 +998,38 @@ describe('the jackpot challenge', () => {
     expect(session.stock).toBe(2 + session.hits);
   });
 
-  it('gets to the bowl and to the jackpot as often as the exact odds say', () => {
-    // Ball after ball in big steps of time. The field is swept bare before each, so the towers never pile up.
+  it('gets to the bowls, down them and to the jackpot as often as the exact odds say', () => {
+    // Ball after ball in big steps of time. This is about the screen, so the field is kept bare all the while: whatever
+    // a prize puts on it is swept off in the step it is paid, and nothing piles up for the pusher to work on.
     const session = createSession(9, { balls: 0 });
     session.machine.rng = seededRng(4242);
     const runs = 6000;
     const events: SessionEvent[] = [];
     for (let i = 0; i < runs; i++) {
-      expect(session.machine.growing).toBe(0);
-      session.machine.medals = [];
       session.balls = 1;
-      do advance(session, 0.5, events);
-      while (session.roulette);
+      do {
+        advance(session, 0.5, events);
+        session.machine.medals = [];
+        session.machine.falling = [];
+        session.machine.payoutQueue = 0;
+        session.machine.growing = 0;
+      } while (session.roulette);
     }
     const count = (type: SessionEvent['type']) => events.filter((event) => event.type === type).length;
     expect(session.roulettes).toBe(runs);
     expect(count('rouletteStart')).toBe(runs);
-    // Every run ends once: on a cross, or with the ball in a hole.
+    // Every run ends once: on a cross, or with the ball in a hole that holds a prize.
     expect(count('rouletteEnd') + count('bowlEnd')).toBe(runs);
     expect(count('bowlStart')).toBe(count('bowlEnd'));
     const within = (seen: number, p: number) => Math.abs(seen / runs - p) < 4 * Math.sqrt((p * (1 - p)) / runs);
     expect(within(count('bowlStart'), CHALLENGE_CHANCE)).toBe(true);
     expect(within(session.jackpots, BALL_JACKPOT_CHANCE)).toBe(true);
+    // Of the balls in the top bowl, two in three get to the middle one and one in three to the bottom.
+    const into = (bowl: number) => events.filter((event) => event.type === 'bowlDrop' && event.bowl === bowl).length;
+    expect(within(into(1), CHALLENGE_CHANCE * bowlChance(1))).toBe(true);
+    expect(within(into(2), CHALLENGE_CHANCE * bowlChance(2))).toBe(true);
+    // Every ball that gets to the bottom bowl wins the jackpot, and no other does.
+    expect(into(2)).toBe(session.jackpots);
     // Nobody drops a medal, so the jackpot stays where it starts and a ball is worth its exact average.
     // What one ball pays varies by about 99 medals, so the mean of 6,000 varies by about 1.3.
     expect(session.jackpot).toBe(JACKPOT_START);
@@ -748,13 +1037,13 @@ describe('the jackpot challenge', () => {
   }, LONG);
 });
 
-describe('the jewels', () => {
-  /** Lays a jewel on the lower table just past its front edge: the next step takes it over. */
-  function overTheFront(session: Session, x = 50): void {
-    const { machine } = session;
-    machine.medals.push({ id: machine.nextId++, x, y: FIELD.depth + 0.1, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, jewel: true });
-  }
+/** Lays a jewel on the lower table just past its front edge: the next step takes it over. */
+function overTheFront(session: Session, x = 50): void {
+  const { machine } = session;
+  machine.medals.push({ id: machine.nextId++, x, y: FIELD.depth + 0.1, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, jewel: true });
+}
 
+describe('the jewels', () => {
   it('lie on a new machine, two of them, with no lamp lit', () => {
     const session = createSession(1);
     expect(START_JEWELS).toBe(2);
@@ -911,4 +1200,231 @@ describe('a session played for a while', () => {
     };
     expect(play300()).toEqual(play300());
   }, LONG);
+});
+
+describe('chance time', () => {
+  /** A session with nothing on the field and a chest nobody picks on its screen, so that spins are held and not played. */
+  const busy = (): Session => {
+    const session = emptied();
+    session.bonus = { ...CHEST, prizes: [...CHEST.prizes] };
+    return session;
+  };
+  /** Sends `count` medals over the lip through the middle pocket, one a step, and says what happened. */
+  const through = (session: Session, count: number): SessionEvent[] => {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < count; i++) {
+      overTheLip(session, CHECKERS.positions[1]);
+      advance(session, DT, events);
+    }
+    return events;
+  };
+  /** Runs the session until `done` says so, `limit` seconds at most, and says what happened on the way. */
+  const until = (session: Session, done: () => boolean, limit = 30): SessionEvent[] => {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < limit * 60 && !done(); i++) advance(session, DT, events);
+    expect(done()).toBe(true);
+    return events;
+  };
+  const count = (events: SessionEvent[], type: SessionEvent['type']) => events.filter((event) => event.type === type).length;
+  /** The draws of a spin that stops on three even digits, with an ordinary reach, and of the die that follows: a two. */
+  const SMALL = [0.03, 0.3, ORDINARY, 0.2];
+
+  it('turns one held spin gold for each medal that finds the hold full, until every held spin is gold', () => {
+    const session = busy();
+    // Eight medals fill the hold. Nothing is gold yet: a full hold is not chance time, a medal wasted on it is.
+    const filling = through(session, MAX_STOCK);
+    expect(pocketed(filling).every((event) => event.type === 'checker' && event.held && !event.gold)).toBe(true);
+    expect([session.stock, session.gold, session.gilded, session.wasted]).toEqual([MAX_STOCK, 0, 0, 0]);
+    expect(chanceLeft(session)).toBe(0);
+    expect(count(filling, 'chanceStart')).toBe(0);
+    // The ninth starts no spin of its own. It turns one of the eight gold, and chance time begins.
+    const ninth = through(session, 1);
+    expect(pocketed(ninth)).toEqual([{ type: 'checker', gate: 1, held: false, gold: true }]);
+    expect(count(ninth, 'chanceStart')).toBe(1);
+    expect([session.stock, session.gold, session.gilded, session.wasted]).toEqual([MAX_STOCK, 1, 1, 1]);
+    expect(chanceLeft(session)).toBe(1);
+    // Seven more turn the other seven. Chance time is already on: it does not begin again.
+    const more = through(session, MAX_STOCK - 1);
+    expect(pocketed(more).every((event) => event.type === 'checker' && !event.held && event.gold)).toBe(true);
+    expect(count(more, 'chanceStart')).toBe(0);
+    expect([session.stock, session.gold, session.gilded, session.wasted]).toEqual([MAX_STOCK, MAX_STOCK, MAX_STOCK, MAX_STOCK]);
+    // With every held spin gold there is nothing left to turn, and a medal through a pocket is only wasted.
+    const last = through(session, 2);
+    expect(pocketed(last)).toEqual([
+      { type: 'checker', gate: 1, held: false, gold: false },
+      { type: 'checker', gate: 1, held: false, gold: false },
+    ]);
+    expect([session.stock, session.gold, session.gilded, session.wasted, session.hits]).toEqual([MAX_STOCK, MAX_STOCK, MAX_STOCK, MAX_STOCK + 2, 2 * MAX_STOCK + 2]);
+    // Every medal through a pocket was held or wasted; none has been spun yet.
+    expect(session.hits).toBe(session.spins + session.stock + session.wasted);
+    expect(session.spins).toBe(0);
+  });
+
+  it('does the same for a tower that goes over through a pocket: its medals fill the hold and then turn it gold', () => {
+    const session = emptied();
+    overTheLip(session, CHECKERS.positions[0], 2 * MAX_STOCK + 4);
+    const events = play(session, DT);
+    const hits = pocketed(events);
+    expect(hits.map((event) => event.type === 'checker' && event.held)).toEqual([...Array(MAX_STOCK).fill(true), ...Array(MAX_STOCK + 4).fill(false)]);
+    expect(hits.map((event) => event.type === 'checker' && event.gold)).toEqual([...Array(MAX_STOCK).fill(false), ...Array(MAX_STOCK).fill(true), false, false, false, false]);
+    expect(count(events, 'chanceStart')).toBe(1);
+    // The screen was free, so the first gold spin is on it already.
+    expect([session.spins, session.stock, session.gold, session.gilded, session.wasted]).toEqual([1, MAX_STOCK - 1, MAX_STOCK - 1, MAX_STOCK, MAX_STOCK + 4]);
+    expect(session.chance).toBe(true);
+    expect(chanceLeft(session)).toBe(MAX_STOCK);
+  });
+
+  it('plays the gold spins first and quickly, and ends when the last of them is done', () => {
+    const session = busy();
+    through(session, MAX_STOCK + 3);
+    expect([session.stock, session.gold]).toEqual([MAX_STOCK, 3]);
+    // The chest goes, and the reels are free. Every spin from here misses, with no reach.
+    session.bonus = null;
+    const events = until(session, () => session.stock === 0 && session.spin === null);
+    const starts = events.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []));
+    expect(starts).toHaveLength(MAX_STOCK);
+    // Three gold spins, each in half the time of a hurried one; then the five that were not turned, at their own pace.
+    expect(TIMING.chanceSpin).toBe(TIMING.quickSpin / 2);
+    expect(starts.slice(0, 3)).toEqual([TIMING.chanceSpin, TIMING.chanceSpin, TIMING.chanceSpin]);
+    expect(starts.slice(3)).toEqual([TIMING.quickSpin, TIMING.quickSpin, TIMING.quickSpin, TIMING.spin, TIMING.spin]);
+    // Chance time was on already, and ended once: between the third spin's end and the fourth's start.
+    expect(count(events, 'chanceStart')).toBe(0);
+    expect(count(events, 'chanceEnd')).toBe(1);
+    const order = types(events).filter((type) => type === 'spinStart' || type === 'spinEnd' || type === 'chanceEnd');
+    expect(order.indexOf('chanceEnd')).toBe(6);
+    expect([session.gold, session.chance, chanceLeft(session)]).toEqual([0, false, 0]);
+    expect(session.gilded).toBe(3);
+    expect(session.hits).toBe(session.spins + session.stock + session.wasted);
+  });
+
+  it('pays a gold spin’s square on the board twice over', () => {
+    const session = busy();
+    through(session, MAX_STOCK + 1);
+    session.bonus = null;
+    script(session, SMALL);
+    const start = play(session, DT);
+    const [spin] = start.flatMap((event) => (event.type === 'spinStart' ? [event] : []));
+    // The same draw as any spin, and its reach as long as any reach: only the reels are quicker.
+    expect(spin.result).toMatchObject({ tier: 'small', reach: true, reachKind: 'normal' });
+    expect(spin.duration).toBe(TIMING.chanceSpin + TIMING.reach);
+    expect([session.chance, session.gold, session.stock]).toEqual([true, 0, MAX_STOCK - 1]);
+    const events = until(session, () => session.bonus?.kind === 'sugoroku' && session.bonus.payout >= 0);
+    // What is on the screen stays gold from the spin through the game its line leads to.
+    expect(session.chance).toBe(true);
+    expect(chanceLeft(session)).toBe(1);
+    const square = squareAfter(0, 2);
+    expect(events.find((event) => event.type === 'sugorokuEnd')).toEqual({ type: 'sugorokuEnd', square, payout: BOARD[square] * CHANCE.multiplier, fever: false });
+    expect(CHANCE.multiplier).toBe(2);
+    expect(session.paidOut).toBe(BOARD[square] * 2);
+    // When its prize has been up, the screen is gold no longer, and chance time is over: the next spin is an ordinary one.
+    const after = until(session, () => session.spin !== null);
+    expect(count(after, 'chanceEnd')).toBe(1);
+    expect(session.chance).toBe(false);
+    expect(after.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([TIMING.quickSpin]);
+  });
+
+  it('pays a gold spin’s chest twice over, as towers', () => {
+    for (const chest of [0, 1, 2]) {
+      const session = busy();
+      through(session, MAX_STOCK + 1);
+      session.bonus = null;
+      // Three odd digits, and then whatever the shuffle makes of the chests.
+      script(session, [0.01, 0.3, ORDINARY]);
+      until(session, () => session.bonus?.kind === 'chest');
+      const { bonus } = session as Session;
+      if (bonus?.kind !== 'chest') throw new Error('no chests');
+      expect(session.chance).toBe(true);
+      expect(pickChest(session, chest)).toBe(true);
+      const events = until(session, () => bonus.payout >= 0);
+      const prize = bonus.prizes[chest];
+      expect(events.find((event) => event.type === 'chestEnd')).toEqual({ type: 'chestEnd', chest, payout: prize * 2 });
+      expect(session.paidOut).toBe(prize * 2);
+      // Twice the smallest chest is already a tower's worth.
+      expect(prize * 2).toBeGreaterThanOrEqual(CHEST_TOWERS_FROM);
+      expect(towersOf(session).reduce((sum, tower) => sum + tower.stack + tower.grow, 0)).toBe(prize * 2);
+      until(session, () => session.bonus === null);
+      expect(session.chance).toBe(false);
+    }
+  });
+
+  it('lets one jewel go with a gold spin’s treasure line, and pays for a jewel once whatever is on the screen', () => {
+    const session = busy();
+    through(session, MAX_STOCK + 1);
+    session.bonus = null;
+    // Three odd digits on a gold spin: the chests, which will pay double, and a jewel.
+    script(session, [0.01, 0.3, ORDINARY]);
+    const events = until(session, () => session.bonus?.kind === 'chest');
+    expect(session.chance).toBe(true);
+    expect(count(events, 'jewelDrop')).toBe(1);
+    expect(jewelsOnField(session.machine)).toBe(1);
+    expect(session.paidOut).toBe(0);
+    // A jewel that goes over the front while the gold spin's chests are up pays what a jewel pays, once.
+    overTheFront(session);
+    const over: SessionEvent[] = [];
+    advance(session, DT, over);
+    expect(session.chance).toBe(true);
+    expect(over.filter((event) => event.type === 'jewel')).toEqual([{ type: 'jewel', lamps: 1, payout: JEWEL.prize }]);
+    expect(session.paidOut).toBe(JEWEL.prize);
+    // So does the one that makes the set: the bonus, once.
+    session.jewels = JEWEL.lamps - 1;
+    overTheFront(session);
+    advance(session, DT, over);
+    expect(session.chance).toBe(true);
+    expect(over.filter((event) => event.type === 'jewelBonus')).toEqual([{ type: 'jewelBonus', payout: JEWEL.bonus }]);
+    expect(session.paidOut).toBe(JEWEL.prize + JEWEL.bonus);
+    // And the chest still pays twice over, on top of what the jewels paid.
+    const { bonus } = session as Session;
+    if (bonus?.kind !== 'chest') throw new Error('no chests');
+    expect(pickChest(session, 0)).toBe(true);
+    until(session, () => bonus.payout >= 0);
+    expect(bonus.payout).toBe(bonus.prizes[0] * CHANCE.multiplier);
+    expect(session.paidOut).toBe(JEWEL.prize + JEWEL.bonus + bonus.payout);
+  });
+
+  it('leaves a gold spin’s ball a ball', () => {
+    const session = busy();
+    through(session, MAX_STOCK + 1);
+    session.bonus = null;
+    const balls = ballsOnField(session.machine);
+    script(session, [0.001, 0.3, ORDINARY]);
+    const events = until(session, () => session.spin === null && session.spins === 1);
+    expect(events.flatMap((event) => (event.type === 'spinEnd' ? [event.result.tier] : []))).toEqual(['seven']);
+    // Three sevens drop one ball, gold or not, and it will have its roulette like any other.
+    expect(ballsOnField(session.machine)).toBe(balls + 1);
+    expect(session.chance).toBe(false);
+    expect(count(events, 'chanceEnd')).toBe(1);
+    expect(session.paidOut).toBe(0);
+  });
+
+  it('pays an ordinary spin once, even if the hold turns gold behind it', () => {
+    const session = emptied();
+    // One medal through a pocket: its spin starts at once, an ordinary one that will stop on three even digits.
+    script(session, SMALL);
+    through(session, 1);
+    expect([session.spins, session.chance]).toEqual([1, false]);
+    // While its reels turn, the hold fills and three more medals turn three of the held spins gold.
+    const filling = through(session, MAX_STOCK + 3);
+    expect(count(filling, 'chanceStart')).toBe(1);
+    expect([session.stock, session.gold, session.chance]).toEqual([MAX_STOCK, 3, false]);
+    const events = until(session, () => session.bonus?.kind === 'sugoroku' && session.bonus.payout >= 0);
+    const square = squareAfter(0, 2);
+    expect(events.find((event) => event.type === 'sugorokuEnd')).toMatchObject({ square, payout: BOARD[square] });
+    expect(session.paidOut).toBe(BOARD[square]);
+    // The gold spins come next.
+    const next = until(session, () => session.spin !== null);
+    expect(next.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([TIMING.chanceSpin]);
+    expect([session.chance, session.gold]).toEqual([true, 2]);
+  });
+
+  it('is only a way of losing less: a gold spin never makes up for the medal that made it', () => {
+    // A gold spin has cost two medals through a pocket. What being gold adds is less than the spin the second would have been.
+    expect(CHANCE_BONUS).toBeGreaterThan(0);
+    expect(CHANCE_BONUS).toBeLessThan(spinValue(JACKPOT_START));
+    expect(chanceSpinValue(JACKPOT_START)).toBeLessThan(2 * spinValue(JACKPOT_START));
+    // And a machine nobody feeds has no chance time.
+    const idle = createSession(4);
+    const events = play(idle, 8);
+    expect(count(events, 'chanceStart')).toBe(0);
+    expect([idle.gold, idle.gilded, idle.chance, chanceLeft(idle)]).toEqual([0, 0, false, 0]);
+  });
 });

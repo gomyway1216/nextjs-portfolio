@@ -18,7 +18,7 @@ import { CHUCKERS } from './chuckers';
 import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, type Arm, type Machine } from './engine';
 import { JEWEL_CUT, JEWEL_LAMPS, LAMP_OUTLINE, jewelGlint, jewelLampX, lampLight } from './jewel';
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
-import { BALL_RADIUS, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, type DrawOptions, type Stage } from './render';
+import { BALL_RADIUS, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, goldFlash, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, chuteHeight } from './view';
 
@@ -993,9 +993,10 @@ export const STUDS = 4;
  * hold's lamps on the shelf under the screen, as many lit as the machine
  * holds spins; the lamp at the tip of each feed arm, which marks where a
  * medal will leave it; and the studs. Each bulb also lights the surface it
- * is on.
+ * is on. `clock` is the stage's own clock, in seconds: a gold spin's lamp
+ * flashes by that, at its own rate, however the wave is hurried.
  */
-export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: number, wave: number, partying: boolean, options: DrawOptions): void {
+export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: number, wave: number, partying: boolean, options: DrawOptions, clock: number): void {
   beads.count = 0;
   const lamps = partying ? PARTY_LAMPS : LAMPS;
   const { hood, out, ledge, shelf } = HOUSING;
@@ -1048,13 +1049,17 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
   }
   // The hold: a lamp for each spin the machine is holding, lit from the left.
   const held = options.stock ?? 0;
+  const gold = Math.min(held, options.gold ?? 0);
   const middle = (shelf + SCREEN.foot) / 2;
   for (let i = 0; i < LAMP_ROWS.hold; i++) {
     const x = HOLD_LAMPS.first + HOLD_LAMPS.step * i;
     const lit = i < held;
+    // A gold spin's lamp flashes by the stage's clock, not by the wave, which a celebration hurries; with motion
+    // reduced it is steadily at its brightest.
+    const flash = i < gold ? goldFlash(clock, i, options.calm ?? false) : 0;
     const colour = lit ? HOLD_LIT : HOLD_DARK;
-    beadRow(beads, x, middle, ledge + 0.3, HOLD_LAMPS.radius, colour[0], colour[1], colour[2], BEAD.bulb(lit ? 1 : 0.03));
-    if (lit) flat.ink(HOLD_LIT, 0, 0.55).onPanel(x, middle, ledge + 0.1, HOLD_LAMPS.radius * 2.6);
+    beadRow(beads, x, middle, ledge + 0.3, HOLD_LAMPS.radius, colour[0], colour[1], colour[2], BEAD.bulb(lit ? (i < gold ? 0.4 + 0.6 * flash : 1) : 0.03));
+    if (lit) flat.ink(HOLD_LIT, 0, i < gold ? 0.25 + 0.6 * flash : 0.55).onPanel(x, middle, ledge + 0.1, HOLD_LAMPS.radius * (i < gold ? 2.6 + 1.6 * flash : 2.6));
   }
   // The lamp at the tip of each arm, on the end of the wall of its channel.
   for (let index = 0; index < 2; index++) {

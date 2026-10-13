@@ -111,6 +111,13 @@
     font-size: 0.84rem;
   }
 }
+/* Four tabs across the narrowest phones. */
+@media (max-width: 359px) {
+  .tab {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
 .btn {
   appearance: none;
   border: 1px solid var(--games-route-border);
@@ -149,6 +156,16 @@
 @media (max-width: 980px) {
   .machine {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The day's bonus plate comes between the cabinet and the tally. Where there are two columns the cabinet fills
+   the first from top to bottom, and the plate and the tally share the second, the plate on top. */
+@media (min-width: 981px) {
+  .machine {
+    grid-template-rows: auto 1fr;
+  }
+  .cabinet {
+    grid-row: 1 / span 2;
   }
 }
 .cabinet {
@@ -437,6 +454,63 @@
   border-color: #fff3b0;
   background: #ffd65c;
   box-shadow: 0 0 10px rgba(255, 214, 92, 0.9);
+}
+/* Chance time. The lamp of a held spin that has turned gold flashes, and a strip under the title says so for as
+   long as a gold spin is still to come: what it is called, what a gold spin pays, how many are left. One flash,
+   from bright to bright, takes --mp-gold-flash, which the screen sets from the cabinet's own rate (twice a second,
+   well under the three a second that are safe to look at). With motion reduced the lamp does not flash: it is
+   steadily gold. */
+.lamp[data-gold='true'] {
+  border-color: #ffffff;
+  background: #fffbe0;
+  box-shadow:
+    0 0 6px #ffffff,
+    0 0 16px rgba(255, 214, 92, 1);
+}
+.chance {
+  position: absolute;
+  z-index: 3;
+  top: 13%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.1em 0.8em;
+  border-radius: 999px;
+  border: 2px solid #fff3b0;
+  background: linear-gradient(180deg, #ff3d8b, #b3125c);
+  color: #ffffff;
+  font-size: clamp(0.6rem, 2.6vw, 0.9rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  box-shadow: 0 0 14px rgba(255, 86, 170, 0.8);
+  pointer-events: none;
+}
+.chance[data-gold='true'] {
+  background: linear-gradient(180deg, #ffd65c, #c98a0a);
+  color: #2a1700;
+}
+.chanceTimes {
+  font-size: 1.25em;
+}
+.chanceLeft {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lamp[data-gold='true'] {
+    animation: mp-gold-lamp var(--mp-gold-flash, 0.5s) steps(2, jump-none) infinite;
+  }
+}
+@keyframes mp-gold-lamp {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
 }
 /* The hold has eight lamps in a row beside the title, so on a phone they are smaller than the roulette's six. */
 .stock .lamp {
@@ -1514,47 +1588,80 @@
   background: radial-gradient(circle at 38% 32%, #ffffff 0%, #ffffff 30%, #fff3a8 62%, #ffd65c 100%);
   transform: translateZ(0.1em) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.8);
 }
-/* The bowl of the jackpot challenge has a smaller boss, in the middle of its floor. The cabinet moves its ball every frame. */
+/* The jackpot challenge is three bowls one under another, each a dish like the wheel's, seen from the same place.
+   The view follows the ball: the stack is lifted (--mp-stage) so that the bowl the ball is in is the one in the
+   middle of the stage, with the near edge of the bowl above showing at the top and the far edge of the bowl below
+   at the bottom. The cabinet moves the ball every frame, and it is seen to fall from one bowl into the next.
+   The window is what cuts the stack off at the edges of the stage: it is the box round the scene, not the scene
+   itself, since a box that both clips and is looked into in 3D cuts into what stands in it. */
+.bowlWindow {
+  position: relative;
+  flex: none;
+  width: 63cqw;
+  height: 100cqh;
+  overflow: hidden;
+}
+.bowlScene {
+  position: absolute;
+  inset: 0;
+  perspective: 300cqh;
+  perspective-origin: 50% 0%;
+}
+.bowlTilt {
+  --mp-dish-tilt: 52deg;
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 2em;
+  height: 2em;
+  margin: -1em 0 0 -1em;
+  font-size: 47cqh;
+  transform: rotateX(var(--mp-dish-tilt));
+  transform-style: preserve-3d;
+}
+.bowlLift {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(calc(var(--mp-stage) * var(--mp-drop)));
+  transform-style: preserve-3d;
+}
+/* One bowl: --mp-drop below the one above it. */
+.dish {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(calc(var(--mp-bowl) * var(--mp-drop) * -1));
+  transform-style: preserve-3d;
+}
+/* A bowl the ball is not in stands in the shade. */
+.dishShade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #05020f;
+  opacity: 0.5;
+  transform: translateZ(0.012em);
+}
+.dish[data-on='true'] .dishShade {
+  opacity: 0;
+}
+/* A bowl has a smaller boss than the wheel, in the middle of its floor. */
 .dishHub[data-dish='bowl'] {
   width: 0.24em;
   height: 0.24em;
   margin: -0.12em 0 0 -0.12em;
 }
-/* The sign behind a hole, saying what it pays. */
-.holeSign {
-  position: absolute;
-  padding: 0.16em 0.42em;
-  border: 1px solid #ff9db1;
-  border-radius: 0.36em;
-  background: rgba(10, 5, 32, 0.9);
-  color: #ffe0f1;
-  font-size: 7.6cqh;
+/* What a hole does, painted on the floor beside it: an arrow on one that leads down to the next bowl, and on the
+   others what they pay. */
+.holeLabel {
   font-weight: 900;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
-  white-space: nowrap;
-  transform-origin: 50% 100%;
-  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1));
+  stroke: #05020f;
+  stroke-width: 0.07px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
-.holeSign[data-best='true'] {
-  border-color: #fff3b0;
-  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
-  color: #3a1d00;
-}
-/* A sign to one side of the boss grows away from it, keeping the edge next to it where it is, so as not to cut through it. */
-.holeSign[data-side='left'] {
-  transform-origin: 100% 100%;
-}
-.holeSign[data-side='right'] {
-  transform-origin: 0% 100%;
-}
-/* The sign of the hole the ball dropped into. */
-.holeSign[data-on='true'] {
-  border-color: #ffffff;
-  background: linear-gradient(180deg, #ffffff 0%, #ffd65c 100%);
-  color: #3a1d00;
-  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.25);
-}
+/* The ball. It is placed from the middle of the top bowl's floor, and its shadow is kept on the floor of the bowl
+   it is over while it falls. */
 .ballSpot {
   position: absolute;
   width: 0;
@@ -1580,6 +1687,175 @@
   border-radius: 50%;
   background: radial-gradient(circle at 34% 28%, #ffffff 0%, #f4f4fb 22%, #b4b4c8 62%, #5a5a78 100%);
   transform: translateZ(var(--mp-ball)) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+/* The way down, beside the bowls: a rung for each, with what it holds, and the one the ball is in lit. */
+.ladder {
+  display: grid;
+  gap: 1.4cqh;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rung {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+  padding: 0.6cqh 1.6cqw 0.6cqh 0.8cqw;
+  border-radius: 99cqh;
+  border: max(1px, 0.3cqw) solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 5, 32, 0.55);
+  color: #cdbfe6;
+  font-size: 6.6cqh;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+.rungNumber {
+  display: grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: #3b2a6b;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+/* What the bowl holds: a number of medals, or the jackpot. */
+.rungPrize {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.rung[data-done='true'] {
+  border-color: #7df0ff;
+  color: #7df0ff;
+}
+.rung[data-done='true'] .rungNumber {
+  background: #0e7490;
+}
+.rung[data-on='true'] {
+  border-color: #fff3b0;
+  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
+  color: #3a1d00;
+}
+.rung[data-on='true'] .rungNumber {
+  background: #7a3b00;
+}
+/* What the bowls paid, counted up over the stage. A prize from one of the upper bowls is counted over its bowl;
+   the jackpot has the whole stage, which goes dark behind it, and medals rain down it. */
+.payShow {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  width: 63cqw;
+  height: 46cqh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+}
+.payShow[data-kind='jackpot'] {
+  width: 100cqw;
+  height: 100cqh;
+  overflow: hidden;
+  background: radial-gradient(80% 100% at 50% 50%, rgba(10, 5, 32, 0.93) 0%, rgba(10, 5, 32, 0.84) 60%, rgba(10, 5, 32, 0.55) 100%);
+}
+.payCount {
+  position: relative;
+  font-size: 22cqh;
+  font-weight: 900;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff3a8;
+  -webkit-text-stroke: max(0.5px, 0.5cqh) #7a3b00;
+  text-shadow: 0 0.06em 0 #3a1d00;
+}
+.payShow[data-kind='jackpot'] .payCount {
+  font-size: 52cqh;
+  color: #ffffff;
+}
+/* A jackpot of four digits, or of five, is written smaller, so that it is still inside the stage. */
+.payShow[data-kind='jackpot'][data-digits='4'] .payCount {
+  font-size: 44cqh;
+}
+.payShow[data-kind='jackpot'][data-digits='5'] .payCount {
+  font-size: 36cqh;
+}
+/* Chance time's strip lies across the top of the stage for as long as a gold spin is held, and a ball can be in the
+   bowls all that while. What stands beside the bowls and over them keeps clear of it: the ladder starts lower, with
+   the picture of the tower left out to make the room, and a prize from an upper bowl is counted lower over its
+   bowl, and a little smaller. The jackpot's count is in the middle of the stage, under the strip as it is. */
+.chance ~ .stage .ladder ~ .chainTower {
+  display: none;
+}
+.chance ~ .stage .ladder {
+  margin-top: 4cqh;
+}
+.chance ~ .stage .payShow[data-kind='prize'] {
+  top: 8cqh;
+}
+.chance ~ .stage .payShow[data-kind='prize'] .payCount {
+  font-size: 18cqh;
+}
+/* A medal of the rain. It is drawn only for a player who has not asked for less motion. */
+.payCoin {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The view goes down the stack with the ball, in the time the ball takes to fall. */
+  .bowlLift {
+    transition: transform 0.75s cubic-bezier(0.45, 0, 0.3, 1);
+  }
+  .dishShade {
+    transition: opacity 0.5s ease-out;
+  }
+  /* A bowl the ball has just dropped out of is glass while the ball falls: its floor fades until the ball can be
+     seen through it on its way down, and comes back once the ball is out from under it. The shade waits for that.
+     Only the flat sheet of the floor fades, never the dish that stands the bowl in depth. */
+  .dish[data-above='true'] > .bowl {
+    animation: mp-glass 1.05s ease-in-out backwards;
+  }
+  .dish[data-above='true'] > .dishShade {
+    transition-delay: 0.7s;
+  }
+  .payShow {
+    animation: mp-pay-in 0.3s ease-out backwards;
+  }
+  .payCoin {
+    position: absolute;
+    left: calc(3cqw + var(--mp-across) * 88cqw);
+    top: -14cqh;
+    display: block;
+    width: 11cqh;
+    height: 11cqh;
+    border-radius: 50%;
+    border: max(1px, 0.7cqh) solid #7a4f06;
+    background: radial-gradient(circle at 36% 30%, #fffbe0 0%, #ffd65c 46%, #c9900a 100%);
+    animation: mp-rain 1.3s linear infinite backwards;
+    animation-delay: calc(var(--mp-wait) * 0.072s);
+  }
+}
+@keyframes mp-glass {
+  14%,
+  68% {
+    opacity: 0.28;
+  }
+}
+@keyframes mp-pay-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+/* From above the stage to below it, turning over as it falls. */
+@keyframes mp-rain {
+  from {
+    transform: translateY(0) rotateX(0deg);
+  }
+  to {
+    transform: translateY(130cqh) rotateX(900deg);
+  }
 }
 /* The run a ball is on: how many numbers in a row, a lamp for each, and the tower they have built. */
 .chain {
@@ -1985,6 +2261,87 @@
   background: var(--mp-neon);
   color: #03202a;
 }
+/* The button that opens the sound settings: a switch with nothing on it but its picture, lit while they are open. */
+.soundMore {
+  padding-inline: 0.6rem;
+}
+.soundMore[aria-expanded='true'] {
+  border-color: var(--mp-neon);
+  box-shadow: 0 0 0 1px var(--mp-neon);
+}
+.soundMoreIcon {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+/* The sound settings, in a row of their own under the switches, as wide as the panel: the volume, and beside it the
+   switch for the background loop alone. On a phone the row is as short as an aim slider. */
+.soundPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  padding: 0.45rem 0.65rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #4b3f8a;
+  background: #0b0620;
+}
+/* Its switch is as tall as the switches above it, which a picture on one of them makes taller than their words. */
+.soundPanel .toggle {
+  min-height: 2.15rem;
+}
+.volume {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.volumeLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #cfc6ff;
+}
+.volumeValue {
+  font-variant-numeric: tabular-nums;
+  color: #f4f1ff;
+}
+.volumeMark {
+  margin-left: 0.35em;
+  font-weight: 700;
+  color: #cfc6ff;
+}
+/* The slider, and behind it a notch in the middle of its travel: the level the cabinet was made at. */
+.volumeTrack {
+  position: relative;
+  display: grid;
+}
+.volumeTrack::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+.volumeSlider {
+  position: relative;
+  width: 100%;
+  margin: 0.2rem 0;
+  accent-color: var(--mp-neon);
+}
+.volumeSlider:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
 /* A rail's feed button: a big round arcade button at its own end of the panel. Two of them are held down at once
    with two fingers, so a touch on one is the button's alone: the browser does not scroll, zoom or select with it. */
 .feed {
@@ -2065,6 +2422,442 @@
   }
 }
 
+/* ---------- Phone feel ----------
+   What makes the cabinet sit right under a thumb. Nothing in it selects, zooms or calls up a menu; every control
+   is at least 44 px to hit; the switches of feel have a row of their own; and the cabinet can fill the screen.
+   These rules come after the controls' own and only add to them. */
+
+/* Nothing in the cabinet is text to select or copy. A long press on a button used to select the nearest words (the
+   medals on the plate, a slider's label) and bring up the callout over them, and a double tap zoomed the page.
+   `manipulation` still lets the page be scrolled and pinched from here; the field and the feed buttons, which
+   allow less, keep their own. */
+.cabinet {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* Under a notch or a home bar, where the page is laid out to the edges of the screen. */
+.root {
+  padding-left: max(clamp(0.75rem, 3vw, 1.5rem), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(0.75rem, 3vw, 1.5rem), env(safe-area-inset-right, 0px));
+  padding-bottom: max(3rem, env(safe-area-inset-bottom, 0px));
+}
+/* Every control is at least 44 px to hit. The switches and the tabs were 32 to 37 px tall: they look as they did,
+   and what takes the touch is a strip 44 px tall through the middle of each. The rows of switches are far enough
+   apart that the strips of two rows do not meet. The refill and the reset are simply that tall. */
+.toggle,
+.tab {
+  position: relative;
+}
+.toggle::after,
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+.refill,
+.reset {
+  min-height: 44px;
+}
+.toggle {
+  justify-content: center;
+  touch-action: manipulation;
+}
+.toggle svg {
+  flex: none;
+}
+.toggles {
+  margin-top: 0.15rem;
+}
+/* A slider of the cabinet, an aim's or the volume's: 44 px to hit, with a thumb a finger can find. A sideways drag
+   is the slider's, and a swipe up or down it still scrolls the page. The box is taller than the track looks, so an
+   aim's is drawn up under its label, and the volume's takes no more room in its row than the track did: the notch
+   behind it, at the level the cabinet was made at, shows above and below the track as it did. */
+.aim {
+  position: relative;
+}
+.aimSlider,
+.volumeSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.aimSlider {
+  margin: -4px 0 -6px;
+}
+.volumeSlider {
+  margin: -11px 0;
+}
+.aimSlider::-webkit-slider-runnable-track,
+.volumeSlider::-webkit-slider-runnable-track {
+  box-sizing: border-box;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #6a5fb5;
+  background: #0b0620;
+}
+.aimSlider::-webkit-slider-thumb,
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin-top: -10px;
+  border-radius: 50%;
+  border: 2px solid #03202a;
+  background: var(--mp-neon);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+.aimSlider::-moz-range-track,
+.volumeSlider::-moz-range-track {
+  box-sizing: border-box;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #6a5fb5;
+  background: #0b0620;
+}
+.aimSlider::-moz-range-thumb,
+.volumeSlider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #03202a;
+  background: var(--mp-neon);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+/* In its row, which is as dark as an aim's track, the volume's track is the colour of a switch. The notch behind it
+   is taller than the thumb, so that it still shows over and under the thumb when the thumb stands on it. */
+.volumeSlider::-webkit-slider-runnable-track {
+  background: #1a1238;
+}
+.volumeSlider::-moz-range-track {
+  background: #1a1238;
+}
+.volumeTrack::before {
+  top: -6px;
+  bottom: -6px;
+}
+/* The marks over a slider while the rails swing: a notch for each START pocket its rail can feed, and an arrow
+   where a medal fed now would drop. They are placed along the thumb's travel, which is the track less half a thumb
+   at either end, and take no touch from the slider under them. */
+.aimMarks {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  height: 0;
+  pointer-events: none;
+}
+.aimPocket,
+.aimLead {
+  position: absolute;
+  left: calc(100% * var(--mp-at, 0));
+  transform: translateX(-50%);
+}
+.aimPocket {
+  top: -11px;
+  width: 2px;
+  height: 22px;
+  border-radius: 1px;
+  background: rgba(255, 214, 92, 0.75);
+}
+.aimLead {
+  bottom: 7px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--mp-gold);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+/* The switches of feel: one short row under the others. Under it comes whatever row a switch has opened, the sound
+   settings', and last, while the rails swing, a line that says what to do about it. */
+.feel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-top: 0.1rem;
+}
+.feelRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem 0.3rem;
+}
+/* Three of them fit in one row on the narrowest phone that has all three, 360 px wide. */
+.feelRow .toggle {
+  min-height: 2.15rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.76rem;
+}
+.feelNote {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #cfc6ff;
+}
+
+/* The cabinet filling the screen: the picture and its controls and nothing else, laid out to fit without scrolling.
+   The stage takes the room the rest leaves and the picture is as large as fits in it, so its canvases are told a new
+   size and stay sharp. Upright, the controls are under the stage, as on the page. */
+.cabinet:fullscreen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: max(6px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px))
+    max(8px, env(safe-area-inset-left, 0px));
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  /* Nothing behind it to scroll or to pull down, and what does not fit a very small screen can still be reached. */
+  overflow: hidden auto;
+  overscroll-behavior: none;
+  container-type: size;
+}
+.cabinet:fullscreen > .bulbs,
+.cabinet:fullscreen > .keysNote {
+  display: none;
+}
+.cabinet:fullscreen .marquee,
+.cabinet:fullscreen .legendBelow,
+.cabinet:fullscreen .panel,
+.cabinet:fullscreen .refill {
+  flex: none;
+  margin-top: 0;
+}
+.cabinet:fullscreen .marquee {
+  padding: 0.25rem 0.7rem;
+}
+/* The stage is the room that is left, and the picture stands in the middle of it, as large as fits: the three sheets
+   it is made of, the screen's, the scene's and the field's, each get that size. */
+.cabinet:fullscreen .fieldWrap {
+  flex: 1 1 0;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  container-type: size;
+}
+.cabinet:fullscreen .wallSpace,
+.cabinet:fullscreen .scene,
+.cabinet:fullscreen .field {
+  grid-area: 1 / 1;
+  position: relative;
+  inset: auto;
+  width: min(100cqw, 100cqh * 640 / 860);
+  height: auto;
+  aspect-ratio: 640 / 860;
+  border-radius: 10px;
+}
+/* A pixel of the drawing is a share of the picture's width now, not of the stage's: for the room the screen stands
+   in, and, exactly as on the page, for everything on its sheet. */
+.cabinet:fullscreen .wallSpace {
+  --mp-u: calc(min(100cqw, 100cqh * 640 / 860) / 640);
+  background: #05030d;
+  container-type: inline-size;
+}
+.cabinet:fullscreen .wall {
+  --mp-u: calc(100cqw / 640);
+}
+/* There is no page to scroll here, so a finger on the field is aiming whichever way it moves. */
+.cabinet:fullscreen .field {
+  touch-action: none;
+}
+/* A short screen held upright gives the stage what it can: the name on one line, no legend, smaller buttons. */
+@media (orientation: portrait) and (max-height: 720px) {
+  .cabinet:fullscreen .logoSub,
+  .cabinet:fullscreen .legendBelow {
+    display: none;
+  }
+  .cabinet:fullscreen .feed {
+    width: 4.5rem;
+  }
+  .cabinet:fullscreen .panel {
+    padding: 0.45rem 0.7rem;
+  }
+  /* While the sound settings are open there, the line about Swing gives its room to the stage. */
+  .cabinet:fullscreen .panel:has(.soundPanel) .feelNote {
+    display: none;
+  }
+}
+/* On its side, the stage stands in the middle at the full height of the screen, and the controls are at either hand:
+   the left rail's under the left thumb and the right rail's under the right, as on a handheld. */
+@media (orientation: landscape) {
+  .cabinet:fullscreen {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) auto minmax(0, 22rem);
+    grid-template-rows: auto auto auto minmax(min-content, 1fr) auto auto;
+    grid-template-areas:
+      'logo stage jackpot'
+      'credit stage toggles'
+      'feel stage sound'
+      'note stage refill'
+      'aimL stage aimR'
+      'feedL stage feedR';
+    justify-content: center;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .cabinet:fullscreen .marquee,
+  .cabinet:fullscreen .panel,
+  .cabinet:fullscreen .aims {
+    display: contents;
+  }
+  .cabinet:fullscreen .legendBelow {
+    display: none;
+  }
+  .cabinet:fullscreen .fieldWrap {
+    grid-area: stage;
+    align-self: stretch;
+    width: min(100cqw - 20rem, 100cqh * 640 / 860);
+  }
+  .cabinet:fullscreen .logo {
+    grid-area: logo;
+  }
+  .cabinet:fullscreen .logoMain {
+    font-size: min(1.7rem, 2.5cqw);
+  }
+  .cabinet:fullscreen .logoSub {
+    font-size: min(0.78rem, 1.2cqw);
+  }
+  .cabinet:fullscreen .jackpotBox {
+    grid-area: jackpot;
+    justify-self: end;
+  }
+  .cabinet:fullscreen .credit {
+    grid-area: credit;
+    justify-self: start;
+  }
+  .cabinet:fullscreen .toggles {
+    grid-area: toggles;
+    justify-content: flex-end;
+    gap: 0.7rem 0.3rem;
+  }
+  /* Auto, Sound and the sound settings' button fit one row of a narrow column, as the switches of feel do. */
+  .cabinet:fullscreen .toggles .toggle {
+    min-height: 2.15rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    font-size: 0.76rem;
+  }
+  /* The sound settings open under the switches that open them, at the right hand. The slider is never wider than
+     the room it has, whatever its label would like. */
+  .cabinet:fullscreen .soundPanel {
+    grid-area: sound;
+    align-self: start;
+  }
+  .cabinet:fullscreen .volume {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cabinet:fullscreen .feel {
+    grid-area: feel;
+    align-self: start;
+  }
+  .cabinet:fullscreen .feelRow {
+    justify-content: flex-start;
+  }
+  .cabinet:fullscreen .feelNote {
+    grid-area: note;
+    align-self: start;
+    text-align: left;
+  }
+  .cabinet:fullscreen .refill {
+    grid-area: refill;
+    align-self: start;
+  }
+  .cabinet:fullscreen .aim[data-arm='0'] {
+    grid-area: aimL;
+  }
+  .cabinet:fullscreen .aim[data-arm='1'] {
+    grid-area: aimR;
+  }
+  .cabinet:fullscreen .feed {
+    width: clamp(4.5rem, 22cqh, 6rem);
+  }
+  .cabinet:fullscreen .feed[data-arm='0'] {
+    grid-area: feedL;
+    justify-self: start;
+    margin: 0 0 6px 10px;
+  }
+  .cabinet:fullscreen .feed[data-arm='1'] {
+    grid-area: feedR;
+    justify-self: end;
+    margin: 0 10px 6px 0;
+  }
+}
+/* A phone on its side is short. The line about Swing gives way there (the marks over the sliders stay), and the
+   medals' plate and the feed buttons are a little smaller, so that the sound settings fit when they are open. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .cabinet:fullscreen .feelNote {
+    display: none;
+  }
+  .cabinet:fullscreen .credit {
+    padding: 0.2rem 0.8rem;
+  }
+  .cabinet:fullscreen .creditValue {
+    font-size: 1.35rem;
+  }
+  .cabinet:fullscreen .feed {
+    width: clamp(4.2rem, 20cqh, 6rem);
+  }
+}
+/* On a small phone on its side the column is too narrow for the volume's slider and the Music switch side by side.
+   The slider has the width of the row there; the volume's words and the switch are over it, the words on two lines.
+   They are far enough apart that the switch's 44 px end above the slider's thumb, and where the two boxes meet, in
+   the clear part over the slider's track, the touch is the switch's. */
+@media (orientation: landscape) and (max-width: 800px) {
+  .cabinet:fullscreen .soundPanel {
+    grid-template-areas:
+      'words music'
+      'track track';
+    gap: 0.5rem;
+  }
+  .cabinet:fullscreen .volume {
+    display: contents;
+  }
+  .cabinet:fullscreen .volumeLabel {
+    grid-area: words;
+    flex-wrap: wrap;
+  }
+  /* There is no room beside the switch for the word that names the level: the number stays, the notch marks the
+     usual level, and a screen reader is still told. */
+  .cabinet:fullscreen .volumeMark {
+    display: none;
+  }
+  .cabinet:fullscreen .volumeTrack {
+    grid-area: track;
+  }
+  .cabinet:fullscreen .soundPanel .toggle {
+    grid-area: music;
+    z-index: 2;
+  }
+}
+
 /* The tally beside the cabinet */
 .tally,
 .panelBox {
@@ -2120,9 +2913,20 @@
   font-size: 0.82rem;
   line-height: 1.55;
 }
-/* The note that the machine is saved turns into a warning when it could not be. */
-.note[data-saved='false'] {
+/* The note that the machine is saved turns into a warning when it could not be, on this device or on the account. */
+.note[data-saved='false'],
+.note[data-where='offline'],
+.note[data-where='unreadable'] {
   color: var(--mp-lose-text);
+}
+.noteLink {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.noteLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
 }
 /* Reset, under the tally. Armed, it says so in words as well as in colour. */
 .reset {
@@ -2232,6 +3036,33 @@
 }
 .oddsTable tbody th {
   font-weight: 700;
+}
+/* The table of the bowls' holes is in three parts, one for each bowl, each under a row that names the bowl. What is
+   written under a hole, in smaller letters, is how many of the bowl's holes are like it and how it is paid. */
+.oddsTable .groupHead {
+  padding-top: 0.8rem;
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+/* The heads of its two columns of chances are over numbers, like them to the right, but may break into two lines:
+   on a phone that leaves the room to the column that has the words. */
+.oddsTable .numHead {
+  text-align: right;
+}
+@media (min-width: 40rem) {
+  .oddsTable .numHead {
+    white-space: nowrap;
+  }
+}
+.holeNote {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.45;
 }
 .oddsTable tr[data-best='true'] th,
 .oddsTable tr[data-best='true'] td {

@@ -113,6 +113,8 @@ export function play(way: Play, seed: number, medals: number): Run {
   let start: { inserted: number; won: number; lost: number; spins: number; hits: number; wasted: number; gold: number } | null = null;
   let chances = 0;
   let lamp = 0;
+  /** For each medal on its way to a pocket, the oldest first: whether the lucky lamp alone had lit its pocket as it came over. */
+  const byLamp: boolean[] = [];
   let gildedAt = 0;
   let full = 0;
   let steps = 0;
@@ -170,10 +172,13 @@ export function play(way: Play, seed: number, medals: number): Run {
     if (start) {
       steps += 1;
       if (session.stock >= MAX_STOCK) full += 1;
-      for (const event of events) {
-        if (event.type === 'chanceStart') chances += 1;
-        else if (event.type === 'checker' && event.lucky && !wings) lamp += 1;
-      }
+    }
+    for (const event of events) {
+      // What lit a medal's pocket was settled as it came over the lip, and what it holds when it drops, a ride later.
+      // The medals drop in the order they came over, so each one's word is the oldest that is waiting.
+      if (event.type === 'riding') byLamp.push(event.lit && !wings);
+      else if (event.type === 'checker' && byLamp.shift() && event.lucky && start) lamp += 1;
+      else if (event.type === 'chanceStart' && start) chances += 1;
     }
   }
   for (let i = 0; i < 90 * 60 && isBusy(session); i++) {

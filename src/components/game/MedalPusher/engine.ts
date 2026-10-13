@@ -132,6 +132,16 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
 export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.25 } as const;
 
 /**
+ * Seconds from the lip to the pocket. A medal the lip's rule has counted is
+ * not in its pocket yet: it rides its tongue out over the well and drops in
+ * this long after it came over, which is what the catcher shows (catcher.ts),
+ * and the machine takes it when it drops and not before (session.ts). Which
+ * pocket, how wide the pockets were taking medals and where the lucky lamp
+ * stood were all settled at the lip.
+ */
+export const START_RIDE = 0.8;
+
+/**
  * The lucky lamp. One of the three slots is lit gold at a time, and the light
  * steps one slot along, from the left, with every stroke of the pusher: it
  * moves as the pusher comes to the back of its stroke, so each push has its

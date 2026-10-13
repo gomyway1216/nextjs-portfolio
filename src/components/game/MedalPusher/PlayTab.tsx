@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { CATCHER, caught } from './catcher';
+import { caught } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
-import { buzz, feltIn, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
+import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
 import { MedalTray, type MedalTrayHandle } from './MedalTray';
@@ -664,7 +664,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       events.length = 0;
       airborne.length = 0;
       for (const medal of session.machine.falling) airborne.push(medal.id);
-      advance(session, elapsed, events);
+      // Where nothing may move a medal is not seen to ride its tongue, and the machine takes it as it comes over the lip.
+      advance(session, elapsed, events, calm.matches);
       // The machine is heard turning, in step with the pusher as it is drawn.
       turnMotor(soundOn, session.machine.time);
       if (gifts.length > 0) events.push(...gifts.splice(0));
@@ -697,10 +698,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             lost = true;
             break;
           case 'checker':
-            // The machine has counted the medal as it came over the lip, and the medal is still on its tongue. The
-            // cabinet answers when it is seen to drop into its pocket: see `dropEntries` below. Where nothing may
-            // move it is not seen to ride, and the cabinet answers at once.
-            enterGate(stage, event, calm.matches ? 0 : CATCHER.sink);
+            // The medal has dropped into its pocket, a ride after the lip's rule counted it, and the machine has taken
+            // it. The cabinet answers in this frame: see `dropEntries` below.
+            enterGate(stage, event);
             break;
           case 'chanceStart':
             playSound('fever', soundOn);
@@ -854,12 +854,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       }
       turnClock = turn ? turn.elapsed : -1;
       // The medals that have dropped into their START pockets in this frame, each a ride after the lip's rule counted
-      // it. This is when the pocket bursts with light, its word stands over it and its spark sets out for the hold's
-      // lamps (render.ts), and so this is when it is heard: the medal itself going down the pocket, and then what
-      // the cabinet says about it. The stage is told first what the machine holds now, since a medal whose spin the
-      // screen has taken already has no lamp to send a spark to.
+      // it. This is when the machine takes a medal, the pocket bursts with light, its word stands over it and its
+      // spark sets out for the hold's lamps (render.ts), and so this is when it is heard: the medal itself going down
+      // the pocket, and then what the cabinet says about it. The stage is told first what the machine holds now,
+      // since a medal whose spin the screen has taken already has no lamp to send a spark to.
       holdShown(stage, session.stock, session.gold);
-      const dropped = dropEntries(stage, elapsed, session.machine.time, calm.matches);
+      const dropped = dropEntries(stage, session.machine.time, calm.matches);
       for (const entry of dropped) {
         playSound('slit', soundOn);
         playSound(entry.held || entry.gold ? 'gate' : 'full', soundOn);
@@ -896,11 +896,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts). A medal that went
       // in is felt as what fed it said it was when the machine took it: a tick for a press, a slower one for a
       // button that stays held, and nothing for Auto, which no finger is working.
-      // A medal through a START pocket is felt as it drops into the pocket, with what is seen and heard of it.
-      const felt = hapticFor(feltIn(events, dropped), takeFed(fedBy.current));
+      // A medal through a START pocket is felt as it drops into the pocket, with what is seen and heard of it: that
+      // is when the machine says it.
+      const felt = hapticFor(events, takeFed(fedBy.current));
       if (felt) buzz(felt, feelNow.current.vibrate, now);
 
-      // The hold's lamps show a spin once its medal's spark has reached them, not from the moment the machine has it.
+      // The hold's lamps show a spin once its medal's spark has reached them, a moment after the machine has it.
       const hold = holdShown(stage, session.stock, session.gold);
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);

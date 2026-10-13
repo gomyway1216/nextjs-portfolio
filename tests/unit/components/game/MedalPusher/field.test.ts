@@ -1796,15 +1796,6 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
   const wasted: Entry = { gate: 1, held: false, gold: false, lucky: false };
   /** Where a lamp of the hold is on the drawing, from the left. */
   const lampAt = (lamp: number) => project(HOLD_LAMPS.first + HOLD_LAMPS.step * lamp, (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
-  /** Runs a stage on, a frame at a time, until a medal drops: the entries that dropped, and how many frames that took. */
-  const untilDrop = (stage: Stage, calm = false): { dropped: Entry[]; frames: number } => {
-    for (let frames = 1; frames < 200; frames++) {
-      const dropped = dropEntries(stage, FRAME, time, calm);
-      if (dropped.length > 0) return { dropped, frames };
-      ageStage(stage, FRAME, calm);
-    }
-    throw new Error('nothing dropped');
-  };
   /** The words that stand over the slots: popups that are words. */
   const words = (stage: Stage) => stage.popups.filter((popup) => popup.word);
 
@@ -1814,22 +1805,23 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(createStage(1).holdGlow).toEqual(Array.from({ length: MAX_STOCK }, () => 0));
   });
 
-  it('says nothing while the medal rides its tongue, and all of it as the medal drops: the slot bursts with light, a word stands over it, and a spark runs up to the hold and lights the lamp the spin is held as', () => {
+  it('says all of it in the frame the medal drops, which is the frame the machine takes it in: the slot bursts with light, a word stands over it, and a spark runs up to the hold and lights the lamp the spin is held as', () => {
     fakeDocument();
     const stage = createStage(1);
-    // The machine holds two spins and has just counted a third, whose medal is on its tongue.
-    enterGate(stage, plain, CATCHER.sink);
+    // The machine held two spins and has just taken a third, whose medal has dropped into its slot.
+    enterGate(stage, plain);
     expect(stage.entries).toHaveLength(1);
+    expect(stage.entries[0]).toMatchObject({ dropped: false, run: -1 });
+    // Until the cabinet has answered it, nothing is lit, nothing is said and nothing flies, and the hold shows two.
+    expect(stage.gateGlow).toEqual([0, 0, 0]);
+    expect([stage.sparks.length, words(stage).length]).toEqual([0, 0]);
     expect(holdShown(stage, 3, 0)).toEqual({ stock: 2, gold: 0, taken: 0, gilt: 0 });
-    // In the frame it was noted in, the medal has only just come over the lip: its ride has all of its time to go.
-    expect(dropEntries(stage, FRAME, time)).toEqual([]);
-    expect(stage.entries[0]).toMatchObject({ left: CATCHER.sink, dropped: false, run: -1 });
-    // Nothing is lit, nothing is said and nothing flies, frame after frame, for as long as the ride is.
-    const { dropped, frames } = untilDrop(stage);
-    expect(Math.abs(frames * FRAME - CATCHER.sink)).toBeLessThan(FRAME + 1e-9);
+    const dropped = dropEntries(stage, time);
     expect(dropped).toHaveLength(1);
     expect(dropped[0]).toMatchObject(plain);
-    // Then all at once. The slot is lit as a slot a medal has gone down is, and throws its sparks.
+    // It is answered once: asked again in the same frame, or the next, the cabinet has nothing new to say.
+    expect(dropEntries(stage, time)).toEqual([]);
+    // All at once. The slot is lit as a slot a medal has gone down is, and throws its sparks.
     expect(stage.gateGlow).toEqual([0, GLOW_TIME, 0]);
     expect(stage.sparks).toHaveLength(BURST.sparks);
     const mouth = mouthOnDrawing(1, time);
@@ -1888,9 +1880,9 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     fakeDocument();
     // A medal through the lit slot: its spin is gold from the start. The word is gold and bigger, there are more sparks, and its spark is bound for the first lamp that is not gold.
     const golden = createStage(1);
-    enterGate(golden, lucky, CATCHER.sink);
+    enterGate(golden, lucky);
     expect(holdShown(golden, 4, 2)).toEqual({ stock: 3, gold: 1, taken: 0, gilt: 0 });
-    expect(untilDrop(golden).dropped[0]).toMatchObject(lucky);
+    expect(dropEntries(golden, time)[0]).toMatchObject(lucky);
     expect(words(golden)[0]).toMatchObject({ text: ENTRY_WORDS.start, color: ENTRY_INK.gold, word: { size: BURST.big } });
     expect(BURST.big).toBeGreaterThan(BURST.plain * 1.25);
     expect(golden.sparks).toHaveLength(BURST.gold);
@@ -1903,9 +1895,9 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
 
     // A medal that found the hold full and turned a held spin gold: another word, gold too, and its spark turns that lamp.
     const gilt = createStage(1);
-    enterGate(gilt, gilding, CATCHER.sink);
+    enterGate(gilt, gilding);
     expect(holdShown(gilt, MAX_STOCK, 3)).toEqual({ stock: MAX_STOCK, gold: 2, taken: 0, gilt: 0 });
-    untilDrop(gilt);
+    dropEntries(gilt, time);
     expect(words(gilt)[0]).toMatchObject({ text: ENTRY_WORDS.gold, color: ENTRY_INK.gold, word: { size: BURST.big } });
     expect(gilt.sparks).toHaveLength(BURST.gold);
     expect(lampFor(gilt, gilt.entries[0])).toBe(2);
@@ -1915,9 +1907,9 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
 
     // A medal that found the hold full and every spin in it gold: a dull word, smaller, and nothing else. The slot does not burst, nothing flies, no lamp shines.
     const full = createStage(1);
-    enterGate(full, wasted, CATCHER.sink);
+    enterGate(full, wasted);
     expect(holdShown(full, MAX_STOCK, MAX_STOCK)).toEqual({ stock: MAX_STOCK, gold: MAX_STOCK, taken: 0, gilt: 0 });
-    expect(untilDrop(full).dropped[0]).toMatchObject(wasted);
+    expect(dropEntries(full, time)[0]).toMatchObject(wasted);
     expect(words(full)[0]).toMatchObject({ text: ENTRY_WORDS.full, color: ENTRY_INK.full, word: { size: BURST.dull } });
     expect(BURST.dull).toBeLessThan(BURST.plain);
     expect(full.gateGlow).toEqual([0, 0, 0]);
@@ -1929,13 +1921,13 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(new Set(Object.values(ENTRY_INK)).size).toBe(3);
   });
 
-  it('flies nothing where nothing may move: the medal is not seen to ride, so the cabinet answers at once, with the slot lit, the word standing still and the lamp lit', () => {
+  it('flies nothing where nothing may move: the cabinet answers with the slot lit, the word standing still and the lamp lit, all in the frame the machine took the medal', () => {
     fakeDocument();
     const stage = createStage(1);
-    enterGate(stage, plain, 0);
+    enterGate(stage, plain);
     holdShown(stage, 1, 0);
-    // In the very frame the lip's rule counted it.
-    const dropped = dropEntries(stage, FRAME, time, true);
+    // There the machine takes a medal as it comes over the lip (session.ts): it is not seen to ride.
+    const dropped = dropEntries(stage, time, true);
     expect(dropped).toHaveLength(1);
     expect(stage.gateGlow[1]).toBe(GLOW_TIME);
     expect(stage.sparks).toHaveLength(0);
@@ -1957,8 +1949,8 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(new Set(drawn.map((entry) => entry.y))).toEqual(new Set([word.y]));
     // With motion a word pops: it is drawn a little too big at first, and rises as it stands.
     const lively = createStage(1);
-    enterGate(lively, plain, 0);
-    dropEntries(lively, FRAME, time);
+    enterGate(lively, plain);
+    dropEntries(lively, time);
     const heights: number[] = [];
     for (let i = 0; i < 20; i++) {
       const glass = recorder();
@@ -1969,13 +1961,13 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(heights[19]).toBeLessThan(heights[0] - 2);
   });
 
-  it('lights no lamp where nothing may move either, for a spin the screen took as the medal came over the lip', () => {
+  it('lights no lamp where nothing may move either, for a spin the screen took in the step the machine took its medal', () => {
     fakeDocument();
     const stage = createStage(1);
-    // As the cabinet does it in one frame: the medal is noted, the stage is told the machine holds nothing, and the medal drops at once.
-    enterGate(stage, plain, 0);
+    // As the cabinet does it in one frame: the medal is noted, the stage is told the machine holds nothing, and the medal is answered.
+    enterGate(stage, plain);
     expect(holdShown(stage, 0, 0)).toMatchObject({ stock: 0, taken: 1 });
-    expect(dropEntries(stage, FRAME, time, true)).toHaveLength(1);
+    expect(dropEntries(stage, time, true)).toHaveLength(1);
     expect(stage.gateGlow[1]).toBe(GLOW_TIME);
     expect(words(stage)).toHaveLength(1);
     expect(stage.entries).toHaveLength(0);
@@ -1983,16 +1975,14 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(holdShown(stage, 0, 0)).toEqual({ stock: 0, gold: 0, taken: 0, gilt: 0 });
   });
 
-  it('sends no spark for a spin the screen has taken already: a medal that finds the screen free starts its spin as it comes over the lip, and that spin is never a lamp', () => {
+  it('sends no spark for a spin the screen has taken already: a medal that finds the screen free starts its spin as it drops, and that spin is never a lamp', () => {
     fakeDocument();
     const stage = createStage(1);
-    enterGate(stage, plain, CATCHER.sink);
-    // The machine holds nothing: the spin this medal held is on the screen.
+    enterGate(stage, plain);
+    // The machine holds nothing: the spin this medal held is on the screen, started in the step the medal dropped.
     expect(holdShown(stage, 0, 0)).toEqual({ stock: 0, gold: 0, taken: 1, gilt: 0 });
-    for (let frames = 0; frames < 200 && dropEntries(stage, FRAME, time).length === 0; frames++) {
-      ageStage(stage, FRAME);
-      holdShown(stage, 0, 0);
-    }
+    const [answered] = dropEntries(stage, time);
+    expect(answered).toMatchObject({ ...plain, run: -1, lamp: false });
     // The slot bursts and the word stands over it all the same; but nothing sets out for the hold, and no lamp shines.
     expect(stage.gateGlow[1]).toBe(GLOW_TIME);
     expect(words(stage)[0]).toMatchObject({ text: ENTRY_WORDS.start });
@@ -2009,8 +1999,8 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     holdShown(stage, MAX_STOCK, MAX_STOCK);
     // Three medals find the hold full, two of them down the same slot a few frames apart.
     for (const entry of [wasted, { ...wasted, gate: 2 }, wasted]) {
-      enterGate(stage, entry, 0);
-      dropEntries(stage, FRAME, time);
+      enterGate(stage, entry);
+      dropEntries(stage, time);
       for (let i = 0; i < 6; i++) ageStage(stage, FRAME);
     }
     const up = words(stage);
@@ -2022,13 +2012,15 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(up[1].age).toBeLessThan(up[0].age);
   });
 
-  it('sends each of several medals’ sparks to its own lamp, in the order they came over, and never past the last lamp', () => {
+  it('sends each of several medals’ sparks to its own lamp, in the order they dropped, and never past the last lamp', () => {
     fakeDocument();
     const stage = createStage(1);
-    // The machine held one spin; then an everyday medal, a lucky one and another everyday one came over, a few frames apart.
+    // The machine held one spin; then an everyday medal, a lucky one and another everyday one dropped in, a few frames apart.
     for (const entry of [plain, lucky, { ...plain, gate: 2 }]) {
-      enterGate(stage, entry, CATCHER.sink);
-      dropEntries(stage, FRAME * 4, time);
+      enterGate(stage, entry);
+      holdShown(stage, 4, 1);
+      expect(dropEntries(stage, time)).toMatchObject([{ ...entry, run: 0, lamp: true }]);
+      for (let i = 0; i < 4; i++) ageStage(stage, FRAME);
     }
     expect(holdShown(stage, 4, 1)).toEqual({ stock: 1, gold: 0, taken: 0, gilt: 0 });
     const [first, second, third] = stage.entries;
@@ -2039,17 +2031,18 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     stage.hold = { stock: MAX_STOCK - 1, gold: 0, taken: 0, gilt: 0 };
     expect(lampFor(stage, third)).toBe(MAX_STOCK - 1);
     // A slot the stage has no such thing as is not noted.
-    enterGate(stage, { ...plain, gate: 7 }, CATCHER.sink);
-    enterGate(stage, { ...plain, gate: -1 }, CATCHER.sink);
+    enterGate(stage, { ...plain, gate: 7 });
+    enterGate(stage, { ...plain, gate: -1 });
     expect(stage.entries).toHaveLength(3);
   });
 
-  it('agrees with the machine over a minute of both rails held: every medal it counts drops a ride later, the lamps never show more than it holds, and show all of it once every medal is in', { timeout: 30_000 }, () => {
+  it('agrees with the machine over a minute of both rails held: every medal it takes is answered in the frame it drops, the lamps never show more than it holds, and show all of it once every spark is in', { timeout: 30_000 }, () => {
     fakeDocument();
     const stage = createStage(1);
     const session = createSession(11, { quickPick: true });
     session.credits = 1e6;
     const events: SessionEvent[] = [];
+    let rode = 0;
     let counted = 0;
     let dropped = 0;
     let settled = 0;
@@ -2059,18 +2052,22 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
       insert(session, 1);
       events.length = 0;
       advance(session, FRAME, events);
-      // As the cabinet does it: what the lip's rule counted in this frame is noted, and what has dropped is answered.
+      // As the cabinet does it: what dropped into a slot in this frame is noted, and answered once the stage knows what the machine holds.
+      let fallen = 0;
       for (const event of events) {
+        if (event.type === 'riding') rode++;
         if (event.type !== 'checker') continue;
-        counted++;
-        enterGate(stage, event, CATCHER.sink);
+        fallen++;
+        enterGate(stage, event);
       }
+      counted += fallen;
       holdShown(stage, session.stock, session.gold);
-      const fell = dropEntries(stage, FRAME, session.machine.time);
+      const fell = dropEntries(stage, session.machine.time);
+      expect(fell).toHaveLength(fallen);
       dropped += fell.length;
-      sparks += stage.entries.filter((entry) => entry.run === 0).length;
-      // Each has been on its way a ride, to the frame, and none longer.
-      for (const entry of stage.entries) if (!entry.dropped) expect(entry.left).toBeGreaterThan(0);
+      sparks += fell.filter((entry) => entry.run === 0).length;
+      // Nothing is left waiting for its answer: what is still on the stage is a spark on its way.
+      for (const entry of stage.entries) expect([entry.dropped, entry.run >= 0]).toEqual([true, true]);
       const hold = holdShown(stage, session.stock, session.gold);
       expect(hold.stock).toBeGreaterThanOrEqual(0);
       expect(hold.stock).toBeLessThanOrEqual(session.stock);
@@ -2085,7 +2082,10 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     }
     // Plenty of medals went in, each was answered once, and the cabinet was often at rest with nothing on its way.
     expect(counted).toBeGreaterThan(30);
-    expect(dropped + stage.entries.filter((entry) => !entry.dropped).length).toBe(counted);
+    expect(dropped).toBe(counted);
+    // Every medal the lip's rule counted has dropped, or is on its tongue still; and the machine has counted the ones that dropped.
+    expect(rode).toBe(counted + session.riding.length);
+    expect(session.hits).toBe(counted);
     expect(settled).toBeGreaterThan(600);
     // Most of them lit a lamp by a spark; the rest found the screen free, or the hold full.
     expect(sparks).toBeGreaterThan(10);

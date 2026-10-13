@@ -166,20 +166,16 @@ export interface Entry {
 }
 
 /**
- * An entry the cabinet has not finished answering: how many seconds its medal
- * still has to ride before it drops into its slot; whether it has dropped;
- * how many seconds its spark has been on its way up to the hold's lamps, less
- * than nothing until it sets out; where on the drawing the spark set out
- * from; whether it was noted in this very frame, in which its medal does not
- * ride; and whether it has a lamp of the hold to light, which is settled as
- * it drops.
+ * An entry the cabinet has not finished answering: whether it has begun to,
+ * which it does in the frame the medal dropped; how many seconds its spark
+ * has been on its way up to the hold's lamps, less than nothing until it
+ * sets out; where on the drawing the spark set out from; and whether it has
+ * a lamp of the hold to light, which is settled as the cabinet answers.
  */
 export interface Arrival extends Entry {
-  left: number;
   dropped: boolean;
   run: number;
   from: { x: number; y: number };
-  fresh: boolean;
   lamp: boolean;
 }
 
@@ -207,14 +203,14 @@ export interface Stage {
   tallyAge: number;
   /** Seconds each light has left to shine. */
   gateGlow: number[];
-  /** The medals the lip's rule has counted that the cabinet has not finished answering, the oldest first (see `enterGate`). */
+  /** The medals that have dropped into a START slot that the cabinet has not finished answering, the oldest first (see `enterGate`). */
   entries: Arrival[];
   /** Seconds each of the hold's lamps still shines brighter, since a spark reached it. */
   holdGlow: number[];
   /**
    * How many of the hold's lamps are shown lit, and how many of those gold: what `holdShown` last said. A spark is
-   * bound for the lamp after them. And how many of the medals that are still on their way hold a spin the screen
-   * has taken already, and how many a gold one: those have no lamp to light.
+   * bound for the lamp after them. And how many of the medals the cabinet has still to answer hold a spin the
+   * screen has taken already, and how many a gold one: those have no lamp to light.
    */
   hold: { stock: number; gold: number; taken: number; gilt: number };
   trayGlow: number;
@@ -889,16 +885,15 @@ const goldEntry = (entry: Entry): boolean => entry.gold || entry.lucky;
 const lightsLamp = (entry: Entry): boolean => entry.held || entry.gold;
 
 /**
- * Notes a medal the lip's rule has just counted. The machine has dealt with
- * it already: it holds its spin, or has turned one gold, from the moment the
- * medal came over the lip. But the medal is still on its tongue, and the
- * cabinet says nothing about it until it is seen to drop into its slot,
- * `ride` seconds from now: `CATCHER.sink`, or no time at all where nothing
- * may move and the medal is not seen to ride.
+ * Notes a medal that has just dropped into its START slot, which is when the
+ * machine takes it (session.ts): a ride after the lip's rule counted it, or
+ * as it came over the lip where nothing may move and it is not seen to ride.
+ * The cabinet answers it in this frame (`dropEntries`), once it has been told
+ * what the machine holds now (`holdShown`).
  */
-export function enterGate(stage: Stage, entry: Entry, ride: number): void {
+export function enterGate(stage: Stage, entry: Entry): void {
   if (entry.gate < 0 || entry.gate >= stage.gateGlow.length) return;
-  stage.entries.push({ gate: entry.gate, held: entry.held, gold: entry.gold, lucky: entry.lucky, left: Math.max(0, ride), dropped: false, run: -1, from: { x: 0, y: 0 }, fresh: true, lamp: false });
+  stage.entries.push({ gate: entry.gate, held: entry.held, gold: entry.gold, lucky: entry.lucky, dropped: false, run: -1, from: { x: 0, y: 0 }, lamp: false });
 }
 
 /** The lamp of the hold a spark has reached shines for a moment, wherever it is in the row. */
@@ -924,26 +919,22 @@ export function lampFor(stage: Stage, entry: Arrival): number {
 }
 
 /**
- * Moves the medals that are on their way to a START slot on by `dt` seconds
- * of the machine's time, which stands at `time`, and gives back the entries
- * whose medal has dropped into its slot in that time: the ones the cabinet
- * is to be heard and felt to answer now. What it is seen to answer starts
+ * Answers the medals that have dropped into a START slot in this frame, with
+ * the machine's clock at `time`, and gives them back with what each sends up
+ * to the hold: a spark, or nothing. What the cabinet is seen to say starts
  * here. The slot bursts with light and a word stands over it; and a spark
  * sets out for the hold's lamps, unless the medal found the hold full and
  * nothing to turn gold, which is a dull word and nothing more. Nor does a
- * spark set out for a spin the screen has taken already, as it does at once
- * when the machine holds nothing else: that spin has no lamp, and what
- * answers the medal is on the screen. With `calm` nothing flies: no sparks
- * from the slot and none up to the hold, whose lamp is lit at once.
+ * spark set out for a spin the screen has taken already, as it does in the
+ * step the medal drops when the screen is free and the machine holds nothing
+ * else: that spin has no lamp, and what answers the medal is on the screen.
+ * With `calm` nothing flies: no sparks from the slot and none up to the
+ * hold, whose lamp is lit at once.
  */
-export function dropEntries(stage: Stage, dt: number, time: number, calm = false): Entry[] {
-  const dropped: Entry[] = [];
+export function dropEntries(stage: Stage, time: number, calm = false): Arrival[] {
+  const dropped: Arrival[] = [];
   for (const entry of stage.entries) {
     if (entry.dropped) continue;
-    // Its medal came over the lip some way through the frame it was noted in, and has that frame's ride still to come.
-    if (!entry.fresh) entry.left -= dt;
-    entry.fresh = false;
-    if (entry.left > 1e-9) continue;
     entry.dropped = true;
     dropped.push(entry);
     const mouth = mouthSpot(entry.gate, time);
@@ -959,7 +950,7 @@ export function dropEntries(stage: Stage, dt: number, time: number, calm = false
     stage.popups.push({ x: Math.min(VIEW.width - wide, Math.max(wide, at.x)), y: at.y - 10, text, age: 0, color: !lights ? ENTRY_INK.full : gold ? ENTRY_INK.gold : ENTRY_INK.start, word: { gate: entry.gate, size, still: calm } });
     if (!lights) continue;
     lightGate(stage, entry.gate);
-    // The oldest of the medals on their way are the ones whose spins the screen has taken: this is one of them if any is.
+    // The oldest of the medals still to be answered are the ones whose spins the screen has taken: this is one of them if any is.
     const spun = gold ? stage.hold.gilt > 0 : stage.hold.taken > 0;
     if (spun) {
       if (gold) stage.hold.gilt -= 1;
@@ -989,15 +980,15 @@ export function dropEntries(stage: Stage, dt: number, time: number, calm = false
 /**
  * How many of the spins the machine holds the hold's lamps show, and how
  * many of those as gold, given what the machine has: `stock` spins held,
- * `gold` of them gold. The machine has counted a medal from the moment it
- * came over the lip, and the lamps do not show it until its spark has
- * reached them. So every entry that is still on its way, riding or as a
- * spark, is one lamp fewer, and each of those that is gold one gold lamp
- * fewer; never fewer than none. If the machine holds fewer spins than there
- * are medals on their way, the screen has taken the rest already: a medal
- * that finds the screen free starts its spin as it comes over the lip. The
- * stage remembers the answer: it is where the sparks are bound, and which
- * of them have nowhere to go.
+ * `gold` of them gold. The machine has a medal's spin from the moment the
+ * medal dropped into its slot, and the lamps do not show it until its spark
+ * has reached them. So every entry that is still to be answered, or whose
+ * spark is on its way, is one lamp fewer, and each of those that is gold one
+ * gold lamp fewer; never fewer than none. If the machine holds fewer spins
+ * than there are such entries, the screen has taken the rest already: a
+ * medal that finds the screen free starts its spin as it drops. The stage
+ * remembers the answer: it is where the sparks are bound, and which of them
+ * have nowhere to go.
  */
 export function holdShown(stage: Stage, stock: number, gold: number): Stage['hold'] {
   let held = 0;

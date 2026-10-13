@@ -54,7 +54,7 @@
 
 import type { Spot } from './arms';
 import { droppedThrough, grazed } from './chuckers';
-import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, luckySlot, pusherFront, slotWidthAt, type Medal } from './engine';
+import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, START_RIDE, luckySlot, pusherFront, slotWidthAt, type Medal } from './engine';
 import { HEIGHT, project } from './view';
 
 /** How far it is from one pocket to the next. */
@@ -104,10 +104,11 @@ export const CATCHER = {
   /**
    * Seconds a medal the lip's rule counted is shown from the lip to out of
    * sight down its slot: on its tongue for the first `ride` of that, and
-   * going over the tongue's end and down the throat for the rest. What the
-   * cabinet says about it, it says when this is up.
+   * going over the tongue's end and down the throat for the rest. This is
+   * the machine's own number: when it is up the machine takes the medal, and
+   * the cabinet says what it came to (`START_RIDE` in engine.ts).
    */
-  sink: 0.8,
+  sink: START_RIDE,
   ride: 0.7,
   /** Seconds such a medal is shown lying in the mouth of its slot, going dark, where nothing may move: it is not seen to ride there. */
   still: 0.3,
@@ -525,7 +526,8 @@ export function caught(medal: Medal, time: number, calm = false, wings = false):
       const dark = medal.sinceDrop / CATCHER.still;
       return { ...lying(x, end, front, CATCHER.rim.high), light: 1 - 0.9 * dark, chucker, near: -1, leg: 'tongue' };
     }
-    if (medal.sinceDrop >= CATCHER.sink) return null;
+    // It is gone in the step the machine takes it, which is the step its ride is up to within a billionth of a second (session.ts).
+    if (medal.sinceDrop >= CATCHER.sink - 1e-9) return null;
     const t = medal.sinceDrop / CATCHER.sink;
     if (t < CATCHER.ride) {
       const u = t / CATCHER.ride;

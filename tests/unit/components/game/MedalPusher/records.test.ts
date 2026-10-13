@@ -1017,13 +1017,32 @@ describe('the hold filling', () => {
     machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
   };
   const DT = 1 / 60;
+  /**
+   * The machine takes a medal as it drops into its pocket, a ride after it came over the lip. What it says then, and
+   * what the book makes of it, is what these are about; so they play a cabinet that shows nothing moving, where a
+   * medal is taken as it comes over. The same things are said in the same order, without the wait.
+   */
+  const STILL = true;
+
+  it('hears nothing of a medal that is only on its tongue: the book counts it when it has dropped into its pocket', () => {
+    const session = emptied();
+    throughPocket(session);
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    expect(events.map((event) => event.type)).toEqual(['riding']);
+    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ hits: 0, wasted: 0, golds: 0, luckies: 0 });
+    for (let i = 0; i < 60 && session.riding.length > 0; i++) advance(session, DT, events);
+    expect(events.map((event) => event.type)).toEqual(['riding', 'checker', 'spinStart']);
+    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ hits: 1, wasted: 0 });
+    expect(session.hits).toBe(1);
+  });
 
   it('is said by the machine in the frame the last place is taken, though a spin takes one off again in the same frame', () => {
     const session = emptied();
     session.stock = MAX_STOCK - 1;
     throughPocket(session);
     const events: SessionEvent[] = [];
-    advance(session, DT, events);
+    advance(session, DT, events, STILL);
     // Seven held, the eighth comes in, and with the screen free a spin starts at once: seven again when the frame is over.
     expect(events.map((event) => event.type)).toEqual(['holdFilled', 'checker', 'spinStart']);
     expect(events[1]).toEqual({ type: 'checker', gate: 1, held: true, gold: false, lucky: false });
@@ -1043,7 +1062,7 @@ describe('the hold filling', () => {
     const events: SessionEvent[] = [];
     for (let medal = 0; medal < MAX_STOCK + 3; medal++) {
       throughPocket(session);
-      advance(session, DT, events);
+      advance(session, DT, events, STILL);
     }
     const said = events.filter((event) => event.type === 'holdFilled' || event.type === 'checker');
     expect(said.filter((event) => event.type === 'holdFilled')).toHaveLength(1);
@@ -1071,7 +1090,7 @@ describe('the hold filling', () => {
     const fills = (): number => {
       const events: SessionEvent[] = [];
       throughPocket(session);
-      advance(session, DT, events);
+      advance(session, DT, events, STILL);
       return events.filter((event) => event.type === 'holdFilled').length;
     };
     session.stock = MAX_STOCK - 2;
@@ -1082,7 +1101,7 @@ describe('the hold filling', () => {
     expect(fills()).toBe(1);
     // A frame with no medal at a pocket says nothing, however full the hold stands.
     const quiet: SessionEvent[] = [];
-    advance(session, DT, quiet);
+    advance(session, DT, quiet, STILL);
     expect(quiet.filter((event) => event.type === 'holdFilled')).toEqual([]);
   });
 
@@ -1095,7 +1114,7 @@ describe('the hold filling', () => {
     const through = (pocket: number): void => {
       const { machine } = session;
       machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[pocket], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
-      advance(session, DT, events);
+      advance(session, DT, events, STILL);
     };
     // One through the pocket the lucky lamp is on, and one through another.
     const lit = luckySlot(session.machine.time);
@@ -1110,7 +1129,7 @@ describe('the hold filling', () => {
     expect(before).toMatchObject({ hits: MAX_STOCK + 1, luckies: 1, golds: 1, wasted: 1, chances: 1, fulls: 1 });
     // The chest is opened and the gold spins start to play, so there is room in the hold again while chance time lasts.
     session.bonus = null;
-    for (let i = 0; i < 20 && session.stock === MAX_STOCK; i++) advance(session, DT, events);
+    for (let i = 0; i < 20 && session.stock === MAX_STOCK; i++) advance(session, DT, events, STILL);
     expect([session.stock, session.rush]).toEqual([MAX_STOCK - 1, true]);
     through((lit + 2) % CHECKERS.positions.length);
     const after = totals(record(createBook('device0001'), events, MONDAY));

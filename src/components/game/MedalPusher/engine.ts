@@ -202,8 +202,14 @@ const R = MEDAL_RADIUS;
 const DIAMETER = R * 2;
 /** Relaxation passes per step: enough for a pusher that moves a fraction of a unit per step. */
 const ITERATIONS = 6;
-/** Longer steps are cut into pieces no longer than this, so the pusher never moves far at once. */
-const MAX_STEP = 1 / 60;
+/**
+ * Longer steps are cut into pieces no longer than this, so the pusher never
+ * moves far at once. Whoever has something to settle between the pieces cuts
+ * its own time the same way and steps the machine a piece at a time: the
+ * session does, since what goes through a START slot in one piece can change
+ * how wide the slots take medals in the next.
+ */
+export const MAX_STEP = 1 / 60;
 
 /** Where a medal lies: on the pusher (1) or on the lower table (0). */
 export type Level = 0 | 1;
@@ -350,6 +356,22 @@ export function pusherFront(time: number): number {
 export function checkerAt(x: number, halfWidth: number = CHECKERS.halfWidth): number {
   return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= halfWidth);
 }
+
+/**
+ * How wide the START slots were taking medals as each thing that has come
+ * over the lip came over: the half-width the lip's rule had in that piece of
+ * the step. The slots can widen or narrow while a medal is still on its way
+ * down, and whoever draws it has to show what was counted, so the rule of
+ * its own moment is kept with it for as long as the medal is.
+ */
+const widthAtLip = new WeakMap<Medal, number>();
+
+/**
+ * The half-width the START slots had when `medal` came over the lip, or
+ * undefined for one the machine did not see come over: a medal that has not
+ * come over, and one read back from a save.
+ */
+export const slotWidthAt = (medal: Medal): number | undefined => widthAtLip.get(medal);
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
 
@@ -956,6 +978,7 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
           events.toppled++;
         } else {
           crossing.push(medal);
+          widthAtLip.set(medal, halfWidth);
         }
         continue;
       }

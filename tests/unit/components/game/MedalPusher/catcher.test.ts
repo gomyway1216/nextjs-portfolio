@@ -22,7 +22,7 @@ import {
   type Caught,
 } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS, chuckerSpot, droppedThrough, grazed } from '@/components/game/MedalPusher/chuckers';
-import { CHECKERS, FIELD, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, createMachine, luckySlot, pusherFront, step, type Medal } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
 import { APRON_CAP, BALL_RADIUS } from '@/components/game/MedalPusher/render';
 import { EYE_AT, HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
 
@@ -694,6 +694,88 @@ describe('a medal that comes over the lip at the catcher', () => {
         expect(held?.near).toBe(open ? -1 : 1);
       }
     }
+  });
+
+  it('keeps what was decided as the medal came over the lip for the whole of its way down, though the wings open or shut meanwhile', () => {
+    // Further to one side of a slot than fits it with its wings folded, and near enough to fit it with them open.
+    const beside = pocket + (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5;
+    const moments = Array.from({ length: 60 }, (_unused, frame) => (frame + 1) / 60).filter((sinceDrop) => sinceDrop < CATCHER.rattle);
+    expect(moments.length).toBeGreaterThan(30);
+
+    // It came over with the wings folded, so it caught the frame. Chance time begins while it rattles there and the
+    // wings open: it is still a medal that caught the frame, all the way down the slide and off its foot. At no
+    // moment is it seen to turn into the slot.
+    const missed = over(beside, front, 0);
+    expect(caught(missed, time, false, false)).toMatchObject({ chucker: -1, near: 1 });
+    const way: Caught[] = [];
+    for (const sinceDrop of moments) {
+      missed.sinceDrop = sinceDrop;
+      const held = caught(missed, time, false, true);
+      if (!held) throw new Error('not caught');
+      // It is shown exactly as one that the wings never opened for.
+      expect(held).toEqual(caught(over(beside, front, sinceDrop), time, false, false));
+      expect(held).toMatchObject({ chucker: -1, near: 1 });
+      way.push(held);
+    }
+    expect(legs(way)).toEqual(['slide', 'frame', 'slide', 'foot']);
+    // A medal that comes over there once the wings are open is another matter: it goes down the slot.
+    expect(caught(over(beside, front, 0.2), time, false, true)).toMatchObject({ chucker: 1, near: -1 });
+
+    // And the other way about. It came over with the wings open and went into the slot; chance time ends while it is
+    // on its way and the wings shut. It still goes down the slot, and once it is down it is out of sight: it is not
+    // seen again on the slide, rattling on a frame it never caught.
+    const taken = over(beside, front, 0);
+    expect(caught(taken, time, false, true)).toMatchObject({ chucker: 1, near: -1 });
+    for (const sinceDrop of moments) {
+      taken.sinceDrop = sinceDrop;
+      const held = caught(taken, time, false, false);
+      expect(held).toEqual(caught(over(beside, front, sinceDrop), time, false, true));
+      if (sinceDrop < CATCHER.sink) expect(held).toMatchObject({ chucker: 1, near: -1 });
+      else expect(held).toBeNull();
+    }
+    // One that comes over there once they are shut catches the frame.
+    expect(caught(over(beside, front, 0.2), time, false, false)).toMatchObject({ chucker: -1, near: 1 });
+  });
+
+  it('takes the engine’s word for how wide the slots were as the medal came over, whatever it is told of the wings afterwards', () => {
+    const beside = pocket + (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5;
+    for (const open of [false, true]) {
+      const machine = createMachine(11);
+      machine.time = time;
+      const medal = over(beside, front + 0.5, -1, { level: 1 });
+      // A medal that has not come over has no such word.
+      expect(slotWidthAt(medal)).toBeUndefined();
+      machine.medals = [medal];
+      const events = step(machine, 1 / 60, open);
+      expect(events.checkers).toEqual(open ? [1] : []);
+      expect(slotWidthAt(medal)).toBe(open ? CHECKERS.wingWidth : CHECKERS.halfWidth);
+      // The cabinet draws once the session has dealt with the step, and by then the wings may stand the other way:
+      // the medal that found the hold full has opened them, or the last gold spin has shut them. Asked for the
+      // first time with the wings like that, the catcher still shows what was counted.
+      const held = caught(medal, machine.time, false, !open);
+      expect(held).toMatchObject({ chucker: open ? 1 : -1, near: open ? -1 : 1 });
+      // And it goes on showing it, as the machine runs on.
+      step(machine, 6 / 60, !open);
+      expect(medal.sinceDrop).toBeCloseTo(0.1, 9);
+      expect(caught(medal, machine.time, false, !open)).toMatchObject({ chucker: open ? 1 : -1, near: open ? -1 : 1 });
+      // A medal the engine did not see come over, one read back from a save in the middle of its way down, has no
+      // word of the engine's: it is taken as the slots stand when the catcher is first asked, and stays so.
+      const read: Medal = { ...medal };
+      expect(slotWidthAt(read)).toBeUndefined();
+      expect(caught(read, machine.time, false, !open)).toMatchObject({ chucker: open ? -1 : 1 });
+      expect(caught(read, machine.time, false, open)).toMatchObject({ chucker: open ? -1 : 1 });
+    }
+  });
+
+  it('gives a tower no word of its own: what goes over as a tower comes down across the table, not down the slide', () => {
+    const machine = createMachine(11);
+    machine.time = time;
+    const tower = over(pocket, front + 0.5, -1, { level: 1, stack: 5 });
+    machine.medals = [tower];
+    const events = step(machine, 1 / 60, true);
+    expect([events.toppled, events.checkers]).toEqual([1, [1, 1, 1, 1, 1]]);
+    expect(slotWidthAt(tower)).toBeUndefined();
+    expect(machine.medals).toEqual([]);
   });
 });
 

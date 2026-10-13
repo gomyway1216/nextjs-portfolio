@@ -35,7 +35,7 @@
 
 import type { Spot } from './arms';
 import { droppedThrough, grazed } from './chuckers';
-import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, luckySlot, pusherFront, type Medal } from './engine';
+import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, luckySlot, pusherFront, slotWidthAt, type Medal } from './engine';
 import { HEIGHT, project } from './view';
 
 /** How far it is from one pocket to the next. */
@@ -264,21 +264,42 @@ function offFoot(x: number, front: number, v: number): Pose & Pick<Caught, 'ligh
 /** The longest the catcher has anything on its slide. */
 const LONGEST = Math.max(CATCHER.sink, CATCHER.slide, CATCHER.rattle);
 
-/**
- * Where across the field each thing the catcher has on its slide came over
- * the lip: where it was when the catcher was first asked about it, which is
- * in the step it came over or the frame after. The engine has it on the
- * lower table from that step on, where the pile shoves it about. The catcher
- * shows it coming down from where it came over, whatever becomes of it down
- * there, and does not change its mind half way about which slot it is for.
- */
-const cameOver = new WeakMap<Medal, number>();
+/** What is settled about a thing as it comes over the lip: where across the field it came over, and whether the slots' wings were open. */
+interface CameOver {
+  x: number;
+  wings: boolean;
+}
 
-function crossing(medal: Medal): number {
+/**
+ * What the catcher has settled about each thing on its slide, the first time
+ * it is asked about it, which is in the step the thing came over the lip or
+ * the frame after: where across the field it came over, and whether the
+ * wings of the slots were open then. The two of them say which slot took it,
+ * or whose frame it caught, or neither.
+ *
+ * Neither is asked again. The engine has the thing on the lower table from
+ * that step on, where the pile shoves it about; and chance time can begin or
+ * end while it is still on its way, which opens the wings or shuts them. The
+ * catcher shows it coming down from where it came over, to the slot that
+ * took it or past the frame that did not, and does not change its mind half
+ * way: a medal that began by catching a frame is not seen to turn into a
+ * slot because the wings have opened since.
+ *
+ * For the wings it takes the engine's word, where the engine saw the thing
+ * come over: the width the lip's rule had in that piece of its step, which
+ * is the width that counted (`slotWidthAt` in engine.ts). A medal the engine
+ * did not see come over, one read back from a save in the middle of its way
+ * down, is taken as the slots stand when the catcher is first asked.
+ */
+const cameOver = new WeakMap<Medal, CameOver>();
+
+function crossing(medal: Medal, wings: boolean): CameOver {
   const known = cameOver.get(medal);
-  if (known !== undefined) return known;
-  cameOver.set(medal, medal.x);
-  return medal.x;
+  if (known) return known;
+  const width = slotWidthAt(medal);
+  const settled = { x: medal.x, wings: width === undefined ? wings : width > CHECKERS.halfWidth };
+  cameOver.set(medal, settled);
+  return settled;
 }
 
 /**
@@ -296,18 +317,22 @@ function crossing(medal: Medal): number {
  * lies on it, rocking from side to side less and less, sliding away from the
  * slot, and then slides on down beside the slot and off the foot. With `calm`
  * it does not rock: it slides straight down. One that came over between the
- * slots slides the length of the slide and off its foot. With `wings` the
- * slots are taking medals at their wider width. Which it is goes by where
- * the medal came over the lip, which is exact if it is asked in the step the
- * medal comes over, and as near as the pile has left the medal if it is first
- * asked later.
+ * slots slides the length of the slide and off its foot.
+ *
+ * Which it is was decided as the medal came over the lip, and stays decided
+ * for as long as it is on its way (see `cameOver`): by where it came over,
+ * and by how wide the slots were taking medals then. `wings` says whether
+ * their wings are open now, and is only gone by for a medal the engine did
+ * not see come over, the first time it is asked about. Where it came over
+ * is exact if it is asked in the step the medal comes over, and as near as
+ * the pile has left the medal if it is first asked later.
  */
 export function caught(medal: Medal, time: number, calm = false, wings = false): Caught | null {
   if (medal.ball || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= LONGEST) return null;
   const front = pusherFront(time);
-  const x = crossing(medal);
+  const { x, wings: open } = crossing(medal, wings);
   const asItCame = x === medal.x ? medal : { ...medal, x };
-  const chucker = droppedThrough(asItCame, CATCHER.sink, wings);
+  const chucker = droppedThrough(asItCame, CATCHER.sink, open);
   if (chucker >= 0) {
     const t = medal.sinceDrop / CATCHER.sink;
     const mouth = CHECKERS.positions[chucker];
@@ -336,10 +361,10 @@ export function caught(medal: Medal, time: number, calm = false, wings = false):
     };
   }
   // One that came through a slot is out of sight once it is down it: only one that came through none slides on.
-  if (droppedThrough(asItCame, Infinity, wings) >= 0) return null;
+  if (droppedThrough(asItCame, Infinity, open) >= 0) return null;
   // Only a medal that is wholly behind the catcher comes down its slide: one that hangs past its end is seen beside it, and falls as the engine has it.
   if (x - MEDAL_RADIUS < CATCHER.from || x + MEDAL_RADIUS > CATCHER.to) return null;
-  const near = calm ? -1 : grazed(asItCame, CATCHER.rattle, CATCHER.reach, wings);
+  const near = calm ? -1 : grazed(asItCame, CATCHER.rattle, CATCHER.reach, open);
   if (near >= 0) {
     const t = medal.sinceDrop / CATCHER.rattle;
     const away = Math.sign(x - CHECKERS.positions[near]);
@@ -378,7 +403,8 @@ export function caught(medal: Medal, time: number, calm = false, wings = false):
  */
 export function rolling(medal: Medal, radius: number, time: number): Spot | null {
   if (!medal.ball || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= CATCHER.slide) return null;
-  const x = crossing(medal);
+  // No slot takes a ball, wings or no wings: only where it came over is kept.
+  const { x } = crossing(medal, false);
   if (x - radius < CATCHER.from || x + radius > CATCHER.to) return null;
   const front = pusherFront(time);
   const t = medal.sinceDrop / CATCHER.slide;

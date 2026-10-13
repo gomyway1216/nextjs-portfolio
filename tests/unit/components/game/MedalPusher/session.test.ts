@@ -7,6 +7,7 @@ import {
   FALL_TIME,
   FIELD,
   JEWEL_DROP,
+  MAX_STEP,
   PUSHER,
   ROLL_TIME,
   TOWER,
@@ -14,11 +15,14 @@ import {
   aimArm,
   ballsOnField,
   buildTowers,
+  checkerAt,
   jewelsOnField,
   luckySlot,
   medalsOnField,
   pusherFront,
   seededRng,
+  slotWidthAt,
+  step,
   towerSizes,
 } from '@/components/game/MedalPusher/engine';
 import {
@@ -1625,4 +1629,129 @@ describe('the lucky lamp and the wings', () => {
     // At this pace the hold is hardly ever full.
     expect(fed.wasted).toBeLessThan(fed.started / 10);
   }, LONG);
+});
+
+describe('a frame that took long', () => {
+  /**
+   * Lets a medal go in the air so that it comes down on the pusher just past its lip at `x` in the machine's
+   * `piece`th sixtieth of a second from now, and goes over the lip in that same sixtieth.
+   */
+  const overTheLipIn = (session: Session, x: number, piece: number): void => {
+    const { machine } = session;
+    const y = pusherFront(machine.time + piece * DT) + 0.5;
+    machine.falling.push({ id: machine.nextId++, x, y, level: 1, fromX: x, fromY: y, rank: 0, ball: false, remaining: (piece - 0.5) * DT, duration: FALL_TIME, source: 'payout' });
+  };
+  /** The same four sixtieths of a second as four frames, as two, and as one long one. */
+  const WAYS: [string, number[]][] = [
+    ['four frames of a sixtieth', [1, 1, 1, 1]],
+    ['two frames of two', [2, 2]],
+    ['one frame of four', [4]],
+    ['a short frame and a long one', [1, 3]],
+  ];
+  const played = (session: Session, frames: number[]): SessionEvent[] => {
+    const events: SessionEvent[] = [];
+    for (const frame of frames) advance(session, frame * DT, events);
+    return events;
+  };
+
+  it('is cut into the engine’s own pieces, each no longer than the engine steps at once', () => {
+    expect(MAX_STEP).toBe(DT);
+    // Stepped a piece at a time the field is the very field one long step makes of it.
+    const [whole, pieces] = [createSession(21), createSession(21)];
+    for (const session of [whole, pieces]) for (let i = 0; i < 40; i++) insert(session, i % 2 === 0 ? 0 : 1);
+    for (let frame = 0; frame < 30; frame++) {
+      const long = 7.5 * MAX_STEP;
+      step(whole.machine, long);
+      let remaining = long;
+      while (remaining > 1e-9) {
+        const piece = Math.min(MAX_STEP, remaining);
+        step(pieces.machine, piece);
+        remaining -= piece;
+      }
+    }
+    expect(pieces.machine.time).toBe(whole.machine.time);
+    expect(pieces.machine.medals).toEqual(whole.machine.medals);
+  });
+
+  it.each(WAYS)('opens the wings for a medal that goes over after the one that found the hold full, though both are in one frame: %s', (_name, frames) => {
+    const session = busy();
+    Object.assign(session, { stock: MAX_STOCK, hits: MAX_STOCK });
+    // A medal over the lip at the middle slot in the first sixtieth of a second, which finds the hold full. And one
+    // that comes over two sixtieths later just beside the right slot: outside the slot, and inside its open wings.
+    const beside = CHECKERS.positions[2] + 1.5;
+    expect(checkerAt(beside, CHECKERS.halfWidth)).toBe(-1);
+    expect(checkerAt(beside, CHECKERS.wingWidth)).toBe(2);
+    overTheLip(session, CHECKERS.positions[1]);
+    overTheLipIn(session, beside, 3);
+    const events = played(session, frames);
+    // Chance time began with the first, so the wings were open by the time the second came over, and it went in.
+    expect(pocketed(events)).toEqual([
+      { type: 'checker', gate: 1, held: false, gold: true, lucky: false },
+      { type: 'checker', gate: 2, held: false, gold: true, lucky: false },
+    ]);
+    expect(count(events, 'chanceStart')).toBe(1);
+    expect([session.rush, session.hits, session.wasted, session.gold, session.gilded, session.lucky]).toEqual([true, MAX_STOCK + 2, 2, 2, 2, 0]);
+    // Both lie on the lower table, where they came down, and each remembers how wide the slots were as it came over.
+    const [first, second] = session.machine.medals;
+    expect([first.level, second.level]).toEqual([0, 0]);
+    expect([slotWidthAt(first), slotWidthAt(second)]).toEqual([CHECKERS.halfWidth, CHECKERS.wingWidth]);
+    expect(second.x).toBeCloseTo(beside, 9);
+    // What is said of the slots comes after what the field itself did, however many pieces the frame was.
+    const order = events.map((event) => event.type).filter((type) => type === 'landed' || type === 'checker');
+    expect(order.slice(-1)).toEqual(['checker']);
+    expect(session.hits).toBe(session.spins + session.stock + session.wasted);
+  });
+
+  it('leaves the second medal beside its slot when nothing has opened the wings, however the time is cut', () => {
+    for (const [, frames] of WAYS) {
+      // The same two medals, with room in the hold: the first is held, and nothing begins.
+      const session = busy();
+      overTheLip(session, CHECKERS.positions[1]);
+      overTheLipIn(session, CHECKERS.positions[2] + 1.5, 3);
+      const events = played(session, frames);
+      expect(pocketed(events)).toEqual([{ type: 'checker', gate: 1, held: true, gold: false, lucky: false }]);
+      expect([session.rush, session.hits, session.stock]).toEqual([false, 1, 1]);
+      expect(session.machine.medals.map((medal) => slotWidthAt(medal))).toEqual([CHECKERS.halfWidth, CHECKERS.halfWidth]);
+    }
+  });
+
+  it.each(WAYS)('reads the lucky lamp where it was as each medal went over, when the lamp steps in the middle of the frame: %s', (_name, frames) => {
+    const session = busy();
+    // A sixtieth and a half before the pusher comes to the back of its first stroke, which is when the lamp steps
+    // from the left slot to the middle one.
+    session.machine.time = PUSHER.period - 1.5 * DT;
+    expect([luckySlot(session.machine.time + DT), luckySlot(session.machine.time + 3 * DT)]).toEqual([0, 1]);
+    // Over the lip at the left slot in the first sixtieth, while the lamp is on it; and at the left slot again and
+    // at the middle one two sixtieths later, when it has stepped.
+    overTheLip(session, CHECKERS.positions[0]);
+    overTheLipIn(session, CHECKERS.positions[0], 3);
+    overTheLipIn(session, CHECKERS.positions[1], 3);
+    const events = played(session, frames);
+    expect(pocketed(events)).toEqual([
+      { type: 'checker', gate: 0, held: true, gold: false, lucky: true },
+      { type: 'checker', gate: 0, held: true, gold: false, lucky: false },
+      { type: 'checker', gate: 1, held: true, gold: false, lucky: true },
+    ]);
+    expect([session.stock, session.gold, session.lucky, session.rush]).toEqual([3, 2, 2, false]);
+    expect(luckySlot(session.machine.time)).toBe(1);
+  });
+
+  it('is the same time to the machine however it is cut, and is still refused when it is no length of time', () => {
+    const sessions = WAYS.map(([, frames]) => {
+      const session = createSession(31);
+      for (let i = 0; i < 12; i++) insert(session, i % 2 === 0 ? 0 : 1);
+      played(session, frames);
+      return session;
+    });
+    for (const session of sessions) {
+      expect(session.machine.time).toBeCloseTo(4 * DT, 12);
+      expect(session.machine.medals).toHaveLength(sessions[0].machine.medals.length);
+    }
+    const session = createSession(31);
+    for (const bad of [-DT, Number.NaN, Number.POSITIVE_INFINITY]) expect(() => advance(session, bad)).toThrow('the time step must be a non-negative number');
+    // No time at all is a frame in which the field does nothing.
+    const still = JSON.stringify(session.machine.medals);
+    advance(session, 0);
+    expect([session.machine.time, JSON.stringify(session.machine.medals)]).toEqual([0, still]);
+  });
 });

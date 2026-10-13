@@ -15,6 +15,7 @@ import {
   JEWEL_DROP,
   JEWEL_SPOTS,
   LANDING,
+  LUCKY,
   MEDAL_RADIUS,
   PUSHER,
   RELEASE,
@@ -34,6 +35,7 @@ import {
   dropBall,
   dropJewel,
   jewelsOnField,
+  luckySlot,
   medalsOnField,
   pusherFront,
   queuePayout,
@@ -158,12 +160,24 @@ describe('the generator and the pusher', () => {
     expect(2 * mouth).toBeLessThan(centre - left);
     expect(left - mouth).toBeGreaterThan(FIELD.width * 0.3);
     expect(right + mouth).toBeLessThan(FIELD.width * 0.7);
-    // The room to spare is less than a medal's radius: a medal has to come over nearly square on.
+    // The room to spare is a good deal less than half a medal's radius: a medal has to come over square on.
+    expect(CHECKERS.halfWidth).toBe(1.13);
     expect(CHECKERS.halfWidth).toBeGreaterThan(0);
-    expect(CHECKERS.halfWidth).toBeLessThan(MEDAL_RADIUS);
+    expect(CHECKERS.halfWidth).toBeLessThan(MEDAL_RADIUS / 2);
+    // With their wings open the slots take medals from a little further to the side: more than a tenth as wide
+    // again, and well short of the 1.7 they took before they were narrowed, which paid fast play too well. Even
+    // so they do not run into each other, and keep to the middle of the lip.
+    expect(CHECKERS.wingWidth).toBe(1.25);
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth * 1.1);
+    expect(CHECKERS.wingWidth).toBeLessThan(1.7);
+    expect(CHECKERS.wingWidth).toBeLessThan(MEDAL_RADIUS);
+    const winged = MEDAL_RADIUS + CHECKERS.wingWidth;
+    expect(2 * winged).toBeLessThan(centre - left);
+    expect(left - winged).toBeGreaterThan(FIELD.width * 0.3);
+    expect(right + winged).toBeLessThan(FIELD.width * 0.7);
     // A medal let go at the very edge of the field cannot come down in line with one: it has to be pushed there.
-    expect(left - CHECKERS.halfWidth).toBeGreaterThan(AIM.min + LANDING.scatter);
-    expect(right + CHECKERS.halfWidth).toBeLessThan(AIM.max - LANDING.scatter);
+    expect(left - CHECKERS.wingWidth).toBeGreaterThan(AIM.min + LANDING.scatter);
+    expect(right + CHECKERS.wingWidth).toBeLessThan(AIM.max - LANDING.scatter);
   });
 
   it('knows which chucker a medal going over the lip is in line with', () => {
@@ -179,6 +193,63 @@ describe('the generator and the pusher', () => {
     expect(clampAim(-5)).toBe(AIM.min);
     expect(clampAim(500)).toBe(AIM.max);
     expect(clampAim(40)).toBe(40);
+  });
+
+  it('takes a medal from further to the side at the wing width, and at the narrow width when it is given none', () => {
+    CHECKERS.positions.forEach((x, chucker) => {
+      for (const side of [-1, 1]) {
+        // Up to the wing width and no further.
+        expect(checkerAt(x + side * (CHECKERS.wingWidth - 0.01), CHECKERS.wingWidth)).toBe(chucker);
+        expect(checkerAt(x + side * (CHECKERS.wingWidth + 0.01), CHECKERS.wingWidth)).toBe(-1);
+        // Between the two widths a medal is in line with the slot only at the wider one.
+        const between = x + (side * (CHECKERS.halfWidth + CHECKERS.wingWidth)) / 2;
+        expect(checkerAt(between)).toBe(-1);
+        expect(checkerAt(between, CHECKERS.halfWidth)).toBe(-1);
+        expect(checkerAt(between, CHECKERS.wingWidth)).toBe(chucker);
+        // Inside the narrow width it is in line with it at either.
+        expect(checkerAt(x + side * (CHECKERS.halfWidth - 0.01), CHECKERS.wingWidth)).toBe(chucker);
+      }
+    });
+    // Where the towers go up, and beside all three, no width that a slot has reaches.
+    for (const x of [43, 57, 25, 75, AIM.min, AIM.max, 0, FIELD.width]) expect(checkerAt(x, CHECKERS.wingWidth)).toBe(-1);
+    expect(checkerAt(50, 0)).toBe(1);
+    expect(checkerAt(50.001, 0)).toBe(-1);
+  });
+
+  it('lights one slot at a time and steps the light along with every stroke of the pusher', () => {
+    expect(LUCKY.dwell).toBe(PUSHER.period);
+    expect(luckySlot(0)).toBe(0);
+    // From the left, one slot a stroke, and round again.
+    expect(Array.from({ length: 7 }, (_, stroke) => luckySlot((stroke + 0.5) * PUSHER.period))).toEqual([0, 1, 2, 0, 1, 2, 0]);
+    for (let stroke = 0; stroke < 9; stroke++) {
+      const back = stroke * PUSHER.period;
+      const lit = stroke % CHECKERS.positions.length;
+      // It stays on its slot for the whole of a stroke, out and back.
+      for (const part of [0, 0.01, 0.25, 0.5, 0.75, 0.99]) expect(luckySlot(back + part * PUSHER.period)).toBe(lit);
+      // It moves at the moment the pusher is fully back: a step before, it was still on the slot before.
+      expect(pusherFront(back)).toBeCloseTo(PUSHER.min, 9);
+      if (stroke > 0) expect(luckySlot(back - DT)).toBe((stroke - 1) % CHECKERS.positions.length);
+    }
+    // On a machine's own clock, which gets there a sixtieth of a second at a time, it moves once a stroke, in the
+    // step that brings the pusher back, whatever the sums of all those sixtieths have come to.
+    const machine = machineWith([]);
+    const moves: { step: number; to: number }[] = [];
+    let lit = luckySlot(machine.time);
+    const perStroke = Math.round(PUSHER.period / DT);
+    for (let i = 1; i <= 4 * perStroke + 2; i++) {
+      step(machine, DT);
+      const now = luckySlot(machine.time);
+      if (now === lit) continue;
+      moves.push({ step: i, to: now });
+      lit = now;
+      expect(pusherFront(machine.time)).toBeCloseTo(PUSHER.min, 6);
+    }
+    expect(moves).toEqual([
+      { step: perStroke, to: 1 },
+      { step: 2 * perStroke, to: 2 },
+      { step: 3 * perStroke, to: 0 },
+      { step: 4 * perStroke, to: 1 },
+    ]);
   });
 });
 
@@ -777,6 +848,61 @@ describe('a machine in play', () => {
     expect(over(36, { ball: true })).toEqual([]);
   });
 
+  it('counts a medal that goes over a little to the side of a slot while the wings are open, and only then', () => {
+    /** One medal, or a tower, just past the lip at `x`: the slots it drops through in the step that takes it over, with the wings as they are said to be. */
+    const over = (x: number, wings?: boolean, medal: Partial<Medal> = {}) => {
+      const machine = machineWith([medalAt(x, PUSHER.min + 0.5, { level: 1, ...medal })]);
+      const events = wings === undefined ? step(machine, DT) : step(machine, DT, wings);
+      // Counted or not, it has gone over the lip all the same.
+      expect(machine.medals.filter((m) => m.level === 1)).toEqual([]);
+      return events.checkers;
+    };
+    // Halfway between the two widths from a slot's middle is outside the slot and inside its wings.
+    const beside = (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2;
+    expect(beside).toBeGreaterThan(CHECKERS.halfWidth + 0.02);
+    expect(beside).toBeLessThan(CHECKERS.wingWidth - 0.02);
+    CHECKERS.positions.forEach((x, slot) => {
+      for (const side of [-1, 1]) {
+        expect(over(x + side * beside)).toEqual([]);
+        expect(over(x + side * beside, false)).toEqual([]);
+        expect(over(x + side * beside, true)).toEqual([slot]);
+        // The wings reach as far as their width and no further.
+        expect(over(x + side * (CHECKERS.wingWidth - 0.02), true)).toEqual([slot]);
+        expect(over(x + side * (CHECKERS.wingWidth + 0.02), true)).toEqual([]);
+        // A medal that fits the slot counts once, wings or no wings.
+        expect(over(x + side * (CHECKERS.halfWidth - 0.02), true)).toEqual([slot]);
+        expect(over(x + side * (CHECKERS.halfWidth - 0.02), false)).toEqual([slot]);
+      }
+    });
+    // Every medal of a tower that goes over inside the wings counts, and a ball still does not fit.
+    expect(over(50 + beside, true, { stack: 6 })).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(over(50 + beside, false, { stack: 6 })).toEqual([]);
+    expect(over(50 + beside, true, { ball: true })).toEqual([]);
+    // Halfway between two slots, where the towers go up, no wing reaches.
+    expect(over(43, true)).toEqual([]);
+
+    // The wings change what is counted and nothing else: two machines fed alike are the same field to the last
+    // digit, and the one with its wings open counts every medal the other does, and some more.
+    const [shut, open] = [createMachine(12), createMachine(12)];
+    const counted = { shut: 0, open: 0 };
+    const moved = { shut: { won: 0, lost: 0 }, open: { won: 0, lost: 0 } };
+    for (let i = 0; i < 40 * 60; i++) {
+      if (i % 12 === 0) for (const machine of [shut, open]) dropAt(machine, 44 + ((i / 12) % 13));
+      const [a, b] = [step(shut, DT, false), step(open, DT, true)];
+      counted.shut += a.checkers.length;
+      counted.open += b.checkers.length;
+      expect(b.checkers.length).toBeGreaterThanOrEqual(a.checkers.length);
+      moved.shut.won += a.won;
+      moved.shut.lost += a.lost;
+      moved.open.won += b.won;
+      moved.open.lost += b.lost;
+    }
+    expect(snapshot(open)).toBe(snapshot(shut));
+    expect(moved.open).toEqual(moved.shut);
+    expect(counted.shut).toBeGreaterThan(0);
+    expect(counted.open).toBeGreaterThan(counted.shut);
+  }, LONG);
+
   it('sends every medal of a tower through the chucker it goes over at', () => {
     /** A tower of `stack` medals just past the lip at `x`: the chuckers its medals drop through as it goes over. */
     const tower = (x: number, stack: number) => {
@@ -826,9 +952,11 @@ describe('a machine in play', () => {
     const fed = run(middle, 100, FIELD.width / 2, 0.25);
     const through = (chucker: number) => fed.checkers.filter((one) => one === chucker).length;
     expect(fed.dropped).toBeGreaterThan(350);
-    expect(fed.checkers.length).toBeGreaterThan(40);
-    expect(fed.checkers.length).toBeLessThan(120);
-    expect(Math.min(through(0), through(1), through(2))).toBeGreaterThan(5);
+    // About one medal in eight once the machine has been fed for a while, and fewer from a machine that is new.
+    expect(fed.checkers.length).toBeGreaterThan(fed.dropped / 16);
+    expect(fed.checkers.length).toBeLessThan(fed.dropped / 5);
+    expect(Math.min(through(0), through(1), through(2))).toBeGreaterThan(3);
+    expect(through(1)).toBe(Math.max(through(0), through(1), through(2)));
 
     // Fed at an edge, the pile has to carry a medal a third of the way across first: far fewer get there.
     const edge = createMachine(5);

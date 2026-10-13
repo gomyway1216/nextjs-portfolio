@@ -7,7 +7,7 @@ import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@
 import { holds } from '@/components/game/MedalPusher/lift';
 import { PACK_FORMAT, pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
-import { STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
+import { STORAGE_VERSION, VERSION_BEFORE_LAMP, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import inFormat1 from './fixtures/copies-packed-in-format-1.json';
 import beforeChance from './fixtures/save-before-chance-time.json';
@@ -16,6 +16,8 @@ import beforeJewels from './fixtures/save-before-jewels.json';
 import beforeLeftAndRight from './fixtures/save-before-left-and-right.json';
 import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 import beforeSlots from './fixtures/save-before-the-front-slots.json';
+import beforeLamp from './fixtures/save-before-the-lucky-lamp.json';
+import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
 import beforeWorks from './fixtures/save-before-the-payout-works.json';
 import beforeBowls from './fixtures/save-before-the-three-bowls.json';
 import withOneBowl from './fixtures/save-with-chance-time-and-one-bowl.json';
@@ -98,6 +100,8 @@ const OLDER: [string, string][] = [
   ['before jewels', beforeJewels.save],
   ['with jewels, before the payout works', withJewels.save],
   ['before the payout works', beforeWorks.save],
+  ['in chance time before the lucky lamp, the jewels and the payout works', beforeLamp.save],
+  ['the day before the lucky lamp, with the payout works at work', dayBeforeLamp.save],
 ];
 
 /** The whole numbers a string of bits holds, read here by hand and not by the packer: `width` bits each, high bit first. */
@@ -438,6 +442,73 @@ describe('a packed save', () => {
     expect(serialize(back)).toBe(serialize(session));
   });
 
+  it('packs the lucky lamp’s two numbers with the rest of a session’s, and they come back as they were', { timeout: LONG }, () => {
+    /** A machine with both rails held down from the start, at the first moment `when` says. */
+    const caught = (when: (session: Session) => boolean): Session => {
+      const session = createSession(20261014, { balls: 0 });
+      for (let i = 0; i < 150 * 60 && !when(session); i++) {
+        if (session.credits === 0) refill(session);
+        insert(session, 0);
+        insert(session, 1);
+        advance(session, DT);
+      }
+      if (!when(session)) throw new Error('no such moment');
+      return session;
+    };
+    // A spin the lamp alone made gold, with the wings shut; and chance time, the wings open, with spins the lamp and the wings made gold among those held.
+    const lamp = caught((session) => session.lucky >= 1 && session.gold >= 1 && !session.rush);
+    const rush = caught((session) => session.rush && session.gold >= 2 && session.lucky >= 2);
+    expect([lamp.rush, lamp.gilded]).toEqual([false, 0]);
+    expect(rush.gilded).toBeGreaterThanOrEqual(1);
+    for (const session of [lamp, rush]) {
+      const text = serialize(session);
+      const small = pack(text) as string;
+      expect(unpack(small)).toBe(text);
+      expect(sent(small)).toBeLessThan(bytesOf(text) / 2);
+      // A session's numbers are no table: they travel as they were written, the lamp's two among them, where a session holds them.
+      const written = JSON.parse(text) as { version: number; session: Record<string, unknown> };
+      const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
+      expect(packed.version).toBe(STORAGE_VERSION);
+      expect(JSON.stringify(packed.session)).toBe(JSON.stringify(written.session));
+      expect([packed.session.lucky, packed.session.rush]).toEqual([session.lucky, session.rush]);
+      const keys = Object.keys(packed.session);
+      expect(keys.slice(keys.indexOf('gilded'), keys.indexOf('chance') + 1)).toEqual(['gilded', 'lucky', 'rush', 'chance']);
+      // And what comes back is the same machine, which plays on as the one that was packed does.
+      const back = restore(unpack(small), 1) as Session;
+      expect(serialize(back)).toBe(text);
+      expect([back.lucky, back.rush, back.gold, back.gilded, back.chance]).toEqual([session.lucky, session.rush, session.gold, session.gilded, session.chance]);
+      session.machine.rng = seededRng(5);
+      back.machine.rng = seededRng(5);
+      for (let i = 0; i < 180; i++) {
+        advance(session, DT);
+        advance(back, DT);
+      }
+      expect(serialize(back)).toBe(serialize(session));
+      // And on its way to the account and back, in the format a copy is written in now.
+      const state = toCloud(text, 'a-made-up-mark', 0);
+      expect(state?.format).toBe(PACK_FORMAT);
+      expect(fromCloud(JSON.parse(JSON.stringify(state)))?.text).toBe(text);
+    }
+  });
+
+  it('carries a save written the day before the lucky lamp, and it comes back in chance time with none of its gold spins the lamp’s', () => {
+    const save = dayBeforeLamp.save;
+    const small = pack(save) as string;
+    expect(sent(small)).toBeLessThan(bytesOf(save) / 2);
+    expect(unpack(small)).toBe(save);
+    // It travels as that version wrote it: its number, and no word of the lamp.
+    const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
+    expect(packed.version).toBe(VERSION_BEFORE_LAMP);
+    for (const key of ['lucky', 'rush']) expect(packed.session).not.toHaveProperty(key);
+    const back = restore(unpack(small), 7) as Session;
+    expect(back).toMatchObject({ lucky: 0, rush: true, chance: true });
+    expect(serialize(back)).toBe(serialize(restore(save, 7) as Session));
+    // Written again it is a save of today's version, and that travels too.
+    const today = serialize(back);
+    expect(JSON.parse(today).version).toBe(STORAGE_VERSION);
+    expect(unpack(pack(today))).toBe(today);
+  });
+
   it('leaves alone what is not a table, and keeps the order of every field', () => {
     const odd = {
       z: 1,
@@ -543,13 +614,20 @@ describe('a copy packed before format 2', () => {
     const [first, second] = inFormat1.copies;
     expect(fromCloud(first.state)?.text).toBe(withJewels.save);
     expect(first.state.data).toContain('"$":"g"');
-    // The second has the payout works at work in it, and comes back as the text `serialize` writes for that machine.
+    // The second has the payout works at work in it. It was written the day before the lucky lamp, so the text
+    // `serialize` writes for that machine today is no longer the copy's own, as it was on that day: it is the copy's
+    // with today's version on it and the lamp's two numbers among the session's, none of its spins the lamp's and no
+    // chance time, since it holds no gold spin. With those taken out again it is the copy's text, to the character.
     const works = restore(fromCloud(second.state)?.text ?? null, 3) as Session;
     expect((JSON.parse(fromCloud(second.state)?.text as string) as { version: number }).version).toBe(7);
     expect(works.machine.hopper.phase).toBe('pouring');
     expect(works.machine.lifts.filter(holds)).toHaveLength(3);
     expect(jewelsOnField(works.machine)).toBe(3);
-    expect(serialize(works)).toBe(fromCloud(second.state)?.text);
+    const today = JSON.parse(serialize(works)) as { version: number; session: Record<string, unknown> };
+    const { lucky, rush, ...numbers } = today.session;
+    expect([works.gold, works.chance]).toEqual([0, false]);
+    expect([today.version, lucky, rush]).toEqual([STORAGE_VERSION, 0, false]);
+    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: numbers })).toBe(fromCloud(second.state)?.text);
   });
 
   it('is read whatever machine it holds: new, played, with the works at work, with jewels, and of every older version', { timeout: LONG }, () => {

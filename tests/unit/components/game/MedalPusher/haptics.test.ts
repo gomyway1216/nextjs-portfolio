@@ -57,7 +57,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('the patterns', () => {
   it('are a tick for a medal, something stronger for a win and something long for the jackpot', () => {
-    expect(HAPTIC_NAMES).toEqual(['feed', 'stream', 'catch', 'jewel', 'start', 'crash', 'chance', 'line', 'towers', 'prize', 'pour', 'jackpot']);
+    expect(HAPTIC_NAMES).toEqual(['feed', 'stream', 'catch', 'jewel', 'start', 'gold', 'crash', 'chance', 'line', 'towers', 'prize', 'pour', 'jackpot']);
     for (const name of HAPTIC_NAMES) {
       const { pattern, rank, gap } = HAPTICS[name];
       // On, off, on: an odd number of whole milliseconds, each long enough for a motor to answer.
@@ -193,16 +193,35 @@ describe('what the hand feels of a frame', () => {
     expect(hapticFor([{ type: 'landed', count: 3 }])).toBeNull();
     expect(hapticFor([{ type: 'lost', count: 1 }])).toBeNull();
     expect(hapticFor([{ type: 'won', count: 2 }])).toBe('catch');
-    expect(hapticFor([{ type: 'checker', gate: 1, held: true, gold: false }])).toBe('start');
-    // A pocket that finds the hold full starts no spin, and is not felt for itself, whether or not it turned one gold.
-    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: false }])).toBeNull();
-    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: true }])).toBeNull();
-    // Chance time beginning is: two ticks, heavier than a pocket's and as short. Its ending is not.
+    expect(hapticFor([{ type: 'checker', gate: 1, held: true, gold: false, lucky: false }])).toBe('start');
+    // A medal that holds a gold spin from the start, through the lit slot or open wings, has a pattern of its own:
+    // a slot's two ticks and a third, longer one. It matters as much as any medal that holds a spin.
+    expect(hapticFor([{ type: 'checker', gate: 0, held: true, gold: false, lucky: true }])).toBe('gold');
+    expect(HAPTICS.gold.pattern).toEqual([16, 36, 16, 36, 40]);
+    expect(HAPTICS.gold.pattern.slice(0, HAPTICS.start.pattern.length)).toEqual(HAPTICS.start.pattern);
+    expect(HAPTICS.gold.pattern[4]).toBeGreaterThan(HAPTICS.gold.pattern[2] * 2);
+    expect([HAPTICS.gold.rank, HAPTICS.gold.gap]).toEqual([HAPTICS.start.rank, 0]);
+    expect(hapticLength('gold')).toBeGreaterThan(hapticLength('start'));
+    expect(hapticLength('gold')).toBeLessThan(200);
+    // Of the medals held in one frame it is the one that is felt, whichever came first.
+    const plain: SessionEvent = { type: 'checker', gate: 1, held: true, gold: false, lucky: false };
+    const golden: SessionEvent = { type: 'checker', gate: 0, held: true, gold: false, lucky: true };
+    expect(hapticFor([plain, golden])).toBe('gold');
+    expect(hapticFor([golden, plain])).toBe('gold');
+    expect(hapticFor([{ type: 'won', count: 2 }, plain, golden])).toBe('gold');
+    // A slot that finds the hold full starts no spin, and is not felt for itself, whether or not it turned one gold.
+    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: false, lucky: false }])).toBeNull();
+    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: true, lucky: false }])).toBeNull();
+    // Chance time beginning is: two ticks, heavier than a slot's and as short. Its ending is not.
     expect(hapticFor([{ type: 'chanceStart' }])).toBe('chance');
-    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: true }, { type: 'chanceStart' }])).toBe('chance');
+    expect(hapticFor([{ type: 'checker', gate: 1, held: false, gold: true, lucky: false }, { type: 'chanceStart' }])).toBe('chance');
+    expect(hapticFor([golden, { type: 'checker', gate: 1, held: false, gold: true, lucky: false }, { type: 'chanceStart' }])).toBe('chance');
+    // During chance time every held medal holds a gold spin, and each is felt as one. Chance time ending is not felt.
+    expect(hapticFor([{ type: 'checker', gate: 2, held: true, gold: false, lucky: true }, { type: 'chanceEnd' }])).toBe('gold');
     expect(hapticFor([{ type: 'chanceEnd' }])).toBeNull();
     expect(HAPTICS.chance.pattern).toEqual([24, 40, 24]);
     expect(HAPTICS.chance.rank).toBeGreaterThan(HAPTICS.start.rank);
+    expect(HAPTICS.chance.rank).toBeGreaterThan(HAPTICS.gold.rank);
     expect(hapticLength('chance')).toBeLessThan(hapticLength('line'));
     expect(hapticFor([{ type: 'toppled', count: 1 }])).toBe('crash');
     // A jewel over the front is a light tick of its own, felt over the medals that go over with it and never held back
@@ -239,7 +258,7 @@ describe('what the hand feels of a frame', () => {
     const busy: SessionEvent[] = [
       { type: 'won', count: 4 },
       { type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true },
-      { type: 'checker', gate: 0, held: true, gold: false },
+      { type: 'checker', gate: 0, held: true, gold: false, lucky: false },
       { type: 'landed', count: 1 },
     ];
     expect(hapticFor(busy)).toBe('jackpot');
@@ -247,7 +266,7 @@ describe('what the hand feels of a frame', () => {
     expect(
       hapticFor([
         { type: 'won', count: 1 },
-        { type: 'checker', gate: 2, held: true, gold: false },
+        { type: 'checker', gate: 2, held: true, gold: false, lucky: false },
       ]),
     ).toBe('start');
   });

@@ -14,7 +14,7 @@
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
 import { drawHopper, drawLifts } from './works2d';
-import { APRON, CATCHER, apronSpot, caught, mouthSpots, underCatcher } from './catcher';
+import { APRON, CATCHER, SLOPE, START_SLOT, apronSpot, caught, lampSpot, litSlots, rolling, slopeSpot, slotCorners, slotHalf, underCatcher, wingCorners, type Caught } from './catcher';
 import { CHUCKERS } from './chuckers';
 import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import {
@@ -1041,6 +1041,9 @@ export function liftOf(medal: Medal): number {
   return medal.tier === 1 ? T + settling * RIDE * 0.5 : settling * T;
 }
 
+/** The shadow a medal throws on the table it lies on: how far down and across it lies, in thicknesses of a medal, and what it is drawn in. */
+const TABLE_SHADE = { reach: 1.9, color: 'rgba(0, 4, 18, 0.34)' } as const;
+
 /**
  * A table's medals, from the table up: the lower tier with the shadows it
  * throws, the medals dropping into it, the upper tier with the shadows it
@@ -1101,7 +1104,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
   const lying = (medal: Medal) => medal.tier === 0 && medal.grown >= 1;
   const dropping = (medal: Medal) => medal.tier === 0 && medal.grown < 1;
   const onTop = (medal: Medal) => medal.tier === 1;
-  shadows(lying, 1.9, 'rgba(0, 4, 18, 0.34)');
+  shadows(lying, TABLE_SHADE.reach, TABLE_SHADE.color);
   pile(lying);
   // A medal on its way into the lower tier is still above its neighbours, so it is drawn over them.
   pile(dropping);
@@ -1153,9 +1156,11 @@ function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, coun
  * level line along `heading`, which are the angles `attitude` in mat4.ts
  * takes. Its far rim shows behind its face. Lying flat it comes out as
  * `stamp` draws it, so a medal can go from the one to the other without a
- * jump.
+ * jump. `light` is how much light it gets, from 1 in the open down to none:
+ * with less it is darker, not fainter, so that it is seen against something
+ * bright. Given the medal's `id`, the face is the one of its own tone.
  */
-function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: number, tilt: number, heading: number, shift: number): void {
+function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: number, tilt: number, heading: number, shift: number, light = 1, id = -1): void {
   const k = stage.ratio;
   const ch = Math.cos(heading);
   const sh = Math.sin(heading);
@@ -1185,7 +1190,14 @@ function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: nu
   g.arc(0, 0, 1, 0, TAU);
   g.fill();
   g.setTransform((a.x - o.x) * k, (a.y - o.y) * k, (b.x - o.x) * k, (b.y - o.y) * k, (o.x + shift) * k, o.y * k);
-  g.drawImage(stage.medal, -1, -1, 2, 2);
+  g.drawImage(id < 0 ? stage.medal : (stage.faces[faceOf(id)] ?? stage.medal), -1, -1, 2, 2);
+  if (light >= 1) return;
+  g.globalAlpha = 1 - Math.max(0, light);
+  g.fillStyle = '#1c0f02';
+  g.beginPath();
+  g.arc(0, 0, 1, 0, TAU);
+  g.fill();
+  g.globalAlpha = 1;
 }
 
 /**
@@ -1589,8 +1601,8 @@ export function showJewel(stage: Stage, lamp: number, medals: number, bonus: boo
 
 // ── The catcher ─────────────────────────────────────────────────────────────
 
-/** How tall the capitals of the words on the catcher's apron are, in field units down its slope. */
-export const APRON_CAP = 4.4;
+/** How tall the capitals of the words on the catcher's slide are, in field units down its slope. */
+export const APRON_CAP = 3.4;
 /** A heavy face for a word that has to be read from across the cabinet, narrow where the device has one that is. */
 const SIGN_FACE = 'Impact, "Avenir Next Condensed", "Arial Narrow", "Arial Black", Arial, sans-serif';
 
@@ -1621,13 +1633,13 @@ function word(g: CanvasRenderingContext2D, text: string, x: number, y: number, w
 }
 
 /**
- * The catcher's apron, flat: its plate with a gold line along the top and
- * the foot, and the word START under each mouth, as tall as the plate has
- * room for. One unit of the canvas is one field unit; the apron is `CATCHER.to
- * − CATCHER.from` across and `APRON` down. `lit` says how brightly each
- * pocket's stretch of it is lit, from 0 to 1, the left pocket's first. The 3D
- * renderer leaves it out: it paints the apron unlit, once, and lights a
- * stretch by itself.
+ * The strip of the catcher's slide that has the words on it, flat: its plate
+ * with a gold line along the top and the foot, and the word START under each
+ * slot, as tall as the plate has room for. One unit of the canvas is one
+ * field unit; the strip is `CATCHER.to − CATCHER.from` across and `APRON`
+ * down. `lit` says how brightly each slot's stretch of it is lit, from 0 to
+ * 1, the left slot's first. The 3D renderer leaves it out: it paints the
+ * strip unlit, once, and lights a stretch by itself.
  */
 export function paintApron(g: CanvasRenderingContext2D, lit?: readonly number[]): void {
   const wide = CATCHER.to - CATCHER.from;
@@ -1650,187 +1662,309 @@ export function paintApron(g: CanvasRenderingContext2D, lit?: readonly number[])
   g.fillRect(0, APRON - 0.22, wide, 0.22);
 }
 
-/** A level stretch of the cabinet at `height`: from x0 to x1 across and from depth z0 out to z1. */
-const levelPatch = (x0: number, x1: number, height: number, z0: number, z1: number): Projected[] => [project(x0, height, z0), project(x1, height, z0), project(x1, height, z1), project(x0, height, z1)];
-
-/** Adds to the path a round thing lying level with its middle at `at`, as the oval it is seen as, or a part of it from one angle to another: no turn is to the right, a quarter turn toward the player. */
-function oval(g: CanvasRenderingContext2D, at: Projected, radius: number, from = 0, to = TAU, back = false): void {
-  const rx = radius * at.scale;
-  g.ellipse(at.x, at.y, rx, rx * at.tilt, 0, from, to, back);
-}
-
-/** A medal that is on its way down a pocket, and where it has got to. */
-interface Sinking {
+/** A medal that has come over the lip at the catcher and is on its slide or in the air off its foot, and where it has got to. */
+interface Sliding {
   medal: Medal;
-  held: NonNullable<ReturnType<typeof caught>>;
+  held: Caught;
 }
 
-/** How far in from the edge of a mouth its throat is: the ring of light inside the rim slopes in by this much. */
-const THROAT_IN = 0.4;
+/**
+ * A medal the catcher has lying on the lower table (`leg` is `table`), as a
+ * medal that lies where the catcher has it: there, and as high. It is drawn
+ * with the lower table's medals, like any of them, before the catcher, so
+ * that the catcher's foot covers it as it passes over. On the bare table
+ * it is a medal of the lower tier, and a medal's thickness higher, on
+ * another, one of the upper; between the two, riding up on to a medal or
+ * down off one, it is a medal that is still making room for itself, which
+ * is drawn as far above the table as the catcher has this one. It is not
+ * coming over the lip any more.
+ */
+export function lyingWhereCaught(medal: Medal, held: Caught): Medal {
+  const up = Math.min(1, Math.max(0, (held.height - T / 2) / T));
+  if (up >= 1 - 1e-9) return { ...medal, x: held.x, y: held.depth, sinceDrop: -1, tier: 1, grown: medal.tier === 1 ? medal.grown : 1 };
+  return { ...medal, x: held.x, y: held.depth, sinceDrop: -1, tier: 0, grown: Math.min(medal.tier === 0 ? medal.grown : 1, SETTLE.from + (1 - up) * (1 - SETTLE.from)) };
+}
+
+/** How much higher than it will lie a medal is drawn while it is still making room for itself in the pile: what `liftOf` adds to its tier. */
+export const ridingOf = (medal: Medal): number => liftOf(medal) - (medal.tier === 1 ? T : 0);
+
+/**
+ * What of a START slot's shape the catcher (`START_SLOT` in catcher.ts) does
+ * not say, which is here what it is in the 3D picture: how far in from the
+ * edge of the opening the throat is, and how far under the slide the ring of
+ * light inside the frame ends. The ring slopes in and down by this much.
+ */
+export const SLOT_SHAPE = { ring: { in: 0.4, down: 0.6 } } as const;
+/**
+ * The lights of a START slot: the gold of the frame of one that is lit, by
+ * the lucky lamp or because the wings are open, and of its lamp; the brighter
+ * gold of the ring of light inside a lit frame, and of the frame of a slot a
+ * medal has just gone down; the bright brass of a frame that is neither; and
+ * each slot's own colour, from the left, which its ring and its lamp have
+ * while it waits.
+ */
+export const SLOT_LIGHT = { gold: '#ffe9a6', lamp: '#ffd65c', flash: '#fffbe0', idle: '#f0c85a', own: ['#7df0ff', '#ff9bd0', '#9dff8a'] } as const;
+/**
+ * The inside of a START slot, down its throat. One that waits is dark: the
+ * top of its far wall catches the light of the ring above it, and that light
+ * is gone by the floor, which is black. The gold of the lucky lamp fills the
+ * mouth of the slot it is on: the far wall from its top to its foot, the
+ * sides, and the floor from its far end to its near end, none of it dark.
+ * These are the colours the 3D picture's throat has (`buildCatcher` in
+ * cabinet3d.ts), as they come out on the screen.
+ */
+export const SLOT_THROAT = {
+  far: ['#a58cf5', '#7866b3', '#3c335a', '#000000'],
+  side: ['#3a1a86', '#000000'],
+  floor: '#000000',
+  gold: { far: ['#fff6cf', '#ffc23d'], side: ['#ffc23d', '#c98a14'], floor: ['#f0b030', '#c98a14'] },
+} as const;
+
+/** Where a spot of the cabinet is on the drawing. */
+const seen = (spot: Spot): Projected => project(spot.x, spot.height, spot.depth);
+
+/**
+ * A medal the catcher has, drawn where it has it and tipped as it has it.
+ * One on the slide, or rattling on a slot's frame, is seen whole. One that
+ * is nosing into its slot is seen whole as far as it is still above the
+ * slide, and under the slide only down the slot's opening. One that has gone
+ * off the foot is seen whole too, in the air in front of the catcher, with
+ * the shadow a medal on the table throws coming up under it as it comes
+ * down: by the time it touches down it is drawn as a medal lying there is.
+ *
+ * The catcher says where a medal's middle is. Its face is half its thickness
+ * above that, the way the face looks, and its rim as far below.
+ */
+function stampSliding(g: CanvasRenderingContext2D, stage: Stage, { medal, held }: Sliding, time: number, wings: boolean, shift: number): void {
+  const k = stage.ratio;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.save();
+  if (held.leg === 'slot') {
+    const opening = slotCorners(held.chucker, time, wings, 0, CATCHER.rim.high).map(seen);
+    g.beginPath();
+    g.moveTo(opening[0].x, opening[0].y);
+    for (const corner of opening.slice(1)) g.lineTo(corner.x, corner.y);
+    g.closePath();
+    g.rect(-VIEW.width, opening[0].y - VIEW.height, VIEW.width * 3, VIEW.height + 0.5);
+    g.clip();
+  }
+  // Tipped forward by `tilt` about the line across the field, or about `heading`: the way its face looks.
+  const half = T / 2;
+  const face: Spot = {
+    x: held.x - Math.sin(held.heading) * Math.sin(held.tilt) * half,
+    height: held.height + Math.cos(held.tilt) * half + (held.leg === 'foot' ? ridingOf(medal) * held.landed : 0),
+    depth: held.depth + Math.cos(held.heading) * Math.sin(held.tilt) * half,
+  };
+  if (held.leg === 'foot' && held.landed > 0) {
+    const point = seen(face);
+    const rx = R * point.scale * 1.06;
+    g.globalAlpha = held.landed * held.landed;
+    g.fillStyle = TABLE_SHADE.color;
+    g.beginPath();
+    g.ellipse(point.x + rx * 0.12, point.y + T * rise(point) * TABLE_SHADE.reach, rx, rx * point.tilt, 0, 0, TAU);
+    g.fill();
+    g.globalAlpha = 1;
+  }
+  stampHeld(g, stage, face, turnOf(medal.id), held.tilt, held.heading, shift, held.light, medal.id);
+  g.restore();
+}
 
 /**
  * The catcher that rides on the front of the pusher, under its lip, drawn
  * from the back forward: the shadow it throws on the lower table and the dark
- * under it; its deck, with the dark where it goes in under the lip; for each
- * pocket the rim round its mouth and the throat seen down it — the far wall,
- * which catches the light of the ring above it, and the floor — then any
- * medal on its way down, then the near half of the rim, which is in front of
- * that medal, and the lamps round the rim; the rail along the front of the
- * deck; and the apron with the word START under each mouth. A pocket a medal
- * has just dropped through is gold all the way down, and its stretch of the
- * apron is lit. Everything that lies on the lower table under the catcher has
- * been drawn before it and is covered by it.
+ * under it; its slide, the board that leans from under the lip down toward
+ * the player, with the dark where it goes in under the lip; for each START
+ * slot the frame that stands up round its opening, and down the opening the
+ * throat — the ring of light that slopes into it, the far wall, which catches
+ * that light, and the dark floor — then the glow of a slot that is lit, its
+ * two wings and the lamp at its lower end; and on the last of the slide,
+ * under the slots, the strip with the word START under each.
+ *
+ * A slot is in its own colour while it waits, in a frame of bright brass,
+ * and its throat is dark. The one the lucky lamp is on is gold, steadily:
+ * its frame, its ring, its lamp, which is a little bigger, and the whole of
+ * its mouth, which the gold fills, far wall, sides and floor
+ * (`SLOT_THROAT`), with the glow of it over the opening as well as round
+ * it. With `wings` all three are, the openings are wider, and the wings,
+ * which otherwise lie along the sides of the frames, have swung out like the
+ * cheeks of a funnel. A slot a medal has just dropped through is brighter
+ * still, all the way down, and its stretch of the strip is lit, for as long
+ * as `stage.gateGlow` says. Everything that lies on the lower table under
+ * the catcher has been drawn before it and is covered by it; the medals that
+ * are on the slide are drawn after it.
  */
-function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, front: number, sinking: readonly Sinking[], phase: number, calm: boolean, shift: number): void {
+function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, front: number, phase: number, calm: boolean, wings: boolean, shift: number): void {
   const k = stage.ratio;
   const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
-  const { from, to, deck, rim, rail, foot, throat } = CATCHER;
-  const r = CHUCKERS.radius;
+  const { time } = machine;
+  const { from, to, deck, rim, foot, throat } = CATCHER;
   const out = front + foot.out;
+  /** Fills an outline with a colour. */
+  const fill = (points: Projected[], style: string | CanvasGradient): void => {
+    g.fillStyle = style;
+    path(g, points);
+    g.fill();
+  };
+  /** Adds an outline to the path that is being made. */
+  const trace = (points: Projected[]): void => {
+    g.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
+    g.closePath();
+  };
+  /** Whether a wall at `x` that faces `toward` (−1 is to the left, 1 to the right) is turned to the player, who looks down the middle of the field. */
+  const shows = (x: number, toward: number): boolean => (W / 2 - x) * toward > 0;
   flat();
+  // Its shadow on the lower table, in front of its foot and beside its right end, and the dark under it.
   g.fillStyle = 'rgba(0, 4, 18, 0.34)';
-  path(g, levelPatch(from + foot.height * SUN.x, to + deck * SUN.x, T * 2, out - 1, out + deck * SUN.depth));
+  const reach = (x: number, height: number, depth: number): Projected => project(x + height * SUN.x, T * 2, depth + height * SUN.depth);
+  path(g, [project(from + foot.height * SUN.x, T * 2, out - 1), project(to, T * 2, out - 1), project(to, T * 2, front), reach(to, deck, front), reach(to, foot.height, out), reach(from, foot.height, out)]);
   g.fill();
-  g.fillStyle = 'rgba(0, 4, 18, 0.55)';
-  path(g, facing(from, to, foot.height, 0, out));
-  g.fill();
+  fill(facing(from, to, foot.height, 0, out), 'rgba(0, 4, 18, 0.55)');
 
-  const plate = levelPatch(from, to, deck, front, front + rail.out - rail.thick);
-  const steel = g.createLinearGradient(0, plate[0].y, 0, plate[2].y);
+  // The slide, and the dark where it goes in under the lip.
+  const board = [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, SLOPE.long, time), slopeSpot(from, SLOPE.long, time)].map(seen);
+  const steel = g.createLinearGradient(0, board[0].y, 0, board[2].y);
   steel.addColorStop(0, '#7f8aad');
   steel.addColorStop(1, '#dfe5f4');
-  g.fillStyle = steel;
-  path(g, plate);
-  g.fill();
-  const under = levelPatch(from, to, deck, front, front + 2.4);
+  fill(board, steel);
+  const under = [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, CATCHER.back, time), slopeSpot(from, CATCHER.back, time)].map(seen);
   const dark = g.createLinearGradient(0, under[0].y, 0, under[2].y);
   dark.addColorStop(0, 'rgba(0, 0, 14, 0.8)');
   dark.addColorStop(1, 'rgba(0, 0, 14, 0)');
-  g.fillStyle = dark;
-  path(g, under);
-  g.fill();
+  fill(under, dark);
 
-  mouthSpots(machine.time).forEach((spot, index) => {
+  const gold = litSlots(time, wings);
+  const { ring } = SLOT_SHAPE;
+  CHECKERS.positions.forEach((x, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;
+    const golden = gold[index];
+    const bright = golden || lit > 0;
+    const own = SLOT_LIGHT.own[index % SLOT_LIGHT.own.length];
     const pulse = calm ? 0.5 : 0.5 + 0.5 * Math.sin(stage.clock * 3 + index * 2.1);
-    const low = project(spot.x, deck, spot.depth);
-    const top = project(spot.x, deck + rim.high, spot.depth);
-    const floor = project(spot.x, throat, spot.depth);
-    const rx = (r + rim.wide) * top.scale;
-    const ry = rx * top.tilt;
-    const gold = g.createLinearGradient(top.x - rx, 0, top.x + rx, 0);
-    gold.addColorStop(0, lit > 0 ? '#ffe9a6' : '#c98c14');
-    gold.addColorStop(0.3, lit > 0 ? '#ffffff' : '#fff0b4');
-    gold.addColorStop(0.65, lit > 0 ? '#fff3a8' : '#f0bd3c');
-    gold.addColorStop(1, lit > 0 ? '#ffd65c' : '#9a6410');
-    const lamps = (near: boolean) => {
-      for (let i = 0; i < 12; i++) {
-        const angle = ((i + 0.5) / 12) * TAU;
-        if (Math.sin(angle) > 0 !== near) continue;
-        const glow = lit > 0 ? 1 : 0.5 + 0.5 * Math.sin(phase - (i * TAU) / 3 + index);
-        const x = top.x + Math.cos(angle) * (r + rim.wide / 2) * top.scale;
-        const y = top.y + Math.sin(angle) * (r + rim.wide / 2) * top.scale * top.tilt;
-        g.globalAlpha = 0.3 + 0.7 * glow;
-        g.fillStyle = lit > 0 ? '#fffbe0' : i % 2 === 0 ? '#7df0ff' : '#d6fbff';
-        g.beginPath();
-        g.arc(x, y, 0.42 * top.scale, 0, TAU);
-        g.fill();
-      }
-      g.globalAlpha = 1;
+    const half = slotHalf(wings);
+    const opening = slotCorners(index, time, wings, 0, rim.high).map(seen);
+    const outer = slotCorners(index, time, wings, rim.wide, rim.high).map(seen);
+    const base = slotCorners(index, time, wings, rim.wide).map(seen);
+
+    // The frame, standing a little out of the slide: its two sides and its lower end, and its top round the opening.
+    const side = bright ? '#b77d12' : '#96650f';
+    fill([outer[0], outer[3], base[3], base[0]], side);
+    fill([outer[1], outer[2], base[2], base[1]], side);
+    fill([outer[3], outer[2], base[2], base[3]], side);
+    g.fillStyle = lit > 0 ? SLOT_LIGHT.flash : golden ? SLOT_LIGHT.gold : SLOT_LIGHT.idle;
+    g.beginPath();
+    trace(outer);
+    trace(opening);
+    g.fill('evenodd');
+
+    // Down the opening: the floor of the throat; its far wall, lit from above, and whichever of its sides is turned
+    // to the player; and the ring of light that slopes down into it from the frame. A slot that waits is dark down
+    // there. The lucky lamp's gold fills the mouth, floor and all, and a medal going down lights it brighter still.
+    const inner = slotCorners(index, time, wings, -ring.in, -ring.down);
+    const mouth = inner.map(seen);
+    const floor = inner.map((corner) => project(corner.x, throat, corner.depth));
+    /** A wash of colour down the throat: from the first colour at `from` on the drawing to the last at `to`, evenly. */
+    const shade = (from: number, to: number, colours: readonly string[]): CanvasGradient => {
+      const wash = g.createLinearGradient(0, from, 0, to);
+      colours.forEach((colour, at) => wash.addColorStop(at / (colours.length - 1), colour));
+      return wash;
     };
-
-    // The rim, standing up out of the deck: the wall of it, and its top.
-    g.fillStyle = '#7a4f0a';
-    g.beginPath();
-    oval(g, low, r + rim.wide);
-    g.fill();
-    g.fillRect(top.x - rx, top.y, rx * 2, low.y - top.y);
-    g.fillStyle = gold;
-    g.beginPath();
-    oval(g, top, r + rim.wide);
-    g.fill();
-    lamps(false);
-
-    // Down the mouth: the far wall of the throat, lit from above, and under it the floor.
+    /** The throat: its floor, its far wall and whichever of its sides shows, dark as in a slot that waits or filled with gold. */
+    const throatOf = (filled: boolean): void => {
+      fill(opening, filled ? shade(floor[0].y, floor[2].y, SLOT_THROAT.gold.floor) : SLOT_THROAT.floor);
+      fill([mouth[0], mouth[1], floor[1], floor[0]], shade(mouth[0].y, floor[0].y, filled ? SLOT_THROAT.gold.far : SLOT_THROAT.far));
+      const dim = shade(mouth[0].y, floor[0].y, filled ? SLOT_THROAT.gold.side : SLOT_THROAT.side);
+      if (shows(x - half + ring.in, 1)) fill([mouth[0], mouth[3], floor[3], floor[0]], dim);
+      if (shows(x + half - ring.in, -1)) fill([mouth[1], mouth[2], floor[2], floor[1]], dim);
+    };
     g.save();
-    g.beginPath();
-    oval(g, top, r);
+    path(g, opening);
     g.clip();
-    const wall = g.createLinearGradient(0, top.y - ry, 0, floor.y);
-    wall.addColorStop(0, lit > 0 ? '#fffbe0' : '#a58cf5');
-    wall.addColorStop(0.45, lit > 0 ? '#ffd65c' : '#3a1a86');
-    wall.addColorStop(1, lit > 0 ? '#b77d12' : '#0d0524');
-    g.fillStyle = wall;
-    g.fillRect(top.x - rx, top.y - ry, rx * 2, ry * 2);
-    g.fillStyle = '#000000';
-    g.beginPath();
-    oval(g, floor, r - THROAT_IN);
-    g.fill();
+    throatOf(golden);
+    // A medal that has just gone down a slot that waits fills it with gold too, which fades back to the dark; and it lights all of any slot, and that light fades.
     if (lit > 0) {
-      g.fillStyle = `rgba(214, 138, 20, ${0.9 * lit})`;
+      if (!golden) {
+        g.globalAlpha = lit;
+        throatOf(true);
+        g.globalAlpha = 1;
+      }
+      fill(opening, `rgba(255, 251, 224, ${0.55 * lit})`);
+    }
+    const neon = bright ? SLOT_LIGHT.flash : own;
+    g.globalAlpha = bright ? 1 : 0.7 + 0.3 * pulse;
+    fill([opening[0], opening[1], mouth[1], mouth[0]], neon);
+    fill([opening[0], opening[3], mouth[3], mouth[0]], neon);
+    fill([opening[1], opening[2], mouth[2], mouth[1]], neon);
+    g.restore();
+
+    // The light of it on what is round it: a slot that is lit gold glows, steadily, over its opening and round
+    // it; and one a medal has just gone down flashes over all of it and fades.
+    const glow = (wide: number, strength: number): void => {
+      const o = seen(slopeSpot(x, CATCHER.back + START_SLOT.long / 2, time, rim.high));
+      const u = seen(slopeSpot(x + 1, CATCHER.back + START_SLOT.long / 2, time, rim.high));
+      const v = seen(slopeSpot(x, CATCHER.back + START_SLOT.long / 2 + 1, time, rim.high));
+      g.setTransform((u.x - o.x) * k, (u.y - o.y) * k, (v.x - o.x) * k, (v.y - o.y) * k, (o.x + shift) * k, o.y * k);
+      const halo = g.createRadialGradient(0, 0, 0, 0, 0, wide);
+      halo.addColorStop(0, `rgba(255, 244, 150, ${strength})`);
+      halo.addColorStop(1, 'rgba(255, 244, 150, 0)');
+      g.fillStyle = halo;
+      g.beginPath();
+      g.arc(0, 0, wide, 0, TAU);
+      g.fill();
+      flat();
+    };
+    g.globalCompositeOperation = 'lighter';
+    if (golden) glow((half + rim.wide) * 1.5, 0.3);
+    if (lit > 0) glow((half + rim.wide) * 1.2, 0.55 * lit);
+    g.globalCompositeOperation = 'source-over';
+
+    // Its two wings: low fences on the slide. Folded, each lies along the side of the frame. Open, during chance
+    // time, each has swung out from the slot at its upper end, gold.
+    for (const away of [-1, 1]) {
+      const foot = wingCorners(index, away, time, wings).map(seen);
+      const waist = wingCorners(index, away, time, wings, rim.high).map(seen);
+      const top = wingCorners(index, away, time, wings, START_SLOT.wing.high).map(seen);
+      const flank = wings ? '#d9a21f' : '#b07a16';
+      // Of its two long faces, a folded one's face against the frame is seen above the frame only; the other, and both of an open one, down to the slide.
+      const hinge = x + away * (half + rim.wide);
+      if (shows(hinge, -away)) fill(wings ? [top[0], top[3], foot[3], foot[0]] : [top[0], top[3], waist[3], waist[0]], flank);
+      if (shows(hinge + away * START_SLOT.wing.thick, away)) fill([top[1], top[2], foot[2], foot[1]], flank);
+      fill([top[3], top[2], foot[2], foot[3]], flank);
+      fill(top, wings ? '#fff3a8' : '#f6d877');
+    }
+
+    // The lamp on the lower bar of its frame: gold, and bigger, while the slot is lit; in the slot's own colour, glowing a little, while it waits.
+    const lamp = seen(lampSpot(index, time));
+    const r = START_SLOT.lamp.radius * (bright ? 1.25 : 1) * lamp.scale;
+    g.fillStyle = '#2a1f5c';
+    g.beginPath();
+    g.arc(lamp.x, lamp.y, r, 0, TAU);
+    g.fill();
+    g.globalAlpha = bright ? 1 : 0.85 + 0.15 * Math.sin(phase + index * 2.1);
+    g.fillStyle = bright ? SLOT_LIGHT.lamp : own;
+    g.beginPath();
+    g.arc(lamp.x, lamp.y, r, 0, TAU);
+    g.fill();
+    g.globalAlpha = 1;
+    if (bright) {
+      g.fillStyle = SLOT_LIGHT.flash;
+      g.beginPath();
+      g.arc(lamp.x - r * 0.25, lamp.y - r * 0.25, r * 0.45, 0, TAU);
       g.fill();
     }
-    g.restore();
-    // The ring of light inside the rim.
-    for (const [width, colour] of [
-      [1.1, lit > 0 ? `rgba(255, 244, 150, ${0.5 * lit})` : `rgba(255, 124, 192, ${0.22 + 0.16 * pulse})`],
-      [0.4, lit > 0 ? '#fffbe0' : `rgba(255, 176, 216, ${0.75 + 0.25 * pulse})`],
-    ] as const) {
-      g.strokeStyle = colour;
-      g.lineWidth = width * top.scale * top.tilt;
-      g.beginPath();
-      oval(g, top, r - 0.2);
-      g.stroke();
-    }
-
-    // A medal on its way down: over the far rim while it is still above it, and inside the mouth once it is below.
-    for (const { medal, held } of sinking) {
-      if (held.chucker !== index) continue;
-      const at = project(held.x, held.height + T / 2, held.depth);
-      g.save();
-      g.beginPath();
-      oval(g, top, r);
-      g.rect(top.x - rx, top.y - ry * 4, rx * 2, ry * 4);
-      g.clip();
-      g.globalAlpha = held.light;
-      stamp(g, stage, at, at.tilt, turnOf(medal.id), shift, 1, medal.id);
-      g.restore();
-      flat();
-    }
-
-    // The near half of the rim is in front of whatever is in the mouth.
-    g.fillStyle = '#7a4f0a';
-    g.beginPath();
-    oval(g, low, r + rim.wide, 0, Math.PI);
-    oval(g, top, r + rim.wide, Math.PI, 0, true);
-    g.fill();
-    g.fillStyle = gold;
-    g.beginPath();
-    oval(g, top, r + rim.wide, 0, Math.PI);
-    oval(g, top, r, Math.PI, 0, true);
-    g.fill();
-    lamps(true);
   });
 
-  // The rail along the front of the deck.
-  const bar = levelPatch(from, to, rail.top, front + rail.out - rail.thick, front + rail.out);
-  g.fillStyle = '#fff0b4';
-  path(g, bar);
-  g.fill();
-
-  // The apron: its plate, then what is printed on it, laid on as a flat sheet stood on its slope.
+  // The strip with the words, on the last of the slide: its plate, then what is printed on it, laid on as a flat sheet on the slope.
   const span = to - from;
-  const corners = [apronSpot(0, 0, machine.time), apronSpot(span, 0, machine.time), apronSpot(span, APRON, machine.time), apronSpot(0, APRON, machine.time)].map((spot) => project(spot.x, spot.height, spot.depth));
+  const corners = [apronSpot(0, 0, time), apronSpot(span, 0, time), apronSpot(span, APRON, time), apronSpot(0, APRON, time)].map(seen);
   g.save();
   path(g, corners);
   g.clip();
   g.fillStyle = '#d81b78';
   g.fill();
-  const middle = apronSpot(span / 2, 0, machine.time);
-  const lower = apronSpot(span / 2, 1, machine.time);
-  const o = project(middle.x, middle.height, middle.depth);
-  const u = project(middle.x + 1, middle.height, middle.depth);
-  const v = project(lower.x, lower.height, lower.depth);
+  const o = seen(apronSpot(span / 2, 0, time));
+  const u = seen(apronSpot(span / 2 + 1, 0, time));
+  const v = seen(apronSpot(span / 2, 1, time));
   const ax = u.x - o.x;
   const ay = u.y - o.y;
   g.setTransform(ax * k, ay * k, (v.x - o.x) * k, (v.y - o.y) * k, (o.x - (span / 2) * ax + shift) * k, (o.y - (span / 2) * ay) * k);
@@ -1838,6 +1972,16 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
     g,
     stage.gateGlow.map((glow) => glow / GLOW_TIME),
   );
+  // The light of a slot that is lit gold falls on its stretch of the strip too, a little.
+  gold.forEach((golden, index) => {
+    if (!golden) return;
+    const wash = g.createLinearGradient(CATCHER.tile * index, 0, CATCHER.tile * (index + 1), 0);
+    wash.addColorStop(0, 'rgba(255, 244, 150, 0)');
+    wash.addColorStop(0.5, 'rgba(255, 244, 150, 0.22)');
+    wash.addColorStop(1, 'rgba(255, 244, 150, 0)');
+    g.fillStyle = wash;
+    g.fillRect(CATCHER.tile * index, 0, CATCHER.tile, APRON);
+  });
   g.restore();
   flat();
 }
@@ -1849,8 +1993,10 @@ export interface DrawOptions {
   calm?: boolean;
   /** How many spins the machine is holding, which is how many of the lamps under the screen are lit. */
   stock?: number;
-  /** How many of those are gold: chance time. Their lamps, the first so many from the left, flash. */
+  /** How many of those are gold, in chance time or out of it. Their lamps, the first so many from the left, flash. */
   gold?: number;
+  /** Whether the START slots' wings are open, which they are during chance time: all three slots are lit gold and take medals more easily. */
+  wings?: boolean;
   /** How many jewels have been collected since the jewel lamps last went out, which is how many of them are lit. */
   jewels?: number;
   /**
@@ -1876,6 +2022,7 @@ export const SCREEN_GLOW: Glow = { colour: [0.55, 0.5, 1], level: 0.32 };
 export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, options: DrawOptions): void {
   const k = stage.ratio;
   const calm = options.calm ?? false;
+  const wings = options.wings ?? false;
   const front = pusherFront(machine.time);
   const party = stage.party;
   // A tower coming down shakes the cabinet for a moment.
@@ -1970,42 +2117,46 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   bulbs(g, project(CATCHER.to + 2, P / 2, front), project(W - 3, P / 2, front), 12, phase, ['#7df0ff', '#d6fbff'], 2.2);
 
   // The lower table's medals come before the catcher, which hangs over the ones at the foot of the pusher's face and
-  // covers them. Two things come after it: a medal on its way down one of its pockets, which is drawn with the
-  // pocket, and a ball whose middle has come out from under its front, which is taller than it and stands before it.
-  // A ball that has only just come over the lip behind the catcher is still going down behind it, and is drawn
-  // last of all the medals, as far as it shows over the catcher's deck; so is a medal that came over beside a pocket.
-  // A jewel is lower than the catcher and lies under it like a medal. Every list is drawn from the back forward, so
-  // that of two things that overlap, the nearer is the one seen.
+  // covers them. A ball whose middle has come out from under its foot is taller than it and stands before it, so it
+  // comes after. Whatever has just come over the lip at the catcher is on its slide or in the air off its foot,
+  // above everything it passes, and is drawn last of all the medals: a medal sliding down it, into a slot or off
+  // its foot, and a ball rolling down it. Once it has come down in front of the foot it lies on the lower table,
+  // where the catcher has it until the engine has it there too, and is drawn with the lower table's own: under the
+  // catcher, when the catcher comes over it. A jewel is lower than the catcher and lies under it like a medal.
+  // Every list is drawn from the back forward, so that of two things that overlap, the nearer is the one seen.
   const lower: Medal[] = [];
   const upper: Medal[] = [];
-  const sinking: Sinking[] = [];
-  const tipping: Sinking[] = [];
+  const sliding: Sliding[] = [];
   const clear: Medal[] = [];
-  const going: Medal[] = [];
+  const going: { ball: Medal; at: Spot }[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       upper.push(medal);
       continue;
     }
-    const held = caught(medal, machine.time);
-    if (held && held.chucker >= 0) sinking.push({ medal, held });
-    else if (held) tipping.push({ medal, held });
-    else if (medal.ball && medal.y >= front + CATCHER.foot.out && underCatcher(medal.x, medal.y, BALL_RADIUS * 2, machine.time)) clear.push(medal);
-    else if (medal.ball && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL && medal.x - BALL_RADIUS >= CATCHER.from && medal.x + BALL_RADIUS <= CATCHER.to) going.push(medal);
-    else lower.push(medal);
+    const held = caught(medal, machine.time, calm, wings, machine.medals);
+    const rolled = held ? null : rolling(medal, BALL_RADIUS, machine.time);
+    if (held && held.leg !== 'table') sliding.push({ medal, held });
+    else if (rolled && rolled.leg !== 'table') going.push({ ball: medal, at: rolled });
+    else {
+      // Where it lies: where the catcher has it, if the catcher has it on the lower table, and where the engine has it if not.
+      const lain = held ? lyingWhereCaught(medal, held) : rolled ? { ...medal, x: rolled.x, y: rolled.depth, sinceDrop: -1 } : medal;
+      if (lain.ball && lain.y >= front + CATCHER.foot.out && underCatcher(lain.x, lain.y, BALL_RADIUS * 2, machine.time)) clear.push(lain);
+      else lower.push(lain);
+    }
   }
   lower.sort(byDepth);
   upper.sort(byDepth);
   clear.sort(byDepth);
-  going.sort(byDepth);
-  tipping.sort((a, b) => byDepth(a.medal, b.medal));
+  // Two balls as far down the slide as each other are told apart by where the machine has them.
+  going.sort((a, b) => a.at.depth - b.at.depth || byDepth(a.ball, b.ball));
   /** The jewels among some medals, each drawn where it lies: after the medals of its table, as a ball is. */
   const jewelsOf = (medals: readonly Medal[]) => {
     for (const medal of medals) if (medal.jewel) drawJewel(g, stage, lyingJewel(medal, machine.time), medal.level === 1 || medal.sinceDrop < 0 || medal.sinceDrop >= LIP_FALL, calm, shake);
   };
   drawMedals(g, stage, lower, 0, shake);
   jewelsOf(lower);
-  drawCatcher(g, stage, machine, front, sinking, phase, calm, shake);
+  drawCatcher(g, stage, machine, front, phase, calm, wings, shake);
   drawMedals(g, stage, clear, 0, shake);
 
   // The pusher's top: through it, the dark inside the box and the ribs that brace it, which travel with it; along its lip, chevrons and the bright edge of the sheet.
@@ -2035,31 +2186,15 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   jewelsOf(upper);
   // The guards of the lifts that are bringing towers up through the deck (works2d.ts).
   drawLifts(g, k, machine, front, calm, shake, (tower) => drawTower(g, stage, tower, P, shake));
-  // A medal that came over the lip at the catcher without fitting a pocket tips over the edge and goes down behind
-  // the catcher, on its edge. It is drawn where the catcher has it, not lying where the engine has already put it,
-  // and only as much of it as still stands over the catcher's deck. A jewel fits no pocket and goes the same way.
-  for (const { medal, held } of tipping) {
-    const point = project(held.x, held.height, held.depth);
-    flat();
-    g.save();
-    g.beginPath();
-    g.rect(-VIEW.width, 0, VIEW.width * 3, project(held.x, CATCHER.deck, front).y);
-    g.clip();
-    if (medal.jewel) drawJewel(g, stage, lyingJewel(medal, machine.time), false, calm, shake);
-    else stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(held.tilt))), turnOf(medal.id), shake, 1, medal.id);
-    g.restore();
+  // What has just come over the lip at the catcher is drawn where the catcher has it, not lying where the engine has
+  // already put it: the medals on its slide, the nearest to the lip first, and a ball rolling down it. A jewel fits
+  // no slot and goes down the slide as a medal that fits none does.
+  sliding.sort((a, b) => a.held.depth - b.held.depth || byDepth(a.medal, b.medal));
+  for (const slid of sliding) {
+    if (slid.medal.jewel) drawJewel(g, stage, lyingJewel(slid.medal, machine.time), false, calm, shake);
+    else stampSliding(g, stage, slid, machine.time, wings, shake);
   }
-  for (const ball of going) {
-    const from = P + BALL_RADIUS;
-    const middle = from - (from - (CATCHER.deck - BALL_RADIUS - 0.2)) * (ball.sinceDrop / LIP_FALL) ** 2;
-    flat();
-    g.save();
-    g.beginPath();
-    g.rect(-VIEW.width, 0, VIEW.width * 3, project(ball.x, CATCHER.deck, ball.y + BALL_RADIUS * 0.7).y);
-    g.clip();
-    drawBall(g, stage, ball.x, middle - BALL_RADIUS, ball.y, false, shake);
-    g.restore();
-  }
+  for (const { at } of going) drawBall(g, stage, at.x, at.height - BALL_RADIUS, at.depth, false, shake);
   flat();
 
   // Where a medal that leaves each arm now is let go, and how far from that it can land: from the
@@ -2086,15 +2221,12 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.save();
   g.beginPath();
   g.rect(-VIEW.width, 0, VIEW.width * 3, VIEW.height);
-  const railOut = front + CATCHER.rail.out;
   const footOut = front + CATCHER.foot.out;
   for (const [x, height, depth] of [
     [CATCHER.from, CATCHER.deck, front],
     [CATCHER.to, CATCHER.deck, front],
-    [CATCHER.to, CATCHER.rail.top, railOut],
     [CATCHER.to, CATCHER.foot.height, footOut],
     [CATCHER.from, CATCHER.foot.height, footOut],
-    [CATCHER.from, CATCHER.rail.top, railOut],
   ]) {
     const corner = project(x, height, depth);
     if (depth === front && x === CATCHER.from) g.moveTo(corner.x, corner.y);

@@ -47,8 +47,8 @@ export type Day = string;
 /**
  * The bounds a book keeps within. They are far outside anything play reaches,
  * and they are what keeps the stored text small: at the very worst, every
- * bound reached at once, a book is under six thousand characters. A player's
- * real one is a few hundred.
+ * bound reached at once, a book is little over six thousand characters. A
+ * player's real one is a few hundred.
  */
 export const LIMITS = {
   /** Anything counted over a lifetime. A rail fed without a pause for three years does not get there. */
@@ -227,10 +227,15 @@ export const COUNTERS = {
   fed: on('fed', (event) => event.count),
   won: on('won', (event) => event.count),
   lost: on('lost', (event) => event.count),
-  /** Medals through a START pocket, the ones that found the hold full already, and of those the ones that turned a held spin gold. */
+  /**
+   * Medals through a START pocket, the ones that found the hold full already, and of those the ones that turned a
+   * held spin gold. And of the ones that were held, those whose spin was gold from the start: through the pocket
+   * the lucky lamp was on, or through any pocket while the wings were open.
+   */
   hits: on('checker'),
   wasted: on('checker', (event) => (event.held ? 0 : 1)),
   golds: on('checker', (event) => (event.gold ? 1 : 0)),
+  luckies: on('checker', (event) => (event.lucky ? 1 : 0)),
   /** Times the hold filled right up: the machine says so at the moment its last place is taken. */
   fulls: on('holdFilled'),
   /** Chance times: the machine says when one begins, with the first held spin to turn gold. */

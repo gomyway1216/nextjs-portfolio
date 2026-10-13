@@ -101,17 +101,41 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * where aiming still tells. By the time a medal has been pushed the length of
  * the pusher the pile has spread it far to either side, so pockets spaced
  * evenly across the lip take much the same share whatever column is fed. With
- * the three in the middle, getting on for one medal in five ends up through
- * one when the middle is fed, about one in ten when medals are fed anywhere at
- * all, and about one in twenty when they are fed at the edges. The pockets are
- * as far apart as the towers are, so the towers, which go up to either side of
- * the middle, stand between them.
+ * the three in the middle, about one medal in eight ends up through one when
+ * the middle is fed, about one in thirteen when medals are fed anywhere at
+ * all, and about one in thirty-five when they are fed at the edges. The
+ * pockets are as far apart as the towers are, so the towers, which go up to
+ * either side of the middle, stand between them.
  *
- * `halfWidth` is what the machine's return is tuned with. At this width the
- * best a player can do, feeding the middle slowly, gets about 97% back with
- * average luck on the screen, and about 95% at two medals a second.
+ * `halfWidth` is how often a medal starts a spin. With what a spin is worth
+ * (`SPIN_TABLE` in lottery.ts) it sets what slow play gets back: the best a
+ * player can do, feeding the middle a medal every two seconds, is about
+ * 96.5% with average luck on the screen, and at two medals a second about
+ * 95%. `wingWidth` is how wide a pocket takes medals while its wings are
+ * open, which is during chance time, and it is what fast play is tuned
+ * with. Wings as wide as the pockets were before they were narrowed, 1.7,
+ * paid a player for filling the hold: five medals a second got back as much
+ * as two. At this width five a second get back about half a point less than
+ * two, and both buttons held down about 93%. scripts/medal-pusher-tune.ts
+ * measures all of it, and its table is the one to read before either
+ * number is moved.
  */
-export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.7 } as const;
+export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.25 } as const;
+
+/**
+ * The lucky lamp. One of the three slots is lit gold at a time, and the light
+ * steps one slot along, from the left, with every stroke of the pusher: it
+ * moves as the pusher comes to the back of its stroke, so each push has its
+ * own gold slot. Which slot is lit is read off the machine's clock and
+ * nothing else. What a medal through the lit slot is worth is the session's
+ * to say.
+ */
+export const LUCKY = { dwell: PUSHER.period } as const;
+
+/** The slot the lucky lamp is on at `time`. */
+export function luckySlot(time: number): number {
+  return Math.floor(time / LUCKY.dwell + 1e-9) % CHECKERS.positions.length;
+}
 
 /**
  * Payout medals are thrown onto the pusher across this band, a few per second,
@@ -183,8 +207,14 @@ const R = MEDAL_RADIUS;
 const DIAMETER = R * 2;
 /** Relaxation passes per step: enough for a pusher that moves a fraction of a unit per step. */
 const ITERATIONS = 6;
-/** Longer steps are cut into pieces no longer than this, so the pusher never moves far at once. */
-const MAX_STEP = 1 / 60;
+/**
+ * Longer steps are cut into pieces no longer than this, so the pusher never
+ * moves far at once. Whoever has something to settle between the pieces cuts
+ * its own time the same way and steps the machine a piece at a time: the
+ * session does, since what goes through a START slot in one piece can change
+ * how wide the slots take medals in the next.
+ */
+export const MAX_STEP = 1 / 60;
 
 /** Where a medal lies: on the pusher (1) or on the lower table (0). */
 export type Level = 0 | 1;
@@ -328,9 +358,25 @@ export function pusherFront(time: number): number {
 }
 
 /** The chucker a medal that goes over the lip at `x` drops through, or −1 when it goes over between two of them. */
-export function checkerAt(x: number): number {
-  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
+export function checkerAt(x: number, halfWidth: number = CHECKERS.halfWidth): number {
+  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= halfWidth);
 }
+
+/**
+ * How wide the START slots were taking medals as each thing that has come
+ * over the lip came over: the half-width the lip's rule had in that piece of
+ * the step. The slots can widen or narrow while a medal is still on its way
+ * down, and whoever draws it has to show what was counted, so the rule of
+ * its own moment is kept with it for as long as the medal is.
+ */
+const widthAtLip = new WeakMap<Medal, number>();
+
+/**
+ * The half-width the START slots had when `medal` came over the lip, or
+ * undefined for one the machine did not see come over: a medal that has not
+ * come over, and one read back from a save.
+ */
+export const slotWidthAt = (medal: Medal): number | undefined => widthAtLip.get(medal);
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
 
@@ -828,7 +874,7 @@ function constrain(medals: Medal[], front: number): void {
   }
 }
 
-function advance(machine: Machine, dt: number, events: StepEvents): void {
+function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: number): void {
   const before = pusherFront(machine.time);
   machine.time += dt;
   const front = pusherFront(machine.time);
@@ -930,13 +976,14 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
-        const checker = isPrize(medal) ? -1 : checkerAt(medal.x);
+        const checker = isPrize(medal) ? -1 : checkerAt(medal.x, halfWidth);
         for (let n = 0; checker >= 0 && n < medal.stack; n++) events.checkers.push(checker);
         if (medal.stack > 1) {
           spill(machine, medal, front);
           events.toppled++;
         } else {
           crossing.push(medal);
+          widthAtLip.set(medal, halfWidth);
         }
         continue;
       }
@@ -966,13 +1013,13 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
 }
 
 /** Moves the machine forward by `dt` seconds and reports what happened. */
-export function step(machine: Machine, dt: number): StepEvents {
+export function step(machine: Machine, dt: number, wings = false): StepEvents {
   if (!(dt >= 0) || !Number.isFinite(dt)) throw new Error('the time step must be a non-negative number');
   const events: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 };
   let remaining = dt;
   while (remaining > 1e-9) {
     const piece = Math.min(MAX_STEP, remaining);
-    advance(machine, piece, events);
+    advance(machine, piece, events, wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
     remaining -= piece;
   }
   return events;

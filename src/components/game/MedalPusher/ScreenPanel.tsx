@@ -743,16 +743,23 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
             {t.stock}
           </span>
           {Array.from({ length: MAX_STOCK }, (_, index) => (
-            <span key={index} className={styles.lamp} data-lit={index < stock} data-gold={index < state.chance - (state.gold ? 1 : 0)} aria-hidden />
+            <span key={index} className={styles.lamp} data-lit={index < stock} data-gold={index < state.golds} aria-hidden />
           ))}
         </div>
       </div>
-      {/* Chance time, for as long as a gold spin is still to come: what it is called, what a gold spin pays, and how many are left. It is said aloud once, where the cabinet makes its announcements. */}
+      {/* Chance time, for as long as it lasts: what it is called, what a gold spin pays, and how many are left. It is said aloud once, where the cabinet makes its announcements. */}
       {state.chance > 0 && (
         <div className={styles.chance} data-gold={state.gold} data-testid="pusher-chance" aria-hidden>
           <span className={styles.chanceTitle}>{t.chanceTitle}</span>
           <span className={styles.chanceTimes}>×{CHANCE.multiplier}</span>
           <span className={styles.chanceLeft}>{t.chanceLeft(state.chance)}</span>
+        </div>
+      )}
+      {/* A gold spin outside chance time, which is one the lucky lamp made: the spin on the reels, or the game its line led to, carries a tag that says it is gold and what that pays. The monitor stays in its everyday mode. */}
+      {state.chance === 0 && state.gold && (
+        <div className={styles.chance} data-gold="true" data-lone="true" data-testid="pusher-gold-spin" aria-hidden>
+          <span className={styles.chanceTitle}>{t.goldTag}</span>
+          <span className={styles.chanceTimes}>×{CHANCE.multiplier}</span>
         </div>
       )}
 

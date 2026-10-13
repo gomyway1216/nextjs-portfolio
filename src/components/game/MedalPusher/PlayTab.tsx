@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { caught } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
@@ -206,6 +207,7 @@ const IDLE_SCREEN: ScreenState = {
   stage: -1,
   fallen: [],
   chance: 0,
+  golds: 0,
   gold: false,
 };
 
@@ -695,12 +697,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             // The medal itself is heard going down the pocket, and then what the cabinet says about it.
             playSound('slit', soundOn);
             playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
+            // Held through a lit slot: the spin it holds is gold from the start.
+            if (event.lucky) setAnnouncement(strings.sayLucky);
             break;
           case 'chanceStart':
             playSound('fever', soundOn);
+            // The wings of the START slots are thrown open by their solenoids, and thrown shut when chance time is over.
+            playSound('shutter', soundOn, { up: true });
             setAnnouncement(strings.sayChance);
             break;
           case 'chanceEnd':
+            playSound('shutter', soundOn);
             setAnnouncement(strings.sayChanceEnd);
             break;
           case 'toppled':
@@ -838,6 +845,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         playSound('roulette', soundOn, { seconds: turn.duration - turn.elapsed });
       }
       turnClock = turn ? turn.elapsed : -1;
+      // A medal that came over the lip in this frame and catches the frame of a START slot without fitting it is
+      // heard to: a medal on bare steel. It is the catcher that says which do, as it does for the picture, so the
+      // one that is heard is the one that is seen to rattle there.
+      for (const medal of session.machine.medals) {
+        if (medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= elapsed - 1e-9) continue;
+        if ((caught(medal, session.machine.time, calm.matches, session.rush)?.near ?? -1) >= 0) playSound('land', soundOn, { bare: true });
+      }
       // The tray is told what this frame did to the purse, by what happened: the medals fed, the day's bonus and the
       // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it
       // (`landInTray`); where it does not (less motion is asked for) they are heard as they always were, after the
@@ -868,7 +882,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       ageStage(stage, elapsed, calm.matches);
       // The monitor lights what stands in front of it, in the colour of the mode it is in.
       const glow = monitorGlow(monitorMode(screenState(session, calm.matches)));
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels, glow });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, wings: session.rush, jewels: session.jewels, glow });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;

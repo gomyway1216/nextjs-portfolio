@@ -160,17 +160,19 @@ describe('a jewel in the cabinet', () => {
     expect(beside(CHUCKERS.drop).height).toBe(JEWEL_CUT.pavilion);
   });
 
-  it('goes down behind the catcher when it comes over the lip there: it fits no pocket', () => {
+  it('goes down the catcher’s slide when it comes over the lip there: it fits no START slot', () => {
     const time = 2;
     const front = pusherFront(time);
+    // Over the lip in line with a slot, and between two of them: neither takes it, and neither's frame catches it.
     for (const x of [50, 43]) {
       const medal = jewel(22, x, front + MEDAL_RADIUS, 0, { sinceDrop: CHUCKERS.drop * 0.5 });
       const behind = caught(medal, time);
-      expect(behind?.chucker).toBe(-1);
+      expect([behind?.chucker, behind?.near, behind?.leg]).toEqual([-1, -1, 'slide']);
       const spot = lyingJewel(medal, time);
       expect(spot.x).toBe(x);
-      // It hangs on the lip's edge, tipped over it, with its point where a medal's lower face would be.
-      expect(spot.depth).toBeCloseTo(front + 0.3, 9);
+      // It is where a medal that fits no slot is on the slide, leaning as the slide has it, with its point where that medal's lower face would be.
+      expect(spot.depth).toBe(behind?.depth);
+      expect(spot.depth).toBeGreaterThan(front);
       expect(spot.tilt).toBe(behind?.tilt);
       expect(spot.height).toBeCloseTo((behind?.height ?? 0) - T / 2 + JEWEL_CUT.pavilion, 9);
       expect(spot.height).toBeLessThan(P + JEWEL_CUT.pavilion);

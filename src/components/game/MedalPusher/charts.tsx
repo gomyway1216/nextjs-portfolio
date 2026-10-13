@@ -1,8 +1,7 @@
 'use client';
 
 import { armCollar, armStart, armTip } from './arms';
-import { CATCHER } from './catcher';
-import { CHUCKERS } from './chuckers';
+import { CATCHER, SLOPE, START_SLOT, slotHalf } from './catcher';
 import { CHECKERS, FIELD, MEDAL_RADIUS, PUSHER } from './engine';
 import type { MarkerShape, RatePoint } from './sim';
 
@@ -142,7 +141,9 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
   const X = (x: number) => left + x * scale;
   const Y = (depth: number) => top + depth * scale;
   const front = (PUSHER.min + PUSHER.max) / 2;
-  const pocket = CHUCKERS.radius;
+  const half = slotHalf();
+  // Seen from above, a length down the catcher's slide is shorter by as much as the slide leans.
+  const level = Math.cos(SLOPE.angle);
   const right = FIELD.width;
   return (
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block', width: '100%', maxWidth: 300, margin: '0 auto', height: 'auto' }}>
@@ -154,10 +155,10 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
       {/* How far the pusher's lip travels */}
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.min)} y2={Y(PUSHER.min)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.max)} y2={Y(PUSHER.max)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
-      {/* The catcher hung on the pusher's front, out past its lip, with the mouths of the three START pockets in it: each as wide as a medal that just fits */}
+      {/* The catcher hung on the pusher's front, out past its lip: a slide down toward the player with the three START slots in it, each an opening with square corners, as wide as a medal that just fits */}
       <rect data-catcher x={X(CATCHER.from)} y={Y(front)} width={(CATCHER.to - CATCHER.from) * scale} height={CATCHER.foot.out * scale} rx={3} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
       {CHECKERS.positions.map((center) => (
-        <circle key={center} data-chucker cx={X(center)} cy={Y(front + CATCHER.back + pocket)} r={pocket * scale} fill={TABLE} stroke={GATE} strokeWidth={2.4} />
+        <rect key={center} data-chucker x={X(center - half)} y={Y(front + CATCHER.back * level)} width={half * 2 * scale} height={START_SLOT.long * level * scale} fill={TABLE} stroke={GATE} strokeWidth={2.4} />
       ))}
       <path
         d={`M${X(26)} ${Y(PUSHER.min + 1.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} M${X(24)} ${Y(PUSHER.min + 4.5)} L${X(26)} ${Y(PUSHER.min + 1.5)} L${X(28)} ${Y(PUSHER.min + 4.5)} M${X(24)} ${Y(PUSHER.max - 4.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} L${X(28)} ${Y(PUSHER.max - 4.5)}`}

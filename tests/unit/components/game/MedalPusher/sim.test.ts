@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AIM, CHECKERS, DROP_INTERVAL, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
-import { CHANCE_BONUS, JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
+import { CHANCE_BONUS, JACKPOT_START, TIERS, chanceSpinValue, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK, TIMING, advance, createSession, reachTime, type SessionEvent } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
@@ -165,6 +165,25 @@ describe('the gold spins of a stretch of play', () => {
     // A machine that has never been gilded has started none.
     expect(goldStarted(createSession(1))).toBe(0);
   });
+
+  it('count a spin that was gold from the start, held through the lit slot or open wings, like one a full hold turned', () => {
+    // Every gold spin there has been, however it came to be gold, less the ones still held.
+    expect(goldStarted({ gilded: 2, lucky: 3, gold: 1 })).toBe(4);
+    expect(goldStarted({ gilded: 0, lucky: 3, gold: 3 })).toBe(0);
+    expect(goldStarted({ gilded: 0, lucky: 3, gold: 0 })).toBe(3);
+    // Three spins held, two of them gold because their medals came through the lit slot. No medal has found the hold full.
+    const session = createSession(3, { balls: 0 });
+    session.machine.medals = [];
+    Object.assign(session, { stock: 3, gold: 2, lucky: 2, hits: 3 });
+    expect(goldStarted(session)).toBe(0);
+    expect(playOut(session)).toEqual({ spins: 3, gold: 2 });
+    expect(goldStarted(session)).toBe(2);
+    expect([session.gilded, session.wasted, session.rush]).toEqual([0, 0, false]);
+    // With average luck each of them is paid as a gold spin: what any spin is worth and, on top, what being gold adds.
+    const result: AimResult = { played: 30, won: 24, lost: 6, hits: 3, wasted: 0, spins: 3, gold: 2, paidOut: 0, tiers: { miss: 3, small: 0, big: 0, seven: 0 }, jackpots: 0, fieldChange: 0, points: [] };
+    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (3 * spinValue(JACKPOT_START) + 2 * CHANCE_BONUS) / 30), 12);
+    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (spinValue(JACKPOT_START) + 2 * chanceSpinValue(JACKPOT_START)) / 30), 12);
+  });
 });
 
 describe('the simulation', () => {
@@ -179,10 +198,11 @@ describe('the simulation', () => {
       expect(aim.played).toBe(medals);
       // Every medal that came onto the field in the count either left it or is still there.
       expect(aim.won + aim.lost + aim.fieldChange).toBe(aim.played + aim.paidOut);
-      // Spins held or in progress when the count began are played in it without a medal through a pocket of their own.
-      // A gold spin was a medal that found the hold full, and is one of the spins.
+      // Spins held or in progress when the count began are played in it without a medal through a slot of their own.
+      // A gold spin had a medal of its own: one that found the hold full, or one that was held through the lit slot
+      // or open wings. So there are no more of them than medals through a slot, and the ones the count began with.
       expect(aim.gold).toBeGreaterThanOrEqual(0);
-      expect(aim.gold).toBeLessThanOrEqual(aim.wasted + MAX_STOCK);
+      expect(aim.gold).toBeLessThanOrEqual(aim.hits + MAX_STOCK);
       // A gold spin that was started in the count is one of the spins that were started in it.
       expect(aim.gold).toBeLessThanOrEqual(aim.spins);
       const carried = aim.spins + aim.wasted - aim.hits;
@@ -195,12 +215,14 @@ describe('the simulation', () => {
       expect(frontShare(aim)).toBeGreaterThan(0.5);
       expect(frontShare(aim)).toBeLessThan(0.95);
     }
-    // Aim still tells. Down the middle about one medal in six ends up through a pocket, and more in a run where a
-    // tower goes over through one; the further from the pockets a medal is fed, the fewer do, and from the edges
-    // fewer than half as many. But some do from anywhere: the pile carries medals across, and what the screen pays
-    // comes down all over the pusher.
-    expect(result.centre.hits).toBeGreaterThan(medals * 0.1);
+    // Aim still tells. Down the middle about one medal in eight ends up through a slot, and more at this pace,
+    // which fills the hold and opens the wings, or in a run where a tower goes over through one; the further from
+    // the slots a medal is fed, the fewer do, and from the edges fewer than half as many. But some do from
+    // anywhere: the pile carries medals across, and what the screen pays comes down all over the pusher.
+    expect(result.centre.hits).toBeGreaterThan(medals * 0.08);
     expect(result.centre.hits).toBeLessThan(medals * 0.5);
+    // Some of the spins it started were gold: at the least the ones whose medals came through the lit slot.
+    expect(result.centre.gold).toBeGreaterThan(0);
     expect(result.centre.hits).toBeGreaterThan(result.anywhere.hits);
     expect(result.centre.hits).toBeGreaterThan(result.beside.hits);
     expect(result.anywhere.hits).toBeGreaterThan(result.edges.hits);

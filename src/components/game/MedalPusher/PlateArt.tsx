@@ -8,8 +8,10 @@
  * the screen in the back wall. A drawing is a window on that picture, so the
  * plate shows the machine the player is looking at, and follows it when it is
  * rebuilt. The START mouths in particular are whatever catcher.ts says they
- * are on the drawing (`startMouths`): round holes are drawn round, and slots
- * as slots with the medal going down them on its edge.
+ * are on the drawing (`startMouths`): the pockets in its slide, each an
+ * opening with square corners that a medal slides into lying flat. A mouth
+ * that is handed in as a round hole is drawn round, and one that is a slit
+ * as a slit with the medal going down it on its edge.
  *
  * They are drawn the way a card is printed: flat inks under a black key
  * line, the colour a hair out of register with the line, and shade laid on
@@ -18,8 +20,8 @@
 
 import { Fragment, type ReactNode } from 'react';
 import { HATCH, SLOT, armCollar, armTip } from './arms';
-import { CATCHER, mouthOnDrawing, mouthSpot } from './catcher';
-import { ARM_REACH, CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, armStart, type Arm } from './engine';
+import { APRON, CATCHER, SLOPE, apronSpot, mouthOnDrawing, mouthSpot, slopeSpot, slotCorners } from './catcher';
+import { ARM_REACH, CHECKERS, FIELD, LANDING, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, type Arm } from './engine';
 import type { Bonus } from './lottery';
 import type { PlateRules, StepId } from './plateData';
 import { ReelSymbol } from './ReelSymbols';
@@ -218,13 +220,21 @@ function slot(arm: Arm): Shape[] {
 /** When the pusher's lip is half way along its stroke, which is where the plate draws it. */
 const MID_STROKE = PUSHER.period / 4;
 
+/** A point of a drawing. */
+type Point = readonly [x: number, y: number];
+
 /**
  * The mouth of a START pocket as catcher.ts has it on the cabinet's drawing:
  * the middle of its opening and how wide and how tall the opening is there,
  * in that drawing's pixels, with the lip half way along its stroke. `rim` is
- * how far its rim stands out round it. `round` says whether it is a round
- * hole, which is seen as an oval as much flatter than it is wide as the
- * camera makes any circle lying there; a mouth of another shape is a slot.
+ * how far its frame stands out round it.
+ *
+ * The catcher's own are pockets: openings with square corners in its slide,
+ * which leans toward the player. `pocket` holds the corners of such an
+ * opening on the drawing, and of the frame round it: the upper edge from the
+ * left, and then the lower from the right. A mouth without them is drawn from
+ * its measures: `round` says whether it is a round hole, which is seen as an
+ * oval, or a slit.
  */
 export interface Mouth {
   x: number;
@@ -233,10 +243,8 @@ export interface Mouth {
   tall: number;
   rim: number;
   round: boolean;
+  pocket?: { opening: readonly Point[]; frame: readonly Point[] };
 }
-
-/** How far a mouth's shape may be from a circle's, as the camera sees one, and still be drawn as a round hole. */
-const ROUND_WITHIN = 0.12;
 
 /** The mouths of the START pockets, from the left. Everything the plate draws of them is drawn from this. */
 export function startMouths(): Mouth[] {
@@ -244,23 +252,42 @@ export function startMouths(): Mouth[] {
     const spot = mouthSpot(chucker, MID_STROKE);
     const seen = project(spot.x, spot.height, spot.depth);
     const mouth = mouthOnDrawing(chucker, MID_STROKE);
-    return { ...mouth, rim: CATCHER.rim.wide * seen.scale, round: Math.abs(mouth.tall / mouth.wide - seen.tilt) < ROUND_WITHIN };
+    // The opening at the top of its frame, and the frame's outer edge, as the cabinet's own drawing has them.
+    const corners = (grow: number): Point[] => slotCorners(chucker, MID_STROKE, false, grow, CATCHER.rim.high).map((corner) => xy(corner.x, corner.height, corner.depth));
+    return { ...mouth, rim: CATCHER.rim.wide * seen.scale, round: false, pocket: { opening: corners(0), frame: corners(CATCHER.rim.wide) } };
   });
 }
 
-/** The outline of a mouth, `grow` larger all round: an oval for a round hole, and a slot for a slot. */
+/**
+ * The outline of a mouth, or with `grow` of what stands round it: a pocket's
+ * opening and its frame, corner to corner; an oval for a round hole; and a
+ * slit with round ends for a slit. The last two are `grow` larger all round.
+ */
 export const mouthOutline = (mouth: Mouth, grow = 0): string =>
-  mouth.round
-    ? oval(mouth.x, mouth.y, mouth.wide / 2 + grow, mouth.tall / 2 + grow * (mouth.tall / mouth.wide))
-    : box(mouth.x - mouth.wide / 2 - grow, mouth.y - mouth.tall / 2 - grow, mouth.wide + grow * 2, mouth.tall + grow * 2, Math.min(mouth.wide, mouth.tall) / 2 + grow);
+  mouth.pocket
+    ? `M${(grow > 0 ? mouth.pocket.frame : mouth.pocket.opening).map(([x, y]) => `${n(x)} ${n(y)}`).join('L')}Z`
+    : mouth.round
+      ? oval(mouth.x, mouth.y, mouth.wide / 2 + grow, mouth.tall / 2 + grow * (mouth.tall / mouth.wide))
+      : box(mouth.x - mouth.wide / 2 - grow, mouth.y - mouth.tall / 2 - grow, mouth.wide + grow * 2, mouth.tall + grow * 2, Math.min(mouth.wide, mouth.tall) / 2 + grow);
 
-/** How a medal goes down a mouth: lying flat into a round hole, and standing on its edge into a slot. */
-export const dropPose = (mouth: Mouth): 'flat' | 'edge' => (mouth.round ? 'flat' : 'edge');
+/** How a medal goes down a mouth: sliding into a pocket, lying flat into a round hole, and standing on its edge into a slit. */
+export const dropPose = (mouth: Mouth): 'slide' | 'flat' | 'edge' => (mouth.pocket ? 'slide' : mouth.round ? 'flat' : 'edge');
 
-/** The catcher hung on the pusher's lip: its deck with the START mouths in it, and the apron under them. */
+/** A point of the catcher's slide with the lip half way along its stroke: `x` across the field and `down` the slide from the lip. */
+const onSlide = (x: number, down: number, lift = 0): V3 => {
+  const spot = slopeSpot(x, down, MID_STROKE, lift);
+  return [spot.x, spot.height, spot.depth];
+};
+
+/**
+ * The catcher hung under the pusher's lip: its slide, which leans from the
+ * lip down toward the player, with the START mouths in it, and on the last of
+ * the slide down to its foot the strip with the words.
+ */
 function catcher(art: string, mouths: readonly Mouth[]): Shape[] {
-  const { from, to, deck, rail: bar, foot } = CATCHER;
-  const top = outline([from, deck, LIP], [to, deck, LIP], [to, bar.top, LIP + bar.out], [from, bar.top, LIP + bar.out]);
+  const { from, to } = CATCHER;
+  const words = SLOPE.long - APRON;
+  const top = outline(onSlide(from, 0), onSlide(to, 0), onSlide(to, words), onSlide(from, words));
   return [
     { d: top, fill: INK.white },
     { d: top, fill: tone(art), line: 0 },
@@ -268,14 +295,15 @@ function catcher(art: string, mouths: readonly Mouth[]): Shape[] {
       { d: mouthOutline(mouth, mouth.rim), fill: INK.gold },
       { d: mouthOutline(mouth), fill: INK.key, line: 0 },
     ]),
-    { d: outline([from, bar.top, LIP + bar.out], [to, bar.top, LIP + bar.out], [to, foot.height, LIP + foot.out], [from, foot.height, LIP + foot.out]), fill: INK.magenta },
+    { d: outline(onSlide(from, words), onSlide(to, words), onSlide(to, SLOPE.long), onSlide(from, SLOPE.long)), fill: INK.magenta },
   ];
 }
-/** The word on the apron under each mouth. */
+/** The word on the strip under each mouth. */
 const StartWords = ({ size }: { size: number }) => (
   <>
     {CHECKERS.positions.map((x) => {
-      const [cx, cy] = xy(x, (CATCHER.rail.top + CATCHER.foot.height) / 2, LIP + (CATCHER.rail.out + CATCHER.foot.out) / 2);
+      const spot = apronSpot(x - CATCHER.from, APRON / 2, MID_STROKE);
+      const [cx, cy] = xy(spot.x, spot.height, spot.depth);
       return (
         <text key={x} className={styles.artWord} x={n(cx)} y={n(cy + size * 0.36)} fontSize={n(size)} textAnchor="middle" fill={INK.white} stroke={INK.key} strokeWidth={n(size * 0.2)}>
           START
@@ -583,13 +611,33 @@ const Push = ({ words, mouths }: ArtProps) => {
 /** A medal standing on its edge: how much larger than life it is drawn, and how tall it looks for its width when it is seen face on. */
 const EDGE_ON = { larger: 1.3, tall: 0.94 } as const;
 
+/** How far down the slide from the lip the middle of the medal that is sliding into a pocket is drawn: it has just come off the lip, its nose is over the upper edge of the opening, and the opening shows below it. */
+const SLIDING_AT = CATCHER.back - MEDAL_RADIUS * 0.9;
+
 /**
- * The medal that is about to go down a mouth, and the arrow that says so. Into
- * a round hole it tips over the lip lying flat. Into a slot it stands on its
- * edge, half in already: side on in a slot that runs away from the player,
- * and face on in one that runs across.
+ * The medal that is about to go down a mouth, and the arrow that says so.
+ * Into a pocket it slides: it lies flat on the catcher's slide with its face
+ * up, come off the lip, its nose at the opening, and the arrow goes from it
+ * down the slide into the pocket. Into a round hole it tips
+ * over the lip lying flat. Into a slit it stands on its edge, half in
+ * already: side on in a slit that runs away from the player, and face on in
+ * one that runs across.
  */
 function dropping(mouth: Mouth, chucker: number): Shape[] {
+  if (mouth.pocket) {
+    // As wide as a medal is there, and as tall as the camera sees one that lies on the slide.
+    const x = CHECKERS.positions[chucker];
+    const [cx, cy] = xy(...onSlide(x, SLIDING_AT, MEDAL_THICKNESS / 2));
+    const rx = Math.abs(xy(...onSlide(x + MEDAL_RADIUS, SLIDING_AT, MEDAL_THICKNESS / 2))[0] - cx);
+    const ry = Math.abs(xy(...onSlide(x, SLIDING_AT + MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1] - xy(...onSlide(x, SLIDING_AT - MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1]) / 2;
+    return [
+      { d: oval(cx, cy + rx * 0.16, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
+      { d: oval(cx, cy, rx, ry), fill: INK.gold, line: 0.8, flat: true },
+      { d: oval(cx, cy, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
+      // From its middle down the slide, into the pocket.
+      { d: arrow(cx, cy - ry * 0.35, mouth.x, mouth.y + mouth.tall * 0.32, 8), fill: INK.red },
+    ];
+  }
   if (mouth.round) return [...medal(CHECKERS.positions[chucker], LIP - 6.5, true), { d: arrow(mouth.x, mouth.y - 46, mouth.x, mouth.y - 4, 10), fill: INK.red }];
   const spot = mouthSpot(chucker, MID_STROKE);
   // It is drawn a little larger than life, as the thing the picture is about.
@@ -865,7 +913,7 @@ export const hasArt = (step: string): step is StepId => Object.prototype.hasOwnP
 /**
  * The drawing for a step, or nothing for a step that has none. The START
  * mouths are the catcher's unless others are handed in, which is how a test
- * sees that a catcher with slots would be drawn with slots.
+ * sees that a catcher with round holes or with slits would be drawn with them.
  */
 export const StepArt = ({ step, rules, words, mouths }: { step: string; rules: PlateRules; words: ArtWords; mouths?: readonly Mouth[] }) => {
   if (!hasArt(step)) return null;
@@ -949,26 +997,37 @@ export const PathGlyph = ({ stage, rules, bowl = 0 }: { stage: 'ball' | 'roulett
   return <Glyph name="path-bowl" view={[0, 0, 60, 60]} fine={44} shapes={dishShapes(rules, bowl, 30, 30, 27)} />;
 };
 
-/** Whether the catcher's mouths are round holes: the compact plate's little picture of them follows too. */
-const ROUND_MOUTHS = startMouths().every((mouth) => mouth.round);
+/** What the catcher's mouths are: the compact plate's little picture of them follows too. */
+type MouthKind = 'pockets' | 'holes' | 'slits';
+const kindOf = (mouths: readonly Mouth[]): MouthKind => (mouths.every((mouth) => mouth.pocket) ? 'pockets' : mouths.every((mouth) => mouth.round) ? 'holes' : 'slits');
+const MOUTH_KIND = kindOf(startMouths());
 
-/** The compact plate's picture of the START mouths: three round holes with a medal lying over them, or three slots with one on its edge. */
-const miniStart = (round: boolean): Shape[] => [
+/**
+ * The compact plate's picture of the START mouths: three pockets with square
+ * corners and a medal sliding flat into the middle one, three round holes
+ * with a medal lying over them, or three slits with one on its edge.
+ */
+const miniStart = (kind: MouthKind): Shape[] => [
   { d: box(2, 13, 40, 11, 2), fill: INK.white },
   { d: box(2, 22, 40, 6, 1.5), fill: INK.magenta },
   ...[9.5, 22, 34.5].flatMap((x) =>
-    round
+    kind === 'pockets'
       ? [
-          { d: oval(x, 18, 5.2, 3.4), fill: INK.gold, line: 0.7 },
-          { d: oval(x, 18, 3.6, 2.2), fill: INK.key, line: 0 },
+          { d: box(x - 4.4, 14.2, 8.8, 7, 0.5), fill: INK.gold, line: 0.7 },
+          { d: box(x - 3.2, 15.3, 6.4, 4.8), fill: INK.key, line: 0 },
         ]
-      : [
-          { d: box(x - 2.7, 14, 5.4, 8, 2.7), fill: INK.gold, line: 0.7 },
-          { d: box(x - 1.3, 15.2, 2.6, 5.6, 1.3), fill: INK.key, line: 0 },
-        ],
+      : kind === 'holes'
+        ? [
+            { d: oval(x, 18, 5.2, 3.4), fill: INK.gold, line: 0.7 },
+            { d: oval(x, 18, 3.6, 2.2), fill: INK.key, line: 0 },
+          ]
+        : [
+            { d: box(x - 2.7, 14, 5.4, 8, 2.7), fill: INK.gold, line: 0.7 },
+            { d: box(x - 1.3, 15.2, 2.6, 5.6, 1.3), fill: INK.key, line: 0 },
+          ],
   ),
-  round ? { d: oval(22, 6, 5.5, 3.2), fill: INK.gold, line: 0.8 } : { d: oval(22, 8.5, 1.9, 5.8), fill: INK.gold, line: 0.8 },
-  round ? { d: arrow(22, 8, 22, 16.5, 3.8), fill: INK.red } : { d: arrow(15.5, 3, 15.5, 13, 3.8), fill: INK.red },
+  kind === 'pockets' ? { d: oval(22, 10.4, 4.6, 3), fill: INK.gold, line: 0.8 } : kind === 'holes' ? { d: oval(22, 6, 5.5, 3.2), fill: INK.gold, line: 0.8 } : { d: oval(22, 8.5, 1.9, 5.8), fill: INK.gold, line: 0.8 },
+  kind === 'pockets' ? { d: arrow(22, 9.6, 22, 19, 3.2), fill: INK.red } : kind === 'holes' ? { d: arrow(22, 8, 22, 16.5, 3.8), fill: INK.red } : { d: arrow(15.5, 3, 15.5, 13, 3.8), fill: INK.red },
 ];
 
 /** The compact plate's picture for a step: the one thing that step is about, small enough to read at a glance. */
@@ -1009,10 +1068,16 @@ const MINI: Record<Exclude<StepId, 'start'>, Shape[]> = {
   ],
 };
 
-export const StepGlyph = ({ step, roundMouths = ROUND_MOUTHS }: { step: string; roundMouths?: boolean }) => {
+/**
+ * The compact plate's picture for a step. Its START mouths are what the
+ * catcher has, unless `roundMouths` says to draw round holes, or slits, as a
+ * test does to see that such a catcher would be drawn so.
+ */
+export const StepGlyph = ({ step, roundMouths }: { step: string; roundMouths?: boolean }) => {
   if (!hasArt(step)) return null;
+  const kind = roundMouths === undefined ? MOUTH_KIND : roundMouths ? 'holes' : 'slits';
   return (
-    <Glyph name={`step-${step}`} view={[0, 0, 44, 30]} fine={36} shapes={step === 'start' ? miniStart(roundMouths) : MINI[step]}>
+    <Glyph name={`step-${step}`} view={[0, 0, 44, 30]} fine={36} shapes={step === 'start' ? miniStart(kind) : MINI[step]}>
       {step === 'match' &&
         [10, 22, 34].map((x) => (
           <text key={x} className={styles.artLetter} x={x} y="19.6" fontSize="12.5" textAnchor="middle" fill={INK.red} stroke="none">

@@ -32,6 +32,9 @@ export interface HapticPattern {
  * - `jewel`: a jewel over the front edge, which lights a lamp. One light tick, a little longer than the medals'
  *   and not held back by them: a jewel goes over among medals, and is the one of them the hand should be told of.
  * - `start`: a medal through a START pocket that holds a spin.
+ * - `gold`: a medal through a START pocket that holds a gold spin from the start: through the pocket the lucky lamp
+ *   is on, or through any pocket while the wings are open. A START pocket's two ticks and a third, longer one. It
+ *   matters as much as any medal that holds a spin, and of the medals held in one frame it is the one that is felt.
  * - `crash`: a tower going over the pusher's lip.
  * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
  * - `line`: the slot stops on a winning line, a ball goes over the front, or the ball drops through a hole to the bowl below.
@@ -51,6 +54,7 @@ export const HAPTICS = {
   catch: { pattern: [22], rank: 1, gap: 220 },
   jewel: { pattern: [28], rank: 2, gap: 0 },
   start: { pattern: [16, 36, 16], rank: 2, gap: 0 },
+  gold: { pattern: [16, 36, 16, 36, 40], rank: 2, gap: 0 },
   crash: { pattern: [70], rank: 2, gap: 0 },
   chance: { pattern: [24, 40, 24], rank: 3, gap: 0 },
   line: { pattern: [30, 50, 30], rank: 3, gap: 0 },
@@ -145,13 +149,15 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
   const feel = (name: Haptic) => {
     if (!most || HAPTICS[name].rank > HAPTICS[most].rank) most = name;
   };
+  // Of the medals that were held in this frame, one whose spin is gold from the start is the one that is felt.
+  const held: Haptic = events.some((event) => event.type === 'checker' && event.lucky) ? 'gold' : 'start';
   for (const event of events) {
     switch (event.type) {
       case 'won':
         feel('catch');
         break;
       case 'checker':
-        if (event.held) feel('start');
+        if (event.held) feel(held);
         break;
       case 'jewel':
         feel('jewel');

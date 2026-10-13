@@ -58,7 +58,21 @@ export const chuckerSpots = (time: number): Spot[] => CHECKERS.positions.map((_x
  * after that as the pile has left the medal, which is near enough to draw it
  * in the mouth. It is not what counts: the count is the `checker` event.
  */
-export function droppedThrough(medal: Medal, within: number = CHUCKERS.drop): number {
+export function droppedThrough(medal: Medal, within: number = CHUCKERS.drop, wings = false): number {
   if (medal.ball || medal.jewel || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= within) return -1;
-  return checkerAt(medal.x);
+  return checkerAt(medal.x, wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
+}
+
+/**
+ * The chucker a medal on its way down from the lip caught the edge of
+ * without fitting it, or −1: one whose middle came over within `reach` of
+ * where it would have fitted. Like `droppedThrough` it is exact in the step
+ * the medal comes over and near enough after. With `wings` the slots are
+ * taking medals at their wider width.
+ */
+export function grazed(medal: Medal, within: number, reach: number, wings = false): number {
+  if (medal.ball || medal.jewel || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= within) return -1;
+  const half = wings ? CHECKERS.wingWidth : CHECKERS.halfWidth;
+  if (checkerAt(medal.x, half) >= 0) return -1;
+  return checkerAt(medal.x, half + reach);
 }

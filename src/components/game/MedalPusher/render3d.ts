@@ -263,7 +263,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     cameraMatrix(camera, shake);
 
     // This frame's numbers, and each list sent to the graphics card once.
-    writeMedals(medals, machine, stage.exits, stage.fed, calm);
+    writeMedals(medals, machine, stage.exits, stage.fed, calm, options.wings ?? false);
     writeBalls(balls, machine, stage.exits, lowBalls);
     writeJewels(jewels, machine, stage.exits);
     buildMoving(moving, machine, front, stage, options);
@@ -272,7 +272,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
     const wave = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
     buildLamps(beads, flat, machine, front, wave, partying, options, stage.clock);
-    addCatcherLamps(beads, machine, stage, wave);
+    addCatcherLamps(beads, machine, stage, wave, options.wings ?? false);
     // The payout works: the hopper's doors and the tower lifts, after the cabinet's own moving parts (works3d.ts).
     buildWorks(moving, flat, beads, machine, front, calm);
     // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.

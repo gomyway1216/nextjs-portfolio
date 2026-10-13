@@ -422,9 +422,9 @@ describe('hearing what the machine did', () => {
     // The hold filling is the machine's to say. How full the hold stands when the frame is over says nothing:
     // here it fills and a spin takes one off in the same frame, and it is counted; then it only stands full, and is not.
     session.stock = MAX_STOCK - 1;
-    tab.store.note(session, [{ type: 'holdFilled' }, { type: 'checker', gate: 0, held: true, gold: false }]);
+    tab.store.note(session, [{ type: 'holdFilled' }, { type: 'checker', gate: 0, held: true, gold: false, lucky: false }]);
     session.stock = MAX_STOCK;
-    tab.store.note(session, [{ type: 'checker', gate: 1, held: false, gold: false }]);
+    tab.store.note(session, [{ type: 'checker', gate: 1, held: false, gold: false, lucky: false }]);
     tab.store.note(session, []);
     tab.tick();
     expect(tab.total()).toMatchObject({ fed: 3, won: 2, hits: 2, wasted: 1, fulls: 1 });

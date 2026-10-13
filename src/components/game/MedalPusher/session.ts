@@ -6,7 +6,7 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { JEWEL_SPOTS, buildTowers, createMachine, dropBall, dropJewel, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
+import { JEWEL_SPOTS, MAX_STEP, buildTowers, createMachine, dropBall, dropJewel, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine, type StepEvents } from './engine';
 import { hopperBusy } from './hopper';
 import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
@@ -187,9 +187,18 @@ export interface Session {
    * every gold spin there has been. `chance` says that what is on the screen
    * now is a gold spin, or the game its line led to: its reels are quick, and
    * its sugoroku square or its chest pays `CHANCE.multiplier` times over.
+   *
+   * A spin can also be gold from the start. A medal that goes through the
+   * slot the lucky lamp is on, and is held, holds a gold spin: `lucky`
+   * counts those. And from the moment a medal finds the hold full until the
+   * last gold spin has been played, which is chance time proper, `rush` is
+   * set: the slots' wings are open, they take medals more easily, and every
+   * medal that is held holds a gold spin.
    */
   gold: number;
   gilded: number;
+  lucky: number;
+  rush: boolean;
   chance: boolean;
   jackpot: number;
   /** Medals played since the jackpot last grew. */
@@ -226,7 +235,11 @@ export type SessionEvent =
   | { type: 'landed'; count: number }
   | { type: 'toppled'; count: number }
   | { type: 'ball'; count: number }
-  | { type: 'checker'; gate: number; held: boolean; gold: boolean }
+  /**
+   * A medal through a slot. `held`: it holds a spin. `gold`: it found the hold full and turned a held spin gold.
+   * `lucky`: the spin it holds is gold from the start, because its slot was the lit one or the wings were open.
+   */
+  | { type: 'checker'; gate: number; held: boolean; gold: boolean; lucky: boolean }
   | { type: 'chanceStart' }
   | { type: 'chanceEnd' }
   | { type: 'spinStart'; result: SpinResult; duration: number }
@@ -269,6 +282,8 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     stock: 0,
     gold: 0,
     gilded: 0,
+    lucky: 0,
+    rush: false,
     chance: false,
     hits: 0,
     wasted: 0,
@@ -481,17 +496,90 @@ export const chanceLeft = (session: Pick<Session, 'gold' | 'chance'>): number =>
 
 /** Moves the machine forward by `dt` seconds. Events are appended to `events` when it is given. */
 export function advance(session: Session, dt: number, events?: SessionEvent[]): void {
-  const before = chanceLeft(session);
+  // Chance time begins when a medal finds the hold full, and ends when the last gold spin has been played.
+  const before = session.rush;
   const works = events ? watchWorks(session.machine) : null;
   run(session, dt, events);
   if (works && events) for (const event of worksEvents(works, session.machine)) events.push(event);
-  const after = chanceLeft(session);
-  if (before === 0 && after > 0) events?.push({ type: 'chanceStart' });
-  else if (before > 0 && after === 0) events?.push({ type: 'chanceEnd' });
+  if (session.rush && chanceLeft(session) === 0) session.rush = false;
+  if (!before && session.rush) events?.push({ type: 'chanceStart' });
+  else if (before && !session.rush) events?.push({ type: 'chanceEnd' });
+}
+
+/**
+ * A medal has gone through a START slot. `wings` says whether the slots'
+ * wings were open as it went over, and the machine's clock stands at that
+ * moment: the lucky lamp is where it was for this medal.
+ */
+function throughSlot(session: Session, gate: number, wings: boolean, events?: SessionEvent[]): void {
+  if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
+  session.hits += 1;
+  const held = session.stock < MAX_STOCK;
+  // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
+  const gold = !held && session.gold < session.stock;
+  // One that is held holds a gold spin when its slot is the one the lucky lamp is on, or the wings are open.
+  const lucky = held && (wings || gate === luckySlot(session.machine.time));
+  if (held) session.stock += 1;
+  else session.wasted += 1;
+  if (gold) {
+    session.gold += 1;
+    session.gilded += 1;
+    session.rush = true;
+  }
+  if (lucky) {
+    session.gold += 1;
+    session.lucky += 1;
+  }
+  events?.push({ type: 'checker', gate, held, gold, lucky });
+}
+
+/**
+ * Moves the field forward by `dt` seconds, and deals with each medal that
+ * goes through a START slot at the moment it does.
+ *
+ * The rule the slots go by changes as the machine runs. A medal that finds
+ * the hold full opens the wings, and from then on the slots take medals at
+ * their wider width; and the lucky lamp steps on with the pusher. A frame
+ * that took long is several of the engine's pieces, and a medal late in it
+ * has to meet the rule as the medals before it left it. So the session cuts
+ * its time into the engine's own pieces and steps the field one at a time:
+ * a piece is stepped with the wings as they stand when it begins, and what
+ * went through a slot in it is counted before the next, with the lamp where
+ * the machine's clock then has it. A medal through a slot is dealt with the
+ * same whether its frame was short or long.
+ *
+ * What the field did is returned added up, as one step's worth.
+ */
+function runField(session: Session, dt: number, slots?: SessionEvent[]): StepEvents {
+  if (!(dt >= 0) || !Number.isFinite(dt)) throw new Error('the time step must be a non-negative number');
+  let total: StepEvents | null = null;
+  let remaining = dt;
+  while (remaining > 1e-9) {
+    const piece = Math.min(MAX_STEP, remaining);
+    remaining -= piece;
+    // During chance time the slots' wings are open, and they take medals more easily.
+    const wings = session.rush;
+    const field = step(session.machine, piece, wings);
+    for (const gate of field.checkers) throughSlot(session, gate, wings, slots);
+    if (!total) {
+      total = field;
+    } else {
+      total.won += field.won;
+      total.lost += field.lost;
+      total.landed += field.landed;
+      total.toppled += field.toppled;
+      total.balls += field.balls;
+      total.jewels += field.jewels;
+      for (const gate of field.checkers) total.checkers.push(gate);
+    }
+  }
+  return total ?? step(session.machine, 0);
 }
 
 function run(session: Session, dt: number, events?: SessionEvent[]): void {
-  const field = step(session.machine, dt);
+  // What is said of the START slots is said after what the field itself did, as it always was.
+  const slots: SessionEvent[] | undefined = events && [];
+  const field = runField(session, dt, slots);
   if (field.won > 0) {
     session.won += field.won;
     session.credits += field.won;
@@ -508,20 +596,7 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
     events?.push({ type: 'ball', count: field.balls });
   }
   for (let i = 0; i < field.jewels; i++) collectJewel(session, events);
-  for (const gate of field.checkers) {
-    if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
-    session.hits += 1;
-    const held = session.stock < MAX_STOCK;
-    // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
-    const gold = !held && session.gold < session.stock;
-    if (held) session.stock += 1;
-    else session.wasted += 1;
-    if (gold) {
-      session.gold += 1;
-      session.gilded += 1;
-    }
-    events?.push({ type: 'checker', gate, held, gold });
-  }
+  if (events && slots) for (const event of slots) events.push(event);
 
   // One thing at a time on the screen, and nothing that has started is cut short.
   // A winning line and the game it leads to are one turn: the game follows its

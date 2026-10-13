@@ -139,12 +139,13 @@ interface Counts {
 const onField = (session: Session): number => medalsOnField(session.machine);
 
 /**
- * How many gold spins a session has started so far: every medal that turned a held spin gold, less the gold
- * spins still held, which have not been spun yet. A stretch of play is measured by the difference between its
+ * How many gold spins a session has started so far: every medal that made a spin gold, by finding the hold
+ * full or by being held through the lit slot or open wings, less the gold spins still held, which have not
+ * been spun yet. A stretch of play is measured by the difference between its
  * two ends, so a gold spin belongs to the stretch its reels turned in, like any other spin, and not to the one
  * its medal went through the pocket in.
  */
-export const goldStarted = (session: Pick<Session, 'gilded' | 'gold'>): number => session.gilded - session.gold;
+export const goldStarted = (session: Pick<Session, 'gilded' | 'lucky' | 'gold'>): number => session.gilded + session.lucky - session.gold;
 
 const snapshot = (session: Session): Counts => ({
   played: session.inserted,

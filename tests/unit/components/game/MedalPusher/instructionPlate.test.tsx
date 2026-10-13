@@ -10,8 +10,8 @@ import { InstructionPlate, InstructionPlateDialog, PlateSticker, PlateSwitch } f
 import { StepArt, StepGlyph, arrow, dropPose, hasArt, holePlaces, mouthOutline, startMouths, type Mouth } from '@/components/game/MedalPusher/PlateArt';
 import { AIM_CAPS, KEY_CAPS, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { armCollar, armTip } from '@/components/game/MedalPusher/arms';
-import { mouthOnDrawing } from '@/components/game/MedalPusher/catcher';
-import { CHECKERS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
+import { CATCHER, mouthOnDrawing, slopeSpot, slotCorners } from '@/components/game/MedalPusher/catcher';
+import { CHECKERS, MEDAL_RADIUS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import {
   BOARD,
@@ -443,6 +443,17 @@ describe('the steps', () => {
     expect(getPlateStrings('en').steps.jackpot.line({ ...PLATE_RULES, bowls: [['jackpot', 40]] })).toContain('to the bowl.');
   });
 
+  it('say at step 4 how a medal gets into a START pocket: it slides in, down the catcher’s slide', () => {
+    expect(getPlateStrings('en').steps.start.line(PLATE_RULES)).toBe(`A medal that slides into a START pocket spins the slot once. Up to ${MAX_STOCK} spins are held.`);
+    expect(getPlateStrings('ja').steps.start.line(PLATE_RULES)).toBe(`メダルが斜面をすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${MAX_STOCK}回まで）`);
+    // And the plate prints it, in both languages, beside the drawing of a medal doing so.
+    for (const language of LANGUAGES) {
+      const html = plate(language);
+      expect(wordsOf(html)).toContain(getPlateStrings(language).steps.start.line(PLATE_RULES));
+      expect(artOf(html, 'start')).toContain('data-plate-drop="slide"');
+    }
+  });
+
   it('draw the machine’s own parts where its camera puts them', () => {
     const html = plate('en');
     // The two rails, from the slots at the front corners to their tips over the pusher.
@@ -495,19 +506,88 @@ describe('the START mouths', () => {
     }
   });
 
-  it('are drawn as round holes while the catcher’s are round, with the medal lying flat', () => {
-    // A circle lying on the deck is seen as an oval, as much flatter than it is wide as the camera makes it there.
-    for (const mouth of startMouths()) {
-      expect(mouth.round).toBe(true);
-      expect(mouthOutline(mouth)).toMatch(/^M[\d.-]+ [\d.-]+a[\d.]+ [\d.]+ 0 1 0 /);
-      expect(dropPose(mouth)).toBe('flat');
-    }
-    expect(artOf(plate('en'), 'start')).toContain('data-plate-drop="flat"');
+  it('are drawn as the pockets the catcher has: openings with square corners in its slide, with the medal sliding in lying flat', () => {
+    const seen = (spot: { x: number; height: number; depth: number }) => project(spot.x, spot.height, spot.depth);
+    const mouths = startMouths();
+    mouths.forEach((mouth, chucker) => {
+      expect(mouth.round).toBe(false);
+      const { opening, frame } = mouth.pocket ?? { opening: [], frame: [] };
+      // Four corners each, the catcher's own on the cabinet's drawing: the upper edge from the left, then the lower from the right.
+      const open = slotCorners(chucker, MID, false, 0, CATCHER.rim.high).map(seen);
+      const outer = slotCorners(chucker, MID, false, CATCHER.rim.wide, CATCHER.rim.high).map(seen);
+      expect(opening).toHaveLength(4);
+      expect(frame).toHaveLength(4);
+      opening.forEach(([x, y], corner) => expect([x, y]).toEqual([open[corner].x, open[corner].y]));
+      frame.forEach(([x, y], corner) => expect([x, y]).toEqual([outer[corner].x, outer[corner].y]));
+      // Straight edges from corner to corner, and nothing round about it.
+      for (const outline of [mouthOutline(mouth), mouthOutline(mouth, mouth.rim)]) expect(outline).toMatch(/^M[\d.-]+ [\d.-]+(L[\d.-]+ [\d.-]+){3}Z$/);
+      expect(mouthOutline(mouth)).not.toBe(mouthOutline(mouth, mouth.rim));
+      // Its upper and lower edges are level, the lower one wider, as the nearer edge of an opening in a board that leans toward the player is.
+      expect(opening[0][1]).toBeCloseTo(opening[1][1], 9);
+      expect(opening[2][1]).toBeCloseTo(opening[3][1], 9);
+      expect(opening[2][0] - opening[3][0]).toBeGreaterThan(opening[1][0] - opening[0][0]);
+      // It is about its middle as catcher.ts has that, as tall as it has it, and as wide there.
+      expect((opening[0][1] + opening[3][1]) / 2).toBeCloseTo(mouth.y, 0);
+      expect(opening[3][1] - opening[0][1]).toBeCloseTo(mouth.tall, 9);
+      expect(mouth.wide).toBeGreaterThan(opening[1][0] - opening[0][0]);
+      expect(mouth.wide).toBeLessThan(opening[2][0] - opening[3][0]);
+      // The frame stands out round it on every side.
+      expect(frame[0][0]).toBeLessThan(opening[0][0]);
+      expect(frame[0][1]).toBeLessThan(opening[0][1]);
+      expect(frame[2][0]).toBeGreaterThan(opening[2][0]);
+      expect(frame[2][1]).toBeGreaterThan(opening[2][1]);
+      expect(dropPose(mouth)).toBe('slide');
+    });
+    // The medal that is shown going into the middle one lies on the slide over it, face up, just come off the lip: an
+    // oval as wide as a medal is there and flatter, its nose over the upper edge of the opening and the opening still to
+    // be seen under it, with an arrow from it into the pocket.
+    const start = artOf(plate('en'), 'start');
+    const coin = start.split('data-plate-drop="slide"')[1]?.match(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /g)?.[1]?.match(/M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /);
+    if (!coin) throw new Error('no medal is drawn sliding into a pocket');
+    const [left, cy, rx, ry] = coin.slice(1).map(Number);
+    const middle = mouths[1];
+    const [upper, , , lower] = (middle.pocket?.opening ?? []).map(([, y]) => y);
+    expect(left + rx).toBeCloseTo(middle.x, 0);
+    // Flatter than it is wide, and rounder than a medal lying level there would be seen: the slide leans toward the player.
+    expect(ry).toBeLessThan(rx);
+    expect(ry / rx).toBeGreaterThan(seen(slopeSpot(CHECKERS.positions[1], 0, MID)).tilt * 1.1);
+    expect(rx * 2).toBeGreaterThan(middle.wide * 0.7);
+    expect(rx * 2).toBeLessThan(middle.wide);
+    expect(cy).toBeLessThan(upper);
+    expect(cy + ry).toBeGreaterThan(upper);
+    expect(cy + ry).toBeLessThan((upper + lower) / 2);
+    // It is where a medal with its middle that far down the slide is seen.
+    const down = CATCHER.back - MEDAL_RADIUS * 0.9;
+    expect(cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, 0.45)).y, 0);
+    // The arrow is the last thing drawn of it: from the medal, straight down the drawing, to a point inside the opening.
+    const arrowAt = start.split('data-plate-drop="slide"')[1]?.split('</g>')[0]?.match(/d="M[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L([\d.-]+) ([\d.-]+)L/);
+    if (!arrowAt) throw new Error('no arrow is drawn from the medal into the pocket');
+    const [tipX, tipY] = arrowAt.slice(1).map(Number);
+    expect(tipX).toBeCloseTo(middle.x, 0);
+    expect(tipY).toBeGreaterThan((upper + lower) / 2);
+    expect(tipY).toBeLessThan(lower);
   });
 
-  it('are drawn as slots when the catcher’s are slots, with the medal going down on its edge', () => {
-    // The same mouths as catcher.ts would have them if they were slits that run away from the player.
-    const slits: Mouth[] = startMouths().map((mouth) => ({ ...mouth, wide: mouth.wide / 4, tall: mouth.wide * 0.8, round: false }));
+  it('are drawn round when they are handed in as round holes, with the medal lying flat', () => {
+    // The mouths a catcher with a level deck and round holes in it would have: a circle lying on a deck is seen as an oval.
+    const holes: Mouth[] = startMouths().map(({ x, y, wide, rim }) => ({ x, y, wide, tall: wide * 0.5, rim, round: true }));
+    for (const step of CATCHER_STEPS) {
+      const art = renderToStaticMarkup(<StepArt step={step} rules={PLATE_RULES} words={words} mouths={holes} />);
+      for (const hole of holes) {
+        expect(mouthOutline(hole)).toMatch(/^M[\d.-]+ [\d.-]+a[\d.]+ [\d.]+ 0 1 0 /);
+        expect(art).toContain(`d="${mouthOutline(hole)}"`);
+        expect(art).toContain(`d="${mouthOutline(hole, hole.rim)}"`);
+        expect(dropPose(hole)).toBe('flat');
+      }
+      // No pocket is left in it.
+      for (const pocket of startMouths()) expect(art).not.toContain(`d="${mouthOutline(pocket)}"`);
+    }
+    expect(renderToStaticMarkup(<StepArt step="start" rules={PLATE_RULES} words={words} mouths={holes} />)).toContain('data-plate-drop="flat"');
+  });
+
+  it('are drawn as slits when they are handed in as slits, with the medal going down on its edge', () => {
+    // The mouths a catcher would have if they were slits that run away from the player.
+    const slits: Mouth[] = startMouths().map(({ x, y, wide, rim }) => ({ x, y, rim, wide: wide / 4, tall: wide * 0.8, round: false }));
     for (const step of CATCHER_STEPS) {
       const art = renderToStaticMarkup(<StepArt step={step} rules={PLATE_RULES} words={words} mouths={slits} />);
       for (const slit of slits) {
@@ -519,8 +599,8 @@ describe('the START mouths', () => {
         expect(art).toContain(`d="${mouthOutline(slit, slit.rim)}"`);
         expect(dropPose(slit)).toBe('edge');
       }
-      // No round hole is left in it.
-      for (const round of startMouths()) expect(art).not.toContain(`d="${mouthOutline(round)}"`);
+      // No pocket is left in it.
+      for (const pocket of startMouths()) expect(art).not.toContain(`d="${mouthOutline(pocket)}"`);
     }
     /** The medal that is drawn going down the middle mouth: where its middle is, and half its width and its height. */
     const coinIn = (mouths: Mouth[]) => {
@@ -535,22 +615,32 @@ describe('the START mouths', () => {
     expect(sideOn.x).toBeCloseTo(slits[1].x, 0);
     expect(sideOn.ry).toBeGreaterThan(sideOn.rx * 2.5);
     // In one that runs across it is seen face on: nearly a full circle.
-    const faceOn = coinIn(startMouths().map((mouth) => ({ ...mouth, tall: mouth.tall / 4, round: false })));
+    const faceOn = coinIn(startMouths().map(({ x, y, wide, tall, rim }) => ({ x, y, wide, rim, tall: tall / 4, round: false })));
     expect(faceOn.ry / faceOn.rx).toBeCloseTo(0.94, 1);
   });
 
-  it('are on the compact plate as they are on the cabinet: three holes, or three slots', () => {
+  it('are on the compact plate as they are on the cabinet: three pockets, as they would be three holes or three slits', () => {
     const holes = renderToStaticMarkup(<StepGlyph step="start" roundMouths />);
     const slots = renderToStaticMarkup(<StepGlyph step="start" roundMouths={false} />);
-    // Left to itself it draws what the catcher has.
-    expect(renderToStaticMarkup(<StepGlyph step="start" />)).toBe(startMouths().every((mouth) => mouth.round) ? holes : slots);
-    // Three round mouths, each a rim, its line and the dark of the hole; or three slots, each the same three.
+    // Left to itself it draws what the catcher has, which is pockets.
+    const pockets = renderToStaticMarkup(<StepGlyph step="start" />);
+    expect(startMouths().every((mouth) => mouth.pocket !== undefined)).toBe(true);
+    expect(pockets).not.toBe(holes);
+    expect(pockets).not.toBe(slots);
+    // Three round mouths, each a rim, its line and the dark of the hole; or three slits, each the same three; or
+    // three pockets, each a frame, its line and the dark of an opening with square corners.
     const ovals = /d="M[\d.]+ 18a[\d.]+ [\d.]+ 0 1 0 /g;
     const slotted = /d="M[\d.]+ 1[45](\.\d)?h0a/g;
+    const squared = /d="M[\d.]+ 15\.3h6\.4v4\.8h-6\.4Z"/g;
+    const framed = /d="M[\d.]+ 14\.2h7\.8a0\.5 0\.5 /g;
     expect(count(holes, ovals)).toBe(CHECKERS.positions.length * 3);
     expect(count(holes, slotted)).toBe(0);
     expect(count(slots, slotted)).toBe(CHECKERS.positions.length * 3);
     expect(count(slots, ovals)).toBe(0);
+    expect(count(pockets, squared)).toBe(CHECKERS.positions.length);
+    expect(count(pockets, framed)).toBe(CHECKERS.positions.length * 2);
+    for (const other of [holes, slots]) expect(count(other, squared) + count(other, framed)).toBe(0);
+    expect(count(pockets, ovals) + count(pockets, slotted)).toBe(0);
     expect(slots).not.toBe(holes);
   });
 });

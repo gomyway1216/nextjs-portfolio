@@ -14,13 +14,45 @@ import {
   PUSHER,
   ROLL_TIME,
   createMachine,
+  dropJewel,
   pusherFront,
   step,
   type Arm,
   type Machine,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
-import { APRON_CAP, BALL_RADIUS, GOLD_FLASH, celebrate, createStage, drawField, goldFlash, lightGate } from '@/components/game/MedalPusher/render';
+import {
+  JEWEL_CUT,
+  JEWEL_FACETS,
+  JEWEL_GIRDLE,
+  JEWEL_LAMPS,
+  JEWEL_PLATE,
+  JEWEL_SHOW,
+  LAMP_OUTLINE,
+  collectedJewel,
+  fallingJewel,
+  jewelLampX,
+  lyingJewel,
+  pointInCabinet,
+  type JewelSpot,
+} from '@/components/game/MedalPusher/jewel';
+import {
+  APRON_CAP,
+  BALL_RADIUS,
+  EXIT_TIME,
+  GLOW_TIME,
+  GOLD_FLASH,
+  ageStage,
+  celebrate,
+  createStage,
+  drawField,
+  goldFlash,
+  lightGate,
+  showJewel,
+  trackMedals,
+  type ExitingMedal,
+  type Stage,
+} from '@/components/game/MedalPusher/render';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
@@ -428,6 +460,47 @@ describe('the catcher on the canvas', () => {
     expect(going.ball).toBeGreaterThan(going.catcher);
     expect(going.clipped).toBe(true);
     expect(under.clipped).toBe(false);
+  });
+
+  it('draws two balls at the catcher the nearer one last, whichever of them the machine holds first', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    const ball = (id: number, x: number, y: number, sinceDrop = 1): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: true, grown: 1 });
+    /** How far out from the back wall each ball that was drawn is, in the order they were drawn, and whether each was drawn after the catcher. */
+    const drawn = (medals: Medal[]) => {
+      machine.medals = medals;
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false });
+      const catcher = screen.log.indexOf('text:START');
+      const balls = screen.stamps.flatMap((stamp, index) => (stamp.image === stage.ball ? [index] : []));
+      return balls.map((index) => {
+        // Each is told from the other by which side of the middle it is on.
+        const medal = medals.find((one) => one.x < 50 === screen.stamps[index].x < VIEW.width / 2) as Medal;
+        return { depth: medal.y, after: screen.log.indexOf(`image:${index}`) > catcher };
+      });
+    };
+    // Two that stand in front of the apron, their middles out past the catcher's foot and the rest of them still under it.
+    // The nearer one has the lower id, and comes first in one list and last in the other.
+    const standing = [ball(905, 44, front + CATCHER.foot.out + 0.5), ball(904, 56, front + CATCHER.foot.out + 2.5)];
+    for (const one of standing) expect(underCatcher(one.x, one.y, BALL_RADIUS * 2, machine.time)).toBe(true);
+    // And two that have only just come over the lip behind the catcher, and are still going down behind it.
+    const dropping = [ball(907, 44, front + MEDAL_RADIUS, 0.05), ball(906, 56, front + MEDAL_RADIUS + 2, 0.05)];
+    for (const pair of [standing, dropping]) {
+      const [far, near] = pair;
+      expect(near.id).toBeLessThan(far.id);
+      for (const medals of [
+        [far, near],
+        [near, far],
+      ]) {
+        const order = drawn(medals);
+        expect(order.map((one) => one.depth)).toEqual([far.y, near.y]);
+        // Both lists are drawn over the catcher, which is why the order the machine holds them in could show.
+        expect(order.map((one) => one.after)).toEqual([true, true]);
+      }
+    }
   });
 });
 
@@ -887,5 +960,175 @@ describe('the gold spins’ lamps on the canvas', () => {
         expect(flashOf(stage, machine, lamp, true)).toBeCloseTo(0, 6);
       }
     }
+  });
+});
+
+describe('the jewels on the canvas', () => {
+  const D = FIELD.depth;
+  const jewel = (id: number, x: number, y: number, level: 0 | 1, more: Partial<Medal> = {}): Medal => ({ id, x, y, level, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, jewel: true, ...more });
+  const plain = (id: number, x: number, y: number): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+  /** One frame of a field that holds just these, and what it drew. */
+  const frame = (medals: Medal[], options: { calm?: boolean; jewels?: number } = {}, stage: Stage = createStage(1), change: (machine: Machine) => void = () => undefined) => {
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    machine.medals = medals;
+    change(machine);
+    const screen = recorder();
+    drawField(screen.context, stage, machine, { showGuide: false, ...options });
+    return { screen, stage, machine };
+  };
+  const drawnAt = (screen: Recorder) => [...screen.starts, ...screen.lines];
+  const near = (points: { x: number; y: number }[], at: { x: number; y: number }, within = 1e-6) => points.some((point) => Math.hypot(point.x - at.x, point.y - at.y) < within);
+  const seen = (corner: readonly [number, number, number]) => project(corner[0], corner[1], corner[2]);
+  /** Whether a stone held as `spot` was drawn: its girdle traced corner by corner, and its table, which looks up at the player. */
+  const stoneDrawn = (screen: Recorder, spot: JewelSpot, table = true): boolean =>
+    JEWEL_GIRDLE.every((corner) => near(drawnAt(screen), seen(pointInCabinet(spot, corner)))) && (!table || JEWEL_FACETS[0].corners.every((corner) => near(drawnAt(screen), seen(pointInCabinet(spot, corner)))));
+
+  it('draws a jewel face by face where it lies on either table, with a shadow beside it, and stamps no medal for it', () => {
+    fakeDocument();
+    for (const stone of [jewel(7, 40, 70, 0), jewel(8, 62, 22, 1)]) {
+      const { screen, stage, machine } = frame([stone, plain(9, 20, 60)], { calm: true });
+      const spot = lyingJewel(stone, machine.time);
+      expect(stoneDrawn(screen, spot)).toBe(true);
+      // The one medal is stamped, and nothing is stamped for the jewel: it is not a medal's face, nor a ball.
+      expect(screen.stamps.filter((stamp) => stamp.image === stage.medal)).toHaveLength(1);
+      expect(screen.stamps.filter((stamp) => stamp.image === stage.ball)).toHaveLength(0);
+      // Its shadow, and the stone's own colour in it: two ovals on what it stands on, within a stone's width of its foot.
+      const foot = project(spot.x, spot.height - JEWEL_CUT.pavilion, spot.depth);
+      const ovals = screen.arcs.filter((arc) => Math.hypot(arc.x - foot.x, arc.y - foot.y) < JEWEL_CUT.girdle * foot.scale * 1.5 && arc.across > 0);
+      expect(ovals.length).toBeGreaterThanOrEqual(2);
+      // It is drawn the same with reduced motion or without: only how its faces flash differs.
+      expect(stoneDrawn(frame([stone], { calm: false }).screen, spot)).toBe(true);
+    }
+    // Where no jewel lies nothing of one is drawn.
+    const bare = frame([plain(9, 20, 60)], { calm: true });
+    expect(stoneDrawn(bare.screen, lyingJewel(jewel(7, 40, 70, 0), 1.5), false)).toBe(false);
+  });
+
+  it('draws a jewel large enough to tell from a medal on a phone, and as wide as a medal is', () => {
+    const PHONE = 345 / VIEW.width;
+    // The stone nearest the player and the one furthest away that a table can hold.
+    const wide = (depth: number, height: number) => (project(50 + JEWEL_CUT.girdle, height, depth).x - project(50 - JEWEL_CUT.girdle, height, depth).x) * PHONE;
+    expect(wide(D - MEDAL_RADIUS, JEWEL_CUT.pavilion)).toBeGreaterThanOrEqual(13);
+    expect(wide(MEDAL_RADIUS, HEIGHT.pusher + JEWEL_CUT.pavilion)).toBeGreaterThanOrEqual(9);
+    expect(JEWEL_CUT.girdle * 2).toBeGreaterThan(MEDAL_RADIUS * 2 * 0.9);
+  });
+
+  it('draws a jewel on its way from the hatch and over the front, where the stone is', () => {
+    fakeDocument();
+    // In the air: dropped this instant, half way down, and about to land.
+    for (const share of [1, 0.5, 0.02]) {
+      const { screen, machine } = frame([], { calm: true }, createStage(1), (m) => {
+        dropJewel(m);
+        m.falling[0].remaining = m.falling[0].duration * share;
+      });
+      expect(stoneDrawn(screen, fallingJewel(machine.falling[0]), false)).toBe(true);
+    }
+    const over: ExitingMedal = { id: 5, x: 30, y: D + 0.2, kind: 'won', side: -1, ball: false, jewel: true, age: 0.1 };
+    const stage = createStage(1);
+    stage.exits.push(over);
+    const { screen } = frame([], { calm: true }, stage);
+    expect(stoneDrawn(screen, collectedJewel(5, 30, D + 0.2, 0.1), false)).toBe(true);
+    // It is not stamped as a medal or a ball on its way out.
+    expect(screen.stamps.filter((stamp) => stamp.image === stage.medal || stamp.image === stage.ball)).toHaveLength(0);
+  });
+
+  it('notes a jewel that has left the field, which is always over the front: the tray lit, and a burst of its own colours', () => {
+    fakeDocument();
+    const gone = (stone: Medal) => {
+      const stage = createStage(1);
+      const machine = createMachine(3);
+      machine.medals = [stone];
+      trackMedals(stage, machine, 0);
+      machine.medals = [];
+      trackMedals(stage, machine, 0);
+      return stage;
+    };
+    const front = gone(jewel(7, 40, D + 0.1, 0));
+    expect(front.exits).toEqual([{ id: 7, x: 40, y: D + 0.1, kind: 'won', side: -1, ball: false, jewel: true, age: 0 }]);
+    expect(front.trayGlow).toBe(GLOW_TIME);
+    expect(front.sparks).toHaveLength(14);
+    expect(new Set(front.sparks.map((spark) => spark.color))).toEqual(new Set(['#ff7cc0', '#ffffff', '#ffd0ea']));
+    // One that was last seen hard against a side went over the front all the same: it does not fit through the side.
+    const corner = gone(jewel(8, FIELD.width - MEDAL_RADIUS, D - 0.2, 0));
+    expect(corner.exits[0]).toMatchObject({ kind: 'won', jewel: true });
+    expect(corner.sideGlow).toEqual([0, 0]);
+    expect(corner.trayGlow).toBe(GLOW_TIME);
+    // A medal that leaves says nothing about being a jewel.
+    expect(gone(plain(9, 40, D + 0.1)).exits[0]).not.toHaveProperty('jewel');
+    // It is gone from the picture as soon as a medal would be.
+    ageStage(front, EXIT_TIME + 0.01);
+    expect(front.exits).toEqual([]);
+  });
+
+  it('has a plate with five sockets in the front of the lower table, in the layer that is drawn once', () => {
+    const made = fakeDocument();
+    createStage(1);
+    const once = made.flatMap((canvas) => [...canvas.starts, ...canvas.lines]);
+    for (const [x, height] of [
+      [JEWEL_PLATE.from, JEWEL_PLATE.top],
+      [JEWEL_PLATE.to, JEWEL_PLATE.top],
+      [JEWEL_PLATE.to, JEWEL_PLATE.foot],
+      [JEWEL_PLATE.from, JEWEL_PLATE.foot],
+    ]) {
+      expect(near(once, project(x, height, D))).toBe(true);
+    }
+    for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+      for (const [across, up] of LAMP_OUTLINE) expect(near(once, project(jewelLampX(lamp) + across * JEWEL_LAMPS.radius, JEWEL_LAMPS.height + up * JEWEL_LAMPS.radius, D))).toBe(true);
+    }
+    // The arrows down into the tray keep clear of it: none is drawn where the plate is.
+    const starts = made.flatMap((canvas) => canvas.starts);
+    const arrowsOn = (from: number, to: number) => starts.filter((point) => Math.abs(point.y - project(50, -7.5, D).y) < 0.5 && point.x > project(from, -7.5, D).x && point.x < project(to, -7.5, D).x).length;
+    expect(arrowsOn(JEWEL_PLATE.from, JEWEL_PLATE.to)).toBe(0);
+    expect(arrowsOn(0, JEWEL_PLATE.from)).toBeGreaterThanOrEqual(2);
+    expect(arrowsOn(JEWEL_PLATE.to, FIELD.width)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('lights the lamps from the left, one for each jewel collected, and all five while a bonus is shown', () => {
+    fakeDocument();
+    /** Which lamps were drawn lit in a frame: each is the outline of a cut stone, traced on the plate. */
+    const lit = (count: number, stage: Stage = createStage(1), calm = true) => {
+      const { screen } = frame([], { calm, jewels: count }, stage);
+      return Array.from({ length: JEWEL_LAMPS.count }, (_, lamp) => LAMP_OUTLINE.every(([across, up]) => near(drawnAt(screen), project(jewelLampX(lamp) + across * JEWEL_LAMPS.radius, JEWEL_LAMPS.height + up * JEWEL_LAMPS.radius, D))));
+    };
+    for (let count = 0; count < JEWEL_LAMPS.count; count++) expect(lit(count)).toEqual(Array.from({ length: JEWEL_LAMPS.count }, (_, lamp) => lamp < count));
+    // The bonus has put them out; while it is shown all five are lit, with reduced motion or without, and then none.
+    const stage = createStage(1);
+    showJewel(stage, JEWEL_LAMPS.count - 1, 3, true);
+    expect(lit(0, stage, true)).toEqual([true, true, true, true, true]);
+    expect(lit(0, stage, false)).toEqual([true, true, true, true, true]);
+    ageStage(stage, JEWEL_SHOW + 0.1);
+    expect(lit(0, stage)).toEqual([false, false, false, false, false]);
+  });
+
+  it('shows what a jewel paid floating up from the plate in the jewel\u2019s colour, with sparks from the lamp it lit', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    showJewel(stage, 2, 1, false);
+    expect(stage.jewelGlow).toBe(GLOW_TIME);
+    expect(stage.jewelShow).toBe(0);
+    expect(stage.sparks).toHaveLength(14);
+    // The sparks start at the lamp that was lit.
+    const lamp = project(jewelLampX(2), JEWEL_LAMPS.height, D);
+    for (const spark of stage.sparks) expect([spark.x, spark.y]).toEqual([lamp.x, lamp.y]);
+    const { screen } = frame([], { calm: true, jewels: 3 }, stage);
+    const word = screen.texts.filter((entry) => entry.text === 'JEWEL +1');
+    expect(word).toHaveLength(1);
+    expect(word[0].style).toBe('#ffb7dc');
+    // Over the plate, in the middle of the front.
+    expect(word[0].x).toBeCloseTo(project(FIELD.width / 2, JEWEL_PLATE.top, D).x, 6);
+    expect(word[0].y).toBeLessThan(project(FIELD.width / 2, JEWEL_PLATE.top, D).y);
+    // A bonus says so, with more sparks all along the plate, and the lamps' show.
+    const bonus = createStage(1);
+    showJewel(bonus, JEWEL_LAMPS.count - 1, 3, true);
+    expect(bonus.jewelShow).toBe(JEWEL_SHOW);
+    expect(bonus.sparks).toHaveLength(40);
+    expect(new Set(bonus.sparks.map((spark) => Math.round(spark.x))).size).toBeGreaterThan(10);
+    expect(frame([], { calm: true }, bonus).screen.texts.map((entry) => entry.text)).toContain('JEWEL BONUS +3');
+    // Both are gone a second or so later.
+    ageStage(bonus, 1.01);
+    ageStage(bonus, JEWEL_SHOW);
+    expect(bonus.popups).toEqual([]);
+    expect([bonus.jewelGlow, bonus.jewelShow]).toEqual([0, 0]);
   });
 });

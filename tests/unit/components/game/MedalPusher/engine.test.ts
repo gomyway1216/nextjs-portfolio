@@ -12,6 +12,8 @@ import {
   FIELD,
   GAP,
   INITIAL,
+  JEWEL_DROP,
+  JEWEL_SPOTS,
   LANDING,
   MEDAL_RADIUS,
   PUSHER,
@@ -30,6 +32,8 @@ import {
   clampAim,
   createMachine,
   dropBall,
+  dropJewel,
+  jewelsOnField,
   medalsOnField,
   pusherFront,
   queuePayout,
@@ -61,7 +65,7 @@ type Aim = number | ((n: number) => number) | { follow: (time: number) => number
  * aimed, or where an aim that is followed will be by the end of the step.
  */
 function run(machine: Machine, seconds: number, aim?: Aim, every = 0.25) {
-  const total: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0 };
+  const total: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 };
   let dropped = 0;
   let clock = every;
   const meant: number[] = [];
@@ -84,6 +88,7 @@ function run(machine: Machine, seconds: number, aim?: Aim, every = 0.25) {
     total.landed += events.landed;
     total.toppled += events.toppled;
     total.balls += events.balls;
+    total.jewels += events.jewels;
     total.checkers.push(...events.checkers);
     clock += DT;
   }
@@ -686,7 +691,7 @@ describe('dropping a medal', () => {
     expect(() => step(machine, -0.01)).toThrow();
     expect(() => step(machine, Number.NaN)).toThrow();
     expect(() => step(machine, Number.POSITIVE_INFINITY)).toThrow();
-    expect(step(machine, 0)).toEqual({ won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0 });
+    expect(step(machine, 0)).toEqual({ won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 });
   });
 });
 
@@ -1138,12 +1143,126 @@ describe('prize balls', () => {
 
   it('goes over the front as a ball, never as a medal, and never out of a side', () => {
     for (const seed of [6, 60]) {
-      const machine = createMachine(seed, 3);
+      // Two jewels lie on it as well: they go the same way, and are counted as neither a ball nor a medal.
+      const machine = createMachine(seed, 3, 2);
       const start = medalsOnField(machine);
       const events = run(machine, 120, (n) => [25, 50, 75, 12, 88][n % 5], 0.2);
       expect(events.balls).toBeGreaterThan(0);
       expect(events.balls + ballsOnField(machine)).toBe(3);
+      expect(events.jewels).toBeGreaterThan(0);
+      expect(events.jewels + jewelsOnField(machine)).toBe(2);
       expect(start + events.dropped).toBe(medalsOnField(machine) + events.won + events.lost);
     }
   }, LONG);
+});
+
+describe('jewels', () => {
+  const D = MEDAL_RADIUS * 2;
+
+  it('lie on a new machine in place of medals, as many as it is asked for, and are neither balls nor medals', () => {
+    expect(jewelsOnField(createMachine(5))).toBe(0);
+    for (let jewels = 1; jewels <= JEWEL_SPOTS.length; jewels++) {
+      const machine = createMachine(5, BALL_SPOTS.length, jewels);
+      expect(jewelsOnField(machine)).toBe(jewels);
+      expect(ballsOnField(machine)).toBe(BALL_SPOTS.length);
+      expect(medalsOnField(machine)).toBe(machine.medals.length - BALL_SPOTS.length - jewels);
+      expect(worstOverlap(machine)).toBeLessThan(0.005);
+      const lying = machine.medals.filter((medal) => medal.jewel);
+      expect(lying).toHaveLength(jewels);
+      JEWEL_SPOTS.slice(0, jewels).forEach((spot) => {
+        // Both lie on the lower table. Each took the place of the medal that lay nearest its spot, and nothing lies on it.
+        expect(spot.level).toBe(0);
+        const [jewel] = [...lying].sort((a, b) => Math.hypot(a.x - spot.x, a.y - spot.y) - Math.hypot(b.x - spot.x, b.y - spot.y));
+        expect([jewel.level, jewel.ball, jewel.tier, jewel.stack, jewel.grow]).toEqual([0, false, 0, 1, 0]);
+        expect(Math.hypot(jewel.x - spot.x, jewel.y - spot.y)).toBeLessThan(D * 1.5);
+        const onTop = machine.medals.filter((medal) => medal.tier === 1 && medal.level === jewel.level);
+        expect(Math.min(...onTop.map((medal) => Math.hypot(medal.x - jewel.x, medal.y - jewel.y)))).toBeGreaterThanOrEqual(D * 1.6 - 1e-9);
+      });
+    }
+    // The two are two medals' places apart or more, and neither is on the pusher, where the medals are fed.
+    expect(Math.hypot(JEWEL_SPOTS[0].x - JEWEL_SPOTS[1].x, JEWEL_SPOTS[0].y - JEWEL_SPOTS[1].y)).toBeGreaterThan(D * 3);
+    expect(createMachine(5, 2, 2).medals.filter((medal) => medal.jewel && medal.level === 1)).toEqual([]);
+    // What is not a jewel does not say so: a medal is stored as it always was.
+    expect(createMachine(5, 2, 2).medals.filter((medal) => 'jewel' in medal)).toHaveLength(2);
+    expect(() => createMachine(5, 0, JEWEL_SPOTS.length + 1)).toThrow();
+    expect(() => createMachine(5, 0, -1)).toThrow();
+    expect(() => createMachine(5, 0, 0.5)).toThrow();
+  });
+
+  it('is thrown from the hatch onto the middle of the lower table, clear of the pusher, and is not counted as a medal', () => {
+    for (const seed of [4, 40, 400]) {
+      const machine = createMachine(seed);
+      const medals = medalsOnField(machine);
+      dropJewel(machine);
+      expect(jewelsOnField(machine)).toBe(1);
+      expect(ballsOnField(machine)).toBe(0);
+      expect(medalsOnField(machine)).toBe(medals);
+      const [falling] = machine.falling;
+      // It is bound for the lower table: it never lies on the pusher, where the medals are fed and the START pockets are.
+      expect([falling.jewel, falling.ball, falling.level, falling.source]).toEqual([true, false, 0, 'payout']);
+      // In the middle of the table: nowhere near a wall, in front of anything the pusher carries, and behind where the sides open.
+      expect(falling.x).toBeGreaterThanOrEqual(JEWEL_DROP.from);
+      expect(falling.x).toBeLessThanOrEqual(JEWEL_DROP.to);
+      expect(JEWEL_DROP.from + JEWEL_DROP.to).toBe(FIELD.width);
+      expect(falling.y).toBeGreaterThanOrEqual(JEWEL_DROP.near);
+      expect(falling.y).toBeLessThanOrEqual(JEWEL_DROP.far);
+      expect(JEWEL_DROP.near).toBeGreaterThan(PUSHER.max + MEDAL_RADIUS * 2);
+      expect(JEWEL_DROP.far + MEDAL_RADIUS).toBeLessThan(FIELD.sideOpenFrom);
+      // The throw is a longer way than a medal's fall, and takes longer.
+      expect([falling.remaining, falling.duration]).toEqual([JEWEL_DROP.time, JEWEL_DROP.time]);
+      expect(JEWEL_DROP.time).toBeGreaterThan(FALL_TIME);
+      expect(step(machine, JEWEL_DROP.time - 0.05).landed).toBe(0);
+      const events = step(machine, 0.1);
+      expect([events.landed, events.jewels, events.won, events.checkers.length]).toEqual([1, 0, 0, 0]);
+      const jewel = machine.medals.find((medal) => medal.jewel);
+      // It makes room for itself on the table, as a ball does.
+      expect([jewel?.level, jewel?.tier, jewel?.ball]).toEqual([0, 0, false]);
+      expect(jewelsOnField(machine)).toBe(1);
+      expect(medalsOnField(machine)).toBe(medals);
+    }
+  });
+
+  it('fits no START pocket: over the lip at one it starts nothing, and is a jewel on the lower table', () => {
+    for (const x of CHECKERS.positions) {
+      const machine = machineWith([medalAt(x, PUSHER.min + 0.5, { level: 1, jewel: true })]);
+      expect(step(machine, DT).checkers).toEqual([]);
+      expect(machine.medals.map((medal) => [medal.level, medal.tier, medal.jewel])).toEqual([[0, 0, true]]);
+      expect(step(machine, 1).checkers).toEqual([]);
+    }
+  });
+
+  it('is collected over the front, as a jewel and nothing else, and does not fit through an open side', () => {
+    const over = machineWith([medalAt(40, FIELD.depth + 0.1, { jewel: true }), medalAt(60, FIELD.depth + 0.1), medalAt(70, FIELD.depth + 0.1, { ball: true })]);
+    expect(step(over, DT)).toEqual({ won: 1, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 1, jewels: 1 });
+    expect(over.medals).toEqual([]);
+    // Where the sides are open a medal that is pushed out is lost. A jewel there is held, as a ball is: the slot is only a medal high.
+    const open = (FIELD.sideOpenFrom + FIELD.depth) / 2;
+    const side = machineWith([medalAt(-0.5, open, { jewel: true }), medalAt(FIELD.width + 0.5, open, { jewel: true }), medalAt(-0.5, open + D), medalAt(FIELD.width + 0.5, open - D)]);
+    expect(step(side, DT)).toEqual({ won: 0, lost: 2, checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 });
+    expect(side.medals.map((medal) => [medal.jewel, medal.x])).toEqual([
+      [true, MEDAL_RADIUS],
+      [true, FIELD.width - MEDAL_RADIUS],
+    ]);
+    // So nothing a machine does loses one: however long it is left lying by a side, it is still on the field.
+    for (let i = 0; i < 120; i++) step(side, DT);
+    expect(jewelsOnField(side)).toBe(2);
+  });
+
+  it('never has a medal on it or under it', () => {
+    const jewel = medalAt(70, 15, { level: 1, jewel: true });
+    const near = medalAt(72, 15, { level: 1, tier: 1 });
+    // Something for the one on top to lie on, so it does not simply drop.
+    const machine = machineWith([jewel, near, medalAt(76.5, 15, { level: 1 })]);
+    for (let i = 0; i < 20; i++) step(machine, DT);
+    expect(Math.hypot(near.x - jewel.x, near.y - jewel.y)).toBeGreaterThan(D * 0.95);
+    // One that comes down right where a medal lies makes room for itself on the table.
+    const landing = machineWith([medalAt(50, 9, { level: 1 })]);
+    landing.falling.push({ id: nextId++, x: 50.5, y: 9, level: 1, fromX: 50, fromY: 1, rank: 0, ball: false, remaining: 0.01, duration: 0.4, source: 'payout', jewel: true });
+    step(landing, DT);
+    expect(landing.medals.find((medal) => medal.jewel)?.tier).toBe(0);
+    // And it is pushed like a medal: the pusher's face takes it forward with the rest.
+    const pushed = machineWith([medalAt(50, PUSHER.max + MEDAL_RADIUS - 2, { jewel: true })]);
+    step(pushed, DT);
+    expect(pushed.medals[0].y).toBeGreaterThanOrEqual(pusherFront(pushed.time) + MEDAL_RADIUS - 1e-9);
+  });
 });

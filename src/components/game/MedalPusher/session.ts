@@ -6,26 +6,31 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
+import { JEWEL_SPOTS, buildTowers, createMachine, dropBall, dropJewel, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
 import { hopperBusy } from './hopper';
 import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
   BOARD,
-  BOWL,
+  BOWLS,
   CHANCE,
   CHESTS,
   CHAIN_GOAL,
   CHEST_TOWERS_FROM,
+  FALLS,
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
+  JEWEL_TIER,
   ROULETTE,
   TIER_BONUS,
   drawDie,
-  drawHole,
+  drawFall,
   drawPocket,
   drawSpin,
   holePays,
+  jewelPays,
+  pouredOf,
   shuffleChests,
   squareAfter,
   type SpinResult,
@@ -37,13 +42,18 @@ export const START_CREDITS = 100;
 export const MAX_STOCK = 8;
 /** Prize balls lying on the field when a machine is switched on. */
 export const START_BALLS = 2;
+/** Jewels lying on the field when a machine is switched on. */
+export const START_JEWELS = JEWEL_SPOTS.length;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
  * spins are queueing up, the extra suspense of a reach and what a long reach
  * adds to it, how long a winning line stays up, the die and each hop of the
  * piece, the time to choose a chest and for it to open, one turn of the
- * roulette and the pause before the next, the ball's time in the bowl, and
- * how long a prize stays up.
+ * roulette and the pause before the next, the ball's time in the top bowl,
+ * and how long a prize stays up. Then the challenge's own: the ball's time in
+ * the middle bowl and in the bottom one, each from the moment it drops out of
+ * the bowl above; how long a prize from one of the upper bowls stays up while
+ * it is counted out; and how long the jackpot does.
  */
 export const TIMING = {
   spin: 1.6,
@@ -61,7 +71,14 @@ export const TIMING = {
   step: 1.1,
   bowl: 6.5,
   prize: 2.2,
+  bowlMiddle: 6,
+  bowlLast: 4.2,
+  bowlPrize: 3.6,
+  jackpot: 8,
 } as const;
+
+/** The seconds the ball spends in each bowl, the top one first. */
+export const BOWL_TIMES: readonly number[] = [TIMING.bowl, TIMING.bowlMiddle, TIMING.bowlLast];
 
 export interface ActiveSpin {
   result: SpinResult;
@@ -105,16 +122,20 @@ export interface ActiveChest {
 export type ActiveBonus = ActiveSugoroku | ActiveChest;
 
 /**
- * The jackpot challenge a full run ends in: the ball rolls round a bowl and
- * drops into one of its holes. The hole is drawn before the ball is let go.
+ * The jackpot challenge a full run ends in: three bowls, one under another.
+ * The ball rolls round a bowl and drops into one of its holes, which lets it
+ * down into the bowl below or ends the challenge with a prize. The whole way
+ * down is drawn before the ball is let go.
  */
 export interface ActiveBowl {
-  /** Index of the hole the ball will drop into. */
-  hole: number;
-  /** Seconds since the ball was let go, and how long it rolls before it drops. */
+  /** The hole the ball takes in each bowl it gets to, the top bowl's first. The last of them holds its prize. */
+  holes: number[];
+  /** The bowl the ball is in, counted from the top. */
+  stage: number;
+  /** Seconds since the ball came into this bowl, and how long it rolls there before it drops. */
   elapsed: number;
   duration: number;
-  /** Medals the hole paid; −1 while the ball is still rolling. */
+  /** Medals the challenge paid; −1 while the ball is still on its way. */
   payout: number;
 }
 
@@ -122,7 +143,7 @@ export interface ActiveBowl {
  * The roulette a ball starts: a run of turns. Each turn the light goes round
  * and stops on a pocket. A number is stacked on the pusher as a tower and the
  * roulette turns again; a cross ends the run; enough numbers in a row send the
- * ball into the bowl, where the jackpot is one of the holes.
+ * ball into the bowls, with the jackpot at the bottom of them.
  */
 export interface ActiveRoulette {
   /** Index of the pocket this turn will stop on, and of the one the light set off from. */
@@ -133,15 +154,15 @@ export interface ActiveRoulette {
   duration: number;
   /** Whether this turn's pocket has been reached and paid. */
   landed: boolean;
-  /** Numbers in a row so far, and the medals the run has paid, the bowl's hole included. */
+  /** Numbers in a row so far, and the medals the run has paid, the bowls' prize included. */
   level: number;
   total: number;
-  /** Medals the last pocket paid: its number, or 0 for a cross. Once the ball has dropped, what its hole paid. */
+  /** Medals the last pocket paid: its number, or 0 for a cross. Once the ball has dropped into its last hole, what that paid. */
   gain: number;
   /** Whether the run has ended, and whether it ended in the jackpot. */
   over: boolean;
   jackpot: boolean;
-  /** The ball in the bowl, once the run is complete. */
+  /** The ball in the bowls, once the run is complete. */
   bowl: ActiveBowl | null;
 }
 
@@ -189,10 +210,17 @@ export interface Session {
   refills: number;
   /** Whether a chest is picked the moment it is offered, as the simulation's player does. */
   quickPick: boolean;
+  /** Jewel lamps that are lit: one for each jewel collected since the lamps last went out. */
+  jewels: number;
+  /** Jewel bonuses paid since the machine was switched on: one for every full set of lamps. */
+  jewelBonuses: number;
 }
 
 /** Something the cabinet should react to, in the order it happened. */
 export type SessionEvent =
+  | { type: 'bonus'; count: number }
+  // The medal now at a pocket takes the hold's last place: the hold fills. One that finds it full already is a `checker` that is not `held`.
+  | { type: 'holdFilled' }
   | { type: 'won'; count: number }
   | { type: 'lost'; count: number }
   | { type: 'landed'; count: number }
@@ -211,8 +239,13 @@ export type SessionEvent =
   | { type: 'rouletteStart'; pocket: number; duration: number }
   | { type: 'rouletteStep'; pocket: number; medals: number; level: number }
   | { type: 'rouletteEnd'; total: number; level: number }
-  | { type: 'bowlStart'; hole: number; duration: number }
-  | { type: 'bowlEnd'; hole: number; payout: number; total: number; jackpot: boolean }
+  | { type: 'bowlStart'; holes: readonly number[]; duration: number }
+  // `poured` is how many of the medals paid are thrown onto the field loose: the share that always is, and what the pusher had no free place to stack.
+  | { type: 'bowlEnd'; bowl: number; hole: number; payout: number; poured: number; total: number; jackpot: boolean }
+  | { type: 'bowlDrop'; bowl: number; hole: number; duration: number }
+  | { type: 'jewelDrop' }
+  | { type: 'jewel'; lamps: number; payout: number }
+  | { type: 'jewelBonus'; payout: number }
   // The payout works: the hopper's doors opening and shutting, towers coming up on their lifts and standing free.
   | WorksEvent;
 
@@ -221,11 +254,13 @@ export interface SessionOptions {
   balls?: number;
   /** Pick a chest at once instead of waiting for the player. */
   quickPick?: boolean;
+  /** Jewels on the field at the start. */
+  jewels?: number;
 }
 
 export function createSession(seed: number, options: SessionOptions = {}): Session {
   return {
-    machine: createMachine(seed, options.balls ?? START_BALLS),
+    machine: createMachine(seed, options.balls ?? START_BALLS, options.jewels ?? START_JEWELS),
     credits: START_CREDITS,
     inserted: 0,
     won: 0,
@@ -251,8 +286,13 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     jackpots: 0,
     refills: 0,
     quickPick: options.quickPick ?? false,
+    jewels: 0,
+    jewelBonuses: 0,
   };
 }
+
+/** Jewels pushed over the front since the machine was switched on: a full set of lamps for every bonus, and the lamps lit now. */
+export const jewelsCollected = (session: Pick<Session, 'jewels' | 'jewelBonuses'>): number => session.jewelBonuses * JEWEL.lamps + session.jewels;
 
 /**
  * Feeds one of the player's medals into an arm, the left (0) or the right (1), wherever that arm is pointed.
@@ -276,6 +316,17 @@ export function refill(session: Session): boolean {
   if (session.credits > 0) return false;
   session.credits = START_CREDITS;
   session.refills += 1;
+  return true;
+}
+
+/**
+ * Medals given to the player from outside the machine: the day's bonus. They go straight into the purse.
+ * They are not fed, won or paid, so no return counts them. Returns whether there was anything to give.
+ */
+export function grant(session: Session, medals: number, events?: SessionEvent[]): boolean {
+  if (!Number.isInteger(medals) || medals <= 0) return false;
+  session.credits += medals;
+  events?.push({ type: 'bonus', count: medals });
   return true;
 }
 
@@ -309,6 +360,24 @@ function pay(session: Session, medals: number, towers: boolean): void {
   if (towers) buildTowers(session.machine, medals);
   else queuePayout(session.machine, medals);
   session.paidOut += medals;
+}
+
+/**
+ * A jewel has been pushed over the front. It lights a lamp and pays its prize
+ * at once, thrown on loose. The one that would light the last lamp pays the
+ * bonus instead, as towers, and the lamps go out.
+ */
+function collectJewel(session: Session, events?: SessionEvent[]): void {
+  const { medals, towers } = jewelPays(session.jewels);
+  pay(session, medals, towers);
+  if (towers) {
+    session.jewels = 0;
+    session.jewelBonuses += 1;
+    events?.push({ type: 'jewelBonus', payout: medals });
+  } else {
+    session.jewels += 1;
+    events?.push({ type: 'jewel', lamps: session.jewels, payout: medals });
+  }
 }
 
 /** The seconds a roll takes from the die to the piece landing. */
@@ -355,33 +424,56 @@ function advanceChest(session: Session, bonus: ActiveChest, dt: number, events?:
   }
 }
 
-/** Lets the ball go in the bowl. Where it will drop is drawn here, before it moves. */
+/** Lets the ball go in the top bowl. The whole way down is drawn here, before it moves. */
 function startBowl(session: Session, roulette: ActiveRoulette, events?: SessionEvent[]): void {
-  const hole = drawHole(session.machine.rng);
-  roulette.bowl = { hole, elapsed: 0, duration: TIMING.bowl, payout: -1 };
+  const holes = [...FALLS[drawFall(session.machine.rng)]];
+  roulette.bowl = { holes, stage: 0, elapsed: 0, duration: BOWL_TIMES[0], payout: -1 };
   roulette.gain = 0;
-  events?.push({ type: 'bowlStart', hole, duration: TIMING.bowl });
+  events?.push({ type: 'bowlStart', holes, duration: BOWL_TIMES[0] });
 }
 
-/** The ball rolls, drops into its hole and is paid, and with that the run is over. */
+/** How long what the bowls paid stays up: the jackpot is counted out for longer than a prize from one of the upper bowls. */
+export const bowlShowTime = (jackpot: boolean): number => (jackpot ? TIMING.jackpot : TIMING.bowlPrize);
+
+/**
+ * The ball rolls round the bowl it is in and drops into its hole. A hole that
+ * leads down puts it in the bowl below, where its time starts again. Any
+ * other pays what it holds, part of it poured onto the field loose and the
+ * rest stacked as towers where the pusher has room for them, and with that
+ * the run is over.
+ */
 function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBowl, dt: number, events?: SessionEvent[]): void {
   bowl.elapsed += dt;
   if (bowl.payout < 0 && bowl.elapsed >= bowl.duration) {
-    const hole = BOWL[bowl.hole];
+    const taken = bowl.holes[bowl.stage];
+    const hole = BOWLS[bowl.stage][taken];
+    if (hole === 'down') {
+      bowl.stage += 1;
+      bowl.elapsed = 0;
+      bowl.duration = BOWL_TIMES[bowl.stage];
+      events?.push({ type: 'bowlDrop', bowl: bowl.stage, hole: taken, duration: bowl.duration });
+      return;
+    }
     bowl.payout = holePays(hole, session.jackpot);
     roulette.gain = bowl.payout;
     roulette.total += bowl.payout;
     roulette.over = true;
     roulette.jackpot = hole === 'jackpot';
-    pay(session, bowl.payout, true);
+    // A share of it is poured loose and the rest is given to the pusher as towers. The pusher throws on whatever
+    // its free places cannot hold, so what is poured is whatever this prize adds to the queue, and that is what is said.
+    const queued = session.machine.payoutQueue;
+    const loose = pouredOf(bowl.payout);
+    pay(session, bowl.payout - loose, true);
+    pay(session, loose, false);
+    const poured = session.machine.payoutQueue - queued;
     if (roulette.jackpot) {
       session.jackpots += 1;
       session.jackpot = JACKPOT_START;
       session.jackpotProgress = 0;
     }
-    events?.push({ type: 'bowlEnd', hole: bowl.hole, payout: bowl.payout, total: roulette.total, jackpot: roulette.jackpot });
+    events?.push({ type: 'bowlEnd', bowl: bowl.stage, hole: taken, payout: bowl.payout, poured, total: roulette.total, jackpot: roulette.jackpot });
   }
-  if (bowl.payout >= 0 && bowl.elapsed >= bowl.duration + TIMING.prize) session.roulette = null;
+  if (bowl.payout >= 0 && bowl.elapsed >= bowl.duration + bowlShowTime(roulette.jackpot)) session.roulette = null;
 }
 
 /** How many gold spins are still to come, the one on the screen and the game it led to included. Chance time lasts while there is one. */
@@ -415,7 +507,9 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
     session.balls += field.balls;
     events?.push({ type: 'ball', count: field.balls });
   }
+  for (let i = 0; i < field.jewels; i++) collectJewel(session, events);
   for (const gate of field.checkers) {
+    if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
     // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
@@ -461,7 +555,7 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
         if (roulette.elapsed >= roulette.duration + TIMING.prize) session.roulette = null;
       } else if (roulette.elapsed >= roulette.duration + TIMING.step) {
         if (roulette.level >= CHAIN_GOAL) {
-          // A full run: the ball goes into the bowl.
+          // A full run: the ball goes into the top bowl.
           startBowl(session, roulette, events);
           return;
         }
@@ -513,6 +607,11 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
       const fallback = Math.min(CHESTS.length - 1, Math.floor(session.machine.rng() * CHESTS.length));
       session.bonus = { kind: 'chest', prizes, fallback, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
       events?.push({ type: 'chestStart' });
+    }
+    // A treasure line also lets a jewel go from the hatch: one, whether the spin was gold or not.
+    if (tier === JEWEL_TIER) {
+      dropJewel(session.machine);
+      events?.push({ type: 'jewelDrop' });
     }
     return;
   }

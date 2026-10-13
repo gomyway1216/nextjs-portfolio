@@ -38,11 +38,13 @@ import {
   buildTowers,
   createMachine,
   dropBall,
+  dropJewel,
   pusherFront,
   step,
   type Machine,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
+import { JEWEL_CUT, JEWEL_FACETS, JEWEL_LAMPS, JEWEL_SHOW, collectedJewel, fallingJewel, jewelLampX, lyingJewel } from '@/components/game/MedalPusher/jewel';
 import { attitude, rotate, transform } from '@/components/game/MedalPusher/mat4';
 import {
   BALL_RADIUS,
@@ -55,6 +57,7 @@ import {
   createStage,
   goldFlash,
   lightGate,
+  showJewel,
   trackMedals,
   type ExitingMedal,
   type Stage,
@@ -75,9 +78,11 @@ import {
   cameraMatrix,
   chance,
   createRows,
+  jewelShape,
   lightMatrix,
   medalShape,
   writeBalls,
+  writeJewels,
   writeMedals,
   type Rows,
   type Shape,
@@ -775,6 +780,81 @@ describe('the balls of the 3D field', () => {
   });
 });
 
+describe('the jewels of the 3D field', () => {
+  const jewelRows = (machine: Machine, exits: ExitingMedal[] = []) => {
+    const rows = createRows(MEDAL_STRIDE, 2);
+    writeJewels(rows, machine, exits);
+    return readMedals(rows);
+  };
+  const ballCount = (machine: Machine, exits: ExitingMedal[] = []) => {
+    const rows = createRows(BEAD_STRIDE, 4);
+    writeBalls(rows, machine, exits);
+    return rows.count;
+  };
+
+  it('writes a row for every jewel, where the stone stands and turned as it is, and none among the medals or the balls', () => {
+    const machine = createMachine(7, 2, 2);
+    const jewels = machine.medals.filter((medal) => medal.jewel);
+    const rows = jewelRows(machine);
+    expect(rows).toHaveLength(2);
+    const q = new Float32Array(4);
+    rows.forEach((row, index) => {
+      const spot = lyingJewel(jewels[index], machine.time);
+      expect(row.x).toBeCloseTo(jewels[index].x, 4);
+      expect(row.z).toBeCloseTo(jewels[index].y, 4);
+      // The row is the middle of its girdle, which is its pavilion above whatever it stands on.
+      expect(row.y).toBeCloseTo((jewels[index].level === 1 ? P : 0) + JEWEL_CUT.pavilion, 4);
+      expect(row.own).toBeCloseTo(chance(jewels[index].id, 0), 5);
+      attitude(q, 0, spot.turn, spot.tilt, spot.heading);
+      row.turn.forEach((value, part) => expect(value).toBeCloseTo(q[part], 5));
+      // It stands nearly upright, on its point.
+      expect(row.up[1]).toBeGreaterThan(0.98);
+      expect([row.ground, row.contact, row.light]).toEqual([0, 0, 1]);
+    });
+    expect(medalRows(machine)).toHaveLength(machine.medals.length - 4);
+    expect(ballCount(machine)).toBe(2);
+    expect(jewelRows(createMachine(7, 2))).toHaveLength(0);
+  });
+
+  it('follows a jewel out of the hatch and over the front', () => {
+    const machine = holding([]);
+    dropJewel(machine);
+    const [falling] = machine.falling;
+    // In the air it is a jewel's row and nobody else's.
+    const start = jewelRows(machine)[0];
+    expect(start.x).toBeCloseTo(HATCH.x, 4);
+    expect(start.y).toBeCloseTo(HATCH.height, 4);
+    expect(medalRows(machine)).toHaveLength(0);
+    expect(ballCount(machine)).toBe(0);
+    const midway = jewelRows({ ...machine, falling: [{ ...falling, remaining: falling.duration / 2 }] })[0];
+    const spot = fallingJewel({ ...falling, remaining: falling.duration / 2 });
+    expect([midway.x, midway.y, midway.z]).toEqual([spot.x, spot.height, spot.depth].map((value) => Math.fround(value)));
+    // It tumbles on the way: its table is nowhere near level.
+    expect(midway.up[1]).toBeLessThan(0.9);
+    // It comes down on the lower table, on its point, well in front of the catcher.
+    const end = jewelRows({ ...machine, falling: [{ ...falling, remaining: 0 }] })[0];
+    expect(end.x).toBeCloseTo(falling.x, 4);
+    expect(end.y).toBeCloseTo(JEWEL_CUT.pavilion, 4);
+    expect(end.z).toBeCloseTo(falling.y, 4);
+    expect(falling.y - JEWEL_CUT.girdle).toBeGreaterThan(PUSHER.max + CATCHER.foot.out);
+    // On the way it goes high over the pusher and the catcher: when it is over the lip it is far above anything on it.
+    const above = Array.from({ length: 40 }, (_, step) => fallingJewel({ ...falling, remaining: (falling.duration * step) / 40 })).filter((spot) => spot.depth < PUSHER.max + CATCHER.foot.out);
+    expect(above.length).toBeGreaterThan(5);
+    for (const spot of above) expect(spot.height).toBeGreaterThan(P + TOWER.max * T);
+
+    // Over the front it turns over into the tray, in full light.
+    const over: ExitingMedal = { id: 5, x: 30, y: 100.2, kind: 'won', side: -1, ball: false, jewel: true, age: 0.2 };
+    const gone = jewelRows(holding([]), [over])[0];
+    const collected = collectedJewel(5, 30, 100.2, 0.2);
+    expect(gone.y).toBeCloseTo(collected.height, 4);
+    expect(gone.z).toBeCloseTo(collected.depth, 4);
+    expect(gone.z).toBeGreaterThan(100.2);
+    expect(gone.light).toBe(1);
+    expect(medalRows(holding([]), [over])).toHaveLength(0);
+    expect(ballCount(holding([]), [over])).toBe(0);
+  });
+});
+
 describe('a ball at the catcher in the 3D field', () => {
   const front = PUSHER.min;
   const ball = (x: number, y: number, more: Partial<Medal> = {}) => lying(1, x, y, 0, 0, { ball: true, ...more });
@@ -890,6 +970,36 @@ describe('the shapes', () => {
     }
     // The medal in the picture has a rounded edge; the one in the shadow map is plainer.
     expect(medalShape(32, 0.17).indices.length).toBeGreaterThan(medalShape(16, 0).indices.length);
+  });
+
+  it('makes a jewel of flat faces, each with corners of its own, closed and facing outward', () => {
+    const shape = jewelShape();
+    const corners = JEWEL_FACETS.reduce((sum, face) => sum + face.corners.length, 0);
+    expect(shape.vertices.length).toBe(corners * 6);
+    // The table is a fan of triangles and every other face is one.
+    expect(shape.indices.length).toBe(((JEWEL_CUT.sides - 2) + JEWEL_CUT.sides * 3) * 3);
+    expect(Math.max(...shape.indices)).toBe(corners - 1);
+    let widest = 0;
+    let highest = -Infinity;
+    let lowest = Infinity;
+    for (let i = 0; i < corners; i++) {
+      const [x, y, z, nx, ny, nz] = shape.vertices.subarray(i * 6, i * 6 + 6);
+      widest = Math.max(widest, Math.hypot(x, z));
+      highest = Math.max(highest, y);
+      lowest = Math.min(lowest, y);
+      expect(Math.hypot(nx, ny, nz)).toBeCloseTo(1, 5);
+    }
+    expect(widest).toBeCloseTo(JEWEL_CUT.girdle, 5);
+    expect(highest).toBeCloseTo(JEWEL_CUT.crown, 5);
+    expect(lowest).toBeCloseTo(-JEWEL_CUT.pavilion, 5);
+    expect(outward(shape)).toBe(true);
+    // Every corner of a face carries that face's way of facing: the faces are flat, which is what makes them flash one at a time.
+    let at = 0;
+    for (const face of JEWEL_FACETS) {
+      for (let corner = 0; corner < face.corners.length; corner++, at++) {
+        face.normal.forEach((value, axis) => expect(shape.vertices[at * 6 + 3 + axis]).toBeCloseTo(value, 5));
+      }
+    }
   });
 
   it('makes a ball of radius one', () => {
@@ -1869,6 +1979,78 @@ describe('the cabinet as shapes', () => {
     }
   });
 
+  it('lights a jewel lamp for each jewel collected, a stone of two faces on the plate, and all five for a bonus', () => {
+    fakeDocument();
+    const machine = holding([]);
+    const [, , , , , fittings] = MOVING_PARTS;
+    /** The fittings as they are built with `lit` lamps lit: how many corners, and the corners of the lamps, which come last. */
+    const built = (lit: number, stage: Stage = createStage(1, false), calm = false) => {
+      const solid = new Solid(100);
+      buildMoving(solid, machine, 40, stage, { showGuide: false, jewels: lit, calm });
+      return { count: fittings.count, lamps: corners(solid, fittings.first, fittings.count) };
+    };
+    const none = built(0);
+    for (let lit = 1; lit < JEWEL_LAMPS.count; lit++) {
+      const { count, lamps } = built(lit);
+      // Each lamp is two faces of four corners: the crown over the pavilion.
+      expect(count).toBe(none.count + lit * 12);
+      const added = lamps.slice(none.count);
+      for (let lamp = 0; lamp < lit; lamp++) {
+        const mine = added.slice(lamp * 12, lamp * 12 + 12);
+        // On the front of the lower table, just proud of it, about its own place in the row, and lit from within.
+        for (const corner of mine) {
+          expect(corner.z).toBeGreaterThan(FIELD.depth);
+          expect(corner.z).toBeLessThan(FIELD.depth + 0.2);
+          expect(Math.abs(corner.x - jewelLampX(lamp))).toBeLessThanOrEqual(JEWEL_LAMPS.radius + 1e-4);
+          expect(Math.abs(corner.y - JEWEL_LAMPS.height)).toBeLessThanOrEqual(JEWEL_LAMPS.radius + 1e-4);
+          expect(corner.glow).toBeGreaterThan(0.5);
+        }
+        expect(Math.min(...mine.map((corner) => corner.y))).toBeCloseTo(JEWEL_LAMPS.height - JEWEL_LAMPS.radius, 4);
+      }
+    }
+    // The one lit last shines brighter for a moment, and then as the others do.
+    const stage = createStage(1, false);
+    showJewel(stage, 1, 1, false);
+    const fresh = built(2, stage).lamps.slice(none.count);
+    expect(Math.max(...fresh.slice(12).map((corner) => corner.glow))).toBeGreaterThan(Math.max(...fresh.slice(0, 12).map((corner) => corner.glow)));
+    ageStage(stage, 2);
+    const settled = built(2, stage).lamps.slice(none.count);
+    expect(Math.max(...settled.slice(12).map((corner) => corner.glow))).toBe(Math.max(...settled.slice(0, 12).map((corner) => corner.glow)));
+    // A bonus has put the lamps out, and for its show all five are lit: steadily with reduced motion.
+    showJewel(stage, JEWEL_LAMPS.count - 1, 3, true);
+    expect(stage.jewelShow).toBe(JEWEL_SHOW);
+    expect(built(0, stage, true).count).toBe(none.count + JEWEL_LAMPS.count * 12);
+    expect(built(0, stage, false).count).toBe(none.count + JEWEL_LAMPS.count * 12);
+    ageStage(stage, JEWEL_SHOW + 0.1);
+    expect(built(0, stage).count).toBe(none.count);
+  });
+
+  it('lays a shadow with the stone\u2019s colour in it beside every jewel on a table, a glint on its table, and a glow on every lamp that is lit', () => {
+    fakeDocument();
+    const stage = createStage(1, false);
+    const touches = (machine: Machine, lit: number, calm = true) => {
+      const flat = new Flat(600);
+      buildTouches(flat, machine, 40, stage, { showGuide: false, jewels: lit, calm });
+      return flat.count;
+    };
+    const bare = touches(holding([]), 0);
+    const one = holding([lying(1, 40, 70, 0, 0, { jewel: true })]);
+    // A jewel on either table: the dark of its shadow, the rose light in it, and the glint on its table, a round touch each.
+    expect(touches(one, 0)).toBe(bare + 18);
+    expect(touches(holding([lying(1, 40, 70, 0, 0, { jewel: true }), lying(2, 60, 20, 1, 0, { jewel: true })]), 0)).toBe(bare + 36);
+    // One still on its way down from the lip has none of them yet.
+    expect(touches(holding([lying(1, 12, 45, 0, 0, { jewel: true, sinceDrop: LIP_FALL / 2 })]), 0)).toBe(bare);
+    // And one touch for the glow of each lamp that is lit.
+    for (let lit = 0; lit < JEWEL_LAMPS.count; lit++) expect(touches(holding([]), lit)).toBe(bare + lit * 6);
+    // Without reduced motion the glint comes and goes as the lamps drift: looked at a dozen times over three seconds, it is there at some and not at others.
+    const seen = new Set<number>();
+    for (let look = 0; look < 12; look++) {
+      ageStage(stage, 0.25);
+      seen.add(touches(one, 0, false) - touches(holding([]), 0, false));
+    }
+    expect([...seen].sort((a, b) => a - b)).toEqual([12, 18]);
+  });
+
   it('lights a chute for a moment when a medal has gone down it', () => {
     fakeDocument();
     const machine = holding([lying(1, 99, 90, 0)]);
@@ -2041,9 +2223,9 @@ describe('the 3D scene on a graphics card', () => {
     const fake = fakeGl();
     const scene = createScene3d(fake.gl);
     const held = fake.alive();
-    // Eight programs of two shaders each, the pictures and the relief and the shadow map, and one framebuffer for it.
-    expect(held.Program).toBe(8);
-    expect(held.Shader).toBe(16);
+    // Nine programs of two shaders each, the pictures and the relief and the shadow map, and one framebuffer for it.
+    expect(held.Program).toBe(9);
+    expect(held.Shader).toBe(18);
     expect(held.Texture).toBe(9);
     expect(held.Framebuffer).toBe(1);
     expect(held.Buffer).toBeGreaterThan(10);
@@ -2057,6 +2239,8 @@ describe('the 3D scene on a graphics card', () => {
     const during = (name: string) => (fake.calls[name] ?? 0) - (before[name] ?? 0);
     expect(scene.last.medals).toBe(machine.medals.length - 2);
     expect(scene.last.balls).toBe(2);
+    // No jewel lies on this machine, and nothing is sent or drawn for none.
+    expect(scene.last.jewels).toBe(0);
     // The medals: once into the shadow map, once into the picture. The balls the same, and the pins and bulbs once.
     expect(during('drawElementsInstanced')).toBe(5);
     // The contact shadows are one more call for all the medals together.
@@ -2097,6 +2281,20 @@ describe('the 3D scene on a graphics card', () => {
     expect(since('drawElementsInstanced')).toBe(7);
     expect(since('bufferData')).toBe(6);
     expect(since('drawElementsInstanced') + since('drawArraysInstanced') + since('drawArrays')).toBe(scene.last.calls);
+    expect(fake.alive()).toEqual(held);
+
+    // Two jewels, one on a table and one in the air, are one more upload and two more calls: into the shadow map and into the picture.
+    machine.medals.push(lying(998, 30, 70, 0, 0, { jewel: true }));
+    dropJewel(machine);
+    const marked = { ...fake.calls };
+    scene.draw(stage, machine, { showGuide: false, calm: true, jewels: 2 });
+    const after = (name: string) => (fake.calls[name] ?? 0) - (marked[name] ?? 0);
+    expect(scene.last.jewels).toBe(2);
+    expect(scene.last.balls).toBe(3);
+    expect(scene.last.medals).toBe(machine.medals.length - 4 + 1);
+    expect(after('drawElementsInstanced')).toBe(9);
+    expect(after('bufferData')).toBe(7);
+    expect(after('drawElementsInstanced') + after('drawArraysInstanced') + after('drawArrays')).toBe(scene.last.calls);
     expect(fake.alive()).toEqual(held);
 
     scene.dispose();
@@ -2217,7 +2415,7 @@ describe('the shaders', () => {
     }
     // `facing`, which 1 is taken from before raising to a power, is kept to 1 at most wherever it is worked out.
     const facing = sources.flatMap(([, source]) => [...source.matchAll(/float facing = ([^;]+);/g)].map((match) => match[1]));
-    expect(facing).toHaveLength(3);
+    expect(facing).toHaveLength(4);
     for (const worked of facing) expect(worked).toMatch(/^clamp\(dot\(normal, toEye\), 0\.0?3?, 1\.0\)$/);
   });
 });

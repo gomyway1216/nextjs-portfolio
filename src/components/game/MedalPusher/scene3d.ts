@@ -8,6 +8,7 @@
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
 import { CATCHER, caught, underCatcher } from './catcher';
 import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
+import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, type JewelSpot } from './jewel';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
 import { HEIGHT, VIEW, chuteHeight, project } from './view';
@@ -221,15 +222,15 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
 /**
  * Every medal there is to draw: the ones lying on the two tables, each
  * tower's column, the ones on their way in along the feed arms, the ones in
- * the air and the ones that have just gone over an edge. Balls are not among
- * them. `fed` says which arm each medal that has been seen on a rail was on,
- * so that one in the air leaves the rail it rolled down. `calm` leaves the
- * flourish out of how a poured medal comes down.
+ * the air and the ones that have just gone over an edge. Balls and jewels are
+ * not among them. `fed` says which arm each medal that has been seen on a
+ * rail was on, so that one in the air leaves the rail it rolled down. `calm`
+ * leaves the flourish out of how a poured medal comes down.
  */
 export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>, calm = false): void {
   rows.count = 0;
   for (const medal of machine.medals) {
-    if (medal.ball) continue;
+    if (medal.ball || medal.jewel) continue;
     // One that has just come over the lip at the catcher is on its way out of sight: into a pocket's mouth and
     // down its throat, or over the lip's edge and down behind the catcher.
     const held = caught(medal, machine.time);
@@ -270,9 +271,9 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const held = fedSpot(medal.arm, armTipAt(machine, medal.arm), medal.remaining);
     medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id) + held.turn, held.tilt, held.heading, 0, 0, 1);
   }
-  for (const medal of machine.falling) if (!medal.ball) fallingRow(rows, medal, fed?.get(medal.id), calm);
+  for (const medal of machine.falling) if (!medal.ball && !medal.jewel) fallingRow(rows, medal, fed?.get(medal.id), calm);
   for (const exit of exits) {
-    if (exit.ball) continue;
+    if (exit.ball || exit.jewel) continue;
     const a = exit.age;
     const won = exit.kind === 'won';
     const light = lightLeft(exit);
@@ -288,6 +289,19 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const slide = chuteHeight(Math.max(0, exit.side < 0 ? -x : x - FIELD.width)) + T / 2 + 0.05;
     medalRow(rows, exit.id, x, Math.max(T / 2 - fall, slide), z, turnOf(exit.id), -exit.side * Math.min(CHUTE_LEAN, a * EXIT.turn), Math.PI / 2, 0, 0, light);
   }
+}
+
+/**
+ * The jewels: lying among the medals, thrown from the hatch, or going over
+ * the front. A row is a medal's row, since a stone is held the way a medal
+ * is: a place and an attitude.
+ */
+export function writeJewels(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
+  rows.count = 0;
+  const row = (spot: JewelSpot) => medalRow(rows, spot.id, spot.x, spot.height, spot.depth, spot.turn, spot.tilt, spot.heading, 0, 0, spot.light);
+  for (const medal of machine.medals) if (medal.jewel) row(lyingJewel(medal, machine.time));
+  for (const medal of machine.falling) if (medal.jewel) row(fallingJewel(medal));
+  for (const exit of exits) if (exit.jewel) row(collectedJewel(exit.id, exit.x, exit.y, exit.age));
 }
 
 /** What a bead is, as the number the shader reads: a prize ball, a stud of polished metal, or a bulb lit this far. */
@@ -398,6 +412,22 @@ export function medalShape(segments: number, edge: number): Shape {
       indices.push(ring(index, i), ring(index, i + 1), ring(index + 1, i), ring(index, i + 1), ring(index + 1, i + 1), ring(index + 1, i));
     }
     indices.push(bottom, ring(rings.length - 1, i), ring(rings.length - 1, i + 1));
+  }
+  return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) };
+}
+
+/**
+ * One jewel standing at the origin, the middle of its girdle there: every
+ * face flat, with corners of its own that all face the way the face does.
+ */
+export function jewelShape(): Shape {
+  const vertices: number[] = [];
+  const indices: number[] = [];
+  for (const { corners, normal } of JEWEL_FACETS) {
+    const first = vertices.length / 6;
+    for (const corner of corners) vertices.push(corner[0], corner[1], corner[2], normal[0], normal[1], normal[2]);
+    // A face with more than three corners is a fan from its first.
+    for (let i = 1; i + 1 < corners.length; i++) indices.push(first, first + i, first + i + 1);
   }
   return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) };
 }

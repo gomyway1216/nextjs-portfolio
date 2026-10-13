@@ -217,6 +217,64 @@ void main() {
 }
 `;
 
+// ── Jewels ──────────────────────────────────────────────────────────────────
+
+/**
+ * A jewel is drawn from rows like a medal's and by the medal's own vertex
+ * shader: only what a face of it looks like is its own. Its faces are flat,
+ * so every point of one has the same way to face.
+ */
+export const JEWEL_FRAGMENT = `${HEAD}
+in vec3 vWorld;
+in vec3 vLocal;
+in vec3 vNormal;
+flat in vec4 vTurn;
+flat in vec2 vOwn;
+out vec4 colour;
+${WORLD}
+${TURN}
+// The colour of the stone: what is left of white light that has been through it.
+const vec3 ROSE = vec3(1.0, 0.07, 0.42);
+
+/**
+ * How bright one colour of the light is that comes back out through a face.
+ * It went into the stone, was bent on the way in — each colour a little
+ * differently, which is the fire in a stone — and was thrown back up by the
+ * pavilion under the face. So what a face shows is a patch of the roof, and
+ * a lamp when there is one in it; and as the lamps drift, the faces flash by
+ * turns, and not all in one colour.
+ */
+float through(vec3 toEye, vec3 normal, vec3 pavilion, float bend) {
+  vec3 back = reflect(refract(-toEye, normal, bend), pavilion);
+  // A cut stone is all contrast: a face that shows the dim walls is dark, and one that shows the roof is bright.
+  float room = dot(surroundings(back), vec3(0.42));
+  return lamps(back) * LAMP_HEAT * 0.6 + room * room;
+}
+
+void main() {
+  vec3 normal = turned(vTurn, normalize(vNormal));
+  vec3 toEye = normalize(uEye - vWorld);
+  float facing = clamp(dot(normal, toEye), 0.03, 1.0);
+  vec3 mirrored = reflect(-toEye, normal);
+  float toward = max(dot(normal, uKey), 0.0);
+  float lit = smoothstep(0.0, 0.2, toward);
+  if (lit > 0.0) lit *= sunlit(vWorld, normal);
+  // The pavilion under this point of the crown is a mirror that leans in toward the stone's own axis.
+  vec2 outward = vLocal.xz / max(length(vLocal.xz), 0.35);
+  vec3 pavilion = turned(vTurn, normalize(vec3(-outward.x * 0.5, 0.86, -outward.y * 0.5)));
+  vec3 fire = vec3(through(toEye, normal, pavilion, 0.6), through(toEye, normal, pavilion, 0.64), through(toEye, normal, pavilion, 0.68));
+  // What the stone lets through of that, and a glow of its own colour, so that a face with nothing bright behind it is deep rose and not black.
+  // A face seen at a slant is looked into the long way, and is the deeper for it.
+  vec3 c = (fire * ROSE * (0.24 + 0.36 * lit) + ROSE * (0.14 + 0.36 * toward * lit)) * (0.62 + 0.38 * facing);
+  // The polish on the face itself mirrors the cabinet: little seen square on, more at a slant. A face that
+  // catches a lamp, or the key lamp itself, flashes nearly white.
+  float sheen = 0.03 + 0.45 * pow(1.0 - facing, 5.0);
+  vec3 flash = vec3(1.0, 0.86, 0.94) * (lamps(mirrored) * LAMP_HEAT * 0.26 + pow(max(dot(mirrored, uKey), 0.0), 90.0) * 5.0);
+  c = c * (1.0 - sheen) + sheen * surroundings(mirrored) + flash * lit;
+  colour = vec4(finish(c * vOwn.y, vWorld), 1.0);
+}
+`;
+
 // ── Balls, studs and bulbs ──────────────────────────────────────────────────
 
 export const BEAD_VERTEX = `${HEAD}

@@ -381,8 +381,14 @@ export const AMBIENCE = {
   level: 0.03,
   every: 0.25,
   ahead: 0.6,
-  /** The most of its sources that may be sounding or waiting at once. */
+  /**
+   * The most of its sources that may be sounding or waiting at once, the
+   * stretches of its tone among them. Two of those overlap while one fades
+   * into the next, so `kept` places are the tone's and what comes from far
+   * off has the rest.
+   */
   voices: 8,
+  kept: 2,
   /**
    * The room's own tone: its level, the length of a stretch of it and of the
    * fade from one stretch into the next, and how far the speed of a stretch
@@ -2144,16 +2150,20 @@ function cut(target: Rig, playing: Playing): void {
   }
 }
 
-/** Whether a sound may start now: not on top of itself, not past what a stream of medals is allowed, and with a voice to spare. */
-function admit(target: Rig, sound: PusherSound, now: number): boolean {
+/**
+ * Whether a sound may start now: not on top of itself, not past what a stream
+ * of medals is allowed, and with a voice to spare for every source it is
+ * about to start. `needed` is how many that is. It is counted from what will
+ * be started (`reels`, `layOut`), never written down beside it: a count that
+ * is kept apart from the thing it counts is wrong the day the thing grows.
+ */
+function admit(target: Rig, sound: PusherSound, now: number, needed: number): boolean {
   const clink = CLINKS.has(sound);
   const starts = (target.starts[sound] ??= []);
   while (starts.length > 0 && starts[0] <= now - LIMITS.window) starts.shift();
   const gap = clink ? LIMITS.window / LIMITS.clinks : sound === 'tick' || sound === 'hop' ? LIMITS.quickGap : LIMITS.gap;
   if (starts.length > 0 && now - starts[starts.length - 1] < gap - 1e-6) return false;
   if (clink && starts.length >= LIMITS.clinks) return false;
-  // A run takes a voice for each thing in it: the three reels, the three hoppers, the ball and its moments.
-  const needed = sound === 'spin' ? WHIRR.speeds.length : sound === 'hopper' ? HOPPER.speeds.length : sound === 'roulette' ? 5 : sound === 'bowl' ? 4 : 1;
   if (clink && target.voices.length + needed > LIMITS.voices - LIMITS.kept) return false;
   while (target.voices.length + needed > LIMITS.voices) {
     const oldest = target.voices.shift();
@@ -2162,6 +2172,11 @@ function admit(target: Rig, sound: PusherSound, now: number): boolean {
   starts.push(now);
   return true;
 }
+
+/** Whether a reel that stops `given` seconds from now has time to turn at all. */
+const turns = (given: number): boolean => Math.min(WHIRR.longest, given) > WHIRR.shortest;
+/** How many reels a spin starts a whirr for. */
+const reels = (stops: readonly number[]): number => stops.slice(0, WHIRR.speeds.length).filter(turns).length;
 
 /**
  * The reels: one whirr for each, at its own speed so that the three are not
@@ -2174,7 +2189,7 @@ function whirr(target: Rig, now: number, stops: readonly number[]): void {
   const last = Math.max(...stops);
   stops.slice(0, WHIRR.speeds.length).forEach((given, reel) => {
     const stop = Math.min(WHIRR.longest, given);
-    if (!(stop > WHIRR.shortest)) return;
+    if (!turns(given)) return;
     const before = Math.max(0, ...stops.filter((other) => other < given));
     const winding = given === last ? Math.max(WHIRR.ease, stop - before) : WHIRR.ease;
     const speed = WHIRR.speeds[reel];
@@ -2208,21 +2223,57 @@ function runFor(sound: PusherSound, plan: Run, options: SoundOptions, hoppers: n
   return Math.min(longest, Math.max(RUN.shortest, Number.isFinite(asked) ? asked : plan.usual));
 }
 
+/** One thing a run starts besides its own turning: a take, when it begins, its level and its speed. */
+interface Extra {
+  sample: Sample;
+  when: number;
+  level: number;
+  speed: number;
+}
+
+/**
+ * A run as it will be started, worked out once: how long it was told and how
+ * long the mechanism is heard, how long it waits, how many buffers go round
+ * (a big payout's hoppers), and everything else in it. Admission takes a
+ * voice for each of those, and `run` starts exactly those and nothing more.
+ */
+interface Laid {
+  whole: number;
+  seconds: number;
+  wait: number;
+  turning: number;
+  extras: Extra[];
+}
+
+function layOut(sound: PusherSound, plan: Run, now: number, options: SoundOptions): Laid {
+  const medals = options.count ?? 0;
+  const turning = sound === 'hopper' && medals > 0 ? Math.min(HOPPER.speeds.length, Math.max(1, Math.ceil(medals / (HOPPER.rate * HOPPER.fair)))) : 1;
+  // How long it was told, and how much of that the mechanism itself is heard for.
+  const whole = runFor(sound, plan, options, turning);
+  const seconds = whole * plan.share;
+  // It may begin a little from now, but never so late that there is nothing left of it.
+  const wait = Math.min(Math.max(0, seconds - RUN.shortest), Math.max(0, Number.isFinite(options.after) ? (options.after ?? 0) : 0));
+  const extras: Extra[] = [];
+  const once = (sample: Sample, when: number, level: number, speed = 1): void => {
+    extras.push({ sample, when: Math.max(now, when), level, speed });
+  };
+  if (plan.start && (wait > 0 || !plan.start.dropped)) once(plan.start.sample, now + wait, plan.start.level);
+  for (const moment of plan.moments ?? []) once(moment.sample, now + whole * moment.at, moment.level);
+  if (plan.end) once(plan.end.sample, now + seconds - plan.end.before, plan.end.level);
+  const near = options.nearMiss;
+  if (sound === 'bowl' && near !== undefined && near > wait && near < seconds - plan.fall) once(NEAR_MISS.sample, now + near, NEAR_MISS.level, NEAR_MISS.speed);
+  return { whole, seconds, wait, turning, extras };
+}
+
 /**
  * A mechanism running from now for as long as it is told: its buffer goes
  * round at a speed and a level that follow the mechanism, and what it ends in
  * is heard at the end. A hopper with a big payout is two or three of them.
  */
-function run(target: Rig, sound: PusherSound, plan: Run, now: number, options: SoundOptions): void {
-  const medals = options.count ?? 0;
-  const hoppers = sound === 'hopper' && medals > 0 ? Math.min(HOPPER.speeds.length, Math.max(1, Math.ceil(medals / (HOPPER.rate * HOPPER.fair)))) : 1;
-  // How long it was told, and how much of that the mechanism itself is heard for.
-  const whole = runFor(sound, plan, options, hoppers);
-  const seconds = whole * plan.share;
+function run(target: Rig, sound: PusherSound, plan: Run, now: number, laid: Laid): void {
+  const { seconds, wait, turning: hoppers } = laid;
   const buffer = bufferFor(target, sound, 0);
   const [setsOff, runs, stops] = plan.speeds;
-  // It may begin a little from now, but never so late that there is nothing left of it.
-  const wait = Math.min(Math.max(0, seconds - RUN.shortest), Math.max(0, Number.isFinite(options.after) ? (options.after ?? 0) : 0));
   for (let layer = 0; layer < hoppers; layer++) {
     // Each of several joins after the one before it and leaves before it, unless there is no time to.
     const apart = Math.min(HOPPER.apart, (seconds - wait) / 8) * layer;
@@ -2255,15 +2306,10 @@ function run(target: Rig, sound: PusherSound, plan: Run, now: number, options: S
     source.stop(end);
     target.voices.push({ source, gain, level, until: end, shaped: true });
   }
-  const once = (sample: Sample, when: number, level: number, speed = 1): void => {
-    const takes = VARIANTS[sample] ?? 1;
-    begin(target, target.voices, bufferFor(target, sample, Math.floor(Math.random() * takes)), Math.max(now, when), level, speed);
-  };
-  if (plan.start && (wait > 0 || !plan.start.dropped)) once(plan.start.sample, now + wait, plan.start.level);
-  for (const moment of plan.moments ?? []) once(moment.sample, now + whole * moment.at, moment.level);
-  if (plan.end) once(plan.end.sample, now + seconds - plan.end.before, plan.end.level);
-  const near = options.nearMiss;
-  if (sound === 'bowl' && near !== undefined && near > wait && near < seconds - plan.fall) once(NEAR_MISS.sample, now + near, NEAR_MISS.level, NEAR_MISS.speed);
+  for (const extra of laid.extras) {
+    const takes = VARIANTS[extra.sample] ?? 1;
+    begin(target, target.voices, bufferFor(target, extra.sample, Math.floor(Math.random() * takes)), extra.when, extra.level, extra.speed);
+  }
   // A payout is medals, and the loop makes room for it as it does for the tray.
   if (sound === 'hopper' || sound === 'pour') duck(target, now, now + seconds);
 }
@@ -2375,14 +2421,18 @@ function start(target: Rig, sound: PusherSound, options: SoundOptions): void {
     trayful(target, now, count >= 1 ? count : 1, sound === 'tray');
     return;
   }
-  if (!admit(target, sound, now)) return;
+  const plan = sound === 'bowl' && options.quickens ? FUNNEL : RUNS[sound];
+  const laid = plan ? layOut(sound, plan, now, options) : null;
+  const stops = options.stops ?? USUAL_STOPS;
+  // A voice for every source it will start: a mechanism's turning and everything in it, the reels that turn, or the one take.
+  const needed = laid ? laid.turning + laid.extras.length : sound === 'spin' ? reels(stops) : 1;
+  if (!admit(target, sound, now, needed)) return;
   if (sound === 'spin') {
-    whirr(target, now, options.stops ?? USUAL_STOPS);
+    whirr(target, now, stops);
     return;
   }
-  const plan = sound === 'bowl' && options.quickens ? FUNNEL : RUNS[sound];
-  if (plan) {
-    run(target, sound, plan, now, options);
+  if (plan && laid) {
+    run(target, sound, plan, now, laid);
     return;
   }
   // A medal that lands comes down on the table or on other medals, and they are different sounds. A button, a door,
@@ -2475,7 +2525,9 @@ function breathe(): void {
       // One that cannot be worked out yet is tried again on the next turn.
       if (!ready(kind, variant)) continue;
       const when = Math.max(now, air.next[kind]);
-      if (target.room.length < AMBIENCE.voices) {
+      // The tone's stretches are told from the rest by being faded in and out.
+      const farOff = target.room.reduce((count, playing) => count + (playing.shaped ? 0 : 1), 0);
+      if (farOff < AMBIENCE.voices - AMBIENCE.kept) {
         const level = AMBIENCE.level * (1 - Math.random() * wander.level);
         begin(target, target.room, bufferFor(target, kind, variant), when, level, 1 - wander.speed / 2 + Math.random() * wander.speed, target.air);
       }

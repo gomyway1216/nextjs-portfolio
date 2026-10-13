@@ -49,6 +49,7 @@ import {
   type Pour,
   type PusherSound,
   type Sample,
+  type SoundOptions,
 } from '@/components/game/MedalPusher/sounds';
 
 // ── A stand-in for the Web Audio API that writes down everything it is asked to do ──
@@ -453,8 +454,9 @@ describe('the chain', () => {
     const everything = (LIMITS.voices + MUSIC.voices) * LEVEL.ceiling;
     expect(everything).toBeGreaterThan(1);
     expect(through(everything)).toBeLessThan(0.5);
-    // And with the machine's own bed under it and the room round it, every source of the room at its loudest and in step as well.
-    const withTheRoom = everything + MOTOR.level + AMBIENCE.voices * AMBIENCE.level;
+    // And with the machine's own bed and the wheel's rotor under it and the room round it, every source of the room at
+    // its loudest and in step as well. Those are all there is: each of the four keeps to a count of its own.
+    const withTheRoom = everything + MOTOR.level + ROTOR.level + AMBIENCE.voices * AMBIENCE.level;
     expect(withTheRoom).toBeGreaterThan(everything + 0.2);
     expect(through(withTheRoom)).toBeLessThan(0.5);
     expect(through(100)).toBeLessThan(1);
@@ -554,9 +556,9 @@ describe('the volume', () => {
     expect(through(everything)).toBeLessThan(0.49);
     expect(through(everything, VOLUME.most)).toBeGreaterThan(through(everything));
     expect(through(everything, VOLUME.most)).toBeLessThan(0.51);
-    // The machine's bed and the room, each source of it at its loudest and in step with all the rest, add less than
+    // The machine's bed, the wheel's rotor and the room, each source of it at its loudest and in step with all the rest, add less than
     // a hundredth to that: 0.484 as the cabinet was made and 0.513 with the volume right up.
-    const withTheRoom = everything + MOTOR.level + AMBIENCE.voices * AMBIENCE.level;
+    const withTheRoom = everything + MOTOR.level + ROTOR.level + AMBIENCE.voices * AMBIENCE.level;
     expect(through(withTheRoom)).toBeLessThan(0.485);
     expect(through(withTheRoom, VOLUME.most)).toBeLessThan(0.515);
     expect(through(withTheRoom, VOLUME.most) - through(everything, VOLUME.most)).toBeLessThan(0.01);
@@ -1661,6 +1663,100 @@ describe('the machine itself', () => {
   });
 });
 
+describe('the cap on voices, for every sound there is', () => {
+  /** Each sound as it is asked for when it has the most in it. One that is not here is asked for plainly. */
+  const FULLEST: Partial<Record<PusherSound, SoundOptions>> = {
+    spin: { stops: [0.7, 1.6, 1.2] },
+    win: { count: 64 },
+    tray: { count: 64 },
+    roulette: { seconds: 2.8 },
+    lift: { seconds: 2, after: 0.5 },
+    bowl: { seconds: 5.64, after: 0.75, nearMiss: 4 },
+    hopper: { count: 500 },
+    pour: { count: 300 },
+    guard: { seconds: 0.5, up: true },
+    door: { up: true },
+    shutter: { up: true },
+    button: { up: true },
+    pocket: { level: 4 },
+  };
+  /** How many sources each of the sounds with more than one thing in it starts, as it is asked for above. */
+  const MADE_OF: Partial<Record<PusherSound, number>> = { spin: 3, roulette: 5, lift: 2, bowl: 4, hopper: 3 };
+
+  it.each(SOUNDS)('holds when %s is started with the list one under it, and no more is cut short than it needs room for', async (sound) => {
+    FakeContext.rate = 16000;
+    fix(0);
+    const audio = await switchOn();
+    // Twenty-three fanfares a tenth of a second apart: every one of them is still sounding when the last has begun.
+    for (let i = 0; i < LIMITS.voices - 1; i++) {
+      playSound('jackpot', true);
+      audio.currentTime += 0.1;
+    }
+    expect(audio.sounding()).toHaveLength(LIMITS.voices - 1);
+    const before = audio.sources.length;
+    playSound(sound, true, FULLEST[sound] ?? {});
+    const made = audio.sources.length - before;
+    // A medal's own sounds are kept out of the last voices, which are for the jingles: they start nothing here.
+    const medal = ['land', 'insert', 'lost', 'roll', 'button', 'slit', 'win', 'tray'].includes(sound);
+    expect(made).toBe(medal ? 0 : (MADE_OF[sound] ?? 1));
+    // Whatever it started, there are never more than the cap once what was cut has faded.
+    expect(audio.sounding(FADE).length).toBeLessThanOrEqual(LIMITS.voices);
+    expect(audio.sounding(FADE)).toHaveLength(medal ? LIMITS.voices - 1 : LIMITS.voices);
+    // And room was made for exactly what it started: one voice was free, so one fewer than it started was cut short, the oldest first.
+    const cutShort = audio.sources.slice(0, before).filter((source) => source.stopped.length > 1);
+    expect(cutShort).toHaveLength(Math.max(0, made - 1));
+    expect(cutShort).toEqual(audio.sources.slice(0, Math.max(0, made - 1)));
+  });
+
+  it.each([
+    ['hopper', { count: 10 }, 1],
+    ['bowl', { seconds: 3 }, 2],
+    ['spin', { stops: [0.01, 1.6, 0.02] }, 1],
+  ] as const)('cuts nothing short for a place %s does not take', async (sound, options, made) => {
+    FakeContext.rate = 16000;
+    fix(0);
+    const audio = await switchOn();
+    for (let i = 0; i < LIMITS.voices - 1; i++) {
+      playSound('jackpot', true);
+      audio.currentTime += 0.1;
+    }
+    const before = audio.sources.length;
+    playSound(sound, true, options);
+    // One hopper, a ball let go under the rim, one reel with time to turn: each takes fewer voices than the most its kind can.
+    expect(audio.sources.length - before).toBe(made);
+    expect(audio.sources.slice(0, before).filter((source) => source.stopped.length > 1)).toHaveLength(made - 1);
+    expect(audio.sounding(FADE)).toHaveLength(LIMITS.voices);
+  });
+
+  it('counts a mechanism\'s voices from what it is about to start, not from a figure kept beside it', async () => {
+    FakeContext.rate = 16000;
+    fix(0);
+    const audio = await switchOn();
+    const starts = (sound: PusherSound, options: SoundOptions): number => {
+      audio.currentTime += 30;
+      const before = audio.sources.length;
+      playSound(sound, true, options);
+      return audio.sources.length - before;
+    };
+    // A lift is its motor and its stop; a bowl is its roll and the ball through its hole, and a landing and a near miss when it has them.
+    expect(starts('lift', {})).toBe(2);
+    expect(starts('bowl', {})).toBe(2);
+    expect(starts('bowl', { seconds: 5, after: 0.75 })).toBe(3);
+    expect(starts('bowl', { seconds: 5, after: 0.75, nearMiss: 3 })).toBe(4);
+    expect(starts('bowl', { seconds: 5, nearMiss: 99 })).toBe(2);
+    // A hopper is as many hoppers as its medals call for, and a spin as many reels as have time to turn.
+    expect(starts('hopper', { count: 10 })).toBe(1);
+    expect(starts('hopper', { count: 60 })).toBe(2);
+    expect(starts('hopper', { count: 500 })).toBe(3);
+    expect(starts('spin', { stops: [0.7, 1.6, 1.2] })).toBe(3);
+    expect(starts('spin', { stops: [0.01, 1.6, 0.02] })).toBe(1);
+    expect(starts('roulette', {})).toBe(5);
+    expect(starts('pour', { count: 300 })).toBe(1);
+    // Every one of them left the list exactly as full as what it started, with nothing else in it: none was cut for a place that was not taken.
+    expect(audio.sources.every((source) => source.stopped.length === 1)).toBe(true);
+  });
+});
+
 describe('the rotor of the wheel', () => {
   /** Asks for the rotor once a frame for `seconds`. */
   function frames(audio: FakeContext, seconds: number): void {
@@ -2288,6 +2384,29 @@ describe('the room', () => {
     // Five minutes of it is a few hundred sources, not thousands.
     expect(audio.sources.length).toBeGreaterThan(150);
     expect(audio.sources.length).toBeLessThan(700);
+  });
+
+  it('keeps to its count when everything from far off comes as thick as it can, with places kept for its tone', async () => {
+    // Every roll of the dice at its least: the shortest wait there can be before the next of each kind, and each
+    // played at its slowest, so at its longest. More is asked for than the room may hold.
+    fix(0);
+    const audio = await switchOn();
+    setAmbience(true);
+    let most = 0;
+    let mostFarOff = 0;
+    for (let turn = 0; turn < 240; turn++) {
+      wait(audio, AMBIENCE.every, AMBIENCE.every);
+      const live = audio.sources.filter((source) => source.ends > audio.currentTime);
+      most = Math.max(most, live.length);
+      mostFarOff = Math.max(mostFarOff, live.filter((source) => !source.loop).length);
+      expect(live.length).toBeLessThanOrEqual(AMBIENCE.voices);
+      // The tone is never crowded out: a stretch of it is always there, and two while one fades into the next.
+      expect(live.filter((source) => source.loop).length).toBeGreaterThanOrEqual(1);
+      expect(live.filter((source) => source.loop).length).toBeLessThanOrEqual(AMBIENCE.kept);
+    }
+    // It was pressed against its limit, and the limit is what held it.
+    expect(mostFarOff).toBe(AMBIENCE.voices - AMBIENCE.kept);
+    expect(most).toBe(AMBIENCE.voices);
   });
 
   it('keeps its tone going without a gap and without coming round: each stretch from somewhere else, at its own speed', async () => {

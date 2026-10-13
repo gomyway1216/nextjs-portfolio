@@ -209,6 +209,7 @@ export type SessionEvent =
   | { type: 'rouletteStep'; pocket: number; medals: number; level: number }
   | { type: 'rouletteEnd'; total: number; level: number }
   | { type: 'bowlStart'; holes: readonly number[]; duration: number }
+  // `poured` is how many of the medals paid are thrown onto the field loose: the share that always is, and what the pusher had no free place to stack.
   | { type: 'bowlEnd'; bowl: number; hole: number; payout: number; poured: number; total: number; jackpot: boolean }
   | { type: 'bowlDrop'; bowl: number; hole: number; duration: number };
 
@@ -355,7 +356,8 @@ export const bowlShowTime = (jackpot: boolean): number => (jackpot ? TIMING.jack
  * The ball rolls round the bowl it is in and drops into its hole. A hole that
  * leads down puts it in the bowl below, where its time starts again. Any
  * other pays what it holds, part of it poured onto the field loose and the
- * rest stacked as towers, and with that the run is over.
+ * rest stacked as towers where the pusher has room for them, and with that
+ * the run is over.
  */
 function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBowl, dt: number, events?: SessionEvent[]): void {
   bowl.elapsed += dt;
@@ -374,9 +376,13 @@ function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBow
     roulette.total += bowl.payout;
     roulette.over = true;
     roulette.jackpot = hole === 'jackpot';
-    const poured = pouredOf(bowl.payout);
-    pay(session, bowl.payout - poured, true);
-    pay(session, poured, false);
+    // A share of it is poured loose and the rest is given to the pusher as towers. The pusher throws on whatever
+    // its free places cannot hold, so what is poured is whatever this prize adds to the queue, and that is what is said.
+    const queued = session.machine.payoutQueue;
+    const loose = pouredOf(bowl.payout);
+    pay(session, bowl.payout - loose, true);
+    pay(session, loose, false);
+    const poured = session.machine.payoutQueue - queued;
     if (roulette.jackpot) {
       session.jackpots += 1;
       session.jackpot = JACKPOT_START;

@@ -233,10 +233,11 @@ export const holePays = (hole: Hole, jackpot: number): number => (hole === 'jack
 
 /**
  * The share of what the bowls pay that the machine pours onto the field
- * loose. The rest goes up on the pusher as towers.
+ * loose. The rest goes up on the pusher as towers, as far as the pusher has
+ * free places for them: what those cannot hold is poured as well.
  */
 export const BOWL_POURED = 0.3;
-/** How many of `medals` paid by the bowls are poured loose. */
+/** How many of `medals` paid by the bowls are poured loose whatever room the pusher has: the fewest that ever are. */
 export const pouredOf = (medals: number): number => Math.round(medals * BOWL_POURED);
 
 /** Medals the bowls pay on average when the jackpot stands at `jackpot`. */

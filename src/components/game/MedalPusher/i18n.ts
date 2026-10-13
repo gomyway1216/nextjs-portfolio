@@ -46,7 +46,7 @@ export interface PusherStrings {
   // The jackpot challenge: the ball in the bowl
   challenge: string;
   sayGoal: (medals: number, level: number) => string;
-  sayHole: (bowl: number, medals: number, total: number) => string;
+  sayHole: (bowl: number, medals: number, poured: number, total: number) => string;
   bowlIntro: (bowls: number) => string;
   bowlCaption: string;
   colHole: string;
@@ -269,8 +269,10 @@ const en: PusherStrings = {
   challenge: 'JACKPOT CHALLENGE',
   sayGoal: (medals, level) =>
     `${medals} medals go up as a tower. Level ${level}: the jackpot challenge. The ball goes into the top one of three bowls, and the jackpot is at the bottom of them.`,
-  sayHole: (bowl, medals, total) =>
-    `The ball dropped into the ${medals} hole of bowl ${bowl}. Of those ${medals} medals some are poured onto the field and the rest go up as towers. The run is over: it paid ${total} medals.`,
+  sayHole: (bowl, medals, poured, total) =>
+    `The ball dropped into the ${medals} hole of bowl ${bowl}. ${
+      poured >= medals ? `All ${medals} medals are poured onto the field: the pusher has no room for a tower.` : `${poured} of those ${medals} medals are poured onto the field and the rest go up as towers.`
+    } The run is over: it paid ${total} medals.`,
   bowlIntro: (bowls) =>
     `The jackpot challenge is ${bowls} bowls, one under another. The ball circles under the rim of a bowl, spirals in as it slows and drops into one of that bowl’s holes, each as likely as the next. A hole either lets it down into the bowl below or ends the challenge with a prize. The bottom bowl is a funnel with one hole in the middle, and that hole is the jackpot’s. The ball only acts it out: the whole way down is drawn before it is let go.`,
   bowlCaption: 'The holes of each bowl: what they do, the chance of each in its own bowl and overall, and how it is paid',
@@ -278,7 +280,7 @@ const en: PusherStrings = {
   holeJackpot: 'The jackpot',
   holeJackpotPaid: (poured, towers, start) => `${poured} poured onto the field and ${towers} towers on the pusher when it stands at ${start}`,
   bowlNote: (start, average, perBall, poured) =>
-    `With the jackpot at ${start} medals the bowls pay ${average} medals on average: the three ways the challenge can end are as likely as each other, so it is the three prizes added up, divided by three. About ${perBall} of all balls get this far. Of whatever the bowls pay, ${poured} is poured onto the field loose and the rest is stacked as towers.`,
+    `With the jackpot at ${start} medals the bowls pay ${average} medals on average: the three ways the challenge can end are as likely as each other, so it is the three prizes added up, divided by three. About ${perBall} of all balls get this far. Of whatever the bowls pay, ${poured} is poured onto the field loose and the rest is stacked as towers; what the free places on the pusher cannot hold is poured as well.`,
   slotName: 'NUMBER SLOT',
   sugorokuTitle: 'SUGOROKU CHANCE',
   sugorokuRolling: 'Rolling…',
@@ -314,7 +316,10 @@ const en: PusherStrings = {
   sayToppled: 'A tower came down onto the lower table.',
   sayStep: (medals, level) => `${medals} medals go up as a tower. Level ${level}. The roulette turns again.`,
   sayFinish: (medals) => `A cross. The run is over: ${medals} medals in towers.`,
-  sayJackpot: (medals, poured) => `The ball dropped into the jackpot hole. Jackpot: ${medals} medals. ${poured} of them are poured onto the field and the rest go up as towers.`,
+  sayJackpot: (medals, poured) =>
+    `The ball dropped into the jackpot hole. Jackpot: ${medals} medals. ${
+      poured >= medals ? 'All of them are poured onto the field: the pusher has no room for a tower.' : `${poured} of them are poured onto the field and the rest go up as towers.`
+    }`,
   sayEmpty: 'You are out of medals.',
   tallyTitle: 'This machine so far',
   tallyPlayed: 'Dropped',
@@ -525,8 +530,10 @@ const ja: PusherStrings = {
   challenge: 'ジャックポットチャレンジ',
   sayGoal: (medals, level) =>
     `${medals}枚がタワーに積まれます。レベル${level}。ジャックポットチャレンジです。ボールが3段のクルーンのいちばん上に入ります。いちばん下がジャックポットです。`,
-  sayHole: (bowl, medals, total) =>
-    `ボールが${bowl}段目のクルーンで${medals}枚の穴に落ちました。${medals}枚のうち一部はフィールドに降り、残りはタワーに積まれます。終了です。払い出しは合計${total}枚です。`,
+  sayHole: (bowl, medals, poured, total) =>
+    `ボールが${bowl}段目のクルーンで${medals}枚の穴に落ちました。${
+      poured >= medals ? `プッシャーにタワーを積む場所がないため、${medals}枚すべてがフィールドに降ります。` : `${medals}枚のうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
+    }終了です。払い出しは合計${total}枚です。`,
   bowlIntro: (bowls) =>
     `ジャックポットチャレンジは、${bowls}段に重なったクルーン（すり鉢状の皿）での抽選です。ボールは皿の縁の内側を回り、勢いが落ちるにつれて内側へ寄っていき、その皿の穴のどれか1つに落ちます。同じ皿の穴はどれも同じ確率です。穴は、下の段へ進む穴か、賞を払ってそこで終わる穴のどちらかです。いちばん下の段は真ん中に穴が1つだけ開いたじょうご型で、その穴がジャックポットです。ボールは結果を演じているだけで、どの穴を通って落ちるかはボールが放たれる前に決まっています。`,
   bowlCaption: 'クルーンの段ごとの穴：穴の役割、その段での確率、全体での確率、出方',
@@ -534,7 +541,7 @@ const ja: PusherStrings = {
   holeJackpot: 'ジャックポット',
   holeJackpotPaid: (poured, towers, start) => `${start}枚のとき、${poured}枚がフィールドに降り、プッシャーの上にタワー${towers}本`,
   bowlNote: (start, average, perBall, poured) =>
-    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3通りの結末はどれも同じ確率なので、3つの賞の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。クルーンの払い出しは、その${poured}がそのままフィールドに降り、残りがタワーとして積まれます。`,
+    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3通りの結末はどれも同じ確率なので、3つの賞の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。クルーンの払い出しは、その${poured}がそのままフィールドに降り、残りがタワーとして積まれます。プッシャーの空いた場所に積みきれない分も、フィールドに降ります。`,
   slotName: 'ナンバースロット',
   sugorokuTitle: 'すごろくチャンス',
   sugorokuRolling: 'サイコロを振っています…',
@@ -570,7 +577,10 @@ const ja: PusherStrings = {
   sayToppled: 'タワーが崩れて下のテーブルに落ちました。',
   sayStep: (medals, level) => `${medals}枚がタワーに積まれます。レベル${level}。ルーレットがもう一度回ります。`,
   sayFinish: (medals) => `×に止まりました。終了です。タワーは合計${medals}枚です。`,
-  sayJackpot: (medals, poured) => `ボールがジャックポットの穴に落ちました。ジャックポット、${medals}枚です。そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`,
+  sayJackpot: (medals, poured) =>
+    `ボールがジャックポットの穴に落ちました。ジャックポット、${medals}枚です。${
+      poured >= medals ? 'プッシャーにタワーを積む場所がないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
+    }`,
   sayEmpty: 'メダルがなくなりました。',
   tallyTitle: 'このマシンのここまで',
   tallyPlayed: '落とした',

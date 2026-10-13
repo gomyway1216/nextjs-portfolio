@@ -528,7 +528,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             celebrate(stage, event.jackpot ? 'jackpot' : 'fever');
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.total));
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             break;
           case 'bowlDrop':
             // Through a hole and into the bowl below: a step up, and the suspense starts again.

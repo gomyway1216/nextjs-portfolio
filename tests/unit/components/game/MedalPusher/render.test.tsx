@@ -1033,6 +1033,30 @@ describe('strings', () => {
     const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
     expect(everything).not.toMatch(/chute|投入口/i);
   });
+
+  it('says of a prize from the bowls how many medals are poured, which is the number it is given', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    // The usual split, and a pusher crowded enough that more is poured than the share that always is.
+    expect(en.sayJackpot(300, 90)).toBe('The ball dropped into the jackpot hole. Jackpot: 300 medals. 90 of them are poured onto the field and the rest go up as towers.');
+    expect(en.sayJackpot(300, 200)).toContain('200 of them are poured onto the field and the rest go up as towers.');
+    expect(en.sayJackpot(1199, 749)).toContain('Jackpot: 1199 medals. 749 of them are poured onto the field');
+    expect(en.sayHole(1, 50, 15, 90)).toBe(
+      'The ball dropped into the 50 hole of bowl 1. 15 of those 50 medals are poured onto the field and the rest go up as towers. The run is over: it paid 90 medals.',
+    );
+    expect(en.sayHole(2, 100, 75, 140)).toContain('75 of those 100 medals are poured onto the field and the rest go up as towers.');
+    expect(ja.sayJackpot(300, 90)).toBe('ボールがジャックポットの穴に落ちました。ジャックポット、300枚です。そのうち90枚がフィールドに降り、残りはタワーに積まれます。');
+    expect(ja.sayJackpot(300, 200)).toContain('そのうち200枚がフィールドに降り、残りはタワーに積まれます。');
+    expect(ja.sayHole(1, 50, 15, 90)).toBe('ボールが1段目のクルーンで50枚の穴に落ちました。50枚のうち15枚がフィールドに降り、残りはタワーに積まれます。終了です。払い出しは合計90枚です。');
+    expect(ja.sayHole(2, 100, 75, 140)).toContain('100枚のうち75枚がフィールドに降り、残りはタワーに積まれます。');
+    // With no free place on the pusher all of it is poured, and nothing is said of towers that do not go up.
+    expect(en.sayJackpot(300, 300)).toBe('The ball dropped into the jackpot hole. Jackpot: 300 medals. All of them are poured onto the field: the pusher has no room for a tower.');
+    expect(en.sayHole(1, 50, 50, 90)).toBe('The ball dropped into the 50 hole of bowl 1. All 50 medals are poured onto the field: the pusher has no room for a tower. The run is over: it paid 90 medals.');
+    expect(ja.sayJackpot(300, 300)).toBe('ボールがジャックポットの穴に落ちました。ジャックポット、300枚です。プッシャーにタワーを積む場所がないため、すべてフィールドに降ります。');
+    expect(ja.sayHole(1, 50, 50, 90)).toBe('ボールが1段目のクルーンで50枚の穴に落ちました。プッシャーにタワーを積む場所がないため、50枚すべてがフィールドに降ります。終了です。払い出しは合計90枚です。');
+    for (const text of [en.sayJackpot(300, 300), en.sayHole(1, 50, 50, 90)]) expect(text).not.toContain('the rest');
+    for (const text of [ja.sayJackpot(300, 300), ja.sayHole(1, 50, 50, 90)]) expect(text).not.toContain('残り');
+  });
 });
 
 describe('the page', () => {
@@ -1299,7 +1323,9 @@ describe('the page', () => {
     for (const text of holes) expect(bowl).toContain(text);
     expect(html).toContain('The jackpot challenge is 3 bowls, one under another.');
     expect(html).toContain('With the jackpot at 300 medals the bowls pay 150 medals on average');
-    expect(html).toContain('Of whatever the bowls pay, 30% is poured onto the field loose and the rest is stacked as towers.');
+    expect(html).toContain(
+      'Of whatever the bowls pay, 30% is poured onto the field loose and the rest is stacked as towers; what the free places on the pusher cannot hold is poured as well.',
+    );
     expect(html).toContain('About 19.8% of all balls get this far.');
     expect(html).toContain('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
     expect(html).toContain('One tower on the pusher');
@@ -1353,7 +1379,7 @@ describe('the page', () => {
     expect(html).toContain('ジャックポットチャレンジは、3段に重なったクルーン');
     for (const text of ['1段目：穴3つ', '2段目：穴2つ', '3段目：穴1つ', '下の段へ進む穴', '3つの穴のうち2つ', 'この段の穴はこれだけ', '全体での確率']) expect(html).toContain(text);
     expect(html).toContain('300枚のとき、90枚がフィールドに降り、プッシャーの上にタワー9本');
-    expect(html).toContain('その30%がそのままフィールドに降り、残りがタワーとして積まれます');
+    expect(html).toContain('その30%がそのままフィールドに降り、残りがタワーとして積まれます。プッシャーの空いた場所に積みきれない分も、フィールドに降ります。');
     expect(html).toContain('クルーンの払い出しは平均150枚です');
     expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では2,170回に1回がそこにつながります');
     const info = getStrings('ja').infoBody(MAX_STOCK).join('');

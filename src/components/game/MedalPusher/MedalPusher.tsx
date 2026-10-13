@@ -3,11 +3,13 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { POUR } from './hopper';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
+import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
 
 type Tab = 'machine' | 'odds' | 'sim';
@@ -95,7 +97,7 @@ export const MedalPusher = () => {
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay}>
-        {t.infoBody(MAX_STOCK).map((p, i) => (
+        {[...t.infoBody(MAX_STOCK), ...getWorksStrings(language).howItPays(POUR.threshold)].map((p, i) => (
           <p key={i} className={styles.infoP}>
             {p}
           </p>

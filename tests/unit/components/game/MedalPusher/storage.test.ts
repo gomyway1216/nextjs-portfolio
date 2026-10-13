@@ -24,7 +24,10 @@ import {
   queuePayout,
   seededRng,
   tipOf,
+  type Medal,
 } from '@/components/game/MedalPusher/engine';
+import { POUR, shutHopper } from '@/components/game/MedalPusher/hopper';
+import { LIFT, holds, liftAtWork } from '@/components/game/MedalPusher/lift';
 import { chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import { BOARD, BOWL, CHAIN_GOAL, CHANCE, CHESTS, JACKPOT_START, JACKPOT_STEP, REACH_KINDS, ROULETTE, squareAfter, type SpinResult } from '@/components/game/MedalPusher/lottery';
 import {
@@ -42,11 +45,12 @@ import {
   type Session,
   type SessionEvent,
 } from '@/components/game/MedalPusher/session';
-import { LIMITS, STORAGE_KEY, STORAGE_VERSION, VERSION_BEFORE_ARMS, VERSION_BEFORE_CHANCE, VERSION_WITH_ONE_AIM, restore, serialize } from '@/components/game/MedalPusher/storage';
+import { LIMITS, STORAGE_KEY, STORAGE_VERSION, VERSION_BEFORE_ARMS, VERSION_BEFORE_CHANCE, VERSION_BEFORE_WORKS, VERSION_WITH_ONE_AIM, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
 import beforeChanceTime from './fixtures/save-before-chance-time.json';
 import beforeSlots from './fixtures/save-before-the-front-slots.json';
+import beforeWorks from './fixtures/save-before-the-payout-works.json';
 import beforeLeftAndRight from './fixtures/save-before-left-and-right.json';
 import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 
@@ -345,8 +349,19 @@ interface Save {
  */
 const asToday = (machine: Row): Row => {
   const { cooldown, aim, tips, nextId, ...tables } = machine;
-  return { ...tables, waits: [cooldown, cooldown], aims: [tipOf(0, aim as number), tipOf(1, aim as number)], tips, nextId };
+  return withWorks({ ...tables, waits: [cooldown, cooldown], aims: [tipOf(0, aim as number), tipOf(1, aim as number)], tips, nextId });
 };
+/**
+ * A field as the versions before the payout works wrote it, in today's shape: the hopper's doors shut, and a lift
+ * at work, its guard up, under every tower that was going up. Everything else is as it was, in the order a
+ * machine holds it.
+ */
+function withWorks(machine: Row): Row {
+  const { waits, aims, tips, nextId, ...tables } = machine;
+  const front = pusherFront(tables.time as number);
+  const lifts = (tables.medals as Medal[]).filter((medal) => medal.grow > 0).map((medal) => liftAtWork(medal, front));
+  return { ...tables, hopper: shutHopper(), lifts, waits, aims, tips, nextId };
+}
 /**
  * A session's numbers as the versions before chance time wrote them, in today's shape: none of the held spins gold,
  * none ever turned gold, and nothing gold on the screen. Everything else is as it was, in the order a session holds it.
@@ -358,7 +373,7 @@ const numbersToday = (session: Row): Row => {
 /** A whole save of version 2 or 3 as today's game writes the same machine. */
 const writtenToday = (text: string): string => {
   const save = JSON.parse(text) as Save;
-  return JSON.stringify({ ...save, version: STORAGE_VERSION, machine: save.version === VERSION_WITH_ONE_AIM ? asToday(save.machine) : save.machine, session: numbersToday(save.session) });
+  return JSON.stringify({ ...save, version: STORAGE_VERSION, machine: save.version === VERSION_WITH_ONE_AIM ? asToday(save.machine) : withWorks(save.machine), session: numbersToday(save.session) });
 };
 
 /**
@@ -390,6 +405,9 @@ const find = (rows: Row[], test: (row: Row) => boolean): Row => {
   return row;
 };
 const tower = (save: Save): Row => find(save.machine.medals, (medal) => (medal.grow as number) > 0);
+/** The lifts of a save, and the one under a tower. */
+const liftsOf = (save: Save): Row[] => save.machine.lifts as Row[];
+const liftUnder = (save: Save, medal: Row): Row => find(liftsOf(save), (lift) => lift.id === medal.id);
 const ball = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === true);
 const loose = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0);
 const inAir = (save: Save): Row => save.machine.falling[0];
@@ -705,13 +723,30 @@ describe('a save at the very edge of what a machine can be', () => {
     ['a quick pick', (save) => (save.session.quickPick = true)],
     ['a medal a diameter outside the left wall', (save) => (loose(save).x = -LIMITS.margin)],
     ['a medal a diameter beyond the front', (save) => (loose(save).y = FIELD.depth + LIMITS.margin)],
-    ['a tower that will be as tall as the tallest', (save) => (tower(save).stack = TOWER.max - (tower(save).grow as number))],
+    [
+      'a tower that will be as tall as the tallest',
+      (save) => {
+        // Its guard is still on the way up, so all but the one medal on the hatch are still to come.
+        const one = tower(save);
+        save.machine.growing = (save.machine.growing as number) + TOWER.max - 1 - (one.grow as number);
+        one.grow = TOWER.max - 1;
+        liftUnder(save, one).size = TOWER.max;
+      },
+    ],
     ['a medal that has only just landed', (save) => (loose(save).grown = SETTLE.from)],
     ['a medal that dropped this instant', (save) => (loose(save).sinceDrop = 0)],
     ['a slot that has only just fed a medal', (save) => (save.machine.waits = [0, DROP_INTERVAL])],
     ['both slots at the start of a wait', (save) => (save.machine.waits = [DROP_INTERVAL, DROP_INTERVAL])],
     ['a medal about to land', (save) => (inAir(save).remaining = 0)],
-    ['a clock that has run for years', (save) => (save.machine.time = LIMITS.clock / 2)],
+    [
+      'a clock that has run for years',
+      (save) => {
+        // At a moment when the pusher is fully forward, each lift as far behind its lip as its tower stands.
+        const time = Math.floor(LIMITS.clock / 2 / PUSHER.period) * PUSHER.period + PUSHER.period / 2;
+        save.machine.time = time;
+        for (const lift of liftsOf(save)) lift.behind = pusherFront(time) - (find(save.machine.medals, (medal) => medal.id === lift.id).y as number);
+      },
+    ],
     ['nothing in the air', (save) => (save.machine.falling = [])],
     ['arms pointed as far left as they go', (save) => (save.machine.aims = [ARM_REACH[0].min, ARM_REACH[1].min])],
     ['arms pointed as far right as they go', (save) => (save.machine.aims = [ARM_REACH[0].max, ARM_REACH[1].max])],
@@ -751,6 +786,7 @@ describe('a save at the very edge of what a machine can be', () => {
         save.machine.medals = [];
         save.machine.falling = [];
         save.machine.growing = 0;
+        save.machine.lifts = [];
       },
     ],
   ];
@@ -986,9 +1022,12 @@ describe('a save written before the machine had its feed arms', () => {
     if (!back) return;
     const save = old();
     // The field is what was written, to the last digit, with what the arms brought added to it.
-    const { rng: _rng, rolling, aims, waits, tips, ...field } = back.machine;
+    const { rng: _rng, rolling, aims, waits, tips, hopper, lifts, ...field } = back.machine;
     const { cooldown, ...tables } = save.machine;
     expect(JSON.stringify(field)).toBe(JSON.stringify(tables));
+    // That game had no payout works: the doors are shut, and it was building no tower for a lift to be under.
+    expect(hopper).toEqual(shutHopper());
+    expect(lifts).toEqual([]);
     expect(rolling).toEqual([]);
     // That game had one slot: neither arm's slot is free until it would have been.
     expect(waits).toEqual([cooldown, cooldown]);
@@ -2269,7 +2308,7 @@ describe('any moment of any session', () => {
       session.machine.rng = drawsFor(900 + n, lucky);
 
       for (let i = 0; i < (swept ? 3000 : 500); i++) {
-        if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0 });
+        if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0, hopper: shutHopper(), lifts: [] });
         // The player and the field: medals dropped, a medal through a chucker, a ball over the front, a chest picked.
         if (session.credits === 0) refill(session);
         if (chance() < 0.2) insertAt(session, 10 + chance() * 80);
@@ -2526,13 +2565,16 @@ describe('a save written when the arms were short and a fed medal went straight 
     expect([back.credits, back.hits, back.stock, back.spins, back.paidOut]).toEqual([then.credits, then.hits, then.stock, then.spins, then.paidOut]);
     expect(back.machine.medals).toHaveLength(then.medals);
     expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
-    // And each of the medals that was on its way then lies where that game's machine left it.
+    // And each of the medals that was on its way then lies where that game's machine left it, to within a
+    // third of a medal's radius. It was to the last digit until the towers had lifts: a prize of ten comes up
+    // as a tower in these four seconds, and a tower in its guard is not leant aside by its neighbours as that
+    // game's was. They give way to it instead, which moves the medals round it by a fraction of a unit.
     expect(then.resting).toHaveLength(5);
+    expect(back.machine.medals.filter((m) => m.stack === 10)).toHaveLength(1);
     for (const rest of then.resting) {
       const medal = back.machine.medals.find((m) => m.id === rest.id);
       expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(medal?.x).toBeCloseTo(rest.x, 6);
-      expect(medal?.y).toBeCloseTo(rest.y, 6);
+      expect(Math.hypot((medal?.x ?? NaN) - rest.x, (medal?.y ?? NaN) - rest.y)).toBeLessThan(MEDAL_RADIUS / 3);
     }
   });
 
@@ -2578,8 +2620,9 @@ describe('a save written before chance time', () => {
     // A roll on the board is on its screen and has not paid yet, and both rails have medals on them.
     expect(save.screen.bonus).toMatchObject({ kind: 'sugoroku', payout: -1 });
     expect(new Set(save.machine.rolling.map((medal) => medal.arm)).size).toBe(2);
-    // Its field is today's field.
-    expect(Object.keys(save.machine).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    // Its field is today's field but for the payout works, which came after it.
+    expect(Object.keys(withWorks(save.machine)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
   });
 
   it('reads back as the same machine, with none of its held spins gold', () => {
@@ -2591,9 +2634,9 @@ describe('a save written before chance time', () => {
     expect([back.gold, back.gilded, back.chance]).toEqual([0, 0, false]);
     expect(chanceLeft(back)).toBe(0);
     expect([back.stock, back.wasted]).toEqual([save.session.stock, save.session.wasted]);
-    // Everything else is what was written, to the last digit.
+    // Everything else is what was written, to the last digit, with the payout works at rest.
     const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(save.machine));
+    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -2794,5 +2837,226 @@ describe('chance time in a save', () => {
         save.screen = { spin: null, bonus: null, roulette: null };
       }),
     ).toBeNull();
+  });
+});
+
+// ── The payout works ────────────────────────────────────────────────────────
+
+describe('a save written before the payout works', () => {
+  // Written by the game as it was the day before the payout works, with that day's own `serialize`: see the fixture's `about`.
+  const OLD = beforeWorks.save;
+  const old = (): Save => JSON.parse(OLD);
+  const { then } = beforeWorks;
+  const total = (events: SessionEvent[], type: 'won' | 'lost'): number => events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
+
+  it('is a save of version 4: towers going up, a prize waiting to be thrown on, and no word of doors or lifts', () => {
+    const save = old();
+    expect(save.version).toBe(VERSION_BEFORE_WORKS);
+    expect(save.version).not.toBe(STORAGE_VERSION);
+    for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
+    expect(save.machine.medals.filter((medal) => (medal.grow as number) > 0)).toHaveLength(2);
+    expect(save.machine.growing).toBeGreaterThan(20);
+    // More than enough waiting for today's machine to pour, and some of it already in the air, thrown from the slot.
+    expect(save.machine.payoutQueue).toBeGreaterThanOrEqual(POUR.threshold);
+    expect(save.machine.falling.filter((medal) => medal.source === 'payout').length).toBeGreaterThan(0);
+    expect(save.machine.falling.every((medal) => medal.source !== 'pour')).toBe(true);
+    // Its numbers are today's numbers: chance time was in that game.
+    expect(Object.keys(save.session).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session).sort());
+    expect(Object.keys(withWorks(save.machine)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+  });
+
+  it('reads back as the same machine, the doors shut and a lift at work under each tower that was going up', () => {
+    const back = restore(OLD, 1);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    const save = old();
+    expect(back.machine.hopper).toEqual(shutHopper());
+    const front = pusherFront(back.machine.time);
+    const growing = back.machine.medals.filter((medal) => medal.grow > 0);
+    expect(back.machine.lifts).toEqual(growing.map((medal) => ({ id: medal.id, x: medal.x, behind: front - medal.y, size: medal.stack + medal.grow, wait: 0, sunk: -1 })));
+    expect(back.machine.lifts).toHaveLength(2);
+    expect(back.machine.lifts.every(holds)).toBe(true);
+    // Everything else is what was written, to the last digit: the field, the numbers and the screen.
+    const { rng: _rng, ...field } = back.machine;
+    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
+    const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
+    expect(JSON.stringify(numbers)).toBe(JSON.stringify(save.session));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(medalsOnField(back.machine)).toBe(then.onField);
+  });
+
+  it('is written back as a save of this version, which reads back the same', () => {
+    const back = restore(OLD, 1) as Session;
+    const text = serialize(back);
+    const save = old();
+    expect(text).toBe(JSON.stringify({ ...save, version: STORAGE_VERSION, machine: withWorks(save.machine) }));
+    const twice = restore(text, 1);
+    expect(twice).not.toBeNull();
+    expect(serialize(twice as Session)).toBe(text);
+  });
+
+  it('plays on by today’s machine: the prize that was waiting is poured, the towers are held until they are built, and not a medal is lost or made', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const paid = back.paidOut;
+    const events: SessionEvent[] = [];
+    let emptied = -1;
+    for (let i = 0; i < then.steps; i++) {
+      advance(back, DT, events);
+      if (emptied < 0 && back.machine.payoutQueue === 0) emptied = (i + 1) * DT;
+      for (const lift of back.machine.lifts.filter(holds)) {
+        const tower = back.machine.medals.find((medal) => medal.id === lift.id);
+        expect(tower?.x).toBeCloseTo(lift.x, 6);
+        expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
+      }
+    }
+    expect(back.machine.time).toBeCloseTo(then.time, 9);
+    // The doors open at once for what was waiting, and it is out in a second and a bit; that game took five to throw it.
+    const waiting = old().machine.payoutQueue as number;
+    expect(events.find((event) => event.type === 'pourStart')).toEqual({ type: 'pourStart', medals: waiting });
+    expect(events.find((event) => event.type === 'pourEnd')).toEqual({ type: 'pourEnd', medals: waiting });
+    expect(emptied).toBeLessThan(POUR.opens + waiting / POUR.perSecond + 0.1);
+    expect(emptied).toBeLessThan(waiting / 9 / 2);
+    // Both towers are finished first, together, and stand free; the bowl on its screen pays more towers after them, as it did then.
+    expect(events.filter((event) => event.type === 'towersReady')[0]).toEqual({ type: 'towersReady', towers: 2 });
+    expect(back.machine.growing).toBe(then.growing);
+    expect(back.machine.lifts).toEqual([]);
+    // Every medal is accounted for, as it was in that game: what lies on the field and what has left it are what was there and what has been paid since.
+    expect(then.onFieldAfter + then.won + then.lost).toBe(then.onField + then.paidOut - paid);
+    expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(then.onField + back.paidOut - paid);
+    expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+    expect(plain(reread(back))).toEqual(plain(back));
+  });
+
+  // That version's field is held to that version's shape.
+  const spoilt: [string, (save: Save) => void][] = [
+    ['called a save of this version', (save) => (save.version = STORAGE_VERSION)],
+    ['given doors, which that game did not have', (save) => (save.machine.hopper = shutHopper())],
+    ['given lifts, which that game did not have', (save) => (save.machine.lifts = [])],
+    ['given both, under its old version', (save) => Object.assign(save.machine, { hopper: shutHopper(), lifts: [] })],
+    ['holding a medal the hopper poured, which that game had no hopper to pour', (save) => (save.machine.falling[0].source = 'pour')],
+    ['left without its count of the medals still to be stacked', (save) => delete save.machine.growing],
+  ];
+
+  it.each(spoilt)('is refused when it is %s', (_name, spoil) => {
+    const save = old();
+    spoil(save);
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+});
+
+describe('the payout works in a save', () => {
+  /** A machine paid a prize to pour and a prize in towers at once, run until `when` says. */
+  const caught = (when: (session: Session) => boolean): Session => {
+    const session = createSession(20261012, { balls: 0 });
+    queuePayout(session.machine, 70);
+    buildTowers(session.machine, 60);
+    session.paidOut += 130;
+    for (let i = 0; i < 1200 && !when(session); i++) advance(session, DT);
+    if (!when(session)) throw new Error('no such moment');
+    return session;
+  };
+  const MOMENTS: [string, (session: Session) => boolean][] = [
+    ['the doors dropping open and the guards rising', (s) => s.machine.hopper.phase === 'opening' && s.machine.hopper.clock > 0.2 && s.machine.lifts[0].wait > 0],
+    ['the prize pouring and the towers coming up', (s) => s.machine.hopper.phase === 'pouring' && s.machine.hopper.poured > 20 && s.machine.medals.some((medal) => medal.grow > 0 && medal.stack > 4)],
+    ['the last medal gone and the doors being drawn shut', (s) => s.machine.hopper.phase === 'closing' && s.machine.hopper.clock > 0.2],
+    ['the towers built and their guards sinking', (s) => s.machine.lifts.length > 0 && s.machine.lifts.every((lift) => lift.sunk > 0.1)],
+    ['everything at rest again, the hopper still saying what it poured', (s) => s.machine.hopper.phase === 'shut' && s.machine.lifts.length === 0 && s.machine.hopper.poured === 70],
+  ];
+
+  it.each(MOMENTS)('keeps %s, and plays on from there as the session does', (_name, when) => {
+    const session = caught(when);
+    const text = serialize(session);
+    const back = restore(text, 1);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    expect(serialize(back)).toBe(text);
+    expect(back.machine.hopper).toEqual(session.machine.hopper);
+    expect(back.machine.lifts).toEqual(session.machine.lifts);
+    session.machine.rng = seededRng(99);
+    back.machine.rng = seededRng(99);
+    for (let i = 0; i < 240; i++) {
+      advance(session, DT);
+      advance(back, DT);
+    }
+    expect(serialize(back)).toBe(serialize(session));
+  });
+
+  /** A save caught at one of those moments, typed loosely enough to spoil. */
+  const at = (index: number): Save => JSON.parse(serialize(caught(MOMENTS[index][1])));
+  const liftsIn = (save: Save): Row[] => save.machine.lifts as Row[];
+  const doors = (save: Save): Row => save.machine.hopper as Row;
+  const towerOn = (save: Save, lift: Row): Row => find(save.machine.medals, (medal) => medal.id === lift.id);
+
+  const forged: [string, number, (save: Save) => void][] = [
+    ['doors pouring with nothing left to pour', 1, (save) => (save.machine.payoutQueue = 0)],
+    ['doors dropping open for a prize too small to pour', 0, (save) => (save.machine.payoutQueue = POUR.threshold - 1)],
+    ['doors that have been dropping open for longer than they take', 0, (save) => (doors(save).clock = POUR.opens + 0.01)],
+    ['doors that have been shutting for as long as they take, and are not shut', 2, (save) => (doors(save).clock = POUR.closes)],
+    ['shut doors with their clock still running', 4, (save) => (doors(save).clock = 0.1)],
+    ['open doors with a clock running', 1, (save) => (doors(save).clock = 0.1)],
+    ['doors doing something a hopper does not do', 1, (save) => (doors(save).phase = 'jammed')],
+    ['doors that have poured half a medal', 1, (save) => (doors(save).poured = 20.5)],
+    ['doors with a part too many', 1, (save) => (doors(save).swing = 1)],
+    ['no doors at all', 1, (save) => delete save.machine.hopper],
+    ['no list of lifts', 1, (save) => delete save.machine.lifts],
+    ['a tower going up with no lift under it', 1, (save) => liftsIn(save).pop()],
+    ['a lift with no tower', 1, (save) => (liftsIn(save)[0].id = (save.machine.nextId as number) - 1)],
+    ['two lifts under one tower', 1, (save) => (liftsIn(save)[1].id = liftsIn(save)[0].id)],
+    ['a lift whose tower stands somewhere else', 1, (save) => (towerOn(save, liftsIn(save)[0]).x = (liftsIn(save)[0].x as number) + 1)],
+    ['a lift whose tower has slipped back from it', 1, (save) => (liftsIn(save)[0].behind = (liftsIn(save)[0].behind as number) + 0.5)],
+    ['a lift building a taller tower than the one on it', 1, (save) => (liftsIn(save)[0].size = (liftsIn(save)[0].size as number) + 1)],
+    ['a lift under a ball', 1, (save) => Object.assign(towerOn(save, liftsIn(save)[0]), { ball: true })],
+    ['a lift under a tower on the lower table', 1, (save) => (towerOn(save, liftsIn(save)[0]).level = 0)],
+    [
+      'a tower that has begun to come up before its guard is',
+      0,
+      (save) => {
+        const tower = towerOn(save, liftsIn(save)[0]);
+        tower.stack = 2;
+        tower.grow = (tower.grow as number) - 1;
+        save.machine.growing = (save.machine.growing as number) - 1;
+      },
+    ],
+    ['a guard that is up, with its tower built, and not sinking', 3, (save) => (liftsIn(save)[0].sunk = -1)],
+    ['a guard sinking round a tower that is still coming up', 1, (save) => (liftsIn(save)[0].sunk = 0.1)],
+    ['a guard that is neither up nor sinking', 1, (save) => (liftsIn(save)[0].sunk = -0.5)],
+    ['a guard rising and sinking at once', 0, (save) => (liftsIn(save)[0].sunk = 0.1)],
+    ['a guard that has sunk for as long as it takes and is still there', 3, (save) => (liftsIn(save)[0].sunk = LIFT.closes)],
+    ['a hatch that takes longer to open than it does', 0, (save) => (liftsIn(save)[0].wait = LIFT.opens + 0.01)],
+    ['a lift in front of the pusher’s lip', 1, (save) => (liftsIn(save)[0].behind = -1)],
+    ['more lifts than there could be', 4, (save) => (save.machine.lifts = Array.from({ length: LIMITS.lifts + 1 }, (_, i) => ({ id: 900000 + i, x: 50, behind: 9, size: 5, wait: 0, sunk: 0.1 })))],
+    ['a poured medal that is a ball', 1, (save) => Object.assign(find(save.machine.falling, (medal) => medal.source === 'pour'), { ball: true })],
+    ['a poured medal on its way to the lower table', 1, (save) => (find(save.machine.falling, (medal) => medal.source === 'pour').level = 0)],
+  ];
+
+  it.each(forged)('refuses %s', (_name, moment, forge) => {
+    const save = at(moment);
+    expect(restore(JSON.stringify(save), 1)).not.toBeNull();
+    forge(save);
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it('takes a guard that is sinking with its tower already pushed away and gone over', () => {
+    const save = at(3);
+    const [lift] = liftsIn(save);
+    save.machine.medals = save.machine.medals.filter((medal) => medal.id !== lift.id);
+    const back = restore(JSON.stringify(save), 1);
+    expect(back).not.toBeNull();
+    for (let i = 0; i < 60; i++) advance(back as Session, DT);
+    expect((back as Session).machine.lifts).toEqual([]);
+  });
+
+  it('opens the doors of an older save as soon as it starts, when it was saved with a prize big enough to pour still waiting', () => {
+    const session = createSession(9, { balls: 0 });
+    queuePayout(session.machine, 64);
+    const save = JSON.parse(serialize(session)) as Save;
+    delete save.machine.hopper;
+    delete save.machine.lifts;
+    save.version = VERSION_BEFORE_WORKS;
+    const back = restore(JSON.stringify(save), 1) as Session;
+    expect(back.machine.hopper).toEqual(shutHopper());
+    const events: SessionEvent[] = [];
+    advance(back, DT, events);
+    expect(events).toContainEqual({ type: 'pourStart', medals: 64 });
   });
 });

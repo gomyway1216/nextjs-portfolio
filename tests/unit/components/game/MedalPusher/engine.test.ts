@@ -43,6 +43,7 @@ import {
   type Medal,
   type StepEvents,
 } from '@/components/game/MedalPusher/engine';
+import { LIFT } from '@/components/game/MedalPusher/lift';
 
 import { aimBoth, dropAt } from './feeding';
 
@@ -1019,9 +1020,16 @@ describe('medal towers', () => {
     // The prize is on the field from the moment it is paid, though the towers are still going up.
     expect(medalsOnField(machine)).toBe(start + 100);
     expect(towers().every((tower) => tower.level === 1 && tower.y < pusherFront(machine.time))).toBe(true);
+    // Each stands on the hatch of its lift, one medal high, until the hatch is open and the guard is up.
+    const opening = step(machine, LIFT.opens - 0.05);
+    expect(towers().every((tower) => tower.stack === 1)).toBe(true);
+    expect(machine.growing).toBe(96);
     // Going up, a tower shoulders its neighbours aside, and some of them leave the field.
-    const early = step(machine, 0.5);
+    const early = step(machine, 0.55);
     expect(towers().every((tower) => tower.stack > 3 && tower.stack < 25)).toBe(true);
+    early.won += opening.won;
+    early.lost += opening.lost;
+    early.toppled += opening.toppled;
     const late = step(machine, 25 / TOWER.perSecond);
     expect(machine.growing).toBe(0);
     expect(

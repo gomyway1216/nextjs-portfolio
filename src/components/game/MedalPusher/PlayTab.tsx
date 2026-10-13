@@ -24,6 +24,9 @@ import { START_CREDITS, advance, createSession, insert, pickChest, refill, type 
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
+import { hopperBusy } from './hopper';
+import { holds as liftHolds } from './lift';
+import { getWorksStrings } from './worksStrings';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -214,7 +217,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
-  const live = useRef({ auto, sound, active, strings: t });
+  const live = useRef({ auto, sound, active, strings: t, works: getWorksStrings(language) });
   // Who is holding each rail's feed down. The two rails are held apart, so two fingers, or two keys, feed both at once.
   const holds = useRef<[Hold, Hold]>([
     { by: new Set(), since: 0 },
@@ -225,7 +228,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const aimers = useRef(new Map<number, Arm>());
 
   useEffect(() => {
-    live.current = { auto, sound, active, strings: t };
+    live.current = { auto, sound, active, strings: t, works: getWorksStrings(language) };
   });
 
   /** Shows on the buttons which rails are held, when that has changed. */
@@ -396,6 +399,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let autoClock = 0;
     let autoArm: Arm = 0;
     let lastSpinClock = 0;
+    let shownWorks = '';
     let last = performance.now();
     const events: SessionEvent[] = [];
     let frameId = 0;
@@ -541,7 +545,24 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
             break;
+          // The payout works. What they have done is read out once it is done, so that it does not talk over the
+          // prize that set them going.
+          case 'pourStart':
+            playSound('open', soundOn);
+            break;
+          case 'pourEnd':
+            setAnnouncement(live.current.works.sayPoured(event.medals));
+            break;
+          case 'towersReady':
+            setAnnouncement(live.current.works.sayTowers(event.towers));
+            break;
         }
+      }
+      // The field says what the payout works are doing: whether the hopper's doors are open, and how many lifts hold a tower.
+      const works = `${hopperBusy(session.machine.hopper) ? 'open' : 'shut'} ${session.machine.lifts.filter(liftHolds).length}`;
+      if (works !== shownWorks) {
+        shownWorks = works;
+        [canvas.dataset.hopper, canvas.dataset.lifts] = works.split(' ');
       }
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });

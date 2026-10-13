@@ -106,7 +106,7 @@ export interface SoundOptions {
 export const LEVEL = {
   /** No sound is ever played above this: 0.12 of full scale, about −18 dBFS. */
   ceiling: 0.12,
-  /** The one place to turn the whole cabinet up or down. */
+  /** The level the whole cabinet was made at. The player turns it up or down from here: see `VOLUME`. */
   master: 1,
 } as const;
 
@@ -135,6 +135,27 @@ const MAKE_UP = -0.6 * COMPRESSOR.threshold * (1 - 1 / COMPRESSOR.ratio);
  * output settles below about 0.5 of full scale (−6 dBFS).
  */
 export const MASTER_GAIN = LEVEL.master * 10 ** (-MAKE_UP / 20);
+
+/**
+ * How loud the player has the cabinet, as a multiple of the level it was made
+ * at: from nothing to twice as loud, which is 6 dB more. Nobody had heard the
+ * cabinet when its level was chosen, so the player is given the knob.
+ *
+ * It is set in front of the compressor, so the limiter's promise holds at any
+ * setting. What moves is where the compressor begins to work: on what adds up
+ * to 0.39 at the usual volume, and on half that with the volume right up,
+ * where a single medal (0.2) and a jackpot (0.22) are still left alone. With
+ * the volume right up, the tray as full as it can be comes out at 0.42, a
+ * flood no machine could pay at 0.43, and every voice there is at the ceiling
+ * and in step, which cannot happen, at 0.51 of full scale (0.48 as made).
+ *
+ * A change is glided to, with a time constant of `glide` seconds, so that it
+ * is not a click, and not a staircase while a slider is being dragged.
+ */
+export const VOLUME = { least: 0, usual: LEVEL.master, most: 2, glide: 0.03 } as const;
+
+/** The gain in front of the compressor for a volume: `MASTER_GAIN` at the usual one. A volume outside the range is brought into it. */
+export const masterGain = (volume: number): number => Math.min(VOLUME.most, Math.max(VOLUME.least, volume)) * 10 ** (-MAKE_UP / 20);
 
 /**
  * The peak each sound is played at. A medal is played a little under it, by a
@@ -1135,6 +1156,8 @@ const USUAL_STOPS = [0.7, 1.6, 1.2] as const;
 let rig: Rig | null = null;
 let tune: Tune | null = null;
 let musicWanted = false;
+/** The volume the player has set, which a cabinet that is switched on later starts at. */
+let volume: number = VOLUME.usual;
 let warming: ReturnType<typeof setTimeout> | null = null;
 
 /**
@@ -1147,7 +1170,7 @@ function build(): Rig | null {
   try {
     const audio = new AudioContext();
     const master = audio.createGain();
-    master.gain.value = MASTER_GAIN;
+    master.gain.value = masterGain(volume);
     const compressor = audio.createDynamicsCompressor();
     compressor.threshold.value = COMPRESSOR.threshold;
     compressor.knee.value = COMPRESSOR.knee;
@@ -1461,6 +1484,27 @@ export function playSound(sound: PusherSound, enabled: boolean, options: SoundOp
 }
 
 /**
+ * Sets how loud the whole cabinet is, from `VOLUME.least` to `VOLUME.most`
+ * times the level it was made at. It can be called at any time. Before the
+ * sound has been switched on, it is what the cabinet will start at; once it
+ * is on, the level glides there, whatever is playing. A volume outside the
+ * range is brought into it, and one that is not a number is ignored.
+ */
+export function setVolume(next: number): void {
+  if (!Number.isFinite(next)) return;
+  volume = Math.min(VOLUME.most, Math.max(VOLUME.least, next));
+  if (!rig) return;
+  try {
+    const now = rig.audio.currentTime;
+    const { gain } = rig.master;
+    gain.cancelScheduledValues(now);
+    gain.setTargetAtTime(masterGain(volume), now, VOLUME.glide);
+  } catch {
+    // The level stays where it was.
+  }
+}
+
+/**
  * Switches the background loop on or off. It plays only while it is wanted,
  * the sound has been unlocked and the page can be seen, and stops at once
  * otherwise.
@@ -1494,9 +1538,10 @@ export function hush(): void {
   gain.setTargetAtTime(1, now + CUT, MUSIC.duck);
 }
 
-/** Forgets the audio altogether, as if the page had just been opened. The tests start from here. */
+/** Forgets the audio altogether, the volume included, as if the page had just been opened. The tests start from here. */
 export function resetAudio(): void {
   setMusic(false);
+  volume = VOLUME.usual;
   if (warming !== null) clearTimeout(warming);
   warming = null;
   if (rig) {

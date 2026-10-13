@@ -168,9 +168,9 @@ describe('recording what the machine did', () => {
       won(9),
       { type: 'lost', count: 2 },
       { type: 'landed', count: 30 },
-      { type: 'checker', gate: 0, held: true },
-      { type: 'checker', gate: 1, held: true },
-      { type: 'checker', gate: 2, held: false },
+      { type: 'checker', gate: 0, held: true, gold: false },
+      { type: 'checker', gate: 1, held: true, gold: false },
+      { type: 'checker', gate: 2, held: false, gold: false },
       { type: 'holdFilled' },
       { type: 'spinStart', result: { tier: 'miss', digits: [1, 2, 3], reach: false, reachKind: 'none' }, duration: 1.6 },
       spin('miss'),
@@ -257,7 +257,7 @@ describe('recording what the machine did', () => {
   });
 
   it('counts a day as played once a medal has been fed on it, and not for what the field did by itself', () => {
-    const idle = record(book, [won(3), { type: 'checker', gate: 0, held: true }], MONDAY);
+    const idle = record(book, [won(3), { type: 'checker', gate: 0, held: true, gold: false }], MONDAY);
     expect(viewOf(idle).days).toBe(0);
     let played = record(idle, [fed(1)], MONDAY);
     played = record(played, [fed(5)], MONDAY);
@@ -312,8 +312,8 @@ describe('the achievements', () => {
     expect(earnedBy([spin('big')])).toEqual(['firstLine']);
     expect(earnedBy([{ type: 'holdFilled' }])).toEqual(['holdFull']);
     // A medal turned away by a full hold is not the hold filling: the machine says that itself, when it happens.
-    expect(earnedBy([{ type: 'checker', gate: 0, held: false }])).toEqual([]);
-    expect(earnedBy([{ type: 'checker', gate: 0, held: true }])).toEqual([]);
+    expect(earnedBy([{ type: 'checker', gate: 0, held: false, gold: false }])).toEqual([]);
+    expect(earnedBy([{ type: 'checker', gate: 0, held: true, gold: false }])).toEqual([]);
     expect(earnedBy([spin('small', 'long')])).toEqual(['firstLine', 'superWin']);
     expect(earnedBy([{ type: 'sugorokuEnd', square: 7, payout: 30, fever: true }])).toEqual(['fever']);
     expect(earnedBy([{ type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) }])).toEqual(['treasure']);
@@ -1011,7 +1011,7 @@ describe('the hold filling', () => {
     advance(session, DT, events);
     // Seven held, the eighth comes in, and with the screen free a spin starts at once: seven again when the frame is over.
     expect(events.map((event) => event.type)).toEqual(['holdFilled', 'checker', 'spinStart']);
-    expect(events[1]).toEqual({ type: 'checker', gate: 1, held: true });
+    expect(events[1]).toEqual({ type: 'checker', gate: 1, held: true, gold: false });
     expect(session.stock).toBe(MAX_STOCK - 1);
     expect(session.spins).toBe(1);
     expect(session.wasted).toBe(0);

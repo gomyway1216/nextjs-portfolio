@@ -24,8 +24,12 @@ import {
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { grant } from './session';
+import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
-import { STORAGE_KEY, restore, serialize } from './storage';
+import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
+import { keepMachine } from './savedMachine';
+import { savedNoteFor } from './savedNote';
+import { restore } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -142,6 +146,8 @@ const IDLE_SCREEN: ScreenState = {
   level: 0,
   total: 0,
   hole: -1,
+  chance: 0,
+  gold: false,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -175,7 +181,17 @@ const WALL_SHEET: CSSProperties = {
 };
 const STAGE_SHAPE: CSSProperties = { aspectRatio: `${VIEW.width} / ${VIEW.height}` };
 
-export const PlayTab = ({ active = true }: { active?: boolean }) => {
+export interface PlayTabProps {
+  active?: boolean;
+  /** Who is playing, as far as the site knows. Left out, everyone is a guest and the machine lives on this device alone. */
+  player?: Player;
+  /** The account's store for the machine. It is read when the cabinet is first set up, and not again. */
+  store?: AccountStore | null;
+  /** Where a guest goes to sign in. With it, the note that the machine is saved on this device invites them to. */
+  signInHref?: string;
+}
+
+export const PlayTab = ({ active = true, player = GUEST, store = null, signInHref }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -190,14 +206,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [held, setHeld] = useState<[boolean, boolean]>([false, false]);
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
+  // How loud the player has the cabinet and whether its loop plays, kept on this device apart from the machine.
+  const soundControl = useSoundSettings();
+  const musicOn = soundControl.settings.music;
   const [announcement, setAnnouncement] = useState('');
   // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
   const [armedAt, setArmedAt] = useState<number | null>(null);
   const armed = armedAt !== null;
   const [switchedOn, setSwitchedOn] = useState(0);
-  const startFresh = useRef(false);
-  // Whether the last attempt to save the machine took. Until one has been made, the page says what the server said.
-  const [kept, setKept] = useState(true);
+  // Where the machine is kept, and whether the last write to this device took. Until the keeper has said, the page says what the server said.
+  const [status, setStatus] = useState<Status>({ where: 'device', kept: true });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The canvas under the field, for the 3D scene.
@@ -210,6 +228,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
+  // The keeper of the machine: it writes it to this device and, for a player who is signed in, keeps the account's copy
+  // in step. When another machine has to go on the table — the account's, or another player's — it asks for the cabinet
+  // to be switched off and on again, the way a reset does, and gives the machine to open with.
+  const keeper = useRef<Sync | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
   const live = useRef({ auto, sound, active, strings: t });
   // Who is holding each rail's feed down. The two rails are held apart, so two fingers, or two keys, feed both at once.
@@ -303,32 +325,48 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     };
   }, [active]);
 
-  // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
-  // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
-  // fanfare and loop stop with it, and the loop starts again from the top for the new one.
+  // The background loop plays while the sound is on, the player has not switched the loop off, and this tab is
+  // showing. Switching the sound off, or leaving the cabinet, cuts short whatever is still ringing. So does a
+  // reset: the old machine's reels, fanfare and loop stop with it, and the loop starts again from the top for the new one.
   useEffect(() => {
-    setMusic(sound && active);
+    setMusic(sound && active && musicOn);
     return () => setMusic(false);
-  }, [sound, active, switchedOn]);
+  }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
+
+  // The keeper is set up once, before anything asks it for a machine.
+  useEffect(() => {
+    keeper.current ??= keepMachine({
+      store,
+      slots: () => window.localStorage,
+      session: () => sessionRef.current,
+      reopen: () => {
+        setHud(INITIAL_HUD);
+        setScreen(IDLE_SCREEN);
+        // Another machine is not fed for its player before they have seen it.
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+      },
+      onStatus: setStatus,
+    });
+  }, [store]);
+
+  // Who is playing. Signing in or out while the game is open changes whose machine is on the table.
+  useEffect(() => {
+    keeper.current?.player({ uid: player.uid, settled: player.settled, expected: player.expected });
+  }, [player.uid, player.settled, player.expected]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     // In 3D where the browser can, and on the canvas alone where it cannot; `?renderer=2d` asks for the second.
-    const renderer = canvas && createRenderer(canvas, sceneRef.current, window.location.search);
-    if (!canvas || !renderer) return;
+    const keeping = keeper.current;
+    const renderer = canvas && keeping && createRenderer(canvas, sceneRef.current, window.location.search);
+    if (!canvas || !keeping || !renderer) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
-    // The machine this browser remembers, if it holds one that still reads. After a reset the
-    // save is thrown away instead.
-    let remembered: Session | null = null;
-    try {
-      if (startFresh.current) window.localStorage.removeItem(STORAGE_KEY);
-      else remembered = restore(window.localStorage.getItem(STORAGE_KEY), seed);
-    } catch {
-      // Storage is blocked or switched off: the machine is simply a new one.
-    }
-    startFresh.current = false;
-    const session = remembered ?? createSession(seed);
+    // The machine to open with: the account's for a player who is signed in, and otherwise the one this browser
+    // remembers, if it holds one that still reads. After a reset there is none, and the old one is thrown away.
+    const remembered = keeping.open();
+    const session = (remembered === null ? null : restore(remembered, seed)) ?? createSession(seed);
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
     setAims([session.machine.aims[0], session.machine.aims[1]]);
@@ -339,36 +377,30 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     setHeld([false, false]);
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-    // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
-    // or left, and when the cabinet is taken down. A write that fails means the machine is not
-    // remembered; the game goes on, and the note under the tally stops saying that it is.
-    const save = () => {
-      let took = false;
-      try {
-        window.localStorage.setItem(STORAGE_KEY, serialize(session));
-        took = true;
-      } catch {
-        // Storage is full, blocked or switched off.
-      }
-      setKept(took);
-    };
+    // Saved on this device as soon as it stands here, every few seconds while it is showing, when the page is
+    // hidden or left, and when the cabinet is taken down. A write that fails means the machine is not remembered;
+    // the game goes on, and the note under the tally stops saying that it is. The keeper sends it on to the
+    // account, for a player who has one, far less often: see SEND_EVERY in account.ts.
     const saveWhileShowing = () => {
-      if (live.current.active && document.visibilityState === 'visible') save();
+      if (live.current.active && document.visibilityState === 'visible') keeping.save('tick');
     };
     const saveWhenHidden = () => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') keeping.save('hidden');
+    };
+    const saveOnLeaving = () => {
+      keeping.save('left');
     };
     const saveTimer = window.setInterval(saveWhileShowing, SAVE_EVERY * 1000);
     document.addEventListener('visibilitychange', saveWhenHidden);
-    window.addEventListener('pagehide', save);
+    window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
-    save();
-    // The day's bonus is paid into this machine's purse, and the machine is saved with it at once. The cabinet
-    // hears of it in its next frame, with everything else that happened.
+    keeping.save('tick');
+    // The day's bonus is paid into this machine's purse, and the machine is saved on this device with it at once.
+    // The cabinet hears of it in its next frame, with everything else that happened.
     const gifts: SessionEvent[] = [];
     const closePurse = records.openPurse((medals) => {
       if (!grant(session, medals, gifts)) return false;
-      save();
+      keeping.save('tick');
       return true;
     });
 
@@ -474,7 +506,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'checker':
             lightGate(stage, event.gate);
-            playSound(event.held ? 'gate' : 'full', soundOn);
+            playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
+            break;
+          case 'chanceStart':
+            playSound('fever', soundOn);
+            setAnnouncement(strings.sayChance);
+            break;
+          case 'chanceEnd':
+            setAnnouncement(strings.sayChanceEnd);
             break;
           case 'toppled':
             celebrate(stage, 'crash');
@@ -547,6 +586,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
+            // A jackpot is not left to wait for the minute: it goes to the account now.
+            if (event.jackpot) keeping.save('moment');
             break;
         }
       }
@@ -557,7 +598,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -616,10 +657,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       renderer.dispose();
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
-      window.removeEventListener('pagehide', save);
+      window.removeEventListener('pagehide', saveOnLeaving);
       closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
-      save();
+      keeping.save('left');
       sessionRef.current = null;
     };
   }, [switchedOn]);
@@ -724,7 +765,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const onRefill = () => {
     const session = sessionRef.current;
-    if (session && refill(session)) setHud(hudOf(session));
+    if (session && refill(session)) {
+      setHud(hudOf(session));
+      keeper.current?.save('moment');
+    }
   };
 
   const onPick = (chest: number) => {
@@ -732,24 +776,30 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     if (session) pickChest(session, chest);
   };
 
+  // A player who is signed in resets the machine on the account, and is told so before the second press.
+  const resetConfirm = player.uid === null ? t.resetConfirm : t.resetConfirmAccount;
   const onReset = () => {
     // A press that does not follow a first one within the window is a first press itself,
     // even if the label has not gone back yet.
     const now = Date.now();
     if (!confirmsReset(armedAt, now)) {
       setArmedAt(now);
-      setAnnouncement(t.resetConfirm);
+      setAnnouncement(resetConfirm);
       return;
     }
-    // The second press came in time: the cabinet starts again with a new machine and nothing saved.
+    // The second press came in time: the cabinet starts again with a new machine and nothing saved. For a player
+    // who is signed in the new machine is the account's as well, and takes the old one's place there.
     setArmedAt(null);
-    startFresh.current = true;
+    keeper.current?.fresh();
     setSwitchedOn((times) => times + 1);
     setHud(INITIAL_HUD);
     setScreen(IDLE_SCREEN);
     setAuto(false);
     setAnnouncement(t.sayReset(START_CREDITS));
   };
+
+  // What is true of where the machine is kept: of the account, and of this device, whose last write may not have taken.
+  const savedNote = t[savedNoteFor(status)];
 
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;
@@ -888,7 +938,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
               <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
             </button>
+            <SoundSettingsButton control={soundControl} strings={t} />
           </div>
+          <SoundSettingsPanel control={soundControl} strings={t} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">
@@ -934,11 +986,19 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </dl>
         <p className={styles.note}>{t.tallyNote}</p>
-        <p className={styles.note} data-saved={kept} data-testid="pusher-saved">
-          {kept ? t.savedNote : t.unsavedNote}
+        <p className={styles.note} data-saved={status.kept} data-testid="pusher-saved" data-where={status.where}>
+          {savedNote}
+          {status.where === 'device' && status.kept && player.settled && player.uid === null && signInHref && (
+            <>
+              {' '}
+              <a className={styles.noteLink} href={signInHref} data-testid="pusher-sign-in">
+                {t.signInInvite}
+              </a>
+            </>
+          )}
         </p>
         <button type="button" className={`${styles.btn} ${styles.reset}`} data-armed={armed} data-testid="pusher-reset" onClick={onReset}>
-          {armed ? t.resetConfirm : t.reset}
+          {armed ? resetConfirm : t.reset}
         </button>
       </section>
 

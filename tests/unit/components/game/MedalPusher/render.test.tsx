@@ -20,6 +20,7 @@ import {
 import { AIM_CAPS, AIM_KEY, AIM_KEYS, AIM_RANGE, AUTO_PACE, FEED_KEYS, HOLD_DELAY, KEY_CAPS, PlayTab, aimPercent, percentAim, typingIn } from '@/components/game/MedalPusher/PlayTab';
 import { ReelSymbol } from '@/components/game/MedalPusher/ReelSymbols';
 import {
+  GOLD_FLASH_STYLE,
   IDLE_DIGITS,
   Screen,
   ballTransform,
@@ -31,12 +32,30 @@ import {
   stripOffset,
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
+import { GOLD_FLASH, goldFlash } from '@/components/game/MedalPusher/render';
 import { CATCHER } from '@/components/game/MedalPusher/catcher';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
+import {
+  BOARD,
+  BOARD_VALUE,
+  BOWL,
+  CHANCE,
+  CHANCE_BONUS,
+  CHEST_VALUE,
+  FEVER_SQUARE,
+  JACKPOT_START,
+  ROULETTE,
+  chanceSpinValue,
+  chanceTierValue,
+  reachChance,
+  reachHitChance,
+  spinValue,
+  tierChance,
+  tierValue,
+} from '@/components/game/MedalPusher/lottery';
 import {
   BOWL_SHAPE,
   REEL_DIGITS,
@@ -1002,8 +1021,8 @@ describe('the page', () => {
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    // Slot, reach, board, chests, roulette, run, bowl and what a spin is worth.
-    expect(html.match(/<caption/g)).toHaveLength(8);
+    // Slot, reach, board, chests, roulette, run, bowl, what a spin is worth and what a gold one is.
+    expect(html.match(/<caption/g)).toHaveLength(9);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
   });
@@ -1157,6 +1176,8 @@ describe('the screen', () => {
     level: 0,
     total: 0,
     hole: -1,
+    chance: 0,
+    gold: false,
   };
   const en = getStrings('en');
   const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
@@ -1674,5 +1695,153 @@ describe('what the screen shows for a session', () => {
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0] }] })).toBe(true);
     expect(sameScreen({ ...a, chests }, { ...a, chests: [{ ...chests[0], state: 'picked' }] })).toBe(false);
     expect(sameScreen({ ...a, chests }, a)).toBe(false);
+  });
+});
+
+describe('chance time on the screen and in the words', () => {
+  const idle = screenState(createSession(1, { balls: 0 }), false);
+  const show = (state: ScreenState, stock = 0, lang: 'en' | 'ja' = 'en') =>
+    render(<Screen state={state} stock={stock} strings={getStrings(lang)} registerStrip={() => {}} registerBall={() => {}} onPick={() => {}} />, lang);
+  const lamps = (html: string, lit: string) => html.match(new RegExp(`data-lit="[a-z]+" data-gold="${lit}"`, 'g'))?.length ?? 0;
+
+  it('says nothing of it while no spin is gold', () => {
+    expect(idle).toMatchObject({ chance: 0, gold: false });
+    const html = show(idle, 5);
+    expect(html).not.toContain('pusher-chance');
+    expect(html).not.toContain('CHANCE TIME');
+    expect(lamps(html, 'true')).toBe(0);
+    expect(lamps(html, 'false')).toBe(MAX_STOCK);
+  });
+
+  it('writes CHANCE TIME, what a gold spin pays and how many are left, and flashes the gold spins’ lamps', () => {
+    // Three gold spins held, and nothing gold on the screen yet.
+    const waiting = show({ ...idle, chance: 3, gold: false }, MAX_STOCK);
+    const strip = waiting.match(/<div[^>]*data-testid="pusher-chance"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(strip).toContain('CHANCE TIME');
+    expect(strip).toContain(`×${CHANCE.multiplier}`);
+    expect(strip).toContain('3 left');
+    expect(strip).toContain('data-gold="false"');
+    // The first three lamps are the gold spins': the gold ones are played first.
+    expect(lamps(waiting, 'true')).toBe(3);
+    expect(waiting.match(/data-lit="true" data-gold="true"/g)).toHaveLength(3);
+    // One of them on the reels, and two still held: three left, two lamps gold, and the strip says the screen is gold.
+    const playing = show({ ...idle, chance: 3, gold: true }, 7);
+    expect(playing).toMatch(/data-gold="true"[^>]*data-testid="pusher-chance"|data-testid="pusher-chance"[^>]*data-gold="true"/);
+    expect(playing).toContain('3 left');
+    expect(lamps(playing, 'true')).toBe(2);
+    // The last one on the reels: no lamp is gold, and it is still chance time.
+    const last = show({ ...idle, chance: 1, gold: true }, 4);
+    expect(last).toContain('1 left');
+    expect(lamps(last, 'true')).toBe(0);
+    // It is for the eye: the cabinet says it aloud once, where it makes its announcements.
+    expect(strip).toContain('aria-hidden="true"');
+    const ja = show({ ...idle, chance: 3, gold: true }, 7, 'ja');
+    expect(ja).toContain('チャンスタイム');
+    expect(ja).toContain('あと3回');
+  });
+
+  it('takes it from the session: the gold spins that are held, and the one on the screen', () => {
+    const session = createSession(1, { balls: 0 });
+    session.stock = MAX_STOCK;
+    session.gold = 5;
+    session.gilded = 5;
+    session.wasted = 5;
+    expect(screenState(session, false)).toMatchObject({ chance: 5, gold: false });
+    session.chance = true;
+    session.gold = 4;
+    expect(screenState(session, false)).toMatchObject({ chance: 5, gold: true });
+    // One fewer left, or the screen turning gold, is another screen to draw.
+    const five = screenState(session, false);
+    expect(sameScreen(five, { ...five })).toBe(true);
+    expect(sameScreen(five, { ...five, chance: 4 })).toBe(false);
+    expect(sameScreen(five, { ...five, gold: false })).toBe(false);
+  });
+
+  it('flashes a gold lamp at one rate, twice a second, each a beat behind the one before, and not at all with motion reduced', () => {
+    // Under the three flashes a second that are safe for anyone to look at.
+    expect(GOLD_FLASH.perSecond).toBe(2);
+    expect(GOLD_FLASH.perSecond).toBeLessThanOrEqual(3);
+    const period = 1 / GOLD_FLASH.perSecond;
+    for (let lamp = 0; lamp < MAX_STOCK; lamp++) {
+      // A whole second, a frame at a time: it goes from dim to bright as many times as the rate says, and no oftener.
+      const seen = Array.from({ length: 121 }, (_, frame) => goldFlash(5 + frame / 120, lamp, false));
+      expect(Math.min(...seen)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...seen)).toBeLessThanOrEqual(1);
+      expect(Math.max(...seen) - Math.min(...seen)).toBeGreaterThan(0.9);
+      expect(seen.filter((bright, frame) => frame > 0 && seen[frame - 1] < 0.5 && bright >= 0.5)).toHaveLength(GOLD_FLASH.perSecond);
+      // The same one flash later, and the opposite half a flash later.
+      expect(goldFlash(0.3, lamp, false)).toBeCloseTo(goldFlash(0.3 + period, lamp, false), 9);
+      expect(goldFlash(0.3, lamp, false) + goldFlash(0.3 + period / 2, lamp, false)).toBeCloseTo(1, 9);
+      // With motion reduced it is steadily at its brightest, whatever the clock says.
+      for (const clock of [0, 0.3, 0.3 + period / 2, 17.77]) expect(goldFlash(clock, lamp, true)).toBe(1);
+    }
+    expect(goldFlash(0.1, 0, false)).not.toBeCloseTo(goldFlash(0.1, 1, false), 3);
+  });
+
+  it('flashes the gold lamps on the page at that same rate: the stylesheet takes the length of one flash from the cabinet', () => {
+    expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': `${1 / GOLD_FLASH.perSecond}s` });
+    expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': '0.5s' });
+    // The row of the hold's lamps carries it, so every gold lamp in the row takes it.
+    const html = show({ ...idle, chance: 3, gold: false }, MAX_STOCK);
+    expect(html).toMatch(/data-testid="pusher-stock"[^>]*style="--mp-gold-flash:0\.5s"/);
+    const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
+    // One run of the animation is one whole flash, bright to dim and back to bright at its start: it does not
+    // alternate, which would make a flash take two runs and halve the rate.
+    const animation = /\.lamp\[data-gold='true'\] \{\s*animation: ([^;]+);/.exec(css)?.[1];
+    expect(animation).toBe('mp-gold-lamp var(--mp-gold-flash, 0.5s) steps(2, jump-none) infinite');
+    expect(animation).not.toContain('alternate');
+    // It is the only thing that animates a gold lamp, and it is there only for those who have not asked for less motion.
+    expect(css.match(/animation: mp-gold-lamp/g)).toHaveLength(1);
+    const at = css.indexOf('animation: mp-gold-lamp');
+    const media = css.slice(css.lastIndexOf('@media', at), at);
+    expect(media).toContain('(prefers-reduced-motion: no-preference)');
+    expect(media.match(/\{/g)).toHaveLength(2);
+    // Without it a gold lamp is steadily gold: brighter than a lit one, by a rule that no motion setting takes away.
+    const steady = /\n\.lamp\[data-gold='true'\] \{([^}]+)\}/.exec(css)?.[1] ?? '';
+    expect(steady).toContain('background: #fffbe0');
+    expect(steady).not.toContain('animation');
+  });
+
+  it('gives the rule and a gold spin’s worth on the Odds tab, to five places', () => {
+    const html = render(<OddsTab />);
+    const chance = table(html, 'pusher-chance-table');
+    // An ordinary spin, a gold one, and what being gold adds, with the jackpot at 300: the board's and the chests' share again.
+    expect(spinValue(JACKPOT_START).toFixed(5)).toBe('1.09614');
+    expect(chanceSpinValue(JACKPOT_START).toFixed(5)).toBe('1.74614');
+    expect(CHANCE_BONUS).toBeCloseTo(0.65, 12);
+    expect(CHANCE_BONUS).toBeCloseTo(tierChance('small') * BOARD_VALUE + tierChance('big') * CHEST_VALUE, 12);
+    for (const text of ['1.09614 medals', '1.74614 medals', '0.65000 medals']) expect(chance).toContain(text);
+    // What being gold adds is the same at any size of jackpot: a gold spin's ball is worth what any ball is.
+    expect(chance.match(/0\.65000 medals/g)).toHaveLength(JACKPOT_LEVELS.length);
+    for (const level of JACKPOT_LEVELS) {
+      expect(chance).toContain(`${chanceSpinValue(level).toFixed(5)} medals`);
+      expect(chanceTierValue('seven', level)).toBe(tierValue('seven', level));
+      expect(chanceTierValue('miss', level)).toBe(0);
+      expect(chanceTierValue('small', level)).toBe(BOARD_VALUE * 2);
+      expect(chanceTierValue('big', level)).toBe(CHEST_VALUE * 2);
+    }
+    expect(html).toContain(`When all ${MAX_STOCK} spins are held, the next medal through a START pocket starts no spin of its own.`);
+    expect(html).toContain('pays 2 times over, and a ball is a ball');
+    expect(html).toContain('it is worth 0.65 medals more than one ordinary spin');
+    const ja = render(<OddsTab />, 'ja');
+    expect(ja).toContain('チャンスタイム');
+    expect(ja).toContain('ふつうの抽選より0.65枚多く払い出します');
+  });
+
+  it('explains it in the how-to, the slot’s note and the simulation’s notes, in both languages', () => {
+    const [en, ja] = [getStrings('en'), getStrings('ja')];
+    expect(en.infoBody(MAX_STOCK).join(' ')).toContain('turns one of the held spins gold: that is CHANCE TIME');
+    expect(ja.infoBody(MAX_STOCK).join('')).toContain('これがチャンスタイムです');
+    expect(en.slotIntro(MAX_STOCK)).toContain('starts no spin of its own, but turns one of the held spins gold');
+    expect(ja.slotIntro(MAX_STOCK)).toContain('保留中の抽選が1つ金色に変わります');
+    expect(en.simNotes('1.10', MAX_STOCK).join(' ')).toContain('it turns one of the held spins gold, if one is left to turn');
+    expect(ja.simNotes('1.10', MAX_STOCK).join('')).toContain('そのうち1つが金の抽選に変わります');
+    expect(en.chanceLeft(4)).toBe('4 left');
+    expect(en.sayChance).toContain('Chance time');
+    expect(ja.sayChance).toContain('チャンスタイム');
+    expect(en.colGold).toBe('Gold spins');
+    expect(ja.colGold).toBe('金の抽選');
+    // The Simulation tab offers both buttons held down as a pace.
+    expect(render(<SimTab />)).toContain('11 medals a second');
   });
 });

@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
 import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
+import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
 
@@ -390,6 +391,9 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect.poll(async () => (await savedMachine(page))?.machine.aims[1] ?? -1, { timeout: 20_000 }).toBeGreaterThan(95);
   await expect.poll(async () => (await savedMachine(page))?.machine.aims[0] ?? 99, { timeout: 20_000 }).toBeLessThan(5);
   await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
+  // Nobody is signed in, so the machine is this device's alone, and the note says how to keep it on an account.
+  await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-where', 'device');
+  await expect(machine(page).getByTestId('pusher-sign-in')).toHaveAttribute('href', '/signin?redirect=%2Fgames%2Fmedal-pusher', { timeout: 15_000 });
 
   await page.reload();
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
@@ -774,6 +778,156 @@ test('Auto drops medals until it is switched off', async ({ page }) => {
   await expectPurseToBalance(page);
 });
 
+// ── The sound settings: a volume and a switch for the music, in a row that opens from a button beside Sound ──
+
+const soundButton = (page: Page) => machine(page).getByTestId('pusher-sound');
+const soundSettings = (page: Page) => machine(page).getByTestId('pusher-sound-settings');
+const soundRow = (page: Page) => machine(page).getByTestId('pusher-sound-panel');
+const volumeSlider = (page: Page) => machine(page).getByTestId('pusher-volume');
+const musicSwitch = (page: Page) => machine(page).getByTestId('pusher-music');
+
+/** Opens the row of sound settings with its button, retrying until hydration has attached the handler. */
+async function openSoundSettings(page: Page) {
+  await expect(async () => {
+    if ((await soundSettings(page).getAttribute('aria-expanded')) !== 'true') await soundSettings(page).click({ timeout: 1_000 });
+    await expect(soundRow(page)).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+test('the sound has a volume and a switch for the music, worked from the keyboard, in a row that opens beside Sound', async ({ page }) => {
+  await openGame(page);
+  await feedOne(page);
+  // Closed, there is only the button, which says what it opens and that it is shut.
+  await expect(soundSettings(page)).toHaveAccessibleName('Sound settings');
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(soundRow(page)).toHaveCount(0);
+  await openSoundSettings(page);
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(machine(page).getByRole('group', { name: 'Sound settings' })).toBeVisible();
+
+  // The volume is a slider with a name, on the level the cabinet was made at, which it says in words.
+  await expect(volumeSlider(page)).toHaveAccessibleName('Volume');
+  await expect(volumeSlider(page)).toHaveValue('100');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '100%, the usual level');
+  await expect(machine(page).getByTestId('pusher-volume-value')).toHaveText('100%usual');
+  // The arrow keys move it a step; Home is silent and End is as loud as it goes, twice the usual.
+  await volumeSlider(page).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(volumeSlider(page)).toHaveValue('105');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '105%');
+  await page.keyboard.press('Home');
+  await expect(volumeSlider(page)).toHaveValue('0');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '0%, silent');
+  await page.keyboard.press('End');
+  await expect(volumeSlider(page)).toHaveValue('200');
+  for (let step = 0; step < 6; step++) await page.keyboard.press('ArrowLeft');
+  await expect(volumeSlider(page)).toHaveValue('170');
+
+  // The music has a switch of its own, which says which way it is.
+  await expect(musicSwitch(page)).toHaveAccessibleName('Music');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await musicSwitch(page).focus();
+  await page.keyboard.press('Space');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+
+  // A letter does nothing in a slider, so with the focus there the machine's keys are still the machine's,
+  // as they are in the aim sliders: J feeds the right rail and the volume stays where it was.
+  const played = await counter(page, 'played');
+  await volumeSlider(page).focus();
+  await page.keyboard.press('j');
+  await expect.poll(() => counter(page, 'played')).toBe(played + 1);
+  await expect(volumeSlider(page)).toHaveValue('170');
+
+  // Escape shuts the row and puts the focus back on the button that opened it.
+  await page.keyboard.press('Escape');
+  await expect(soundRow(page)).toHaveCount(0);
+  await expect(soundSettings(page)).toBeFocused();
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'false');
+  // None of it has switched the sound on: that still takes its own press.
+  await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
+  await expectPurseToBalance(page);
+});
+
+test('the sound settings are remembered on this device, apart from the machine, and nonsense is not believed', async ({ page }) => {
+  await openGame(page);
+  await feedOne(page);
+  await openSoundSettings(page);
+  await volumeSlider(page).focus();
+  for (let step = 0; step < 8; step++) await page.keyboard.press('ArrowLeft');
+  await expect(volumeSlider(page)).toHaveValue('60');
+  await musicSwitch(page).click();
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  // They are kept under a key of their own, and the machine's save says nothing about them.
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false}');
+  const saved = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
+  expect(saved).not.toBeNull();
+  expect(saved).not.toMatch(/volume|music/);
+
+  // After a reload the row is shut and the sound is off, as on any visit, and the settings are as they were left.
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(soundRow(page)).toHaveCount(0);
+  await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('60');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '60%');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+
+  // What is kept there but makes no sense is not believed: the settings are the usual ones.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7}'), SOUND_SETTINGS_KEY);
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('100');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  // A volume that is a number but out of range is brought into it.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":9000,"music":false}'), SOUND_SETTINGS_KEY);
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('200');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('on a phone the sound settings are one short row inside the controls, and the page does not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page);
+  await feedOne(page);
+  const controls = machine(page).getByTestId('pusher-controls');
+  // The button is in the row of switches, beside Sound and as tall as it, and wide enough for a finger.
+  const [sound, button, closed] = await Promise.all([soundButton(page).boundingBox(), soundSettings(page).boundingBox(), controls.boundingBox()]);
+  if (!sound || !button || !closed) throw new Error('the switches have no boxes');
+  expect(Math.abs(sound.y - button.y)).toBeLessThan(2);
+  expect(Math.abs(sound.height - button.height)).toBeLessThan(2);
+  expect(button.x).toBeGreaterThanOrEqual(sound.x + sound.width);
+  expect(button.width).toBeGreaterThanOrEqual(32);
+  expect(button.x + button.width).toBeLessThanOrEqual(closed.x + closed.width);
+
+  await openSoundSettings(page);
+  const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+  const [row, slider, music, open] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), controls.boundingBox()]);
+  if (!row || !slider || !music || !open) throw new Error('the sound settings have no boxes');
+  // The row is inside the controls, under the switches, and short: it adds less than the height of a feed button.
+  expect(row.x).toBeGreaterThanOrEqual(open.x);
+  expect(row.x + row.width).toBeLessThanOrEqual(open.x + open.width);
+  expect(row.y).toBeGreaterThan(button.y + button.height - 1);
+  expect(row.height).toBeLessThanOrEqual(72);
+  expect(open.height - closed.height).toBeLessThanOrEqual(80);
+  // The slider has room to be dragged, and the music's switch is beside it, both inside the row.
+  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.x).toBeGreaterThanOrEqual(row.x);
+  expect(music.x).toBeGreaterThanOrEqual(slider.x + slider.width);
+  expect(music.x + music.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(music.y).toBeGreaterThanOrEqual(row.y);
+  expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // The feed buttons and the aims are where they were: the row opened under them.
+  await expect(feedButton(page, 'left')).toBeVisible();
+  await expect(aimSlider(page, 'right')).toBeVisible();
+  const aim = await aimSlider(page, 'left').boundingBox();
+  expect(aim && aim.y + aim.height).toBeLessThan(row.y);
+});
+
 test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {
   await openGame(page);
   await feedOne(page);
@@ -892,6 +1046,13 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
+  // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
+  const chance = odds(page).getByTestId('pusher-chance-table');
+  await expect(chance.locator('tbody tr')).toHaveCount(3);
+  await expect(chance.locator('tbody tr').first()).toContainText('1.09614 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.74614 medals');
+  await expect(chance.locator('tbody td', { hasText: '0.65000 medals' })).toHaveCount(3);
+  await expect(odds(page)).toContainText('turns one of the held spins gold');
 
   // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');

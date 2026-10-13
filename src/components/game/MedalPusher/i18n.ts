@@ -79,6 +79,18 @@ export interface PusherStrings {
   sayReset: (medals: number) => string;
   sayResetOff: string;
   unsavedNote: string;
+  // A player who is signed in has the machine on the account as well
+  signInInvite: string;
+  accountNote: string;
+  offlineNote: string;
+  unreadableNote: string;
+  checkingNote: string;
+  resetConfirmAccount: string;
+  // The same four when this device could not keep its own copy
+  accountUnsavedNote: string;
+  offlineUnsavedNote: string;
+  unreadableUnsavedNote: string;
+  checkingUnsavedNote: string;
   // Announcements for screen readers
   saySugorokuStart: (digits: string) => string;
   saySugoroku: (medals: number) => string;
@@ -230,6 +242,22 @@ export interface PusherStrings {
   chanceOddsNote: (more: string) => string;
   /** The Simulation table's column of gold spins. */
   colGold: string;
+  /**
+   * The switches of feel under the controls: what the row is called, and each switch's name and what it does. The
+   * first is the aim that swings by itself, which the cabinet calls Swing.
+   */
+  feelLabel: string;
+  swing: string;
+  swingHint: string;
+  /** The line shown while the rails swing, and what is said when Swing goes on, goes off, and gives way to a hand on an aim. */
+  swingNote: string;
+  saySwingOn: string;
+  saySwingOff: string;
+  saySwingTaken: string;
+  vibration: string;
+  vibrationHint: string;
+  fullscreen: string;
+  fullscreenHint: string;
   // The jackpot challenge as three bowls
   sayDrop: (bowl: number, bowls: number) => string;
   colInBowl: string;
@@ -328,6 +356,20 @@ const en: PusherStrings = {
   sayReset: (medals) => `The machine has been reset. You have ${medals} medals.`,
   sayResetOff: 'Reset cancelled.',
   unsavedNote: 'This machine could not be saved on this device: the browser is blocking storage, or it is full. It will start again when the page is reloaded.',
+  signInInvite: 'Sign in to keep it on your account.',
+  accountNote: 'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave, and this device keeps a copy.',
+  offlineNote: 'Could not reach your account just now. The machine is kept on this device and will be sent when the account can be reached again.',
+  unreadableNote:
+    'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is, and the machine here is kept on this device only. Reloading the page may help.',
+  checkingNote: 'Looking for the machine saved to your account…',
+  resetConfirmAccount: 'Press again to reset the machine on your account',
+  accountUnsavedNote:
+    'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave. This device could not keep a copy of its own: the browser is blocking storage, or it is full.',
+  offlineUnsavedNote:
+    'Could not reach your account just now, and this device could not save the machine either: the browser is blocking storage, or it is full. It will be sent when the account can be reached again; if the page is closed before then, what you have played since it was last sent is lost.',
+  unreadableUnsavedNote:
+    'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is. The machine here is not saved anywhere: this device could not keep it, because the browser is blocking storage or it is full. Reloading the page may help.',
+  checkingUnsavedNote: 'Looking for the machine saved to your account… Meanwhile this device could not save the machine here: the browser is blocking storage, or it is full.',
   saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
@@ -511,6 +553,17 @@ const en: PusherStrings = {
   chanceOddsNote: (more) =>
     `A gold spin has cost two medals through a pocket, the one that was held and the one that turned it gold, and it is worth ${more} medals more than one ordinary spin, which is less than the two spins those medals would have been with room in the hold. So filling the hold is never better than not filling it. It is only less of a loss than it was.`,
   colGold: 'Gold spins',
+  feelLabel: 'Ways to play',
+  swing: 'Swing',
+  swingHint: 'The rails swing left and right by themselves, and you only time L and R. Touch a slider or the field to aim by hand again.',
+  swingNote: 'Swing: the rails move by themselves. Press L or R when the ▼ over a slider is where the medal should drop.',
+  saySwingOn: 'Swing is on: the rails are swinging. Press L or R to feed a medal.',
+  saySwingOff: 'Swing is off.',
+  saySwingTaken: 'Swing is off: you are aiming by hand.',
+  vibration: 'Vibrate',
+  vibrationHint: 'The phone ticks when a medal goes in and buzzes for a win.',
+  fullscreen: 'Fullscreen',
+  fullscreenHint: 'The cabinet and its controls fill the screen.',
   sayDrop: (bowl, bowls) =>
     bowl === bowls ? 'The ball dropped through into the last bowl, where the only hole is the jackpot’s.' : `The ball dropped through into bowl ${bowl} of ${bowls}.`,
   colInBowl: 'Chance in that bowl',
@@ -607,6 +660,20 @@ const ja: PusherStrings = {
   sayReset: (medals) => `マシンをリセットしました。メダルは${medals}枚です。`,
   sayResetOff: 'リセットを取り消しました。',
   unsavedNote: 'この端末には保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。ページを読み込み直すと、マシンは最初からになります。',
+  signInInvite: 'サインインすると、アカウントに預けておけます。',
+  accountNote: 'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られ、この端末にも控えが残ります。',
+  offlineNote: 'いまアカウントに接続できません。マシンはこの端末に預けてあり、接続できしだい送り直します。',
+  unreadableNote:
+    'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここのマシンはこの端末にだけ預けています。ページを読み込み直すと直ることがあります。',
+  checkingNote: 'アカウントに預けたマシンを確認しています…',
+  resetConfirmAccount: 'もう一度押すと、アカウントのマシンをリセットします',
+  accountUnsavedNote:
+    'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
+  offlineUnsavedNote:
+    'いまアカウントに接続できず、この端末にも保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。接続できしだい送り直しますが、その前にページを閉じると、最後に送ったあとに遊んだ分は失われます。',
+  unreadableUnsavedNote:
+    'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残してあります。ここのマシンはどこにも保存されていません。この端末には保存できませんでした（ブラウザが保存を許可していないか、空き容量がありません）。ページを読み込み直すと直ることがあります。',
+  checkingUnsavedNote: 'アカウントに預けたマシンを確認しています… その間、ここのマシンはこの端末に保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
   saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,
@@ -789,6 +856,17 @@ const ja: PusherStrings = {
   chanceOddsNote: (more) =>
     `金の抽選1回には、チャッカーを通ったメダルが2枚かかっています。保留されていた1枚と、それを金色に変えた1枚です。金の抽選はふつうの抽選より${more}枚多く払い出しますが、保留に空きがあればその2枚は抽選2回になっていたので、それには及びません。つまり保留を満杯にして得をすることはありません。満杯の損が以前より小さくなっただけです。`,
   colGold: '金の抽選',
+  feelLabel: '遊び方の設定',
+  swing: 'スイング',
+  swingHint: 'レールが自動で左右に振れます。LとRを押すタイミングだけで狙います。スライダーかフィールドに触れると、手動の狙いに戻ります。',
+  swingNote: 'スイング中: レールが自動で振れます。スライダーの上の▼が落としたい位置に来たら、LかRを押します。',
+  saySwingOn: 'スイングをオンにしました。レールが左右に振れています。LかRを押してメダルを入れてください。',
+  saySwingOff: 'スイングをオフにしました。',
+  saySwingTaken: 'スイングをオフにしました。手動で狙います。',
+  vibration: '振動',
+  vibrationHint: 'メダルを入れたときや当たったときに、スマートフォンが振動します。',
+  fullscreen: '全画面',
+  fullscreenHint: '筐体と操作パネルを画面いっぱいに表示します。',
   sayDrop: (bowl, bowls) =>
     bowl === bowls ? 'ボールが穴を抜けて、最後の段のクルーンに落ちました。穴はジャックポットだけです。' : `ボールが穴を抜けて、${bowls}段のうち${bowl}段目のクルーンに落ちました。`,
   colInBowl: 'その段での確率',

@@ -4,7 +4,7 @@
  * has got, so the reels and the lamps can be drawn from the session's clock.
  */
 
-import { BOARD, BOWLS, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
+import { BOARD, BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
 import { TIMING, chanceLeft, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
@@ -154,21 +154,126 @@ export function stoppedDigits(spin: ActiveSpin, before: readonly number[]): [num
   return spin.result.digits.map((digit, reel) => (waiting[reel] ? before[reel] : digit)) as [number, number, number];
 }
 
-/** How many times the light goes round before it settles, and the share of the time it takes to get there. */
-const LAPS = 2;
-const SETTLE = 0.86;
+// ── The roulette wheel ──────────────────────────────────────────────────────
 
-/** The pocket the roulette's light is on. It slows as it goes and ends on the pocket already drawn. */
-export function roulettePocket(roulette: ActiveRoulette): number {
-  const count = ROULETTE.length;
-  const progress = Math.min(1, Math.max(0, roulette.elapsed / (roulette.duration * SETTLE)));
-  // From the pocket it set off from, round twice and on to the one that was drawn.
-  const steps = LAPS * count + ((roulette.pocket - roulette.from + count) % count);
-  return (roulette.from + Math.floor(steps * (1 - (1 - progress) ** 3) + 1e-9)) % count;
+/**
+ * The wheel a ball's roulette is drawn on, seen from above as a disc of radius
+ * 1. It is built as a real one is: a rotor that turns, carrying the pockets
+ * and a numbered plate outside each, inside a bowl that does not turn, whose
+ * banked track the ball is shot round. `track` is the circle the ball runs on
+ * under the rim, `rotor` how far out the rotor reaches, `seat` the ring the
+ * middles of the pockets lie on between `inner` and `outer`, `plate` the ring
+ * the numbers stand on. `bank` is how high the track stands over the pockets'
+ * floors and `hop` how high the ball jumps off a pocket's lip, in the same
+ * radii. `spin` is the turns a second the rotor makes, clockwise.
+ */
+export const WHEEL = { track: 0.86, rotor: 0.78, plate: 0.665, outer: 0.55, seat: 0.445, inner: 0.34, bank: 0.2, hop: 0.13, spin: 0.11 } as const;
+
+/**
+ * How the pockets are set round the rotor at each level of a run: pocket
+ * `i` of the lottery's list stands `i × stride` places round. Every board is
+ * the same twelve pockets, so the chances and the prizes are the same at
+ * every level; what changes is where each pocket is, and how the board is dressed.
+ */
+const BOARD_STRIDE: readonly number[] = [1, 5, 7, 11];
+
+/**
+ * The board a roulette is on, counted from 0: one for each number of the run.
+ * A number that has landed has already been counted, and is still on its board.
+ */
+export function rouletteBoard(roulette: Pick<ActiveRoulette, 'level' | 'landed' | 'pocket'>): number {
+  const counted = roulette.landed && ROULETTE[roulette.pocket] !== 'stop' ? 1 : 0;
+  return Math.min(CHAIN_GOAL - 1, Math.max(0, roulette.level - counted));
 }
 
-/** Whether the light has reached its pocket and is only holding there. */
-export const rouletteSettled = (roulette: ActiveRoulette): boolean => roulette.elapsed >= roulette.duration * SETTLE;
+/** Where a pocket of the lottery's list stands on a board: the place round the rotor, counted clockwise from the top of it. */
+export const pocketPlace = (pocket: number, board: number): number => (pocket * BOARD_STRIDE[board]) % ROULETTE.length;
+
+/** Where the ball is, and how the rotor is turned. */
+export interface WheelSpot {
+  /** How far the rotor has turned, in turns clockwise. */
+  rotor: number;
+  /** The ball over the wheel, from its middle: x to the right and y down the screen, in radii of the wheel. */
+  x: number;
+  y: number;
+  /** How high the ball is above the floor of the pockets, in the same radii. */
+  lift: number;
+  /** How far it has sat down into a pocket: 0 while it runs and hops, 1 once it lies in the one that was drawn. */
+  sunk: number;
+}
+
+/**
+ * The shares of a turn's time at which the ball leaves the track for the
+ * slope, strikes the lip of the pocket next to its own, hops out of that
+ * pocket, and comes down in its own.
+ */
+const SPIN = { slope: 0.44, strike: 0.72, hop: 0.8, home: 0.92 } as const;
+/** Where the ball is shot onto the track, in turns clockwise from the top, and the whole laps it makes before it comes down. */
+const SHOT = { at: 0.14, laps: 2 } as const;
+/** How sharply the ball loses its speed on the track: the higher, the faster it sets off. */
+const DRAG = 2;
+/** How far the ball dips into the pocket next to its own before it hops out, and how far it rocks in its own before it lies still, in turns. */
+const RATTLE = { dip: 0.45, rock: 0.012 } as const;
+
+/** A point of the wheel `radius` from its middle, `turn` turns clockwise from the top. */
+const wheelPoint = (radius: number, turn: number): { x: number; y: number } => ({
+  x: radius * Math.sin(turn * 2 * Math.PI),
+  y: -radius * Math.cos(turn * 2 * Math.PI),
+});
+
+/**
+ * Where the ball and the rotor are for a roulette as it stands. The pocket has
+ * been drawn; the ball acts it out. It is shot onto the track against the turn
+ * of the rotor, runs round under the rim losing speed, comes down the slope,
+ * strikes the lip of the pocket next to its own and dips into it, hops over
+ * the divider and lies down in its own. From then on it is carried round with
+ * the rotor, which never stops turning from one turn of the run to the next.
+ *
+ * With `calm` nothing turns and nothing rolls: the ball waits where it is shot
+ * from, and is in its pocket once it has landed.
+ */
+export function wheelSpot(roulette: Pick<ActiveRoulette, 'pocket' | 'elapsed' | 'duration' | 'landed' | 'level'>, calm: boolean): WheelSpot {
+  const count = ROULETTE.length;
+  const board = rouletteBoard(roulette);
+  const home = pocketPlace(roulette.pocket, board) / count;
+  if (calm) {
+    const spot = roulette.landed ? wheelPoint(WHEEL.seat, home) : wheelPoint(WHEEL.track, SHOT.at);
+    return { rotor: 0, ...spot, lift: roulette.landed ? 0 : WHEEL.bank, sunk: roulette.landed ? 1 : 0 };
+  }
+  const { duration } = roulette;
+  const elapsed = Math.max(0, roulette.elapsed);
+  // The rotor turns on through the pause between two turns, so each turn of a run takes it up where the last left it.
+  const turned = (seconds: number): number => WHEEL.spin * (board * (duration + TIMING.step) + seconds);
+  const rotor = turned(elapsed);
+  const share = elapsed / duration;
+  if (share >= 1) return { rotor, ...wheelPoint(WHEEL.seat, rotor + home), lift: 0, sunk: 1 };
+  // The pocket it strikes first is the next one round the rotor: the ball runs against the rotor's turn, so it meets that one before its own.
+  const next = home + 1 / count;
+  if (share >= SPIN.home) {
+    // Down in its own pocket: it rocks once against the divider and lies still.
+    const settled = (share - SPIN.home) / (1 - SPIN.home);
+    const rock = RATTLE.rock * (1 - settled) ** 2 * Math.cos(settled * Math.PI * 3);
+    return { rotor, ...wheelPoint(WHEEL.seat, rotor + home - rock), lift: 0, sunk: smooth(settled) };
+  }
+  if (share >= SPIN.hop) {
+    // Over the divider, from the pocket it struck into its own.
+    const over = (share - SPIN.hop) / (SPIN.home - SPIN.hop);
+    return { rotor, ...wheelPoint(WHEEL.seat, rotor + next - over * (1 / count + RATTLE.rock)), lift: WHEEL.hop * 4 * over * (1 - over), sunk: 0 };
+  }
+  if (share >= SPIN.strike) {
+    // In the pocket it struck: it dips, carried along by the rotor, and comes up again against the divider.
+    const held = (share - SPIN.strike) / (SPIN.hop - SPIN.strike);
+    return { rotor, ...wheelPoint(WHEEL.seat, rotor + next), lift: 0, sunk: RATTLE.dip * Math.sin(held * Math.PI) };
+  }
+  // On the track and down the slope. It has all but stopped when the rotor brings the lip of a pocket round to it.
+  const struck = SPIN.strike * duration;
+  const meets = turned(struck) + next;
+  const travel = SHOT.laps + ((((SHOT.at - meets) % 1) + 1) % 1);
+  const run = share / SPIN.strike;
+  const turn = SHOT.at - travel * (1 - (1 - run) ** DRAG);
+  const down = smooth((share - SPIN.slope) / (SPIN.strike - SPIN.slope));
+  return { rotor, ...wheelPoint(WHEEL.track - (WHEEL.track - WHEEL.seat) * down, turn), lift: WHEEL.bank * (1 - down), sunk: 0 };
+}
 
 // ── The ball in the bowls ───────────────────────────────────────────────────
 
@@ -373,8 +478,10 @@ export interface ScreenState {
   amount: number;
   /** The winning line that is up on the reels, if one is. */
   line: Exclude<Tier, 'miss'> | null;
-  /** The pocket the roulette's light is on, or −1. */
+  /** The pocket of the roulette the ball lies in, as the lottery lists it, or −1 while none is lit. */
   lit: number;
+  /** The board the roulette is on, counted from 0, or −1 when the wheel is not on. */
+  board: number;
   /** The square the sugoroku piece is drawn on. */
   square: number;
   /** The face the die shows; 0 when there is no die. */
@@ -429,6 +536,7 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     amount: 0,
     line: null,
     lit: -1,
+    board: -1,
     square: session.square,
     die: 0,
     rolling: false,
@@ -445,10 +553,11 @@ export function screenState(session: Session, calm: boolean): ScreenState {
   if (roulette) {
     const run = { ...idle, mode: 'roulette' as const, level: roulette.level, total: roulette.total };
     if (roulette.bowl) return bowlState(run, roulette, roulette.bowl);
-    if (!roulette.landed) return { ...run, lit: calm ? -1 : roulettePocket(roulette) };
+    // While the ball is on its way no pocket is lit: the lamp comes on under the ball once it lies in its pocket.
+    if (!roulette.landed) return { ...run, board: rouletteBoard(roulette) };
     // A number is a tower going up; a cross ends the run on the total it built.
-    if (roulette.over) return { ...run, lit: roulette.pocket, banner: 'finish', amount: roulette.total };
-    return { ...run, lit: roulette.pocket, banner: 'towers', amount: roulette.gain };
+    if (roulette.over) return { ...run, board: rouletteBoard(roulette), lit: roulette.pocket, banner: 'finish', amount: roulette.total };
+    return { ...run, board: rouletteBoard(roulette), lit: roulette.pocket, banner: 'towers', amount: roulette.gain };
   }
   if (bonus?.kind === 'sugoroku') {
     const square = sugorokuSquare(bonus);
@@ -487,6 +596,7 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.amount !== b.amount ||
     a.line !== b.line ||
     a.lit !== b.lit ||
+    a.board !== b.board ||
     a.square !== b.square ||
     a.die !== b.die ||
     a.rolling !== b.rolling ||
@@ -507,3 +617,40 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
 
 /** The medals written on each square of the board, for drawing it. */
 export const BOARD_SQUARES: readonly number[] = BOARD;
+
+// ── The monitor's modes ─────────────────────────────────────────────────────
+
+/**
+ * The world the monitor is in, whatever game is on it: the everyday one,
+ * chance time while a gold spin is still to come, a fever for the board's
+ * fever square or a prize as big, the ball's lottery from its roulette to the
+ * last of the bowls, and the jackpot.
+ */
+export type MonitorMode = 'normal' | 'chance' | 'fever' | 'challenge' | 'jackpot';
+export const MONITOR_MODES: readonly MonitorMode[] = ['normal', 'chance', 'fever', 'challenge', 'jackpot'];
+
+/**
+ * Each mode's colour and how brightly the monitor shines in it, from 0 for
+ * dark to 1. It is the light the screen throws on what stands in front of it,
+ * so the cabinet lights the medals before the screen from this table.
+ */
+export const MONITOR: Readonly<Record<MonitorMode, { colour: string; light: number }>> = {
+  normal: { colour: '#5b7cff', light: 0.35 },
+  chance: { colour: '#ffc531', light: 0.7 },
+  fever: { colour: '#ff4f6d', light: 0.85 },
+  challenge: { colour: '#3fe0c8', light: 0.55 },
+  jackpot: { colour: '#fff2bd', light: 1 },
+};
+
+/** The prize from the board or from a chest at which the monitor goes to fever: what the board's fever square holds. */
+export const FEVER_FROM = BOARD[FEVER_SQUARE];
+
+/** The mode the monitor is in for what the screen shows. The rarer a thing is, the more it counts: a jackpot before the ball's lottery, that before a fever, and chance time before the everyday. */
+export function monitorMode(state: ScreenState): MonitorMode {
+  if (state.banner === 'jackpot') return 'jackpot';
+  if (state.mode === 'roulette' || state.mode === 'bowl') return 'challenge';
+  const paid = state.banner === 'medals' || state.banner === 'towers';
+  if (state.banner === 'fever' || ((state.mode === 'sugoroku' || state.mode === 'chest') && paid && state.amount >= FEVER_FROM)) return 'fever';
+  if (state.chance > 0) return 'chance';
+  return 'normal';
+}

@@ -39,7 +39,6 @@ export interface PusherStrings {
   feverWin: (medals: number) => string;
   feverTag: string;
   finishWin: (medals: number) => string;
-  chainLevel: (level: number, goal: number) => string;
   chainTotal: (medals: number) => string;
   ballWin: string;
   chance: string;
@@ -284,7 +283,6 @@ const en: PusherStrings = {
   feverWin: (medals) => `FEVER! +${medals}`,
   feverTag: 'FEVER',
   finishWin: (medals) => (medals > 0 ? `FINISH! TOTAL ${medals}` : 'FINISH…'),
-  chainLevel: (level, goal) => `LEVEL ${level} / ${goal}`,
   chainTotal: (medals) => `TOWER ${medals}`,
   ballWin: 'BALL GET!',
   chance: 'JACKPOT CHANCE',
@@ -563,7 +561,6 @@ const ja: PusherStrings = {
   feverWin: (medals) => `フィーバー！ ${medals}枚`,
   feverTag: 'フィーバー',
   finishWin: (medals) => (medals > 0 ? `終了！ 合計${medals}枚` : '終了…'),
-  chainLevel: (level, goal) => `レベル ${level} / ${goal}`,
   chainTotal: (medals) => `タワー ${medals}枚`,
   ballWin: 'ボール GET！',
   chance: 'ジャックポットチャンス',

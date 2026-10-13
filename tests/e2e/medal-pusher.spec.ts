@@ -6,6 +6,7 @@ import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../..
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
+import { settled } from './medalPusherPage';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -14,9 +15,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en', query = '') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto(`/games/medal-pusher${query}`);
   expect(response?.status()).toBe(200);
-  // While the page streams in, React briefly keeps a second, hidden copy of the
-  // content in the document. Wait until there is one before looking anything up.
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until it has all arrived.
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
 }
 
@@ -396,7 +396,7 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(machine(page).getByTestId('pusher-sign-in')).toHaveAttribute('href', '/signin?redirect=%2Fgames%2Fmedal-pusher', { timeout: 15_000 });
 
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   // The page is first drawn as a new machine, and then shows the one it remembers.
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(dropped);
@@ -789,7 +789,7 @@ test.describe('in the hand, on a phone', () => {
     await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
 
     await page.reload();
-    await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+    await settled(page);
     await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
     // The page is first drawn with nothing chosen, and then shows what this browser remembers.
     await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
@@ -1133,15 +1133,23 @@ test.describe('in the hand, on a phone', () => {
     await autoButton(page).tap();
     await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'false');
     expect(await ticks()).toBe(0);
-    /** Taps L until a medal has gone in, which is a tick: a tap the slot was not ready for feeds nothing. */
+    /** How many times the motor has been asked to run, whatever the pattern: asking it to stop is not one. */
+    const felt = async () => (await asked()).filter((pattern) => pattern.some((ms) => ms > 0)).length;
+    /**
+     * Taps L until a medal has gone in, which is felt: a tap the slot was not ready for feeds nothing. What is felt is
+     * the tick, unless something stronger happens in the same frame (medals going over the front, a START pocket),
+     * which is felt instead of it; so this asks only that the motor ran, and ran since these taps began: what Auto's
+     * medals set off before them does not count.
+     */
     const tapIn = async () => {
       const had = await counter(page, 'played');
+      const feltBefore = await felt();
       await expect(async () => {
         await feedButton(page, 'left').tap();
         await page.waitForTimeout(400);
         expect(await counter(page, 'played')).toBeGreaterThan(had);
       }).toPass({ timeout: 20_000 });
-      await expect.poll(ticks).toBeGreaterThanOrEqual(1);
+      await expect.poll(felt).toBeGreaterThan(feltBefore);
     };
     // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
     // forgotten, and the new machine's first press is felt at once.
@@ -1449,7 +1457,7 @@ test('the sound settings are remembered on this device, apart from the machine, 
 
   // After a reload the row is shut and the sound is off, as on any visit, and the settings are as they were left.
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(soundRow(page)).toHaveCount(0);
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
   await openSoundSettings(page);
@@ -1461,7 +1469,7 @@ test('the sound settings are remembered on this device, apart from the machine, 
   // What is kept there but makes no sense is not believed: the settings are the usual ones, and the arcade is off.
   await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7,"arcade":"yes"}'), SOUND_SETTINGS_KEY);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('100');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
@@ -1470,7 +1478,7 @@ test('the sound settings are remembered on this device, apart from the machine, 
   // was an arcade to switch on: the rest is read as it was, and the arcade is off.
   await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":9000,"music":false}'), SOUND_SETTINGS_KEY);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('200');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');

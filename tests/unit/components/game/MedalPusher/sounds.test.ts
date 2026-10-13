@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PUSHER, pusherFront } from '@/components/game/MedalPusher/engine';
 import {
   AMBIENCE,
+  CHUTE,
   COMPRESSOR,
+  GUARD,
   HOPPER,
   LEVEL,
   LIMITS,
@@ -17,6 +19,7 @@ import {
   POCKET_NOTES,
   POURS,
   POUR_SAMPLES,
+  ROTOR,
   RUN,
   SAMPLES,
   SCORES,
@@ -40,6 +43,7 @@ import {
   setMusic,
   setVolume,
   turnMotor,
+  turnRotor,
   unlockAudio,
   type Note,
   type Pour,
@@ -190,10 +194,15 @@ class FakeContext {
   static made: FakeContext[] = [];
   /** Set to make every new source fail, as a browser that has run out of something would. */
   static broken = false;
+  /**
+   * The rate the next sound card runs at. A test that plays everything there is, and is about what is started and
+   * not about what is in a buffer, runs it slowly: a third of the samples to work out, in a third of the time.
+   */
+  static rate = 48000;
 
   state: 'suspended' | 'running' | 'closed' = 'suspended';
   currentTime = 0;
-  sampleRate = 48000;
+  sampleRate = FakeContext.rate;
   onstatechange: (() => void) | null = null;
   readonly destination = new FakeNode();
   readonly gains: FakeGain[] = [];
@@ -340,6 +349,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   FakeContext.made = [];
   FakeContext.broken = false;
+  FakeContext.rate = 48000;
   FakeParam.canHold = true;
 });
 
@@ -746,6 +756,7 @@ describe('every sound', () => {
   });
 
   it('never schedules a gain above the ceiling', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     setMusic(true);
     // A tower into the tray first, while there is room for all of it, then everything at once for four seconds.
@@ -773,6 +784,7 @@ describe('every sound', () => {
   });
 
   it('stops every source it starts, the loop and the reels included', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     setMusic(true);
     for (let round = 0; round < 40; round++) {
@@ -789,6 +801,7 @@ describe('every sound', () => {
   });
 
   it('works each buffer out once', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn(true);
     expect(audio.buffers).toHaveLength(EVERY_TAKE);
     setMusic(true);
@@ -905,6 +918,7 @@ describe('every sound', () => {
   });
 
   it('never throws into the game when a sound cannot be made', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     FakeContext.broken = true;
     expect(() => {
@@ -956,6 +970,7 @@ describe('the limits', () => {
   });
 
   it('never has more voices in the air than the limit, however hard it is pressed', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     let most = 0;
     for (let i = 0; i < 3000; i++) {
@@ -1466,6 +1481,7 @@ describe('the background loop', () => {
 
 describe('hush', () => {
   it('cuts short everything that is sounding', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     setMusic(true);
     for (const sound of SOUNDS) playSound(sound, true);
@@ -1645,10 +1661,73 @@ describe('the machine itself', () => {
   });
 });
 
+describe('the rotor of the wheel', () => {
+  /** Asks for the rotor once a frame for `seconds`. */
+  function frames(audio: FakeContext, seconds: number): void {
+    for (let frame = 0; frame < Math.round(seconds * 60); frame++) {
+      audio.currentTime += 1 / 60;
+      turnRotor(true);
+    }
+  }
+
+  it('turns for as long as it is asked for, one unbroken sound, and runs down when it is not', async () => {
+    fix(0.25);
+    vi.stubGlobal('AudioContext', FakeContext);
+    turnRotor(true);
+    expect(FakeContext.made).toHaveLength(0);
+    const audio = await switchOn();
+    turnRotor(false);
+    expect(audio.sources).toHaveLength(0);
+    const timers = vi.getTimerCount();
+    audio.currentTime = 3;
+    frames(audio, 12);
+    expect(vi.getTimerCount()).toBe(timers);
+    // Twelve seconds of it is a couple of dozen stretches, never more than two at once.
+    expect(audio.sources.length).toBeGreaterThanOrEqual(22);
+    expect(audio.sources.length).toBeLessThanOrEqual(26);
+    const length = audio.sources[0].buffer?.duration ?? 0;
+    audio.sources.forEach((source, index) => {
+      expect(source.loop).toBe(true);
+      expect(audio.gainOf(source).outputs).toEqual([audio.master]);
+      for (const value of audio.gainOf(source).gain.seen) expect(value).toBeLessThanOrEqual(ROTOR.level);
+      if (index === 0) return;
+      const before = audio.sources[index - 1];
+      // Each begins as the one before it begins to fade, and at the very place in the buffer the other has got to:
+      // through the fade the two are playing the same thing, so nothing is heard of the join.
+      expect(source.begins).toBeCloseTo(before.ends - ROTOR.overlap, 9);
+      const off = (((source.from - (before.from + (source.begins - before.begins))) % length) + length) % length;
+      expect(Math.min(off, length - off)).toBeLessThan(1e-6);
+      if (index > 1) expect(source.begins).toBeGreaterThanOrEqual(audio.sources[index - 2].ends - 1e-9);
+    });
+    // The calls stop: nothing more is lined up, and it is gone within a stretch.
+    const made = audio.sources.length;
+    wait(audio, 0.7);
+    expect(audio.sources).toHaveLength(made);
+    expect(audio.sounding()).toHaveLength(0);
+    expect(ROTOR.stretch + ROTOR.overlap).toBeLessThan(0.7);
+    // Asked for again it starts afresh, and a hush cuts it with everything else.
+    frames(audio, 0.2);
+    expect(audio.sources).toHaveLength(made + 1);
+    expect(audio.sources[made].begins).toBeCloseTo(audio.currentTime - 0.2 + 1 / 60, 9);
+    hush();
+    expect(audio.sounding(FADE)).toHaveLength(0);
+    FakeContext.broken = true;
+    expect(() => frames(audio, 1)).not.toThrow();
+  });
+
+  it('is low and steady, and quieter than the machine it is part of', () => {
+    const samples = rendered('rotor');
+    expect(brightness(samples, RATE)).toBeLessThan(1200);
+    const tenths = Array.from({ length: 15 }, (_, index) => energy(samples, (index * RATE) / 10, ((index + 1) * RATE) / 10));
+    expect(Math.max(...tenths) / Math.min(...tenths)).toBeLessThan(2);
+    expect(ROTOR.level).toBeLessThan(MOTOR.level);
+  });
+});
+
 describe('a mechanism that runs', () => {
-  const RUNNING = ['roulette', 'lift', 'bowl', 'hopper'] as const;
-  /** How much of the time it is told a mechanism is heard for: the roulette's ball is in its pocket before the lamps have done. */
-  const heardFor = (sound: (typeof RUNNING)[number]): number => (sound === 'roulette' ? 0.86 : 1);
+  const RUNNING = ['roulette', 'lift', 'bowl', 'hopper', 'pour'] as const;
+  /** How much of the time it is told a mechanism is heard for: the roulette's ball has stopped rolling when it strikes a pocket's lip, 0.72 of the way through its turn. */
+  const heardFor = (sound: (typeof RUNNING)[number]): number => (sound === 'roulette' ? 0.72 : 1);
   /** The sources that go round and round: a mechanism's own. */
   const turning = (audio: FakeContext): FakeSource[] => audio.sources.filter((source) => source.loop);
 
@@ -1689,7 +1768,7 @@ describe('a mechanism that runs', () => {
   it('runs as long as it usually does when nobody says, and never for less or for longer than it may', async () => {
     fix(0);
     const audio = await switchOn();
-    const usual = { roulette: 2.8, lift: 1.6, bowl: 3, hopper: 2 };
+    const usual = { roulette: 2.8, lift: 1.6, bowl: 3, hopper: 2, pour: 2 };
     for (const sound of RUNNING) {
       const lasting = (options: { seconds?: number }): number => {
         audio.currentTime += 20;
@@ -1748,6 +1827,147 @@ describe('a mechanism that runs', () => {
     expect(audio.sources[4].begins).toBe(30);
   });
 
+  it('begins a little from now when it is told to, and still ends when it was told', async () => {
+    fix(0);
+    const audio = await switchOn();
+    audio.currentTime = 4;
+    // A ball that has dropped into a bowl is in the air for a third of a second before it rolls.
+    playSound('bowl', true, { seconds: 5, after: 0.35 });
+    const [roll, lands, drop] = audio.sources;
+    expect(audio.sources).toHaveLength(3);
+    // It lands as it begins to roll, with a knock of its own, which a ball let go under the rim of the top bowl has not.
+    expect(firstDifference(lands.buffer?.data ?? new Float32Array(0), rendered('bowlLand'))).toBe(-1);
+    expect(lands.begins).toBeCloseTo(4.35, 9);
+    expect(lands.loop).toBe(false);
+    expect(roll.begins).toBeCloseTo(4.35, 9);
+    expect(roll.ends).toBeCloseTo(9, 9);
+    expect(audio.gainOf(roll).gain.plan[0]).toEqual({ how: 'set', value: 0, at: roll.begins });
+    expect(roll.playbackRate.plan[0].at).toBe(roll.begins);
+    expect(drop.begins).toBeCloseTo(9 - 0.17, 9);
+    // However late it is told to begin there is something of it left, and nonsense is no wait at all.
+    const begun = (after: number): number => {
+      audio.currentTime += 20;
+      const made = turning(audio).length;
+      playSound('bowl', true, { seconds: 2, after });
+      const source = turning(audio)[made];
+      expect(source.ends).toBeCloseTo(audio.currentTime + 2, 9);
+      return source.begins - audio.currentTime;
+    };
+    expect(begun(50)).toBeCloseTo(2 - RUN.shortest, 9);
+    expect(begun(-1)).toBe(0);
+    expect(begun(Number.NaN)).toBe(0);
+    expect(begun(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('lets the ball go faster and faster in a funnel, where in a bowl it slows', async () => {
+    fix(0);
+    const audio = await switchOn();
+    playSound('bowl', true, { seconds: 4 });
+    audio.currentTime = 20;
+    playSound('bowl', true, { seconds: 4, quickens: true });
+    const [bowl, , funnel, funnelDrop] = audio.sources;
+    const first = (source: FakeSource) => source.playbackRate.plan[0].value;
+    const last = (source: FakeSource) => source.playbackRate.plan[source.playbackRate.plan.length - 1].value;
+    expect(last(bowl)).toBeLessThan(first(bowl) * 0.5);
+    expect(last(funnel)).toBeGreaterThan(first(funnel) * 2);
+    // It is the same ball in the same kind of bowl, and it ends through its hole on the moment all the same.
+    expect(funnel.buffer).toBe(bowl.buffer);
+    expect(funnel.ends).toBeCloseTo(24, 9);
+    expect(funnelDrop.begins).toBeCloseTo(24 - 0.17, 9);
+    // In a bowl it is all but still by the end and nearly silent; in a funnel it is going its fastest, and is not.
+    const levelAtTheEnd = (source: FakeSource) => audio.gainOf(source).gain.plan[audio.gainOf(source).gain.plan.length - 2].value;
+    expect(levelAtTheEnd(bowl)).toBeLessThan(SOUND_LEVELS.bowl * 0.3);
+    expect(levelAtTheEnd(funnel)).toBe(SOUND_LEVELS.bowl);
+    for (const source of [bowl, funnel]) for (const step of source.playbackRate.plan) {
+      expect(step.value).toBeGreaterThan(0.4);
+      expect(step.value).toBeLessThan(1.5);
+    }
+  });
+
+  it('makes a turn of the roulette one sound with its moments in it, at their shares of however long the turn is', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (const [at, seconds] of [
+      [10, 2.8],
+      [40, 5],
+    ]) {
+      audio.currentTime = at;
+      const made = audio.sources.length;
+      playSound('roulette', true, { seconds });
+      const [roll, shot, lip, hop, settle] = audio.sources.slice(made);
+      expect(audio.sources.length - made).toBe(5);
+      // The ball is shot on to the track as the turn begins, and rolls from then until it strikes the lip of a pocket.
+      expect(firstDifference(shot.buffer?.data ?? new Float32Array(0), rendered('shot'))).toBe(-1);
+      expect(shot.begins).toBe(at);
+      expect(roll.loop).toBe(true);
+      expect(roll.begins).toBe(at);
+      expect(roll.ends).toBeCloseTo(at + seconds * 0.72, 9);
+      // It runs round the track slowing until 0.44 of the turn, and comes down the bank slower still.
+      const speeds = roll.playbackRate.plan;
+      expect(speeds.map((step) => step.at - at)).toEqual([0, expect.closeTo(seconds * 0.44, 9), expect.closeTo(seconds * 0.72, 9)]);
+      expect(speeds[1].value).toBeLessThan(speeds[0].value);
+      expect(speeds[2].value).toBeLessThan(speeds[1].value);
+      // The strike on the lip, the hop over the divider and the settle, each a take of its own at its share of the turn.
+      expect(firstDifference(lip.buffer?.data ?? new Float32Array(0), rendered('lip'))).toBe(-1);
+      expect(lip.begins).toBeCloseTo(at + seconds * 0.72, 9);
+      expect(firstDifference(hop.buffer?.data ?? new Float32Array(0), rendered('tick'))).toBe(-1);
+      expect(hop.begins).toBeCloseTo(at + seconds * 0.8, 9);
+      expect(firstDifference(settle.buffer?.data ?? new Float32Array(0), rendered('settle'))).toBe(-1);
+      expect(settle.begins).toBeCloseTo(at + seconds * 0.92, 9);
+      // All of it is over by the end of the turn, and none of it is loud.
+      for (const source of [roll, shot, lip, hop, settle]) expect(source.ends).toBeLessThanOrEqual(at + seconds + 1e-9);
+      for (const source of [shot, lip, hop, settle]) expect(audio.gainOf(source).gain.value).toBeLessThanOrEqual(0.06);
+    }
+  });
+
+  it('lets a ball in a bowl all but go down a hole that is not its own', async () => {
+    fix(0);
+    const audio = await switchOn();
+    audio.currentTime = 2;
+    playSound('bowl', true, { seconds: 5.64, after: 0.75, nearMiss: 4 });
+    const [roll, lands, drop, near] = audio.sources;
+    expect(audio.sources).toHaveLength(4);
+    expect(lands.begins).toBeCloseTo(2.75, 9);
+    expect(firstDifference(near.buffer?.data ?? new Float32Array(0), rendered('lip'))).toBe(-1);
+    expect(near.begins).toBeCloseTo(6, 9);
+    expect(near.playbackRate.value).toBeLessThan(1);
+    expect(roll.ends).toBeCloseTo(7.64, 9);
+    expect(drop.begins).toBeCloseTo(7.64 - 0.17, 9);
+    // One that would come before the ball has landed, or after it has gone, is not heard.
+    for (const nearMiss of [0.2, 5.6, 99, -1, Number.NaN]) {
+      audio.currentTime += 30;
+      const made = audio.sources.length;
+      playSound('bowl', true, { seconds: 5.64, after: 0.75, nearMiss });
+      expect(audio.sources.length - made).toBe(3);
+    }
+  });
+
+  it('rushes medals down a chute for as long as they take at three dozen a second, or as long as it is told', async () => {
+    fix(0);
+    const audio = await switchOn();
+    const pouring = (options: { count?: number; seconds?: number }): FakeSource => {
+      audio.currentTime += 20;
+      const made = audio.sources.length;
+      playSound('pour', true, options);
+      expect(audio.sources.length - made).toBe(1);
+      return audio.sources[made];
+    };
+    expect(CHUTE.rate).toBe(36);
+    const short = pouring({ count: 72 });
+    expect(short.ends - short.begins).toBeCloseTo(2, 9);
+    expect(short.loop).toBe(true);
+    const long = pouring({ count: 300 });
+    expect(long.ends - long.begins).toBeCloseTo(300 / 36, 9);
+    const told = pouring({ count: 300, seconds: 1.5 });
+    expect(told.ends - told.begins).toBeCloseTo(1.5, 9);
+    expect(pouring({ count: 1e9 }).ends - audio.currentTime).toBeCloseTo(RUN.longest, 9);
+    // It comes in quickly, thins at the end, and the loop makes room for it.
+    const { plan } = audio.gainOf(long).gain;
+    expect(Math.max(...plan.map((step) => step.value))).toBe(SOUND_LEVELS.pour);
+    expect(plan[plan.length - 2].value).toBeLessThan(SOUND_LEVELS.pour * 0.5);
+    expect(audio.bus.gain.targets.some((target) => target.value === MUSIC.ducked)).toBe(true);
+  });
+
   it('pays a hopper out for as long as its medals take, and a big payout out of two or three at once', async () => {
     fix(0);
     const audio = await switchOn();
@@ -1798,6 +2018,7 @@ describe('a mechanism that runs', () => {
   });
 
   it('takes its place among the voices, and is cut short with them', async () => {
+    FakeContext.rate = 16000;
     const audio = await switchOn();
     for (let round = 0; round < 60; round++) {
       for (const sound of RUNNING) playSound(sound, true, { seconds: 1 + (round % 5), count: round * 7 });
@@ -1845,6 +2066,68 @@ describe('the buttons and the tray', () => {
     expect(other.playbackRate.value).toBeGreaterThan(down.playbackRate.value);
     expect(other.begins).toBeGreaterThan(1);
     expect(other.begins).toBeLessThanOrEqual(1 + WANDER.late);
+  });
+
+  it('gives a door, a shutter and a guard one sound one way and another the way back', async () => {
+    fix(0);
+    const audio = await switchOn();
+    const played = (sound: 'door' | 'shutter' | 'guard', options: { up?: boolean; seconds?: number }): FakeSource => {
+      audio.currentTime += 5;
+      playSound(sound, true, options);
+      return audio.sources[audio.sources.length - 1];
+    };
+    for (const [sound, back] of [
+      ['door', 'doorShut'],
+      ['shutter', 'shutterOpen'],
+      ['guard', 'guardUp'],
+    ] as const) {
+      const there = played(sound, {});
+      const again = played(sound, { up: true });
+      expect(firstDifference(there.buffer?.data ?? new Float32Array(0), rendered(sound, 0)), sound).toBe(-1);
+      expect(firstDifference(again.buffer?.data ?? new Float32Array(0), rendered(back, 0)), sound).toBe(-1);
+      expect(firstDifference(rendered(sound, 0), rendered(back, 0)), sound).not.toBe(-1);
+      for (const source of [there, again]) {
+        expect(source.loop).toBe(false);
+        expect(source.playbackRate.value).toBe(1);
+        expect(audio.gainOf(source).gain.value).toBe(SOUND_LEVELS[sound]);
+        expect(audio.gainOf(source).outputs).toEqual([audio.master]);
+      }
+    }
+    // A guard seats at the end of its travel: 0.45 s coming down and 0.5 s going up when nobody says, and sooner or
+    // later when it is told, within what still sounds like a guard.
+    const clackAt = (source: FakeSource, travel: number) => travel / source.playbackRate.value;
+    expect(clackAt(played('guard', {}), GUARD.down)).toBeCloseTo(0.45, 9);
+    expect(clackAt(played('guard', { up: true }), GUARD.up)).toBeCloseTo(0.5, 9);
+    expect(clackAt(played('guard', { seconds: 0.6 }), GUARD.down)).toBeCloseTo(0.6, 9);
+    expect(clackAt(played('guard', { up: true, seconds: 0.4 }), GUARD.up)).toBeCloseTo(0.4, 9);
+    expect(played('guard', { seconds: 50 }).playbackRate.value).toBe(0.6);
+    expect(played('guard', { seconds: 0.001 }).playbackRate.value).toBe(1.6);
+    expect(played('guard', { seconds: Number.NaN }).playbackRate.value).toBe(1);
+    // The clack is where the take says it is: the loudest thing in it, at the end of the travel.
+    for (const [sample, travel] of [
+      ['guard', GUARD.down],
+      ['guardUp', GUARD.up],
+    ] as const) {
+      const samples = rendered(sample);
+      let peakAt = 0;
+      for (let i = 0; i < samples.length; i++) if (Math.abs(samples[i]) > Math.abs(samples[peakAt])) peakAt = i;
+      expect(peakAt / RATE).toBeGreaterThan(travel - 0.005);
+      expect(peakAt / RATE).toBeLessThan(travel + 0.02);
+    }
+  });
+
+  it('gives a medal down a START slot a sound of its own, held to a few like any clink', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (let i = 0; i < 200; i++) playSound('slit', true);
+    expect(audio.sources).toHaveLength(1);
+    expect(firstDifference(audio.sources[0].buffer?.data ?? new Float32Array(0), rendered('slit', 0))).toBe(-1);
+    expect(audio.gainOf(audio.sources[0]).gain.value).toBe(SOUND_LEVELS.slit);
+    fix(0.5);
+    audio.currentTime += 1;
+    playSound('slit', true);
+    expect(firstDifference(audio.sources[1].buffer?.data ?? new Float32Array(0), rendered('slit', 1))).toBe(-1);
+    expect(audio.sources[1].playbackRate.value).not.toBe(audio.sources[0].playbackRate.value);
   });
 
   it('holds a hammered button to a few clicks, like any clink', async () => {
@@ -1896,6 +2179,7 @@ describe('the room', () => {
   const farOff = (audio: FakeContext): FakeSource[] => ofTheRoom(audio).filter((source) => !source.loop);
 
   it('is off unless it is asked for, whatever else is on', async () => {
+    FakeContext.rate = 16000;
     seedDice();
     const audio = await switchOn(true);
     setMusic(true);
@@ -2451,9 +2735,11 @@ describe('what is worked out', () => {
     for (const size of POURS) expect(SAMPLES).toContain(POUR_SAMPLES[size]);
     expect(SAMPLES).toContain('plate');
     // A medal on the table, five sizes of rattle and the loop's two notes are kept besides the sounds that have names;
-    // and a button coming up, a lift stopping, the machine's own bed, and the five things the room is made of.
-    expect(SAMPLES).toHaveLength(SOUNDS.length + 1 + (POURS.length - 1) + MUSIC.parts.length + 3 + 5);
-    for (const extra of ['buttonUp', 'liftStop', 'motor', 'room', 'farClink', 'farRattle', 'farPour', 'farTune'] as const) expect(SAMPLES).toContain(extra);
+    // and a button coming up, a lift stopping and the machine's own bed; a door, a shutter and a guard going back up;
+    // the four moments of a ball on a wheel and in a bowl, and the wheel's rotor; and the five things the room is made of.
+    expect(SAMPLES).toHaveLength(SOUNDS.length + 1 + (POURS.length - 1) + MUSIC.parts.length + 3 + 3 + 5 + 5);
+    for (const extra of ['buttonUp', 'liftStop', 'motor', 'doorShut', 'shutterOpen', 'guardUp', 'shot', 'lip', 'settle', 'bowlLand', 'rotor'] as const) expect(SAMPLES).toContain(extra);
+    for (const extra of ['room', 'farClink', 'farRattle', 'farPour', 'farTune'] as const) expect(SAMPLES).toContain(extra);
     expect(SAMPLES.slice(0, 4)).toEqual(['land', 'plate', 'insert', 'win']);
     // What is worked out in the background is all of it but the room, and the tray's medal, which is the `win` over again.
     expect(WARMED).toHaveLength(SAMPLES.length - 5 - 1);
@@ -2464,7 +2750,7 @@ describe('what is worked out', () => {
     const old = ['land', 'win', 'lost', 'gate', 'full', 'spin', 'reelStop', 'tick', 'hop', 'reach', 'small', 'big', 'seven', 'dice', 'chest', 'open'];
     for (const name of [...old, 'prize', 'ball', 'roulette', 'pocket', 'tower', 'cross', 'crash', 'fever', 'jackpot']) expect(SOUNDS).toContain(name);
     // And the mechanisms have names of their own.
-    for (const name of ['button', 'tray', 'hopper', 'shutter', 'lift', 'bowl', 'drop']) expect(SOUNDS).toContain(name);
+    for (const name of ['button', 'tray', 'hopper', 'shutter', 'lift', 'bowl', 'drop', 'door', 'pour', 'guard', 'slit']) expect(SOUNDS).toContain(name);
   });
 
   it.each(takes)('%s (take %i) is finite, peaks at exactly 1, begins and ends in silence or joins up with itself, and is the same every time', (sample, variant) => {
@@ -3006,6 +3292,76 @@ describe('the mechanisms', () => {
       expect(shareBelow(rendered(name), 110, RATE), name).toBeLessThan(0.06);
       expect(peakOf(rendered(name)), name).toBeCloseTo(1, 6);
     }
+  });
+});
+
+describe('what the builders asked for', () => {
+  const of = (sample: Sample, variant = 0): number => brightness(rendered(sample, variant), RATE);
+  const peakAt = (samples: Float32Array): number => {
+    let best = 0;
+    for (let i = 0; i < samples.length; i++) if (Math.abs(samples[i]) > Math.abs(samples[best])) best = i;
+    return best / RATE;
+  };
+
+  it('drops a hopper\'s door open on its stays with a clank and a shiver, and shuts it with a knock and a latch', () => {
+    const open = rendered('door');
+    // The latch lets go first; the clank is the flap caught on its stays, and it bounces on them, quicker each time.
+    expect(peakAt(open)).toBeGreaterThan(0.08);
+    expect(peakAt(open)).toBeLessThan(0.11);
+    const times = strikeTimes(open, 2).filter((time) => time > 0.08);
+    expect(times.length).toBeGreaterThanOrEqual(3);
+    expect(times[2] - times[1]).toBeLessThan(times[1] - times[0]);
+    // Sheet steel: it has a ring to it that the knock of its shutting has not.
+    expect(of('door')).toBeGreaterThan(of('doorShut'));
+    expect(mostlyOverBy(rendered('doorShut'))).toBeLessThan(0.12);
+    expect(peakAt(rendered('doorShut'))).toBeLessThan(0.06);
+  });
+
+  it('makes a rush of medals too thick to count, bright, and steady from one tenth of a second to the next', () => {
+    const samples = rendered('pour');
+    expect(samples.length / RATE).toBeCloseTo(CHUTE.loop, 3);
+    // Strikes that fall within six thousandths of a second of one another count once: there are still more than a dozen a second.
+    expect(strikes(samples)).toBeGreaterThan(CHUTE.loop * 12);
+    expect(of('pour')).toBeGreaterThan(4000);
+    expect(of('pour')).toBeLessThan(9000);
+    const tenths = Array.from({ length: 20 }, (_, index) => energy(samples, (index * RATE) / 10, ((index + 1) * RATE) / 10));
+    expect(Math.max(...tenths) / Math.min(...tenths)).toBeLessThan(3);
+    // It is thicker than a hopper counting medals out one at a time: more of it is sound, less of it gaps.
+    const fill = (sample: Sample) => Math.sqrt(energy(rendered(sample)) / rendered(sample).length);
+    expect(fill('pour')).toBeGreaterThan(fill('hopper') * 1.2);
+  });
+
+  it('rings a medal down a slot: a zip that rises, and a clink at the bottom', () => {
+    for (const variant of takesOf('slit')) {
+      const samples = rendered('slit', variant);
+      const lands = peakAt(samples);
+      expect(lands).toBeGreaterThan(0.13);
+      expect(lands).toBeLessThan(0.19);
+      // Before the clink it is a rattle that gets higher and louder as the medal falls.
+      const early = samples.subarray(0, Math.round(lands * 0.45 * RATE));
+      const late = samples.subarray(Math.round(lands * 0.55 * RATE), Math.round((lands - 0.004) * RATE));
+      expect(brightness(late, RATE)).toBeGreaterThan(brightness(early, RATE) * 1.1);
+      expect(energy(late) / late.length).toBeGreaterThan(energy(early) / early.length);
+      // The clink is a medal's, and rings on after the rattle has stopped.
+      expect(shareBetween('slit', variant, MEDAL.hz * 0.9, MEDAL.hz * 1.12)).toBeGreaterThan(0.1);
+      expect(energy(samples, (lands + 0.03) * RATE)).toBeGreaterThan(0);
+      expect(samples.length / RATE).toBeLessThan(0.4);
+    }
+    expect(firstDifference(rendered('slit', 0), rendered('slit', 1))).not.toBe(-1);
+    expect(firstDifference(rendered('slit', 1), rendered('slit', 2))).not.toBe(-1);
+  });
+
+  it('gives the ball its moments: a shot, a strike on a lip, a settle, a landing', () => {
+    for (const sample of ['shot', 'lip', 'settle', 'bowlLand', 'shutterOpen'] as const) {
+      const samples = rendered(sample);
+      expect(peakAt(samples), sample).toBeLessThan(sample === 'shutterOpen' ? 0.16 : 0.02);
+      expect(samples.length / RATE, sample).toBeLessThan(0.35);
+    }
+    // A lip is hard and a landing in a bowl is hollow; a ball that settles rocks more than once.
+    expect(of('lip')).toBeGreaterThan(of('bowlLand') * 1.5);
+    expect(strikeTimes(rendered('settle'), 2).length).toBeGreaterThanOrEqual(2);
+    expect(strikeTimes(rendered('bowlLand'), 2).length).toBeGreaterThanOrEqual(2);
+    expect(mostlyOverBy(rendered('lip'))).toBeLessThan(0.03);
   });
 });
 

@@ -12,6 +12,7 @@ import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } 
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import {
+  ballRollsAt,
   ballSpot,
   ballTipsAt,
   landTimes,
@@ -540,6 +541,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const events: SessionEvent[] = [];
     // The medals that were in the air before a frame, by name: the ones that have come down in it are among them.
     const airborne: number[] = [];
+    // The clock of the roulette's turn as it was a frame ago, or less than nothing while no turn was on.
+    let turnClock = -1;
     let frameId = 0;
 
     const frame = (now: number) => {
@@ -627,6 +630,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
           case 'checker':
             lightGate(stage, event.gate);
+            // The medal itself is heard going down the pocket, and then what the cabinet says about it.
+            playSound('slit', soundOn);
             playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
             break;
           case 'chanceStart':
@@ -686,8 +691,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
             break;
           case 'rouletteStart':
-            // The ball is heard round the wheel for as long as it is seen to go round; without motion it is not seen to.
-            if (!calm.matches) playSound('roulette', soundOn, { seconds: event.duration });
+            // The ball is heard for this turn and for every one after it in the run, which no event tells of: see below.
             break;
           case 'rouletteStep':
             playSound('pocket', soundOn, { level: event.level });
@@ -717,10 +721,20 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             // Through a hole and into the bowl below: a step up, and the suspense starts again.
             playSound('pocket', soundOn, { level: CHAIN_GOAL });
             playSound('reach', soundOn);
+            // It is in the air for a moment, and then heard round the bowl it has dropped into. The last is a funnel,
+            // in which it goes faster all the way to its hole.
+            if (!calm.matches) playSound('bowl', soundOn, { seconds: ballTipsAt(event.duration), after: ballRollsAt(event.bowl), quickens: BOWLS[event.bowl].length === 1 });
             setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
         }
       }
+      // A run of the roulette is several turns and only the first is announced. Each is told by its clock starting
+      // again, and the ball is heard round the wheel for the whole of it; without motion it is not seen to go round.
+      const turn = session.roulette && !session.roulette.bowl && !session.roulette.landed ? session.roulette : null;
+      if (turn && (turnClock < 0 || turn.elapsed < turnClock) && turn.elapsed < 0.25 && !calm.matches) {
+        playSound('roulette', soundOn, { seconds: turn.duration - turn.elapsed });
+      }
+      turnClock = turn ? turn.elapsed : -1;
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);

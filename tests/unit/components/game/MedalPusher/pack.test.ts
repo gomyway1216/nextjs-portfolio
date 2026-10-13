@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { CLOUD_FORMAT, fromCloud, toCloud } from '@/components/game/MedalPusher/account';
+import { CLOUD_FORMAT, fromCloud, sizeOf, toCloud } from '@/components/game/MedalPusher/account';
 import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
 import { holds } from '@/components/game/MedalPusher/lift';
 import { PACK_FORMAT, pack, unpack } from '@/components/game/MedalPusher/pack';
@@ -40,6 +40,18 @@ function played(seed: number, seconds: number): Session {
   }
   return session;
 }
+
+// Every size compared in these tests is in bytes of UTF-8, which is what the route counts, and never in characters.
+/** The bytes of a text by itself: a save as it is kept on the device. */
+const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
+/**
+ * The bytes of a packed text as it is sent: the whole copy it travels in, measured as the route measures it. The
+ * packed text is a string inside that copy, so a quote in it costs two bytes, and a letter outside ASCII as many
+ * bytes as UTF-8 takes for it. The few fields round it are the same for every copy.
+ */
+const sent = (packedText: string | null): number => sizeOf({ format: PACK_FORMAT, mark: 'a-mark-of-16-hex', changedAt: 0, data: packedText as string });
+/** The same for one column of a packed table. */
+const sentColumn = (column: unknown): number => sent(JSON.stringify(column));
 
 /** Packs a value and unpacks it again, as the JSON it comes back as. */
 const there = (value: unknown): string | null => {
@@ -131,7 +143,7 @@ describe('a packed save', () => {
       const small = pack(text);
       expect(small).not.toBeNull();
       expect(unpack(small)).toBe(text);
-      expect((small as string).length).toBeLessThan(text.length / 2);
+      expect(sent(small)).toBeLessThan(bytesOf(text) / 2);
       // And what it comes back as is a machine: the same one.
       expect(serialize(restore(unpack(small), 1) as Session)).toBe(text);
     }
@@ -173,7 +185,7 @@ describe('a packed save', () => {
     expect(Array.isArray(before.medals.c[0])).toBe(true);
     expect(before.medals.c[3]).toBe(`b${medals.map((medal) => (medal.ball ? '1' : '0')).join('')}`);
     expect(before.medals.c[4]).toHaveLength(40);
-    for (const column of [0, 3, 4, 5]) expect(JSON.stringify(small.medals.c[column]).length).toBeLessThan(JSON.stringify(before.medals.c[column]).length);
+    for (const column of [0, 3, 4, 5]) expect(sentColumn(small.medals.c[column])).toBeLessThan(sentColumn(before.medals.c[column]));
     for (const column of [1, 2]) expect(small.medals.c[column]).toBe(before.medals.c[column]);
   });
 
@@ -190,6 +202,48 @@ describe('a packed save', () => {
     expect(atob(kinds.i)).toHaveLength(125);
     expect(numbersIn(kinds.i, 5, 200).map((place) => kinds.d[place])).toEqual(many.map((row) => row.kind));
     expect(there(many)).toBe(JSON.stringify(many));
+  });
+
+  it('writes a column the way that is fewest bytes as it is sent, which is not always the fewest characters', () => {
+    const table = (column: unknown): string => JSON.stringify({ $: 't', k: ['cell'], c: [column] });
+    // Three cells of one emoji. Written out, cell by cell, they are fewer characters than the emoji written once
+    // with the number of cells, even counting the backslash each quote gets inside the copy. In bytes they are more:
+    // an emoji is two characters and four bytes, each time it is written.
+    const coins = [{ cell: '🪙' }, { cell: '🪙' }, { cell: '🪙' }];
+    const [each, once] = [table(['🪙', '🪙', '🪙']), table({ d: ['🪙'], n: 3 })];
+    expect(unpack(each)).toBe(JSON.stringify(coins));
+    expect(unpack(once)).toBe(JSON.stringify(coins));
+    expect(each.length).toBeLessThan(once.length);
+    expect(JSON.stringify(each).length).toBeLessThan(JSON.stringify(once).length);
+    expect(sent(once)).toBeLessThan(sent(each));
+    expect(sent(each) - sent(once)).toBe(2);
+    expect(pack(JSON.stringify(coins))).toBe(once);
+
+    // And the other way about. Twelve small whole numbers are fewer bytes, taken by themselves, as the smallest of
+    // them and three bits each than written out. Inside the copy they are more: that way of writing them has eight
+    // quotes in it and the list has none, and each quote is sent with a backslash before it.
+    const ids = [10, 17, 11, 12, 13, 14, 15, 16, 10, 11, 12, 13];
+    const rows = ids.map((cell) => ({ cell }));
+    const bits = ids.map((id) => (id - 10).toString(2).padStart(3, '0')).join('').padEnd(40, '0');
+    const inBits = btoa(String.fromCharCode(...(bits.match(/.{8}/g) as string[]).map((byte) => parseInt(byte, 2))));
+    const [listed, above] = [table(ids), table({ m: 10, n: 12, w: 3, i: inBits })];
+    expect(unpack(listed)).toBe(JSON.stringify(rows));
+    expect(unpack(above)).toBe(JSON.stringify(rows));
+    expect(bytesOf(above)).toBeLessThan(bytesOf(listed));
+    expect(sent(listed)).toBeLessThan(sent(above));
+    expect(pack(JSON.stringify(rows))).toBe(listed);
+
+    // Letters of two and of three bytes, quotes and backslashes: whichever way is taken is no more bytes as it is
+    // sent than writing the cells out, and comes back as the text it was.
+    for (const value of ['é', 'メダル', '🪙🪙', '"', '\\', 'a "quoted" メダル \\ 🪙', '\n', '\u0001']) {
+      for (const cells of [3, 4, 9, 40]) {
+        const text = JSON.stringify(Array.from({ length: cells }, () => ({ cell: value })));
+        const small = pack(text) as string;
+        expect(unpack(small)).toBe(text);
+        expect(sent(small)).toBeLessThanOrEqual(sent(table(Array.from({ length: cells }, () => value))));
+        expect(sent(small)).toBeLessThanOrEqual(sent(table({ d: [value], n: cells })));
+      }
+    }
   });
 
   it('takes two cells for the same value only when JSON writes them the same', () => {
@@ -277,8 +331,10 @@ describe('a packed save', () => {
       const text = JSON.stringify(table % 3 === 0 ? rows : { version: 7, machine: { medals: rows, time: 1.5 } });
       const small = pack(text) as string;
       expect(unpack(small)).toBe(text);
-      // The same text packed as format 1 packed it is read as well as ever.
+      // The same text packed as format 1 packed it is read as well as ever, and is never fewer bytes as it is sent:
+      // every way format 1 had of writing a column is one that format 2 weighs.
       expect(unpack(packFormat1(text), 1)).toBe(text);
+      expect(sent(small)).toBeLessThanOrEqual(sent(packFormat1(text)));
       for (const [way, count] of Object.entries(waysIn(small))) used[way as Way] += count;
     }
     // Every way of writing a column was among them, many times over.
@@ -307,7 +363,7 @@ describe('a packed save', () => {
     expect(small.medals.t[1].c[4]).toBe('b11111');
     expect(small.medals.t[2].c[5]).toEqual(['a third set of fields']);
     expect(unpack(pack(text))).toBe(text);
-    expect((pack(text) as string).length).toBeLessThan(text.length / 2);
+    expect(sent(pack(text))).toBeLessThan(bytesOf(text) / 2);
     // Two jewels side by side, a jewel first, a jewel last: every row comes back in its place.
     for (const jewels of [[0], [59], [0, 1], [20, 21, 22], [0, 30, 59], [1, 3, 5, 7, 9]]) {
       const rows = Array.from({ length: 60 }, (_, index) => (jewels.includes(index) ? { id: index, x: index / 3, jewel: true } : { id: index, x: index / 3 }));
@@ -331,13 +387,13 @@ describe('a packed save', () => {
       const text = serialize(session);
       const small = pack(text) as string;
       expect(unpack(small)).toBe(text);
-      expect(small.length).toBeLessThan(text.length / 2);
+      expect(sent(small)).toBeLessThan(bytesOf(text) / 2);
       expect(serialize(restore(unpack(small), 1) as Session)).toBe(text);
-      // The same machine with its jewels taken off is no smaller on its way than a few hundred characters.
+      // The same machine with its jewels taken off is no smaller on its way than a few hundred bytes.
       const without = JSON.parse(text) as { machine: { medals: { jewel?: boolean }[]; falling: { jewel?: boolean }[] } };
       without.machine.medals = without.machine.medals.filter((medal) => !medal.jewel);
       without.machine.falling = without.machine.falling.filter((medal) => !medal.jewel);
-      expect(small.length - (pack(JSON.stringify(without)) as string).length).toBeLessThan(600);
+      expect(sent(small) - sent(pack(JSON.stringify(without)))).toBeLessThan(600);
     }
   });
 
@@ -356,7 +412,7 @@ describe('a packed save', () => {
     const text = serialize(session);
     const small = pack(text) as string;
     expect(unpack(small)).toBe(text);
-    expect(small.length).toBeLessThan(text.length / 2);
+    expect(sent(small)).toBeLessThan(bytesOf(text) / 2);
     // The lifts are a table like the medals, the doors are four fields as they were written, and what was poured says so in its column.
     const packed = JSON.parse(small) as { machine: { hopper: unknown; lifts: { $: string; k: string[] }; falling: { $: string; k: string[]; c: unknown[] } } };
     expect(packed.machine.hopper).toEqual(machine.hopper);
@@ -427,7 +483,7 @@ describe('a packed save', () => {
   it.each(OLDER)('carries a save written %s, and it comes back as the machine it was', (_name, save) => {
     const small = pack(save);
     expect(small).not.toBeNull();
-    expect((small as string).length).toBeLessThan(save.length / 2);
+    expect(sent(small)).toBeLessThan(bytesOf(save) / 2);
     expect(unpack(small)).toBe(save);
     const [original, travelled] = [restore(save, 7), restore(unpack(small), 7)];
     expect(original).not.toBeNull();
@@ -445,7 +501,7 @@ describe('a packed save', () => {
     expect((JSON.parse(text) as { version: number }).version).toBe(STORAGE_VERSION);
     const small = pack(text) as string;
     expect(unpack(small)).toBe(text);
-    expect(small.length).toBeLessThan(text.length / 3);
+    expect(sent(small)).toBeLessThan(bytesOf(text) / 3);
     // What comes back is that machine, and plays on as the one that was packed does.
     const back = restore(unpack(small), 1) as Session;
     expect(serialize(back)).toBe(text);
@@ -475,6 +531,7 @@ describe('a copy packed before format 2', () => {
       const read = fromCloud(JSON.parse(JSON.stringify(copy.state)));
       expect(read?.mark).toBe(copy.state.mark);
       const text = read?.text as string;
+      // The fixture says how long the text is in characters, as a string's length counts them.
       expect(text).toHaveLength(copy.length);
       expect(sha256(text)).toBe(copy.sha256);
       // It is a machine, and the same one whichever way it travels from here on.
@@ -504,7 +561,7 @@ describe('a copy packed before format 2', () => {
       expect(fromCloud({ format: 1, mark: 'a-made-up-mark', changedAt: 0, data: before })).toEqual({ text, mark: 'a-made-up-mark' });
       // Format 2 is smaller for every one of them, and holds the same text.
       const now = pack(text) as string;
-      expect(now.length).toBeLessThan(before.length * 0.8);
+      expect(sent(now)).toBeLessThan(sent(before) * 0.8);
       expect(unpack(now)).toBe(text);
     }
   });
@@ -681,9 +738,11 @@ describe('what is not a packed save', () => {
     // of a few thousand characters, would come to three hundred times that, and are not.
     const long = 'a value written out at some length'.padEnd(50, '.');
     const column = { d: [long], n: 65536 };
+    // What a copy may unfold to is counted in characters, as a string's length counts them: it is the text built
+    // here that is bounded, not anything that is sent.
     expect((unpack(tableOf(column)) as string).length).toBeGreaterThan(3_000_000);
     const many = JSON.stringify({ $: 't', k: Array.from({ length: 100 }, (_, index) => `field${index}`), c: Array.from({ length: 100 }, () => column) });
-    expect(many.length).toBeLessThan(10_000);
+    expect(bytesOf(many)).toBeLessThan(10_000);
     const started = Date.now();
     expect(unpack(many)).toBeNull();
     expect(Date.now() - started).toBeLessThan(2_000);

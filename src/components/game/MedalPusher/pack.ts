@@ -16,7 +16,7 @@
  *   such a table for each set, and the order the rows came in. That is what
  *   the medals are once one of them is a jewel: a jewel says that it is one,
  *   and a medal says nothing.
- * - A column is written whichever of these ways is shortest:
+ * - A column is written whichever of these ways is fewest bytes on the wire:
  *   - cell by cell, as a list;
  *   - numbers as their own bytes, in base64: a position on the field takes 17
  *     or 18 digits and 11 characters this way;
@@ -79,6 +79,11 @@ const MOST_CELLS = 1 << 16;
  * `pack` counts the same, and writes a column another way before it would
  * pass it. A machine filled to its bounds unfolds to a quarter of a million
  * characters in all, and no save longer than a million is read.
+ *
+ * This one is in characters as a string's `length` counts them, and not in
+ * bytes: it bounds the text that is built in memory here, which is what
+ * `restore` measures the same way before it reads a save (`LIMITS.length`),
+ * and has nothing to do with what is sent.
  */
 const MOST_UNFOLDED = 4_000_000;
 
@@ -175,7 +180,7 @@ function valuesOf(text: string, width: number, count: number): number[] | null {
 
 // ── Packing ─────────────────────────────────────────────────────────────────
 
-/** How many characters the columns written in bits unfold to so far, in the save being packed or unpacked. Both are done in one go, so one count serves. */
+/** How many characters (as `length` counts them) the columns written in bits unfold to so far, in the save being packed or unpacked. Both are done in one go, so one count serves. */
 let unfolded = 0;
 
 /**
@@ -246,19 +251,23 @@ function inBits(cells: Json[], written: string[]): Json[] {
   return ways;
 }
 
+const utf8 = new TextEncoder();
+
 /**
- * What something comes to on its way: its length as JSON, and one more for
- * each quote and backslash in it, since the packed save travels as a string
- * inside the copy and each of those is written with a backslash before it.
+ * What something comes to on its way, in bytes, which is what the route
+ * counts (account.ts, `sizeOf`). The packed save travels as a string inside
+ * the copy, so this is the bytes of the thing's JSON as it stands inside
+ * that string: a quote or a backslash in it has a backslash put before it,
+ * and a letter outside ASCII is two, three or four bytes in UTF-8 where it is
+ * one or two in the text. The two quotes round the string are in every
+ * weight alike. Not the number of characters: by that, three cells of one
+ * emoji look lighter written out than written once, and are not.
  */
 function weight(value: Json): number {
-  const text = JSON.stringify(value);
-  let escaped = 0;
-  for (let index = 0; index < text.length; index++) if (text[index] === '"' || text[index] === '\\') escaped += 1;
-  return text.length + escaped;
+  return utf8.encode(JSON.stringify(JSON.stringify(value))).length;
 }
 
-/** One column of a table, written the lightest way there is for its cells, and the earlier way of two that weigh the same. */
+/** One column of a table, written the way that is fewest bytes on the wire for its cells, and the earlier way of two that come to the same. */
 function column(cells: Json[]): Json {
   let best: Json;
   if (cells.every((cell) => typeof cell === 'boolean')) {
@@ -274,8 +283,9 @@ function column(cells: Json[]): Json {
   let least = weight(best);
   const written = cells.map((cell) => JSON.stringify(cell));
   const ways = inBits(cells, written);
-  // What the column unfolds to, were it written in bits. It is counted once the ways have been made, since making
-  // them may have written columns in bits of their own; and a way that would take the count too far is not taken.
+  // What the column unfolds to, in characters, were it written in bits. It is counted once the ways have been made,
+  // since making them may have written columns in bits of their own; and a way that would take the count too far
+  // is not taken.
   const size = written.reduce((sum, text) => sum + text.length, 0);
   let bits = false;
   for (const way of ways) {
@@ -317,7 +327,7 @@ function packed(value: Json): Json {
 
 // ── Unpacking ───────────────────────────────────────────────────────────────
 
-/** Counts what a column written in bits unfolds to, and stops a copy that unfolds to more than `pack` would have written. */
+/** Counts what a column written in bits unfolds to, in characters, and stops a copy that unfolds to more than `pack` would have written. */
 function count(characters: number): void {
   unfolded += characters;
   if (unfolded > MOST_UNFOLDED) throw NOT_PACKED;

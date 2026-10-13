@@ -2557,8 +2557,12 @@
     justify-content: center;
   }
 }
+/* Its one column is as wide as the room the row gives it and no wider, whatever its words would like: left to
+   itself the column takes the width of the words over the slider, and in a row with three things in it the slider
+   then lies over the switch beside it. */
 .volume {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.15rem;
   min-width: 0;
 }
@@ -3088,8 +3092,9 @@
 }
 /* On its side the column at the right hand is too narrow, on a phone, for the volume's slider and its two switches
    side by side. So there the volume's words have a line, the slider under them has the width of the row, and the
-   switch for the loop and the switch for the arcade share the line under that, each half of it. Where a switch's box
-   and the slider's 44 px meet, in the clear part under the slider's track, the touch is the switch's. */
+   switch for the loop and the switch for the arcade share the line under that, each half of it. The switches stand
+   far enough under the track for the slider's 44 px and theirs not to meet: a touch within 22 px of the track is the
+   slider's, and the next 44 px down are the switch's. */
 @media (orientation: landscape) {
   .cabinet:fullscreen .soundPanel {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3097,13 +3102,18 @@
       'words words'
       'track track'
       'music arcade';
-    gap: 0.5rem;
+    /* Three lines in a column of a screen that is 360 px tall on some phones: they stand close, so that the row,
+       open, still leaves the screen several pixels to spare. */
+    gap: 0.25rem 0.5rem;
+    padding: 0.3rem 0.65rem;
   }
   .cabinet:fullscreen .volume {
     display: contents;
   }
+  /* The words' line is as tall as its letters need in either language, and no taller for a font that leaves more. */
   .cabinet:fullscreen .volumeLabel {
     grid-area: words;
+    line-height: 1.2;
   }
   .cabinet:fullscreen .volumeTrack {
     grid-area: track;
@@ -3120,6 +3130,7 @@
     grid-area: music;
     justify-content: center;
     z-index: 2;
+    margin-top: 10px;
   }
   .cabinet:fullscreen .soundPanel .toggle + .toggle {
     grid-area: arcade;

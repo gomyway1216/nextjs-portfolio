@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { FIELD } from '../../src/components/game/MedalPusher/engine';
 import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { TRAY_ARRIVAL } from '../../src/components/game/MedalPusher/panel';
 import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
@@ -759,6 +760,25 @@ async function openWithPurse(page: Page, credits: number) {
   await expect.poll(() => counter(page, 'credits'), { timeout: 15_000 }).toBe(credits);
 }
 const medalTray = (page: Page) => machine(page).getByTestId('pusher-tray');
+/**
+ * Notes every medal the tray acts out, from the moment the page opens: what it came out of for one that comes in
+ * ('chute' or 'cup'), and 'out' for one that leaves. Returns a way to read what has been noted so far.
+ */
+async function recordTray(page: Page) {
+  await page.addInitScript(() => {
+    const acted: string[] = [];
+    (window as unknown as { trayActed?: string[] }).trayActed = acted;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          for (const flight of node.matches('[data-way]') ? [node] : [...node.querySelectorAll('[data-way]')]) acted.push(flight.getAttribute('data-from') ?? 'out');
+        }
+      }
+    }).observe(document, { childList: true, subtree: true });
+  });
+  return () => page.evaluate(() => [...((window as unknown as { trayActed?: string[] }).trayActed ?? [])]);
+}
 /** Has the page believe it is hidden, or showing again, and tells it so. */
 async function setHidden(page: Page, hidden: boolean) {
   await page.evaluate((hide) => {
@@ -1328,23 +1348,93 @@ test.describe('in the hand, on a phone', () => {
     expect(trouble).toEqual([]);
   });
 
-  test('with no medals the buttons’ lamps are out and the tray is empty, and a refill fills it without a shower', async ({ page }) => {
+  test('a refill is tipped into the empty tray, each medal showing its share of the heap as it lands, and all of them are down at once when less motion is asked for', async ({ page }) => {
+    test.setTimeout(60_000);
+    // The page's clock is the test's: it runs as usual until it is stopped, and from then on a medal in the air stays
+    // in the air until the test lets time pass.
+    await page.clock.install();
+    const acted = await recordTray(page);
     await openWithPurse(page, 0);
+    await alive(page);
     await expect(feedButton(page, 'left')).toBeDisabled();
     await expect(feedButton(page, 'right')).toBeDisabled();
     expect(await digitsShown(page, 'pusher-credits')).toBe('0');
     await expect(medalTray(page)).toHaveAttribute('data-heap', '0');
     await expect(medalTray(page).locator('ellipse')).toHaveCount(0);
+    // A machine this browser remembered with an empty purse, a hundred fewer than a new one's: nothing was acted out.
+    expect(await acted()).toEqual([]);
+
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
     const refill = machine(page).getByTestId('pusher-refill');
     await expect(async () => {
       await refill.tap({ timeout: 1_000 });
       expect(await counter(page, 'credits')).toBe(START_CREDITS);
     }).toPass({ timeout: 20_000 });
-    // A hundred medals put in the purse are a full tray at once: they are not acted out one by one.
-    await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
-    await expect(medalTray(page).locator('[data-way]')).toHaveCount(0);
     expect(await digitsShown(page, 'pusher-credits')).toBe(String(START_CREDITS));
+    // A refill is a cupful tipped in over the rim: its medals are seen on their way, none of them out of the chute,
+    // and the heap they are bringing, a full one, is not lying there yet.
+    const { medals, time, apart } = TRAY_ARRIVAL.refill;
+    const cupful = medalTray(page).locator('[data-way="in"][data-from="cup"]');
+    await expect(cupful).toHaveCount(medals);
+    expect((await acted()).filter((from) => from === 'cup')).toHaveLength(medals);
+    expect(await acted()).not.toContain('out');
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '0');
+    // Each brings its share of the heap, and that share is seen when that medal lands and not before: the first when
+    // its time in the air is up, and one more for every gap between them after that.
+    await page.clock.runFor(time + 10);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', String(60 / medals));
+    await expect(cupful).toHaveCount(medals - 1);
+    await page.clock.runFor(apart);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', String((2 * 60) / medals));
+    await expect(cupful).toHaveCount(medals - 2);
+    // Less motion is asked for with the rest still in the air. They are not drawn on their way any more, so they are
+    // down: the whole heap is lying there, and nothing waits for a drawing that will never finish.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(medalTray(page).locator('[data-way]')).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    // And motion is allowed again: they do not set off a second time.
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.clock.runFor(1_000);
+    await expect(cupful).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect((await acted()).filter((from) => from === 'cup')).toHaveLength(medals);
+    await page.clock.resume();
     await expect(feedButton(page, 'left')).toBeEnabled();
+  });
+
+  test('the tray acts out what happened and never a change in the count: nothing for a machine that is remembered or reset, a medal leaving for one that is fed', async ({ page }) => {
+    test.setTimeout(60_000);
+    const acted = await recordTray(page);
+    // Twenty fewer than a new machine's purse: a small change in the count, and nothing has happened but that this
+    // browser remembered the machine.
+    await openWithPurse(page, START_CREDITS - 20);
+    await alive(page);
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect(await acted()).toEqual([]);
+    // The machine is reset: twenty more in the purse, a win's worth, and none of them was won. Nothing is acted out.
+    const reset = machine(page).getByTestId('pusher-reset');
+    await reset.scrollIntoViewIfNeeded();
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'true');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'false');
+    await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect(await acted()).toEqual([]);
+    // A medal is fed on the left rail: one is seen to leave the tray.
+    await feedButton(page, 'left').scrollIntoViewIfNeeded();
+    await expect(async () => {
+      await feedButton(page, 'left').tap();
+      await page.waitForTimeout(300);
+      expect(await counter(page, 'credits')).toBeLessThan(START_CREDITS);
+    }).toPass({ timeout: 20_000 });
+    await expect.poll(acted).toContain('out');
+    expect(await acted()).not.toContain('cup');
+    // When it has gone the tray is as it says: nothing in the air, and the heap lying there.
+    await expect(medalTray(page).locator('[data-way="out"]')).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
   });
 
   test('on a phone with no vibration and no fullscreen, as an iPhone is, neither switch is shown and nothing is kept free for it', async ({ page }) => {
@@ -1401,6 +1491,17 @@ test.describe('in the hand, a phone on its side', () => {
           left: ['pusher-feed-left', 'pusher-aim-left'].map((id) => box(id)?.right ?? Infinity),
           right: ['pusher-feed-right', 'pusher-aim-right'].map((id) => box(id)?.left ?? -Infinity),
           tall: window.innerHeight,
+          wide: window.innerWidth,
+          // How far what is in the cabinet reaches, and how much of it the screen shows.
+          reach: full ? [full.scrollHeight, full.clientHeight, full.scrollWidth, full.clientWidth] : null,
+          // The place a record's toast hangs from: the first thing in the cabinet.
+          band: (() => {
+            const band = full?.firstElementChild;
+            if (!band) return null;
+            const rect = band.getBoundingClientRect();
+            const style = getComputedStyle(band);
+            return { position: style.position, clips: style.overflowY, takes: style.pointerEvents, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+          })(),
         };
       });
     // The picture is as tall as the screen allows, and that is settled a frame after the layout changes.
@@ -1410,6 +1511,19 @@ test.describe('in the hand, a phone on its side', () => {
     expect(side.scrolls).toBe(false);
     expect(side.offScreen).toEqual([]);
     expect(side.field.bottom - side.field.top).toBeLessThanOrEqual(side.tall);
+    // What is in the cabinet reaches exactly as far as the screen, both ways. The track a toast's rail runs in on the
+    // page is as tall as the stage is wide, and left in the cabinet as it was it reached 24 px below the bottom of a
+    // screen this short. Here it is a band over the top of the stage: it has no place in the layout, it is no taller
+    // than a toast, it is clear of both hands' plates, and a press goes through it.
+    expect(side.reach).toEqual([side.tall, side.tall, side.wide, side.wide]);
+    if (!side.band) throw new Error('the toast has no band');
+    expect(side.band.position).toBe('absolute');
+    expect(side.band.clips).toBe('hidden');
+    expect(side.band.takes).toBe('none');
+    expect(side.band.top).toBeGreaterThanOrEqual(0);
+    expect(side.band.bottom).toBeLessThanOrEqual(side.tall / 2);
+    expect(side.band.left).toBeGreaterThanOrEqual(side.field.left - 1);
+    expect(side.band.right).toBeLessThanOrEqual(side.field.right + 1);
     // L and the left rail's aim are to the left of the picture, R and the right rail's to its right.
     for (const edge of side.left) expect(edge).toBeLessThanOrEqual(side.field.left + 1);
     for (const edge of side.right) expect(edge).toBeGreaterThanOrEqual(side.field.right - 1);

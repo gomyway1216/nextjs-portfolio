@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
@@ -10,7 +10,8 @@ import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
-import { MedalTray } from './MedalTray';
+import { MedalTray, type MedalTrayHandle } from './MedalTray';
+import type { TrayCause } from './panel';
 import { PlateSticker } from './PlateSticker';
 import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
@@ -162,6 +163,9 @@ interface Hud {
   jewels: number;
 }
 
+/** No medal was fed in a frame: most frames. */
+const NONE_FED: readonly (-1 | 1)[] = [];
+
 const hudOf = (session: Session): Hud => ({
   credits: session.credits,
   jackpot: session.jackpot,
@@ -300,6 +304,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   // What fed each medal since the last frame, noted where the machine took it: a press or a held button. The frame
   // loop takes the notes when it plays the hand its pattern.
   const fedBy = useRef<FedBy[]>([]);
+  // The tray in front of the player. It is told what happened to the purse (a medal fed, medals won, the day's
+  // bonus, a refill) and acts that out; it is never left to tell why from how much the count changed. Medals that
+  // are seen to land in it are heard there as they land.
+  const tray = useRef<MedalTrayHandle>(null);
+  const landInTray = useCallback((medals: number) => playSound('tray', live.current.sound, { count: medals }), []);
   // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
   const [lead, setLead] = useState<[number, number] | null>(null);
 
@@ -493,7 +502,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
     setAims([session.machine.aims[0], session.machine.aims[1]]);
-    // Nothing is held over from the machine before.
+    // Nothing is held over from the machine before, and none of its medals is still on its way into the tray: a
+    // machine that is restored, reset or swapped for the account's shows its purse and acts nothing out.
+    tray.current?.still();
     for (const hold of holds.current) hold.by.clear();
     aimKeys.current.clear();
     aimers.current.clear();
@@ -597,8 +608,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
-      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it.
+      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it, and
+      // it is seen to leave the tray towards the button of the rail it is on. The newest medals on the rails are the
+      // ones that went in: nothing has rolled off a rail since they did.
+      let fedNow = NONE_FED;
       if (session.inserted !== fedSeen) {
+        const rolling = session.machine.rolling;
+        fedNow = rolling.slice(Math.max(0, rolling.length - (session.inserted - fedSeen))).map((medal) => (medal.arm === 0 ? -1 : 1));
         fedSeen = session.inserted;
         wake.current?.played();
       }
@@ -644,13 +660,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       let landed = false;
       let won = 0;
+      let bonus = 0;
       let lost = false;
       for (const event of events) {
         switch (event.type) {
           case 'bonus':
-            // The day's bonus: its medals are heard coming down into the tray.
+            // The day's bonus: its medals come down into the tray, and are heard there (below).
             playSound('prize', soundOn);
-            playSound('win', soundOn, { count: event.count });
+            bonus += event.count;
             setAnnouncement(strings.sayBonus(event.count));
             break;
           case 'landed':
@@ -784,8 +801,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         playSound('roulette', soundOn, { seconds: turn.duration - turn.elapsed });
       }
       turnClock = turn ? turn.elapsed : -1;
+      // The tray is told what this frame did to the purse, by what happened: the medals fed, the day's bonus and the
+      // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it
+      // (`landInTray`); where it does not (less motion is asked for) they are heard as they always were, after the
+      // fall from the front. Never both: a medal is one medal in the tray.
+      if (fedNow.length > 0 || bonus > 0 || won > 0) {
+        const arrived: { cause: TrayCause; count: number }[] = [];
+        if (bonus > 0) arrived.push({ cause: 'bonus', count: bonus });
+        if (won > 0) arrived.push({ cause: 'won', count: won });
+        if (!tray.current?.happened({ purse: session.credits, fed: fedNow, arrived }) && bonus + won > 0) playSound('win', soundOn, { count: bonus + won });
+      }
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
-      if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) {
         // On the bare table a medal rings, and on other medals it is damped: the machine knows which it came down on.
@@ -977,6 +1003,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const onRefill = () => {
     const session = sessionRef.current;
     if (session && refill(session)) {
+      // A cupful, tipped into the tray: it is seen to come down, and heard as it does.
+      tray.current?.happened({ purse: session.credits, fed: [], arrived: [{ cause: 'refill', count: session.credits }] });
       setHud(hudOf(session));
       keeper.current?.save('moment');
     }
@@ -1142,7 +1170,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
               {fmt(hud.credits)}
             </strong>
             <SegmentDisplay value={hud.credits} places={COUNTER_PLACES} />
-            <MedalTray credits={hud.credits} held={held} />
+            <MedalTray ref={tray} credits={hud.credits} onLand={landInTray} />
           </div>
           {feedButton(1)}
           <div className={styles.aims}>

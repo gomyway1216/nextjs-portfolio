@@ -6,12 +6,13 @@ import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from '@/components/game/MedalPusher/ControlPanel';
-import { MedalTray } from '@/components/game/MedalPusher/MedalTray';
+import { MedalTray, TRAY_TONES } from '@/components/game/MedalPusher/MedalTray';
 import { COUNTER_PLACES, JACKPOT_PLACES, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { SegmentDisplay, SegmentMirror } from '@/components/game/MedalPusher/SegmentDisplay';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import { JACKPOT_START } from '@/components/game/MedalPusher/lottery';
-import { HEAP_CAP, SEGMENTS, segmentsFor } from '@/components/game/MedalPusher/panel';
+import { HEAP_CAP, SEGMENTS, segmentsFor, washed } from '@/components/game/MedalPusher/panel';
+import { FACES, faceOf } from '@/components/game/MedalPusher/render';
 import { START_CREDITS } from '@/components/game/MedalPusher/session';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -73,8 +74,8 @@ describe('a display of LED digits', () => {
 describe('the tray', () => {
   it('holds as many medals as the purse, up to a full heap, and is a picture', () => {
     const medals = (credits: number) => {
-      const html = render(<MedalTray credits={credits} held={[false, false]} />);
-      const heap = html.split(/<g class="[^"]*heap[^"]*">/)[1]?.split('</g></svg>')[0] ?? '';
+      const html = render(<MedalTray credits={credits} />);
+      const heap = html.split('<g data-part="heap">')[1]?.split('</g></svg>')[0] ?? '';
       return { html, drawn: (heap.match(/<g transform/g) ?? []).length };
     };
     expect(medals(0).drawn).toBe(0);
@@ -86,9 +87,15 @@ describe('the tray', () => {
     expect(html).toMatch(/^<span[^>]*data-testid="pusher-tray"[^>]*data-heap="25"[^>]*aria-hidden="true"|^<span[^>]*aria-hidden="true"/);
     expect(html).toContain('data-heap="25"');
     expect(html).toContain('aria-hidden="true"');
-    // Nothing is on its way in a tray that has only just been drawn.
+    // Nothing is on its way in a tray that has only just been drawn, whatever its purse: every medal of it is lying
+    // there. A machine that was remembered, or reset, or swapped for the account's, is drawn like this and no other way.
     expect(html).not.toMatch(/data-way=/);
-    expect(html).not.toContain('data-fresh');
+    expect(html).toContain('data-lying="25"');
+    for (const credits of [0, 37, 80, START_CREDITS, 1234]) {
+      const put = medals(credits);
+      expect(put.html).not.toMatch(/data-way=/);
+      expect(put.html).toContain(`data-lying="${Math.min(HEAP_CAP, credits)}"`);
+    }
     // The medals keep their shape whatever shape the tray has, and stand on its floor in the middle: the dish round
     // them is the sheet's, which stretches it.
     expect(html).toContain('preserveAspectRatio="xMidYMax meet"');
@@ -96,6 +103,64 @@ describe('the tray', () => {
     const sheet = panelSheet();
     expect(rulesFor(sheet, '.tray')).toMatch(/background: linear-gradient/);
     expect(rulesFor(sheet, '.tray::after')).toContain('clip-path: polygon(');
+  });
+
+  it("holds the field's medals: worn brass in the field's own tones, not new gilt", () => {
+    // Every tone a medal on the table can have gone to, struck in the colours the field's renderer strikes it in and
+    // washed as it washes them: brass first, and then the tone's own wash.
+    expect(TRAY_TONES).toHaveLength(FACES.length);
+    expect(TRAY_TONES[0].face).toBe(washed('#dba21f', [FACES[0]]));
+    FACES.forEach((wash, tone) => {
+      const washes = tone === 0 ? [FACES[0]] : [FACES[0], wash];
+      expect(TRAY_TONES[tone]).toEqual({
+        light: washed('#fbd55a', washes),
+        face: washed('#dba21f', washes),
+        dark: washed('#b97c0c', washes),
+        rim: washed('#a56a06', washes),
+        edge: washed('#6a4204', washes),
+        glint: washed('#fffbe0', washes),
+      });
+    });
+    const html = render(<MedalTray credits={HEAP_CAP} />);
+    // The bright gilt the tray's medals were first painted in is gone from it.
+    for (const gilt of ['#fff1a8', '#f6c544', '#fff7c8']) expect(html).not.toContain(gilt);
+    // A paint for each tone, and each medal of the heap in the tone the field gives a medal of its number.
+    const paints = [...html.matchAll(/<radialGradient id="([^"]+)-(\d)"/g)].map(([, , tone]) => Number(tone));
+    expect(paints).toEqual(FACES.map((_, tone) => tone));
+    const tones = [...html.matchAll(/fill="url\(#[^)]*-(\d)\)"/g)].map(([, tone]) => Number(tone));
+    expect(tones).toEqual(Array.from({ length: HEAP_CAP }, (_, place) => faceOf(place)));
+    // All four are in a full heap, and most of it is as it was struck or only dulled: a heap of brass, not of brown.
+    const share = FACES.map((_, tone) => tones.filter((one) => one === tone).length);
+    for (const medals of share) expect(medals).toBeGreaterThan(0);
+    expect(share[0]).toBe(Math.max(...share));
+    expect(share[3]).toBeLessThan(HEAP_CAP / 4);
+  });
+
+  it('shows a place of the heap when its own medal lands, by the clock and not by the drawing', () => {
+    const sheet = panelSheet();
+    // Nothing in the sheet hides a medal of the heap or brings it out: a place is there or it is not, as the tray says.
+    expect(sheet).not.toMatch(/data-fresh|mp-tray-appear/);
+    expect(rulesFor(sheet, '.heap g')).toBe('');
+    // A medal on its way is moved from where it sets off to where it lands, both of them its own.
+    expect(sheet.match(/@keyframes mp-tray-in \{[\s\S]*?\n\}/)?.[0]).toMatch(/translate\(var\(--mp-dx\), var\(--mp-dy\)\)[\s\S]*translate\(0, 0\)/);
+    expect(sheet.match(/@keyframes mp-tray-out \{[\s\S]*?\n\}/)?.[0]).toMatch(/translate\(0, 0\)[\s\S]*translate\(var\(--mp-dx\), var\(--mp-dy\)\)/);
+    // The tray does not wait for the drawing to say a medal has landed (a medal that is not drawn never says so).
+    const source = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalTray.tsx'), 'utf8');
+    expect(source).not.toMatch(/onAnimationEnd|animationend/);
+    expect(source).toMatch(/if \(calm && air\.flights\.length > 0\) setAir\(trayStill\(air\)\)/);
+  });
+
+  it('is told what happened by the cabinet, each cause by its name, and is stilled when a machine is put up', () => {
+    const cabinet = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/PlayTab.tsx'), 'utf8');
+    for (const cause of ['won', 'bonus', 'refill']) expect(cabinet).toContain(`cause: '${cause}'`);
+    expect(cabinet).toContain('tray.current?.still()');
+    // The tray is given the purse to draw and nothing to compare it with.
+    expect(cabinet).toContain('<MedalTray ref={tray} credits={hud.credits} onLand={landInTray} />');
+    // The medals that came in are heard once: as they land in the tray where that is seen, and after the fall from
+    // the front where it is not.
+    expect(cabinet).toMatch(/if \(!tray\.current\?\.happened\(\{ purse: session\.credits, fed: fedNow, arrived \}\) && bonus \+ won > 0\) playSound\('win'/);
+    expect(cabinet.match(/playSound\('win'/g)).toHaveLength(1);
+    expect(cabinet.match(/playSound\('tray'/g)).toHaveLength(1);
   });
 });
 
@@ -253,10 +318,40 @@ describe('the panel’s sheet', () => {
     const calm = css.split('@media (prefers-reduced-motion: reduce)').slice(1).join('\n');
     expect(calm).toMatch(/\.sign::before,\s*\.sign::after \{\s*animation: none;/);
     expect(calm).toMatch(/\.flight \{\s*display: none;/);
-    expect(calm).toMatch(/\.heap g\[data-fresh\] \{\s*animation: none;/);
     expect(calm).toMatch(/transition: none/);
     // No animation of the sheet runs for ever but the sign's.
     expect(css.match(/infinite/g)).toHaveLength(1);
+  });
+
+  it('names the switches of a crowded row under their caps, so that what is beside them keeps its room', () => {
+    // The row of sound settings: a fader and two switches on one line of a phone. Each switch is a small cap in the
+    // middle of a button wide enough for a thumb, with its name under it, and the arcade's has a lamp of its own.
+    const row = rulesFor(css, ".plate [data-testid='pusher-sound-panel'] > button[aria-pressed]");
+    expect(row).toContain('flex-direction: column');
+    expect(row).toContain('min-width: 46px');
+    expect(rulesFor(css, ".plate [data-testid='pusher-sound-panel'] > button[aria-pressed]::before")).toMatch(/width: 22px;\s*height: 22px;/);
+    expect(rulesFor(css, ".plate button[data-testid='pusher-arcade']")).toMatch(/--cap: #[0-9a-f]{6};\s*--cap-deep: #[0-9a-f]{6};/);
+    // The fader in that row is as wide as its column and no wider, whatever the words over it would like: it does
+    // not lie over the switch beside it.
+    const cabinet = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(rulesFor(cabinet, '.volume')).toContain('grid-template-columns: minmax(0, 1fr)');
+    expect(rulesFor(cabinet, '.soundPanel')).toContain('grid-template-columns: minmax(0, 1fr) auto auto');
+    // On its side the right hand's switches keep to one line, and where the column is too narrow for their names
+    // beside their caps the names go under them there too. A second line there, over the open sound settings, is
+    // more than a phone's screen is tall.
+    const side = css.split('@media (orientation: landscape) {').slice(1).join('\n');
+    expect(side).toMatch(/:fullscreen div\.switches \{[^}]*flex-wrap: nowrap;/);
+    expect(side).toMatch(/@container \(max-width: 14rem\) \{\s*:fullscreen div\.switches > button:is\(\[aria-pressed\], \[aria-expanded\]\) \{[^}]*flex-direction: column;/);
+  });
+
+  it('has no foot when the cabinet fills the screen: the sticker under it is put away by its own sheet, and by no other rule', () => {
+    expect(css).not.toContain('data-panel-foot');
+    expect(css).not.toMatch(/sticker/);
+    const plate = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/InstructionPlate.module.css'), 'utf8');
+    expect(plate).toMatch(/:fullscreen:not\(:root\) \.sticker \{\s*display: none;/);
+    // And the cabinet's own sheet says nothing of it either.
+    const cabinet = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(cabinet).not.toMatch(/sticker|data-panel-foot/);
   });
 
   it('hides the numbers in type only where the displays are seen', () => {

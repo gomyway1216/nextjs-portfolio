@@ -294,6 +294,40 @@ div.plate {
   --cap: #ffffff;
   --cap-deep: #a9b0c6;
 }
+.plate button[data-testid='pusher-arcade'] {
+  --cap: #ffb86b;
+  --cap-deep: #d86a12;
+}
+
+/* The row of sound settings has three things on one line of a phone: a fader and two switches. There is no room
+   there for a name beside each cap, and on a machine's panel there would be none either: the switches of a row like
+   this are small ones, each with its name printed on the plate under it. So here: a smaller cap, 22 px, in the
+   middle of a button wide enough for a thumb, and its name under it. The two are then narrow enough, in either
+   language and in a wide font, for the fader to keep well over the width it needs: the row's e2e test asks for 120 px
+   of slider, and the harness (soundrow.mjs) measures what is to spare. Cap and name together are no taller than
+   the fader with its words over it, so the row is as short as it was. */
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] {
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 46px;
+  min-height: 39px;
+  padding: 29px 0.1rem 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed]::before,
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] > span[aria-hidden]:first-child {
+  left: 50%;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 -11px;
+}
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] > span[aria-hidden]:first-child {
+  padding: 4px;
+  font-size: 0.8rem;
+}
 
 /* ---------- The sliders ---------- */
 
@@ -531,39 +565,33 @@ div.counter {
   width: 100%;
   height: 100%;
 }
-/* A medal that has only just been heaped is not seen until the one dropping in has landed on its place. */
-.heap g[data-fresh] {
-  animation: mp-tray-appear 300ms steps(1, end) both;
-}
-/* A medal on its way: in from the chute's mouth to its place, with a bounce, or off the heap towards the button
-   that fed it, and gone. */
+/* A medal on its way: in to its place, out of the chute's mouth or over the rim, with a small bounce as it comes to
+   rest; or off the heap towards the button that fed it, and gone. Where it sets off, how long it takes and how long
+   after the others it goes are the medal's own (panel.ts), and so is when it has landed: the place it lands on is
+   not drawn until then, and is drawn then whether or not this has been seen to finish. */
 .flight[data-way='in'] {
   animation: mp-tray-in 300ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
+}
+/* A cupful comes down faster, and straighter, than medals sliding out of the chute. */
+.flight[data-way='in'][data-from='cup'] {
+  animation-timing-function: cubic-bezier(0.5, 0, 1, 0.7);
 }
 .flight[data-way='out'] {
   animation: mp-tray-out 220ms ease-in both;
 }
-@keyframes mp-tray-appear {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 @keyframes mp-tray-in {
   0% {
-    transform: translate(var(--mp-from-x), var(--mp-from-y));
+    transform: translate(var(--mp-dx), var(--mp-dy));
     opacity: 0;
   }
   12% {
     opacity: 1;
   }
-  78% {
+  84% {
     transform: translate(0, 0);
   }
-  89% {
-    transform: translate(0, -2.5px);
+  92% {
+    transform: translate(0, -1.8px);
   }
   100% {
     transform: translate(0, 0);
@@ -576,7 +604,7 @@ div.counter {
     opacity: 1;
   }
   to {
-    transform: translate(var(--mp-to-x), -10px);
+    transform: translate(var(--mp-dx), var(--mp-dy));
     opacity: 0;
   }
 }
@@ -584,9 +612,6 @@ div.counter {
 @media (prefers-reduced-motion: reduce) {
   .flight {
     display: none;
-  }
-  .heap g[data-fresh] {
-    animation: none;
   }
   .plate button[data-arm]::before,
   .plate button[data-arm]::after,
@@ -871,30 +896,10 @@ div.sign {
 
 /* ---------- The cabinet filling the screen ---------- */
 
-/* Something stuck on the cabinet's front under the panel (an instruction plate, say) marks itself `data-panel-foot`,
-   and has its place when the cabinet fills the screen: upright it stays under the panel where there is height for
-   it and is put away where there is not; on its side it is in the free middle of the left hand's plate. */
-:fullscreen > [data-panel-foot] {
-  flex: none;
-  margin-top: 0;
-}
-@media (orientation: portrait) and (max-height: 780px) {
-  :fullscreen > [data-panel-foot] {
-    display: none;
-  }
-}
-@media (orientation: landscape) {
-  :fullscreen > [data-panel-foot] {
-    grid-area: note;
-    align-self: end;
-    min-width: 0;
-  }
-}
-@media (orientation: landscape) and (max-height: 480px) {
-  :fullscreen > [data-panel-foot] {
-    display: none;
-  }
-}
+/* The panel has no foot there. What is stuck on the cabinet's front under it on the page (the instruction plate's
+   sticker) is not a control, and puts itself away while the cabinet fills the screen, by a rule of its own sheet:
+   that is the one rule about it, and this sheet has none. The screen is the game and its controls, laid out to fit
+   without scrolling, and on a short phone there are only a few pixels of it to spare. */
 
 /* A short screen held upright has no room under the last row of switches for the small print. */
 @media (orientation: portrait) and (max-height: 720px) {
@@ -938,10 +943,36 @@ div.sign {
   :fullscreen .counter > .tray {
     grid-area: 2 / 2;
   }
-  /* A hand's column is narrower than the panel: its switches go on to a second line when they must. */
+  /* A hand's column is narrower than the panel, and a phone on its side is short: a second line of switches there,
+     with the sound settings open under it, is more than the screen is tall. So the switches at the right hand keep
+     to one line. Where the column has room for their names beside their caps they are as on the page; where it has
+     not, each is a cap with its name printed under it, as in the row of sound settings, and the three of them are
+     then well inside the narrowest column whatever their names are. */
   :fullscreen div.switches {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    align-items: flex-start;
+  }
+  :fullscreen .maker {
+    align-self: center;
+  }
+  @container (max-width: 14rem) {
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded]) {
+      flex-direction: column;
+      justify-content: flex-end;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 34px 0.1rem 0;
+      font-size: 0.6rem;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded])::before,
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded]) > :is(svg, span[aria-hidden]):first-child {
+      left: 50%;
+      top: 3px;
+      margin: 0 0 0 -13px;
+    }
   }
 }
 @media (orientation: landscape) and (max-width: 900px) {

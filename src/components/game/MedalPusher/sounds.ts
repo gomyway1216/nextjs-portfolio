@@ -545,7 +545,9 @@ function score(step: number, tail: number, parts: [voice: Voice, level: number, 
 export const SCORES = {
   // A medal through a chucker: two bells, a fourth apart.
   gate: score(0.075, 0.45, [['bell', 1, 'B5 E6:4']]),
-  // An entry: up a fourth on to the key note, which is an answer and not a question, with the same two notes an octave down under it.
+  // An entry: up a fourth on to the key note, which is an answer and not a question. The call is two notes, and it is
+  // played twice over: by the bell, and an octave down at a third of the bell's level, where a small speaker is
+  // strongest, so that a phone has more of it than the top of a bell. A gold entry is `GOLD_START`.
   start: score(0.07, 0.4, [
     ['bell', 1, 'G6 C7:4'],
     ['second', 0.3, 'G5 C6:3'],
@@ -1164,12 +1166,22 @@ function perform(t: Take, music: Score): void {
   }
 }
 
-/** A gold entry: the same call with the third on top of it, a second voice a third below and the key note under both. Its shimmer is in its recipe. */
-const GOLD_START: Score = score(0.07, 0.55, [
+/**
+ * A gold entry. The same call with a third note on top of it; where the plain
+ * call has its own octave under it, this has a voice in harmony, a third or a
+ * fourth under each note; and the key note is held under both.
+ */
+export const GOLD_START: Score = score(0.07, 0.55, [
   ['bell', 1, 'G6 C7 E7:5'],
   ['second', 0.35, 'E6 G6 C7:4'],
   ['bass', 0.3, 'C5:6'],
 ]);
+
+/**
+ * And its shimmer: small bells above every note of the call, one every
+ * `every` seconds from `from` seconds in, each `fade` of the one before.
+ */
+export const GOLD_SHIMMER = { hz: [5274, 6272, 4186, 5274, 6272, 4186, 5274, 6272, 4186, 5274], from: 0.2, every: 0.035, level: 0.2, fade: 0.88, ring: 0.07 } as const;
 
 const jingle =
   (music: Score) =>
@@ -1697,7 +1709,8 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
   startGold: (rate) => {
     const t = take(GOLD_START.length + GOLD_START.tail, rate);
     perform(t, GOLD_START);
-    [5274, 6272, 4186, 5274, 6272, 4186, 5274, 6272, 4186, 5274].forEach((hz, glint) => ping(t, 0.2 + glint * 0.035, hz, 0.2 * 0.88 ** glint, 0.07));
+    const { from, every, level, fade, ring } = GOLD_SHIMMER;
+    GOLD_SHIMMER.hz.forEach((hz, glint) => ping(t, from + glint * every, hz, level * fade ** glint, ring));
     speaker(t);
     return t;
   },

@@ -6,6 +6,8 @@ import {
   CHUTE,
   COMPRESSOR,
   ENTRY,
+  GOLD_SHIMMER,
+  GOLD_START,
   GUARD,
   HOPPER,
   LEVEL,
@@ -50,6 +52,7 @@ import {
   type Pour,
   type PusherSound,
   type Sample,
+  type Score,
   type SoundOptions,
 } from '@/components/game/MedalPusher/sounds';
 
@@ -2685,9 +2688,44 @@ describe('an entry', () => {
     expect(audio.gainOf(gold).gain.value).toBe(ENTRY.gold.level);
     // The same every time: it is the cabinet speaking, not a medal.
     for (const source of [plain, gold]) expect(source.playbackRate.value).toBe(1);
-    // The plain one is the two notes that are written, up a fourth on to the key note, over in three quarters of a second.
-    const [bell] = SCORES.start.parts;
-    expect(bell.notes.map((note) => note.hz)).toEqual([pitch('G6'), pitch('C7')]);
+    /** Everything a score plays: each part's voice and level, and its notes as their pitch and how many steps they are held. */
+    const playedBy = (music: Score, step: number) => music.parts.map((part) => [part.voice, part.level, part.notes.map((note) => [note.hz, Math.round(note.length / step)])]);
+    const notes = (...written: [name: string, steps: number][]) => written.map(([name, steps]) => [pitch(name), steps]);
+    // The plain one is all of this and nothing more: the call, up a fourth on to the key note, and the same two notes
+    // an octave down at a third of its level, which is its body on a small speaker and not another voice.
+    expect(playedBy(SCORES.start, 0.07)).toEqual([
+      ['bell', 1, notes(['G6', 1], ['C7', 4])],
+      ['second', 0.3, notes(['G5', 1], ['C6', 3])],
+    ]);
+    const [call, octave] = SCORES.start.parts;
+    octave.notes.forEach((note, index) => expect(note.hz * 2).toBeCloseTo(call.notes[index].hz, 9));
+    expect(octave.notes).toHaveLength(call.notes.length);
+    expect(octave.notes.map((note) => note.at)).toEqual(call.notes.map((note) => note.at));
+    // The gold one is all of this: the call with a third note on top; a voice in harmony under each note of it where
+    // the plain one has its octave; the key note held under both; and the bells.
+    expect(playedBy(GOLD_START, 0.07)).toEqual([
+      ['bell', 1, notes(['G6', 1], ['C7', 1], ['E7', 5])],
+      ['second', 0.35, notes(['E6', 1], ['G6', 1], ['C7', 4])],
+      ['bass', 0.3, notes(['C5', 6])],
+    ]);
+    // So what a gold entry has that a plain one has not is pinned: a note more in the call, a part more, a second
+    // voice that is harmony and not an octave, and bells that the plain one has none of.
+    const [goldCall, harmony] = GOLD_START.parts;
+    expect(goldCall.notes.slice(0, 2).map((note) => note.hz)).toEqual(call.notes.map((note) => note.hz));
+    expect(goldCall.notes).toHaveLength(call.notes.length + 1);
+    expect(GOLD_START.parts).toHaveLength(SCORES.start.parts.length + 1);
+    harmony.notes.forEach((note, index) => {
+      const under = goldCall.notes[index].hz / note.hz;
+      expect(under).toBeGreaterThan(1.18);
+      expect(under).toBeLessThan(1.34);
+    });
+    expect(GOLD_SHIMMER.hz).toHaveLength(10);
+    for (const hz of GOLD_SHIMMER.hz) {
+      expect(hz).toBeGreaterThan(pitch('E7') * 1.5);
+      expect(hz).toBeLessThan(7000);
+    }
+    expect(GOLD_SHIMMER.fade).toBeLessThan(1);
+    expect(GOLD_SHIMMER.from + GOLD_SHIMMER.every * GOLD_SHIMMER.hz.length).toBeLessThan(GOLD_START.length + GOLD_START.tail);
     expect(rendered('start').length / RATE).toBeLessThan(0.8);
     // The gold one is longer and fuller: a third note above the two, and above that its shimmer, small bells from 4 kHz up.
     expect(rendered('startGold').length).toBeGreaterThan(rendered('start').length * 1.3);

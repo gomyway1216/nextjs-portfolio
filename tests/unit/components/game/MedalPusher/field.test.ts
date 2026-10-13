@@ -16,6 +16,7 @@ import {
   createMachine,
   dropJewel,
   pusherFront,
+  queuePayout,
   step,
   type Arm,
   type Machine,
@@ -42,10 +43,12 @@ import {
   EXIT_TIME,
   GLOW_TIME,
   GOLD_FLASH,
+  RIDE,
   ageStage,
   celebrate,
   createStage,
   drawField,
+  faceOf,
   goldFlash,
   lightGate,
   showJewel,
@@ -54,6 +57,7 @@ import {
   type Stage,
 } from '@/components/game/MedalPusher/render';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
+import { pourPose } from '@/components/game/MedalPusher/works';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
 
@@ -1130,5 +1134,42 @@ describe('the jewels on the canvas', () => {
     ageStage(bonus, JEWEL_SHOW);
     expect(bonus.popups).toEqual([]);
     expect([bonus.jewelGlow, bonus.jewelShow]).toEqual([0, 0]);
+  });
+});
+
+describe('the medals pouring out of the hopper on the canvas', () => {
+  /** How high the middle of a medal is once it is down on the pusher, which is where the picture has a poured medal come to rest. */
+  const REST = HEIGHT.pusher + HEIGHT.medal * 2 + RIDE * 0.5;
+
+  it('stamps each poured medal with the face of its own tone, as it does every other medal in the air', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(7);
+    queuePayout(machine, 90);
+    for (let i = 0; i < 3000 && !(machine.hopper.phase === 'pouring' && machine.hopper.poured >= 30); i++) step(machine, 1 / 60);
+    expect(machine.hopper.phase).toBe('pouring');
+    // Nothing on the field but what is pouring, so that every medal's face on the picture is a poured medal's.
+    machine.medals = [];
+    machine.rolling = [];
+    machine.falling = machine.falling.filter((medal) => medal.source === 'pour');
+    const shown = machine.falling.filter((medal) => pourPose(medal, REST).shown > 0);
+    expect(shown.length).toBeGreaterThan(10);
+    const screen = recorder();
+    drawField(screen.context, stage, machine, { showGuide: false });
+    const faces = screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement));
+    expect(faces).toHaveLength(shown.length);
+    for (const medal of shown) {
+      const pose = pourPose(medal, REST);
+      const point = project(pose.x, pose.height, pose.depth);
+      const stamped = faces.filter((stamp) => Math.hypot(stamp.x - point.x, stamp.y - point.y) < 1e-6);
+      expect(stamped).toHaveLength(1);
+      // Its own face, by its id, and not the one face the stage keeps for a medal it knows nothing of.
+      expect(stamped[0].image).toBe(stage.faces[faceOf(medal.id)]);
+      expect(stamped[0].alpha).toBeCloseTo(pose.shown, 9);
+    }
+    // So they are not all of one tone, any more than the medals lying on the table are.
+    expect(new Set(shown.map((medal) => faceOf(medal.id))).size).toBeGreaterThan(1);
+    expect(new Set(faces.map((stamp) => stamp.image)).size).toBe(new Set(shown.map((medal) => faceOf(medal.id))).size);
+    expect(stage.medal).toBe(stage.faces[0]);
   });
 });

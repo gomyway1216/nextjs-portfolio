@@ -43,7 +43,7 @@
  *   what is true, and it is tried again later.
  */
 
-import { pack, unpack } from './pack';
+import { PACK_FORMAT, pack, unpack } from './pack';
 
 // ── What is kept, and who for ───────────────────────────────────────────────
 
@@ -210,8 +210,14 @@ const retryAfter = (failures: number): number => RETRY_AFTER[Math.min(failures, 
 
 // ── The account's copy, as it travels ───────────────────────────────────────
 
-/** The only way a copy is written for the account so far. A copy written another way is one this code cannot read. */
-export const CLOUD_FORMAT = 1;
+/**
+ * The way a copy is written for the account now, which is said beside it. A
+ * copy written an earlier way is read as it was written, since there are such
+ * copies on players' accounts: `unpack` knows every way there has been. One
+ * written a way this code does not know, by a later version of the game, is
+ * one it cannot read.
+ */
+export const CLOUD_FORMAT = PACK_FORMAT;
 
 /** What the route stores: the packed text, and the mark that tells one copy from another. */
 export interface CloudState {
@@ -239,8 +245,8 @@ export function sizeOf(state: object): number {
 export function fromCloud(state: unknown): { text: string; mark: string | null } | null {
   if (typeof state !== 'object' || state === null || Array.isArray(state)) return null;
   const { format, mark, data } = state as Record<string, unknown>;
-  if (format !== CLOUD_FORMAT) return null;
-  const text = unpack(data);
+  // The format it says it is in is the one it is read as, and no other is tried.
+  const text = typeof format === 'number' ? unpack(data, format) : null;
   return text === null ? null : { text, mark: typeof mark === 'string' ? mark : null };
 }
 

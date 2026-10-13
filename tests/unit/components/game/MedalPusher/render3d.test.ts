@@ -60,6 +60,7 @@ import {
   GOLD_FLASH,
   LIP_FALL,
   REST_LIGHT,
+  RIDE,
   SLOT_LIGHT,
   SLOT_SHAPE,
   ageStage,
@@ -85,12 +86,14 @@ import {
   LEAN,
   MEDAL_EDGE,
   MEDAL_STRIDE,
+  RIDER_LEAD,
   armTipAt,
   ballShape,
   cameraMatrix,
   chance,
   createRows,
   jewelShape,
+  leadOf,
   lightMatrix,
   medalShape,
   writeBalls,
@@ -299,7 +302,7 @@ function readMedals(rows: Rows) {
   return Array.from({ length: rows.count }, (_, index) => {
     const at = index * MEDAL_STRIDE;
     const d = rows.data;
-    return { x: d[at], y: d[at + 1], z: d[at + 2], own: d[at + 3], up: rotate(d, at + 4, [0, 1, 0]), turn: [d[at + 4], d[at + 5], d[at + 6], d[at + 7]], ground: d[at + 8], contact: d[at + 9], light: d[at + 10] };
+    return { x: d[at], y: d[at + 1], z: d[at + 2], own: d[at + 3], up: rotate(d, at + 4, [0, 1, 0]), turn: [d[at + 4], d[at + 5], d[at + 6], d[at + 7]], ground: d[at + 8], contact: d[at + 9], light: d[at + 10], lead: d[at + 11] };
   });
 }
 
@@ -669,6 +672,87 @@ describe('the medals of the 3D field', () => {
     expect(over(LIP_FALL / 2).z).toBeCloseTo(48, 5);
     expect(over(LIP_FALL).y).toBeCloseTo(T / 2, 5);
     expect(over(LIP_FALL).up[1]).toBeGreaterThan(0.995);
+  });
+
+  it('lets nothing on the pusher cover a medal on its tongue: it takes its place in depth nearer the eye than it is, by more than anything can hang over the lip above it, and gives that up before it goes into its slot', () => {
+    const front = PUSHER.min;
+    const machine = holding([]);
+    /** A medal that came over at `x`, as the catcher has it and as it is written: how much nearer the eye it takes its place in depth. */
+    const leadAt = (x: number, sinceDrop: number) => {
+      const medal = lying(3, x, front + R, 0, 0, { sinceDrop });
+      machine.medals = [medal];
+      const held = caught(medal, 0);
+      if (!held) throw new Error('not caught');
+      const [row] = medalRows(machine);
+      expect(row.lead).toBe(Math.fround(leadOf(held, front)));
+      return { lead: row.lead, held };
+    };
+    const middle = CHECKERS.positions[1];
+    // A rider has all of it from the step it comes over the lip until it is near the end of its tongue.
+    for (const share of [0, 0.1, 0.3, 0.5]) expect(leadAt(middle, CATCHER.sink * share)).toMatchObject({ lead: RIDER_LEAD.most, held: { leg: 'tongue', chucker: 1 } });
+    // It comes off over the last of the tongue, less in every step and never much at once, and is all but gone at the tongue's end.
+    let last: number = RIDER_LEAD.most;
+    for (let share = 0.5; share < CATCHER.ride - 0.005; share += 0.01) {
+      const { lead, held } = leadAt(middle, CATCHER.sink * share);
+      expect(held.leg).toBe('tongue');
+      expect(lead).toBeLessThanOrEqual(last + 1e-6);
+      expect(last - lead).toBeLessThan(RIDER_LEAD.most / 4);
+      last = lead;
+    }
+    expect(last).toBeLessThan(RIDER_LEAD.most / 4);
+    // None of it once it noses into the slot: the slide covers what goes under it.
+    for (const share of [CATCHER.ride + 0.01, 0.85, 0.99]) expect(leadAt(middle, CATCHER.sink * share)).toMatchObject({ lead: 0, held: { leg: 'slot' } });
+    // Nor where nothing may move: it is shown lying still in the mouth of its slot, at the tongue's end.
+    const still = lying(4, middle, front + R, 0, 0, { sinceDrop: 0.1 });
+    const mouthed = caught(still, 0, true);
+    expect(mouthed && leadOf(mouthed, front)).toBeLessThan(RIDER_LEAD.most / 4);
+
+    // One that hangs on a tongue's edge has some of it while it hangs, and less than a rider, which is so seen to pass over it.
+    const beside = middle + CHECKERS.halfWidth + 0.4;
+    let hung = 0;
+    let fell = 0;
+    last = Infinity;
+    for (let since = CATCHER.teeter.out + 0.005; since < CATCHER.teeter.out + CATCHER.teeter.most + CATCHER.fall; since += 0.01) {
+      const medal = lying(5, beside, front + R, 0, 0, { sinceDrop: since });
+      const held = caught(medal, 0);
+      if (!held) break;
+      expect(held).toMatchObject({ chucker: -1, near: 1 });
+      const lead = leadOf(held, front);
+      expect(lead).toBeLessThanOrEqual(RIDER_LEAD.most * RIDER_LEAD.hanging + 1e-9);
+      if (held.leg === 'tongue') {
+        if (hung === 0) expect(lead).toBeCloseTo(RIDER_LEAD.most * RIDER_LEAD.hanging, 6);
+        hung += 1;
+      } else {
+        // By the time it lets go of the edge it has tipped far enough to have none left: it goes into the well with none.
+        if (fell === 0) expect(last).toBeLessThan(0.05);
+        expect([held.leg, lead]).toEqual(['gap', 0]);
+        fell += 1;
+      }
+      last = lead;
+    }
+    expect(hung).toBeGreaterThan(5);
+    expect(fell).toBeGreaterThan(5);
+    expect(RIDER_LEAD.hanging).toBeLessThan(1);
+    // One that comes over clear of the tongues goes over the lip's edge with none.
+    const clear = caught(lying(6, (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, front + R, 0, 0, { sinceDrop: 0.05 }), 0);
+    expect(clear && [clear.leg, leadOf(clear, front)]).toEqual(['gap', 0]);
+    // And every medal that the catcher does not have is written with none.
+    machine.medals = [lying(7, 20, 20, 1), lying(8, 30, 20, 1, 1), lying(9, 40, 80, 0)];
+    expect(medalRows(machine).map((row) => row.lead)).toEqual([0, 0, 0]);
+
+    // It is more than anything lying on the pusher can be above a rider's face, along the line to the eye. The
+    // highest is the top of a medal that has just come down on the pile, and it hangs over the lip by half a medal
+    // at the most; a rider's face, which leaves the lip level with the top of a medal on the deck, is lowest under
+    // it where that overhang ends. The eye looks down at the lip least steeply when the lip is furthest from it,
+    // which is where a given height is furthest along the line.
+    const above = T + RIDE * 0.5 + Math.sin(SLOPE.angle) * R;
+    const steep = Math.atan2(EYE[1] - P, EYE[2] - PUSHER.min);
+    expect(above / Math.sin(steep)).toBeLessThan(RIDER_LEAD.most);
+    expect(above / Math.sin(steep)).toBeLessThan(RIDER_LEAD.most * RIDER_LEAD.hanging);
+    // The shader that draws a medal moves its depth and nothing else of it; a medal's shadow is thrown from where it is.
+    expect(shaders.MEDAL_VERTEX).toContain('gl_Position.z = nearer.z / nearer.w * gl_Position.w;');
+    expect(shaders.MEDAL_VERTEX).toContain('normalize(uEye - world) * aLook.w');
+    expect(shaders.MEDAL_SHADOW_VERTEX).not.toContain('aLook');
   });
 
   it('shows a medal the lip’s rule counted riding its tongue and nosing into its slot, one that has some of a tongue under it hanging on its edge and falling into the well, and one clear of the tongues going over the lip’s edge nose first', () => {

@@ -163,7 +163,7 @@ const ja: PlateStrings = {
     },
     start: {
       head: 'START をねらおう！',
-      line: (rules) => `メダルが斜面をすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで）`,
+      line: (rules) => `メダルが橋をすべって溝をわたり、START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで）`,
       short: 'START',
     },
     match: {
@@ -272,7 +272,7 @@ const en: PlateStrings = {
     },
     start: {
       head: 'Hit START!',
-      line: (rules) => `A medal that slides into a START pocket spins the slot once. Up to ${rules.hold} spins are held.`,
+      line: (rules) => `A medal that rides a tongue over the well into a START pocket spins the slot once. Up to ${rules.hold} spins are held.`,
       short: 'START',
     },
     match: {

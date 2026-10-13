@@ -1234,22 +1234,22 @@ describe('strings', () => {
     expect(en.partText.chuckers).toContain('do not move along it');
     expect(ja.partText.chuckers).toContain('プッシャーの縁の中央に並んでいます');
     expect(ja.partText.chuckers).toContain('左右には動きません');
-    // How a medal gets into one: down the sloped face under the lip, lying flat. One that catches a pocket's edge, or
-    // comes down between two pockets, slides off the foot of the slope. The wings are flaps on that slope.
+    // How a medal gets into one: along a tongue over the well under the lip, lying flat. One with too little of a tongue
+    // under it, or none, goes into the well. The wings are flaps beside the pockets, which widen with their tongues.
     const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
     for (const text of [en.partText.chuckers, info.en]) {
       expect(text).toContain('sloped face that leans toward you');
-      expect(text).toMatch(/slides down (the|that) slope lying flat, face up/);
-      expect(text).toMatch(/rattles on its frame and slides off the foot of the slope/);
-      expect(text).toContain('flaps on the slope that swing out and funnel medals toward the pockets');
+      expect(text).toContain('with its middle on a tongue rides it lying flat, face up');
+      expect(text).toMatch(/hangs on (its|the tongue’s) edge(?: for a moment)? and tips off into the well/);
+      expect(text).toMatch(/the pockets and their tongues (widen|are wider)/);
     }
-    expect(info.en).toContain('one that comes down between the pockets slides off the foot too');
+    expect(info.en).toContain('one that comes over between the tongues drops straight into it');
     for (const text of [ja.partText.chuckers, info.ja]) {
       expect(text).toContain('手前に傾いた斜面');
-      expect(text).toContain('表を上にして寝たまま斜面を滑り落ち');
-      expect(text).toMatch(/枠の上でカタカタ揺れ(、|てから)斜面の下の端/);
-      expect(text).toContain('チャッカーのあいだを滑ってきたメダルも');
-      expect(text).toContain('羽根は斜面についた板で、外へ開いて、滑ってくるメダルをチャッカーのほうへ寄せ');
+      expect(text).toContain('表を上にして寝たまま橋を滑');
+      expect(text).toMatch(/橋の端で(少し)?揺れてから溝に落ちます/);
+      expect(text).toContain('橋のあいだを越えたメダルは、そのまま溝に落ちます');
+      expect(text).toMatch(/チャッカーの口と(そこへ渡る)?橋が広くな/);
     }
     // Which medals count: any of them, and a ball never.
     expect(info.en).toContain('Any medal does: one you dropped, one the screen paid, or one off a tower');
@@ -1325,8 +1325,8 @@ describe('strings', () => {
     expect(ja.calcNote(MAX_STOCK)).toContain('光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには、5枚のうち4枚が19秒から約2分（半数は24秒から53秒）かかり');
     expect(ja.calcNote(MAX_STOCK)).toContain('約94%、30秒後に光っているはずの列に向けても約94%で、どちらも中央に落とし続ける場合に届きません');
     // What is said aloud when a medal is held through a lit pocket.
-    expect(en.sayLucky).toBe('A medal slid down the slope into a lit START pocket. Its spin is gold.');
-    expect(ja.sayLucky).toBe('メダルが斜面を滑って、光っているチャッカーに入りました。金の抽選です。');
+    expect(en.sayLucky).toBe('A medal rode its tongue into a lit START pocket. Its spin is gold.');
+    expect(ja.sayLucky).toBe('メダルが橋を滑って、光っているチャッカーに入りました。金の抽選です。');
   });
 
   it('gives the measured figures of the narrow pockets in the calculator’s note, slow play best and fast play worse', () => {
@@ -3087,7 +3087,7 @@ describe('chance time on the screen and in the words', () => {
     expect(html).toContain(`When all ${MAX_STOCK} spins are held, the next medal through a START pocket starts no spin of its own.`);
     expect(html).toContain('It turns one of the held spins gold, and with that chance time begins.');
     // While it lasts the wings are open and every medal that is held holds a gold spin, and it ends with the last gold spin.
-    expect(html).toContain('While it lasts the wings of the START pockets are open: flaps on the slope under the lip that swing out and funnel the medals sliding down it toward the pockets.');
+    expect(html).toContain('While it lasts the wings of the START pockets are open: flaps beside the pockets that swing out, as the pockets and the tongues that lead to them widen.');
     expect(html).toContain('every medal that is held holds a gold spin');
     expect(html).toContain('Chance time ends when the last gold spin has been played.');
     expect(html).toContain('pays 2 times over, and a ball is a ball');
@@ -3109,7 +3109,7 @@ describe('chance time on the screen and in the words', () => {
     const ja = render(<OddsTab />, 'ja');
     expect(ja).toContain('チャンスタイム');
     expect(ja).toContain('ふつうの抽選より0.81枚多く払い出します');
-    expect(ja).toContain('羽根は縁の下の斜面についた板で、外へ開いて、斜面を滑ってくるメダルをチャッカーのほうへ寄せます');
+    expect(ja).toContain('羽根はチャッカーの両わきについた板で、外へ開き、チャッカーの口とそこへ渡る橋が広くなります');
     expect(ja).toContain('両方のボタンを押し続けたときに戻ってくるのは約93%で、中央に毎秒2枚ずつ落とす場合の約95%に届きません');
     expect(ja).toContain(`プッシャーが1往復する${LUCKY.dwell}秒ごとに、光が左から順にとなりのチャッカーへ移ります`);
     expect(ja).toContain(`ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です`);
@@ -3134,7 +3134,7 @@ describe('chance time on the screen and in the words', () => {
     expect(en.sayChance).toContain('Chance time');
     expect(en.sayChance).toContain('the wings of the START pockets swing out to funnel medals in, and every spin held from now on is gold');
     expect(ja.sayChance).toContain('チャンスタイム');
-    expect(ja.sayChance).toContain('チャッカーの羽根が開いてメダルを寄せ、ここから保留される抽選はすべて金の抽選になります');
+    expect(ja.sayChance).toContain('チャッカーの羽根が開いてメダルが入りやすくなり、ここから保留される抽選はすべて金の抽選になります');
     expect(en.colGold).toBe('Gold spins');
     expect(ja.colGold).toBe('金の抽選');
     // The Simulation tab offers both buttons held down as a pace.

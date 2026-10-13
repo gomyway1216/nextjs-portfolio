@@ -412,7 +412,7 @@ describe('the catcher on the canvas', () => {
         expect(opening[3].y).toBeGreaterThan(mouth.y);
         expect(opening[3].y - opening[0].y).toBeCloseTo(mouth.tall, 9);
         expect(mouth.wide * PHONE).toBeGreaterThan(20);
-        expect(mouth.tall * PHONE).toBeGreaterThan(9);
+        expect(mouth.tall * PHONE).toBeGreaterThan(8.8);
         // As wide inside as a medal that just fits, and the whole of it, frame and all, below the lip.
         expect(mouth.wide).toBeCloseTo((MEDAL_RADIUS + CHECKERS.halfWidth) * 2 * seen(slopeSpot(spot.x, CATCHER.back + START_SLOT.long / 2, time, CATCHER.rim.high)).scale, 9);
         expect(outer[0].y).toBeGreaterThan(project(spot.x, P, pusherFront(time)).y);
@@ -2124,5 +2124,25 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     const after = recorder();
     drawField(after.context, stage, machine, { showGuide: false, stock: 1 });
     expect(after.fills.some((fill) => fill.style.startsWith('rgba(255, 255, 255, '))).toBe(false);
+  });
+});
+
+describe('the well under the lip on the canvas', () => {
+  it('is all but black, as the 3D picture has it, with a trace of blue that the black of a throat’s floor has not', () => {
+    const rgb = (colour: string): number[] => [1, 3, 5].map((at) => parseInt(colour.slice(at, at + 2), 16));
+    const light = ([r, g, b]: number[]): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const [lip, edge] = WELL_SHADE.map(rgb);
+    for (const [r, g, b] of [lip, edge]) {
+      // Read off a film of the 3D picture, the well is about 9, 7, 12 in 255. This is no lighter than half as light again as that.
+      expect(light([r, g, b])).toBeLessThan(light([9, 7, 12]) * 1.5);
+      expect(light([r, g, b])).toBeGreaterThan(light([9, 7, 12]) * 0.75);
+      // And it is told from a throat's floor by its blue, which the picture is read back by (the e2e START check).
+      expect(Math.max(r, g)).toBeLessThan(16);
+      expect(b).toBeGreaterThanOrEqual(24);
+      expect(b - r).toBeGreaterThanOrEqual(12);
+    }
+    expect(SLOT_THROAT.floor).toBe('#000000');
+    // Darker the further down it is.
+    expect(light(edge)).toBeLessThan(light(lip));
   });
 });

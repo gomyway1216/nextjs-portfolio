@@ -6,8 +6,8 @@
  */
 
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
-import { caught, rolling, underCatcher } from './catcher';
-import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
+import { CATCHER, caught, rolling, underCatcher, type Caught } from './catcher';
+import { FIELD, MEDAL_RADIUS, SETTLE, pusherFront, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, type JewelSpot } from './jewel';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
@@ -105,7 +105,8 @@ export function lightMatrix(out: Mat4): Mat4 {
  * Numbers per medal: where its middle is and a number of its own; its
  * attitude, as a quaternion; the height of whatever it lies on, how dark the
  * contact shadow under it is, how much light it still gets as it falls into
- * the dark, and one to spare.
+ * the dark, and how much nearer the eye than it is it takes its place in
+ * depth, which is nothing for every medal but one on a tongue (`RIDER_LEAD`).
  */
 export const MEDAL_STRIDE = 12;
 /** Numbers per ball, stud or bulb: where its middle is and how big it is; its colour; and what it is. */
@@ -152,7 +153,7 @@ export const LEAN = { table: { least: 0.012, most: 0.05 }, pile: { least: 0.05, 
 const lipDrop = (medal: Medal): number =>
   medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
 
-export function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn: number, tilt: number, heading: number, ground: number, contact: number, light: number): void {
+export function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn: number, tilt: number, heading: number, ground: number, contact: number, light: number, lead = 0): void {
   const at = next(rows);
   const { data } = rows;
   data[at] = x;
@@ -163,7 +164,41 @@ export function medalRow(rows: Rows, id: number, x: number, y: number, z: number
   data[at + 8] = ground;
   data[at + 9] = contact;
   data[at + 10] = light;
-  data[at + 11] = 0;
+  data[at + 11] = lead;
+}
+
+/**
+ * A medal on a START slot's tongue is seen, all of it, from the lip to the
+ * slot. It comes off the lip from among the medals that lie there, and the
+ * ones behind it hang over the lip's edge, above it, by as much as half a
+ * medal: square to the camera they would cover the back of it for the first
+ * quarter of its ride, and most rides would begin half hidden. The canvas
+ * draws a rider after everything on the pusher. Here it is drawn where it is
+ * and takes its place in depth as if it were `most` field units nearer the
+ * eye, which is further than anything hanging over the lip is above it; so
+ * nothing on the pusher covers it, and everything nearer the eye than that
+ * still does. The lead is all there while its middle is less than `from`
+ * out from the lip, and none by `to`, where it starts to go over the
+ * tongue's end: it goes into its slot, and under the slide, with no lead at
+ * all. A medal that hangs on a tongue's
+ * edge has `hanging` of it while it hangs, and loses it as it tips over,
+ * between a lean of `level` and of `over` radians: it goes down into the
+ * well behind the slide, which covers it. It has less than a rider has, so
+ * that a medal riding down the tongue another hangs on is seen to pass over
+ * it and not through it.
+ */
+export const RIDER_LEAD = { most: 4, hanging: 0.8, from: CATCHER.back - 0.4, to: CATCHER.back + 0.4, level: 0.3, over: 1 } as const;
+
+const smooth = (from: number, to: number, value: number): number => {
+  const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+};
+
+/** How much nearer the eye a medal the catcher has takes its place in depth, in field units, with the lip `front` out from the back wall: see `RIDER_LEAD`. */
+export function leadOf(held: Pick<Caught, 'leg' | 'depth' | 'tilt' | 'chucker'>, front: number): number {
+  if (held.leg !== 'tongue') return 0;
+  const { most, hanging, from, to, level, over } = RIDER_LEAD;
+  return most * (held.chucker >= 0 ? 1 : hanging) * (1 - smooth(from, to, held.depth - front)) * (1 - smooth(level, over, held.tilt));
 }
 
 /**
@@ -252,7 +287,7 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     if (held) {
       // One on a tongue lies as the catcher has it, and one hanging on a tongue's edge is rocked over it; one going over the lip's edge into the well tips forward a little its own way.
       const own = held.leg === 'gap' && held.heading === 0 ? (chance(id, 2) - 0.5) * 0.5 : held.heading;
-      medalRow(rows, id, held.x, held.height, held.depth, turnOf(id), held.tilt, own, 0, 0, held.light);
+      medalRow(rows, id, held.x, held.height, held.depth, turnOf(id), held.tilt, own, 0, 0, held.light, leadOf(held, pusherFront(machine.time)));
       continue;
     }
     const x = medal.x;

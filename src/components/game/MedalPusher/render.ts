@@ -1901,11 +1901,12 @@ export const SLOT_THROAT = {
 /**
  * The well under the lip, which is the inside of the catcher's box seen from
  * above: the pusher's face in the shade of its own lip, from the lip down to
- * where the slide's upper edge hides it. It is dark, and darker the further
- * down, but never the black of a throat's floor: a slot is told from the
- * well at a glance, and so is a medal going down into either.
+ * where the slide's upper edge hides it. It is as dark as the 3D picture
+ * has it, which is all but black, and darker the further down; and never
+ * quite the black of a throat's floor, which has no blue in it at all, so
+ * that a picture read back pixel by pixel tells the one from the other.
  */
-export const WELL_SHADE = ['#2b2f66', '#10123a'] as const;
+export const WELL_SHADE = ['#0c0a1a', '#08061a'] as const;
 /**
  * A tongue: the brass of its top, from its end at the lip to its end at the
  * slot, and of the side of its web; and the same of one whose slot is lit.

@@ -214,6 +214,7 @@ layout(location = 2) in vec4 aPlace;
 layout(location = 3) in vec4 aTurn;
 layout(location = 4) in vec4 aLook;
 uniform mat4 uCamera;
+uniform vec3 uEye;
 out vec3 vWorld;
 out vec3 vLocal;
 out vec3 vNormal;
@@ -228,6 +229,12 @@ void main() {
   vTurn = aTurn;
   vOwn = vec2(aPlace.w, aLook.z);
   gl_Position = uCamera * vec4(world, 1.0);
+  // A medal on a START slot's tongue is drawn where it is, and takes its place in depth as if it were that many
+  // field units nearer the eye (scene3d.ts, RIDER_LEAD): what hangs over the lip above it does not cover it.
+  if (aLook.w > 0.0) {
+    vec4 nearer = uCamera * vec4(world + normalize(uEye - world) * aLook.w, 1.0);
+    gl_Position.z = nearer.z / nearer.w * gl_Position.w;
+  }
 }
 `;
 

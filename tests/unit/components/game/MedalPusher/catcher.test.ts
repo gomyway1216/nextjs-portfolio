@@ -29,6 +29,7 @@ import {
 } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS, chuckerSpot, droppedThrough, grazed } from '@/components/game/MedalPusher/chuckers';
 import { CHECKERS, FIELD, JEWEL_DROP, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
+import { advance, createSession, insert } from '@/components/game/MedalPusher/session';
 import { APRON_CAP, BALL_RADIUS, SLOT_SHAPE } from '@/components/game/MedalPusher/render';
 import { EYE_AT, HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
 
@@ -346,15 +347,16 @@ describe('the catcher for the START slots', () => {
         expect(mouth.tall).toBeLessThan(mouth.wide);
         // The board leans toward the player, so the opening is seen more nearly square on than it would be in a level one.
         expect(mouth.tall).toBeGreaterThan(START_SLOT.long * at.scale * at.tilt * 1.15);
-        // On a phone it is twenty-two pixels across and ten down, or more, with its frame outside that.
+        // On a phone it is twenty-two pixels across and nine down, or more, with its frame outside that. It was ten
+        // down while the catcher reached past the pusher's stroke, which hid whatever went down the well (see below).
         expect(mouth.wide * PHONE).toBeGreaterThan(22);
-        expect(mouth.tall * PHONE).toBeGreaterThan(10);
+        expect(mouth.tall * PHONE).toBeGreaterThan(8.8);
         // Down it the floor of its throat is seen, under the foot of the far wall, which is what is black in a slot that
-        // waits and gold in the lucky one: twenty pixels of a phone's screen across and five down, or more. Its lamp
+        // waits and gold in the lucky one: twenty pixels of a phone's screen across and four and a half down, or more. Its lamp
         // stands up into the lower end of that by no more than two and a half.
         const throat = slotCorners(chucker, time, false, -SLOT_SHAPE.ring.in, -SLOT_SHAPE.ring.down).map((corner) => project(corner.x, CATCHER.throat, corner.depth));
         expect((throat[1].x - throat[0].x) * PHONE).toBeGreaterThan(20);
-        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(5);
+        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(4.5);
         const lamp = seen(lampSpot(chucker, time));
         expect((seen(lower).y - (lamp.y - START_SLOT.lamp.radius * lamp.scale)) * PHONE).toBeLessThan(2.5);
         // All of it is on the drawing, in the lower half, below the lip.
@@ -1001,8 +1003,8 @@ describe('a prize ball that comes over the lip at the catcher', () => {
   it('stands where it came down until the catcher’s foot has come over the whole of it, and is the engine’s from then on, out of sight; or rolls to where the engine has it', () => {
     const FRAME = 1 / 60;
     const x = CHECKERS.positions[1] + 3;
-    // The catcher reaches further out from the lip than the pusher's stroke is long: the face never comes up to a ball that stands in front of the foot.
-    expect(CATCHER.foot.out).toBeGreaterThan(PUSHER.max - PUSHER.min);
+    // The catcher reaches nearly as far out from the lip as the pusher's stroke is long, and a ball stands clear of its foot: the face never comes up to a ball that stands there.
+    expect(CATCHER.foot.out + clearOfFoot(r)).toBeGreaterThan(PUSHER.max - PUSHER.min + R);
     /** A ball that came over at `came`, followed as the machine would run it alone: the pusher's face pushes it when it comes forward. */
     const follow = (came: number) => {
       const medal = over(x, pusherFront(came) + R, 0, { ball: true });
@@ -1071,5 +1073,54 @@ describe('a prize ball that comes over the lip at the catcher', () => {
     expect(rolling(ball(CATCHER.to - r + 0.1, 0.05), r, time)).toBeNull();
     expect(rolling(ball(10, 0.05), r, time)).toBeNull();
     expect(rolling(ball(pocket, 0.05), r, time)).not.toBeNull();
+  });
+});
+
+describe('what has gone down the well', () => {
+  const stroke = PUSHER.max - PUSHER.min;
+
+  it('is out from under the catcher when the pusher is back: the catcher stops short of the pusher’s stroke', () => {
+    // A medal that went down the well lies at the foot of the pusher's face, and the next stroke leaves it a medal's
+    // radius in front of where the face turns. With the pusher back, the whole of it is clear of the foot's edge.
+    expect(CATCHER.foot.out).toBeLessThan(stroke - 0.4);
+    const pushed = PUSHER.max + R;
+    for (const x of CHECKERS.positions) expect(underCatcher(x, pushed, R, 0)).toBe(false);
+    // Not by much: the catcher has to hold the well, the slots and the words, and is as long as the stroke lets it be.
+    expect(CATCHER.foot.out).toBeGreaterThan(stroke - 1);
+    expect(underCatcher(CHECKERS.positions[1], pushed, R, PUSHER.period * 0.1)).toBe(true);
+    // The well is still longer than a medal is across, and the words still fit their strip.
+    expect(CATCHER.gap).toBeGreaterThan(R * 2);
+    expect(APRON_CAP).toBeLessThan(APRON);
+  });
+
+  it('is seen again within the stroke after the one it fell in, on a quiet table: one rail, a medal every two seconds down the middle', { timeout: 30_000 }, () => {
+    const session = createSession(7919, { quickPick: true });
+    session.credits = 1e6;
+    session.machine.aims = [50, 54];
+    /** The medals that have gone over the lip at the catcher and are still wholly or partly under it, and for how many seconds. */
+    const under = new Map<Medal, number>();
+    const waits: number[] = [];
+    for (let frame = 0; frame < 240 * 60; frame++) {
+      if (frame % 120 === 0) insert(session, 0);
+      advance(session, 1 / 60);
+      const { machine } = session;
+      for (const medal of machine.medals) {
+        if (medal.ball || medal.jewel || medal.level !== 0 || medal.stack > 1) continue;
+        if (medal.sinceDrop >= 0 && medal.sinceDrop < 1 / 60 - 1e-9 && medal.x - R >= CATCHER.from && medal.x + R <= CATCHER.to) under.set(medal, 0);
+      }
+      for (const [medal, since] of under) {
+        if (underCatcher(medal.x, medal.y, R, machine.time)) under.set(medal, since + 1 / 60);
+        else {
+          waits.push(since);
+          under.delete(medal);
+        }
+      }
+    }
+    waits.sort((a, b) => a - b);
+    expect(waits.length).toBeGreaterThan(40);
+    // Half of them within a stroke and a sixth, and nine in ten within two. With a catcher that reached 0.4 past the
+    // stroke, as it once did, half of them were out of sight for a quarter of a minute.
+    expect(waits[Math.floor(waits.length / 2)]).toBeLessThan(PUSHER.period * (1 + 1 / 6));
+    expect(waits[Math.floor(waits.length * 0.9)]).toBeLessThan(PUSHER.period * 2);
   });
 });

@@ -72,10 +72,23 @@ const R = MEDAL_RADIUS;
  * from the lip: if the slide began nearer than that, the nose would be on
  * it, and the medal would be carried on down to the slots, counted or not.
  */
-const RIM = { wide: 0.5, high: 0.3 } as const;
+const RIM = { wide: 0.4, high: 0.3 } as const;
 const WELL = R * 2 + 0.3;
-const MOUTH = 5;
-const WORDS = 4;
+const MOUTH = 4.45;
+const WORDS = 3.95;
+/**
+ * All of it together is a little shorter than the pusher's stroke, and has to
+ * be. A medal that goes down the well lies at the foot of the pusher's face,
+ * under the catcher, and the next stroke pushes it a stroke's length out from
+ * where the face stands when it is back. If the catcher's foot reached
+ * further than that, the medal would still be under it when the pusher had
+ * gone back, and would stay out of sight until the pile had shoved it
+ * further: a quarter of a minute, on a quiet table. Reaching less, the
+ * catcher draws back off it at the end of the stroke after the one it fell
+ * in, and it is seen again where it lies. The well cannot give, nor the
+ * words much, so it is the openings and their frames that are a little
+ * shorter than they might be.
+ */
 const LONG = WELL + RIM.wide + MOUTH + RIM.wide + WORDS;
 /** How high the tongues leave the lip, just under the edge of the pusher's top, and how high the foot is: higher than the medals that lie on the lower table, and than a jewel (jewel.ts). */
 const DECK = P - 0.3;

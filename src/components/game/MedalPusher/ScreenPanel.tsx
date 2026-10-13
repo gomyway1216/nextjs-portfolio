@@ -4,6 +4,7 @@ import { Fragment, useState, type CSSProperties } from 'react';
 import type { PusherStrings } from './i18n';
 import { BOWL, CHAIN_GOAL, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS } from './lottery';
 import { ReelSymbol, tierOfDigit } from './ReelSymbols';
+import { GOLD_FLASH } from './render';
 import {
   BOARD_SQUARES,
   BOWL_SHAPE,
@@ -455,6 +456,9 @@ const Bowl = ({ hole, jackpot, registerBall }: { hole: number; jackpot: string; 
   </div>
 );
 
+/** How long one flash of a gold spin's lamp takes on the page, from bright to bright: the stylesheet takes it from here, so it is the cabinet's own rate. */
+export const GOLD_FLASH_STYLE = { '--mp-gold-flash': `${1 / GOLD_FLASH.perSecond}s` } as CSSProperties;
+
 export interface ScreenProps {
   state: ScreenState;
   stock: number;
@@ -508,7 +512,7 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
         <span className={styles.screenTitle} data-testid="pusher-mode">
           {title}
         </span>
-        <div className={styles.stock} role="img" aria-label={t.stockAria(stock, MAX_STOCK)} data-testid="pusher-stock" data-held={stock}>
+        <div className={styles.stock} role="img" aria-label={t.stockAria(stock, MAX_STOCK)} data-testid="pusher-stock" data-held={stock} style={GOLD_FLASH_STYLE}>
           <span className={styles.stockLabel} aria-hidden>
             {t.stock}
           </span>

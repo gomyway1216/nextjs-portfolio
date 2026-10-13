@@ -442,8 +442,9 @@ const counters = {
 const storedNumbers = shape<StoredNumbers>(
   // In the order a session holds them, which is the order they are written in.
   { ...purse, gold: whole(0, MAX_STOCK), gilded: count, chance: flag, ...counters },
-  // Only a held spin can be gold, and each gold spin was a medal that found the hold full.
-  (numbers) => numbers.gold <= numbers.stock && numbers.gilded <= numbers.wasted && numbers.gold <= numbers.gilded,
+  // Only a held spin can be gold, and each gold spin was a medal that found the hold full: the ones still held,
+  // and the one on the screen if the screen is on one. So a screen is never gold on a machine no medal has gilded.
+  (numbers) => numbers.gold <= numbers.stock && numbers.gilded <= numbers.wasted && numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded,
 );
 
 /** The session's numbers as the versions before chance time stored them. */
@@ -732,7 +733,9 @@ export function restore(text: string | null, seed: number): Session | null {
     };
     const busy = [on.spin, on.bonus, on.roulette].filter((thing) => thing !== null).length;
     const session: Session = { ...numbers, ...(busy > 1 ? { spin: null, bonus: null, roulette: null } : on), machine: { ...field, rng: seededRng(seed) } };
-    // What is on the screen is gold only while a spin or the game it led to is on it.
+    // What is on the screen is gold only while a spin, or the game one led to, is on it. The numbers have said
+    // that a medal did gild that spin; if the spin or the game itself did not come through its own check, or
+    // was never there, it is gone with its gold, and nothing else on the screen is paid as if it were gold.
     if (session.spin === null && session.bonus === null) session.chance = false;
     if (screen.roulette !== null && screen.roulette !== undefined && session.roulette === null) {
       session.balls = Math.min(LIMITS.balls, session.balls + 1);

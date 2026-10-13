@@ -2741,11 +2741,58 @@ describe('chance time in a save', () => {
     (paid.screen.bonus as Row).payout = BOARD[paid.session.square as number];
     const once = restore(JSON.stringify(paid), 1) as Session;
     expect([once.bonus, once.chance, once.paidOut]).toEqual([null, false, paid.session.paidOut]);
-    // And a screen called gold with nothing on it is simply not gold.
-    const idle = saved('the first held spin just turned gold');
+    // And a screen called gold with nothing on it is simply not gold, on a machine that has gilded a spin for it.
+    const idle = saved('an ordinary spin on the reels and gold ones held');
     idle.screen = { spin: null, bonus: null, roulette: null };
     idle.session.chance = true;
+    expect(idle.session.gilded as number).toBeGreaterThan(idle.session.gold as number);
     const empty = restore(JSON.stringify(idle), 1) as Session;
-    expect([empty.chance, empty.gold]).toEqual([false, 1]);
+    expect([empty.chance, empty.gold]).toEqual([false, idle.session.gold]);
+    // On one that has not, it is no machine: its one gilded spin is still held, and cannot be on the screen as well.
+    const only = saved('the first held spin just turned gold');
+    expect([only.session.gold, only.session.gilded]).toEqual([1, 1]);
+    only.session.chance = true;
+    expect(restore(JSON.stringify(only), 1)).toBeNull();
+    only.screen = { spin: null, bonus: null, roulette: null };
+    expect(restore(JSON.stringify(only), 1)).toBeNull();
+  });
+
+  it('refuses a gold spin on the screen of a machine no medal has gilded, and takes it once one has', () => {
+    // A machine with one ordinary spin on its reels, as today's game writes it: one medal went through a pocket.
+    const session = createSession(7, { balls: 0 });
+    session.stock = 1;
+    session.hits = 1;
+    advance(session, DT);
+    expect(session.spin).not.toBeNull();
+    const forged = (change: (save: Save) => void): Session | null => {
+      const save = JSON.parse(serialize(session)) as Save;
+      // The spin is given a gold spin's reels, so that nothing about it alone says it is not one.
+      const spin = save.screen.spin as { duration: number; result: SpinResult };
+      spin.duration = TIMING.chanceSpin + reachTime(spin.result);
+      change(save);
+      return restore(JSON.stringify(save), 1);
+    };
+    // Untouched but for its reels it is not a spin this machine plays, and is left off: the machine is kept.
+    expect(forged(() => {})).toMatchObject({ spin: null, chance: false, gold: 0, gilded: 0 });
+    // Called gold with no medal ever wasted on a full hold, it would be paid double for nothing: no machine.
+    expect(forged((save) => (save.session.chance = true))).toBeNull();
+    // Nor with a medal wasted that did not gild, or a spin gilded that no medal was wasted for.
+    expect(forged((save) => Object.assign(save.session, { chance: true, wasted: 1, hits: 2 }))).toBeNull();
+    expect(forged((save) => Object.assign(save.session, { chance: true, gilded: 1, hits: 2 }))).toBeNull();
+    // With one medal that found the hold full and gilded a spin, it is that spin, and comes back gold.
+    const gilded = forged((save) => Object.assign(save.session, { chance: true, gilded: 1, wasted: 1, hits: 2 }));
+    expect(gilded).toMatchObject({ chance: true, gold: 0, gilded: 1 });
+    expect(gilded?.spin).not.toBeNull();
+    expect(chanceLeft(gilded as Session)).toBe(1);
+    // One gilded spin cannot be on the reels and held as well; two can be one of each.
+    expect(forged((save) => Object.assign(save.session, { chance: true, gilded: 1, wasted: 1, hits: 3, stock: 1, gold: 1 }))).toBeNull();
+    expect(forged((save) => Object.assign(save.session, { chance: true, gilded: 2, wasted: 2, hits: 4, stock: 1, gold: 1 }))).toMatchObject({ chance: true, gold: 1, gilded: 2 });
+    // And a save that says its screen is gold, with nothing on the screen and nothing ever gilded, is refused too.
+    expect(
+      forged((save) => {
+        save.session.chance = true;
+        save.screen = { spin: null, bonus: null, roulette: null };
+      }),
+    ).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AIM, CHECKERS, DROP_INTERVAL, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
 import { CHANCE_BONUS, JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
-import { MAX_STOCK } from '@/components/game/MedalPusher/session';
+import { MAX_STOCK, TIMING, advance, createSession, reachTime, type SessionEvent } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
   AIM_IDS,
@@ -12,6 +12,7 @@ import {
   WARM_UP,
   aimAt,
   frontShare,
+  goldStarted,
   simulate,
   steadyReturn,
   type AimResult,
@@ -120,6 +121,52 @@ describe('what a run measured', () => {
   });
 });
 
+describe('the gold spins of a stretch of play', () => {
+  const DT = 1 / 60;
+  /** The spins that start while the session plays on until its hold is empty, and which of them are gold. */
+  const playOut = (session: ReturnType<typeof createSession>) => {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 60 * 60 && (session.stock > 0 || session.spin !== null || session.bonus !== null); i++) advance(session, DT, events);
+    const starts = events.flatMap((event) => (event.type === 'spinStart' ? [event] : []));
+    return { spins: starts.length, gold: starts.filter((start) => start.duration === TIMING.chanceSpin + reachTime(start.result)).length };
+  };
+
+  it('are the ones whose reels turned in it, even when the medals that made them went through a pocket before it began', () => {
+    // A count begins with the hold full and five of its spins gold already: the warm-up left them there.
+    const session = createSession(3, { balls: 0 });
+    session.machine.medals = [];
+    Object.assign(session, { stock: MAX_STOCK, gold: 5, gilded: 5, wasted: 5, hits: MAX_STOCK + 5 });
+    const start = { gold: goldStarted(session), gilded: session.gilded, spins: session.spins };
+    // None of the five has been spun yet.
+    expect(start.gold).toBe(0);
+    const played = playOut(session);
+    expect(played).toEqual({ spins: MAX_STOCK, gold: 5 });
+    // All five were played in the count, and that is what it measures. No medal gilded a spin in it: counting
+    // those would have called all eight of its spins ordinary and paid the five gold ones short.
+    expect(goldStarted(session) - start.gold).toBe(5);
+    expect(session.gilded - start.gilded).toBe(0);
+    expect(session.spins - start.spins).toBe(MAX_STOCK);
+  });
+
+  it('do not include the ones that are still held when it ends', () => {
+    const session = createSession(3, { balls: 0 });
+    session.machine.medals = [];
+    Object.assign(session, { stock: MAX_STOCK, gold: 3, gilded: 9, wasted: 9, hits: 40, spins: 23 });
+    // Six gold spins were started before, and three wait.
+    expect(goldStarted(session)).toBe(6);
+    const start = goldStarted(session);
+    // Two of the three are played, and then the count stops.
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 60 * 60 && session.spins < 25; i++) advance(session, DT, events);
+    advance(session, DT, events);
+    expect(session.gold).toBe(1);
+    expect(goldStarted(session) - start).toBe(2);
+    expect(goldStarted(session) - start).toBe(events.filter((event) => event.type === 'spinStart').length);
+    // A machine that has never been gilded has started none.
+    expect(goldStarted(createSession(1))).toBe(0);
+  });
+});
+
 describe('the simulation', () => {
   it('plays every aim the same number of medals and keeps its books', async () => {
     const medals = 120;
@@ -136,7 +183,8 @@ describe('the simulation', () => {
       // A gold spin was a medal that found the hold full, and is one of the spins.
       expect(aim.gold).toBeGreaterThanOrEqual(0);
       expect(aim.gold).toBeLessThanOrEqual(aim.wasted + MAX_STOCK);
-      expect(aim.gold).toBeLessThanOrEqual(aim.spins + MAX_STOCK);
+      // A gold spin that was started in the count is one of the spins that were started in it.
+      expect(aim.gold).toBeLessThanOrEqual(aim.spins);
       const carried = aim.spins + aim.wasted - aim.hits;
       expect(carried).toBeGreaterThanOrEqual(0);
       expect(carried).toBeLessThanOrEqual(MAX_STOCK);

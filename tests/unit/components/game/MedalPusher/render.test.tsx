@@ -20,6 +20,7 @@ import {
 import { AIM_CAPS, AIM_KEY, AIM_KEYS, AIM_RANGE, AUTO_PACE, FEED_KEYS, HOLD_DELAY, KEY_CAPS, PlayTab, aimPercent, percentAim, typingIn } from '@/components/game/MedalPusher/PlayTab';
 import { ReelSymbol } from '@/components/game/MedalPusher/ReelSymbols';
 import {
+  GOLD_FLASH_STYLE,
   IDLE_DIGITS,
   Screen,
   ballTransform,
@@ -31,7 +32,7 @@ import {
   stripOffset,
 } from '@/components/game/MedalPusher/ScreenPanel';
 import { DEFAULT_PACE, MEDAL_OPTIONS, SimTab } from '@/components/game/MedalPusher/SimTab';
-import { goldFlash } from '@/components/game/MedalPusher/render';
+import { GOLD_FLASH, goldFlash } from '@/components/game/MedalPusher/render';
 import { CATCHER } from '@/components/game/MedalPusher/catcher';
 import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher/charts';
 import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
@@ -1756,17 +1757,49 @@ describe('chance time on the screen and in the words', () => {
     expect(sameScreen(five, { ...five, gold: false })).toBe(false);
   });
 
-  it('flashes a gold lamp on the cabinet four times a second, each a beat behind the one before, and steadily with motion reduced', () => {
+  it('flashes a gold lamp at one rate, twice a second, each a beat behind the one before, and not at all with motion reduced', () => {
+    // Under the three flashes a second that are safe for anyone to look at.
+    expect(GOLD_FLASH.perSecond).toBe(2);
+    expect(GOLD_FLASH.perSecond).toBeLessThanOrEqual(3);
+    const period = 1 / GOLD_FLASH.perSecond;
     for (let lamp = 0; lamp < MAX_STOCK; lamp++) {
-      const seen = Array.from({ length: 60 }, (_, frame) => goldFlash(frame / 60, lamp, false));
+      // A whole second, a frame at a time: it goes from dim to bright as many times as the rate says, and no oftener.
+      const seen = Array.from({ length: 121 }, (_, frame) => goldFlash(5 + frame / 120, lamp, false));
       expect(Math.min(...seen)).toBeGreaterThanOrEqual(0);
       expect(Math.max(...seen)).toBeLessThanOrEqual(1);
       expect(Math.max(...seen) - Math.min(...seen)).toBeGreaterThan(0.9);
-      // The same a quarter of a second on.
-      expect(goldFlash(0.3, lamp, false)).toBeCloseTo(goldFlash(0.55, lamp, false), 9);
-      expect(goldFlash(0.3, lamp, true)).toBe(1);
+      expect(seen.filter((bright, frame) => frame > 0 && seen[frame - 1] < 0.5 && bright >= 0.5)).toHaveLength(GOLD_FLASH.perSecond);
+      // The same one flash later, and the opposite half a flash later.
+      expect(goldFlash(0.3, lamp, false)).toBeCloseTo(goldFlash(0.3 + period, lamp, false), 9);
+      expect(goldFlash(0.3, lamp, false) + goldFlash(0.3 + period / 2, lamp, false)).toBeCloseTo(1, 9);
+      // With motion reduced it is steadily at its brightest, whatever the clock says.
+      for (const clock of [0, 0.3, 0.3 + period / 2, 17.77]) expect(goldFlash(clock, lamp, true)).toBe(1);
     }
     expect(goldFlash(0.1, 0, false)).not.toBeCloseTo(goldFlash(0.1, 1, false), 3);
+  });
+
+  it('flashes the gold lamps on the page at that same rate: the stylesheet takes the length of one flash from the cabinet', () => {
+    expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': `${1 / GOLD_FLASH.perSecond}s` });
+    expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': '0.5s' });
+    // The row of the hold's lamps carries it, so every gold lamp in the row takes it.
+    const html = show({ ...idle, chance: 3, gold: false }, MAX_STOCK);
+    expect(html).toMatch(/data-testid="pusher-stock"[^>]*style="--mp-gold-flash:0\.5s"/);
+    const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
+    // One run of the animation is one whole flash, bright to dim and back to bright at its start: it does not
+    // alternate, which would make a flash take two runs and halve the rate.
+    const animation = /\.lamp\[data-gold='true'\] \{\s*animation: ([^;]+);/.exec(css)?.[1];
+    expect(animation).toBe('mp-gold-lamp var(--mp-gold-flash, 0.5s) steps(2, jump-none) infinite');
+    expect(animation).not.toContain('alternate');
+    // It is the only thing that animates a gold lamp, and it is there only for those who have not asked for less motion.
+    expect(css.match(/animation: mp-gold-lamp/g)).toHaveLength(1);
+    const at = css.indexOf('animation: mp-gold-lamp');
+    const media = css.slice(css.lastIndexOf('@media', at), at);
+    expect(media).toContain('(prefers-reduced-motion: no-preference)');
+    expect(media.match(/\{/g)).toHaveLength(2);
+    // Without it a gold lamp is steadily gold: brighter than a lit one, by a rule that no motion setting takes away.
+    const steady = /\n\.lamp\[data-gold='true'\] \{([^}]+)\}/.exec(css)?.[1] ?? '';
+    expect(steady).toContain('background: #fffbe0');
+    expect(steady).not.toContain('animation');
   });
 
   it('gives the rule and a gold spin’s worth on the Odds tab, to five places', () => {

@@ -439,7 +439,10 @@
   box-shadow: 0 0 10px rgba(255, 214, 92, 0.9);
 }
 /* Chance time. The lamp of a held spin that has turned gold flashes, and a strip under the title says so for as
-   long as a gold spin is still to come: what it is called, what a gold spin pays, how many are left. */
+   long as a gold spin is still to come: what it is called, what a gold spin pays, how many are left. One flash,
+   from bright to bright, takes --mp-gold-flash, which the screen sets from the cabinet's own rate (twice a second,
+   well under the three a second that are safe to look at). With motion reduced the lamp does not flash: it is
+   steadily gold. */
 .lamp[data-gold='true'] {
   border-color: #ffffff;
   background: #fffbe0;
@@ -481,7 +484,7 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .lamp[data-gold='true'] {
-    animation: mp-gold-lamp 0.25s steps(2, jump-none) infinite alternate;
+    animation: mp-gold-lamp var(--mp-gold-flash, 0.5s) steps(2, jump-none) infinite;
   }
 }
 @keyframes mp-gold-lamp {

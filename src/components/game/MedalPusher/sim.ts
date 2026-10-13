@@ -100,7 +100,7 @@ export interface AimResult {
   hits: number;
   wasted: number;
   spins: number;
-  /** Spins that were turned gold, each by a medal that found the hold full. They are among `spins`, and their medals among `wasted`. */
+  /** Gold spins that were started: each was turned gold by a medal that found the hold full. They are among `spins`. */
   gold: number;
   /** Medals the slot and the roulette threw onto the field. */
   paidOut: number;
@@ -138,6 +138,14 @@ interface Counts {
 
 const onField = (session: Session): number => medalsOnField(session.machine);
 
+/**
+ * How many gold spins a session has started so far: every medal that turned a held spin gold, less the gold
+ * spins still held, which have not been spun yet. A stretch of play is measured by the difference between its
+ * two ends, so a gold spin belongs to the stretch its reels turned in, like any other spin, and not to the one
+ * its medal went through the pocket in.
+ */
+export const goldStarted = (session: Pick<Session, 'gilded' | 'gold'>): number => session.gilded - session.gold;
+
 const snapshot = (session: Session): Counts => ({
   played: session.inserted,
   won: session.won,
@@ -145,7 +153,7 @@ const snapshot = (session: Session): Counts => ({
   hits: session.hits,
   wasted: session.wasted,
   spins: session.spins,
-  gold: session.gilded,
+  gold: goldStarted(session),
   paidOut: session.paidOut,
   tiers: { ...session.tiers },
   jackpots: session.jackpots,
@@ -252,7 +260,7 @@ export async function simulate(
       hits: session.hits - from.hits,
       wasted: session.wasted - from.wasted,
       spins: session.spins - from.spins,
-      gold: session.gilded - from.gold,
+      gold: goldStarted(session) - from.gold,
       paidOut: session.paidOut - from.paidOut,
       tiers: Object.fromEntries(TIERS.map((tier) => [tier, session.tiers[tier] - from.tiers[tier]])) as Record<Tier, number>,
       jackpots: session.jackpots - from.jackpots,

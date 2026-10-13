@@ -455,7 +455,7 @@ const en: PusherStrings = {
   simNotes: (exactPerSpin, held) => [
     '“Return, this run” is what the machine actually handed back. It swings with the screen: one roulette can pay more than a hundred medals, and a ball still lying on the field has paid nothing yet.',
     `“With average luck” takes the luck out. It keeps what this run measured — the share of medals that left by the front and the spins started per medal — and pays each spin its exact average of ${exactPerSpin} medals.`,
-    `A medal through a START pocket is wasted when ${held} spins are already held. It is not all lost: it turns one of the held spins gold, if one is left to turn, and “Gold spins” counts those. “With average luck” pays a gold spin its own exact average. Dropping faster than the screen can spin does that, and so does a tower that goes over through a pocket: all its medals arrive at once.`,
+    `A medal through a START pocket is wasted when ${held} spins are already held. It is not all lost: it turns one of the held spins gold, if one is left to turn. “Gold spins” counts the gold spins that were played in the run, and “With average luck” pays each of them its own exact average. Dropping faster than the screen can spin does that, and so does a tower that goes over through a pocket: all its medals arrive at once.`,
     'A medal drops where its arm is pointing when it leaves the tip, so every aim here keeps each arm on its spot until the medal has gone. Three of the four feed the left and the right rail by turns and never move them; the fourth picks a new spot for every medal and feeds it from the rail on that side. The START pockets do not move, so an aim is only a choice of column for each rail. “Through a pocket” counts every medal that dropped through one, whoever put it on the field, against the medals dropped: what the screen pays goes over the lip too. The fixed spots beside the pockets lie as far outside the outer two as those are from the middle one. By the time a medal reaches the lip the pile has carried it well to one side or the other, which is why even medals dropped at the edges find a pocket now and then.',
   ],
   slotCheckTitle: 'The screen in this run, against its exact odds',
@@ -713,7 +713,7 @@ const ja: PusherStrings = {
   simNotes: (exactPerSpin, held) => [
     '「今回の還元率」は、マシンが実際に返した枚数です。画面の運で大きく振れます。ルーレット1回で100枚以上払い出されることもあれば、フィールドに残ったボールはまだ1枚も払い出していません。',
     `「運を平均にすると」は、その運を取り除いた値です。今回実測した「手前から出た割合」と「メダル1枚あたりの抽選回数」はそのまま使い、抽選1回の払い出しを正確な平均の${exactPerSpin}枚に置き換えています。`,
-    `保留が${held}回分たまっているときにチャッカーを通ると、その通過は無駄になります。ただし全部が無駄になるわけではありません。まだ金色でない保留があれば、そのうち1つが金の抽選に変わります。「金の抽選」はその回数です。「運を平均にすると」は、金の抽選をその正確な平均で計算します。画面の抽選より速く落とすとそうなります。タワーがチャッカーのところで崩れて、メダルが一度に通るときもそうです。`,
+    `保留が${held}回分たまっているときにチャッカーを通ると、その通過は無駄になります。ただし全部が無駄になるわけではありません。まだ金色でない保留があれば、そのうち1つが金の抽選に変わります。「金の抽選」は今回の計測中に回った金の抽選の回数です。「運を平均にすると」は、金の抽選をその正確な平均で計算します。画面の抽選より速く落とすとそうなります。タワーがチャッカーのところで崩れて、メダルが一度に通るときもそうです。`,
     'メダルは先端を離れるときにアームが向いている位置に落ちるので、どの狙い方でも、メダルが離れるまでアームをその位置に合わせておきます。4通りのうち3通りは左右のレールに交互に入れ、レールは動かしません。残りの1通りは1枚ごとに場所を選び、その側のレールから入れます。チャッカーは動かないので、狙い方の違いは、それぞれのレールで落とす列の違いだけです。「チャッカー通過」は、だれがフィールドに乗せたメダルかを問わず、チャッカーを通ったメダルをすべて数え、落とした枚数に対する割合で示します。払い出されたメダルも縁を越えるからです。「チャッカーの両脇に固定」の位置は、外側の2つのチャッカーから、チャッカーどうしの間隔と同じだけ外にあります。メダルは縁に着くまでに山に押されて左右に大きくずれるので、端に落としたメダルもときどきチャッカーを通ります。',
   ],
   slotCheckTitle: '今回の画面の抽選と、正確な確率',

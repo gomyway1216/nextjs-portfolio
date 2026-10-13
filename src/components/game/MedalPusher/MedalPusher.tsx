@@ -3,14 +3,16 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { BonusDot } from './DailyBonus';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
+import { RecordsTab } from './RecordsTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
 import styles from './MedalPusher.module.css';
 
-type Tab = 'machine' | 'odds' | 'sim';
+type Tab = 'machine' | 'odds' | 'sim' | 'records';
 
 export const MedalPusher = () => {
   const [tab, setTab] = useState<Tab>('machine');
@@ -22,6 +24,7 @@ export const MedalPusher = () => {
     { id: 'machine', label: t.tabMachine },
     { id: 'odds', label: t.tabOdds },
     { id: 'sim', label: t.tabSim },
+    { id: 'records', label: t.tabRecords },
   ];
   const tabButtons = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
@@ -77,6 +80,7 @@ export const MedalPusher = () => {
               onKeyDown={(event) => onTabKeyDown(event, index)}
             >
               {tb.label}
+              {tb.id === 'records' && <BonusDot />}
             </button>
           ))}
         </div>
@@ -91,6 +95,9 @@ export const MedalPusher = () => {
         </div>
         <div role="tabpanel" id="pusher-panel-sim" aria-labelledby="pusher-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />
+        </div>
+        <div role="tabpanel" id="pusher-panel-records" aria-labelledby="pusher-tab-records" hidden={tab !== 'records'}>
+          <RecordsTab />
         </div>
       </div>
 

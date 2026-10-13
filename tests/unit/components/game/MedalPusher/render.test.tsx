@@ -775,14 +775,14 @@ describe('strings', () => {
 });
 
 describe('the page', () => {
-  it('renders the three tabs with one tab stop', () => {
+  it('renders the four tabs with one tab stop', () => {
     const html = render(<MedalPusher />);
     expect(html).toContain('<h1');
     expect(html).toContain('Medal Pusher');
-    expect(html.match(/role="tab"/g)).toHaveLength(3);
-    expect(html.match(/role="tabpanel"/g)).toHaveLength(3);
+    expect(html.match(/role="tab"/g)).toHaveLength(4);
+    expect(html.match(/role="tabpanel"/g)).toHaveLength(4);
     expect(html.match(/tabindex="0"/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(html.match(/role="tab"[^>]*tabindex="-1"|tabindex="-1"[^>]*role="tab"/g)).toHaveLength(2);
+    expect(html.match(/role="tab"[^>]*tabindex="-1"|tabindex="-1"[^>]*role="tab"/g)).toHaveLength(3);
     expect(html).toContain('aria-selected="true"');
     expect(html).toMatch(/id="pusher-panel-odds"[^>]*hidden/);
   });

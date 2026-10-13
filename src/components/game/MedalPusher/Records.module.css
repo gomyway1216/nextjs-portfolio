@@ -1,0 +1,739 @@
+/* The daily bonus and the record book. The stamp card and the achievement sheet are printed paper and the board is a
+   cabinet panel: fixed palettes, like the cabinet's own, that read the same in the light theme and the dark one. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Ink ---------- */
+.inkPad {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+/* A stamp lies over whatever is printed in its square, a little askew, and the print shows through the ink. */
+.stamp {
+  position: absolute;
+  inset: 4%;
+  width: 92%;
+  height: 92%;
+  color: #c8102e;
+  transform: rotate(var(--tilt, -8deg));
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.stamp[data-ink='1'] {
+  color: #26358c;
+}
+.stamp[data-ink='2'] {
+  color: #17693f;
+}
+/* Pressed just now: it comes down on the paper and settles. */
+.stamp[data-fresh='true'] {
+  animation: mp-stamp-down 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes mp-stamp-down {
+  0% {
+    opacity: 0;
+    transform: rotate(calc(var(--tilt, -8deg) - 16deg)) scale(2.4);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(var(--tilt, -8deg)) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--tilt, -8deg)) scale(1);
+  }
+}
+
+/* ---------- The bonus plate beside the cabinet ---------- */
+.strip {
+  position: relative;
+  min-width: 0;
+  /* As tall with nothing to take as with its button, so that nothing under it moves when the book has been read. */
+  min-height: 4.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 14px;
+  border: 2px solid #b88a1e;
+  background: linear-gradient(180deg, #2f2456, #171032);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(20, 8, 60, 0.28);
+  color: #f4f0ff;
+}
+/* Under the cabinet, where the page is one column, it is as wide as the cabinet and no wider. */
+@media (max-width: 980px) {
+  .strip {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+.stripText {
+  flex: 1 1 11rem;
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.stripHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.55rem;
+}
+.stripTitle {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: #ffd65c;
+}
+/* The week at a glance: a lamp for each square of the card, red once it is stamped, and today's ringed in gold. */
+.pips {
+  display: inline-flex;
+  gap: 4px;
+}
+.pip {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #9d93d6;
+}
+.pip[data-on='true'] {
+  border-color: #ffb3bd;
+  background: #ff5a6e;
+}
+.pip[data-today='true'] {
+  border-color: #ffe98a;
+  box-shadow: 0 0 6px 1px rgba(255, 214, 92, 0.9);
+  animation: mp-pip 1.4s ease-in-out infinite;
+}
+@keyframes mp-pip {
+  50% {
+    box-shadow: 0 0 2px 0 rgba(255, 214, 92, 0.5);
+  }
+}
+.stripStatus {
+  margin: 0;
+  min-height: 1.35em;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #ece8ff;
+}
+/* Today's stamp, once it is taken, on a tag of the card's paper. */
+.stripStamp {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fbf3dc;
+  box-shadow: inset 0 0 0 1px #cdb682;
+}
+
+/* The button that takes the bonus: a gold arcade button, on the plate and on the card. */
+.take {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 2px solid #fff3b0;
+  background: radial-gradient(circle at 35% 25%, #fff3b0 0%, #f6c544 50%, #c98d12 100%);
+  color: #2a1700;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  box-shadow:
+    0 4px 0 #6b4504,
+    0 7px 14px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.take:hover {
+  filter: brightness(1.05);
+}
+.take:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 2px 0 #6b4504,
+    0 4px 10px rgba(0, 0, 0, 0.4);
+}
+.take:focus-visible {
+  outline: 2px solid #1a1200;
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 5px #ffffff,
+    0 4px 0 #6b4504;
+}
+
+/* ---------- The Records tab ---------- */
+.layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1.1rem;
+}
+@media (min-width: 980px) {
+  .layout {
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  }
+  .sheet,
+  .keeping {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Paper: the stamp card and the achievement sheet ---------- */
+.card,
+.sheet {
+  --mp-paper: #fbf3dc;
+  --mp-print: #4a2f0b;
+  --mp-print-soft: #6b4a17;
+  --mp-rule: #b89a5a;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #cdb682;
+  background:
+    radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 60%),
+    repeating-linear-gradient(0deg, rgba(120, 90, 40, 0.045) 0 1px, transparent 1px 4px),
+    var(--mp-paper);
+  color: var(--mp-print);
+  box-shadow:
+    0 12px 28px rgba(40, 20, 0, 0.22),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.45);
+}
+@media (max-width: 979px) {
+  .card {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+}
+/* The band across the top, in the colours of the cabinet's sign, a shade deeper so that white reads on it. */
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.7rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 3px solid #ffd65c;
+  background:
+    radial-gradient(120% 180% at 20% 0%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, #c21d6c, #6d0c47);
+}
+.cardBrand {
+  font-size: 0.95rem;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #fff3a8;
+  text-shadow: 0 2px 0 #4e0733;
+}
+.cardTitle {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+.cardLead {
+  margin: 0.7rem 0.9rem 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+/* The week's seven squares: four across, and the seventh, the big one, as wide as two. */
+.squares {
+  list-style: none;
+  margin: 0;
+  padding: 0.8rem 0.9rem 0.3rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.square {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.05rem;
+  border-radius: 50%;
+  border: 2px dashed var(--mp-rule);
+  background: rgba(255, 255, 255, 0.4);
+  text-align: center;
+}
+.square[data-last='true'] {
+  grid-column: span 2;
+  aspect-ratio: auto;
+  border-radius: 999px;
+  border: 2px solid #c9981f;
+  background: linear-gradient(180deg, rgba(255, 226, 130, 0.6), rgba(246, 197, 68, 0.32));
+}
+.squareDay {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--mp-print-soft);
+}
+.squareMedals {
+  font-size: clamp(1.05rem, 5vw, 1.35rem);
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.square[data-last='true'] .squareMedals {
+  font-size: clamp(1.35rem, 6.4vw, 1.75rem);
+}
+/* Under a stamp the print is what it is on a real card: pale beside the ink. */
+.square[data-stamped='true'] .squareDay,
+.square[data-stamped='true'] .squareMedals {
+  opacity: 0.18;
+}
+/* Today's square, while its stamp is still to be taken. */
+.square[data-today='true'] {
+  border-style: solid;
+  border-color: #c8102e;
+  animation: mp-today 1.6s ease-in-out infinite;
+}
+@keyframes mp-today {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(200, 16, 46, 0.3);
+  }
+}
+.squareToday {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #a30d25;
+  color: #ffffff;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.cardAction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.8rem;
+  padding: 0.55rem 0.9rem 0.2rem;
+}
+.cardStatus {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.cardNote {
+  margin: 0.45rem 0.9rem 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--mp-print-soft);
+}
+.cardNote:last-child {
+  padding-bottom: 0.9rem;
+}
+
+/* ---------- The record board: a panel of the cabinet ---------- */
+.board {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 22px;
+  border: 3px solid #b88a1e;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 12%),
+    linear-gradient(180deg, #3a1f86 0%, #1a0f3d 38%, #0e0726 100%);
+  box-shadow:
+    inset 0 0 0 2px #0a0520,
+    inset 0 0 0 4px rgba(255, 214, 92, 0.35),
+    0 18px 40px rgba(20, 8, 60, 0.5);
+  color: #f4f0ff;
+}
+.boardHead {
+  padding: 0.45rem 0.8rem;
+  border-radius: 14px 14px 6px 6px;
+  border: 2px solid #ffd65c;
+  background:
+    radial-gradient(120% 180% at 20% 0%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, #c21d6c, #6d0c47);
+  box-shadow: inset 0 -6px 12px rgba(40, 0, 30, 0.5);
+}
+.boardTitle {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.1rem 0.7rem;
+  font-size: 1rem;
+}
+.boardBrand {
+  font-size: clamp(1.05rem, 4.6vw, 1.5rem);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #fff3a8;
+  -webkit-text-stroke: 1px #7a3b00;
+  text-shadow:
+    0 0 10px rgba(255, 240, 160, 0.9),
+    0 3px 0 #4e0733;
+}
+.boardSub {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: #ffffff;
+}
+.boardLead {
+  margin: 0.6rem 0.3rem 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #dcd5ff;
+}
+/* The four figures the board leads with, lit like the jackpot's own counter. */
+.bigs {
+  margin: 0.6rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.big {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.4rem 0.45rem;
+  border-radius: 10px;
+  border: 2px solid #ffd65c;
+  background: linear-gradient(180deg, #1c0b2e, #0a0414);
+  box-shadow: 0 0 12px rgba(255, 214, 92, 0.3);
+}
+.big dt {
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: #ffd65c;
+}
+.big dd {
+  margin: 0;
+  font-size: clamp(1.35rem, 6vw, 1.9rem);
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: #ffe98a;
+  text-shadow: 0 0 12px rgba(255, 214, 92, 0.85);
+}
+.groups {
+  margin-top: 8px;
+}
+.group {
+  break-inside: avoid;
+  margin: 0 0 8px;
+  padding: 0.55rem 0.7rem 0.5rem;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2f2456, #171032);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.group:last-child {
+  margin-bottom: 0;
+}
+@media (min-width: 640px) {
+  .bigs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .groups {
+    columns: 2;
+    column-gap: 8px;
+  }
+}
+.groupTitle {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7df0ff;
+}
+.rows {
+  margin: 0;
+}
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px dotted rgba(207, 198, 255, 0.3);
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row dt {
+  min-width: 0;
+  font-size: 0.82rem;
+  color: #dcd5ff;
+}
+.row dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #ffe98a;
+}
+
+/* ---------- The achievement sheet ---------- */
+.sheetCount {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff3a8;
+}
+.stamps {
+  list-style: none;
+  margin: 0;
+  padding: 0.9rem 0.7rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem 0.5rem;
+}
+@media (min-width: 560px) {
+  .stamps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 900px) {
+  .stamps {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+.slot {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 0.15rem;
+  text-align: center;
+}
+/* A square of the sheet: a dashed ring with its picture printed faintly, until the stamp is pressed over it. */
+.ring {
+  position: relative;
+  width: clamp(60px, 19vw, 80px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  margin-bottom: 0.15rem;
+  border-radius: 50%;
+  border: 2px dashed var(--mp-rule);
+  background: rgba(255, 255, 255, 0.4);
+  color: #c4ae80;
+}
+.slot[data-earned='true'] .ring {
+  border-color: transparent;
+  background: transparent;
+}
+.mark {
+  width: 46%;
+  height: 46%;
+}
+.slotName {
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.slotHow {
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--mp-print-soft);
+}
+.slotDate {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--mp-print-soft);
+}
+.slot[data-earned='true'] .slotDate {
+  color: #a30d25;
+}
+
+/* ---------- Keeping and clearing ---------- */
+.keeping {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+.keepNote {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--games-route-muted);
+}
+.keepNote[data-kept='false'] {
+  color: var(--mp-lose-text);
+}
+.clear {
+  appearance: none;
+  margin-top: 0.3rem;
+  padding: 0.6rem 1.05rem;
+  border-radius: 11px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.clear[data-armed='true'] {
+  border-color: var(--mp-lose-text);
+  color: var(--mp-lose-text);
+}
+.clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.clear:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+
+/* ---------- The dot on the Records tab ---------- */
+/* It hangs off the end of the tab's name, in the tab's own padding, so the tabs are no wider for it. */
+.dot {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  vertical-align: top;
+}
+.dot::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0277f;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- The toast for a stamp just earned ---------- */
+/* A rail of no height at the top of the cabinet. It keeps to the top of what can be seen of the cabinet when the
+   page is scrolled, so the toast is over the sign or the top of the back wall, and never over the controls. */
+.toastRail {
+  position: sticky;
+  top: 8px;
+  z-index: 6;
+  height: 0;
+  pointer-events: none;
+}
+/* It lies over the sign's name, and leaves the jackpot's counter, at the sign's other end, to be read. */
+.toastSlot {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  width: min(100% - 8px, 400px);
+}
+.toast {
+  --mp-print: #4a2f0b;
+  --mp-print-soft: #6b4a17;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.4rem;
+  border-radius: 14px;
+  border: 2px solid #c9981f;
+  background:
+    repeating-linear-gradient(0deg, rgba(120, 90, 40, 0.045) 0 1px, transparent 1px 4px),
+    #fbf3dc;
+  color: var(--mp-print);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  animation: mp-toast var(--mp-toast, 6s) ease-out both;
+}
+@keyframes mp-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  5%,
+  93% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.toastStamp {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+.toastText {
+  min-width: 0;
+  display: grid;
+  line-height: 1.2;
+}
+.toastTitle {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: #a30d25;
+}
+.toastName {
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.toastHow {
+  font-size: 0.72rem;
+  color: var(--mp-print-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp[data-fresh='true'],
+  .pip[data-today='true'],
+  .square[data-today='true'] {
+    animation: none;
+  }
+  .square[data-today='true'] {
+    box-shadow: 0 0 0 4px rgba(200, 16, 46, 0.22);
+  }
+  .toast {
+    animation: none;
+  }
+  .take:active {
+    transform: none;
+  }
+}

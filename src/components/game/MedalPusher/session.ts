@@ -176,6 +176,7 @@ export interface Session {
 
 /** Something the cabinet should react to, in the order it happened. */
 export type SessionEvent =
+  | { type: 'bonus'; count: number }
   | { type: 'won'; count: number }
   | { type: 'lost'; count: number }
   | { type: 'landed'; count: number }
@@ -252,6 +253,17 @@ export function refill(session: Session): boolean {
   if (session.credits > 0) return false;
   session.credits = START_CREDITS;
   session.refills += 1;
+  return true;
+}
+
+/**
+ * Medals given to the player from outside the machine: the day's bonus. They go straight into the purse.
+ * They are not fed, won or paid, so no return counts them. Returns whether there was anything to give.
+ */
+export function grant(session: Session, medals: number, events?: SessionEvent[]): boolean {
+  if (!Number.isInteger(medals) || medals <= 0) return false;
+  session.credits += medals;
+  events?.push({ type: 'bonus', count: medals });
   return true;
 }
 

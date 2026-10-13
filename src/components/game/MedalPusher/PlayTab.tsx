@@ -2,10 +2,12 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
 import {
@@ -21,6 +23,7 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { grant } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
@@ -360,6 +363,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     window.addEventListener('pagehide', save);
     // The first save also finds out whether this browser will keep the machine at all.
     save();
+    // The day's bonus is paid into this machine's purse, and the machine is saved with it at once. The cabinet
+    // hears of it in its next frame, with everything else that happened.
+    const gifts: SessionEvent[] = [];
+    const closePurse = records.openPurse((medals) => {
+      if (!grant(session, medals, gifts)) return false;
+      save();
+      return true;
+    });
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -435,6 +446,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       }
       events.length = 0;
       advance(session, elapsed, events);
+      if (gifts.length > 0) events.push(...gifts.splice(0));
+      // The record book hears everything the machine did, whatever becomes of the machine.
+      records.note(session, events);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -443,6 +457,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       let lost = false;
       for (const event of events) {
         switch (event.type) {
+          case 'bonus':
+            // The day's bonus: its medals are heard coming down into the tray.
+            playSound('prize', soundOn);
+            playSound('win', soundOn, { count: event.count });
+            setAnnouncement(strings.sayBonus(event.count));
+            break;
           case 'landed':
             landed = true;
             break;
@@ -597,6 +617,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', save);
+      closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
       save();
       sessionRef.current = null;
@@ -740,6 +761,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   return (
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
+        <AchievementToast sound={sound} />
         <div className={styles.bulbs} aria-hidden />
         <div className={styles.marquee}>
           <div className={styles.logo} aria-hidden>
@@ -880,6 +902,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         )}
         <div className={styles.bulbs} aria-hidden />
       </div>
+
+      <BonusStrip />
 
       <section className={styles.tally} aria-label={t.tallyTitle}>
         <h2 className={styles.tallyTitle}>{t.tallyTitle}</h2>

@@ -7,10 +7,10 @@ import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } fr
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
-import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
   ballTipsAt,
@@ -24,7 +24,7 @@ import {
   stoppedDigits,
   type ScreenState,
 } from './screen';
-import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
@@ -117,6 +117,24 @@ export const RESET_WINDOW = 6;
  */
 export const confirmsReset = (armedAt: number | null, now: number): boolean => armedAt !== null && now >= armedAt && now - armedAt < RESET_WINDOW * 1000;
 
+/**
+ * Keeps the cabinet's lights in step with what the bowls paid. A celebration
+ * of the stage's own lasts as long as its kind does, which is not as long as
+ * a prize from the bowls is up; this one is lit again in every frame the
+ * prize is on the screen and put out in the frame the screen is free, so it
+ * is exactly as long as the show, whatever that takes. `lit` is the
+ * celebration this lit the frame before, and what comes back is the one it
+ * has lit now. A celebration it did not light is left to run its own time.
+ */
+export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, lit: Stage['party']): Stage['party'] {
+  if (roulette?.bowl && roulette.bowl.payout >= 0) {
+    celebrate(stage, roulette.jackpot ? 'jackpot' : 'fever');
+    return stage.party;
+  }
+  if (lit && stage.party === lit) stage.party = null;
+  return null;
+}
+
 /** The numbers shown around the cabinet. */
 interface Hud {
   credits: number;
@@ -154,7 +172,8 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
-  hole: -1,
+  stage: -1,
+  fallen: [],
   chance: 0,
   gold: false,
 };
@@ -516,6 +535,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     let shownLead: [number, number] | null = null;
     fedBy.current.length = 0;
     let lastSpinClock = 0;
+    let bowlLights: Stage['party'] = null;
     let last = performance.now();
     const events: SessionEvent[] = [];
     // The medals that were in the air before a frame, by name: the ones that have come down in it are among them.
@@ -586,6 +606,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       advance(session, elapsed, events);
       // The machine is heard turning, in step with the pusher as it is drawn.
       turnMotor(soundOn, session.machine.time);
+      // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
+      bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -683,13 +705,19 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             if (!calm.matches) playSound('bowl', soundOn, { seconds: ballTipsAt(event.duration) });
             break;
           case 'bowlEnd':
-            if (event.jackpot) celebrate(stage, 'jackpot');
-            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
+            // The jackpot has its fanfare. The cabinet's lights are lit for either prize by the frame itself, for as
+            // long as the prize is up. Part of it is poured and the rest goes up as towers.
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             // A jackpot is not left to wait for the minute: it goes to the account now.
             if (event.jackpot) keeping.save('moment');
+            break;
+          case 'bowlDrop':
+            // Through a hole and into the bowl below: a step up, and the suspense starts again.
+            playSound('pocket', soundOn, { level: CHAIN_GOAL });
+            playSound('reach', soundOn);
+            setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
         }
       }
@@ -744,9 +772,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
       const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) ball.current.style.transform = ballTransform(ballSpot(bowl, calm.matches));
+      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -937,8 +965,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           </div>
           <div className={styles.jackpotBox}>
             <span className={styles.jackpotLabel}>{t.jackpot}</span>
-            <span className={styles.jackpotValue} data-testid="pusher-jackpot">
-              {fmt(hud.jackpot)}
+            {/* While a jackpot is being counted out the plate counts with it; the jackpot itself has started over by then. */}
+            <span className={styles.jackpotValue} data-testid="pusher-jackpot" data-counting={screen.banner === 'jackpot'}>
+              {fmt(screen.banner === 'jackpot' ? screen.amount : hud.jackpot)}
             </span>
           </div>
         </div>

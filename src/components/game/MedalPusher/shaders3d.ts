@@ -11,7 +11,8 @@
  * nothing is divided by what could be zero.
  */
 
-import { MEDAL_RADIUS } from './engine';
+import { FIELD, MEDAL_RADIUS } from './engine';
+import { HEIGHT, SCREEN } from './view';
 
 const HEAD = `#version 300 es
 precision highp float;
@@ -25,9 +26,22 @@ uniform mat4 uSun;
 uniform vec3 uEye;
 uniform vec3 uKey;
 uniform vec4 uView;
+// The light the screen throws: its colour, and how strong it is.
+uniform vec4 uGlow;
+// How far out the pusher's front is, and how much of the picture is asked for: 1 for all of it, 0 for the plain one a slow phone is given.
+uniform vec4 uField;
 uniform sampler2DShadow uShadow;
 
-const vec3 KEY_COLOUR = vec3(1.0, 0.95, 0.86);
+const vec3 KEY_COLOUR = vec3(1.0, 0.93, 0.8);
+// The two lamps under the pusher's lip, to either side of the catcher: warm, small, and near enough to the heap that their light falls off across it.
+const vec3 LIP_LAMP = vec3(1.0, 0.7, 0.36);
+const float LIP_LAMP_OUT = ${(FIELD.width * 0.14).toFixed(1)};
+const float LIP_LAMP_HIGH = ${(HEIGHT.pusher - 1.1).toFixed(2)};
+
+/** Where one of the lamps under the lip is: the left one for -1, the right one for 1. */
+vec3 lipLamp(float side) {
+  return vec3(${(FIELD.width / 2).toFixed(1)} + side * (${(FIELD.width / 2).toFixed(1)} - LIP_LAMP_OUT), LIP_LAMP_HIGH, uField.x + 0.9);
+}
 // How far apart the roof's lamps are, as a mirror turns from one row to the next and from one tube to the next, and how bright they are.
 const float LAMP_ROW = 0.42;
 const float LAMP_COLUMN = 0.5;
@@ -39,6 +53,8 @@ float sunlit(vec3 world, vec3 normal) {
   // The map covers the tables, what stands on them and the feed arms over them. The housing of the screen, up the back wall, is outside it and in the open.
   if (max(abs(seen.x), max(abs(seen.y), abs(seen.z))) >= 1.0) return 1.0;
   vec3 at = seen.xyz * 0.5 + 0.5;
+  // The plain picture looks once, and has a hard edge to its shadows.
+  if (uField.y < 0.5) return texture(uShadow, at);
   float texel = uView.z;
   float lit = texture(uShadow, vec3(at.xy + texel * vec2(-0.75, -0.25), at.z));
   lit += texture(uShadow, vec3(at.xy + texel * vec2(0.25, -0.75), at.z));
@@ -103,6 +119,44 @@ vec3 lamp(vec3 r) {
 vec3 gleam(vec3 r) {
   float toward = max(dot(r, uKey), 0.0);
   return KEY_COLOUR * (pow(toward, 4.5) * 1.2 + pow(toward, 40.0) * 1.3 + pow(toward, 400.0) * 8.0);
+}
+
+/**
+ * The light that comes from near by and so is not the same all over the
+ * field, on a surface at `world` that faces `normal`. The two lamps under the
+ * pusher's lip light the lower table from behind and low down, brightly just
+ * in front of the pusher and hardly at all by the front edge. The screen is a
+ * wide panel up the back wall: whatever lies on the pusher in front of it
+ * takes its colour, and less of it the further out it lies.
+ */
+vec3 nearLight(vec3 world, vec3 normal) {
+  vec3 light = vec3(0.0);
+  // Only what is below the lip sees the lamps under it.
+  float under = 1.0 - smoothstep(LIP_LAMP_HIGH + 0.4, LIP_LAMP_HIGH + 2.2, world.y);
+  for (float side = -1.0; side < 2.0; side += 2.0) {
+    vec3 to = lipLamp(side) - world;
+    float far = dot(to, to) + 0.5;
+    light += LIP_LAMP * (2.3 / (1.0 + far / 150.0)) * max(dot(normal, to * inversesqrt(far)) * 0.7 + 0.3, 0.0) * under;
+  }
+  vec3 toScreen = vec3(${(FIELD.width / 2).toFixed(1)}, ${((SCREEN.foot + SCREEN.top) / 2).toFixed(1)}, 0.0) - world;
+  float away = dot(toScreen, toScreen) + 1.0;
+  float facing = max(dot(normal, toScreen * inversesqrt(away)) * 0.6 + 0.4, 0.0);
+  light += uGlow.rgb * uGlow.a * facing * (1.0 - smoothstep(18.0, 78.0, world.z)) * 1.25;
+  return light;
+}
+
+/** What a mirror at `world` shows of the two lamps under the lip when it looks along `r`: a small hot glint each, the sharper the more polished the mirror. */
+vec3 lipGlints(vec3 world, vec3 r, float polish) {
+  if (uField.y < 0.5) return vec3(0.0);
+  vec3 glint = vec3(0.0);
+  float under = 1.0 - smoothstep(LIP_LAMP_HIGH + 0.4, LIP_LAMP_HIGH + 2.2, world.y);
+  for (float side = -1.0; side < 2.0; side += 2.0) {
+    vec3 to = lipLamp(side) - world;
+    float far = dot(to, to) + 0.5;
+    float toward = max(dot(r, to * inversesqrt(far)), 0.0);
+    glint += LIP_LAMP * pow(toward, mix(6.0, 48.0, polish)) * mix(1.2, 7.0, polish) / (1.0 + far / 320.0) * under;
+  }
+  return glint;
 }
 
 /** From the light that leaves a surface to the colour of its pixel. */

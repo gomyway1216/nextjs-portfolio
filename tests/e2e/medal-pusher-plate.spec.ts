@@ -1,10 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import { POUR } from '../../src/components/game/MedalPusher/hopper';
 import { getStrings } from '../../src/components/game/MedalPusher/i18n';
 import { BOWLS, CHAIN_GOAL, CHANCE, CHESTS, JACKPOT_START, TIER_BONUS, TIER_DIGITS } from '../../src/components/game/MedalPusher/lottery';
 import { PLATE_STEPS, payoutLines } from '../../src/components/game/MedalPusher/plateData';
 import { getPlateStrings } from '../../src/components/game/MedalPusher/plateStrings';
 import { MAX_STOCK } from '../../src/components/game/MedalPusher/session';
+import { getWorksStrings } from '../../src/components/game/MedalPusher/worksStrings';
 import { settled } from './medalPusherPage';
 
 // The cabinet's instruction plate: what the How to play button opens, and the compact one on the cabinet's front.
@@ -114,7 +116,10 @@ test('How to play opens the instruction plate: a named dialog that takes the foc
   // Under the plate, the explanation it replaced.
   await dialog(page).getByTestId('pusher-plate-text').locator('summary').click();
   await expect(dialog(page).getByTestId('pusher-plate-text').locator('p').first()).toBeVisible();
-  await expect(dialog(page).getByTestId('pusher-plate-text').locator('p')).toHaveCount(t.infoBody(MAX_STOCK).length);
+  // The explanation, and after it how the machine pays a big prize: the hopper's doors and the towers' lifts.
+  const said = [...t.infoBody(MAX_STOCK), ...getWorksStrings('en').howItPays(POUR.threshold)];
+  await expect(dialog(page).getByTestId('pusher-plate-text').locator('p')).toHaveCount(said.length);
+  await expect(dialog(page).getByTestId('pusher-plate-text').locator('p').last()).toHaveText(said[said.length - 1]);
 
   // Escape closes it and the focus goes back to what opened it.
   await page.keyboard.press('Escape');

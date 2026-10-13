@@ -13,6 +13,7 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
+import { drawHopper, drawLifts } from './works2d';
 import { APRON, CATCHER, apronSpot, caught, mouthSpots, underCatcher } from './catcher';
 import { CHUCKERS } from './chuckers';
 import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, pusherFront, type Arm, type Machine, type Medal } from './engine';
@@ -2032,6 +2033,8 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   line(g, top[3], top[2]);
   drawMedals(g, stage, upper, P, shake);
   jewelsOf(upper);
+  // The guards of the lifts that are bringing towers up through the deck (works2d.ts).
+  drawLifts(g, k, machine, front, calm, shake, (tower) => drawTower(g, stage, tower, P, shake));
   // A medal that came over the lip at the catcher without fitting a pocket tips over the edge and goes down behind
   // the catcher, on its edge. It is drawn where the catcher has it, not lying where the engine has already put it,
   // and only as much of it as still stands over the catcher's deck. A jewel fits no pocket and goes the same way.
@@ -2129,8 +2132,9 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.restore();
 
   // Medals in the air: off an arm's tip, out of the slot under the hood, or off a tower that is going over.
+  // One the hopper pours is drawn with its doors, further down.
   for (const medal of machine.falling) {
-    if (medal.ball || medal.jewel) continue;
+    if (medal.ball || medal.jewel || medal.source === 'pour') continue;
     const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
     if (medal.source === 'spill') {
       const from = P + T * (medal.rank + 1);
@@ -2185,6 +2189,8 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   flat();
   drawJewelLamps(g, stage, options.jewels ?? 0, calm, shake);
   flat();
+  // The hopper's doors in the hood's face, and the medals pouring out of them (works2d.ts).
+  drawHopper(g, k, machine, calm, shake, P + T * 2 + RIDE * 0.5, (point, round, id) => stamp(g, stage, point, round, turnOf(id), shake));
 
   // Whatever has just left the field: it goes on the way it was pushed, tips over the edge and falls.
   for (const exit of stage.exits) {

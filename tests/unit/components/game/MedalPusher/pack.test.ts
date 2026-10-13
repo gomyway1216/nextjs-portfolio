@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { dropJewel, jewelsOnField, seededRng } from '@/components/game/MedalPusher/engine';
+import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
+import { holds } from '@/components/game/MedalPusher/lift';
 import { pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { restore, serialize } from '@/components/game/MedalPusher/storage';
@@ -127,6 +128,42 @@ describe('a packed save', () => {
       without.machine.falling = without.machine.falling.filter((medal) => !medal.jewel);
       expect(small.length - (pack(JSON.stringify(without)) as string).length).toBeLessThan(600);
     }
+  });
+
+  it('packs the payout works as it packs everything else: the doors, the lifts and the medals that were poured', () => {
+    // A prize pouring out of the hopper's doors while another goes up as three towers on their lifts.
+    const session = createSession(4, { balls: 0 });
+    queuePayout(session.machine, 80);
+    buildTowers(session.machine, 75);
+    session.paidOut += 155;
+    for (let i = 0; i < 300 && !(session.machine.hopper.phase === 'pouring' && session.machine.hopper.poured >= 12); i++) advance(session, DT);
+    const { machine } = session;
+    expect(machine.hopper).toMatchObject({ phase: 'pouring', pours: 1 });
+    expect(machine.lifts.filter(holds)).toHaveLength(3);
+    const pouring = machine.falling.filter((medal) => medal.source === 'pour');
+    expect(pouring.length).toBeGreaterThanOrEqual(10);
+    const text = serialize(session);
+    const small = pack(text) as string;
+    expect(unpack(small)).toBe(text);
+    expect(small.length).toBeLessThan(text.length / 2);
+    // The lifts are a table like the medals, the doors are four fields as they were written, and what was poured says so in its column.
+    const packed = JSON.parse(small) as { machine: { hopper: unknown; lifts: { $: string; k: string[] }; falling: { $: string; k: string[]; c: unknown[] } } };
+    expect(packed.machine.hopper).toEqual(machine.hopper);
+    expect(packed.machine.lifts.$).toBe('t');
+    expect(packed.machine.lifts.k).toEqual(['id', 'x', 'behind', 'size', 'wait', 'sunk']);
+    expect(packed.machine.falling.$).toBe('t');
+    const sources = packed.machine.falling.c[packed.machine.falling.k.indexOf('source')] as string[];
+    expect(sources.filter((source) => source === 'pour')).toHaveLength(pouring.length);
+    // And what comes back is the same machine, which plays on as the one that was packed does.
+    const back = restore(unpack(small), 1) as Session;
+    expect(serialize(back)).toBe(text);
+    session.machine.rng = seededRng(5);
+    back.machine.rng = seededRng(5);
+    for (let i = 0; i < 180; i++) {
+      advance(session, DT);
+      advance(back, DT);
+    }
+    expect(serialize(back)).toBe(serialize(session));
   });
 
   it('leaves alone what is not a table, and keeps the order of every field', () => {

@@ -12,6 +12,7 @@ import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, type JewelSpot 
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
 import { HEIGHT, VIEW, chuteHeight, project } from './view';
+import { pourPose } from './works';
 
 const R = MEDAL_RADIUS;
 const P = HEIGHT.pusher;
@@ -181,9 +182,18 @@ export const LANDED = P + T * 1.5 + RIDE * 0.5;
  * and lands flat. One the machine pays drops out of the slot under the hood
  * on its edge, and turns over one and a quarter times in front of the screen
  * before it lands. Off a falling tower it slides out, and the ones from high
- * up turn right over. `arm` is the arm a fed one left, if that is known.
+ * up turn right over. One the hopper pours comes down a door's channel,
+ * turns over once in the air and lands with a hop (works.ts). `arm` is the
+ * arm a fed one left, if that is known; with `calm` a poured one neither
+ * turns over nor hops.
  */
-function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined): void {
+function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined, calm: boolean): void {
+  if (medal.source === 'pour') {
+    // It comes out of the dark behind its door.
+    const pose = pourPose(medal, LANDED, calm);
+    if (pose.shown > 0) medalRow(rows, medal.id, pose.x, pose.height, pose.depth, turnOf(medal.id), pose.tilt, 0, 0, 0, pose.shown);
+    return;
+  }
   const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
   if (medal.source === 'spill') {
     const x = medal.fromX + (medal.x - medal.fromX) * t;
@@ -214,9 +224,10 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
  * tower's column, the ones on their way in along the feed arms, the ones in
  * the air and the ones that have just gone over an edge. Balls and jewels are
  * not among them. `fed` says which arm each medal that has been seen on a
- * rail was on, so that one in the air leaves the rail it rolled down.
+ * rail was on, so that one in the air leaves the rail it rolled down. `calm`
+ * leaves the flourish out of how a poured medal comes down.
  */
-export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>): void {
+export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>, calm = false): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball || medal.jewel) continue;
@@ -260,7 +271,7 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const held = fedSpot(medal.arm, armTipAt(machine, medal.arm), medal.remaining);
     medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id) + held.turn, held.tilt, held.heading, 0, 0, 1);
   }
-  for (const medal of machine.falling) if (!medal.ball && !medal.jewel) fallingRow(rows, medal, fed?.get(medal.id));
+  for (const medal of machine.falling) if (!medal.ball && !medal.jewel) fallingRow(rows, medal, fed?.get(medal.id), calm);
   for (const exit of exits) {
     if (exit.ball || exit.jewel) continue;
     const a = exit.age;

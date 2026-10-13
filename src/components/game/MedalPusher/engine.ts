@@ -10,6 +10,11 @@
  * squeezed out there are lost. Prize balls lie among the medals and are pushed
  * the same way, and big prizes stand on the pusher as towers of medals.
  *
+ * What the machine pays comes from somewhere. A small win drops out of the
+ * slot under the hood, a medal at a time; a big one is poured out of the
+ * hopper's doors in the hood's face (hopper.ts); a tower comes up through a
+ * hatch in the pusher's deck, inside a guard, on a lift (lift.ts).
+ *
  * The player's medals come in by two feed arms, the left and the right, each
  * with a slot of its own. A medal fed into an arm rolls down that arm's rail
  * on its edge and drops off the tip onto the back of the pusher. Each arm has
@@ -28,6 +33,9 @@
  */
 
 /** Distances are in field units: the field is 100 wide and 100 deep. */
+import { runHopper, shutHopper, type Hopper } from './hopper';
+import { LIFT, holdTowers, runLifts, startLift, type Lift } from './lift';
+
 export const FIELD = {
   width: 100,
   /** The front edge. Depth is measured from the back wall. */
@@ -106,15 +114,18 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
 export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.7 } as const;
 
 /**
- * Payout medals are thrown onto the pusher across this band, a few per second;
- * a queue longer than `rushAbove` (a jackpot) pours twice as fast.
+ * Payout medals are thrown onto the pusher across this band, a few per second,
+ * out of the slot under the hood. When enough of them are waiting they are
+ * poured out of the hopper's doors instead, across the same band (hopper.ts).
  */
-export const PAYOUT = { from: 14, to: 86, perSecond: 9, rushAbove: 120 } as const;
+export const PAYOUT = { from: 14, to: 86, perSecond: 9 } as const;
 
 /**
  * Medal towers: a big prize is not thrown onto the field but stacked on the
  * pusher, in towers that ride it like any medal until they are pushed over
- * its lip and come down across the lower table.
+ * its lip and come down across the lower table. Each comes up out of the
+ * pusher's deck on a lift, inside a guard that holds it until it is built
+ * (lift.ts).
  */
 export const TOWER = {
   /** The most medals in one tower. */
@@ -244,8 +255,8 @@ export interface FallingMedal {
   /** Seconds until it lands, out of the seconds the whole fall takes. */
   remaining: number;
   duration: number;
-  /** Whether the player dropped it, the machine paid it out, or it came off a falling tower. */
-  source: 'player' | 'payout' | 'spill';
+  /** Whether the player dropped it, the machine paid it out of the slot, the machine poured it out of the hopper's doors, or it came off a falling tower. */
+  source: 'player' | 'payout' | 'pour' | 'spill';
 }
 
 export interface Machine {
@@ -260,6 +271,10 @@ export interface Machine {
   /** Medals the towers that are going up have yet to gain, all told. */
   growing: number;
   towerClock: number;
+  /** The doors a big prize is poured out of, and what they are doing. */
+  hopper: Hopper;
+  /** The lifts that are at work on a tower, in the order they started. */
+  lifts: Lift[];
   /** Seconds until each arm's slot can take its next medal, the left arm's first. */
   waits: [number, number];
   /**
@@ -337,6 +352,8 @@ let startX = new Float64Array(512);
 let startY = new Float64Array(512);
 /** How many towers and balls stand on each table: they block the upper tier as well as the lower. */
 const tall = [0, 0];
+/** The towers a lift still holds in its guard, by id, in the step being worked out: nothing pushes one of them. */
+const held = new Set<number>();
 
 /** Whether this is something the machine lets go that is not a medal: a prize ball, or a jewel. */
 const isPrize = (medal: Pick<Medal, 'ball' | 'jewel'>): boolean => medal.ball || medal.jewel === true;
@@ -373,12 +390,17 @@ const AHEAD = [1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LI
 /** A medal's own cell and the eight round it. */
 const AROUND = [-COLUMNS - 1, -COLUMNS, -COLUMNS + 1, -1, 0, 1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LISTS);
 
-/** Pushes two touching medals apart: half the overlap each, or less for a tower and more for what leans on it. */
+/**
+ * Pushes two touching medals apart: half the overlap each, or less for a tower and more for what leans on it.
+ * A tower in its lift's guard is not moved at all, and what lies beside it keeps the guard's wall away from it.
+ */
 function part(a: Medal, b: Medal): void {
   let dx = b.x - a.x;
   let dy = b.y - a.y;
   const squared = dx * dx + dy * dy;
-  const reach = R * (a.grown + b.grown);
+  const heldA = held.size > 0 && held.has(a.id);
+  const heldB = held.size > 0 && held.has(b.id);
+  const reach = R * (a.grown + b.grown) + (heldA || heldB ? LIFT.wall : 0);
   if (squared >= reach * reach) return;
   let distance = Math.sqrt(squared);
   if (distance < 1e-6) {
@@ -388,8 +410,8 @@ function part(a: Medal, b: Medal): void {
     dy = Math.sin(angle);
     distance = 1;
   }
-  const weightA = a.stack > 1 ? TOWER.weight : 1;
-  const weightB = b.stack > 1 ? TOWER.weight : 1;
+  const weightA = heldA ? LIFT.hold : a.stack > 1 ? TOWER.weight : 1;
+  const weightB = heldB ? LIFT.hold : b.stack > 1 ? TOWER.weight : 1;
   const push = (reach - distance) / distance / (weightA + weightB);
   a.x -= dx * push * weightB;
   a.y -= dy * push * weightB;
@@ -485,6 +507,8 @@ const SETTLED = 0.004;
  * side by side — a packed but irregular pile, the way a played machine looks.
  */
 function fillTable(machine: Machine, count: number, level: Level, tier: Tier, yFrom: number, yTo: number): void {
+  // No lift holds anything on a machine that is only now being filled, whatever machine was run last.
+  held.clear();
   const medals: Medal[] = [];
   for (let i = 0; i < count; i++) {
     const x = R + machine.rng() * (FIELD.width - DIAMETER);
@@ -538,6 +562,8 @@ export function createMachine(seed: number, balls = 0, jewels = 0): Machine {
     payoutClock: 0,
     growing: 0,
     towerClock: 0,
+    hopper: shutHopper(),
+    lifts: [],
     waits: [0, 0],
     // Each arm points a little to its own side of the middle, and its tip is there already.
     aims: [armStart(0), armStart(1)],
@@ -652,7 +678,7 @@ export function dropMedal(machine: Machine, arm: Arm): boolean {
   return true;
 }
 
-/** Queues `count` medals for the machine to throw onto the field. */
+/** Queues `count` medals for the machine to pay onto the field: thrown out of the slot, or poured when there are enough of them. */
 export function queuePayout(machine: Machine, count: number): void {
   if (!Number.isInteger(count) || count < 0) throw new Error('a payout is a whole number of medals');
   machine.payoutQueue += count;
@@ -692,9 +718,11 @@ export function towerSizes(medals: number, sites: number = TOWER_SITES): number[
 }
 
 /**
- * Pays `medals` as towers on the pusher. Each starts as one medal and gains the
- * rest as the machine runs. A tower only ever goes up where no tower stands:
- * what the free places cannot hold is thrown on loose.
+ * Pays `medals` as towers on the pusher. Each starts as one medal on the
+ * hatch of its place, and a lift brings the rest up under it as the machine
+ * runs, inside a guard that holds it until it is built. A tower only ever
+ * goes up where no tower stands: what the free places cannot hold is paid
+ * loose.
  */
 export function buildTowers(machine: Machine, medals: number): void {
   if (!Number.isInteger(medals) || medals < 0) throw new Error('a payout is a whole number of medals');
@@ -717,7 +745,10 @@ export function buildTowers(machine: Machine, medals: number): void {
   let stacked = 0;
   sizes.forEach((size, index) => {
     const { x, y } = free[index];
-    machine.medals.push({ id: machine.nextId++, x, y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: 1 });
+    // It takes its room among the medals lying there over the moment its guard takes to come up, as a medal that lands does.
+    const tower: Medal = { id: machine.nextId++, x, y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: SETTLE.from };
+    machine.medals.push(tower);
+    machine.lifts.push(startLift(tower, front));
     machine.growing += size - 1;
     stacked += size;
   });
@@ -805,9 +836,12 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   machine.waits[0] = Math.max(0, machine.waits[0] - dt);
   machine.waits[1] = Math.max(0, machine.waits[1] - dt);
 
-  // The machine throws its payout medals onto the pusher, a few per second.
-  if (machine.payoutQueue > 0) {
-    machine.payoutClock += dt * PAYOUT.perSecond * (machine.payoutQueue > PAYOUT.rushAbove ? 2 : 1);
+  // The machine pays its medals onto the pusher: poured out of the hopper's doors when enough are waiting,
+  // and otherwise thrown out of the slot under the hood, a few per second.
+  if (runHopper(machine, dt, LANDING, RELEASE.depth)) {
+    // The slot throws nothing while the doors are anything but shut.
+  } else if (machine.payoutQueue > 0) {
+    machine.payoutClock += dt * PAYOUT.perSecond;
     while (machine.payoutClock >= 1 && machine.payoutQueue > 0) {
       machine.payoutClock -= 1;
       machine.payoutQueue -= 1;
@@ -819,22 +853,8 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     machine.payoutClock = 0;
   }
 
-  // Towers that are going up each gain a medal at a time.
-  if (machine.growing > 0) {
-    machine.towerClock += dt * TOWER.perSecond;
-    while (machine.towerClock >= 1 && machine.growing > 0) {
-      machine.towerClock -= 1;
-      for (const medal of machine.medals) {
-        if (medal.grow > 0) {
-          medal.grow -= 1;
-          medal.stack += 1;
-          machine.growing -= 1;
-        }
-      }
-    }
-  } else {
-    machine.towerClock = 0;
-  }
+  // Towers that are going up each gain a medal at a time, up through the deck on their lifts.
+  runLifts(machine, dt, TOWER.perSecond);
 
   // Medals in the air come down: off an arm or down the back panel onto the pusher, off a tower onto the lower table.
   if (machine.falling.length > 0) {
@@ -890,6 +910,9 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
     else if (medal.sinceDrop >= 0) medal.sinceDrop += dt;
     if (medal.grown < 1) medal.grown = Math.min(1, medal.grown + settle);
   }
+  // A tower still in its guard is where its lift is, and nothing that leans on it moves it.
+  if (machine.lifts.length > 0) holdTowers(machine, front, held);
+  else held.clear();
   constrain(machine.medals, front);
   buildGrid(machine.medals);
   for (let i = 0; i < ITERATIONS; i++) {

@@ -19,7 +19,7 @@ export interface AchievementNumbers {
 export const BOARD_ROWS = {
   medals: ['fed', 'won', 'lost', 'return', 'bonus', 'refills'],
   slot: ['hits', 'wasted', 'golds', 'fulls', 'chances', 'spins', 'reaches', 'reachWins', 'supers', 'superWins', 'small', 'big', 'seven'],
-  games: ['fevers', 'chests', 'topChests', 'towers', 'balls', 'run', 'challenges', 'jackpots', 'jackpot', 'prize'],
+  games: ['fevers', 'chests', 'topChests', 'pours', 'raised', 'towers', 'balls', 'run', 'challenges', 'jackpots', 'jackpot', 'prize'],
   days: ['days', 'streakNow', 'streak', 'claims'],
 } as const;
 export type BoardGroup = keyof typeof BOARD_ROWS;
@@ -174,6 +174,8 @@ const en: RecordStrings = {
     fevers: 'Fever squares',
     chests: 'Chests opened',
     topChests: 'Chests that held the most',
+    pours: 'Prizes poured by the hopper',
+    raised: 'Towers raised on their lifts',
     towers: 'Towers pushed over the lip',
     balls: 'Prize balls over the front',
     run: 'Longest roulette run',
@@ -304,6 +306,8 @@ const ja: RecordStrings = {
     fevers: 'フィーバーマス',
     chests: '開けた宝箱',
     topChests: 'いちばん多い宝箱',
+    pours: 'ホッパーから流れ落ちた当たり',
+    raised: 'リフトで組み上がったタワー',
     towers: '倒したタワー',
     balls: '手前に落としたボール',
     run: 'ルーレットの最長連続',

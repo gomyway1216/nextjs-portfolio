@@ -73,8 +73,10 @@ describe('the machine on its way to the account', () => {
     expect(measured.medals).toBeGreaterThan(500);
     expect(measured.falling).toBeGreaterThan(60);
     expect(measured.deviceMost).toBeGreaterThan(ACCOUNT_LIMIT * 1.4);
-    // Packed, it is under three quarters of what the route takes…
-    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.75);
+    // Packed, it is under nine tenths of what the route takes. It was under three quarters while the slot threw on
+    // what the towers' places could not hold, nine medals a second: the hopper pours that four times as fast, so
+    // the same forty-five seconds put far more medals on this field (56,081 bytes at the most here, where it was 38,540).
+    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.9);
     // …and the whole request is under what a browser will send as the page is left (64 KiB of body).
     expect(measured.requestMost).toBeGreaterThan(measured.accountMost);
     expect(measured.requestMost).toBeLessThan(KEEPALIVE_LIMIT);

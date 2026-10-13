@@ -250,6 +250,12 @@ export const COUNTERS = {
   /** Chests opened, and the ones that held the most a chest can. */
   chests: on('chestEnd'),
   topChests: on('chestEnd', (event) => (event.payout >= TOP_CHEST ? 1 : 0)),
+  /**
+   * Prizes big enough for the hopper to pour: the machine says so each time its doors begin to drop open. And towers
+   * that came up on their lifts and stand built: it says so as their guards begin to sink.
+   */
+  pours: on('pourStart'),
+  raised: on('towersReady', (event) => event.towers),
   /** Towers pushed over the pusher's lip. */
   towers: on('toppled', (event) => event.count),
   /** Prize balls pushed over the front, and the roulettes they started. */

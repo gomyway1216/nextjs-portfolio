@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { FIELD } from '../../src/components/game/MedalPusher/engine';
+import { FIELD, buildTowers, queuePayout } from '../../src/components/game/MedalPusher/engine';
 import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
 import { TRAY_ARRIVAL } from '../../src/components/game/MedalPusher/panel';
 import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
@@ -2338,4 +2338,52 @@ test('a ball’s roulette is a wheel behind a window: twelve pockets on the boar
   // The ball lands in the pocket that was drawn, which lights, and its ten is paid.
   await expect(wheel.locator(`g[data-pocket="${ten}"]`)).toHaveAttribute('data-lit', 'true', { timeout: 20_000 });
   await expect.poll(() => counter(page, 'paid'), { timeout: 10_000 }).toBeGreaterThanOrEqual(10);
+});
+
+test('a big prize is poured out of the hopper’s doors, towers come up on their lifts, and the purse still balances', async ({ page }) => {
+  test.setTimeout(90_000);
+  // A machine saved as the game saves one, at the moment it is paid two prizes: sixty medals to pour, and fifty that go up as two towers.
+  const session = createSession(5, { balls: 0 });
+  queuePayout(session.machine, 60);
+  buildTowers(session.machine, 50);
+  session.paidOut += 110;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+      // The field says what the payout works are doing. It is over in a couple of seconds, so every word of it is kept.
+      const said: string[] = [];
+      (window as unknown as { worksSaid: string[] }).worksSaid = said;
+      new MutationObserver((changes) => {
+        for (const change of changes) {
+          if (change.attributeName) said.push(`${change.attributeName.replace('data-', '')} ${(change.target as HTMLElement).getAttribute(change.attributeName)}`);
+        }
+      }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-hopper', 'data-lifts'] });
+    },
+    [STORAGE_KEY, save],
+  );
+  const trouble = watchForTrouble(page);
+  await openGame(page);
+  const worksSaid = () => page.evaluate(() => (window as unknown as { worksSaid: string[] }).worksSaid);
+  const last = (said: string[], what: string) => said.filter((word) => word.startsWith(what)).pop();
+  // The doors open for the sixty and shut again when the last has gone; the lifts hold a tower each until it is built.
+  await expect
+    .poll(
+      async () => {
+        const said = await worksSaid();
+        return said.includes('hopper open') && last(said, 'hopper') === 'hopper shut' && said.includes('lifts 2') && last(said, 'lifts') === 'lifts 0';
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  const said = await worksSaid();
+  expect(said.lastIndexOf('hopper shut')).toBeGreaterThan(said.indexOf('hopper open'));
+  expect(said.lastIndexOf('lifts 0')).toBeGreaterThan(said.indexOf('lifts 2'));
+  const field = machine(page).getByTestId('pusher-field');
+  await expect(field).toHaveAttribute('data-hopper', 'shut');
+  await expect(field).toHaveAttribute('data-lifts', '0');
+  await expectFieldPainted(page);
+  await expectPurseToBalance(page);
+  expect(trouble).toEqual([]);
 });

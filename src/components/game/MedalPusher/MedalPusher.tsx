@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import type { AccountStore } from './account';
 import { BonusDot } from './DailyBonus';
+import { POUR } from './hopper';
 import { getStrings } from './i18n';
 import { InstructionPlateDialog, PlateSwitch } from './InstructionPlate';
 import { OddsTab } from './OddsTab';
@@ -12,6 +13,7 @@ import { records } from './recordsStore';
 import { RecordsTab } from './RecordsTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
+import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
 
 type Tab = 'machine' | 'odds' | 'sim' | 'records';
@@ -118,7 +120,13 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
         </div>
       </div>
 
-      <InstructionPlateDialog isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay} body={t.infoBody(MAX_STOCK)} />
+      <InstructionPlateDialog
+        isOpen={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title={t.howToPlay}
+        body={[...t.infoBody(MAX_STOCK), ...getWorksStrings(language).howItPays(POUR.threshold)]}
+      />
+
     </div>
   );
 };

@@ -189,6 +189,12 @@ describe('recording what the machine did', () => {
       { type: 'chestPicked', chest: 1 },
       { type: 'chestEnd', chest: 1, payout: 10 },
       { type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) },
+      // The payout works: the fever square's thirty were poured, and the big chest went up as two towers. A pour is
+      // counted as its doors drop open and a tower as it stands built, so their other two events add nothing.
+      { type: 'pourStart', medals: 30 },
+      { type: 'pourEnd', medals: 30 },
+      { type: 'towersRise', towers: 2, medals: Math.max(...CHESTS) },
+      { type: 'towersReady', towers: 2 },
       { type: 'toppled', count: 2 },
       { type: 'ball', count: 1 },
       { type: 'rouletteStart', pocket: 1, duration: 2.8 },
@@ -217,6 +223,8 @@ describe('recording what the machine did', () => {
       fevers: 1,
       chests: 2,
       topChests: 1,
+      pours: 1,
+      raised: 2,
       towers: 2,
       balls: 1,
       roulettes: 1,

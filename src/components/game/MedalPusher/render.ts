@@ -155,6 +155,8 @@ export interface Stage {
   painted: boolean;
   background: HTMLCanvasElement;
   medal: HTMLCanvasElement;
+  /** The medal's face in each of the tones a medal can have gone to: `medal` itself first (see `FACES`). */
+  faces: HTMLCanvasElement[];
   ball: HTMLCanvasElement;
   /** Seconds the stage has been drawn for, for its running lights. */
   clock: number;
@@ -297,6 +299,42 @@ function medalSprite(): HTMLCanvasElement {
   circle(r * 0.98);
   g.fill();
   return canvas;
+}
+
+/**
+ * What is laid over a medal's face to make each of the tones a medal can
+ * have gone to in the machine: as it was struck, still pale and bright,
+ * dulled by handling, and gone brown. Every one of them is first washed with
+ * the colour of brass, which is far less yellow than the gilt the face is
+ * painted in.
+ */
+export const FACES = ['rgba(150, 104, 52, 0.2)', 'rgba(255, 240, 206, 0.22)', 'rgba(74, 44, 10, 0.34)', 'rgba(92, 50, 20, 0.5)'] as const;
+
+/** Which of `FACES` a medal has, fixed by its id: of sixteen medals, seven as struck, three pale, four dulled and two brown. */
+export function faceOf(id: number): number {
+  const lot = (Math.imul(id, 0x9e3779b1) >>> 0) % 16;
+  return lot < 7 ? 0 : lot < 10 ? 1 : lot < 14 ? 2 : 3;
+}
+
+/** The medal's face in every tone: copies of the one sprite, each with its wash laid on where the medal is. */
+function medalFaces(struck: HTMLCanvasElement): HTMLCanvasElement[] {
+  return FACES.map((wash, tone) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = struck.width;
+    canvas.height = struck.height;
+    const g = canvas.getContext('2d');
+    if (!g) return struck;
+    g.drawImage(struck, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = FACES[0];
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    if (tone > 0) {
+      g.fillStyle = wash;
+      g.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    g.globalCompositeOperation = 'source-over';
+    return canvas;
+  });
 }
 
 /** A prize ball: a glossy sphere with a star on it. */
@@ -609,20 +647,29 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
 
-  // The lower table: a mirror-blue plate with lanes, an emblem and the words the player needs.
+  // The lower table: a sheet of brushed steel with lanes scribed in it, an emblem etched and the words the player needs printed on.
   const floor = [project(0, 0, 0), project(W, 0, 0), project(W, 0, D), project(0, 0, D)];
   const floorShade = g.createLinearGradient(0, floor[0].y, 0, floor[2].y);
-  floorShade.addColorStop(0, '#061a33');
-  floorShade.addColorStop(0.5, '#0b3764');
-  floorShade.addColorStop(1, '#1668a6');
+  floorShade.addColorStop(0, '#272d3a');
+  floorShade.addColorStop(0.5, '#4a5462');
+  floorShade.addColorStop(1, '#6e7886');
   g.fillStyle = floorShade;
   path(g, floor);
   g.fill();
-  g.strokeStyle = 'rgba(160, 215, 255, 0.09)';
+  // The brushing: strokes across the sheet, finer the further back they lie.
+  for (let stroke = 0; stroke < 140; stroke++) {
+    const depth = PUSHER.min + ((stroke * 61) % 97) * ((D - PUSHER.min) / 97);
+    const x = (stroke * 37) % W;
+    const long = 6 + ((stroke * 13) % 22);
+    g.strokeStyle = stroke % 2 === 0 ? 'rgba(236, 244, 255, 0.07)' : 'rgba(6, 10, 20, 0.1)';
+    g.lineWidth = 0.6;
+    line(g, project(Math.max(0, x - long / 2), 0, depth), project(Math.min(W, x + long / 2), 0, depth));
+  }
+  g.strokeStyle = 'rgba(8, 12, 22, 0.22)';
   g.lineWidth = 1.5;
   for (let x = 10; x < W; x += 10) line(g, project(x, 0, PUSHER.min), project(x, 0, D));
   onTable(g, ratio, W / 2, 70);
-  g.strokeStyle = 'rgba(150, 215, 255, 0.16)';
+  g.strokeStyle = 'rgba(10, 16, 30, 0.24)';
   g.lineWidth = 0.9;
   for (const radius of [20, 15.5]) {
     g.beginPath();
@@ -630,15 +677,15 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     g.stroke();
   }
   starPath(g, 0, 0, 13, 5.4);
-  g.fillStyle = 'rgba(150, 215, 255, 0.12)';
+  g.fillStyle = 'rgba(10, 16, 30, 0.18)';
   g.fill();
   g.font = '900 6.5px "Arial Black", Arial, sans-serif';
-  g.fillStyle = 'rgba(255, 226, 120, 0.42)';
+  g.fillStyle = 'rgba(244, 208, 96, 0.55)';
   for (const x of [20, 50, 80]) {
     onTable(g, ratio, x, 93.5);
     g.fillText('GET', 0, 0);
   }
-  g.fillStyle = 'rgba(255, 130, 150, 0.5)';
+  g.fillStyle = 'rgba(232, 96, 110, 0.62)';
   g.font = '900 4.6px "Arial Black", Arial, sans-serif';
   for (const x of [7.5, W - 7.5]) {
     onTable(g, ratio, x, 84);
@@ -647,7 +694,7 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   flat();
   const sheen = g.createLinearGradient(0, project(0, 0, 55).y, 0, floor[2].y);
   sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  sheen.addColorStop(1, 'rgba(190, 230, 255, 0.14)');
+  sheen.addColorStop(1, 'rgba(214, 228, 246, 0.16)');
   g.fillStyle = sheen;
   path(g, [project(0, 0, 55), project(W, 0, 55), project(W, 0, D), project(0, 0, D)]);
   g.fill();
@@ -736,7 +783,7 @@ export function createStage(ratio: number, painted = true): Stage {
     ratio,
     painted,
     background: blank ?? backgroundLayer(ratio),
-    medal: blank ?? medalSprite(),
+    ...(blank ? { medal: blank, faces: FACES.map(() => blank) } : facesOf(medalSprite())),
     ball: blank ?? ballSprite(),
     clock: 0,
     seen: new Map(),
@@ -759,7 +806,7 @@ export function createStage(ratio: number, painted = true): Stage {
 export function paintStage(stage: Stage): void {
   if (stage.painted) return;
   stage.background = backgroundLayer(stage.ratio);
-  stage.medal = medalSprite();
+  Object.assign(stage, facesOf(medalSprite()));
   stage.ball = ballSprite();
   stage.painted = true;
 }
@@ -897,8 +944,17 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
 /** The turn each medal lies at, fixed by its id so a pile does not look stamped. */
 export const turnOf = (id: number): number => id * 2.399963;
 
-/** Stamps one medal's face where `point` is, squashed to `tilt` and turned by `turn`. */
-function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt: number, turn: number, shift = 0, narrow = 1): void {
+/** The stage's medal as it was struck, and in every tone: the first of the faces is the one the stage calls its medal. */
+function facesOf(struck: HTMLCanvasElement): Pick<Stage, 'medal' | 'faces'> {
+  const faces = medalFaces(struck);
+  return { medal: faces[0], faces };
+}
+
+/**
+ * Stamps one medal's face where `point` is, squashed to `tilt` and turned by
+ * `turn`. Given the medal's `id`, the face is the one of its own tone.
+ */
+function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt: number, turn: number, shift = 0, narrow = 1, id = -1): void {
   const k = stage.ratio;
   const rx = R * point.scale * k;
   const ry = rx * tilt;
@@ -906,7 +962,7 @@ function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt
   const sin = Math.sin(turn);
   // `narrow` squeezes it sideways: a medal turned part of the way edge on to the player.
   g.setTransform(rx * cos * narrow, ry * sin, -rx * sin * narrow, ry * cos, (point.x + shift) * k, point.y * k);
-  g.drawImage(stage.medal, -1, -1, 2, 2);
+  g.drawImage(id < 0 ? stage.medal : (stage.faces[faceOf(id)] ?? stage.medal), -1, -1, 2, 2);
 }
 
 const byDepth = (a: Medal, b: Medal): number => a.y - b.y;
@@ -1037,7 +1093,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     g.fill();
     for (let i = 0; i < medals.length; i++) {
       const point = points[i];
-      if (point && chosen(medals[i])) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+      if (point && chosen(medals[i])) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift, 1, medals[i].id);
     }
   };
 
@@ -1736,7 +1792,7 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
       g.rect(top.x - rx, top.y - ry * 4, rx * 2, ry * 4);
       g.clip();
       g.globalAlpha = held.light;
-      stamp(g, stage, at, at.tilt, turnOf(medal.id), shift);
+      stamp(g, stage, at, at.tilt, turnOf(medal.id), shift, 1, medal.id);
       g.restore();
       flat();
     }
@@ -1796,7 +1852,24 @@ export interface DrawOptions {
   gold?: number;
   /** How many jewels have been collected since the jewel lamps last went out, which is how many of them are lit. */
   jewels?: number;
+  /**
+   * The light the screen throws into the cabinet: its colour, each part from 0 to 1, and how strong it is, 0 for
+   * a dark screen and about 1 for one that is all white. Whatever lies on the pusher in front of the screen takes
+   * it. Left out, the screen glows as an idle one does (`SCREEN_GLOW`). Only the 3D renderer has light to add it to.
+   */
+  glow?: Glow;
+  /** Ask the 3D renderer for its plain picture, the one it also drops to by itself on a device that is slow. */
+  plain?: boolean;
 }
+
+/** A light's colour, each part from 0 to 1, and how strong it is. */
+export interface Glow {
+  colour: readonly [number, number, number];
+  level: number;
+}
+
+/** What the screen throws into the cabinet when nobody says otherwise: the blue-violet of its idle picture, not strong. */
+export const SCREEN_GLOW: Glow = { colour: [0.55, 0.5, 1], level: 0.32 };
 
 /** Draws one frame of the field. */
 export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, options: DrawOptions): void {
@@ -1970,7 +2043,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     g.rect(-VIEW.width, 0, VIEW.width * 3, project(held.x, CATCHER.deck, front).y);
     g.clip();
     if (medal.jewel) drawJewel(g, stage, lyingJewel(medal, machine.time), false, calm, shake);
-    else stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(held.tilt))), turnOf(medal.id), shake);
+    else stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(held.tilt))), turnOf(medal.id), shake, 1, medal.id);
     g.restore();
   }
   for (const ball of going) {
@@ -2062,7 +2135,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     if (medal.source === 'spill') {
       const from = P + T * (medal.rank + 1);
       const point = project(medal.fromX + (medal.x - medal.fromX) * t, T + (from - T) * (1 - t * t), medal.fromY + (medal.y - medal.fromY) * t);
-      stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake);
+      stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake, 1, medal.id);
       continue;
     }
     // It is drawn where it will lie once it is down, on top of the pile.
@@ -2077,7 +2150,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const point = project(at.x, at.height, at.depth);
     const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * 0.6));
     const landing = smooth(Math.max(0, (t - 0.8) / 0.2));
-    stamp(g, stage, point, (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing, turnOf(medal.id), shake);
+    stamp(g, stage, point, (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing, turnOf(medal.id), shake, 1, medal.id);
   }
 
   // The hood is in front of whatever is still inside it: a medal on its way out of the slot, a ball in the hatch.
@@ -2134,10 +2207,40 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const slide = won ? -Infinity : chuteHeight(Math.max(0, exit.side < 0 ? -x : x - W)) + T;
     const point = project(x, Math.max(T - fall, slide), depth);
     const turn = Math.min(won ? Math.PI : CHUTE_LEAN, a * EXIT.turn);
-    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake);
+    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake, 1, exit.id);
   }
   g.globalAlpha = 1;
+  // The light falls off across the field: strongest where the pusher meets the lower table, under the roof's
+  // lamps, and dim toward the side walls and the front corners. One shade over everything that has been drawn.
+  flat();
+  const middle = project(W / 2, 0, POOL.depth);
+  const pool = g.createRadialGradient(middle.x, middle.y, VIEW.width * POOL.from, middle.x, middle.y, VIEW.width * POOL.to);
+  pool.addColorStop(0, 'rgba(6, 3, 16, 0)');
+  pool.addColorStop(1, `rgba(6, 3, 16, ${POOL.dark})`);
+  g.fillStyle = pool;
+  g.fillRect(0, project(0, HEIGHT.pusher, 0).y, VIEW.width, VIEW.height);
   drawOverlay(g, stage, calm);
+}
+
+/** Where the roof's light is strongest on the field, how far from there it stays full and where it is at its dimmest, in widths of the drawing, and how dim that is. */
+export const POOL = { depth: 44, from: 0.22, to: 0.74, dark: 0.36 } as const;
+
+/**
+ * The glass at the front of the cabinet. What shows of a pane of glass is
+ * what is on it and what it mirrors: here a soft band of the room's light
+ * and a thin bright one beside it, slanting across; a haze of dust and
+ * finger marks toward its edges, where nobody wipes; and along the top edge
+ * the line of light a pane catches from the lamps over it.
+ */
+export const GLASS = { drift: 22, period: 46, bands: [0.24, 0.36], dust: 0.085, line: 0.3 } as const;
+
+/**
+ * How far the bands on the glass have drifted at `clock`, in pixels of the
+ * drawing: there and back in `GLASS.period` seconds, as they do when the
+ * player's head moves a little. Not at all in a calm cabinet.
+ */
+export function glassShift(clock: number, calm = false): number {
+  return calm ? 0 : GLASS.drift * Math.sin((clock * TAU) / GLASS.period);
 }
 
 /**
@@ -2180,14 +2283,32 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
     g.fillStyle = `hsla(${hue}, 100%, 60%, ${(0.07 + 0.05 * Math.sin(stage.clock * 12)) * wash})`;
     g.fillRect(0, 0, VIEW.width, VIEW.height);
   }
-  // The glass in front of it all: two bands of reflected light.
-  const glass = g.createLinearGradient(0, 0, VIEW.width, VIEW.height * 0.9);
-  glass.addColorStop(0.18, 'rgba(255, 255, 255, 0)');
-  glass.addColorStop(0.24, 'rgba(255, 255, 255, 0.07)');
-  glass.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
-  glass.addColorStop(0.36, 'rgba(255, 255, 255, 0.04)');
-  glass.addColorStop(0.4, 'rgba(255, 255, 255, 0)');
+  // The glass in front of it all. Two bands of the room's light slant across it, a broad soft one and a thin
+  // one beside it, and drift a little unless the cabinet is calm.
+  const shift = glassShift(stage.clock, calm);
+  const glass = g.createLinearGradient(shift, 0, VIEW.width + shift, VIEW.height * 0.9);
+  const [broad, thin] = GLASS.bands;
+  glass.addColorStop(broad - 0.08, 'rgba(236, 244, 255, 0)');
+  glass.addColorStop(broad, 'rgba(236, 244, 255, 0.075)');
+  glass.addColorStop(broad + 0.07, 'rgba(236, 244, 255, 0)');
+  glass.addColorStop(thin - 0.012, 'rgba(255, 255, 255, 0)');
+  glass.addColorStop(thin, 'rgba(255, 255, 255, 0.06)');
+  glass.addColorStop(thin + 0.012, 'rgba(255, 255, 255, 0)');
   g.fillStyle = glass;
   g.fillRect(0, 0, VIEW.width, VIEW.height);
+  // Dust and finger marks toward the edges, which lift the dark there a little: a pane is never clean to its frame.
+  const dust = g.createRadialGradient(VIEW.width / 2, VIEW.height * 0.52, VIEW.width * 0.42, VIEW.width / 2, VIEW.height * 0.52, VIEW.height * 0.72);
+  dust.addColorStop(0, 'rgba(196, 190, 204, 0)');
+  dust.addColorStop(1, `rgba(196, 190, 204, ${GLASS.dust})`);
+  g.fillStyle = dust;
+  g.fillRect(0, 0, VIEW.width, VIEW.height);
+  // The line of light along the top edge of the pane.
+  const edge = g.createLinearGradient(0, 0, VIEW.width, 0);
+  edge.addColorStop(0.04, 'rgba(255, 250, 236, 0)');
+  edge.addColorStop(0.3, `rgba(255, 250, 236, ${GLASS.line})`);
+  edge.addColorStop(0.62, 'rgba(255, 250, 236, 0.06)');
+  edge.addColorStop(0.96, 'rgba(255, 250, 236, 0)');
+  g.fillStyle = edge;
+  g.fillRect(0, 1.5, VIEW.width, 1.2);
   g.setTransform(1, 0, 0, 1, 0, 0);
 }

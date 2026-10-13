@@ -38,6 +38,17 @@ const vec3 LIP_LAMP = vec3(1.0, 0.7, 0.36);
 const float LIP_LAMP_OUT = ${(FIELD.width * 0.14).toFixed(1)};
 const float LIP_LAMP_HIGH = ${(HEIGHT.pusher - 1.1).toFixed(2)};
 
+/**
+ * How much of the roof's light gets to a place on the field. The lamps hang
+ * over the middle, where the pusher meets the lower table: the light is
+ * strongest there and falls away toward the side walls and the front
+ * corners, as it does in a cabinet lit from its own roof and nothing else.
+ */
+float pool(vec3 world) {
+  vec2 off = (world.xz - vec2(${(FIELD.width / 2).toFixed(1)}, 44.0)) * vec2(1.0, 0.82);
+  return 1.0 - 0.46 * smoothstep(14.0, 60.0, length(off));
+}
+
 /** Where one of the lamps under the lip is: the left one for -1, the right one for 1. */
 vec3 lipLamp(float side) {
   return vec3(${(FIELD.width / 2).toFixed(1)} + side * (${(FIELD.width / 2).toFixed(1)} - LIP_LAMP_OUT), LIP_LAMP_HIGH, uField.x + 0.9);
@@ -71,13 +82,13 @@ float sunlit(vec3 world, vec3 normal) {
  * when most of that is dark and a little of it is very bright.
  */
 vec3 surroundings(vec3 r) {
-  vec3 below = vec3(0.2, 0.115, 0.045);
-  vec3 walls = vec3(0.3, 0.24, 0.4);
+  vec3 below = vec3(0.15, 0.105, 0.06);
+  vec3 walls = vec3(0.27, 0.23, 0.33);
   vec3 roof = vec3(1.0, 0.95, 0.88) * mix(0.48, 0.74, smoothstep(0.25, 0.95, r.y));
   vec3 c = mix(below, walls, smoothstep(-0.45, 0.05, r.y));
   c = mix(c, roof, smoothstep(0.05, 0.5, r.y));
-  c += vec3(1.0, 0.22, 0.55) * pow(max(dot(r, vec3(-0.88, 0.34, 0.33)), 0.0), 5.0) * 0.6;
-  c += vec3(0.2, 0.78, 1.0) * pow(max(dot(r, vec3(0.88, 0.34, 0.33)), 0.0), 5.0) * 0.55;
+  c += vec3(1.0, 0.22, 0.55) * pow(max(dot(r, vec3(-0.88, 0.34, 0.33)), 0.0), 5.0) * 0.4;
+  c += vec3(0.2, 0.78, 1.0) * pow(max(dot(r, vec3(0.88, 0.34, 0.33)), 0.0), 5.0) * 0.36;
   // The glass at the front lets the room in: a soft light on whatever turns to face the player.
   c += vec3(1.0, 0.93, 0.82) * pow(max(dot(r, vec3(0.0, 0.25, 0.97)), 0.0), 2.0) * 0.36;
   return c;
@@ -123,7 +134,7 @@ vec3 gleam(vec3 r) {
 
 /**
  * The light that comes from near by and so is not the same all over the
- * field, on a surface at `world` that faces `normal`. The two lamps under the
+ * field, on a surface at a place that faces a given way. The two lamps under the
  * pusher's lip light the lower table from behind and low down, brightly just
  * in front of the pusher and hardly at all by the front edge. The screen is a
  * wide panel up the back wall: whatever lies on the pusher in front of it
@@ -131,8 +142,8 @@ vec3 gleam(vec3 r) {
  */
 vec3 nearLight(vec3 world, vec3 normal) {
   vec3 light = vec3(0.0);
-  // Only what is below the lip sees the lamps under it.
-  float under = 1.0 - smoothstep(LIP_LAMP_HIGH + 0.4, LIP_LAMP_HIGH + 2.2, world.y);
+  // Only what is below the lip, and out in front of it, sees the lamps under it.
+  float under = (1.0 - smoothstep(${(HEIGHT.pusher - 0.7).toFixed(2)}, ${(HEIGHT.pusher + 1.1).toFixed(2)}, world.y)) * step(uField.x - 0.5, world.z);
   for (float side = -1.0; side < 2.0; side += 2.0) {
     vec3 to = lipLamp(side) - world;
     float far = dot(to, to) + 0.5;
@@ -140,16 +151,16 @@ vec3 nearLight(vec3 world, vec3 normal) {
   }
   vec3 toScreen = vec3(${(FIELD.width / 2).toFixed(1)}, ${((SCREEN.foot + SCREEN.top) / 2).toFixed(1)}, 0.0) - world;
   float away = dot(toScreen, toScreen) + 1.0;
-  float facing = max(dot(normal, toScreen * inversesqrt(away)) * 0.6 + 0.4, 0.0);
-  light += uGlow.rgb * uGlow.a * facing * (1.0 - smoothstep(18.0, 78.0, world.z)) * 1.25;
+  float turnedTo = max(dot(normal, toScreen * inversesqrt(away)) * 0.6 + 0.4, 0.0);
+  light += uGlow.rgb * uGlow.a * turnedTo * (1.0 - smoothstep(18.0, 78.0, world.z)) * 1.25;
   return light;
 }
 
-/** What a mirror at `world` shows of the two lamps under the lip when it looks along `r`: a small hot glint each, the sharper the more polished the mirror. */
+/** What a mirror at a place shows of the two lamps under the lip when it looks along r: a small hot glint each, the sharper the more polished the mirror. */
 vec3 lipGlints(vec3 world, vec3 r, float polish) {
   if (uField.y < 0.5) return vec3(0.0);
   vec3 glint = vec3(0.0);
-  float under = 1.0 - smoothstep(LIP_LAMP_HIGH + 0.4, LIP_LAMP_HIGH + 2.2, world.y);
+  float under = (1.0 - smoothstep(${(HEIGHT.pusher - 0.7).toFixed(2)}, ${(HEIGHT.pusher + 1.1).toFixed(2)}, world.y)) * step(uField.x - 0.5, world.z);
   for (float side = -1.0; side < 2.0; side += 2.0) {
     vec3 to = lipLamp(side) - world;
     float far = dot(to, to) + 0.5;
@@ -175,8 +186,8 @@ vec3 finish(vec3 c, vec3 world) {
   c = mix(c, vec3(most), smoothstep(1.7, 4.2, most) * 0.9);
   c *= (min(most, 0.6) + 0.4 * (1.0 - exp(-max(most - 0.6, 0.0) / 0.4))) / most;
   c = pow(c, vec3(1.0 / 2.2));
-  // A grain too fine to see, so the dark gradients do not band.
-  return c + (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
+  // The grain of a picture taken through glass in a dim room: a trace of it, still, which also keeps the dark gradients from banding.
+  return c + (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * (1.0 + 1.6 * uField.y) / 255.0;
 }
 `;
 
@@ -222,7 +233,25 @@ uniform sampler2D uRelief;
 out vec4 colour;
 ${WORLD}
 ${TURN}
-const vec3 GOLD = vec3(1.0, 0.64, 0.06);
+// Brass as a medal is struck from it: a pale gold, far less yellow than paint. What it has turned to in the machine is worked out for each medal below.
+const vec3 BRASS = vec3(1.0, 0.74, 0.27);
+
+/** A number from 0 to 1 that is one medal's own: a different one for each number asked with. */
+float own(float which) {
+  return fract(sin(vOwn.x * 91.7 + which * 37.3) * 43758.5453);
+}
+
+/** A soft blotch pattern over a face, from 0 to 1: where fingers and other medals have dulled it. */
+float blotch(vec2 at) {
+  vec2 cell = floor(at);
+  vec2 f = fract(at);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+  float b = fract(sin(dot(cell + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
+  float c = fract(sin(dot(cell + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+  float d = fract(sin(dot(cell + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 
 void main() {
   vec3 flatNormal = normalize(vNormal);
@@ -230,6 +259,14 @@ void main() {
   float face = smoothstep(0.9, 0.99, abs(n.y));
   float hollow = 1.0;
   float steep = 0.0;
+  // What this medal has been through. Most have been round the machine for years and are dulled; one in
+  // four is still bright from the hopper; one in eight has gone brown; a few were struck from a redder batch.
+  float wear = own(1.0);
+  float kind = own(2.0);
+  float polish = kind > 0.65 && kind < 0.9 ? 0.95 : mix(0.8, 0.22, wear);
+  vec3 metal = BRASS * mix(vec3(0.74, 0.7, 0.6), vec3(1.04, 1.03, 1.0), vOwn.x);
+  if (kind < 0.125) metal *= vec3(0.7, 0.6, 0.5);
+  else if (kind > 0.93) metal *= vec3(1.04, 0.88, 0.76);
   if (face > 0.0) {
     // The relief struck into the face: it bends the light, what stands up is a little brighter, and
     // the foot of every edge is dark with wear, which is what draws the star and the ring from far off.
@@ -238,7 +275,14 @@ void main() {
     vec2 lean = (relief.xy * 2.0 - 1.0 + vLocal.xz * ${(0.12 / MEDAL_RADIUS).toFixed(4)}) * face;
     n = normalize(vec3(lean.x, n.y * sqrt(max(1.0 - dot(lean, lean), 0.05)), lean.y));
     steep = relief.a * face;
-    hollow = mix(1.0, (0.9 + 0.18 * relief.z) * (1.0 - 0.55 * relief.a), face);
+    // Dirt gathers at the foot of every edge of the relief, and more of it the longer a medal has been handled.
+    hollow = mix(1.0, (0.9 + 0.18 * relief.z) * (1.0 - (0.45 + 0.4 * wear) * relief.a), face);
+    if (uField.y > 0.5) {
+      // Where it has been rubbed dull, in blotches that are its own.
+      float dulled = blotch(vLocal.xz * 0.85 + vOwn.x * 43.0) * wear * face;
+      polish *= 1.0 - 0.5 * dulled;
+      metal *= 1.0 - 0.14 * dulled;
+    }
   } else {
     // The milled rim, as long as its ridges are wide enough to see.
     float around = atan(vLocal.z, vLocal.x);
@@ -255,18 +299,26 @@ void main() {
   float lit = smoothstep(0.0, 0.2, dot(solid, uKey));
   if (lit > 0.0) lit *= sunlit(vWorld, solid);
 
-  // No two medals are quite the same gold.
-  vec3 gold = GOLD * mix(vec3(0.8, 0.72, 0.6), vec3(1.08, 1.12, 1.3), vOwn.x);
-  vec3 sheen = gold + (1.0 - gold) * pow(1.0 - facing, 5.0);
-  // Gold seen in gold is deeper gold: the darker what a medal mirrors, the more orange it turns.
+  vec3 sheen = metal + (1.0 - metal) * pow(1.0 - facing, 5.0);
+  // A polished face is a mirror and shows the cabinet in its colours. A dulled one shows a wash of how bright
+  // the cabinet is that way and little of its colours, which is most of why a worn medal looks grey beside a new one.
   vec3 seen = surroundings(mirrored) * mix(0.5, 1.0, lit) * hollow;
-  seen *= mix(vec3(1.0, 0.8, 0.5), vec3(1.0), smoothstep(0.1, 0.6, dot(seen, vec3(0.3, 0.5, 0.2))));
-  // A lamp shows on the smooth of the face and on the rounded edge, not in every nick of the relief: that would only be glitter.
-  vec3 c = sheen * (seen + pile(mirrored) * 1.15 + lamp(mirrored) * lit * (1.0 - 0.8 * steep));
+  float bright = dot(seen, vec3(0.3, 0.5, 0.2));
+  seen = mix(vec3(bright) * vec3(1.0, 0.95, 0.88), seen, 0.3 + 0.7 * polish) * (0.7 + 0.3 * polish);
+  // Brass seen in brass is deeper brass: the darker what a medal mirrors, the warmer it turns.
+  seen *= mix(vec3(1.0, 0.86, 0.66), vec3(1.0), smoothstep(0.1, 0.6, bright));
+  // The roof's lamps: tube by tube in a polished face, and spread into one soft sheen in a dulled one. Either
+  // way they show on the smooth of the face and on the rounded edge, not in every nick of the relief.
+  float toward = max(dot(mirrored, uKey), 0.0);
+  vec3 roof = mix(KEY_COLOUR * (pow(toward, 5.0) * 1.5 + pow(toward, 26.0) * 1.3), lamp(mirrored), polish) * pool(vWorld);
+  vec3 c = sheen * (seen + pile(mirrored) * 1.15 + roof * lit * (1.0 - 0.8 * steep));
+  // The light from near by: the lamps under the lip on the heap in front of the pusher, and the screen's on what lies before it.
+  c += sheen * (nearLight(vWorld, solid) * mix(0.62, 0.3, polish) * hollow + lipGlints(vWorld, mirrored, polish) * (1.0 - 0.8 * steep));
   // The rounded edge between face and rim turns through every angle, so somewhere along it the key lamp
-  // is mirrored straight at the player: a thin bright arc on the side of the medal the lamp is on.
+  // is mirrored straight at the player: a thin bright arc on the side of the medal the lamp is on. The
+  // edge is where a medal is rubbed most, so it is bright even on one whose face has gone dull.
   float rounded = (1.0 - face) * smoothstep(0.4, 0.62, flatNormal.y);
-  c += sheen * KEY_COLOUR * pow(max(dot(mirrored, uKey), 0.0), 7.0) * 4.5 * lit * rounded;
+  c += sheen * KEY_COLOUR * pow(max(dot(mirrored, uKey), 0.0), 7.0) * 4.5 * lit * rounded * pool(vWorld);
   colour = vec4(finish(c * vOwn.y, vWorld), 1.0);
 }
 `;
@@ -441,17 +493,20 @@ out vec4 colour;
 ${WORLD}
 void main() {
   vec3 normal = normalize(vNormal);
-  vec3 paint = texture(uArt, vSpot).rgb * vColour;
+  // The lens is focused on the heap. What is printed at the very back of the cabinet is a little soft, on the full picture.
+  vec3 paint = texture(uArt, vSpot, uField.y * 1.5 * (1.0 - smoothstep(0.0, 24.0, vWorld.z))).rgb * vColour;
   vec3 toEye = normalize(uEye - vWorld);
   float facing = clamp(dot(normal, toEye), 0.0, 1.0);
   vec3 mirrored = reflect(-toEye, normal);
   float toward = dot(normal, uKey);
   float lit = smoothstep(0.0, 0.15, toward);
   if (lit > 0.0) lit *= sunlit(vWorld, normal);
-  // Paint: lit by the key lamp where it reaches, and by the glow of the cabinet everywhere.
-  vec3 matte = paint * (0.52 + KEY_COLOUR * max(toward, 0.0) * lit * 0.92);
+  float reach = pool(vWorld);
+  vec3 near = nearLight(vWorld, normal);
+  // Paint: lit by the key lamp where it reaches, by the lamps and the screen near by, and a little by the glow of the cabinet everywhere.
+  vec3 matte = paint * (0.44 + KEY_COLOUR * max(toward, 0.0) * lit * 0.92 * reach + near * 0.55);
   // Metal: its own colour of whatever it mirrors.
-  vec3 metal = paint * ((surroundings(mirrored) + pile(mirrored) * 0.6) * mix(0.6, 1.0, lit) * 1.9 + lamp(mirrored) * lit * 0.3);
+  vec3 metal = paint * ((surroundings(mirrored) + pile(mirrored) * 0.6) * mix(0.6, 1.0, lit) * 1.9 + lamp(mirrored) * lit * 0.3 * reach + near * 0.4);
   vec3 c = mix(matte, metal, vFinish.x);
   // Paint with a gloss on it also mirrors a little, most where it is seen at a slant.
   c += surroundings(mirrored) * pow(1.0 - facing, 4.0) * vFinish.x * (1.0 - vFinish.x);

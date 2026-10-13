@@ -64,6 +64,37 @@ export const SOLID_STRIDE = 13;
  * next ones are set first, like choosing a pen, so drawing one takes only its
  * corners and nothing is allocated on the way.
  */
+/** How a kind of surface takes the light: how much it mirrors the cabinet, and how much of its colour it gives off as light of its own. */
+export interface Material {
+  gloss: number;
+  glow: number;
+}
+
+/**
+ * What the cabinet is made of. The shader has two numbers for a surface, and
+ * these are the pairs that look like the stuff a real cabinet is built from,
+ * so that a part added later is made of the same things as the rest:
+ *
+ * - `chrome`: plated tube and trim. A mirror, in its own colour.
+ * - `brushedSteel`: sheet steel, brushed. Mirrors about half of what a mirror would.
+ * - `brass`: cast or pressed trim that has dulled.
+ * - `enamel`: glossy paint on metal. Its own colour, with a mirror's sheen at a slant.
+ * - `plastic`: moulded plastic, cream or coloured. Matte, with a little sheen.
+ * - `rubber`: mats and stops. Matte and dark.
+ * - `backlit`: a printed panel with a lamp behind it. Mostly its own light.
+ * - `lamp`: a tube or a diode. All its own light.
+ */
+export const MATERIAL = {
+  chrome: { gloss: 1, glow: 0 },
+  brushedSteel: { gloss: 0.55, glow: 0 },
+  brass: { gloss: 0.8, glow: 0 },
+  enamel: { gloss: 0.3, glow: 0 },
+  plastic: { gloss: 0.14, glow: 0 },
+  rubber: { gloss: 0.03, glow: 0 },
+  backlit: { gloss: 0.12, glow: 0.6 },
+  lamp: { gloss: 0, glow: 1 },
+} as const satisfies Record<string, Material>;
+
 export class Solid {
   data: Float32Array;
   /** Corners written so far: six to a surface. */
@@ -98,6 +129,11 @@ export class Solid {
     this.gloss = gloss;
     this.glow = glow;
     return this;
+  }
+
+  /** The finish of one of the cabinet's materials: `solid.as(MATERIAL.chrome).paint(colour)` and then the surfaces. */
+  as(material: Material): this {
+    return this.finish(material.gloss, material.glow);
   }
 
   /** The part of the picture the next surfaces show: its first corner, and the corner opposite. */
@@ -302,7 +338,7 @@ export function buildCabinet(solid: Solid): Part[] {
     parts.push({ art, first, count: solid.count - first });
   };
   solid.map().paint(WHITE);
-  part('table', () => solid.finish(0.22).quad(0, 0, 0, W, 0, 0, W, 0, D, 0, 0, D));
+  part('table', () => solid.as(MATERIAL.brushedSteel).quad(0, 0, 0, W, 0, 0, W, 0, D, 0, 0, D));
   part('foot', () => {
     // The front of the shelf, which stands out from the wall, and the panel under it.
     solid.map(0, 0, 1, SHELF_SHARE).finish(0.3, 0.6);

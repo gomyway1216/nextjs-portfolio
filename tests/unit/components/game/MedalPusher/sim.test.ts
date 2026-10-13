@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
-import { JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
+import { AIM, CHECKERS, DROP_INTERVAL, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
+import { CHANCE_BONUS, JACKPOT_START, TIERS, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
@@ -78,7 +78,10 @@ describe('the ways of aiming', () => {
     expect(new Set(AIM_IDS.map((id) => AIM_COLORS[id])).size).toBe(AIM_IDS.length);
     expect(new Set(AIM_IDS.map((id) => AIM_MARKERS[id])).size).toBe(AIM_IDS.length);
     for (const id of AIM_IDS) expect(AIM_COLORS[id]).toMatch(/^var\(--mp-s-[a-z]+\)$/);
-    expect(PACES).toEqual([2, 5]);
+    // Two a second, five, and both feed buttons held down, which is as fast as the two slots take medals.
+    expect(PACES).toEqual([2, 5, 11]);
+    expect(PACES[2]).toBeLessThanOrEqual(Math.floor(2 / DROP_INTERVAL));
+    expect(PACES[2]).toBeGreaterThan(2 / DROP_INTERVAL - 1);
   });
 });
 
@@ -90,6 +93,7 @@ describe('what a run measured', () => {
     hits: 220,
     wasted: 20,
     spins: 200,
+    gold: 0,
     paidOut: 190,
     tiers: { miss: 188, small: 8, big: 3, seven: 1 },
     jackpots: 0,
@@ -105,6 +109,12 @@ describe('what a run measured', () => {
   it('works out the return with average luck on the screen', () => {
     expect(steadyReturn(result)).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START)), 12);
     expect(steadyReturn({ ...result, played: 0 })).toBe(0);
+    // A gold spin is worth what any spin is and, on top, what being gold adds: a medal wasted on a full hold
+    // that turned a spin gold gets that much back.
+    expect(steadyReturn({ ...result, gold: 12 })).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START) + 0.012 * CHANCE_BONUS), 12);
+    expect(steadyReturn({ ...result, gold: 12 })).toBeGreaterThan(steadyReturn(result));
+    // It never gets back what a spin of its own would have been worth.
+    expect(steadyReturn({ ...result, gold: 20 })).toBeLessThan(steadyReturn({ ...result, spins: 220 }));
     // With no spins, what comes back is just the front's share.
     expect(steadyReturn({ ...result, spins: 0 })).toBeCloseTo(900 / 1150, 12);
   });
@@ -123,6 +133,10 @@ describe('the simulation', () => {
       // Every medal that came onto the field in the count either left it or is still there.
       expect(aim.won + aim.lost + aim.fieldChange).toBe(aim.played + aim.paidOut);
       // Spins held or in progress when the count began are played in it without a medal through a pocket of their own.
+      // A gold spin was a medal that found the hold full, and is one of the spins.
+      expect(aim.gold).toBeGreaterThanOrEqual(0);
+      expect(aim.gold).toBeLessThanOrEqual(aim.wasted + MAX_STOCK);
+      expect(aim.gold).toBeLessThanOrEqual(aim.spins + MAX_STOCK);
       const carried = aim.spins + aim.wasted - aim.hits;
       expect(carried).toBeGreaterThanOrEqual(0);
       expect(carried).toBeLessThanOrEqual(MAX_STOCK);

@@ -438,6 +438,60 @@
   background: #ffd65c;
   box-shadow: 0 0 10px rgba(255, 214, 92, 0.9);
 }
+/* Chance time. The lamp of a held spin that has turned gold flashes, and a strip under the title says so for as
+   long as a gold spin is still to come: what it is called, what a gold spin pays, how many are left. */
+.lamp[data-gold='true'] {
+  border-color: #ffffff;
+  background: #fffbe0;
+  box-shadow:
+    0 0 6px #ffffff,
+    0 0 16px rgba(255, 214, 92, 1);
+}
+.chance {
+  position: absolute;
+  z-index: 3;
+  top: 13%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.1em 0.8em;
+  border-radius: 999px;
+  border: 2px solid #fff3b0;
+  background: linear-gradient(180deg, #ff3d8b, #b3125c);
+  color: #ffffff;
+  font-size: clamp(0.6rem, 2.6vw, 0.9rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  box-shadow: 0 0 14px rgba(255, 86, 170, 0.8);
+  pointer-events: none;
+}
+.chance[data-gold='true'] {
+  background: linear-gradient(180deg, #ffd65c, #c98a0a);
+  color: #2a1700;
+}
+.chanceTimes {
+  font-size: 1.25em;
+}
+.chanceLeft {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lamp[data-gold='true'] {
+    animation: mp-gold-lamp 0.25s steps(2, jump-none) infinite alternate;
+  }
+}
+@keyframes mp-gold-lamp {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
 /* The hold has eight lamps in a row beside the title, so on a phone they are smaller than the roulette's six. */
 .stock .lamp {
   width: clamp(0.5rem, 2.2vw, 1.05rem);

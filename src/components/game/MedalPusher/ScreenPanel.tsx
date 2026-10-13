@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type CSSProperties } from 'react';
 import type { PusherStrings } from './i18n';
-import { BOWL, CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_BONUS } from './lottery';
+import { BOWL, CHAIN_GOAL, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS } from './lottery';
 import { ReelSymbol, tierOfDigit } from './ReelSymbols';
 import {
   BOARD_SQUARES,
@@ -513,10 +513,18 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
             {t.stock}
           </span>
           {Array.from({ length: MAX_STOCK }, (_, index) => (
-            <span key={index} className={styles.lamp} data-lit={index < stock} aria-hidden />
+            <span key={index} className={styles.lamp} data-lit={index < stock} data-gold={index < state.chance - (state.gold ? 1 : 0)} aria-hidden />
           ))}
         </div>
       </div>
+      {/* Chance time, for as long as a gold spin is still to come: what it is called, what a gold spin pays, and how many are left. It is said aloud once, where the cabinet makes its announcements. */}
+      {state.chance > 0 && (
+        <div className={styles.chance} data-gold={state.gold} data-testid="pusher-chance" aria-hidden>
+          <span className={styles.chanceTitle}>{t.chanceTitle}</span>
+          <span className={styles.chanceTimes}>×{CHANCE.multiplier}</span>
+          <span className={styles.chanceLeft}>{t.chanceLeft(state.chance)}</span>
+        </div>
+      )}
 
       <div className={styles.stage}>
         <div className={styles.reels} aria-hidden data-hidden={state.mode !== 'slot'} data-line={state.line ?? 'none'}>

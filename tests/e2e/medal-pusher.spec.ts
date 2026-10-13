@@ -1138,16 +1138,18 @@ test.describe('in the hand, on a phone', () => {
     /**
      * Taps L until a medal has gone in, which is felt: a tap the slot was not ready for feeds nothing. What is felt is
      * the tick, unless something stronger happens in the same frame (medals going over the front, a START pocket),
-     * which is felt instead of it; so this asks only that the motor ran.
+     * which is felt instead of it; so this asks only that the motor ran, and ran since these taps began: what Auto's
+     * medals set off before them does not count.
      */
     const tapIn = async () => {
       const had = await counter(page, 'played');
+      const feltBefore = await felt();
       await expect(async () => {
         await feedButton(page, 'left').tap();
         await page.waitForTimeout(400);
         expect(await counter(page, 'played')).toBeGreaterThan(had);
       }).toPass({ timeout: 20_000 });
-      await expect.poll(felt).toBeGreaterThanOrEqual(1);
+      await expect.poll(felt).toBeGreaterThan(feltBefore);
     };
     // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
     // forgotten, and the new machine's first press is felt at once.

@@ -135,7 +135,7 @@ export const LIMITS = {
   falling: 600,
   /** Lifts at work: one under every place a tower can stand, and as many again whose guards are still sinking. */
   lifts: 2 * TOWER_SITES,
-  /** How far a tower in its guard may be from its lift, in field units: nothing moves it, but the sums that say so are not exact. */
+  /** How far a tower in its guard may be from where its lift has it, in field units: nothing moves it, but the sums that say so are not exact. */
   held: 1e-6,
   /** Prize balls, on the field or waiting for their roulette. */
   balls: 50,
@@ -283,6 +283,7 @@ const fallingOrPoured = fallingFrom(['player', 'payout', 'pour', 'spill']);
 const hopper = shape<Hopper>({
   phase: oneOf(['shut', 'opening', 'pouring', 'closing']),
   clock: real(0, Math.max(POUR.opens, POUR.closes)),
+  pours: count,
   poured: whole(0, LIMITS.purse),
 });
 
@@ -290,7 +291,8 @@ const hopper = shape<Hopper>({
 const lift = shape<Lift>(
   {
     id: whole(1, LIMITS.count),
-    x: real(0, FIELD.width),
+    // Its hatch is in the pusher's deck, between the side walls where a medal can lie.
+    x: real(MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS),
     behind: real(0, PUSHER.max),
     size: whole(1, TOWER.max),
     wait: real(0, LIFT.opens),
@@ -395,18 +397,28 @@ const railsKeepPace = (machine: Pick<MachineBeforeWorks, 'rolling' | 'waits'>): 
 /**
  * Whether the payout works fit the field they are in. The doors are in a
  * state the hopper passes through with what is waiting to be paid: shut and
- * at rest, dropping open for a prize big enough to pour, open with medals
- * still to come, or being drawn shut. Every lift is on a tower of its own.
- * One that still holds its tower has it standing on the pusher where the
- * lift is, as many medals as the lift is building, and not yet begun while
- * the guard is still on its way up; and either the guard is rising or there
- * are medals still to come. One whose guard is sinking has finished. And no
- * tower is going up without a lift under it.
+ * at rest, dropping open for a prize big enough to pour with none of it gone
+ * yet, open with medals still to come, or being drawn shut. A hopper that has
+ * never begun a pour is shut and has poured nothing. Every lift is on a tower
+ * of its own. One that still holds its tower has it standing on the pusher
+ * where the machine leaves a tower it holds, as many medals as the lift is
+ * building, and not yet begun while the guard is still on its way up; and
+ * either the guard is rising or there are medals still to come. One whose
+ * guard is sinking has finished. And no tower is going up without a lift
+ * under it.
+ *
+ * Where the machine leaves a tower it holds is on the deck itself, since a
+ * tower is put there and nothing lifts it onto other medals, and over its
+ * hatch, or against the back wall where the wall has come as far forward as
+ * the hatch: the wall holds its ground against everything. A tower let
+ * through anywhere else would be moved by the machine's first step, and the
+ * save written after that step would not pass this check.
  */
 function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'lifts'>): boolean {
   const { hopper: doors, lifts, medals, payoutQueue } = machine;
+  if (doors.pours === 0 && (doors.phase !== 'shut' || doors.poured !== 0)) return false;
   if (doors.phase === 'shut' && doors.clock !== 0) return false;
-  if (doors.phase === 'opening' && (doors.clock > POUR.opens || payoutQueue < POUR.threshold)) return false;
+  if (doors.phase === 'opening' && (doors.clock > POUR.opens || doors.poured !== 0 || payoutQueue < POUR.threshold)) return false;
   if (doors.phase === 'pouring' && (doors.clock !== 0 || payoutQueue === 0)) return false;
   if (doors.phase === 'closing' && doors.clock >= POUR.closes) return false;
   const front = pusherFront(machine.time);
@@ -419,9 +431,9 @@ function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueu
       if (one.sunk >= LIFT.closes || (tower && tower.grow > 0)) return false;
       continue;
     }
-    if (!tower || tower.ball || tower.level !== 1 || tower.stack + tower.grow !== one.size) return false;
+    if (!tower || tower.ball || tower.level !== 1 || tower.tier !== 0 || tower.stack + tower.grow !== one.size) return false;
     if (one.wait > 0 ? tower.stack !== 1 : tower.grow === 0) return false;
-    if (Math.abs(tower.x - one.x) > LIMITS.held || Math.abs(tower.y - (front - one.behind)) > LIMITS.held) return false;
+    if (Math.abs(tower.x - one.x) > LIMITS.held || Math.abs(tower.y - Math.max(MEDAL_RADIUS, front - one.behind)) > LIMITS.held) return false;
   }
   return medals.every((m) => m.grow === 0 || lifted.has(m.id));
 }

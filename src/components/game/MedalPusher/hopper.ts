@@ -85,12 +85,20 @@ export interface Hopper {
   phase: DoorPhase;
   /** Seconds the doors have been dropping open or being drawn shut; nothing otherwise. */
   clock: number;
-  /** Medals poured since the doors last began to open from shut. It is kept once they are shut again, until the next time. */
+  /**
+   * Pours begun since the machine was switched on. A pour begins each time
+   * the doors begin to drop open: from shut, or from wherever they had got to
+   * on their way shut when another prize big enough to pour came. It only ever
+   * goes up, so two looks at the hopper that find the same number have seen
+   * the same pour, however alike the rest of it is.
+   */
+  pours: number;
+  /** Medals poured since that pour began. It is kept once the doors are shut again, until the next pour begins. */
   poured: number;
 }
 
 /** A hopper with its doors shut, that has poured nothing yet. */
-export const shutHopper = (): Hopper => ({ phase: 'shut', clock: 0, poured: 0 });
+export const shutHopper = (): Hopper => ({ phase: 'shut', clock: 0, pours: 0, poured: 0 });
 
 /** How far open the doors are, from 0 (shut) to 1, moving at an even pace. */
 export function doorsOpen(hopper: Hopper): number {
@@ -116,6 +124,7 @@ export function runHopper(machine: Machine, dt: number, landing: { from: number;
     if (machine.payoutQueue < POUR.threshold) return false;
     hopper.phase = 'opening';
     hopper.clock = 0;
+    hopper.pours += 1;
     hopper.poured = 0;
     machine.payoutClock = 0;
   }
@@ -146,10 +155,13 @@ export function runHopper(machine: Machine, dt: number, landing: { from: number;
     return true;
   }
   // Being drawn shut. Another prize big enough to pour drops them open again from where they have got to.
+  // The doors carry on from there; the pour is a new one, counted from nothing like any other.
   if (machine.payoutQueue >= POUR.threshold) {
     const open = doorsOpen(hopper);
     hopper.phase = 'opening';
     hopper.clock = POUR.opens * open;
+    hopper.pours += 1;
+    hopper.poured = 0;
     return true;
   }
   hopper.clock += dt;

@@ -244,6 +244,82 @@ describe('what the session reports of the payout works', () => {
     expect(of(events, 'pourEnd')).toEqual([{ type: 'pourEnd', medals: 45 }]);
   });
 
+  it('reports a second whole pour within one long step, though it is exactly as big as the one before it', () => {
+    const session = createSession(5, { balls: 0 });
+    const first: SessionEvent[] = [];
+    queuePayout(session.machine, 45);
+    advance(session, 4, first);
+    expect(session.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: 45 });
+    // The doors stand shut having poured forty-five, before this step and after it. Only the hopper's count of its pours has moved.
+    const second: SessionEvent[] = [];
+    queuePayout(session.machine, 45);
+    const before = watchWorks(session.machine);
+    advance(session, 4, second);
+    expect(session.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 2, poured: 45 });
+    expect(of(second, 'pourStart')).toEqual([{ type: 'pourStart', medals: 45 }]);
+    expect(of(second, 'pourEnd')).toEqual([{ type: 'pourEnd', medals: 45 }]);
+    expect(second.findIndex((event) => event.type === 'pourEnd')).toBeGreaterThan(second.findIndex((event) => event.type === 'pourStart'));
+    expect(worksEvents(before, session.machine)).toEqual([
+      { type: 'pourStart', medals: 45 },
+      { type: 'pourEnd', medals: 45 },
+    ]);
+    // A long step in which nothing is poured still says nothing.
+    const third: SessionEvent[] = [];
+    advance(session, 4, third);
+    expect(of(third, 'pourStart')).toEqual([]);
+    expect(of(third, 'pourEnd')).toEqual([]);
+  });
+
+  it('says how many are waiting, and no more, when another big prize comes as the doors are being drawn shut', () => {
+    const session = createSession(5, { balls: 0 });
+    const events: SessionEvent[] = [];
+    queuePayout(session.machine, POUR.threshold);
+    for (let i = 0; i < 600 && !(session.machine.hopper.phase === 'closing' && session.machine.hopper.clock >= POUR.closes / 3); i++) advance(session, DT, events);
+    expect(session.machine.hopper.phase).toBe('closing');
+    expect(events.filter((event) => event.type === 'pourStart' || event.type === 'pourEnd')).toEqual([
+      { type: 'pourStart', medals: POUR.threshold },
+      { type: 'pourEnd', medals: POUR.threshold },
+    ]);
+    // Thirty more: thirty are waiting, not the thirty that have gone and these thirty.
+    events.length = 0;
+    queuePayout(session.machine, POUR.threshold);
+    advance(session, DT, events);
+    expect(session.machine.hopper.phase).toBe('opening');
+    expect(of(events, 'pourStart')).toEqual([{ type: 'pourStart', medals: POUR.threshold }]);
+    expect(of(events, 'pourEnd')).toEqual([]);
+    for (let i = 0; i < 600 && session.machine.hopper.phase !== 'shut'; i++) advance(session, DT, events);
+    expect(of(events, 'pourStart')).toHaveLength(1);
+    expect(of(events, 'pourEnd')).toEqual([{ type: 'pourEnd', medals: POUR.threshold }]);
+    // Sixty were paid and sixty were said to be poured, thirty at a time.
+    expect(session.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 2, poured: POUR.threshold });
+  });
+
+  it('says the same of a prize that comes as the doors are being drawn shut and is poured within one long step', () => {
+    const session = createSession(5, { balls: 0 });
+    queuePayout(session.machine, POUR.threshold);
+    for (let i = 0; i < 600 && session.machine.hopper.phase !== 'closing'; i++) advance(session, DT);
+    expect(session.machine.hopper.phase).toBe('closing');
+    const events: SessionEvent[] = [];
+    queuePayout(session.machine, POUR.threshold + 6);
+    advance(session, 4, events);
+    expect(session.machine.hopper.phase).toBe('shut');
+    expect(events.filter((event) => event.type === 'pourStart' || event.type === 'pourEnd')).toEqual([
+      { type: 'pourStart', medals: POUR.threshold + 6 },
+      { type: 'pourEnd', medals: POUR.threshold + 6 },
+    ]);
+  });
+
+  it('counts what is paid while the doors are out with the pour it joins', () => {
+    const session = createSession(5, { balls: 0 });
+    const events: SessionEvent[] = [];
+    queuePayout(session.machine, 40);
+    for (let i = 0; i < 600 && session.machine.hopper.phase !== 'pouring'; i++) advance(session, DT, events);
+    queuePayout(session.machine, 5);
+    for (let i = 0; i < 600 && session.machine.hopper.phase !== 'shut'; i++) advance(session, DT, events);
+    expect(of(events, 'pourStart')).toEqual([{ type: 'pourStart', medals: 40 }]);
+    expect(of(events, 'pourEnd')).toEqual([{ type: 'pourEnd', medals: 45 }]);
+  });
+
   it('says when towers start up on their lifts and when they stand built', () => {
     const session = createSession(5, { balls: 0 });
     const events: SessionEvent[] = [];

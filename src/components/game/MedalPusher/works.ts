@@ -177,9 +177,9 @@ export const DECK = HEIGHT.pusher;
 
 /** What the payout works did in a step of the session. */
 export type WorksEvent =
-  /** The hopper's doors began to open, with this many medals waiting to be poured. */
+  /** The hopper's doors began to drop open, from shut or from part of the way shut, with this many medals waiting to be poured. */
   | { type: 'pourStart'; medals: number }
-  /** The last medal has gone and the doors began to shut, this many having been poured since they stood shut. */
+  /** The last medal has gone and the doors began to shut, this many having been poured since they began to open. */
   | { type: 'pourEnd'; medals: number }
   /** This many lifts started on towers, which will hold this many medals between them. */
   | { type: 'towersRise'; towers: number; medals: number }
@@ -188,8 +188,9 @@ export type WorksEvent =
 
 /** What of the payout works is remembered across a step, to tell what changed in it. */
 export interface WorksWatch {
-  phase: DoorPhase;
-  poured: number;
+  /** The pours the hopper had begun, and whether it was in the middle of one: its doors dropping open, or open with medals coming. */
+  pours: number;
+  pouring: boolean;
   lifting: ReadonlySet<number>;
 }
 
@@ -199,27 +200,35 @@ const NOTHING: WorksEvent[] = [];
 const out = (phase: DoorPhase): boolean => phase === 'opening' || phase === 'pouring';
 
 export const watchWorks = (machine: Pick<Machine, 'hopper' | 'lifts'>): WorksWatch => ({
-  phase: machine.hopper.phase,
-  poured: machine.hopper.poured,
+  pours: machine.hopper.pours,
+  pouring: out(machine.hopper.phase),
   lifting: machine.lifts.length > 0 ? new Set(machine.lifts.filter(holds).map((lift) => lift.id)) : NONE,
 });
 
 /**
  * What the payout works have done since `before` was taken, in the order it
  * happened. It is told by what they were doing then and what they are doing
- * now. A step long enough for the doors to open, empty and begin to shut all
- * in one, which is some two seconds, is told by what they have poured; a lift
- * that starts and finishes within one step is not told at all.
+ * now, and by the hopper's own count of the pours it has begun. So a pour is
+ * told however long the step: one that begins, empties and begins to shut all
+ * within it, which takes some two seconds, is told whole, and so is a second
+ * one that happens to be as big as the one before it. A pour that began in
+ * this step began with what it has poured since and what is still waiting.
+ *
+ * A prize is paid between two steps of the field, so the doors begin at most
+ * one pour in a step, at its start, and no pour ends in a step in which the
+ * next begins. A machine that is handed medals while it runs could do that;
+ * of such a step the pour that began is told, and not the one that ended,
+ * whose count is no longer written anywhere. A lift that starts and finishes
+ * within one step is not told at all.
  */
 export function worksEvents(before: WorksWatch, machine: Pick<Machine, 'hopper' | 'lifts' | 'payoutQueue'>): readonly WorksEvent[] {
   const { hopper, lifts } = machine;
-  const wasOut = out(before.phase);
-  const isOut = out(hopper.phase);
-  if (wasOut === isOut && hopper.poured === before.poured && lifts.length === 0 && before.lifting.size === 0) return NOTHING;
+  const began = hopper.pours !== before.pours;
+  const pouring = out(hopper.phase);
+  if (!began && pouring === before.pouring && lifts.length === 0 && before.lifting.size === 0) return NOTHING;
   const events: WorksEvent[] = [];
-  const whole = !wasOut && !isOut && hopper.poured !== before.poured;
-  if ((!wasOut && isOut) || whole) events.push({ type: 'pourStart', medals: isOut ? machine.payoutQueue + hopper.poured : hopper.poured });
-  if ((wasOut && !isOut) || whole) events.push({ type: 'pourEnd', medals: hopper.poured });
+  if (began) events.push({ type: 'pourStart', medals: hopper.poured + (pouring ? machine.payoutQueue : 0) });
+  if ((began || before.pouring) && !pouring) events.push({ type: 'pourEnd', medals: hopper.poured });
   const started = lifts.filter((lift) => holds(lift) && !before.lifting.has(lift.id));
   if (started.length > 0) events.push({ type: 'towersRise', towers: started.length, medals: started.reduce((sum, lift) => sum + lift.size, 0) });
   const holding = new Set(lifts.filter(holds).map((lift) => lift.id));

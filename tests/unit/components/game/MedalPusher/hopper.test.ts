@@ -95,8 +95,8 @@ describe('a prize big enough to pour', () => {
     expect(machine.payoutQueue).toBe(0);
     const closing = run(machine, (m) => m.hopper.phase === 'shut');
     expect(closing.seconds).toBeCloseTo(POUR.closes, 1);
-    // Shut, it still says how many it poured.
-    expect(machine.hopper).toEqual({ phase: 'shut', clock: 0, poured: prize });
+    // Shut, it still says how many it poured, and that it was its first pour.
+    expect(machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: prize });
     expect(opening.seconds + pouring.seconds + closing.seconds + DT).toBeCloseTo(pourTime(prize), 1);
     // Every one of them is a medal on the field or one that has left it since.
     const rest = run(machine, (m) => m.falling.length === 0);
@@ -178,19 +178,39 @@ describe('a prize big enough to pour', () => {
     const before = doorsOpen(machine.hopper);
     expect(before).toBeGreaterThan(0.5);
     expect(before).toBeLessThan(0.75);
+    expect(machine.hopper).toMatchObject({ pours: 1, poured: POUR.threshold });
     queuePayout(machine, POUR.threshold);
     step(machine, DT);
     expect(machine.hopper.phase).toBe('opening');
     expect(doorsOpen(machine.hopper)).toBeCloseTo(before, 6);
-    // It is the same pour going on: the count carries on from where it was.
+    // The doors carry on from where they were, but it is a new pour, counted from nothing.
+    expect(machine.hopper).toMatchObject({ pours: 2, poured: 0 });
     const { let: poured } = run(machine, (m) => m.hopper.phase === 'closing');
     expect(poured).toHaveLength(POUR.threshold);
-    expect(machine.hopper.poured).toBe(POUR.threshold * 2);
-    // A new pour, from shut, starts its count again.
+    expect(machine.hopper).toMatchObject({ pours: 2, poured: POUR.threshold });
+    // And so is one from shut.
     run(machine, (m) => m.hopper.phase === 'shut');
     queuePayout(machine, POUR.threshold);
     step(machine, DT);
-    expect(machine.hopper).toMatchObject({ phase: 'opening', poured: 0 });
+    expect(machine.hopper).toMatchObject({ phase: 'opening', pours: 3, poured: 0 });
+  });
+
+  it('counts the pours it begins, and nothing else moves the count', () => {
+    const machine = createMachine(7);
+    expect(machine.hopper.pours).toBe(0);
+    // A small win is not a pour.
+    queuePayout(machine, POUR.threshold - 1);
+    run(machine, (m) => m.payoutQueue === 0);
+    expect(machine.hopper.pours).toBe(0);
+    for (let pour = 1; pour <= 3; pour++) {
+      queuePayout(machine, POUR.threshold);
+      step(machine, DT);
+      expect(machine.hopper.pours).toBe(pour);
+      // More paid while the doors are out is the same pour.
+      queuePayout(machine, 4);
+      run(machine, (m) => m.hopper.phase === 'shut');
+      expect(machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: pour, poured: POUR.threshold + 4 });
+    }
   });
 
   it('pours what the towers could not hold', () => {

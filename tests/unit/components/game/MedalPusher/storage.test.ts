@@ -2996,6 +2996,11 @@ describe('the payout works in a save', () => {
     ['open doors with a clock running', 1, (save) => (doors(save).clock = 0.1)],
     ['doors doing something a hopper does not do', 1, (save) => (doors(save).phase = 'jammed')],
     ['doors that have poured half a medal', 1, (save) => (doors(save).poured = 20.5)],
+    ['doors that are pouring and have never begun a pour', 1, (save) => (doors(save).pours = 0)],
+    ['shut doors that have poured and have never begun a pour', 4, (save) => (doors(save).pours = 0)],
+    ['doors that have begun half a pour', 1, (save) => (doors(save).pours = 1.5)],
+    ['doors with no count of their pours', 1, (save) => delete doors(save).pours],
+    ['doors still dropping open with some of the prize already gone', 0, (save) => (doors(save).poured = 3)],
     ['doors with a part too many', 1, (save) => (doors(save).swing = 1)],
     ['no doors at all', 1, (save) => delete save.machine.hopper],
     ['no list of lifts', 1, (save) => delete save.machine.lifts],
@@ -3007,6 +3012,26 @@ describe('the payout works in a save', () => {
     ['a lift building a taller tower than the one on it', 1, (save) => (liftsIn(save)[0].size = (liftsIn(save)[0].size as number) + 1)],
     ['a lift under a ball', 1, (save) => Object.assign(towerOn(save, liftsIn(save)[0]), { ball: true })],
     ['a lift under a tower on the lower table', 1, (save) => (towerOn(save, liftsIn(save)[0]).level = 0)],
+    // A tower is put on the deck itself. One lying on other medals is carried along by them after its lift has placed it.
+    ['a tower in its guard lying on top of other medals', 1, (save) => (towerOn(save, liftsIn(save)[0]).tier = 1)],
+    ['a tower in its guard lying on top of other medals, its guard still rising', 0, (save) => (towerOn(save, liftsIn(save)[0]).tier = 1)],
+    [
+      'a lift whose hatch is in the side wall, its tower with it',
+      1,
+      (save) => {
+        liftsIn(save)[0].x = 1;
+        towerOn(save, liftsIn(save)[0]).x = 1;
+      },
+    ],
+    [
+      'a tower held inside the back wall, where its hatch has gone',
+      1,
+      (save) => {
+        const [lift] = liftsIn(save);
+        lift.behind = pusherFront(save.machine.time as number) - 1;
+        towerOn(save, lift).y = 1;
+      },
+    ],
     [
       'a tower that has begun to come up before its guard is',
       0,
@@ -3034,6 +3059,48 @@ describe('the payout works in a save', () => {
     expect(restore(JSON.stringify(save), 1)).not.toBeNull();
     forge(save);
     expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it('would have had a tower lying on other medals carried off its lift by the next step, which is why it is refused', () => {
+    const session = caught(MOMENTS[1][1]);
+    const [lift] = session.machine.lifts;
+    const tower = session.machine.medals.find((medal) => medal.id === lift.id) as Medal;
+    // As the machine makes it, the tower is on the deck, and it is still on its lift a step later.
+    expect(tower.tier).toBe(0);
+    const offLift = (): number => Math.hypot(tower.x - lift.x, tower.y - (pusherFront(session.machine.time) - lift.behind));
+    advance(session, DT);
+    expect(offLift()).toBeLessThan(LIMITS.held);
+    expect(restore(serialize(session), 1)).not.toBeNull();
+    // Forged onto the pile, with a medal under it that another is pushing aside, it is carried along with that medal after its lift has placed it.
+    tower.tier = 1;
+    const lying = (x: number): Medal => ({ id: session.machine.nextId++, x, y: tower.y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    session.machine.medals.push(lying(tower.x + 1), lying(tower.x + 1 + MEDAL_RADIUS * 1.8));
+    expect(restore(serialize(session), 1)).toBeNull();
+    let furthest = 0;
+    for (let i = 0; i < 30; i++) {
+      advance(session, DT);
+      furthest = Math.max(furthest, offLift());
+    }
+    expect(furthest).toBeGreaterThan(LIMITS.held);
+  });
+
+  it('takes a tower held against the back wall where the wall has come as far forward as its hatch, and goes on taking it', () => {
+    // Only a tower that was going up near the wall in a game before the lifts can be found there: today's hatches are all clear of it.
+    const session = caught(MOMENTS[1][1]);
+    const [lift] = session.machine.lifts;
+    const tower = session.machine.medals.find((medal) => medal.id === lift.id) as Medal;
+    lift.behind = pusherFront(session.machine.time) - 1;
+    tower.y = MEDAL_RADIUS;
+    let back = restore(serialize(session), 1);
+    expect(back).not.toBeNull();
+    for (let i = 0; i < 90 && back; i++) {
+      advance(back, DT);
+      const held = back.machine.lifts.find((one) => one.id === lift.id && holds(one));
+      const at = back.machine.medals.find((medal) => medal.id === lift.id);
+      if (held && at) expect(at.y).toBeCloseTo(Math.max(MEDAL_RADIUS, pusherFront(back.machine.time) - held.behind), 6);
+      back = restore(serialize(back), 1);
+    }
+    expect(back).not.toBeNull();
   });
 
   it('takes a guard that is sinking with its tower already pushed away and gone over', () => {

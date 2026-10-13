@@ -1985,6 +1985,87 @@
   background: var(--mp-neon);
   color: #03202a;
 }
+/* The button that opens the sound settings: a switch with nothing on it but its picture, lit while they are open. */
+.soundMore {
+  padding-inline: 0.6rem;
+}
+.soundMore[aria-expanded='true'] {
+  border-color: var(--mp-neon);
+  box-shadow: 0 0 0 1px var(--mp-neon);
+}
+.soundMoreIcon {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+/* The sound settings, in a row of their own under the switches, as wide as the panel: the volume, and beside it the
+   switch for the background loop alone. On a phone the row is as short as an aim slider. */
+.soundPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  padding: 0.45rem 0.65rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #4b3f8a;
+  background: #0b0620;
+}
+/* Its switch is as tall as the switches above it, which a picture on one of them makes taller than their words. */
+.soundPanel .toggle {
+  min-height: 2.15rem;
+}
+.volume {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.volumeLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #cfc6ff;
+}
+.volumeValue {
+  font-variant-numeric: tabular-nums;
+  color: #f4f1ff;
+}
+.volumeMark {
+  margin-left: 0.35em;
+  font-weight: 700;
+  color: #cfc6ff;
+}
+/* The slider, and behind it a notch in the middle of its travel: the level the cabinet was made at. */
+.volumeTrack {
+  position: relative;
+  display: grid;
+}
+.volumeTrack::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+.volumeSlider {
+  position: relative;
+  width: 100%;
+  margin: 0.2rem 0;
+  accent-color: var(--mp-neon);
+}
+.volumeSlider:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
 /* A rail's feed button: a big round arcade button at its own end of the panel. Two of them are held down at once
    with two fingers, so a touch on one is the button's alone: the browser does not scroll, zoom or select with it. */
 .feed {

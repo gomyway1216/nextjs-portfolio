@@ -21,6 +21,7 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
 import { keepMachine } from './savedMachine';
@@ -199,6 +200,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const [held, setHeld] = useState<[boolean, boolean]>([false, false]);
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
+  // How loud the player has the cabinet and whether its loop plays, kept on this device apart from the machine.
+  const soundControl = useSoundSettings();
+  const musicOn = soundControl.settings.music;
   const [announcement, setAnnouncement] = useState('');
   // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
   const [armedAt, setArmedAt] = useState<number | null>(null);
@@ -315,13 +319,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     };
   }, [active]);
 
-  // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
-  // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
-  // fanfare and loop stop with it, and the loop starts again from the top for the new one.
+  // The background loop plays while the sound is on, the player has not switched the loop off, and this tab is
+  // showing. Switching the sound off, or leaving the cabinet, cuts short whatever is still ringing. So does a
+  // reset: the old machine's reels, fanfare and loop stop with it, and the loop starts again from the top for the new one.
   useEffect(() => {
-    setMusic(sound && active);
+    setMusic(sound && active && musicOn);
     return () => setMusic(false);
-  }, [sound, active, switchedOn]);
+  }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
 
   // The keeper is set up once, before anything asks it for a machine.
@@ -913,7 +917,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
               <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
             </button>
+            <SoundSettingsButton control={soundControl} strings={t} />
           </div>
+          <SoundSettingsPanel control={soundControl} strings={t} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">

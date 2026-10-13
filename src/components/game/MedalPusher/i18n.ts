@@ -208,6 +208,22 @@ export interface PusherStrings {
   aimLabel: [string, string];
   /** The line under the controls that says what the keys do. */
   keysNote: string;
+  /**
+   * The switches of feel under the controls: what the row is called, and each switch's name and what it does. The
+   * first is the aim that swings by itself, which the cabinet calls Swing.
+   */
+  feelLabel: string;
+  swing: string;
+  swingHint: string;
+  /** The line shown while the rails swing, and what is said when Swing goes on, goes off, and gives way to a hand on an aim. */
+  swingNote: string;
+  saySwingOn: string;
+  saySwingOff: string;
+  saySwingTaken: string;
+  vibration: string;
+  vibrationHint: string;
+  fullscreen: string;
+  fullscreenHint: string;
 }
 
 const en: PusherStrings = {
@@ -454,6 +470,17 @@ const en: PusherStrings = {
   feedHint: (key) => `Hold to keep feeding. Key: ${key}`,
   aimLabel: ['Left rail aim', 'Right rail aim'],
   keysNote: 'Keys: F and J feed the left and right rails, and can be held together. S and D aim the left rail, K and L the right.',
+  feelLabel: 'Ways to play',
+  swing: 'Swing',
+  swingHint: 'The rails swing left and right by themselves, and you only time L and R. Touch a slider or the field to aim by hand again.',
+  swingNote: 'Swing: the rails move by themselves. Press L or R when the ▼ over a slider is where the medal should drop.',
+  saySwingOn: 'Swing is on: the rails are swinging. Press L or R to feed a medal.',
+  saySwingOff: 'Swing is off.',
+  saySwingTaken: 'Swing is off: you are aiming by hand.',
+  vibration: 'Vibrate',
+  vibrationHint: 'The phone ticks when a medal goes in and buzzes for a win.',
+  fullscreen: 'Fullscreen',
+  fullscreenHint: 'The cabinet and its controls fill the screen.',
 };
 
 const ja: PusherStrings = {
@@ -699,6 +726,17 @@ const ja: PusherStrings = {
   feedHint: (key) => `押し続けると連続で入ります。キー: ${key}`,
   aimLabel: ['左のレールの狙い', '右のレールの狙い'],
   keysNote: 'キー操作: FとJで左右のレールにメダルを入れます（同時に押せます）。SとDで左のレール、KとLで右のレールの狙いを動かします。',
+  feelLabel: '遊び方の設定',
+  swing: 'スイング',
+  swingHint: 'レールが自動で左右に振れます。LとRを押すタイミングだけで狙います。スライダーかフィールドに触れると、手動の狙いに戻ります。',
+  swingNote: 'スイング中: レールが自動で振れます。スライダーの上の▼が落としたい位置に来たら、LかRを押します。',
+  saySwingOn: 'スイングをオンにしました。レールが左右に振れています。LかRを押してメダルを入れてください。',
+  saySwingOff: 'スイングをオフにしました。',
+  saySwingTaken: 'スイングをオフにしました。手動で狙います。',
+  vibration: '振動',
+  vibrationHint: 'メダルを入れたときや当たったときに、スマートフォンが振動します。',
+  fullscreen: '全画面',
+  fullscreenHint: '筐体と操作パネルを画面いっぱいに表示します。',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

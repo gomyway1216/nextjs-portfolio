@@ -2065,6 +2065,346 @@
   }
 }
 
+/* ---------- Phone feel ----------
+   What makes the cabinet sit right under a thumb. Nothing in it selects, zooms or calls up a menu; every control
+   is at least 44 px to hit; the switches of feel have a row of their own; and the cabinet can fill the screen.
+   These rules come after the controls' own and only add to them. */
+
+/* Nothing in the cabinet is text to select or copy. A long press on a button used to select the nearest words (the
+   medals on the plate, a slider's label) and bring up the callout over them, and a double tap zoomed the page.
+   `manipulation` still lets the page be scrolled and pinched from here; the field and the feed buttons, which
+   allow less, keep their own. */
+.cabinet {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* Under a notch or a home bar, where the page is laid out to the edges of the screen. */
+.root {
+  padding-left: max(clamp(0.75rem, 3vw, 1.5rem), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(0.75rem, 3vw, 1.5rem), env(safe-area-inset-right, 0px));
+  padding-bottom: max(3rem, env(safe-area-inset-bottom, 0px));
+}
+/* Every control is at least 44 px to hit. The switches and the tabs were 32 to 37 px tall: they look as they did,
+   and what takes the touch is a strip 44 px tall through the middle of each. The rows of switches are far enough
+   apart that the strips of two rows do not meet. The refill and the reset are simply that tall. */
+.toggle,
+.tab {
+  position: relative;
+}
+.toggle::after,
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+.refill,
+.reset {
+  min-height: 44px;
+}
+.toggle {
+  justify-content: center;
+  touch-action: manipulation;
+}
+.toggle svg {
+  flex: none;
+}
+.toggles {
+  margin-top: 0.15rem;
+}
+/* An aim slider: 44 px to hit, with a thumb a finger can find. A sideways drag is the slider's, and a swipe up or
+   down it still scrolls the page. The box is taller than the track looks, so it is drawn up under its label. */
+.aim {
+  position: relative;
+}
+.aimSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 44px;
+  margin: -4px 0 -6px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.aimSlider::-webkit-slider-runnable-track {
+  box-sizing: border-box;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #6a5fb5;
+  background: #0b0620;
+}
+.aimSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin-top: -10px;
+  border-radius: 50%;
+  border: 2px solid #03202a;
+  background: var(--mp-neon);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+.aimSlider::-moz-range-track {
+  box-sizing: border-box;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #6a5fb5;
+  background: #0b0620;
+}
+.aimSlider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #03202a;
+  background: var(--mp-neon);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+/* The marks over a slider while the rails swing: a notch for each START pocket its rail can feed, and an arrow
+   where a medal fed now would drop. They are placed along the thumb's travel, which is the track less half a thumb
+   at either end, and take no touch from the slider under them. */
+.aimMarks {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  height: 0;
+  pointer-events: none;
+}
+.aimPocket,
+.aimLead {
+  position: absolute;
+  left: calc(100% * var(--mp-at, 0));
+  transform: translateX(-50%);
+}
+.aimPocket {
+  top: -11px;
+  width: 2px;
+  height: 22px;
+  border-radius: 1px;
+  background: rgba(255, 214, 92, 0.75);
+}
+.aimLead {
+  bottom: 7px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--mp-gold);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+/* The switches of feel: one short row under the others, and under it, while the rails swing, what to do about it. */
+.feel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-top: 0.1rem;
+}
+.feelRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem 0.3rem;
+}
+/* Three of them fit in one row on the narrowest phone that has all three, 360 px wide. */
+.feelRow .toggle {
+  min-height: 2.15rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.76rem;
+}
+.feelNote {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #cfc6ff;
+}
+
+/* The cabinet filling the screen: the picture and its controls and nothing else, laid out to fit without scrolling.
+   The stage takes the room the rest leaves and the picture is as large as fits in it, so its canvases are told a new
+   size and stay sharp. Upright, the controls are under the stage, as on the page. */
+.cabinet:fullscreen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: max(6px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px))
+    max(8px, env(safe-area-inset-left, 0px));
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  /* Nothing behind it to scroll or to pull down, and what does not fit a very small screen can still be reached. */
+  overflow: hidden auto;
+  overscroll-behavior: none;
+  container-type: size;
+}
+.cabinet:fullscreen > .bulbs,
+.cabinet:fullscreen > .keysNote {
+  display: none;
+}
+.cabinet:fullscreen .marquee,
+.cabinet:fullscreen .legendBelow,
+.cabinet:fullscreen .panel,
+.cabinet:fullscreen .refill {
+  flex: none;
+  margin-top: 0;
+}
+.cabinet:fullscreen .marquee {
+  padding: 0.25rem 0.7rem;
+}
+/* The stage is the room that is left, and the picture stands in the middle of it, as large as fits: the three sheets
+   it is made of, the screen's, the scene's and the field's, each get that size. */
+.cabinet:fullscreen .fieldWrap {
+  flex: 1 1 0;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  container-type: size;
+}
+.cabinet:fullscreen .wallSpace,
+.cabinet:fullscreen .scene,
+.cabinet:fullscreen .field {
+  grid-area: 1 / 1;
+  position: relative;
+  inset: auto;
+  width: min(100cqw, 100cqh * 640 / 860);
+  height: auto;
+  aspect-ratio: 640 / 860;
+  border-radius: 10px;
+}
+/* A pixel of the drawing is a share of the picture's width now, not of the stage's: for the room the screen stands
+   in, and, exactly as on the page, for everything on its sheet. */
+.cabinet:fullscreen .wallSpace {
+  --mp-u: calc(min(100cqw, 100cqh * 640 / 860) / 640);
+  background: #05030d;
+  container-type: inline-size;
+}
+.cabinet:fullscreen .wall {
+  --mp-u: calc(100cqw / 640);
+}
+/* There is no page to scroll here, so a finger on the field is aiming whichever way it moves. */
+.cabinet:fullscreen .field {
+  touch-action: none;
+}
+/* A short screen held upright gives the stage what it can: the name on one line, no legend, smaller buttons. */
+@media (orientation: portrait) and (max-height: 720px) {
+  .cabinet:fullscreen .logoSub,
+  .cabinet:fullscreen .legendBelow {
+    display: none;
+  }
+  .cabinet:fullscreen .feed {
+    width: 4.5rem;
+  }
+  .cabinet:fullscreen .panel {
+    padding: 0.45rem 0.7rem;
+  }
+}
+/* On its side, the stage stands in the middle at the full height of the screen, and the controls are at either hand:
+   the left rail's under the left thumb and the right rail's under the right, as on a handheld. */
+@media (orientation: landscape) {
+  .cabinet:fullscreen {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) auto minmax(0, 22rem);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'logo stage jackpot'
+      'credit stage toggles'
+      'feel stage refill'
+      'aimL stage aimR'
+      'feedL stage feedR';
+    justify-content: center;
+    align-items: center;
+    gap: 6px 12px;
+    overflow: hidden;
+  }
+  .cabinet:fullscreen .marquee,
+  .cabinet:fullscreen .panel,
+  .cabinet:fullscreen .aims {
+    display: contents;
+  }
+  .cabinet:fullscreen .legendBelow {
+    display: none;
+  }
+  .cabinet:fullscreen .fieldWrap {
+    grid-area: stage;
+    align-self: stretch;
+    width: min(100cqw - 20rem, 100cqh * 640 / 860);
+  }
+  .cabinet:fullscreen .logo {
+    grid-area: logo;
+  }
+  .cabinet:fullscreen .logoMain {
+    font-size: min(1.7rem, 2.5cqw);
+  }
+  .cabinet:fullscreen .logoSub {
+    font-size: min(0.78rem, 1.2cqw);
+  }
+  .cabinet:fullscreen .jackpotBox {
+    grid-area: jackpot;
+    justify-self: end;
+  }
+  .cabinet:fullscreen .credit {
+    grid-area: credit;
+    justify-self: start;
+  }
+  .cabinet:fullscreen .toggles {
+    grid-area: toggles;
+    justify-content: flex-end;
+  }
+  .cabinet:fullscreen .feel {
+    grid-area: feel;
+    align-self: start;
+  }
+  .cabinet:fullscreen .feelRow {
+    justify-content: flex-start;
+  }
+  .cabinet:fullscreen .feelNote {
+    text-align: left;
+  }
+  .cabinet:fullscreen .refill {
+    grid-area: refill;
+    align-self: start;
+  }
+  .cabinet:fullscreen .aim[data-arm='0'] {
+    grid-area: aimL;
+  }
+  .cabinet:fullscreen .aim[data-arm='1'] {
+    grid-area: aimR;
+  }
+  .cabinet:fullscreen .feed {
+    width: clamp(4.5rem, 22cqh, 6rem);
+  }
+  .cabinet:fullscreen .feed[data-arm='0'] {
+    grid-area: feedL;
+    justify-self: start;
+    margin: 0 0 6px 10px;
+  }
+  .cabinet:fullscreen .feed[data-arm='1'] {
+    grid-area: feedR;
+    justify-self: end;
+    margin: 0 10px 6px 0;
+  }
+}
+
 /* The tally beside the cabinet */
 .tally,
 .panelBox {

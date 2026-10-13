@@ -2,7 +2,10 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
+import { FeelControls } from './FeelControls';
+import { buzz, hapticFor } from './haptics';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
@@ -23,6 +26,7 @@ import {
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
+import { useFeel, type FeelNow } from './useFeel';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -59,6 +63,13 @@ export const AIM_RANGE = [
   { min: aimPercent(ARM_REACH[0].min), max: aimPercent(ARM_REACH[0].max) },
   { min: aimPercent(ARM_REACH[1].min), max: aimPercent(ARM_REACH[1].max) },
 ] as const;
+/** How far along a rail's slider a spot is, from 0 at its left end to 1 at its right: where a mark over the slider goes. */
+export const sliderShare = (arm: Arm, percent: number): number => {
+  const { min, max } = AIM_RANGE[arm];
+  return Math.min(1, Math.max(0, (percent - min) / (max - min)));
+};
+/** The START pockets each rail can feed, in the sliders' percent: what its slider marks as worth timing a press for. */
+export const POCKETS_IN_REACH = ([0, 1] as const).map((arm) => CHECKERS.positions.filter((x) => x >= ARM_REACH[arm].min && x <= ARM_REACH[arm].max).map(aimPercent)) as [number[], number[]];
 
 /** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
 const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
@@ -217,6 +228,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   // The aim keys that are down, and the rail each pointer on the field is aiming.
   const aimKeys = useRef(new Set<string>());
   const aimers = useRef(new Map<number, Arm>());
+  // The fingers on the field that have not shown yet whether they are aiming or scrolling the page: where each went
+  // down, and on which rail's half.
+  const waiting = useRef(new Map<number, { x: number; y: number; arm: Arm }>());
+  // How the machine feels in the hand: Sweep, vibration and the screen kept awake (feel.ts). The frame loop reads the
+  // player's choices from `feelNow`, and tells `wake` of every medal.
+  const feelNow = useRef<FeelNow>({ sweep: false, vibrate: false });
+  const wake = useRef<WakeKeeper | null>(null);
+  const feel = useFeel(feelNow, wake);
+  // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
+  const [lead, setLead] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     live.current = { auto, sound, active, strings: t };
@@ -246,10 +267,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const releaseRail = (arm: Arm, by: string) => {
     if (holds.current[arm].by.delete(by)) showHeld();
   };
+  /** A hand on an aim takes over from Sweep, which goes off and says so. */
+  const takeOver = () => {
+    if (!feelNow.current.sweep) return;
+    feel.setSweep(false);
+    setAnnouncement(t.saySwingTaken);
+  };
   /** Points one rail at a spot across the field, as near as it can point, and shows where that is. */
   const aimRail = (arm: Arm, x: number) => {
     const session = sessionRef.current;
     if (!session) return;
+    takeOver();
     aimArm(session.machine, arm, x);
     setAims([session.machine.aims[0], session.machine.aims[1]]);
   };
@@ -296,6 +324,31 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', letGo);
+      letGo();
+    };
+  }, [active]);
+
+  // A finger's press can end unheard too. The page is hidden, or the window loses the pointer, with a finger still
+  // down, and it comes up where nothing hears it: the rail would go on streaming when the page came back. So whoever
+  // is holding a feed, or aiming on the field, has let go by then, and so they have when this tab is put away.
+  useEffect(() => {
+    if (!active) return;
+    const letGo = () => {
+      for (const hold of holds.current) hold.by.clear();
+      aimers.current.clear();
+      waiting.current.clear();
+      setHeld((was) => (was[0] || was[1] ? [false, false] : was));
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') letGo();
+    };
+    window.addEventListener('blur', letGo);
+    window.addEventListener('pagehide', letGo);
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      window.removeEventListener('blur', letGo);
+      window.removeEventListener('pagehide', letGo);
+      document.removeEventListener('visibilitychange', whenHidden);
       letGo();
     };
   }, [active]);
@@ -389,6 +442,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let shownAims: [number, number] = [session.machine.aims[0], session.machine.aims[1]];
     let autoClock = 0;
     let autoArm: Arm = 0;
+    // What the hand has been told of: the medals fed so far, and where the sliders' marks stand while the rails swing.
+    let fedSeen = session.inserted;
+    let shownLead: [number, number] | null = null;
     let lastSpinClock = 0;
     let last = performance.now();
     const events: SessionEvent[] = [];
@@ -421,6 +477,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
+      // A medal has gone in since the last frame, from a button, a key or Auto. The screen is kept awake for it, and the
+      // hand is told: a tick for a press, a slower one while a button stays held, and nothing for Auto, which no
+      // finger is working (haptics.ts).
+      if (session.inserted !== fedSeen) {
+        fedSeen = session.inserted;
+        wake.current?.played();
+        const pressed = holds.current.some((hold) => now / 1000 - hold.since < HOLD_DELAY);
+        const holding = holds.current.some((hold) => hold.by.size > 0);
+        if (pressed || holding) buzz(pressed ? 'feed' : 'stream', feelNow.current.vibrate, now);
+      }
 
       // An aim key that is held down moves its rail's aim. Each arm swings after its own aim, and a medal on a
       // rail drops where its arm's tip is when it gets there.
@@ -428,10 +494,24 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         const turn = AIM_KEYS[code];
         if (turn) aimArm(session.machine, turn.arm, session.machine.aims[turn.arm] + turn.by * AIM_KEY.speed * elapsed);
       }
+      // With Sweep on the rails swing by themselves: the aim is put in for the player, from the machine's own clock,
+      // where the tips belong when this frame is over (feel.ts).
+      const sweeping = feelNow.current.sweep;
+      const then = session.machine.time + elapsed;
+      if (sweeping) sweepTo(session.machine, then);
+      // The sliders work in whole percent, so they are told only when an aim has moved by one. While the rails swing,
+      // a mark over each shows where a medal fed now would drop, which is where its tip will be a roll from now; the
+      // marks move when the sliders do, in the same render, so the cabinet is not drawn again for them alone.
       const [leftAim, rightAim] = session.machine.aims;
-      if (leftAim !== shownAims[0] || rightAim !== shownAims[1]) {
+      const moved = aimPercent(leftAim) !== aimPercent(shownAims[0]) || aimPercent(rightAim) !== aimPercent(shownAims[1]);
+      if (moved) {
         shownAims = [leftAim, rightAim];
         setAims(shownAims);
+      }
+      if (sweeping ? moved || !shownLead : shownLead !== null) {
+        const drops = sweeping ? sweepLead(then) : null;
+        shownLead = drops && [aimPercent(drops[0]), aimPercent(drops[1])];
+        setLead(shownLead);
       }
       events.length = 0;
       advance(session, elapsed, events);
@@ -534,6 +614,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) playSound('land', soundOn);
+      // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts).
+      const felt = hapticFor(events);
+      if (felt) buzz(felt, feelNow.current.vibrate, now);
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
@@ -696,6 +779,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     </button>
   );
 
+  const onSweep = (on: boolean) => {
+    feel.setSweep(on);
+    setAnnouncement(on ? t.saySwingOn : t.saySwingOff);
+  };
+
   const toggleSound = () => {
     if (!sound) void unlockAudio();
     setSound(!sound);
@@ -781,6 +869,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
               const x = acrossAt(event);
               if (x === null) return;
               const arm = armFor(x);
+              // A finger may be about to scroll the page instead. It aims once it has shown that it is not: when it
+              // drags sideways, or comes up again where it went down (feel.ts).
+              if (!aimsOnContact(event.pointerType, window.getComputedStyle(event.currentTarget).touchAction)) {
+                waiting.current.set(event.pointerId, { x: event.clientX, y: event.clientY, arm });
+                return;
+              }
               aimers.current.set(event.pointerId, arm);
               try {
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -790,15 +884,31 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
               aimRail(arm, x);
             }}
             onPointerMove={(event) => {
+              // A finger that was waiting and has gone sideways is dragging across the field: from here on it aims.
+              const began = waiting.current.get(event.pointerId);
+              if (began && isSidewaysDrag(event.clientX - began.x, event.clientY - began.y)) {
+                waiting.current.delete(event.pointerId);
+                aimers.current.set(event.pointerId, began.arm);
+              }
               const arm = aimers.current.get(event.pointerId);
               if (arm !== undefined) {
                 const x = acrossAt(event);
                 if (x !== null) aimRail(arm, x);
               } else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
             }}
-            onPointerUp={(event) => aimers.current.delete(event.pointerId)}
+            onPointerUp={(event) => {
+              // A finger that comes up without having scrolled or dragged was a tap: it aims where it is, on the rail
+              // of the half it went down on.
+              const began = waiting.current.get(event.pointerId);
+              waiting.current.delete(event.pointerId);
+              const x = began ? acrossAt(event) : null;
+              if (began && x !== null) aimRail(began.arm, x);
+              aimers.current.delete(event.pointerId);
+            }}
             onPointerCancel={(event) => {
               // The browser took the gesture for a scroll: the aim stays where the drag had got to, and no click follows.
+              // A finger that had not aimed yet never does: scrolling the page past the cabinet leaves the rails alone.
+              waiting.current.delete(event.pointerId);
               aimers.current.delete(event.pointerId);
               pressedChest.current = null;
             }}
@@ -854,8 +964,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
                   value={aimPercent(aims[arm])}
                   aria-valuetext={t.aimValue(aimPercent(aims[arm]))}
                   data-testid={arm === 0 ? 'pusher-aim-left' : 'pusher-aim-right'}
+                  onPointerDown={takeOver}
                   onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
                 />
+                {feel.prefs.sweep && lead && (
+                  <span className={styles.aimMarks} aria-hidden data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]}>
+                    {POCKETS_IN_REACH[arm].map((pocket) => (
+                      <i key={pocket} className={styles.aimPocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
+                    ))}
+                    <i className={styles.aimLead} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -867,6 +986,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
               <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
             </button>
           </div>
+          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">

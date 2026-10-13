@@ -1,0 +1,1328 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  ACCOUNT_LIMIT,
+  CLOUD_FORMAT,
+  GUEST,
+  MOMENT_GAP,
+  RETRY_AFTER,
+  SEND_EVERY,
+  createSync,
+  decide,
+  fromCloud,
+  sizeOf,
+  slotFor,
+  toCloud,
+  type AccountStore,
+  type Kept,
+  type Player,
+  type Slots,
+  type Standing,
+  type Status,
+  type Sync,
+  type Verdict,
+} from '@/components/game/MedalPusher/account';
+
+// Everything here runs on fakes: a clock that is moved by hand, a storage that is a map, and an account that is
+// another map behind promises. Nothing is fetched and no real account is named.
+
+/** A document for the tests: its books are what is worth sending, and its field is what changes all the time. */
+const doc = (books: number, field = 0): string => JSON.stringify({ ok: true, books, field });
+const booksIn = (text: string | null): number | null => (text === null ? null : (JSON.parse(text) as { books: number }).books);
+
+class FakeSlots implements Slots {
+  map = new Map<string, string>();
+  /** Storage that is blocked: every call throws. */
+  blocked = false;
+  /** Storage that is full: nothing more can be written, and what is there can be read and removed. */
+  full = false;
+  getItem(key: string): string | null {
+    if (this.blocked) throw new Error('blocked');
+    return this.map.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    if (this.blocked || this.full) throw new Error(this.full ? 'full' : 'blocked');
+    this.map.set(key, value);
+  }
+  removeItem(key: string): void {
+    if (this.blocked) throw new Error('blocked');
+    this.map.delete(key);
+  }
+}
+
+/** The account's side: one document for each account, a clock of its own, and a way to be down. */
+class FakeAccounts {
+  docs = new Map<string, { state: unknown; updatedAt: number }>();
+  calls: string[] = [];
+  /** The account cannot be reached: reads and writes fail. */
+  down = false;
+  /** The server's clock less the device's. */
+  ahead = 0;
+  /** The accounts a token is in hand for. */
+  ready = new Set<string>();
+  /** Writes that have been sent and not yet answered, when the test wants to answer them itself. */
+  held: (() => void)[] | null = null;
+  /** The same for reads: each waits here to be answered. */
+  heldReads: (() => void)[] | null = null;
+  /** A write made as the page is left is sent and never heard of again. */
+  silent = false;
+
+  constructor(private readonly device: () => number) {}
+
+  time(): number {
+    return this.device() + this.ahead;
+  }
+  /** Puts a copy on an account as another device would have. */
+  put(uid: string, text: string, mark: string, at = this.time()): void {
+    this.docs.set(uid, { state: toCloud(text, mark, at), updatedAt: at });
+  }
+  /** The text of an account's copy. */
+  text(uid: string): string | null {
+    const found = this.docs.get(uid);
+    return found ? (fromCloud(found.state)?.text ?? null) : null;
+  }
+  count(kind: 'load' | 'store' | 'storeNow' | 'prepare'): number {
+    return this.calls.filter((call) => call.split(' ')[0] === kind).length;
+  }
+
+  store: AccountStore = {
+    load: async (uid) => {
+      this.calls.push(`load ${uid}`);
+      if (this.heldReads) {
+        const waiting = this.heldReads;
+        await new Promise<void>((resolve) => waiting.push(resolve));
+      }
+      if (this.down) throw new Error('unreachable');
+      const found = this.docs.get(uid);
+      return found ? { state: JSON.parse(JSON.stringify(found.state)) as unknown, updatedAt: new Date(found.updatedAt).toISOString(), serverTime: new Date(this.time()).toISOString() } : null;
+    },
+    store: (uid, state) => {
+      this.calls.push(`store ${uid}`);
+      const write = (): void => {
+        this.docs.set(uid, { state: JSON.parse(JSON.stringify(state)) as unknown, updatedAt: this.time() });
+      };
+      if (this.held) {
+        const held = this.held;
+        return new Promise<void>((resolve) => {
+          held.push(() => {
+            write();
+            resolve();
+          });
+        });
+      }
+      if (this.down) return Promise.reject(new Error('unreachable'));
+      write();
+      return Promise.resolve();
+    },
+    prepare: async (uid) => {
+      this.calls.push(`prepare ${uid}`);
+      if (!this.down) this.ready.add(uid);
+    },
+    storeNow: (uid, state) => {
+      if (!this.ready.has(uid)) return null;
+      this.calls.push(`storeNow ${uid}`);
+      if (this.silent) return new Promise<boolean>(() => undefined);
+      if (this.down) return Promise.resolve(false);
+      this.docs.set(uid, { state: JSON.parse(JSON.stringify(state)) as unknown, updatedAt: this.time() });
+      return Promise.resolve(true);
+    },
+  };
+}
+
+/** Lets everything that has been promised happen. */
+const settled = async (): Promise<void> => {
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+};
+
+const signedIn = (uid: string): Player => ({ uid, settled: true, expected: true });
+/** The site still restoring a session it expects: nobody yet, and somebody expected. */
+const RESTORING: Player = { uid: null, settled: false, expected: true };
+
+const SLOT = 'machine';
+/** What a new document is, when there is nothing to open with. */
+const NEW = doc(0);
+
+/**
+ * A cabinet around the keeper, doing what the real one does: it opens with
+ * what it is given or with a new document, saves at once, and when it is asked
+ * to reopen it does so later, as React would, after saving what it had as left.
+ */
+function rig(options: { store?: boolean; settle?: (standing: Standing) => Verdict } = {}) {
+  const clock = { now: Date.UTC(2026, 9, 12, 9, 0, 0) };
+  const slots = new FakeSlots();
+  const accounts = new FakeAccounts(() => clock.now);
+  const statuses: Status[] = [];
+  const table = { text: null as string | null, field: 0, reopens: 0, asked: false };
+  let marks = 0;
+  const kept: Kept = {
+    slot: SLOT,
+    current: () => table.text,
+    reads: (text) => {
+      try {
+        return (JSON.parse(text) as { ok?: unknown }).ok === true;
+      } catch {
+        return false;
+      }
+    },
+    print: (text) => String(booksIn(text)),
+    settle: options.settle ?? decide,
+    reopen: () => {
+      table.asked = true;
+    },
+  };
+  const sync: Sync = createSync({
+    kept,
+    store: options.store === false ? null : accounts.store,
+    slots: () => slots,
+    now: () => clock.now,
+    mark: () => `mark-${++marks}`,
+    onStatus: (status) => statuses.push(status),
+  });
+  const cabinet = {
+    /** Switches the cabinet on for a player. */
+    async start(player: Player = GUEST): Promise<void> {
+      sync.player(player);
+      table.text = sync.open() ?? NEW;
+      sync.save('tick');
+      await cabinet.rest();
+    },
+    /** Lets promises settle, and reopens as often as it has been asked to. */
+    async rest(): Promise<void> {
+      await settled();
+      while (table.asked) {
+        table.asked = false;
+        table.reopens += 1;
+        sync.save('left');
+        table.text = sync.open() ?? NEW;
+        sync.save('tick');
+        await settled();
+      }
+    },
+    /** The player does something that changes the books. */
+    play(): void {
+      table.text = doc((booksIn(table.text) ?? 0) + 1, ++table.field);
+    },
+    /** The machine runs on with nobody playing: the field changes and the books do not. */
+    idle(): void {
+      table.text = doc(booksIn(table.text) ?? 0, ++table.field);
+    },
+    /** Time passes, and the cabinet's own clock saves. */
+    async tick(seconds = 5): Promise<void> {
+      clock.now += seconds * 1000;
+      sync.save('tick');
+      await cabinet.rest();
+    },
+    async moment(): Promise<void> {
+      sync.save('moment');
+      await cabinet.rest();
+    },
+    async hide(): Promise<void> {
+      sync.save('hidden');
+      await cabinet.rest();
+    },
+    async leave(): Promise<void> {
+      sync.save('left');
+      await cabinet.rest();
+    },
+    async signs(player: Player): Promise<void> {
+      sync.player(player);
+      await cabinet.rest();
+    },
+    /** A reset: the old document is thrown away and a new one opened. */
+    async reset(): Promise<void> {
+      sync.fresh();
+      table.asked = true;
+      await cabinet.rest();
+    },
+  };
+  /** An account's copy as the device holds it. */
+  const copy = (uid: string): { text: string; dirty: boolean; known: string | null; sent: string | null; changedAt: number } | null => {
+    const written = slots.map.get(slotFor(SLOT, uid));
+    return written === undefined ? null : (JSON.parse(written) as { text: string; dirty: boolean; known: string | null; sent: string | null; changedAt: number });
+  };
+  const where = (): Status['where'] | undefined => statuses.at(-1)?.where;
+  return { clock, slots, accounts, statuses, table, sync, cabinet, copy, where };
+}
+
+/** A device that has an account's copy on it already, in step with the account, and the cabinet switched off again. */
+async function visited(uid = 'ann') {
+  const first = rig();
+  await first.cabinet.start(signedIn(uid));
+  first.cabinet.play();
+  await first.cabinet.tick();
+  await first.cabinet.tick(SEND_EVERY);
+  expect(first.copy(uid)).toMatchObject({ dirty: false });
+  return first;
+}
+
+// ── The rule ────────────────────────────────────────────────────────────────
+
+describe('which copy wins', () => {
+  const NOW = 1_800_000_000_000;
+  const theirs = (mark: string | null = 'theirs', updatedAt: number | null = NOW): Standing['account'] => ({ kind: 'save', text: 'ACCOUNT', mark, updatedAt });
+  const ours = (over: Partial<NonNullable<Standing['device']>> = {}): Standing['device'] => ({ text: 'DEVICE', dirty: false, known: 'known', sent: null, sentIsLatest: false, changedAt: NOW, ...over });
+  const TAKE: Verdict = { kind: 'take', text: 'ACCOUNT', send: false };
+  const says = (account: Standing['account'], device: Standing['device'], skew = 0, guest: string | null = null): Verdict => decide({ account, device, guest, skew });
+
+  it('holds when the account’s copy cannot be read, whatever the device has', () => {
+    expect(says({ kind: 'unreadable' }, null)).toEqual({ kind: 'hold' });
+    expect(says({ kind: 'unreadable' }, null, 0, 'GUEST')).toEqual({ kind: 'hold' });
+    expect(says({ kind: 'unreadable' }, ours({ dirty: true }))).toEqual({ kind: 'hold' });
+    expect(says({ kind: 'unreadable' }, ours({ dirty: false }))).toEqual({ kind: 'hold' });
+  });
+
+  it('gives an account with nothing on it the device’s copy, or what is on the table', () => {
+    expect(says({ kind: 'none' }, ours())).toEqual({ kind: 'send' });
+    expect(says({ kind: 'none' }, ours({ dirty: true }))).toEqual({ kind: 'send' });
+    expect(says({ kind: 'none' }, null, 0, 'GUEST')).toEqual({ kind: 'adopt' });
+    expect(says({ kind: 'none' }, null)).toEqual({ kind: 'adopt' });
+  });
+
+  it('takes the account’s copy when the device has none for it, and leaves a guest’s out of it', () => {
+    expect(says(theirs(), null)).toEqual(TAKE);
+    expect(says(theirs(), null, 0, 'GUEST')).toEqual(TAKE);
+    expect(says(theirs(null, null), null, 0, 'GUEST')).toEqual(TAKE);
+  });
+
+  it('asks no clock when the account holds what this device last read', () => {
+    // Whatever the clocks say, even a device a year out either way.
+    for (const changedAt of [NOW - 3.2e10, NOW, NOW + 3.2e10]) {
+      for (const skew of [-3.2e10, 0, 3.2e10]) {
+        expect(says(theirs('known'), ours({ dirty: false, changedAt }), skew)).toEqual({ kind: 'in-step' });
+        expect(says(theirs('known'), ours({ dirty: true, changedAt }), skew)).toEqual({ kind: 'send' });
+      }
+    }
+  });
+
+  it('asks no clock when the account holds what this device last sent as it left', () => {
+    for (const skew of [-3.2e10, 0, 3.2e10]) {
+      expect(says(theirs('sent'), ours({ dirty: true, sent: 'sent', sentIsLatest: true }), skew)).toEqual({ kind: 'in-step' });
+      expect(says(theirs('sent'), ours({ dirty: true, sent: 'sent', sentIsLatest: false }), skew)).toEqual({ kind: 'send' });
+    }
+  });
+
+  it('takes the account’s when somebody else has written and the device has nothing new', () => {
+    expect(says(theirs('other'), ours({ dirty: false }))).toEqual(TAKE);
+    // Even if the device’s clock says its copy is the later one: it has not changed, so it is only behind.
+    expect(says(theirs('other', NOW - 1e9), ours({ dirty: false, changedAt: NOW }))).toEqual(TAKE);
+  });
+
+  it('lets the later of two changed copies win', () => {
+    expect(says(theirs('other', NOW), ours({ dirty: true, changedAt: NOW + 1 }))).toEqual({ kind: 'send' });
+    expect(says(theirs('other', NOW), ours({ dirty: true, changedAt: NOW - 1 }))).toEqual(TAKE);
+    // A tie goes to the account, and so does a copy whose time is not known: what cannot be dated is not written over.
+    expect(says(theirs('other', NOW), ours({ dirty: true, changedAt: NOW }))).toEqual(TAKE);
+    expect(says(theirs('other', null), ours({ dirty: true, changedAt: NOW + 1e9 }))).toEqual(TAKE);
+  });
+
+  it('puts the device’s time on the server’s clock first, so a wrong clock is not believed', () => {
+    const hour = 3_600_000;
+    // The device’s clock is an hour fast. It played at ten to nine by the server; the account was written at nine.
+    const fast = ours({ dirty: true, changedAt: NOW - 600_000 + hour });
+    expect(says(theirs('other', NOW), fast, 0)).toEqual({ kind: 'send' });
+    expect(says(theirs('other', NOW), fast, -hour)).toEqual(TAKE);
+    // The device’s clock is a day slow. It played ten minutes after the account was written.
+    const slow = ours({ dirty: true, changedAt: NOW + 600_000 - 24 * hour });
+    expect(says(theirs('other', NOW), slow, 0)).toEqual(TAKE);
+    expect(says(theirs('other', NOW), slow, 24 * hour)).toEqual({ kind: 'send' });
+  });
+
+  it('never matches a copy with no mark to a device that has none either', () => {
+    expect(says(theirs(null), ours({ dirty: false, known: null, sent: null }))).toEqual(TAKE);
+    expect(says(theirs(null, NOW), ours({ dirty: true, known: null, sent: null, changedAt: NOW - 1 }))).toEqual(TAKE);
+  });
+
+  it('holds to its rule over every standing there is', () => {
+    const accounts: Standing['account'][] = [{ kind: 'none' }, { kind: 'unreadable' }, theirs('known'), theirs('sent'), theirs('other'), theirs(null), theirs('other', null), theirs('other', NOW - 5), theirs('other', NOW + 5)];
+    const devices: Standing['device'][] = [null];
+    for (const dirty of [false, true]) {
+      for (const sent of [null, 'sent']) {
+        for (const sentIsLatest of [false, true]) {
+          for (const known of [null, 'known']) devices.push(ours({ dirty, sent, sentIsLatest, known }));
+        }
+      }
+    }
+    let seen = 0;
+    for (const account of accounts) {
+      for (const device of devices) {
+        for (const guest of [null, 'GUEST']) {
+          for (const skew of [-10, 0, 10]) {
+            const verdict = decide({ account, device, guest, skew });
+            seen += 1;
+            // What cannot be read is left alone, and nothing else is.
+            expect(verdict.kind === 'hold').toBe(account.kind === 'unreadable');
+            // The table is only adopted for an account with nothing on it and a device with nothing for it.
+            expect(verdict.kind === 'adopt').toBe(account.kind === 'none' && device === null);
+            // Nothing is sent, and nothing is in step, without a copy of the account’s on the device.
+            if (device === null) expect(['send', 'in-step']).not.toContain(verdict.kind);
+            // What is taken is the account’s own text, and it is not sent back.
+            if (verdict.kind === 'take') expect(verdict).toEqual({ kind: 'take', text: 'ACCOUNT', send: false });
+            // A device with nothing new never writes over a copy it has not seen.
+            if (device && !device.dirty && account.kind === 'save' && account.mark !== device.known && account.mark !== device.sent) expect(verdict.kind).toBe('take');
+            // A guest’s copy changes nothing: the rule does not look at it.
+            expect(verdict).toEqual(decide({ account, device, guest: null, skew }));
+          }
+        }
+      }
+    }
+    expect(seen).toBe(9 * 17 * 2 * 3);
+  });
+});
+
+// ── How a copy travels ──────────────────────────────────────────────────────
+
+describe('a copy on its way to the account', () => {
+  it('comes back as the text it was, with its mark', () => {
+    const text = doc(7, 3);
+    const state = toCloud(text, 'a-mark', 123);
+    expect(state).toMatchObject({ format: CLOUD_FORMAT, mark: 'a-mark', changedAt: 123 });
+    expect(typeof state?.data).toBe('string');
+    // What the route stores is what comes back from it: an object, as JSON.
+    expect(fromCloud(JSON.parse(JSON.stringify(state)))).toEqual({ text, mark: 'a-mark' });
+  });
+
+  it('is measured the way the route measures it, and is not made at all when it is too big', () => {
+    expect(sizeOf({ a: 'é', b: '🪙' })).toBe(new TextEncoder().encode(JSON.stringify({ a: 'é', b: '🪙' })).length);
+    // Text that does not pack: one long string.
+    const fits = JSON.stringify({ blob: 'x'.repeat(ACCOUNT_LIMIT - 200) });
+    const tooBig = JSON.stringify({ blob: 'x'.repeat(ACCOUNT_LIMIT) });
+    expect(sizeOf(toCloud(fits, 'm', 0) as object)).toBeLessThanOrEqual(ACCOUNT_LIMIT);
+    expect(toCloud(tooBig, 'm', 0)).toBeNull();
+    expect(toCloud('not json', 'm', 0)).toBeNull();
+  });
+
+  const unreadable: [string, unknown][] = [
+    ['nothing', null],
+    ['a list', []],
+    ['text', 'save'],
+    ['an object of another game', { board: [1, 2, 3] }],
+    ['a format this code does not know', { format: CLOUD_FORMAT + 1, mark: 'm', changedAt: 0, data: '{}' }],
+    ['no format', { mark: 'm', data: '{}' }],
+    ['data that is not text', { format: CLOUD_FORMAT, mark: 'm', data: { ok: true } }],
+    ['data that is not packed', { format: CLOUD_FORMAT, mark: 'm', data: '{"$":"t"}' }],
+    ['data cut short', { format: CLOUD_FORMAT, mark: 'm', data: '{"ok":tr' }],
+  ];
+
+  it.each(unreadable)('is not read from %s, and does not throw', (_name, state) => {
+    expect(fromCloud(state)).toBeNull();
+  });
+
+  it('is read without a mark when the mark is not text: it is then nobody’s that this device knows', () => {
+    expect(fromCloud({ format: CLOUD_FORMAT, mark: 5, data: '{"ok":true}' })).toEqual({ text: '{"ok":true}', mark: null });
+  });
+});
+
+// ── A guest ─────────────────────────────────────────────────────────────────
+
+describe('a guest’s copy', () => {
+  it('is kept in the guest’s slot as it is, and the account is never asked', async () => {
+    const { cabinet, slots, accounts, where, table } = rig();
+    await cabinet.start();
+    expect(table.text).toBe(NEW);
+    cabinet.play();
+    await cabinet.tick();
+    expect(slots.map.get(SLOT)).toBe(table.text);
+    await cabinet.hide();
+    await cabinet.leave();
+    await cabinet.tick(SEND_EVERY * 3);
+    expect(accounts.calls).toEqual([]);
+    expect(where()).toBe('device');
+    expect([...slots.map.keys()]).toEqual([SLOT]);
+  });
+
+  it('is opened again as it was left', async () => {
+    const first = rig();
+    await first.cabinet.start();
+    first.cabinet.play();
+    first.cabinet.play();
+    await first.cabinet.leave();
+    const second = rig();
+    second.slots.map = first.slots.map;
+    await second.cabinet.start();
+    expect(booksIn(second.table.text)).toBe(2);
+  });
+
+  it('is thrown away by a reset, and the new one kept in its place', async () => {
+    const { cabinet, slots, table } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.reset();
+    expect(table.text).toBe(NEW);
+    expect(slots.map.get(SLOT)).toBe(NEW);
+  });
+
+  it('stays thrown away by a reset even when the new one cannot be written', async () => {
+    const { cabinet, slots, statuses } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    expect(slots.map.has(SLOT)).toBe(true);
+    // The device is full. The old machine must still not come back with the next visit.
+    slots.full = true;
+    await cabinet.reset();
+    expect(slots.map.has(SLOT)).toBe(false);
+    expect(statuses.at(-1)).toEqual({ where: 'device', kept: false });
+  });
+
+  it('plays on when the browser will not keep it, and says so', async () => {
+    const { cabinet, slots, statuses, sync } = rig();
+    slots.blocked = true;
+    await cabinet.start();
+    cabinet.play();
+    expect(sync.save('tick')).toBe(false);
+    await cabinet.hide();
+    await cabinet.reset();
+    expect(statuses.at(-1)).toEqual({ where: 'device', kept: false });
+    slots.blocked = false;
+    await cabinet.tick();
+    expect(statuses.at(-1)).toEqual({ where: 'device', kept: true });
+  });
+
+  it('is all there is when the page has no account store to give', async () => {
+    const { cabinet, slots, where, table } = rig({ store: false });
+    await cabinet.start(signedIn('ann'));
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY * 2);
+    expect(where()).toBe('device');
+    expect(slots.map.get(SLOT)).toBe(table.text);
+    expect([...slots.map.keys()]).toEqual([SLOT]);
+  });
+});
+
+// ── Signing in ──────────────────────────────────────────────────────────────
+
+describe('signing in', () => {
+  it('makes the guest’s copy the account’s when the account has none, and moves it out of the guest’s slot', async () => {
+    const { cabinet, slots, accounts, where, table, copy } = rig();
+    await cabinet.start();
+    cabinet.play();
+    cabinet.play();
+    await cabinet.tick();
+    const guests = table.text as string;
+
+    await cabinet.signs(signedIn('ann'));
+    // The same machine is still on the table: nothing was reopened.
+    expect(table.reopens).toBe(0);
+    expect(table.text).toBe(guests);
+    expect(accounts.text('ann')).toBe(guests);
+    expect(copy('ann')).toMatchObject({ text: guests, dirty: false, known: 'mark-1' });
+    expect(slots.map.has(SLOT)).toBe(false);
+    expect(where()).toBe('account');
+    expect(accounts.calls.filter((call) => !call.startsWith('prepare'))).toEqual(['load ann', 'store ann']);
+  });
+
+  it('leaves the guest’s copy where it is when the cabinet is taken down before the account has answered', async () => {
+    const { sync, table, accounts, slots, cabinet } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    const guests = table.text as string;
+    sync.player(signedIn('ann'));
+    // The player goes to another page of the site: the machine is saved as left, and is on the table no more.
+    sync.save('left');
+    table.text = null;
+    await cabinet.rest();
+    expect(slots.map.get(SLOT)).toBe(guests);
+    expect(slots.map.has(slotFor(SLOT, 'ann'))).toBe(false);
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+  });
+
+  it('keeps the guest’s copy in its slot when the account’s slot cannot be written', async () => {
+    const { cabinet, slots, table, accounts } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    const guests = table.text as string;
+    // The device has room for nothing new: only the guest's own slot can still be written over.
+    const write = slots.setItem.bind(slots);
+    slots.setItem = (key, value) => {
+      if (key !== SLOT) throw new Error('full');
+      write(key, value);
+    };
+    await cabinet.signs(signedIn('ann'));
+    // It is the account's now, and was sent there; the device still has it, in the one slot it could keep it in.
+    expect(accounts.text('ann')).toBe(guests);
+    expect(slots.map.get(SLOT)).toBe(guests);
+  });
+
+  it('takes the account’s copy when it has one, and leaves the guest’s where it was', async () => {
+    const { cabinet, slots, accounts, where, table, copy } = rig();
+    accounts.put('ann', doc(40), 'from-the-other-device');
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    const guests = table.text as string;
+
+    await cabinet.signs(signedIn('ann'));
+    expect(table.reopens).toBe(1);
+    expect(booksIn(table.text)).toBe(40);
+    expect(copy('ann')).toMatchObject({ text: doc(40), dirty: false, known: 'from-the-other-device' });
+    expect(slots.map.get(SLOT)).toBe(guests);
+    expect(where()).toBe('account');
+    // Nothing was written to the account: it was only read.
+    expect(accounts.count('store')).toBe(0);
+    expect(accounts.text('ann')).toBe(doc(40));
+  });
+
+  it('says it is looking until the account has answered, and writes nothing to it meanwhile', async () => {
+    const { sync, table, accounts, statuses, cabinet } = rig();
+    accounts.put('ann', doc(40), 'theirs');
+    sync.player(signedIn('ann'));
+    table.text = sync.open() ?? NEW;
+    sync.save('tick');
+    expect(statuses.at(-1)?.where).toBe('checking');
+    // Played, hidden and left before the answer: none of it reaches the account.
+    cabinet.play();
+    sync.save('moment');
+    sync.save('hidden');
+    sync.save('left');
+    expect(accounts.count('store')).toBe(0);
+    await cabinet.rest();
+    expect(statuses.at(-1)?.where).toBe('account');
+    expect(booksIn(table.text)).toBe(40);
+  });
+
+  it('opens with the account’s copy on this device at once, and reads the account behind it', async () => {
+    const first = await visited('ann');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.sync.player(signedIn('ann'));
+    // Before anything has been awaited, the machine is the one this device kept.
+    expect(booksIn(second.sync.open())).toBe(1);
+    second.table.text = first.copy('ann')?.text ?? null;
+    await second.cabinet.rest();
+    expect(second.where()).toBe('account');
+    expect(second.table.reopens).toBe(0);
+    expect(second.accounts.calls.filter((call) => !call.startsWith('prepare'))).toEqual(['load ann']);
+  });
+
+  it('takes the account’s copy over this device’s when another device has played since', async () => {
+    const first = await visited('ann');
+    first.accounts.put('ann', doc(99), 'elsewhere');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(signedIn('ann'));
+    expect(booksIn(second.table.text)).toBe(99);
+    expect(second.copy('ann')).toMatchObject({ dirty: false, known: 'elsewhere' });
+    expect(second.accounts.count('store')).toBe(0);
+  });
+
+  it('sends this device’s copy when it was played with the account out of reach', async () => {
+    const first = await visited('ann');
+    first.accounts.down = true;
+    first.cabinet.play();
+    first.cabinet.play();
+    await first.cabinet.tick(SEND_EVERY);
+    await first.cabinet.leave();
+    expect(first.copy('ann')).toMatchObject({ dirty: true });
+    expect(first.where()).toBe('offline');
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(signedIn('ann'));
+    expect(booksIn(second.table.text)).toBe(3);
+    expect(booksIn(second.accounts.text('ann'))).toBe(3);
+    expect(second.copy('ann')).toMatchObject({ dirty: false });
+    expect(second.where()).toBe('account');
+  });
+
+  it('does not let an old copy played offline go over a newer one from another device', async () => {
+    const first = await visited('ann');
+    first.accounts.down = true;
+    first.cabinet.play();
+    await first.cabinet.tick(SEND_EVERY);
+    await first.cabinet.leave();
+
+    // A day later the other device plays, and the day after that this one comes back.
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.clock.now = first.clock.now + 48 * 3_600_000;
+    second.accounts.put('ann', doc(500), 'elsewhere', first.clock.now + 24 * 3_600_000);
+    await second.cabinet.start(signedIn('ann'));
+    expect(booksIn(second.table.text)).toBe(500);
+    expect(booksIn(second.accounts.text('ann'))).toBe(500);
+    expect(second.accounts.count('store')).toBe(0);
+  });
+
+  it('is not fooled by a device whose clock is a week fast', async () => {
+    const week = 7 * 24 * 3_600_000;
+    const first = await visited('ann');
+    // This device’s clock runs a week ahead of the server’s. It plays offline, by its own clock a week from now.
+    first.accounts.ahead = -week;
+    first.accounts.down = true;
+    first.cabinet.play();
+    await first.cabinet.tick(SEND_EVERY);
+    await first.cabinet.leave();
+
+    // An hour later, really, another device writes. This one comes back an hour after that.
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.accounts.ahead = -week;
+    second.clock.now = first.clock.now + 2 * 3_600_000;
+    second.accounts.put('ann', doc(500), 'elsewhere', first.clock.now - week + 3_600_000);
+    await second.cabinet.start(signedIn('ann'));
+    // By the raw clocks the device’s copy is six days the later. It is the older one, and it loses.
+    expect(booksIn(second.table.text)).toBe(500);
+    expect(second.accounts.count('store')).toBe(0);
+  });
+});
+
+// ── Playing while signed in ─────────────────────────────────────────────────
+
+describe('a copy that is being played', () => {
+  it('goes to the account about once a minute while it is changing, not on every save', async () => {
+    const { cabinet, accounts, table } = await visited();
+    const before = accounts.count('store');
+    // Ten minutes of play, saved on the device every five seconds.
+    for (let i = 0; i < 120; i++) {
+      cabinet.play();
+      await cabinet.tick();
+    }
+    const sent = accounts.count('store') - before;
+    expect(sent).toBeGreaterThanOrEqual(9);
+    expect(sent).toBeLessThanOrEqual(10);
+    expect(accounts.count('storeNow')).toBe(0);
+    // And the account is never more than a minute behind.
+    expect((booksIn(table.text) as number) - (booksIn(accounts.text('ann')) as number)).toBeLessThanOrEqual(SEND_EVERY / 5);
+  });
+
+  it('is not sent at all when nothing in its books has changed', async () => {
+    const { cabinet, accounts } = await visited();
+    const before = accounts.calls.filter((call) => !call.startsWith('prepare')).length;
+    for (let i = 0; i < 120; i++) {
+      cabinet.idle();
+      await cabinet.tick();
+    }
+    await cabinet.hide();
+    await cabinet.leave();
+    expect(accounts.calls.filter((call) => !call.startsWith('prepare')).length).toBe(before);
+  });
+
+  it('is sent at a big moment without waiting for the minute, but not twice in a few seconds', async () => {
+    const { cabinet, accounts } = await visited();
+    const before = accounts.count('store');
+    await cabinet.tick(MOMENT_GAP);
+    cabinet.play();
+    await cabinet.moment();
+    expect(accounts.count('store')).toBe(before + 1);
+    // A second jackpot two seconds later waits its turn.
+    cabinet.play();
+    await cabinet.tick(2);
+    await cabinet.moment();
+    expect(accounts.count('store')).toBe(before + 1);
+    await cabinet.tick(MOMENT_GAP);
+    expect(accounts.count('store')).toBe(before + 2);
+  });
+
+  it('is sent as the page is hidden, with what is in hand, and only once if the page is then left', async () => {
+    const { cabinet, accounts, table, copy } = await visited();
+    cabinet.play();
+    await cabinet.tick();
+    const before = accounts.count('store');
+    await cabinet.hide();
+    await cabinet.leave();
+    await cabinet.leave();
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(accounts.count('store')).toBe(before);
+    expect(accounts.text('ann')).toBe(table.text);
+    // It was heard to arrive, so the device knows the account has it.
+    expect(copy('ann')).toMatchObject({ dirty: false, sent: null });
+  });
+
+  it('says a thing once as it leaves, however often it is told to go, until there is something new to say', async () => {
+    const { cabinet, accounts } = await visited();
+    // The answer to a write made on the way out is never heard: the page is hidden, then left, then taken down.
+    accounts.silent = true;
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.hide();
+    await cabinet.leave();
+    await cabinet.leave();
+    expect(accounts.count('storeNow')).toBe(1);
+    // The player comes back to the page and plays on: that is new, and is said when the page is hidden again.
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.hide();
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(2);
+  });
+
+  it('writes down what it sent as it left, so that the next visit knows the account has it', async () => {
+    const first = await visited('ann');
+    first.cabinet.play();
+    await first.cabinet.tick();
+    // The page is gone before the answer comes back.
+    first.sync.save('hidden');
+    first.sync.close();
+    await settled();
+    const left = first.copy('ann');
+    expect(left).toMatchObject({ dirty: true });
+    expect(left?.sent).toMatch(/^mark-/);
+    expect(first.accounts.text('ann')).toBe(left?.text);
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(signedIn('ann'));
+    // Nothing to take and nothing to send: the two are the same.
+    expect(second.table.reopens).toBe(0);
+    expect(second.accounts.count('store')).toBe(0);
+    expect(second.copy('ann')).toMatchObject({ dirty: false, sent: null, known: left?.sent });
+  });
+
+  it('is not sent as the page is left when no token is in hand', async () => {
+    const { cabinet, accounts, copy } = await visited();
+    accounts.ready.clear();
+    accounts.down = true;
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(0);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+  });
+
+  it('keeps one write in the air at a time', async () => {
+    const { cabinet, accounts } = await visited();
+    accounts.held = [];
+    const before = accounts.count('store');
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    await cabinet.moment();
+    await cabinet.hide();
+    expect(accounts.count('store')).toBe(before + 1);
+    expect(accounts.count('storeNow')).toBe(0);
+    // It arrives, with what had been played by then left over to send.
+    accounts.held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    cabinet.idle();
+    await cabinet.tick(SEND_EVERY);
+    expect(accounts.count('store')).toBe(before + 2);
+  });
+});
+
+// ── Failing ─────────────────────────────────────────────────────────────────
+
+describe('when the account cannot be reached', () => {
+  it('plays on with the device’s copy, says so, and tries again after a while, and then a longer while', async () => {
+    const { cabinet, accounts, where, clock } = await visited();
+    accounts.down = true;
+    const before = accounts.count('store');
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    expect(accounts.count('store')).toBe(before + 1);
+    expect(where()).toBe('offline');
+
+    // Each failure is followed by a longer wait: the tries are no closer together than the list says.
+    const tries: number[] = [clock.now];
+    for (let i = 0; i < 200 && tries.length < RETRY_AFTER.length + 2; i++) {
+      const had = accounts.count('store');
+      cabinet.play();
+      await cabinet.tick();
+      if (accounts.count('store') > had) tries.push(clock.now);
+    }
+    const gaps = tries.slice(1).map((time, index) => (time - tries[index]) / 1000);
+    expect(gaps).toHaveLength(RETRY_AFTER.length + 1);
+    gaps.forEach((gap, index) => {
+      // No sooner than the wait for that many failures, and no sooner than the minute between any two writes.
+      const wait = Math.max(SEND_EVERY, RETRY_AFTER[Math.min(index, RETRY_AFTER.length - 1)]);
+      expect(gap).toBeGreaterThanOrEqual(wait);
+      expect(gap).toBeLessThan(wait + 10);
+    });
+
+    accounts.down = false;
+    await cabinet.tick(RETRY_AFTER[RETRY_AFTER.length - 1]);
+    expect(where()).toBe('account');
+    expect(accounts.text('ann')).not.toBeNull();
+  });
+
+  it('does not write to an account it has not been able to read, and reads it when it can', async () => {
+    const { cabinet, accounts, where, table, slots } = rig();
+    accounts.put('ann', doc(40), 'theirs');
+    accounts.down = true;
+    await cabinet.start(signedIn('ann'));
+    expect(where()).toBe('offline');
+    // The guest’s machine is still on the table, in the guest’s slot.
+    for (let i = 0; i < 6; i++) {
+      cabinet.play();
+      await cabinet.tick();
+    }
+    await cabinet.moment();
+    await cabinet.hide();
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+    expect(slots.map.get(SLOT)).toBe(table.text);
+    expect(accounts.count('load')).toBe(2);
+
+    accounts.down = false;
+    await cabinet.tick(RETRY_AFTER[1]);
+    expect(where()).toBe('account');
+    expect(booksIn(table.text)).toBe(40);
+    // What the guest had played in the meantime is still the guest’s.
+    expect(booksIn(slots.map.get(SLOT) ?? null)).toBe(6);
+  });
+
+  it('keeps a copy that is too big for the account on the device, and tries again when it may be smaller', async () => {
+    const { cabinet, accounts, where, table } = await visited();
+    const before = accounts.count('store');
+    table.text = JSON.stringify({ ok: true, books: 2, blob: 'x'.repeat(ACCOUNT_LIMIT) });
+    await cabinet.tick(SEND_EVERY);
+    expect(where()).toBe('offline');
+    await cabinet.hide();
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(before);
+    table.text = doc(3);
+    await cabinet.tick(SEND_EVERY);
+    expect(where()).toBe('account');
+    expect(accounts.text('ann')).toBe(doc(3));
+  });
+
+  it('never throws into the cabinet, whatever the storage and the account do', async () => {
+    const { cabinet, accounts, slots, sync, table } = rig();
+    slots.blocked = true;
+    accounts.down = true;
+    await cabinet.start(signedIn('ann'));
+    for (let i = 0; i < 30; i++) {
+      cabinet.play();
+      await cabinet.tick(SEND_EVERY);
+    }
+    await cabinet.moment();
+    await cabinet.hide();
+    await cabinet.reset();
+    await cabinet.signs(GUEST);
+    await cabinet.signs(signedIn('bob'));
+    expect(() => sync.save('left')).not.toThrow();
+    expect(table.text).not.toBeNull();
+  });
+});
+
+describe('a copy on the account that cannot be read', () => {
+  const cases: [string, (accounts: FakeAccounts) => void][] = [
+    ['one written in a format this code does not know', (accounts) => accounts.docs.set('ann', { state: { format: CLOUD_FORMAT + 1, mark: 'new', data: 'H4sIAAAA' }, updatedAt: accounts.time() })],
+    ['one of a newer version, which this code does not read', (accounts) => accounts.put('ann', JSON.stringify({ ok: false, version: 99 }), 'newer')],
+    ['one that is damaged', (accounts) => accounts.docs.set('ann', { state: { format: CLOUD_FORMAT, mark: 'm', data: '{"$":"t","k":["x"]}' }, updatedAt: accounts.time() })],
+    ['one that is another game’s altogether', (accounts) => accounts.docs.set('ann', { state: { board: 'lnsgkgsnl' }, updatedAt: accounts.time() })],
+  ];
+
+  it.each(cases)('is left exactly as it is: %s', async (_name, put) => {
+    const { cabinet, accounts, where, table, slots } = rig();
+    put(accounts);
+    const theirs = JSON.stringify(accounts.docs.get('ann'));
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.signs(signedIn('ann'));
+    expect(where()).toBe('unreadable');
+    // The machine on the table plays on, on this device.
+    for (let i = 0; i < 30; i++) {
+      cabinet.play();
+      await cabinet.tick(SEND_EVERY);
+    }
+    await cabinet.moment();
+    await cabinet.hide();
+    await cabinet.leave();
+    expect(booksIn(table.text)).toBe(31);
+    expect(slots.map.get(SLOT)).toBe(table.text);
+    // Nothing was written to the account, and nothing deleted from it.
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+    expect(JSON.stringify(accounts.docs.get('ann'))).toBe(theirs);
+    expect(where()).toBe('unreadable');
+  });
+
+  it('is left alone even when this device has a copy of its own with changes to send', async () => {
+    const first = await visited('ann');
+    first.accounts.down = true;
+    first.cabinet.play();
+    await first.cabinet.tick(SEND_EVERY);
+    await first.cabinet.leave();
+    first.accounts.put('ann', JSON.stringify({ ok: false, version: 99 }), 'newer');
+    const theirs = JSON.stringify(first.accounts.docs.get('ann'));
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(signedIn('ann'));
+    second.cabinet.play();
+    await second.cabinet.tick(SEND_EVERY * 5);
+    await second.cabinet.hide();
+    expect(second.where()).toBe('unreadable');
+    expect(booksIn(second.table.text)).toBe(3);
+    expect(JSON.stringify(second.accounts.docs.get('ann'))).toBe(theirs);
+  });
+
+  it('gives way to a reset, which is the player’s own word that the account’s machine is to go', async () => {
+    const { cabinet, accounts, where, table } = rig();
+    accounts.put('ann', JSON.stringify({ ok: false, version: 99 }), 'newer');
+    await cabinet.start(signedIn('ann'));
+    expect(where()).toBe('unreadable');
+    await cabinet.reset();
+    expect(table.text).toBe(NEW);
+    expect(accounts.text('ann')).toBe(NEW);
+    expect(where()).toBe('account');
+  });
+
+  it('is held, too, when the rule itself throws: nothing is decided, so nothing is written', async () => {
+    const { cabinet, accounts, where } = rig({
+      settle: () => {
+        throw new Error('a rule gone wrong');
+      },
+    });
+    accounts.put('ann', doc(40), 'theirs');
+    await cabinet.start(signedIn('ann'));
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY * 2);
+    await cabinet.hide();
+    expect(where()).toBe('unreadable');
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+    expect(accounts.text('ann')).toBe(doc(40));
+  });
+});
+
+// ── Signing out, and two players at one computer ────────────────────────────
+
+describe('signing out', () => {
+  it('sends the account’s copy one last time, and puts the guest’s machine back on the table', async () => {
+    const { cabinet, accounts, slots, where, table, copy } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    accounts.put('ann', doc(40), 'theirs');
+    await cabinet.signs(signedIn('ann'));
+    const guests = slots.map.get(SLOT);
+    // The first change goes up with the next save; the one after it would have waited for the minute.
+    cabinet.play();
+    await cabinet.tick();
+    cabinet.play();
+    await cabinet.tick();
+    const anns = table.text as string;
+    expect(accounts.text('ann')).not.toBe(anns);
+
+    await cabinet.signs(GUEST);
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(table.text).toBe(guests);
+    expect(copy('ann')?.text).toBe(anns);
+    expect(where()).toBe('device');
+    // Nothing more goes to the account once the player has signed out.
+    const calls = accounts.calls.length;
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY * 2);
+    await cabinet.hide();
+    expect(accounts.calls.length).toBe(calls);
+  });
+
+  it('starts a new machine for a guest when there is none', async () => {
+    const { cabinet, accounts, table, slots } = rig();
+    accounts.put('ann', doc(40), 'theirs');
+    await cabinet.start(signedIn('ann'));
+    // The table was opened as a guest’s while the account was read: an untouched new machine is all the guest has.
+    expect(slots.map.get(SLOT)).toBe(NEW);
+    await cabinet.signs(GUEST);
+    expect(table.text).toBe(NEW);
+  });
+
+  it('never mixes two players’ machines at one computer', async () => {
+    const { cabinet, accounts, slots, table, copy } = rig();
+    await cabinet.start();
+    cabinet.play();
+    await cabinet.tick();
+    const guests = table.text as string;
+
+    // Ann signs in for the first time: the guest’s machine becomes hers, and is the guest’s no longer.
+    await cabinet.signs(signedIn('ann'));
+    for (let i = 0; i < 4; i++) cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    const anns = table.text as string;
+    await cabinet.signs(GUEST);
+    expect(table.text).toBe(NEW);
+
+    // Bob signs in for the first time on the same computer. He does not get Ann’s machine, nor the guest’s old one.
+    await cabinet.signs(signedIn('bob'));
+    expect(table.text).toBe(NEW);
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    const bobs = table.text as string;
+    expect(booksIn(accounts.text('bob'))).toBe(1);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(anns).not.toBe(guests);
+
+    // Straight from Bob to Ann, and back to nobody: each finds their own.
+    await cabinet.signs(signedIn('ann'));
+    expect(table.text).toBe(anns);
+    await cabinet.signs(signedIn('bob'));
+    expect(table.text).toBe(bobs);
+    await cabinet.signs(GUEST);
+    expect(copy('ann')?.text).toBe(anns);
+    expect(copy('bob')?.text).toBe(bobs);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(accounts.text('bob')).toBe(bobs);
+    expect([...slots.map.keys()].sort()).toEqual([SLOT, slotFor(SLOT, 'ann'), slotFor(SLOT, 'bob')].sort());
+  });
+
+  it('does not send a copy the account’s newer one is about to replace, if the player signs out first', async () => {
+    const first = await visited('ann');
+    first.accounts.down = true;
+    first.cabinet.play();
+    // Played with the account out of reach, and the page then lost without a word: nothing was sent as it went.
+    await first.cabinet.tick(SEND_EVERY);
+    expect(first.copy('ann')).toMatchObject({ dirty: true, sent: null });
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.clock.now = first.clock.now + 48 * 3_600_000;
+    second.accounts.put('ann', doc(500), 'elsewhere', first.clock.now + 24 * 3_600_000);
+    second.sync.player(signedIn('ann'));
+    second.table.text = second.sync.open();
+    second.sync.save('tick');
+    await second.accounts.store.prepare('ann');
+    // The account has answered and its copy is to be taken, but the cabinet has not got round to reopening.
+    await settled();
+    expect(second.table.asked).toBe(true);
+    second.sync.player(GUEST);
+    second.sync.save('hidden');
+    second.sync.save('left');
+    expect(second.accounts.count('store') + second.accounts.count('storeNow')).toBe(0);
+    expect(booksIn(second.accounts.text('ann'))).toBe(500);
+  });
+
+  it('takes an answer for the player it was asked about, and never for the one who signed in after', async () => {
+    const { sync, table, accounts, cabinet } = rig();
+    accounts.put('ann', doc(40), 'anns');
+    accounts.heldReads = [];
+    await cabinet.start(signedIn('ann'));
+    // Ann's account has not answered when Bob signs in instead.
+    await cabinet.signs(signedIn('bob'));
+    expect(accounts.heldReads).toHaveLength(2);
+    const [anns, bobs] = accounts.heldReads;
+    accounts.heldReads = null;
+    // Bob's answers first: he has nothing, so the machine on the table becomes his.
+    bobs();
+    await cabinet.rest();
+    expect(accounts.text('bob')).toBe(NEW);
+    // Then Ann's answer comes, with her machine in it. It is not Bob's.
+    anns();
+    await cabinet.rest();
+    expect(table.text).toBe(NEW);
+    expect(table.reopens).toBe(0);
+    expect(accounts.text('bob')).toBe(NEW);
+    expect(accounts.text('ann')).toBe(doc(40));
+    sync.save('left');
+    expect(accounts.text('bob')).toBe(NEW);
+  });
+
+  it('ignores an answer from the account that comes after its player has gone', async () => {
+    const { sync, table, accounts, cabinet, slots } = rig();
+    accounts.put('ann', doc(40), 'theirs');
+    sync.player(signedIn('ann'));
+    table.text = sync.open() ?? NEW;
+    sync.save('tick');
+    // Signed out before the read came back.
+    sync.player(GUEST);
+    await cabinet.rest();
+    expect(table.reopens).toBe(0);
+    expect(table.text).toBe(NEW);
+    expect(slots.map.has(slotFor(SLOT, 'ann'))).toBe(false);
+  });
+});
+
+describe('while the site is still finding out who is playing', () => {
+  it('opens with the machine of the player who was here last, and touches no account until it is sure', async () => {
+    const first = await visited('ann');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(RESTORING);
+    expect(booksIn(second.table.text)).toBe(1);
+    second.cabinet.play();
+    await second.cabinet.tick(SEND_EVERY * 2);
+    await second.cabinet.hide();
+    expect(second.accounts.calls).toEqual([]);
+    expect(second.where()).toBe('device');
+
+    // The site is sure: it is her. The same machine stays on the table, and what was played goes up.
+    await second.cabinet.signs(signedIn('ann'));
+    expect(second.table.reopens).toBe(0);
+    expect(booksIn(second.accounts.text('ann'))).toBe(2);
+    expect(second.where()).toBe('account');
+  });
+
+  it('goes back to the guest’s machine when nobody turns out to be signed in, and forgets who was', async () => {
+    const first = await visited('ann');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(RESTORING);
+    expect(booksIn(second.table.text)).toBe(1);
+    await second.cabinet.signs(GUEST);
+    expect(second.table.text).toBe(NEW);
+    expect(second.accounts.calls).toEqual([]);
+
+    // The next visit does not open with her machine: she signed out, or her session ran out.
+    const third = rig();
+    third.slots.map = first.slots.map;
+    await third.cabinet.start(RESTORING);
+    expect(third.table.text).toBe(NEW);
+  });
+
+  it('opens as a guest once the site is sure there is nobody, whoever it had expected', async () => {
+    const first = await visited('ann');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    await second.cabinet.start({ uid: null, settled: true, expected: true });
+    expect(second.table.text).toBe(NEW);
+    expect(second.accounts.calls).toEqual([]);
+  });
+
+  it('opens as a guest when the site expects nobody, or nobody has played here signed in', async () => {
+    const first = await visited('ann');
+    const second = rig();
+    second.slots.map = first.slots.map;
+    await second.cabinet.start({ uid: null, settled: false, expected: false });
+    expect(second.table.text).toBe(NEW);
+
+    const fresh = rig();
+    await fresh.cabinet.start(RESTORING);
+    expect(fresh.table.text).toBe(NEW);
+    expect([...fresh.slots.map.keys()]).toEqual([SLOT]);
+  });
+});
+
+// ── Reset ───────────────────────────────────────────────────────────────────
+
+describe('a reset by a player who is signed in', () => {
+  it('puts a new machine on the account in place of the old one, at once', async () => {
+    const { cabinet, accounts, table, copy, where } = await visited();
+    const before = accounts.count('store');
+    await cabinet.reset();
+    expect(table.text).toBe(NEW);
+    expect(accounts.text('ann')).toBe(NEW);
+    expect(accounts.count('store')).toBe(before + 1);
+    expect(copy('ann')).toMatchObject({ text: NEW, dirty: false });
+    expect(where()).toBe('account');
+  });
+
+  it('does not send the old machine on its way out', async () => {
+    const { cabinet, accounts } = await visited();
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.reset();
+    expect(accounts.count('storeNow')).toBe(0);
+    expect(accounts.text('ann')).toBe(NEW);
+  });
+
+  it('is sent when the account can be reached again, and wins over what the account still holds', async () => {
+    const first = await visited('ann');
+    first.accounts.down = true;
+    await first.cabinet.reset();
+    expect(first.where()).toBe('offline');
+    expect(booksIn(first.accounts.text('ann'))).toBe(1);
+    await first.cabinet.leave();
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    await second.cabinet.start(signedIn('ann'));
+    expect(second.table.text).toBe(NEW);
+    expect(second.accounts.text('ann')).toBe(NEW);
+  });
+
+  it('ignores the account’s answer to a read that the reset overtook', async () => {
+    const { sync, table, accounts, cabinet } = rig();
+    accounts.put('ann', doc(40), 'theirs');
+    sync.player(signedIn('ann'));
+    table.text = sync.open() ?? NEW;
+    sync.save('tick');
+    await cabinet.reset();
+    expect(table.text).toBe(NEW);
+    expect(accounts.text('ann')).toBe(NEW);
+    expect(table.reopens).toBe(1);
+  });
+});
+
+// ── A second document ───────────────────────────────────────────────────────
+
+describe('a copy on the table that is not the account’s own', () => {
+  it('is never written to the account, whatever the rule called it', async () => {
+    const { cabinet, accounts, slots, table } = rig({ settle: () => ({ kind: 'in-step' }) });
+    accounts.put('ann', doc(40), 'theirs');
+    await cabinet.start(signedIn('ann'));
+    for (let i = 0; i < 4; i++) {
+      cabinet.play();
+      await cabinet.tick(SEND_EVERY);
+    }
+    await cabinet.moment();
+    await cabinet.hide();
+    await cabinet.leave();
+    // It is still the guest's machine, in the guest's slot, and the account still has its own.
+    expect(slots.map.get(SLOT)).toBe(table.text);
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
+    expect(accounts.text('ann')).toBe(doc(40));
+  });
+});
+
+describe('a second document, with a slot and a rule of its own', () => {
+  /** A book of stamps: the two copies are not rivals, and are merged. */
+  const book = (stamps: number[]): string => JSON.stringify({ ok: true, books: [...stamps].sort((a, b) => a - b).join('+') });
+  const stampsIn = (text: string | null): number[] =>
+    text === null
+      ? []
+      : (JSON.parse(text) as { books: string }).books
+          .split('+')
+          .filter(Boolean)
+          .map(Number);
+  const merge = ({ account, device, guest }: Standing): Verdict => {
+    if (account.kind === 'unreadable') return { kind: 'hold' };
+    const here = stampsIn(device?.text ?? guest);
+    if (account.kind === 'none') return device ? { kind: 'send' } : { kind: 'adopt' };
+    const there = stampsIn(account.text);
+    const both = book([...new Set([...here, ...there])]);
+    if (both === account.text) return device && device.text === both ? { kind: 'in-step' } : { kind: 'take', text: both, send: false };
+    return { kind: 'take', text: both, send: true };
+  };
+
+  it('is kept by the same keeper: the union of both copies goes onto the device and onto the account', async () => {
+    const clock = { now: 5_000_000 };
+    const slots = new FakeSlots();
+    const accounts = new FakeAccounts(() => clock.now);
+    accounts.put('ann', book([1, 2, 3]), 'theirs');
+    slots.map.set('stamps', book([3, 4]));
+    const table = { text: null as string | null, asked: false };
+    const sync = createSync({
+      kept: {
+        slot: 'stamps',
+        current: () => table.text,
+        reads: (text) => text.includes('"ok":true'),
+        print: (text) => text,
+        settle: merge,
+        reopen: () => {
+          table.asked = true;
+        },
+      },
+      store: accounts.store,
+      slots: () => slots,
+      now: () => clock.now,
+      mark: () => 'merged',
+      onStatus: () => undefined,
+    });
+    sync.player(signedIn('ann'));
+    table.text = sync.open();
+    expect(stampsIn(table.text)).toEqual([3, 4]);
+    await settled();
+    expect(table.asked).toBe(true);
+    sync.save('left');
+    table.text = sync.open();
+    sync.save('tick');
+    await settled();
+    expect(stampsIn(table.text)).toEqual([1, 2, 3, 4]);
+    expect(stampsIn(accounts.text('ann'))).toEqual([1, 2, 3, 4]);
+    // The machine’s slots are not touched by it, nor its by the machine’s.
+    expect([...slots.map.keys()].every((key) => key.startsWith('stamps'))).toBe(true);
+  });
+});

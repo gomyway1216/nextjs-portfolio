@@ -2,15 +2,18 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { MedalTray } from './MedalTray';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import { SegmentDisplay, SegmentMirror } from './SegmentDisplay';
 import {
   ballSpot,
   landTimes,
@@ -32,6 +35,7 @@ import { savedNoteFor } from './savedNote';
 import { restore } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
+import look from './ControlPanel.module.css';
 import styles from './MedalPusher.module.css';
 
 /** Medals a second when Auto is on, between the two rails: it feeds them by turns. */
@@ -74,6 +78,10 @@ export const sliderShare = (arm: Arm, percent: number): number => {
 };
 /** The START pockets each rail can feed, in the sliders' percent: what its slider marks as worth timing a press for. */
 export const POCKETS_IN_REACH = ([0, 1] as const).map((arm) => CHECKERS.positions.filter((x) => x >= ARM_REACH[arm].min && x <= ARM_REACH[arm].max).map(aimPercent)) as [number[], number[]];
+
+/** How many digits the counter of medals has, and the jackpot's plate. */
+export const COUNTER_PLACES = 5;
+export const JACKPOT_PLACES = 4;
 
 /** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
 const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
@@ -901,7 +909,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
         <div className={styles.bulbs} aria-hidden />
-        <div className={styles.marquee}>
+        <div className={`${styles.marquee} ${look.sign}`}>
           <div className={styles.logo} aria-hidden>
             <span className={styles.logoMain}>GOLDEN FEVER</span>
             <span className={styles.logoSub}>ゴールデンフィーバー</span>
@@ -911,6 +919,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             <span className={styles.jackpotValue} data-testid="pusher-jackpot">
               {fmt(hud.jackpot)}
             </span>
+            <SegmentMirror initial={hud.jackpot} places={JACKPOT_PLACES} tone="amber" />
           </div>
         </div>
 
@@ -998,7 +1007,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           />
         </div>
         {/* What each line of the slot leads to. There is no room for it on the screen now that the screen is in the cabinet. */}
-        <div className={styles.legendBelow} aria-hidden data-testid="pusher-legend">
+        <div className={`${styles.legendBelow} ${look.card}`} aria-hidden data-testid="pusher-legend">
           <span className={styles.legend}>
             <span data-tier="seven">{t.legendSeven}</span>
             <span data-tier="big">{t.legendOdd}</span>
@@ -1007,13 +1016,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         </div>
 
         {/* The controls: a feed button for each rail at either end, the medals on a plate between them, and under them an aim for each rail. */}
-        <div className={styles.panel} data-testid="pusher-controls">
+        <div className={`${styles.panel} ${look.plate}`} data-testid="pusher-controls">
           {feedButton(0)}
-          <div className={styles.credit}>
+          {/* The counter and the tray. The number is in type, for whoever reads the page; what is seen is the display
+              over it and the heap under it. */}
+          <div className={`${styles.credit} ${look.counter}`}>
             <span className={styles.creditLabel}>{t.medals}</span>
             <strong className={styles.creditValue} data-testid="pusher-credits">
               {fmt(hud.credits)}
             </strong>
+            <SegmentDisplay value={hud.credits} places={COUNTER_PLACES} />
+            <MedalTray credits={hud.credits} held={held} />
           </div>
           {feedButton(1)}
           <div className={styles.aims}>
@@ -1039,29 +1052,33 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
                   onPointerDown={takeOver}
                   onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
                 />
-                {feel.prefs.sweep && lead && (
-                  <span className={styles.aimMarks} aria-hidden data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]}>
-                    {POCKETS_IN_REACH[arm].map((pocket) => (
-                      <i key={pocket} className={styles.aimPocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
-                    ))}
-                    <i className={styles.aimLead} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
-                  </span>
-                )}
+                {/* What is printed along the slot: a pip for each START pocket this rail can feed. While the rails swing,
+                    a lit arrow over the slot shows where a medal fed now would drop. */}
+                <span className={look.scale} aria-hidden>
+                  {POCKETS_IN_REACH[arm].map((pocket) => (
+                    <i key={pocket} className={look.pocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
+                  ))}
+                  {feel.prefs.sweep && lead && (
+                    <i className={look.lead} data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
+                  )}
+                </span>
               </div>
             ))}
           </div>
-          <div className={styles.toggles}>
+          <div className={`${styles.toggles} ${look.switches}`}>
             <button type="button" className={styles.toggle} aria-pressed={auto} title={t.autoHint} data-testid="pusher-auto" onClick={() => setAuto(!auto)}>
-              {t.auto}
+              <AutoIcon /> {t.auto}
             </button>
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
-              <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
+              <SpeakerIcon on={sound} /> {t.sound}
             </button>
             <SoundSettingsButton control={soundControl} strings={t} />
+            <MakersPlate strings={t} />
           </div>
           <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
           <SoundSettingsPanel control={soundControl} strings={t} />
           <FeelNote strings={t} sweep={feel.prefs.sweep} />
+          <PanelWarning strings={t} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">
@@ -1069,7 +1086,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         </p>
 
         {hud.credits === 0 && (
-          <button type="button" className={styles.refill} data-testid="pusher-refill" onClick={onRefill}>
+          <button type="button" className={`${styles.refill} ${look.attendant}`} data-testid="pusher-refill" onClick={onRefill}>
             {t.refill(START_CREDITS)}
           </button>
         )}

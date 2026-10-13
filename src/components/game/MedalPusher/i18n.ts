@@ -258,6 +258,9 @@ export interface PusherStrings {
   vibrationHint: string;
   fullscreen: string;
   fullscreenHint: string;
+  /** What is on the control panel for the eye only: the second line of the maker's plate, and the small print along the panel's near edge. */
+  makerLine: string;
+  panelWarning: string;
 }
 
 const en: PusherStrings = {
@@ -547,6 +550,8 @@ const en: PusherStrings = {
   vibrationHint: 'The phone ticks when a medal goes in and buzzes for a win.',
   fullscreen: 'Fullscreen',
   fullscreenHint: 'The cabinet and its controls fill the screen.',
+  makerLine: 'MODEL GF-777',
+  panelWarning: 'MEDALS ONLY · DO NOT STRIKE OR ROCK THE MACHINE',
 };
 
 const ja: PusherStrings = {
@@ -835,6 +840,8 @@ const ja: PusherStrings = {
   vibrationHint: 'メダルを入れたときや当たったときに、スマートフォンが振動します。',
   fullscreen: '全画面',
   fullscreenHint: '筐体と操作パネルを画面いっぱいに表示します。',
+  makerLine: '型式 GF-777',
+  panelWarning: 'メダル専用　台をたたいたり、ゆらしたりしないでください',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

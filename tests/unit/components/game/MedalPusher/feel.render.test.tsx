@@ -17,6 +17,8 @@ const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
 
 /** The game's stylesheet, with its comments taken out: what the rules say. */
 const stylesheet = () => readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+/** The control panel's own sheet, which draws the controls as parts of a machine. */
+const panelSheet = () => readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/ControlPanel.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 /** Every rule for exactly this selector, from the top of the sheet down, joined: later ones add to earlier ones. */
 const rulesFor = (css: string, selector: string): string => {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -199,21 +201,26 @@ describe('the stylesheet, for a thumb', () => {
     expect(strip).toContain('top: 50%');
     expect(css).toMatch(/\.toggle,\s*\.tab \{\s*position: relative;\s*\}/);
     expect(css).toMatch(/\.refill,\s*\.reset \{\s*min-height: 44px;\s*\}/);
-    // A slider is 44 px tall, with a thumb to match, and a swipe up or down it still scrolls the page: the aims'
-    // and the volume's alike.
+    // A slider is 44 px tall, and a swipe up or down it still scrolls the page: the aims' and the volume's alike.
     for (const name of ['.aimSlider', '.volumeSlider']) {
       const slider = rulesFor(css, name);
       expect(slider).toContain('height: 44px');
       expect(slider).toContain('touch-action: pan-y');
       expect(slider).toContain('appearance: none');
-      for (const thumb of [`${name}::-webkit-slider-thumb`, `${name}::-moz-range-thumb`]) {
-        expect(rulesFor(css, thumb)).toContain('width: 28px');
-        expect(rulesFor(css, thumb)).toContain('height: 28px');
-      }
+      // What it looks like is the panel's own sheet's, which draws every slider of the panel as a fader.
+      for (const thumb of [`${name}::-webkit-slider-thumb`, `${name}::-moz-range-thumb`]) expect(rulesFor(css, thumb)).not.toMatch(/width|height|background/);
     }
-    // The volume's takes no more room in its row than its track did, and the notch behind it, at the level the
-    // cabinet was made at, is still in the middle of its travel: a thumb's travel is the same at both ends.
-    expect(rulesFor(css, '.volumeSlider')).toContain('margin: -11px 0');
+    // The fader's cap is what a finger has to catch on a phone, where a tap on the slot does not move it: 28 px wide.
+    const panel = panelSheet();
+    for (const thumb of [".plate input[type='range']::-webkit-slider-thumb", ".plate input[type='range']::-moz-range-thumb"]) {
+      expect(rulesFor(panel, thumb)).toContain('width: 28px');
+      expect(rulesFor(panel, thumb)).toContain('height: 30px');
+    }
+    expect(panel).not.toMatch(/-webkit-slider[^{]*,[^{]*-moz-range|-moz-range[^{]*,[^{]*-webkit-slider/);
+    // The volume's takes little more room in its row than a bare track did (its cap clears the words over it), and
+    // the notch behind it, at the level the cabinet was made at, is still in the middle of its travel: a cap's
+    // travel is the same at both ends.
+    expect(rulesFor(css, '.volumeSlider')).toContain('margin: -8px 0 -12px');
     const notch = rulesFor(css, '.volumeTrack::before');
     expect(notch).toContain('left: 50%');
     expect(notch).toContain('pointer-events: none');
@@ -221,8 +228,8 @@ describe('the stylesheet, for a thumb', () => {
     expect(css).not.toMatch(/-webkit-slider[^{]*,[^{]*-moz-range|-moz-range[^{]*,[^{]*-webkit-slider/);
     // The feed buttons were big enough already, and stay so.
     expect(rulesFor(css, '.feed')).toMatch(/width: clamp\(4\.8rem, 23vw, 6rem\)/);
-    // The marks over a slider take no touch from it.
-    expect(rulesFor(css, '.aimMarks')).toContain('pointer-events: none');
+    // The marks along a slider take no touch from it.
+    expect(rulesFor(panel, '.scale')).toContain('pointer-events: none');
   });
 
   it('keeps the page clear of a notch and a home bar', () => {

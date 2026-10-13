@@ -35,8 +35,14 @@ export interface HapticPattern {
  * - `crash`: a tower going over the pusher's lip.
  * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
  * - `line`: the slot stops on a winning line, a ball goes over the front, or the ball drops through a hole to the bowl below.
+ * - `towers`: towers stand built on the pusher and their guards sink: two thuds, the second the heavier. It comes a
+ *   second or so after the prize that paid them, when that prize's own pattern is over.
  * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl, or the
  *   jewel bonus for a full set of lamps.
+ * - `pour`: the hopper's doors drop open for a prize big enough to pour. The machine says so in the frame after it
+ *   says the prize is paid, while the prize's pattern has hardly begun, and a pattern that matters as much begins
+ *   again. So this one is the prize's own pattern, a pause while the doors drop, and then a run of ticks as the
+ *   medals come down: what the hand feels is the prize, and then the pour. A jackpot is not cut short for it.
  * - `jackpot`: the jackpot. A second and a quarter long.
  */
 export const HAPTICS = {
@@ -48,7 +54,9 @@ export const HAPTICS = {
   crash: { pattern: [70], rank: 2, gap: 0 },
   chance: { pattern: [24, 40, 24], rank: 3, gap: 0 },
   line: { pattern: [30, 50, 30], rank: 3, gap: 0 },
+  towers: { pattern: [50, 45, 80], rank: 3, gap: 0 },
   prize: { pattern: [45, 55, 45, 55, 90], rank: 4, gap: 0 },
+  pour: { pattern: [45, 55, 45, 55, 90, 170, 35, 35, 35, 35, 35, 35, 35], rank: 4, gap: 0 },
   jackpot: { pattern: [140, 70, 140, 70, 140, 70, 600], rank: 5, gap: 0 },
 } as const satisfies Record<string, HapticPattern>;
 
@@ -169,6 +177,12 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
         break;
       case 'bowlEnd':
         feel(event.jackpot ? 'jackpot' : 'prize');
+        break;
+      case 'towersReady':
+        feel('towers');
+        break;
+      case 'pourStart':
+        feel('pour');
         break;
       default:
         break;

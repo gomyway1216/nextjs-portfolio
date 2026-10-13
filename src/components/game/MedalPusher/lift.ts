@@ -26,6 +26,13 @@
  * medals at the pace it always did, after the half second the hatch and the
  * guard take.
  *
+ * Every tower comes up this way, however small. The smallest there is is the
+ * jewels' bonus, a tower of three: its guard stands as high as three medals,
+ * its two medals are up in a ninth of a second, and it stands free about a
+ * second after its prize is paid. A tower under some size that was simply set
+ * down would be the one thing on this machine that came from nowhere, and a
+ * second kind of tower for the save and both renderers to know of.
+ *
  * This file is the engine's side of it and imports nothing that runs.
  */
 

@@ -140,6 +140,13 @@ export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, li
   return null;
 }
 
+/**
+ * Whether what the bowls paid is up on the screen. Its announcement has told all of it: how many of the medals are
+ * poured onto the field, and that the rest go up as towers. So for as long as it is up the payout works say nothing
+ * of their own: the pour they finish and the towers they build in that time are that prize, said already.
+ */
+export const bowlPrizeUp = (roulette: ActiveRoulette | null): boolean => !!roulette?.bowl && roulette.bowl.payout >= 0;
+
 /** The numbers shown around the cabinet. */
 interface Hud {
   credits: number;
@@ -740,15 +747,15 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             setAnnouncement(strings.sayJewelBonus(event.payout, JEWEL.lamps));
             break;
           // The payout works. What they have done is read out once it is done, so that it does not talk over the
-          // prize that set them going.
+          // prize that set them going; and not at all while a prize from the bowls is up, which has said it itself.
           case 'pourStart':
             playSound('open', soundOn);
             break;
           case 'pourEnd':
-            setAnnouncement(live.current.works.sayPoured(event.medals));
+            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayPoured(event.medals));
             break;
           case 'towersReady':
-            setAnnouncement(live.current.works.sayTowers(event.towers));
+            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowers(event.towers));
             break;
         }
       }

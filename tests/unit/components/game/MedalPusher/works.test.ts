@@ -2,12 +2,29 @@ import { describe, expect, it } from 'vitest';
 
 import { HATCH } from '@/components/game/MedalPusher/arms';
 import { Flat, SOLID_STRIDE, Solid } from '@/components/game/MedalPusher/cabinet3d';
-import { MEDAL_RADIUS, MEDAL_THICKNESS, TOWER, buildTowers, createMachine, medalsOnField, pusherFront, queuePayout, step, type FallingMedal, type Machine, type Medal } from '@/components/game/MedalPusher/engine';
-import { DOORS, POUR, channelX } from '@/components/game/MedalPusher/hopper';
+import {
+  FIELD,
+  MEDAL_RADIUS,
+  MEDAL_THICKNESS,
+  TOWER,
+  buildTowers,
+  createMachine,
+  jewelsOnField,
+  medalsOnField,
+  pusherFront,
+  queuePayout,
+  step,
+  towerSizes,
+  type FallingMedal,
+  type Machine,
+  type Medal,
+} from '@/components/game/MedalPusher/engine';
+import { DOORS, POUR, channelX, shutHopper } from '@/components/game/MedalPusher/hopper';
 import { LIFT, holds } from '@/components/game/MedalPusher/lift';
-import { BOARD, CHESTS, FEVER_SQUARE } from '@/components/game/MedalPusher/lottery';
+import { BOARD, CHAIN_GOAL, CHESTS, FEVER_SQUARE, JACKPOT_START, JEWEL, pouredOf } from '@/components/game/MedalPusher/lottery';
+import { bowlPrizeUp } from '@/components/game/MedalPusher/PlayTab';
 import { BEAD, BEAD_STRIDE, LANDED, MEDAL_STRIDE, createRows, writeMedals } from '@/components/game/MedalPusher/scene3d';
-import { TIMING, advance, createSession, isBusy, sugorokuDuration, type SessionEvent } from '@/components/game/MedalPusher/session';
+import { BOWL_TIMES, TIMING, advance, bowlShowTime, createSession, isBusy, sugorokuDuration, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { HEIGHT, HOUSING, project, type Projected } from '@/components/game/MedalPusher/view';
 import { CHUTE_SLOPE, DECK, DOOR, GUARD, POUR_WAY, chuteShows, doorLampLit, doorOf, doorSwing, liftViews, onFlap, pourPose, pourTime, watchWorks, worksEvents } from '@/components/game/MedalPusher/works';
 import { drawHopper, drawLifts, roundness } from '@/components/game/MedalPusher/works2d';
@@ -381,6 +398,185 @@ describe('what the session reports of the payout works', () => {
     expect(of(events, 'pourStart')).toEqual([]);
     expect(session.paidOut).toBe(prize);
     expect(medalsOnField(session.machine) + session.won + session.lost).toBe(start + prize);
+  });
+});
+
+describe('the payout works and the three bowls', () => {
+  /** The three ends: the way down to each, whether it is the jackpot, and what it pays on a new machine. */
+  const ENDS = [
+    ['the jackpot', [0, 0, 0], true, JACKPOT_START],
+    ['the hundred of the middle bowl', [0, 1], false, 100],
+    ['the fifty of the top bowl', [2], false, 50],
+  ] as const;
+  /**
+   * A machine with a full run behind it and the ball a fifth of a second from dropping into the last hole of `way`.
+   * No ball and no jewel lies on it: what the prize's medals push over the front would be paid for, and this is
+   * about the prize.
+   */
+  const nearTheDrop = (way: readonly number[]): Session => {
+    const session = createSession(7, { balls: 0, jewels: 0 });
+    const stage = way.length - 1;
+    session.roulettes = 1;
+    session.roulette = {
+      pocket: 1,
+      from: 1,
+      elapsed: TIMING.roulette + TIMING.step,
+      duration: TIMING.roulette,
+      landed: true,
+      level: CHAIN_GOAL,
+      total: 40,
+      gain: 0,
+      over: false,
+      jackpot: false,
+      bowl: { holes: [...way], stage, elapsed: BOWL_TIMES[stage] - 0.2, duration: BOWL_TIMES[stage], payout: -1 },
+    };
+    return session;
+  };
+
+  it.each(ENDS)('deliver %s as its announcement says: that many poured, the rest up as towers, and all of it done while the prize is still on the screen', { timeout: 30_000 }, (_name, way, jackpot, payout) => {
+    const session = nearTheDrop(way);
+    const start = medalsOnField(session.machine);
+    const said: { step: number; event: SessionEvent; up: boolean }[] = [];
+    let gone = 0;
+    let thrown = 0;
+    let poured = 0;
+    const inAir = new Set<number>();
+    let freed = -1;
+    for (let step = 1; step <= 60 * 12; step++) {
+      const events: SessionEvent[] = [];
+      const busy = session.roulette !== null;
+      advance(session, DT, events);
+      for (const event of events) {
+        if (event.type === 'won' || event.type === 'lost') gone += event.count;
+        if (event.type === 'bowlEnd' || event.type === 'pourStart' || event.type === 'pourEnd' || event.type === 'towersRise' || event.type === 'towersReady') said.push({ step, event, up: bowlPrizeUp(session.roulette) });
+      }
+      for (const medal of session.machine.falling) {
+        if (inAir.has(medal.id) || (medal.source !== 'payout' && medal.source !== 'pour')) continue;
+        inAir.add(medal.id);
+        if (medal.source === 'pour') poured += 1;
+        else thrown += 1;
+      }
+      // The cabinet says a prize from the bowls is up for exactly as long as the ball lies in its hole, paid.
+      expect(bowlPrizeUp(session.roulette)).toBe((session.roulette?.bowl?.payout ?? -1) >= 0);
+      if (busy && session.roulette === null) freed = step;
+      // Every medal the prize put on the field is a medal there, or one that has left it since.
+      expect(medalsOnField(session.machine) + gone).toBe(start + session.paidOut);
+    }
+    expect(bowlPrizeUp(null)).toBe(false);
+    // The bowls say how the prize is split: the share that is always loose, with every place for a tower free.
+    const loose = pouredOf(payout);
+    const towers = towerSizes(payout - loose);
+    const [end, ...works] = said;
+    expect(end.event).toEqual({ type: 'bowlEnd', bowl: way.length - 1, hole: way[way.length - 1], payout, poured: loose, total: 40 + payout, jackpot });
+    expect(session.paidOut).toBe(payout);
+    // The rest starts up on its lifts in that very step, and stands built before the prize leaves the screen.
+    expect(works[0]).toMatchObject({ step: end.step, event: { type: 'towersRise', towers: towers.length, medals: payout - loose } });
+    const built = works.filter(({ event }) => event.type === 'towersReady');
+    expect(built.reduce((sum, { event }) => sum + (event.type === 'towersReady' ? event.towers : 0), 0)).toBe(towers.length);
+    const pours = works.filter(({ event }) => event.type === 'pourStart' || event.type === 'pourEnd');
+    if (loose >= POUR.threshold) {
+      // What is said to be poured is what the hopper pours: its doors drop open in the next step for exactly that
+      // many, nothing having been waiting, and they are the medals that come out of them.
+      expect(pours.map(({ event }) => event)).toEqual([
+        { type: 'pourStart', medals: loose },
+        { type: 'pourEnd', medals: loose },
+      ]);
+      expect(pours[0].step).toBe(end.step + 1);
+      expect([poured, thrown]).toEqual([loose, 0]);
+      expect(session.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: loose });
+    } else {
+      // Fifteen are too few to open the doors for. They are paid loose all the same, out of the slot under the hood.
+      expect(loose).toBe(15);
+      expect(pours).toEqual([]);
+      expect([poured, thrown]).toEqual([0, loose]);
+      expect(session.machine.hopper).toEqual(shutHopper());
+    }
+    // All of it is over while the prize is still up, so the works add no announcement of their own to the prize's.
+    expect(works.every(({ up }) => up)).toBe(true);
+    const last = works[works.length - 1].step;
+    expect((last - end.step) * DT).toBeLessThan(bowlShowTime(jackpot) - 1);
+    expect(freed).toBeGreaterThan(last);
+    expect(Math.abs((freed - end.step) * DT - bowlShowTime(jackpot))).toBeLessThanOrEqual(2 * DT);
+    expect([session.machine.payoutQueue, session.machine.growing]).toEqual([0, 0]);
+  });
+
+  it('pour what the towers have no place for along with the share that is always loose, and say that number', () => {
+    // Every place for a tower is taken, so a hundred medals have nowhere to go up.
+    const session = nearTheDrop([0, 1]);
+    buildTowers(session.machine, 18 * TOWER.max);
+    for (let i = 0; i < 6; i++) advance(session, DT);
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 60 * 6 && !events.some((event) => event.type === 'pourEnd'); i++) advance(session, DT, events);
+    const end = events.find((event) => event.type === 'bowlEnd');
+    expect(end).toMatchObject({ payout: 100, poured: 100 });
+    expect(events.filter((event) => event.type === 'pourStart' || event.type === 'pourEnd')).toEqual([
+      { type: 'pourStart', medals: 100 },
+      { type: 'pourEnd', medals: 100 },
+    ]);
+  });
+});
+
+describe('the payout works and the jewels', () => {
+  it('bring the jewel bonus up through a hatch like any tower: three medals, in a guard as tall as three, free in under a second', () => {
+    const session = createSession(5, { balls: 0, jewels: 1 });
+    const start = medalsOnField(session.machine);
+    session.jewels = JEWEL.lamps - 1;
+    const jewel = session.machine.medals.find((medal) => medal.jewel) as Medal;
+    expect(jewel.level).toBe(0);
+    // The last of the set goes over the front edge.
+    jewel.y = FIELD.depth + 0.1;
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    expect(events).toContainEqual({ type: 'jewelBonus', payout: JEWEL.bonus });
+    expect(events).toContainEqual({ type: 'towersRise', towers: 1, medals: JEWEL.bonus });
+    expect([session.jewels, session.jewelBonuses, jewelsOnField(session.machine)]).toEqual([0, 1, 0]);
+    // One lift, on a tower of three: its guard stands as high as three medals and the margin over them.
+    expect(session.machine.lifts).toHaveLength(1);
+    const [lift] = session.machine.lifts;
+    expect(lift).toMatchObject({ size: JEWEL.bonus, wait: LIFT.opens, sunk: -1 });
+    expect(liftViews(session.machine, pusherFront(session.machine.time), true)[0].full).toBeCloseTo(JEWEL.bonus * MEDAL_THICKNESS + GUARD.over, 9);
+    const tower = session.machine.medals.find((medal) => medal.id === lift.id) as Medal;
+    expect([tower.stack, tower.grow, tower.level, tower.tier]).toEqual([1, JEWEL.bonus - 1, 1, 0]);
+    // It is held while it comes up, and built as soon as its guard is up and its two medals have come.
+    let steps = 0;
+    while (!events.some((event) => event.type === 'towersReady') && steps < 120) {
+      advance(session, DT, events);
+      steps += 1;
+      if (session.machine.lifts.some(holds)) {
+        expect(tower.x).toBeCloseTo(lift.x, 6);
+        expect(tower.y).toBeCloseTo(pusherFront(session.machine.time) - lift.behind, 6);
+      }
+    }
+    expect(events).toContainEqual({ type: 'towersReady', towers: 1 });
+    expect(tower).toMatchObject({ stack: JEWEL.bonus, grow: 0 });
+    expect(Math.abs(steps * DT - (LIFT.opens + (JEWEL.bonus - 1) / TOWER.perSecond))).toBeLessThanOrEqual(3 * DT);
+    for (let i = 0; i < 60 && session.machine.lifts.length > 0; i++) advance(session, DT, events);
+    expect(session.machine.lifts).toEqual([]);
+    expect((steps + 1) * DT + LIFT.closes).toBeLessThan(1.2);
+    // Nothing was poured for it, and its three medals are on the field or have left it since.
+    expect(events.some((event) => event.type === 'pourStart')).toBe(false);
+    const gone = events.reduce((sum, event) => sum + (event.type === 'won' || event.type === 'lost' ? event.count : 0), 0);
+    expect(session.paidOut).toBe(JEWEL.bonus);
+    expect(medalsOnField(session.machine) + gone).toBe(start + JEWEL.bonus);
+  });
+
+  it('pour past a jewel on the lower table without taking it for a medal: it is neither poured nor counted', () => {
+    const session = createSession(5, { balls: 0 });
+    const lying = jewelsOnField(session.machine);
+    expect(lying).toBe(2);
+    const start = medalsOnField(session.machine);
+    queuePayout(session.machine, 60);
+    session.paidOut += 60;
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 60 * 4; i++) {
+      advance(session, DT, events);
+      expect(session.machine.falling.every((medal) => medal.source !== 'pour' || !medal.jewel)).toBe(true);
+    }
+    const collected = events.filter((event) => event.type === 'jewel').length;
+    expect(jewelsOnField(session.machine) + collected).toBe(lying);
+    const gone = events.reduce((sum, event) => sum + (event.type === 'won' || event.type === 'lost' ? event.count : 0), 0);
+    expect(medalsOnField(session.machine) + gone).toBe(start + session.paidOut);
+    expect(session.paidOut).toBe(60 + collected * JEWEL.prize);
   });
 });
 

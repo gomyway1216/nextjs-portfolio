@@ -9,13 +9,15 @@ import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
+import { PlateSticker } from './PlateSticker';
 import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
 import {
-  ballSpot,
   landTimes,
+  monitorGlow,
+  monitorMode,
   reelPositions,
   reelsFast,
   reelsWaiting,
@@ -179,6 +181,7 @@ const IDLE_SCREEN: ScreenState = {
   amount: 0,
   line: null,
   lit: -1,
+  board: -1,
   square: 0,
   die: 0,
   rolling: false,
@@ -777,7 +780,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels });
+      // The monitor lights what stands in front of it, in the colour of the mode it is in.
+      const glow = monitorGlow(monitorMode(screenState(session, calm.matches)));
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels, glow });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -809,9 +814,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
-      const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
+      // The ball acts out its lottery: round the wheel while the roulette turns, then down the bowls. Without motion it waits where each begins until it lies in its pocket or its hole.
+      if (session.roulette && ball.current) placeLottery(ball.current, session.roulette, calm.matches);
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -1170,6 +1174,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             {t.refill(START_CREDITS)}
           </button>
         )}
+        <PlateSticker />
         <div className={styles.bulbs} aria-hidden />
       </div>
 

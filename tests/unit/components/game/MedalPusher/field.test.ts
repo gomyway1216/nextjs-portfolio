@@ -346,7 +346,7 @@ describe('the catcher on the canvas', () => {
       machine.medals = [medal];
       const screen = recorder();
       drawField(screen.context, stage, machine, { showGuide: false });
-      return { ...screen, stamps: screen.stamps.filter((stamp) => stamp.image === stage.medal) };
+      return { ...screen, stamps: screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement)) };
     };
     let last: { x: number; y: number; alpha: number } = { x: 0, y: -Infinity, alpha: 2 };
     for (const sinceDrop of [0.02, 0.12, 0.2, 0.3]) {
@@ -391,7 +391,7 @@ describe('the catcher on the canvas', () => {
       machine.medals = [medal];
       const screen = recorder();
       drawField(screen.context, stage, machine, { showGuide: false });
-      const stamps = screen.stamps.filter((stamp) => stamp.image === stage.medal);
+      const stamps = screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement));
       return { stamps, medalAt: screen.log.indexOf(`image:${screen.stamps.indexOf(stamps[0])}`), catcherAt: screen.log.indexOf('text:START') };
     };
     let last = { y: -Infinity, round: Infinity };
@@ -991,7 +991,7 @@ describe('the jewels on the canvas', () => {
       const spot = lyingJewel(stone, machine.time);
       expect(stoneDrawn(screen, spot)).toBe(true);
       // The one medal is stamped, and nothing is stamped for the jewel: it is not a medal's face, nor a ball.
-      expect(screen.stamps.filter((stamp) => stamp.image === stage.medal)).toHaveLength(1);
+      expect(screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement))).toHaveLength(1);
       expect(screen.stamps.filter((stamp) => stamp.image === stage.ball)).toHaveLength(0);
       // Its shadow, and the stone's own colour in it: two ovals on what it stands on, within a stone's width of its foot.
       const foot = project(spot.x, spot.height - JEWEL_CUT.pavilion, spot.depth);
@@ -1030,7 +1030,7 @@ describe('the jewels on the canvas', () => {
     const { screen } = frame([], { calm: true }, stage);
     expect(stoneDrawn(screen, collectedJewel(5, 30, D + 0.2, 0.1), false)).toBe(true);
     // It is not stamped as a medal or a ball on its way out.
-    expect(screen.stamps.filter((stamp) => stamp.image === stage.medal || stamp.image === stage.ball)).toHaveLength(0);
+    expect(screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement) || stamp.image === stage.ball)).toHaveLength(0);
   });
 
   it('notes a jewel that has left the field, which is always over the front: the tray lit, and a burst of its own colours', () => {

@@ -33,26 +33,81 @@ function sheet(width: number, height: number, perUnit: number): { canvas: HTMLCa
   return { canvas, g };
 }
 
-/** The lower table from above: across is across, down is toward the player. */
+/** How many strokes of the brush are drawn across the lower table's steel. */
+export const BRUSH_STROKES = 2400;
+
+/**
+ * Numbers from 0 to 1 that come out the same every time they are asked for
+ * from the same start: the table is brushed and scuffed the same on every
+ * device and in every test.
+ */
+function scatter(start: number): () => number {
+  let seed = start;
+  return () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+}
+
+/**
+ * The lower table from above: across is across, down is toward the player.
+ * It is a sheet of stainless steel, brushed across, as the table of a real
+ * pusher is: grey, with a blue cast from the cabinet's light. Medals have
+ * slid down the middle of it for years and worn the brushing bright there;
+ * along the rails and under the pusher, where nothing sweeps it, it is dull
+ * with dirt. What is printed on it is printed on the steel and has worn with it.
+ */
 export function paintTable(): HTMLCanvasElement {
   const { canvas, g } = sheet(W, D, 10.24);
   if (!g) return canvas;
   const plate = g.createLinearGradient(0, 0, 0, D);
-  plate.addColorStop(0, '#08213f');
-  plate.addColorStop(0.5, '#0d3f72');
-  plate.addColorStop(1, '#1973b6');
+  plate.addColorStop(0, '#39414f');
+  plate.addColorStop(0.5, '#56606f');
+  plate.addColorStop(1, '#727c8a');
   g.fillStyle = plate;
   g.fillRect(0, 0, W, D);
-  // Lanes, an emblem and the words the player needs.
-  g.strokeStyle = 'rgba(160, 215, 255, 0.13)';
-  g.lineWidth = 0.3;
-  for (let x = 10; x < W; x += 10) {
-    g.beginPath();
-    g.moveTo(x, PUSHER.min);
-    g.lineTo(x, D);
-    g.stroke();
+  // The brushing: fine strokes across the sheet, lighter and darker than it by turns.
+  const random = scatter(7);
+  for (let stroke = 0; stroke < BRUSH_STROKES; stroke++) {
+    const x = random() * W;
+    const y = random() * D;
+    const long = 5 + random() * 28;
+    const strength = 0.03 + random() * 0.06;
+    g.fillStyle = stroke % 2 === 0 ? `rgba(236, 244, 255, ${strength.toFixed(3)})` : `rgba(6, 10, 20, ${(strength * 1.3).toFixed(3)})`;
+    g.fillRect(x - long / 2, y, long, 0.05 + random() * 0.09);
   }
-  g.strokeStyle = 'rgba(150, 215, 255, 0.2)';
+  // Worn bright where the heap slides, most toward the front edge it goes over.
+  const worn = g.createLinearGradient(0, 0, W, 0);
+  worn.addColorStop(0.08, 'rgba(226, 236, 250, 0)');
+  worn.addColorStop(0.5, 'rgba(226, 236, 250, 0.16)');
+  worn.addColorStop(0.92, 'rgba(226, 236, 250, 0)');
+  g.fillStyle = worn;
+  g.fillRect(0, PUSHER.min, W, D - PUSHER.min);
+  // Dull with dirt along either rail and back under the pusher.
+  for (const [from, to] of [
+    [0, 9],
+    [W, W - 9],
+  ]) {
+    const dirt = g.createLinearGradient(from, 0, to, 0);
+    dirt.addColorStop(0, 'rgba(14, 12, 16, 0.5)');
+    dirt.addColorStop(1, 'rgba(14, 12, 16, 0)');
+    g.fillStyle = dirt;
+    g.fillRect(Math.min(from, to), 0, 9, D);
+  }
+  const under = g.createLinearGradient(0, 0, 0, PUSHER.max + 8);
+  under.addColorStop(0, 'rgba(8, 8, 14, 0.62)');
+  under.addColorStop(1, 'rgba(8, 8, 14, 0)');
+  g.fillStyle = under;
+  g.fillRect(0, 0, W, PUSHER.max + 8);
+  // Lanes scribed into the steel: a dark line with a bright edge to it.
+  for (let x = 10; x < W; x += 10) {
+    g.fillStyle = 'rgba(8, 12, 22, 0.3)';
+    g.fillRect(x - 0.12, PUSHER.min, 0.24, D - PUSHER.min);
+    g.fillStyle = 'rgba(236, 244, 255, 0.14)';
+    g.fillRect(x + 0.12, PUSHER.min, 0.1, D - PUSHER.min);
+  }
+  // The emblem, etched: two rings and a star, a shade darker than the sheet.
+  g.strokeStyle = 'rgba(10, 16, 30, 0.26)';
   g.lineWidth = 0.9;
   for (const radius of [20, 15.5]) {
     g.beginPath();
@@ -60,16 +115,30 @@ export function paintTable(): HTMLCanvasElement {
     g.stroke();
   }
   starPath(g, W / 2, 70, 13, 5.4);
-  g.fillStyle = 'rgba(150, 215, 255, 0.15)';
+  g.fillStyle = 'rgba(10, 16, 30, 0.2)';
   g.fill();
+  // The words the player needs, printed on the steel in enamel that the medals have rubbed thin.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.font = '900 6.5px "Arial Black", Arial, sans-serif';
-  g.fillStyle = 'rgba(255, 226, 120, 0.5)';
+  g.fillStyle = 'rgba(244, 208, 96, 0.6)';
   for (const x of [20, 50, 80]) g.fillText('GET', x, 93.5);
   g.font = '900 4.6px "Arial Black", Arial, sans-serif';
-  g.fillStyle = 'rgba(255, 130, 150, 0.6)';
+  g.fillStyle = 'rgba(232, 96, 110, 0.7)';
   for (const x of [7.5, W - 7.5]) g.fillText('OUT', x, 84);
+  // Scuffs: short bright scratches, any way round, thickest where the medals turn at the front.
+  for (let scuff = 0; scuff < 160; scuff++) {
+    const x = random() * W;
+    const y = PUSHER.min + (1 - random() * random()) * (D - PUSHER.min);
+    const long = 0.6 + random() * 2.4;
+    const turn = random() * Math.PI;
+    g.strokeStyle = `rgba(240, 246, 255, ${(0.08 + random() * 0.14).toFixed(3)})`;
+    g.lineWidth = 0.06 + random() * 0.07;
+    g.beginPath();
+    g.moveTo(x - Math.cos(turn) * long, y - Math.sin(turn) * long);
+    g.lineTo(x + Math.cos(turn) * long, y + Math.sin(turn) * long);
+    g.stroke();
+  }
   return canvas;
 }
 
@@ -158,13 +227,13 @@ export function paintWall(): HTMLCanvasElement {
   const { canvas, g } = sheet(length, height, 6.5);
   if (!g) return canvas;
   const shade = g.createLinearGradient(0, 0, length, 0);
-  shade.addColorStop(0, '#2c1b6c');
-  shade.addColorStop(1, '#170c40');
+  shade.addColorStop(0, '#221a4a');
+  shade.addColorStop(1, '#120d2c');
   g.fillStyle = shade;
   g.fillRect(0, 0, length, height);
   const lift = g.createLinearGradient(0, 0, 0, height);
-  lift.addColorStop(0, 'rgba(170, 140, 255, 0.22)');
-  lift.addColorStop(1, 'rgba(0, 0, 20, 0.25)');
+  lift.addColorStop(0, 'rgba(160, 150, 220, 0.16)');
+  lift.addColorStop(1, 'rgba(0, 0, 12, 0.34)');
   g.fillStyle = lift;
   g.fillRect(0, 0, length, height);
   const panel = 13;
@@ -176,16 +245,19 @@ export function paintWall(): HTMLCanvasElement {
     gleam.addColorStop(0.6, 'rgba(255, 255, 255, 0)');
     g.fillStyle = gleam;
     g.fillRect(depth, 0, panel, height);
-    // Its gold frame, and a strip of light inside each upright of it.
-    g.strokeStyle = 'rgba(255, 206, 96, 0.8)';
+    // Its frame, of brass moulding that has gone dull: a dark line under it where it stands off the mirror.
+    g.strokeStyle = 'rgba(4, 2, 12, 0.5)';
     g.lineWidth = 0.5;
+    g.strokeRect(depth + 1.05, 2.4, panel - 1.8, height - 4.4);
+    g.strokeStyle = 'rgba(206, 168, 92, 0.72)';
     g.strokeRect(depth + 0.9, 2.2, panel - 1.8, height - 4.4);
-    g.fillStyle = 'rgba(255, 150, 215, 0.75)';
-    g.fillRect(depth + 1.7, 3.4, 0.45, height - 6.8);
-    g.fillStyle = 'rgba(125, 240, 255, 0.7)';
-    g.fillRect(depth + panel - 2.15, 3.4, 0.45, height - 6.8);
+    // A strip of light inside each upright of it: a tube behind frosted plastic, not a line of neon.
+    g.fillStyle = 'rgba(255, 170, 215, 0.34)';
+    g.fillRect(depth + 1.6, 3.4, 0.65, height - 6.8);
+    g.fillStyle = 'rgba(150, 232, 250, 0.3)';
+    g.fillRect(depth + panel - 2.25, 3.4, 0.65, height - 6.8);
     // A diamond of lamps in the middle of the panel, and one above and below it.
-    g.fillStyle = 'rgba(255, 243, 168, 0.9)';
+    g.fillStyle = 'rgba(255, 236, 170, 0.62)';
     for (const up of [0.28, 0.5, 0.72]) {
       const size = up === 0.5 ? 1.5 : 0.8;
       g.beginPath();

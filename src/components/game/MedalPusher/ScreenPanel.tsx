@@ -1,23 +1,32 @@
 'use client';
 
-import { Fragment, useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { PusherStrings } from './i18n';
-import { BOWLS, CHAIN_GOAL, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS, type BowlHole } from './lottery';
+import { BOWLS, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS, type BowlHole } from './lottery';
 import { ReelSymbol, tierOfDigit } from './ReelSymbols';
 import { GOLD_FLASH } from './render';
 import {
   BOARD_SQUARES,
   BOWL_SHAPE,
+  MONITOR,
   REEL_DIGITS,
+  WHEEL,
+  ballSpot,
   bowlBall,
   holeSpot,
+  monitorMode,
+  monitorScene,
+  pocketPlace,
+  wheelSpot,
   type BallSpot,
   type Banner,
   type BowlPoint,
   type ChestView,
+  type MonitorMode,
   type ScreenState,
+  type WheelSpot,
 } from './screen';
-import { MAX_STOCK } from './session';
+import { MAX_STOCK, type ActiveRoulette } from './session';
 import styles from './MedalPusher.module.css';
 
 /** The digits the reels show before the first spin. */
@@ -271,73 +280,200 @@ const Chest = ({ view }: { view: ChestView }) => (
 
 // ── The roulette ────────────────────────────────────────────────────────────
 
-/** Where a pocket's number stands and where its lamp sits on the rim, as shares of the wheel's radius from its middle. */
-const POCKET_AT = 0.68;
-const LAMP_AT = 0.965;
 /** The most medals the run's tower is drawn with, and the medals of the run that each one stands for. */
 const TOWER = { coins: 14, each: 10 } as const;
 
-/** The point of the wheel `radius` from its middle on pocket `index`, as percentages of its box: the first pocket is at the far side. */
-function wheelPoint(index: number, radius: number): [number, number] {
-  const angle = ((index / ROULETTE.length) * 2 - 0.5) * Math.PI;
-  return [50 + Math.cos(angle) * radius * 50, 50 + Math.sin(angle) * radius * 50];
-}
+/**
+ * The wheel as it is drawn, in ems of its box, where one em is its radius out
+ * to the rim: the ball's own radius, how much of its size the ball loses as
+ * it sits down into a pocket, and how far the wheel leans back from the eye.
+ */
+const WHEEL_VIEW = { ball: 0.07, sink: 0.16, tilt: 50 } as const;
 
-/** That point as CSS places it in the wheel's box. */
-const onWheel = (index: number, radius: number): CSSProperties => {
-  const [x, y] = wheelPoint(index, radius);
-  return { left: `${x.toFixed(2)}%`, top: `${y.toFixed(2)}%` };
+/**
+ * How a pocket is painted by what it holds: the plate its number stands on,
+ * the number, and the light of its lamp. The same on every board, so that a
+ * colour always means the same prize.
+ */
+const POCKET_PAINT: Readonly<Record<string, { plate: string; ink: string; lit: string }>> = {
+  stop: { plate: '#7a1128', ink: '#ffd9df', lit: '#ff3d5a' },
+  10: { plate: '#1e5fd6', ink: '#ffffff', lit: '#8fc0ff' },
+  20: { plate: '#0f8f58', ink: '#ffffff', lit: '#7df0b0' },
+  30: { plate: '#8438d0', ink: '#ffffff', lit: '#d5a6ff' },
+  50: { plate: '#e2a917', ink: '#2a1700', lit: '#fff3b0' },
 };
 
 /**
- * The roulette as a wheel lying on the stage: twelve pockets with their
- * numbers standing in them and a lamp on the rim for each. The light runs
- * round from lamp to lamp, and the pocket it is on is bright. A cross ends the run.
+ * How each board is dressed: the name on its plate, the metal its cone is
+ * turned from (light, body and shade), the two tones of its banked track, and
+ * the colour of the lamps round its rim. The pockets and their chances are
+ * the same on all four.
  */
-const Wheel = ({ lit }: { lit: number }) => (
-  <div className={styles.dishScene}>
-    <div className={styles.dishTilt}>
-      <span className={styles.dishShadow} />
-      <span className={styles.dishSide} />
-      <svg className={styles.wheel} viewBox="0 0 100 100" data-testid="pusher-wheel" data-lit={lit}>
-        <circle cx="50" cy="50" r="50" fill="#12061f" />
-        {ROULETTE.map((pocket, index) => {
-          const [x1, y1] = wheelPoint(index - 0.5, 0.92);
-          const [x2, y2] = wheelPoint(index + 0.5, 0.92);
-          const on = lit === index;
-          const stop = pocket === 'stop';
-          return (
-            <g key={index} data-pocket={index} data-lit={on}>
-              <path
-                d={`M50 50 L${x1.toFixed(2)} ${y1.toFixed(2)} A46 46 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`}
-                fill={on ? (stop ? '#ff6b81' : '#ffd65c') : stop ? '#5c0f22' : index % 2 === 0 ? '#3a2a82' : '#231560'}
-                stroke="#0a0520"
-                strokeWidth="0.7"
-              />
-            </g>
-          );
-        })}
-        <circle cx="50" cy="50" r="46" fill="none" stroke="#0a0520" strokeWidth="1" />
-        <circle cx="50" cy="50" r="48.3" fill="none" stroke="#ffd65c" strokeWidth="3.4" />
-        <circle cx="50" cy="50" r="48.3" fill="none" stroke="#fff3b0" strokeWidth="0.9" />
-        <circle cx="50" cy="50" r="20" fill="#0a0520" stroke="#ffd65c" strokeWidth="1.6" />
-      </svg>
-      <span className={styles.dishHub} />
-      {ROULETTE.map((pocket, index) => {
-        const stop = pocket === 'stop';
-        const on = lit === index;
-        return (
-          <Fragment key={index}>
-            <span className={styles.rimLamp} style={onWheel(index, LAMP_AT)} data-on={on} />
-            <span className={styles.pocketLabel} style={onWheel(index, POCKET_AT)} data-stop={stop} data-on={on}>
-              {stop ? '×' : pocket}
-            </span>
-          </Fragment>
-        );
-      })}
+export const WHEEL_BOARDS = [
+  { name: 'BRONZE', cone: ['#f6c79c', '#b8703a', '#5e3211'], track: ['#2a1c14', '#5f4130'], lamp: '#ffb37a' },
+  { name: 'SILVER', cone: ['#f6f9fd', '#a9b4c4', '#4d5868'], track: ['#1c2029', '#4d5565'], lamp: '#cfe3ff' },
+  { name: 'GOLD', cone: ['#fff6c2', '#e2a917', '#7a5200'], track: ['#2b2006', '#6e5312'], lamp: '#ffe27a' },
+  { name: 'FINAL', cone: ['#ffe0f4', '#d2359a', '#4a0a34'], track: ['#170a20', '#44265c'], lamp: '#ff8fd8' },
+] as const;
+
+/** A number to three places, for a path. */
+const f = (value: number): string => value.toFixed(3);
+/** The point `radius` from the middle of the wheel, `turn` turns clockwise from its top, in the wheel's own radii. */
+const wheelAt = (radius: number, turn: number): [number, number] => [radius * Math.sin(turn * 2 * Math.PI), -radius * Math.cos(turn * 2 * Math.PI)];
+/** The piece of a ring between two radii and two turns, as an SVG path. */
+function ringPiece(inner: number, outer: number, from: number, to: number): string {
+  const [ax, ay] = wheelAt(outer, from);
+  const [bx, by] = wheelAt(outer, to);
+  const [cx, cy] = wheelAt(inner, to);
+  const [dx, dy] = wheelAt(inner, from);
+  return `M${f(ax)} ${f(ay)} A${f(outer)} ${f(outer)} 0 0 1 ${f(bx)} ${f(by)} L${f(cx)} ${f(cy)} A${f(inner)} ${f(inner)} 0 0 0 ${f(dx)} ${f(dy)} Z`;
+}
+/** A point of the wheel as CSS places it in the wheel's box. */
+const onWheel = (radius: number, turn: number): CSSProperties => {
+  const [x, y] = wheelAt(radius, turn);
+  return { left: `${(50 + x * 50).toFixed(2)}%`, top: `${(50 + y * 50).toFixed(2)}%` };
+};
+
+/** The pockets of a board in the order they stand round the rotor, each with its place in the lottery's list. */
+export function boardPockets(board: number): { pocket: number; holds: (typeof ROULETTE)[number] }[] {
+  const places: { pocket: number; holds: (typeof ROULETTE)[number] }[] = [];
+  ROULETTE.forEach((holds, pocket) => (places[pocketPlace(pocket, board)] = { pocket, holds }));
+  return places;
+}
+
+/** The CSS transform that puts the wheel's ball on `spot`: across and down the wheel, as high over the pockets as it is, and smaller once it has sat down. */
+export const wheelBallTransform = (spot: WheelSpot): string =>
+  `translate3d(${spot.x.toFixed(3)}em, ${spot.y.toFixed(3)}em, ${spot.lift.toFixed(3)}em) scale(${(1 - WHEEL_VIEW.sink * spot.sunk).toFixed(3)})`;
+
+/** The turn of the rotor as CSS takes it. */
+export const rotorTurn = (spot: WheelSpot): string => `${(spot.rotor * 360).toFixed(2)}deg`;
+
+/**
+ * Moves the ball of the ball's lottery, whichever part of it is on the stage:
+ * round the wheel while the roulette turns, turning the rotor with it, and
+ * down the bowls after a full run. `ball` is the ball the screen handed over,
+ * which says by `data-of` whether it is the wheel's or the bowls'; in the one
+ * frame between the roulette ending and the bowls being drawn it is left alone.
+ */
+export function placeLottery(ball: HTMLElement, roulette: ActiveRoulette, calm: boolean): void {
+  const inBowls = roulette.bowl !== null;
+  if ((ball.dataset.of === 'bowls') !== inBowls) return;
+  if (roulette.bowl) {
+    placeBall(ball, ballSpot(roulette.bowl, calm));
+    return;
+  }
+  const spot = wheelSpot(roulette, calm);
+  ball.style.transform = wheelBallTransform(spot);
+  const shadow = ball.firstElementChild;
+  if (shadow instanceof HTMLElement) shadow.style.transform = `translateZ(${(-spot.lift).toFixed(3)}em)`;
+  ball.parentElement?.style.setProperty('--mp-rotor', rotorTurn(spot));
+}
+
+/** Where the ball waits before the cabinet first moves it: on the track, where it is shot from. */
+const WAITING = wheelSpot({ pocket: 0, elapsed: 0, duration: 1, landed: false, level: 0 }, true);
+/** The ball's radius and the wheel's lean, for the stylesheet. */
+const WHEEL_SIZES = cssVars({ '--mp-ball': `${WHEEL_VIEW.ball}em`, '--mp-dish-tilt': `${WHEEL_VIEW.tilt}deg` });
+/** The deflectors on the track and the lamps round the rim: how many of each. */
+const RIM = { deflectors: 8, lamps: 24 } as const;
+
+/**
+ * The roulette as the machine it is: a rotor with twelve pockets, a numbered
+ * plate outside each and dividers between them, turning inside a bowl with a
+ * banked track, under a dome. The ball is shot onto the track and is moved by
+ * whoever it is registered with; here it only waits where it is shot from.
+ * `board` is the board the run is on, which says where each pocket stands and
+ * how the wheel is dressed, and `lit` the pocket the ball lies in.
+ */
+const Wheel = ({ board, lit, registerBall }: { board: number; lit: number; registerBall: (element: HTMLDivElement | null) => void }) => {
+  const dress = WHEEL_BOARDS[board] ?? WHEEL_BOARDS[0];
+  const pockets = boardPockets(board);
+  const count = pockets.length;
+  const half = 0.5 / count;
+  return (
+    <div className={styles.wheelWindow} data-testid="pusher-wheel" data-board={board} data-lit={lit}>
+      <div className={styles.wheelScene}>
+        <div className={styles.wheelTilt} style={WHEEL_SIZES}>
+          <span className={styles.dishShadow} />
+          <span className={styles.dishSide} />
+          {/* The bowl, which does not turn: the rim with its lamps, and the banked track with its deflectors. */}
+          <svg className={styles.wheelBowl} viewBox="-1 -1 2 2">
+            {/* The bezel with its lamps, the rim inside it, and the track banked down from the rim to the rotor. */}
+            <circle r="1" fill="#0b0b12" />
+            {Array.from({ length: RIM.lamps }, (_, index) => {
+              const [x, y] = wheelAt(0.965, index / RIM.lamps);
+              return <circle key={index} className={styles.trackLamp} cx={f(x)} cy={f(y)} r="0.024" fill={dress.lamp} data-odd={index % 2 === 1} />;
+            })}
+            <circle r="0.925" fill="none" stroke="#b8860b" strokeWidth="0.03" />
+            <circle r="0.928" fill="none" stroke="#ffd65c" strokeWidth="0.018" />
+            <circle r="0.931" fill="none" stroke="#fff3b0" strokeWidth="0.006" />
+            <circle r="0.912" fill={dress.track[1]} />
+            <circle r="0.875" fill={dress.track[1]} stroke="rgba(255, 255, 255, 0.2)" strokeWidth="0.01" />
+            <circle r="0.835" fill={dress.track[0]} />
+            <circle r={f(WHEEL.rotor + 0.012)} fill="#05050a" />
+            {Array.from({ length: RIM.deflectors }, (_, index) => {
+              const [x, y] = wheelAt(0.822, (index + 0.5) / RIM.deflectors);
+              return <rect key={index} x="-0.03" y="-0.011" width="0.06" height="0.022" rx="0.009" fill="#eef2f8" transform={`translate(${f(x)} ${f(y)}) rotate(${(((index + 0.5) / RIM.deflectors) * 360).toFixed(1)})`} />;
+            })}
+          </svg>
+          {/* The light the metal of the track catches, which stays where it is while the rotor turns under it. */}
+          <span className={styles.trackSheen} />
+          {/* The rotor, which turns: the plates, the pockets with the dividers between them, and the cone. */}
+          <div className={styles.rotor}>
+            <svg className={styles.wheelBowl} viewBox="-1 -1 2 2">
+              <circle r={f(WHEEL.rotor)} fill="#0d0d14" />
+              {pockets.map(({ pocket, holds }, place) => {
+                const paint = POCKET_PAINT[String(holds)];
+                const on = lit === pocket;
+                const at = place / count;
+                return (
+                  <g key={pocket} data-pocket={pocket} data-place={place} data-holds={holds} data-lit={on}>
+                    <path d={ringPiece(WHEEL.outer + 0.012, WHEEL.rotor - 0.012, at - half + 0.004, at + half - 0.004)} fill={on ? '#fffbe0' : paint.plate} />
+                    {/* The pocket: its floor, lighter towards the cone where the light reaches it, and the shade under the wall of the plates. */}
+                    <path d={ringPiece(WHEEL.inner, WHEEL.outer, at - half, at + half)} fill={on ? paint.lit : '#0c0c13'} />
+                    {!on && <path d={ringPiece(WHEEL.inner, WHEEL.inner + 0.085, at - half, at + half)} fill="#1d1d2a" />}
+                    <path d={ringPiece(WHEEL.outer - 0.045, WHEEL.outer, at - half, at + half)} fill="rgba(0, 0, 0, 0.55)" />
+                  </g>
+                );
+              })}
+              {pockets.map((_, place) => {
+                const [x1, y1] = wheelAt(WHEEL.inner - 0.01, (place + 0.5) / count);
+                const [x2, y2] = wheelAt(WHEEL.outer + 0.02, (place + 0.5) / count);
+                return <line key={place} x1={f(x1)} y1={f(y1)} x2={f(x2)} y2={f(y2)} stroke="#e6ebf3" strokeWidth="0.03" strokeLinecap="round" />;
+              })}
+              <circle r={f(WHEEL.outer + 0.006)} fill="none" stroke="#9aa3b3" strokeWidth="0.014" />
+              {/* The cone, turned in steps, with the four arms of its handle. */}
+              <circle r={f(WHEEL.inner)} fill={dress.cone[2]} stroke="#e6ebf3" strokeWidth="0.022" />
+              <circle r={f(WHEEL.inner * 0.82)} fill={dress.cone[1]} />
+              <circle r={f(WHEEL.inner * 0.56)} fill={dress.cone[0]} />
+              {[0, 0.25].map((turn) => {
+                const [x, y] = wheelAt(WHEEL.inner * 0.74, turn);
+                return <line key={turn} x1={f(-x)} y1={f(-y)} x2={f(x)} y2={f(y)} stroke="#f4f7fb" strokeWidth="0.05" strokeLinecap="round" />;
+              })}
+            </svg>
+            {pockets.map(({ pocket, holds }, place) => (
+              <span
+                key={pocket}
+                className={styles.plateNumber}
+                style={{ ...onWheel(WHEEL.plate, place / count), color: lit === pocket ? '#14080a' : POCKET_PAINT[String(holds)].ink }}
+                data-holds={holds}
+                data-on={lit === pocket}
+              >
+                {holds === 'stop' ? '×' : holds}
+              </span>
+            ))}
+          </div>
+          <span className={styles.dishHub} data-dish="wheel" />
+          <div className={styles.ballSpot} ref={registerBall} style={{ left: '50%', top: '50%', transform: wheelBallTransform(WAITING) }} data-of="wheel" data-testid="pusher-wheel-ball">
+            <span className={styles.ballShadow} style={{ transform: `translateZ(${(-WAITING.lift).toFixed(3)}em)` }} />
+            <span className={styles.ball} />
+          </div>
+        </div>
+        {/* The dome over it all: what shows of clear acrylic is the light it catches. */}
+        <span className={styles.dome} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── The bowls ───────────────────────────────────────────────────────────────
 
@@ -483,12 +619,14 @@ const Bowls = ({ stage, fallen, jackpot, registerBall }: { stage: number; fallen
             {BOWLS.map((_, bowl) => (
               <Dish key={bowl} bowl={bowl} taken={fallen[bowl] ?? -1} on={bowl === stage} above={bowl < stage} jackpot={jackpot} />
             ))}
-            <div className={styles.ballSpot} ref={registerBall} style={{ ...onFloor({ x: 0, y: 0 }), transform: ballTransform(waiting) }} data-testid="pusher-bowl-ball">
+            <div className={styles.ballSpot} ref={registerBall} style={{ ...onFloor({ x: 0, y: 0 }), transform: ballTransform(waiting) }} data-of="bowls" data-testid="pusher-bowl-ball">
               <span className={styles.ballShadow} style={{ transform: shadowTransform(waiting) }} />
               <span className={styles.ball} />
             </div>
           </div>
         </div>
+        {/* The bowls stand under a dome like the wheel's. */}
+        <span className={styles.dome} data-over="bowls" />
       </div>
     </div>
   );
@@ -530,6 +668,14 @@ export interface ScreenProps {
   onPick: (chest: number) => void;
 }
 
+/** The scene the monitor was last drawn in, and how many times it has changed gear since it was first drawn. */
+export interface Gear {
+  scene: string;
+  shifts: number;
+}
+/** The gear after a drawing of `scene`: the same one if the scene has not changed, and one shift on if it has. */
+export const shiftGear = (gear: Gear, scene: string): Gear => (gear.scene === scene ? gear : { scene, shifts: gear.shifts + 1 });
+
 /** The headline for a banner, in the machine's own words. */
 export function bannerText(state: ScreenState, t: PusherStrings): string | null {
   const text: Record<Banner, string | null> = {
@@ -562,12 +708,32 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
     bowl: t.challenge,
   };
   const title = titles[state.mode];
+  // The world round the game: its light, and what is written on the shutters when the monitor changes into it.
+  const monitor = monitorMode(state);
+  // In the ball's lottery the shutters carry the name of what they open on: the roulette, the board the run has come to, or the bowls.
+  const lottery = state.mode === 'bowl' ? t.challenge : state.board > 0 ? `${state.board + 1} ${WHEEL_BOARDS[state.board].name}` : t.chance;
+  const worlds: Record<MonitorMode, string> = { normal: t.slotName, chance: t.chanceTitle, fever: t.feverTag, challenge: lottery, jackpot: t.jackpot };
+  // Each change of scene shuts the shutters once. The first drawing is no change.
+  const scene = monitorScene(state);
+  const [gear, setGear] = useState<Gear>({ scene, shifts: 0 });
+  const shifted = shiftGear(gear, scene);
+  if (shifted !== gear) setGear(shifted);
   const choosing = state.mode === 'chest' && state.chests?.every((chest) => chest.state === 'closed');
   // A reach is cut in across the reels as it is called; the caption below keeps the words up for as long as it lasts.
   const reach = state.banner === 'reach' || state.banner === 'superReach';
   return (
-    <div className={styles.screen} role="group" aria-label={t.screenAria} data-mode={state.mode} data-banner={state.banner} data-testid="pusher-screen">
+    <div
+      className={styles.screen}
+      role="group"
+      aria-label={t.screenAria}
+      data-mode={state.mode}
+      data-banner={state.banner}
+      data-monitor={monitor}
+      style={{ ...GOLD_FLASH_STYLE, ...cssVars({ '--mp-glow': MONITOR[monitor].colour }) }}
+      data-testid="pusher-screen"
+    >
       <div className={styles.rays} aria-hidden />
+      <div className={styles.frameLamps} aria-hidden />
       <div className={styles.screenTop}>
         <span className={styles.screenTitle} data-testid="pusher-mode">
           {title}
@@ -664,7 +830,7 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
             {state.mode === 'bowl' ? (
               <Bowls stage={state.stage} fallen={state.fallen} jackpot={t.jackpot} registerBall={registerBall} />
             ) : (
-              <Wheel lit={state.lit} />
+              <Wheel board={Math.max(0, state.board)} lit={state.lit} registerBall={registerBall} />
             )}
             <div className={styles.chain} data-testid="pusher-chain" data-level={state.level}>
               {state.mode === 'bowl' ? (
@@ -681,14 +847,15 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
                   })}
                 </ol>
               ) : (
-                <>
-                  <span className={styles.chainLabel}>{t.chainLevel(state.level, CHAIN_GOAL)}</span>
-                  <span className={styles.chainLamps}>
-                    {Array.from({ length: CHAIN_GOAL }, (_, index) => (
-                      <span key={index} className={styles.lamp} data-lit={index < state.level} data-goal={index === CHAIN_GOAL - 1} />
-                    ))}
-                  </span>
-                </>
+                // The boards of the run, beside the wheel: which of them the ball is on, and which are behind it.
+                <ol className={styles.ladder} data-rungs={WHEEL_BOARDS.length} data-testid="pusher-boards">
+                  {WHEEL_BOARDS.map((dress, board) => (
+                    <li key={board} className={styles.rung} data-on={board === state.board} data-done={board < state.level && board !== state.board}>
+                      <span className={styles.rungNumber}>{board + 1}</span>
+                      <span className={styles.rungPrize}>{dress.name}</span>
+                    </li>
+                  ))}
+                </ol>
               )}
               <span className={styles.chainTower}>
                 <Heap coins={Math.min(TOWER.coins, Math.ceil(state.total / TOWER.each))} />
@@ -714,6 +881,15 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
           </span>
         )}
       </div>
+
+      {gear.shifts > 0 && (
+        <div key={gear.shifts} className={styles.gear} data-to={monitor} aria-hidden data-testid="pusher-gear">
+          <span className={styles.shutter} data-side="top" />
+          <span className={styles.shutter} data-side="bottom" />
+          <span className={styles.gearTitle}>{worlds[monitor]}</span>
+        </div>
+      )}
+      <div className={styles.glass} aria-hidden />
     </div>
   );
 };

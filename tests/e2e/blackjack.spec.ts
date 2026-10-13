@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { handValue, hiLo, type Card, type Rank, type Suit } from '../../src/components/game/Blackjack/engine';
+import { arrived } from './streamedPage';
 
 // Rounds are random: each test reads the cards off the table and checks the
 // dealer's play, every total and the payouts against the rules.
@@ -9,6 +10,8 @@ async function openBlackjack(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/blackjack');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.getByTestId('bj-callout')).toBeVisible();
 }
 

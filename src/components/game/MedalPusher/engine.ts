@@ -144,6 +144,29 @@ export const BALL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
   { level: 1, x: 64, y: 16 },
   { level: 0, x: 66, y: 60 },
 ];
+/** Where the jewels a machine starts with lie, both on the lower table: the first near the front, the second where the hatch throws one. */
+export const JEWEL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
+  { level: 0, x: 58, y: 86 },
+  { level: 0, x: 62, y: 67 },
+];
+/**
+ * Where a jewel from the hatch lands: on the lower table, in the middle of
+ * it, between `from` and `to` across and between `near` and `far` out from
+ * the back wall, which is in front of the catcher wherever the pusher is. The
+ * hatch throws it clear over the pusher, in an arc that takes `time` seconds.
+ *
+ * It does not come down on the pusher as a prize ball does. A jewel stands
+ * taller than a medal, and nothing lies on it; where the medals are fed, on
+ * the middle of the pusher, it would be in the way of every medal that came
+ * down on top of the pile, and for as long as it lay there more of the pile
+ * would go over the lip at the START pockets. On the lower table it starts as
+ * far from either open side as it can: one held at a side would be in the way
+ * of the medals going out there. With the sides left open to jewels, not one
+ * of 486 went out of one in 225,000 medals of play down the middle, beside
+ * it, at the edges and with both rails held. And it still has a third of the
+ * table to go before the front.
+ */
+export const JEWEL_DROP = { from: 42, to: 58, near: 66, far: 72, time: 0.7 } as const;
 
 const R = MEDAL_RADIUS;
 const DIAMETER = R * 2;
@@ -171,6 +194,15 @@ export interface Medal {
   grow: number;
   /** Whether this is a prize ball. It lies among the medals and is pushed like one. */
   ball: boolean;
+  /**
+   * Set on a jewel, and on nothing else. A jewel is about a medal across and
+   * stands taller than one. It lies among the medals and is pushed like one,
+   * it is never under or on top of another, it is not part of a tower, and it
+   * does not fit a START pocket. Nor does it fit through an open side, which
+   * is a slot a medal high: so every jewel the machine lets go is pushed over
+   * the front in the end, and how soon is up to the player.
+   */
+  jewel?: boolean;
   /**
    * How far a medal that has just landed has worked its way into the pile.
    * It comes down on top of the others, so at first it takes up only a little
@@ -207,6 +239,8 @@ export interface FallingMedal {
   /** How many medals lay under it, when it comes off a tower. */
   rank: number;
   ball: boolean;
+  /** Set on a jewel on its way down from the hatch. */
+  jewel?: boolean;
   /** Seconds until it lands, out of the seconds the whole fall takes. */
   remaining: number;
   duration: number;
@@ -258,6 +292,8 @@ export interface StepEvents {
   toppled: number;
   /** Balls that went over the front edge. */
   balls: number;
+  /** Jewels that went over the front edge. */
+  jewels: number;
 }
 
 /**
@@ -302,8 +338,11 @@ let startY = new Float64Array(512);
 /** How many towers and balls stand on each table: they block the upper tier as well as the lower. */
 const tall = [0, 0];
 
-/** Whether something stands taller than a medal lying flat: a tower, even one still going up, or a ball. */
-const isTall = (medal: Medal): boolean => medal.ball || medal.stack + medal.grow > 1;
+/** Whether this is something the machine lets go that is not a medal: a prize ball, or a jewel. */
+const isPrize = (medal: Pick<Medal, 'ball' | 'jewel'>): boolean => medal.ball || medal.jewel === true;
+
+/** Whether something stands taller than a medal lying flat: a tower, even one still going up, a ball, or a jewel. */
+const isTall = (medal: Medal): boolean => isPrize(medal) || medal.stack + medal.grow > 1;
 
 function buildGrid(medals: Medal[]): void {
   const count = medals.length;
@@ -361,7 +400,7 @@ function part(a: Medal, b: Medal): void {
 /**
  * Separates every pair of touching medals that lie on the same table and in
  * the same tier. A medal of the upper tier is also kept off whatever stands
- * taller than a medal, since a tower or a ball is in its way too.
+ * taller than a medal, since a tower, a ball or a jewel is in its way too.
  */
 function separate(medals: Medal[]): void {
   const count = medals.length;
@@ -470,8 +509,8 @@ function fillTable(machine: Machine, count: number, level: Level, tier: Tier, yF
     let nearest = Infinity;
     for (const other of under) {
       const distance = Math.hypot(other.x - medal.x, other.y - medal.y);
-      if (other.ball && distance < DIAMETER * 1.6) return false;
-      if (!other.ball && distance < nearest) nearest = distance;
+      if (isPrize(other) && distance < DIAMETER * 1.6) return false;
+      if (!isPrize(other) && distance < nearest) nearest = distance;
     }
     return nearest < DIAMETER * GAP * 0.85;
   };
@@ -484,10 +523,12 @@ function fillTable(machine: Machine, count: number, level: Level, tier: Tier, yF
 
 /**
  * A machine with both tables already carrying medals, as an arcade leaves it,
- * and `balls` prize balls lying among them (at most BALL_SPOTS.length).
+ * with `balls` prize balls lying among them (at most BALL_SPOTS.length) and
+ * `jewels` jewels (at most JEWEL_SPOTS.length).
  */
-export function createMachine(seed: number, balls = 0): Machine {
+export function createMachine(seed: number, balls = 0, jewels = 0): Machine {
   if (!Number.isInteger(balls) || balls < 0 || balls > BALL_SPOTS.length) throw new Error('a machine starts with 0 to 3 balls');
+  if (!Number.isInteger(jewels) || jewels < 0 || jewels > JEWEL_SPOTS.length) throw new Error('a machine starts with 0 to 2 jewels');
   const machine: Machine = {
     time: 0,
     medals: [],
@@ -508,20 +549,28 @@ export function createMachine(seed: number, balls = 0): Machine {
   // lower table's lie beyond its full reach, so nothing moves until it is fed.
   fillTable(machine, INITIAL.upper, 1, 0, R, PUSHER.min - 0.5);
   fillTable(machine, INITIAL.lower, 0, 0, PUSHER.max + R, FIELD.depth - 0.5);
-  // A ball takes the place of the medal lying nearest its spot.
-  for (const spot of BALL_SPOTS.slice(0, balls)) {
+  // A ball takes the place of the medal lying nearest its spot, and then a jewel does the same.
+  const nearestTo = (spot: { level: Level; x: number; y: number }): Medal | null => {
     let nearest: Medal | null = null;
     let best = Infinity;
     for (const medal of machine.medals) {
       const distance = Math.hypot(medal.x - spot.x, medal.y - spot.y);
-      if (medal.level === spot.level && !medal.ball && distance < best) {
+      if (medal.level === spot.level && !isPrize(medal) && distance < best) {
         best = distance;
         nearest = medal;
       }
     }
+    return nearest;
+  };
+  for (const spot of BALL_SPOTS.slice(0, balls)) {
+    const nearest = nearestTo(spot);
     if (nearest) nearest.ball = true;
   }
-  // Then the medals lying on top of each pile, once the balls are where they will be.
+  for (const spot of JEWEL_SPOTS.slice(0, jewels)) {
+    const nearest = nearestTo(spot);
+    if (nearest) nearest.jewel = true;
+  }
+  // Then the medals lying on top of each pile, once the balls and the jewels are where they will be.
   fillTable(machine, INITIAL.onTop.upper, 1, 1, R, PUSHER.min - 0.5);
   fillTable(machine, INITIAL.onTop.lower, 0, 1, PUSHER.max + R, FIELD.depth - 0.5);
   return machine;
@@ -616,6 +665,16 @@ export function dropBall(machine: Machine): void {
   machine.falling.push({ id: machine.nextId++, x, y, level: 1, fromX: x, fromY: RELEASE.depth, rank: 0, ball: true, remaining: FALL_TIME, duration: FALL_TIME, source: 'payout' });
 }
 
+/**
+ * Lets a jewel go from the hatch, which throws it over the pusher onto the
+ * middle of the lower table. From there it is the field's.
+ */
+export function dropJewel(machine: Machine): void {
+  const x = JEWEL_DROP.from + machine.rng() * (JEWEL_DROP.to - JEWEL_DROP.from);
+  const y = JEWEL_DROP.near + machine.rng() * (JEWEL_DROP.far - JEWEL_DROP.near);
+  machine.falling.push({ id: machine.nextId++, x, y, level: 0, fromX: x, fromY: RELEASE.depth, rank: 0, ball: false, remaining: JEWEL_DROP.time, duration: JEWEL_DROP.time, source: 'payout', jewel: true });
+}
+
 /** Every place on the pusher a tower can stand. */
 export const TOWER_SITES = TOWER.perRow * TOWER.rows.length;
 
@@ -665,11 +724,11 @@ export function buildTowers(machine: Machine, medals: number): void {
   machine.payoutQueue += medals - stacked;
 }
 
-/** Every medal the field holds: lying, stacked, still to be stacked, on an arm, in the air, or waiting to be thrown on. Balls are not medals. */
+/** Every medal the field holds: lying, stacked, still to be stacked, on an arm, in the air, or waiting to be thrown on. Balls and jewels are not medals. */
 export function medalsOnField(machine: Machine): number {
   let count = machine.payoutQueue + machine.rolling.length;
-  for (const medal of machine.falling) if (!medal.ball) count += 1;
-  for (const medal of machine.medals) if (!medal.ball) count += medal.stack + medal.grow;
+  for (const medal of machine.falling) if (!isPrize(medal)) count += 1;
+  for (const medal of machine.medals) if (!isPrize(medal)) count += medal.stack + medal.grow;
   return count;
 }
 
@@ -678,6 +737,14 @@ export function ballsOnField(machine: Machine): number {
   let count = 0;
   for (const medal of machine.falling) if (medal.ball) count += 1;
   for (const medal of machine.medals) if (medal.ball) count += 1;
+  return count;
+}
+
+/** The jewels lying on the field or on their way down to it. */
+export function jewelsOnField(machine: Machine): number {
+  let count = 0;
+  for (const medal of machine.falling) if (medal.jewel) count += 1;
+  for (const medal of machine.medals) if (medal.jewel) count += 1;
   return count;
 }
 
@@ -721,8 +788,8 @@ function constrain(medals: Medal[], front: number): void {
       else if (medal.x > FIELD.width - R) medal.x = FIELD.width - R;
     } else {
       if (medal.y < front + R) medal.y = front + R;
-      // The open sides are a slot the height of a medal: a ball does not fit through.
-      if (medal.ball || medal.y < FIELD.sideOpenFrom) {
+      // The open sides are a slot a medal high: a ball does not fit through, and neither does a jewel.
+      if (isPrize(medal) || medal.y < FIELD.sideOpenFrom) {
         if (medal.x < R) medal.x = R;
         else if (medal.x > FIELD.width - R) medal.x = FIELD.width - R;
       }
@@ -778,9 +845,11 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
         stillFalling.push(medal);
         continue;
       }
-      // It lies on the table where there is room for it, and on top of the others where there is not. A ball always makes room.
-      const tier: Tier = medal.ball || roomBelow(machine.medals, medal.level, medal.x, medal.y) ? 0 : 1;
-      machine.medals.push({ id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from });
+      // It lies on the table where there is room for it, and on top of the others where there is not. A ball or a jewel always makes room.
+      const tier: Tier = isPrize(medal) || roomBelow(machine.medals, medal.level, medal.x, medal.y) ? 0 : 1;
+      const landed: Medal = { id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: medal.ball, grown: SETTLE.from };
+      if (medal.jewel) landed.jewel = true;
+      machine.medals.push(landed);
       events.landed++;
     }
     machine.falling = stillFalling;
@@ -832,13 +901,13 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
 
   // Over the lip, over the front edge, or out of an open side. A medal that goes over the lip where
   // a chucker is drops through it. A tower that goes over there sends every one of its medals
-  // through, one after another; a ball is too big for one.
+  // through, one after another; a ball is too big for one, and a jewel stands too tall.
   const kept: Medal[] = [];
   const crossing: Medal[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
-        const checker = medal.ball ? -1 : checkerAt(medal.x);
+        const checker = isPrize(medal) ? -1 : checkerAt(medal.x);
         for (let n = 0; checker >= 0 && n < medal.stack; n++) events.checkers.push(checker);
         if (medal.stack > 1) {
           spill(machine, medal, front);
@@ -850,7 +919,8 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
       }
       kept.push(medal);
     } else if (medal.y > FIELD.depth) {
-      if (medal.ball) events.balls++;
+      if (medal.jewel) events.jewels++;
+      else if (medal.ball) events.balls++;
       else events.won++;
     } else if (medal.x < 0 || medal.x > FIELD.width) {
       events.lost++;
@@ -863,7 +933,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   // that was riding on another comes down on top of it again, whatever order the list holds them in.
   crossing.sort((a, b) => a.tier - b.tier || a.id - b.id);
   for (const medal of crossing) {
-    medal.tier = medal.ball || roomBelow(kept, 0, medal.x, medal.y) ? 0 : 1;
+    medal.tier = isPrize(medal) || roomBelow(kept, 0, medal.x, medal.y) ? 0 : 1;
     medal.level = 0;
     medal.sinceDrop = 0;
     medal.grown = SETTLE.from;
@@ -875,7 +945,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
 /** Moves the machine forward by `dt` seconds and reports what happened. */
 export function step(machine: Machine, dt: number): StepEvents {
   if (!(dt >= 0) || !Number.isFinite(dt)) throw new Error('the time step must be a non-negative number');
-  const events: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0 };
+  const events: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 };
   let remaining = dt;
   while (remaining > 1e-9) {
     const piece = Math.min(MAX_STEP, remaining);

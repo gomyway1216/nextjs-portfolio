@@ -9,6 +9,7 @@
 
 import { APRON, CATCHER } from './catcher';
 import { FIELD, PUSHER } from './engine';
+import { JEWEL_LAMPS, JEWEL_PLATE, LAMP_OUTLINE, jewelLampX } from './jewel';
 import { paintApron, starPath } from './render';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
@@ -257,7 +258,12 @@ export function paintPusher(): HTMLCanvasElement {
   return canvas;
 }
 
-/** The front of the table, down to the tray: arrows pointing the way the winnings go. */
+/**
+ * The front of the table, down to the tray: arrows pointing the way the
+ * winnings go, and in the middle the plate for the jewel lamps, dark in a
+ * gold frame, with a socket the shape of a cut stone for each lamp. The lamps
+ * themselves light up and are not paint.
+ */
 export function paintLip(): HTMLCanvasElement {
   const { canvas, g } = sheet(W, TRAY_DROP, 10.24);
   if (!g) return canvas;
@@ -271,10 +277,32 @@ export function paintLip(): HTMLCanvasElement {
   g.lineJoin = 'round';
   g.lineCap = 'round';
   for (let x = 14; x < W; x += 12) {
+    if (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to) continue;
     g.beginPath();
     g.moveTo(x - 3.2, 7.5);
     g.lineTo(x, 13);
     g.lineTo(x + 3.2, 7.5);
+    g.stroke();
+  }
+  // The picture runs down from the table's edge, so a height under the edge is that far down it.
+  g.fillStyle = '#16072a';
+  g.fillRect(JEWEL_PLATE.from, -JEWEL_PLATE.top, JEWEL_PLATE.to - JEWEL_PLATE.from, JEWEL_PLATE.top - JEWEL_PLATE.foot);
+  g.strokeStyle = '#ffd65c';
+  g.lineWidth = 0.3;
+  g.strokeRect(JEWEL_PLATE.from, -JEWEL_PLATE.top, JEWEL_PLATE.to - JEWEL_PLATE.from, JEWEL_PLATE.top - JEWEL_PLATE.foot);
+  for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+    g.beginPath();
+    LAMP_OUTLINE.forEach(([across, up], corner) => {
+      const x = jewelLampX(lamp) + across * JEWEL_LAMPS.radius;
+      const y = -(JEWEL_LAMPS.height + up * JEWEL_LAMPS.radius);
+      if (corner === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    });
+    g.closePath();
+    g.fillStyle = '#05020f';
+    g.fill();
+    g.strokeStyle = 'rgba(255, 124, 192, 0.5)';
+    g.lineWidth = 0.18;
     g.stroke();
   }
   return canvas;

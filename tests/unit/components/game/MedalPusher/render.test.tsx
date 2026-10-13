@@ -36,7 +36,7 @@ import { FieldDiagram, Marker, ReturnChart } from '@/components/game/MedalPusher
 import { AIM, ARM_REACH, ARM_SPEED, CHECKERS, FALL_TIME, FEED, FIELD, LANDING, MEDAL_RADIUS, PUSHER, ROLL_TIME, armStart, tipOf } from '@/components/game/MedalPusher/engine';
 import { percent, tidyPercent } from '@/components/game/MedalPusher/format';
 import { PART_IDS, getStrings } from '@/components/game/MedalPusher/i18n';
-import { BOARD, BOWL, FEVER_SQUARE, JACKPOT_START, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
+import { BOARD, BOWL, CHEST_VALUE, FEVER_SQUARE, JACKPOT_START, JEWEL, JEWEL_SET, JEWEL_SPIN_VALUE, JEWEL_VALUE, ROULETTE, reachChance, reachHitChance, spinValue } from '@/components/game/MedalPusher/lottery';
 import {
   BOWL_SHAPE,
   REEL_DIGITS,
@@ -63,6 +63,7 @@ import {
 import {
   MAX_STOCK,
   START_CREDITS,
+  START_JEWELS,
   TIMING,
   createSession,
   reachTime,
@@ -688,6 +689,32 @@ describe('strings', () => {
     expect(everything).not.toMatch(/four spins|4回分/);
   });
 
+  it('describes the jewels as the machine has them', () => {
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
+    expect(JEWEL.lamps).toBe(5);
+    expect(START_JEWELS).toBe(2);
+    expect(info.en).toContain('A treasure line also lets a jewel go: the hatch throws it over the pusher onto the middle of the lower table.');
+    expect(info.en).toContain(`lights one of the five jewel lamps on the front of the table and pays ${JEWEL.prize} medal at once`);
+    expect(info.en).toContain(`The fifth jewel pays the jewel bonus instead, ${JEWEL.bonus} medals stacked as a tower, and the lamps go out.`);
+    expect(info.en).toContain('It is pushed along like a medal, but it does not fit through the open sides, so it can only leave over the front.');
+    expect(info.en).toContain('Two jewels are already lying on the field.');
+    expect(info.ja).toContain('ハッチからプッシャーを越えて、下のテーブルの中央あたりに飛んできます');
+    expect(info.ja).toContain(`${JEWEL.lamps}個の宝石ランプが1つ点灯し、すぐにメダル${JEWEL.prize}枚が払い出されます`);
+    expect(info.ja).toContain(`${JEWEL.lamps}個目は「宝石ボーナス」で、代わりにメダル${JEWEL.bonus}枚がタワーとして積まれ、ランプは消えます`);
+    expect(info.ja).toContain('開いている脇は通らないので、出口は手前の端だけです');
+    expect(info.ja).toContain(`宝石は最初から${START_JEWELS}個フィールドに置いてあります`);
+    // What is said aloud says what happened, with the numbers it is given.
+    expect(en.sayJewel(1, 3, 5)).toBe('A jewel went over the front edge: 1 medal. 3 of 5 jewel lamps are lit.');
+    expect(en.sayJewel(2, 1, 5)).toContain('2 medals. 1 of 5');
+    expect(en.sayJewelBonus(3, 5)).toBe('A jewel went over the front edge and made the set of 5. Jewel bonus: 3 medals go up as a tower, and the lamps go out.');
+    expect(en.jewelLamps(2, 5)).toBe('Jewel lamps: 2 of 5 lit.');
+    expect(ja.sayJewel(1, 3, 5)).toBe('宝石が手前の端から落ちました。メダル1枚。宝石ランプは5個中3個点灯しています。');
+    expect(ja.sayJewelBonus(3, 5)).toContain('5個そろいました。宝石ボーナス：メダル3枚がタワーとして積まれ');
+    expect(ja.jewelLamps(2, 5)).toBe('宝石ランプ：5個中2個点灯');
+  });
+
   it('describes the START pockets as the engine has them', () => {
     const en = getStrings('en');
     const ja = getStrings('ja');
@@ -977,8 +1004,8 @@ describe('the page', () => {
     expect(pictures('small')).toEqual([2, 4, 6, 8]);
     expect(pictures('miss')).toEqual([]);
     expect(slot.match(/<span[^>]*aria-hidden="true"><svg/g)).toHaveLength(3);
-    // What each line is worth: the board's average, the chests' average, the roulette's.
-    for (const text of ['8.8 medals', '20 medals', '63.7 medals']) expect(html).toContain(text);
+    // What each line is worth: the board's average, the chests' average with the jewel that comes with them, the roulette's.
+    for (const text of ['8.8 medals', '21.4 medals', '63.7 medals']) expect(html).toContain(text);
     // The roulette: four crosses in twelve, and the chance of each number of pockets in a row.
     for (const text of ['A cross: the run ends', 'A tower of 50 medals', '33.3%', '25.0%', '8.3%', 'Medals thrown onto the field']) expect(html).toContain(text);
     expect(html).toContain('4 numbers in a row start the jackpot challenge');
@@ -998,14 +1025,49 @@ describe('the page', () => {
     expect(html).toContain('One tower on the pusher');
     expect(html).toContain('the average of the board: 8.75 medals');
     expect(html).toContain(`after ${BOARD_ROLLS} rolls from the start, no square is more than ${percent(boardSpread(BOARD_ROLLS))} away`);
-    expect(html).toContain('1.096 medals');
+    expect(html).toContain('1.117 medals');
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
-    // Slot, reach, board, chests, roulette, run, bowl and what a spin is worth.
-    expect(html.match(/<caption/g)).toHaveLength(8);
+    // Slot, reach, board, chests, roulette, run, bowl, the jewels and what a spin is worth.
+    expect(html.match(/<caption/g)).toHaveLength(9);
     expect(html.match(/type="range"/g)).toHaveLength(3);
     expect(html.match(/data-badge=/g)).toHaveLength(PART_IDS.length);
+  });
+
+  it('lists what the jewels pay, exactly, and counts them in what the treasure line and a spin are worth', () => {
+    const html = render(<OddsTab />);
+    const jewels = table(html, 'pusher-jewel-table');
+    const row = (name: string) => jewels.split(`<tr data-jewel="${name}">`)[1]?.split('</tr>')[0] ?? '';
+    expect(jewels.match(/<tr data-jewel=/g)).toHaveLength(2);
+    for (const text of ['1st to 4th', '1 medal each', 'Medals thrown onto the field']) expect(row('prize')).toContain(text);
+    for (const text of ['5th: the jewel bonus, and the lamps go out', '3 medals', 'One tower on the pusher']) expect(row('bonus')).toContain(text);
+    expect(html).toContain('lights one of the 5 jewel lamps on the front of the table');
+    expect(html).toContain('it stands too tall for the open sides: the only way off the field is over the front');
+    // The exact part: how often one comes, and what a set pays.
+    const note = html.split('data-testid="pusher-jewel-note">')[1]?.split('</p>')[0] ?? '';
+    expect(note).toContain('with 15 spins in 1,000');
+    expect(note).toContain(`A set pays ${JEWEL.lamps - 1} × ${JEWEL.prize} + ${JEWEL.bonus} = ${JEWEL_SET} medals, which is ${JEWEL_VALUE} medals a jewel and ${Number(JEWEL_SPIN_VALUE.toFixed(3))} medals a spin`);
+    expect(note).toContain('A set pays 4 × 1 + 3 = 7 medals, which is 1.4 medals a jewel and 0.021 medals a spin');
+    expect(note).toContain('No jewel is lost: every one the machine lets go is collected sooner or later, so the figure is exact.');
+    expect(note).toContain(`A new machine has ${START_JEWELS} jewels lying on it already`);
+    // The treasure line says a jewel comes with it, and is worth its chests and its jewel.
+    const line = table(html, 'pusher-slot-table').split('<tr data-tier="big">')[1]?.split('</tr>')[0] ?? '';
+    expect(line).toContain('A choice of three chests, and a jewel');
+    expect(line).toContain(`${CHEST_VALUE + JEWEL_VALUE} medals`);
+    expect(line).toContain('21.4 medals');
+    // And a spin is worth what it was, and the jewels' share more.
+    expect(html).toContain(`${Number(spinValue(JACKPOT_START).toFixed(3))} medals`);
+    expect(html).toContain('1.117 medals');
+    // And in Japanese.
+    const ja = render(<OddsTab />, 'ja');
+    for (const text of ['1〜4個目', '各1枚', '5個目：宝石ボーナス（ランプは消える）', '3枚', '3つの宝箱から1つ選ぶ＋宝石1個', '抽選1,000回につき15個', '4 × 1 + 3 = 7枚', '宝石1個あたり1.4枚、抽選1回あたり0.021枚', '宝石は失われません', '最初から宝石が2個']) expect(ja).toContain(text);
+  });
+
+  it('says how many jewel lamps are lit to anyone who cannot see them', () => {
+    const html = render(<PlayTab />);
+    expect(html).toMatch(new RegExp(`<p[^>]*data-testid="pusher-jewels"[^>]*data-lit="0"[^>]*>Jewel lamps: 0 of ${JEWEL.lamps} lit\\.</p>`));
+    expect(render(<PlayTab />, 'ja')).toMatch(new RegExp(`data-testid="pusher-jewels"[^>]*>宝石ランプ：${JEWEL.lamps}個中0個点灯</p>`));
   });
 
   it('says how far to trust a reach', () => {

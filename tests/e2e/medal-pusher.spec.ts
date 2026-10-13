@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
+import { FIELD } from '../../src/components/game/MedalPusher/engine';
+import { CHESTS, JACKPOT_START, JEWEL } from '../../src/components/game/MedalPusher/lottery';
 import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
@@ -144,6 +145,8 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   // The hold's lamps are drawn in the cabinet, under the screen. What says how many are lit is still on the page, by the name it had.
   await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeAttached();
   await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('data-held', '0');
+  // So are the jewel lamps, on the front of the lower table: none of them is lit yet.
+  await expect(machine(page).getByTestId('pusher-jewels')).toHaveAttribute('data-lit', '0');
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
@@ -579,6 +582,33 @@ test('a chest on the screen is picked by pressing it, though the picture is over
   expect(await counter(page, 'played')).toBe(played);
 });
 
+test('a jewel pushed over the front lights the next jewel lamp and is paid for at once', async ({ page }) => {
+  // A machine saved as the game saves one, with three lamps lit and the jewel on its lower table just past the front edge:
+  // the first step the page takes collects it.
+  const session = createSession(5);
+  session.jewels = JEWEL.lamps - 2;
+  const jewel = session.machine.medals.find((medal) => medal.jewel && medal.level === 0);
+  if (!jewel) throw new Error('a new machine has no jewel on its lower table');
+  jewel.y = FIELD.depth + 0.1;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The lamps are drawn on the cabinet. What says how many are lit is on the page, for anyone who cannot see them.
+  const lamps = machine(page).getByTestId('pusher-jewels');
+  await expect(lamps).toHaveAttribute('data-lit', String(JEWEL.lamps - 1));
+  await expect(lamps).toHaveText(`Jewel lamps: ${JEWEL.lamps - 1} of ${JEWEL.lamps} lit.`);
+  await expect(machine(page).getByTestId('pusher-announcement')).toHaveText(`A jewel went over the front edge: 1 medal. ${JEWEL.lamps - 1} of ${JEWEL.lamps} jewel lamps are lit.`);
+  // Its prize is the machine's to throw onto the field: it is paid, and it is not in the purse.
+  await expect.poll(() => counter(page, 'paid')).toBe(JEWEL.prize);
+  await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
+});
+
 test('a chest on the screen is picked from the keyboard too', async ({ page }) => {
   await openOnChests(page);
   const played = await counter(page, 'played');
@@ -885,23 +915,31 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
+  // The jewels: what each of a set of five pays, and the most they can be worth to a spin.
+  const jewels = odds(page).getByTestId('pusher-jewel-table');
+  await expect(jewels.locator('tbody tr')).toHaveCount(2);
+  await expect(jewels.locator('tr[data-jewel="prize"]')).toContainText('1 medal each');
+  await expect(jewels.locator('tr[data-jewel="bonus"]')).toContainText('3 medals');
+  await expect(odds(page).getByTestId('pusher-jewel-note')).toContainText('1.4 medals a jewel and 0.021 medals a spin');
+  // The treasure line is worth its chests and the jewel that comes with it, and a spin the 0.021 more for it.
+  await expect(slot.locator('tr[data-tier="big"]')).toContainText('21.4 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.117 medals');
 
-  // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.18 spins a medal at 1.117 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('95.8%');
+  await expect(result).toHaveText('96.1%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('22%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('119.7%');
+  await expect(result).toHaveText('120.1%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('59.9%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
+  await expect(result).toHaveText('60.1%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -964,6 +1002,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
+  await expect(odds(page).getByTestId('pusher-jewel-table')).toContainText('宝石ボーナス');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {

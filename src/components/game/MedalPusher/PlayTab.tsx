@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEve
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { getStrings } from './i18n';
-import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
-import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
+import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
 import {
@@ -111,6 +111,7 @@ interface Hud {
   lost: number;
   spins: number;
   paid: number;
+  jewels: number;
 }
 
 const hudOf = (session: Session): Hud => ({
@@ -122,9 +123,10 @@ const hudOf = (session: Session): Hud => ({
   lost: session.lost,
   spins: session.spins,
   paid: session.paidOut,
+  jewels: session.jewels,
 });
 
-const INITIAL_HUD: Hud = { credits: START_CREDITS, jackpot: JACKPOT_START, stock: 0, played: 0, won: 0, lost: 0, spins: 0, paid: 0 };
+const INITIAL_HUD: Hud = { credits: START_CREDITS, jackpot: JACKPOT_START, stock: 0, played: 0, won: 0, lost: 0, spins: 0, paid: 0, jewels: 0 };
 const IDLE_SCREEN: ScreenState = {
   mode: 'slot',
   banner: 'none',
@@ -149,7 +151,8 @@ const sameHud = (a: Hud, b: Hud): boolean =>
   a.won === b.won &&
   a.lost === b.lost &&
   a.spins === b.spins &&
-  a.paid === b.paid;
+  a.paid === b.paid &&
+  a.jewels === b.jewels;
 
 /** A medal going in is heard at the slot. It is heard again, rolling, when it comes out onto its rail: the frame loop listens for that. */
 const feedSound = (on: boolean): void => playSound('insert', on);
@@ -528,6 +531,21 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
             break;
+          case 'jewelDrop':
+            // It comes out as the treasure chance begins, which has its own sound.
+            setAnnouncement(strings.sayJewelDrop);
+            break;
+          case 'jewel':
+            showJewel(stage, event.lamps - 1, event.payout, false);
+            playSound('prize', soundOn);
+            setAnnouncement(strings.sayJewel(event.payout, event.lamps, JEWEL.lamps));
+            break;
+          case 'jewelBonus':
+            showJewel(stage, JEWEL.lamps - 1, event.payout, true);
+            playSound('fever', soundOn);
+            playSound('tower', soundOn);
+            setAnnouncement(strings.sayJewelBonus(event.payout, JEWEL.lamps));
+            break;
         }
       }
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
@@ -537,7 +555,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, jewels: session.jewels });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -920,6 +938,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       <p className={styles.srOnly} aria-live="polite" data-testid="pusher-announcement">
         {announcement}
+      </p>
+      {/* The jewel lamps are drawn on the cabinet. This says how many are lit to anyone who cannot see them. */}
+      <p className={styles.srOnly} data-testid="pusher-jewels" data-lit={hud.jewels}>
+        {t.jewelLamps(hud.jewels, JEWEL.lamps)}
       </p>
     </div>
   );

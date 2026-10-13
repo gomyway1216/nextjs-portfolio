@@ -17,6 +17,12 @@ import {
   HOLE_JACKPOT_CHANCE,
   JACKPOT_CHANCE,
   JACKPOT_START,
+  JEWEL,
+  JEWEL_CHANCE,
+  JEWEL_SET,
+  JEWEL_SPIN_VALUE,
+  JEWEL_TIER,
+  JEWEL_VALUE,
   LONG_REACH,
   POCKET_VALUE,
   REACH_KINDS,
@@ -35,6 +41,7 @@ import {
   drawPocket,
   drawSpin,
   holePays,
+  jewelPays,
   reachChance,
   reachHitChance,
   rouletteValue,
@@ -340,12 +347,15 @@ describe('the roulette a ball starts', () => {
     expect(TIER_BONUS).toEqual({ small: 'sugoroku', big: 'chest', seven: 'ball' });
     expect(tierValue('miss', JACKPOT_START)).toBe(0);
     expect(tierValue('small', JACKPOT_START)).toBe(BOARD_VALUE);
-    expect(tierValue('big', JACKPOT_START)).toBe(CHEST_VALUE);
+    // A treasure line is worth its chests and the jewel that comes with it.
+    expect(tierValue('big', JACKPOT_START)).toBe(CHEST_VALUE + JEWEL_VALUE);
     expect(tierValue('seven', 900)).toBeCloseTo(rouletteValue(900), 12);
-    const expected = 0.04 * BOARD_VALUE + 0.015 * CHEST_VALUE + 0.007 * rouletteValue(JACKPOT_START);
+    const expected = 0.04 * BOARD_VALUE + 0.015 * (CHEST_VALUE + JEWEL_VALUE) + 0.007 * rouletteValue(JACKPOT_START);
     expect(spinValue(JACKPOT_START)).toBeCloseTo(expected, 12);
-    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.09614, 5);
-    expect(spinValue(900)).toBeCloseTo(1.372685, 5);
+    // What the screen's own games pay is what it was before there were jewels, and the jewels add their exact share to it.
+    expect(spinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toBeCloseTo(1.09614, 5);
+    expect(spinValue(900) - JEWEL_SPIN_VALUE).toBeCloseTo(1.372685, 5);
+    expect(spinValue(JACKPOT_START)).toBeCloseTo(1.11714, 5);
   });
 });
 
@@ -413,5 +423,52 @@ describe('the treasure chests', () => {
     for (const count of orders.values()) expect(Math.abs(count / draws - 1 / 6)).toBeLessThan(0.008);
     for (const count of firstChest.values()) expect(Math.abs(count / draws - 1 / 3)).toBeLessThan(0.01);
     expect(shuffleChests(() => 0.9999999)).toEqual([10, 20, 30]);
+  });
+});
+
+describe('the jewels', () => {
+  it('come with the treasure line, five to a set, the last of a set paying the bonus as towers', () => {
+    expect(JEWEL.lamps).toBe(5);
+    expect(JEWEL_TIER).toBe('big');
+    expect(TIER_BONUS[JEWEL_TIER]).toBe('chest');
+    expect(JEWEL_CHANCE).toBe(tierChance('big'));
+    expect(JEWEL_CHANCE).toBeCloseTo(15 / 1000, 12);
+    for (let lit = 0; lit < JEWEL.lamps - 1; lit++) expect(jewelPays(lit)).toEqual({ medals: JEWEL.prize, towers: false });
+    expect(jewelPays(JEWEL.lamps - 1)).toEqual({ medals: JEWEL.bonus, towers: true });
+    // A small prize at once, and a bonus worth collecting a set for.
+    expect(JEWEL.prize).toBe(1);
+    expect(JEWEL.bonus).toBe(3);
+    expect(JEWEL.bonus).toBeLessThan(CHEST_TOWERS_FROM);
+  });
+
+  it('pay a set its medals exactly, which is what a jewel that is collected is worth on average', () => {
+    let lit = 0;
+    let paid = 0;
+    const sets = 40;
+    for (let jewel = 0; jewel < sets * JEWEL.lamps; jewel++) {
+      const { medals, towers } = jewelPays(lit);
+      paid += medals;
+      lit = towers ? 0 : lit + 1;
+    }
+    expect(lit).toBe(0);
+    expect(paid).toBe(sets * JEWEL_SET);
+    expect(JEWEL_SET).toBe((JEWEL.lamps - 1) * JEWEL.prize + JEWEL.bonus);
+    expect(JEWEL_SET).toBe(7);
+    expect(JEWEL_VALUE).toBe(JEWEL_SET / JEWEL.lamps);
+    expect(JEWEL_VALUE).toBe(1.4);
+    // Every jewel is collected in the end, so this is what they add to a spin, exactly.
+    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.015 * 1.4, 12);
+    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.021, 12);
+  });
+
+  it('are part of what the treasure line and a spin are worth, and a small part: a third of a point of return for the best a player can do', () => {
+    expect(tierValue(JEWEL_TIER, JACKPOT_START)).toBe(CHEST_VALUE + JEWEL_VALUE);
+    for (const tier of TIERS) if (tier !== JEWEL_TIER && tier !== 'miss') expect(tierValue(tier, JACKPOT_START)).toBe(tier === 'small' ? BOARD_VALUE : rouletteValue(JACKPOT_START));
+    // Fed down the middle, about four medals in five leave by the front and a spin starts for under one in five.
+    const worth = (front: number, spins: number) => front * spins * JEWEL_SPIN_VALUE;
+    expect(worth(0.8, 0.185)).toBeGreaterThan(0.003);
+    expect(worth(0.8, 0.185)).toBeLessThan(0.0035);
+    // Whatever the field does it is under a point.
+    expect(worth(1, 0.3)).toBeLessThan(0.01);
   });
 });

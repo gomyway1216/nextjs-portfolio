@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AIM, CHECKERS, DROP_INTERVAL, FALL_TIME, ROLL_TIME, ballsOnField, medalsOnField, pusherFront, seededRng } from '@/components/game/MedalPusher/engine';
+import { AIM, CHECKERS, DROP_INTERVAL, FALL_TIME, FIELD, JEWEL_DROP, ROLL_TIME, ballsOnField, jewelsOnField, medalsOnField, pusherFront, seededRng, towerSizes } from '@/components/game/MedalPusher/engine';
 import {
   BALL_JACKPOT_CHANCE,
   BOARD,
@@ -10,6 +10,8 @@ import {
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
+  JEWEL_SET,
   ROULETTE,
   rouletteValue,
 } from '@/components/game/MedalPusher/lottery';
@@ -17,11 +19,13 @@ import {
   MAX_STOCK,
   START_BALLS,
   START_CREDITS,
+  START_JEWELS,
   TIMING,
   advance,
   createSession,
   isBusy,
   insert,
+  jewelsCollected,
   pickChest,
   reachTime,
   refill,
@@ -744,6 +748,107 @@ describe('the jackpot challenge', () => {
   }, LONG);
 });
 
+describe('the jewels', () => {
+  /** Lays a jewel on the lower table just past its front edge: the next step takes it over. */
+  function overTheFront(session: Session, x = 50): void {
+    const { machine } = session;
+    machine.medals.push({ id: machine.nextId++, x, y: FIELD.depth + 0.1, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, jewel: true });
+  }
+
+  it('lie on a new machine, two of them, with no lamp lit', () => {
+    const session = createSession(1);
+    expect(START_JEWELS).toBe(2);
+    expect(jewelsOnField(session.machine)).toBe(START_JEWELS);
+    expect([session.jewels, session.jewelBonuses, jewelsCollected(session)]).toEqual([0, 0, 0]);
+    expect(jewelsOnField(createSession(1, { jewels: 0 }).machine)).toBe(0);
+    expect(jewelsOnField(createSession(1, { jewels: 1 }).machine)).toBe(1);
+    // The balls are where they were before there were jewels.
+    expect(ballsOnField(session.machine)).toBe(START_BALLS);
+  });
+
+  it('come out of the hatch with a treasure line, as its chests go up, and with no other line', () => {
+    const line = (draws: number[]) => {
+      const session = createSession(5, { balls: 0, jewels: 0 });
+      session.stock = 1;
+      script(session, draws);
+      const before = medalsOnField(session.machine);
+      const events = play(session, LINE + 0.05);
+      return { session, events, before };
+    };
+    // Three odd digits: the chests, and a jewel in the air, bound for the middle of the lower table.
+    const treasure = line([0.01, 0.3, ORDINARY, 0.99, 0.99, 0.5]);
+    expect(treasure.session.tiers.big).toBe(1);
+    expect(types(treasure.events).filter((type) => type === 'chestStart' || type === 'jewelDrop')).toEqual(['chestStart', 'jewelDrop']);
+    expect(jewelsOnField(treasure.session.machine)).toBe(1);
+    const [falling] = treasure.session.machine.falling.filter((medal) => medal.jewel);
+    expect(falling.x).toBe((JEWEL_DROP.from + JEWEL_DROP.to) / 2);
+    // It is not a medal, and nothing has been paid for it.
+    expect(medalsOnField(treasure.session.machine) + treasure.session.won + treasure.session.lost).toBe(treasure.before);
+    expect(treasure.session.paidOut).toBe(0);
+    // It is down before the chest is opened, and lies on the lower table.
+    play(treasure.session, JEWEL_DROP.time + 0.1);
+    expect(treasure.session.machine.medals.filter((medal) => medal.jewel).map((medal) => medal.level)).toEqual([0]);
+    // Three even digits and three sevens let none go.
+    const sugoroku = line([0.03, 0.3, ORDINARY, 0.5]);
+    expect(sugoroku.session.tiers.small).toBe(1);
+    const sevens = line([0.001, 0.5, ORDINARY]);
+    expect(sevens.session.tiers.seven).toBe(1);
+    for (const other of [sugoroku, sevens]) {
+      expect(types(other.events)).not.toContain('jewelDrop');
+      expect(jewelsOnField(other.session.machine)).toBe(0);
+    }
+  });
+
+  it('pay a prize at once when one goes over the front, thrown on loose, and light a lamp', () => {
+    const session = emptied();
+    overTheFront(session);
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    expect(events.filter((event) => event.type === 'jewel')).toEqual([{ type: 'jewel', lamps: 1, payout: JEWEL.prize }]);
+    expect(types(events)).not.toContain('won');
+    expect(types(events)).not.toContain('ball');
+    expect([session.jewels, session.jewelBonuses, jewelsCollected(session)]).toEqual([1, 0, 1]);
+    // The prize is the machine's to throw on. The jewel itself is neither a medal won nor a ball.
+    expect(session.paidOut).toBe(JEWEL.prize);
+    expect(medalsOnField(session.machine)).toBe(JEWEL.prize);
+    expect(towersOf(session)).toHaveLength(0);
+    expect([session.won, session.balls, session.credits]).toEqual([0, 0, START_CREDITS]);
+    expect(jewelsOnField(session.machine)).toBe(0);
+  });
+
+  it('pay the bonus as a tower for the jewel that would light the last lamp, and put the lamps out', () => {
+    const session = emptied();
+    session.jewels = JEWEL.lamps - 1;
+    overTheFront(session);
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    expect(events.filter((event) => event.type === 'jewelBonus' || event.type === 'jewel')).toEqual([{ type: 'jewelBonus', payout: JEWEL.bonus }]);
+    expect([session.jewels, session.jewelBonuses, jewelsCollected(session)]).toEqual([0, 1, JEWEL.lamps]);
+    expect(session.paidOut).toBe(JEWEL.bonus);
+    expect(session.machine.payoutQueue).toBe(0);
+    expect(towersOf(session)).toHaveLength(towerSizes(JEWEL.bonus).length);
+    expect(medalsOnField(session.machine)).toBe(JEWEL.bonus);
+  });
+
+  it('pay a set of five what the odds say, one lamp at a time, and start the next set from nothing', () => {
+    const session = emptied();
+    const events: SessionEvent[] = [];
+    for (let jewel = 1; jewel <= JEWEL.lamps + 1; jewel++) {
+      overTheFront(session, 20 + jewel * 8);
+      advance(session, DT, events);
+      if (jewel < JEWEL.lamps) expect([session.jewels, session.paidOut]).toEqual([jewel, jewel * JEWEL.prize]);
+      if (jewel === JEWEL.lamps) expect([session.jewels, session.paidOut]).toEqual([0, JEWEL_SET]);
+    }
+    expect(types(events).filter((type) => type.startsWith('jewel'))).toEqual(['jewel', 'jewel', 'jewel', 'jewel', 'jewelBonus', 'jewel']);
+    expect([session.jewels, session.jewelBonuses, jewelsCollected(session), session.paidOut]).toEqual([1, 1, JEWEL.lamps + 1, JEWEL_SET + JEWEL.prize]);
+    // Two that go over in the same step are two jewels.
+    overTheFront(session, 30);
+    overTheFront(session, 70);
+    advance(session, DT, events);
+    expect([session.jewels, jewelsCollected(session)]).toEqual([3, JEWEL.lamps + 3]);
+  });
+});
+
 describe('a session played for a while', () => {
   it('keeps its books: medals, the purse, medals through the pockets and spins all add up', () => {
     const session = createSession(77, { quickPick: true });
@@ -783,6 +888,11 @@ describe('a session played for a while', () => {
     expect(count('chestEnd')).toBeLessThanOrEqual(count('chestStart'));
     expect(session.square).toBeGreaterThanOrEqual(0);
     expect(session.square).toBeLessThan(BOARD.length);
+    // A jewel came out with every treasure chance, and every jewel is on the field still or was collected: none is ever lost.
+    expect(count('jewelDrop')).toBe(count('chestStart'));
+    expect(count('jewel') + count('jewelBonus')).toBe(jewelsCollected(session));
+    expect(jewelsCollected(session) + jewelsOnField(session.machine)).toBe(START_JEWELS + count('jewelDrop'));
+    expect(jewelsCollected(session)).toBeGreaterThan(0);
   }, LONG);
 
   it('plays out the same way from the same seed', () => {

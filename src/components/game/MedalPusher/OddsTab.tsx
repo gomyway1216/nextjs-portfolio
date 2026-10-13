@@ -19,6 +19,11 @@ import {
   JACKPOT_CHANCE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
+  JEWEL_SET,
+  JEWEL_SPIN_VALUE,
+  JEWEL_TIER,
+  JEWEL_VALUE,
   LONG_REACH,
   POCKET_VALUE,
   REACH_RATE,
@@ -42,7 +47,7 @@ import {
 } from './lottery';
 import { towerSizes } from './engine';
 import { ReelSymbol } from './ReelSymbols';
-import { MAX_STOCK, TIMING } from './session';
+import { MAX_STOCK, START_JEWELS, TIMING } from './session';
 import styles from './MedalPusher.module.css';
 
 /** The slot's lines, best first. */
@@ -102,6 +107,7 @@ export const OddsTab = () => {
   const linePays = (tier: Tier) => {
     if (tier === 'miss') return '—';
     const leadsTo = TIER_BONUS[tier];
+    if (tier === JEWEL_TIER) return t.paysJewel;
     return leadsTo === 'ball' ? t.paysBall : leadsTo === 'chest' ? t.paysChest : t.paysSugoroku;
   };
   const trim = (value: number, digits = 2) => String(Number(value.toFixed(digits)));
@@ -355,6 +361,47 @@ export const OddsTab = () => {
         <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE))}</p>
         <p className={styles.note}>
           {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
+        </p>
+      </section>
+
+      <section className={styles.panelBox}>
+        <h2 className={styles.blockTitle}>{t.jewelTitle}</h2>
+        <p className={styles.body}>{t.jewelIntro(JEWEL.lamps)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-jewel-table">
+            <caption className={styles.srOnly}>{t.jewelCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colJewel}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colPays}
+                </th>
+                <th scope="col">{t.colPaidAs}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-jewel="prize">
+                <th scope="row">{t.jewelEarly(JEWEL.lamps - 1)}</th>
+                <td className={styles.num}>{t.jewelPrizeEach(JEWEL.prize)}</td>
+                <td>{t.chestPaidLoose}</td>
+              </tr>
+              <tr data-jewel="bonus">
+                <th scope="row">{t.jewelLast(JEWEL.lamps)}</th>
+                <td className={styles.num}>{t.paysMedals(JEWEL.bonus)}</td>
+                <td>{t.chestPaidTowers(towerSizes(JEWEL.bonus).length)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note} data-testid="pusher-jewel-note">
+          {t.jewelNote(
+            (SPIN_TABLE[JEWEL_TIER] * 1000) / SPIN_TOTAL,
+            `${JEWEL.lamps - 1} × ${JEWEL.prize} + ${JEWEL.bonus}`,
+            JEWEL_SET,
+            trim(JEWEL_VALUE),
+            trim(JEWEL_SPIN_VALUE, 3),
+            START_JEWELS,
+          )}
         </p>
       </section>
 

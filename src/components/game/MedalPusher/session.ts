@@ -6,7 +6,7 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
+import { JEWEL_SPOTS, buildTowers, createMachine, dropBall, dropJewel, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
 import {
   BOARD,
   BOWL,
@@ -16,6 +16,8 @@ import {
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
+  JEWEL_TIER,
   ROULETTE,
   TIER_BONUS,
   drawDie,
@@ -23,6 +25,7 @@ import {
   drawPocket,
   drawSpin,
   holePays,
+  jewelPays,
   shuffleChests,
   squareAfter,
   type SpinResult,
@@ -34,6 +37,8 @@ export const START_CREDITS = 100;
 export const MAX_STOCK = 8;
 /** Prize balls lying on the field when a machine is switched on. */
 export const START_BALLS = 2;
+/** Jewels lying on the field when a machine is switched on. */
+export const START_JEWELS = JEWEL_SPOTS.length;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
  * spins are queueing up, the extra suspense of a reach and what a long reach
@@ -172,6 +177,10 @@ export interface Session {
   refills: number;
   /** Whether a chest is picked the moment it is offered, as the simulation's player does. */
   quickPick: boolean;
+  /** Jewel lamps that are lit: one for each jewel collected since the lamps last went out. */
+  jewels: number;
+  /** Jewel bonuses paid since the machine was switched on: one for every full set of lamps. */
+  jewelBonuses: number;
 }
 
 /** Something the cabinet should react to, in the order it happened. */
@@ -193,18 +202,23 @@ export type SessionEvent =
   | { type: 'rouletteStep'; pocket: number; medals: number; level: number }
   | { type: 'rouletteEnd'; total: number; level: number }
   | { type: 'bowlStart'; hole: number; duration: number }
-  | { type: 'bowlEnd'; hole: number; payout: number; total: number; jackpot: boolean };
+  | { type: 'bowlEnd'; hole: number; payout: number; total: number; jackpot: boolean }
+  | { type: 'jewelDrop' }
+  | { type: 'jewel'; lamps: number; payout: number }
+  | { type: 'jewelBonus'; payout: number };
 
 export interface SessionOptions {
   /** Prize balls on the field at the start. */
   balls?: number;
   /** Pick a chest at once instead of waiting for the player. */
   quickPick?: boolean;
+  /** Jewels on the field at the start. */
+  jewels?: number;
 }
 
 export function createSession(seed: number, options: SessionOptions = {}): Session {
   return {
-    machine: createMachine(seed, options.balls ?? START_BALLS),
+    machine: createMachine(seed, options.balls ?? START_BALLS, options.jewels ?? START_JEWELS),
     credits: START_CREDITS,
     inserted: 0,
     won: 0,
@@ -227,8 +241,13 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     jackpots: 0,
     refills: 0,
     quickPick: options.quickPick ?? false,
+    jewels: 0,
+    jewelBonuses: 0,
   };
 }
+
+/** Jewels pushed over the front since the machine was switched on: a full set of lamps for every bonus, and the lamps lit now. */
+export const jewelsCollected = (session: Pick<Session, 'jewels' | 'jewelBonuses'>): number => session.jewelBonuses * JEWEL.lamps + session.jewels;
 
 /**
  * Feeds one of the player's medals into an arm, the left (0) or the right (1), wherever that arm is pointed.
@@ -283,6 +302,24 @@ function pay(session: Session, medals: number, towers: boolean): void {
   if (towers) buildTowers(session.machine, medals);
   else queuePayout(session.machine, medals);
   session.paidOut += medals;
+}
+
+/**
+ * A jewel has been pushed over the front. It lights a lamp and pays its prize
+ * at once, thrown on loose. The one that would light the last lamp pays the
+ * bonus instead, as towers, and the lamps go out.
+ */
+function collectJewel(session: Session, events?: SessionEvent[]): void {
+  const { medals, towers } = jewelPays(session.jewels);
+  pay(session, medals, towers);
+  if (towers) {
+    session.jewels = 0;
+    session.jewelBonuses += 1;
+    events?.push({ type: 'jewelBonus', payout: medals });
+  } else {
+    session.jewels += 1;
+    events?.push({ type: 'jewel', lamps: session.jewels, payout: medals });
+  }
 }
 
 /** The seconds a roll takes from the die to the piece landing. */
@@ -370,6 +407,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     session.balls += field.balls;
     events?.push({ type: 'ball', count: field.balls });
   }
+  for (let i = 0; i < field.jewels; i++) collectJewel(session, events);
   for (const gate of field.checkers) {
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
@@ -457,6 +495,11 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
       const fallback = Math.min(CHESTS.length - 1, Math.floor(session.machine.rng() * CHESTS.length));
       session.bonus = { kind: 'chest', prizes, fallback, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
       events?.push({ type: 'chestStart' });
+    }
+    // A treasure line also lets a jewel go from the hatch.
+    if (tier === JEWEL_TIER) {
+      dropJewel(session.machine);
+      events?.push({ type: 'jewelDrop' });
     }
     return;
   }

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '../../src/components/game/SlotMachine/engine';
+import { arrived } from './streamedPage';
 
 // Spins are random, so these checks read what was drawn and verify that the
 // reels on screen, the announced payline, the payout and the stats all agree.
@@ -12,6 +13,8 @@ async function openSlots(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/slot-machine');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(reelWindow(page)).toBeVisible();
 }
 

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { WHEEL_GEOMETRY, pocketCenterDeg } from '../../src/components/game/Roulette/ballPhysics';
 import { colorOf } from '../../src/components/game/Roulette/engine';
+import { arrived } from './streamedPage';
 
 // The roulette result is random, so these checks never assume a number: they
 // read the drawn result and verify that the wheel, the ball, the payout and the
@@ -13,6 +14,8 @@ async function openRoulette(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/roulette');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.locator('[data-spinning]')).toBeVisible();
 }
 
@@ -170,6 +173,7 @@ test('winning numbers are saved across reloads and tab switches, and can be clea
 
   // Survives a reload; the bankroll does not (only the board is saved).
   await page.reload();
+  await arrived(page);
   await expect.poll(() => boardNumbers(page)).toEqual(saved);
   await expect(page.getByText('Last 3 spins', { exact: true })).toBeVisible();
   expect(await readBalance(page)).toBe(1000);
@@ -190,6 +194,7 @@ test('winning numbers are saved across reloads and tab switches, and can be clea
   await expect.poll(() => boardNumbers(page)).toEqual([]);
   expect(await page.evaluate(() => window.localStorage.getItem('roulette-results-v1'))).toBeNull();
   await page.reload();
+  await arrived(page);
   await expect(page.locator('[data-spinning]')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Clear saved winning numbers' })).toBeDisabled();
   expect(await boardNumbers(page)).toEqual([]);

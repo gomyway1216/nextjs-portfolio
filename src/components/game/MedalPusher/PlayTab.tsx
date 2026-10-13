@@ -333,6 +333,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       reopen: () => {
         setHud(INITIAL_HUD);
         setScreen(IDLE_SCREEN);
+        // Another machine is not fed for its player before they have seen it.
+        setAuto(false);
         setSwitchedOn((times) => times + 1);
       },
       onStatus: setStatus,

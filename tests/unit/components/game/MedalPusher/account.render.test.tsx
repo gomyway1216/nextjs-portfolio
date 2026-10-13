@@ -5,7 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // The site's auth and its save service are stand-ins: nobody is signed in to anything and nothing is fetched.
 const site = vi.hoisted(() => ({
   useAuth: vi.fn(),
-  service: { getGameSave: vi.fn(), saveGameSave: vi.fn(), saveGameSaveKeepalive: vi.fn(), getGameSaveCredentials: vi.fn(), currentGameSaveUid: vi.fn() },
+  service: {
+    getGameSave: vi.fn(),
+    saveGameSave: vi.fn(),
+    getGameSaveAs: vi.fn(),
+    saveGameSaveAs: vi.fn(),
+    saveGameSaveKeepalive: vi.fn(),
+    getGameSaveCredentials: vi.fn(),
+    currentGameSaveUid: vi.fn(),
+  },
 }));
 vi.mock('@/providers/AuthProvider', () => ({ useAuth: site.useAuth }));
 vi.mock('@/services/gameSaveService', () => site.service);

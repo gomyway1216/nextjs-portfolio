@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The site's save service is a stand-in here: no account is asked and nothing is fetched.
 const service = vi.hoisted(() => ({
+  // The two calls that ask for themselves who is signed in. The store is never to use them.
   getGameSave: vi.fn(),
   saveGameSave: vi.fn(),
+  getGameSaveAs: vi.fn(),
+  saveGameSaveAs: vi.fn(),
   saveGameSaveKeepalive: vi.fn(),
   getGameSaveCredentials: vi.fn(),
   currentGameSaveUid: vi.fn(),
@@ -19,28 +22,34 @@ beforeEach(() => {
   for (const stand of Object.values(service)) stand.mockReset();
   service.getGameSaveCredentials.mockResolvedValue(ANN);
   service.currentGameSaveUid.mockReturnValue(ANN.uid);
-  service.saveGameSave.mockResolvedValue(undefined);
+  service.saveGameSaveAs.mockResolvedValue(undefined);
   service.saveGameSaveKeepalive.mockResolvedValue(true);
+});
+
+afterEach(() => {
+  // Whatever a test did, the store never went by the calls that look up the player for themselves.
+  expect(service.getGameSave).not.toHaveBeenCalled();
+  expect(service.saveGameSave).not.toHaveBeenCalled();
 });
 
 describe('the account’s store on the site’s save service', () => {
   it('reads the game’s save for the player who is signed in', async () => {
-    service.getGameSave.mockResolvedValue({ state: { data: 'x' }, updatedAt: '2026-10-12T09:00:00.000Z', serverTime: '2026-10-12T09:00:05.000Z' });
+    service.getGameSaveAs.mockResolvedValue({ state: { data: 'x' }, updatedAt: '2026-10-12T09:00:00.000Z', serverTime: '2026-10-12T09:00:05.000Z' });
     const store = accountStoreFor('medal-pusher');
     expect(await store.load('ann')).toEqual({ state: { data: 'x' }, updatedAt: '2026-10-12T09:00:00.000Z', serverTime: '2026-10-12T09:00:05.000Z' });
-    expect(service.getGameSave).toHaveBeenCalledWith('medal-pusher');
-    service.getGameSave.mockResolvedValue({ state: {}, updatedAt: null });
+    expect(service.getGameSaveAs).toHaveBeenCalledWith('medal-pusher', ANN.token);
+    service.getGameSaveAs.mockResolvedValue({ state: {}, updatedAt: null });
     expect(await store.load('ann')).toEqual({ state: {}, updatedAt: null, serverTime: null });
-    service.getGameSave.mockResolvedValue(null);
+    service.getGameSaveAs.mockResolvedValue(null);
     expect(await store.load('ann')).toBeNull();
   });
 
   it('fails a read when nobody is signed in, instead of saying the account has nothing', async () => {
     service.getGameSaveCredentials.mockResolvedValue(null);
-    service.getGameSave.mockResolvedValue(null);
+    service.getGameSaveAs.mockResolvedValue(null);
     const store = accountStoreFor('medal-pusher');
     await expect(store.load('ann')).rejects.toThrow();
-    expect(service.getGameSave).not.toHaveBeenCalled();
+    expect(service.getGameSaveAs).not.toHaveBeenCalled();
   });
 
   it('refuses to read or write for any account but the one signed in', async () => {
@@ -51,17 +60,17 @@ describe('the account’s store on the site’s save service', () => {
     await expect(store.store('ann', { data: 'anns' })).rejects.toThrow();
     await store.prepare('ann');
     expect(store.storeNow('ann', { data: 'anns' })).toBeNull();
-    expect(service.getGameSave).not.toHaveBeenCalled();
-    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(service.getGameSaveAs).not.toHaveBeenCalled();
+    expect(service.saveGameSaveAs).not.toHaveBeenCalled();
     expect(service.saveGameSaveKeepalive).not.toHaveBeenCalled();
   });
 
   it('writes the game’s save, and passes on a failure with its status', async () => {
     const store = accountStoreFor('medal-pusher');
     await store.store('ann', { data: 'x' });
-    expect(service.saveGameSave).toHaveBeenCalledWith('medal-pusher', { data: 'x' });
+    expect(service.saveGameSaveAs).toHaveBeenCalledWith('medal-pusher', { data: 'x' }, ANN.token);
     const tooLarge = Object.assign(new Error('Failed to save game (413)'), { status: 413 });
-    service.saveGameSave.mockRejectedValue(tooLarge);
+    service.saveGameSaveAs.mockRejectedValue(tooLarge);
     await expect(store.store('ann', { data: 'x' })).rejects.toBe(tooLarge);
   });
 
@@ -104,12 +113,12 @@ describe('the account’s store on the site’s save service', () => {
 
   it('refuses when the token that came is another player’s, whoever is signed in by then', async () => {
     service.getGameSaveCredentials.mockResolvedValue(BOB);
-    service.getGameSave.mockResolvedValue(null);
+    service.getGameSaveAs.mockResolvedValue(null);
     const store = accountStoreFor('medal-pusher');
     await expect(store.load('ann')).rejects.toThrow();
     await expect(store.store('ann', { data: 'anns' })).rejects.toThrow();
-    expect(service.getGameSave).not.toHaveBeenCalled();
-    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(service.getGameSaveAs).not.toHaveBeenCalled();
+    expect(service.saveGameSaveAs).not.toHaveBeenCalled();
     expect(store.storeNow('ann', { data: 'anns' })).toBeNull();
   });
 
@@ -148,7 +157,7 @@ describe('the account’s store on the site’s save service', () => {
   });
 
   it('sends no read and no write whose player signed out while the token was on its way', async () => {
-    service.getGameSave.mockResolvedValue(null);
+    service.getGameSaveAs.mockResolvedValue(null);
     const store = accountStoreFor('medal-pusher');
     const give = heldBack();
     const reading = store.load('ann');
@@ -158,20 +167,20 @@ describe('the account’s store on the site’s save service', () => {
     // The read fails; it does not say that the account has nothing.
     await expect(reading).rejects.toThrow();
     await expect(writing).rejects.toThrow();
-    expect(service.getGameSave).not.toHaveBeenCalled();
-    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(service.getGameSaveAs).not.toHaveBeenCalled();
+    expect(service.saveGameSaveAs).not.toHaveBeenCalled();
     // Nor when another player has signed in meanwhile.
     const giveAgain = heldBack();
     const late = store.store('ann', { data: 'anns' });
     service.currentGameSaveUid.mockReturnValue(BOB.uid);
     giveAgain(ANN);
     await expect(late).rejects.toThrow();
-    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(service.saveGameSaveAs).not.toHaveBeenCalled();
     expect(store.storeNow('ann', {})).toBeNull();
   });
 
   it('keeps the token of a read or a write in hand as well', async () => {
-    service.getGameSave.mockResolvedValue(null);
+    service.getGameSaveAs.mockResolvedValue(null);
     const store = accountStoreFor('medal-pusher');
     await store.load('ann');
     expect(store.storeNow('ann', {})).not.toBeNull();
@@ -193,9 +202,9 @@ describe('the account’s store on the site’s save service', () => {
     const book = accountStoreFor('medal-pusher-records');
     await machine.store('ann', { a: 1 });
     await book.store('ann', { b: 2 });
-    expect(service.saveGameSave.mock.calls).toEqual([
-      ['medal-pusher', { a: 1 }],
-      ['medal-pusher-records', { b: 2 }],
+    expect(service.saveGameSaveAs.mock.calls).toEqual([
+      ['medal-pusher', { a: 1 }, ANN.token],
+      ['medal-pusher-records', { b: 2 }, ANN.token],
     ]);
   });
 });

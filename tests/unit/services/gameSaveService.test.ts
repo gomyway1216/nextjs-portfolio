@@ -4,7 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const firebase = vi.hoisted(() => ({ auth: { currentUser: null as null | { uid: string; getIdToken: () => Promise<string> } } }));
 vi.mock('@/lib/firebaseConnect', () => firebase);
 
-import { GameSaveError, currentGameSaveUid, deleteGameSave, getGameSave, getGameSaveCredentials, saveGameSave, saveGameSaveKeepalive } from '@/services/gameSaveService';
+import {
+  GameSaveError,
+  currentGameSaveUid,
+  deleteGameSave,
+  getGameSave,
+  getGameSaveAs,
+  getGameSaveCredentials,
+  saveGameSave,
+  saveGameSaveAs,
+  saveGameSaveKeepalive,
+} from '@/services/gameSaveService';
 
 const TOKEN = 'a-made-up-token';
 const fetchMock = vi.fn();
@@ -87,6 +97,61 @@ describe('writing a save', () => {
     firebase.auth.currentUser = null;
     await expect(saveGameSave('medal-pusher', {})).rejects.toThrow('Sign in to save your game');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('a read or a write made with a token the caller already holds', () => {
+  const HELD = 'a-token-held-by-the-caller';
+
+  it('goes with that token and no other, whoever is signed in by then, and without asking', async () => {
+    // Somebody else is signed in by now. Their token is never asked for, and it is not the one that goes.
+    const getIdToken = vi.fn(async () => 'the-token-of-whoever-is-signed-in-now');
+    firebase.auth.currentUser = { uid: 'somebody-else', getIdToken };
+    fetchMock.mockResolvedValue(answer(200, { save: { state: { board: 1 }, updatedAt: '2026-10-12T09:00:00.000Z' } }, { date: 'Mon, 12 Oct 2026 09:00:05 GMT' }));
+    expect(await getGameSaveAs<{ board: number }>('medal-pusher', HELD)).toEqual({ state: { board: 1 }, updatedAt: '2026-10-12T09:00:00.000Z', serverTime: '2026-10-12T09:00:05.000Z' });
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/game/saves?gameKey=medal-pusher', { headers: { Authorization: `Bearer ${HELD}` } });
+
+    fetchMock.mockResolvedValue(answer(200, { success: true }));
+    await saveGameSaveAs('medal-pusher', { data: 'x' }, HELD);
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/game/saves', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${HELD}` },
+      body: JSON.stringify({ gameKey: 'medal-pusher', state: { data: 'x' } }),
+    });
+
+    // Nor when nobody is signed in at all.
+    firebase.auth.currentUser = null;
+    fetchMock.mockResolvedValue(answer(200, { save: null }));
+    expect(await getGameSaveAs('medal-pusher', HELD)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(getIdToken).not.toHaveBeenCalled();
+  });
+
+  it('is on its way before anything is awaited', () => {
+    fetchMock.mockReturnValue(new Promise(() => undefined));
+    void getGameSaveAs('medal-pusher', HELD);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    void saveGameSaveAs('medal-pusher', {}, HELD);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([401, 413, 500])('fails with the status when the server answers %i, as the others do', async (status) => {
+    fetchMock.mockResolvedValue(answer(status, { error: 'no' }));
+    const read = await getGameSaveAs('medal-pusher', HELD).catch((error: unknown) => error);
+    expect(read).toBeInstanceOf(GameSaveError);
+    expect((read as GameSaveError).status).toBe(status);
+    const written = await saveGameSaveAs('medal-pusher', {}, HELD).catch((error: unknown) => error);
+    expect(written).toBeInstanceOf(GameSaveError);
+    expect((written as GameSaveError).status).toBe(status);
+    expect((written as GameSaveError).message).toBe(`Failed to save game (${status})`);
+  });
+
+  it('rejects, and does not throw, when the request cannot be made at all', async () => {
+    fetchMock.mockImplementation(() => {
+      throw new TypeError('Failed to fetch');
+    });
+    await expect(getGameSaveAs('medal-pusher', HELD)).rejects.toThrow('Failed to fetch');
+    await expect(saveGameSaveAs('medal-pusher', {}, HELD)).rejects.toThrow('Failed to fetch');
   });
 });
 

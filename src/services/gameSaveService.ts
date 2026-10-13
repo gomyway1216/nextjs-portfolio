@@ -33,14 +33,21 @@ async function getAuthHeaders(): Promise<Record<string, string> | null> {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** A player and a token of that same player's: both are read from one user, so the token is never somebody else's. */
+export interface GameSaveCredentials {
+  uid: string;
+  token: string;
+}
+
 /**
  * Who is signed in, with a token for their saves, or null when nobody is.
- * For a caller that has to send a save without waiting for a token — as the
- * page is hidden or left — and so keeps one in hand (see
- * `saveGameSaveKeepalive`). Firebase hands back the token it already has
- * until that one is about to run out, so this is cheap to call often.
+ * For a caller that has to know whose save it is about to read or write, or
+ * that has to send one without waiting for a token, as the page is hidden or
+ * left (see `getGameSaveAs`, `saveGameSaveAs` and `saveGameSaveKeepalive`).
+ * Firebase hands back the token it already has until that one is about to
+ * run out, so this is cheap to call often.
  */
-export async function getGameSaveCredentials(): Promise<{ uid: string; token: string } | null> {
+export async function getGameSaveCredentials(): Promise<GameSaveCredentials | null> {
   const user = auth.currentUser;
   if (!user) return null;
   return { uid: user.uid, token: await user.getIdToken() };
@@ -56,10 +63,8 @@ export function currentGameSaveUid(): string | null {
   return auth.currentUser?.uid ?? null;
 }
 
-export async function getGameSave<T>(gameKey: string): Promise<GameSave<T> | null> {
-  const headers = await getAuthHeaders();
-  if (!headers) return null;
-
+// The two requests themselves. Nothing is awaited in either before `fetch` is called.
+async function readSave<T>(gameKey: string, headers: Record<string, string>): Promise<GameSave<T> | null> {
   const response = await fetch(`/api/game/saves?gameKey=${encodeURIComponent(gameKey)}`, {
     headers,
   });
@@ -72,10 +77,7 @@ export async function getGameSave<T>(gameKey: string): Promise<GameSave<T> | nul
   return { ...data.save, serverTime: Number.isFinite(answered) ? new Date(answered).toISOString() : null };
 }
 
-export async function saveGameSave<T extends object>(gameKey: string, state: T): Promise<void> {
-  const headers = await getAuthHeaders();
-  if (!headers) throw new Error('Sign in to save your game');
-
+async function writeSave<T extends object>(gameKey: string, state: T, headers: Record<string, string>): Promise<void> {
   const response = await fetch('/api/game/saves', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -84,6 +86,34 @@ export async function saveGameSave<T extends object>(gameKey: string, state: T):
   if (!response.ok) {
     throw new GameSaveError(`Failed to save game (${response.status})`, response.status);
   }
+}
+
+export async function getGameSave<T>(gameKey: string): Promise<GameSave<T> | null> {
+  const headers = await getAuthHeaders();
+  if (!headers) return null;
+  return readSave<T>(gameKey, headers);
+}
+
+export async function saveGameSave<T extends object>(gameKey: string, state: T): Promise<void> {
+  const headers = await getAuthHeaders();
+  if (!headers) throw new Error('Sign in to save your game');
+  return writeSave(gameKey, state, headers);
+}
+
+/**
+ * The same read as `getGameSave`, made with a token the caller already
+ * holds. Who is signed in is not asked again, so the save that comes back is
+ * the one of the player the token is for, whoever has signed in or out since
+ * the caller got it (see `getGameSaveCredentials`). The request is on its way
+ * before this returns: nothing is awaited first.
+ */
+export function getGameSaveAs<T>(gameKey: string, token: string): Promise<GameSave<T> | null> {
+  return readSave<T>(gameKey, { Authorization: `Bearer ${token}` });
+}
+
+/** The same write as `saveGameSave`, made with a token the caller already holds: see `getGameSaveAs`. */
+export function saveGameSaveAs<T extends object>(gameKey: string, state: T, token: string): Promise<void> {
+  return writeSave(gameKey, state, { Authorization: `Bearer ${token}` });
 }
 
 /**

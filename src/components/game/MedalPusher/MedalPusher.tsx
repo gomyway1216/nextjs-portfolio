@@ -1,11 +1,11 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import type { AccountStore } from './account';
 import { BonusDot } from './DailyBonus';
 import { getStrings } from './i18n';
+import { InstructionPlateDialog, PlateSwitch } from './InstructionPlate';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
 import { records } from './recordsStore';
@@ -71,7 +71,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>
-          <button type="button" className={styles.btn} onClick={() => setInfoOpen(true)}>
+          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="pusher-how-to-play" onClick={() => setInfoOpen(true)}>
             {t.howToPlay}
           </button>
         </div>
@@ -102,7 +102,10 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs never
             resets the machine or drops a finished simulation. The machine only runs while its tab is showing. */}
         <div role="tabpanel" id="pusher-panel-machine" aria-labelledby="pusher-tab-machine" hidden={tab !== 'machine'}>
-          <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
+          {/* The compact instruction plate on the cabinet opens the full one, which is held here. */}
+          <PlateSwitch.Provider value={setInfoOpen}>
+            <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
+          </PlateSwitch.Provider>
         </div>
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
@@ -115,13 +118,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
         </div>
       </div>
 
-      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay}>
-        {t.infoBody(MAX_STOCK).map((p, i) => (
-          <p key={i} className={styles.infoP}>
-            {p}
-          </p>
-        ))}
-      </InfoModal>
+      <InstructionPlateDialog isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay} body={t.infoBody(MAX_STOCK)} />
     </div>
   );
 };

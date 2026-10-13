@@ -76,7 +76,8 @@ export const SoundSettingsButton = ({ control, strings }: { control: SoundContro
 /**
  * The settings themselves, in a row of their own under the switches: a slider
  * for the volume, with the level the cabinet was made at marked in its middle,
- * and a switch for the background loop alone. Escape closes the row.
+ * a switch for the background loop alone, and a switch for the arcade round
+ * the cabinet, which is off until the player wants it. Escape closes the row.
  */
 export const SoundSettingsPanel = ({ control, strings }: { control: SoundControl; strings: PusherStrings }) => {
   const volumeId = useId();
@@ -114,6 +115,16 @@ export const SoundSettingsPanel = ({ control, strings }: { control: SoundControl
       </div>
       <button type="button" className={styles.toggle} aria-pressed={settings.music} data-testid="pusher-music" onClick={() => change({ ...settings, music: !settings.music })}>
         <span aria-hidden>♪</span> {strings.music}
+      </button>
+      <button
+        type="button"
+        className={styles.toggle}
+        aria-pressed={settings.arcade}
+        title={strings.arcadeHint}
+        data-testid="pusher-arcade"
+        onClick={() => change({ ...settings, arcade: !settings.arcade })}
+      >
+        {strings.arcade}
       </button>
     </div>
   );

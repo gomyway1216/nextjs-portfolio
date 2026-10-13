@@ -40,7 +40,6 @@ export interface PusherStrings {
   feverWin: (medals: number) => string;
   feverTag: string;
   finishWin: (medals: number) => string;
-  chainLevel: (level: number, goal: number) => string;
   chainTotal: (medals: number) => string;
   ballWin: string;
   chance: string;
@@ -230,6 +229,9 @@ export interface PusherStrings {
   /** A volume as it is read out to someone who cannot see the slider: the percent, and its mark where it has one. */
   volumeValue: (percent: number) => string;
   music: string;
+  /** The switch for the room the cabinet stands in, and what it says when it is pointed at. */
+  arcade: string;
+  arcadeHint: string;
   /** Chance time: what the screen writes while a gold spin is still to come, and what is said when it begins and ends. */
   chanceTitle: string;
   chanceLeft: (spins: number) => string;
@@ -335,7 +337,6 @@ const en: PusherStrings = {
   feverWin: (medals) => `FEVER! +${medals}`,
   feverTag: 'FEVER',
   finishWin: (medals) => (medals > 0 ? `FINISH! TOTAL ${medals}` : 'FINISH…'),
-  chainLevel: (level, goal) => `LEVEL ${level} / ${goal}`,
   chainTotal: (medals) => `TOWER ${medals}`,
   ballWin: 'BALL GET!',
   chance: 'JACKPOT CHANCE',
@@ -564,6 +565,8 @@ const en: PusherStrings = {
   volumeMark: (percent) => (percent === 0 ? 'silent' : percent === 100 ? 'usual' : ''),
   volumeValue: (percent) => (percent === 0 ? '0%, silent' : percent === 100 ? '100%, the usual level' : `${percent}%`),
   music: 'Music',
+  arcade: 'Arcade',
+  arcadeHint: 'The sound of the arcade around this machine',
   chanceTitle: 'CHANCE TIME',
   chanceLeft: (spins) => `${spins} left`,
   sayChance: 'Chance time. The hold is full: gold spins pay double on the board and the chests.',
@@ -659,7 +662,6 @@ const ja: PusherStrings = {
   feverWin: (medals) => `フィーバー！ ${medals}枚`,
   feverTag: 'フィーバー',
   finishWin: (medals) => (medals > 0 ? `終了！ 合計${medals}枚` : '終了…'),
-  chainLevel: (level, goal) => `レベル ${level} / ${goal}`,
   chainTotal: (medals) => `タワー ${medals}枚`,
   ballWin: 'ボール GET！',
   chance: 'ジャックポットチャンス',
@@ -887,6 +889,8 @@ const ja: PusherStrings = {
   volumeMark: (percent) => (percent === 0 ? '無音' : percent === 100 ? '標準' : ''),
   volumeValue: (percent) => (percent === 0 ? '0%（無音）' : percent === 100 ? '100%（標準）' : `${percent}%`),
   music: 'BGM',
+  arcade: '店内の音',
+  arcadeHint: 'まわりの台のメダルの音や、店内のざわめき',
   chanceTitle: 'チャンスタイム',
   chanceLeft: (spins) => `あと${spins}回`,
   sayChance: 'チャンスタイム。保留が満杯です。金の抽選は、すごろくと宝箱の払い出しが2倍になります。',

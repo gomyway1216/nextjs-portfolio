@@ -11,14 +11,18 @@ import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './hapti
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
 import { MedalTray } from './MedalTray';
+import { PlateSticker } from './PlateSticker';
 import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
 import { SegmentDisplay, SegmentMirror } from './SegmentDisplay';
 import {
-  ballSpot,
+  ballRollsAt,
+  ballTipsAt,
   landTimes,
+  monitorGlow,
+  monitorMode,
   reelPositions,
   reelsFast,
   reelsWaiting,
@@ -31,7 +35,7 @@ import {
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { grant } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
-import { hush, playSound, setMusic, unlockAudio } from './sounds';
+import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
 import { keepMachine } from './savedMachine';
 import { savedNoteFor } from './savedNote';
@@ -177,6 +181,7 @@ const IDLE_SCREEN: ScreenState = {
   amount: 0,
   line: null,
   lit: -1,
+  board: -1,
   square: 0,
   die: 0,
   rolling: false,
@@ -250,6 +255,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   // How loud the player has the cabinet and whether its loop plays, kept on this device apart from the machine.
   const soundControl = useSoundSettings();
   const musicOn = soundControl.settings.music;
+  const arcadeOn = soundControl.settings.arcade;
   const [announcement, setAnnouncement] = useState('');
   // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
   const [armedAt, setArmedAt] = useState<number | null>(null);
@@ -317,13 +323,18 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     if (hold.by.has(by)) return;
     if (hold.by.size === 0) {
       hold.since = performance.now() / 1000;
+      // The button itself is heard going down, and coming up when the last finger or key leaves it.
+      playSound('button', live.current.sound);
       feedOnce(arm);
     }
     hold.by.add(by);
     showHeld();
   };
   const releaseRail = (arm: Arm, by: string) => {
-    if (holds.current[arm].by.delete(by)) showHeld();
+    const hold = holds.current[arm];
+    if (!hold.by.delete(by)) return;
+    if (hold.by.size === 0) playSound('button', live.current.sound, { up: true });
+    showHeld();
   };
   /** A hand on an aim takes over from Sweep, which goes off and says so. */
   const takeOver = () => {
@@ -439,6 +450,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     return () => setMusic(false);
   }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
+  // The arcade round the cabinet is heard on the same terms as the loop, when the player has asked for it. It is
+  // not the machine's, so a reset does not stop it.
+  useEffect(() => {
+    setAmbience(sound && active && arcadeOn);
+    return () => setAmbience(false);
+  }, [sound, active, arcadeOn]);
 
   // The keeper is set up once, before anything asks it for a machine.
   useEffect(() => {
@@ -547,6 +564,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     let bowlLights: Stage['party'] = null;
     let last = performance.now();
     const events: SessionEvent[] = [];
+    // The medals that were in the air before a frame, by name: the ones that have come down in it are among them.
+    const airborne: number[] = [];
+    // The clock of the roulette's turn as it was a frame ago, or less than nothing while no turn was on.
+    let turnClock = -1;
     let frameId = 0;
 
     const frame = (now: number) => {
@@ -608,7 +629,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         setLead(shownLead);
       }
       events.length = 0;
+      airborne.length = 0;
+      for (const medal of session.machine.falling) airborne.push(medal.id);
       advance(session, elapsed, events);
+      // The machine is heard turning, in step with the pusher as it is drawn.
+      turnMotor(soundOn, session.machine.time);
       if (gifts.length > 0) events.push(...gifts.splice(0));
       // The record book hears everything the machine did, whatever becomes of the machine.
       records.note(session, events);
@@ -639,6 +664,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
           case 'checker':
             lightGate(stage, event.gate);
+            // The medal itself is heard going down the pocket, and then what the cabinet says about it.
+            playSound('slit', soundOn);
             playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
             break;
           case 'chanceStart':
@@ -698,7 +725,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
             break;
           case 'rouletteStart':
-            playSound('roulette', soundOn);
+            // The ball is heard for this turn and for every one after it in the run, which no event tells of: see below.
             break;
           case 'rouletteStep':
             playSound('pocket', soundOn, { level: event.level });
@@ -712,6 +739,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
           case 'bowlStart':
             playSound('reach', soundOn);
+            // The ball is heard round the bowl until it tips, and through its hole as it does.
+            if (!calm.matches) playSound('bowl', soundOn, { seconds: ballTipsAt(event.duration) });
             break;
           case 'bowlEnd':
             // The jackpot has its fanfare. The cabinet's lights are lit for either prize by the frame itself, for as
@@ -726,6 +755,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             // Through a hole and into the bowl below: a step up, and the suspense starts again.
             playSound('pocket', soundOn, { level: CHAIN_GOAL });
             playSound('reach', soundOn);
+            // It is in the air for a moment, and then heard round the bowl it has dropped into. The last is a funnel,
+            // in which it goes faster all the way to its hole.
+            if (!calm.matches) playSound('bowl', soundOn, { seconds: ballTipsAt(event.duration), after: ballRollsAt(event.bowl), quickens: BOWLS[event.bowl].length === 1 });
             setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
           case 'jewelDrop':
@@ -745,10 +777,24 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
         }
       }
+      // A run of the roulette is several turns and only the first is announced. Each is told by its clock starting
+      // again, and the ball is heard round the wheel for the whole of it; without motion it is not seen to go round.
+      const turn = session.roulette && !session.roulette.bowl && !session.roulette.landed ? session.roulette : null;
+      if (turn && (turnClock < 0 || turn.elapsed < turnClock) && turn.elapsed < 0.25 && !calm.matches) {
+        playSound('roulette', soundOn, { seconds: turn.duration - turn.elapsed });
+      }
+      turnClock = turn ? turn.elapsed : -1;
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
-      if (landed) playSound('land', soundOn);
+      if (landed) {
+        // On the bare table a medal rings, and on other medals it is damped: the machine knows which it came down on.
+        let down: { tier: number } | undefined;
+        for (let index = session.machine.medals.length - 1; index >= 0 && !down; index--) {
+          if (airborne.includes(session.machine.medals[index].id)) down = session.machine.medals[index];
+        }
+        playSound('land', soundOn, down ? { bare: down.tier === 0 } : {});
+      }
       // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts). A medal that went
       // in is felt as what fed it said it was when the machine took it: a tick for a press, a slower one for a
       // button that stays held, and nothing for Auto, which no finger is working.
@@ -757,7 +803,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels });
+      // The monitor lights what stands in front of it, in the colour of the mode it is in.
+      const glow = monitorGlow(monitorMode(screenState(session, calm.matches)));
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, jewels: session.jewels, glow });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -789,9 +837,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
-      const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
+      // The ball acts out its lottery: round the wheel while the roulette turns, then down the bowls. Without motion it waits where each begins until it lies in its pocket or its hole.
+      if (session.roulette && ball.current) placeLottery(ball.current, session.roulette, calm.matches);
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -1159,6 +1206,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             {t.refill(START_CREDITS)}
           </button>
         )}
+        <PlateSticker />
         <div className={styles.bulbs} aria-hidden />
       </div>
 

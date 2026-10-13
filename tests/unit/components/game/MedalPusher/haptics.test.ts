@@ -239,12 +239,14 @@ describe('what the hand feels of a frame', () => {
     expect(hapticFor([{ type: 'sugorokuEnd', square: 3, payout: 5, fever: false }])).toBe('prize');
     expect(hapticFor([{ type: 'chestEnd', chest: 0, payout: 30 }])).toBe('prize');
     expect(hapticFor([{ type: 'rouletteStep', pocket: 2, medals: 50, level: 1 }])).toBe('prize');
-    expect(hapticFor([{ type: 'bowlEnd', hole: 1, payout: 50, total: 250, jackpot: false }])).toBe('prize');
-    expect(hapticFor([{ type: 'bowlEnd', hole: 0, payout: 300, total: 500, jackpot: true }])).toBe('jackpot');
+    // Through a hole to the bowl below: a step, felt as a winning line is.
+    expect(hapticFor([{ type: 'bowlDrop', bowl: 0, hole: 1, duration: 6 }])).toBe('line');
+    expect(hapticFor([{ type: 'bowlEnd', bowl: 0, hole: 1, payout: 50, poured: 15, total: 250, jackpot: false }])).toBe('prize');
+    expect(hapticFor([{ type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true }])).toBe('jackpot');
     // Several things in one frame: the strongest, whatever order they came in.
     const busy: SessionEvent[] = [
       { type: 'won', count: 4 },
-      { type: 'bowlEnd', hole: 0, payout: 300, total: 500, jackpot: true },
+      { type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true },
       { type: 'checker', gate: 0, held: true, gold: false },
       { type: 'landed', count: 1 },
     ];
@@ -266,7 +268,7 @@ describe('what the hand feels of a frame', () => {
       { type: 'chestPicked', chest: 1 },
       { type: 'rouletteStart', pocket: 2, duration: 2.8 },
       { type: 'rouletteEnd', total: 0, level: 0 },
-      { type: 'bowlStart', hole: 1, duration: 6.5 },
+      { type: 'bowlStart', holes: [1, 0, 0], duration: 6.5 },
     ];
     for (const event of quiet) expect(hapticFor([event])).toBeNull();
   });
@@ -426,7 +428,7 @@ describe('what fed a medal', () => {
     expect(hapticFor([{ type: 'won', count: 1 }], 'feed')).toBe('feed');
     expect(hapticFor([{ type: 'won', count: 1 }], null)).toBe('catch');
     expect(hapticFor([{ type: 'checker', gate: 1, held: true, gold: false }], 'feed')).toBe('start');
-    expect(hapticFor([{ type: 'bowlEnd', hole: 0, payout: 300, total: 500, jackpot: true }], 'stream')).toBe('jackpot');
+    expect(hapticFor([{ type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true }], 'stream')).toBe('jackpot');
   });
 
   it('says nothing for a medal that Auto feeds while the other rail is held and its slot is not free', () => {

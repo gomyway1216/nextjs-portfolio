@@ -34,7 +34,7 @@ export interface HapticPattern {
  * - `start`: a medal through a START pocket that holds a spin.
  * - `crash`: a tower going over the pusher's lip.
  * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
- * - `line`: the slot stops on a winning line, or a ball goes over the front.
+ * - `line`: the slot stops on a winning line, a ball goes over the front, or the ball drops through a hole to the bowl below.
  * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl.
  * - `jackpot`: the jackpot. A second and a quarter long.
  */
@@ -150,6 +150,7 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
         feel('chance');
         break;
       case 'ball':
+      case 'bowlDrop':
         feel('line');
         break;
       case 'spinEnd':

@@ -3,16 +3,18 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
+import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
-import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { MedalTray } from './MedalTray';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { records } from './recordsStore';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import { SegmentDisplay, SegmentMirror } from './SegmentDisplay';
 import {
   ballSpot,
@@ -26,7 +28,8 @@ import {
   stoppedDigits,
   type ScreenState,
 } from './screen';
-import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
+import { grant } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
@@ -124,6 +127,24 @@ export const RESET_WINDOW = 6;
  */
 export const confirmsReset = (armedAt: number | null, now: number): boolean => armedAt !== null && now >= armedAt && now - armedAt < RESET_WINDOW * 1000;
 
+/**
+ * Keeps the cabinet's lights in step with what the bowls paid. A celebration
+ * of the stage's own lasts as long as its kind does, which is not as long as
+ * a prize from the bowls is up; this one is lit again in every frame the
+ * prize is on the screen and put out in the frame the screen is free, so it
+ * is exactly as long as the show, whatever that takes. `lit` is the
+ * celebration this lit the frame before, and what comes back is the one it
+ * has lit now. A celebration it did not light is left to run its own time.
+ */
+export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, lit: Stage['party']): Stage['party'] {
+  if (roulette?.bowl && roulette.bowl.payout >= 0) {
+    celebrate(stage, roulette.jackpot ? 'jackpot' : 'fever');
+    return stage.party;
+  }
+  if (lit && stage.party === lit) stage.party = null;
+  return null;
+}
+
 /** The numbers shown around the cabinet. */
 interface Hud {
   credits: number;
@@ -161,7 +182,8 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
-  hole: -1,
+  stage: -1,
+  fallen: [],
   chance: 0,
   gold: false,
 };
@@ -476,6 +498,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
     keeping.save('tick');
+    // The day's bonus is paid into this machine's purse, and the machine is saved on this device with it at once.
+    // The cabinet hears of it in its next frame, with everything else that happened.
+    const gifts: SessionEvent[] = [];
+    const closePurse = records.openPurse((medals) => {
+      if (!grant(session, medals, gifts)) return false;
+      keeping.save('tick');
+      return true;
+    });
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -511,6 +541,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     let shownLead: [number, number] | null = null;
     fedBy.current.length = 0;
     let lastSpinClock = 0;
+    let bowlLights: Stage['party'] = null;
     let last = performance.now();
     const events: SessionEvent[] = [];
     let frameId = 0;
@@ -575,6 +606,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       }
       events.length = 0;
       advance(session, elapsed, events);
+      if (gifts.length > 0) events.push(...gifts.splice(0));
+      // The record book hears everything the machine did, whatever becomes of the machine.
+      records.note(session, events);
+      // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
+      bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -583,6 +619,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       let lost = false;
       for (const event of events) {
         switch (event.type) {
+          case 'bonus':
+            // The day's bonus: its medals are heard coming down into the tray.
+            playSound('prize', soundOn);
+            playSound('win', soundOn, { count: event.count });
+            setAnnouncement(strings.sayBonus(event.count));
+            break;
           case 'landed':
             landed = true;
             break;
@@ -669,13 +711,19 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound('reach', soundOn);
             break;
           case 'bowlEnd':
-            if (event.jackpot) celebrate(stage, 'jackpot');
-            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
+            // The jackpot has its fanfare. The cabinet's lights are lit for either prize by the frame itself, for as
+            // long as the prize is up. Part of it is poured and the rest goes up as towers.
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             // A jackpot is not left to wait for the minute: it goes to the account now.
             if (event.jackpot) keeping.save('moment');
+            break;
+          case 'bowlDrop':
+            // Through a hole and into the bowl below: a step up, and the suspense starts again.
+            playSound('pocket', soundOn, { level: CHAIN_GOAL });
+            playSound('reach', soundOn);
+            setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
         }
       }
@@ -723,9 +771,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
       const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) ball.current.style.transform = ballTransform(ballSpot(bowl, calm.matches));
+      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -751,6 +799,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', saveOnLeaving);
+      closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
       keeping.save('left');
       sessionRef.current = null;
@@ -908,6 +957,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   return (
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
+        <AchievementToast sound={sound} />
         <div className={styles.bulbs} aria-hidden />
         <div className={`${styles.marquee} ${look.sign}`}>
           <div className={styles.logo} aria-hidden>
@@ -916,8 +966,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           </div>
           <div className={styles.jackpotBox}>
             <span className={styles.jackpotLabel}>{t.jackpot}</span>
-            <span className={styles.jackpotValue} data-testid="pusher-jackpot">
-              {fmt(hud.jackpot)}
+            {/* While a jackpot is being counted out the plate counts with it; the jackpot itself has started over by then. */}
+            <span className={styles.jackpotValue} data-testid="pusher-jackpot" data-counting={screen.banner === 'jackpot'}>
+              {fmt(screen.banner === 'jackpot' ? screen.amount : hud.jackpot)}
             </span>
             <SegmentMirror initial={hud.jackpot} places={JACKPOT_PLACES} tone="amber" />
           </div>
@@ -1092,6 +1143,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         )}
         <div className={styles.bulbs} aria-hidden />
       </div>
+
+      <BonusStrip />
 
       <section className={styles.tally} aria-label={t.tallyTitle}>
         <h2 className={styles.tallyTitle}>{t.tallyTitle}</h2>

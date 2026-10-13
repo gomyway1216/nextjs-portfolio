@@ -6,6 +6,8 @@ import {
   BOARD,
   BOARD_VALUE,
   BOWL,
+  BOWLS,
+  BOWL_POURED,
   CHAIN_GOAL,
   CHALLENGE_CHANCE,
   CHESTS,
@@ -13,6 +15,7 @@ import {
   CONTINUE_CHANCE,
   CHEST_VALUE,
   DIE_FACES,
+  FALLS,
   FEVER_SQUARE,
   HOLE_JACKPOT_CHANCE,
   JACKPOT_CHANCE,
@@ -28,13 +31,17 @@ import {
   TIER_BONUS,
   TIER_DIGITS,
   boardAfter,
+  bowlChance,
   bowlValue,
   chainChance,
   drawDie,
-  drawHole,
+  drawFall,
   drawPocket,
   drawSpin,
+  fallEnd,
+  holeChance,
   holePays,
+  pouredOf,
   reachChance,
   reachHitChance,
   rouletteValue,
@@ -242,14 +249,14 @@ describe('the roulette a ball starts', () => {
     expect(chainChance(CHAIN_GOAL)).toBeCloseTo(16 / 81, 12);
   });
 
-  it('ends a full run in a bowl of three holes, one of them the jackpot', () => {
+  it('ends a full run in three ways, each as likely as the next, one of them the jackpot', () => {
     expect(BOWL).toEqual(['jackpot', 50, 100]);
     expect(holePays('jackpot', 345)).toBe(345);
     expect(holePays(50, 345)).toBe(50);
     expect(holePays(100, 345)).toBe(100);
     expect(bowlValue(300)).toBeCloseTo(150, 12);
     expect(bowlValue(900)).toBeCloseTo(350, 12);
-    // About one ball in five gets to the bowl, and a third of those drop into the jackpot.
+    // About one ball in five gets to the bowls, and a third of those get down to the jackpot.
     expect(CHALLENGE_CHANCE).toBeCloseTo(16 / 81, 12);
     expect(CHALLENGE_CHANCE).toBeCloseTo(0.1975, 4);
     expect(HOLE_JACKPOT_CHANCE).toBeCloseTo(1 / 3, 12);
@@ -259,32 +266,129 @@ describe('the roulette a ball starts', () => {
     expect(Math.round(1 / JACKPOT_CHANCE)).toBe(2170);
   });
 
-  it('draws every hole equally often', () => {
-    const rng = seededRng(21);
-    const draws = 90_000;
-    const seen = BOWL.map(() => 0);
-    for (let i = 0; i < draws; i++) seen[drawHole(rng)]++;
-    for (const count of seen) expect(Math.abs(count / draws - 1 / BOWL.length)).toBeLessThan(0.006);
-    expect(drawHole(() => 0)).toBe(0);
-    expect(drawHole(() => 0.5)).toBe(1);
-    expect(drawHole(() => 0.9999999)).toBe(2);
+  it('gets to those three ends through three bowls, every hole of a bowl as likely as the next', () => {
+    // The top bowl: two holes down and fifty. The middle bowl: one hole down and a hundred. The bottom bowl: the jackpot.
+    expect(BOWLS).toEqual([['down', 'down', 50], ['down', 100], ['jackpot']]);
+    // Every bowl but the last has a way down, and every bowl has one prize: the three of them are the three ends.
+    BOWLS.forEach((holes, bowl) => expect(holes.includes('down')).toBe(bowl < BOWLS.length - 1));
+    expect(BOWLS.map((holes) => holes.filter((hole) => hole !== 'down')).flat()).toEqual([50, 100, 'jackpot']);
+    expect([...BOWL].map(String).sort()).toEqual(BOWLS.flat().filter((hole) => hole !== 'down').map(String).sort());
+
+    // Every fall goes down hole by hole and ends in a hole that holds a prize.
+    for (const fall of FALLS) {
+      fall.forEach((hole, bowl) => {
+        expect(hole).toBeGreaterThanOrEqual(0);
+        expect(hole).toBeLessThan(BOWLS[bowl].length);
+        expect(BOWLS[bowl][hole] === 'down').toBe(bowl < fall.length - 1);
+      });
+      expect(BOWL).toContain(fallEnd(fall));
+    }
+    expect(() => fallEnd([0])).toThrow();
+    expect(() => fallEnd([])).toThrow();
+    expect(() => fallEnd([0, 0, 0, 0])).toThrow();
+    expect(FALLS).toEqual([[0, 0, 0], [1, 0, 0], [2], [2], [0, 1], [1, 1]]);
+
+    // The falls are as likely as each other. Of those that get to a bowl, the same number take each of its holes:
+    // that is what makes a hole of a bowl as likely as the one beside it.
+    BOWLS.forEach((holes, bowl) => {
+      const reach = FALLS.filter((fall) => fall.length > bowl);
+      const taken = holes.map((_, hole) => reach.filter((fall) => fall[bowl] === hole).length);
+      expect(new Set(taken).size).toBe(1);
+      expect(taken[0] * holes.length).toBe(reach.length);
+      holes.forEach((_, hole) => expect(holeChance(bowl, hole)).toBeCloseTo(bowlChance(bowl) / holes.length, 12));
+    });
+    // All of the balls are in the top bowl, two thirds get to the middle one, and one third to the bottom.
+    expect(bowlChance(0)).toBe(1);
+    expect(bowlChance(1)).toBeCloseTo(2 / 3, 12);
+    expect(bowlChance(2)).toBeCloseTo(1 / 3, 12);
+    // And so the three ends come out a third each: fifty from the top bowl, a hundred from the middle, the jackpot at the bottom.
+    for (const end of BOWL) expect(FALLS.filter((fall) => fallEnd(fall) === end)).toHaveLength(FALLS.length / BOWL.length);
+    expect(holeChance(0, 2)).toBeCloseTo(1 / 3, 12);
+    expect(holeChance(1, 1)).toBeCloseTo(1 / 3, 12);
+    expect(holeChance(2, 0)).toBeCloseTo(1 / 3, 12);
   });
 
-  it('is worth every number it gets to and the bowl for a full run', () => {
-    // Worked out the long way: every run of pockets up to the first cross, or to the goal and then every hole.
+  it('is worth exactly what it was when the challenge was one bowl, to the last digit', () => {
+    // These are the figures of the game with one bowl of three holes, as that game worked them out.
+    expect(CHALLENGE_CHANCE).toBe(0.19753086419753083);
+    expect(HOLE_JACKPOT_CHANCE).toBe(0.3333333333333333);
+    expect(BALL_JACKPOT_CHANCE).toBe(0.06584362139917693);
+    expect(JACKPOT_CHANCE).toBe(0.00046090534979423856);
+    const then: [jackpot: number, bowl: number, roulette: number, spin: number][] = [
+      [300, 150, 63.734567901234556, 1.0961419753086419],
+      [301, 150.33333333333334, 63.80041152263374, 1.0966028806584363],
+      [337, 162.33333333333334, 66.17078189300412, 1.1131954732510287],
+      [500, 216.66666666666666, 76.90329218106994, 1.1883230452674898],
+      [1000, 383.3333333333333, 109.82510288065842, 1.418775720164609],
+      [2000, 716.6666666666666, 175.66872427983535, 1.8796810699588473],
+    ];
+    for (const [jackpot, bowl, roulette, spin] of then) {
+      expect(bowlValue(jackpot)).toBe(bowl);
+      expect(rouletteValue(jackpot)).toBe(roulette);
+      expect(spinValue(jackpot)).toBe(spin);
+    }
+    // And for every jackpot there can be, the three prizes added up and divided by three, as that game had it.
+    for (let jackpot = JACKPOT_START; jackpot <= 5000; jackpot++) expect(bowlValue(jackpot)).toBe((jackpot + 50 + 100) / 3);
+    // Every whole jackpot from 300 to 5,000 folded into one number, which that game's figures come to as well.
+    let fold = 0;
+    for (let jackpot = 300; jackpot <= 5000; jackpot++) fold = (fold * 31 + bowlValue(jackpot) * 7 + rouletteValue(jackpot) * 3 + spinValue(jackpot)) % 1e9;
+    expect(fold).toBe(811751721.9670362);
+  });
+
+  it('draws the way down so that a draw comes to the end it came to with one bowl', () => {
+    // With one bowl the draw picked one of the three holes: the first third of the draws the jackpot, and so on.
+    const withOneBowl = (draw: number) => BOWL[Math.min(BOWL.length - 1, Math.floor(draw * BOWL.length))];
+    for (let step = 0; step < 6000; step++) {
+      const draw = (step + 0.5) / 6000;
+      expect(fallEnd(FALLS[drawFall(() => draw)])).toBe(withOneBowl(draw));
+    }
+    for (const edge of [0, 1 / 6, 1 / 3, 0.5, 2 / 3, 5 / 6, 0.9999999, 1 - Number.EPSILON]) expect(fallEnd(FALLS[drawFall(() => edge)])).toBe(withOneBowl(edge));
+    expect(drawFall(() => 0)).toBe(0);
+    expect(drawFall(() => 0.5)).toBe(3);
+    expect(drawFall(() => 0.9999999)).toBe(FALLS.length - 1);
+
+    // And every way down comes up as often as the next.
+    const rng = seededRng(21);
+    const draws = 90_000;
+    const seen = FALLS.map(() => 0);
+    for (let i = 0; i < draws; i++) seen[drawFall(rng)]++;
+    for (const count of seen) expect(Math.abs(count / draws - 1 / FALLS.length)).toBeLessThan(0.005);
+  });
+
+  it('pours a share of what the bowls pay and stacks the rest', () => {
+    expect(BOWL_POURED).toBeCloseTo(0.3, 12);
+    expect([50, 100, 300, 337].map(pouredOf)).toEqual([15, 30, 90, 101]);
+    for (let medals = 0; medals <= 3000; medals++) {
+      const poured = pouredOf(medals);
+      expect(Number.isInteger(poured)).toBe(true);
+      expect(poured).toBeGreaterThanOrEqual(0);
+      expect(poured).toBeLessThanOrEqual(medals);
+    }
+  });
+
+  it('is worth every number it gets to and the bowls for a full run', () => {
+    // Worked out the long way: every run of pockets up to the first cross, or to the goal and then down the bowls, hole by hole.
     const walked = (jackpot: number) => {
       let worth = 0;
       let challenge = 0;
       let won = 0;
       let runs = 0;
+      const fall = (bowl: number, chance: number, medals: number) => {
+        for (const hole of BOWLS[bowl]) {
+          const share = chance / BOWLS[bowl].length;
+          if (hole === 'down') {
+            fall(bowl + 1, share, medals);
+            continue;
+          }
+          runs += 1;
+          worth += share * (medals + (hole === 'jackpot' ? jackpot : hole));
+          if (hole === 'jackpot') won += share;
+        }
+      };
       const walk = (level: number, chance: number, medals: number) => {
         if (level === CHAIN_GOAL) {
           challenge += chance;
-          for (const hole of BOWL) {
-            runs += 1;
-            worth += (chance / BOWL.length) * (medals + (hole === 'jackpot' ? jackpot : hole));
-            if (hole === 'jackpot') won += chance / BOWL.length;
-          }
+          fall(0, chance, medals);
           return;
         }
         for (const pocket of ROULETTE) {
@@ -298,8 +402,9 @@ describe('the roulette a ball starts', () => {
       return { worth, challenge, won, runs };
     };
     const at300 = walked(300);
-    // Four crosses after each of 1, 8, 64 and 512 runs of numbers, and three holes after each of the 4,096 full ones.
-    expect(at300.runs).toBe(4 * (1 + 8 + 64 + 512) + 3 * 4096);
+    // Four crosses after each of 1, 8, 64 and 512 runs of numbers. After each of the 4,096 full ones, five holes the ball
+    // can end in: the top bowl's fifty, and under each of its two ways down the middle bowl's hundred and the jackpot.
+    expect(at300.runs).toBe(4 * (1 + 8 + 64 + 512) + 5 * 4096);
     expect(at300.challenge).toBeCloseTo(CHALLENGE_CHANCE, 12);
     expect(at300.won).toBeCloseTo(BALL_JACKPOT_CHANCE, 12);
     expect(rouletteValue(300)).toBeCloseTo(at300.worth, 9);
@@ -325,7 +430,7 @@ describe('the roulette a ball starts', () => {
       }
       if (level < CHAIN_GOAL) continue;
       challenges++;
-      const hole = BOWL[drawHole(rng)];
+      const hole = fallEnd(FALLS[drawFall(rng)]);
       if (hole === 'jackpot') jackpots++;
       medals += holePays(hole, 300);
     }

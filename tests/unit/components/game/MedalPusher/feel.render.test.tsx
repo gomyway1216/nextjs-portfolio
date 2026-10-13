@@ -261,6 +261,13 @@ describe('the stylesheet, for a thumb', () => {
     expect(rulesFor(css, '.cabinet:fullscreen .wall')).toContain('--mp-u: calc(100cqw / 640)');
     // There a finger on the field is aiming whichever way it goes.
     expect(rulesFor(css, '.cabinet:fullscreen .field')).toContain('touch-action: none');
+    // The place of the records' toast, the cabinet's first child, is taken out of what is laid out: a band at the
+    // top of the screen, as tall as a toast, that takes no press and gives the screen nothing to scroll.
+    const hung = rulesFor(css, '.cabinet:fullscreen > :first-child:not(.bulbs)');
+    expect(hung).toContain('position: absolute');
+    expect(hung).toContain('height: 7rem');
+    expect(hung).toContain('overflow: hidden');
+    expect(hung).toContain('pointer-events: none');
     // On its side the controls are at either hand, each rail's on its own side.
     const sideways = css.split('@media (orientation: landscape)')[1] ?? '';
     expect(sideways).toMatch(/'feedL stage feedR'/);

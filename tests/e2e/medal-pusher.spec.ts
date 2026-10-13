@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
-import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
+import { CHAIN_GOAL, CHESTS, JACKPOT_START, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
@@ -35,6 +35,7 @@ const ON_SCREEN = 0.26;
 const machine = (page: Page) => page.locator('#pusher-panel-machine');
 const odds = (page: Page) => page.locator('#pusher-panel-odds');
 const sim = (page: Page) => page.locator('#pusher-panel-sim');
+const records = (page: Page) => page.locator('#pusher-panel-records');
 type Rail = 'left' | 'right';
 /** The feed button of a rail: L for the left one, R for the right. */
 const feedButton = (page: Page, rail: Rail) => machine(page).getByTestId(`pusher-feed-${rail}`);
@@ -1338,6 +1339,68 @@ test.describe('in the hand, on a phone', () => {
   });
 });
 
+test.describe('in the hand, a phone on its side', () => {
+  test.use({ viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+
+  test('filling the screen, the stage stands in the middle and each rail’s controls are at their own hand', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await alive(page);
+    const button = feelSwitch(page, 'fullscreen');
+    await button.scrollIntoViewIfNeeded();
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    const laidOut = () =>
+      page.evaluate(() => {
+        const full = document.fullscreenElement;
+        const box = (id: string) => document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`)?.getBoundingClientRect();
+        const ids = ['pusher-feed-left', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-fullscreen', 'pusher-credits', 'pusher-jackpot', 'pusher-tray'];
+        const field = box('pusher-field');
+        return {
+          // Nothing in it scrolls, though the place a record's toast hangs from is still at the top of the cabinet.
+          scrolls: !!full && (full.scrollHeight > full.clientHeight || full.scrollWidth > full.clientWidth),
+          offScreen: ids.filter((id) => {
+            const rect = box(id);
+            return !rect || rect.left < 0 || rect.top < 0 || rect.right > window.innerWidth || rect.bottom > window.innerHeight;
+          }),
+          field: field ? { left: field.left, right: field.right, top: field.top, bottom: field.bottom } : null,
+          left: ['pusher-feed-left', 'pusher-aim-left'].map((id) => box(id)?.right ?? Infinity),
+          right: ['pusher-feed-right', 'pusher-aim-right'].map((id) => box(id)?.left ?? -Infinity),
+          tall: window.innerHeight,
+        };
+      });
+    // The picture is as tall as the screen allows, and that is settled a frame after the layout changes.
+    await expect.poll(async () => ((await laidOut()).field?.bottom ?? 0) - ((await laidOut()).field?.top ?? 0), { timeout: 5_000 }).toBeGreaterThan(300);
+    const side = await laidOut();
+    if (!side.field) throw new Error('the field has no box');
+    expect(side.scrolls).toBe(false);
+    expect(side.offScreen).toEqual([]);
+    expect(side.field.bottom - side.field.top).toBeLessThanOrEqual(side.tall);
+    // L and the left rail's aim are to the left of the picture, R and the right rail's to its right.
+    for (const edge of side.left) expect(edge).toBeLessThanOrEqual(side.field.left + 1);
+    for (const edge of side.right) expect(edge).toBeGreaterThanOrEqual(side.field.right - 1);
+    // Two thumbs hold both, one at either side of the screen.
+    const touch = await touchScreen(page);
+    const l = await middleOf(feedButton(page, 'left'));
+    const r = await middleOf(feedButton(page, 'right'));
+    await touch('touchStart', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    await touch('touchEnd', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+    await expect.poll(() => counter(page, 'played')).toBeGreaterThanOrEqual(2);
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expectPurseToBalance(page);
+  });
+});
+
 test('on a desk there is a fullscreen button and no vibration switch, and with less motion asked for vibration starts off', async ({ page, browser }) => {
   test.setTimeout(60_000);
   await openGame(page);
@@ -1716,7 +1779,11 @@ test('the tabs work from the keyboard and the machine waits while it is out of s
   await page.waitForTimeout(1_500);
   expect(await counter(page, 'played')).toBe(paused);
 
+  // End goes to the last tab, which is Records, and the arrow comes back from it.
   await page.keyboard.press('End');
+  await expect(tabs.nth(3)).toBeFocused();
+  await expect(records(page)).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
   await expect(tabs.nth(2)).toBeFocused();
   await expect(sim(page)).toBeVisible();
   await page.keyboard.press('Home');
@@ -1749,10 +1816,12 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  // Four numbers in a row lead to the bowl, and each of its three holes is as likely as the next.
+  // Four numbers in a row lead to the three bowls: a row for what the holes of each bowl do, and each of the three ends one time in three.
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
-  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr[data-hole]')).toHaveCount(5);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
@@ -1840,6 +1909,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
+  await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('3段目');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
 });
 
@@ -1927,4 +1997,53 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(oddsSizes.scroll).toBeLessThanOrEqual(oddsSizes.inner);
+});
+
+test('a jackpot is counted out on the screen and on the marquee, up to what was paid and no further', async ({ page }) => {
+  // A machine that has just won. A full run of four tens is behind it and the ball is in the funnel of the last of
+  // the three bowls; it is played on here until the ball has dropped and the jackpot is half counted out, and
+  // saved as the game saves one, for the page to find. That leaves the page over five seconds of the show.
+  const session = createSession(5);
+  const ten = ROULETTE.indexOf(10);
+  session.roulettes = 1;
+  session.roulette = {
+    pocket: ten,
+    from: ten,
+    elapsed: TIMING.roulette + TIMING.step,
+    duration: TIMING.roulette,
+    landed: true,
+    level: CHAIN_GOAL,
+    total: 10 * CHAIN_GOAL,
+    gain: 0,
+    over: false,
+    jackpot: false,
+    bowl: { holes: [0, 0, 0], stage: 2, elapsed: BOWL_TIMES[2] - 0.5, duration: BOWL_TIMES[2], payout: -1 },
+  };
+  for (let i = 0; i < 3 * 60; i++) advance(session, 1 / 60);
+  expect(session.roulette?.bowl?.payout).toBe(JACKPOT_START);
+  expect(session.paidOut).toBe(JACKPOT_START);
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The bowls are on the screen, the view down at the last of them, and the hole the ball took in each is lit.
+  const screen = machine(page).getByTestId('pusher-screen');
+  await expect(screen).toHaveAttribute('data-mode', 'bowl');
+  await expect(screen).toHaveAttribute('data-banner', 'jackpot');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-stage', '2');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-fallen', '0 0 0');
+  await expect(machine(page).getByTestId('pusher-ladder').locator('li')).toHaveCount(3);
+  // The jackpot has the stage, and the plate on the marquee counts with it.
+  await expect(machine(page).getByTestId('pusher-pay-show')).toHaveAttribute('data-kind', 'jackpot');
+  const plate = machine(page).getByTestId('pusher-jackpot');
+  await expect(plate).toHaveAttribute('data-counting', 'true');
+  // Both run up to what the jackpot stood at and stop there, and that is what the machine has paid.
+  await expect(machine(page).getByTestId('pusher-pay-count')).toHaveText(`+${JACKPOT_START}`, { timeout: 20_000 });
+  await expect(plate).toHaveText(String(JACKPOT_START));
+  expect(await counter(page, 'paid')).toBe(JACKPOT_START);
 });

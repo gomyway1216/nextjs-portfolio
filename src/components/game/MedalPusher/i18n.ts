@@ -208,6 +208,14 @@ export interface PusherStrings {
   aimLabel: [string, string];
   /** The line under the controls that says what the keys do. */
   keysNote: string;
+  /** The sound settings: what the button that opens them is called, and the two things in them. */
+  soundSettings: string;
+  volume: string;
+  /** What a volume is called at its two marks, silent and the level the cabinet was made at. Nothing anywhere else. */
+  volumeMark: (percent: number) => string;
+  /** A volume as it is read out to someone who cannot see the slider: the percent, and its mark where it has one. */
+  volumeValue: (percent: number) => string;
+  music: string;
 }
 
 const en: PusherStrings = {
@@ -454,6 +462,11 @@ const en: PusherStrings = {
   feedHint: (key) => `Hold to keep feeding. Key: ${key}`,
   aimLabel: ['Left rail aim', 'Right rail aim'],
   keysNote: 'Keys: F and J feed the left and right rails, and can be held together. S and D aim the left rail, K and L the right.',
+  soundSettings: 'Sound settings',
+  volume: 'Volume',
+  volumeMark: (percent) => (percent === 0 ? 'silent' : percent === 100 ? 'usual' : ''),
+  volumeValue: (percent) => (percent === 0 ? '0%, silent' : percent === 100 ? '100%, the usual level' : `${percent}%`),
+  music: 'Music',
 };
 
 const ja: PusherStrings = {
@@ -699,6 +712,11 @@ const ja: PusherStrings = {
   feedHint: (key) => `押し続けると連続で入ります。キー: ${key}`,
   aimLabel: ['左のレールの狙い', '右のレールの狙い'],
   keysNote: 'キー操作: FとJで左右のレールにメダルを入れます（同時に押せます）。SとDで左のレール、KとLで右のレールの狙いを動かします。',
+  soundSettings: '音の設定',
+  volume: '音量',
+  volumeMark: (percent) => (percent === 0 ? '無音' : percent === 100 ? '標準' : ''),
+  volumeValue: (percent) => (percent === 0 ? '0%（無音）' : percent === 100 ? '100%（標準）' : `${percent}%`),
+  music: 'BGM',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

@@ -13,6 +13,7 @@ import {
   lampSpot,
   litSlots,
   mouthOnDrawing,
+  nearness,
   mouthSpot,
   mouthSpots,
   rolling,
@@ -1122,5 +1123,57 @@ describe('what has gone down the well', () => {
     // stroke, as it once did, half of them were out of sight for a quarter of a minute.
     expect(waits[Math.floor(waits.length / 2)]).toBeLessThan(PUSHER.period * (1 + 1 / 6));
     expect(waits[Math.floor(waits.length * 0.9)]).toBeLessThan(PUSHER.period * 2);
+  });
+});
+
+describe('how near a medal on a tongue’s edge was to fitting', () => {
+  const FRONT = PUSHER.min;
+  const hanging = (x: number, wings = false) => {
+    const medal: Medal = { id: 9, x, y: FRONT + R, level: 0, tier: 0, sinceDrop: CATCHER.teeter.out + 0.01, stack: 1, grow: 0, ball: false, grown: 1 };
+    return caught(medal, 0, false, wings);
+  };
+
+  it('is all of the way for one whose middle is on the tongue’s edge, none of it for one with only its rim on the tongue, and nothing for a medal that is no near miss', () => {
+    const pocket = CHECKERS.positions[1];
+    const edge = pocket + CHECKERS.halfWidth;
+    // Just off the edge of the tongue, half way out, and with its rim only just on it.
+    const samples = [0.01, CATCHER.reach / 4, CATCHER.reach / 2, CATCHER.reach * 0.99].map((off) => {
+      const held = hanging(edge + off);
+      expect(held).toMatchObject({ near: 1, chucker: -1, leg: 'tongue' });
+      return nearness(held as Caught);
+    });
+    expect(samples[0]).toBeGreaterThan(0.99);
+    expect(samples[1]).toBeCloseTo(0.75, 6);
+    expect(samples[2]).toBeCloseTo(0.5, 6);
+    expect(samples[3]).toBeLessThan(0.02);
+    // On the other side of the tongue, and of another pocket's, it is the same.
+    expect(nearness(hanging(pocket - CHECKERS.halfWidth - CATCHER.reach / 4) as Caught)).toBeCloseTo(0.75, 6);
+    expect(nearness(hanging(CHECKERS.positions[0] + CHECKERS.halfWidth + CATCHER.reach / 2) as Caught)).toBeCloseTo(0.5, 6);
+    // With the wings open the tongue is wider, and the same place is nearer its edge.
+    const wide = hanging(pocket + CHECKERS.wingWidth + CATCHER.reach / 4, true);
+    expect(wide).toMatchObject({ near: 1 });
+    expect(nearness(wide as Caught, true)).toBeCloseTo(0.75, 6);
+    // A medal on its way into the pocket, and one clear of the tongues, are no near miss.
+    const rider = caught({ id: 10, x: pocket, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    expect(rider && nearness(rider)).toBe(0);
+    const between = caught({ id: 11, x: (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    expect(between && [between.near, nearness(between)]).toEqual([-1, 0]);
+  });
+
+  it('is what says how long it hangs: the nearer half hang a quarter of a second or more, long enough to be seen and heard to rock', () => {
+    const edge = CHECKERS.positions[1] + CHECKERS.halfWidth;
+    /** How long a medal that came over `off` beyond the tongue's edge is on the tongue before it lets go of it. */
+    const hangs = (off: number): number => {
+      const medal: Medal = { id: 12, x: edge + off, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0, stack: 1, grow: 0, ball: false, grown: 1 };
+      let since = 0;
+      for (; since < 2; since += 1 / 240) {
+        medal.sinceDrop = since;
+        if (caught(medal, 0)?.leg !== 'tongue') break;
+      }
+      return since - CATCHER.teeter.out;
+    };
+    expect(hangs(CATCHER.reach / 2)).toBeGreaterThanOrEqual(0.23);
+    expect(hangs(0.05)).toBeGreaterThan(hangs(CATCHER.reach / 2) * 2);
+    expect(hangs(CATCHER.reach * 0.95)).toBeLessThan(0.14);
   });
 });

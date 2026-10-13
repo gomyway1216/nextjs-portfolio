@@ -577,7 +577,7 @@ describe('what the session reports of the payout works', () => {
       expect(isBusy(session)).toBe(true);
       const step: SessionEvent[] = [];
       advance(session, DT, step);
-      for (const event of step) if (event.type === 'guardsRise' || event.type === 'towersReady') told.push({ type: event.type, at: (i + 1) * DT });
+      for (const event of step) if (event.type === 'hatchesOpen' || event.type === 'guardsRise' || event.type === 'towersReady' || event.type === 'hatchesShut') told.push({ type: event.type, at: (i + 1) * DT });
       events.push(...step);
     }
     expect(session.machine.lifts).toEqual([]);
@@ -586,23 +586,35 @@ describe('what the session reports of the payout works', () => {
     // Their guards are said to rise once, both together since both are middle hatches, when the lamps and the doors have had their time.
     expect(of(events, 'guardsRise')).toEqual([{ type: 'guardsRise', towers: 2 }]);
     expect(of(events, 'towersReady')).toEqual([{ type: 'towersReady', towers: 2 }]);
-    expect(told.map((one) => one.type)).toEqual(['guardsRise', 'towersReady']);
-    expect(Math.abs(told[0].at - (LIFT.lamps + LIFT.doors))).toBeLessThanOrEqual(2 * DT);
+    // Before the guards, the doors of their hatches are said to part, once the rings of light are on; and after the
+    // towers are let go, the hatches are said to shut, once the guards are down.
+    expect(of(events, 'hatchesOpen')).toEqual([{ type: 'hatchesOpen', towers: 2 }]);
+    expect(of(events, 'hatchesShut')).toEqual([{ type: 'hatchesShut', towers: 2 }]);
+    expect(told.map((one) => one.type)).toEqual(['hatchesOpen', 'guardsRise', 'towersReady', 'hatchesShut']);
+    expect(Math.abs(told[0].at - LIFT.lamps)).toBeLessThanOrEqual(2 * DT);
+    expect(Math.abs(told[1].at - (LIFT.lamps + LIFT.doors))).toBeLessThanOrEqual(2 * DT);
     // And they stand built, and are let go, a medal's time for each medal and a moment's standing after the first came up.
-    expect(Math.abs(told[1].at - (LIFT.opens + 24 / TOWER.perSecond + LIFT.stands))).toBeLessThanOrEqual(3 * DT);
+    expect(Math.abs(told[2].at - (LIFT.opens + 24 / TOWER.perSecond + LIFT.stands))).toBeLessThanOrEqual(3 * DT);
+    expect(Math.abs(told[3].at - told[2].at - LIFT.sinks)).toBeLessThanOrEqual(2 * DT);
+    expect(LIFT.sinks + LIFT.shuts).toBeCloseTo(LIFT.closes, 9);
   });
 
   it('says the guards of a whole row rise in the ripple: the middle two, then the next two, then the outermost', () => {
     const session = createSession(5, { balls: 0 });
     buildTowers(session.machine, 150);
     const told: { towers: number; at: number }[] = [];
+    const doors: { towers: number; at: number }[] = [];
     for (let i = 0; i < 120; i++) {
       const step: SessionEvent[] = [];
       advance(session, DT, step);
       for (const event of step) if (event.type === 'guardsRise') told.push({ towers: event.towers, at: (i + 1) * DT });
+      for (const event of step) if (event.type === 'hatchesOpen') doors.push({ towers: event.towers, at: (i + 1) * DT });
     }
     expect(told.map((one) => one.towers)).toEqual([2, 2, 2]);
     told.forEach((one, place) => expect(Math.abs(one.at - (LIFT.lamps + LIFT.doors + place * LIFT.ripple))).toBeLessThanOrEqual(2 * DT));
+    // And their doors part in the same ripple, the time the doors take before each guard.
+    expect(doors.map((one) => one.towers)).toEqual([2, 2, 2]);
+    doors.forEach((one, place) => expect(Math.abs(one.at - (LIFT.lamps + place * LIFT.ripple))).toBeLessThanOrEqual(2 * DT));
   });
 
   it('says a lift that starts and has its guard up within one long step has done both, and one found at work has done neither', () => {
@@ -612,6 +624,7 @@ describe('what the session reports of the payout works', () => {
     for (let i = 0; i < 60 * 2; i++) step(session.machine, DT);
     expect(worksEvents(before, session.machine)).toEqual([
       { type: 'towersRise', towers: 2, medals: 50 },
+      { type: 'hatchesOpen', towers: 2 },
       { type: 'guardsRise', towers: 2 },
     ]);
     // Watched from here, they are at work with their guards up: nothing more is said until they are built.

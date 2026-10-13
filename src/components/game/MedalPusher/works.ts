@@ -352,12 +352,16 @@ export type WorksEvent =
   | { type: 'pourStart'; medals: number }
   /** The last medal has gone and the doors began to shut, this many having been poured since they began to open. */
   | { type: 'pourEnd'; medals: number }
-  /** This many lifts started on towers, which will hold this many medals between them: their rings of light come on and their hatches begin to open. */
+  /** This many lifts started on towers, which will hold this many medals between them: their rings of light come on. */
   | { type: 'towersRise'; towers: number; medals: number }
+  /** The doors of this many hatches began to slide apart. */
+  | { type: 'hatchesOpen'; towers: number }
   /** The guards of this many lifts began to rise out of their collars. */
   | { type: 'guardsRise'; towers: number }
   /** This many towers are built and have stood their moment: their guards began to sink, and they stand free. */
-  | { type: 'towersReady'; towers: number };
+  | { type: 'towersReady'; towers: number }
+  /** The guards of this many lifts are down, and their hatches began to shut round the towers' feet. */
+  | { type: 'hatchesShut'; towers: number };
 
 /** What of the payout works is remembered across a step, to tell what changed in it. */
 export interface WorksWatch {
@@ -367,6 +371,9 @@ export interface WorksWatch {
   lifting: ReadonlySet<number>;
   /** The lifts whose guards had begun to rise. */
   guarded: ReadonlySet<number>;
+  /** The lifts whose hatches' doors had begun to part, and the ones whose hatches had begun to shut. */
+  parted: ReadonlySet<number>;
+  shutting: ReadonlySet<number>;
 }
 
 const NONE: ReadonlySet<number> = new Set();
@@ -375,12 +382,18 @@ const NOTHING: WorksEvent[] = [];
 const out = (phase: DoorPhase): boolean => phase === 'opening' || phase === 'pouring';
 /** Whether a lift's guard has begun to rise, or has risen: each in its turn in the ripple. */
 const guarded = (lift: Lift): boolean => lift.wait <= LIFT.rises + rippleLead(lift.x);
+/** Whether a hatch's doors have begun to part, or have parted: they take `LIFT.doors` to slide open, and the guard rises after them. */
+const parted = (lift: Lift): boolean => lift.wait <= LIFT.rises + LIFT.doors + rippleLead(lift.x);
+/** Whether a hatch has begun to shut: its guard is down. */
+const shutting = (lift: Lift): boolean => lift.sunk >= LIFT.sinks;
 
 export const watchWorks = (machine: Pick<Machine, 'hopper' | 'lifts'>): WorksWatch => ({
   pours: machine.hopper.pours,
   pouring: out(machine.hopper.phase),
   lifting: machine.lifts.length > 0 ? new Set(machine.lifts.filter(holds).map((lift) => lift.id)) : NONE,
   guarded: machine.lifts.length > 0 ? new Set(machine.lifts.filter(guarded).map((lift) => lift.id)) : NONE,
+  parted: machine.lifts.length > 0 ? new Set(machine.lifts.filter(parted).map((lift) => lift.id)) : NONE,
+  shutting: machine.lifts.length > 0 ? new Set(machine.lifts.filter(shutting).map((lift) => lift.id)) : NONE,
 });
 
 /**
@@ -400,7 +413,9 @@ export const watchWorks = (machine: Pick<Machine, 'hopper' | 'lifts'>): WorksWat
  * within one step is not told at all. A guard is told as it begins to rise,
  * which is some way into its lift's wait and a little sooner for a hatch
  * nearer the middle of its row; a lift found already at work has its guard
- * up, and is not told.
+ * up, and is not told. A hatch's doors are told the same way as they begin to
+ * part, before the guard, and the hatch again as it begins to shut, once its
+ * guard is down.
  */
 export function worksEvents(before: WorksWatch, machine: Pick<Machine, 'hopper' | 'lifts' | 'payoutQueue'>): readonly WorksEvent[] {
   const { hopper, lifts } = machine;
@@ -412,6 +427,9 @@ export function worksEvents(before: WorksWatch, machine: Pick<Machine, 'hopper' 
   if ((began || before.pouring) && !pouring) events.push({ type: 'pourEnd', medals: hopper.poured });
   const started = lifts.filter((lift) => holds(lift) && !before.lifting.has(lift.id));
   if (started.length > 0) events.push({ type: 'towersRise', towers: started.length, medals: started.reduce((sum, lift) => sum + lift.size, 0) });
+  let parting = 0;
+  for (const lift of lifts) if (holds(lift) && parted(lift) && !before.parted.has(lift.id) && (before.lifting.has(lift.id) || started.includes(lift))) parting += 1;
+  if (parting > 0) events.push({ type: 'hatchesOpen', towers: parting });
   let rising = 0;
   for (const lift of lifts) if (holds(lift) && guarded(lift) && !before.guarded.has(lift.id) && (before.lifting.has(lift.id) || started.includes(lift))) rising += 1;
   if (rising > 0) events.push({ type: 'guardsRise', towers: rising });
@@ -419,6 +437,9 @@ export function worksEvents(before: WorksWatch, machine: Pick<Machine, 'hopper' 
   let ready = 0;
   for (const id of before.lifting) if (!holding.has(id)) ready += 1;
   if (ready > 0) events.push({ type: 'towersReady', towers: ready });
+  let closing = 0;
+  for (const lift of lifts) if (shutting(lift) && !before.shutting.has(lift.id)) closing += 1;
+  if (closing > 0) events.push({ type: 'hatchesShut', towers: closing });
   return events;
 }
 

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { caught } from './catcher';
+import { CATCHER, caught, nearness } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
-import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, luckySlot, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
@@ -14,7 +14,7 @@ import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS 
 import { MedalTray, type MedalTrayHandle } from './MedalTray';
 import type { TrayCause } from './panel';
 import { PlateSticker } from './PlateSticker';
-import { ageStage, celebrate, createStage, dropEntries, enterGate, holdShown, showJewel, trackMedals, type Stage } from './render';
+import { BURST, ageStage, celebrate, createStage, dropEntries, enterGate, holdShown, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
@@ -123,6 +123,12 @@ const pointerName = (id: number): string => `pointer ${id}`;
 const MAX_PIXEL_RATIO = 2;
 /** The longest stretch of time one frame may cover, so a stalled tab does not lurch forward. */
 const MAX_FRAME = 0.1;
+/**
+ * How near a medal that hangs on a tongue's edge has to have been to fitting its pocket for its rocking to be heard
+ * (`nearness` in catcher.ts): the nearer half of them, which hang a quarter of a second or more. The rest are off the
+ * edge almost as they reach it, and nearly half the medals that come over at the catcher are one or the other.
+ */
+export const TEETER_FROM = 0.5;
 /** How often the machine is saved while it is showing, in seconds. */
 const SAVE_EVERY = 5;
 /** How long a first press of Reset waits for the second, in seconds. */
@@ -596,6 +602,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const airborne: number[] = [];
     // The clock of the roulette's turn as it was a frame ago, or less than nothing while no turn was on.
     let turnClock = -1;
+    // The pocket the lucky lamp was on when the last frame was drawn: it is heard to step when that changes.
+    let lampOn = luckySlot(session.machine.time);
     let frameId = 0;
 
     const frame = (now: number) => {
@@ -680,6 +688,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       let won = 0;
       let bonus = 0;
       let lost = false;
+      // The pockets a medal has been heard to set off for in this frame, a bit for each.
+      let rode = 0;
       for (const event of events) {
         switch (event.type) {
           case 'bonus':
@@ -696,6 +706,15 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
           case 'lost':
             lost = true;
+            break;
+          case 'riding':
+            // A medal has come over the lip on to its tongue: it is heard down it, faster as it goes, and off its end
+            // into the pocket as its ride is up. One ride is heard for a pocket in a frame, however many medals a
+            // tower that went over there sent after it.
+            if ((rode & (1 << event.gate)) === 0) {
+              rode |= 1 << event.gate;
+              playSound('ride', soundOn, { seconds: event.seconds });
+            }
             break;
           case 'checker':
             // The medal has dropped into its pocket, a ride after the lip's rule counted it, and the machine has taken
@@ -824,10 +843,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayPoured(event.medals));
             break;
           case 'towersRise':
-            // The lamps come on and the hatches open, which is not heard; then the lifts bring the towers up. The motor
-            // starts as the first medal comes and runs until the tallest tower has its last one, which is a medal's
-            // time after it has gained them all.
+            // The rings of light come on, which is not heard; then the hatches open and the lifts bring the towers up.
+            // The motor starts as the first medal comes and runs until the tallest tower has its last one, which is a
+            // medal's time after it has gained them all.
             playSound('lift', soundOn, { after: LIFT.opens, seconds: LIFT.opens + Math.ceil(event.medals / event.towers) / TOWER.perSecond });
+            break;
+          case 'hatchesOpen':
+            // The doors of the hatches slide apart: the first of a row's, and the rest are in its ripple.
+            playSound('door', soundOn);
             break;
           case 'guardsRise':
             // The guards slide up out of their collars and seat: the first of a row's, and the rest are in its ripple.
@@ -838,7 +861,18 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound('guard', soundOn, { seconds: LIFT.sinks });
             if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowers(event.towers));
             break;
+          case 'hatchesShut':
+            // The guards are down, and the hatches shut round the towers' feet.
+            playSound('door', soundOn, { up: true });
+            break;
         }
+      }
+      // The lucky lamp steps to the next pocket as the pusher comes to the back of its stroke, and its relay is
+      // heard. Not in chance time: every pocket is lit then, and no light is seen to move.
+      const lamp = luckySlot(session.machine.time);
+      if (lamp !== lampOn) {
+        lampOn = lamp;
+        if (!session.rush) playSound('lampStep', soundOn);
       }
       // The field says what the payout works are doing: whether the hopper's doors are open, and how many lifts hold a tower.
       const works = `${hopperBusy(session.machine.hopper) ? 'open' : 'shut'} ${session.machine.lifts.filter(liftHolds).length}`;
@@ -855,23 +889,37 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       turnClock = turn ? turn.elapsed : -1;
       // The medals that have dropped into their START pockets in this frame, each a ride after the lip's rule counted
       // it. This is when the machine takes a medal, the pocket bursts with light, its word stands over it and its
-      // spark sets out for the hold's lamps (render.ts), and so this is when it is heard: the medal itself going down
-      // the pocket, and then what the cabinet says about it. The stage is told first what the machine holds now,
-      // since a medal whose spin the screen has taken already has no lamp to send a spark to.
+      // spark sets out for the hold's lamps (render.ts), and so this is when the cabinet is heard to answer. The medal
+      // itself has been heard down its tongue and into the pocket, which is how its ride's sound ends. The stage is
+      // told first what the machine holds now, since a medal whose spin the screen has taken already has no lamp to
+      // send a spark to. The cabinet says each thing once for a frame, however many medals dropped in it: its answer,
+      // which is more for a gold one; the light that runs up to the hold, if one sets out; and a dull no for a medal
+      // that found the hold full and nothing in it left to turn gold.
       holdShown(stage, session.stock, session.gold);
       const dropped = dropEntries(stage, session.machine.time, calm.matches);
+      const said = { start: false, gold: false, spark: false, full: false };
       for (const entry of dropped) {
-        playSound('slit', soundOn);
-        playSound(entry.held || entry.gold ? 'gate' : 'full', soundOn);
+        if (entry.held || entry.gold) {
+          said.start = true;
+          if (entry.gold || entry.lucky) said.gold = true;
+          if (entry.run >= 0) said.spark = true;
+        } else {
+          said.full = true;
+        }
         // Held through a lit pocket: the spin it holds is gold from the start.
         if (entry.lucky) setAnnouncement(strings.sayLucky);
       }
-      // A medal that came over the lip in this frame with some of a START pocket's tongue under it, and not enough,
-      // is heard to: a medal on bare metal. It is the catcher that says which do, as it does for the picture, so the
-      // one that is heard is the one that is seen to hang on the tongue's edge.
+      if (said.start) playSound('start', soundOn, { gold: said.gold });
+      if (said.spark) playSound('spark', soundOn, { seconds: BURST.run });
+      if (said.full) playSound('full', soundOn);
+      // A medal that came over the lip with some of a START pocket's tongue under it, and not enough, rides out and
+      // hangs on the tongue's edge. One that all but fitted hangs there long enough to be seen to rock, and is heard
+      // to, from the moment it begins: rocking quicker each time, and over the side into the well. It is the catcher
+      // that says which do, as it does for the picture.
       for (const medal of session.machine.medals) {
-        if (medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= elapsed - 1e-9) continue;
-        if ((caught(medal, session.machine.time, calm.matches, session.rush)?.near ?? -1) >= 0) playSound('land', soundOn, { bare: true });
+        if (medal.level !== 0 || medal.sinceDrop < CATCHER.teeter.out || medal.sinceDrop - elapsed >= CATCHER.teeter.out) continue;
+        const held = caught(medal, session.machine.time, calm.matches, session.rush);
+        if (held && held.leg === 'tongue' && nearness(held, session.rush) >= TEETER_FROM) playSound('teeter', soundOn);
       }
       // The tray is told what this frame did to the purse, by what happened: the medals fed, the day's bonus and the
       // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it

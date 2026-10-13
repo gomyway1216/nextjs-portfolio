@@ -602,6 +602,20 @@ export function caught(medal: Medal, time: number, calm = false, wings = false):
 }
 
 /**
+ * How near a medal that hangs on a tongue's edge was to fitting its slot:
+ * from 0, for one that had no more than its rim on the tongue, to 1, for one
+ * whose middle was on the tongue's very edge; and 0 for any that is not such
+ * a medal. The nearer it was, the longer it hangs there and the more it is
+ * seen to rock. `wings` says whether the slots' wings are open, which is how
+ * wide the tongue is taken to be.
+ */
+export function nearness(held: Pick<Caught, 'x' | 'near'>, wings = false): number {
+  if (held.near < 0) return 0;
+  const off = Math.abs(held.x - CHECKERS.positions[held.near]) - tongueHalf(wings);
+  return Math.min(1, Math.max(0, 1 - off / CATCHER.reach));
+}
+
+/**
  * How far out past the foot's edge the middle of a ball of this `radius`
  * stands when it stands on the lower table against the foot: it is taller
  * than the foot is high, so it does not go under.

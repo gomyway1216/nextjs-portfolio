@@ -29,6 +29,13 @@
  * towers, which is seldom the moment the save is largest. Format 1 is the
  * packer of the day before format 2, kept among the tests.
  *
+ * Every size here is in bytes of UTF-8, never in characters, since bytes are
+ * what the route and the browser count. "To the account" and "on the wire"
+ * are what a thing comes to as it is sent: the packed text is a string
+ * inside the copy, where each quote and backslash in it has a backslash put
+ * before it. "On the device" is the bytes of the save's own text, which is
+ * plain ASCII for a machine, so that its bytes are its characters.
+ *
  * `package.json` is byte-sealed for this repository, so there is no npm
  * script for it. `tests/unit/components/game/MedalPusher/savedMachine.test.ts`
  * imports {@link measure} and runs the crowded machine for a shorter while
@@ -66,7 +73,18 @@ export const SCENARIOS: Scenario[] = [
   { name: 'crowded on purpose: both feeds held down, 1,200 medals of towers every 20 s, 150 thrown on every 7 s', feedEvery: 1, crowded: true },
 ];
 
+/** Bytes of UTF-8. */
 const bytes = (text: string): number => new TextEncoder().encode(text).length;
+
+/** How many steps of a sixtieth of a second a machine is played in `seconds`. Under half a step it is none, and there is nothing to measure. */
+export const stepsIn = (seconds: number): number => (Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds / DT) : 0);
+
+/**
+ * What a packed text comes to on the wire, in bytes: as it stands inside the
+ * copy, where it is a string. That is its own bytes and one more for each
+ * quote and backslash in it. The two quotes round the string are not counted.
+ */
+export const onTheWire = (packedText: string | null): number => (packedText === null ? 0 : bytes(JSON.stringify(packedText)) - 2);
 
 export interface Measured {
   /** The save as it is kept on the device, in bytes: the new machine's, and the largest. */
@@ -123,7 +141,7 @@ export function measure(scenario: Scenario, seed: number, seconds: number): Meas
     changed: fresh.back === fresh.text ? 0 : 1,
   };
   let sum = 0;
-  for (let i = 0; i < Math.round(seconds / DT); i++) {
+  for (let i = 0; i < stepsIn(seconds); i++) {
     step(session, scenario, i);
     if (i % 30 !== 0) continue;
     const now = sizes();
@@ -144,7 +162,7 @@ export function measure(scenario: Scenario, seed: number, seconds: number): Meas
 
 const kb = (size: number): string => `${(size / 1024).toFixed(1)} KB`;
 
-/** A part of a save: how many rows it has if it is a list, and its bytes on the device, packed as format 1 packed it, and packed now. */
+/** A part of a save: how many rows it has if it is a list, and its bytes on the device, on the wire as format 1 packed it, and on the wire as it is packed now. */
 export interface Part {
   name: string;
   rows: number | null;
@@ -164,7 +182,7 @@ export function partsOf(text: string): Part[] {
   const [lying, inTheAir] = [medals as Medal[], falling as FallingMedal[]];
   const part = (name: string, value: unknown): Part => {
     const written = JSON.stringify(value);
-    return { name, rows: Array.isArray(value) ? value.length : null, device: bytes(written), before: bytes(packFormat1(written) ?? ''), now: bytes(pack(written) ?? '') };
+    return { name, rows: Array.isArray(value) ? value.length : null, device: bytes(written), before: onTheWire(packFormat1(written)), now: onTheWire(pack(written)) };
   };
   const single = (medal: Medal): boolean => !medal.ball && !medal.jewel && medal.stack + medal.grow === 1;
   const from = (source: FallingMedal['source']) => inTheAir.filter((medal) => medal.source === source && !medal.ball && !medal.jewel);
@@ -204,15 +222,15 @@ function jewelsOf(text: string): string {
   save.machine.medals = save.machine.medals.filter((medal) => !medal.jewel);
   save.machine.falling = save.machine.falling.filter((medal) => !medal.jewel);
   const without = JSON.stringify(save);
-  const less = (write: (written: string) => string | null): number => bytes(write(text) ?? '') - bytes(write(without) ?? '');
-  return `Jewels on the field or in the air: ${count}. With them taken out the whole save packs ${less(pack)} bytes smaller (${less(packFormat1)} in format 1).`;
+  const less = (write: (written: string) => string | null): number => onTheWire(write(text)) - onTheWire(write(without));
+  return `Jewels on the field or in the air: ${count}. With them taken out the whole save is ${less(pack)} bytes less on the wire (${less(packFormat1)} in format 1).`;
 }
 
 /** The parts of a save as a table. */
 function partsTable(parts: Part[]): string[] {
   const each = (size: number, rows: number | null): string => (rows ? (size / rows).toFixed(1) : '');
   return [
-    '| part | rows | on the device | packed as format 1 | packed now | a row on the device | a row in format 1 | a row now |',
+    '| part | rows | on the device | on the wire in format 1 | on the wire now | a row on the device | a row in format 1 | a row now |',
     '|---|---|---|---|---|---|---|---|',
     ...parts.map((part) => `| ${part.name} | ${part.rows ?? ''} | ${part.device} | ${part.before} | ${part.now} | ${each(part.device, part.rows)} | ${each(part.before, part.rows)} | ${each(part.now, part.rows)} |`),
   ];
@@ -224,9 +242,9 @@ function partsTable(parts: Part[]): string[] {
  * that is nothing, less a table of the other alone: a few bytes out either way.
  */
 function columnsTable(rows: Record<string, unknown>[]): string[] {
-  const size = (list: unknown[], write: (written: string) => string | null): number => bytes(write(JSON.stringify(list)) ?? '');
+  const size = (list: unknown[], write: (written: string) => string | null): number => onTheWire(write(JSON.stringify(list)));
   const fields = [...new Set(rows.flatMap((row) => Object.keys(row)))];
-  const lines = ['| column | rows | different values | on the device | packed as format 1 | packed now | a row in format 1 | a row now |', '|---|---|---|---|---|---|---|---|'];
+  const lines = ['| column | rows | different values | on the device | on the wire in format 1 | on the wire now | a row in format 1 | a row now |', '|---|---|---|---|---|---|---|---|'];
   for (const field of fields) {
     const cells = rows.filter((row) => field in row).map((row) => row[field]);
     if (cells.length < 2) continue;
@@ -245,17 +263,17 @@ function where(seconds: number, seed: number): void {
   const session = createSession(seed);
   let largest = { size: 0, text: '', at: 0 };
   let lifting = { held: 0, text: '', at: 0 };
-  for (let i = 0; i < Math.round(seconds / DT); i++) {
+  for (let i = 0; i < stepsIn(seconds); i++) {
     step(session, scenario, i);
     const held = session.machine.lifts.filter(holds).length;
     if (held > lifting.held) lifting = { held, text: serialize(session), at: (i + 1) * DT };
     if (i % 30 !== 0) continue;
     const text = serialize(session);
-    const size = bytes(pack(text) ?? '');
+    const size = onTheWire(pack(text));
     if (size > largest.size) largest = { size, text, at: (i + 1) * DT };
   }
   const lines = [
-    `Medal Pusher: where the bytes of a save are. The crowded machine, seed ${seed}, ${seconds} s of its own time; sizes in bytes, each part packed by itself.`,
+    `Medal Pusher: where the bytes of a save are. The crowded machine, seed ${seed}, ${seconds} s of its own time. Bytes of UTF-8; each part packed by itself and measured as it travels, inside the copy.`,
     '',
     `Its largest save, at ${largest.at.toFixed(1)} s:`,
     '',
@@ -270,11 +288,14 @@ function where(seconds: number, seed: number): void {
   process.stdout.write(lines.join('\n'));
 }
 
+/** Said with the usage when what was asked for cannot be done. */
+const NO_STEP = `seconds has to be a number that gives the machine at least one step of a sixtieth of a second to play (${(Math.ceil((DT / 2) * 10_000) / 10_000).toFixed(4)} or more), and a seed a whole number.\n`;
+
 function main(): void {
   if (process.argv[2] === 'where') {
     const [seconds, seed] = [Number(process.argv[3] ?? 60), Number(process.argv[4] ?? 2)];
-    if (!Number.isFinite(seconds) || seconds <= 0 || !Number.isInteger(seed)) {
-      process.stderr.write('usage: npx tsx scripts/medal-pusher-save-size.ts where [seconds] [seed]\n');
+    if (stepsIn(seconds) < 1 || !Number.isInteger(seed)) {
+      process.stderr.write(`${NO_STEP}usage: npx tsx scripts/medal-pusher-save-size.ts where [seconds] [seed]\n`);
       process.exit(2);
       return;
     }
@@ -284,8 +305,8 @@ function main(): void {
   const [secondsArg, seedsArg] = process.argv.slice(2);
   const seconds = secondsArg === undefined ? 300 : Number(secondsArg);
   const seeds = (seedsArg ?? '1,2,3').split(',').map(Number);
-  if (!Number.isFinite(seconds) || seconds <= 0 || seeds.some((seed) => !Number.isInteger(seed))) {
-    process.stderr.write('usage: npx tsx scripts/medal-pusher-save-size.ts [seconds] [seeds, as 1,2,3]\n');
+  if (stepsIn(seconds) < 1 || seeds.some((seed) => !Number.isInteger(seed))) {
+    process.stderr.write(`${NO_STEP}usage: npx tsx scripts/medal-pusher-save-size.ts [seconds] [seeds, as 1,2,3]\n`);
     process.exit(2);
     return;
   }

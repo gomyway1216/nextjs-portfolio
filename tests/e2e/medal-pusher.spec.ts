@@ -1038,6 +1038,13 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
+  // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
+  const chance = odds(page).getByTestId('pusher-chance-table');
+  await expect(chance.locator('tbody tr')).toHaveCount(3);
+  await expect(chance.locator('tbody tr').first()).toContainText('1.09614 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.74614 medals');
+  await expect(chance.locator('tbody td', { hasText: '0.65000 medals' })).toHaveCount(3);
+  await expect(odds(page)).toContainText('turns one of the held spins gold');
 
   // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');

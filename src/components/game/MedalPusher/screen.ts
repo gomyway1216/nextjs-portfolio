@@ -5,7 +5,7 @@
  */
 
 import { BOARD, BOWL, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
-import { TIMING, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import { TIMING, chanceLeft, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
 export const REEL_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -300,6 +300,10 @@ export interface ScreenState {
   total: number;
   /** The hole the bowl's ball has dropped into, or −1. */
   hole: number;
+  /** Chance time: how many gold spins are still to come, the one on the screen included. 0 when there is none. */
+  chance: number;
+  /** Whether what is on the screen now is a gold spin, or the game its line led to: its square or its chest pays over. */
+  gold: boolean;
 }
 
 /** How long the die tumbles before it shows what was rolled, as a share of its time on screen. */
@@ -337,6 +341,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     level: 0,
     total: 0,
     hole: -1,
+    chance: chanceLeft(session),
+    gold: session.chance,
   };
   const { roulette, bonus, spin } = session;
   if (roulette) {
@@ -390,7 +396,9 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.secondsLeft !== b.secondsLeft ||
     a.level !== b.level ||
     a.total !== b.total ||
-    a.hole !== b.hole
+    a.hole !== b.hole ||
+    a.chance !== b.chance ||
+    a.gold !== b.gold
   ) {
     return false;
   }

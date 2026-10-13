@@ -140,6 +140,8 @@ const IDLE_SCREEN: ScreenState = {
   level: 0,
   total: 0,
   hole: -1,
+  chance: 0,
+  gold: false,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -458,7 +460,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'checker':
             lightGate(stage, event.gate);
-            playSound(event.held ? 'gate' : 'full', soundOn);
+            playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
+            break;
+          case 'chanceStart':
+            playSound('fever', soundOn);
+            setAnnouncement(strings.sayChance);
+            break;
+          case 'chanceEnd':
+            setAnnouncement(strings.sayChanceEnd);
             break;
           case 'toppled':
             celebrate(stage, 'crash');
@@ -541,7 +550,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;

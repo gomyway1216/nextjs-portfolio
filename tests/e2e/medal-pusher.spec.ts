@@ -853,7 +853,7 @@ test.describe('in the hand, on a phone', () => {
     expect(open.height - closed.height).toBeLessThanOrEqual(120);
     // Every one of them is at least 44 px to hit, the sound settings' own included: their slider is the cabinet's
     // slider, with its thumb, and the mark at the level the cabinet was made at is still behind the thumb there.
-    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-volume', 'pusher-music', 'pusher-aim-left', 'pusher-aim-right']);
+    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-volume', 'pusher-music', 'pusher-arcade', 'pusher-aim-left', 'pusher-aim-right']);
     for (const control of reach) {
       expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
       expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(32);
@@ -1550,6 +1550,49 @@ test('the sound settings read in Japanese on a phone, the arcade switch with the
   expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
   expect(slider.width).toBeGreaterThanOrEqual(120);
   expect(row.height).toBeLessThanOrEqual(72);
+});
+
+test('with the cabinet filling a phone held on its side, the volume has the row and the two switches share the line under it', async ({ page, browser }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  // A phone on its side: the controls are at either hand there, and the sound settings open in the column at the right.
+  const context = await browser.newContext({ viewport: { width: 667, height: 375 }, screen: { width: 667, height: 375 }, hasTouch: true, isMobile: true, baseURL: new URL(page.url()).origin });
+  const phone = await context.newPage();
+  await openGame(phone);
+  await alive(phone);
+  await feelSwitch(phone, 'fullscreen').scrollIntoViewIfNeeded();
+  await feelSwitch(phone, 'fullscreen').tap();
+  await expect(feelSwitch(phone, 'fullscreen')).toHaveAttribute('aria-pressed', 'true');
+  await soundSettings(phone).tap();
+  await expect(soundRow(phone)).toBeVisible();
+  const [row, slider, music, arcade] = await Promise.all([soundRow(phone).boundingBox(), volumeSlider(phone).boundingBox(), musicSwitch(phone).boundingBox(), arcadeSwitch(phone).boundingBox()]);
+  if (!row || !slider || !music || !arcade) throw new Error('the sound settings have no boxes');
+  // The row is in the column at the right hand, on the screen.
+  expect(row.x).toBeGreaterThan(667 / 2);
+  expect(row.x + row.width).toBeLessThanOrEqual(667);
+  expect(row.y + row.height).toBeLessThanOrEqual(375);
+  // The slider has the width of the row to itself.
+  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.x).toBeGreaterThanOrEqual(row.x);
+  expect(slider.x + slider.width).toBeLessThanOrEqual(row.x + row.width);
+  // The two switches are on one line under it, side by side and as wide as each other, neither over the other.
+  expect(music.y).toBeGreaterThan(slider.y + slider.height / 2);
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(music.x).toBeGreaterThanOrEqual(row.x);
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(Math.abs(arcade.width - music.width)).toBeLessThan(2);
+  expect(music.width).toBeGreaterThanOrEqual(60);
+  expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // Each is 44 px to hit, and takes its own touch: a finger on one does not move the other.
+  for (const control of await hitSizes(phone, ['pusher-music', 'pusher-arcade'])) expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
+  await arcadeSwitch(phone).tap();
+  await expect(arcadeSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await musicSwitch(phone).tap();
+  await expect(musicSwitch(phone)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await context.close();
 });
 
 test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {

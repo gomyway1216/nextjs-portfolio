@@ -2623,15 +2623,17 @@
     width: clamp(4.2rem, 20cqh, 6rem);
   }
 }
-/* On a small phone on its side the column is too narrow for the volume's slider and the Music switch side by side.
-   The slider has the width of the row there; the volume's words and the switch are over it, the words on two lines.
-   They are far enough apart that the switch's 44 px end above the slider's thumb, and where the two boxes meet, in
-   the clear part over the slider's track, the touch is the switch's. */
-@media (orientation: landscape) and (max-width: 800px) {
+/* On its side the column at the right hand is too narrow, on a phone, for the volume's slider and its two switches
+   side by side. So there the volume's words have a line, the slider under them has the width of the row, and the
+   switch for the loop and the switch for the arcade share the line under that, each half of it. Where a switch's box
+   and the slider's 44 px meet, in the clear part under the slider's track, the touch is the switch's. */
+@media (orientation: landscape) {
   .cabinet:fullscreen .soundPanel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      'words music'
-      'track track';
+      'words words'
+      'track track'
+      'music arcade';
     gap: 0.5rem;
   }
   .cabinet:fullscreen .volume {
@@ -2639,19 +2641,17 @@
   }
   .cabinet:fullscreen .volumeLabel {
     grid-area: words;
-    flex-wrap: wrap;
-  }
-  /* There is no room beside the switch for the word that names the level: the number stays, the notch marks the
-     usual level, and a screen reader is still told. */
-  .cabinet:fullscreen .volumeMark {
-    display: none;
   }
   .cabinet:fullscreen .volumeTrack {
     grid-area: track;
   }
   .cabinet:fullscreen .soundPanel .toggle {
     grid-area: music;
+    justify-content: center;
     z-index: 2;
+  }
+  .cabinet:fullscreen .soundPanel .toggle + .toggle {
+    grid-area: arcade;
   }
 }
 

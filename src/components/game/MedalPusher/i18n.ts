@@ -289,6 +289,9 @@ export interface PusherStrings {
   jewelLast: (of: number) => string;
   jewelPrizeEach: (medals: number) => string;
   jewelNote: (perThousand: number, sum: string, set: number, average: string, perSpin: string, start: number) => string;
+  /** What is on the control panel for the eye only: the second line of the maker's plate, and the small print along the panel's near edge. */
+  makerLine: string;
+  panelWarning: string;
 }
 
 const en: PusherStrings = {
@@ -612,6 +615,8 @@ const en: PusherStrings = {
   jewelPrizeEach: (medals) => (medals === 1 ? '1 medal each' : `${medals} medals each`),
   jewelNote: (perThousand, sum, set, average, perSpin, start) =>
     `A jewel comes with every treasure line, so with ${perThousand} spins in 1,000. A set pays ${sum} = ${set} medals, which is ${average} medals a jewel and ${perSpin} medals a spin. That is counted in what the treasure line is worth in the first table, and in what a spin is worth below. A gold spin’s treasure line lets one jewel go like any other, and a jewel pays the same whichever spin it came with: chance time doubles the chest, not the jewel. No jewel is lost: every one the machine lets go is collected sooner or later, so the figure is exact. What the medals it pays do next is the field’s business, as with any others. A new machine has ${start} jewels lying on it already, which these figures leave out.`,
+  makerLine: 'MODEL GF-777',
+  panelWarning: 'MEDALS ONLY · DO NOT STRIKE OR ROCK THE MACHINE',
 };
 
 const ja: PusherStrings = {
@@ -934,6 +939,8 @@ const ja: PusherStrings = {
   jewelPrizeEach: (medals) => `各${medals}枚`,
   jewelNote: (perThousand, sum, set, average, perSpin, start) =>
     `宝石は宝箱チャンスのそろい目のたびに1個出るので、抽選1,000回につき${perThousand}個です。1セットの払い出しは ${sum} = ${set}枚、つまり宝石1個あたり${average}枚、抽選1回あたり${perSpin}枚です。この分は、最初の表の宝箱のそろい目の「平均の価値」と、下の「抽選1回の価値」に含めてあります。金の抽選で宝箱チャンスがそろったときも、出てくる宝石は1個で、宝石の払い出しは変わりません。チャンスタイムで2倍になるのは宝箱で、宝石ではありません。宝石は失われません。出てきた宝石はいずれ必ず獲得できるので、この数字は正確です。払い出されたメダルがその後どうなるかは、ほかのメダルと同じくフィールドしだいです。新しいマシンには最初から宝石が${start}個置いてありますが、ここの数字には入れていません。`,
+  makerLine: '型式 GF-777',
+  panelWarning: 'メダル専用　台をたたいたり、ゆらしたりしないでください',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

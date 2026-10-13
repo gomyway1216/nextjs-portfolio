@@ -2557,8 +2557,12 @@
     justify-content: center;
   }
 }
+/* Its one column is as wide as the room the row gives it and no wider, whatever its words would like: left to
+   itself the column takes the width of the words over the slider, and in a row with three things in it the slider
+   then lies over the switch beside it. */
 .volume {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.15rem;
   min-width: 0;
 }
@@ -2744,10 +2748,11 @@
 .toggles {
   margin-top: 0.15rem;
 }
-/* A slider of the cabinet, an aim's or the volume's: 44 px to hit, with a thumb a finger can find. A sideways drag
-   is the slider's, and a swipe up or down it still scrolls the page. The box is taller than the track looks, so an
-   aim's is drawn up under its label, and the volume's takes no more room in its row than the track did: the notch
-   behind it, at the level the cabinet was made at, shows above and below the track as it did. */
+/* A slider of the cabinet, an aim's or the volume's: a box 44 px tall to hit, drawn by the panel's own sheet as a
+   fader in a slot (ControlPanel.module.css). A sideways drag is the slider's, and a swipe up or down it still
+   scrolls the page. The box is taller than the slot looks, so an aim's is drawn up under its label, and the
+   volume's takes no more room in its row than a bare track would: the notch behind it, at the level the cabinet
+   was made at, is taller than the fader's cap and shows over and under it. */
 .aim {
   position: relative;
 }
@@ -2768,89 +2773,29 @@
   margin: -4px 0 -6px;
 }
 .volumeSlider {
-  margin: -11px 0;
+  margin: -8px 0 -12px;
 }
 .aimSlider::-webkit-slider-runnable-track,
 .volumeSlider::-webkit-slider-runnable-track {
   box-sizing: border-box;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid #6a5fb5;
-  background: #0b0620;
 }
 .aimSlider::-webkit-slider-thumb,
 .volumeSlider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  margin-top: -10px;
-  border-radius: 50%;
-  border: 2px solid #03202a;
-  background: var(--mp-neon);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
 }
 .aimSlider::-moz-range-track,
 .volumeSlider::-moz-range-track {
   box-sizing: border-box;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid #6a5fb5;
-  background: #0b0620;
 }
 .aimSlider::-moz-range-thumb,
 .volumeSlider::-moz-range-thumb {
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid #03202a;
-  background: var(--mp-neon);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
-}
-/* In its row, which is as dark as an aim's track, the volume's track is the colour of a switch. The notch behind it
-   is taller than the thumb, so that it still shows over and under the thumb when the thumb stands on it. */
-.volumeSlider::-webkit-slider-runnable-track {
-  background: #1a1238;
-}
-.volumeSlider::-moz-range-track {
-  background: #1a1238;
 }
 .volumeTrack::before {
-  top: -6px;
-  bottom: -6px;
-}
-/* The marks over a slider while the rails swing: a notch for each START pocket its rail can feed, and an arrow
-   where a medal fed now would drop. They are placed along the thumb's travel, which is the track less half a thumb
-   at either end, and take no touch from the slider under them. */
-.aimMarks {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 16px;
-  height: 0;
-  pointer-events: none;
-}
-.aimPocket,
-.aimLead {
-  position: absolute;
-  left: calc(100% * var(--mp-at, 0));
-  transform: translateX(-50%);
-}
-.aimPocket {
-  top: -11px;
-  width: 2px;
-  height: 22px;
-  border-radius: 1px;
-  background: rgba(255, 214, 92, 0.75);
-}
-.aimLead {
-  bottom: 7px;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 8px solid var(--mp-gold);
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+  top: -5px;
+  bottom: -9px;
 }
 /* The switches of feel: one short row under the others. Under it comes whatever row a switch has opened, the sound
    settings', and last, while the rails swing, a line that says what to do about it. */
@@ -2908,6 +2853,21 @@
 .cabinet:fullscreen > .keysNote {
   display: none;
 }
+/* What hangs from the top of the cabinet without taking up room there (the place of the toast for a record, which
+   is the cabinet's first child) is not one of the things these layouts lay out. It hangs from the top of the screen
+   instead, in a band over the sign or the name, clear of the controls. The band is as tall as a toast and no
+   taller: the track a toast's rail runs in on the page is as tall as the stage is wide there, and would give a
+   screen on its side something to scroll. */
+.cabinet:fullscreen > :first-child:not(.bulbs) {
+  position: absolute;
+  z-index: 6;
+  top: max(6px, env(safe-area-inset-top, 0px));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  height: 7rem;
+  overflow: hidden;
+  pointer-events: none;
+}
 .cabinet:fullscreen .marquee,
 .cabinet:fullscreen .legendBelow,
 .cabinet:fullscreen .panel,
@@ -2915,8 +2875,9 @@
   flex: none;
   margin-top: 0;
 }
+/* The sign is thinner here than on the page, and still has room at its top and bottom edges for its rows of bulbs. */
 .cabinet:fullscreen .marquee {
-  padding: 0.25rem 0.7rem;
+  padding: 8px 0.7rem;
 }
 /* The stage is the room that is left, and the picture stands in the middle of it, as large as fits: the three sheets
    it is made of, the screen's, the scene's and the field's, each get that size. */
@@ -2997,8 +2958,46 @@
   .cabinet:fullscreen .aims {
     display: contents;
   }
+  /* The control panel is in two halves here, one under each hand: a plate of the same make as the panel's, behind
+     that hand's controls from the top of the screen to the bottom. */
+  .cabinet:fullscreen::before,
+  .cabinet:fullscreen::after {
+    content: '';
+    grid-row: 1 / -1;
+    align-self: stretch;
+    justify-self: stretch;
+    z-index: -1;
+    margin: -1px -5px;
+    border-radius: 10px;
+    background:
+      radial-gradient(circle at 9px 9px, #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+      radial-gradient(circle at calc(100% - 9px) 9px, #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+      radial-gradient(circle at 9px calc(100% - 9px), #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+      radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+      repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 4px),
+      linear-gradient(180deg, #41327a 0%, #2a1e56 38%, #1a1238 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+  }
+  .cabinet:fullscreen::before {
+    grid-column: 1;
+  }
+  .cabinet:fullscreen::after {
+    grid-column: 3;
+  }
   .cabinet:fullscreen .legendBelow {
     display: none;
+  }
+  /* The band a record's toast hangs in is over the top of the stage here, as wide as the picture: the top of the
+     back wall, as on the page, and clear of both hands' plates. */
+  .cabinet:fullscreen > :first-child:not(.bulbs) {
+    left: 50%;
+    right: auto;
+    width: min(100cqw - 20rem, 100cqh * 640 / 860);
+    transform: translateX(-50%);
   }
   .cabinet:fullscreen .fieldWrap {
     grid-area: stage;
@@ -3026,13 +3025,6 @@
     grid-area: toggles;
     justify-content: flex-end;
     gap: 0.7rem 0.3rem;
-  }
-  /* Auto, Sound and the sound settings' button fit one row of a narrow column, as the switches of feel do. */
-  .cabinet:fullscreen .toggles .toggle {
-    min-height: 2.15rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-    font-size: 0.76rem;
   }
   /* The sound settings open under the switches that open them, at the right hand. The slider is never wider than
      the room it has, whatever its label would like. */
@@ -3094,11 +3086,15 @@
   .cabinet:fullscreen .feed {
     width: clamp(4.2rem, 20cqh, 6rem);
   }
+  .cabinet:fullscreen .feed[data-arm] {
+    margin-bottom: 1px;
+  }
 }
 /* On its side the column at the right hand is too narrow, on a phone, for the volume's slider and its two switches
    side by side. So there the volume's words have a line, the slider under them has the width of the row, and the
-   switch for the loop and the switch for the arcade share the line under that, each half of it. Where a switch's box
-   and the slider's 44 px meet, in the clear part under the slider's track, the touch is the switch's. */
+   switch for the loop and the switch for the arcade share the line under that, each half of it. The switches stand
+   far enough under the track for the slider's 44 px and theirs not to meet: a touch within 22 px of the track is the
+   slider's, and the next 44 px down are the switch's. */
 @media (orientation: landscape) {
   .cabinet:fullscreen .soundPanel {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3106,21 +3102,35 @@
       'words words'
       'track track'
       'music arcade';
-    gap: 0.5rem;
+    /* Three lines in a column of a screen that is 360 px tall on some phones: they stand close, so that the row,
+       open, still leaves the screen several pixels to spare. */
+    gap: 0.25rem 0.5rem;
+    padding: 0.3rem 0.65rem;
   }
   .cabinet:fullscreen .volume {
     display: contents;
   }
+  /* The words' line is as tall as its letters need in either language, and no taller for a font that leaves more. */
   .cabinet:fullscreen .volumeLabel {
     grid-area: words;
+    line-height: 1.2;
   }
   .cabinet:fullscreen .volumeTrack {
     grid-area: track;
+  }
+  /* Nothing is written over the slider there, so it takes no more room than a bare track. */
+  .cabinet:fullscreen .volumeSlider {
+    margin: -11px 0;
+  }
+  .cabinet:fullscreen .volumeTrack::before {
+    top: -7px;
+    bottom: -7px;
   }
   .cabinet:fullscreen .soundPanel .toggle {
     grid-area: music;
     justify-content: center;
     z-index: 2;
+    margin-top: 10px;
   }
   .cabinet:fullscreen .soundPanel .toggle + .toggle {
     grid-area: arcade;

@@ -243,14 +243,14 @@ export function fedSpot(arm: Arm, tipX: number, remaining: number): Held & { leg
 /**
  * Where something in the air was let go, as the cabinet shows it: a medal
  * the player fed, off the tip of its arm; a medal the machine pays, out of
- * the slot under the hood, straight above where it lands; a prize ball, in
- * the hatch, its middle a little behind the door it comes out through. The
- * machine keeps only where across the field each was let go, which is all it
- * needs; the rest is the cabinet's.
+ * the slot under the hood, straight above where it lands; a prize ball or a
+ * jewel, in the hatch, its middle a little behind the door it comes out
+ * through. The machine keeps only where across the field each was let go,
+ * which is all it needs; the rest is the cabinet's.
  */
 export function letGo(medal: FallingMedal): Spot {
   if (medal.source === 'player') return { x: medal.fromX, height: ARMS.tip, depth: ARMS.depth };
-  if (medal.ball) return { x: HATCH.x, height: HATCH.height, depth: HATCH.depth - 1 };
+  if (medal.ball || medal.jewel) return { x: HATCH.x, height: HATCH.height, depth: HATCH.depth - 1 };
   return { x: medal.fromX, height: PAYOUT_SLOT.height, depth: PAYOUT_SLOT.depth };
 }
 

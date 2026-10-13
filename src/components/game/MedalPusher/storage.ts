@@ -48,6 +48,11 @@
  * three bowls, one under another, and the ball in them is written down as the
  * way it goes and the bowl it has got to. An older save's ball is read as that
  * game wrote it and comes back in today's bowls (see `ballInOneBowl`).
+ *
+ * Version 6 adds jewels: the ones lying on the field or on their way to it,
+ * the jewel lamps that are lit, and the bonuses they have paid. A save of any
+ * version before it comes back as a machine with no jewel on it and no lamp
+ * lit, and one of them that claims a jewel is not a save of its version.
  */
 
 import {
@@ -55,7 +60,9 @@ import {
   ARM_REACH,
   DROP_INTERVAL,
   FIELD,
+  JEWEL_DROP,
   MEDAL_RADIUS,
+  RELEASE,
   ROLL_TIME,
   SETTLE,
   TOWER,
@@ -78,6 +85,7 @@ import {
   FALLS,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
   REACH_KINDS,
   ROULETTE,
   TIERS,
@@ -107,22 +115,28 @@ import {
 
 export const STORAGE_KEY = 'medal-pusher-machine';
 /** The version every save is written with. */
-export const STORAGE_VERSION = 5;
+export const STORAGE_VERSION = 6;
+/**
+ * The version the game wrote before it had jewels: three bowls and chance
+ * time. Its field is today's with no jewel on it, and its numbers are today's
+ * but for the lamps and the bonuses.
+ */
+export const VERSION_BEFORE_JEWELS = 5;
 /**
  * The version the game wrote while a full run ended in one bowl and chance
- * time was already in it. Its field and its numbers are today's; what differs
- * is how the ball in the bowl is written down.
+ * time was already in it. Its field and its numbers are those of the version
+ * after it; what differs is how the ball in the bowl is written down.
  */
 export const VERSION_WITH_ONE_BOWL = 4;
 /**
  * The version the game wrote before chance time: a medal that found the hold
- * full was only wasted, and no spin was ever gold. Its field is today's; what
- * it lacks is three of the session's numbers.
+ * full was only wasted, and no spin was ever gold. Its field is that of the
+ * versions after it; what it lacks is three of the session's numbers.
  */
 export const VERSION_BEFORE_CHANCE = 3;
 /** The version the game wrote while its two arms shared one slot and one aim. */
 export const VERSION_WITH_ONE_AIM = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these five is refused. */
+/** The version the game wrote before it had its feed arms. A save carrying any number but these six is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -139,6 +153,8 @@ export const LIMITS = {
   falling: 600,
   /** Prize balls, on the field or waiting for their roulette. */
   balls: 50,
+  /** Jewels on the field. One comes with a treasure line and each is pushed off in the end, so there are seldom more than two or three. */
+  jewels: 50,
   /** Medals in one place: the purse, the jackpot, a payout still to be thrown on. */
   purse: 1_000_000,
   /** Anything counted since the machine was switched on, the medals' ids included. */
@@ -227,22 +243,43 @@ const level = oneOf([0, 1]);
 
 // ── The field ───────────────────────────────────────────────────────────────
 
-const medal = shape<Medal>(
-  {
-    id: whole(1, LIMITS.count),
-    x: across,
-    y: along,
-    level,
-    tier: oneOf([0, 1]),
-    sinceDrop: real(-1, LIMITS.clock),
-    stack: whole(1, TOWER.max),
-    grow: whole(0, TOWER.max - 1),
-    ball: flag,
-    grown: real(SETTLE.from, 1),
-  },
+/** Only `true` will do: what is not a jewel is stored without the field. */
+const set: Check<true> = (value) => (value === true ? true : undefined);
+
+/** What a medal, a ball or a tower is stored as, in every version. */
+const lying = {
+  id: whole(1, LIMITS.count),
+  x: across,
+  y: along,
+  level,
+  tier: oneOf([0, 1]),
+  sinceDrop: real(-1, LIMITS.clock),
+  stack: whole(1, TOWER.max),
+  grow: whole(0, TOWER.max - 1),
+  ball: flag,
+  grown: real(SETTLE.from, 1),
+};
+
+/** A medal, a ball or a tower: the only things that lay on the field before there were jewels. */
+const plainMedal = shape<Omit<Medal, 'jewel'>>(
+  lying,
   // A tower is never taller than the tallest, and a ball is not a tower.
   (m) => m.stack + m.grow <= TOWER.max && (!m.ball || m.stack + m.grow === 1),
 );
+
+/**
+ * A jewel is stored as a medal that says it is one. It is held to everything
+ * the machine makes true of a jewel. It is neither a ball nor a tower. It
+ * lies on the lower table, on the table itself: a new machine has its two
+ * there and the hatch throws every other there, nothing carries one onto the
+ * pusher, and nothing lies under one. And it has never come over the
+ * pusher's lip, so it is not on its way down from it. Whatever is not a
+ * jewel is stored without the field, exactly as it was before there were
+ * jewels.
+ */
+const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.grow === 0 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
+
+const medal: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedal(value) : plainMedal(value));
 
 /**
  * A medal on its way in. What is stored is how long it has to go to the tip of its arm, which means what it
@@ -256,22 +293,47 @@ const rollingMedal = shape<RollingMedal>({
   remaining: real(0, ROLL_TIME),
 });
 
-const fallingMedal = shape<FallingMedal>(
-  {
-    id: whole(1, LIMITS.count),
-    x: across,
-    y: along,
-    level,
-    fromX: across,
-    fromY: along,
-    rank: whole(0, TOWER.max - 1),
-    ball: flag,
-    remaining: timer,
-    duration: lasting,
-    source: oneOf(['player', 'payout', 'spill']),
-  },
-  (m) => m.remaining <= m.duration,
+/** What something in the air is stored as, in every version. */
+const inAir = {
+  id: whole(1, LIMITS.count),
+  x: across,
+  y: along,
+  level,
+  fromX: across,
+  fromY: along,
+  rank: whole(0, TOWER.max - 1),
+  ball: flag,
+  remaining: timer,
+  duration: lasting,
+  source: oneOf(['player', 'payout', 'spill'] as const),
+};
+
+const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir, (m) => m.remaining <= m.duration);
+
+/**
+ * A jewel in the air is one the hatch has thrown, and the hatch throws one
+ * way only (`dropJewel`): not a ball and not off a tower, straight out from
+ * the hatch, in the time its throw takes, to come down on the lower table
+ * within the patch in the middle of it that the hatch throws to.
+ */
+const jewelFalling = shape<Required<FallingMedal>>(
+  { ...inAir, jewel: set },
+  (m) =>
+    m.remaining <= m.duration &&
+    !m.ball &&
+    m.source === 'payout' &&
+    m.level === 0 &&
+    m.rank === 0 &&
+    m.duration === JEWEL_DROP.time &&
+    m.fromX === m.x &&
+    m.fromY === RELEASE.depth &&
+    m.x >= JEWEL_DROP.from &&
+    m.x <= JEWEL_DROP.to &&
+    m.y >= JEWEL_DROP.near &&
+    m.y <= JEWEL_DROP.far,
 );
+
+const fallingMedal: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : plainFalling(value));
 
 /**
  * Two places across the field, one for each arm and the left arm's first:
@@ -308,11 +370,11 @@ type MachineBeforeArms = Omit<MachineWithOneAim, 'rolling' | 'aim' | 'tips'>;
  */
 const SLACK = 1e-6;
 
-/** What every version of the field holds. */
+/** What every version of the field holds. Before version 6 nothing on it or over it is a jewel. */
 const tables = {
   time: real(0, LIMITS.clock),
-  medals: list(medal, LIMITS.medals),
-  falling: list(fallingMedal, LIMITS.falling),
+  medals: list<Medal>(plainMedal, LIMITS.medals),
+  falling: list<FallingMedal>(plainFalling, LIMITS.falling),
   payoutQueue: whole(0, LIMITS.purse),
   payoutClock: timer,
   growing: whole(0, LIMITS.medals * TOWER.max),
@@ -333,9 +395,10 @@ function tablesAgree(machine: Pick<StoredMachine, 'medals' | 'falling' | 'growin
     ids.add(id);
   }
   const balls = [...machine.medals, ...machine.falling].filter((m) => m.ball).length;
+  const jewels = [...machine.medals, ...machine.falling].filter((m) => m.jewel).length;
   // The medals still to be stacked are the ones the towers are waiting for.
   const growing = machine.medals.reduce((sum, m) => sum + m.grow, 0);
-  return growing === machine.growing && balls <= LIMITS.balls;
+  return growing === machine.growing && balls <= LIMITS.balls && jewels <= LIMITS.jewels;
 }
 
 /**
@@ -357,9 +420,9 @@ const storedMachine = shape<StoredMachine>(
   // written again is the same text.
   {
     time: tables.time,
-    medals: tables.medals,
+    medals: list(medal, LIMITS.medals),
     rolling,
-    falling: tables.falling,
+    falling: list(fallingMedal, LIMITS.falling),
     payoutQueue: tables.payoutQueue,
     payoutClock: tables.payoutClock,
     growing: tables.growing,
@@ -386,6 +449,16 @@ const storedMachine = shape<StoredMachine>(
 const asStored = (field: Pick<StoredMachine, keyof typeof tables>, rest: Pick<StoredMachine, 'rolling' | 'waits' | 'aims' | 'tips'>): StoredMachine | undefined => {
   const { time, medals, falling, payoutQueue, payoutClock, growing, towerClock, nextId } = field;
   return storedMachine({ time, medals, rolling: rest.rolling, falling, payoutQueue, payoutClock, growing, towerClock, waits: rest.waits, aims: rest.aims, tips: rest.tips, nextId });
+};
+
+/**
+ * The field of a save of versions 3 to 5. It is today's field in every part,
+ * and has no jewel on it: those games had none, and a save of theirs that
+ * claims one is not a save of theirs.
+ */
+const fieldBeforeJewels: Check<StoredMachine> = (value) => {
+  const field = shape<StoredMachine>({ ...tables, rolling, waits, aims: acrossArms, tips: acrossArms })(value);
+  return field && asStored(field, field);
 };
 
 // In version 2 one slot fed both rails, so the medals on the two rails together keep one slot's pace.
@@ -457,29 +530,46 @@ const counters = {
   quickPick: flag,
 };
 
+/** Only a held spin can be gold, and each gold spin was a medal that found the hold full: the ones still held,
+ * and the one on the screen if the screen is on one. So a screen is never gold on a machine no medal has gilded. */
+const goldAddsUp = (numbers: Pick<StoredNumbers, 'gold' | 'stock' | 'gilded' | 'wasted' | 'chance'>): boolean =>
+  numbers.gold <= numbers.stock && numbers.gilded <= numbers.wasted && numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded;
+
+/** Chance time's three numbers, which go between the purse and the counters. */
+const gilding = { gold: whole(0, MAX_STOCK), gilded: count, chance: flag };
+
 const storedNumbers = shape<StoredNumbers>(
-  // In the order a session holds them, which is the order they are written in.
-  { ...purse, gold: whole(0, MAX_STOCK), gilded: count, chance: flag, ...counters },
-  // Only a held spin can be gold, and each gold spin was a medal that found the hold full: the ones still held,
-  // and the one on the screen if the screen is on one. So a screen is never gold on a machine no medal has gilded.
-  (numbers) => numbers.gold <= numbers.stock && numbers.gilded <= numbers.wasted && numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded,
+  // In the order a session holds them, which is the order they are written in. Of the jewel lamps never all are lit:
+  // the last one pays the bonus and puts them out.
+  { ...purse, ...gilding, ...counters, jewels: whole(0, JEWEL.lamps - 1), jewelBonuses: count },
+  goldAddsUp,
 );
 
+/** The session's numbers as the versions with chance time and without jewels stored them. */
+type NumbersBeforeJewels = Omit<StoredNumbers, 'jewels' | 'jewelBonuses'>;
+const numbersWithoutJewels = shape<NumbersBeforeJewels>({ ...purse, ...gilding, ...counters }, goldAddsUp);
+
+/** The numbers of a save from before there were jewels, as today's: no lamp lit, and no bonus paid. */
+const numbersBeforeJewels: Check<StoredNumbers> = (value) => {
+  const kept = numbersWithoutJewels(value);
+  return kept && storedNumbers({ ...kept, jewels: 0, jewelBonuses: 0 });
+};
+
 /** The session's numbers as the versions before chance time stored them. */
-type NumbersBeforeChance = Omit<StoredNumbers, 'gold' | 'gilded' | 'chance'>;
+type NumbersBeforeChance = Omit<NumbersBeforeJewels, 'gold' | 'gilded' | 'chance'>;
 const numbersWithoutChance = shape<NumbersBeforeChance>({ ...purse, ...counters });
 
 /**
  * The numbers of a save written before chance time, as today's. That game had
  * no gold spins: none of the spins it holds is gold, no medal has ever turned
  * one, and what is on its screen is an ordinary spin or the game one led to.
- * The medals it wasted on a full hold stay wasted.
+ * The medals it wasted on a full hold stay wasted. It had no jewels either.
  */
 const numbersBeforeChance: Check<StoredNumbers> = (value) => {
   const old = numbersWithoutChance(value);
   if (!old) return undefined;
   const { credits, inserted, won, lost, paidOut, stock, ...rest } = old;
-  return storedNumbers({ credits, inserted, won, lost, paidOut, stock, gold: 0, gilded: 0, chance: false, ...rest });
+  return storedNumbers({ credits, inserted, won, lost, paidOut, stock, gold: 0, gilded: 0, chance: false, ...rest, jewels: 0, jewelBonuses: 0 });
 };
 
 // ── The screen ──────────────────────────────────────────────────────────────
@@ -792,7 +882,7 @@ export function serialize(session: Session): string {
 
 /**
  * The session a text was written from, or null when the text is not a save
- * that this game, or one of the four versions of it before this one, could
+ * that this game, or one of the five versions of it before this one, could
  * have written. It never throws.
  *
  * The generator's state is shut inside a closure and cannot be read, so it is
@@ -817,20 +907,30 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    // The field changed shape at versions 2 and 3, the numbers at version 4, and the ball in the bowls at version 5.
+    // The field changed shape at versions 2 and 3 and took jewels at version 6; the numbers changed at versions 4
+    // and 6; and the ball in the bowls at version 5.
     const { version } = save;
-    const withChance = version === STORAGE_VERSION || version === VERSION_WITH_ONE_BOWL;
-    const read = withChance || version === VERSION_BEFORE_CHANCE ? storedMachine : version === VERSION_WITH_ONE_AIM ? fieldWithOneAim : version === VERSION_BEFORE_ARMS ? fieldBeforeArms : null;
+    const withJewels = version === STORAGE_VERSION;
+    const withChance = withJewels || version === VERSION_BEFORE_JEWELS || version === VERSION_WITH_ONE_BOWL;
+    const read = withJewels
+      ? storedMachine
+      : withChance || version === VERSION_BEFORE_CHANCE
+        ? fieldBeforeJewels
+        : version === VERSION_WITH_ONE_AIM
+          ? fieldWithOneAim
+          : version === VERSION_BEFORE_ARMS
+            ? fieldBeforeArms
+            : null;
     const field = read?.(save.machine);
-    const numbers = withChance ? storedNumbers(save.session) : numbersBeforeChance(save.session);
+    const numbers = withJewels ? storedNumbers(save.session) : withChance ? numbersBeforeJewels(save.session) : numbersBeforeChance(save.session);
     const { screen } = save;
     if (!field || !numbers || !isRecord(screen)) return null;
 
     const on: OnScreen = {
       spin: shown(activeSpin(numbers.chance), screen.spin),
       bonus: shown(activeBonus(numbers), screen.bonus),
-      // Every version before this one had one bowl, whatever its field was.
-      roulette: shown(version === STORAGE_VERSION ? activeRoulette : rouletteWithOneBowl, screen.roulette),
+      // Every version before the three bowls had one, whatever its field was.
+      roulette: shown(withJewels || version === VERSION_BEFORE_JEWELS ? activeRoulette : rouletteWithOneBowl, screen.roulette),
     };
     const busy = [on.spin, on.bonus, on.roulette].filter((thing) => thing !== null).length;
     const session: Session = { ...numbers, ...(busy > 1 ? { spin: null, bonus: null, roulette: null } : on), machine: { ...field, rng: seededRng(seed) } };

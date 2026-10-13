@@ -29,17 +29,21 @@ export interface HapticPattern {
  * - `stream`: a medal fed by a button that is still held. At most one every 330 ms, three a second, whatever
  *   has been felt meanwhile: the feel of medals going in, without the buzz of every one.
  * - `catch`: medals over the front edge, into the tray. At most one every 220 ms, however many fall.
+ * - `jewel`: a jewel over the front edge, which lights a lamp. One light tick, a little longer than the medals'
+ *   and not held back by them: a jewel goes over among medals, and is the one of them the hand should be told of.
  * - `start`: a medal through a START pocket that holds a spin.
  * - `crash`: a tower going over the pusher's lip.
  * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
  * - `line`: the slot stops on a winning line, a ball goes over the front, or the ball drops through a hole to the bowl below.
- * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl.
+ * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl, or the
+ *   jewel bonus for a full set of lamps.
  * - `jackpot`: the jackpot. A second and a quarter long.
  */
 export const HAPTICS = {
   feed: { pattern: [15], rank: 0, gap: 60 },
   stream: { pattern: [15], rank: 0, gap: 330 },
   catch: { pattern: [22], rank: 1, gap: 220 },
+  jewel: { pattern: [28], rank: 2, gap: 0 },
   start: { pattern: [16, 36, 16], rank: 2, gap: 0 },
   crash: { pattern: [70], rank: 2, gap: 0 },
   chance: { pattern: [24, 40, 24], rank: 3, gap: 0 },
@@ -141,6 +145,9 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
       case 'checker':
         if (event.held) feel('start');
         break;
+      case 'jewel':
+        feel('jewel');
+        break;
       case 'toppled':
         feel('crash');
         break;
@@ -157,6 +164,7 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
       case 'sugorokuEnd':
       case 'chestEnd':
       case 'rouletteStep':
+      case 'jewelBonus':
         feel('prize');
         break;
       case 'bowlEnd':

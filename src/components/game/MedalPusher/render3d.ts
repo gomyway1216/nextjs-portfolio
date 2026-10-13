@@ -7,8 +7,9 @@
  *
  * A frame is two passes. The first looks at the field from the key lamp and
  * records how far its light gets (the shadow map). The second draws the
- * picture: every medal in one call, the balls and bulbs in two, the cabinet
- * in a handful, and last the flat touches that are laid over them. A prize
+ * picture: every medal in one call, the jewels in another when there are any,
+ * the balls and bulbs in two, the cabinet in a handful, and last the flat
+ * touches that are laid over them. A prize
  * ball that lies under the catcher on the pusher's front comes after even
  * those, behind the catcher's hood.
  *
@@ -24,7 +25,7 @@ import { paintFoot, paintLip, paintPlain, paintPusher, paintSign, paintTable, pa
 import { FLAT_STRIDE, Flat, MOVING_CAST, MOVING_HOOD, MOVING_PARTS, SOLID_STRIDE, Solid, addCatcherLamps, buildCabinet, buildLamps, buildMoving, buildTouches, type Art, type Part } from './cabinet3d';
 import { Gpu, type Program } from './gl';
 import { PARTY_TIME, type DrawOptions, type Stage } from './render';
-import { BEAD_STRIDE, EYE, KEY_LIGHT, MEDAL_STRIDE, ballShape, cameraMatrix, createRows, lightMatrix, medalShape, writeBalls, writeMedals, type Rows, type Shape } from './scene3d';
+import { BEAD_STRIDE, EYE, KEY_LIGHT, MEDAL_STRIDE, ballShape, cameraMatrix, createRows, jewelShape, lightMatrix, medalShape, writeBalls, writeJewels, writeMedals, type Rows, type Shape } from './scene3d';
 import {
   BEAD_FRAGMENT,
   BEAD_SHADOW_VERTEX,
@@ -33,6 +34,7 @@ import {
   CONTACT_VERTEX,
   FLAT_FRAGMENT,
   FLAT_VERTEX,
+  JEWEL_FRAGMENT,
   MEDAL_FRAGMENT,
   MEDAL_SHADOW_VERTEX,
   MEDAL_VERTEX,
@@ -56,8 +58,8 @@ export interface Scene3d {
   draw(stage: Stage, machine: Machine, options: DrawOptions): void;
   /** Gives back everything the graphics card was asked to hold. */
   dispose(): void;
-  /** What the last frame took: medals and balls drawn, and calls made to the graphics card. */
-  readonly last: { medals: number; balls: number; calls: number };
+  /** What the last frame took: medals, balls and jewels drawn, and calls made to the graphics card. */
+  readonly last: { medals: number; balls: number; jewels: number; calls: number };
 }
 
 /**
@@ -82,6 +84,8 @@ export function createScene3d(gl: WebGL2RenderingContext): Scene3d {
 function build(gpu: Gpu): Scene3d {
   const { gl } = gpu;
   const medalProgram = gpu.program(MEDAL_VERTEX, MEDAL_FRAGMENT);
+  // A jewel is placed and turned the way a medal is, so the medal's vertex shader does for both.
+  const jewelProgram = gpu.program(MEDAL_VERTEX, JEWEL_FRAGMENT);
   const beadProgram = gpu.program(BEAD_VERTEX, BEAD_FRAGMENT);
   const solidProgram = gpu.program(SOLID_VERTEX, SOLID_FRAGMENT);
   const flatProgram = gpu.program(FLAT_VERTEX, FLAT_FRAGMENT);
@@ -106,6 +110,7 @@ function build(gpu: Gpu): Scene3d {
   const medals = createRows(MEDAL_STRIDE, 1024);
   const balls = createRows(BEAD_STRIDE, 8);
   const lowBalls = createRows(BEAD_STRIDE, 4);
+  const jewels = createRows(MEDAL_STRIDE, 8);
   const beads = createRows(BEAD_STRIDE, 256);
   // The catcher's round mouths and the slots' funnels are most of what moves: some four thousand corners.
   const moving = new Solid(4400);
@@ -113,6 +118,7 @@ function build(gpu: Gpu): Scene3d {
   const medalBuffer = gpu.buffer(gl.ARRAY_BUFFER, medals.data.byteLength, gl.DYNAMIC_DRAW);
   const ballBuffer = gpu.buffer(gl.ARRAY_BUFFER, balls.data.byteLength, gl.DYNAMIC_DRAW);
   const lowBallBuffer = gpu.buffer(gl.ARRAY_BUFFER, lowBalls.data.byteLength, gl.DYNAMIC_DRAW);
+  const jewelBuffer = gpu.buffer(gl.ARRAY_BUFFER, jewels.data.byteLength, gl.DYNAMIC_DRAW);
   const beadBuffer = gpu.buffer(gl.ARRAY_BUFFER, beads.data.byteLength, gl.DYNAMIC_DRAW);
   const movingBuffer = gpu.buffer(gl.ARRAY_BUFFER, moving.data.byteLength, gl.DYNAMIC_DRAW);
   const flatBuffer = gpu.buffer(gl.ARRAY_BUFFER, flat.data.byteLength, gl.DYNAMIC_DRAW);
@@ -142,6 +148,7 @@ function build(gpu: Gpu): Scene3d {
   const medalShade = copies(medalShape(16, 0), medalBuffer, MEDAL_STRIDE, medalRows);
   const ballMesh = copies(ballShape(28, 18), ballBuffer, BEAD_STRIDE, beadRows);
   const lowBallMesh = copies(ballShape(28, 18), lowBallBuffer, BEAD_STRIDE, beadRows);
+  const jewelMesh = copies(jewelShape(), jewelBuffer, MEDAL_STRIDE, medalRows);
   const beadMesh = copies(ballShape(10, 7), beadBuffer, BEAD_STRIDE, beadRows);
 
   // The contact shadows are squares laid under the medals, read from the medals' own rows.
@@ -174,7 +181,7 @@ function build(gpu: Gpu): Scene3d {
   const camera = new Float32Array(16);
   const sun = lightMatrix(new Float32Array(16));
   let drift = 0;
-  const last = { medals: 0, balls: 0, calls: 0 };
+  const last = { medals: 0, balls: 0, jewels: 0, calls: 0 };
 
   /** Makes a program the one in use and tells it about the camera, the lamp and the canvas. */
   const switchTo = (program: Program) => {
@@ -223,6 +230,7 @@ function build(gpu: Gpu): Scene3d {
     // This frame's numbers, and each list sent to the graphics card once.
     writeMedals(medals, machine, stage.exits, stage.fed);
     writeBalls(balls, machine, stage.exits, lowBalls);
+    writeJewels(jewels, machine, stage.exits);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
     buildTouches(flat, machine, front, stage, options);
@@ -234,13 +242,15 @@ function build(gpu: Gpu): Scene3d {
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);
     sendRows(ballBuffer, balls);
-    // There is seldom a ball under the catcher, and nothing is sent for none.
+    // There is seldom a ball under the catcher, and not always a jewel on the field: nothing is sent for none.
     if (lowBalls.count > 0) sendRows(lowBallBuffer, lowBalls);
+    if (jewels.count > 0) sendRows(jewelBuffer, jewels);
     sendRows(beadBuffer, beads);
     send(movingBuffer, moving.data, moving.count * SOLID_STRIDE);
     send(flatBuffer, flat.data, flat.count * FLAT_STRIDE);
     last.medals = medals.count;
     last.balls = balls.count + lowBalls.count;
+    last.jewels = jewels.count;
     last.calls = 0;
 
     // What the key lamp sees. Of each medal and ball only the far side is recorded, so a lit face never shades itself.
@@ -255,6 +265,7 @@ function build(gpu: Gpu): Scene3d {
     gl.cullFace(gl.FRONT);
     switchTo(medalShadow);
     drawCopies(medalShade, medals);
+    drawCopies(jewelMesh, jewels);
     switchTo(beadShadow);
     drawCopies(ballMesh, balls);
     drawCopies(lowBallMesh, lowBalls);
@@ -282,6 +293,10 @@ function build(gpu: Gpu): Scene3d {
     switchTo(medalProgram);
     gl.bindTexture(gl.TEXTURE_2D, relief);
     drawCopies(medalMesh, medals);
+    if (jewels.count > 0) {
+      switchTo(jewelProgram);
+      drawCopies(jewelMesh, jewels);
+    }
     switchTo(beadProgram);
     drawCopies(ballMesh, balls);
     drawCopies(beadMesh, beads);

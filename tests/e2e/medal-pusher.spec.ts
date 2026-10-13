@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { CHAIN_GOAL, CHESTS, JACKPOT_START, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { FIELD } from '../../src/components/game/MedalPusher/engine';
+import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
 import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
@@ -146,6 +147,8 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   // The hold's lamps are drawn in the cabinet, under the screen. What says how many are lit is still on the page, by the name it had.
   await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeAttached();
   await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('data-held', '0');
+  // So are the jewel lamps, on the front of the lower table: none of them is lit yet.
+  await expect(machine(page).getByTestId('pusher-jewels')).toHaveAttribute('data-lit', '0');
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
@@ -582,6 +585,33 @@ test('a chest on the screen is picked by pressing it, though the picture is over
   await expect.poll(async () => [await aimOf(page, 'left'), await aimOf(page, 'right')]).not.toEqual(aimed);
   await page.waitForTimeout(400);
   expect(await counter(page, 'played')).toBe(played);
+});
+
+test('a jewel pushed over the front lights the next jewel lamp and is paid for at once', async ({ page }) => {
+  // A machine saved as the game saves one, with three lamps lit and the jewel on its lower table just past the front edge:
+  // the first step the page takes collects it.
+  const session = createSession(5);
+  session.jewels = JEWEL.lamps - 2;
+  const jewel = session.machine.medals.find((medal) => medal.jewel && medal.level === 0);
+  if (!jewel) throw new Error('a new machine has no jewel on its lower table');
+  jewel.y = FIELD.depth + 0.1;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The lamps are drawn on the cabinet. What says how many are lit is on the page, for anyone who cannot see them.
+  const lamps = machine(page).getByTestId('pusher-jewels');
+  await expect(lamps).toHaveAttribute('data-lit', String(JEWEL.lamps - 1));
+  await expect(lamps).toHaveText(`Jewel lamps: ${JEWEL.lamps - 1} of ${JEWEL.lamps} lit.`);
+  await expect(machine(page).getByTestId('pusher-announcement')).toHaveText(`A jewel went over the front edge: 1 medal. ${JEWEL.lamps - 1} of ${JEWEL.lamps} jewel lamps are lit.`);
+  // Its prize is the machine's to throw onto the field: it is paid, and it is not in the purse.
+  await expect.poll(() => counter(page, 'paid')).toBe(JEWEL.prize);
+  await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
 });
 
 test('a chest on the screen is picked from the keyboard too', async ({ page }) => {
@@ -1621,30 +1651,39 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
+  // The jewels: what each of a set of five pays, and the most they can be worth to a spin.
+  const jewels = odds(page).getByTestId('pusher-jewel-table');
+  await expect(jewels.locator('tbody tr')).toHaveCount(2);
+  await expect(jewels.locator('tr[data-jewel="prize"]')).toContainText('1 medal each');
+  await expect(jewels.locator('tr[data-jewel="bonus"]')).toContainText('3 medals');
+  await expect(odds(page).getByTestId('pusher-jewel-note')).toContainText('1.4 medals a jewel and 0.021 medals a spin');
+  // The treasure line is worth its chests and the jewel that comes with it, and a spin the 0.021 more for it.
+  await expect(slot.locator('tr[data-tier="big"]')).toContainText('21.4 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.117 medals');
   // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
+  // Both count the jewel a treasure line lets go, once: a gold spin doubles the chest and not the jewel.
   const chance = odds(page).getByTestId('pusher-chance-table');
   await expect(chance.locator('tbody tr')).toHaveCount(3);
-  await expect(chance.locator('tbody tr').first()).toContainText('1.09614 medals');
-  await expect(chance.locator('tbody tr').first()).toContainText('1.74614 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.11714 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.76714 medals');
   await expect(chance.locator('tbody td', { hasText: '0.65000 medals' })).toHaveCount(3);
   await expect(odds(page)).toContainText('turns one of the held spins gold');
 
-  // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.18 spins a medal at 1.117 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('95.8%');
+  await expect(result).toHaveText('96.1%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('22%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('119.7%');
+  await expect(result).toHaveText('120.1%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('59.9%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
+  await expect(result).toHaveText('60.1%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('90%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -1708,6 +1747,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('3段目');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
+  await expect(odds(page).getByTestId('pusher-jewel-table')).toContainText('宝石ボーナス');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {
@@ -1800,7 +1840,9 @@ test('a jackpot is counted out on the screen and on the marquee, up to what was 
   // A machine that has just won. A full run of four tens is behind it and the ball is in the funnel of the last of
   // the three bowls; it is played on here until the ball has dropped and the jackpot is half counted out, and
   // saved as the game saves one, for the page to find. That leaves the page over five seconds of the show.
-  const session = createSession(5);
+  // No jewel lies on this machine. The jackpot's pour would push one over the front within six seconds, and it would
+  // be paid for: without them nothing but the jackpot is paid for the first ten seconds, and the last line counts that.
+  const session = createSession(5, { jewels: 0 });
   const ten = ROULETTE.indexOf(10);
   session.roulettes = 1;
   session.roulette = {

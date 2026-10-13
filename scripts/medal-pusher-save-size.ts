@@ -24,9 +24,10 @@
  * `where` says where the bytes are, for one crowded machine (seed 2 and 60
  * seconds by default): each part of its largest save packed by itself, as
  * format 1 packed it and as it is packed now, and what that comes to for
- * each medal of each kind. The same again for the moment its lifts held the
- * most towers, which is seldom the moment the save is largest. Format 1 is
- * the packer of the day before format 2, kept among the tests.
+ * each medal of each kind; then each column of the medals lying and of the
+ * medals in the air. The parts again for the moment its lifts held the most
+ * towers, which is seldom the moment the save is largest. Format 1 is the
+ * packer of the day before format 2, kept among the tests.
  *
  * `package.json` is byte-sealed for this repository, so there is no npm
  * script for it. `tests/unit/components/game/MedalPusher/savedMachine.test.ts`
@@ -217,6 +218,27 @@ function partsTable(parts: Part[]): string[] {
   ];
 }
 
+/**
+ * What each column of a list comes to. A column cannot be packed without a
+ * table round it, so each is measured as a table of that field and one other
+ * that is nothing, less a table of the other alone: a few bytes out either way.
+ */
+function columnsTable(rows: Record<string, unknown>[]): string[] {
+  const size = (list: unknown[], write: (written: string) => string | null): number => bytes(write(JSON.stringify(list)) ?? '');
+  const fields = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const lines = ['| column | rows | different values | on the device | packed as format 1 | packed now | a row in format 1 | a row now |', '|---|---|---|---|---|---|---|---|'];
+  for (const field of fields) {
+    const cells = rows.filter((row) => field in row).map((row) => row[field]);
+    if (cells.length < 2) continue;
+    const alone = cells.map(() => ({ _: 0 }));
+    const beside = cells.map((cell) => ({ [field]: cell, _: 0 }));
+    const [before, now] = [size(beside, packFormat1) - size(alone, packFormat1), size(beside, pack) - size(alone, pack)];
+    const different = new Set(cells.map((cell) => JSON.stringify(cell))).size;
+    lines.push(`| ${field} | ${cells.length} | ${different} | ${bytes(JSON.stringify(cells))} | ${before} | ${now} | ${(before / cells.length).toFixed(1)} | ${(now / cells.length).toFixed(1)} |`);
+  }
+  return lines;
+}
+
 /** Says where the bytes are, for one crowded machine: at its largest save, and when its lifts held the most towers. */
 function where(seconds: number, seed: number): void {
   const scenario = SCENARIOS.find((candidate) => candidate.crowded) as Scenario;
@@ -242,6 +264,8 @@ function where(seconds: number, seed: number): void {
     jewelsOf(largest.text),
     '',
   ];
+  const { medals, falling } = (JSON.parse(largest.text) as { machine: { medals: Record<string, unknown>[]; falling: Record<string, unknown>[] } }).machine;
+  lines.push('The columns of the medals lying on the tables, in that save:', '', ...columnsTable(medals), '', 'The columns of the medals in the air:', '', ...columnsTable(falling), '');
   if (lifting.held > 0) lines.push(`With the most towers held on lifts (${lifting.held}), at ${lifting.at.toFixed(2)} s:`, '', ...partsTable(partsOf(lifting.text)), '', jewelsOf(lifting.text), '');
   process.stdout.write(lines.join('\n'));
 }

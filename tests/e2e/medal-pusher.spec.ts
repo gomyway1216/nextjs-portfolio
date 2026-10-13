@@ -246,7 +246,7 @@ test('the canvas renderer draws the field when the address asks for it', async (
   expect(trouble).toEqual([]);
 });
 
-test('on a phone the START pockets are three mouths side by side, two dark over their own lamps and the lucky one full of gold, and each slot has a mouth a medal fits', async ({ page }) => {
+test('on a phone the START pockets are three mouths side by side, two dark over their own lamps and the lucky one full of gold, under a dark well with a tongue of brass across it to each, and each slot has a mouth a medal fits', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   // The canvas renderer draws the same cabinet as the 3D one, and its picture can be read back.
   await openGame(page, 'en', '?renderer=2d');
@@ -284,8 +284,10 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
     }, mouths);
   // What marks a START pocket on a phone is small, and it is these: the black floor of its throat, with its lamp in
   // the slot's own colour at the lower lip of it, while it waits; and the gold that fills the mouth of the one the
-  // lucky lamp is on. The catcher rides with the pusher, so the pockets are found by what they look like, and
-  // placed by how far apart the catcher has them: that, as a share of the picture's width, half way through the stroke.
+  // lucky lamp is on. Over the pockets, between them and the lip, is the well, which is dark blue and never black,
+  // and across it to each pocket a tongue of brass, which is the only way a medal gets to one. The catcher rides with
+  // the pusher, so the pockets are found by what they look like, and placed by how far apart the catcher has them:
+  // that, as a share of the picture's width, half way through the stroke.
   const step = (time: number) => (mouthOnDrawing(1, time).x - mouthOnDrawing(0, time).x) / VIEW.width;
   const pitch = (step(0) + step(PUSHER.period / 2)) / 2;
   const own = SLOT_LIGHT.own.map((colour) => [1, 3, 5].map((at) => parseInt(colour.slice(at, at + 2), 16)));
@@ -294,7 +296,10 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
    * throats are on (as a length down the page). For each: where its middle should be; where the middle of the
    * black of its floor is on that row, and how long that black is; how many pixels of black there are in its mouth;
    * how many pixels of the slot's own colour there are where its lamp is; and how much of the middle of its mouth
-   * is gold, from 0 to 1. Lengths are in pixels of the page.
+   * is gold, from 0 to 1. And the well over them: how many rows of the page above the floors' its row is, how much
+   * of the catcher's width is the well's dark blue on that row, how many rows on end are mostly that; and each
+   * pocket's tongue on a row low in the well, by where its middle is, how far across its brass is, and how much
+   * well there is on end to either side of it. Lengths are in pixels of the page.
    */
   const pockets = () =>
     page.evaluate(
@@ -311,7 +316,7 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
         const top = Math.floor(canvas.height * 0.55);
         const tall = Math.floor(canvas.height * 0.25);
         const { data } = context.getImageData(left, top, wide, tall);
-        /** What a pixel of that part of the picture shows: the black of a throat's floor, the lit gold of a mouth, one of the slots' own colours, or something else. */
+        /** What a pixel of that part of the picture shows: the black of a throat's floor, the lit gold of a mouth or the brass of a tongue, the dark blue of the well, one of the slots' own colours, or something else. */
         const kind = (x: number, y: number): string => {
           if (x < 0 || x >= wide || y < 0 || y >= tall) return 'other';
           const at = 4 * (y * wide + x);
@@ -319,6 +324,7 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           if (data[at + 3] !== 255) return 'other';
           if (r < 16 && g < 16 && b < 16) return 'dark';
           if (r >= 215 && g >= 150 && r >= g && g - b >= 25) return 'gold';
+          if (r < 90 && g < 95 && b >= 36 && b - r >= 20) return 'well';
           // A slot's own colour, at its full strength or dimmed toward black as its light is while it glows less: the same hue.
           const match = colours.findIndex(([red, green, blue]) => {
             const scale = Math.max(r, g, b) / Math.max(red, green, blue);
@@ -335,8 +341,9 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           if (count > most) [most, row] = [count, y];
         }
         if (row < 0) return null;
+        const middle = canvas.width / 2 - left;
         const found = [0, 1, 2].map((pocket) => {
-          const centre = canvas.width / 2 - left + (pocket - 1) * apart;
+          const centre = middle + (pocket - 1) * apart;
           const [from, to] = [Math.round(centre - apart / 2), Math.round(centre + apart / 2)];
           // The floor of its throat, on that row: the longest stretch of black in its own stretch of the catcher.
           let floor = { from: Math.round(centre), length: 0 };
@@ -353,44 +360,99 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           for (let y = row - 7; y <= row + 3; y++) for (let x = from; x < to; x++) if (kind(x, y) === 'dark') black++;
           // Its lamp is on the lower bar of its frame, in the middle: what there is of the slot's own colour within a lamp's reach of there.
           let lamp = 0;
-          for (let y = row - 2; y <= row + 6; y++) for (let x = Math.round(centre) - 4; x <= Math.round(centre) + 4; x++) if (kind(x, y) === `own${pocket}`) lamp++;
+          for (let y = row - 2; y <= row + 10; y++) for (let x = Math.round(centre) - 4; x <= Math.round(centre) + 4; x++) if (kind(x, y) === `own${pocket}`) lamp++;
           // How much of the middle of its mouth is gold: of the floor's row and the three rows over it.
           const span = Math.round(apart * 0.4);
           let gold = 0;
           for (let y = row - 3; y <= row; y++) for (let x = Math.round(centre - span / 2); x < Math.round(centre + span / 2); x++) if (kind(x, y) === 'gold') gold++;
           return { centre: (left + centre) * each, middle: (left + floor.from + floor.length / 2) * each, dark: floor.length * each, black, lamp, gold: gold / (span * 4) };
         });
-        return { row: (top + row) * each, pockets: found };
+        // The well is over the pockets, between them and the lip: of the rows above the floors', the one with the most of
+        // its dark blue between the catcher's two ends, which are a pocket and a half to either side of the middle.
+        const [wellFrom, wellTo] = [Math.round(middle - apart * 1.5) + 2, Math.round(middle + apart * 1.5) - 2];
+        const blue = (y: number): number => {
+          let count = 0;
+          for (let x = wellFrom; x < wellTo; x++) if (kind(x, y) === 'well') count++;
+          return count;
+        };
+        let best = row - 8;
+        for (let y = row - 8; y >= Math.max(0, row - 36); y--) if (blue(y) > blue(best)) best = y;
+        // How many rows on end, about that one, are mostly well: how tall the well is seen.
+        const mostly = (y: number): boolean => y >= 0 && y < tall && blue(y) >= (wellTo - wellFrom) * 0.5;
+        let [first, last] = [best, best];
+        while (mostly(first - 1)) first--;
+        while (mostly(last + 1)) last++;
+        // The tongues are looked for low in the well, where a medal that hangs over the lip does not reach: two thirds of the way down it.
+        const across = Math.round(first + (last - first) * 0.7);
+        // A tongue crosses the well to each pocket: on that row, the stretch of brass nearest the pocket's middle, by
+        // where its own middle is and how far across it is, and how much well there is on end to either side of it.
+        const tongues = [0, 1, 2].map((pocket) => {
+          const centre = Math.round(middle + (pocket - 1) * apart);
+          let at = -1;
+          for (let off = 0; off <= 4 && at < 0; off++) for (const x of [centre + off, centre - off]) if (at < 0 && kind(x, across) === 'gold') at = x;
+          if (at < 0) return { middle: (left + centre) * each, wide: 0, left: 0, right: 0 };
+          let [from, to] = [at, at];
+          while (kind(from - 1, across) === 'gold') from--;
+          while (kind(to + 1, across) === 'gold') to++;
+          /** How many pixels of well there are on end from `x`, going `by`, after no more than two of anything else: the tongue's own shaded edge. */
+          const run = (x: number, by: number): number => {
+            let skipped = 0;
+            while (skipped < 2 && kind(x, across) !== 'well') [x, skipped] = [x + by, skipped + 1];
+            let count = 0;
+            while (kind(x, across) === 'well') [x, count] = [x + by, count + 1];
+            return count;
+          };
+          return { middle: (left + (from + to + 1) / 2) * each, wide: (to - from + 1) * each, left: run(from - 1, -1) * each, right: run(to + 1, 1) * each };
+        });
+        return { row: (top + row) * each, pockets: found, well: { above: (row - best) * each, share: blue(best) / (wellTo - wellFrom), tall: (last - first + 1) * each, tongues } };
       },
       { pitch, own },
     );
   type Pockets = NonNullable<Awaited<ReturnType<typeof pockets>>>;
   /** The pockets of a reading that wait: a black floor a good many pixels of a phone's screen across, and a lamp of the slot's own colour. */
-  const waiting = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark >= 14 && pocket.lamp >= 4);
+  const waiting = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark >= 16 && pocket.lamp >= 4);
   /** The pockets of a reading that are lit: no black on the floor's row, and most of the mouth gold. */
   const lit = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark === 0 && pocket.gold >= 0.6);
-  // Two that wait and one that is lit, whichever the lucky lamp is on. A medal on its way down the slide covers a
-  // pocket for a moment, so the picture is looked at until none does, and that look is the one that is judged.
+  /** The tongues of a reading that are in the clear: brass a few pixels across, with the well to either side of it. */
+  const bridging = (seen: Pockets) => seen.well.tongues.filter((tongue) => tongue.wide >= 3 && tongue.left >= 12 && tongue.right >= 12);
+  // Two that wait and one that is lit, whichever the lucky lamp is on, and a tongue to each of the three. A medal on
+  // its way down a tongue covers it and its pocket for a moment, and one going down into the well covers some of
+  // that, so the picture is looked at until none does, and that look is the one that is judged.
   let seen: Pockets | null = null;
   await expect
     .poll(
       async () => {
         seen = await pockets();
-        return seen ? [waiting(seen).length, lit(seen).length] : [];
+        return seen ? [waiting(seen).length, lit(seen).length, bridging(seen).length] : [];
       },
       { timeout: 10_000 },
     )
-    .toEqual([2, 1]);
+    .toEqual([2, 1, 3]);
   const look = seen as Pockets | null;
   if (!look) throw new Error('no pocket was found in the picture');
-  // Read off the real canvas at this size all through the stroke, a waiting floor is 19 to 21 pixels across with 49 to 78
-  // black pixels in its mouth and 6 to 15 pixels of lamp, and 0.8 to 1 of the lit mouth is gold, with no black in it.
+  // Read off the canvas at this size all through four strokes, a waiting floor is 19 to 21 pixels across with 72 to 118
+  // black pixels in its mouth and 6 to 23 pixels of lamp, and 0.75 to 1 of the lit mouth is gold, with no black in it
+  // and a pixel of lamp at the most.
   for (const pocket of waiting(look)) {
-    // Deep enough to be seen into, where the catcher has it, and none of the lucky lamp's gold in it, or no more than the edge of a medal that hangs over the lip above it.
-    expect(pocket.black).toBeGreaterThanOrEqual(30);
+    // Deep enough to be seen into, where the catcher has it, and none of the lucky lamp's gold in it.
+    expect(pocket.black).toBeGreaterThanOrEqual(45);
     expect(Math.abs(pocket.middle - pocket.centre)).toBeLessThan(3);
     expect(pocket.gold).toBeLessThan(0.2);
   }
+  // The well, read the same way: its row is 8 to 16 rows above the floors' (to 18 on a table that has been played),
+  // 0.80 to 0.82 of the catcher's width on it is the well's dark blue, and it is 8 to 13 rows tall. A tongue is 5 to 6
+  // pixels across, 4 or more short of half its pocket's floor, within a pixel and a quarter of its pocket's middle,
+  // with 26 to 31 pixels of well on end to either side of it.
+  expect(look.well.above).toBeGreaterThanOrEqual(8);
+  expect(look.well.above).toBeLessThanOrEqual(28);
+  expect(look.well.share).toBeGreaterThanOrEqual(0.6);
+  expect(look.well.tall).toBeGreaterThanOrEqual(6);
+  look.well.tongues.forEach((tongue, pocket) => {
+    // A rail, not a board: a few pixels of brass, a good deal narrower than the pocket it leads to, straight above the middle of it.
+    expect(tongue.wide).toBeLessThanOrEqual(9);
+    expect(tongue.wide).toBeLessThan(look.pockets[pocket].dark > 0 ? look.pockets[pocket].dark / 2 : 10);
+    expect(Math.abs(tongue.middle - look.pockets[pocket].centre)).toBeLessThan(3);
+  });
   for (const pocket of lit(look)) {
     // Gold where the others are black, and its lamp is gold too, not the slot's own colour.
     expect(pocket.black).toBeLessThanOrEqual(4);
@@ -2452,7 +2514,8 @@ test('a big prize is poured out of the hopper’s doors, towers come up on their
   await page.addInitScript(
     ([key, text]) => {
       if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
-      // The field says what the payout works are doing. It is over in a couple of seconds, so every word of it is kept.
+      // The field says what the payout works are doing. The pour is over in a couple of seconds and the towers are
+      // built in six or seven, a medal at a time, so every word of it is kept.
       const said: string[] = [];
       (window as unknown as { worksSaid: string[] }).worksSaid = said;
       new MutationObserver((changes) => {

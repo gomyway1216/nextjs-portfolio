@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MEDAL_RADIUS, PUSHER, SETTLE, TOWER, TOWER_SITES, buildTowers, createMachine, medalsOnField, pusherFront, step, type Machine, type Medal } from '@/components/game/MedalPusher/engine';
 import { POUR } from '@/components/game/MedalPusher/hopper';
-import { LIFT, guardUp, holds, liftAtWork, startLift } from '@/components/game/MedalPusher/lift';
+import { LIFT, guardUp, holds, liftAtWork, stands, startLift } from '@/components/game/MedalPusher/lift';
 
 const DT = 1 / 60;
 const towerOf = (machine: Machine, id: number): Medal | undefined => machine.medals.find((medal) => medal.id === id);
@@ -39,7 +39,24 @@ describe('a tower’s lift', () => {
     }
   });
 
-  it('opens its hatch and raises its guard first, then brings the tower up a medal at a time, then lets the guard down', () => {
+  it('takes its time in stages that add up: lamps, doors and guard before the first medal, and the guard and the hatch after the tower has stood', () => {
+    // The outermost hatch of a row starts two steps of the ripple after the middle ones, and is ready as the first medal comes.
+    const outermost = (TOWER.perRow / 2 - 1) * LIFT.ripple;
+    expect(LIFT.lamps + LIFT.doors + LIFT.rises + outermost).toBeCloseTo(LIFT.opens, 12);
+    expect(LIFT.sinks + LIFT.shuts).toBeCloseTo(LIFT.closes, 12);
+    // A tower stands for less than a second, which is how a lift's clock tells standing from not yet built; for long
+    // enough that its last medal is seen to come up flush; and for as long as the ripple takes to cross a row, since
+    // the middle guards begin to sink that much before the towers are let go.
+    expect(LIFT.stands).toBeLessThan(1);
+    expect(LIFT.stands).toBeGreaterThanOrEqual(1 / TOWER.perSecond);
+    expect(LIFT.stands).toBeGreaterThanOrEqual(outermost);
+    // The show: a tower comes up at five or six medals a second, 22 of them in about four seconds.
+    expect(TOWER.perSecond).toBeGreaterThanOrEqual(5);
+    expect(TOWER.perSecond).toBeLessThanOrEqual(6);
+    expect(22 / TOWER.perSecond).toBeCloseTo(4, 0);
+  });
+
+  it('opens its hatch and raises its guard first, brings the tower up a medal at a time, lets it stand a moment, then lets the guard down', () => {
     const machine = createMachine(13);
     const start = medalsOnField(machine);
     buildTowers(machine, 50);
@@ -47,34 +64,59 @@ describe('a tower’s lift', () => {
     const { id } = lift;
     // The prize is on the field from the moment it is paid, the medals still under the deck included.
     expect(medalsOnField(machine)).toBe(start + 50);
-    // While the guard rises nothing comes up.
+    // While the hatch opens and the guard rises nothing comes up.
     const rising = run(machine, () => lift.wait === 0);
     expect(rising.seconds).toBeCloseTo(LIFT.opens, 1);
     expect(towerOf(machine, id)).toMatchObject({ stack: 1, grow: 24 });
     expect(guardUp(lift)).toBe(1);
-    // Then the tower, at the pace towers have always gone up at.
-    const building = run(machine, () => !holds(lift));
+    expect(stands(lift)).toBe(false);
+    // Then the tower, slowly: a medal's time for each.
+    const building = run(machine, () => stands(lift));
     expect(building.seconds).toBeCloseTo(24 / TOWER.perSecond, 1);
     expect(towerOf(machine, id)).toMatchObject({ stack: 25, grow: 0 });
     expect(machine.growing).toBe(0);
+    expect(lift.sunk).toBe(-LIFT.stands);
+    // Built, it stands in its guard for a moment, still held.
+    expect([holds(lift), guardUp(lift)]).toEqual([true, 1]);
+    const standing = run(machine, () => !holds(lift));
+    expect(standing.seconds).toBeCloseTo(LIFT.stands, 1);
+    expect(lift.sunk).toBeGreaterThanOrEqual(0);
+    expect(lift.sunk).toBeLessThan(2 * DT);
     expect(guardUp(lift)).toBeGreaterThan(0.9);
-    // Then the guard sinks, and the lift is done.
+    // Then the guard sinks and the hatch closes, and the lift is done.
     const sinking = run(machine, (m) => m.lifts.length === 0);
     expect(sinking.seconds).toBeCloseTo(LIFT.closes, 1);
-    expect(rising.toppled + building.toppled).toBe(0);
-    expect(medalsOnField(machine) + rising.gone + building.gone + sinking.gone).toBe(start + 50);
+    expect(rising.toppled + building.toppled + standing.toppled).toBe(0);
+    expect(medalsOnField(machine) + rising.gone + building.gone + standing.gone + sinking.gone).toBe(start + 50);
   });
 
-  it('raises its guard at an even pace and lets it down at one', () => {
+  it('raises its guard at an even pace over the last of its wait and lets it down at one, each hatch in its turn in the ripple', () => {
     const tower: Medal = { id: 5, x: 43, y: 21, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 9, ball: false, grown: 1 };
     const lift = startLift(tower, 30);
-    expect(guardUp({ ...lift, wait: LIFT.opens / 2 })).toBeCloseTo(0.5, 12);
+    // Down while the lamps come on and the doors open, then up over `rises`.
+    expect(guardUp(lift)).toBe(0);
+    expect(guardUp({ ...lift, wait: LIFT.rises })).toBe(0);
+    expect(guardUp({ ...lift, wait: LIFT.rises / 2 })).toBeCloseTo(0.5, 12);
     expect(guardUp({ ...lift, wait: 0 })).toBe(1);
+    // Up for as long as the tower stands, and down over `sinks` from the moment it is let go.
+    expect(guardUp({ ...lift, wait: 0, sunk: -LIFT.stands })).toBe(1);
+    expect(guardUp({ ...lift, wait: 0, sunk: -0.01 })).toBe(1);
     expect(guardUp({ ...lift, wait: 0, sunk: 0 })).toBe(1);
-    expect(guardUp({ ...lift, wait: 0, sunk: LIFT.closes / 4 })).toBeCloseTo(0.75, 12);
+    expect(guardUp({ ...lift, wait: 0, sunk: LIFT.sinks / 4 })).toBeCloseTo(0.75, 12);
+    expect(guardUp({ ...lift, wait: 0, sunk: LIFT.sinks })).toBe(0);
     expect(guardUp({ ...lift, wait: 0, sunk: LIFT.closes })).toBe(0);
+    // A hatch that is ahead in the ripple has its guard up that much sooner, and sinking that much sooner, while its tower still stands.
+    const ahead = 2 * LIFT.ripple;
+    expect(guardUp({ ...lift, wait: LIFT.rises + ahead }, ahead)).toBeCloseTo(0, 12);
+    expect(guardUp({ ...lift, wait: ahead }, ahead)).toBe(1);
+    expect(guardUp({ ...lift, wait: 0, sunk: -ahead }, ahead)).toBe(1);
+    expect(guardUp({ ...lift, wait: 0, sunk: -ahead + LIFT.sinks / 2 }, ahead)).toBeCloseTo(0.5, 12);
+    expect([holds({ ...lift, wait: 0, sunk: -ahead / 2 }), stands({ ...lift, wait: 0, sunk: -ahead / 2 })]).toEqual([true, true]);
+    expect([holds(lift), stands(lift)]).toEqual([true, false]);
+    expect([holds({ ...lift, wait: 0, sunk: 0 }), stands({ ...lift, wait: 0, sunk: 0 })]).toEqual([false, false]);
     // One found already at work has its guard up.
     expect(liftAtWork(tower, 30)).toEqual({ id: 5, x: 43, behind: 9, size: 10, wait: 0, sunk: -1 });
+    expect(guardUp(liftAtWork(tower, 30))).toBe(1);
   });
 
   it('holds its tower where the lift is while the guard is up: the tower rides the pusher and nothing pushes it', () => {
@@ -103,7 +145,7 @@ describe('a tower’s lift', () => {
     expect(nearest).toBeGreaterThan(MEDAL_RADIUS * 2 + LIFT.wall * 0.5);
   });
 
-  it('lets the tower go the moment it is built: it is pushed like any tower, and goes over the lip in the end', () => {
+  it('lets the tower go once it has stood its moment: it is pushed like any tower, and goes over the lip in the end', () => {
     const machine = createMachine(13);
     const start = medalsOnField(machine);
     buildTowers(machine, 25);

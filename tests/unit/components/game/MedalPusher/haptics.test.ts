@@ -8,6 +8,7 @@ import {
   afterBuzz,
   buzz,
   canVibrate,
+  feltIn,
   hapticFor,
   hapticLength,
   mayBuzz,
@@ -182,6 +183,46 @@ describe('the rule for what may be felt when', () => {
     expect(mayBuzz(state, 'stream', 5100)).toBe(false);
     expect(mayBuzz(state, 'stream', 100)).toBe(true);
     expect(afterBuzz(UNFELT, 'jackpot', 10)).toMatchObject({ until: 10 + hapticLength('jackpot'), rank: HAPTICS.jackpot.rank });
+  });
+});
+
+describe('a medal through a START pocket', () => {
+  const over: SessionEvent = { type: 'checker', gate: 1, held: true, gold: false, lucky: false };
+  const lucky = { gate: 0, held: true, gold: false, lucky: true };
+  const plain = { gate: 2, held: true, gold: false, lucky: false };
+  const wasted = { gate: 2, held: false, gold: false, lucky: false };
+
+  it('is felt as it drops into the pocket, a ride after the lip’s rule counted it, and not as it comes over the lip', () => {
+    // The frame it comes over the lip in: the machine has counted it, and the hand is told nothing of it yet.
+    expect(feltIn([over], [])).toEqual([]);
+    expect(hapticFor(feltIn([over], []))).toBeNull();
+    // What else happened in that frame is felt as it always was.
+    const won: SessionEvent = { type: 'won', count: 2 };
+    expect(feltIn([won, over], [])).toEqual([won]);
+    expect(hapticFor(feltIn([won, over], []), 'feed')).toBe('catch');
+    // The frame it drops in, nothing new has come over the lip: the pocket is felt then, as what the medal came to.
+    expect(feltIn([], [plain])).toEqual([{ type: 'checker', ...plain }]);
+    expect(hapticFor(feltIn([], [plain]))).toBe('start');
+    expect(hapticFor(feltIn([], [lucky]))).toBe('gold');
+    expect(hapticFor(feltIn([won], [plain, lucky]))).toBe('gold');
+    // A medal that found the hold full is not felt at the pocket, at the lip or at the drop.
+    expect(hapticFor(feltIn([], [wasted]))).toBeNull();
+    // One medal dropping as another comes over: it is the one that drops that is felt.
+    expect(feltIn([over], [lucky])).toEqual([{ type: 'checker', ...lucky }]);
+    expect(hapticFor(feltIn([{ ...over, lucky: true }], [plain]))).toBe('start');
+  });
+
+  it('leaves a frame with no medal at a pocket as it came, and the frame’s own list as it was', () => {
+    const events: SessionEvent[] = [{ type: 'won', count: 1 }, { type: 'landed', count: 2 }];
+    expect(feltIn(events, [])).toBe(events);
+    const withOne: SessionEvent[] = [{ type: 'won', count: 1 }, over];
+    const felt = feltIn(withOne, [plain]);
+    expect(felt).not.toBe(withOne);
+    expect(withOne).toEqual([{ type: 'won', count: 1 }, over]);
+    expect(felt).toEqual([
+      { type: 'won', count: 1 },
+      { type: 'checker', ...plain },
+    ]);
   });
 });
 

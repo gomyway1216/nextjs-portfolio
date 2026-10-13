@@ -10,7 +10,10 @@
  * The chuckers are on the pusher's lip, so they ride out and back with it and
  * never move along it. A medal that goes over the lip wholly inside one drops
  * through it and starts a spin; one that hangs over a mouth's edge goes over
- * the lip beside it like any other.
+ * the lip beside it like any other. What the player is shown of that is the
+ * catcher's: a tongue from the lip to each pocket, as wide as the play a
+ * medal has in a mouth, and a well under the lip for everything else
+ * (catcher.ts).
  *
  * What lights a chucker is the session's `checker` event, which carries its
  * number (`gate`) and comes once for every medal through it.
@@ -64,9 +67,10 @@ export function droppedThrough(medal: Medal, within: number = CHUCKERS.drop, win
 }
 
 /**
- * The chucker a medal on its way down from the lip caught the edge of
- * without fitting it, or −1: one whose middle came over within `reach` of
- * where it would have fitted. Like `droppedThrough` it is exact in the step
+ * The chucker a medal on its way down from the lip all but fitted, or −1:
+ * one whose middle came over within `reach` of where it would have fitted,
+ * which with a medal's radius for `reach` is one that has some of that
+ * pocket's tongue under it. Like `droppedThrough` it is exact in the step
  * the medal comes over and near enough after. With `wings` the slots are
  * taking medals at their wider width.
  */

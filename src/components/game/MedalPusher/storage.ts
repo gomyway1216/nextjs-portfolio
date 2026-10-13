@@ -68,6 +68,14 @@
  * was held or playing: such a save is read so (see `beforeLamp`). The lamp
  * itself is read off the machine's clock and the wings follow chance time,
  * so neither is stored.
+ *
+ * The lifts were made slower after that, and the version did not change. A
+ * hatch takes longer to open and a guard longer to sink, so a lift's two
+ * clocks may now run further than they could; and a built tower stands in its
+ * guard for a moment before it is let go, which a lift says with a `sunk`
+ * between −1 and 0 (lift.ts). No save written before holds such a number, and
+ * every number an older save does hold means what it meant: its lift is as
+ * far from its first medal, or has been sinking as long, as it says.
  */
 
 import {
@@ -93,7 +101,7 @@ import {
   type RollingMedal,
 } from './engine';
 import { POUR, shutHopper, type Hopper } from './hopper';
-import { LIFT, holds, liftAtWork, type Lift } from './lift';
+import { LIFT, holds, liftAtWork, stands, type Lift } from './lift';
 import {
   BOARD,
   BOWL,
@@ -403,8 +411,10 @@ const lift = shape<Lift>(
     wait: real(0, LIFT.opens),
     sunk: real(-1, LIFT.closes),
   },
-  // Its guard is on the way up, up, or on the way down: not two of them, and −1 is the only way to say it is not sinking.
-  (l) => (l.sunk === -1 || l.sunk >= 0) && (l.sunk < 0 || l.wait === 0),
+  // Its guard is on the way up, up with medals still to come, up with the tower built and standing in it, or on the
+  // way down: not two of them. −1 is the only way to say the tower is not built, and a built one stands no longer
+  // than `LIFT.stands` before it is let go.
+  (l) => (l.sunk === -1 || l.sunk >= -LIFT.stands) && (l.sunk === -1 || l.wait === 0),
 );
 
 /**
@@ -509,9 +519,9 @@ const railsKeepPace = (machine: Pick<MachineBeforeWorks, 'rolling' | 'waits'>): 
  * of its own. One that still holds its tower has it standing on the pusher
  * where the machine leaves a tower it holds, as many medals as the lift is
  * building, and not yet begun while the guard is still on its way up; and
- * either the guard is rising or there are medals still to come. One whose
- * guard is sinking has finished. And no tower is going up without a lift
- * under it.
+ * the guard is rising, or there are medals still to come, or the tower is
+ * built and standing in its guard. One whose guard is sinking has finished.
+ * And no tower is going up without a lift under it.
  *
  * Where the machine leaves a tower it holds is on the deck itself, since a
  * tower is put there and nothing lifts it onto other medals, and over its
@@ -538,7 +548,7 @@ function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueu
       continue;
     }
     if (!tower || tower.ball || tower.level !== 1 || tower.tier !== 0 || tower.stack + tower.grow !== one.size) return false;
-    if (one.wait > 0 ? tower.stack !== 1 : tower.grow === 0) return false;
+    if (stands(one) ? tower.grow !== 0 : one.wait > 0 ? tower.stack !== 1 : tower.grow === 0) return false;
     if (Math.abs(tower.x - one.x) > LIMITS.held || Math.abs(tower.y - Math.max(MEDAL_RADIUS, front - one.behind)) > LIMITS.held) return false;
   }
   return medals.every((m) => m.grow === 0 || lifted.has(m.id));

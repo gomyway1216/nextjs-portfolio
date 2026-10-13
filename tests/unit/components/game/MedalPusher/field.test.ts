@@ -6,6 +6,7 @@ import {
   CATCHER,
   SLOPE,
   START_SLOT,
+  TONGUE,
   apronSpot,
   caught,
   lampSpot,
@@ -16,7 +17,9 @@ import {
   slopeSpot,
   slotCorners,
   slotHalf,
+  tongueCorners,
   underCatcher,
+  wellCorners,
   wingCorners,
 } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS } from '@/components/game/MedalPusher/chuckers';
@@ -60,28 +63,39 @@ import {
 import {
   APRON_CAP,
   BALL_RADIUS,
+  BURST,
+  ENTRY_INK,
+  ENTRY_WORDS,
   EXIT_TIME,
   GLOW_TIME,
   GOLD_FLASH,
+  HOLD_COUNT,
   RIDE,
   SLOT_LIGHT,
   SLOT_SHAPE,
   SLOT_THROAT,
+  TONGUE_BRASS,
+  WELL_SHADE,
   ageStage,
   celebrate,
   createStage,
   drawField,
+  drawOverlay,
+  dropEntries,
+  enterGate,
   faceOf,
   goldFlash,
+  holdShown,
+  lampFor,
   lightGate,
-  lyingWhereCaught,
-  ridingOf,
   showJewel,
   trackMedals,
   type DrawOptions,
+  type Entry,
   type ExitingMedal,
   type Stage,
 } from '@/components/game/MedalPusher/render';
+import { MAX_STOCK, advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
 import { pourPose } from '@/components/game/MedalPusher/works';
 
@@ -424,15 +438,43 @@ describe('the catcher on the canvas', () => {
     }
   });
 
-  it('is one piece: a slide from under the lip down to its foot, as long as the three pockets take, with the strip of words on the last of it', () => {
+  it('is one piece, as long as the three pockets take: a dark well under the lip, a tongue of brass over it to each slot, and a slide from the well’s edge down to its foot, with the strip of words on the last of it', () => {
     fakeDocument();
     for (const time of TIMES) {
       const front = pusherFront(time);
       const screen = frame(time, false);
       const { starts, lines } = screen;
-      // The board itself: one outline, from the lip's foot to the catcher's own foot, from end to end.
-      const board = [slopeSpot(CATCHER.from, 0, time), slopeSpot(CATCHER.to, 0, time), slopeSpot(CATCHER.to, SLOPE.long, time), slopeSpot(CATCHER.from, SLOPE.long, time)].map(seen);
-      expect(through(screen, board).filter((fill) => fill.points.length === 4).length).toBeGreaterThanOrEqual(1);
+      /** Where in the order of the frame's fills one of them came. */
+      const order = (fill: (typeof screen.fills)[number] | undefined): number => (fill ? screen.fills.indexOf(fill) : -1);
+      // The well: one outline, from the lip to the upper edge of the slide, from end to end, dark and darker toward the slide, and never black.
+      const [well] = through(screen, wellCorners(time).map(seen)).filter((fill) => fill.points.length === 4);
+      expect(well.stops).toEqual([...WELL_SHADE]);
+      expect(WELL_SHADE).not.toContain(SLOT_THROAT.floor);
+      // The board itself: one outline, from the well's edge to the catcher's own foot, from end to end. Nothing is drawn from the lip to the foot in one piece: under the lip it is open.
+      const board = [slopeSpot(CATCHER.from, CATCHER.gap, time), slopeSpot(CATCHER.to, CATCHER.gap, time), slopeSpot(CATCHER.to, SLOPE.long, time), slopeSpot(CATCHER.from, SLOPE.long, time)].map(seen);
+      const [slide] = through(screen, board).filter((fill) => fill.points.length === 4);
+      expect(order(slide)).toBeGreaterThan(order(well));
+      const whole = [slopeSpot(CATCHER.from, 0, time), slopeSpot(CATCHER.to, 0, time), slopeSpot(CATCHER.to, SLOPE.long, time), slopeSpot(CATCHER.from, SLOPE.long, time)].map(seen);
+      expect(through(screen, whole).filter((fill) => fill.points.length === 4)).toHaveLength(0);
+      // A tongue to each slot, drawn over the well and the slide: its top, from the lip to the upper edge of the
+      // opening, in brass, lit where the lucky lamp is on its slot; and the side of its web that is turned to the
+      // player, who looks down the middle of the field, which the middle one's is not.
+      mouthSpots(time).forEach((spot, pocket) => {
+        const lucky = litSlots(time)[pocket];
+        const top = tongueCorners(pocket, time).map(seen);
+        const web = tongueCorners(pocket, time, false, CATCHER.rim.high - TONGUE.deep).map(seen);
+        const [bridge] = through(screen, top).filter((fill) => fill.points.length === 4);
+        expect(bridge.stops).toEqual([...(lucky ? TONGUE_BRASS.lit : TONGUE_BRASS.top)]);
+        expect(order(bridge)).toBeGreaterThan(order(slide));
+        expect(top[3].y).toBeCloseTo(slotOnDrawing(pocket, time).opening[0].y, 9);
+        expect(top[0].y).toBeLessThan(top[3].y - 20);
+        const sides = [
+          [top[0], top[3], web[3], web[0]],
+          [top[1], top[2], web[2], web[1]],
+        ].map((side) => through(screen, side).filter((fill) => fill.points.length === 4 && fill.style === (lucky ? TONGUE_BRASS.litSide : TONGUE_BRASS.side)));
+        expect(sides.map((side) => side.length)).toEqual(spot.x < FIELD.width / 2 ? [0, 1] : spot.x > FIELD.width / 2 ? [1, 0] : [0, 0]);
+        for (const side of sides.flat()) expect(order(side)).toBeLessThan(order(bridge));
+      });
       for (const [x, height, depth] of [
         [CATCHER.from, CATCHER.deck, front],
         [CATCHER.to, CATCHER.deck, front],
@@ -761,7 +803,7 @@ describe('the catcher on the canvas', () => {
   /** The shadows a frame drew under medals on the lower table: each is an oval and nothing else, in the shade a medal throws on the table. */
   const shades = (screen: Recorder) => screen.fills.filter((fill) => fill.style === 'rgba(0, 4, 18, 0.34)' && fill.points.length <= 1 && fill.rounds.length === 0);
 
-  it('draws a medal on its way into its slot lying on the slide with its face up and then nosing into the opening, darker as it goes, and not among the medals on the table', () => {
+  it('draws a medal on its way into its slot lying on its tongue with its face up and then nosing into the opening, darker as it goes, and not among the medals on the table', () => {
     fakeDocument();
     const x = CHECKERS.positions[0] + 1;
     const { machine, front, medal, drawn } = lone(901, x);
@@ -781,7 +823,7 @@ describe('the catcher on the canvas', () => {
       expect(after).toBe(true);
       // Tipped as the catcher has it: the edge of the picture goes through where the nose of its face is.
       expect(reach(stamps[0], seen(nose(faceOf(held))))).toBeCloseTo(1, 1);
-      // On the slide it is seen whole. In the slot, what of it is under the slide is seen only down the opening.
+      // On its tongue it is seen whole. In the slot, what of it is under the slide is seen only down the opening.
       expect(stamps[0].clipped).toBe(held.leg === 'slot');
       // The less light it gets the darker it is: a dark wash over its face, as strong as the light is weak. It is never fainter.
       const washes = screen.fills.filter((fill) => fill.style === '#1c0f02');
@@ -789,12 +831,12 @@ describe('the catcher on the canvas', () => {
       const dark = washes.length ? washes[0].alpha : 0;
       expect(dark).toBeCloseTo(1 - held.light, 9);
       expect(dark).toBeGreaterThanOrEqual(last.dark);
-      // It goes down the drawing as it goes down the slide.
+      // It goes down the drawing as it goes down its tongue.
       expect(stamps[0].y).toBeGreaterThan(last.y - 1e-9);
       last = { y: stamps[0].y, dark };
       legs.add(held.leg);
     }
-    expect([...legs]).toEqual(['slide', 'slot']);
+    expect([...legs]).toEqual(['tongue', 'slot']);
     // It ends in its slot, on the drawing as in the cabinet, most of the way to dark.
     const mouth = mouthOnDrawing(0, machine.time);
     expect(Math.abs(seen(caught(medal(CATCHER.sink - 0.001), machine.time) ?? { x: 0, height: 0, depth: 0 }).x - mouth.x)).toBeLessThan(mouth.wide / 2);
@@ -807,20 +849,33 @@ describe('the catcher on the canvas', () => {
     const where = project(x, HEIGHT.medal, front + MEDAL_RADIUS);
     expect(lying.stamps[0].x).toBeCloseTo(where.x, 6);
     expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
+    // Where nothing may move it is not seen to ride: one picture of it, lying still in the mouth of its slot, darker and darker.
+    const still = caught(medal(0.01), machine.time, true);
+    if (!still) throw new Error('not caught');
+    let shade = -1;
+    for (let sinceDrop = 0.01; sinceDrop < CATCHER.still; sinceDrop += 1 / 60) {
+      const calm = drawn(sinceDrop, { calm: true });
+      expect(calm.stamps).toHaveLength(1);
+      expect(calm.stamps[0].x).toBeCloseTo(seen(faceOf(still)).x, 6);
+      expect(calm.stamps[0].y).toBeCloseTo(seen(faceOf(still)).y, 6);
+      expect(calm.after).toBe(true);
+      const dark = calm.screen.fills.filter((fill) => fill.style === '#1c0f02').map((fill) => fill.alpha)[0] ?? 0;
+      expect(dark).toBeGreaterThan(shade);
+      shade = dark;
+    }
+    expect(Math.abs(seen(faceOf(still)).y - mouth.y)).toBeLessThan(mouth.tall);
   });
 
-  it('draws a medal that came over between the slots sliding down the slide in full view, off its foot and down on to the lower table in front of it, as the 3D picture does', () => {
+  it('draws a medal that came over clear of the tongues going over the lip’s edge and down into the well: seen above the slide’s upper edge and no lower, darker as it goes, and then under the catcher, as the 3D picture has it', () => {
     fakeDocument();
-    // Half way between two slots: over the lip at the catcher, and through neither.
+    // Half way between two slots: over the lip at the catcher, with no tongue under any of it.
     const x = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
     const { machine, front, medal, drawn } = lone(902, x);
-    const legs = new Set<string>();
-    let last = -Infinity;
-    let shade = 0;
-    for (let sinceDrop = 0.01; sinceDrop < CATCHER.slide; sinceDrop += 1 / 120) {
+    let last = { y: -Infinity, dark: 0 };
+    for (let sinceDrop = 0.005; sinceDrop < CATCHER.fall; sinceDrop += 1 / 120) {
       const held = caught(medal(sinceDrop), machine.time);
       if (!held) throw new Error('not held');
-      expect(held.chucker).toBe(-1);
+      expect(held).toMatchObject({ chucker: -1, near: -1, leg: 'gap' });
       const { screen, stamps, after } = drawn(sinceDrop);
       // One picture of it: its face over where the catcher has its middle, tipped as the catcher has it, after the catcher and the pusher's top.
       expect(stamps).toHaveLength(1);
@@ -829,116 +884,58 @@ describe('the catcher on the canvas', () => {
       expect(stamps[0].y).toBeCloseTo(at.y, 6);
       expect(reach(stamps[0], seen(nose(faceOf(held))))).toBeCloseTo(1, 1);
       expect(after).toBe(true);
-      // It is seen whole, on the slide and in the air off its foot: it does not go down into anything.
-      expect(stamps[0].clipped).toBe(false);
+      // It is going down behind the slide: nothing of it is drawn below the slide's upper edge. And it is never fainter, only darker.
+      expect(stamps[0].clipped).toBe(true);
       expect(stamps[0].alpha).toBe(1);
-      // It goes down the drawing all the way.
-      expect(stamps[0].y).toBeGreaterThan(last);
-      last = stamps[0].y;
-      // On the slide it throws no shadow on the table. Off the foot the shadow of a medal that lies on the table comes up under it, darker the nearer it is.
-      const under = shades(screen);
-      expect(under).toHaveLength(held.leg === 'foot' && held.landed > 0 ? 1 : 0);
-      if (under.length) {
-        expect(under[0].alpha).toBeCloseTo(held.landed * held.landed, 9);
-        expect(under[0].alpha).toBeGreaterThanOrEqual(shade);
-        shade = under[0].alpha;
-      }
-      legs.add(held.leg);
+      const dark = screen.fills.filter((fill) => fill.style === '#1c0f02').map((fill) => fill.alpha)[0] ?? 0;
+      expect(dark).toBeCloseTo(1 - held.light, 9);
+      expect(dark).toBeGreaterThanOrEqual(last.dark);
+      // It goes down the drawing all the way, and throws no shadow on a table it does not come down on in sight.
+      expect(stamps[0].y).toBeGreaterThan(last.y);
+      expect(shades(screen)).toHaveLength(0);
+      last = { y: stamps[0].y, dark };
     }
-    expect([...legs]).toEqual(['slide', 'foot']);
-    expect(shade).toBeGreaterThan(0.8);
-    // Lying on the slide, which leans toward the player, its face is rounder on the drawing than that of a medal lying level there.
-    const half = caught(medal(CATCHER.slide / 2), machine.time);
-    if (!half) throw new Error('not held');
-    const [lean] = drawn(CATCHER.slide / 2).stamps;
-    expect(lean.height / lean.width).toBeGreaterThan(seen(half).tilt * 1.2);
-    // Once it is down it lies on the lower table in front of the catcher, where the catcher has it: a medal lying
-    // there, drawn with the table's own, before the catcher, which will pass over it. It is where the top of a
-    // medal lying there is, flat, with a lying medal's shadow.
-    const down = caught(medal(CATCHER.slide), machine.time);
-    if (down?.leg !== 'table') throw new Error('it is not on the table');
-    expect(down.depth).toBeGreaterThan(front + CATCHER.foot.out + MEDAL_RADIUS - 1e-9);
-    const lying = drawn(CATCHER.slide);
+    expect(last.dark).toBeGreaterThan(0.8);
+    // Where the well's mouth ends on the drawing: the upper edge of the slide. The picture is cut off there.
+    const edge = seen(slopeSpot(x, CATCHER.gap, machine.time));
+    expect(edge.y).toBeGreaterThan(project(x, P, front).y + 10);
+    // Once it is down it is a medal on the lower table, where the engine has it, under the catcher: drawn with the
+    // table's own, before the catcher, which covers it.
+    const lying = drawn(CATCHER.fall + 0.01);
     expect(lying.stamps).toHaveLength(1);
     expect(lying.stamps[0].clipped).toBe(false);
     expect(lying.after).toBe(false);
-    const where = project(down.x, down.height + T / 2, down.depth);
+    const where = project(x, T, front + MEDAL_RADIUS);
     expect(lying.stamps[0].x).toBeCloseTo(where.x, 6);
     expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
-    expect(lying.stamps[0].height / lying.stamps[0].width).toBeCloseTo(where.tilt, 6);
-    expect(shades(lying.screen).map((fill) => fill.alpha)).toEqual([1]);
-    // Its last picture in the air is that picture: the same place to a hundredth of a pixel, as big and as flat to a quarter of one, with as dark a shadow. Nothing jumps as it lands.
-    const landing = drawn(CATCHER.slide - 1e-7);
-    expect(landing.after).toBe(true);
-    expect(landing.stamps[0].x).toBeCloseTo(lying.stamps[0].x, 2);
-    expect(landing.stamps[0].y).toBeCloseTo(lying.stamps[0].y, 2);
-    expect(Math.abs(landing.stamps[0].width - lying.stamps[0].width)).toBeLessThan(0.25);
-    expect(Math.abs(landing.stamps[0].height - lying.stamps[0].height)).toBeLessThan(0.25);
-    expect(shades(landing.screen)[0].alpha).toBeCloseTo(1, 4);
-    // It stays where it came down, not where the engine has it, until the engine has it there too: then it is the engine's own medal, where that is.
-    const later = caught(medal(CATCHER.slide + 0.2), machine.time);
-    if (later?.leg !== 'table') throw new Error('it is not on the table');
-    const [still] = drawn(CATCHER.slide + 0.2).stamps;
-    expect(still.x).toBeCloseTo(project(later.x, later.height + T / 2, later.depth).x, 6);
-    expect(still.y).toBeCloseTo(project(later.x, later.height + T / 2, later.depth).y, 6);
-    expect(still.y).toBeGreaterThan(project(x, T, front + MEDAL_RADIUS).y + 20);
-    machine.medals = [{ ...medal(CATCHER.slide + 0.2), y: later.depth + 1 }];
-    const handed = recorder();
-    drawField(handed.context, createStage(1), machine, { showGuide: false });
-    const [own] = handed.stamps.filter((stamp) => Math.abs(stamp.x - project(x, T, later.depth + 1).x) < 1e-6);
-    expect(own.y).toBeCloseTo(project(x, T, later.depth + 1).y, 6);
+    expect(underCatcher(x, front + MEDAL_RADIUS, MEDAL_RADIUS, machine.time)).toBe(true);
   });
 
-  it('draws a medal the catcher has on the lower table as a medal lying there: on the table, on another, or part of the way up on to one', () => {
-    const held = (height: number) => ({ x: 44, height, depth: 52, tilt: 0, heading: 0, light: 1, chucker: -1, near: -1, leg: 'table' as const, landed: 1 });
-    const engine = (more: Partial<Medal> = {}): Medal => ({ id: 5, x: 43, y: 40, level: 0, tier: 0, sinceDrop: 0.7, stack: 1, grow: 0, ball: false, grown: 1, ...more });
-    /** How high the top of a medal is drawn: what the canvas adds to the table's height for it. */
-    const top = (medal: Medal) => T + ridingOf(medal) + (medal.tier === 1 ? T : 0);
-    for (const medal of [engine(), engine({ tier: 1 })]) {
-      // Where the catcher has it and as high, whatever tier the engine has it in; the medal it is; and not on its way down from the lip.
-      for (const height of [T / 2, T * 0.75, T, T * 1.25, T * 1.5, T * 1.95]) {
-        const lain = lyingWhereCaught(medal, held(height));
-        expect(lain).toMatchObject({ id: 5, x: 44, y: 52, level: 0, sinceDrop: -1, stack: 1, ball: false });
-        // Its top is half its thickness over its middle, as high as the catcher has it, up to one medal on another.
-        expect(top(lain)).toBeCloseTo(Math.min(height, T * 1.5) + T / 2, 9);
-        // On the bare table it is a medal of the lower tier that has come to rest, which throws a shadow on the table; a medal's thickness up, one of the upper tier.
-        if (height === T / 2) expect([lain.tier, lain.grown]).toEqual([0, 1]);
-        if (height >= T * 1.5) expect(lain.tier).toBe(1);
-        if (height > T / 2 && height < T * 1.5) expect([lain.tier, lain.grown < 1]).toEqual([0, true]);
-      }
-      // The engine's medal is left as it was.
-      expect(medal).toEqual(medal.tier === 1 ? engine({ tier: 1 }) : engine());
-    }
-    // One that is still making room for itself where the engine has it is drawn no lower than that makes it.
-    const settling = engine({ grown: 0.65 });
-    expect(top(lyingWhereCaught(settling, held(T / 2)))).toBeCloseTo(T + ridingOf(settling), 9);
-    expect(ridingOf(settling)).toBeGreaterThan(0);
-    expect(ridingOf(engine())).toBe(0);
-    expect(ridingOf(engine({ tier: 1 }))).toBe(0);
-  });
-
-  it('draws a medal that has caught a slot’s frame lying on it in full view, rocking from side to side, and not at all with motion reduced', () => {
+  it('draws a medal that hangs on a tongue’s edge in full view, rocked over it, and then going down into the well behind the slide; and not hanging at all with motion reduced', () => {
     fakeDocument();
-    const x = CHECKERS.positions[1] + CHECKERS.halfWidth + CATCHER.reach / 2;
+    // A quarter of a unit off the right-hand edge of the middle slot's tongue: the nearest of misses.
+    const x = CHECKERS.positions[1] + CHECKERS.halfWidth + 0.25;
     const { machine, medal, drawn } = lone(903, x);
     /** How much lower on the drawing the right-hand end of a medal's picture is than its middle. */
     const droop = (stamp: Stamp): number => (stamp.across[0] * stamp.across[1] + stamp.down[0] * stamp.down[1]) / Math.hypot(stamp.across[0], stamp.down[0]);
     const droops: number[] = [];
-    for (let sinceDrop = 0.005; sinceDrop < CATCHER.rattle; sinceDrop += 1 / 120) {
+    const legs = new Set<string>();
+    for (let sinceDrop = 0.005; sinceDrop < 2; sinceDrop += 1 / 120) {
       const held = caught(medal(sinceDrop), machine.time);
-      if (!held) throw new Error('not held');
+      if (!held) break;
       expect(held.near).toBe(1);
+      legs.add(held.leg);
       const { stamps, after } = drawn(sinceDrop);
-      // One picture of it, its face over where the catcher has its middle, after the catcher, whole all the way: on the slide, on the frame, and in the air off the foot.
+      // One picture of it, its face over where the catcher has its middle, after the catcher: whole while it is on the tongue, and cut off at the slide's upper edge once it is going down.
       expect(stamps).toHaveLength(1);
       const at = seen(faceOf(held));
       expect(stamps[0].x).toBeCloseTo(at.x, 6);
       expect(stamps[0].y).toBeCloseTo(at.y, 6);
       expect(after).toBe(true);
-      expect(stamps[0].clipped).toBe(false);
-      if (held.leg !== 'frame') continue;
-      // Rocked as the catcher has it: the side of it that is up in the cabinet is up on the drawing. Its right-hand
-      // end is where the right-hand end of a medal rocked that far about the line down the slide is.
+      expect(stamps[0].clipped).toBe(held.leg === 'gap');
+      if (held.leg !== 'tongue' || held.heading === 0) continue;
+      // Rocked as the catcher has it: the side of it that is down in the cabinet is down on the drawing. Its right-hand
+      // end is where the right-hand end of a medal rocked that far about the line down the tongue is.
       const sway = Math.sin(held.heading) * Math.sin(held.tilt);
       const along = Math.sqrt(1 - sway * sway);
       const lean = Math.cos(held.heading) * Math.sin(held.tilt);
@@ -948,20 +945,23 @@ describe('the catcher on the canvas', () => {
       expect(droop(stamps[0])).toBeCloseTo(seen(right).y - at.y, 0);
       droops.push(droop(stamps[0]));
     }
-    // It is seen rocking for a good many frames, both ways, by more than a pixel of the drawing each way.
-    expect(droops.length).toBeGreaterThan(30);
-    expect(Math.max(...droops)).toBeGreaterThan(1.5);
-    expect(Math.min(...droops)).toBeLessThan(-1.5);
-    // With motion reduced it never rocks: it lies on the slide, level across, all the way down.
-    for (let sinceDrop = 0.005; sinceDrop < CATCHER.slide * 0.8; sinceDrop += 1 / 30) {
+    expect([...legs]).toEqual(['tongue', 'gap']);
+    // It is seen rocked for a good many frames: its right-hand side, the one with nothing under it, is the low one, never the other, and in the end by many pixels of the drawing.
+    expect(droops.length).toBeGreaterThan(40);
+    expect(Math.min(...droops)).toBeGreaterThan(-0.5);
+    expect(Math.max(...droops)).toBeGreaterThan(8);
+    // With motion reduced it never hangs: it goes over the lip's edge nose first, level across, and is down in the time that takes.
+    for (let sinceDrop = 0.005; sinceDrop < CATCHER.fall; sinceDrop += 1 / 60) {
       const still = caught(medal(sinceDrop), machine.time, true);
       if (!still) throw new Error('not held');
+      expect(still).toMatchObject({ near: -1, leg: 'gap', heading: 0 });
       const { stamps } = drawn(sinceDrop, { calm: true });
       expect(stamps).toHaveLength(1);
       expect(stamps[0].x).toBeCloseTo(seen(faceOf(still)).x, 6);
       expect(stamps[0].y).toBeCloseTo(seen(faceOf(still)).y, 6);
       expect(Math.abs(droop(stamps[0]))).toBeLessThan(0.5);
     }
+    expect(caught(medal(CATCHER.fall + 0.01), machine.time, true)).toBeNull();
   });
 
   it('draws a ball that lies under the catcher before the catcher, which covers it, one that has come out from under it after, and one that has just come over the lip rolling down the slide', () => {
@@ -1784,5 +1784,345 @@ describe('a tower on the canvas', () => {
     const tall = (project(50, P + T, depth).y - project(50, P + TOWER.max * T, depth).y) * (345 / VIEW.width);
     expect(tall).toBeGreaterThan(18);
     expect(tall).toBeGreaterThan(10 * (project(50, P, depth).y - project(50, P + T * 2, depth).y) * (345 / VIEW.width));
+  });
+});
+
+describe('what the cabinet says when a medal drops into a START slot', () => {
+  const FRAME = 1 / 60;
+  const time = 1.5;
+  const plain: Entry = { gate: 1, held: true, gold: false, lucky: false };
+  const lucky: Entry = { gate: 0, held: true, gold: false, lucky: true };
+  const gilding: Entry = { gate: 2, held: false, gold: true, lucky: false };
+  const wasted: Entry = { gate: 1, held: false, gold: false, lucky: false };
+  /** Where a lamp of the hold is on the drawing, from the left. */
+  const lampAt = (lamp: number) => project(HOLD_LAMPS.first + HOLD_LAMPS.step * lamp, (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
+  /** Runs a stage on, a frame at a time, until a medal drops: the entries that dropped, and how many frames that took. */
+  const untilDrop = (stage: Stage, calm = false): { dropped: Entry[]; frames: number } => {
+    for (let frames = 1; frames < 200; frames++) {
+      const dropped = dropEntries(stage, FRAME, time, calm);
+      if (dropped.length > 0) return { dropped, frames };
+      ageStage(stage, FRAME, calm);
+    }
+    throw new Error('nothing dropped');
+  };
+  /** The words that stand over the slots: popups that are words. */
+  const words = (stage: Stage) => stage.popups.filter((popup) => popup.word);
+
+  it('has a lamp in the hold for every spin the machine can hold', () => {
+    fakeDocument();
+    expect(HOLD_COUNT).toBe(MAX_STOCK);
+    expect(createStage(1).holdGlow).toEqual(Array.from({ length: MAX_STOCK }, () => 0));
+  });
+
+  it('says nothing while the medal rides its tongue, and all of it as the medal drops: the slot bursts with light, a word stands over it, and a spark runs up to the hold and lights the lamp the spin is held as', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    // The machine holds two spins and has just counted a third, whose medal is on its tongue.
+    enterGate(stage, plain, CATCHER.sink);
+    expect(stage.entries).toHaveLength(1);
+    expect(holdShown(stage, 3, 0)).toEqual({ stock: 2, gold: 0, taken: 0, gilt: 0 });
+    // In the frame it was noted in, the medal has only just come over the lip: its ride has all of its time to go.
+    expect(dropEntries(stage, FRAME, time)).toEqual([]);
+    expect(stage.entries[0]).toMatchObject({ left: CATCHER.sink, dropped: false, run: -1 });
+    // Nothing is lit, nothing is said and nothing flies, frame after frame, for as long as the ride is.
+    const { dropped, frames } = untilDrop(stage);
+    expect(Math.abs(frames * FRAME - CATCHER.sink)).toBeLessThan(FRAME + 1e-9);
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]).toMatchObject(plain);
+    // Then all at once. The slot is lit as a slot a medal has gone down is, and throws its sparks.
+    expect(stage.gateGlow).toEqual([0, GLOW_TIME, 0]);
+    expect(stage.sparks).toHaveLength(BURST.sparks);
+    const mouth = mouthOnDrawing(1, time);
+    for (const spark of stage.sparks) {
+      expect(spark.x).toBeCloseTo(mouth.x, 6);
+      // Upward, in a fan: none of them goes down.
+      expect(spark.vy).toBeLessThan(0);
+    }
+    expect(new Set(stage.sparks.map((spark) => Math.sign(spark.vx))).size).toBe(2);
+    // The word, over the slot.
+    const [word] = words(stage);
+    expect(word).toMatchObject({ text: ENTRY_WORDS.start, color: ENTRY_INK.start, age: 0, word: { size: BURST.plain, still: false } });
+    expect(word.x).toBeCloseTo(mouth.x, 6);
+    expect(word.y).toBeLessThan(mouth.y);
+    expect(mouth.y - word.y).toBeLessThan(40);
+    // And the spark has set out from the slot. The lamp is not lit yet: the hold still shows two.
+    expect(stage.entries[0]).toMatchObject({ dropped: true, run: 0, lamp: true });
+    expect(stage.entries[0].from.x).toBeCloseTo(mouth.x, 6);
+    expect(holdShown(stage, 3, 0)).toMatchObject({ stock: 2 });
+    expect(lampFor(stage, stage.entries[0])).toBe(2);
+    expect(stage.holdGlow.every((glow) => glow === 0)).toBe(true);
+    // It flies to the third lamp, nearer in every frame, drawn on the glass with a tail behind it.
+    const lamp = lampAt(2);
+    let away = Infinity;
+    let flown = 0;
+    while (stage.entries.length > 0) {
+      const glass = recorder();
+      drawOverlay(glass.context, stage);
+      const head = glass.fills.filter((fill) => fill.style === '#ffffff' && fill.rounds.length === 1 && fill.points.length === 0).map((fill) => fill.rounds[0]);
+      expect(head).toHaveLength(1);
+      const left = Math.hypot(head[0].x - lamp.x, head[0].y - lamp.y);
+      expect(left).toBeLessThan(away + 1e-9);
+      away = left;
+      // Its tail is a line from behind it up to it.
+      expect(glass.lines.some((point) => Math.hypot(point.x - head[0].x, point.y - head[0].y) < 1e-6)).toBe(true);
+      // The word is up meanwhile.
+      expect(glass.texts.map((entry) => entry.text)).toContain(ENTRY_WORDS.start);
+      ageStage(stage, FRAME);
+      flown++;
+      expect(flown).toBeLessThan(60);
+    }
+    expect(Math.abs(flown * FRAME - BURST.run)).toBeLessThan(FRAME + 1e-9);
+    expect(away).toBeLessThan(30);
+    // It is there: that lamp shines, and no other, and from now on the hold shows the spin.
+    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual([false, false, true, false, false, false, false, false]);
+    expect(holdShown(stage, 3, 0)).toMatchObject({ stock: 3, gold: 0 });
+    // The word outlasts the spark and is gone a moment later; the lamp's shine fades.
+    expect(words(stage)).toHaveLength(1);
+    for (let i = 0; i < 60; i++) ageStage(stage, FRAME);
+    expect(words(stage)).toHaveLength(0);
+    expect(stage.holdGlow.every((glow) => glow === 0)).toBe(true);
+    expect(BURST.word).toBeGreaterThan(BURST.run * 2);
+  });
+
+  it('tells a gold spin from an everyday one, a held spin turned gold from both, and a medal that started nothing from them all', () => {
+    fakeDocument();
+    // A medal through the lit slot: its spin is gold from the start. The word is gold and bigger, there are more sparks, and its spark is bound for the first lamp that is not gold.
+    const golden = createStage(1);
+    enterGate(golden, lucky, CATCHER.sink);
+    expect(holdShown(golden, 4, 2)).toEqual({ stock: 3, gold: 1, taken: 0, gilt: 0 });
+    expect(untilDrop(golden).dropped[0]).toMatchObject(lucky);
+    expect(words(golden)[0]).toMatchObject({ text: ENTRY_WORDS.start, color: ENTRY_INK.gold, word: { size: BURST.big } });
+    expect(BURST.big).toBeGreaterThan(BURST.plain * 1.25);
+    expect(golden.sparks).toHaveLength(BURST.gold);
+    expect(BURST.gold).toBeGreaterThan(BURST.sparks);
+    expect(golden.gateGlow[0]).toBe(GLOW_TIME);
+    expect(lampFor(golden, golden.entries[0])).toBe(1);
+    while (golden.entries.length > 0) ageStage(golden, FRAME);
+    expect(golden.holdGlow.findIndex((glow) => glow > 0)).toBe(1);
+    expect(holdShown(golden, 4, 2)).toMatchObject({ stock: 4, gold: 2 });
+
+    // A medal that found the hold full and turned a held spin gold: another word, gold too, and its spark turns that lamp.
+    const gilt = createStage(1);
+    enterGate(gilt, gilding, CATCHER.sink);
+    expect(holdShown(gilt, MAX_STOCK, 3)).toEqual({ stock: MAX_STOCK, gold: 2, taken: 0, gilt: 0 });
+    untilDrop(gilt);
+    expect(words(gilt)[0]).toMatchObject({ text: ENTRY_WORDS.gold, color: ENTRY_INK.gold, word: { size: BURST.big } });
+    expect(gilt.sparks).toHaveLength(BURST.gold);
+    expect(lampFor(gilt, gilt.entries[0])).toBe(2);
+    while (gilt.entries.length > 0) ageStage(gilt, FRAME);
+    expect(gilt.holdGlow.findIndex((glow) => glow > 0)).toBe(2);
+    expect(holdShown(gilt, MAX_STOCK, 3)).toMatchObject({ stock: MAX_STOCK, gold: 3 });
+
+    // A medal that found the hold full and every spin in it gold: a dull word, smaller, and nothing else. The slot does not burst, nothing flies, no lamp shines.
+    const full = createStage(1);
+    enterGate(full, wasted, CATCHER.sink);
+    expect(holdShown(full, MAX_STOCK, MAX_STOCK)).toEqual({ stock: MAX_STOCK, gold: MAX_STOCK, taken: 0, gilt: 0 });
+    expect(untilDrop(full).dropped[0]).toMatchObject(wasted);
+    expect(words(full)[0]).toMatchObject({ text: ENTRY_WORDS.full, color: ENTRY_INK.full, word: { size: BURST.dull } });
+    expect(BURST.dull).toBeLessThan(BURST.plain);
+    expect(full.gateGlow).toEqual([0, 0, 0]);
+    expect(full.sparks).toHaveLength(0);
+    expect(full.entries).toHaveLength(0);
+    expect(full.holdGlow.every((glow) => glow === 0)).toBe(true);
+    // The three words are three words, and the grey is not either gold.
+    expect(new Set(Object.values(ENTRY_WORDS)).size).toBe(3);
+    expect(new Set(Object.values(ENTRY_INK)).size).toBe(3);
+  });
+
+  it('flies nothing where nothing may move: the medal is not seen to ride, so the cabinet answers at once, with the slot lit, the word standing still and the lamp lit', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    enterGate(stage, plain, 0);
+    holdShown(stage, 1, 0);
+    // In the very frame the lip's rule counted it.
+    const dropped = dropEntries(stage, FRAME, time, true);
+    expect(dropped).toHaveLength(1);
+    expect(stage.gateGlow[1]).toBe(GLOW_TIME);
+    expect(stage.sparks).toHaveLength(0);
+    expect(words(stage)[0]).toMatchObject({ text: ENTRY_WORDS.start, word: { size: BURST.plain, still: true } });
+    // No spark sets out: the lamp shines at once, and the hold shows the spin.
+    expect(stage.entries).toHaveLength(0);
+    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual([true, false, false, false, false, false, false, false]);
+    expect(holdShown(stage, 1, 0)).toMatchObject({ stock: 1 });
+    // The word stands where it was put and is the size it was given, for as long as it is up.
+    const [word] = words(stage);
+    const drawn: { y: number; tall: number }[] = [];
+    for (let i = 0; i < 20; i++) {
+      const glass = recorder();
+      drawOverlay(glass.context, stage, true);
+      const [text] = glass.texts.filter((entry) => entry.text === ENTRY_WORDS.start);
+      drawn.push({ y: text.y, tall: text.tall });
+      ageStage(stage, FRAME, true);
+    }
+    expect(new Set(drawn.map((entry) => entry.y))).toEqual(new Set([word.y]));
+    // With motion a word pops: it is drawn a little too big at first, and rises as it stands.
+    const lively = createStage(1);
+    enterGate(lively, plain, 0);
+    dropEntries(lively, FRAME, time);
+    const heights: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const glass = recorder();
+      drawOverlay(glass.context, lively);
+      heights.push(glass.texts.filter((entry) => entry.text === ENTRY_WORDS.start)[0].y);
+      ageStage(lively, FRAME);
+    }
+    expect(heights[19]).toBeLessThan(heights[0] - 2);
+  });
+
+  it('lights no lamp where nothing may move either, for a spin the screen took as the medal came over the lip', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    // As the cabinet does it in one frame: the medal is noted, the stage is told the machine holds nothing, and the medal drops at once.
+    enterGate(stage, plain, 0);
+    expect(holdShown(stage, 0, 0)).toMatchObject({ stock: 0, taken: 1 });
+    expect(dropEntries(stage, FRAME, time, true)).toHaveLength(1);
+    expect(stage.gateGlow[1]).toBe(GLOW_TIME);
+    expect(words(stage)).toHaveLength(1);
+    expect(stage.entries).toHaveLength(0);
+    expect(stage.holdGlow.every((glow) => glow === 0)).toBe(true);
+    expect(holdShown(stage, 0, 0)).toEqual({ stock: 0, gold: 0, taken: 0, gilt: 0 });
+  });
+
+  it('sends no spark for a spin the screen has taken already: a medal that finds the screen free starts its spin as it comes over the lip, and that spin is never a lamp', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    enterGate(stage, plain, CATCHER.sink);
+    // The machine holds nothing: the spin this medal held is on the screen.
+    expect(holdShown(stage, 0, 0)).toEqual({ stock: 0, gold: 0, taken: 1, gilt: 0 });
+    for (let frames = 0; frames < 200 && dropEntries(stage, FRAME, time).length === 0; frames++) {
+      ageStage(stage, FRAME);
+      holdShown(stage, 0, 0);
+    }
+    // The slot bursts and the word stands over it all the same; but nothing sets out for the hold, and no lamp shines.
+    expect(stage.gateGlow[1]).toBe(GLOW_TIME);
+    expect(words(stage)[0]).toMatchObject({ text: ENTRY_WORDS.start });
+    expect(stage.sparks).toHaveLength(BURST.sparks);
+    expect(stage.entries).toHaveLength(0);
+    for (let i = 0; i < 40; i++) ageStage(stage, FRAME);
+    expect(stage.holdGlow.every((glow) => glow === 0)).toBe(true);
+    expect(holdShown(stage, 0, 0)).toEqual({ stock: 0, gold: 0, taken: 0, gilt: 0 });
+  });
+
+  it('has a slot say one thing at a time: the word of a medal that went down it a moment ago gives way to the next one’s, and another slot’s word is left standing', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    holdShown(stage, MAX_STOCK, MAX_STOCK);
+    // Three medals find the hold full, two of them down the same slot a few frames apart.
+    for (const entry of [wasted, { ...wasted, gate: 2 }, wasted]) {
+      enterGate(stage, entry, 0);
+      dropEntries(stage, FRAME, time);
+      for (let i = 0; i < 6; i++) ageStage(stage, FRAME);
+    }
+    const up = words(stage);
+    expect(up.map((popup) => [popup.text, popup.word?.gate])).toEqual([
+      [ENTRY_WORDS.full, 2],
+      [ENTRY_WORDS.full, 1],
+    ]);
+    // The one that stands over the slot two medals went down is the second medal's: the younger of the two that are up.
+    expect(up[1].age).toBeLessThan(up[0].age);
+  });
+
+  it('sends each of several medals’ sparks to its own lamp, in the order they came over, and never past the last lamp', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    // The machine held one spin; then an everyday medal, a lucky one and another everyday one came over, a few frames apart.
+    for (const entry of [plain, lucky, { ...plain, gate: 2 }]) {
+      enterGate(stage, entry, CATCHER.sink);
+      dropEntries(stage, FRAME * 4, time);
+    }
+    expect(holdShown(stage, 4, 1)).toEqual({ stock: 1, gold: 0, taken: 0, gilt: 0 });
+    const [first, second, third] = stage.entries;
+    // The first takes the lamp after the one that is lit. The gold one takes the first lamp, where the gold spins are, and pushes the rest along; so the third takes the fourth.
+    expect([lampFor(stage, first), lampFor(stage, second), lampFor(stage, third)]).toEqual([1, 0, 3]);
+    // With the hold all but full, a spark is still bound for a lamp there is.
+    holdShown(stage, MAX_STOCK + 2, 0);
+    stage.hold = { stock: MAX_STOCK - 1, gold: 0, taken: 0, gilt: 0 };
+    expect(lampFor(stage, third)).toBe(MAX_STOCK - 1);
+    // A slot the stage has no such thing as is not noted.
+    enterGate(stage, { ...plain, gate: 7 }, CATCHER.sink);
+    enterGate(stage, { ...plain, gate: -1 }, CATCHER.sink);
+    expect(stage.entries).toHaveLength(3);
+  });
+
+  it('agrees with the machine over a minute of both rails held: every medal it counts drops a ride later, the lamps never show more than it holds, and show all of it once every medal is in', { timeout: 30_000 }, () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const session = createSession(11, { quickPick: true });
+    session.credits = 1e6;
+    const events: SessionEvent[] = [];
+    let counted = 0;
+    let dropped = 0;
+    let settled = 0;
+    let sparks = 0;
+    for (let frame = 0; frame < 60 * 60; frame++) {
+      insert(session, 0);
+      insert(session, 1);
+      events.length = 0;
+      advance(session, FRAME, events);
+      // As the cabinet does it: what the lip's rule counted in this frame is noted, and what has dropped is answered.
+      for (const event of events) {
+        if (event.type !== 'checker') continue;
+        counted++;
+        enterGate(stage, event, CATCHER.sink);
+      }
+      holdShown(stage, session.stock, session.gold);
+      const fell = dropEntries(stage, FRAME, session.machine.time);
+      dropped += fell.length;
+      sparks += stage.entries.filter((entry) => entry.run === 0).length;
+      // Each has been on its way a ride, to the frame, and none longer.
+      for (const entry of stage.entries) if (!entry.dropped) expect(entry.left).toBeGreaterThan(0);
+      const hold = holdShown(stage, session.stock, session.gold);
+      expect(hold.stock).toBeGreaterThanOrEqual(0);
+      expect(hold.stock).toBeLessThanOrEqual(session.stock);
+      expect(hold.gold).toBeLessThanOrEqual(Math.min(hold.stock, session.gold));
+      expect(hold.taken + hold.gilt).toBeLessThanOrEqual(stage.entries.length * 2);
+      if (stage.entries.length === 0) {
+        expect([hold.stock, hold.gold, hold.taken, hold.gilt]).toEqual([session.stock, session.gold, 0, 0]);
+        settled++;
+      }
+      for (const entry of stage.entries) if (entry.run >= 0) expect(lampFor(stage, entry)).toBeLessThan(HOLD_COUNT);
+      ageStage(stage, FRAME);
+    }
+    // Plenty of medals went in, each was answered once, and the cabinet was often at rest with nothing on its way.
+    expect(counted).toBeGreaterThan(30);
+    expect(dropped + stage.entries.filter((entry) => !entry.dropped).length).toBe(counted);
+    expect(settled).toBeGreaterThan(600);
+    // Most of them lit a lamp by a spark; the rest found the screen free, or the hold full.
+    expect(sparks).toBeGreaterThan(10);
+    expect(sparks).toBeLessThanOrEqual(dropped);
+  });
+
+  it('draws the lamp a spark has just reached white hot, with a wide bloom round it, whether or not its spin is still held', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    const hot = 2;
+    stage.holdGlow[hot] = GLOW_TIME;
+    const screen = recorder();
+    // The hold shows one spin: the lamp that shines is not one of the lit ones.
+    drawField(screen.context, stage, machine, { showGuide: false, stock: 1 });
+    const circles = (lamp: number) => {
+      const at = lampAt(lamp);
+      return screen.fills.filter((fill) => fill.points.length === 0 && fill.rounds.length === 1 && Math.hypot(fill.rounds[0].x - at.x, fill.rounds[0].y - at.y) < 1e-6);
+    };
+    for (let lamp = 0; lamp < HOLD_COUNT; lamp++) {
+      const white = circles(lamp).filter((fill) => fill.style === 'rgba(255, 255, 255, 1)');
+      const bloom = circles(lamp).filter((fill) => fill.style === 'rgba(255, 251, 224, 0.5)');
+      expect([white.length, bloom.length]).toEqual(lamp === hot ? [1, 1] : [0, 0]);
+      if (lamp !== hot) continue;
+      // Over its own body, and a good deal wider than a lit lamp's glow.
+      const body = HOLD_LAMPS.radius * lampAt(lamp).scale;
+      expect(white[0].rounds[0].r).toBeGreaterThan(body);
+      expect(bloom[0].rounds[0].r).toBeGreaterThan(body * 4);
+    }
+    // As the shine fades, so does the lamp, and then it is drawn as it was.
+    ageStage(stage, GLOW_TIME / 2);
+    const fading = recorder();
+    drawField(fading.context, stage, machine, { showGuide: false, stock: 1 });
+    expect(fading.fills.some((fill) => fill.style === 'rgba(255, 255, 255, 0.5)')).toBe(true);
+    ageStage(stage, GLOW_TIME);
+    const after = recorder();
+    drawField(after.context, stage, machine, { showGuide: false, stock: 1 });
+    expect(after.fills.some((fill) => fill.style.startsWith('rgba(255, 255, 255, '))).toBe(false);
   });
 });

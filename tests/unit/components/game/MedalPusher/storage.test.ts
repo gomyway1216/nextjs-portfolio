@@ -28,10 +28,11 @@ import {
   queuePayout,
   seededRng,
   tipOf,
+  towerSizes,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { POUR, shutHopper } from '@/components/game/MedalPusher/hopper';
-import { LIFT, holds, liftAtWork, type Lift } from '@/components/game/MedalPusher/lift';
+import { LIFT, holds, liftAtWork, stands, type Lift } from '@/components/game/MedalPusher/lift';
 import { chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
   BOARD,
@@ -3337,9 +3338,15 @@ describe('a save written when the arms were short and a fed medal went straight 
     // And each of the medals that was on its way then lies where that game's machine left it, to within a
     // third of a medal's radius. It was to the last digit until the towers had lifts: a prize of ten comes up
     // as a tower in these four seconds, and a tower in its guard is not leant aside by its neighbours as that
-    // game's was. They give way to it instead, which moves the medals round it by a fraction of a unit.
+    // game's was. They give way to it instead, which moves the medals round it by a fraction of a unit. The
+    // lift takes its time now, so the tower is still coming up in its guard when the four seconds are out,
+    // eight of its ten medals high, where that game's stood built.
     expect(then.resting).toHaveLength(5);
-    expect(back.machine.medals.filter((m) => m.stack === 10)).toHaveLength(1);
+    const coming = back.machine.medals.filter((m) => m.stack + m.grow === 10);
+    expect(coming).toHaveLength(1);
+    expect(coming[0].stack).toBeGreaterThan(1);
+    expect(coming[0].stack).toBeLessThan(10);
+    expect(back.machine.lifts.filter(holds).map((lift) => lift.id)).toEqual([coming[0].id]);
     for (const rest of then.resting) {
       const medal = back.machine.medals.find((m) => m.id === rest.id);
       expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
@@ -3762,7 +3769,7 @@ describe('a save written the day before the lucky lamp', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on exactly as the game that wrote it did: its chance time out to the last gold spin, every medal of it through a slot squarely enough for today’s wings', () => {
+  it('plays on as the game that wrote it did on the screen and in the hopper, its chance time out to the last gold spin, and on the field as nearly as a slower lift lets it', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
     expect(medalsOnField(back.machine)).toBe(then.onField);
@@ -3787,16 +3794,26 @@ describe('a save written the day before the lucky lamp', () => {
       }
     }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The field is that game's field: as many medals landed, over the front and off the sides, and as many left lying.
-    expect([total(events, 'landed'), total(events, 'won'), total(events, 'lost'), medalsOnField(back.machine)]).toEqual([then.landed, then.won, then.lost, then.onFieldAfter]);
-    // Today's wings open less wide than a pocket was. Every medal that went through one in these twelve seconds came
-    // over squarely enough for today's all the same, so the same medals go through the same slots. Each of them
-    // found the hold full, then and now: the first turned the last ordinary spin gold, and the rest were wasted. None
-    // was held, so the lamp and the wings made no spin gold that was not gold in that game.
+    // As many medals landed as in that game. The field was that game's field to the medal until the lifts were
+    // slowed: the tower of three that was coming up in this save stood built in half a second then, and today it
+    // comes up at a watchable pace and stands a moment in its guard, three quarters of a second longer in all. A
+    // tower in its guard is not pushed, so the medals round it go another way for that long, and after twelve
+    // seconds nine more of them have gone over the front and three more out of the sides. Not one is lost or made.
+    const [won, lost] = [total(events, 'won'), total(events, 'lost')];
+    expect(total(events, 'landed')).toBe(then.landed);
+    expect([won - then.won, lost - then.lost]).toEqual([9, 3]);
+    expect(medalsOnField(back.machine) + won + lost).toBe(then.onFieldAfter + then.won + then.lost);
+    // Today's wings open less wide than a pocket was. Every medal that went through one in that game's twelve
+    // seconds came over squarely enough for today's all the same, and the same medals go through the same slots
+    // here; one more follows them, on the field as it now goes. Each of them found the hold full, then and now: the
+    // first turned the last ordinary spin gold, and the rest were wasted. None was held, so the lamp and the wings
+    // made no spin gold that was not gold in that game.
     expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
     expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets.map(({ gate, held, gold }) => ({ pocket: gate, held, gold }))).toEqual(then.pockets);
+    const through = pockets.map(({ gate, held, gold }) => ({ pocket: gate, held, gold }));
+    expect(through.slice(0, then.pockets.length)).toEqual(then.pockets);
+    expect(through.slice(then.pockets.length)).toEqual([{ pocket: 0, held: false, gold: false }]);
     expect(pockets.length).toBeGreaterThanOrEqual(4);
     expect(pockets.every((event) => !event.held && !event.lucky)).toBe(true);
     expect(pockets.map((event) => event.gold)).toEqual([true, ...pockets.slice(1).map(() => false)]);
@@ -3810,23 +3827,29 @@ describe('a save written the day before the lucky lamp', () => {
     expect(square).toHaveLength(1);
     expect(square[0].payout).toBe(BOARD[square[0].square] * CHANCE.multiplier);
     expect(square[0].payout).toBe(then.paid);
-    // The payout works do what they did, in the same steps: the tower that was coming up is built, and the board's
-    // prize is poured.
-    expect(works).toEqual(then.works);
+    // The payout works do what they did: the tower that was coming up is built, and the board's prize is poured, in
+    // the very steps it was poured in then. The tower is let go later than it was: its lift had 0.35 of a second
+    // to its first medal, as the save says, and from there today's takes its two medals' time and a moment's standing.
+    expect(works.map(({ event }) => event)).toEqual(then.works.map(({ event }) => event));
     expect(works.map(({ event }) => event.type)).toEqual(['towersReady', 'pourStart', 'pourEnd']);
+    expect(works.slice(1)).toEqual(then.works.slice(1));
+    const stood = (old().machine.lifts as Lift[])[0].wait + 2 / TOWER.perSecond + LIFT.stands;
+    expect(Math.abs(works[0].step * DT - stood)).toBeLessThanOrEqual(3 * DT);
+    expect(works[0].step).toBeGreaterThan(then.works[0].step);
     expect(back.machine.hopper).toEqual(then.hopper);
     expect([back.machine.payoutQueue, back.machine.growing, back.machine.lifts]).toEqual([then.payoutQueue, then.growing, []]);
     // Chance time ends once, with the last gold spin, as it did then: by today's rule and by that game's.
     expect(then.chanceEnds).toBe(1);
     expect(events.filter((event) => event.type === 'chanceEnd' || event.type === 'chanceStart')).toEqual([{ type: 'chanceEnd' }]);
     expect([back.rush, chanceLeft(back), then.chanceLeft]).toEqual([false, 0, 0]);
-    // And the books are that game's books, to the medal.
+    // And the books are that game's books, but for what the field did differently: the nine more medals that came
+    // over the front, and the one more through a pocket, which found the hold full.
     expect([back.credits, back.hits, back.stock, back.spins, back.wasted, back.gold, back.gilded, back.paidOut]).toEqual([
-      then.credits,
-      then.hits,
+      then.credits + 9,
+      then.hits + 1,
       then.stock,
       then.spins,
-      then.wasted,
+      then.wasted + 1,
       then.gold,
       then.gilded,
       then.paidOut,
@@ -4702,14 +4725,17 @@ describe('a save written before the payout works, the three bowls and the jewels
     expect(emptied).toBeLessThan(waiting / 9 / 2);
     // Both towers are finished first, together, and stand free. The ball then goes into the top bowl of today's
     // three, where that game had one bowl, and what its hole pays goes up as more towers after them.
-    expect(events.filter((event) => event.type === 'towersReady')[0]).toEqual({ type: 'towersReady', towers: 2 });
+    expect(events.filter((event) => event.type === 'towersReady')).toEqual([{ type: 'towersReady', towers: 2 }]);
     const hole = events.find((event) => event.type === 'bowlEnd');
     expect(hole).toMatchObject({ bowl: 0, payout: 50, poured: pouredOf(50), jackpot: false });
     // Fifteen loose medals are too few to open the doors for: they come out of the slot, and the doors have opened once.
     expect(events.filter((event) => event.type === 'pourStart')).toHaveLength(1);
     expect(back.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: waiting });
     expect(back.machine.growing).toBe(then.growing);
-    expect(back.machine.lifts).toEqual([]);
+    // Those towers come up slowly, as towers now do: when the twelve seconds are out each has its last medal and
+    // stands in its guard, a moment from being let go.
+    expect(back.machine.lifts.map((lift) => [lift.size, stands(lift)])).toEqual(towerSizes(50 - pouredOf(50)).map((size) => [size, true]));
+    for (const lift of back.machine.lifts) expect(back.machine.medals.find((medal) => medal.id === lift.id)).toMatchObject({ stack: lift.size, grow: 0 });
     // Every medal is accounted for, as it was in that game: what lies on the field and what has left it are what was there and what has been paid since.
     expect(then.onFieldAfter + then.won + then.lost).toBe(then.onField + then.paidOut - paid);
     expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(then.onField + back.paidOut - paid);
@@ -4837,15 +4863,19 @@ describe('a save written the day before the payout works', () => {
       }
     }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The two towers that were going up are built first, together, in the time their last three medals take.
+    // The two towers that were going up are built first, together, in the time their last three medals take and a
+    // moment's standing: within a second and a bit, where it was a sixth of a second, so the jewel has gone over by then.
     const works = events.filter((event) => event.type === 'towersReady' || event.type === 'towersRise' || event.type === 'pourStart' || event.type === 'pourEnd');
     expect(works[0]).toEqual({ type: 'towersReady', towers: 2 });
-    expect(events.findIndex((event) => event.type === 'towersReady')).toBeLessThan(events.findIndex((event) => event.type === 'jewel'));
+    const built = events.findIndex((event) => event.type === 'towersReady');
+    expect(built).toBeGreaterThan(events.findIndex((event) => event.type === 'jewel'));
+    expect(built).toBeLessThan(events.findIndex((event) => event.type === 'bowlEnd'));
     // The jewel that lay at the front edge goes over in the very step it did in that game, and lights the second lamp.
     expect(said).toEqual(then.jewels);
     expect([back.jewels, back.jewelBonuses]).toEqual([then.lamps, then.jewelBonuses]);
     // So does the ball drop, into the hole that was drawn for it, for the same medals split the same way: fifteen
-    // loose and the rest as two towers, which come up on their lifts and stand built before the twelve seconds are out.
+    // loose and the rest as two towers, which come up on their lifts and are let go before the twelve seconds are
+    // out, the smaller a medal's time before the taller. Their guards are still on the way down.
     expect(ended).toBe(then.ended);
     expect(events.filter((event) => event.type === 'bowlEnd')).toEqual([then.end]);
     expect(then.end).toMatchObject({ payout: 50, poured: pouredOf(50), jackpot: false });
@@ -4856,7 +4886,8 @@ describe('a save written the day before the payout works', () => {
     ]);
     // Fifteen and a jewel's one are too few to open the doors for: they came out of the slot, and the hopper has never poured.
     expect(back.machine.hopper).toEqual(shutHopper());
-    expect([back.machine.payoutQueue, back.machine.growing, back.machine.lifts]).toEqual([then.payoutQueue, then.growing, []]);
+    expect([back.machine.payoutQueue, back.machine.growing]).toEqual([then.payoutQueue, then.growing]);
+    expect(back.machine.lifts.map((lift) => [lift.size, holds(lift), lift.sunk < LIFT.closes])).toEqual(towerSizes(50 - pouredOf(50)).map((size) => [size, false, true]));
     // What the machine has paid is what that game's machine paid, and every medal is accounted for, as it was there.
     expect(back.paidOut).toBe(then.paidOut);
     expect(back.paidOut - paid).toBe(then.paid);
@@ -4970,6 +5001,8 @@ describe('the payout works in a save', () => {
     ['the last medal gone and the doors being drawn shut', (s) => s.machine.hopper.phase === 'closing' && s.machine.hopper.clock > 0.2],
     ['the towers built and their guards sinking', (s) => s.machine.lifts.length > 0 && s.machine.lifts.every((lift) => lift.sunk > 0.1)],
     ['everything at rest again, the hopper still saying what it poured', (s) => s.machine.hopper.phase === 'shut' && s.machine.lifts.length === 0 && s.machine.hopper.poured === 70],
+    // Last, so that the moments before it keep their places in the list.
+    ['the towers built and standing in their guards for a moment', (s) => s.machine.lifts.length > 0 && s.machine.lifts.every((lift) => stands(lift) && lift.sunk > -LIFT.stands / 2)],
   ];
 
   it.each(MOMENTS)('keeps %s, and plays on from there as the session does', (_name, when) => {
@@ -5053,7 +5086,19 @@ describe('the payout works in a save', () => {
     ],
     ['a guard that is up, with its tower built, and not sinking', 3, (save) => (liftsIn(save)[0].sunk = -1)],
     ['a guard sinking round a tower that is still coming up', 1, (save) => (liftsIn(save)[0].sunk = 0.1)],
-    ['a guard that is neither up nor sinking', 1, (save) => (liftsIn(save)[0].sunk = -0.5)],
+    ['a tower said to be built and standing in its guard, with medals still to come', 1, (save) => (liftsIn(save)[0].sunk = -LIFT.stands / 2)],
+    ['a tower said to be standing in its guard while the guard is still rising', 0, (save) => (liftsIn(save)[0].sunk = -LIFT.stands / 2)],
+    ['a tower with longer yet to stand in its guard than towers stand', 5, (save) => (liftsIn(save)[0].sunk = -LIFT.stands - 0.01)],
+    ['a tower standing in its guard for as long as one that is not built', 5, (save) => (liftsIn(save)[0].sunk = -0.99)],
+    ['a tower standing in its guard somewhere other than on its lift', 5, (save) => (towerOn(save, liftsIn(save)[0]).x = (liftsIn(save)[0].x as number) + 1)],
+    [
+      'a guard standing round a tower that is not there',
+      5,
+      (save) => {
+        const [lift] = liftsIn(save);
+        save.machine.medals = save.machine.medals.filter((medal) => medal.id !== lift.id);
+      },
+    ],
     ['a guard rising and sinking at once', 0, (save) => (liftsIn(save)[0].sunk = 0.1)],
     ['a guard that has sunk for as long as it takes and is still there', 3, (save) => (liftsIn(save)[0].sunk = LIFT.closes)],
     ['a hatch that takes longer to open than it does', 0, (save) => (liftsIn(save)[0].wait = LIFT.opens + 0.01)],
@@ -5110,6 +5155,66 @@ describe('the payout works in a save', () => {
       back = restore(serialize(back), 1);
     }
     expect(back).not.toBeNull();
+  });
+
+  it('keeps a tower that stands built in its guard held until its moment is up, and lets it go then', () => {
+    const session = caught(MOMENTS[5][1]);
+    const back = restore(serialize(session), 1) as Session;
+    expect(back).not.toBeNull();
+    expect(back.machine.lifts.every((lift) => holds(lift) && stands(lift))).toBe(true);
+    for (const lift of back.machine.lifts) {
+      expect(lift.sunk).toBeGreaterThan(-LIFT.stands);
+      expect(lift.sunk).toBeLessThan(0);
+      expect(back.machine.medals.find((medal) => medal.id === lift.id)).toMatchObject({ stack: lift.size, grow: 0, tier: 0, level: 1 });
+    }
+    const left = -back.machine.lifts[0].sunk;
+    const events: SessionEvent[] = [];
+    let steps = 0;
+    while (back.machine.lifts.some(holds) && steps < 120) {
+      advance(back, DT, events);
+      steps += 1;
+      for (const lift of back.machine.lifts.filter(holds)) {
+        const tower = back.machine.medals.find((medal) => medal.id === lift.id);
+        expect(tower?.x).toBeCloseTo(lift.x, 6);
+        expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
+      }
+    }
+    expect(Math.abs(steps * DT - left)).toBeLessThanOrEqual(2 * DT);
+    expect(events.filter((event) => event.type === 'towersReady')).toEqual([{ type: 'towersReady', towers: 3 }]);
+    // A tower never stands for as long as a second, so a lift's one clock tells standing from not yet built.
+    expect(LIFT.stands).toBeLessThan(1);
+  });
+
+  it('reads a lift as the game wrote it while a hatch took half a second to open and a guard less than that to sink: every number means what it meant', () => {
+    // The lifts were slowed without a new version. A save of this version from before holds a wait of up to half a
+    // second, which is still that long before the first medal, and a guard that has sunk for up to 0.45, which has
+    // still sunk for that long; it holds no tower standing in its guard, which that game did not have.
+    const THEN = { opens: 0.5, closes: 0.45 } as const;
+    expect(THEN.opens).toBeLessThan(LIFT.opens);
+    expect(THEN.closes).toBeLessThan(LIFT.closes);
+    const opening = at(0);
+    for (const lift of liftsIn(opening)) lift.wait = THEN.opens;
+    const first = restore(JSON.stringify(opening), 1) as Session;
+    expect(first).not.toBeNull();
+    let steps = 0;
+    while (first.machine.medals.every((medal) => medal.grow === 0 || medal.stack === 1) && steps < 240) {
+      advance(first, DT);
+      steps += 1;
+    }
+    // The first medal comes up half a second on and a medal's time after that, as its lift said.
+    expect(Math.abs(steps * DT - (THEN.opens + 1 / TOWER.perSecond))).toBeLessThanOrEqual(3 * DT);
+    const sinking = at(3);
+    for (const lift of liftsIn(sinking)) lift.sunk = THEN.closes - 0.01;
+    const second = restore(JSON.stringify(sinking), 1) as Session;
+    expect(second).not.toBeNull();
+    // Its towers are free, as they were: nothing holds them, and the guards are gone when the rest of their way down is.
+    expect(second.machine.lifts.some(holds)).toBe(false);
+    steps = 0;
+    while (second.machine.lifts.length > 0 && steps < 240) {
+      advance(second, DT);
+      steps += 1;
+    }
+    expect(Math.abs(steps * DT - (LIFT.closes - THEN.closes + 0.01))).toBeLessThanOrEqual(2 * DT);
   });
 
   it('takes a guard that is sinking with its tower already pushed away and gone over', () => {

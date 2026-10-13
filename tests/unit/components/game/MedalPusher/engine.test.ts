@@ -1186,7 +1186,7 @@ describe('medal towers', () => {
     expect(towers().every((tower) => tower.stack === 1)).toBe(true);
     expect(machine.growing).toBe(96);
     // Going up, a tower shoulders its neighbours aside, and some of them leave the field.
-    const early = step(machine, 0.55);
+    const early = step(machine, 0.05 + 3.5 / TOWER.perSecond);
     expect(towers().every((tower) => tower.stack > 3 && tower.stack < 25)).toBe(true);
     early.won += opening.won;
     early.lost += opening.lost;

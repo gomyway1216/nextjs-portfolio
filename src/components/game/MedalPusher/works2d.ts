@@ -1,21 +1,23 @@
 /**
  * The payout works on the canvas: the hopper's two doors in the hood's face
- * with the medals pouring out of them, and the tower lifts' guards on the
- * pusher. It draws what works.ts says is there and decides nothing. The
- * canvas renderer calls it at two places: `drawLifts` once the pusher's
- * medals are down, and `drawHopper` once the hood has been laid over
- * whatever is still inside it.
+ * with the medals pouring out of them, the tower lifts' hatches in the
+ * pusher's deck, and their guards with the towers coming up inside them. It
+ * draws what works.ts says is there and decides nothing. The canvas renderer
+ * calls it at three places: `drawHatches` once the deck is down and before
+ * any medal is, `drawLifts` once the pusher's medals are down, and
+ * `drawHopper` once the hood has been laid over whatever is still inside it.
  *
- * It takes nothing from render.ts, which takes these two from it: what it
+ * It takes nothing from render.ts, which takes these three from it: what it
  * needs of the renderer, a medal's stamp and a tower's column, is handed in.
  */
 
-import { MEDAL_RADIUS, type Machine, type Medal } from './engine';
+import { MEDAL_RADIUS, MEDAL_THICKNESS, type Machine, type Medal } from './engine';
 import { DOORS, POUR } from './hopper';
-import { DECK, DOOR, GUARD, chuteShows, doorLampLit, doorSwing, liftViews, onFlap, pourPose, type LiftView } from './works';
-import { project, type Projected } from './view';
+import { DECK, DOOR, GUARD, DECK_HATCH, chuteShows, doorLampLit, doorSwing, hatchViews, lampGlow, liftViews, onFlap, onLift, pourPose, type HatchView, type LiftView } from './works';
+import { project, rise, type Projected } from './view';
 
 const R = MEDAL_RADIUS;
+const T = MEDAL_THICKNESS;
 const TAU = Math.PI * 2;
 
 const trace = (g: CanvasRenderingContext2D, points: readonly Projected[]): void => {
@@ -200,22 +202,214 @@ export function drawHopper(
   flat();
 }
 
-/** The ring in the deck round a lift's hatch and the clear sleeve that stands in it, with its collar and its lamp. */
+/**
+ * The arcs of a hatch's ring of light, from arc `first` on for `count` of
+ * them, each handed to `lay` with the angles it runs between on the drawing
+ * and how bright it is. Arcs that are next to each other and equally bright
+ * are handed over as one, so a ring that is lit and still is one stroke with
+ * no seams in it. The first arc begins at the back of the deck, which is up
+ * the drawing, and they run round toward the right.
+ */
+function ringArcs(hatch: Pick<HatchView, 'lamps' | 'chase'>, time: number, calm: boolean, first: number, count: number, lay: (from: number, to: number, glow: number) => void): void {
+  const each = TAU / DECK_HATCH.lamps;
+  const angle = (arc: number): number => -Math.PI / 2 + (first + arc) * each;
+  let began = 0;
+  let level = 0;
+  for (let arc = 0; arc <= count; arc++) {
+    const glow = arc < count ? lampGlow(hatch, (first + arc) % DECK_HATCH.lamps, time, calm) : 0;
+    if (Math.abs(glow - level) < 1e-3 && arc < count) continue;
+    if (level > 0) lay(angle(began), angle(arc), level);
+    began = arc;
+    level = glow;
+  }
+}
+
+/**
+ * One hatch in the deck, seen from above and in front: the collar, the two
+ * doors and the seam they meet along, the dark of the shaft where they have
+ * slid apart, and as much of the ring of light in the collar as is lit. It
+ * is laid on the deck before any medal, so whatever lies on it covers it.
+ */
+function drawHatch(g: CanvasRenderingContext2D, hatch: HatchView, time: number, calm: boolean): void {
+  const at = project(hatch.x, DECK, hatch.y);
+  const rx = DECK_HATCH.radius * at.scale;
+  const ry = rx * at.tilt;
+  const ox = DECK_HATCH.collar * at.scale;
+  // The collar: a band let into the deck, a shade darker than it, with a bright edge.
+  g.fillStyle = 'rgba(6, 26, 52, 0.42)';
+  g.beginPath();
+  g.ellipse(at.x, at.y, ox, ox * at.tilt, 0, 0, TAU);
+  g.fill();
+  g.strokeStyle = 'rgba(214, 248, 255, 0.4)';
+  g.lineWidth = 1;
+  g.stroke();
+  // The doors: brushed steel, lighter toward the player.
+  const steel = g.createLinearGradient(0, at.y - ry, 0, at.y + ry);
+  steel.addColorStop(0, '#5f7fa6');
+  steel.addColorStop(1, '#a9c6e2');
+  g.fillStyle = steel;
+  g.beginPath();
+  g.ellipse(at.x, at.y, rx, ry, 0, 0, TAU);
+  g.fill();
+  if (hatch.doors > 0.01) {
+    // The shaft between them, and the bright edge of each door.
+    const half = rx * hatch.doors;
+    g.save();
+    g.clip();
+    const dark = g.createLinearGradient(0, at.y - ry, 0, at.y + ry);
+    dark.addColorStop(0, '#1b2a44');
+    dark.addColorStop(0.45, '#04060e');
+    dark.addColorStop(1, '#000000');
+    g.fillStyle = dark;
+    g.fillRect(at.x - half, at.y - ry, half * 2, ry * 2);
+    if (hatch.doors < 0.99) {
+      g.strokeStyle = 'rgba(236, 252, 255, 0.85)';
+      g.lineWidth = 1.2;
+      g.beginPath();
+      g.moveTo(at.x - half, at.y - ry);
+      g.lineTo(at.x - half, at.y + ry);
+      g.moveTo(at.x + half, at.y - ry);
+      g.lineTo(at.x + half, at.y + ry);
+      g.stroke();
+    }
+    g.restore();
+  } else {
+    // The seam they meet along, from the back of the deck to the front.
+    const back = project(hatch.x, DECK, hatch.y - DECK_HATCH.radius);
+    const near = project(hatch.x, DECK, hatch.y + DECK_HATCH.radius);
+    g.strokeStyle = 'rgba(6, 26, 52, 0.75)';
+    g.lineWidth = 1.2;
+    stroke(g, back, near);
+  }
+  g.strokeStyle = 'rgba(6, 26, 52, 0.8)';
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.ellipse(at.x, at.y, rx, ry, 0, 0, TAU);
+  g.stroke();
+  if (hatch.lamps <= 0) return;
+  // The ring of light: the collar itself, from the mouth's edge to its own, as much of it as is lit.
+  ringArcs(hatch, time, calm, 0, DECK_HATCH.lamps, (from, to, glow) => {
+    g.fillStyle = `rgba(255, 228, 130, ${0.3 + 0.7 * glow})`;
+    g.beginPath();
+    g.ellipse(at.x, at.y, ox, ox * at.tilt, 0, from, to);
+    g.ellipse(at.x, at.y, rx, ry, 0, to, from, true);
+    g.closePath();
+    g.fill();
+  });
+}
+
+/**
+ * Every hatch in the pusher's deck, the ones at rest and the ones at work:
+ * drawn on the deck itself, before the medals that lie on it.
+ */
+export function drawHatches(g: CanvasRenderingContext2D, k: number, machine: Machine, front: number, calm: boolean, shift: number): void {
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.lineCap = 'butt';
+  for (const hatch of hatchViews(liftViews(machine, front, calm), front)) drawHatch(g, hatch, machine.time, calm);
+}
+
+/**
+ * The tower a lift still holds, as far up through its hatch as it has come:
+ * its top medal alone, in the mouth of the shaft, before the first medal has
+ * come up under it, and after that a column from the deck to its top with a
+ * line for every medal, each line a medal's thickness under the last and all
+ * of them rising with it. `face` stamps the top medal's face.
+ */
+function drawRising(g: CanvasRenderingContext2D, view: LiftView, face: (point: Projected, id: number) => void): void {
+  const { tower } = view;
+  if (!tower || view.light <= 0.01) return;
+  const head = project(view.x, DECK + view.top, view.y);
+  if (view.top <= 0.02) {
+    // Down the shaft: seen through the mouth, and only as much as the light reaches.
+    const at = project(view.x, DECK, view.y);
+    const rx = DECK_HATCH.radius * at.scale;
+    g.save();
+    g.beginPath();
+    g.ellipse(at.x, at.y, rx, rx * at.tilt, 0, 0, TAU);
+    g.clip();
+    g.globalAlpha = view.light;
+    face(head, tower.id);
+    g.restore();
+    g.globalAlpha = 1;
+    return;
+  }
+  const foot = project(view.x, DECK, view.y);
+  const rx0 = R * foot.scale;
+  const ry0 = rx0 * foot.tilt;
+  const rx1 = R * head.scale;
+  const ry1 = rx1 * head.tilt;
+  // The shadow it throws across the medals beside it, which grows with it.
+  g.fillStyle = `rgba(0, 0, 14, ${0.3 * Math.min(1, view.top / (T * 4))})`;
+  g.beginPath();
+  g.ellipse(foot.x + rx0 * 0.9, foot.y + ry0 * 0.35, rx0 * 1.5, ry0 * 0.9, 0, 0, TAU);
+  g.fill();
+  const shade = g.createLinearGradient(foot.x - rx0, 0, foot.x + rx0, 0);
+  shade.addColorStop(0, '#7a4f06');
+  shade.addColorStop(0.28, '#ffe07a');
+  shade.addColorStop(0.42, '#f6cb55');
+  shade.addColorStop(0.7, '#c98c14');
+  shade.addColorStop(1, '#6b4304');
+  g.fillStyle = shade;
+  g.beginPath();
+  g.moveTo(head.x - rx1, head.y);
+  g.lineTo(foot.x - rx0, foot.y);
+  g.ellipse(foot.x, foot.y, rx0, ry0, 0, Math.PI, 0, true);
+  g.lineTo(head.x + rx1, head.y);
+  g.closePath();
+  g.fill();
+  // The line under each medal, counted down from the top: they come up out of the deck with the tower.
+  g.strokeStyle = 'rgba(88, 54, 0, 0.6)';
+  g.lineWidth = Math.min(1, T * rise(foot) * 0.3);
+  g.beginPath();
+  for (let down = T; down < view.top - 0.02; down += T) {
+    const f = 1 - down / view.top;
+    const cx = foot.x + (head.x - foot.x) * f;
+    const cy = foot.y + (head.y - foot.y) * f;
+    const rx = rx0 + (rx1 - rx0) * f;
+    g.moveTo(cx + rx, cy);
+    g.ellipse(cx, cy, rx, ry0 + (ry1 - ry0) * f, 0, 0, Math.PI);
+  }
+  g.stroke();
+  face(head, tower.id);
+}
+
+/**
+ * The light a hatch's ring throws on whatever lies over it and round it:
+ * the ring again, over the medals, with a glow about it, as bright arc by
+ * arc as the ring is lit. It is laid on in two halves, the far one before
+ * the tower is drawn and the `near` one after, since the tower stands
+ * between them. Once the tower is let go it is a tower like any other, drawn
+ * before any lift is, and it stands in front of the far half: so of a ring
+ * whose lift has let its tower go only the near half is laid on. `k` is how
+ * many pixels of the canvas a pixel of the drawing is: a glow is measured in
+ * the canvas's own.
+ */
+function drawRingLight(g: CanvasRenderingContext2D, k: number, view: LiftView, time: number, calm: boolean, near: boolean): void {
+  if (view.lamps <= 0 || (!near && !view.working)) return;
+  const at = project(view.x, DECK + 0.05, view.y);
+  const wide = (DECK_HATCH.collar - DECK_HATCH.radius) * at.scale;
+  const rx = ((DECK_HATCH.collar + DECK_HATCH.radius) / 2) * at.scale;
+  const ry = rx * at.tilt;
+  const half = DECK_HATCH.lamps / 2;
+  g.lineWidth = wide;
+  g.lineCap = 'butt';
+  g.shadowBlur = DECK_HATCH.glow * at.scale * k;
+  // The near half is the arcs from a quarter of the way round to three quarters: from the right, round the front, to the left.
+  ringArcs({ lamps: view.lamps, chase: view.building }, time, calm, near ? half / 2 : half + half / 2, half, (from, to, glow) => {
+    g.strokeStyle = `rgba(255, 214, 92, ${0.25 + 0.75 * glow})`;
+    g.shadowColor = `rgba(255, 214, 92, ${glow})`;
+    g.beginPath();
+    g.ellipse(at.x, at.y, rx, ry, 0, from, to);
+    g.stroke();
+  });
+  g.shadowBlur = 0;
+}
+
+/** The clear sleeve that stands in a lift's ring of light, with its collar and its lamp. */
 function drawGuard(g: CanvasRenderingContext2D, view: LiftView): void {
   const foot = project(view.x, DECK + 0.05, view.y);
   const rx = GUARD.radius * foot.scale;
   const ry = rx * foot.tilt;
-  // The ring: the half of it that is nearer than the tower. It is lit while the lift is at work.
-  g.lineWidth = GUARD.ring * foot.scale;
-  g.strokeStyle = view.working ? '#ffd65c' : '#8d97b8';
-  if (view.working) {
-    g.shadowColor = 'rgba(255, 214, 92, 0.9)';
-    g.shadowBlur = 6;
-  }
-  g.beginPath();
-  g.ellipse(foot.x, foot.y, rx + g.lineWidth / 2, ry + (g.lineWidth / 2) * foot.tilt, 0, 0, Math.PI);
-  g.stroke();
-  g.shadowBlur = 0;
   if (view.rim <= 0.05) return;
   const head = project(view.x, DECK + view.rim, view.y);
   const hx = GUARD.radius * head.scale;
@@ -279,21 +473,37 @@ function drawGuard(g: CanvasRenderingContext2D, view: LiftView): void {
 
 /**
  * The tower lifts that are at work, over the pusher's medals, from the back
- * forward. A sleeve is drawn over its own tower, which shows through it, and
- * then every tower that stands nearer than it and across it is drawn again
- * with `redraw`, since that one is in front of the sleeve.
+ * forward: the light of each one's ring on what lies round its hatch, the
+ * tower it still holds, as far up through its hatch as it has come, and its
+ * sleeve over that, which the tower shows through. Then every
+ * free tower that stands nearer than the sleeve and across it is drawn again
+ * with `redraw`, since that one is in front of it. `face` stamps a medal's
+ * face at a point of the drawing.
  */
-export function drawLifts(g: CanvasRenderingContext2D, k: number, machine: Machine, front: number, calm: boolean, shift: number, redraw: (tower: Medal) => void): void {
+export function drawLifts(
+  g: CanvasRenderingContext2D,
+  k: number,
+  machine: Machine,
+  front: number,
+  calm: boolean,
+  shift: number,
+  redraw: (tower: Medal) => void,
+  face: (point: Projected, id: number) => void,
+): void {
   if (machine.lifts.length === 0) return;
   const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
   const views = liftViews(machine, front, calm);
   const reach = GUARD.radius + R;
   for (const view of views) {
     flat();
+    drawRingLight(g, k, view, machine.time, calm, false);
+    drawRising(g, view, face);
+    flat();
+    drawRingLight(g, k, view, machine.time, calm, true);
     drawGuard(g, view);
-    // One of them that has a guard of its own gets it over itself again when its turn comes, which is later.
+    // One that a lift holds is drawn with its own lift, when its turn comes, which is later.
     for (const medal of machine.medals) {
-      if (medal.level === 1 && medal.stack > 1 && medal.y > view.y && Math.abs(medal.x - view.x) < reach) redraw(medal);
+      if (medal.level === 1 && medal.stack > 1 && medal.y > view.y && Math.abs(medal.x - view.x) < reach && !onLift(machine, medal)) redraw(medal);
     }
   }
   flat();

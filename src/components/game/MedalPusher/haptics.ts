@@ -31,7 +31,8 @@ export interface HapticPattern {
  * - `catch`: medals over the front edge, into the tray. At most one every 220 ms, however many fall.
  * - `jewel`: a jewel over the front edge, which lights a lamp. One light tick, a little longer than the medals'
  *   and not held back by them: a jewel goes over among medals, and is the one of them the hand should be told of.
- * - `start`: a medal through a START pocket that holds a spin.
+ * - `start`: a medal through a START pocket that holds a spin. It is felt as the medal drops into the pocket, with
+ *   the pocket's burst of light and its sound, which is a ride after the lip's rule counted it (`feltIn`).
  * - `gold`: a medal through a START pocket that holds a gold spin from the start: through the pocket the lucky lamp
  *   is on, or through any pocket while the wings are open. A START pocket's two ticks and a third, longer one. It
  *   matters as much as any medal that holds a spin, and of the medals held in one frame it is the one that is felt.
@@ -195,6 +196,19 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
     }
   }
   return most;
+}
+
+/**
+ * What the hand is told of in a frame: everything the machine did in it, except that of the medals through a START
+ * pocket it is the ones that `dropped` into their pockets in this frame, a ride after the lip's rule counted them,
+ * and not the ones that have only just come over the lip. So a pocket is felt when it is seen and heard to take
+ * its medal. A frame with no medal at a pocket either way is handed back as it came.
+ */
+export function feltIn(events: readonly SessionEvent[], dropped: readonly { gate: number; held: boolean; gold: boolean; lucky: boolean }[]): readonly SessionEvent[] {
+  if (dropped.length === 0 && !events.some((event) => event.type === 'checker')) return events;
+  const felt: SessionEvent[] = events.filter((event) => event.type !== 'checker');
+  for (const { gate, held, gold, lucky } of dropped) felt.push({ type: 'checker', gate, held, gold, lucky });
+  return felt;
 }
 
 /** What `buzz` needs of a browser. */

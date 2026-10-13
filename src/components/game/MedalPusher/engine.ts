@@ -163,8 +163,12 @@ export const PAYOUT = { from: 14, to: 86, perSecond: 9 } as const;
 export const TOWER = {
   /** The most medals in one tower. */
   max: 25,
-  /** Medals a second that each tower gains while it is going up. */
-  perSecond: 18,
+  /**
+   * Medals a second that each tower gains while it is going up: slowly enough
+   * to be watched, a tower of 22 in four seconds. It was 18 a second once,
+   * and a tower was there before anyone had seen it come.
+   */
+  perSecond: 5.5,
   /** Towers stand in rows of up to `perRow`, `spacing` apart, each row this far behind the lip. */
   perRow: 6,
   spacing: 14,
@@ -800,7 +804,7 @@ export function buildTowers(machine: Machine, medals: number): void {
   let stacked = 0;
   sizes.forEach((size, index) => {
     const { x, y } = free[index];
-    // It takes its room among the medals lying there over the moment its guard takes to come up, as a medal that lands does.
+    // It takes its room among the medals lying there as a medal that lands does, in a third of a second: while its hatch's lamps come on and the doors begin to part.
     const tower: Medal = { id: machine.nextId++, x, y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: SETTLE.from };
     machine.medals.push(tower);
     machine.lifts.push(startLift(tower, front));

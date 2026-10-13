@@ -3,13 +3,16 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AchievementToast, BonusStrip } from './DailyBonus';
-import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
+import { FeelControls, FeelNote } from './FeelControls';
+import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
-import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
   landTimes,
@@ -22,7 +25,7 @@ import {
   stoppedDigits,
   type ScreenState,
 } from './screen';
-import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { grant } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
@@ -30,6 +33,7 @@ import { GUEST, type AccountStore, type Player, type Status, type Sync } from '.
 import { keepMachine } from './savedMachine';
 import { savedNoteFor } from './savedNote';
 import { restore } from './storage';
+import { useFeel, type FeelNow } from './useFeel';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -66,6 +70,13 @@ export const AIM_RANGE = [
   { min: aimPercent(ARM_REACH[0].min), max: aimPercent(ARM_REACH[0].max) },
   { min: aimPercent(ARM_REACH[1].min), max: aimPercent(ARM_REACH[1].max) },
 ] as const;
+/** How far along a rail's slider a spot is, from 0 at its left end to 1 at its right: where a mark over the slider goes. */
+export const sliderShare = (arm: Arm, percent: number): number => {
+  const { min, max } = AIM_RANGE[arm];
+  return Math.min(1, Math.max(0, (percent - min) / (max - min)));
+};
+/** The START pockets each rail can feed, in the sliders' percent: what its slider marks as worth timing a press for. */
+export const POCKETS_IN_REACH = ([0, 1] as const).map((arm) => CHECKERS.positions.filter((x) => x >= ARM_REACH[arm].min && x <= ARM_REACH[arm].max).map(aimPercent)) as [number[], number[]];
 
 /** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
 const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
@@ -108,6 +119,24 @@ export const RESET_WINDOW = 6;
  */
 export const confirmsReset = (armedAt: number | null, now: number): boolean => armedAt !== null && now >= armedAt && now - armedAt < RESET_WINDOW * 1000;
 
+/**
+ * Keeps the cabinet's lights in step with what the bowls paid. A celebration
+ * of the stage's own lasts as long as its kind does, which is not as long as
+ * a prize from the bowls is up; this one is lit again in every frame the
+ * prize is on the screen and put out in the frame the screen is free, so it
+ * is exactly as long as the show, whatever that takes. `lit` is the
+ * celebration this lit the frame before, and what comes back is the one it
+ * has lit now. A celebration it did not light is left to run its own time.
+ */
+export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, lit: Stage['party']): Stage['party'] {
+  if (roulette?.bowl && roulette.bowl.payout >= 0) {
+    celebrate(stage, roulette.jackpot ? 'jackpot' : 'fever');
+    return stage.party;
+  }
+  if (lit && stage.party === lit) stage.party = null;
+  return null;
+}
+
 /** The numbers shown around the cabinet. */
 interface Hud {
   credits: number;
@@ -145,7 +174,8 @@ const IDLE_SCREEN: ScreenState = {
   secondsLeft: 0,
   level: 0,
   total: 0,
-  hole: -1,
+  stage: -1,
+  fallen: [],
   chance: 0,
   gold: false,
 };
@@ -242,6 +272,19 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   // The aim keys that are down, and the rail each pointer on the field is aiming.
   const aimKeys = useRef(new Set<string>());
   const aimers = useRef(new Map<number, Arm>());
+  // The fingers on the field that have not shown yet whether they are aiming or scrolling the page: where each went
+  // down, and on which rail's half.
+  const waiting = useRef(new Map<number, { x: number; y: number; arm: Arm }>());
+  // How the machine feels in the hand: Sweep, vibration and the screen kept awake (feel.ts). The frame loop reads the
+  // player's choices from `feelNow`, and tells `wake` of every medal.
+  const feelNow = useRef<FeelNow>({ sweep: false, vibrate: false });
+  const wake = useRef<WakeKeeper | null>(null);
+  const feel = useFeel(feelNow, wake);
+  // What fed each medal since the last frame, noted where the machine took it: a press or a held button. The frame
+  // loop takes the notes when it plays the hand its pattern.
+  const fedBy = useRef<FedBy[]>([]);
+  // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
+  const [lead, setLead] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     live.current = { auto, sound, active, strings: t };
@@ -255,7 +298,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   /** Feeds one medal into a rail, if the purse has one and that rail's slot is free. Neither rail's aim moves. */
   const feedOnce = (arm: Arm) => {
     const session = sessionRef.current;
-    if (session && insert(session, arm)) feedSound(live.current.sound);
+    if (session && noteFed(fedBy.current, 'feed', insert(session, arm))) feedSound(live.current.sound);
   };
   /** A finger or a key goes down on a rail's feed. The first one feeds a medal at once; held, the rail streams. */
   const pressRail = (arm: Arm, by: string) => {
@@ -271,10 +314,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const releaseRail = (arm: Arm, by: string) => {
     if (holds.current[arm].by.delete(by)) showHeld();
   };
+  /** A hand on an aim takes over from Sweep, which goes off and says so. */
+  const takeOver = () => {
+    if (!feelNow.current.sweep) return;
+    feel.setSweep(false);
+    setAnnouncement(t.saySwingTaken);
+  };
   /** Points one rail at a spot across the field, as near as it can point, and shows where that is. */
   const aimRail = (arm: Arm, x: number) => {
     const session = sessionRef.current;
     if (!session) return;
+    takeOver();
     aimArm(session.machine, arm, x);
     setAims([session.machine.aims[0], session.machine.aims[1]]);
   };
@@ -324,6 +374,51 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       letGo();
     };
   }, [active]);
+
+  // A finger's press can end unheard too. The page is hidden, or the window loses the pointer, with a finger still
+  // down, and it comes up where nothing hears it: the rail would go on streaming when the page came back. So whoever
+  // is holding a feed, or aiming on the field, has let go by then, and so they have when this tab is put away.
+  useEffect(() => {
+    if (!active) return;
+    const letGo = () => {
+      for (const hold of holds.current) hold.by.clear();
+      aimers.current.clear();
+      waiting.current.clear();
+      setHeld((was) => (was[0] || was[1] ? [false, false] : was));
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') letGo();
+    };
+    window.addEventListener('blur', letGo);
+    window.addEventListener('pagehide', letGo);
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      window.removeEventListener('blur', letGo);
+      window.removeEventListener('pagehide', letGo);
+      document.removeEventListener('visibilitychange', whenHidden);
+      letGo();
+    };
+  }, [active]);
+
+  // The motor stops with the machine. A reset, leaving this tab or hiding the page in the middle of a long pattern
+  // would leave it buzzing for a machine that is gone or out of sight, and would hold back the next machine's ticks
+  // until the old pattern would have ended. So does the cabinet being taken down. A medal that was noted and not yet
+  // felt is not felt later either.
+  useEffect(() => {
+    if (!active) return;
+    const stop = () => {
+      fedBy.current.length = 0;
+      stopBuzz();
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') stop();
+    };
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', whenHidden);
+      stop();
+    };
+  }, [active, switchedOn]);
 
   // The background loop plays while the sound is on, the player has not switched the loop off, and this tab is
   // showing. Switching the sound off, or leaving the cabinet, cuts short whatever is still ringing. So does a
@@ -432,7 +527,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     let shownAims: [number, number] = [session.machine.aims[0], session.machine.aims[1]];
     let autoClock = 0;
     let autoArm: Arm = 0;
+    // What the hand has been told of: the medals fed so far, and where the sliders' marks stand while the rails swing.
+    // No medal of the machine before is still waiting to be felt.
+    let fedSeen = session.inserted;
+    let shownLead: [number, number] | null = null;
+    fedBy.current.length = 0;
     let lastSpinClock = 0;
+    let bowlLights: Stage['party'] = null;
     let last = performance.now();
     const events: SessionEvent[] = [];
     let frameId = 0;
@@ -454,7 +555,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       }
       for (const arm of [0, 1] as const) {
         const hold = holds.current[arm];
-        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && insert(session, arm)) feedSound(soundOn);
+        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && noteFed(fedBy.current, 'stream', insert(session, arm))) feedSound(soundOn);
       }
       if (autoNow) {
         autoClock += elapsed;
@@ -464,6 +565,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
+      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it.
+      if (session.inserted !== fedSeen) {
+        fedSeen = session.inserted;
+        wake.current?.played();
+      }
 
       // An aim key that is held down moves its rail's aim. Each arm swings after its own aim, and a medal on a
       // rail drops where its arm's tip is when it gets there.
@@ -471,16 +577,32 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         const turn = AIM_KEYS[code];
         if (turn) aimArm(session.machine, turn.arm, session.machine.aims[turn.arm] + turn.by * AIM_KEY.speed * elapsed);
       }
+      // With Sweep on the rails swing by themselves: the aim is put in for the player, from the machine's own clock,
+      // where the tips belong when this frame is over (feel.ts).
+      const sweeping = feelNow.current.sweep;
+      const then = session.machine.time + elapsed;
+      if (sweeping) sweepTo(session.machine, then);
+      // The sliders work in whole percent, so they are told only when an aim has moved by one. While the rails swing,
+      // a mark over each shows where a medal fed now would drop, which is where its tip will be a roll from now; the
+      // marks move when the sliders do, in the same render, so the cabinet is not drawn again for them alone.
       const [leftAim, rightAim] = session.machine.aims;
-      if (leftAim !== shownAims[0] || rightAim !== shownAims[1]) {
+      const moved = aimPercent(leftAim) !== aimPercent(shownAims[0]) || aimPercent(rightAim) !== aimPercent(shownAims[1]);
+      if (moved) {
         shownAims = [leftAim, rightAim];
         setAims(shownAims);
+      }
+      if (sweeping ? moved || !shownLead : shownLead !== null) {
+        const drops = sweeping ? sweepLead(then) : null;
+        shownLead = drops && [aimPercent(drops[0]), aimPercent(drops[1])];
+        setLead(shownLead);
       }
       events.length = 0;
       advance(session, elapsed, events);
       if (gifts.length > 0) events.push(...gifts.splice(0));
       // The record book hears everything the machine did, whatever becomes of the machine.
       records.note(session, events);
+      // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
+      bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -581,13 +703,19 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound('reach', soundOn);
             break;
           case 'bowlEnd':
-            if (event.jackpot) celebrate(stage, 'jackpot');
-            // The jackpot has its fanfare. Either of the other holes is a prize that goes up as towers.
+            // The jackpot has its fanfare. The cabinet's lights are lit for either prize by the frame itself, for as
+            // long as the prize is up. Part of it is poured and the rest goes up as towers.
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
-            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout) : strings.sayHole(event.payout, event.total));
+            setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             // A jackpot is not left to wait for the minute: it goes to the account now.
             if (event.jackpot) keeping.save('moment');
+            break;
+          case 'bowlDrop':
+            // Through a hole and into the bowl below: a step up, and the suspense starts again.
+            playSound('pocket', soundOn, { level: CHAIN_GOAL });
+            playSound('reach', soundOn);
+            setAnnouncement(strings.sayDrop(event.bowl + 1, BOWLS.length));
             break;
         }
       }
@@ -595,6 +723,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) playSound('land', soundOn);
+      // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts). A medal that went
+      // in is felt as what fed it said it was when the machine took it: a tick for a press, a slower one for a
+      // button that stays held, and nothing for Auto, which no finger is working.
+      const felt = hapticFor(events, takeFed(fedBy.current));
+      if (felt) buzz(felt, feelNow.current.vibrate, now);
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
@@ -630,9 +763,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it was let go until it is in its hole.
+      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
       const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) ball.current.style.transform = ballTransform(ballSpot(bowl, calm.matches));
+      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {
@@ -758,6 +891,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     </button>
   );
 
+  const onSweep = (on: boolean) => {
+    feel.setSweep(on);
+    setAnnouncement(on ? t.saySwingOn : t.saySwingOff);
+  };
+
   const toggleSound = () => {
     if (!sound) void unlockAudio();
     setSound(!sound);
@@ -820,8 +958,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           </div>
           <div className={styles.jackpotBox}>
             <span className={styles.jackpotLabel}>{t.jackpot}</span>
-            <span className={styles.jackpotValue} data-testid="pusher-jackpot">
-              {fmt(hud.jackpot)}
+            {/* While a jackpot is being counted out the plate counts with it; the jackpot itself has started over by then. */}
+            <span className={styles.jackpotValue} data-testid="pusher-jackpot" data-counting={screen.banner === 'jackpot'}>
+              {fmt(screen.banner === 'jackpot' ? screen.amount : hud.jackpot)}
             </span>
           </div>
         </div>
@@ -853,6 +992,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
               const x = acrossAt(event);
               if (x === null) return;
               const arm = armFor(x);
+              // A finger may be about to scroll the page instead. It aims once it has shown that it is not: when it
+              // drags sideways, or comes up again where it went down (feel.ts).
+              if (!aimsOnContact(event.pointerType, window.getComputedStyle(event.currentTarget).touchAction)) {
+                waiting.current.set(event.pointerId, { x: event.clientX, y: event.clientY, arm });
+                return;
+              }
               aimers.current.set(event.pointerId, arm);
               try {
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -862,15 +1007,31 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
               aimRail(arm, x);
             }}
             onPointerMove={(event) => {
+              // A finger that was waiting and has gone sideways is dragging across the field: from here on it aims.
+              const began = waiting.current.get(event.pointerId);
+              if (began && isSidewaysDrag(event.clientX - began.x, event.clientY - began.y)) {
+                waiting.current.delete(event.pointerId);
+                aimers.current.set(event.pointerId, began.arm);
+              }
               const arm = aimers.current.get(event.pointerId);
               if (arm !== undefined) {
                 const x = acrossAt(event);
                 if (x !== null) aimRail(arm, x);
               } else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
             }}
-            onPointerUp={(event) => aimers.current.delete(event.pointerId)}
+            onPointerUp={(event) => {
+              // A finger that comes up without having scrolled or dragged was a tap: it aims where it is, on the rail
+              // of the half it went down on.
+              const began = waiting.current.get(event.pointerId);
+              waiting.current.delete(event.pointerId);
+              const x = began ? acrossAt(event) : null;
+              if (began && x !== null) aimRail(began.arm, x);
+              aimers.current.delete(event.pointerId);
+            }}
             onPointerCancel={(event) => {
               // The browser took the gesture for a scroll: the aim stays where the drag had got to, and no click follows.
+              // A finger that had not aimed yet never does: scrolling the page past the cabinet leaves the rails alone.
+              waiting.current.delete(event.pointerId);
               aimers.current.delete(event.pointerId);
               pressedChest.current = null;
             }}
@@ -926,8 +1087,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
                   value={aimPercent(aims[arm])}
                   aria-valuetext={t.aimValue(aimPercent(aims[arm]))}
                   data-testid={arm === 0 ? 'pusher-aim-left' : 'pusher-aim-right'}
+                  onPointerDown={takeOver}
                   onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
                 />
+                {feel.prefs.sweep && lead && (
+                  <span className={styles.aimMarks} aria-hidden data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]}>
+                    {POCKETS_IN_REACH[arm].map((pocket) => (
+                      <i key={pocket} className={styles.aimPocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
+                    ))}
+                    <i className={styles.aimLead} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -940,7 +1110,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             </button>
             <SoundSettingsButton control={soundControl} strings={t} />
           </div>
+          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
           <SoundSettingsPanel control={soundControl} strings={t} />
+          <FeelNote strings={t} sweep={feel.prefs.sweep} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">

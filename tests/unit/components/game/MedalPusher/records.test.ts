@@ -242,13 +242,13 @@ describe('recording what the machine did', () => {
     // A full run and the jackpot's hole: the prize is the whole run, and the jackpot what the hole paid.
     const run: RecordEvent[] = [];
     for (let level = 1; level <= CHAIN_GOAL; level++) run.push({ type: 'rouletteStep', pocket: 2, medals: 20, level });
-    run.push({ type: 'bowlStart', hole: 0, duration: 6.5 }, { type: 'bowlEnd', hole: 0, payout: JACKPOT_START + 12, total: JACKPOT_START + 12 + 80, jackpot: true });
+    run.push({ type: 'bowlStart', holes: [0, 0, 0], duration: 6.5 }, { type: 'bowlEnd', bowl: 2, hole: 0, payout: JACKPOT_START + 12, poured: 0, total: JACKPOT_START + 12 + 80, jackpot: true });
     next = record(next, run, MONDAY);
     expect(viewOf(next).best).toEqual({ prize: JACKPOT_START + 92, jackpot: JACKPOT_START + 12, run: CHAIN_GOAL });
     expect(totals(next).challenges).toBe(1);
     expect(totals(next).jackpots).toBe(1);
     // A hole that is not the jackpot's is a prize and no jackpot, and a smaller one changes nothing.
-    next = record(next, [{ type: 'bowlEnd', hole: 1, payout: 50, total: 130, jackpot: false }], MONDAY);
+    next = record(next, [{ type: 'bowlEnd', bowl: 0, hole: 1, payout: 50, poured: 0, total: 130, jackpot: false }], MONDAY);
     expect(viewOf(next).best).toEqual({ prize: JACKPOT_START + 92, jackpot: JACKPOT_START + 12, run: CHAIN_GOAL });
     expect(totals(next).jackpots).toBe(1);
     expect(Object.keys(viewOf(next).best).sort()).toEqual([...BEST_IDS].sort());
@@ -328,8 +328,8 @@ describe('the achievements', () => {
     expect(earnedBy([{ type: 'ball', count: 1 }])).toEqual(['ball']);
     expect(earnedBy([{ type: 'rouletteStep', pocket: 1, medals: 10, level: CHAIN_GOAL - 1 }])).toEqual([]);
     expect(earnedBy([{ type: 'rouletteStep', pocket: 1, medals: 10, level: CHAIN_GOAL }])).toEqual(['fullRun']);
-    expect(earnedBy([{ type: 'bowlEnd', hole: 1, payout: 50, total: 90, jackpot: false }])).toEqual([]);
-    expect(earnedBy([{ type: 'bowlEnd', hole: 0, payout: 300, total: 340, jackpot: true }])).toEqual(['jackpot']);
+    expect(earnedBy([{ type: 'bowlEnd', bowl: 0, hole: 1, payout: 50, poured: 0, total: 90, jackpot: false }])).toEqual([]);
+    expect(earnedBy([{ type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 0, total: 340, jackpot: true }])).toEqual(['jackpot']);
     expect(earnedBy([won(MANY_MEDALS - 1)])).toEqual([]);
     expect(earnedBy([won(MANY_MEDALS)])).toEqual(['thousand']);
   });

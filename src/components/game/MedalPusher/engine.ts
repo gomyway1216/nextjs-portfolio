@@ -155,16 +155,16 @@ export const JEWEL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
  * the back wall, which is in front of the catcher wherever the pusher is. The
  * hatch throws it clear over the pusher, in an arc that takes `time` seconds.
  *
- * It does not come down on the pusher as a prize ball does. A jewel stands
- * taller than a medal, and nothing lies on it; where the medals are fed, on
- * the middle of the pusher, it would be in the way of every medal that came
- * down on top of the pile, and for as long as it lay there more of the pile
- * would go over the lip at the START pockets. On the lower table it starts as
- * far from either open side as it can: one held at a side would be in the way
- * of the medals going out there. With the sides left open to jewels, not one
- * of 486 went out of one in 225,000 medals of play down the middle, beside
- * it, at the edges and with both rails held. And it still has a third of the
- * table to go before the front.
+ * It does not come down on the pusher as a prize ball does. The pile on the
+ * pusher spreads as it goes, and what lands on it comes off the lip anywhere
+ * across the field. With the sides left open to jewels, one in five of those
+ * that landed in the middle of the pusher went out of a side, fed slowly down
+ * the middle, and seven in ten of those that landed anywhere on it. Held at a
+ * side instead, such a jewel lies in the way of the medals going out there.
+ * Thrown onto the middle of the lower table, not one of 486 went out of a
+ * side in 225,000 medals of play down the middle, beside it, at the edges and
+ * with both rails held: a jewel there is not near a side to be held at it,
+ * and it still has a third of the table to go before the front.
  */
 export const JEWEL_DROP = { from: 42, to: 58, near: 66, far: 72, time: 0.7 } as const;
 

@@ -464,7 +464,7 @@ describe('a packed save', () => {
       const text = serialize(session);
       const small = pack(text) as string;
       expect(unpack(small)).toBe(text);
-      expect(small.length).toBeLessThan(text.length / 2);
+      expect(sent(small)).toBeLessThan(bytesOf(text) / 2);
       // A session's numbers are no table: they travel as they were written, the lamp's two among them, where a session holds them.
       const written = JSON.parse(text) as { version: number; session: Record<string, unknown> };
       const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
@@ -484,13 +484,17 @@ describe('a packed save', () => {
         advance(back, DT);
       }
       expect(serialize(back)).toBe(serialize(session));
+      // And on its way to the account and back, in the format a copy is written in now.
+      const state = toCloud(text, 'a-made-up-mark', 0);
+      expect(state?.format).toBe(PACK_FORMAT);
+      expect(fromCloud(JSON.parse(JSON.stringify(state)))?.text).toBe(text);
     }
   });
 
   it('carries a save written the day before the lucky lamp, and it comes back in chance time with none of its gold spins the lamp’s', () => {
     const save = dayBeforeLamp.save;
     const small = pack(save) as string;
-    expect(small.length).toBeLessThan(save.length / 2);
+    expect(sent(small)).toBeLessThan(bytesOf(save) / 2);
     expect(unpack(small)).toBe(save);
     // It travels as that version wrote it: its number, and no word of the lamp.
     const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
@@ -610,13 +614,20 @@ describe('a copy packed before format 2', () => {
     const [first, second] = inFormat1.copies;
     expect(fromCloud(first.state)?.text).toBe(withJewels.save);
     expect(first.state.data).toContain('"$":"g"');
-    // The second has the payout works at work in it, and comes back as the text `serialize` writes for that machine.
+    // The second has the payout works at work in it. It was written the day before the lucky lamp, so the text
+    // `serialize` writes for that machine today is no longer the copy's own, as it was on that day: it is the copy's
+    // with today's version on it and the lamp's two numbers among the session's, none of its spins the lamp's and no
+    // chance time, since it holds no gold spin. With those taken out again it is the copy's text, to the character.
     const works = restore(fromCloud(second.state)?.text ?? null, 3) as Session;
     expect((JSON.parse(fromCloud(second.state)?.text as string) as { version: number }).version).toBe(7);
     expect(works.machine.hopper.phase).toBe('pouring');
     expect(works.machine.lifts.filter(holds)).toHaveLength(3);
     expect(jewelsOnField(works.machine)).toBe(3);
-    expect(serialize(works)).toBe(fromCloud(second.state)?.text);
+    const today = JSON.parse(serialize(works)) as { version: number; session: Record<string, unknown> };
+    const { lucky, rush, ...numbers } = today.session;
+    expect([works.gold, works.chance]).toEqual([0, false]);
+    expect([today.version, lucky, rush]).toEqual([STORAGE_VERSION, 0, false]);
+    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: numbers })).toBe(fromCloud(second.state)?.text);
   });
 
   it('is read whatever machine it holds: new, played, with the works at work, with jewels, and of every older version', { timeout: LONG }, () => {

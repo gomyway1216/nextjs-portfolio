@@ -23,6 +23,8 @@ import {
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL_TIER,
+  JEWEL_VALUE,
   ROULETTE,
   SPIN_TABLE,
   TIERS,
@@ -134,7 +136,9 @@ describe('the plate’s tables', () => {
     // Chance time: the lottery's multiplier, on exactly the lines the lottery makes a gold spin worth more on.
     expect(PLATE_RULES.chance.multiplier).toBe(CHANCE.multiplier);
     for (const tier of WIN_TIERS) {
-      const more = chanceTierValue(tier, JACKPOT_START) / tierValue(tier, JACKPOT_START);
+      // A gold spin doubles the game a line leads to, not the jewel that comes with a treasure line.
+      const jewel = tier === JEWEL_TIER ? JEWEL_VALUE : 0;
+      const more = (chanceTierValue(tier, JACKPOT_START) - jewel) / (tierValue(tier, JACKPOT_START) - jewel);
       expect(PLATE_RULES.chance.tiers.includes(tier)).toBe(more > 1);
       if (more > 1) expect(more).toBeCloseTo(CHANCE.multiplier, 9);
     }

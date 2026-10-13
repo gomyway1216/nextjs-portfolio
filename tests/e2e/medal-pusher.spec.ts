@@ -654,6 +654,573 @@ test('both buttons held at once, by two pointers, feed from both rails', async (
   await expectPurseToBalance(page);
 });
 
+/** The key the switches of feel are kept under. It is not the machine's save, which has STORAGE_KEY. */
+const FEEL_STORAGE_KEY = 'medal-pusher-feel';
+const feelSwitch = (page: Page, name: 'sweep' | 'vibration' | 'fullscreen') => machine(page).getByTestId(`pusher-${name}`);
+type Spot = { x: number; y: number };
+/** The middle of something, where it is on the screen at this moment: never kept across a scroll. */
+async function middleOf(locator: ReturnType<Page['locator']>): Promise<Spot> {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('it has no box');
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+/**
+ * Fingers on the glass, sent as a touch screen sends them, each with a number of its own. A start or a move names
+ * every finger that is down; an end names the ones that came up; a cancel takes them all away.
+ */
+async function touchScreen(page: Page) {
+  const session = await page.context().newCDPSession(page);
+  return (type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel', points: (Spot & { id: number })[]) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+}
+/**
+ * Waits until the page has come to life in the browser. The server draws Sweep alone, because it cannot know the
+ * device; the fullscreen button appears once the browser has taken the page over, and with it every handler works.
+ */
+async function alive(page: Page) {
+  await expect(feelSwitch(page, 'fullscreen')).toBeVisible({ timeout: 20_000 });
+}
+/**
+ * How much of each control is its own to hit: how tall the strip through its middle is that takes the touch, whatever
+ * the control looks like, and how wide the control is. A control that is not there is 0 by 0.
+ */
+function hitSizes(page: Page, ids: string[]) {
+  return page.evaluate(
+    (testIds) =>
+      testIds.map((id) => {
+        const element = document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`);
+        if (!element) return { id, tall: 0, wide: 0 };
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        let tall = 1;
+        for (const way of [-1, 1]) for (let d = 1; d < 40 && element.contains(document.elementFromPoint(x, y + way * d)); d++) tall++;
+        return { id, tall, wide: Math.round(rect.width) };
+      }),
+    ids,
+  );
+}
+/** Has the page believe it is hidden, or showing again, and tells it so. */
+async function setHidden(page: Page, hidden: boolean) {
+  await page.evaluate((hide) => {
+    if (hide) Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    else delete (document as unknown as { visibilityState?: string }).visibilityState;
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+}
+
+test.describe('in the hand, on a phone', () => {
+  // A phone held upright: a touch screen 375 px wide, two pixels to the point. Headless Chromium has a vibration
+  // function and can fill the screen.
+  test.use({ viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+
+  test('the switches of feel are there, named, in one row, and remembered across a reload', async ({ page }) => {
+    test.setTimeout(60_000);
+    const trouble = watchForTrouble(page);
+    await openGame(page);
+    await alive(page);
+    await expect(machine(page).getByRole('group', { name: 'Ways to play' })).toBeVisible();
+    for (const [name, label] of [
+      ['sweep', 'Swing'],
+      ['vibration', 'Vibrate'],
+      ['fullscreen', 'Fullscreen'],
+    ] as const) {
+      await expect(feelSwitch(page, name)).toBeVisible();
+      await expect(feelSwitch(page, name)).toHaveAccessibleName(label);
+    }
+    // Sweep and fullscreen start off; vibration starts on, on a device that has a motor and has not asked for less motion.
+    await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'false');
+    await expect(feelSwitch(page, 'fullscreen')).toHaveAttribute('aria-pressed', 'false');
+    await expect(feelSwitch(page, 'vibration')).toHaveAttribute('aria-pressed', 'true');
+
+    // They fit a phone: nothing scrolls sideways, the three are in one row inside the controls, and each is at least
+    // 44 px to hit, as are Auto, Sound and the sliders. A switch looks smaller than that: a strip through its middle is its own.
+    await feelSwitch(page, 'sweep').scrollIntoViewIfNeeded();
+    const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+    expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+    const controls = await machine(page).getByTestId('pusher-controls').boundingBox();
+    const boxes = await Promise.all((['sweep', 'vibration', 'fullscreen'] as const).map((name) => feelSwitch(page, name).boundingBox()));
+    if (!controls || boxes.some((box) => !box)) throw new Error('the switches have no boxes');
+    for (const box of boxes) {
+      expect(Math.abs((box?.y ?? 0) - (boxes[0]?.y ?? 0))).toBeLessThan(2);
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(controls.x);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(controls.x + controls.width);
+    }
+    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-aim-left', 'pusher-aim-right']);
+    for (const control of reach) {
+      expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
+      expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(44);
+    }
+    // Nothing in the cabinet is text to select, and a double tap on it does not zoom the page.
+    await expect(machine(page).getByTestId('pusher-credits')).toHaveCSS('user-select', 'none');
+    await expect(feelSwitch(page, 'sweep')).toHaveCSS('touch-action', 'manipulation');
+    await expect(aimSlider(page, 'left')).toHaveCSS('touch-action', 'pan-y');
+
+    // Sweep on: the rails swing by themselves, the sliders show it, and a line says what to do.
+    await expect(machine(page).getByTestId('pusher-lead-left')).toHaveCount(0);
+    await feelSwitch(page, 'sweep').tap();
+    await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'true');
+    await expect(machine(page).getByTestId('pusher-sweep-note')).toContainText('Press L or R when the ▼');
+    await expect(machine(page).getByTestId('pusher-lead-left')).toHaveCount(1);
+    await expect(machine(page).getByTestId('pusher-lead-right')).toHaveCount(1);
+    const seen = new Set<number>();
+    await expect
+      .poll(
+        async () => {
+          seen.add(await aimOf(page, 'left'));
+          return seen.size;
+        },
+        { timeout: 10_000 },
+      )
+      .toBeGreaterThanOrEqual(4);
+    // The two swing together, the right rail always the same way ahead of the left: they never cross.
+    const [left, right] = await page.evaluate(() => {
+      const value = (id: string) => Number((document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`) as HTMLInputElement).value);
+      return [value('pusher-aim-left'), value('pusher-aim-right')];
+    });
+    expect(right - left).toBeGreaterThanOrEqual(38);
+    expect(right - left).toBeLessThanOrEqual(40);
+    // Vibration off.
+    await feelSwitch(page, 'vibration').tap();
+    await expect(feelSwitch(page, 'vibration')).toHaveAttribute('aria-pressed', 'false');
+    // Both choices are kept under a key of their own, and the machine's save is not touched by them.
+    expect(await page.evaluate((key) => window.localStorage.getItem(key), FEEL_STORAGE_KEY)).toBe(JSON.stringify({ v: 1, vibration: false, sweep: true }));
+    expect(FEEL_STORAGE_KEY).not.toBe(STORAGE_KEY);
+    await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
+
+    await page.reload();
+    await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+    await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
+    // The page is first drawn with nothing chosen, and then shows what this browser remembers.
+    await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+    await expect(feelSwitch(page, 'vibration')).toHaveAttribute('aria-pressed', 'false');
+    await expect(machine(page).getByTestId('pusher-sweep-note')).toBeVisible();
+
+    // A hand on a slider takes over: Sweep goes off, says so, and the rail stays where the hand put it.
+    await aimSlider(page, 'left').focus();
+    await page.keyboard.press('Home');
+    await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'false');
+    await expect(machine(page).getByTestId('pusher-announcement')).toContainText('aiming by hand');
+    await expect(machine(page).getByTestId('pusher-sweep-note')).toHaveCount(0);
+    await expect(machine(page).getByTestId('pusher-lead-left')).toHaveCount(0);
+    await page.waitForTimeout(600);
+    await expect(aimSlider(page, 'left')).toHaveValue('0');
+    expect(await page.evaluate((key) => window.localStorage.getItem(key), FEEL_STORAGE_KEY)).toBe(JSON.stringify({ v: 1, vibration: false, sweep: false }));
+    expect(trouble).toEqual([]);
+  });
+
+  test('with the sound settings open and Swing on, the controls are still one panel a thumb can work', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await alive(page);
+    const controls = machine(page).getByTestId('pusher-controls');
+    await controls.scrollIntoViewIfNeeded();
+    const closed = await controls.boundingBox();
+    // Everything the controls can show at once: the row of sound settings, and the line about Swing.
+    await openSoundSettings(page);
+    await feelSwitch(page, 'sweep').tap();
+    await expect(machine(page).getByTestId('pusher-sweep-note')).toBeVisible();
+    await controls.scrollIntoViewIfNeeded();
+    const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+    expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+    const box = async (id: string) => {
+      const found = await machine(page).getByTestId(id).boundingBox();
+      if (!found) throw new Error(`${id} has no box`);
+      return found;
+    };
+    const [open, auto, sound, more, feel, row, note] = await Promise.all([
+      box('pusher-controls'),
+      box('pusher-auto'),
+      box('pusher-sound'),
+      box('pusher-sound-settings'),
+      box('pusher-feel'),
+      box('pusher-sound-panel'),
+      box('pusher-sweep-note'),
+    ]);
+    if (!closed) throw new Error('the controls have no box');
+    // One row under another: Auto, Sound and the settings' button; the switches of feel; the sound settings; the line.
+    expect(Math.abs(auto.y - sound.y)).toBeLessThan(2);
+    expect(Math.abs(more.y - sound.y)).toBeLessThan(2);
+    expect(feel.y).toBeGreaterThanOrEqual(sound.y + sound.height);
+    expect(row.y).toBeGreaterThanOrEqual(feel.y + feel.height);
+    expect(note.y).toBeGreaterThanOrEqual(row.y + row.height);
+    for (const part of [feel, row, note]) {
+      expect(part.x).toBeGreaterThanOrEqual(open.x);
+      expect(part.x + part.width).toBeLessThanOrEqual(open.x + open.width);
+    }
+    expect(note.y + note.height).toBeLessThanOrEqual(open.y + open.height);
+    // With all of it open the controls are under 400 px tall on a phone, and opening it added less than 120.
+    expect(open.height).toBeLessThanOrEqual(400);
+    expect(open.height - closed.height).toBeLessThanOrEqual(120);
+    // Every one of them is at least 44 px to hit, the sound settings' own included: their slider is the cabinet's
+    // slider, with its thumb, and the mark at the level the cabinet was made at is still behind the thumb there.
+    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-volume', 'pusher-music', 'pusher-aim-left', 'pusher-aim-right']);
+    for (const control of reach) {
+      expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
+      expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(32);
+    }
+    await expect(volumeSlider(page)).toHaveCSS('touch-action', 'pan-y');
+    await expect(volumeSlider(page)).toHaveValue('100');
+    const mark = await volumeSlider(page).evaluate((slider) => {
+      const track = slider.parentElement as HTMLElement;
+      const notch = getComputedStyle(track, '::before');
+      const around = track.getBoundingClientRect();
+      return { at: parseFloat(notch.left) + parseFloat(notch.marginLeft) + parseFloat(notch.width) / 2, middle: around.width / 2, tall: parseFloat(notch.height) };
+    });
+    expect(Math.abs(mark.at - mark.middle)).toBeLessThan(1.5);
+    // It is taller than the 28 px thumb, so it shows over and under it.
+    expect(mark.tall).toBeGreaterThan(28);
+    // The sound row shuts again and the controls are as tall as they were with only the line about Swing more.
+    await soundSettings(page).tap();
+    await expect(soundRow(page)).toHaveCount(0);
+    const shut = await box('pusher-controls');
+    expect(shut.height).toBeLessThan(open.height - 40);
+  });
+
+  test('two thumbs hold L and R at once, a thumb that slides off still holds, and a press that ends unheard is let go', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await feedOne(page);
+    await page.waitForTimeout(400);
+    const touch = await touchScreen(page);
+    await feedButton(page, 'left').scrollIntoViewIfNeeded();
+    // Where the two buttons are now. A touch on either does not scroll the page, so they stay there; that is checked below.
+    const scrolled = await page.evaluate(() => window.scrollY);
+    const l = await middleOf(feedButton(page, 'left'));
+    const r = await middleOf(feedButton(page, 'right'));
+    const before = await counter(page, 'played');
+
+    await touch('touchStart', [{ ...l, id: 1 }]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+    await touch('touchStart', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThanOrEqual(before + 8);
+    // The left thumb slides up off its button: it is still holding it, and the page has not moved under either thumb.
+    for (let step = 1; step <= 6; step++) {
+      await touch('touchMove', [
+        { x: l.x + step * 6, y: l.y - step * 20, id: 1 },
+        { ...r, id: 2 },
+      ]);
+    }
+    await page.waitForTimeout(200);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+    // It comes up out there: its rail stops, and the other, still held, goes on.
+    await touch('touchEnd', [{ x: l.x + 36, y: l.y - 120, id: 1 }]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    const one = await counter(page, 'played');
+    await expect.poll(() => counter(page, 'played'), { timeout: 10_000 }).toBeGreaterThan(one);
+    // The page is hidden with the right thumb still down, and nobody hears it come up: the press is let go all the same.
+    await setHidden(page, true);
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+    await setHidden(page, false);
+    await page.waitForTimeout(300);
+    const after = await counter(page, 'played');
+    await page.waitForTimeout(900);
+    expect(await counter(page, 'played')).toBe(after);
+    await touch('touchCancel', []);
+    // A window that loses the focus lets go of a held button in the same way.
+    await touch('touchStart', [{ ...l, id: 3 }]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+    await touch('touchCancel', []);
+    await expectPurseToBalance(page);
+  });
+
+  test('a swipe up the field scrolls the page and leaves the rails alone, while a tap and a sideways drag aim', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await alive(page);
+    const touch = await touchScreen(page);
+    const field = machine(page).getByTestId('pusher-field');
+    /** A spot on the field, where the field is on the screen now. */
+    const onField = async (across: number, down: number): Promise<Spot> => {
+      await field.scrollIntoViewIfNeeded();
+      const box = await field.boundingBox();
+      if (!box) throw new Error('the field has no box');
+      return { x: box.x + box.width * across, y: box.y + box.height * down };
+    };
+    expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual([42, 58]);
+
+    // A finger goes down on the left half and swipes up: the page scrolls, and neither rail has moved.
+    const from = await onField(0.2, 0.7);
+    const top = await page.evaluate(() => window.scrollY);
+    await touch('touchStart', [{ ...from, id: 1 }]);
+    for (let step = 1; step <= 10; step++) await touch('touchMove', [{ x: from.x, y: from.y - step * 15, id: 1 }]);
+    await touch('touchEnd', [{ x: from.x, y: from.y - 150, id: 1 }]);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 40);
+    await page.waitForTimeout(300);
+    expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual([42, 58]);
+
+    // A tap on the left half aims the left rail there, and the right rail stays.
+    const tap = await onField(0.25, ON_WALL);
+    await touch('touchStart', [{ ...tap, id: 2 }]);
+    await touch('touchEnd', [{ ...tap, id: 2 }]);
+    await expect.poll(() => aimOf(page, 'left')).toBeLessThan(35);
+    expect(await aimOf(page, 'right')).toBe(58);
+
+    // A sideways drag on the right half moves the right rail along with the finger.
+    const drag = await onField(0.6, ON_WALL);
+    await touch('touchStart', [{ ...drag, id: 3 }]);
+    for (let step = 1; step <= 8; step++) await touch('touchMove', [{ x: drag.x + step * 10, y: drag.y + (step % 2), id: 3 }]);
+    await expect.poll(() => aimOf(page, 'right')).toBeGreaterThan(70);
+    await touch('touchEnd', [{ x: drag.x + 80, y: drag.y, id: 3 }]);
+    expect(await aimOf(page, 'left')).toBeLessThan(35);
+    // None of it fed a medal.
+    await page.waitForTimeout(300);
+    expect(await counter(page, 'played')).toBe(0);
+  });
+
+  test('the cabinet fills the screen and comes back, with its controls and a sharp picture', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await alive(page);
+    const button = feelSwitch(page, 'fullscreen');
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await button.scrollIntoViewIfNeeded();
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    // It is the cabinet that fills the screen, not the page: the field and the controls are in it, and the tabs are not.
+    const measure = () => page.evaluate((drawingWidth) => {
+      const full = document.fullscreenElement;
+      const has = (selector: string) => !!full && full.contains(document.querySelector(selector));
+      const rect = full?.getBoundingClientRect();
+      const field = document.querySelector('#pusher-panel-machine [data-testid="pusher-field"]') as HTMLCanvasElement;
+      const shown = field.getBoundingClientRect();
+      const within = (id: string) => {
+        const box = document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`)?.getBoundingClientRect();
+        return !!box && box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight;
+      };
+      return {
+        field: has('#pusher-panel-machine [data-testid="pusher-field"]'),
+        controls: has('#pusher-panel-machine [data-testid="pusher-controls"]'),
+        tabs: has('[role="tablist"]'),
+        fills: !!rect && Math.round(rect.left) === 0 && Math.round(rect.top) === 0 && Math.round(rect.width) === window.innerWidth && Math.round(rect.height) === window.innerHeight,
+        scrolls: !!full && (full.scrollHeight > full.clientHeight || full.scrollWidth > full.clientWidth),
+        onScreen: ['pusher-feed-left', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-sweep', 'pusher-fullscreen', 'pusher-credits', 'pusher-jackpot'].filter((id) => !within(id)),
+        shape: shown.width / shown.height,
+        shownWidth: shown.width,
+        // The canvas holds as many pixels as the screen shows of it, up to two to the point and never under half the drawing's own.
+        sharp: Math.abs(field.width - Math.round(drawingWidth * Math.max(0.5, (Math.min(2, window.devicePixelRatio) * field.clientWidth) / drawingWidth))) <= 1,
+        touchAction: getComputedStyle(field).touchAction,
+      };
+    }, VIEW.width);
+    // The canvases are told their new size a frame after the layout changes.
+    await expect.poll(async () => (await measure()).sharp, { timeout: 5_000 }).toBe(true);
+    const inside = await measure();
+    expect(inside.field).toBe(true);
+    expect(inside.controls).toBe(true);
+    expect(inside.tabs).toBe(false);
+    expect(inside.fills).toBe(true);
+    expect(inside.scrolls).toBe(false);
+    expect(inside.onScreen).toEqual([]);
+    expect(Math.abs(inside.shape - VIEW.width / VIEW.height)).toBeLessThan(0.01);
+    expect(inside.shownWidth).toBeGreaterThan(200);
+    // There is no page to scroll there, so a finger on the field aims whichever way it goes.
+    expect(inside.touchAction).toBe('none');
+    // The screen is still where the scene's own camera puts that part of the wall, to the pixel, at the new size.
+    const stage = await machine(page).getByTestId('pusher-field').boundingBox();
+    const screen = await machine(page).getByTestId('pusher-screen').boundingBox();
+    if (!stage || !screen) throw new Error('the stage has no box');
+    const k = stage.width / VIEW.width;
+    const [left, right, foot] = [project(SCREEN.left, SCREEN.top, 0), project(SCREEN.right, SCREEN.top, 0), project(SCREEN.left, SCREEN.foot, 0)];
+    expect(Math.abs(screen.x - (stage.x + left.x * k))).toBeLessThan(1.5);
+    expect(Math.abs(screen.y - (stage.y + left.y * k))).toBeLessThan(1.5);
+    expect(Math.abs(screen.x + screen.width - (stage.x + right.x * k))).toBeLessThan(1.5);
+    expect(Math.abs(screen.y + screen.height - (stage.y + foot.y * k))).toBeLessThan(1.5);
+    // The machine goes on being played there.
+    await feedButton(page, 'left').tap();
+    await expect.poll(() => counter(page, 'played')).toBeGreaterThanOrEqual(1);
+
+    // Leaving it the system's way, without the button: the button follows.
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(await page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+    // And the button leaves it too.
+    await button.scrollIntoViewIfNeeded();
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expectPurseToBalance(page);
+  });
+
+  test('a tap on a chest picks it with the cabinet filling the screen, and aims nothing', async ({ page }) => {
+    await openOnChests(page);
+    await alive(page);
+    const button = feelSwitch(page, 'fullscreen');
+    await button.scrollIntoViewIfNeeded();
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    const aimed = [await aimOf(page, 'left'), await aimOf(page, 'right')];
+    const chest = machine(page).getByTestId('pusher-chest-2');
+    await expect(chest).toBeEnabled();
+    // The chests are on the screen, in the back wall, behind the picture: a finger on one lands on the field, which
+    // hands the tap to the chest under it.
+    const [screen, box] = await Promise.all([machine(page).getByTestId('pusher-screen').boundingBox(), chest.boundingBox()]);
+    if (!screen || !box) throw new Error('the chest has no box');
+    expect(box.x).toBeGreaterThanOrEqual(screen.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(screen.x + screen.width);
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(chest).toHaveAttribute('data-chosen', 'true');
+    await expect(machine(page).getByTestId('pusher-chest-0')).toHaveAttribute('data-chosen', 'false');
+    await page.waitForTimeout(300);
+    expect([await aimOf(page, 'left'), await aimOf(page, 'right')]).toEqual(aimed);
+    expect(await counter(page, 'played')).toBe(0);
+  });
+
+  test('a press is a tick in the hand, a held button ticks slowly, and switched off nothing buzzes', async ({ page }) => {
+    test.setTimeout(90_000);
+    // What the page asks of the motor is written down instead of being played.
+    await page.addInitScript(() => {
+      const buzzes: { at: number; pattern: number[] }[] = [];
+      (window as unknown as { buzzes: typeof buzzes }).buzzes = buzzes;
+      navigator.vibrate = (pattern) => {
+        buzzes.push({ at: performance.now(), pattern: ([] as number[]).concat(pattern as number | number[]) });
+        return true;
+      };
+    });
+    await openGame(page);
+    type Buzzes = { at: number; pattern: number[] }[];
+    /** When each tick for a medal was asked for, in milliseconds. */
+    const tickTimes = () => page.evaluate(() => (window as unknown as { buzzes: Buzzes }).buzzes.filter(({ pattern }) => pattern.length === 1 && pattern[0] === 15).map(({ at }) => at));
+    const ticks = async () => (await tickTimes()).length;
+    const asked = () => page.evaluate(() => (window as unknown as { buzzes: Buzzes }).buzzes.map(({ pattern }) => pattern));
+    const forget = () => page.evaluate(() => void ((window as unknown as { buzzes: Buzzes }).buzzes.length = 0));
+    await alive(page);
+    await expect(feelSwitch(page, 'vibration')).toHaveAttribute('aria-pressed', 'true');
+    await feedButton(page, 'left').scrollIntoViewIfNeeded();
+    // A tap that feeds a medal is a tick, each one: after three taps and more, as many ticks as medals. (A tap the
+    // slot was not ready for feeds nothing, and is not felt either.)
+    for (let fed = 1; fed <= 3; fed++) {
+      await expect(async () => {
+        await feedButton(page, 'left').tap();
+        await page.waitForTimeout(400);
+        expect(await counter(page, 'played')).toBeGreaterThanOrEqual(fed);
+      }).toPass({ timeout: 20_000 });
+    }
+    await expect.poll(async () => (await ticks()) - (await counter(page, 'played'))).toBe(0);
+    expect(await ticks()).toBeGreaterThanOrEqual(3);
+    // A button that stays held feeds a medal every fifth of a second and ticks at most three times a second: the
+    // press itself, and then never two ticks less than a third of a second apart.
+    await forget();
+    const touch = await touchScreen(page);
+    const l = await middleOf(feedButton(page, 'left'));
+    const before = await counter(page, 'played');
+    await touch('touchStart', [{ ...l, id: 1 }]);
+    await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(before + 8);
+    await touch('touchEnd', [{ ...l, id: 1 }]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+    const fed = (await counter(page, 'played')) - before;
+    const times = await tickTimes();
+    expect(times.length).toBeGreaterThanOrEqual(2);
+    expect(times.length).toBeLessThanOrEqual(fed);
+    for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(325);
+    // Auto feeds with no finger on anything: its medals are not felt.
+    await forget();
+    const byAuto = await counter(page, 'played');
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(byAuto + 3);
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'false');
+    expect(await ticks()).toBe(0);
+    /** Taps L until a medal has gone in, which is a tick: a tap the slot was not ready for feeds nothing. */
+    const tapIn = async () => {
+      const had = await counter(page, 'played');
+      await expect(async () => {
+        await feedButton(page, 'left').tap();
+        await page.waitForTimeout(400);
+        expect(await counter(page, 'played')).toBeGreaterThan(had);
+      }).toPass({ timeout: 20_000 });
+      await expect.poll(ticks).toBeGreaterThanOrEqual(1);
+    };
+    // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
+    // forgotten, and the new machine's first press is felt at once.
+    await tapIn();
+    await forget();
+    await setHidden(page, true);
+    expect(await asked()).toContainEqual([0]);
+    await setHidden(page, false);
+    await tapIn();
+    await forget();
+    const reset = machine(page).getByTestId('pusher-reset');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'true');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'false');
+    await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
+    expect(await asked()).toContainEqual([0]);
+    await forget();
+    await tapIn();
+    await expect.poll(async () => (await ticks()) - (await counter(page, 'played'))).toBe(0);
+    // Switched off: whatever was playing is stopped, which is the last thing asked of the motor. Medals go on falling
+    // and being fed, and none of it buzzes.
+    await feelSwitch(page, 'vibration').tap();
+    await expect(feelSwitch(page, 'vibration')).toHaveAttribute('aria-pressed', 'false');
+    expect((await asked()).at(-1)).toEqual([0]);
+    await forget();
+    await feedButton(page, 'left').tap();
+    await page.waitForTimeout(600);
+    expect(await asked()).toEqual([]);
+    await expectPurseToBalance(page);
+  });
+
+  test('on a phone with no vibration and no fullscreen, as an iPhone is, neither switch is shown and nothing is kept free for it', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.addInitScript(() => {
+      delete (Navigator.prototype as unknown as { vibrate?: unknown }).vibrate;
+      Object.defineProperty(Document.prototype, 'fullscreenEnabled', { configurable: true, get: () => false });
+    });
+    const trouble = watchForTrouble(page);
+    await openGame(page);
+    // The page has to have come to life before what it does not show means anything: a medal goes in only once it has.
+    await feedOne(page);
+    expect(await page.evaluate(() => typeof navigator.vibrate)).toBe('undefined');
+    await expect(feelSwitch(page, 'sweep')).toBeVisible();
+    await expect(feelSwitch(page, 'vibration')).toHaveCount(0);
+    await expect(feelSwitch(page, 'fullscreen')).toHaveCount(0);
+    await expect(machine(page).getByTestId('pusher-feel').getByRole('button')).toHaveCount(1);
+    // Sweep is alone in its row, in the middle of it.
+    await feelSwitch(page, 'sweep').scrollIntoViewIfNeeded();
+    const [row, sweep] = await Promise.all([machine(page).getByTestId('pusher-feel').boundingBox(), feelSwitch(page, 'sweep').boundingBox()]);
+    if (!row || !sweep) throw new Error('the row has no box');
+    expect(Math.abs(sweep.x + sweep.width / 2 - (row.x + row.width / 2))).toBeLessThan(2);
+    // The machine has played as anywhere, with nothing to buzz.
+    await expectPurseToBalance(page);
+    expect(trouble).toEqual([]);
+  });
+});
+
+test('on a desk there is a fullscreen button and no vibration switch, and with less motion asked for vibration starts off', async ({ page, browser }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  await alive(page);
+  // A desktop browser has the vibration function and nothing to shake.
+  await expect(feelSwitch(page, 'sweep')).toBeVisible();
+  await expect(feelSwitch(page, 'fullscreen')).toBeVisible();
+  await expect(feelSwitch(page, 'vibration')).toHaveCount(0);
+
+  // A phone that asks for reduced motion: the switch is there, and off until the player says otherwise.
+  const context = await browser.newContext({ viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce', baseURL: new URL(page.url()).origin });
+  const phone = await context.newPage();
+  await openGame(phone);
+  await alive(phone);
+  await expect(feelSwitch(phone, 'vibration')).toHaveAttribute('aria-pressed', 'false');
+  await feelSwitch(phone, 'vibration').scrollIntoViewIfNeeded();
+  await feelSwitch(phone, 'vibration').tap();
+  await expect(feelSwitch(phone, 'vibration')).toHaveAttribute('aria-pressed', 'true');
+  expect(await phone.evaluate((key) => window.localStorage.getItem(key), FEEL_STORAGE_KEY)).toBe(JSON.stringify({ v: 1, vibration: true, sweep: false }));
+  await context.close();
+});
+
 test('F and J feed the left and right rails, and held together feed both', async ({ page }) => {
   test.setTimeout(60_000);
   await openGame(page);

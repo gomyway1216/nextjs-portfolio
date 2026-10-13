@@ -242,6 +242,22 @@ export interface PusherStrings {
   chanceOddsNote: (more: string) => string;
   /** The Simulation table's column of gold spins. */
   colGold: string;
+  /**
+   * The switches of feel under the controls: what the row is called, and each switch's name and what it does. The
+   * first is the aim that swings by itself, which the cabinet calls Swing.
+   */
+  feelLabel: string;
+  swing: string;
+  swingHint: string;
+  /** The line shown while the rails swing, and what is said when Swing goes on, goes off, and gives way to a hand on an aim. */
+  swingNote: string;
+  saySwingOn: string;
+  saySwingOff: string;
+  saySwingTaken: string;
+  vibration: string;
+  vibrationHint: string;
+  fullscreen: string;
+  fullscreenHint: string;
 }
 
 const en: PusherStrings = {
@@ -520,6 +536,17 @@ const en: PusherStrings = {
   chanceOddsNote: (more) =>
     `A gold spin has cost two medals through a pocket, the one that was held and the one that turned it gold, and it is worth ${more} medals more than one ordinary spin, which is less than the two spins those medals would have been with room in the hold. So filling the hold is never better than not filling it. It is only less of a loss than it was.`,
   colGold: 'Gold spins',
+  feelLabel: 'Ways to play',
+  swing: 'Swing',
+  swingHint: 'The rails swing left and right by themselves, and you only time L and R. Touch a slider or the field to aim by hand again.',
+  swingNote: 'Swing: the rails move by themselves. Press L or R when the ▼ over a slider is where the medal should drop.',
+  saySwingOn: 'Swing is on: the rails are swinging. Press L or R to feed a medal.',
+  saySwingOff: 'Swing is off.',
+  saySwingTaken: 'Swing is off: you are aiming by hand.',
+  vibration: 'Vibrate',
+  vibrationHint: 'The phone ticks when a medal goes in and buzzes for a win.',
+  fullscreen: 'Fullscreen',
+  fullscreenHint: 'The cabinet and its controls fill the screen.',
 };
 
 const ja: PusherStrings = {
@@ -797,6 +824,17 @@ const ja: PusherStrings = {
   chanceOddsNote: (more) =>
     `金の抽選1回には、チャッカーを通ったメダルが2枚かかっています。保留されていた1枚と、それを金色に変えた1枚です。金の抽選はふつうの抽選より${more}枚多く払い出しますが、保留に空きがあればその2枚は抽選2回になっていたので、それには及びません。つまり保留を満杯にして得をすることはありません。満杯の損が以前より小さくなっただけです。`,
   colGold: '金の抽選',
+  feelLabel: '遊び方の設定',
+  swing: 'スイング',
+  swingHint: 'レールが自動で左右に振れます。LとRを押すタイミングだけで狙います。スライダーかフィールドに触れると、手動の狙いに戻ります。',
+  swingNote: 'スイング中: レールが自動で振れます。スライダーの上の▼が落としたい位置に来たら、LかRを押します。',
+  saySwingOn: 'スイングをオンにしました。レールが左右に振れています。LかRを押してメダルを入れてください。',
+  saySwingOff: 'スイングをオフにしました。',
+  saySwingTaken: 'スイングをオフにしました。手動で狙います。',
+  vibration: '振動',
+  vibrationHint: 'メダルを入れたときや当たったときに、スマートフォンが振動します。',
+  fullscreen: '全画面',
+  fullscreenHint: '筐体と操作パネルを画面いっぱいに表示します。',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

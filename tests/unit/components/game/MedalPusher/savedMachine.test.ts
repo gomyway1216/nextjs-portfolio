@@ -43,15 +43,16 @@ describe('the machine on its way to the account', () => {
     expect(serialize(restore(back?.text ?? null, 3) as Session)).toBe(text);
   });
 
-  it('is about a third of the size it has on the device', { timeout: LONG }, () => {
+  it('is about a quarter of the size it has on the device', { timeout: LONG }, () => {
     const session = createSession(12);
     const fresh = serialize(session);
     play(session, 40);
     const inPlay = serialize(session);
     for (const text of [fresh, inPlay]) {
       const size = sizeOf(toCloud(text, newMark(), Date.now()) as object);
-      expect(size).toBeLessThan(text.length * 0.45);
-      expect(size).toBeLessThan(ACCOUNT_LIMIT / 2);
+      expect(size).toBeLessThan(text.length * 0.3);
+      expect(size).toBeGreaterThan(text.length * 0.15);
+      expect(size).toBeLessThan(ACCOUNT_LIMIT / 4);
     }
   });
 
@@ -73,10 +74,11 @@ describe('the machine on its way to the account', () => {
     expect(measured.medals).toBeGreaterThan(500);
     expect(measured.falling).toBeGreaterThan(60);
     expect(measured.deviceMost).toBeGreaterThan(ACCOUNT_LIMIT * 1.4);
-    // Packed, it is under nine tenths of what the route takes. It was under three quarters while the slot threw on
-    // what the towers' places could not hold, nine medals a second: the hopper pours that four times as fast, so
-    // the same forty-five seconds put far more medals on this field (56,081 bytes at the most here, where it was 38,540).
-    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.9);
+    // Packed, it is under three quarters of what the route takes. The hopper pours a prize four times as fast as
+    // the slot threw it, so these forty-five seconds put far more medals in the air than they did (665 lying and 241
+    // falling at the most), and packed as format 1 packed it that came to 56,081 bytes, for which this bound was
+    // let out to nine tenths. Format 2 writes the same save in 31,553, and the bound is where it was.
+    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.75);
     // …and the whole request is under what a browser will send as the page is left (64 KiB of body).
     expect(measured.requestMost).toBeGreaterThan(measured.accountMost);
     expect(measured.requestMost).toBeLessThan(KEEPALIVE_LIMIT);

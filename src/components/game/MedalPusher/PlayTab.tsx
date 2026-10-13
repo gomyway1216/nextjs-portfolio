@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
@@ -9,6 +10,7 @@ import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './hapti
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
 import {
@@ -26,6 +28,7 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
+import { grant } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
@@ -501,6 +504,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
     keeping.save('tick');
+    // The day's bonus is paid into this machine's purse, and the machine is saved on this device with it at once.
+    // The cabinet hears of it in its next frame, with everything else that happened.
+    const gifts: SessionEvent[] = [];
+    const closePurse = records.openPurse((medals) => {
+      if (!grant(session, medals, gifts)) return false;
+      keeping.save('tick');
+      return true;
+    });
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -609,6 +620,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       advance(session, elapsed, events);
       // The machine is heard turning, in step with the pusher as it is drawn.
       turnMotor(soundOn, session.machine.time);
+      if (gifts.length > 0) events.push(...gifts.splice(0));
+      // The record book hears everything the machine did, whatever becomes of the machine.
+      records.note(session, events);
       // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
       bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
@@ -619,6 +633,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       let lost = false;
       for (const event of events) {
         switch (event.type) {
+          case 'bonus':
+            // The day's bonus: its medals are heard coming down into the tray.
+            playSound('prize', soundOn);
+            playSound('win', soundOn, { count: event.count });
+            setAnnouncement(strings.sayBonus(event.count));
+            break;
           case 'landed':
             landed = true;
             break;
@@ -814,6 +834,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', saveOnLeaving);
+      closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
       keeping.save('left');
       sessionRef.current = null;
@@ -971,6 +992,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   return (
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
+        <AchievementToast sound={sound} />
         <div className={styles.bulbs} aria-hidden />
         <div className={styles.marquee}>
           <div className={styles.logo} aria-hidden>
@@ -1147,6 +1169,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         )}
         <div className={styles.bulbs} aria-hidden />
       </div>
+
+      <BonusStrip />
 
       <section className={styles.tally} aria-label={t.tallyTitle}>
         <h2 className={styles.tallyTitle}>{t.tallyTitle}</h2>

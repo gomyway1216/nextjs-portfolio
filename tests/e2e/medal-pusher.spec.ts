@@ -35,6 +35,7 @@ const ON_SCREEN = 0.26;
 const machine = (page: Page) => page.locator('#pusher-panel-machine');
 const odds = (page: Page) => page.locator('#pusher-panel-odds');
 const sim = (page: Page) => page.locator('#pusher-panel-sim');
+const records = (page: Page) => page.locator('#pusher-panel-records');
 type Rail = 'left' | 'right';
 /** The feed button of a rail: L for the left one, R for the right. */
 const feedButton = (page: Page, rail: Rail) => machine(page).getByTestId(`pusher-feed-${rail}`);
@@ -1668,7 +1669,11 @@ test('the tabs work from the keyboard and the machine waits while it is out of s
   await page.waitForTimeout(1_500);
   expect(await counter(page, 'played')).toBe(paused);
 
+  // End goes to the last tab, which is Records, and the arrow comes back from it.
   await page.keyboard.press('End');
+  await expect(tabs.nth(3)).toBeFocused();
+  await expect(records(page)).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
   await expect(tabs.nth(2)).toBeFocused();
   await expect(sim(page)).toBeVisible();
   await page.keyboard.press('Home');

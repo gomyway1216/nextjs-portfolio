@@ -15,9 +15,18 @@
  * it strikes do (see `MEDAL` and `BODIES`), and they are played well over the
  * background loop.
  *
+ * A real pusher is never silent and almost nothing in it is clean. So the
+ * machine itself is always heard: its motor turns with the pusher's stroke,
+ * the medals riding on the pusher scrape as it moves, every mechanism has a
+ * sound of its own, the jingles come out of a speaker in a cabinet and not
+ * out of thin air, and, for whoever wants it, there is the room the cabinet
+ * stands in (see `MOTOR`, `RUNS` and `AMBIENCE`).
+ *
  * They only play once the player has switched the sound on, which is also the
  * gesture a browser needs before it lets a page make noise.
  */
+
+import { PUSHER } from './engine';
 
 // ── What there is to hear ───────────────────────────────────────────────────
 
@@ -25,7 +34,9 @@
 export const SOUNDS = [
   'land',
   'insert',
+  'button',
   'win',
+  'tray',
   'lost',
   'roll',
   'gate',
@@ -50,6 +61,15 @@ export const SOUNDS = [
   'crash',
   'fever',
   'jackpot',
+  'hopper',
+  'shutter',
+  'lift',
+  'bowl',
+  'drop',
+  'door',
+  'pour',
+  'guard',
+  'slit',
 ] as const;
 export type PusherSound = (typeof SOUNDS)[number];
 
@@ -69,16 +89,49 @@ export type Pour = (typeof POURS)[number];
  * which is one way a `land` can come out, and the rattles of several medals,
  * which are what a `win` of more than one is made of.
  */
-const EXTRA_SAMPLES = ['plate', 'pour2', 'pour4', 'pour8', 'pour16', 'pour32'] as const;
-type ExtraSample = (typeof EXTRA_SAMPLES)[number];
+const EXTRA_SAMPLES = [
+  'plate',
+  'pour2',
+  'pour4',
+  'pour8',
+  'pour16',
+  'pour32',
+  'buttonUp',
+  'liftStop',
+  'motor',
+  // A door going back up, a shutter opening and a guard rising; the moments of a ball on a wheel and in a bowl; the wheel's rotor.
+  'doorShut',
+  'shutterOpen',
+  'guardUp',
+  'shot',
+  'lip',
+  'settle',
+  'bowlLand',
+  'rotor',
+] as const;
+/** What the room is made of: its own tone, other machines' medals from far off, and scraps of their tunes. */
+const ROOM_SAMPLES = ['room', 'farClink', 'farRattle', 'farPour', 'farTune'] as const;
+type ExtraSample = (typeof EXTRA_SAMPLES)[number] | (typeof ROOM_SAMPLES)[number];
 /** The buffer for each size of rattle. One medal by itself is the `win`. */
 export const POUR_SAMPLES: Record<Pour, PusherSound | ExtraSample> = { 1: 'win', 2: 'pour2', 4: 'pour4', 8: 'pour8', 16: 'pour16', 32: 'pour32' };
 
 /** Everything that is kept as a buffer, the medals first: they are worked out in this order once the sound is on. */
 export type Sample = PusherSound | ExtraSample | LoopSample;
 export const SAMPLES: readonly Sample[] = [
-  ...new Set<Sample>(['land', 'plate', 'insert', 'win', 'pour2', 'pour4', 'pour8', 'lost', ...SOUNDS, ...EXTRA_SAMPLES, ...LOOP_SAMPLES]),
+  ...new Set<Sample>(['land', 'plate', 'insert', 'win', 'pour2', 'pour4', 'pour8', 'lost', 'motor', ...SOUNDS, ...EXTRA_SAMPLES, ...LOOP_SAMPLES, ...ROOM_SAMPLES]),
 ];
+/**
+ * The buffers that are worked out in the background once the sound is on. The
+ * room's are left until the room is asked for, which it is not unless the
+ * player switches it on, and `tray` is the `win` under another name.
+ */
+export const WARMED: readonly Sample[] = SAMPLES.filter((sample) => sample !== 'tray' && !(ROOM_SAMPLES as readonly Sample[]).includes(sample));
+/**
+ * The buffers that are made to be played round and round: a mechanism running,
+ * the pusher's whole stroke, the room's tone. They join up with themselves, so
+ * they do not begin and end in silence as everything else does.
+ */
+export const LOOPING: readonly Sample[] = ['motor', 'roulette', 'lift', 'bowl', 'hopper', 'room', 'pour', 'rotor'];
 
 /** What a sound may be told when it is played. */
 export interface SoundOptions {
@@ -86,13 +139,47 @@ export interface SoundOptions {
   stops?: readonly number[];
   /** For `pocket`: how many numbers the roulette's run has reached. The tone climbs with it. */
   level?: number;
-  /** For `win`: how many medals went over the front together. Every one of them is heard in the tray. */
+  /**
+   * For `win` and `tray`: how many medals went into the tray together. Every one of them is heard there.
+   * For `hopper` and `pour`: how many medals are paid, at ten a second from a hopper and three dozen a second
+   * down a chute, when it is not told how long to run.
+   */
   count?: number;
   /**
    * For `land`: whether the medal came down on the bare table rather than on
    * other medals. Left out, it is one or the other by chance, more often the medals.
    */
   bare?: boolean;
+  /**
+   * For a mechanism that runs (`lift`, `bowl`, `roulette`, `hopper`, `pour`):
+   * how long it runs, in seconds. A lift ends in its stop and a bowl in the
+   * ball dropping through its hole, at that moment; a roulette has its
+   * moments at their shares of it. For `guard`: how long the guard travels
+   * before it seats.
+   */
+  seconds?: number;
+  /**
+   * For a mechanism that runs: how long from now it begins, in seconds. It
+   * still ends `seconds` from now. A ball that drops into a bowl is in the
+   * air before it rolls.
+   */
+  after?: number;
+  /**
+   * For `bowl`: whether the bowl is a funnel, in which the ball goes round
+   * faster and faster as the circle tightens, where in a bowl it slows.
+   */
+  quickens?: boolean;
+  /**
+   * For `bowl`: when the ball all but goes down a hole that is not its own,
+   * in seconds from now. It is heard on that hole's lip.
+   */
+  nearMiss?: number;
+  /**
+   * Whether the thing is going back up: a `button` let go rather than pressed,
+   * a `door` swung up and latched rather than dropped open, a `shutter`
+   * opening rather than shutting, a `guard` rising rather than seating.
+   */
+  up?: boolean;
 }
 
 // ── How loud ────────────────────────────────────────────────────────────────
@@ -149,6 +236,15 @@ export const MASTER_GAIN = LEVEL.master * 10 ** (-MAKE_UP / 20);
  * flood no machine could pay at 0.43, and every voice there is at the ceiling
  * and in step, which cannot happen, at 0.51 of full scale (0.48 as made).
  *
+ * Those are where it settles. A compressor takes a few thousandths of a second
+ * to act, and the first instant of many sounds started together goes by before
+ * it has: measured in Chrome with every sound there is started in one instant,
+ * ten times a second, over the machine's bed, the loop and the room, the
+ * highest sample was 0.47 of full scale as made and 0.57 with the volume right
+ * up (0.46 and 0.55 before there was a bed or a room). The hardest play that
+ * could be kept up, both rails held with the loop and the room on, peaked at
+ * 0.22 and 0.38. Nothing comes near full scale.
+ *
  * A change is glided to, with a time constant of `glide` seconds, so that it
  * is not a click, and not a staircase while a slider is being dragged.
  */
@@ -167,7 +263,9 @@ export const masterGain = (volume: number): number => Math.min(VOLUME.most, Math
 export const SOUND_LEVELS: Record<PusherSound, number> = {
   land: 0.1,
   insert: 0.09,
+  button: 0.05,
   win: 0.1,
+  tray: 0.1,
   lost: 0.08,
   roll: 0.05,
   gate: 0.045,
@@ -185,13 +283,22 @@ export const SOUND_LEVELS: Record<PusherSound, number> = {
   open: 0.06,
   prize: 0.08,
   ball: 0.08,
-  roulette: 0.04,
+  roulette: 0.045,
   pocket: 0.07,
   tower: 0.09,
   cross: 0.075,
   crash: 0.1,
   fever: 0.095,
   jackpot: 0.11,
+  hopper: 0.085,
+  shutter: 0.07,
+  lift: 0.045,
+  bowl: 0.05,
+  drop: 0.07,
+  door: 0.08,
+  pour: 0.075,
+  guard: 0.045,
+  slit: 0.07,
 };
 
 /** The peak a rattle of `size` medals is played at: from a single medal's level up to the ceiling. */
@@ -199,7 +306,101 @@ export const pourLevel = (size: number): number =>
   SOUND_LEVELS.win + (LEVEL.ceiling - SOUND_LEVELS.win) * (Math.log2(size) / Math.log2(POURS[POURS.length - 1]));
 
 /** The medals themselves, the tray apart: the sounds that come in streams, each a little different from the last. */
-const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'insert', 'lost', 'roll']);
+const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'insert', 'lost', 'roll', 'button', 'slit']);
+
+/**
+ * The machine itself, which is never still. Its motor, the pusher the motor
+ * drives and the medals riding on the pusher are one buffer as long as one
+ * stroke, and it is played in step with the stroke: in stretches of `stretch`
+ * seconds, each begun where the machine's own clock says the pusher is, and
+ * faded into the next over `overlap`. `level` is the peak, which is the clunk
+ * at the back of the stroke; the hum and the scrape under it peak at two
+ * thirds of that and average about a tenth of it. A stretch is lined up
+ * `lead` seconds before the last one begins to fade. Measured in Chrome, the
+ * clunks are heard 0.03 s after the pusher turns, which is the sound card.
+ */
+export const MOTOR = {
+  level: 0.04,
+  stretch: 1.2,
+  overlap: 0.08,
+  lead: 0.12,
+  /** The hum of the motor and the whine of its gears, in hertz, and how strong each is. */
+  partials: [
+    [100, 0.25],
+    [200, 0.2],
+    [300, 0.45],
+    [450, 0.12],
+    [600, 0.22],
+    [900, 0.1],
+  ],
+  /** How loud the hum and the whine are beside the clunk at the back of the stroke. */
+  hum: 0.33,
+  /** How far the whine falls as the pusher shoves the medals, and rises as it comes back light: 2.5% either way. */
+  sag: 27,
+} as const;
+
+/**
+ * A hopper throws out about `rate` medals a second. A payout too big for one
+ * to get through in `fair` seconds is shared between as many as it takes, up
+ * to three, which is a sheet of medals rather than a string of them: each
+ * joins `apart` seconds after the one before and leaves as long before it, at
+ * its own speed and level. However many medals, it is heard for at most
+ * `longest` seconds.
+ */
+export const HOPPER = { rate: 10, loop: 2.4, fair: 4, longest: 8, apart: 0.3, speeds: [1, 1.09, 0.93], levels: [1, 0.7, 0.55] } as const;
+
+/** Down a chute the medals come three dozen a second, in a rush too thick to count. */
+export const CHUTE = { rate: 36, loop: 2 } as const;
+
+/**
+ * The rotor of the roulette's wheel, which turns for as long as the wheel is
+ * in play, however many turns the ball has: like the machine's own bed it is
+ * asked for once a frame (`turnRotor`) and played a stretch at a time, each
+ * taken up exactly where the last left off.
+ */
+export const ROTOR = { level: 0.028, stretch: 0.5, overlap: 0.08, lead: 0.1 } as const;
+
+/** How long a lift's guard travels before it seats when nobody says: rising, and coming down. */
+export const GUARD = { up: 0.5, down: 0.45 } as const;
+
+/** No mechanism runs for less or for longer than this, in seconds, whatever it is asked. See `RUNS`. */
+export const RUN = { shortest: 0.3, longest: 12 } as const;
+
+/**
+ * The room the cabinet stands in: the floor of an arcade as it is heard from
+ * one machine. Its own tone, which is air and a murmur with nothing in it that
+ * can be told apart; other machines' medals, far off; and a few notes of their
+ * tunes, made up note by note by the roll of a die so that they are nobody's.
+ * Each kind comes at random, on average every so many seconds, in one of
+ * several takes, at its own speed and level, so that it never comes round
+ * again the same and has no beat to nag with. It is off unless the player
+ * switches it on, and nothing in it is as loud as a medal of the player's own.
+ */
+export const AMBIENCE = {
+  /** The most any one far-off sound is played at. */
+  level: 0.03,
+  every: 0.25,
+  ahead: 0.6,
+  /**
+   * The most of its sources that may be sounding or waiting at once, the
+   * stretches of its tone among them. Two of those overlap while one fades
+   * into the next, so `kept` places are the tone's and what comes from far
+   * off has the rest.
+   */
+  voices: 8,
+  kept: 2,
+  /**
+   * The room's own tone: its level, the length of a stretch of it and of the
+   * fade from one stretch into the next, and how far the speed of a stretch
+   * wanders. A stretch is shorter than the buffer it is taken from, and starts
+   * anywhere in it, so that none is heard to come round.
+   */
+  room: { level: 0.02, seconds: 5.5, cross: 1.5, wander: 0.24 },
+  /** How long it is, on average, from one of a kind to the next. */
+  gaps: { farClink: 1.3, farRattle: 4, farPour: 13, farTune: 11 },
+  /** How far a far-off sound's level and speed wander. */
+  wander: { level: 0.65, speed: 0.4 },
+} as const;
 
 export const LIMITS = {
   /** No more than this many clinks of one kind — going in, landing, lost — start within `window` seconds, evenly spaced. */
@@ -224,8 +425,12 @@ export const LIMITS = {
   quickGap: 0.03,
 } as const;
 
-/** How far a clink's pitch and level wander from one medal to the next. */
-const WANDER = { pitch: 0.1, level: 0.3 } as const;
+/**
+ * How far a clink's pitch and level wander from one medal to the next, and how
+ * late it may start: the game says what happened once a frame, and medals that
+ * all struck on the frame would be a machine gun, not a machine.
+ */
+export const WANDER = { pitch: 0.1, level: 0.3, late: 0.012 } as const;
 
 /**
  * The tray. A medal is heard in it `fall` seconds after it goes over the
@@ -692,8 +897,8 @@ const BODIES = {
   // The tray: sheet steel, boxy, between 1 and 3 kHz. It is far bigger than a medal and so far louder, struck by the
   // same blow: many medals strike it together, and that is most of what a rattle is.
   tray: { hz: 1900, q: 1, loud: 1.5, ring: 0.024, modes: [[520, 0.4, 0.02], [1180, 0.6, 0.018], [2460, 0.5, 0.012]] },
-  // The pusher's table: thick and dead.
-  table: { hz: 1300, q: 1.2, loud: 1, ring: 0.006, modes: [[420, 0.5, 0.012]] },
+  // The pusher's table: a thick steel plate. It is too heavy to ring for long, but it is steel, and says so.
+  table: { hz: 1300, q: 1.2, loud: 1, ring: 0.006, modes: [[420, 0.5, 0.012], [1740, 0.22, 0.011], [2910, 0.14, 0.008]] },
   // The throat of the slot: thin metal, higher and shorter.
   chute: { hz: 2700, q: 1.4, loud: 1.2, ring: 0.008, modes: [[900, 0.3, 0.006], [3300, 0.3, 0.007]] },
   // The gutter down the side: plastic. It takes the hit and gives back a knock.
@@ -702,6 +907,8 @@ const BODIES = {
   pile: { hz: 4200, q: 0.7, loud: 1.6, ring: 0.005, modes: [[950, 0.3, 0.005]] },
   // A plastic rail under a medal's edge.
   rail: { hz: 1700, q: 1.5, loud: 0.35, ring: 0.0015, modes: [[600, 0.4, 0.002]] },
+  // The steel sheet a hopper throws its medals onto.
+  sheet: { hz: 2400, q: 1.1, loud: 1.1, ring: 0.014, modes: [[760, 0.4, 0.016], [1650, 0.5, 0.012]] },
 } satisfies Record<string, Body>;
 
 /** The answer of what was struck. */
@@ -726,6 +933,130 @@ function rounded(t: Take, knee = 0.6): Take {
   for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
   const limit = peak * knee;
   if (limit > 0) for (let i = 0; i < out.length; i++) out[i] = limit * Math.tanh(out[i] / limit);
+  return t;
+}
+
+/** Lets through what lies below `hz`, or what lies above it: two poles, over the whole take. */
+function sieve(t: Take, keep: 'below' | 'above', hz: number): void {
+  const { out, rate } = t;
+  const angle = (TURN * Math.min(hz, rate * 0.45)) / rate;
+  const cos = Math.cos(angle);
+  const alpha = Math.sin(angle) / Math.SQRT2;
+  const b0 = (keep === 'below' ? (1 - cos) / 2 : (1 + cos) / 2) / (1 + alpha);
+  const b1 = keep === 'below' ? 2 * b0 : -2 * b0;
+  const a1 = (-2 * cos) / (1 + alpha);
+  const a2 = (1 - alpha) / (1 + alpha);
+  let x1 = 0;
+  let x2 = 0;
+  let y1 = 0;
+  let y2 = 0;
+  for (let i = 0; i < out.length; i++) {
+    const x = out[i];
+    const y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1;
+    x1 = x;
+    y2 = y1;
+    y1 = y;
+    out[i] = y;
+  }
+}
+
+/** Copies of a take that come back a little later and quieter, as off the walls of a small space. */
+function reflect(t: Take, taps: readonly (readonly [seconds: number, level: number])[]): void {
+  const { out, rate } = t;
+  const dry = out.slice();
+  for (const [seconds, level] of taps) {
+    const shift = Math.round(seconds * rate);
+    for (let i = shift; i < out.length; i++) out[i] += dry[i - shift] * level;
+  }
+}
+
+/** What a sound from the cabinet's speaker comes back off: the cabinet's own glass and the machine beside it. */
+const CABINET = [
+  [0.0061, 0.24],
+  [0.0113, 0.16],
+  [0.0197, 0.1],
+] as const;
+
+/**
+ * A jingle does not come out of thin air. It comes out of a speaker in a
+ * cabinet, which has no bottom octave and not much top, and it is heard with
+ * the cabinet round it.
+ */
+function speaker(t: Take): void {
+  sieve(t, 'above', 150);
+  sieve(t, 'below', 7500);
+  reflect(t, CABINET);
+}
+
+/**
+ * A big room heard from across it: the take is smeared into a tail that dies
+ * away over `seconds`, and `wet` is how much of what is left is tail. Four
+ * echoes that go round and round, each at its own length, and two stages that
+ * blur the echoes' own rhythm.
+ */
+function distance(t: Take, seconds: number, wet: number): void {
+  const { out, rate } = t;
+  const dry = out.slice();
+  const tail = new Float32Array(out.length);
+  for (const ms of [29.7, 37.1, 41.1, 43.7]) {
+    const length = Math.max(1, Math.round((ms / 1000) * rate));
+    const back = 10 ** ((-3 * ms) / 1000 / seconds);
+    const line = new Float32Array(length);
+    let at = 0;
+    for (let i = 0; i < out.length; i++) {
+      const was = line[at];
+      line[at] = dry[i] + was * back;
+      at = at + 1 === length ? 0 : at + 1;
+      tail[i] += was * 0.25;
+    }
+  }
+  for (const ms of [5, 1.7]) {
+    const length = Math.max(1, Math.round((ms / 1000) * rate));
+    const line = new Float32Array(length);
+    let at = 0;
+    for (let i = 0; i < tail.length; i++) {
+      const was = line[at];
+      const into = tail[i] + was * 0.7;
+      line[at] = into;
+      at = at + 1 === length ? 0 : at + 1;
+      tail[i] = was - into * 0.7;
+    }
+  }
+  for (let i = 0; i < out.length; i++) out[i] = dry[i] * (1 - wet) + tail[i] * wet;
+}
+
+/** How a sound is changed by coming from far off across the floor: its top is gone, twice over, and the room has got into it. */
+const FAR = { top: 4500 } as const;
+function far(t: Take, seconds: number): Take {
+  sieve(t, 'below', FAR.top);
+  sieve(t, 'below', FAR.top);
+  distance(t, seconds, 0.6);
+  return t;
+}
+
+/**
+ * Makes a take go round: its last `cross` seconds are faded out over its
+ * first, which are faded in, and then cut off, so that the end runs into the
+ * beginning. What repeats exactly over the length that is left is not changed.
+ */
+function looped(t: Take, cross: number): Take {
+  const { out, rate } = t;
+  const over = Math.round(cross * rate);
+  const length = out.length - over;
+  for (let i = 0; i < over; i++) out[i] = out[i] * (i / over) + out[length + i] * (1 - i / over);
+  return { out: out.slice(0, length), rate };
+}
+
+/** The guard of a lift: it slides in its guides for `travel` seconds and seats with a soft clack, plastic on rubber. */
+function guardOf(rate: number, travel: number, rising: boolean): Take {
+  const t = take(travel + 0.14, rate);
+  const slide = (seconds: number) => 0.14 * Math.min(1, seconds / 0.04, (travel - seconds) / 0.04);
+  hiss(t, LEAD, travel, slide, { kind: 'band', hz: rising ? 1100 : 1500, to: rising ? 1500 : 1100, q: 1.2 }, rising ? 331 : 332);
+  const seats = LEAD + travel;
+  glide(t, seats, 0.1, rising ? 380 : 300, rising ? 300 : 230, 0.03, dying(0.018));
+  hiss(t, seats, 0.012, dying(0.003, 0.3), { kind: 'band', hz: 1700, q: 0.9 }, 333);
+  ping(t, seats, rising ? 900 : 760, 0.25, 0.006);
   return t;
 }
 
@@ -773,11 +1104,11 @@ export function pourHits(count: number, seed: number): Hit[] {
 /** The seed a take of a rattle is worked out from. */
 export const pourSeed = (count: number, variant: number): number => 400 + count * 10 + variant;
 
-/** `count` medals into the tray: every strike is the medal and the tray together. */
-function pour(rate: number, count: number, variant: number): Take {
+/** `count` medals into the tray: every strike is the medal and the tray together. `tail` is how long the last of them is left. */
+function pour(rate: number, count: number, variant: number, tail: number = POUR.tail): Take {
   const seed = pourSeed(count, variant);
   const hits = pourHits(count, seed);
-  const t = take(LEAD + hits[hits.length - 1].at + POUR.tail, rate);
+  const t = take(LEAD + hits[hits.length - 1].at + tail, rate);
   hits.forEach((hit, index) => {
     coin(t, LEAD + hit.at, hit.hz, hit.level, hit.ring, seed * 100 + index * 2);
     answer(t, LEAD + hit.at, BODIES.tray, hit.level, seed * 100 + index * 2 + 1);
@@ -803,6 +1134,7 @@ const jingle =
   (rate: number): Take => {
     const t = take(music.length + music.tail, rate);
     perform(t, music);
+    speaker(t);
     return t;
   };
 
@@ -820,7 +1152,26 @@ export const VARIANTS: Partial<Record<Sample, number>> = {
   lost: 3,
   roll: 2,
   pocket: POCKET_NOTES.length,
+  button: 2,
+  buttonUp: 2,
+  tray: 4,
+  shutter: 2,
+  drop: 2,
+  slit: 3,
+  farClink: 3,
+  farRattle: 2,
+  farTune: 6,
 };
+
+/**
+ * A buffer of the room is never worked out at more samples a second than
+ * this: there is next to nothing in it above 6 kHz, and it is the largest thing kept.
+ * `renderSound` works out whatever rate it is asked for; this is what the
+ * cabinet asks for.
+ */
+export const LOW_RATE = 24000;
+/** What is worked out at no more than that: the room, and the machine's own bed, which is the longest thing but one. */
+const LOW: ReadonlySet<Sample> = new Set<Sample>(['motor', ...ROOM_SAMPLES]);
 
 /** The turns of a reel that go by in a second, heard as a flutter in its whirr. */
 const FLUTTER = 15;
@@ -932,19 +1283,24 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     ping(t, 0, 1300, 0.12, 0.015);
     return t;
   },
-  // A lamp of the roulette lighting.
+  // The roulette's ball striking a fret as the wheel carries it past: a click, the fret's ring and the wood under it.
   tick: (rate) => {
     const t = take(0.06, rate);
-    ping(t, 0, 1900, 1, 0.008);
-    ping(t, 0, 2850, 0.4, 0.005);
-    hiss(t, 0, 0.01, dying(0.002, 0.2), { kind: 'band', hz: 4000, q: 1 }, 91);
+    hiss(t, LEAD, 0.008, dying(0.0015, 0.6), { kind: 'band', hz: 3200, q: 0.8 }, 91);
+    ping(t, LEAD, 2300, 0.7, 0.007);
+    ping(t, LEAD, 3700, 0.35, 0.004);
+    ping(t, LEAD, 1150, 0.4, 0.01);
     return t;
   },
-  // The piece hopping a square: a short rising blip and the tap of it coming down.
+  // The piece being set down on a square: plastic on a board, and it rocks once before it stands.
   hop: (rate) => {
     const t = take(0.14, rate);
-    glide(t, 0, 0.13, 520, 800, 0.07, swell(0.004, 0.03));
-    hiss(t, 0, 0.03, dying(0.008, 0.2), { kind: 'low', hz: 900, q: 0.7 }, 101);
+    hiss(t, LEAD, 0.012, dying(0.003, 0.5), { kind: 'band', hz: 2300, q: 0.9 }, 101);
+    ping(t, LEAD, 720, 0.8, 0.012);
+    ping(t, LEAD, 1480, 0.35, 0.007);
+    ping(t, LEAD, 240, 0.5, 0.02);
+    hiss(t, LEAD + 0.045, 0.01, dying(0.002, 0.15), { kind: 'band', hz: 2300, q: 0.9 }, 102);
+    ping(t, LEAD + 0.045, 760, 0.25, 0.008);
     return t;
   },
   reach: jingle(SCORES.reach),
@@ -969,9 +1325,9 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     return t;
   },
   chest: jingle(SCORES.chest),
-  // A chest opening: the latch, the hinge — a creak is a run of tiny slips that come faster — and what is inside coming up to meet the prize.
+  // A chest opening: the latch, the hinge — a creak is a run of tiny slips that come faster — and the lid meeting its stop.
   open: (rate) => {
-    const t = take(1.1, rate);
+    const t = take(1, rate);
     hiss(t, 0, 0.02, dying(0.004, 0.5), { kind: 'band', hz: 3000, q: 1.2 }, 131);
     ping(t, 0, 1500, 0.4, 0.01);
     let at = 0.1;
@@ -982,21 +1338,27 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
       at += gap;
       gap *= 0.975;
     }
-    const rise = (level: number) => (seconds: number) => level * (seconds / 0.7) ** 2;
-    hiss(t, 0.4, 0.7, rise(0.3), { kind: 'band', hz: 900, to: 5200, q: 2 }, 132);
-    glide(t, 0.4, 0.7, 500, 1500, 0.7, rise(0.25));
+    // The lid goes back against its stop, and what is inside shifts.
+    glide(t, 0.58, 0.2, 260, 170, 0.05, dying(0.03, 0.8));
+    hiss(t, 0.58, 0.04, dying(0.008, 0.4), { kind: 'band', hz: 1300, q: 0.9 }, 132);
+    ping(t, 0.58, 610, 0.3, 0.012);
+    [0.64, 0.7, 0.79].forEach((at, medal) => coin(t, at, MEDAL.hz * (0.96 + medal * 0.035), 0.16 - medal * 0.04, 0.012, 133 + medal, 0.6));
     return t;
   },
   prize: jingle(SCORES.prize),
   ball: jingle(SCORES.ball),
-  // The roulette setting off: a quick sweep up two octaves and a bell at the top of it.
+  // The roulette's ball running round its track, made to go round and round: a hard ball on wood is a rattle with a
+  // note of its own, it comes past six times in the second, and the wheel turns under it. The moments of a turn,
+  // the shot that sets it off and the strikes it ends in, are takes of their own (`shot`, `lip`, `settle`): see `RUNS`.
   roulette: (rate) => {
-    const t = take(0.7, rate);
-    const level = (seconds: number) => Math.min(1, seconds / 0.02) * (seconds < 0.28 ? 1 : Math.exp(-(seconds - 0.28) / 0.03));
-    glide(t, 0, 0.45, 420, 1680, 0.3, (seconds) => 0.6 * level(seconds));
-    glide(t, 0, 0.45, 840, 3360, 0.3, (seconds) => 0.2 * level(seconds));
-    bell(t, 0.3, pitch('E6'), 0.8, 0.12);
-    return t;
+    const length = 1;
+    const cross = 0.08;
+    const t = take(length + cross, rate);
+    const lap = (seconds: number) => 0.55 + 0.45 * Math.sin(TURN * 6 * seconds) ** 2;
+    hiss(t, 0, length + cross, (seconds) => 0.6 * lap(seconds), { kind: 'band', hz: 1700, q: 1.6 }, 181);
+    hiss(t, 0, length + cross, (seconds) => 0.25 * lap(seconds), { kind: 'band', hz: 3900, q: 1.2 }, 182);
+    hiss(t, 0, length + cross, () => 0.3, { kind: 'band', hz: 420, q: 1 }, 183);
+    return looped(t, cross);
   },
   // A number: a bell and the fifth above it, higher for every number the run has reached.
   pocket: (rate, variant) => {
@@ -1005,6 +1367,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     bell(t, 0, hz, 1, 0.2);
     bell(t, 0, hz * 1.5, 0.5, 0.16);
     bell(t, 0.05, hz * 2, 0.35, 0.14);
+    speaker(t);
     return t;
   },
   // A tower going up: the thud of its first medals on the pusher, then a few more going onto it.
@@ -1021,6 +1384,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     const t = take(0.46, rate);
     tone(t, 0, 147, 0.36, 0.6, BUZZ);
     tone(t, 0, 151.5, 0.36, 0.4, BUZZ);
+    speaker(t);
     return t;
   },
   // A tower coming down: a rumble, and its medals scattering over it.
@@ -1044,6 +1408,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     ping(t, 0, REFERENCE.arp, 0.75, 0.16);
     ping(t, 0, REFERENCE.arp * 2, 0.18, 0.08);
     ping(t, 0, REFERENCE.arp * 3, 0.07, 0.05);
+    speaker(t);
     return t;
   },
   bass: (rate) => {
@@ -1051,10 +1416,365 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     tone(t, 0, REFERENCE.bass, 0.8, 1, PLUCK);
     return t;
   },
+  // A medal into the payout tray, heard at once and not after a fall: the same medal and the same tray as a `win` of one.
+  tray: (rate, variant) => pour(rate, 1, variant),
+  // A big arcade button going down: the microswitch under it clicks over part of the way, and then the dome bottoms
+  // out on the panel, which is hollow and says so.
+  button: (rate, variant) => {
+    const t = take(0.16, rate);
+    const tune = [1, 0.94][variant];
+    const lands = LEAD + [0.016, 0.019][variant];
+    hiss(t, LEAD, 0.006, dying(0.0015, 0.45), { kind: 'band', hz: 5200, q: 1.5 }, 223 + variant);
+    ping(t, LEAD, 3400 * tune, 0.3, 0.0025);
+    hiss(t, lands, 0.015, dying(0.004, 0.55), { kind: 'band', hz: 2500, q: 0.8 }, 221 + variant);
+    ping(t, lands, 520 * tune, 0.8, 0.009);
+    ping(t, lands, 880 * tune, 0.4, 0.006);
+    ping(t, lands, 165, 0.6, 0.018);
+    return t;
+  },
+  // And coming up: the switch clicks back first, then the dome meets its stop.
+  buttonUp: (rate, variant) => {
+    const t = take(0.12, rate);
+    const tune = [1, 1.05][variant];
+    hiss(t, LEAD, 0.006, dying(0.0015, 0.5), { kind: 'band', hz: 4800, q: 1.5 }, 225 + variant);
+    ping(t, LEAD, 3050 * tune, 0.4, 0.0025);
+    hiss(t, LEAD + 0.018, 0.012, dying(0.003, 0.3), { kind: 'band', hz: 2100, q: 0.8 }, 227 + variant);
+    ping(t, LEAD + 0.018, 700 * tune, 0.45, 0.007);
+    return t;
+  },
+  // A door or a shutter thrown by a solenoid: the plunger slams home, the frame rings, and the flap chatters to rest.
+  shutter: (rate, variant) => {
+    const t = take(0.3, rate);
+    const tune = [1, 1.08][variant];
+    glide(t, LEAD, 0.2, 230 * tune, 150 * tune, 0.03, dying(0.022));
+    ping(t, LEAD, 1250 * tune, 0.4, 0.012);
+    ping(t, LEAD, 2100 * tune, 0.2, 0.008);
+    hiss(t, LEAD, 0.012, dying(0.003, 0.7), { kind: 'band', hz: 3000, q: 0.9 }, 231 + variant);
+    [0.036, 0.061, 0.079].forEach((at, tap) => {
+      hiss(t, LEAD + at, 0.012, dying(0.004, 0.3 - tap * 0.08), { kind: 'band', hz: 1800, q: 2 }, 233 + tap);
+      ping(t, LEAD + at, 900 * tune, 0.3 - tap * 0.08, 0.006);
+    });
+    return t;
+  },
+  // A hopper paying out, made to go round and round: its disc's motor, and a medal thrown out every tenth of a second or
+  // so, each let go with a click, striking the steel sheet under the hopper and bouncing once.
+  hopper: (rate) => {
+    const length = HOPPER.loop;
+    const cross = 0.25;
+    const t = take(length + cross, rate);
+    const random = noise(241);
+    for (let i = 0; i < t.out.length; i++) {
+      const seconds = i / rate;
+      const waver = 0.16 * (1 + 0.15 * Math.sin(TURN * 20 * seconds));
+      t.out[i] += waver * (0.6 * Math.sin(TURN * 240 * seconds) + 0.3 * Math.sin(TURN * 480 * seconds + 0.4) + 0.1 * Math.sin(TURN * 720 * seconds + 1));
+    }
+    hiss(t, 0, length + cross, () => 0.12, { kind: 'band', hz: 1100, q: 0.8 }, 242);
+    let at = 0.02;
+    for (let medal = 0; at < length + cross - 0.2; medal++) {
+      hiss(t, at, 0.012, dying(0.003, 0.3), { kind: 'band', hz: 2600, q: 1.2 }, 250 + medal * 3);
+      const lands = at + 0.05 + 0.03 * (random() + 1);
+      const hz = MEDAL.hz * (1 + 0.08 * random());
+      const level = 0.75 + 0.25 * random();
+      coin(t, lands, hz, level, 0.016, 251 + medal * 3);
+      answer(t, lands, BODIES.sheet, level, 252 + medal * 3);
+      coin(t, lands + 0.045 + 0.02 * (random() + 1), hz * 1.006, level * 0.4, 0.012, 253 + medal * 3, 0.6);
+      at += (1 + 0.14 * random()) / HOPPER.rate;
+    }
+    return rounded(looped(t, cross), 0.5);
+  },
+  // A lift bringing something up, made to go round and round: a geared motor's whine and the whine's octave, wavering
+  // with the shaft, the teeth of its rack going by, and the rattle of the carriage.
+  lift: (rate) => {
+    const length = 1;
+    const cross = 0.06;
+    const t = take(length + cross, rate);
+    for (let i = 0; i < t.out.length; i++) {
+      const seconds = i / rate;
+      const waver = 1 + 0.12 * Math.sin(TURN * 31 * seconds);
+      t.out[i] += waver * (0.45 * Math.sin(TURN * 430 * seconds) + 0.22 * Math.sin(TURN * 860 * seconds + 0.6) + 0.1 * Math.sin(TURN * 1290 * seconds + 1.1));
+    }
+    for (let tooth = 0; tooth / 24 < length + cross - 0.02; tooth++) {
+      ping(t, tooth / 24, 1500, 0.25, 0.003);
+      ping(t, tooth / 24, 2600, 0.12, 0.002);
+    }
+    hiss(t, 0, length + cross, () => 0.18, { kind: 'band', hz: 950, q: 0.9 }, 191);
+    return looped(t, cross);
+  },
+  // The lift reaching the top: it stops against its end with a clunk, and what it carried settles.
+  liftStop: (rate) => {
+    const t = take(0.3, rate);
+    glide(t, LEAD, 0.25, 210, 120, 0.05, dying(0.035));
+    ping(t, LEAD, 640, 0.4, 0.015);
+    hiss(t, LEAD, 0.03, dying(0.006, 0.45), { kind: 'band', hz: 1500, q: 0.9 }, 195);
+    [0.05, 0.085, 0.13].forEach((at, medal) => coin(t, LEAD + at, MEDAL.hz * (0.95 + medal * 0.04), 0.14 - medal * 0.03, 0.01, 196 + medal, 0.6));
+    return t;
+  },
+  // A ball running round a plastic bowl, made to go round and round: the bowl's own low rumble, louder each time the
+  // ball comes round the near side, and the seams and specks it runs over.
+  bowl: (rate) => {
+    const length = 1;
+    const cross = 0.1;
+    const t = take(length + cross, rate);
+    const random = noise(203);
+    const lap = (seconds: number) => 0.5 + 0.5 * Math.sin(TURN * 2 * seconds) ** 2;
+    hiss(t, 0, length + cross, (seconds) => 0.7 * lap(seconds), { kind: 'band', hz: 520, q: 1.1 }, 201);
+    hiss(t, 0, length + cross, (seconds) => 0.3 * lap(seconds), { kind: 'band', hz: 1900, q: 1.4 }, 202);
+    for (let at = 0.01; at < length + cross - 0.04; at += 0.06 + 0.05 * (random() + 1)) ping(t, at, 800 + 300 * random(), 0.25, 0.005);
+    return looped(t, cross);
+  },
+  // The ball finding its hole: it knocks round the rim, quicker each time, goes through with a hollow knock, and is
+  // heard twice more on its way down inside.
+  drop: (rate, variant) => {
+    const t = take(0.62, rate);
+    const tune = [1, 1.07][variant];
+    [0, 0.07, 0.115].forEach((at, knock) => {
+      ping(t, LEAD + at, 640 * tune, 0.6 - knock * 0.12, 0.01);
+      ping(t, LEAD + at, 1500 * tune, 0.22, 0.005);
+      hiss(t, LEAD + at, 0.012, dying(0.003, 0.3), { kind: 'band', hz: 2600, q: 1 }, 211 + knock);
+    });
+    glide(t, LEAD + 0.17, 0.2, 430 * tune, 250 * tune, 0.07, dying(0.04));
+    hiss(t, LEAD + 0.17, 0.04, dying(0.008, 0.4), { kind: 'band', hz: 900, q: 0.8 }, 215);
+    [0.3, 0.41].forEach((at, knock) => {
+      ping(t, LEAD + at, (320 - knock * 50) * tune, 0.35 - knock * 0.12, 0.018);
+      hiss(t, LEAD + at, 0.03, dying(0.006, 0.12), { kind: 'low', hz: 700, q: 0.7 }, 216 + knock);
+    });
+    return t;
+  },
+  // A hopper's door dropping open on its stays: the latch lets go, the flap falls and the stays catch it with a clank,
+  // and it shivers on them. Open, it is the chute.
+  door: (rate) => {
+    const t = take(0.5, rate);
+    hiss(t, LEAD, 0.006, dying(0.0015, 0.35), { kind: 'band', hz: 4200, q: 1.4 }, 301);
+    ping(t, LEAD, 2900, 0.25, 0.003);
+    let at = LEAD + 0.09;
+    let gap = 0.07;
+    let level = 1;
+    for (let bounce = 0; bounce < 4; bounce++) {
+      answer(t, at, BODIES.sheet, level, 302 + bounce);
+      ping(t, at, 310, level * 0.6, 0.03);
+      ping(t, at, 1180, level * 0.3, 0.02);
+      at += gap;
+      gap *= 0.6;
+      level *= bounce === 0 ? 0.45 : 0.55;
+    }
+    return t;
+  },
+  // And swung back up: a dull knock as it meets its frame, and the latch catching a moment after.
+  doorShut: (rate) => {
+    const t = take(0.3, rate);
+    glide(t, LEAD, 0.15, 240, 170, 0.04, dying(0.025));
+    answer(t, LEAD, BODIES.sheet, 0.5, 311);
+    hiss(t, LEAD + 0.045, 0.006, dying(0.0015, 0.5), { kind: 'band', hz: 4400, q: 1.4 }, 312);
+    ping(t, LEAD + 0.045, 3100, 0.35, 0.003);
+    return t;
+  },
+  // Medals rushing down a steel chute, made to go round and round: three dozen a second, each striking the chute and
+  // sliding on, too close together to count, over the hiss of all of them sliding.
+  pour: (rate) => {
+    const length = CHUTE.loop;
+    const cross = 0.25;
+    const t = take(length + cross, rate);
+    const random = noise(321);
+    hiss(t, 0, length + cross, () => 0.22, { kind: 'band', hz: 3100, q: 0.7 }, 322);
+    hiss(t, 0, length + cross, () => 0.1, { kind: 'band', hz: 900, q: 0.8 }, 323);
+    let at = 0.01;
+    for (let medal = 0; at < length + cross - 0.08; medal++) {
+      const level = 0.55 + 0.45 * ((random() + 1) / 2);
+      coin(t, at, MEDAL.hz * (1 + 0.09 * random()), level, 0.011, 324 + medal * 2, 0.7);
+      if (medal % 2 === 0) answer(t, at, BODIES.sheet, level * 0.8, 325 + medal * 2);
+      at += (1 + 0.5 * random()) / CHUTE.rate;
+    }
+    return rounded(looped(t, cross), 0.5);
+  },
+  // The guard of a lift, coming down to seat and going up.
+  guard: (rate) => guardOf(rate, GUARD.down, false),
+  guardUp: (rate) => guardOf(rate, GUARD.up, true),
+  // A medal dropping into a narrow slot standing on its edge: it rattles between the two walls, faster and higher as
+  // it falls, which is a zip that rises, and clinks on the steel at the bottom.
+  slit: (rate, variant) => {
+    const t = take(0.38, rate);
+    const tune = [1, 0.95, 1.06][variant];
+    const fall = [0.15, 0.17, 0.14][variant];
+    const random = noise(341 + variant);
+    let at = LEAD;
+    for (let tap = 0; at < LEAD + fall - 0.004; tap++) {
+      const share = (at - LEAD) / fall;
+      const loud = (0.3 + 0.4 * share) * (0.8 + 0.2 * random());
+      // Each tap is on the wall of a slot that is shorter above the medal the further it has fallen, so it is higher.
+      hiss(t, at, 0.005, dying(0.0012, loud * 0.6), { kind: 'band', hz: (1700 + 2700 * share) * tune, q: 1.8 }, 350 + variant * 100 + tap);
+      ping(t, at, (1500 + 1900 * share) * tune, loud * 0.5, 0.003);
+      ping(t, at, MEDAL.hz * tune * (0.96 + 0.06 * share), loud * 0.12, 0.004, MEDAL.top);
+      at += 1 / (90 + 260 * share);
+    }
+    const lands = LEAD + fall;
+    coin(t, lands, MEDAL.hz * tune, 1, 0.03, 346 + variant, 0.9);
+    answer(t, lands, BODIES.chute, 1, 347 + variant);
+    coin(t, lands + 0.05, MEDAL.hz * tune * 1.006, 0.3, 0.02, 348 + variant, 0.6);
+    return rounded(t);
+  },
+  // A shutter opening: the solenoid lets go with a click, the slats run up, and stop.
+  shutterOpen: (rate) => {
+    const t = take(0.3, rate);
+    hiss(t, LEAD, 0.008, dying(0.002, 0.5), { kind: 'band', hz: 3500, q: 1.2 }, 361);
+    ping(t, LEAD, 2400, 0.35, 0.004);
+    hiss(t, LEAD + 0.01, 0.13, (seconds) => 0.25 * Math.min(1, seconds / 0.02, (0.13 - seconds) / 0.03), { kind: 'band', hz: 1200, to: 2000, q: 1.2 }, 362);
+    glide(t, LEAD + 0.14, 0.12, 260, 190, 0.03, dying(0.02, 0.6));
+    ping(t, LEAD + 0.14, 1100, 0.3, 0.008);
+    return t;
+  },
+  // The ball shot on to the wheel's track: the plunger's knock, its click, and the ball skidding before it rolls.
+  shot: (rate) => {
+    const t = take(0.22, rate);
+    glide(t, LEAD, 0.12, 320, 170, 0.03, dying(0.02));
+    hiss(t, LEAD, 0.01, dying(0.002, 0.7), { kind: 'band', hz: 3600, q: 0.9 }, 371);
+    ping(t, LEAD, 1700, 0.5, 0.006);
+    hiss(t, LEAD + 0.01, 0.16, dying(0.05, 0.3), { kind: 'band', hz: 2200, q: 1.2 }, 372);
+    return t;
+  },
+  // The ball striking the lip of a pocket, or of a hole it does not go down: a hard knock with wood under it.
+  lip: (rate) => {
+    const t = take(0.1, rate);
+    hiss(t, LEAD, 0.01, dying(0.002, 0.6), { kind: 'band', hz: 2800, q: 0.9 }, 381);
+    ping(t, LEAD, 1500, 0.8, 0.008);
+    ping(t, LEAD, 2450, 0.4, 0.005);
+    ping(t, LEAD, 560, 0.5, 0.014);
+    return t;
+  },
+  // The ball settling in its pocket: it rocks twice and lies still.
+  settle: (rate) => {
+    const t = take(0.18, rate);
+    ping(t, LEAD, 300, 0.4, 0.02);
+    [0, 0.045, 0.078].forEach((at, rock) => {
+      const level = 0.55 ** rock;
+      ping(t, LEAD + at, 880, 0.7 * level, 0.008);
+      ping(t, LEAD + at, 1750, 0.3 * level, 0.005);
+      hiss(t, LEAD + at, 0.008, dying(0.002, 0.3 * level), { kind: 'band', hz: 2400, q: 1 }, 391 + rock);
+    });
+    return t;
+  },
+  // A ball landing in a bowl from the hole above it: a hollow knock, and one small bounce.
+  bowlLand: (rate) => {
+    const t = take(0.3, rate);
+    glide(t, LEAD, 0.12, 300, 210, 0.04, dying(0.03, 0.6));
+    ping(t, LEAD, 520, 0.9, 0.014);
+    ping(t, LEAD, 1240, 0.35, 0.007);
+    hiss(t, LEAD, 0.015, dying(0.004, 0.4), { kind: 'band', hz: 2100, q: 0.9 }, 395);
+    ping(t, LEAD + 0.09, 540, 0.3, 0.01);
+    hiss(t, LEAD + 0.09, 0.01, dying(0.003, 0.12), { kind: 'band', hz: 2100, q: 0.9 }, 396);
+    return t;
+  },
+  // The rotor of the roulette's wheel, made to go round and round: a small geared motor a long way down, and the
+  // bearing it turns on.
+  rotor: (rate) => {
+    const length = 1.5;
+    const cross = 0.1;
+    const t = take(length + cross, rate);
+    for (let i = 0; i < t.out.length; i++) {
+      const seconds = i / rate;
+      const waver = 1 + 0.1 * Math.sin(TURN * 12 * seconds);
+      t.out[i] += waver * (0.3 * Math.sin(TURN * 120 * seconds) + 0.3 * Math.sin(TURN * 240 * seconds + 0.5) + 0.2 * Math.sin(TURN * 360 * seconds + 1.2) + 0.12 * Math.sin(TURN * 480 * seconds + 0.3));
+    }
+    hiss(t, 0, length + cross, () => 0.3, { kind: 'low', hz: 320, q: 0.8 }, 398);
+    hiss(t, 0, length + cross, () => 0.08, { kind: 'band', hz: 1300, q: 0.8 }, 399);
+    return looped(t, cross);
+  },
+  // The machine itself, for one whole stroke of the pusher: fully back at the start, fully forward half way through,
+  // back again at the end, as `pusherFront` has it. It is made to go round and round.
+  motor: (rate) => {
+    const length = PUSHER.period;
+    const t = take(length, rate);
+    const { out } = t;
+    const angle = (seconds: number) => (TURN * seconds) / length;
+    // It moves fastest in the middle of the push and in the middle of the way back, and stands still for an instant at each end.
+    const pace = (seconds: number) => Math.abs(Math.sin(angle(seconds)));
+    const push = (seconds: number) => Math.max(0, Math.sin(angle(seconds)));
+    // The motor and its gears: a hum, and the whine of the teeth. Shoving a tableful of medals it works harder, which
+    // is louder and a shade lower; coming back light it runs easy, a shade higher.
+    for (let i = 0; i < out.length; i++) {
+      const seconds = i / rate;
+      const lag = MOTOR.sag * Math.cos(angle(seconds));
+      const effort = (0.62 + 0.38 * push(seconds)) * (1 + 0.08 * Math.sin(TURN * 25 * seconds));
+      let sum = 0;
+      for (const [hz, weight] of MOTOR.partials) sum += weight * Math.sin(TURN * hz * seconds + (hz / 300) * lag);
+      out[i] += MOTOR.hum * effort * sum;
+    }
+    // The slides the pusher runs on.
+    hiss(t, 0, length, (seconds) => 0.16 * pace(seconds) * (0.6 + 0.4 * push(seconds)), { kind: 'band', hz: 700, q: 0.8 }, 261);
+    // The medals riding on it scrape against what holds them back, faintly, most where it moves fastest, and one of
+    // them ticks against another now and then.
+    hiss(t, 0, length, (seconds) => 0.07 * pace(seconds) ** 2, { kind: 'band', hz: 4600, q: 0.9 }, 262);
+    const random = noise(263);
+    for (let tick = 0; tick < 26; tick++) {
+      const at = ((random() + 1) / 2) * (length - 0.06);
+      ping(t, at, MEDAL.hz * (1 + 0.08 * random()), 0.06 * pace(at), 0.006, MEDAL.top);
+    }
+    // A clunk at each end, where the crank goes over its centre and the slack in it is taken up the other way.
+    [
+      [0.004, 170, 0.9],
+      [length / 2, 140, 0.7],
+    ].forEach(([at, hz, level], end) => {
+      ping(t, at, hz, level, 0.03);
+      ping(t, at, hz * 2.1, level * 0.35, 0.018);
+      hiss(t, at, 0.04, dying(0.008, level * 0.5), { kind: 'band', hz: 950, q: 1 }, 264 + end);
+    });
+    return t;
+  },
+  // The room's own tone, made to go round: a wash of medals going into trays all over the floor, too many and too far
+  // off to count, the air handling low down, and a murmur that comes and goes, with nothing in it that can be told apart.
+  room: (rate) => {
+    const length = 7;
+    const cross = 0.6;
+    const t = take(length + cross, rate);
+    const random = noise(274);
+    let at = 0.01;
+    for (let medal = 0; at < length + cross - 0.3; medal++) {
+      const level = 0.3 + 0.35 * (random() + 1);
+      coin(t, at, MEDAL.hz * (1 + 0.1 * random()), level, 0.014, 275 + medal * 2, 0.5);
+      if (medal % 2 === 0) answer(t, at, BODIES.tray, level, 276 + medal * 2);
+      at += 0.02 + 0.07 * (random() + 1);
+    }
+    far(t, 1.3);
+    const murmur = (seconds: number) => 0.4 * (0.75 + 0.25 * Math.sin(TURN * 0.29 * seconds + 1) * Math.sin(TURN * 0.71 * seconds));
+    hiss(t, 0, length + cross, () => 0.5, { kind: 'low', hz: 260, q: 0.7 }, 271);
+    hiss(t, 0, length + cross, murmur, { kind: 'band', hz: 620, q: 0.7 }, 272);
+    hiss(t, 0, length + cross, () => 0.1, { kind: 'band', hz: 2400, q: 0.6 }, 273);
+    return looped(t, cross);
+  },
+  // Other machines' medals, from across the floor: one into a tray, a handful, a payout.
+  farClink: (rate, variant) => far(pour(rate, 1, 30 + variant, 1), 0.9),
+  farRattle: (rate, variant) => far(pour(rate, 6, 40 + variant, 1.1), 1),
+  farPour: (rate) => far(pour(rate, 20, 50, 1.3), 1.1),
+  // A few notes of some other machine's tune. They are made up here, note by note, by the roll of a die: up or down a
+  // step or two of a five-note scale, long or short, sometimes a rest. So they are nobody's tune, and no two takes
+  // are the same one. There are six of them, in six keys and two voices, so that none is heard often.
+  farTune: (rate, variant) => {
+    const t = take(2.6, rate);
+    const random = noise(291 + variant * 7);
+    const unit = () => (random() + 1) / 2;
+    const root = pitch(['C5', 'D5', 'F5', 'G5', 'A4', 'E5'][variant]);
+    const scale = [0, 2, 4, 7, 9, 12, 14, 16];
+    let at = 0.02;
+    let step = 3;
+    while (at < 1.7) {
+      step = Math.min(scale.length - 1, Math.max(0, step + Math.round(random() * 2.4)));
+      const hz = root * 2 ** (scale[step] / 12);
+      const length = [0.11, 0.11, 0.16, 0.22][Math.floor(unit() * 4)];
+      if (unit() < 0.85) {
+        if (variant % 2 === 1) tone(t, at, hz, length * 0.9, 0.6, TIMBRES.lead);
+        else bell(t, at, hz, 0.7, 0.18);
+      }
+      at += length;
+    }
+    return far(t, 1.1);
+  },
 };
 
-/** Takes out what lies below `BOTTOM`, begins and ends the take in silence and brings its peak to exactly 1. */
-function finish(t: Take): Float32Array {
+/**
+ * Takes out what lies below `BOTTOM`, begins and ends the take in silence and
+ * brings its peak to exactly 1. A take that goes round and round is left as it
+ * is at its ends, which already run into each other.
+ */
+function finish(t: Take, round = false): Float32Array {
   const { out, rate } = t;
   const angle = (TURN * BOTTOM) / rate;
   const cos = Math.cos(angle);
@@ -1066,19 +1786,21 @@ function finish(t: Take): Float32Array {
   let x2 = 0;
   let y1 = 0;
   let y2 = 0;
-  for (let i = 0; i < out.length; i++) {
-    const x = out[i];
+  const through = (x: number): number => {
     const y = b0 * (x - 2 * x1 + x2) - a1 * y1 - a2 * y2;
     x2 = x1;
     x1 = x;
     y2 = y1;
     y1 = y;
-    out[i] = y;
-  }
+    return y;
+  };
+  // What goes round has been going round all along: the filter is run in over its last tenth of a second first.
+  if (round) for (let i = Math.max(0, out.length - Math.round(0.1 * rate)); i < out.length; i++) through(out[i]);
+  for (let i = 0; i < out.length; i++) out[i] = through(out[i]);
   // Half a millisecond in, which leaves a strike its edge, and four out.
-  const rise = Math.min(out.length, Math.round(0.0005 * rate));
+  const rise = round ? 0 : Math.min(out.length, Math.round(0.0005 * rate));
   for (let i = 0; i < rise; i++) out[i] *= i / rise;
-  const fade = Math.min(out.length, Math.round(0.004 * rate));
+  const fade = round ? 0 : Math.min(out.length, Math.round(0.004 * rate));
   for (let i = 0; i < fade; i++) out[out.length - 1 - i] *= i / fade;
   let peak = 0;
   for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
@@ -1089,7 +1811,7 @@ function finish(t: Take): Float32Array {
 /** The samples of a sound at `rate` samples a second: one channel, peaking at exactly 1, the same every time. */
 export function renderSound(sample: Sample, rate: number, variant = 0): Float32Array {
   const takes = VARIANTS[sample] ?? 1;
-  return finish(RECIPES[sample](rate, Math.min(takes - 1, Math.max(0, Math.floor(variant)))));
+  return finish(RECIPES[sample](rate, Math.min(takes - 1, Math.max(0, Math.floor(variant)))), LOOPING.includes(sample));
 }
 
 // ── Playing it ──────────────────────────────────────────────────────────────
@@ -1102,6 +1824,8 @@ interface Playing {
   until: number;
   /** Whether it is medals in the tray, which have a limit of their own. */
   tray?: boolean;
+  /** Whether its level is on a schedule of its own, which a cut has to stop where it has got to. */
+  shaped?: boolean;
 }
 
 /** The tray's books: medals won but not yet heard, when they were last added to, and the earliest its next source may start. */
@@ -1119,6 +1843,8 @@ interface Rig {
   music: GainNode;
   /** When the loop may come back up. */
   duckedUntil: number;
+  /** The room goes through a gain of its own as well, so that it is one thing to switch off. */
+  air: GainNode;
   tray: Tray;
   /** The rate buffers are worked out at. */
   rate: number;
@@ -1126,10 +1852,114 @@ interface Rig {
   /** What `playSound` has started and the loop's notes, each in the order they began. */
   voices: Playing[];
   notes: Playing[];
+  /** The stretches of the machine's own bed, and when the last of them ends; and what the room is playing. */
+  bed: Playing[];
+  bedUntil: number;
+  room: Playing[];
+  /** The stretches of the wheel's rotor: when the last of them began and ends, and where in the buffer it began. */
+  rotor: Playing[];
+  rotorFrom: number;
+  rotorAt: number;
+  rotorUntil: number;
   /** When each sound was last started, within the last `LIMITS.window` seconds. */
   starts: Partial<Record<PusherSound, number[]>>;
   warmed: boolean;
 }
+
+/** What comes from far off across the floor, each kind in its own time. */
+const FAR_KINDS = ['farClink', 'farRattle', 'farPour', 'farTune'] as const;
+type FarKind = (typeof FAR_KINDS)[number];
+
+/** The room while it is heard: when the stretch of its tone that is playing ends, when each kind is next due, and the clock that looks ahead. */
+interface Air {
+  toneUntil: number;
+  next: Record<FarKind, number>;
+  timer: ReturnType<typeof setInterval>;
+}
+
+/**
+ * How a mechanism that runs is heard: a buffer going round, at a speed and a
+ * level that change as the mechanism does.
+ */
+interface Run {
+  /** How long it runs when nobody says, in seconds, and how much of that it is heard for. */
+  usual: number;
+  share: number;
+  /**
+   * The speed it is played at: as it sets off, once it has been going for
+   * `spin` seconds or is `knee` of the way through, and as it stops.
+   */
+  speeds: readonly [number, number, number];
+  spin: number;
+  knee?: number;
+  /**
+   * Its level comes up over `rise` seconds, holds until `from` of the way
+   * through, has fallen to `thin` of itself `fall` seconds before the end, and
+   * is gone at the end.
+   */
+  rise: number;
+  from: number;
+  thin: number;
+  fall: number;
+  /** What it ends in, how long before the end that begins, and its level. */
+  end?: { sample: Sample; before: number; level: number };
+  /** What it begins with, and whether only when it begins a little from now: a ball that was dropped in lands first. */
+  start?: { sample: Sample; level: number; dropped?: boolean };
+  /** What is heard in the course of it, each at its share of the whole time it was told, whatever `share` of that it runs for. */
+  moments?: readonly { at: number; sample: Sample; level: number }[];
+}
+
+/**
+ * The mechanisms that run. A roulette's ball is shot on to its track, runs
+ * round it slowing for 0.44 of the turn, comes down the bank until 0.72,
+ * strikes the lip of a pocket there, hops the divider at 0.8 and settles at
+ * 0.92: one sound with those moments in it, however long the turn. A lift's
+ * motor gets going, runs, and stops against its end. Medals down a chute
+ * come in a rush and thin at the end. A ball in a bowl slows
+ * all the way round and drops through its hole: the knock of it going through
+ * is `before` seconds into `drop`. A hopper's disc gets going, throws medals
+ * out, and the last of them are fewer. In a funnel (`FUNNEL`) the ball goes
+ * faster all the way in, and is no quieter for it.
+ */
+const RUNS: Partial<Record<PusherSound, Run>> = {
+  roulette: {
+    usual: 2.8,
+    share: 0.72,
+    speeds: [1.35, 0.85, 0.5],
+    spin: 0,
+    knee: 0.44 / 0.72,
+    rise: 0.05,
+    from: 0,
+    thin: 0.3,
+    fall: 0.05,
+    start: { sample: 'shot', level: 0.06 },
+    moments: [
+      { at: 0.72, sample: 'lip', level: 0.055 },
+      { at: 0.8, sample: 'tick', level: 0.035 },
+      { at: 0.92, sample: 'settle', level: 0.045 },
+    ],
+  },
+  lift: { usual: 1.6, share: 1, speeds: [0.7, 1, 0.94], spin: 0.2, rise: 0.06, from: 1, thin: 1, fall: 0.04, end: { sample: 'liftStop', before: 0.02, level: 0.07 } },
+  bowl: {
+    usual: 3,
+    share: 1,
+    speeds: [1.3, 1.3, 0.5],
+    spin: 0,
+    rise: 0.15,
+    from: 0.2,
+    thin: 0.25,
+    fall: 0.12,
+    start: { sample: 'bowlLand', level: 0.06, dropped: true },
+    end: { sample: 'drop', before: 0.17, level: SOUND_LEVELS.drop },
+  },
+  hopper: { usual: 2, share: 1, speeds: [0.85, 1, 1], spin: 0.15, rise: 0.12, from: 0.7, thin: 0.35, fall: 0.2 },
+  pour: { usual: 2, share: 1, speeds: [0.9, 1, 1], spin: 0.15, rise: 0.1, from: 0.75, thin: 0.4, fall: 0.15 },
+};
+const FUNNEL: Run = { ...(RUNS.bowl as Run), speeds: [0.6, 0.6, 1.45], from: 1, thin: 1, fall: 0.06 };
+/** A near miss in a bowl is the ball on the lip of the hole it does not take. */
+const NEAR_MISS = { sample: 'lip', level: 0.05, speed: 0.8 } as const;
+/** What a sound is when the thing goes back up. */
+const UPS: Partial<Record<PusherSound, Sample>> = { button: 'buttonUp', door: 'doorShut', shutter: 'shutterOpen', guard: 'guardUp' };
 
 /** The loop while it plays: where it has got to, and the clock that looks ahead. */
 interface Tune {
@@ -1156,14 +1986,18 @@ const USUAL_STOPS = [0.7, 1.6, 1.2] as const;
 let rig: Rig | null = null;
 let tune: Tune | null = null;
 let musicWanted = false;
+let air: Air | null = null;
+let airWanted = false;
+/** Whether the page is being watched for being hidden and shown again. */
+let watching = false;
 /** The volume the player has set, which a cabinet that is switched on later starts at. */
 let volume: number = VOLUME.usual;
 let warming: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Builds the chain: one gain into one compressor into the speakers, and in
- * front of that gain another that only the loop goes through. Returns null
- * where there is no audio to be had.
+ * front of that gain one that only the loop goes through and one that only
+ * the room does. Returns null where there is no audio to be had.
  */
 function build(): Rig | null {
   if (typeof AudioContext === 'undefined') return null;
@@ -1182,13 +2016,24 @@ function build(): Rig | null {
     const music = audio.createGain();
     music.gain.value = 1;
     music.connect(master);
-    // The context can stop and start by itself (a phone call, a lid closed); the loop follows it.
-    audio.onstatechange = () => syncMusic();
+    const room = audio.createGain();
+    room.gain.value = 1;
+    room.connect(master);
+    // The context can stop and start by itself (a phone call, a lid closed); the loop and the room follow it.
+    audio.onstatechange = () => sync();
     return {
       audio,
       master,
       music,
       duckedUntil: 0,
+      air: room,
+      bed: [],
+      bedUntil: 0,
+      room: [],
+      rotor: [],
+      rotorFrom: 0,
+      rotorAt: 0,
+      rotorUntil: -1,
       tray: { owed: 0, asked: -Infinity, next: 0 },
       rate: Math.min(TOP_RATE, audio.sampleRate),
       buffers: new Map(),
@@ -1206,8 +2051,9 @@ function bufferFor(target: Rig, sample: Sample, variant: number): AudioBuffer {
   const key = `${sample}:${variant}`;
   let buffer = target.buffers.get(key);
   if (!buffer) {
-    const samples = renderSound(sample, target.rate, variant);
-    buffer = target.audio.createBuffer(1, samples.length, target.rate);
+    const rate = LOW.has(sample) ? Math.min(LOW_RATE, target.rate) : target.rate;
+    const samples = renderSound(sample, rate, variant);
+    buffer = target.audio.createBuffer(1, samples.length, rate);
     buffer.getChannelData(0).set(samples);
     target.buffers.set(key, buffer);
   }
@@ -1218,7 +2064,7 @@ function bufferFor(target: Rig, sample: Sample, variant: number): AudioBuffer {
 function warm(target: Rig): void {
   if (target.warmed || warming !== null) return;
   target.warmed = true;
-  const queue = SAMPLES.flatMap((sample) => Array.from({ length: VARIANTS[sample] ?? 1 }, (_, variant) => ({ sample, variant })));
+  const queue = WARMED.flatMap((sample) => Array.from({ length: VARIANTS[sample] ?? 1 }, (_, variant) => ({ sample, variant })));
   const next = () => {
     warming = null;
     const item = queue.shift();
@@ -1257,14 +2103,46 @@ function begin(target: Rig, list: Playing[], buffer: AudioBuffer, when: number, 
   return playing;
 }
 
+/**
+ * Plays `seconds` of a buffer that goes round and round, from `offset` seconds
+ * into it, fading in and out over `cross`, so that one stretch can be faded
+ * into the next.
+ */
+function stretch(target: Rig, list: Playing[], buffer: AudioBuffer, when: number, seconds: number, level: number, cross: number, offset: number, speed: number, into: GainNode): Playing {
+  const source = target.audio.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  source.playbackRate.value = speed;
+  const end = when + seconds;
+  const playing: Playing = { source, gain: target.audio.createGain(), level: Math.min(LEVEL.ceiling, level), until: end, shaped: true };
+  const { gain } = playing;
+  gain.gain.value = 0;
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(playing.level, when + cross);
+  gain.gain.setValueAtTime(playing.level, end - cross);
+  gain.gain.linearRampToValueAtTime(0, end);
+  source.connect(gain);
+  gain.connect(into);
+  source.onended = () => gain.disconnect();
+  source.start(when, ((offset % buffer.duration) + buffer.duration) % buffer.duration);
+  source.stop(end);
+  list.push(playing);
+  return playing;
+}
+
 /** Cuts a sound short: a quick fade, so that it does not end in a click. */
 function cut(target: Rig, playing: Playing): void {
   const now = target.audio.currentTime;
   try {
-    // The level is the one it was started at rather than the one read back, which not every browser keeps up to date.
     const { gain } = playing.gain;
-    gain.cancelScheduledValues(now);
-    gain.setValueAtTime(playing.level, now);
+    if (playing.shaped && typeof gain.cancelAndHoldAtTime === 'function') {
+      // What was fading in or out stops where it has got to, where the browser can say where that is.
+      gain.cancelAndHoldAtTime(now);
+    } else {
+      // The level is the one it was started at rather than the one read back, which not every browser keeps up to date.
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(playing.level, now);
+    }
     gain.linearRampToValueAtTime(0, now + CUT);
     playing.source.stop(now + CUT);
   } catch {
@@ -1272,15 +2150,20 @@ function cut(target: Rig, playing: Playing): void {
   }
 }
 
-/** Whether a sound may start now: not on top of itself, not past what a stream of medals is allowed, and with a voice to spare. */
-function admit(target: Rig, sound: PusherSound, now: number): boolean {
+/**
+ * Whether a sound may start now: not on top of itself, not past what a stream
+ * of medals is allowed, and with a voice to spare for every source it is
+ * about to start. `needed` is how many that is. It is counted from what will
+ * be started (`reels`, `layOut`), never written down beside it: a count that
+ * is kept apart from the thing it counts is wrong the day the thing grows.
+ */
+function admit(target: Rig, sound: PusherSound, now: number, needed: number): boolean {
   const clink = CLINKS.has(sound);
   const starts = (target.starts[sound] ??= []);
   while (starts.length > 0 && starts[0] <= now - LIMITS.window) starts.shift();
   const gap = clink ? LIMITS.window / LIMITS.clinks : sound === 'tick' || sound === 'hop' ? LIMITS.quickGap : LIMITS.gap;
   if (starts.length > 0 && now - starts[starts.length - 1] < gap - 1e-6) return false;
   if (clink && starts.length >= LIMITS.clinks) return false;
-  const needed = sound === 'spin' ? WHIRR.speeds.length : 1;
   if (clink && target.voices.length + needed > LIMITS.voices - LIMITS.kept) return false;
   while (target.voices.length + needed > LIMITS.voices) {
     const oldest = target.voices.shift();
@@ -1289,6 +2172,11 @@ function admit(target: Rig, sound: PusherSound, now: number): boolean {
   starts.push(now);
   return true;
 }
+
+/** Whether a reel that stops `given` seconds from now has time to turn at all. */
+const turns = (given: number): boolean => Math.min(WHIRR.longest, given) > WHIRR.shortest;
+/** How many reels a spin starts a whirr for. */
+const reels = (stops: readonly number[]): number => stops.slice(0, WHIRR.speeds.length).filter(turns).length;
 
 /**
  * The reels: one whirr for each, at its own speed so that the three are not
@@ -1301,7 +2189,7 @@ function whirr(target: Rig, now: number, stops: readonly number[]): void {
   const last = Math.max(...stops);
   stops.slice(0, WHIRR.speeds.length).forEach((given, reel) => {
     const stop = Math.min(WHIRR.longest, given);
-    if (!(stop > WHIRR.shortest)) return;
+    if (!turns(given)) return;
     const before = Math.max(0, ...stops.filter((other) => other < given));
     const winding = given === last ? Math.max(WHIRR.ease, stop - before) : WHIRR.ease;
     const speed = WHIRR.speeds[reel];
@@ -1326,6 +2214,157 @@ function whirr(target: Rig, now: number, stops: readonly number[]): void {
   });
 }
 
+/** How long a mechanism runs: as long as it is told, or as long as its medals take, or as long as it usually does. */
+function runFor(sound: PusherSound, plan: Run, options: SoundOptions, hoppers: number): number {
+  const rate = sound === 'hopper' ? HOPPER.rate * hoppers : sound === 'pour' ? CHUTE.rate : 0;
+  const paying = rate > 0 && options.count !== undefined ? options.count / rate : plan.usual;
+  const asked = options.seconds ?? paying;
+  const longest = sound === 'hopper' ? HOPPER.longest : RUN.longest;
+  return Math.min(longest, Math.max(RUN.shortest, Number.isFinite(asked) ? asked : plan.usual));
+}
+
+/** One thing a run starts besides its own turning: a take, when it begins, its level and its speed. */
+interface Extra {
+  sample: Sample;
+  when: number;
+  level: number;
+  speed: number;
+}
+
+/**
+ * A run as it will be started, worked out once: how long it was told and how
+ * long the mechanism is heard, how long it waits, how many buffers go round
+ * (a big payout's hoppers), and everything else in it. Admission takes a
+ * voice for each of those, and `run` starts exactly those and nothing more.
+ */
+interface Laid {
+  whole: number;
+  seconds: number;
+  wait: number;
+  turning: number;
+  extras: Extra[];
+}
+
+function layOut(sound: PusherSound, plan: Run, now: number, options: SoundOptions): Laid {
+  const medals = options.count ?? 0;
+  const turning = sound === 'hopper' && medals > 0 ? Math.min(HOPPER.speeds.length, Math.max(1, Math.ceil(medals / (HOPPER.rate * HOPPER.fair)))) : 1;
+  // How long it was told, and how much of that the mechanism itself is heard for.
+  const whole = runFor(sound, plan, options, turning);
+  const seconds = whole * plan.share;
+  // It may begin a little from now, but never so late that there is nothing left of it.
+  const wait = Math.min(Math.max(0, seconds - RUN.shortest), Math.max(0, Number.isFinite(options.after) ? (options.after ?? 0) : 0));
+  const extras: Extra[] = [];
+  const once = (sample: Sample, when: number, level: number, speed = 1): void => {
+    extras.push({ sample, when: Math.max(now, when), level, speed });
+  };
+  if (plan.start && (wait > 0 || !plan.start.dropped)) once(plan.start.sample, now + wait, plan.start.level);
+  for (const moment of plan.moments ?? []) once(moment.sample, now + whole * moment.at, moment.level);
+  if (plan.end) once(plan.end.sample, now + seconds - plan.end.before, plan.end.level);
+  const near = options.nearMiss;
+  if (sound === 'bowl' && near !== undefined && near > wait && near < seconds - plan.fall) once(NEAR_MISS.sample, now + near, NEAR_MISS.level, NEAR_MISS.speed);
+  return { whole, seconds, wait, turning, extras };
+}
+
+/**
+ * A mechanism running from now for as long as it is told: its buffer goes
+ * round at a speed and a level that follow the mechanism, and what it ends in
+ * is heard at the end. A hopper with a big payout is two or three of them.
+ */
+function run(target: Rig, sound: PusherSound, plan: Run, now: number, laid: Laid): void {
+  const { seconds, wait, turning: hoppers } = laid;
+  const buffer = bufferFor(target, sound, 0);
+  const [setsOff, runs, stops] = plan.speeds;
+  for (let layer = 0; layer < hoppers; layer++) {
+    // Each of several joins after the one before it and leaves before it, unless there is no time to.
+    const apart = Math.min(HOPPER.apart, (seconds - wait) / 8) * layer;
+    const from = now + wait + apart;
+    const end = now + seconds - apart;
+    const length = end - from;
+    const speed = hoppers > 1 ? HOPPER.speeds[layer] : 1;
+    const level = SOUND_LEVELS[sound] * (hoppers > 1 ? HOPPER.levels[layer] : 1);
+    const rise = Math.min(plan.rise, length / 4);
+    const fall = Math.min(plan.fall, length / 4);
+    const source = target.audio.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.playbackRate.setValueAtTime(setsOff * speed, from);
+    const reach = plan.knee !== undefined ? length * plan.knee : Math.min(plan.spin, length / 2);
+    if (reach > 0) source.playbackRate.linearRampToValueAtTime(runs * speed, from + reach);
+    source.playbackRate.linearRampToValueAtTime(stops * speed, end);
+    const gain = target.audio.createGain();
+    gain.gain.value = 0;
+    gain.gain.setValueAtTime(0, from);
+    gain.gain.linearRampToValueAtTime(level, from + rise);
+    gain.gain.setValueAtTime(level, from + Math.max(rise, Math.min(length - fall, length * plan.from)));
+    gain.gain.linearRampToValueAtTime(level * plan.thin, end - fall);
+    gain.gain.linearRampToValueAtTime(0, end);
+    source.connect(gain);
+    gain.connect(target.master);
+    source.onended = () => gain.disconnect();
+    // Each time from somewhere else in the buffer, so that no two runs begin alike.
+    source.start(from, Math.random() * buffer.duration);
+    source.stop(end);
+    target.voices.push({ source, gain, level, until: end, shaped: true });
+  }
+  for (const extra of laid.extras) {
+    const takes = VARIANTS[extra.sample] ?? 1;
+    begin(target, target.voices, bufferFor(target, extra.sample, Math.floor(Math.random() * takes)), extra.when, extra.level, extra.speed);
+  }
+  // A payout is medals, and the loop makes room for it as it does for the tray.
+  if (sound === 'hopper' || sound === 'pour') duck(target, now, now + seconds);
+}
+
+/**
+ * The rotor of the roulette's wheel. Call it once a frame for as long as the
+ * wheel is in play, between turns as well: it is one unbroken sound however
+ * many turns the ball has, and it runs down within half a second of the calls
+ * stopping. It needs no timer and plays nothing while the sound is off.
+ */
+export function turnRotor(enabled: boolean): void {
+  if (!enabled || !rig || rig.audio.state !== 'running') return;
+  try {
+    const now = rig.audio.currentTime;
+    if (now < rig.rotorUntil - ROTOR.overlap - ROTOR.lead) return;
+    prune(rig.rotor, now);
+    const buffer = bufferFor(rig, 'rotor', 0);
+    // A stretch that follows another takes the buffer up where that one is as it begins to fade, so that the two are one sound.
+    const follows = now <= rig.rotorUntil;
+    const when = follows ? Math.max(now, rig.rotorUntil - ROTOR.overlap) : now;
+    const offset = follows ? rig.rotorAt + (when - rig.rotorFrom) : Math.random() * buffer.duration;
+    const length = ROTOR.stretch + ROTOR.overlap;
+    stretch(rig, rig.rotor, buffer, when, length, ROTOR.level, ROTOR.overlap, offset, 1, rig.master);
+    rig.rotorFrom = when;
+    rig.rotorAt = offset;
+    rig.rotorUntil = when + length;
+  } catch {
+    // The wheel turns without being heard.
+  }
+}
+
+/**
+ * The machine itself. Call it once a frame with the machine's own clock,
+ * `machine.time`, which is what the pusher is drawn from: the bed is played
+ * from where in its stroke the pusher is, a stretch at a time, so that the
+ * strain is heard as it shoves and the clunk as it turns back. It needs no
+ * timer: when the frames stop, the stretch that is playing is the last. It
+ * plays nothing while the sound is off or the audio is not running.
+ */
+export function turnMotor(enabled: boolean, time: number): void {
+  if (!enabled || !rig || rig.audio.state !== 'running' || !Number.isFinite(time)) return;
+  try {
+    const now = rig.audio.currentTime;
+    if (now < rig.bedUntil - MOTOR.overlap - MOTOR.lead) return;
+    prune(rig.bed, now);
+    // The next stretch begins as the last begins to fade, and where the pusher will be by then.
+    const when = Math.max(now, rig.bedUntil - MOTOR.overlap);
+    const length = MOTOR.stretch + MOTOR.overlap;
+    stretch(rig, rig.bed, bufferFor(rig, 'motor', 0), when, length, MOTOR.level, MOTOR.overlap, time + (when - now), 1, rig.master);
+    rig.bedUntil = when + length;
+  } catch {
+    // The machine turns without being heard.
+  }
+}
+
 /** A speed to play a medal at, a little off true, so that no two are the same medal. */
 const wander = (): number => 1 - WANDER.pitch / 2 + Math.random() * WANDER.pitch;
 
@@ -1345,9 +2384,11 @@ function duck(target: Rig, now: number, until: number): void {
  * is a single clink, a handful is a short rattle, a tower going over is
  * rattles of sixteen and thirty-two. What cannot start yet stays owed and
  * joins the next win as part of a larger rattle, so that a stream of medals,
- * however thick, is never more than `LIMITS.tray` sources.
+ * however thick, is never more than `LIMITS.tray` sources. Medals that are
+ * seen to land in the tray (`tray`) are heard `atOnce`; medals that went over
+ * the front (`win`) are heard after the fall.
  */
-function trayful(target: Rig, now: number, count: number): void {
+function trayful(target: Rig, now: number, count: number, atOnce = false): void {
   const { tray } = target;
   if (now - tray.asked > TRAY.forget) tray.owed = 0;
   tray.asked = now;
@@ -1358,7 +2399,8 @@ function trayful(target: Rig, now: number, count: number): void {
     const least: Pour | undefined = POURS[Math.max(0, sounding - (LIMITS.tray - POURS.length))];
     const size = POURS.reduce<Pour>((best, pour) => (pour <= tray.owed ? pour : best), 1);
     if (least === undefined || size < least || target.voices.length >= LIMITS.voices - LIMITS.kept) return;
-    const when = Math.max(now + TRAY.fall[0] + Math.random() * (TRAY.fall[1] - TRAY.fall[0]), tray.next);
+    const fall = atOnce ? 0 : TRAY.fall[0] + Math.random() * (TRAY.fall[1] - TRAY.fall[0]);
+    const when = Math.max(now + fall, tray.next);
     if (when > now + TRAY.ahead) return;
     const sample = POUR_SAMPLES[size];
     const buffer = bufferFor(target, sample, Math.floor(Math.random() * (VARIANTS[sample] ?? 1)));
@@ -1374,25 +2416,37 @@ function trayful(target: Rig, now: number, count: number): void {
 function start(target: Rig, sound: PusherSound, options: SoundOptions): void {
   const now = target.audio.currentTime;
   prune(target.voices, now);
-  if (sound === 'win') {
+  if (sound === 'win' || sound === 'tray') {
     const count = Math.round(options.count ?? 1);
-    trayful(target, now, count >= 1 ? count : 1);
+    trayful(target, now, count >= 1 ? count : 1, sound === 'tray');
     return;
   }
-  if (!admit(target, sound, now)) return;
+  const plan = sound === 'bowl' && options.quickens ? FUNNEL : RUNS[sound];
+  const laid = plan ? layOut(sound, plan, now, options) : null;
+  const stops = options.stops ?? USUAL_STOPS;
+  // A voice for every source it will start: a mechanism's turning and everything in it, the reels that turn, or the one take.
+  const needed = laid ? laid.turning + laid.extras.length : sound === 'spin' ? reels(stops) : 1;
+  if (!admit(target, sound, now, needed)) return;
   if (sound === 'spin') {
-    whirr(target, now, options.stops ?? USUAL_STOPS);
+    whirr(target, now, stops);
     return;
   }
-  // A medal that lands comes down on the table or on other medals, and they are different sounds.
-  const sample: Sample = sound === 'land' && (options.bare ?? Math.random() < BARE_SHARE) ? 'plate' : sound;
+  if (plan && laid) {
+    run(target, sound, plan, now, laid);
+    return;
+  }
+  // A medal that lands comes down on the table or on other medals, and they are different sounds. A button, a door,
+  // a shutter and a guard go one way and come back the other.
+  const sample: Sample = sound === 'land' && (options.bare ?? Math.random() < BARE_SHARE) ? 'plate' : ((options.up && UPS[sound]) || sound);
   const takes = VARIANTS[sample] ?? 1;
   const clink = CLINKS.has(sound);
   const variant = sound === 'pocket' ? Math.min(takes, Math.max(1, Math.round(options.level ?? 1))) - 1 : Math.floor(Math.random() * takes);
   const buffer = bufferFor(target, sample, variant);
-  const speed = clink ? wander() : 1;
+  // A guard that is given longer or shorter to travel is played slower or faster, within what still sounds like it.
+  const travel = sound === 'guard' && options.seconds !== undefined && options.seconds > 0 ? Math.min(1.6, Math.max(0.6, (options.up ? GUARD.up : GUARD.down) / options.seconds)) : 1;
+  const speed = clink ? wander() : travel;
   const level = SOUND_LEVELS[sound] * (clink ? 1 - Math.random() * WANDER.level : 1);
-  begin(target, target.voices, buffer, now, level, speed);
+  begin(target, target.voices, buffer, clink ? now + Math.random() * WANDER.late : now, level, speed);
   if (tune && RESTS.has(sound)) {
     tune.restUntil = now + buffer.duration;
     // What the loop has in the air, or lined up within its look-ahead, would ring on over the fanfare.
@@ -1440,16 +2494,95 @@ function stopMusic(): void {
   rig.notes.length = 0;
 }
 
-/** Starts or stops the loop to match what is wanted, whether the audio is running and whether the page can be seen. */
-function syncMusic(): void {
+/**
+ * How long until the next of a kind: at random, as things come that have
+ * nothing to do with one another, but never on top of the last and never an
+ * age after it.
+ */
+const farGap = (kind: FarKind): number => AMBIENCE.gaps[kind] * Math.min(3, Math.max(0.25, -Math.log(1 - Math.random())));
+
+/** Lines up what of the room falls within the next `AMBIENCE.ahead` seconds: the next stretch of its tone, and whatever is due from far off. */
+function breathe(): void {
+  const target = rig;
+  if (!target || !air) return;
+  try {
+    const now = target.audio.currentTime;
+    prune(target.room, now);
+    // At most one buffer of the room is worked out in a turn, so that switching the room on never stalls the machine.
+    let spare = 1;
+    const ready = (sample: Sample, variant: number): boolean => target.buffers.has(`${sample}:${variant}`) || spare-- > 0;
+    const { room, wander } = AMBIENCE;
+    if (now >= air.toneUntil - room.cross - AMBIENCE.ahead && ready('room', 0)) {
+      const buffer = bufferFor(target, 'room', 0);
+      const when = Math.max(now, air.toneUntil - room.cross);
+      const speed = 1 - room.wander / 2 + Math.random() * room.wander;
+      stretch(target, target.room, buffer, when, room.seconds, room.level, room.cross, Math.random() * buffer.duration, speed, target.air);
+      air.toneUntil = when + room.seconds;
+    }
+    for (const kind of FAR_KINDS) {
+      if (air.next[kind] >= now + AMBIENCE.ahead) continue;
+      const variant = Math.floor(Math.random() * (VARIANTS[kind] ?? 1));
+      // One that cannot be worked out yet is tried again on the next turn.
+      if (!ready(kind, variant)) continue;
+      const when = Math.max(now, air.next[kind]);
+      // The tone's stretches are told from the rest by being faded in and out.
+      const farOff = target.room.reduce((count, playing) => count + (playing.shaped ? 0 : 1), 0);
+      if (farOff < AMBIENCE.voices - AMBIENCE.kept) {
+        const level = AMBIENCE.level * (1 - Math.random() * wander.level);
+        begin(target, target.room, bufferFor(target, kind, variant), when, level, 1 - wander.speed / 2 + Math.random() * wander.speed, target.air);
+      }
+      air.next[kind] = when + farGap(kind);
+    }
+  } catch {
+    // What cannot be lined up is simply not heard.
+  }
+}
+
+function stopAir(): void {
+  if (!air) return;
+  clearInterval(air.timer);
+  air = null;
+  if (!rig) return;
+  for (const playing of rig.room) cut(rig, playing);
+  rig.room.length = 0;
+}
+
+/**
+ * Starts or stops the loop and the room, each to match whether it is wanted,
+ * whether the audio is running and whether the page can be seen.
+ */
+function sync(): void {
   const hidden = typeof document !== 'undefined' && document.hidden;
-  if (MUSIC_ON && musicWanted && rig?.audio.state === 'running' && !hidden) {
-    if (tune) return;
-    tune = { index: 0, loopAt: rig.audio.currentTime + 0.06, restUntil: 0, timer: setInterval(pump, MUSIC.every * 1000) };
-    pump();
+  const target = rig && rig.audio.state === 'running' && !hidden ? rig : null;
+  if (MUSIC_ON && musicWanted && target) {
+    if (!tune) {
+      tune = { index: 0, loopAt: target.audio.currentTime + 0.06, restUntil: 0, timer: setInterval(pump, MUSIC.every * 1000) };
+      pump();
+    }
   } else {
     stopMusic();
   }
+  if (airWanted && target) {
+    if (!air) {
+      const now = target.audio.currentTime;
+      // The first of each kind comes when it comes, not all of them the moment the room is switched on.
+      const next = Object.fromEntries(FAR_KINDS.map((kind) => [kind, now + AMBIENCE.gaps[kind] * Math.random()])) as Record<FarKind, number>;
+      air = { toneUntil: 0, next, timer: setInterval(breathe, AMBIENCE.every * 1000) };
+      breathe();
+    }
+  } else {
+    stopAir();
+  }
+}
+
+/** Watches the page for being hidden and shown again for as long as anything that has to stop with it is wanted. */
+function watch(): void {
+  const wanted = musicWanted || airWanted;
+  if (wanted === watching) return;
+  watching = wanted;
+  if (typeof document === 'undefined') return;
+  if (wanted) document.addEventListener('visibilitychange', sync);
+  else document.removeEventListener('visibilitychange', sync);
 }
 
 /**
@@ -1467,7 +2600,7 @@ export async function unlockAudio(): Promise<void> {
   }
   if (rig !== target) return;
   warm(target);
-  syncMusic();
+  sync();
 }
 
 /**
@@ -1510,22 +2643,39 @@ export function setVolume(next: number): void {
  * otherwise.
  */
 export function setMusic(on: boolean): void {
-  if (on !== musicWanted) {
-    musicWanted = on;
-    if (typeof document !== 'undefined') {
-      if (on) document.addEventListener('visibilitychange', syncMusic);
-      else document.removeEventListener('visibilitychange', syncMusic);
-    }
-  }
-  syncMusic();
+  musicWanted = on;
+  watch();
+  sync();
 }
 
-/** Cuts short everything that is sounding: for when the sound is switched off or the cabinet is left. */
+/**
+ * Switches the room on or off: the floor of an arcade, heard from this
+ * cabinet. Like the loop, it is heard only while it is wanted, the sound has
+ * been unlocked and the page can be seen, and stops at once otherwise. It goes
+ * through the same volume and the same limiter as everything else, and has
+ * nothing to do with the loop: either can be on without the other.
+ */
+export function setAmbience(on: boolean): void {
+  airWanted = on;
+  watch();
+  sync();
+}
+
+/**
+ * Cuts short everything the cabinet is sounding, its own bed included: for
+ * when the sound is switched off, the cabinet is left, or the machine is
+ * reset. The room is not the cabinet's: it stops when it is switched off.
+ */
 export function hush(): void {
   if (!rig) return;
-  for (const playing of [...rig.voices, ...rig.notes]) cut(rig, playing);
+  for (const playing of [...rig.voices, ...rig.notes, ...rig.bed, ...rig.rotor]) cut(rig, playing);
   rig.voices.length = 0;
   rig.notes.length = 0;
+  rig.bed.length = 0;
+  rig.rotor.length = 0;
+  rig.rotorUntil = -1;
+  // The machine's bed starts afresh, from wherever the pusher is, on the next frame it is asked for.
+  rig.bedUntil = 0;
   // Medals that were still to be heard in the tray are not heard after all.
   rig.tray.owed = 0;
   rig.tray.next = 0;
@@ -1541,6 +2691,7 @@ export function hush(): void {
 /** Forgets the audio altogether, the volume included, as if the page had just been opened. The tests start from here. */
 export function resetAudio(): void {
   setMusic(false);
+  setAmbience(false);
   volume = VOLUME.usual;
   if (warming !== null) clearTimeout(warming);
   warming = null;

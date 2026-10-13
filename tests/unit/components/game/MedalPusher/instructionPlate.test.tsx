@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
 import { InstructionPlate, InstructionPlateDialog, PlateSticker, PlateSwitch } from '@/components/game/MedalPusher/InstructionPlate';
-import { StepArt, StepGlyph, arrow, dropPose, hasArt, holePlaces, mouthOutline, startMouths, type Mouth } from '@/components/game/MedalPusher/PlateArt';
+import { INK, StepArt, StepGlyph, arrow, dropPose, hasArt, holePlaces, mouthOutline, startMouths, type Mouth } from '@/components/game/MedalPusher/PlateArt';
 import { AIM_CAPS, KEY_CAPS, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { armCollar, armTip } from '@/components/game/MedalPusher/arms';
 import { CATCHER, mouthOnDrawing, slopeSpot, slotCorners } from '@/components/game/MedalPusher/catcher';
-import { CHECKERS, MEDAL_RADIUS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import {
   BOARD,
@@ -38,7 +38,7 @@ import { PLATE_NOTES, PLATE_RULES, PLATE_STEPS, hotterReach, jackpotPath, payout
 import { getPlateStrings } from '@/components/game/MedalPusher/plateStrings';
 import { holeSpot } from '@/components/game/MedalPusher/screen';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
-import { project } from '@/components/game/MedalPusher/view';
+import { HEIGHT, project, rise } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
 
 type Language = 'en' | 'ja';
@@ -556,9 +556,15 @@ describe('the START mouths', () => {
     expect(cy).toBeLessThan(upper);
     expect(cy + ry).toBeGreaterThan(upper);
     expect(cy + ry).toBeLessThan((upper + lower) / 2);
-    // It is where a medal with its middle that far down the slide is seen.
+    // It is where a medal with its middle that far down the slide is seen: half its thickness clear of the slide.
     const down = CATCHER.back - MEDAL_RADIUS * 0.9;
-    expect(cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, 0.45)).y, 0);
+    expect(cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, MEDAL_THICKNESS / 2)).y, 0);
+    // Its rim is the oval drawn before it, the same size, a medal's thickness nearer the slide: as thick as the machine's medals are, and no thicker.
+    const rim = start.split('data-plate-drop="slide"')[1]?.match(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /);
+    if (!rim) throw new Error('the sliding medal has no rim');
+    expect(rim.slice(1).map(Number)).toEqual([left, expect.any(Number), rx, ry]);
+    expect(Number(rim[2])).toBeGreaterThan(cy);
+    expect(Number(rim[2]) - cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, -MEDAL_THICKNESS / 2)).y - seen(slopeSpot(CHECKERS.positions[1], down, MID, MEDAL_THICKNESS / 2)).y, 0);
     // The arrow is the last thing drawn of it: from the medal, straight down the drawing, to a point inside the opening.
     const arrowAt = start.split('data-plate-drop="slide"')[1]?.split('</g>')[0]?.match(/d="M[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L([\d.-]+) ([\d.-]+)L/);
     if (!arrowAt) throw new Error('no arrow is drawn from the medal into the pocket');
@@ -817,6 +823,30 @@ describe('where the plate lives', () => {
     const plateOnly = plate('en');
     for (const mark of ['data-tier=', 'data-leads=', 'data-here=', 'data-lit=', 'data-pocket=', 'data-hole=', 'data-on=', 'data-arm=', 'data-badge=', 'data-bowl=', 'data-gold=', 'data-kind=', 'role="tab"', '<canvas']) {
       expect(plateOnly).not.toContain(mark);
+    }
+  });
+});
+
+describe('the medals on the plate', () => {
+  it('are as thick as the machine’s: a medal lying on a table shows as much rim under its face as the camera sees of its thickness', () => {
+    // How much of its own half-width a lying medal's rim shows, anywhere on a table: the camera looks down on all of them at much the same angle.
+    const at = project(50, 0, 60);
+    const share = (HEIGHT.medal * rise(at)) / (MEDAL_RADIUS * at.scale);
+    expect(HEIGHT.medal).toBe(MEDAL_THICKNESS);
+    // A coin, and not a counter: the rim is an eighth of the half-width or so. At twice the thickness it was over a fifth.
+    expect(share).toBeGreaterThan(0.08);
+    expect(share).toBeLessThan(0.16);
+    for (const step of ['push', 'start']) {
+      // Every oval of the drawing that is filled with one of the medal's inks, in the order it is drawn: where its left end is, how high, and how big.
+      const ovals = [...artOf(plate('en'), step).split('data-plate-drop=')[0].matchAll(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) [^"]*" fill="(#[0-9a-f]+)"/g)].map(([, left, y, rx, ry, fill]) => ({ left: Number(left), y: Number(y), rx: Number(rx), ry: Number(ry), fill }));
+      const rims = ovals.flatMap((oval, index) => (oval.fill === INK.goldDark && ovals[index + 1]?.fill === INK.gold ? [{ rim: oval, face: ovals[index + 1] }] : []));
+      expect(rims.length).toBeGreaterThan(4);
+      for (const { rim, face } of rims) {
+        // The same oval, lower by the rim: each is written to a tenth of a pixel.
+        expect([rim.left, rim.rx, rim.ry]).toEqual([face.left, face.rx, face.ry]);
+        expect(rim.y - face.y).toBeGreaterThan(0);
+        expect(Math.abs(rim.y - face.y - share * face.rx)).toBeLessThan(0.2);
+      }
     }
   });
 });

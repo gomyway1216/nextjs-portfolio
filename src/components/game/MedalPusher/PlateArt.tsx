@@ -26,7 +26,7 @@ import type { Bonus } from './lottery';
 import type { PlateRules, StepId } from './plateData';
 import { ReelSymbol } from './ReelSymbols';
 import { BOWL_SHAPE } from './screen';
-import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, project } from './view';
+import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, project, rise } from './view';
 import styles from './InstructionPlate.module.css';
 
 /** The inks the plate is printed in. */
@@ -318,8 +318,10 @@ function medal(x: number, depth: number, up = false, sink = 0): Shape[] {
   const spot = project(x, (up ? P : 0) + HEIGHT.medal, depth);
   const rx = MEDAL_RADIUS * spot.scale;
   const ry = rx * spot.tilt;
+  // Its rim shows under its face: as much of it as the camera sees of a medal's thickness there.
+  const rim = HEIGHT.medal * rise(spot);
   return [
-    { d: oval(spot.x, spot.y + sink + rx * 0.22, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
+    { d: oval(spot.x, spot.y + sink + rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
     { d: oval(spot.x, spot.y + sink, rx, ry), fill: INK.gold, line: 0.8, flat: true },
     { d: oval(spot.x, spot.y + sink, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
   ];
@@ -630,8 +632,10 @@ function dropping(mouth: Mouth, chucker: number): Shape[] {
     const [cx, cy] = xy(...onSlide(x, SLIDING_AT, MEDAL_THICKNESS / 2));
     const rx = Math.abs(xy(...onSlide(x + MEDAL_RADIUS, SLIDING_AT, MEDAL_THICKNESS / 2))[0] - cx);
     const ry = Math.abs(xy(...onSlide(x, SLIDING_AT + MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1] - xy(...onSlide(x, SLIDING_AT - MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1]) / 2;
+    // Its rim shows under its face: a medal's thickness nearer the slide, as the camera sees that there.
+    const rim = xy(...onSlide(x, SLIDING_AT, -MEDAL_THICKNESS / 2))[1];
     return [
-      { d: oval(cx, cy + rx * 0.16, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
+      { d: oval(cx, rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
       { d: oval(cx, cy, rx, ry), fill: INK.gold, line: 0.8, flat: true },
       { d: oval(cx, cy, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
       // From its middle down the slide, into the pocket.

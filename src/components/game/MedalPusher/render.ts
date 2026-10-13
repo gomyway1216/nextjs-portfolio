@@ -1016,7 +1016,9 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
   g.closePath();
   g.fill();
   g.strokeStyle = 'rgba(88, 54, 0, 0.6)';
-  g.lineWidth = 1;
+  // The line between one medal and the next is three tenths of a medal's thickness as it is seen there, and no wider
+  // than a pixel of the drawing: however thin the medals are, the column is brass with lines in it and not the other way about.
+  g.lineWidth = Math.min(1, T * rise(foot) * 0.3);
   g.beginPath();
   for (let i = 1; i < tower.stack - 1; i++) {
     const f = i / (tower.stack - 1);

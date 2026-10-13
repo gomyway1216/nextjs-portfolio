@@ -391,6 +391,13 @@ export interface Shape {
 }
 
 /**
+ * How far the rounding of a medal's edge reaches in from its rim, across its
+ * face and down its side: a little under a fifth of its thickness, which
+ * leaves the middle three fifths of its side a plain rim however thick it is.
+ */
+export const MEDAL_EDGE = T * 0.19;
+
+/**
  * One medal lying flat at the origin, full size: two faces, a rim, and a
  * rounded edge between them that catches the light. `edge` is how far the
  * rounding reaches in from the rim; 0 leaves a plain cylinder.

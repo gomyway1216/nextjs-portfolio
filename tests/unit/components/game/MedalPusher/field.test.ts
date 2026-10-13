@@ -31,6 +31,7 @@ import {
   LUCKY,
   PUSHER,
   ROLL_TIME,
+  TOWER,
   createMachine,
   dropJewel,
   luckySlot,
@@ -81,7 +82,7 @@ import {
   type ExitingMedal,
   type Stage,
 } from '@/components/game/MedalPusher/render';
-import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
+import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
 import { pourPose } from '@/components/game/MedalPusher/works';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
@@ -136,8 +137,9 @@ interface Fill {
  * on to; every stretch of an ellipse; every rectangle filled, by where it was
  * asked for and in what colour; every outline filled, with what is in it;
  * every image stamped; and the order the words and the images came in, each
- * image by its place among the stamps. It keeps the transform as a canvas
- * does, through `save` and `restore` too.
+ * image by its place among the stamps; and every path that was stroked, by
+ * how wide its line was and the stretches of ellipse in it. It keeps the
+ * transform as a canvas does, through `save` and `restore` too.
  */
 function recorder() {
   const arcs: Arc[] = [];
@@ -148,9 +150,12 @@ function recorder() {
   const lines: { x: number; y: number }[] = [];
   const stamps: Stamp[] = [];
   const rects: { at: [number, number]; style: string }[] = [];
+  const strokes: { width: number; arcs: Arc[] }[] = [];
   const log: string[] = [];
   let matrix = [1, 0, 0, 1, 0, 0];
   let alpha = 1;
+  let width = 1;
+  let begun = 0;
   let style = '';
   let stops: string[] = [];
   let clipped = false;
@@ -194,6 +199,10 @@ function recorder() {
     },
     beginPath: () => {
       outline = { points: [], rounds: [] };
+      begun = arcs.length;
+    },
+    stroke: () => {
+      strokes.push({ width: width * Math.hypot(matrix[0], matrix[1]), arcs: arcs.slice(begun) });
     },
     moveTo: (x: number, y: number) => {
       starts.push(at(x, y));
@@ -224,6 +233,7 @@ function recorder() {
     get: (target, name: string) => target[name] ?? (() => gradient),
     set: (_target, name: string, value: unknown) => {
       if (name === 'globalAlpha' && typeof value === 'number') alpha = value;
+      if (name === 'lineWidth' && typeof value === 'number') width = value;
       if (name === 'fillStyle') {
         style = typeof value === 'string' ? value : '';
         stops = typeof value === 'string' ? [] : ((value as { colours?: string[] }).colours ?? []);
@@ -231,7 +241,7 @@ function recorder() {
       return true;
     },
   }) as unknown as CanvasRenderingContext2D;
-  return { context, texts, starts, lines, stamps, arcs, rects, fills, log };
+  return { context, texts, starts, lines, stamps, arcs, rects, fills, strokes, log };
 }
 
 type Recorder = ReturnType<typeof recorder>;
@@ -1720,5 +1730,59 @@ describe('the medals pouring out of the hopper on the canvas', () => {
     expect(new Set(shown.map((medal) => faceOf(medal.id))).size).toBeGreaterThan(1);
     expect(new Set(faces.map((stamp) => stamp.image)).size).toBe(new Set(shown.map((medal) => faceOf(medal.id))).size);
     expect(stage.medal).toBe(stage.faces[0]);
+  });
+});
+
+describe('a tower on the canvas', () => {
+  const P = HEIGHT.pusher;
+  const T = HEIGHT.medal;
+  /** One frame of a field with nothing on it but a tower of `stack` medals in the middle of the pusher, and where the tower is. */
+  const frame = (stack: number) => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    const depth = pusherFront(machine.time) - 12;
+    machine.medals = [{ id: 900, x: 50, y: depth, level: 1, tier: 0, sinceDrop: -1, stack, grow: 0, ball: false, grown: 1 }];
+    const screen = recorder();
+    drawField(screen.context, stage, machine, { showGuide: false, calm: true });
+    return { screen, stage, depth };
+  };
+
+  it('stands as tall as its medals are thick, with a line between one medal and the next that is thinner than a medal', () => {
+    for (const stack of [3, 12, TOWER.max]) {
+      const { screen, stage, depth } = frame(stack);
+      const foot = project(50, P + T, depth);
+      const head = project(50, P + stack * T, depth);
+      // Its top medal's face is where the top of a column of that many medals is, and nothing is stamped higher.
+      const faces = screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement) || stamp.image === stage.medal);
+      expect(faces.filter((stamp) => Math.hypot(stamp.x - head.x, stamp.y - head.y) < 1e-6)).toHaveLength(1);
+      expect(Math.min(...faces.map((stamp) => stamp.y))).toBeCloseTo(head.y, 6);
+      // The lines are the near halves of ovals up the column, one stroke: one for every medal but the lowest and the top one.
+      const drawn = screen.strokes.filter((stroke) => stroke.arcs.length > 0 && stroke.arcs.every((arc) => arc.from === 0 && arc.to === Math.PI && Math.abs(arc.x - foot.x) < 1e-6 && arc.y < foot.y && arc.y > head.y));
+      expect(drawn).toHaveLength(1);
+      const [{ width, arcs }] = drawn;
+      expect(arcs).toHaveLength(stack - 2);
+      // A medal's thickness apart, as the camera sees it there: half as far as when a medal was twice as thick.
+      const apart = (foot.y - head.y) / (stack - 1);
+      arcs.forEach((arc, index) => expect(arc.y).toBeCloseTo(foot.y - apart * (index + 1), 6));
+      const one = foot.y - project(50, P + T * 2, depth).y;
+      expect(apart).toBeGreaterThan(one * 0.999);
+      expect(apart).toBeLessThan(one * 1.1);
+      expect(one).toBeGreaterThan(T * rise(foot));
+      // And each line is a good deal thinner than the medal it marks off, so the column is brass with lines in it.
+      expect(width).toBeGreaterThan(0);
+      expect(width).toBeLessThanOrEqual(1);
+      expect(width).toBeLessThan(one * 0.4);
+    }
+  });
+
+  it('stands about two medals’ widths high at its tallest: stout, as a stack of real medals is', () => {
+    expect(TOWER.max * T).toBeGreaterThan(MEDAL_RADIUS * 2 * 1.5);
+    expect(TOWER.max * T).toBeLessThan(MEDAL_RADIUS * 2 * 2.5);
+    // And on a phone, where the stage is 345 pixels wide, that is a column some twenty pixels high: still plainly a tower over a pile two deep.
+    const depth = pusherFront(0) - 12;
+    const tall = (project(50, P + T, depth).y - project(50, P + TOWER.max * T, depth).y) * (345 / VIEW.width);
+    expect(tall).toBeGreaterThan(18);
+    expect(tall).toBeGreaterThan(10 * (project(50, P, depth).y - project(50, P + T * 2, depth).y) * (345 / VIEW.width));
   });
 });

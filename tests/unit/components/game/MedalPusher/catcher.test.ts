@@ -1019,10 +1019,13 @@ describe('a medal that has gone off the foot of the slide', () => {
     }
     expect(last).toBeCloseTo(T * 1.5, 12);
     expect(high([other(R * 1.5, 0)])).toBeCloseTo(T, 9);
-    // On one that lies on another it would stand higher than the foot is; it is as high as passes under it, and no higher.
+    // On one that lies on another it lies on the two of them, three deep. Medals as thin as these pass under the foot
+    // three deep with room over them; it is never shown higher than passes under it, however thick a medal is.
     const top = high([other(0, 0, { tier: 1 })]);
     expect(top).toBeGreaterThan(T * 1.5);
-    expect(top + T / 2).toBeCloseTo(CATCHER.foot.height, 12);
+    expect(top).toBeCloseTo(T / 2 + Math.min(T * 2, CATCHER.foot.height - T), 12);
+    expect(top + T / 2).toBeLessThanOrEqual(CATCHER.foot.height + 1e-12);
+    expect(T * 3).toBeLessThan(CATCHER.foot.height);
     // Only a medal lying on the lower table is something to lie on: not one on the pusher, a ball or a jewel. And not itself.
     expect(high([other(0, 0, { level: 1 })])).toBeCloseTo(T / 2, 12);
     expect(high([other(0, 0, { ball: true })])).toBeCloseTo(T / 2, 12);

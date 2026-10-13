@@ -45,7 +45,16 @@ export const FIELD = {
 } as const;
 
 export const MEDAL_RADIUS = 3.2;
-export const MEDAL_THICKNESS = 0.9;
+/**
+ * How thick a medal is: a thirteenth of what it is across, which is a real
+ * arcade medal's proportion (25 mm across and 1.8 mm thick, a fourteenth).
+ * Everything that has a medal's height in it is reckoned from this number: how
+ * high a pile and a tower stand in both pictures, how high a lift's guard
+ * rises, what passes under the catcher's foot, and how far a tower reaches
+ * across the lower table when it goes over the lip (`spill`), which is the one
+ * place the field's own sums have it in them.
+ */
+export const MEDAL_THICKNESS = 0.5;
 
 /** The pusher's front lip moves between these depths, once per `period` seconds. */
 export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;

@@ -17,6 +17,7 @@ import {
   LANDING,
   LUCKY,
   MEDAL_RADIUS,
+  MEDAL_THICKNESS,
   PUSHER,
   RELEASE,
   ROLL_TIME,
@@ -929,6 +930,33 @@ describe('a machine in play', () => {
     expect(step(growing, DT).checkers).toEqual([1, 1, 1, 1]);
     expect(growing.payoutQueue).toBe(6);
     expect(growing.growing).toBe(0);
+  });
+
+  it('makes a medal as thin as a real one, and lays a tower that goes over down across the lower table as far as it stood tall', () => {
+    // A real arcade medal is 25 mm across and 1.8 mm thick, a fourteenth. The machine's is within a hair of that: it was a seventh once.
+    const share = MEDAL_THICKNESS / (MEDAL_RADIUS * 2);
+    expect(share).toBeGreaterThan(0.06);
+    expect(share).toBeLessThan(0.09);
+    for (const stack of [3, 12, TOWER.max]) {
+      const machine = machineWith([medalAt(22, PUSHER.min + 0.5, { level: 1, stack })]);
+      expect(step(machine, DT).toppled).toBe(1);
+      const lip = pusherFront(machine.time);
+      // As tall as its medals are thick, and a tenth more for the way it goes over.
+      const reach = stack * MEDAL_THICKNESS * 1.1;
+      const down = machine.falling.filter((medal) => medal.source === 'spill').sort((a, b) => a.rank - b.rank);
+      expect(down).toHaveLength(stack);
+      for (const medal of down) {
+        // The bottom ones nearest and the top ones furthest, each within a unit of its own share of the way.
+        const out = MEDAL_RADIUS + ((medal.rank + 0.5) / stack) * reach;
+        expect(Math.abs(medal.y - (lip + out))).toBeLessThanOrEqual(1);
+        // And no further to either side than it has fanned out by then.
+        expect(Math.abs(medal.x - 22)).toBeLessThanOrEqual(MEDAL_RADIUS + out * 0.35);
+        expect(medal.fromY).toBe(lip);
+      }
+      // So the tallest tower there is comes down within three medals' widths of the foot of the pusher's face, and not half way to the front.
+      expect(Math.max(...down.map((medal) => medal.y))).toBeLessThan(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1);
+      expect(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(lip + MEDAL_RADIUS * 6);
+    }
   });
 
   it('starts nothing when a medal lands: only the lip counts', () => {

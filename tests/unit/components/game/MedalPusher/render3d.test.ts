@@ -80,6 +80,7 @@ import {
   KEY_LIGHT,
   LANDED,
   LEAN,
+  MEDAL_EDGE,
   MEDAL_STRIDE,
   armTipAt,
   ballShape,
@@ -1142,7 +1143,10 @@ function outward(shape: Shape): boolean {
 
 describe('the shapes', () => {
   it('makes a medal as wide and as thick as the engine says, closed and facing outward', () => {
-    for (const shape of [medalShape(32, 0.17), medalShape(16, 0)]) {
+    // The rounding of its edge is cut from its thickness: under a fifth of it top and bottom, with most of the side left a plain rim between.
+    expect(MEDAL_EDGE).toBeGreaterThan(0);
+    expect(MEDAL_EDGE * 2).toBeLessThan(T / 2);
+    for (const shape of [medalShape(32, MEDAL_EDGE), medalShape(16, 0)]) {
       const count = shape.vertices.length / 6;
       expect(Math.max(...shape.indices)).toBe(count - 1);
       expect(shape.indices.length % 3).toBe(0);
@@ -1162,7 +1166,7 @@ describe('the shapes', () => {
       expect(outward(shape)).toBe(true);
     }
     // The medal in the picture has a rounded edge; the one in the shadow map is plainer.
-    expect(medalShape(32, 0.17).indices.length).toBeGreaterThan(medalShape(16, 0).indices.length);
+    expect(medalShape(32, MEDAL_EDGE).indices.length).toBeGreaterThan(medalShape(16, 0).indices.length);
   });
 
   it('makes a jewel of flat faces, each with corners of its own, closed and facing outward', () => {
@@ -1640,7 +1644,7 @@ describe('the cabinet as shapes', () => {
       for (const spot of [top, foot]) expect(slot.some((corner) => Math.hypot(corner.x - spot.x, corner.y - spot.height, corner.z - spot.depth) < 1e-3)).toBe(true);
       expect(slotSpot(arm, 0, 0, 0)).toEqual(armCollar(arm));
       // The mouth: dark, mirroring nothing, set back inside the face, upright, a little taller than a medal is across
-      // and getting on for four times as wide as one is thick.
+      // and several times as wide as one is thick.
       const mouth = slot.filter((corner) => corner.colour.every((value) => value === 0));
       expect(mouth).toHaveLength(9 * 6);
       for (const corner of mouth) {

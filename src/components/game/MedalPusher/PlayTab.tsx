@@ -25,6 +25,7 @@ import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './Sou
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
 import { keepMachine } from './savedMachine';
+import { savedNoteFor } from './savedNote';
 import { restore } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
@@ -767,19 +768,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     setAnnouncement(t.sayReset(START_CREDITS));
   };
 
-  // What is true of where the machine is kept. A write to this device that failed is said first, wherever else it is not kept either.
-  const savedNote =
-    status.where === 'account'
-      ? t.accountNote
-      : status.where === 'unreadable'
-        ? t.unreadableNote
-        : status.where === 'checking'
-          ? t.checkingNote
-          : !status.kept
-            ? t.unsavedNote
-            : status.where === 'offline'
-              ? t.offlineNote
-              : t.savedNote;
+  // What is true of where the machine is kept: of the account, and of this device, whose last write may not have taken.
+  const savedNote = t[savedNoteFor(status)];
 
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;

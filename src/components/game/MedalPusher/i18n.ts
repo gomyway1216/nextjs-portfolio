@@ -86,6 +86,11 @@ export interface PusherStrings {
   unreadableNote: string;
   checkingNote: string;
   resetConfirmAccount: string;
+  // The same four when this device could not keep its own copy
+  accountUnsavedNote: string;
+  offlineUnsavedNote: string;
+  unreadableUnsavedNote: string;
+  checkingUnsavedNote: string;
   // Announcements for screen readers
   saySugorokuStart: (digits: string) => string;
   saySugoroku: (medals: number) => string;
@@ -314,6 +319,13 @@ const en: PusherStrings = {
     'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is, and the machine here is kept on this device only. Reloading the page may help.',
   checkingNote: 'Looking for the machine saved to your account…',
   resetConfirmAccount: 'Press again to reset the machine on your account',
+  accountUnsavedNote:
+    'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave. This device could not keep a copy of its own: the browser is blocking storage, or it is full.',
+  offlineUnsavedNote:
+    'Could not reach your account just now, and this device could not save the machine either: the browser is blocking storage, or it is full. It will be sent when the account can be reached again; if the page is closed before then, what you have played since it was last sent is lost.',
+  unreadableUnsavedNote:
+    'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is. The machine here is not saved anywhere: this device could not keep it, because the browser is blocking storage or it is full. Reloading the page may help.',
+  checkingUnsavedNote: 'Looking for the machine saved to your account… Meanwhile this device could not save the machine here: the browser is blocking storage, or it is full.',
   saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
@@ -572,6 +584,13 @@ const ja: PusherStrings = {
     'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここのマシンはこの端末にだけ預けています。ページを読み込み直すと直ることがあります。',
   checkingNote: 'アカウントに預けたマシンを確認しています…',
   resetConfirmAccount: 'もう一度押すと、アカウントのマシンをリセットします',
+  accountUnsavedNote:
+    'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
+  offlineUnsavedNote:
+    'いまアカウントに接続できず、この端末にも保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。接続できしだい送り直しますが、その前にページを閉じると、最後に送ったあとに遊んだ分は失われます。',
+  unreadableUnsavedNote:
+    'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残してあります。ここのマシンはどこにも保存されていません。この端末には保存できませんでした（ブラウザが保存を許可していないか、空き容量がありません）。ページを読み込み直すと直ることがあります。',
+  checkingUnsavedNote: 'アカウントに預けたマシンを確認しています… その間、ここのマシンはこの端末に保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
   saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,

@@ -2542,7 +2542,7 @@
    They keep their words on one line and are no wider than those need, so that the slider has the rest of the row. */
 .soundPanel .toggle {
   min-height: 2.15rem;
-  padding-inline: 0.6rem;
+  padding-inline: 0.5rem;
   white-space: nowrap;
 }
 /* On the narrowest phones the volume has a line to itself, and the two switches share the one under it. */
@@ -2598,9 +2598,12 @@
   background: rgba(255, 255, 255, 0.55);
   pointer-events: none;
 }
+/* A range input has a width of its own that it will not go under unless it is told it may: with three things in the
+   row, on a narrow phone, it would stay that wide and lie over the switch beside it. */
 .volumeSlider {
   position: relative;
   width: 100%;
+  min-width: 0;
   margin: 0.2rem 0;
   accent-color: var(--mp-neon);
 }

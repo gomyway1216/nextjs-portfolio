@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FeelControls } from '@/components/game/MedalPusher/FeelControls';
+import { FeelControls, FeelNote } from '@/components/game/MedalPusher/FeelControls';
 import { AIM_RANGE, POCKETS_IN_REACH, PlayTab, aimPercent, sliderShare } from '@/components/game/MedalPusher/PlayTab';
 import { ARM_REACH, CHECKERS } from '@/components/game/MedalPusher/engine';
 import { FEEL_KEY, writeFeel } from '@/components/game/MedalPusher/feel';
@@ -33,8 +33,8 @@ describe('the switches of feel', () => {
     const html = render(<PlayTab />);
     const controls = html.split('data-testid="pusher-controls"')[1].split('data-testid="pusher-keys"')[0];
     // After everything that was there, in the order a thumb finds them.
-    const order = ['pusher-feed-left', 'pusher-credits', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-feel', 'pusher-sweep'].map((id) =>
-      controls.indexOf(`data-testid="${id}"`),
+    const order = ['pusher-feed-left', 'pusher-credits', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-feel', 'pusher-sweep'].map(
+      (id) => controls.indexOf(`data-testid="${id}"`),
     );
     expect(order.every((at) => at > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -89,8 +89,13 @@ describe('the switches of feel', () => {
     expect(button(all, 'pusher-vibration')).toContain('aria-pressed="true"');
     expect(button(all, 'pusher-vibration')).toMatch(/>\s*Vibrate<\/button>/);
     expect(button(all, 'pusher-vibration')).toContain('title="The phone ticks when a medal goes in and buzzes for a win."');
-    // While the rails swing, a line under the row says what to do about it.
-    expect(all).toMatch(/<p[^>]*data-testid="pusher-sweep-note"[^>]*>Swing: the rails move by themselves\. Press L or R when the ▼ over a slider is where the medal should drop\.<\/p>/);
+    // While the rails swing, a line says what to do about it. It is a piece of its own, so that it can come last in
+    // the controls, after the row the sound settings open in; it is nothing at all while they do not swing.
+    expect(all).not.toContain('pusher-sweep-note');
+    expect(render(<FeelNote strings={t} sweep={true} />)).toMatch(
+      /^<p[^>]*data-testid="pusher-sweep-note"[^>]*>Swing: the rails move by themselves\. Press L or R when the ▼ over a slider is where the medal should drop\.<\/p>$/,
+    );
+    expect(render(<FeelNote strings={t} sweep={false} />)).toBe('');
     // Fullscreen is the browser's to offer, and nothing has offered it here.
     expect(all).not.toContain('pusher-fullscreen');
 
@@ -111,7 +116,7 @@ describe('the switches of feel', () => {
     expect(html).toContain('aria-label="遊び方の設定"');
     expect(button(html, 'pusher-sweep')).toMatch(/>\s*スイング<\/button>/);
     expect(button(html, 'pusher-vibration')).toMatch(/>\s*振動<\/button>/);
-    expect(html).toContain('スイング中: レールが自動で振れます。');
+    expect(render(<FeelNote strings={getStrings('ja')} sweep={true} />, 'ja')).toContain('スイング中: レールが自動で振れます。');
     expect(render(<PlayTab />, 'ja')).toMatch(/data-testid="pusher-sweep"[^>]*>[\s\S]*?スイング<\/button>/);
   });
 
@@ -194,15 +199,26 @@ describe('the stylesheet, for a thumb', () => {
     expect(strip).toContain('top: 50%');
     expect(css).toMatch(/\.toggle,\s*\.tab \{\s*position: relative;\s*\}/);
     expect(css).toMatch(/\.refill,\s*\.reset \{\s*min-height: 44px;\s*\}/);
-    // A slider is 44 px tall, with a thumb to match, and a swipe up or down it still scrolls the page.
-    const slider = rulesFor(css, '.aimSlider');
-    expect(slider).toContain('height: 44px');
-    expect(slider).toContain('touch-action: pan-y');
-    expect(slider).toContain('appearance: none');
-    for (const thumb of ['.aimSlider::-webkit-slider-thumb', '.aimSlider::-moz-range-thumb']) {
-      expect(rulesFor(css, thumb)).toContain('width: 28px');
-      expect(rulesFor(css, thumb)).toContain('height: 28px');
+    // A slider is 44 px tall, with a thumb to match, and a swipe up or down it still scrolls the page: the aims'
+    // and the volume's alike.
+    for (const name of ['.aimSlider', '.volumeSlider']) {
+      const slider = rulesFor(css, name);
+      expect(slider).toContain('height: 44px');
+      expect(slider).toContain('touch-action: pan-y');
+      expect(slider).toContain('appearance: none');
+      for (const thumb of [`${name}::-webkit-slider-thumb`, `${name}::-moz-range-thumb`]) {
+        expect(rulesFor(css, thumb)).toContain('width: 28px');
+        expect(rulesFor(css, thumb)).toContain('height: 28px');
+      }
     }
+    // The volume's takes no more room in its row than its track did, and the notch behind it, at the level the
+    // cabinet was made at, is still in the middle of its travel: a thumb's travel is the same at both ends.
+    expect(rulesFor(css, '.volumeSlider')).toContain('margin: -11px 0');
+    const notch = rulesFor(css, '.volumeTrack::before');
+    expect(notch).toContain('left: 50%');
+    expect(notch).toContain('pointer-events: none');
+    // A WebKit rule and a Gecko rule never share a list: a browser drops a list it knows half of.
+    expect(css).not.toMatch(/-webkit-slider[^{]*,[^{]*-moz-range|-moz-range[^{]*,[^{]*-webkit-slider/);
     // The feed buttons were big enough already, and stay so.
     expect(rulesFor(css, '.feed')).toMatch(/width: clamp\(4\.8rem, 23vw, 6rem\)/);
     // The marks over a slider take no touch from it.
@@ -242,6 +258,10 @@ describe('the stylesheet, for a thumb', () => {
     const sideways = css.split('@media (orientation: landscape)')[1] ?? '';
     expect(sideways).toMatch(/'feedL stage feedR'/);
     expect(sideways).toMatch(/'aimL stage aimR'/);
+    // The sound settings open at the right hand, under the switches that open them; the line about Swing is at the left.
+    expect(sideways).toMatch(/'feel stage sound'\s*'note stage refill'/);
+    expect(sideways).toMatch(/\.cabinet:fullscreen \.soundPanel \{\s*grid-area: sound;/);
+    expect(sideways).toMatch(/\.cabinet:fullscreen \.feelNote \{\s*grid-area: note;/);
     expect(sideways).toMatch(/\.cabinet:fullscreen \.feed\[data-arm='0'\] \{\s*grid-area: feedL;/);
     expect(sideways).toMatch(/\.cabinet:fullscreen \.feed\[data-arm='1'\] \{\s*grid-area: feedR;/);
   });
@@ -249,6 +269,9 @@ describe('the stylesheet, for a thumb', () => {
   it('gives the switches of feel a row without touching the panel’s own layout', () => {
     expect(rulesFor(css, '.feel')).toContain('grid-column: 1 / -1');
     expect(rulesFor(css, '.feelRow')).toContain('display: flex');
+    // So have the sound settings and the line about Swing: each a row as wide as the panel, in the order they are written.
+    expect(rulesFor(css, '.soundPanel')).toContain('grid-column: 1 / -1');
+    expect(rulesFor(css, '.feelNote')).toContain('grid-column: 1 / -1');
     // The panel's three rows are as they were: the new row comes after them by itself.
     expect(rulesFor(css, '.panel')).toMatch(/'left credit right'\s*'aims aims aims'\s*'toggles toggles toggles';/);
   });

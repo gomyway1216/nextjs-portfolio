@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEve
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
-import { FeelControls } from './FeelControls';
+import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
@@ -24,6 +24,7 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
+import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
@@ -150,6 +151,8 @@ const IDLE_SCREEN: ScreenState = {
   level: 0,
   total: 0,
   hole: -1,
+  chance: 0,
+  gold: false,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>
@@ -198,6 +201,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [held, setHeld] = useState<[boolean, boolean]>([false, false]);
   const [auto, setAuto] = useState(false);
   const [sound, setSound] = useState(false);
+  // How loud the player has the cabinet and whether its loop plays, kept on this device apart from the machine.
+  const soundControl = useSoundSettings();
+  const musicOn = soundControl.settings.music;
   const [announcement, setAnnouncement] = useState('');
   // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
   const [armedAt, setArmedAt] = useState<number | null>(null);
@@ -376,13 +382,13 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     };
   }, [active, switchedOn]);
 
-  // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
-  // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
-  // fanfare and loop stop with it, and the loop starts again from the top for the new one.
+  // The background loop plays while the sound is on, the player has not switched the loop off, and this tab is
+  // showing. Switching the sound off, or leaving the cabinet, cuts short whatever is still ringing. So does a
+  // reset: the old machine's reels, fanfare and loop stop with it, and the loop starts again from the top for the new one.
   useEffect(() => {
-    setMusic(sound && active);
+    setMusic(sound && active && musicOn);
     return () => setMusic(false);
-  }, [sound, active, switchedOn]);
+  }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
 
   useEffect(() => {
@@ -554,7 +560,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'checker':
             lightGate(stage, event.gate);
-            playSound(event.held ? 'gate' : 'full', soundOn);
+            playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
+            break;
+          case 'chanceStart':
+            playSound('fever', soundOn);
+            setAnnouncement(strings.sayChance);
+            break;
+          case 'chanceEnd':
+            setAnnouncement(strings.sayChanceEnd);
             break;
           case 'toppled':
             celebrate(stage, 'crash');
@@ -642,7 +655,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;
@@ -1007,8 +1020,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
               <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
             </button>
+            <SoundSettingsButton control={soundControl} strings={t} />
           </div>
           <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
+          <SoundSettingsPanel control={soundControl} strings={t} />
+          <FeelNote strings={t} sweep={feel.prefs.sweep} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">

@@ -31,6 +31,7 @@ export interface HapticPattern {
  * - `catch`: medals over the front edge, into the tray. At most one every 220 ms, however many fall.
  * - `start`: a medal through a START pocket that holds a spin.
  * - `crash`: a tower going over the pusher's lip.
+ * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
  * - `line`: the slot stops on a winning line, or a ball goes over the front.
  * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl.
  * - `jackpot`: the jackpot. A second and a quarter long.
@@ -41,6 +42,7 @@ export const HAPTICS = {
   catch: { pattern: [22], rank: 1, gap: 220 },
   start: { pattern: [16, 36, 16], rank: 2, gap: 0 },
   crash: { pattern: [70], rank: 2, gap: 0 },
+  chance: { pattern: [24, 40, 24], rank: 3, gap: 0 },
   line: { pattern: [30, 50, 30], rank: 3, gap: 0 },
   prize: { pattern: [45, 55, 45, 55, 90], rank: 4, gap: 0 },
   jackpot: { pattern: [140, 70, 140, 70, 140, 70, 600], rank: 5, gap: 0 },
@@ -141,6 +143,9 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
         break;
       case 'toppled':
         feel('crash');
+        break;
+      case 'chanceStart':
+        feel('chance');
         break;
       case 'ball':
         feel('line');

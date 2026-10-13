@@ -46,6 +46,10 @@ const FullscreenIcon = ({ active }: { active: boolean }) => (
  *
  * Fullscreen is the whole cabinet's: the picture and the controls together.
  * This row is inside the cabinet, and finds it from where it stands.
+ *
+ * The line that says what to do while the rails swing is `FeelNote`, a piece
+ * of its own: it comes last in the controls, after whatever row another
+ * switch has opened under this one.
  */
 export const FeelControls = ({ strings: t, sweep, onSweep, vibration, onVibration }: FeelControlsProps) => {
   const row = useRef<HTMLDivElement | null>(null);
@@ -68,11 +72,14 @@ export const FeelControls = ({ strings: t, sweep, onSweep, vibration, onVibratio
           </button>
         )}
       </div>
-      {sweep && (
-        <p className={styles.feelNote} data-testid="pusher-sweep-note">
-          {t.swingNote}
-        </p>
-      )}
     </div>
   );
 };
+
+/** While the rails swing, a line at the foot of the controls that says what to do about it. */
+export const FeelNote = ({ strings: t, sweep }: { strings: PusherStrings; sweep: boolean }) =>
+  sweep ? (
+    <p className={styles.feelNote} data-testid="pusher-sweep-note">
+      {t.swingNote}
+    </p>
+  ) : null;

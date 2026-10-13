@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { caught } from './catcher';
 import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
@@ -194,6 +195,7 @@ const IDLE_SCREEN: ScreenState = {
   stage: -1,
   fallen: [],
   chance: 0,
+  golds: 0,
   gold: false,
 };
 
@@ -675,9 +677,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
           case 'chanceStart':
             playSound('fever', soundOn);
+            // The wings of the START slots are thrown open by their solenoids, and thrown shut when chance time is over.
+            playSound('shutter', soundOn, { up: true });
             setAnnouncement(strings.sayChance);
             break;
           case 'chanceEnd':
+            playSound('shutter', soundOn);
             setAnnouncement(strings.sayChanceEnd);
             break;
           case 'toppled':
@@ -815,6 +820,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         playSound('roulette', soundOn, { seconds: turn.duration - turn.elapsed });
       }
       turnClock = turn ? turn.elapsed : -1;
+      // A medal that came over the lip in this frame and catches the frame of a START slot without fitting it is
+      // heard to: a medal on bare steel. It is the catcher that says which do, as it does for the picture, so the
+      // one that is heard is the one that is seen to rattle there.
+      for (const medal of session.machine.medals) {
+        if (medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= elapsed - 1e-9) continue;
+        if ((caught(medal, session.machine.time, calm.matches, session.rush)?.near ?? -1) >= 0) playSound('land', soundOn, { bare: true });
+      }
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);

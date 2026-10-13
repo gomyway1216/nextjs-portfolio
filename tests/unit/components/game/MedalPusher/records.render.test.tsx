@@ -334,6 +334,7 @@ describe('the record board and the achievement sheet', () => {
       hits: '2',
       wasted: '1',
       golds: '1',
+      luckies: '0',
       fulls: '0',
       chances: '1',
       spins: '3',

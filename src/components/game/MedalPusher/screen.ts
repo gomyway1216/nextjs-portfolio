@@ -498,8 +498,14 @@ export interface ScreenState {
   stage: number;
   /** The hole the ball has dropped through in each bowl so far, the top bowl's first. */
   fallen: readonly number[];
-  /** Chance time: how many gold spins are still to come, the one on the screen included. 0 when there is none. */
+  /**
+   * Chance time: how many gold spins are still to come, the one on the screen included. 0 when it is not chance
+   * time, which it is only from the medal that finds the hold full to the last gold spin. A spin the lucky lamp
+   * made gold is a gold spin and no more than that: held or on the reels, it does not make it chance time.
+   */
   chance: number;
+  /** How many of the held spins are gold, in chance time or out of it: their lamps are gold, the first so many. */
+  golds: number;
   /** Whether what is on the screen now is a gold spin, or the game its line led to: its square or its chest pays over. */
   gold: boolean;
 }
@@ -546,7 +552,8 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     total: 0,
     stage: -1,
     fallen: [],
-    chance: chanceLeft(session),
+    chance: session.rush ? chanceLeft(session) : 0,
+    golds: session.gold,
     gold: session.chance,
   };
   const { roulette, bonus, spin } = session;
@@ -607,6 +614,7 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.fallen.length !== b.fallen.length ||
     a.fallen.some((hole, bowl) => hole !== b.fallen[bowl]) ||
     a.chance !== b.chance ||
+    a.golds !== b.golds ||
     a.gold !== b.gold
   ) {
     return false;
@@ -622,9 +630,11 @@ export const BOARD_SQUARES: readonly number[] = BOARD;
 
 /**
  * The world the monitor is in, whatever game is on it: the everyday one,
- * chance time while a gold spin is still to come, a fever for the board's
- * fever square or a prize as big, the ball's lottery from its roulette to the
- * last of the bowls, and the jackpot.
+ * chance time from the medal that finds the hold full to the last gold spin,
+ * a fever for the board's fever square or a prize as big, the ball's lottery
+ * from its roulette to the last of the bowls, and the jackpot. A gold spin
+ * by itself, one the lucky lamp made, is played in the everyday one: the
+ * screen marks the spin as gold, and does not change its world for it.
  */
 export type MonitorMode = 'normal' | 'chance' | 'fever' | 'challenge' | 'jackpot';
 export const MONITOR_MODES: readonly MonitorMode[] = ['normal', 'chance', 'fever', 'challenge', 'jackpot'];

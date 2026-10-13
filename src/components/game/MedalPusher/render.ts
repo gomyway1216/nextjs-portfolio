@@ -1929,7 +1929,7 @@ export interface DrawOptions {
   calm?: boolean;
   /** How many spins the machine is holding, which is how many of the lamps under the screen are lit. */
   stock?: number;
-  /** How many of those are gold: chance time. Their lamps, the first so many from the left, flash. */
+  /** How many of those are gold, in chance time or out of it. Their lamps, the first so many from the left, flash. */
   gold?: number;
   /** Whether the START slots' wings are open, which they are during chance time: all three slots are lit gold and take medals more easily. */
   wings?: boolean;

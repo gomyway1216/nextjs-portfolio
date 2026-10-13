@@ -50,7 +50,7 @@ import {
   type RecordBook,
   type RecordEvent,
 } from '@/components/game/MedalPusher/records';
-import { CHECKERS, pusherFront } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, luckySlot, pusherFront } from '@/components/game/MedalPusher/engine';
 import { MAX_STOCK, START_CREDITS, advance, createSession, grant, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore, serialize } from '@/components/game/MedalPusher/storage';
 
@@ -169,7 +169,8 @@ describe('recording what the machine did', () => {
       { type: 'lost', count: 2 },
       { type: 'landed', count: 30 },
       { type: 'checker', gate: 0, held: true, gold: false, lucky: false },
-      { type: 'checker', gate: 1, held: true, gold: false, lucky: false },
+      // The second went through the START pocket the lucky lamp was on: the spin it holds is gold from the start.
+      { type: 'checker', gate: 1, held: true, gold: false, lucky: true },
       // The third found the hold full, and turned a held spin gold: chance time began with it.
       { type: 'checker', gate: 2, held: false, gold: true, lucky: false },
       { type: 'chanceStart' },
@@ -211,6 +212,7 @@ describe('recording what the machine did', () => {
       hits: 3,
       wasted: 1,
       golds: 1,
+      luckies: 1,
       fulls: 1,
       chances: 1,
       spins: 6,
@@ -882,7 +884,7 @@ describe('the book as text', () => {
     expect(serializeBook(a)).toBe(serializeBook(b));
   });
 
-  it('is small: a few hundred characters for a real player, and under six thousand with every bound reached', () => {
+  it('is small: a few hundred characters for a real player, and little over six thousand with every bound reached', () => {
     expect(serializeBook(createBook('device0001')).length).toBeLessThan(120);
     expect(serializeBook(used()).length).toBeLessThan(500);
     // The largest book there can be: every device, every counter at the most, every stamp, every month full.
@@ -903,8 +905,8 @@ describe('the book as text', () => {
       claimed: months,
     };
     const text = serializeBook(largest);
-    expect(text.length).toBeLessThan(6000);
-    expect(text.length).toBeLessThan(LIMITS.length);
+    expect(text.length).toBeLessThan(6100);
+    expect(text.length).toBeLessThan(LIMITS.length / 3);
     // And it is a book: it reads back whole.
     expect(serializeBook(parseBook(text) as RecordBook)).toBe(text);
   });
@@ -1082,5 +1084,39 @@ describe('the hold filling', () => {
     const quiet: SessionEvent[] = [];
     advance(session, DT, quiet);
     expect(quiet.filter((event) => event.type === 'holdFilled')).toEqual([]);
+  });
+
+  it('counts the spins that are gold from the start apart from the ones a full hold turned: the lit pocket’s, and those of open wings', () => {
+    const session = emptied();
+    // The screen is busy with a chest nobody picks, so spins are held and not played.
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    const events: SessionEvent[] = [];
+    /** Lays a medal on the pusher just past its lip at a pocket, and takes it through. */
+    const through = (pocket: number): void => {
+      const { machine } = session;
+      machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[pocket], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+      advance(session, DT, events);
+    };
+    // One through the pocket the lucky lamp is on, and one through another.
+    const lit = luckySlot(session.machine.time);
+    through(lit);
+    through((lit + 1) % CHECKERS.positions.length);
+    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ hits: 2, luckies: 1, golds: 0, wasted: 0, chances: 0 });
+    // The hold fills, a medal finds it full, and chance time begins: the wings are open, and from now on every medal that is held holds a gold spin.
+    while (session.stock < MAX_STOCK) through((lit + 1) % CHECKERS.positions.length);
+    through((lit + 1) % CHECKERS.positions.length);
+    expect(session.rush).toBe(true);
+    const before = totals(record(createBook('device0001'), events, MONDAY));
+    expect(before).toMatchObject({ hits: MAX_STOCK + 1, luckies: 1, golds: 1, wasted: 1, chances: 1, fulls: 1 });
+    // The chest is opened and the gold spins start to play, so there is room in the hold again while chance time lasts.
+    session.bonus = null;
+    for (let i = 0; i < 20 && session.stock === MAX_STOCK; i++) advance(session, DT, events);
+    expect([session.stock, session.rush]).toEqual([MAX_STOCK - 1, true]);
+    through((lit + 2) % CHECKERS.positions.length);
+    const after = totals(record(createBook('device0001'), events, MONDAY));
+    expect(after).toMatchObject({ hits: MAX_STOCK + 2, luckies: 2, golds: 1, wasted: 1, chances: 1 });
+    // The book's count is the machine's own.
+    expect(after.luckies).toBe(session.lucky);
+    expect(after.golds).toBe(session.gilded);
   });
 });

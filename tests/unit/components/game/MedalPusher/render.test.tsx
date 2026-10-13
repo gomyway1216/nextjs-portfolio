@@ -1913,6 +1913,7 @@ describe('the screen', () => {
     stage: -1,
     fallen: [],
     chance: 0,
+    golds: 0,
     gold: false,
   };
   const en = getStrings('en');
@@ -2318,10 +2319,18 @@ describe('the screen', () => {
   it('puts the monitor in one of five modes for what is on it, the rarer thing counting for more', () => {
     expect(MONITOR_MODES).toEqual(['normal', 'chance', 'fever', 'challenge', 'jackpot']);
     expect(monitorMode(idle)).toBe('normal');
-    // Chance time: a gold spin is still to come, held or on the reels, whatever game it leads to.
-    expect(monitorMode({ ...idle, chance: 3 })).toBe('chance');
+    // Chance time, while it lasts: a gold spin is still to come, held or on the reels, whatever game it leads to.
+    expect(monitorMode({ ...idle, chance: 3, golds: 3 })).toBe('chance');
     expect(monitorMode({ ...idle, chance: 1, gold: true })).toBe('chance');
-    expect(monitorMode({ ...idle, mode: 'sugoroku', banner: 'medals', amount: 10, chance: 2, gold: true })).toBe('chance');
+    expect(monitorMode({ ...idle, mode: 'sugoroku', banner: 'medals', amount: 10, chance: 2, golds: 1, gold: true })).toBe('chance');
+    // A gold spin is not chance time. One the lucky lamp made, held or on the reels or in the game its line led to,
+    // is played in the everyday mode, unless what it pays is a fever's worth, which is a fever like any other.
+    expect(monitorMode({ ...idle, golds: 2 })).toBe('normal');
+    expect(monitorMode({ ...idle, gold: true })).toBe('normal');
+    expect(monitorMode({ ...idle, golds: 1, gold: true })).toBe('normal');
+    expect(monitorMode({ ...idle, mode: 'sugoroku', banner: 'medals', amount: 10, gold: true })).toBe('normal');
+    expect(monitorMode({ ...idle, mode: 'chest', banner: 'none', gold: true })).toBe('normal');
+    expect(monitorMode({ ...idle, mode: 'chest', banner: 'towers', amount: 2 * FEVER_FROM, gold: true })).toBe('fever');
     // A fever: the board's fever square, or a prize from the board or a chest as big as that square's.
     expect(FEVER_FROM).toBe(BOARD[FEVER_SQUARE]);
     expect(monitorMode({ ...idle, mode: 'sugoroku', banner: 'fever', amount: FEVER_FROM })).toBe('fever');
@@ -2860,9 +2869,10 @@ describe('chance time on the screen and in the words', () => {
   const lamps = (html: string, lit: string) => html.match(new RegExp(`data-lit="[a-z]+" data-gold="${lit}"`, 'g'))?.length ?? 0;
 
   it('says nothing of it while no spin is gold', () => {
-    expect(idle).toMatchObject({ chance: 0, gold: false });
+    expect(idle).toMatchObject({ chance: 0, golds: 0, gold: false });
     const html = show(idle, 5);
     expect(html).not.toContain('pusher-chance');
+    expect(html).not.toContain('pusher-gold-spin');
     expect(html).not.toContain('CHANCE TIME');
     expect(lamps(html, 'true')).toBe(0);
     expect(lamps(html, 'false')).toBe(MAX_STOCK);
@@ -2870,7 +2880,7 @@ describe('chance time on the screen and in the words', () => {
 
   it('writes CHANCE TIME, what a gold spin pays and how many are left, and flashes the gold spins’ lamps', () => {
     // Three gold spins held, and nothing gold on the screen yet.
-    const waiting = show({ ...idle, chance: 3, gold: false }, MAX_STOCK);
+    const waiting = show({ ...idle, chance: 3, golds: 3, gold: false }, MAX_STOCK);
     const strip = waiting.match(/<div[^>]*data-testid="pusher-chance"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
     expect(strip).toContain('CHANCE TIME');
     expect(strip).toContain(`×${CHANCE.multiplier}`);
@@ -2880,19 +2890,24 @@ describe('chance time on the screen and in the words', () => {
     expect(lamps(waiting, 'true')).toBe(3);
     expect(waiting.match(/data-lit="true" data-gold="true"/g)).toHaveLength(3);
     // One of them on the reels, and two still held: three left, two lamps gold, and the strip says the screen is gold.
-    const playing = show({ ...idle, chance: 3, gold: true }, 7);
+    const playing = show({ ...idle, chance: 3, golds: 2, gold: true }, 7);
     expect(playing).toMatch(/data-gold="true"[^>]*data-testid="pusher-chance"|data-testid="pusher-chance"[^>]*data-gold="true"/);
     expect(playing).toContain('3 left');
     expect(lamps(playing, 'true')).toBe(2);
     // The last one on the reels: no lamp is gold, and it is still chance time.
-    const last = show({ ...idle, chance: 1, gold: true }, 4);
+    const last = show({ ...idle, chance: 1, golds: 0, gold: true }, 4);
     expect(last).toContain('1 left');
     expect(lamps(last, 'true')).toBe(0);
     // It is for the eye: the cabinet says it aloud once, where it makes its announcements.
     expect(strip).toContain('aria-hidden="true"');
-    const ja = show({ ...idle, chance: 3, gold: true }, 7, 'ja');
+    const ja = show({ ...idle, chance: 3, golds: 2, gold: true }, 7, 'ja');
     expect(ja).toContain('チャンスタイム');
     expect(ja).toContain('あと3回');
+    // In chance time the strip is the only word of gold on the screen, and the monitor is in chance time's mode.
+    for (const html of [waiting, playing, last, ja]) {
+      expect(html).not.toContain('pusher-gold-spin');
+      expect(html).toContain('data-monitor="chance"');
+    }
   });
 
   it('takes it from the session: the gold spins that are held, and the one on the screen', () => {
@@ -2902,35 +2917,86 @@ describe('chance time on the screen and in the words', () => {
     session.gilded = 5;
     session.wasted = 5;
     session.rush = true;
-    expect(screenState(session, false)).toMatchObject({ chance: 5, gold: false });
+    expect(screenState(session, false)).toMatchObject({ chance: 5, golds: 5, gold: false });
     session.chance = true;
     session.gold = 4;
-    expect(screenState(session, false)).toMatchObject({ chance: 5, gold: true });
-    // One fewer left, or the screen turning gold, is another screen to draw.
+    expect(screenState(session, false)).toMatchObject({ chance: 5, golds: 4, gold: true });
+    // One fewer left, a held spin turning gold, or the screen turning gold, is another screen to draw.
     const five = screenState(session, false);
     expect(sameScreen(five, { ...five })).toBe(true);
     expect(sameScreen(five, { ...five, chance: 4 })).toBe(false);
+    expect(sameScreen(five, { ...five, golds: 5 })).toBe(false);
     expect(sameScreen(five, { ...five, gold: false })).toBe(false);
+    // Chance time is the session's to say, and lasts while it says so: the same gold spins with the wings shut are gold spins and no more.
+    session.rush = false;
+    expect(screenState(session, false)).toMatchObject({ chance: 0, golds: 4, gold: true });
   });
 
-  it('shows a spin that is gold because its medal came through the lit slot as gold, strip and lamps, though it is not chance time', () => {
+  it('shows a spin the lucky lamp made gold as a gold spin, with a GOLD ×2 tag and its lamp gold, and not as chance time', () => {
     // Two spins held gold by the lucky lamp, and no medal has found the hold full: the wings are shut, and it is not chance time.
     const session = createSession(1, { balls: 0 });
     Object.assign(session, { stock: 3, gold: 2, lucky: 2, hits: 3 });
     expect(session.rush).toBe(false);
-    // The screen says how many gold spins are left all the same: that is what pays a square or a chest twice.
-    expect(screenState(session, false)).toMatchObject({ chance: 2, gold: false });
-    expect(show(screenState(session, false), session.stock)).toContain('2 left');
-    // One of them on the reels: the screen is a gold one, with the other still to come.
+    // Held, they are two gold lamps in the hold and nothing else: no strip, no tag, and the monitor in its everyday mode.
+    const held = screenState(session, false);
+    expect(held).toMatchObject({ chance: 0, golds: 2, gold: false });
+    expect(monitorMode(held)).toBe('normal');
+    const waiting = show(held, session.stock);
+    expect(lamps(waiting, 'true')).toBe(2);
+    expect(waiting.match(/data-lit="true" data-gold="true"/g)).toHaveLength(2);
+    for (const word of ['pusher-chance', 'pusher-gold-spin', 'CHANCE TIME', 'left']) expect(waiting).not.toContain(word);
+    expect(waiting).toContain('data-monitor="normal"');
+    // One of them on the reels: that spin carries the tag, which says it is gold and what that pays, and the other's lamp is still gold.
     advance(session, 1 / 60);
     expect([session.chance, session.gold, session.stock, session.rush]).toEqual([true, 1, 2, false]);
-    expect(screenState(session, false)).toMatchObject({ mode: 'slot', chance: 2, gold: true });
-    // In chance time proper the same two spins read the same on the screen; what differs is on the cabinet, where the wings are open.
+    const reels = screenState(session, false);
+    expect(reels).toMatchObject({ mode: 'slot', chance: 0, golds: 1, gold: true });
+    expect(monitorMode(reels)).toBe('normal');
+    const playing = show(reels, session.stock);
+    const tag = playing.match(/<div[^>]*data-testid="pusher-gold-spin"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(tag.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).toBe(`GOLD ×${CHANCE.multiplier}`);
+    expect(tag).toContain('data-gold="true"');
+    expect(tag).toContain('aria-hidden="true"');
+    expect(lamps(playing, 'true')).toBe(1);
+    for (const word of ['pusher-chance', 'CHANCE TIME', 'left']) expect(playing).not.toContain(word);
+    expect(playing).toContain('data-monitor="normal"');
+    // And in Japanese.
+    const ja = show(reels, session.stock, 'ja');
+    expect((ja.match(/<div[^>]*data-testid="pusher-gold-spin"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).toBe(`金の抽選 ×${CHANCE.multiplier}`);
+    for (const word of ['pusher-chance', 'チャンスタイム', 'あと']) expect(ja).not.toContain(word);
+    expect(getStrings('en').goldTag).toBe('GOLD');
+    expect(getStrings('ja').goldTag).toBe('金の抽選');
+    // The tag stays up for the game the gold spin's line leads to, whose square or chest it pays twice over.
+    session.spin = null;
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1 };
+    const chest = screenState(session, false);
+    expect(chest).toMatchObject({ mode: 'chest', chance: 0, gold: true });
+    expect(show(chest, session.stock)).toContain('pusher-gold-spin');
+    expect(monitorMode(chest)).toBe('normal');
+    // In chance time proper the same spin is under chance time's strip instead, with what is left to come: the
+    // monitor is in chance time's mode, and on the cabinet the wings are open.
+    session.bonus = null;
     session.rush = true;
     session.gilded = 1;
     session.wasted = 1;
-    expect(screenState(session, false)).toMatchObject({ chance: 2, gold: true });
-    expect(show(screenState(session, false), session.stock)).toContain('2 left');
+    const rush = screenState(session, false);
+    expect(rush).toMatchObject({ chance: 2, golds: 1, gold: true });
+    expect(monitorMode(rush)).toBe('chance');
+    const strip = show(rush, session.stock);
+    expect(strip).toContain('2 left');
+    expect(strip).toContain('CHANCE TIME');
+    expect(strip).not.toContain('pusher-gold-spin');
+  });
+
+  it('puts the tag where chance time’s strip goes, so that it is laid out as the strip is and the two are never up together', () => {
+    const tagged = show({ ...idle, gold: true }, 2);
+    // Written just ahead of the stage, as the strip is: the stylesheet's rules for what the strip lies over go for the tag too.
+    expect(tagged).toMatch(/data-testid="pusher-gold-spin"[^>]*>(<span[^>]*>[^<]*<\/span>)+<\/div><div class="[^"]*stage[^"]*"/);
+    expect(tagged.match(/data-testid="pusher-gold-spin"/g)).toHaveLength(1);
+    const pill = /<div class="([^"]*)"[^>]*data-testid="pusher-gold-spin"/.exec(tagged)?.[1];
+    expect(pill).toBe(/<div class="([^"]*)"[^>]*data-testid="pusher-chance"/.exec(show({ ...idle, chance: 2, golds: 2 }, 2))?.[1]);
+    for (const state of [{ ...idle, chance: 2, golds: 1, gold: true }, { ...idle, chance: 1, gold: true }, { ...idle, chance: 3, golds: 3 }]) expect(show(state, 4)).not.toContain('pusher-gold-spin');
+    for (const state of [idle, { ...idle, golds: 3 }]) expect(show(state, 4)).not.toMatch(/pusher-gold-spin|pusher-chance/);
   });
 
   it('flashes a gold lamp at one rate, twice a second, each a beat behind the one before, and not at all with motion reduced', () => {
@@ -2958,7 +3024,7 @@ describe('chance time on the screen and in the words', () => {
     expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': `${1 / GOLD_FLASH.perSecond}s` });
     expect(GOLD_FLASH_STYLE).toEqual({ '--mp-gold-flash': '0.5s' });
     // The row of the hold's lamps carries it, so every gold lamp in the row takes it.
-    const html = show({ ...idle, chance: 3, gold: false }, MAX_STOCK);
+    const html = show({ ...idle, chance: 3, golds: 3, gold: false }, MAX_STOCK);
     expect(html).toMatch(/data-testid="pusher-stock"[^>]*style="--mp-gold-flash:0\.5s"/);
     const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/MedalPusher.module.css'), 'utf8');
     // One run of the animation is one whole flash, bright to dim and back to bright at its start: it does not

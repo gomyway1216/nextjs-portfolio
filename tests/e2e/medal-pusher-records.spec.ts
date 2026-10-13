@@ -173,8 +173,9 @@ test('the bonus plate and the Records tab fit a phone, cover nothing, and read i
   // Nobody is signed in: the book is this device's alone, and clearing it is said to reach no account.
   await expect(records(page).getByTestId('pusher-records-kept')).toHaveAttribute('data-where', 'device');
   await expect(records(page).getByTestId('pusher-records-clear-account')).toHaveCount(0);
-  // The rows that chance time added to the board.
+  // The rows that chance time added to the board, and the one the lucky lamp did.
   await expect(records(page).getByTestId('pusher-record-golds')).toHaveText('0');
+  await expect(records(page).getByTestId('pusher-record-luckies')).toHaveText('0');
   await expect(records(page).getByTestId('pusher-record-chances')).toHaveText('0');
 
   // In Japanese.

@@ -295,6 +295,8 @@ export interface PusherStrings {
    */
   sayLucky: string;
   luckyOddsNote: (ordinary: string, gold: string, seconds: string) => string;
+  /** The tag the screen puts on a gold spin that is played outside chance time, which is one the lucky lamp made: its name, before what it pays. */
+  goldTag: string;
 }
 
 const en: PusherStrings = {
@@ -623,6 +625,7 @@ const en: PusherStrings = {
   sayLucky: 'A medal slid down the slope into a lit START slot. Its spin is gold.',
   luckyOddsNote: (ordinary, gold, seconds) =>
     `The lucky lamp: one of the three START slots is lit gold at a time, and the light steps one slot along, from the left, with every stroke of the pusher, which is every ${seconds} seconds. A medal that is held through the lit slot holds a gold spin from the start, for the one medal. An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}. The lamp cannot be chased by aiming: a medal takes half a minute and more to get from the rail to the lip, and the light has moved many times by then. Which START slot is lit when a medal arrives is luck.`,
+  goldTag: 'GOLD',
 };
 
 const ja: PusherStrings = {
@@ -950,6 +953,7 @@ const ja: PusherStrings = {
   sayLucky: 'メダルが斜面を滑って、光っているチャッカーに入りました。金の抽選です。',
   luckyOddsNote: (ordinary, gold, seconds) =>
     `ラッキーランプ：3つのチャッカーのうち1つが金色に光り、プッシャーが1往復する${seconds}秒ごとに、光が左から順にとなりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、その1枚ではじめから金の抽選になります。ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です。ランプに合わせて狙うことはできません。メダルがレールから縁に着くまでには30秒以上かかり、そのあいだに光は何度も移るからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。`,
+  goldTag: '金の抽選',
 };
 
 export const getStrings = (language: GameLanguage): PusherStrings => (language === 'ja' ? ja : en);

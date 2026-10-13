@@ -18,7 +18,7 @@ export interface AchievementNumbers {
 /** The rows of the record board, in the order it lists them under each heading. */
 export const BOARD_ROWS = {
   medals: ['fed', 'won', 'lost', 'return', 'bonus', 'refills'],
-  slot: ['hits', 'wasted', 'golds', 'fulls', 'chances', 'spins', 'reaches', 'reachWins', 'supers', 'superWins', 'small', 'big', 'seven'],
+  slot: ['hits', 'wasted', 'golds', 'luckies', 'fulls', 'chances', 'spins', 'reaches', 'reachWins', 'supers', 'superWins', 'small', 'big', 'seven'],
   games: ['fevers', 'chests', 'topChests', 'pours', 'raised', 'towers', 'balls', 'run', 'challenges', 'jackpots', 'jackpot', 'prize'],
   days: ['days', 'streakNow', 'streak', 'claims'],
 } as const;
@@ -161,6 +161,7 @@ const en: RecordStrings = {
     hits: 'Medals through a START pocket',
     wasted: 'Of those, found the hold full',
     golds: 'Held spins turned gold',
+    luckies: 'Spins gold from the start: a lit pocket, or open wings',
     fulls: 'Times the hold filled up',
     chances: 'Chance times',
     spins: 'Spins',
@@ -293,6 +294,7 @@ const ja: RecordStrings = {
     hits: 'STARTポケットを通ったメダル',
     wasted: 'うち、保留が満杯だったメダル',
     golds: '金の抽選に変わった保留',
+    luckies: 'はじめから金の抽選（光るポケット・開いた羽根）',
     fulls: '保留が満杯になった回数',
     chances: 'チャンスタイム',
     spins: '抽選した回数',

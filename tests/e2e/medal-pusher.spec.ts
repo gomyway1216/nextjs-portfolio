@@ -1261,3 +1261,34 @@ test('a jackpot is counted out on the screen and on the marquee, up to what was 
   await expect(plate).toHaveText(String(JACKPOT_START));
   expect(await counter(page, 'paid')).toBe(JACKPOT_START);
 });
+
+test('a ball’s roulette is a wheel behind a window: twelve pockets on the board of the run, and the ball’s pocket lit when it lands', async ({ page }) => {
+  // A machine saved as the game saves one: one number of the run behind it, and the second turn just begun, the
+  // ball on its way to a ten.
+  const session = createSession(5);
+  const ten = ROULETTE.indexOf(10);
+  session.roulettes = 1;
+  session.roulette = { pocket: ten, from: ten, elapsed: 0, duration: TIMING.roulette, landed: false, level: 1, total: 10, gain: 0, over: false, jackpot: false, bowl: null };
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The monitor has given way to the ball's lottery, and the wheel is in it: a rotor of twelve pockets, four of
+  // them crosses, the ball on it, and beside it the four boards of the run.
+  const screen = machine(page).getByTestId('pusher-screen');
+  await expect(screen).toHaveAttribute('data-mode', 'roulette');
+  await expect(screen).toHaveAttribute('data-monitor', 'challenge');
+  const wheel = machine(page).getByTestId('pusher-wheel');
+  await expect(wheel.locator('g[data-pocket]')).toHaveCount(ROULETTE.length);
+  await expect(wheel.locator('g[data-holds="stop"]')).toHaveCount(4);
+  await expect(machine(page).getByTestId('pusher-wheel-ball')).toHaveCount(1);
+  await expect(machine(page).getByTestId('pusher-boards').locator('li')).toHaveCount(4);
+  // The ball lands in the pocket that was drawn, which lights, and its ten is paid.
+  await expect(wheel.locator(`g[data-pocket="${ten}"]`)).toHaveAttribute('data-lit', 'true', { timeout: 20_000 });
+  await expect.poll(() => counter(page, 'paid'), { timeout: 10_000 }).toBeGreaterThanOrEqual(10);
+});

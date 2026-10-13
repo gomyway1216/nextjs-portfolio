@@ -15,6 +15,7 @@ import {
   bowlBall,
   holeSpot,
   monitorMode,
+  monitorScene,
   pocketPlace,
   wheelSpot,
   type BallSpot,
@@ -414,6 +415,8 @@ const Wheel = ({ board, lit, registerBall }: { board: number; lit: number; regis
               return <rect key={index} x="-0.03" y="-0.011" width="0.06" height="0.022" rx="0.009" fill="#eef2f8" transform={`translate(${f(x)} ${f(y)}) rotate(${(((index + 0.5) / RIM.deflectors) * 360).toFixed(1)})`} />;
             })}
           </svg>
+          {/* The light the metal of the track catches, which stays where it is while the rotor turns under it. */}
+          <span className={styles.trackSheen} />
           {/* The rotor, which turns: the plates, the pockets with the dividers between them, and the cone. */}
           <div className={styles.rotor}>
             <svg className={styles.wheelBowl} viewBox="-1 -1 2 2">
@@ -622,6 +625,8 @@ const Bowls = ({ stage, fallen, jackpot, registerBall }: { stage: number; fallen
             </div>
           </div>
         </div>
+        {/* The bowls stand under a dome like the wheel's. */}
+        <span className={styles.dome} data-over="bowls" />
       </div>
     </div>
   );
@@ -663,13 +668,13 @@ export interface ScreenProps {
   onPick: (chest: number) => void;
 }
 
-/** The mode the monitor was last drawn in, and how many times it has changed gear since it was first drawn. */
+/** The scene the monitor was last drawn in, and how many times it has changed gear since it was first drawn. */
 export interface Gear {
-  mode: MonitorMode;
+  scene: string;
   shifts: number;
 }
-/** The gear after a drawing in `monitor`: the same one if the mode has not changed, and one shift on if it has. */
-export const shiftGear = (gear: Gear, monitor: MonitorMode): Gear => (gear.mode === monitor ? gear : { mode: monitor, shifts: gear.shifts + 1 });
+/** The gear after a drawing of `scene`: the same one if the scene has not changed, and one shift on if it has. */
+export const shiftGear = (gear: Gear, scene: string): Gear => (gear.scene === scene ? gear : { scene, shifts: gear.shifts + 1 });
 
 /** The headline for a banner, in the machine's own words. */
 export function bannerText(state: ScreenState, t: PusherStrings): string | null {
@@ -705,10 +710,13 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
   const title = titles[state.mode];
   // The world round the game: its light, and what is written on the shutters when the monitor changes into it.
   const monitor = monitorMode(state);
-  const worlds: Record<MonitorMode, string> = { normal: t.slotName, chance: t.chanceTitle, fever: t.feverTag, challenge: state.mode === 'bowl' ? t.challenge : t.chance, jackpot: t.jackpot };
-  // Each change of mode shuts the shutters once. The first drawing is no change.
-  const [gear, setGear] = useState<Gear>({ mode: monitor, shifts: 0 });
-  const shifted = shiftGear(gear, monitor);
+  // In the ball's lottery the shutters carry the name of what they open on: the roulette, the board the run has come to, or the bowls.
+  const lottery = state.mode === 'bowl' ? t.challenge : state.board > 0 ? `${state.board + 1} ${WHEEL_BOARDS[state.board].name}` : t.chance;
+  const worlds: Record<MonitorMode, string> = { normal: t.slotName, chance: t.chanceTitle, fever: t.feverTag, challenge: lottery, jackpot: t.jackpot };
+  // Each change of scene shuts the shutters once. The first drawing is no change.
+  const scene = monitorScene(state);
+  const [gear, setGear] = useState<Gear>({ scene, shifts: 0 });
+  const shifted = shiftGear(gear, scene);
   if (shifted !== gear) setGear(shifted);
   const choosing = state.mode === 'chest' && state.chests?.every((chest) => chest.state === 'closed');
   // A reach is cut in across the reels as it is called; the caption below keeps the words up for as long as it lasts.

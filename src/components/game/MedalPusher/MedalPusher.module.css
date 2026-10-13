@@ -1704,6 +1704,25 @@
   width: 100%;
   height: 100%;
 }
+/* The track is metal: a broad light lies across it on the side the lamp is, and a narrower one opposite. It is a
+   flat ring of its own over the bowl, so the light stays put while the rotor turns. */
+.trackSheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 285deg,
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0.42) 34deg,
+    rgba(255, 255, 255, 0) 78deg,
+    rgba(255, 255, 255, 0) 172deg,
+    rgba(255, 255, 255, 0.2) 204deg,
+    rgba(255, 255, 255, 0) 238deg,
+    rgba(255, 255, 255, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(closest-side, rgba(0, 0, 0, 0) 79%, #000 80.5%, #000 90.5%, rgba(0, 0, 0, 0) 92%);
+  mask: radial-gradient(closest-side, rgba(0, 0, 0, 0) 79%, #000 80.5%, #000 90.5%, rgba(0, 0, 0, 0) 92%);
+}
 /* The rotor turns as the cabinet tells it to (--mp-rotor); nothing else of the wheel does. */
 .rotor {
   position: absolute;
@@ -1800,6 +1819,11 @@
     radial-gradient(46% 30% at 30% 18%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 100%),
     radial-gradient(26% 10% at 74% 86%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%),
     radial-gradient(closest-side, rgba(255, 255, 255, 0) 93%, rgba(255, 255, 255, 0.28) 97%, rgba(255, 255, 255, 0) 100%);
+}
+/* Over the bowls it is the size of a bowl, and stands over the one the ball is in. */
+.dome[data-over='bowls'] {
+  top: 52%;
+  font-size: 47cqh;
 }
 /* The jackpot challenge is three bowls one under another, each a dish like the wheel's, seen from the same place.
    The view follows the ball: the stack is lifted (--mp-stage) so that the bowl the ball is in is the one in the

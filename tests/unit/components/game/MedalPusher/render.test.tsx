@@ -85,6 +85,7 @@ import {
   inReach,
   landTimes,
   monitorMode,
+  monitorScene,
   pocketPlace,
   reelPositions,
   reelsFast,
@@ -2045,6 +2046,7 @@ describe('the screen', () => {
     expect(html.match(/<rect [^>]*rx="0\.009"/g)).toHaveLength(8);
     expect(html.match(/class="[^"]*trackLamp[^"]*"/g)).toHaveLength(24);
     expect(html).toMatch(/class="[^"]*dome[^"]*"/);
+    expect(html).toMatch(/class="[^"]*trackSheen[^"]*"/);
     // The ball waits on the track where it is shot from, its shadow under it, for the cabinet to move.
     const waiting = wheelSpot({ pocket: 0, elapsed: 0, duration: 1, landed: false, level: 0 }, true);
     expect(html).toContain(`transform:${wheelBallTransform(waiting)}" data-of="wheel" data-testid="pusher-wheel-ball"`);
@@ -2175,14 +2177,29 @@ describe('the screen', () => {
   it('changes gear between modes with shutters and a title, once for each change, and not at all on its first drawing', () => {
     // The first drawing changes nothing: there is no shutter in it.
     for (const state of [idle, { ...idle, chance: 3 }, { ...idle, mode: 'roulette' as const, board: 0 }]) expect(show(state)).not.toContain('pusher-gear');
-    // Each change of mode is one shift, and a drawing in the same mode is none.
-    const first = { mode: 'normal' as MonitorMode, shifts: 0 };
+    // Each change of scene is one shift, and a drawing of the same scene is none.
+    const first = { scene: 'normal', shifts: 0 };
     expect(shiftGear(first, 'normal')).toBe(first);
-    const second = shiftGear(first, 'challenge');
-    expect(second).toEqual({ mode: 'challenge', shifts: 1 });
-    expect(shiftGear(second, 'challenge')).toBe(second);
-    expect(shiftGear(second, 'jackpot')).toEqual({ mode: 'jackpot', shifts: 2 });
-    expect(shiftGear(shiftGear(second, 'jackpot'), 'normal')).toEqual({ mode: 'normal', shifts: 3 });
+    const second = shiftGear(first, 'challenge board 0');
+    expect(second).toEqual({ scene: 'challenge board 0', shifts: 1 });
+    expect(shiftGear(second, 'challenge board 0')).toBe(second);
+    expect(shiftGear(second, 'jackpot')).toEqual({ scene: 'jackpot', shifts: 2 });
+    expect(shiftGear(shiftGear(second, 'jackpot'), 'normal')).toEqual({ scene: 'normal', shifts: 3 });
+    // A scene is a mode, and within the ball's lottery the board of the wheel that is up, or the bowls: the monitor
+    // changes gear from each board to the next and from the wheel to the bowls, though the mode is the same.
+    expect(monitorScene(idle)).toBe('normal');
+    expect(monitorScene({ ...idle, chance: 2 })).toBe('chance');
+    expect(monitorScene({ ...idle, mode: 'sugoroku', banner: 'fever', amount: 30 })).toBe('fever');
+    const boards = [0, 1, 2, 3].map((board) => monitorScene({ ...idle, mode: 'roulette', board, level: board }));
+    expect(boards).toEqual(['challenge board 0', 'challenge board 1', 'challenge board 2', 'challenge board 3']);
+    // A number landing, or a cross, is on the board it was played on: no gear is changed for it.
+    expect(monitorScene({ ...idle, mode: 'roulette', board: 2, lit: 7, banner: 'towers', amount: 50, level: 3 })).toBe(boards[2]);
+    expect(monitorScene({ ...idle, mode: 'roulette', board: 2, lit: 0, banner: 'finish', amount: 60, level: 2 })).toBe(boards[2]);
+    // The bowls are one scene, whichever of them the ball is in and whatever its hole pays, until it is the jackpot.
+    const bowls = [0, 1, 2].map((stage) => monitorScene({ ...idle, mode: 'bowl', stage, fallen: [0, 0].slice(0, stage) }));
+    expect(new Set(bowls)).toEqual(new Set(['challenge bowls']));
+    expect(monitorScene({ ...idle, mode: 'bowl', stage: 1, fallen: [0, 1], banner: 'medals', amount: 100 })).toBe('challenge bowls');
+    expect(monitorScene({ ...idle, mode: 'bowl', stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 300 })).toBe('jackpot');
   });
 
   it('leaves the shutters and the running lamps to players who have not asked for less motion, and flashes nothing fast', () => {
@@ -2243,6 +2260,8 @@ describe('the screen', () => {
     expect(html).toContain('data-level="4"');
     expect(html).toContain('TOWER 60');
     expect(html).toContain('data-hidden="true"');
+    // The bowls stand under a dome, as the wheel does.
+    expect(html).toMatch(/class="[^"]*dome[^"]*" data-over="bowls"/);
     // Nothing has been paid yet.
     expect(html).not.toContain('pusher-pay-show');
     expect(show({ ...idle, mode: 'bowl', level: 4, total: 60, stage: 0 }, 0, 'ja')).toContain('ジャックポットチャレンジ');

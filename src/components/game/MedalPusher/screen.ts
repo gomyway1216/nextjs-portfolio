@@ -642,6 +642,18 @@ export const MONITOR: Readonly<Record<MonitorMode, { colour: string; light: numb
   jackpot: { colour: '#fff2bd', light: 1 },
 };
 
+/**
+ * The scene the monitor is set for: its mode, and within the ball's lottery
+ * which board of the wheel is up, or the bowls. The monitor changes gear,
+ * shutters and all, whenever this changes: between modes, from one board to
+ * the next, and from the wheel to the bowls.
+ */
+export function monitorScene(state: ScreenState): string {
+  const mode = monitorMode(state);
+  if (mode !== 'challenge') return mode;
+  return state.mode === 'bowl' ? 'challenge bowls' : `challenge board ${Math.max(0, state.board)}`;
+}
+
 /** The prize from the board or from a chest at which the monitor goes to fever: what the board's fever square holds. */
 export const FEVER_FROM = BOARD[FEVER_SQUARE];
 

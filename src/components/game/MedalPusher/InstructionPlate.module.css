@@ -1,0 +1,1576 @@
+/* The instruction plate: a printed card under a clear cover on the cabinet, the compact one that is a sticker on its
+   front, and the dialog the full one is held up in. Print is print: a fixed palette, like the cabinet's own, that is
+   the same in the light theme and the dark one. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The inks ---------- */
+.plate,
+.sticker,
+.text {
+  --gp-key: #1f1830;
+  --gp-paper: #f7f0dc;
+  --gp-white: #fffdf4;
+  --gp-red: #e2222e;
+  --gp-magenta: #d8246f;
+  /* The magenta and the green that words are printed in: dark enough to read at the size of a caption. */
+  --gp-magenta-ink: #bf1660;
+  --gp-green-ink: #0c7a3a;
+  --gp-red-ink: #a80f1a;
+  --gp-gold: #f5b91f;
+  --gp-yellow: #ffe14a;
+  --gp-purple: #4c2ea3;
+  --gp-purple-dark: #2b1866;
+  /* Type: a heavy gothic for what is shouted, a round gothic for what is said, and a narrow grotesque for the English. */
+  --gp-heavy: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Noto Sans CJK JP', 'Yu Gothic', YuGothic, Meiryo, 'Arial Black', sans-serif;
+  --gp-round: 'Hiragino Maru Gothic ProN', 'Hiragino Maru Gothic Pro', 'Kosugi Maru', 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', 'Yu Gothic', YuGothic, Meiryo, 'Arial Rounded MT Bold', 'Helvetica Neue', Arial, sans-serif;
+  --gp-latin: 'Avenir Next Condensed', 'Franklin Gothic Medium', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', Arial, sans-serif;
+  /* A line round letters, the way a card's display type is cut out of its ground. */
+  --gp-edge: 1.5px;
+  --gp-outline:
+    var(--gp-edge) 0 0 var(--gp-key), calc(var(--gp-edge) * -1) 0 0 var(--gp-key), 0 var(--gp-edge) 0 var(--gp-key), 0 calc(var(--gp-edge) * -1) 0 var(--gp-key),
+    var(--gp-edge) var(--gp-edge) 0 var(--gp-key), calc(var(--gp-edge) * -1) var(--gp-edge) 0 var(--gp-key), var(--gp-edge) calc(var(--gp-edge) * -1) 0 var(--gp-key),
+    calc(var(--gp-edge) * -1) calc(var(--gp-edge) * -1) 0 var(--gp-key);
+  /* An arrow, as a shape to cut a block of ink to. */
+  --gp-arrow: polygon(0 28%, 46% 28%, 46% 0, 100% 50%, 46% 100%, 46% 72%, 0 72%);
+}
+
+/* ---------- The drawings ---------- */
+.art,
+.glyph {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.artWord,
+.artLetter {
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+}
+.artWord {
+  font-style: italic;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* ---------- The plate ---------- */
+.plate {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1000px;
+  /* The recess the print lies in. The cover's screws go through its corners. */
+  padding: 13px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 18%),
+    linear-gradient(180deg, #33226f, #1a1040);
+  box-shadow:
+    inset 0 0 0 1px #0a0520,
+    inset 0 0 0 2.5px #b88a1e,
+    0 20px 46px rgba(0, 0, 0, 0.55);
+  color: var(--gp-key);
+  font-family: var(--gp-round);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  container-type: inline-size;
+  container-name: plate;
+}
+.plate *,
+.plate *::before,
+.plate *::after {
+  box-sizing: border-box;
+}
+.plate p,
+.plate h2,
+.plate h3,
+.plate ol,
+.plate ul {
+  margin: 0;
+  padding: 0;
+}
+.plate ol,
+.plate ul {
+  list-style: none;
+}
+
+/* The sheet: paper that has yellowed a little toward its edges. On a narrow plate its blocks are one column: the
+   flow, the payout card, the hands, the cautions. */
+.sheet {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-radius: 3px;
+  background:
+    radial-gradient(130% 110% at 50% 45%, rgba(247, 240, 220, 0) 55%, rgba(196, 160, 96, 0.3) 100%),
+    var(--gp-paper);
+  /* It lies a little below the cover, which shades its edges. */
+  box-shadow:
+    0 0 0 1px rgba(10, 5, 32, 0.55),
+    inset 0 3px 5px -2px rgba(30, 16, 70, 0.35),
+    inset 3px 0 5px -3px rgba(30, 16, 70, 0.25);
+}
+.colSteps,
+.colPayout {
+  display: contents;
+}
+.flowBlock {
+  order: 1;
+}
+.payout {
+  order: 2;
+}
+.hands {
+  order: 3;
+}
+.foot {
+  order: 4;
+}
+/* The grain of the paper and the unevenness of the ink on it: nothing printed is perfectly flat. */
+.sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .27 0 0 0 0 .2 0 0 0 .9 -.28'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .97 0 0 0 0 .9 0 0 0 1.5 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size:
+    220px 220px,
+    600px 600px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* The cover: a clear sheet with a band of reflection across it, the bright line of its edge, the scratches of years
+   and the dust that gathers round its screws. */
+.acrylic {
+  position: absolute;
+  inset: 4px;
+  z-index: 6;
+  border-radius: 9px;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='420' fill='none' stroke='%23fff' stroke-linecap='round'%3E%3Cpath d='M38 62q70 18 150 8' stroke-width='.6' opacity='.5'/%3E%3Cpath d='M300 30l92 46' stroke-width='.5' opacity='.42'/%3E%3Cpath d='M420 210q-40 60 -120 70' stroke-width='.5' opacity='.34'/%3E%3Cpath d='M70 300l44 -70' stroke-width='.45' opacity='.4'/%3E%3Cpath d='M210 380q60 -30 140 -12' stroke-width='.6' opacity='.36'/%3E%3Cpath d='M470 96l22 54' stroke-width='.4' opacity='.4'/%3E%3Cpath d='M150 170l16 4M360 300l10 -14M250 110l6 12' stroke-width='.5' opacity='.5'/%3E%3C/svg%3E"),
+    radial-gradient(circle at 0 0, rgba(52, 36, 20, 0.3), rgba(52, 36, 20, 0) 30px),
+    radial-gradient(circle at 100% 0, rgba(52, 36, 20, 0.26), rgba(52, 36, 20, 0) 26px),
+    radial-gradient(circle at 0 100%, rgba(52, 36, 20, 0.3), rgba(52, 36, 20, 0) 32px),
+    radial-gradient(circle at 100% 100%, rgba(52, 36, 20, 0.28), rgba(52, 36, 20, 0) 28px),
+    linear-gradient(114deg, rgba(255, 255, 255, 0) 11%, rgba(255, 255, 255, 0.3) 17.5%, rgba(255, 255, 255, 0.07) 26%, rgba(255, 255, 255, 0) 33%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0.14) 66%, rgba(255, 255, 255, 0.03) 70%, rgba(255, 255, 255, 0) 75%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 14%, rgba(20, 10, 60, 0) 80%, rgba(20, 10, 60, 0.14));
+  background-size:
+    520px 420px,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.65),
+    inset 0 -2px 0 0 rgba(0, 0, 0, 0.3),
+    inset 2px 0 0 0 rgba(255, 255, 255, 0.22),
+    inset -2px 0 0 0 rgba(0, 0, 0, 0.16),
+    inset 0 0 16px rgba(120, 190, 220, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.5);
+}
+/* A screw in each corner: a pan head with a cross slot, each turned its own way, and the shadow it throws on the cover. */
+.screw {
+  position: absolute;
+  z-index: 7;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--gp-turn, 20deg), transparent 43%, rgba(20, 16, 34, 0.85) 43% 57%, transparent 57%),
+    linear-gradient(calc(var(--gp-turn, 20deg) + 90deg), transparent 43%, rgba(20, 16, 34, 0.85) 43% 57%, transparent 57%),
+    radial-gradient(circle at 34% 30%, #ffffff 0%, #d5d8e2 30%, #8b8fa3 68%, #55586b 100%);
+  box-shadow:
+    0 0 0 1px rgba(10, 5, 32, 0.7),
+    0 1.5px 2px rgba(0, 0, 0, 0.6);
+}
+.screw[data-plate-corner='nw'] {
+  top: 6px;
+  left: 6px;
+}
+.screw[data-plate-corner='ne'] {
+  top: 6px;
+  right: 6px;
+  --gp-turn: 64deg;
+}
+.screw[data-plate-corner='sw'] {
+  bottom: 6px;
+  left: 6px;
+  --gp-turn: 101deg;
+}
+.screw[data-plate-corner='se'] {
+  bottom: 6px;
+  right: 6px;
+  --gp-turn: 38deg;
+}
+
+/* ---------- The head of the sheet ---------- */
+.head {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 12px;
+  padding: 8px 14px 9px;
+  border-bottom: 3px solid var(--gp-key);
+  background: linear-gradient(90deg, #d81f70, #be175d);
+  color: #fff;
+  overflow: hidden;
+}
+/* A screen of dots that thins out across the band: how a press prints a colour that fades. */
+.head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(110, 8, 56, 0.7) 1.15px, rgba(110, 8, 56, 0) 1.4px) 0 0 / 5px 5px;
+  -webkit-mask-image: linear-gradient(100deg, rgba(0, 0, 0, 0) 22%, #000 100%);
+  mask-image: linear-gradient(100deg, rgba(0, 0, 0, 0) 22%, #000 100%);
+}
+.head > * {
+  position: relative;
+}
+.title {
+  --gp-edge: 2px;
+  grid-column: 1;
+  grid-row: 1;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  /* The second is for a browser that can measure the plate; the first for one that cannot. */
+  font-size: 42px;
+  font-size: clamp(38px, 13cqw, 58px);
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  color: var(--gp-yellow);
+  text-shadow:
+    var(--gp-outline),
+    3.5px 4px 0 var(--gp-key);
+  white-space: nowrap;
+}
+.brand {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+.brandName {
+  --gp-edge: 1px;
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--gp-yellow);
+  text-shadow: var(--gp-outline);
+  white-space: nowrap;
+}
+.brandKind {
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+.lead {
+  grid-column: 1 / -1;
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 12.5px;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(90, 6, 44, 0.9);
+}
+/* The English plate: its title is set tight and slanted, across the whole band. */
+.plate[data-plate-lang='en'] .head {
+  grid-template-columns: minmax(0, 1fr);
+}
+.plate[data-plate-lang='en'] .title {
+  grid-row: 2;
+  font-family: var(--gp-latin);
+  font-style: italic;
+  font-size: 38px;
+  font-size: clamp(34px, 11.5cqw, 52px);
+  letter-spacing: 0.03em;
+}
+.plate[data-plate-lang='en'] .brand {
+  grid-column: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+}
+.plate[data-plate-lang='en'] .brandKind {
+  font-family: var(--gp-latin);
+  font-size: 11px;
+}
+.plate[data-plate-lang='en'] .lead {
+  font-family: var(--gp-latin);
+  font-size: 14px;
+  letter-spacing: 0.03em;
+}
+
+/* ---------- The flow: the numbered steps ---------- */
+.flowBlock {
+  padding: 10px 12px 2px;
+}
+.flowTitle,
+.pathTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 12.5px;
+  letter-spacing: 0.18em;
+  color: var(--gp-purple-dark);
+}
+.flowTitle::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 14px;
+  background: var(--gp-red);
+  clip-path: var(--gp-arrow);
+}
+.flowTitle::after,
+.pathTitle::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: currentColor;
+}
+.plate[data-plate-lang='en'] .flowTitle,
+.plate[data-plate-lang='en'] .pathTitle {
+  font-family: var(--gp-latin);
+  font-size: 13.5px;
+  letter-spacing: 0.16em;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 12px;
+  margin-top: 7px !important;
+}
+.step {
+  position: relative;
+  min-width: 0;
+}
+/* From a step to the next one in its row. */
+.step:nth-child(odd)::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: 21%;
+  right: -12px;
+  width: 11px;
+  height: 17px;
+  background: var(--gp-red);
+  clip-path: var(--gp-arrow);
+}
+.pic {
+  position: relative;
+  border: 2px solid var(--gp-key);
+  border-radius: 5px;
+  background: var(--gp-white);
+  overflow: hidden;
+}
+/* A step with no drawing still has a place for its number. */
+.pic:not(:has(svg)) {
+  aspect-ratio: 3 / 2;
+}
+.num {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  display: grid;
+  place-items: center;
+  min-width: 25px;
+  height: 25px;
+  padding: 0 3px;
+  border: 2px solid var(--gp-key);
+  border-radius: 5px 0 10px 0;
+  background: var(--gp-red);
+  color: #fff;
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1;
+}
+.stepHead {
+  margin-top: 5px !important;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 14px;
+  line-height: 1.22;
+  letter-spacing: 0;
+  color: var(--gp-key);
+}
+.stepLine {
+  margin-top: 2px !important;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.42;
+}
+.plate[data-plate-lang='en'] .stepHead {
+  font-family: var(--gp-latin);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.plate[data-plate-lang='en'] .stepLine {
+  font-family: var(--gp-latin);
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+/* ---------- The payout card ---------- */
+.payout {
+  position: relative;
+  margin: 12px 12px 0;
+  border: 2px solid var(--gp-key);
+  border-radius: 6px;
+  background: var(--gp-white);
+  overflow: hidden;
+}
+.payoutTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  padding: 4px 10px 5px !important;
+  background: var(--gp-key);
+  color: var(--gp-yellow);
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+}
+.payoutTitleMain {
+  font-size: 17px;
+  letter-spacing: 0.32em;
+}
+.payoutTitleSub {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+.plate[data-plate-lang='en'] .payoutTitle {
+  font-family: var(--gp-latin);
+}
+.plate[data-plate-lang='en'] .payoutTitleMain {
+  letter-spacing: 0.2em;
+}
+.plate[data-plate-lang='en'] .payoutTitleSub {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, min(43%, 176px)) 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 0 6px;
+  padding: 7px 8px;
+  border-bottom: 1.5px dashed rgba(31, 24, 48, 0.55);
+}
+.line[data-plate-line='seven'] {
+  background:
+    radial-gradient(circle, rgba(226, 34, 46, 0.2) 1px, rgba(226, 34, 46, 0) 1.25px) 0 0 / 4.5px 4.5px,
+    #fff3c2;
+}
+.symbols {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.tiles {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+}
+.tile {
+  flex: 0 1 25%;
+  min-width: 0;
+  aspect-ratio: 130 / 100;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+}
+.line[data-plate-line='seven'] .tile {
+  flex-basis: 31%;
+}
+.any {
+  padding: 0 6px 1px;
+  border-radius: 99px;
+  background: var(--gp-key);
+  color: #fff;
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+/* The arrow from a line to what it leads to. */
+.leadsTo {
+  width: 14px;
+  height: 22px;
+  background: var(--gp-red);
+  clip-path: var(--gp-arrow);
+}
+.bonus {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.bonusHead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.bonusIcon {
+  flex: none;
+  width: 21px;
+}
+.bonusName {
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 12.5px;
+  line-height: 1.15;
+  color: var(--gp-magenta-ink);
+}
+.line[data-plate-leads='chest'] .bonusName {
+  color: var(--gp-purple);
+}
+.line[data-plate-leads='sugoroku'] .bonusName {
+  color: var(--gp-green-ink);
+}
+.bonusLine {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.38;
+}
+.prizes,
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+.prize,
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px;
+  min-height: 18px;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 4px;
+  background: #fff3c2;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+.prizeTower {
+  width: 11px;
+  margin-right: -2px;
+}
+.feverTag {
+  margin-left: -3px;
+  padding: 2px 3px;
+  border-radius: 2px;
+  background: var(--gp-red);
+  color: #fff;
+  font-family: var(--gp-latin);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+.plate[data-plate-lang='en'] .bonusName {
+  font-family: var(--gp-latin);
+  font-size: 14.5px;
+  letter-spacing: 0.03em;
+}
+.plate[data-plate-lang='en'] .bonusLine {
+  font-family: var(--gp-latin);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.plate[data-plate-lang='en'] .any {
+  font-family: var(--gp-latin);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+}
+/* What a gold spin makes of a line, in chance time. */
+.goldChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  min-height: 18px;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 99px;
+  background: linear-gradient(180deg, #ffe98a, #f8c63c);
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 10.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.plate[data-plate-lang='en'] .goldChip {
+  font-family: var(--gp-latin);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+/* The notes under the lines: the name of what each is about, on a tag, and one line of words. */
+.note {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 8px 5px !important;
+  border-bottom: 1.5px solid var(--gp-key);
+  background: var(--gp-yellow);
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.noteHead {
+  flex: none;
+  padding: 1px 6px 2px;
+  border-radius: 3px;
+  background: var(--gp-key);
+  color: var(--gp-yellow);
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+/* Chance time is the gold one. */
+.note[data-plate-note='chance'] {
+  background: var(--gp-key);
+  color: #fff;
+}
+.note[data-plate-note='chance'] .noteHead {
+  background: linear-gradient(180deg, #ffe98a, #f8c63c);
+  color: var(--gp-key);
+}
+.plate[data-plate-lang='en'] .note {
+  font-family: var(--gp-latin);
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+.plate[data-plate-lang='en'] .noteHead {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+/* The way to the jackpot: two rows of stations with an arrow from each to the next. The ball and the roulette it
+   starts; then, on a tag between the rows, what it takes to get on; then the bowls, the top one first. */
+.path {
+  padding: 6px 8px 5px;
+  background:
+    radial-gradient(circle, rgba(76, 46, 163, 0.16) 1px, rgba(76, 46, 163, 0) 1.25px) 0 0 / 4.5px 4.5px,
+    #efe8fb;
+}
+.pathTitle {
+  letter-spacing: 0.08em;
+}
+.flow {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  text-align: center;
+}
+.leg {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+.station {
+  flex: 1 1 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+}
+.stationPic {
+  width: 50px;
+}
+/* An arrow stands level with the middle of the pictures on either side of it. */
+.flowArrow {
+  flex: none;
+  width: 13px;
+  height: 20px;
+  margin-top: 15px;
+  background: var(--gp-red);
+  clip-path: var(--gp-arrow);
+}
+.stationName {
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.chips {
+  justify-content: center;
+  gap: 2px;
+}
+.chip {
+  padding: 0 3px;
+  min-height: 16px;
+  font-size: 10px;
+}
+.crossLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cross {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 3px;
+  background: var(--gp-red);
+  color: #fff;
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1;
+}
+/* What it takes to get from the roulette to the bowls: a tag that points down at them. */
+.gate {
+  position: relative;
+  margin-bottom: 5px !important;
+  padding: 2px 10px 3px !important;
+  border-radius: 4px;
+  background: var(--gp-key);
+  color: var(--gp-yellow);
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+.gate::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 14px;
+  height: 6px;
+  margin-left: -7px;
+  background: var(--gp-key);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.jackpot {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 3px;
+  max-width: 100%;
+  padding: 1px 5px 2px;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #ffe98a, #f8c63c);
+}
+.jackpotName {
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--gp-red-ink);
+}
+.jackpotFrom {
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Under the stations: what the arrow in a hole means, and how the jackpot grows. */
+.grows {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin-top: 5px !important;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.downKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+}
+/* A hole that lets the ball down, as the bowls are drawn with them: ringed in blue, with an arrow in it. */
+.downMark {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  border: 1.2px solid var(--gp-key);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--gp-key) 0 46%, #93d6ef 50%);
+}
+.downMark::after {
+  content: '';
+  position: absolute;
+  inset: 3.6px 3.1px 2.6px;
+  background: #93d6ef;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.oddsNote {
+  padding: 3px 9px 4px !important;
+  border-top: 2px solid var(--gp-key);
+  background: var(--gp-white);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+.plate[data-plate-lang='en'] .stationName,
+.plate[data-plate-lang='en'] .gate {
+  font-family: var(--gp-latin);
+  text-transform: uppercase;
+}
+.plate[data-plate-lang='en'] .stationName {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.plate[data-plate-lang='en'] .gate {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.plate[data-plate-lang='en'] .crossLine,
+.plate[data-plate-lang='en'] .grows,
+.plate[data-plate-lang='en'] .oddsNote {
+  font-family: var(--gp-latin);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.plate[data-plate-lang='en'] .downKey {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- The hands ---------- */
+.hands {
+  margin: 12px 12px 0;
+  border: 2px solid var(--gp-key);
+  border-radius: 6px;
+  background: var(--gp-white);
+  overflow: hidden;
+}
+.handsTitle {
+  padding: 2px 10px 3px !important;
+  background: var(--gp-purple);
+  color: #fff;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+}
+.plate[data-plate-lang='en'] .handsTitle {
+  font-family: var(--gp-latin);
+  font-size: 13px;
+  letter-spacing: 0.22em;
+}
+.handRow {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+}
+/* The keys are for a machine with a keyboard: a pointer that can hover and point finely. A phone shows only the
+   hand, which is a finger there and the mouse here. */
+.handRow[data-plate-hands='keys'],
+.handKind [data-plate-pointer='mouse'] {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .handRow[data-plate-hands='keys'] {
+    display: grid;
+  }
+  .handRow + .handRow {
+    border-top: 1.5px dashed rgba(31, 24, 48, 0.55);
+  }
+  .handKind [data-plate-pointer='mouse'] {
+    display: inline;
+  }
+  .handKind [data-plate-pointer='touch'] {
+    display: none;
+  }
+}
+.handKind {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  padding: 4px 1px;
+  border-radius: 3px;
+  background: var(--gp-key);
+  color: #fff;
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.plate[data-plate-lang='en'] .handKind {
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  padding: 4px 2px;
+  font-family: var(--gp-latin);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+}
+.handItem {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+}
+.handPic {
+  width: 54px;
+}
+.handWord {
+  display: grid;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.handWord small {
+  font-size: 9px;
+  font-weight: 600;
+}
+.plate[data-plate-lang='en'] .handWord {
+  font-family: var(--gp-latin);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.plate[data-plate-lang='en'] .handWord small {
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.caps {
+  display: inline-flex;
+  gap: 4px;
+}
+/* A key, as a key cap is drawn on a card. */
+.cap {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--gp-key);
+  border-bottom-width: 4px;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--gp-key);
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ---------- The foot of the sheet: the cautions, and the printer's line ---------- */
+.foot {
+  display: grid;
+  gap: 3px;
+  margin: 12px 12px 0;
+  padding-bottom: 5px;
+}
+.caution {
+  border: 2px solid var(--gp-key);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+.cautionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 5px !important;
+  border-bottom: 2px solid var(--gp-key);
+  /* The yellow and black of a warning, along its lower edge. */
+  background:
+    repeating-linear-gradient(135deg, var(--gp-key) 0 5px, rgba(31, 24, 48, 0) 5px 10px) 0 100% / 100% 4px no-repeat,
+    var(--gp-yellow);
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  line-height: 1.5;
+}
+.cautionMark {
+  flex: none;
+  width: 15px;
+  height: auto;
+}
+.plate[data-plate-lang='en'] .cautionTitle {
+  font-family: var(--gp-latin);
+  font-size: 13px;
+  letter-spacing: 0.22em;
+}
+.cautionList {
+  display: grid;
+  gap: 1px 22px;
+  padding: 5px 9px 6px !important;
+}
+.cautionList li {
+  position: relative;
+  padding-left: 1.1em;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.cautionList li::before {
+  content: '';
+  position: absolute;
+  left: 0.1em;
+  top: 0.42em;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--gp-red);
+}
+.plate[data-plate-lang='en'] .cautionList li {
+  font-family: var(--gp-latin);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+/* What is not a rule of play, in the small print. */
+.small {
+  padding: 1px 4px 0 !important;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.plate[data-plate-lang='en'] .small {
+  font-family: var(--gp-latin);
+  font-size: 11px;
+  font-weight: 500;
+}
+/* What it is and the number of the sheet, in the corner where a printer puts them. */
+.imprint {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.2em;
+  padding-right: 6px !important;
+  font-family: var(--gp-latin);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: rgba(31, 24, 48, 0.72);
+}
+
+
+/* ---------- A wider plate: the steps in threes, then the payout card beside them ---------- */
+@container plate (min-width: 520px) {
+  .steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 14px;
+  }
+  .step:nth-child(odd)::after {
+    content: none;
+  }
+  .step:not(:nth-child(3n))::after {
+    content: '';
+    position: absolute;
+    z-index: 2;
+    top: 21%;
+    right: -14px;
+    width: 12px;
+    height: 19px;
+    background: var(--gp-red);
+    clip-path: var(--gp-arrow);
+  }
+  .stepHead {
+    font-size: 15px;
+  }
+  .stepLine {
+    font-size: 11.5px;
+  }
+  .handRow {
+    gap: 10px;
+  }
+  .handWord {
+    font-size: 11px;
+  }
+  .stationPic {
+    width: 58px;
+  }
+  .flowArrow {
+    margin-top: 19px;
+  }
+  .foot {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+  }
+  .caution {
+    grid-column: 1 / -1;
+  }
+  .cautionList {
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+  }
+}
+@container plate (min-width: 820px) {
+  /* The payout card is the taller column, so the cautions go under the steps, beside it. */
+  .sheet {
+    grid-template-columns: minmax(0, 1.42fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas:
+      'head head'
+      'steps payout'
+      'caution payout'
+      'small imprint';
+  }
+  .foot {
+    display: contents;
+  }
+  .caution {
+    grid-area: caution;
+    align-self: end;
+    margin: 12px 8px 0 18px;
+  }
+  .cautionList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .small {
+    grid-area: small;
+    margin: 5px 0 6px 20px !important;
+  }
+  .imprint {
+    grid-area: imprint;
+    align-self: center;
+    margin-right: 18px !important;
+  }
+  .colSteps,
+  .colPayout {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .colSteps {
+    grid-area: steps;
+  }
+  .colPayout {
+    grid-area: payout;
+  }
+  .head,
+  .plate[data-plate-lang='en'] .head {
+    grid-area: head;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 9px 22px 10px;
+  }
+  .title,
+  .plate[data-plate-lang='en'] .title {
+    grid-row: 1 / span 2;
+  }
+  .brand,
+  .plate[data-plate-lang='en'] .brand {
+    grid-column: 2;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.6em;
+  }
+  .brandName {
+    font-size: 15px;
+  }
+  .brandKind {
+    font-size: 11.5px;
+  }
+  .lead,
+  .plate[data-plate-lang='en'] .lead {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    font-size: 15px;
+    text-align: right;
+  }
+  .plate[data-plate-lang='en'] .lead {
+    font-size: 17px;
+  }
+  .chip {
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .flowBlock {
+    padding: 13px 8px 2px 18px;
+  }
+  .payout {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin: 14px 18px 0 8px;
+  }
+  /* The card is as tall as the column beside it, and the way to the jackpot takes up what is left over. */
+  .path {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .flow {
+    margin-block: auto;
+    gap: 8px;
+  }
+  .bonusIcon {
+    width: 25px;
+  }
+  .bonusName {
+    font-size: 14.5px;
+  }
+  .hands {
+    margin: 12px 8px 0 18px;
+  }
+  .line {
+    grid-template-columns: minmax(0, min(40%, 176px)) 14px minmax(0, 1fr);
+  }
+}
+
+/* ---------- The dialog the plate is held up in ---------- */
+.dialog {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(9, 4, 24, 0.84);
+  color: #f4f0ff;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.dialog:not([open]) {
+  display: none;
+}
+.dialog::backdrop {
+  background: transparent;
+}
+.held {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-height: 100%;
+  padding: max(10px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dialog[open] .plate {
+    animation: gp-held 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+}
+@keyframes gp-held {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* The way out: not a part of the plate. It stays in reach while the plate is scrolled. */
+.close {
+  position: sticky;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 10;
+  align-self: flex-end;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: -4px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  background: #140b33;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.close svg {
+  width: 22px;
+  height: 22px;
+}
+.close:focus-visible,
+.textTitle:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+/* The explanation in full sentences, on a sheet of its own under the plate. */
+.text {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  border-radius: 4px;
+  background: var(--gp-paper);
+  color: var(--gp-key);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+.textTitle {
+  padding: 11px 58px 11px 14px;
+  font-weight: 800;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.textP {
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+/* ---------- The compact plate: a sticker on the cabinet's front ---------- */
+.sticker {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 1.5px solid var(--gp-key);
+  border-radius: 5px;
+  background: var(--gp-paper);
+  color: var(--gp-key);
+  font-family: var(--gp-round);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+}
+button.sticker {
+  appearance: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button.sticker:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+/* The laminate over the print: a band of light across it, and the corner that has begun to lift. */
+.sticker::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(315deg, rgba(20, 12, 50, 0.34) 0, rgba(255, 255, 255, 0.7) 5px, rgba(255, 255, 255, 0) 9px),
+    linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.34) 38%, rgba(255, 255, 255, 0) 47%);
+}
+.sticker *,
+.sticker *::before {
+  box-sizing: border-box;
+}
+.stickerTitle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 3px 6px;
+  border-right: 1.5px solid var(--gp-key);
+  background:
+    radial-gradient(circle, rgba(110, 8, 56, 0.55) 0.9px, rgba(110, 8, 56, 0) 1.1px) 0 0 / 4px 4px,
+    var(--gp-magenta);
+  --gp-edge: 1px;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  color: var(--gp-yellow);
+  text-shadow: var(--gp-outline);
+  white-space: nowrap;
+}
+/* The English one is set across: three short words, one over another. */
+.sticker[data-plate-lang='en'] .stickerTitle {
+  writing-mode: horizontal-tb;
+  width: min-content;
+  box-sizing: content-box;
+  font-family: var(--gp-latin);
+  font-style: italic;
+  font-size: 12px;
+  line-height: 1.02;
+  white-space: normal;
+}
+.stickerSteps {
+  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 4px 3px;
+}
+.stickerStep {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: start;
+  gap: 1px;
+  min-width: 0;
+}
+.stickerPic {
+  position: relative;
+  width: 100%;
+  max-width: 62px;
+  border: 1.2px solid var(--gp-key);
+  border-radius: 3px;
+  background: var(--gp-white);
+  overflow: hidden;
+}
+.stickerNum {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px 0 5px 0;
+  background: var(--gp-red);
+  color: #fff;
+  font-family: var(--gp-latin);
+  font-weight: 800;
+  font-size: 9.5px;
+  line-height: 1;
+}
+.stickerWord {
+  max-width: 100%;
+  font-family: var(--gp-heavy);
+  font-weight: 800;
+  /* On the narrowest phones the words are set a little smaller, so that none runs into the next. */
+  font-size: clamp(7.5px, 2.5vw, 9.5px);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.stickerHead {
+  display: none;
+  font-family: var(--gp-heavy);
+  font-weight: 900;
+  font-size: 9.5px;
+  line-height: 1.2;
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+}
+.sticker[data-plate-lang='en'] .stickerWord,
+.sticker[data-plate-lang='en'] .stickerHead {
+  font-family: var(--gp-latin);
+  letter-spacing: 0.02em;
+}
+.sticker[data-plate-lang='en'] .stickerHead {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  white-space: normal;
+}
+.stickerMore {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  border-left: 1.5px dashed rgba(31, 24, 48, 0.6);
+  color: var(--gp-magenta);
+}
+.stickerMore svg {
+  width: 16px;
+  height: 16px;
+}
+@media (min-width: 560px) {
+  .stickerTitle {
+    padding: 4px 9px;
+    font-size: 16px;
+  }
+  .sticker[data-plate-lang='en'] .stickerTitle {
+    font-size: 15px;
+  }
+  .stickerSteps {
+    gap: 4px;
+    padding: 6px 6px 5px;
+  }
+  .stickerStep {
+    gap: 3px;
+  }
+  .stickerPic {
+    max-width: 72px;
+  }
+  .stickerNum {
+    width: 15px;
+    height: 15px;
+    font-size: 11.5px;
+  }
+  .stickerWord {
+    display: none;
+  }
+  .stickerHead {
+    display: block;
+  }
+  /* Six Japanese headings in one row: set a little smaller, so that each keeps clear of the next. */
+  .sticker[data-plate-lang='ja'] .stickerHead {
+    font-size: 8.5px;
+  }
+  .stickerMore {
+    width: 34px;
+  }
+  .stickerMore svg {
+    width: 20px;
+    height: 20px;
+  }
+}

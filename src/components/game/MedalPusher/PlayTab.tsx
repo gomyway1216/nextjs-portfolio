@@ -9,6 +9,7 @@ import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
+import { PlateSticker } from './PlateSticker';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
@@ -1124,6 +1125,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             {t.refill(START_CREDITS)}
           </button>
         )}
+        <PlateSticker />
         <div className={styles.bulbs} aria-hidden />
       </div>
 

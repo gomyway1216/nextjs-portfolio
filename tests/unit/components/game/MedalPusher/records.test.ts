@@ -19,6 +19,7 @@ import {
   cardFor,
   claim,
   clearBook,
+  countBonus,
   countDays,
   createBook,
   currentStreak,
@@ -39,6 +40,7 @@ import {
   rowOf,
   runEnding,
   serializeBook,
+  spendDay,
   stamp,
   unionDays,
   viewOf,
@@ -48,7 +50,8 @@ import {
   type RecordBook,
   type RecordEvent,
 } from '@/components/game/MedalPusher/records';
-import { MAX_STOCK, START_CREDITS, createSession, grant, type SessionEvent } from '@/components/game/MedalPusher/session';
+import { CHECKERS, pusherFront } from '@/components/game/MedalPusher/engine';
+import { MAX_STOCK, START_CREDITS, advance, createSession, grant, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 const MONDAY: Day = '2026-10-12';
@@ -168,7 +171,7 @@ describe('recording what the machine did', () => {
       { type: 'checker', gate: 0, held: true },
       { type: 'checker', gate: 1, held: true },
       { type: 'checker', gate: 2, held: false },
-      { type: 'holdFull' },
+      { type: 'holdFilled' },
       { type: 'spinStart', result: { tier: 'miss', digits: [1, 2, 3], reach: false, reachKind: 'none' }, duration: 1.6 },
       spin('miss'),
       spin('miss', 'normal'),
@@ -307,9 +310,10 @@ describe('the achievements', () => {
     expect(earnedBy([spin('miss', 'long'), fed(10)])).toEqual([]);
     expect(earnedBy([spin('small')])).toEqual(['firstLine']);
     expect(earnedBy([spin('big')])).toEqual(['firstLine']);
-    expect(earnedBy([{ type: 'holdFull' }])).toEqual(['holdFull']);
-    // A medal turned away by a full hold is not the hold filling: the cabinet says that itself.
+    expect(earnedBy([{ type: 'holdFilled' }])).toEqual(['holdFull']);
+    // A medal turned away by a full hold is not the hold filling: the machine says that itself, when it happens.
     expect(earnedBy([{ type: 'checker', gate: 0, held: false }])).toEqual([]);
+    expect(earnedBy([{ type: 'checker', gate: 0, held: true }])).toEqual([]);
     expect(earnedBy([spin('small', 'long')])).toEqual(['firstLine', 'superWin']);
     expect(earnedBy([{ type: 'sugorokuEnd', square: 7, payout: 30, fever: true }])).toEqual(['fever']);
     expect(earnedBy([{ type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) }])).toEqual(['treasure']);
@@ -458,6 +462,26 @@ describe('the daily bonus card', () => {
     expect(paid).toBe(countDays(thrown.claimed));
     expect(totals(thrown).claims).toBe(paid);
     expect(paid).toBeLessThanOrEqual(30);
+  });
+
+  it('is a day spent and then a bonus counted: the two halves are a claim, and the first alone pays and counts nothing', () => {
+    const spent = spendDay(book, MONDAY);
+    expect(hasDay(spent.claimed, MONDAY)).toBe(true);
+    expect(hasDay(spent.played, MONDAY)).toBe(true);
+    expect(totals(spent)).toMatchObject({ claims: 0, bonus: 0 });
+    expect(cardFor(spent, MONDAY)).toMatchObject({ state: 'taken', stamped: 1, medals: BONUS_CARD[0] });
+    expect(claim(spent, MONDAY)).toEqual({ book: spent, medals: 0 });
+    // A day spent and not paid is still a day of the run: the next day is the second square.
+    expect(cardFor(spent, after(1))).toMatchObject({ state: 'ready', today: 2, medals: BONUS_CARD[1] });
+    const counted = countBonus(spent, BONUS_CARD[0], MONDAY);
+    expect(totals(counted)).toMatchObject({ claims: 1, bonus: BONUS_CARD[0] });
+    expect(serializeBook(counted)).toBe(serializeBook(claim(book, MONDAY).book));
+    // The seventh day's stamp is earned when the bonus is counted, with the week behind it.
+    let week = book;
+    for (let days = 0; days < WEEK - 1; days++) week = claim(week, after(days)).book;
+    const last = spendDay(week, after(WEEK - 1));
+    expect(last.stamps.week).toBeUndefined();
+    expect(countBonus(last, BONUS_CARD[WEEK - 1], after(WEEK - 1)).stamps.week).toBe(after(WEEK - 1));
   });
 
   it('has nothing for a day that is off the calendar', () => {
@@ -649,6 +673,68 @@ describe('two copies of one book', () => {
     expect(rowOf(book.counters, 'phone00001')).toEqual({ fed: 1 });
     expect(rowOf(book.counters, 'other00000')).toBeUndefined();
     expect(rowOf(book.counters, `other${String(LIMITS.devices + 2).padStart(5, '0')}`)).toEqual({ fed: 100 + LIMITS.devices + 2 });
+  });
+
+  it('never holds more rows than it has room for, and never gives up its own, whatever is merged and counted in whatever order', () => {
+    for (let schedule = 0; schedule < 30; schedule++) {
+      const rng = seededRng(4000 + schedule);
+      const pick = (n: number) => Math.min(n - 1, Math.floor(rng() * n));
+      let book = createBook('device0001');
+      let own = 0;
+      // More devices than there is room for, some of which have counted a great deal.
+      const others = Array.from({ length: LIMITS.devices + 5 }, (_, index) => record(createBook(`other${String(index).padStart(5, '0')}`), [fed(1 + pick(5000))], MONDAY));
+      for (let turn = 0; turn < 40; turn++) {
+        const what = pick(5);
+        if (what === 0) {
+          const count = 1 + pick(9);
+          book = record(book, [fed(count)], after(pick(10)));
+          own += count;
+        } else if (what === 1) {
+          const taken = claim(book, after(pick(10)));
+          book = taken.book;
+        } else if (what === 2) {
+          // Two tabs: what is stored has other rows, and this page's count goes on top of it.
+          const stored = mergeBooks(book, others[pick(others.length)]);
+          const mine = record(book, [fed(2)], MONDAY);
+          book = rebase(stored, mine, book);
+          own += 2;
+        } else {
+          book = mergeBooks(book, others[pick(others.length)]);
+        }
+        expect(Object.keys(book.counters).length, `schedule ${schedule}, turn ${turn}`).toBeLessThanOrEqual(LIMITS.devices);
+        // Once it has counted anything its own row is there, and is exactly what it counted.
+        expect(rowOf(book.counters, 'device0001')?.fed ?? 0).toBe(own);
+        expect(parseBook(serializeBook(book))).toEqual(JSON.parse(serializeBook(book)));
+      }
+      // What was written is what is read: nothing is left for reading to throw out.
+      expect(Object.keys((parseBook(serializeBook(book)) as RecordBook).counters).sort()).toEqual(Object.keys(book.counters).sort());
+    }
+  });
+
+  it('makes room for its own first count in a book that came full of other devices’ rows', () => {
+    // A new device takes in a copy with as many rows as a book holds. It has none of its own yet.
+    let account = createBook('account001');
+    for (let other = 0; other < LIMITS.devices; other++) account = mergeBooks(account, record(createBook(`other${String(other).padStart(5, '0')}`), [fed(10 + other)], MONDAY));
+    const fresh = mergeBooks(createBook('device0001'), account);
+    expect(Object.keys(fresh.counters)).toHaveLength(LIMITS.devices);
+    expect(rowOf(fresh.counters, 'device0001')).toBeUndefined();
+    // Its first medal: its own row comes in, and the row that goes is the other device that counted least.
+    const counted = record(fresh, [fed(1)], MONDAY);
+    expect(Object.keys(counted.counters)).toHaveLength(LIMITS.devices);
+    expect(rowOf(counted.counters, 'device0001')).toEqual({ fed: 1 });
+    expect(rowOf(counted.counters, 'other00000')).toBeUndefined();
+    expect(rowOf(counted.counters, 'other00001')).toEqual({ fed: 11 });
+    // The same when the first thing it does is take the bonus, or write beside another tab.
+    expect(Object.keys(claim(fresh, MONDAY).book.counters)).toHaveLength(LIMITS.devices);
+    expect(rowOf(claim(fresh, MONDAY).book.counters, 'device0001')).toEqual({ claims: 1, bonus: BONUS_CARD[0] });
+    const beside = rebase(fresh, record(createBook('device0001'), [fed(3)], MONDAY), createBook('device0001'));
+    expect(Object.keys(beside.counters)).toHaveLength(LIMITS.devices);
+    expect(rowOf(beside.counters, 'device0001')).toEqual({ fed: 3 });
+    // Even where the row comes only from what storage had when the page last looked: the book it is written into is full already.
+    const remembered = rebase(fresh, createBook('device0001'), record(createBook('device0001'), [fed(4)], MONDAY));
+    expect(Object.keys(remembered.counters)).toHaveLength(LIMITS.devices);
+    expect(rowOf(remembered.counters, 'device0001')).toEqual({ fed: 4 });
+    expect(rowOf(remembered.counters, 'other00000')).toBeUndefined();
   });
 
   it('looks a device up among the book’s own rows only', () => {
@@ -899,5 +985,85 @@ describe('medals from outside the machine', () => {
     const back = restore(serialize(session), 1);
     expect(back?.credits).toBe(START_CREDITS + 480);
     expect(MAX_STOCK).toBeGreaterThan(0);
+  });
+});
+
+describe('the hold filling', () => {
+  /** A machine with nothing on its field, so that a medal laid on it goes where it is put, and every draw a miss. */
+  const emptied = (): Session => {
+    const session = createSession(5, { balls: 0 });
+    session.machine.medals = [];
+    session.machine.rng = () => 0.5;
+    return session;
+  };
+  /** Lays a medal on the pusher just past its lip at a START pocket: the next step takes it through. */
+  const throughPocket = (session: Session): void => {
+    const { machine } = session;
+    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+  };
+  const DT = 1 / 60;
+
+  it('is said by the machine in the frame the last place is taken, though a spin takes one off again in the same frame', () => {
+    const session = emptied();
+    session.stock = MAX_STOCK - 1;
+    throughPocket(session);
+    const events: SessionEvent[] = [];
+    advance(session, DT, events);
+    // Seven held, the eighth comes in, and with the screen free a spin starts at once: seven again when the frame is over.
+    expect(events.map((event) => event.type)).toEqual(['holdFilled', 'checker', 'spinStart']);
+    expect(events[1]).toEqual({ type: 'checker', gate: 1, held: true });
+    expect(session.stock).toBe(MAX_STOCK - 1);
+    expect(session.spins).toBe(1);
+    expect(session.wasted).toBe(0);
+    // The book counts it, and gives its stamp.
+    const book = record(createBook('device0001'), events, MONDAY);
+    expect(totals(book).fulls).toBe(1);
+    expect(book.stamps.holdFull).toBe(MONDAY);
+  });
+
+  it('is said once as the hold fills, and not for a medal that finds it full', () => {
+    const session = emptied();
+    // The screen is busy with a chest nobody picks, so spins are held and not played.
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    const events: SessionEvent[] = [];
+    for (let medal = 0; medal < MAX_STOCK + 3; medal++) {
+      throughPocket(session);
+      advance(session, DT, events);
+    }
+    const said = events.filter((event) => event.type === 'holdFilled' || event.type === 'checker');
+    expect(said.filter((event) => event.type === 'holdFilled')).toHaveLength(1);
+    // It comes with the eighth medal, the last one that is held.
+    expect(said.map((event) => (event.type === 'checker' ? (event.held ? 'held' : 'full') : 'filled'))).toEqual([
+      ...Array<string>(MAX_STOCK - 1).fill('held'),
+      'filled',
+      'held',
+      'full',
+      'full',
+      'full',
+    ]);
+    expect(session.stock).toBe(MAX_STOCK);
+    expect(session.wasted).toBe(3);
+    expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ fulls: 1, hits: MAX_STOCK + 3, wasted: 3 });
+  });
+
+  it('is said again when the hold has emptied a little and fills anew, and never while it only stands full or short', () => {
+    const session = emptied();
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    const fills = (): number => {
+      const events: SessionEvent[] = [];
+      throughPocket(session);
+      advance(session, DT, events);
+      return events.filter((event) => event.type === 'holdFilled').length;
+    };
+    session.stock = MAX_STOCK - 2;
+    expect(fills()).toBe(0);
+    expect(fills()).toBe(1);
+    expect(fills()).toBe(0);
+    session.stock = MAX_STOCK - 1;
+    expect(fills()).toBe(1);
+    // A frame with no medal at a pocket says nothing, however full the hold stands.
+    const quiet: SessionEvent[] = [];
+    advance(session, DT, quiet);
+    expect(quiet.filter((event) => event.type === 'holdFilled')).toEqual([]);
   });
 });

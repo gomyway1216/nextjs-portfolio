@@ -192,16 +192,12 @@ export function longestRun(set: DaySet): number {
 // ── What is counted ─────────────────────────────────────────────────────────
 
 /**
- * What the book hears of. Most of it is what the machine says happened. Three
+ * What the book hears of. Most of it is what the machine says happened. Two
  * things it does not say, because they happen at the controls and not on the
  * field, are worked out by the cabinet from the machine's own counters and
- * passed in beside the rest: medals fed, refills taken, and the hold filling.
+ * passed in beside the rest: medals fed, and refills taken.
  */
-export type RecordEvent =
-  | SessionEvent
-  | { type: 'fed'; count: number }
-  | { type: 'refill'; count: number }
-  | { type: 'holdFull' };
+export type RecordEvent = SessionEvent | { type: 'fed'; count: number } | { type: 'refill'; count: number };
 
 /** The day's bonus being taken. Only `claim` says this, so that it is counted exactly when it is paid. */
 interface Claimed {
@@ -234,8 +230,8 @@ export const COUNTERS = {
   /** Medals through a START pocket, and the ones that found the hold full already. */
   hits: on('checker'),
   wasted: on('checker', (event) => (event.held ? 0 : 1)),
-  /** Times the hold filled right up. */
-  fulls: on('holdFull'),
+  /** Times the hold filled right up: the machine says so at the moment its last place is taken. */
+  fulls: on('holdFilled'),
   /** Spins that have stopped, and of those the ones that showed a reach, and a super reach. */
   spins: on('spinEnd'),
   reaches: on('spinEnd', (event) => (event.result.reach ? 1 : 0)),
@@ -420,7 +416,8 @@ function count(book: RecordBook, events: readonly Counted[]): RecordBook {
     }
   }
   if (!counts && !bests) return book;
-  return { ...book, counters: counts ? { ...book.counters, [book.device]: counts } : book.counters, bests: bests ?? book.bests };
+  // The book's own row may be new, and one row more than the book has room for: another device's gives way, never this one's.
+  return { ...book, counters: counts ? roomFor({ ...book.counters, [book.device]: counts }, book.device) : book.counters, bests: bests ?? book.bests };
 }
 
 /**
@@ -516,17 +513,28 @@ export function cardFor(book: RecordBook, day: Day): BonusCard {
 }
 
 /**
- * Takes the bonus for `day`, if it is there to take: the day is stamped on
- * the card and counted as played, and the medals are counted as bonus medals.
- * They are not fed, won or paid, so no return in the book changes. The same
- * book comes back, with no medals, when there is nothing to take.
+ * The book with `day`'s bonus spent: the day is stamped on the card and
+ * counted as played. Nothing is counted as paid. This is the half of taking a
+ * bonus that has to be written down before any medal is given.
+ */
+export const spendDay = (book: RecordBook, day: Day): RecordBook => ({ ...book, claimed: addDay(book.claimed, day), played: addDay(book.played, day) });
+
+/**
+ * The book with a bonus of `medals` counted, on `day`: one more bonus taken,
+ * and its medals as bonus medals. They are not fed, won or paid, so no return
+ * in the book changes. This is the other half, for once the medals are given.
+ */
+export const countBonus = (book: RecordBook, medals: number, day: Day): RecordBook => stamp(count(book, [{ type: 'claimed', medals }]), day);
+
+/**
+ * Takes the bonus for `day`, if it is there to take: the day is spent and the
+ * bonus counted, in one. The same book comes back, with no medals, when there
+ * is nothing to take.
  */
 export function claim(book: RecordBook, day: Day): { book: RecordBook; medals: number } {
   const card = cardFor(book, day);
   if (card.state !== 'ready') return { book, medals: 0 };
-  const counted = count(book, [{ type: 'claimed', medals: card.medals }]);
-  const taken: RecordBook = { ...counted, claimed: addDay(book.claimed, day), played: addDay(book.played, day) };
-  return { book: stamp(taken, day), medals: card.medals };
+  return { book: countBonus(spendDay(book, day), card.medals, day), medals: card.medals };
 }
 
 // ── Two copies of one book ──────────────────────────────────────────────────
@@ -605,7 +613,7 @@ export function rebase(stored: RecordBook, mine: RecordBook, base: RecordBook): 
     const total = Math.min(LIMITS.count, Math.max(now[id] ?? 0, Math.max(there[id] ?? 0, then[id] ?? 0) + since));
     if (total > 0) row[id] = total;
   }
-  return Object.keys(row).length > 0 ? { ...joined, counters: { ...joined.counters, [mine.device]: row } } : joined;
+  return Object.keys(row).length > 0 ? { ...joined, counters: roomFor({ ...joined.counters, [mine.device]: row }, mine.device) } : joined;
 }
 
 /**

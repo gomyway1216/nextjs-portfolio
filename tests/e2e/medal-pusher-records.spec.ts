@@ -153,6 +153,19 @@ test('the bonus plate and the Records tab fit a phone, cover nothing, and read i
   await expect(records(page).getByTestId('pusher-record-fed')).toHaveText('0');
   await expect(records(page).getByTestId('pusher-record-return')).toHaveText('—');
   await expect(records(page).getByTestId('pusher-record-days')).toHaveText('0');
+  // The four figures the board leads with are rows further down as well: each is read by its own name.
+  await expect(records(page).getByTestId('pusher-headline-won')).toHaveText('0');
+  await expect(records(page).getByTestId('pusher-headline-return')).toHaveText('—');
+  await expect(records(page).getByTestId('pusher-headline-prize')).toHaveText('—');
+  await expect(records(page).getByTestId('pusher-headline-jackpots')).toHaveText('0');
+  for (const figure of ['won', 'prize', 'jackpots']) {
+    await expect(records(page).getByTestId(`pusher-record-${figure}`)).toHaveText(figure === 'prize' ? '—' : '0');
+  }
+  // No two things on the tab answer to one name, so every one of them can be asked for.
+  const names = await records(page)
+    .locator('[data-testid]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid') ?? ''));
+  expect(names.filter((name, index) => names.indexOf(name) !== index)).toEqual([]);
   await expect(records(page).getByTestId('pusher-achievements-count')).toHaveText(`0 of ${ACHIEVEMENT_IDS.length} stamped`);
   await expect(records(page).getByTestId('pusher-achievements').locator('li')).toHaveCount(ACHIEVEMENT_IDS.length);
   await expect(records(page).getByTestId('pusher-records-kept')).toHaveAttribute('data-kept', 'true');
@@ -359,4 +372,44 @@ test('a stamp that is earned is shown once, in a toast that keeps off the contro
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
   await expect(bonus(page)).toHaveAttribute('data-state', 'taken');
   await expect(toast).toBeEmpty();
+});
+
+test('two tabs of the game pay a day’s bonus once between them, and both end up showing it taken', async ({ page, context }) => {
+  await openGame(page);
+  const other = await context.newPage();
+  await openGame(other);
+  await expect(bonus(page)).toHaveAttribute('data-state', 'ready');
+  await expect(bonus(other)).toHaveAttribute('data-state', 'ready');
+
+  // Both tabs reach for today's bonus at the same moment.
+  await Promise.all([takeButton(page).click(), takeButton(other).click()]);
+  // One of them was paid, and the other hears of it: both show the day taken, with nothing left to press.
+  for (const tab of [page, other]) {
+    await expect(bonus(tab)).toHaveAttribute('data-state', 'taken');
+    await expect(takeButton(tab)).toHaveCount(0);
+  }
+  // The one book they share counts one bonus, and its medals once.
+  await expect
+    .poll(async () => {
+      const book = await savedBook(page);
+      return book ? [viewOf(book).total.claims, viewOf(book).total.bonus] : [];
+    })
+    .toEqual([1, BONUS_CARD[0]]);
+  // One machine has the medals and the other has not. A tab's machine only runs while the tab is in front.
+  const medals: number[] = [];
+  for (const tab of [page, other]) {
+    await tab.bringToFront();
+    await expect.poll(() => counter(tab, 'credits')).toBeGreaterThanOrEqual(START_CREDITS);
+    await tab.waitForTimeout(500);
+    medals.push(await counter(tab, 'credits'));
+  }
+  expect(medals.sort((a, b) => a - b)).toEqual([START_CREDITS, START_CREDITS + BONUS_CARD[0]]);
+
+  // Pressing again in either, after a reload, pays nothing more.
+  await other.reload();
+  await expect(other.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(bonus(other)).toHaveAttribute('data-state', 'taken');
+  await expect(takeButton(other)).toHaveCount(0);
+  const book = await savedBook(other);
+  expect(book ? viewOf(book).total.claims : -1).toBe(1);
 });

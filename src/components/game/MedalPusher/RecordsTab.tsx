@@ -113,22 +113,23 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
           </h2>
         </div>
         <p className={styles.boardLead}>{t.boardLead}</p>
+        {/* The four figures the board leads with are also rows further down. Each is found by a name of its own: `headline` here, `record` there. */}
         <dl className={styles.bigs}>
           <div className={styles.big}>
             <dt>{t.bigWon}</dt>
-            <dd data-testid="pusher-record-won">{shown((v) => fmt(v.total.won))}</dd>
+            <dd data-testid="pusher-headline-won">{shown((v) => fmt(v.total.won))}</dd>
           </div>
           <div className={styles.big}>
             <dt>{t.bigReturn}</dt>
-            <dd data-testid="pusher-record-return">{shown((v) => boardValue('return', v, streakNow, t, fmt))}</dd>
+            <dd data-testid="pusher-headline-return">{shown((v) => boardValue('return', v, streakNow, t, fmt))}</dd>
           </div>
           <div className={styles.big}>
             <dt>{t.bigPrize}</dt>
-            <dd data-testid="pusher-record-prize">{shown((v) => boardValue('prize', v, streakNow, t, fmt))}</dd>
+            <dd data-testid="pusher-headline-prize">{shown((v) => boardValue('prize', v, streakNow, t, fmt))}</dd>
           </div>
           <div className={styles.big}>
             <dt>{t.bigJackpots}</dt>
-            <dd data-testid="pusher-record-jackpots">{shown((v) => fmt(v.total.jackpots))}</dd>
+            <dd data-testid="pusher-headline-jackpots">{shown((v) => fmt(v.total.jackpots))}</dd>
           </div>
         </dl>
         <div className={styles.groups}>

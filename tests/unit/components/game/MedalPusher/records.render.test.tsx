@@ -49,11 +49,19 @@ const after = (days: number): Day => dayOf((dayNumber(MONDAY) as number) + days)
 /** The page with a book read: kept, with a machine to pay into. */
 const reading = (book: RecordBook, day: Day = MONDAY, more: Partial<RecordsState> = {}): RecordsState => ({ ...WAITING, book, day, purse: true, ...more });
 const taking = (days: Day[], book = createBook('device0001')): RecordBook => days.reduce((kept, day) => claim(kept, day).book, book);
-/** What one thing on the page shows, by its test id. */
+/** What one thing on the page shows, by its test id. There has to be exactly one thing of that name, as there has to be for a test in a browser. */
 const shown = (html: string, id: string): string => {
-  const found = new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`).exec(html);
-  if (!found) throw new Error(`nothing on the page is called ${id}`);
-  return found[1];
+  const found = [...html.matchAll(new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`, 'g'))];
+  if (found.length === 0) throw new Error(`nothing on the page is called ${id}`);
+  if (found.length > 1) throw new Error(`${found.length} things on the page are called ${id}`);
+  return found[0][1];
+};
+/** Every test id in a piece of the page, in the order they come. */
+const testIds = (html: string): string[] => [...html.matchAll(/data-testid="([^"]+)"/g)].map((found) => found[1]);
+/** The names that more than one thing answers to. */
+const sharedIds = (html: string): string[] => {
+  const ids = testIds(html);
+  return [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
 };
 const count = (html: string, pattern: RegExp): number => html.match(pattern)?.length ?? 0;
 /** A book with a little of everything in it. */
@@ -94,7 +102,7 @@ describe('the first drawing, on the server and in the browser', () => {
       for (const medals of BONUS_CARD) expect(html).toContain(`>+${medals}<`);
       // The board: a dash where every figure will be.
       for (const row of BOARD_GROUPS.flatMap((group) => [...BOARD_ROWS[group]])) expect(shown(html, `pusher-record-${row}`)).toBe('—');
-      for (const big of ['won', 'return', 'prize', 'jackpots']) expect(shown(html, `pusher-record-${big}`)).toBe('—');
+      for (const big of ['won', 'return', 'prize', 'jackpots']) expect(shown(html, `pusher-headline-${big}`)).toBe('—');
       // The sheet: every achievement named, none stamped, and no date anywhere on the page.
       expect(count(html, /data-earned="false"/g)).toBe(ACHIEVEMENT_IDS.length);
       expect(html).not.toContain('data-earned="true"');
@@ -227,6 +235,30 @@ describe('the bonus plate beside the cabinet', () => {
     expect(render(<BonusStripView state={noMachine} />)).not.toContain('<button');
   });
 
+  it('offers nothing in a browser that cannot keep its tabs apart, and says why, on the plate, the card and the tab', () => {
+    for (const lang of ['en', 'ja'] as const) {
+      const t = getRecordStrings(lang);
+      const state = reading(book, MONDAY, { apart: false });
+      expect(canTake(state, cardFor(book, MONDAY))).toBe(false);
+      const plate = render(<BonusStripView state={state} />, lang);
+      expect(plate).toContain('data-state="off"');
+      expect(plate).not.toContain('<button');
+      expect(plate).not.toContain('data-today="true"');
+      expect(shown(plate, 'pusher-bonus-status')).toBe(t.bonusNotApart);
+      const card = render(<StampCard state={state} />, lang);
+      expect(card).toMatch(/data-state="off"[^>]*data-testid="pusher-card"/);
+      expect(card).not.toContain('pusher-card-take');
+      expect(card).not.toContain('data-today="true"');
+      expect(shown(card, 'pusher-card-status')).toBe(t.bonusNotApart);
+      expect(render(<BonusDotView state={state} />, lang)).toBe('');
+    }
+    expect(getRecordStrings('en').bonusNotApart).toContain('no way to keep two tabs');
+    expect(getRecordStrings('ja').bonusNotApart).toContain('2つのタブ');
+    // A book that is not kept says that first: it is the nearer reason.
+    const neither = reading(book, MONDAY, { apart: false, kept: false });
+    expect(shown(render(<BonusStripView state={neither} />), 'pusher-bonus-status')).toBe(getRecordStrings('en').bonusNotKept);
+  });
+
   it('puts a dot on the Records tab while the bonus is waiting, and takes it off once it is taken', () => {
     expect(render(<BonusDotView state={reading(book)} />)).toContain('data-testid="pusher-bonus-dot"');
     expect(render(<BonusDotView state={reading(book)} />)).toContain('aria-hidden="true"');
@@ -321,8 +353,14 @@ describe('the record board and the achievement sheet', () => {
     expect(Object.keys(figures).sort()).toEqual(BOARD_GROUPS.flatMap((group) => [...BOARD_ROWS[group]]).sort());
     const rows: string[] = BOARD_GROUPS.flatMap((group) => [...BOARD_ROWS[group]]);
     expect(COUNTER_IDS.filter((id) => !rows.includes(id))).toEqual(['roulettes']);
-    // The four the board leads with.
-    expect(html).toMatch(/data-testid="pusher-record-won">1,080</);
+    // The four the board leads with are the same figures as their rows, each under a name of its own.
+    expect(shown(html, 'pusher-headline-won')).toBe('1,080');
+    expect(shown(html, 'pusher-headline-return')).toBe('89.9%');
+    expect(shown(html, 'pusher-headline-prize')).toBe('30');
+    expect(shown(html, 'pusher-headline-jackpots')).toBe('0');
+    for (const [headline, row] of [['won', 'won'], ['return', 'return'], ['prize', 'prize'], ['jackpots', 'jackpots']]) {
+      expect(shown(html, `pusher-headline-${headline}`)).toBe(shown(html, `pusher-record-${row}`));
+    }
     expect(count(html, />89\.9%</g)).toBe(2);
     expect(html).toContain(`Chests that held ${Math.max(...CHESTS)}`);
   });
@@ -375,6 +413,74 @@ describe('the record board and the achievement sheet', () => {
     expect(boardValue('fed', view, 0, t, fmt)).toBe('1,201');
     expect(boardValue('fed', view, 0, getRecordStrings('ja'), (n) => n.toLocaleString('ja-JP'))).toBe('1,201');
     expect(boardValue('claims', view, 0, getRecordStrings('ja'), fmt)).toBe('1回');
+  });
+});
+
+describe('the names the tests find things by', () => {
+  // A test in a browser asks for the one thing of a name, and fails when two answer. Every panel is looked through
+  // on its own, the way those tests look: in each state it can be in, no two things in it share a name.
+  const book = createBook('device0001');
+  const states: [string, RecordsState][] = [
+    ['before the book is read', WAITING],
+    ['an empty book, the bonus ready', reading(book)],
+    ['a book that has been played, the bonus ready', reading(played())],
+    ['the bonus taken on this page', reading(taking([MONDAY]), MONDAY, { claims: 1, paid: BONUS_CARD[0] })],
+    ['a full card', reading(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))))],
+    ['the book not kept', reading(book, MONDAY, { kept: false })],
+    ['a browser that cannot keep its tabs apart', reading(book, MONDAY, { apart: false })],
+    ['no machine running', reading(book, MONDAY, { purse: false })],
+    ['a stamp just earned', reading(played(), MONDAY, { fresh: ['jackpot'] })],
+  ];
+
+  it('are each one thing’s alone on the Records tab, in every state and both languages', () => {
+    for (const lang of ['en', 'ja'] as const) {
+      for (const [name, state] of states) {
+        const html = render(<RecordsView state={state} />, lang);
+        expect(sharedIds(html), `${name} (${lang})`).toEqual([]);
+        expect(testIds(html).length).toBeGreaterThan(40);
+      }
+    }
+    // The board's four headline figures and the rows that repeat them are told apart.
+    const ids = testIds(render(<RecordsView state={reading(played())} />));
+    for (const figure of ['won', 'return', 'prize', 'jackpots']) {
+      expect(ids).toContain(`pusher-headline-${figure}`);
+      expect(ids).toContain(`pusher-record-${figure}`);
+    }
+    // Every row of the board has its name, and so has everything the tests in the browser ask for.
+    for (const row of BOARD_GROUPS.flatMap((group) => [...BOARD_ROWS[group]])) expect(ids).toContain(`pusher-record-${row}`);
+    for (const id of ['pusher-records', 'pusher-card', 'pusher-card-squares', 'pusher-card-take', 'pusher-card-status', 'pusher-records-board', 'pusher-achievements', 'pusher-achievements-count', 'pusher-records-kept', 'pusher-records-clear', 'pusher-records-said']) {
+      expect(ids, id).toContain(id);
+    }
+  });
+
+  it('are each one thing’s alone on the Machine tab, with the plate and the toast in every state', () => {
+    // The cabinet as the server sends it, and the plate and the toast in each state they come to after.
+    const cabinet = render(<PlayTab />);
+    expect(sharedIds(cabinet)).toEqual([]);
+    for (const id of ['pusher-toast', 'pusher-bonus', 'pusher-bonus-pips', 'pusher-bonus-status']) expect(testIds(cabinet), id).toContain(id);
+    const others = testIds(cabinet).filter((id) => !id.startsWith('pusher-bonus') && id !== 'pusher-toast');
+    for (const [name, state] of states) {
+      const mine = render(
+        <>
+          <ToastView id={state.fresh.length > 0 ? state.fresh[0] : null} />
+          <BonusStripView state={state} />
+        </>,
+      );
+      expect(sharedIds(mine), name).toEqual([]);
+      // Nothing of the plate's or the toast's goes by a name the cabinet already uses.
+      expect(testIds(mine).filter((id) => others.includes(id)), name).toEqual([]);
+    }
+    expect(testIds(render(<BonusStripView state={reading(book)} />))).toContain('pusher-bonus-take');
+  });
+
+  it('are not shared between the Machine tab and the Records tab either, but for nothing', () => {
+    const html = render(<MedalPusher />);
+    const panel = (id: string): string => html.slice(html.indexOf(`id="pusher-panel-${id}"`)).split('role="tabpanel"')[0];
+    const [machineIds, recordIds] = [testIds(panel('machine')), testIds(panel('records'))];
+    expect(machineIds.length).toBeGreaterThan(10);
+    expect(recordIds.length).toBeGreaterThan(40);
+    expect(machineIds.filter((id) => recordIds.includes(id))).toEqual([]);
+    expect(testIds(html).filter((id) => id === 'pusher-bonus-dot')).toEqual([]);
   });
 });
 

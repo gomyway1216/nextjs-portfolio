@@ -24,13 +24,17 @@ export const ACHIEVEMENT_NUMBERS: AchievementNumbers = { hold: MAX_STOCK, chest:
 /** The card as the page can show it now: null until the book has been read. */
 const cardOf = ({ book, day }: RecordsState): BonusCard | null => (book && day ? cardFor(book, day) : null);
 
-/** Whether today's bonus can be taken here and now: it is ready, the browser will remember it, and a machine is there to be paid. */
-export const canTake = (state: RecordsState, card: BonusCard | null): boolean => card !== null && card.state === 'ready' && state.kept && state.purse;
+/** Whether this browser pays a daily bonus at all: it keeps the book, and it keeps its tabs apart, so that a day cannot be paid twice. */
+export const paysBonus = (state: RecordsState): boolean => state.kept && state.apart;
+
+/** Whether today's bonus can be taken here and now: it is ready, this browser pays one, and a machine is there to be paid. */
+export const canTake = (state: RecordsState, card: BonusCard | null): boolean => card !== null && card.state === 'ready' && paysBonus(state) && state.purse;
 
 /** What the card has to say for itself, in a sentence or two. */
 export function bonusStatus(t: RecordStrings, state: RecordsState, card: BonusCard | null): string {
   if (!card) return t.bonusWaiting;
   if (!state.kept) return t.bonusNotKept;
+  if (!state.apart) return t.bonusNotApart;
   switch (card.state) {
     case 'ready':
       if (!state.purse) return t.bonusNoMachine;
@@ -61,14 +65,14 @@ export const BonusStripView = ({ state }: { state: RecordsState }) => {
   const stampedHere = state.claims > 0 && card?.state === 'taken';
 
   return (
-    <section className={styles.strip} aria-label={t.bonusTitle} data-state={card ? (state.kept ? card.state : 'off') : 'waiting'} data-testid="pusher-bonus">
+    <section className={styles.strip} aria-label={t.bonusTitle} data-state={card ? (paysBonus(state) ? card.state : 'off') : 'waiting'} data-testid="pusher-bonus">
       <InkPad id={ink} />
       <div className={styles.stripText}>
         <div className={styles.stripHead}>
           <span className={styles.stripTitle}>{t.bonusTitle}</span>
           <span className={styles.pips} role="img" aria-label={t.pipsAria(card?.stamped ?? 0, BONUS_CARD.length)} data-testid="pusher-bonus-pips">
             {BONUS_CARD.map((_, index) => (
-              <span key={index} className={styles.pip} data-on={index < (card?.stamped ?? 0)} data-today={card?.state === 'ready' && card.today === index + 1} />
+              <span key={index} className={styles.pip} data-on={index < (card?.stamped ?? 0)} data-today={card?.state === 'ready' && paysBonus(state) && card.today === index + 1} />
             ))}
           </span>
         </div>
@@ -102,7 +106,7 @@ export const StampCard = ({ state }: { state: RecordsState }) => {
   const stampedHere = state.claims > 0 && card?.state === 'taken';
 
   return (
-    <section className={styles.card} aria-label={t.cardTitle} data-state={card ? (state.kept ? card.state : 'off') : 'waiting'} data-testid="pusher-card">
+    <section className={styles.card} aria-label={t.cardTitle} data-state={card ? (paysBonus(state) ? card.state : 'off') : 'waiting'} data-testid="pusher-card">
       <InkPad id={ink} />
       <div className={styles.cardHead}>
         <span className={styles.cardBrand} aria-hidden>
@@ -115,7 +119,8 @@ export const StampCard = ({ state }: { state: RecordsState }) => {
         {BONUS_CARD.map((medals, index) => {
           const square = index + 1;
           const day = card?.days[index];
-          const today = card?.state === 'ready' && card.today === square;
+          // Today's square is marked only where today's bonus is really there to be had.
+          const today = card?.state === 'ready' && paysBonus(state) && card.today === square;
           return (
             <li key={square} className={styles.square} data-stamped={day !== undefined} data-today={today} data-last={square === BONUS_CARD.length}>
               <span className={styles.squareDay} aria-hidden>
@@ -159,7 +164,7 @@ export const BonusDot = () => <BonusDotView state={useRecords()} />;
 
 export const BonusDotView = ({ state }: { state: RecordsState }) => {
   const card = cardOf(state);
-  return card?.state === 'ready' && state.kept ? <span className={styles.dot} aria-hidden data-testid="pusher-bonus-dot" /> : null;
+  return card?.state === 'ready' && paysBonus(state) ? <span className={styles.dot} aria-hidden data-testid="pusher-bonus-dot" /> : null;
 };
 
 /**

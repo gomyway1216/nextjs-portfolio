@@ -41,6 +41,7 @@ export interface RecordStrings {
   bonusLater: (date: string, medals: number) => string;
   bonusNoDay: string;
   bonusNotKept: string;
+  bonusNotApart: string;
   bonusNoMachine: string;
   pipsAria: (stamped: number, squares: number) => string;
 
@@ -110,6 +111,7 @@ const en: RecordStrings = {
   bonusLater: (date, medals) => `The card is stamped ahead of today. The next bonus is on ${date}: +${medals}.`,
   bonusNoDay: 'This device’s date is off the calendar, so there is no bonus today.',
   bonusNotKept: 'No daily bonus here: this browser is not keeping the record book.',
+  bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
   bonusNoMachine: 'The machine is not running, so there is nowhere to pay today’s bonus.',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
 
@@ -221,6 +223,7 @@ const ja: RecordStrings = {
   bonusLater: (date, medals) => `カードには今日より先の日付のスタンプがあります。次のボーナスは${date}: +${medals}枚`,
   bonusNoDay: 'この端末の日付がカレンダーの範囲外のため、今日のボーナスはありません。',
   bonusNotKept: 'このブラウザでは記録を保存できないため、デイリーボーナスはありません。',
+  bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
   bonusNoMachine: 'マシンが動いていないため、ボーナスを受け取れません。',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
 

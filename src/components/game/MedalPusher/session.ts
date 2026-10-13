@@ -177,6 +177,8 @@ export interface Session {
 /** Something the cabinet should react to, in the order it happened. */
 export type SessionEvent =
   | { type: 'bonus'; count: number }
+  // The medal now at a pocket takes the hold's last place: the hold fills. One that finds it full already is a `checker` that is not `held`.
+  | { type: 'holdFilled' }
   | { type: 'won'; count: number }
   | { type: 'lost'; count: number }
   | { type: 'landed'; count: number }
@@ -383,6 +385,7 @@ export function advance(session: Session, dt: number, events?: SessionEvent[]): 
     events?.push({ type: 'ball', count: field.balls });
   }
   for (const gate of field.checkers) {
+    if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
     if (held) session.stock += 1;

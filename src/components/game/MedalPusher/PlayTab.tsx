@@ -10,6 +10,7 @@ import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, ballTransform, markStrip, stripOffset } from './ScreenPanel';
 import {
   ballSpot,
+  ballTipsAt,
   landTimes,
   reelPositions,
   reelsFast,
@@ -22,7 +23,7 @@ import {
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type Session, type SessionEvent } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
-import { hush, playSound, setMusic, unlockAudio } from './sounds';
+import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { STORAGE_KEY, restore, serialize } from './storage';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
@@ -193,6 +194,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   // How loud the player has the cabinet and whether its loop plays, kept on this device apart from the machine.
   const soundControl = useSoundSettings();
   const musicOn = soundControl.settings.music;
+  const arcadeOn = soundControl.settings.arcade;
   const [announcement, setAnnouncement] = useState('');
   // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
   const [armedAt, setArmedAt] = useState<number | null>(null);
@@ -244,13 +246,18 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     if (hold.by.has(by)) return;
     if (hold.by.size === 0) {
       hold.since = performance.now() / 1000;
+      // The button itself is heard going down, and coming up when the last finger or key leaves it.
+      playSound('button', live.current.sound);
       feedOnce(arm);
     }
     hold.by.add(by);
     showHeld();
   };
   const releaseRail = (arm: Arm, by: string) => {
-    if (holds.current[arm].by.delete(by)) showHeld();
+    const hold = holds.current[arm];
+    if (!hold.by.delete(by)) return;
+    if (hold.by.size === 0) playSound('button', live.current.sound, { up: true });
+    showHeld();
   };
   /** Points one rail at a spot across the field, as near as it can point, and shows where that is. */
   const aimRail = (arm: Arm, x: number) => {
@@ -314,6 +321,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     return () => setMusic(false);
   }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
+  // The arcade round the cabinet is heard on the same terms as the loop, when the player has asked for it. It is
+  // not the machine's, so a reset does not stop it.
+  useEffect(() => {
+    setAmbience(sound && active && arcadeOn);
+    return () => setAmbience(false);
+  }, [sound, active, arcadeOn]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -398,6 +411,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let lastSpinClock = 0;
     let last = performance.now();
     const events: SessionEvent[] = [];
+    // The medals that were in the air before a frame, by name: the ones that have come down in it are among them.
+    const airborne: number[] = [];
     let frameId = 0;
 
     const frame = (now: number) => {
@@ -440,7 +455,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         setAims(shownAims);
       }
       events.length = 0;
+      airborne.length = 0;
+      for (const medal of session.machine.falling) airborne.push(medal.id);
       advance(session, elapsed, events);
+      // The machine is heard turning, in step with the pusher as it is drawn.
+      turnMotor(soundOn, session.machine.time);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
       for (const medal of session.machine.rolling) if (medal.remaining <= FEED.arm && medal.remaining + elapsed > FEED.arm) playSound('roll', soundOn);
 
@@ -519,7 +538,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             setAnnouncement(strings.sayChest(event.chest + 1, event.payout, event.payout >= CHEST_TOWERS_FROM));
             break;
           case 'rouletteStart':
-            playSound('roulette', soundOn);
+            // The ball is heard round the wheel for as long as it is seen to go round; without motion it is not seen to.
+            if (!calm.matches) playSound('roulette', soundOn, { seconds: event.duration });
             break;
           case 'rouletteStep':
             playSound('pocket', soundOn, { level: event.level });
@@ -533,6 +553,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             break;
           case 'bowlStart':
             playSound('reach', soundOn);
+            // The ball is heard round the bowl until it tips, and through its hole as it does.
+            if (!calm.matches) playSound('bowl', soundOn, { seconds: ballTipsAt(event.duration) });
             break;
           case 'bowlEnd':
             if (event.jackpot) celebrate(stage, 'jackpot');
@@ -546,7 +568,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
-      if (landed) playSound('land', soundOn);
+      if (landed) {
+        // On the bare table a medal rings, and on other medals it is damped: the machine knows which it came down on.
+        let down: { tier: number } | undefined;
+        for (let index = session.machine.medals.length - 1; index >= 0 && !down; index--) {
+          if (airborne.includes(session.machine.medals[index].id)) down = session.machine.medals[index];
+        }
+        playSound('land', soundOn, down ? { bare: down.tier === 0 } : {});
+      }
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);

@@ -293,10 +293,56 @@ export function rouletteValue(jackpot: number): number {
 /** The chance that one spin leads to the jackpot: three sevens for a ball, a full run once it falls, then the jackpot's hole. */
 export const JACKPOT_CHANCE = tierChance('seven') * BALL_JACKPOT_CHANCE;
 
-/** Medals each line is worth on average with the jackpot at `jackpot`, counting a ball as the roulette it will start. */
-export function tierValue(tier: Tier, jackpot: number): number {
+// ── Jewels ──────────────────────────────────────────────────────────────────
+
+/**
+ * Jewels. The machine lets one go from the hatch with every treasure line,
+ * and it lies on the field among the medals. Pushed over the front it is
+ * collected: it lights one of the jewel lamps and pays `prize` medals at
+ * once. The one that would light the last lamp pays `bonus` medals instead,
+ * stacked on the pusher as towers, and the lamps go out. No jewel is lost:
+ * it does not fit through an open side.
+ */
+export const JEWEL = { lamps: 5, prize: 1, bonus: 3 } as const;
+/** The line a jewel comes with. */
+export const JEWEL_TIER: Exclude<Tier, 'miss'> = 'big';
+/** The chance that one spin lets a jewel go. */
+export const JEWEL_CHANCE = tierChance(JEWEL_TIER);
+
+/** Medals a jewel pays when it is collected with `lit` lamps already lit, and whether they go up as towers: the last lamp's is the bonus. */
+export const jewelPays = (lit: number): { medals: number; towers: boolean } => (lit >= JEWEL.lamps - 1 ? { medals: JEWEL.bonus, towers: true } : { medals: JEWEL.prize, towers: false });
+
+/** Medals a full set of jewels pays: the prize for every lamp but the last, and the bonus. */
+export const JEWEL_SET = (JEWEL.lamps - 1) * JEWEL.prize + JEWEL.bonus;
+
+/**
+ * Medals a jewel pays on average: a set's medals shared among its jewels. It
+ * is exact in the long run, whatever the lamps show now.
+ */
+export const JEWEL_VALUE = JEWEL_SET / JEWEL.lamps;
+
+/**
+ * Medals the jewels add to one spin on average. Every jewel the machine lets
+ * go is collected in the end, so this is exact too.
+ */
+export const JEWEL_SPIN_VALUE = JEWEL_CHANCE * JEWEL_VALUE;
+
+/** Medals the game a line leads to is worth on average with the jackpot at `jackpot`: the board, the chests, or the roulette a ball will start. */
+function gameValue(tier: Tier, jackpot: number): number {
   if (tier === 'miss') return 0;
   return tier === 'small' ? BOARD_VALUE : tier === 'big' ? CHEST_VALUE : rouletteValue(jackpot);
+}
+
+/** Medals the jewel that comes with a line is worth: what it pays once it is collected. Only a treasure line has one. */
+const jewelValue = (tier: Tier): number => (tier === JEWEL_TIER ? JEWEL_VALUE : 0);
+
+/**
+ * Medals each line is worth on average with the jackpot at `jackpot`, counting
+ * a ball as the roulette it will start and a jewel as what it pays once it is
+ * collected.
+ */
+export function tierValue(tier: Tier, jackpot: number): number {
+  return gameValue(tier, jackpot) + jewelValue(tier);
 }
 
 /** Medals one spin is worth on average with the jackpot at `jackpot`. */
@@ -309,7 +355,9 @@ export function spinValue(jackpot: number): number {
  * starts no spin of its own: it turns one of the held spins gold. A gold spin
  * is drawn from the same table as any other, and what its line pays on the
  * spot, the sugoroku square or the chest, is paid `multiplier` times over. A
- * ball is a ball: three sevens are worth what they always are.
+ * ball is a ball: three sevens are worth what they always are. And a jewel is
+ * a jewel: a gold treasure line lets one go, as any treasure line does, and
+ * what a jewel pays when it is collected is never paid twice over.
  *
  * So a gold spin has cost two medals through a pocket, and is worth less than
  * the two spins they would have been with room in the hold. Filling the hold
@@ -319,7 +367,7 @@ export const CHANCE = { multiplier: 2 } as const;
 
 /** Medals each line of a gold spin is worth on average with the jackpot at `jackpot`. */
 export function chanceTierValue(tier: Tier, jackpot: number): number {
-  return tierValue(tier, jackpot) * (tier === 'small' || tier === 'big' ? CHANCE.multiplier : 1);
+  return gameValue(tier, jackpot) * (tier === 'small' || tier === 'big' ? CHANCE.multiplier : 1) + jewelValue(tier);
 }
 
 /** Medals one gold spin is worth on average with the jackpot at `jackpot`. */

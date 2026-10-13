@@ -55,7 +55,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('the patterns', () => {
   it('are a tick for a medal, something stronger for a win and something long for the jackpot', () => {
-    expect(HAPTIC_NAMES).toEqual(['feed', 'stream', 'catch', 'start', 'crash', 'chance', 'line', 'prize', 'jackpot']);
+    expect(HAPTIC_NAMES).toEqual(['feed', 'stream', 'catch', 'jewel', 'start', 'crash', 'chance', 'line', 'prize', 'jackpot']);
     for (const name of HAPTIC_NAMES) {
       const { pattern, rank, gap } = HAPTICS[name];
       // On, off, on: an odd number of whole milliseconds, each long enough for a motor to answer.
@@ -132,6 +132,20 @@ describe('the rule for what may be felt when', () => {
     for (let i = 1; i < catches.length; i++) expect(catches[i][0] - catches[i - 1][0]).toBeGreaterThanOrEqual(HAPTICS.catch.gap);
   });
 
+  it('lets a jewel through among falling medals, and holds the medals back behind it', () => {
+    // Medals have just been felt going over. The jewel that goes over 30 ms after them is felt all the same.
+    const medals = afterBuzz(UNFELT, 'catch', 1000);
+    expect(mayBuzz(medals, 'catch', 1030)).toBe(false);
+    expect(mayBuzz(medals, 'jewel', 1030)).toBe(true);
+    // While its tick plays a medal's does not cut it short, and the medals' own gap runs from it.
+    const jewel = afterBuzz(medals, 'jewel', 1030);
+    expect(mayBuzz(jewel, 'catch', 1040)).toBe(false);
+    expect(mayBuzz(jewel, 'catch', 1030 + HAPTICS.catch.gap - 1)).toBe(false);
+    expect(mayBuzz(jewel, 'catch', 1030 + HAPTICS.catch.gap)).toBe(true);
+    // Two jewels in a row are two ticks.
+    expect(mayBuzz(jewel, 'jewel', 1030 + hapticLength('jewel'))).toBe(true);
+  });
+
   it('never cuts a pattern short for one that matters less, and always gives way to one that matters more', () => {
     // Ticks and falling medals all through a jackpot: none of them is felt until it is over.
     const wishes: (readonly [number, Haptic])[] = [[1000, 'jackpot']];
@@ -189,6 +203,19 @@ describe('what the hand feels of a frame', () => {
     expect(HAPTICS.chance.rank).toBeGreaterThan(HAPTICS.start.rank);
     expect(hapticLength('chance')).toBeLessThan(hapticLength('line'));
     expect(hapticFor([{ type: 'toppled', count: 1 }])).toBe('crash');
+    // A jewel over the front is a light tick of its own, felt over the medals that go over with it and never held back
+    // by them; the one that makes the set is a prize, like any other that is paid.
+    expect(hapticFor([{ type: 'jewel', lamps: 2, payout: 1 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'won', count: 3 }, { type: 'jewel', lamps: 2, payout: 1 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'jewel', lamps: 2, payout: 1 }, { type: 'won', count: 3 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'jewelBonus', payout: 3 }])).toBe('prize');
+    expect(hapticFor([{ type: 'jewel', lamps: 4, payout: 1 }, { type: 'jewelBonus', payout: 3 }])).toBe('prize');
+    expect(HAPTICS.jewel.pattern).toEqual([28]);
+    expect(hapticLength('jewel')).toBeGreaterThan(hapticLength('catch'));
+    expect(hapticLength('jewel')).toBeLessThan(hapticLength('start'));
+    expect(HAPTICS.jewel.rank).toBeGreaterThan(HAPTICS.catch.rank);
+    expect(HAPTICS.jewel.rank).toBeLessThan(HAPTICS.prize.rank);
+    expect(HAPTICS.jewel.gap).toBe(0);
     expect(hapticFor([{ type: 'ball', count: 1 }])).toBe('line');
     expect(hapticFor([{ type: 'spinEnd', result: spin('small') }])).toBe('line');
     expect(hapticFor([{ type: 'spinEnd', result: spin('seven') }])).toBe('line');
@@ -226,6 +253,8 @@ describe('what the hand feels of a frame', () => {
       { type: 'rouletteStart', pocket: 2, duration: 2.8 },
       { type: 'rouletteEnd', total: 0, level: 0 },
       { type: 'bowlStart', holes: [1, 0, 0], duration: 6.5 },
+      // A jewel thrown from the hatch has only begun as well: it is felt when it is collected.
+      { type: 'jewelDrop' },
     ];
     for (const event of quiet) expect(hapticFor([event])).toBeNull();
   });

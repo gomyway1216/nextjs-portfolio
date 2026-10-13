@@ -27,6 +27,9 @@
  * - A copy on the account that cannot be read here, because a newer version
  *   of the game wrote it or because it is damaged, is left exactly as it is:
  *   not deleted, and not written over.
+ * - Nothing is sent to the account as a player who has signed out. What had
+ *   not yet been sent stays in their slot on this device, marked as unsent,
+ *   and goes up the next time they open the game here.
  * - Failing is ordinary. Whatever goes wrong with the network or the
  *   storage, nothing is thrown: the device's copy plays on, the status says
  *   what is true, and it is tried again later.
@@ -70,6 +73,8 @@ export interface AccountStore {
    * rejects, of whether the account took it.
    */
   storeNow(uid: string, state: object): Promise<boolean> | null;
+  /** Lets go of whatever was got ready for that account: its player has signed out, and nothing more is to be sent as them. */
+  forget(uid: string): void;
 }
 
 /** What this device knows about its copy of an account's document. */
@@ -547,7 +552,14 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
     if (account !== null && read === 'none') startRead();
   };
 
+  /**
+   * Lets go of the account: its player has signed out, or another has signed
+   * in. Nothing is sent on the way, not even what is waiting: a request made
+   * as a player after they have signed out is not one this site makes. The
+   * copy stays in their slot, marked as unsent, for the next time they are here.
+   */
   const leave = (): void => {
+    if (store && account !== null) store.forget(account);
     account = null;
     read = 'none';
     reading += 1;
@@ -561,10 +573,13 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
       wanted = store ? next : GUEST;
       if (!opened || closed) return;
       if (account !== null && wanted.uid !== account && (wanted.settled || wanted.uid !== null)) {
-        // Signing out, or another player signing in: the account's copy is sent one last time with what is in hand.
+        // Signing out, or another player signing in. What is on the table is written down on the device, in its
+        // own slot and with whether the account has had it, and that is all: it is not sent now.
         const text = kept.current();
-        if (text !== null) look(text);
-        if (mayWrite() && dirty && !sending && lastPrint !== sentPrint) send('leaving');
+        if (text !== null) {
+          look(text);
+          write(text);
+        }
         leave();
       }
       if (copyOwner(wanted) !== owner) kept.reopen();

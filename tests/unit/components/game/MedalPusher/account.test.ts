@@ -58,8 +58,9 @@ class FakeAccounts {
   down = false;
   /** The server's clock less the device's. */
   ahead = 0;
-  /** The accounts a token is in hand for. */
+  /** The accounts a token is in hand for, and the ones whose token it has been told to let go of. */
   ready = new Set<string>();
+  forgotten: string[] = [];
   /** Writes that have been sent and not yet answered, when the test wants to answer them itself. */
   held: (() => void)[] | null = null;
   /** The same for reads: each waits here to be answered. */
@@ -117,6 +118,10 @@ class FakeAccounts {
     prepare: async (uid) => {
       this.calls.push(`prepare ${uid}`);
       if (!this.down) this.ready.add(uid);
+    },
+    forget: (uid) => {
+      this.forgotten.push(uid);
+      this.ready.delete(uid);
     },
     storeNow: (uid, state) => {
       if (!this.ready.has(uid)) return null;
@@ -987,34 +992,145 @@ describe('a copy on the account that cannot be read', () => {
 // ── Signing out, and two players at one computer ────────────────────────────
 
 describe('signing out', () => {
-  it('sends the account’s copy one last time, and puts the guest’s machine back on the table', async () => {
-    const { cabinet, accounts, slots, where, table, copy } = rig();
-    await cabinet.start();
-    cabinet.play();
-    await cabinet.tick();
-    accounts.put('ann', doc(40), 'theirs');
-    await cabinet.signs(signedIn('ann'));
-    const guests = slots.map.get(SLOT);
-    // The first change goes up with the next save; the one after it would have waited for the minute.
-    cabinet.play();
-    await cabinet.tick();
-    cabinet.play();
-    await cabinet.tick();
-    const anns = table.text as string;
-    expect(accounts.text('ann')).not.toBe(anns);
+  /** A player signed in on a device, with a change the account has and one it has not: the minute had not come round. */
+  async function withUnsentPlay() {
+    const it = rig();
+    await it.cabinet.start();
+    it.cabinet.play();
+    await it.cabinet.tick();
+    it.accounts.put('ann', doc(40), 'theirs');
+    await it.cabinet.signs(signedIn('ann'));
+    const guests = it.slots.map.get(SLOT) as string;
+    // The first change goes up with the next save; the one after it waits for the minute.
+    it.cabinet.play();
+    await it.cabinet.tick();
+    const synced = it.clock.now;
+    it.cabinet.play();
+    await it.cabinet.tick();
+    const anns = it.table.text as string;
+    expect(booksIn(it.accounts.text('ann'))).toBe(41);
+    expect(booksIn(anns)).toBe(42);
+    return { ...it, guests, anns, synced };
+  }
+
+  it('sends nothing once the player has signed out: what was not yet sent waits on this device for them', async () => {
+    const { cabinet, accounts, where, table, copy, guests, anns } = await withUnsentPlay();
+    const before = [...accounts.calls];
 
     await cabinet.signs(GUEST);
-    expect(accounts.count('storeNow')).toBe(1);
-    expect(accounts.text('ann')).toBe(anns);
+    // The guest's machine is back on the table, and the account's is in its own slot, marked as not yet sent.
     expect(table.text).toBe(guests);
-    expect(copy('ann')?.text).toBe(anns);
     expect(where()).toBe('device');
-    // Nothing more goes to the account once the player has signed out.
-    const calls = accounts.calls.length;
-    cabinet.play();
-    await cabinet.tick(SEND_EVERY * 2);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: true, sent: null });
+    // Whatever the guest then does, for however long, and however the page is left: not one call of any kind
+    // reaches the account, and the token that was in hand for it has been let go.
+    for (let i = 0; i < 30; i++) {
+      cabinet.play();
+      await cabinet.tick(SEND_EVERY);
+    }
+    await cabinet.moment();
     await cabinet.hide();
-    expect(accounts.calls.length).toBe(calls);
+    await cabinet.leave();
+    await cabinet.reset();
+    expect(accounts.calls).toEqual(before);
+    expect(accounts.forgotten).toEqual(['ann']);
+    expect(accounts.ready.has('ann')).toBe(false);
+    expect(booksIn(accounts.text('ann'))).toBe(41);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: true });
+  });
+
+  it('writes down what is unsent at the moment of signing out, before the cabinet has done anything', async () => {
+    const { cabinet, sync, table, copy, accounts } = await withUnsentPlay();
+    // Played once more since the device last saved: its slot is a move behind.
+    cabinet.play();
+    const anns = table.text as string;
+    expect(copy('ann')?.text).not.toBe(anns);
+    const before = [...accounts.calls];
+    sync.player(GUEST);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: true, sent: null });
+    expect(accounts.calls).toEqual(before);
+  });
+
+  it('notices a move made since the device last saved, when the copy had been in step with the account', async () => {
+    const { cabinet, sync, table, copy, accounts, clock } = await visited('ann');
+    // One more move, and she signs out before the cabinet has saved anything.
+    clock.now += 7000;
+    cabinet.play();
+    const anns = table.text as string;
+    const before = [...accounts.calls];
+    sync.player(GUEST);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: true, changedAt: clock.now });
+    expect(accounts.calls).toEqual(before);
+    // It is not lost for having been told to nobody: it goes up when she is back.
+    await cabinet.rest();
+    expect(accounts.calls).toEqual(before);
+    await cabinet.signs(signedIn('ann'));
+    expect(table.text).toBe(anns);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: false });
+  });
+
+  it('sends what was waiting when the same player signs in again on this device', async () => {
+    const { cabinet, accounts, table, copy, where, anns, clock } = await withUnsentPlay();
+    await cabinet.signs(GUEST);
+    clock.now += 3 * 24 * 3_600_000;
+    const stores = accounts.count('store');
+
+    await cabinet.signs(signedIn('ann'));
+    // Nobody else has written to the account, so no clock is asked: the device's copy is the newer, and goes up.
+    expect(table.text).toBe(anns);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(accounts.count('store')).toBe(stores + 1);
+    expect(accounts.count('storeNow')).toBe(0);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: false });
+    expect(where()).toBe('account');
+  });
+
+  it('lets the later copy win when the player has played elsewhere in between: the other device’s, if it is the later', async () => {
+    const { cabinet, accounts, table, copy, clock } = await withUnsentPlay();
+    await cabinet.signs(GUEST);
+    // The next day they play on another device, signed in; the day after, they are back on this one.
+    clock.now += 24 * 3_600_000;
+    accounts.put('ann', doc(500), 'elsewhere');
+    clock.now += 24 * 3_600_000;
+    const stores = accounts.count('store');
+
+    await cabinet.signs(signedIn('ann'));
+    expect(booksIn(table.text)).toBe(500);
+    expect(booksIn(accounts.text('ann'))).toBe(500);
+    expect(accounts.count('store') + accounts.count('storeNow')).toBe(stores);
+    expect(copy('ann')).toMatchObject({ text: doc(500), dirty: false, known: 'elsewhere' });
+  });
+
+  it('lets the later copy win when the player has played elsewhere in between: this device’s, if it is the later', async () => {
+    const { cabinet, accounts, table, copy, anns, synced } = await withUnsentPlay();
+    // The other device was open at the same time, and wrote two seconds after this one last had; this one was
+    // played on after that, and signed out before its minute came round.
+    accounts.put('ann', doc(500), 'elsewhere', synced + 2000);
+    await cabinet.signs(GUEST);
+    const stores = accounts.count('store');
+
+    await cabinet.signs(signedIn('ann'));
+    expect(table.text).toBe(anns);
+    expect(accounts.text('ann')).toBe(anns);
+    expect(accounts.count('store')).toBe(stores + 1);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: false });
+  });
+
+  it('sends nothing for the player who is leaving when another signs in on the same page', async () => {
+    const { cabinet, accounts, copy, anns, table } = await withUnsentPlay();
+    const before = accounts.calls.filter((call) => call.endsWith(' ann'));
+
+    await cabinet.signs(signedIn('bob'));
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    await cabinet.hide();
+    // Everything since is Bob's: nothing was sent as Ann, and her copy waits for her, unsent.
+    expect(accounts.calls.filter((call) => call.endsWith(' ann'))).toEqual(before);
+    expect(accounts.forgotten).toEqual(['ann']);
+    expect(booksIn(accounts.text('ann'))).toBe(41);
+    expect(copy('ann')).toMatchObject({ text: anns, dirty: true });
+    expect(accounts.text('bob')).toBe(table.text);
   });
 
   it('starts a new machine for a guest when there is none', async () => {

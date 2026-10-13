@@ -46,6 +46,16 @@ export async function getGameSaveCredentials(): Promise<{ uid: string; token: st
   return { uid: user.uid, token: await user.getIdToken() };
 }
 
+/**
+ * The id of whoever is signed in at this instant, or null for nobody,
+ * without waiting for anything. A caller holding a token for a write that
+ * cannot wait checks this before it uses it: a token is only to be used
+ * while its player is still signed in.
+ */
+export function currentGameSaveUid(): string | null {
+  return auth.currentUser?.uid ?? null;
+}
+
 export async function getGameSave<T>(gameKey: string): Promise<GameSave<T> | null> {
   const headers = await getAuthHeaders();
   if (!headers) return null;

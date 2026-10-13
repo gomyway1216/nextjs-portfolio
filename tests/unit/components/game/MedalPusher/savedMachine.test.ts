@@ -165,6 +165,7 @@ function fakeAccount() {
       docs.set(uid, { state: throughTheRoute(state), updatedAt: Date.now() });
     },
     prepare: async () => undefined,
+    forget: () => undefined,
     storeNow: (uid, state) => {
       calls.push('storeNow');
       docs.set(uid, { state: throughTheRoute(state), updatedAt: Date.now() });

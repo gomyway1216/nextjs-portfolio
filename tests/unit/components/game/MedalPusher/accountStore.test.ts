@@ -6,6 +6,7 @@ const service = vi.hoisted(() => ({
   saveGameSave: vi.fn(),
   saveGameSaveKeepalive: vi.fn(),
   getGameSaveCredentials: vi.fn(),
+  currentGameSaveUid: vi.fn(),
 }));
 vi.mock('@/services/gameSaveService', () => service);
 
@@ -17,6 +18,7 @@ const BOB = { uid: 'bob', token: 'bobs-made-up-token' };
 beforeEach(() => {
   for (const stand of Object.values(service)) stand.mockReset();
   service.getGameSaveCredentials.mockResolvedValue(ANN);
+  service.currentGameSaveUid.mockReturnValue(ANN.uid);
   service.saveGameSave.mockResolvedValue(undefined);
   service.saveGameSaveKeepalive.mockResolvedValue(true);
 });
@@ -43,6 +45,7 @@ describe('the account’s store on the site’s save service', () => {
 
   it('refuses to read or write for any account but the one signed in', async () => {
     service.getGameSaveCredentials.mockResolvedValue(BOB);
+    service.currentGameSaveUid.mockReturnValue(BOB.uid);
     const store = accountStoreFor('medal-pusher');
     await expect(store.load('ann')).rejects.toThrow();
     await expect(store.store('ann', { data: 'anns' })).rejects.toThrow();
@@ -74,6 +77,97 @@ describe('the account’s store on the site’s save service', () => {
     await expect(going).resolves.toBe(true);
     // A token in hand for one account is not used for another.
     expect(store.storeNow('bob', { data: 'x' })).toBeNull();
+  });
+
+  it('does not use the token in hand once its player has signed out, and lets it go', async () => {
+    const store = accountStoreFor('medal-pusher');
+    await store.prepare('ann');
+    // She signs out. Nothing has told the store yet; the page is hidden a moment later.
+    service.currentGameSaveUid.mockReturnValue(null);
+    expect(store.storeNow('ann', { data: 'x' })).toBeNull();
+    expect(service.saveGameSaveKeepalive).not.toHaveBeenCalled();
+    // The token is gone for good, not kept for when somebody is signed in again.
+    service.currentGameSaveUid.mockReturnValue(ANN.uid);
+    expect(store.storeNow('ann', { data: 'x' })).toBeNull();
+    expect(service.saveGameSaveKeepalive).not.toHaveBeenCalled();
+  });
+
+  it('does not use one player’s token in hand when another is signed in', async () => {
+    const store = accountStoreFor('medal-pusher');
+    await store.prepare('ann');
+    service.currentGameSaveUid.mockReturnValue(BOB.uid);
+    // Bob's machine is not sent with Ann's token, which would write it to her account; nor hers as him.
+    expect(store.storeNow('bob', { data: 'bobs' })).toBeNull();
+    expect(store.storeNow('ann', { data: 'anns' })).toBeNull();
+    expect(service.saveGameSaveKeepalive).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the token that came is another player’s, whoever is signed in by then', async () => {
+    service.getGameSaveCredentials.mockResolvedValue(BOB);
+    service.getGameSave.mockResolvedValue(null);
+    const store = accountStoreFor('medal-pusher');
+    await expect(store.load('ann')).rejects.toThrow();
+    await expect(store.store('ann', { data: 'anns' })).rejects.toThrow();
+    expect(service.getGameSave).not.toHaveBeenCalled();
+    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(store.storeNow('ann', { data: 'anns' })).toBeNull();
+  });
+
+  it('lets go of the token when it is told the player has signed out, and of nobody else’s', async () => {
+    const store = accountStoreFor('medal-pusher');
+    await store.prepare('ann');
+    store.forget('bob');
+    expect(store.storeNow('ann', {})).not.toBeNull();
+    store.forget('ann');
+    expect(store.storeNow('ann', {})).toBeNull();
+    expect(service.saveGameSaveKeepalive).toHaveBeenCalledTimes(1);
+    // Forgetting when there is nothing in hand is nothing.
+    expect(() => store.forget('ann')).not.toThrow();
+  });
+
+  /** The service's answer about who is signed in, held back until the test lets it go. */
+  function heldBack() {
+    let give: (who: typeof ANN | null) => void = () => undefined;
+    service.getGameSaveCredentials.mockReturnValue(new Promise((resolve) => (give = resolve)));
+    return (who: typeof ANN | null) => give(who);
+  }
+
+  it('does not keep a token that arrives after its player has signed out', async () => {
+    const store = accountStoreFor('medal-pusher');
+    const give = heldBack();
+    const ready = store.prepare('ann');
+    // She signs out while the token is on its way, and the store is told.
+    service.currentGameSaveUid.mockReturnValue(null);
+    store.forget('ann');
+    give(ANN);
+    await ready;
+    // Even if she is signed in again by the time the page is left, that token is not in hand.
+    service.currentGameSaveUid.mockReturnValue(ANN.uid);
+    expect(store.storeNow('ann', { data: 'x' })).toBeNull();
+    expect(service.saveGameSaveKeepalive).not.toHaveBeenCalled();
+  });
+
+  it('sends no read and no write whose player signed out while the token was on its way', async () => {
+    service.getGameSave.mockResolvedValue(null);
+    const store = accountStoreFor('medal-pusher');
+    const give = heldBack();
+    const reading = store.load('ann');
+    const writing = store.store('ann', { data: 'anns' });
+    service.currentGameSaveUid.mockReturnValue(null);
+    give(ANN);
+    // The read fails; it does not say that the account has nothing.
+    await expect(reading).rejects.toThrow();
+    await expect(writing).rejects.toThrow();
+    expect(service.getGameSave).not.toHaveBeenCalled();
+    expect(service.saveGameSave).not.toHaveBeenCalled();
+    // Nor when another player has signed in meanwhile.
+    const giveAgain = heldBack();
+    const late = store.store('ann', { data: 'anns' });
+    service.currentGameSaveUid.mockReturnValue(BOB.uid);
+    giveAgain(ANN);
+    await expect(late).rejects.toThrow();
+    expect(service.saveGameSave).not.toHaveBeenCalled();
+    expect(store.storeNow('ann', {})).toBeNull();
   });
 
   it('keeps the token of a read or a write in hand as well', async () => {

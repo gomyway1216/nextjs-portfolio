@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const firebase = vi.hoisted(() => ({ auth: { currentUser: null as null | { uid: string; getIdToken: () => Promise<string> } } }));
 vi.mock('@/lib/firebaseConnect', () => firebase);
 
-import { GameSaveError, deleteGameSave, getGameSave, getGameSaveCredentials, saveGameSave, saveGameSaveKeepalive } from '@/services/gameSaveService';
+import { GameSaveError, currentGameSaveUid, deleteGameSave, getGameSave, getGameSaveCredentials, saveGameSave, saveGameSaveKeepalive } from '@/services/gameSaveService';
 
 const TOKEN = 'a-made-up-token';
 const fetchMock = vi.fn();
@@ -127,6 +127,18 @@ describe('who is signed in', () => {
     expect(await getGameSaveCredentials()).toEqual({ uid: 'a-made-up-player', token: TOKEN });
     firebase.auth.currentUser = null;
     expect(await getGameSaveCredentials()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('who is signed in at this instant', () => {
+  it('is known without waiting for anything, and without asking for a token', () => {
+    const getIdToken = vi.fn(async () => TOKEN);
+    firebase.auth.currentUser = { uid: 'a-made-up-player', getIdToken };
+    expect(currentGameSaveUid()).toBe('a-made-up-player');
+    firebase.auth.currentUser = null;
+    expect(currentGameSaveUid()).toBeNull();
+    expect(getIdToken).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

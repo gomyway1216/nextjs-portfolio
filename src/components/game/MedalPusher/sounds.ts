@@ -70,6 +70,11 @@ export const SOUNDS = [
   'pour',
   'guard',
   'slit',
+  'ride',
+  'start',
+  'spark',
+  'teeter',
+  'lampStep',
 ] as const;
 export type PusherSound = (typeof SOUNDS)[number];
 
@@ -108,6 +113,9 @@ const EXTRA_SAMPLES = [
   'settle',
   'bowlLand',
   'rotor',
+  // A medal dropping off the end of a tongue into its pocket, and the cabinet's answer to a gold entry.
+  'rideDrop',
+  'startGold',
 ] as const;
 /** What the room is made of: its own tone, other machines' medals from far off, and scraps of their tunes. */
 const ROOM_SAMPLES = ['room', 'farClink', 'farRattle', 'farPour', 'farTune'] as const;
@@ -131,7 +139,7 @@ export const WARMED: readonly Sample[] = SAMPLES.filter((sample) => sample !== '
  * the pusher's whole stroke, the room's tone. They join up with themselves, so
  * they do not begin and end in silence as everything else does.
  */
-export const LOOPING: readonly Sample[] = ['motor', 'roulette', 'lift', 'bowl', 'hopper', 'room', 'pour', 'rotor'];
+export const LOOPING: readonly Sample[] = ['motor', 'roulette', 'lift', 'bowl', 'hopper', 'room', 'pour', 'rotor', 'ride'];
 
 /** What a sound may be told when it is played. */
 export interface SoundOptions {
@@ -151,11 +159,12 @@ export interface SoundOptions {
    */
   bare?: boolean;
   /**
-   * For a mechanism that runs (`lift`, `bowl`, `roulette`, `hopper`, `pour`):
-   * how long it runs, in seconds. A lift ends in its stop and a bowl in the
-   * ball dropping through its hole, at that moment; a roulette has its
-   * moments at their shares of it. For `guard`: how long the guard travels
-   * before it seats.
+   * For a mechanism that runs (`lift`, `bowl`, `roulette`, `hopper`, `pour`,
+   * `ride`): how long it runs, in seconds. A lift ends in its stop, a bowl in
+   * the ball dropping through its hole and a ride in the medal dropping into
+   * its pocket, at that moment; a roulette has its moments at their shares of
+   * it. For `guard`: how long the guard travels before it seats. For `spark`:
+   * how long the light takes to reach its lamp.
    */
   seconds?: number;
   /**
@@ -174,6 +183,8 @@ export interface SoundOptions {
    * in seconds from now. It is heard on that hole's lip.
    */
   nearMiss?: number;
+  /** For `start`: whether the entry is a gold one. The cabinet says more about it. */
+  gold?: boolean;
   /**
    * Whether the thing is going back up: a `button` let go rather than pressed,
    * a `door` swung up and latched rather than dropped open, a `shutter`
@@ -299,6 +310,11 @@ export const SOUND_LEVELS: Record<PusherSound, number> = {
   pour: 0.075,
   guard: 0.045,
   slit: 0.07,
+  ride: 0.03,
+  start: 0.07,
+  spark: 0.045,
+  teeter: 0.05,
+  lampStep: 0.02,
 };
 
 /** The peak a rattle of `size` medals is played at: from a single medal's level up to the ceiling. */
@@ -306,7 +322,7 @@ export const pourLevel = (size: number): number =>
   SOUND_LEVELS.win + (LEVEL.ceiling - SOUND_LEVELS.win) * (Math.log2(size) / Math.log2(POURS[POURS.length - 1]));
 
 /** The medals themselves, the tray apart: the sounds that come in streams, each a little different from the last. */
-const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'insert', 'lost', 'roll', 'button', 'slit']);
+const CLINKS: ReadonlySet<PusherSound> = new Set<PusherSound>(['land', 'insert', 'lost', 'roll', 'button', 'slit', 'ride', 'teeter']);
 
 /**
  * The machine itself, which is never still. Its motor, the pusher the motor
@@ -362,6 +378,20 @@ export const ROTOR = { level: 0.028, stretch: 0.5, overlap: 0.08, lead: 0.1 } as
 
 /** How long a lift's guard travels before it seats when nobody says: rising, and coming down. */
 export const GUARD = { up: 0.5, down: 0.45 } as const;
+
+/**
+ * An entry: a medal that came over the lip squarely on a tongue. It rides
+ * the tongue (`ride`), drops off the end into its pocket (`drop`, which the
+ * ride ends in), the cabinet answers (`start`, and `gold` for a gold one),
+ * and a light runs up to its lamp in the HOLD row (`spark`, in `seconds`
+ * when nobody says). The drop and the answer are the loudest things in it,
+ * and a near miss (`teeter`) is quieter than either.
+ */
+export const ENTRY = {
+  drop: { sample: 'rideDrop', level: 0.065 },
+  gold: { sample: 'startGold', level: 0.08 },
+  spark: { seconds: 0.35 },
+} as const;
 
 /** No mechanism runs for less or for longer than this, in seconds, whatever it is asked. See `RUNS`. */
 export const RUN = { shortest: 0.3, longest: 12 } as const;
@@ -515,6 +545,13 @@ function score(step: number, tail: number, parts: [voice: Voice, level: number, 
 export const SCORES = {
   // A medal through a chucker: two bells, a fourth apart.
   gate: score(0.075, 0.45, [['bell', 1, 'B5 E6:4']]),
+  // An entry: up a fourth on to the key note, which is an answer and not a question. The call is two notes, and it is
+  // played twice over: by the bell, and an octave down at a third of the bell's level, where a small speaker is
+  // strongest, so that a phone has more of it than the top of a bell. A gold entry is `GOLD_START`.
+  start: score(0.07, 0.4, [
+    ['bell', 1, 'G6 C7:4'],
+    ['second', 0.3, 'G5 C6:3'],
+  ]),
   // Two reels alike and the third still turning: a climb by half steps, the bass knocking under it.
   reach: score(0.13, 0.08, [
     ['pulse', 1, 'E5 F5 F#5 G5 G#5 A5 A#5 B5 C6 C#6'],
@@ -1129,6 +1166,23 @@ function perform(t: Take, music: Score): void {
   }
 }
 
+/**
+ * A gold entry. The same call with a third note on top of it; where the plain
+ * call has its own octave under it, this has a voice in harmony, a third or a
+ * fourth under each note; and the key note is held under both.
+ */
+export const GOLD_START: Score = score(0.07, 0.55, [
+  ['bell', 1, 'G6 C7 E7:5'],
+  ['second', 0.35, 'E6 G6 C7:4'],
+  ['bass', 0.3, 'C5:6'],
+]);
+
+/**
+ * And its shimmer: small bells above every note of the call, one every
+ * `every` seconds from `from` seconds in, each `fade` of the one before.
+ */
+export const GOLD_SHIMMER = { hz: [5274, 6272, 4186, 5274, 6272, 4186, 5274, 6272, 4186, 5274], from: 0.2, every: 0.035, level: 0.2, fade: 0.88, ring: 0.07 } as const;
+
 const jingle =
   (music: Score) =>
   (rate: number): Take => {
@@ -1158,6 +1212,8 @@ export const VARIANTS: Partial<Record<Sample, number>> = {
   shutter: 2,
   drop: 2,
   slit: 3,
+  rideDrop: 2,
+  teeter: 2,
   farClink: 3,
   farRattle: 2,
   farTune: 6,
@@ -1257,12 +1313,19 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     return t;
   },
   gate: jingle(SCORES.gate),
-  // The stock is full and the medal was wasted: two soft knocks on wood.
+  start: jingle(SCORES.start),
+  // The hold is full and the medal was wasted: a dull no. A knuckle on wood, and a softer, lower one after it.
   full: (rate) => {
-    const t = take(0.24, rate);
-    [520, 440].forEach((hz, index) => {
-      glide(t, index * 0.09, 0.12, hz, hz * 0.75, 0.04, dying(0.02));
-      hiss(t, index * 0.09, 0.03, dying(0.006, 0.25), { kind: 'band', hz: 1500, q: 1.5 }, 61 + index);
+    const t = take(0.2, rate);
+    [
+      [0, 1, 1],
+      [0.075, 0.5, 0.82],
+    ].forEach(([at, level, tune], knock) => {
+      ping(t, LEAD + at, 310 * tune, 0.8 * level, 0.02);
+      ping(t, LEAD + at, 640 * tune, 0.6 * level, 0.012);
+      ping(t, LEAD + at, 980 * tune, 0.3 * level, 0.008);
+      ping(t, LEAD + at, 185 * tune, 0.35 * level, 0.03);
+      hiss(t, LEAD + at, 0.02, dying(0.004, 0.5 * level), { kind: 'band', hz: 1100, q: 1.2 }, 61 + knock);
     });
     return t;
   },
@@ -1612,6 +1675,89 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     coin(t, lands + 0.05, MEDAL.hz * tune * 1.006, 0.3, 0.02, 348 + variant, 0.6);
     return rounded(t);
   },
+  // A medal sliding down a short steel tongue between its rails, made to go round and round: brass scraping on steel,
+  // which is a hiss with the medal's own note faintly in it, and the medal touching one rail and the other as it goes.
+  ride: (rate) => {
+    const length = 0.6;
+    const cross = 0.08;
+    const t = take(length + cross, rate);
+    const random = noise(411);
+    const grain = (seconds: number) => 0.75 + 0.25 * Math.sin(TURN * 35 * seconds) * Math.sin(TURN * 10 * seconds);
+    hiss(t, 0, length + cross, (seconds) => 0.5 * grain(seconds), { kind: 'band', hz: 3200, q: 0.9 }, 412);
+    hiss(t, 0, length + cross, () => 0.18, { kind: 'band', hz: 900, q: 0.8 }, 413);
+    for (let at = 0.01; at < length + cross - 0.03; at += 0.05 + 0.03 * (random() + 1)) {
+      answer(t, at, BODIES.rail, 0.5 + 0.2 * random(), 414 + Math.round(at * 1000));
+      ping(t, at, MEDAL.hz * (1 + 0.02 * random()), 0.07, 0.006, MEDAL.top);
+    }
+    return looped(t, cross);
+  },
+  // And off the end of it: it lands flat on the pocket's floor, which is a clack with little ring to it, and is heard
+  // once more from down inside, hollow.
+  rideDrop: (rate, variant) => {
+    const t = take(0.3, rate);
+    const tune = [1, 0.93][variant];
+    coin(t, LEAD, MEDAL.hz * tune, 0.7, 0.008, 421 + variant, 0.9);
+    answer(t, LEAD, BODIES.table, 1, 423 + variant);
+    const inside = LEAD + [0.07, 0.082][variant];
+    glide(t, inside, 0.12, 260 * tune, 180 * tune, 0.04, dying(0.03, 0.5));
+    ping(t, inside, 520 * tune, 0.3, 0.012);
+    hiss(t, inside, 0.03, dying(0.006, 0.2), { kind: 'low', hz: 700, q: 0.7 }, 425 + variant);
+    return rounded(t);
+  },
+  // The cabinet's answer to a gold entry: the call with its third note, and a shimmer over the last of it, which is
+  // small bells very high up, each a little quieter than the one before.
+  startGold: (rate) => {
+    const t = take(GOLD_START.length + GOLD_START.tail, rate);
+    perform(t, GOLD_START);
+    const { from, every, level, fade, ring } = GOLD_SHIMMER;
+    GOLD_SHIMMER.hz.forEach((hz, glint) => ping(t, from + glint * every, hz, level * fade ** glint, ring));
+    speaker(t);
+    return t;
+  },
+  // The light running from a pocket up to its lamp: a few ticks, each higher than the last, and the lamp's own tink
+  // as it lights, `ENTRY.spark.seconds` after the first of them. It comes out of the cabinet's speaker.
+  spark: (rate) => {
+    const run = ENTRY.spark.seconds;
+    const t = take(run + 0.3, rate);
+    [1800, 2250, 2800, 3500, 4300].forEach((hz, tick) => {
+      const at = LEAD + (run * tick) / 5;
+      ping(t, at, hz, 0.26 + 0.04 * tick, 0.006);
+      hiss(t, at, 0.004, dying(0.001, 0.12), { kind: 'band', hz: hz * 1.4, q: 1.5 }, 431 + tick);
+    });
+    bell(t, LEAD + run, 3520, 1, 0.09);
+    speaker(t);
+    return t;
+  },
+  // A medal astride a tongue's rail: it rocks, quicker each time, and goes over the side into the gap, which is a duller
+  // clack than a pocket's because there is no pocket under it.
+  teeter: (rate, variant) => {
+    const t = take(0.5, rate);
+    const tune = [1, 1.05][variant];
+    let at = LEAD;
+    let gap = [0.11, 0.1][variant];
+    let level = 0.5;
+    for (let rock = 0; rock < 4; rock++) {
+      coin(t, at, MEDAL.hz * tune * (1 + 0.004 * rock), level, 0.012, 441 + variant * 10 + rock, 0.5);
+      answer(t, at, BODIES.chute, level * 0.5, 451 + variant * 10 + rock);
+      at += gap;
+      gap *= 0.72;
+      level *= 0.85;
+    }
+    coin(t, at, MEDAL.hz * tune * 0.97, 0.35, 0.006, 461 + variant, 0.4);
+    answer(t, at, BODIES.gutter, 1.4, 463 + variant);
+    return rounded(t);
+  },
+  // The lucky lamp stepping to the next pocket: a relay, which is its armature landing and its contact closing a
+  // few thousandths of a second after.
+  lampStep: (rate) => {
+    const t = take(0.06, rate);
+    ping(t, LEAD, 420, 0.5, 0.008);
+    ping(t, LEAD, 1400, 0.45, 0.005);
+    hiss(t, LEAD, 0.006, dying(0.0015, 0.4), { kind: 'band', hz: 2200, q: 1.2 }, 471);
+    ping(t, LEAD + 0.005, 2600, 0.25, 0.003);
+    hiss(t, LEAD + 0.005, 0.004, dying(0.001, 0.25), { kind: 'band', hz: 3400, q: 1.4 }, 472);
+    return t;
+  },
   // A shutter opening: the solenoid lets go with a click, the slats run up, and stop.
   shutterOpen: (rate) => {
     const t = take(0.3, rate);
@@ -1915,7 +2061,8 @@ interface Run {
  * strikes the lip of a pocket there, hops the divider at 0.8 and settles at
  * 0.92: one sound with those moments in it, however long the turn. A lift's
  * motor gets going, runs, and stops against its end. Medals down a chute
- * come in a rush and thin at the end. A ball in a bowl slows
+ * come in a rush and thin at the end. A medal on a tongue slides faster all
+ * the way down it and drops off the end into its pocket. A ball in a bowl slows
  * all the way round and drops through its hole: the knock of it going through
  * is `before` seconds into `drop`. A hopper's disc gets going, throws medals
  * out, and the last of them are fewer. In a funnel (`FUNNEL`) the ball goes
@@ -1954,6 +2101,7 @@ const RUNS: Partial<Record<PusherSound, Run>> = {
   },
   hopper: { usual: 2, share: 1, speeds: [0.85, 1, 1], spin: 0.15, rise: 0.12, from: 0.7, thin: 0.35, fall: 0.2 },
   pour: { usual: 2, share: 1, speeds: [0.9, 1, 1], spin: 0.15, rise: 0.1, from: 0.75, thin: 0.4, fall: 0.15 },
+  ride: { usual: 0.8, share: 1, speeds: [0.7, 0.7, 1.3], spin: 0, rise: 0.04, from: 1, thin: 1, fall: 0.015, end: { ...ENTRY.drop, before: LEAD } },
 };
 const FUNNEL: Run = { ...(RUNS.bowl as Run), speeds: [0.6, 0.6, 1.45], from: 1, thin: 1, fall: 0.06 };
 /** A near miss in a bowl is the ball on the lip of the hole it does not take. */
@@ -2274,14 +2422,18 @@ function run(target: Rig, sound: PusherSound, plan: Run, now: number, laid: Laid
   const { seconds, wait, turning: hoppers } = laid;
   const buffer = bufferFor(target, sound, 0);
   const [setsOff, runs, stops] = plan.speeds;
+  // A medal's own run is a little off true and a little quieter than the most it can be, as its clinks are: no two medals are one medal.
+  const medal = CLINKS.has(sound);
+  const detune = medal ? wander() : 1;
+  const loud = medal ? 1 - Math.random() * WANDER.level : 1;
   for (let layer = 0; layer < hoppers; layer++) {
     // Each of several joins after the one before it and leaves before it, unless there is no time to.
     const apart = Math.min(HOPPER.apart, (seconds - wait) / 8) * layer;
     const from = now + wait + apart;
     const end = now + seconds - apart;
     const length = end - from;
-    const speed = hoppers > 1 ? HOPPER.speeds[layer] : 1;
-    const level = SOUND_LEVELS[sound] * (hoppers > 1 ? HOPPER.levels[layer] : 1);
+    const speed = (hoppers > 1 ? HOPPER.speeds[layer] : 1) * detune;
+    const level = SOUND_LEVELS[sound] * (hoppers > 1 ? HOPPER.levels[layer] : 1) * loud;
     const rise = Math.min(plan.rise, length / 4);
     const fall = Math.min(plan.fall, length / 4);
     const source = target.audio.createBufferSource();
@@ -2308,7 +2460,7 @@ function run(target: Rig, sound: PusherSound, plan: Run, now: number, laid: Laid
   }
   for (const extra of laid.extras) {
     const takes = VARIANTS[extra.sample] ?? 1;
-    begin(target, target.voices, bufferFor(target, extra.sample, Math.floor(Math.random() * takes)), extra.when, extra.level, extra.speed);
+    begin(target, target.voices, bufferFor(target, extra.sample, Math.floor(Math.random() * takes)), extra.when, extra.level * loud, extra.speed * detune);
   }
   // A payout is medals, and the loop makes room for it as it does for the tray.
   if (sound === 'hopper' || sound === 'pour') duck(target, now, now + seconds);
@@ -2436,16 +2588,20 @@ function start(target: Rig, sound: PusherSound, options: SoundOptions): void {
     return;
   }
   // A medal that lands comes down on the table or on other medals, and they are different sounds. A button, a door,
-  // a shutter and a guard go one way and come back the other.
-  const sample: Sample = sound === 'land' && (options.bare ?? Math.random() < BARE_SHARE) ? 'plate' : ((options.up && UPS[sound]) || sound);
+  // a shutter and a guard go one way and come back the other. A gold entry has an answer of its own.
+  const golden = sound === 'start' && options.gold === true;
+  const sample: Sample =
+    sound === 'land' && (options.bare ?? Math.random() < BARE_SHARE) ? 'plate' : golden ? ENTRY.gold.sample : ((options.up && UPS[sound]) || sound);
   const takes = VARIANTS[sample] ?? 1;
   const clink = CLINKS.has(sound);
   const variant = sound === 'pocket' ? Math.min(takes, Math.max(1, Math.round(options.level ?? 1))) - 1 : Math.floor(Math.random() * takes);
   const buffer = bufferFor(target, sample, variant);
-  // A guard that is given longer or shorter to travel is played slower or faster, within what still sounds like it.
-  const travel = sound === 'guard' && options.seconds !== undefined && options.seconds > 0 ? Math.min(1.6, Math.max(0.6, (options.up ? GUARD.up : GUARD.down) / options.seconds)) : 1;
+  // A take that is as long as something takes to get somewhere, a guard to its seat or a light to its lamp, is played
+  // slower or faster when it is given longer or shorter to get there, within what still sounds like it.
+  const natural = sound === 'guard' ? (options.up ? GUARD.up : GUARD.down) : sound === 'spark' ? ENTRY.spark.seconds : 0;
+  const travel = natural > 0 && options.seconds !== undefined && options.seconds > 0 ? Math.min(1.6, Math.max(0.6, natural / options.seconds)) : 1;
   const speed = clink ? wander() : travel;
-  const level = SOUND_LEVELS[sound] * (clink ? 1 - Math.random() * WANDER.level : 1);
+  const level = (golden ? ENTRY.gold.level : SOUND_LEVELS[sound]) * (clink ? 1 - Math.random() * WANDER.level : 1);
   begin(target, target.voices, buffer, clink ? now + Math.random() * WANDER.late : now, level, speed);
   if (tune && RESTS.has(sound)) {
     tune.restUntil = now + buffer.duration;

@@ -164,10 +164,12 @@ describe('the generator and the pusher', () => {
     expect(CHECKERS.halfWidth).toBe(1.13);
     expect(CHECKERS.halfWidth).toBeGreaterThan(0);
     expect(CHECKERS.halfWidth).toBeLessThan(MEDAL_RADIUS / 2);
-    // With their wings open the slots take medals as wide as they did before they were narrowed. Even so they
-    // do not run into each other, and keep to the middle of the lip.
-    expect(CHECKERS.wingWidth).toBe(1.7);
-    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
+    // With their wings open the slots take medals from a little further to the side: more than a tenth as wide
+    // again, and well short of the 1.7 they took before they were narrowed, which paid fast play too well. Even
+    // so they do not run into each other, and keep to the middle of the lip.
+    expect(CHECKERS.wingWidth).toBe(1.25);
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth * 1.1);
+    expect(CHECKERS.wingWidth).toBeLessThan(1.7);
     expect(CHECKERS.wingWidth).toBeLessThan(MEDAL_RADIUS);
     const winged = MEDAL_RADIUS + CHECKERS.wingWidth;
     expect(2 * winged).toBeLessThan(centre - left);
@@ -200,7 +202,7 @@ describe('the generator and the pusher', () => {
         expect(checkerAt(x + side * (CHECKERS.wingWidth - 0.01), CHECKERS.wingWidth)).toBe(chucker);
         expect(checkerAt(x + side * (CHECKERS.wingWidth + 0.01), CHECKERS.wingWidth)).toBe(-1);
         // Between the two widths a medal is in line with the slot only at the wider one.
-        const between = x + side * 1.5;
+        const between = x + (side * (CHECKERS.halfWidth + CHECKERS.wingWidth)) / 2;
         expect(checkerAt(between)).toBe(-1);
         expect(checkerAt(between, CHECKERS.halfWidth)).toBe(-1);
         expect(checkerAt(between, CHECKERS.wingWidth)).toBe(chucker);
@@ -855,14 +857,15 @@ describe('a machine in play', () => {
       expect(machine.medals.filter((m) => m.level === 1)).toEqual([]);
       return events.checkers;
     };
-    // One and a half from a slot's middle is outside the slot and inside its wings.
-    expect(1.5).toBeGreaterThan(CHECKERS.halfWidth);
-    expect(1.5).toBeLessThan(CHECKERS.wingWidth);
+    // Halfway between the two widths from a slot's middle is outside the slot and inside its wings.
+    const beside = (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2;
+    expect(beside).toBeGreaterThan(CHECKERS.halfWidth + 0.02);
+    expect(beside).toBeLessThan(CHECKERS.wingWidth - 0.02);
     CHECKERS.positions.forEach((x, slot) => {
       for (const side of [-1, 1]) {
-        expect(over(x + side * 1.5)).toEqual([]);
-        expect(over(x + side * 1.5, false)).toEqual([]);
-        expect(over(x + side * 1.5, true)).toEqual([slot]);
+        expect(over(x + side * beside)).toEqual([]);
+        expect(over(x + side * beside, false)).toEqual([]);
+        expect(over(x + side * beside, true)).toEqual([slot]);
         // The wings reach as far as their width and no further.
         expect(over(x + side * (CHECKERS.wingWidth - 0.02), true)).toEqual([slot]);
         expect(over(x + side * (CHECKERS.wingWidth + 0.02), true)).toEqual([]);
@@ -872,9 +875,9 @@ describe('a machine in play', () => {
       }
     });
     // Every medal of a tower that goes over inside the wings counts, and a ball still does not fit.
-    expect(over(50 + 1.5, true, { stack: 6 })).toEqual([1, 1, 1, 1, 1, 1]);
-    expect(over(50 + 1.5, false, { stack: 6 })).toEqual([]);
-    expect(over(50 + 1.5, true, { ball: true })).toEqual([]);
+    expect(over(50 + beside, true, { stack: 6 })).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(over(50 + beside, false, { stack: 6 })).toEqual([]);
+    expect(over(50 + beside, true, { ball: true })).toEqual([]);
     // Halfway between two slots, where the towers go up, no wing reaches.
     expect(over(43, true)).toEqual([]);
 

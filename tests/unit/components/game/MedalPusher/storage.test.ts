@@ -134,6 +134,34 @@ function script(session: Session, values: number[], then = 0.5): void {
 /** A session with no balls lying about and no spins held, so that nothing comes onto its screen unasked. */
 const quiet = (): Session => createSession(5, { balls: 0 });
 
+/**
+ * How wide a START pocket was in the games that wrote the old saves below, before the pockets were narrowed and
+ * given wings: what the engine's `CHECKERS.halfWidth` was then.
+ */
+const POCKET_THEN = 1.7;
+/**
+ * Plays `play` with the wings opening `width` wide, and puts today's width back. Today's open wings take a medal
+ * from less far to the side than the pockets of those games did, so a machine in chance time counts fewer of the
+ * medals that come over beside a slot than they did. Where a test says an old save plays on exactly as the game
+ * that wrote it did, that is the one difference it sets aside, and this is how.
+ */
+function withWings<T>(width: number, play: () => T): T {
+  const checkers = CHECKERS as { wingWidth: number };
+  const today = checkers.wingWidth;
+  checkers.wingWidth = width;
+  try {
+    return play();
+  } finally {
+    checkers.wingWidth = today;
+  }
+}
+/** Whether `part` is some of `whole`, in the order `whole` has them. */
+function someOf<T>(part: readonly T[], whole: readonly T[]): boolean {
+  let found = 0;
+  for (const one of whole) if (found < part.length && one === part[found]) found += 1;
+  return found === part.length;
+}
+
 /** The roll that stops the roulette on a given pocket, and the one that sends the ball down a given way through the bowls. */
 const pocketRoll = (pocket: number): number => (pocket + 0.5) / ROULETTE.length;
 const fallRoll = (fall: number): number => (fall + 0.5) / FALLS.length;
@@ -3405,15 +3433,31 @@ describe('a save written before chance time', () => {
     expect(then.pockets.length).toBeGreaterThan(0);
     expect(then.pockets.every((pocket) => !pocket.held)).toBe(true);
     // Now the first of them goes through the same pocket, which is a narrower slot than it was and still in line
-    // with this medal, and turns a held spin gold. With that chance time begins and the wings open, as wide as the
-    // pockets were: so the others go through as they did then.
+    // with this medal, and turns a held spin gold. With that chance time begins and the wings open. They open less
+    // wide than the pockets were: of the others, those that come over inside them go through, in the order they did
+    // then, and the rest slide by.
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
     expect(pockets[0]).toEqual({ type: 'checker', gate: then.pockets[0].pocket, held: false, gold: true, lucky: false });
     expect(events.filter((event) => event.type === 'chanceStart')).toHaveLength(1);
     const began = events.findIndex((event) => event.type === 'chanceStart');
     expect(began).toBeGreaterThan(events.indexOf(pockets[0]));
     expect(began).toBeLessThan(events.indexOf(pockets[1]));
-    expect(pockets.map((event) => event.gate)).toEqual(then.pockets.map(({ pocket }) => pocket));
+    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
+    expect(pockets.length).toBeGreaterThanOrEqual(2);
+    expect(
+      someOf(
+        pockets.map((event) => event.gate),
+        then.pockets.map(({ pocket }) => pocket),
+      ),
+    ).toBe(true);
+    // With wings as wide as that game's pockets, every one of them goes through as it did then.
+    const wide = withWings(POCKET_THEN, () => {
+      const again = restore(OLD, then.seed) as Session;
+      const said: SessionEvent[] = [];
+      for (let i = 0; i < then.steps; i++) advance(again, DT, said);
+      return said.flatMap((event) => (event.type === 'checker' ? [event.gate] : []));
+    });
+    expect(wide).toEqual(then.pockets.map(({ pocket }) => pocket));
     expect(back.gilded).toBe(pockets.filter((event) => event.gold).length);
     expect(back.gilded).toBeGreaterThanOrEqual(1);
     expect(back.lucky).toBe(pockets.filter((event) => event.lucky).length);
@@ -3517,46 +3561,68 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on in chance time by today’s rule: the same medals count, and each one that is held holds a gold spin', () => {
-    const back = restore(OLD, then.seed) as Session;
-    const at = { won: back.won, lost: back.lost, hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted, gilded: back.gilded };
-    expect(medalsOnField(back.machine)).toBe(then.onField);
-    const events: SessionEvent[] = [];
-    for (let i = 0; i < then.steps; i++) advance(back, DT, events);
-    expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The field is that game's field: as many medals over the front and off the sides, and as many left lying.
-    expect([back.won - at.won, back.lost - at.lost, medalsOnField(back.machine)]).toEqual([then.won, then.lost, then.onFieldAfter]);
-    // In chance time the wings are open, and a slot with its wings open is as wide as a pocket was: the same medals
-    // go through the same slots, and the same ones are held.
-    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
-    const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets.map(({ gate, held }) => ({ pocket: gate, held }))).toEqual(then.pockets.map(({ pocket, held }) => ({ pocket, held })));
-    expect(pockets.length).toBeGreaterThanOrEqual(4);
-    // Then, a medal that was held held an ordinary spin. Now it holds a gold one, as every medal does while chance time lasts.
+  it('plays on in chance time by today’s rule: the medals inside today’s wings count, and each one that is held holds a gold spin', () => {
+    /** Twelve seconds of it with nobody feeding, and what the screen was told of its slots. What is true however wide the wings open is checked here. */
+    const playOn = () => {
+      const back = restore(OLD, then.seed) as Session;
+      const at = { won: back.won, lost: back.lost, hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted, gilded: back.gilded };
+      expect(medalsOnField(back.machine)).toBe(then.onField);
+      const events: SessionEvent[] = [];
+      for (let i = 0; i < then.steps; i++) advance(back, DT, events);
+      expect(back.machine.time).toBeCloseTo(then.time, 9);
+      // The field is that game's field: as many medals over the front and off the sides, and as many left lying. What
+      // a slot counts moves no medal, and the screen paid nothing in these twelve seconds, then or now.
+      expect([back.won - at.won, back.lost - at.lost, medalsOnField(back.machine)]).toEqual([then.won, then.lost, then.onFieldAfter]);
+      expect(back.paidOut).toBe(then.paidOut);
+      const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
+      // Then, a medal that was held held an ordinary spin. Now it holds a gold one, as every medal does while chance time lasts.
+      expect(pockets.every((event) => event.lucky === event.held)).toBe(true);
+      expect(back.lucky).toBe(pockets.filter((event) => event.held).length);
+      // The first to find the hold full turned the last ordinary spin gold, then and now.
+      expect(then.pockets[0]).toEqual({ pocket: pockets[0].gate, held: false, gold: true });
+      expect(pockets[0]).toMatchObject({ held: false, gold: true, lucky: false });
+      expect(back.gilded - at.gilded).toBe(pockets.filter((event) => event.gold).length);
+      // No chance time began, since it was chance time already, and the books still balance.
+      expect(events.filter((event) => event.type === 'chanceStart')).toEqual([]);
+      expect(back.gold).toBeLessThanOrEqual(back.stock);
+      expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+      expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+      expect(plain(reread(back))).toEqual(plain(back));
+      return { back, events, pockets };
+    };
     expect(then.pockets.filter((pocket) => pocket.held).every((pocket) => !pocket.gold)).toBe(true);
-    expect(pockets.every((event) => event.lucky === event.held)).toBe(true);
-    expect(back.lucky).toBe(then.pockets.filter((pocket) => pocket.held).length);
-    // The first to find the hold full turned the last ordinary spin gold, then and now.
-    expect(then.pockets[0]).toEqual({ pocket: pockets[0].gate, held: false, gold: true });
-    expect(pockets[0]).toMatchObject({ held: false, gold: true, lucky: false });
+
+    // With the wings as wide as that game's pockets were, the same medals go through the same slots, and the same ones are held.
+    const wide = withWings(POCKET_THEN, playOn);
+    expect(wide.pockets.map(({ gate, held }) => ({ pocket: gate, held }))).toEqual(then.pockets.map(({ pocket, held }) => ({ pocket, held })));
+    expect(wide.pockets.length).toBeGreaterThanOrEqual(4);
+    expect(wide.back.lucky).toBe(then.pockets.filter((pocket) => pocket.held).length);
     // The last found it full again. Then, one of the spins held meanwhile was there to turn. Now they were gold already, and it is only wasted.
-    const last = pockets.length - 1;
+    const last = wide.pockets.length - 1;
     expect(then.pockets[last]).toMatchObject({ held: false, gold: true });
-    expect(pockets[last]).toMatchObject({ held: false, gold: false, lucky: false });
-    expect(back.gilded - at.gilded).toBe(pockets.filter((event) => event.gold).length);
-    expect(back.gilded).toBe(then.gilded - 1);
-    // It was chance time throughout then, and is now, with more gold spins left to play than that game had.
+    expect(wide.pockets[last]).toMatchObject({ held: false, gold: false, lucky: false });
+    expect(wide.back.gilded).toBe(then.gilded - 1);
+    // It was chance time throughout then, and is with those wings, with more gold spins left to play than that game had.
     expect(then.chanceEnds).toBe(0);
-    expect(events.filter((event) => event.type === 'chanceEnd' || event.type === 'chanceStart')).toEqual([]);
-    expect(back.rush).toBe(true);
-    expect(chanceLeft(back)).toBeGreaterThan(then.chanceLeft);
-    expect(back.gold).toBeLessThanOrEqual(back.stock);
-    // The screen paid nothing in these twelve seconds, then or now, and the books still balance.
-    expect(back.paidOut).toBe(then.paidOut);
-    expect(back.spins).toBeGreaterThanOrEqual(then.spins);
-    expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
-    expect(everyPosition(back).every(Number.isFinite)).toBe(true);
-    expect(plain(reread(back))).toEqual(plain(back));
+    expect(wide.events.filter((event) => event.type === 'chanceEnd')).toEqual([]);
+    expect(wide.back.rush).toBe(true);
+    expect(chanceLeft(wide.back)).toBeGreaterThan(then.chanceLeft);
+    expect(wide.back.spins).toBeGreaterThanOrEqual(then.spins);
+
+    // Today's wings open less wide than that. The medals that go through a slot now are some of those that did
+    // then, in the order they did: the ones that came over inside today's wings. The first of them is one, which
+    // the narrow slot itself takes, and at least one more is, which is held.
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
+    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
+    const now = playOn();
+    expect(
+      someOf(
+        now.pockets.map((event) => event.gate),
+        then.pockets.map(({ pocket }) => pocket),
+      ),
+    ).toBe(true);
+    expect(now.pockets.length).toBeLessThanOrEqual(then.pockets.length);
+    expect(now.pockets.filter((event) => event.held).length).toBeGreaterThanOrEqual(1);
   });
 
   it('is in chance time exactly when one of its spins is gold: that is what chance time was then', () => {
@@ -3696,7 +3762,7 @@ describe('a save written the day before the lucky lamp', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on exactly as the game that wrote it did: its chance time out to the last gold spin, with the wings open as wide as its pockets were', () => {
+  it('plays on exactly as the game that wrote it did: its chance time out to the last gold spin, every medal of it through a slot squarely enough for today’s wings', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
     expect(medalsOnField(back.machine)).toBe(then.onField);
@@ -3723,10 +3789,12 @@ describe('a save written the day before the lucky lamp', () => {
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     // The field is that game's field: as many medals landed, over the front and off the sides, and as many left lying.
     expect([total(events, 'landed'), total(events, 'won'), total(events, 'lost'), medalsOnField(back.machine)]).toEqual([then.landed, then.won, then.lost, then.onFieldAfter]);
-    // A slot with its wings open is as wide as a pocket was, so the same medals go through the same slots. Each of
-    // them found the hold full, then and now: the first turned the last ordinary spin gold, and the rest were wasted.
-    // None was held, so the lamp and the wings made no spin gold that was not gold in that game.
-    expect(CHECKERS.wingWidth).toBe(1.7);
+    // Today's wings open less wide than a pocket was. Every medal that went through one in these twelve seconds came
+    // over squarely enough for today's all the same, so the same medals go through the same slots. Each of them
+    // found the hold full, then and now: the first turned the last ordinary spin gold, and the rest were wasted. None
+    // was held, so the lamp and the wings made no spin gold that was not gold in that game.
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
+    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
     expect(pockets.map(({ gate, held, gold }) => ({ pocket: gate, held, gold }))).toEqual(then.pockets);
     expect(pockets.length).toBeGreaterThanOrEqual(4);
@@ -4432,19 +4500,26 @@ describe('a save written the day before the machine had jewels', () => {
   });
 
   it('plays on exactly as the game that wrote it did: the ball down to the jackpot, paid once and to the medal', () => {
-    const back = restore(OLD, then.seed) as Session;
-    const events: SessionEvent[] = [];
-    const drops: { step: number; bowl: number }[] = [];
-    let ended = -1;
-    for (let step = 1; step <= then.steps; step++) {
-      const now: SessionEvent[] = [];
-      advance(back, DT, now);
-      for (const event of now) {
-        if (event.type === 'bowlDrop') drops.push({ step, bowl: event.bowl });
-        if (event.type === 'bowlEnd') ended = step;
+    /** That game's seconds of it, with nobody feeding: what was said, when the ball dropped and when the challenge ended. */
+    const playOn = () => {
+      const back = restore(OLD, then.seed) as Session;
+      const events: SessionEvent[] = [];
+      const drops: { step: number; bowl: number }[] = [];
+      let ended = -1;
+      for (let step = 1; step <= then.steps; step++) {
+        const now: SessionEvent[] = [];
+        advance(back, DT, now);
+        for (const event of now) {
+          if (event.type === 'bowlDrop') drops.push({ step, bowl: event.bowl });
+          if (event.type === 'bowlEnd') ended = step;
+        }
+        events.push(...now);
       }
-      events.push(...now);
-    }
+      return { back, events, drops, ended };
+    };
+    // It was in chance time, and its pockets were wider than today's are with their wings open: for this the wings
+    // are set as wide as its pockets were.
+    const { back, events, drops, ended } = withWings(POCKET_THEN, playOn);
     // Through the middle bowl's hole and into the jackpot's in the very steps that game's ball did, for the same medals.
     expect(drops).toEqual(then.drops);
     expect(ended).toBe(then.steps);
@@ -4475,6 +4550,26 @@ describe('a save written the day before the machine had jewels', () => {
       expect(medal?.x).toBeCloseTo(rest.x, 6);
       expect(medal?.y).toBeCloseTo(rest.y, 6);
     }
+
+    // With today's wings it is the same machine in every way but one. What a slot counts moves no medal, and the
+    // screen was the ball's, so no medal through a slot could start a spin: the field, the ball and the prize are
+    // what they were. But only the medals that came over inside today's wings were counted, and those that were
+    // not are missing from the medals wasted on its full hold.
+    const today = playOn();
+    const counted = today.events.flatMap((event) => (event.type === 'checker' ? [event] : []));
+    expect(
+      someOf(
+        counted.map((event) => event.gate),
+        then.pockets.map(({ pocket }) => pocket),
+      ),
+    ).toBe(true);
+    expect(counted.every((event) => !event.held && !event.lucky)).toBe(true);
+    const missed = then.pockets.length - counted.length;
+    expect([today.back.hits, today.back.wasted]).toEqual([then.hits - missed, then.wasted - missed]);
+    expect([today.drops, today.ended]).toEqual([then.drops, then.steps]);
+    expect(today.events.filter((event) => event.type === 'bowlEnd')).toEqual([then.end]);
+    expect([today.back.credits, today.back.paidOut, today.back.jackpots, today.back.jackpot]).toEqual([then.credits, then.paidOut, then.jackpots, then.jackpot]);
+    expect(today.back.machine.medals.map(({ id, x, y, level, tier }) => ({ id, x, y, level, tier }))).toEqual(back.machine.medals.map(({ id, x, y, level, tier }) => ({ id, x, y, level, tier })));
   });
 
   it('lets one jewel go with its next treasure line, which is a gold spin’s', () => {

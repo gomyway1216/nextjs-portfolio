@@ -102,20 +102,25 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * the pusher the pile has spread it far to either side, so pockets spaced
  * evenly across the lip take much the same share whatever column is fed. With
  * the three in the middle, about one medal in eight ends up through one when
- * the middle is fed, about one in fourteen when medals are fed anywhere at
+ * the middle is fed, about one in thirteen when medals are fed anywhere at
  * all, and about one in thirty-five when they are fed at the edges. The
  * pockets are as far apart as the towers are, so the towers, which go up to
  * either side of the middle, stand between them.
  *
- * `halfWidth` is what the machine's return is tuned with, together with what
- * a spin is worth (`SPIN_TABLE` in lottery.ts): scripts/medal-pusher-tune.ts
- * measures both. At this width the best a player can do, feeding the middle
- * slowly, gets about 97% back with average luck on the screen, and about 95%
- * at two medals a second. `wingWidth` is how wide a slot takes medals while
- * its wings are open, which is during chance time: as wide as the pockets
- * were before they were narrowed.
+ * `halfWidth` is how often a medal starts a spin. With what a spin is worth
+ * (`SPIN_TABLE` in lottery.ts) it sets what slow play gets back: the best a
+ * player can do, feeding the middle a medal every two seconds, is about
+ * 96.5% with average luck on the screen, and at two medals a second about
+ * 95%. `wingWidth` is how wide a pocket takes medals while its wings are
+ * open, which is during chance time, and it is what fast play is tuned
+ * with. Wings as wide as the pockets were before they were narrowed, 1.7,
+ * paid a player for filling the hold: five medals a second got back as much
+ * as two. At this width five a second get back about half a point less than
+ * two, and both buttons held down about 93%. scripts/medal-pusher-tune.ts
+ * measures all of it, and its table is the one to read before either
+ * number is moved.
  */
-export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.7 } as const;
+export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.25 } as const;
 
 /**
  * The lucky lamp. One of the three slots is lit gold at a time, and the light

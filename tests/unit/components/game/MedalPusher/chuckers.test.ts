@@ -278,6 +278,16 @@ describe('the chucker a medal caught the edge of', () => {
     expect(grazed(fresh(x, { sinceDrop: 0.5 }), 0.5, REACH)).toBe(-1);
     expect(grazed(fresh(x, { sinceDrop: 0.5 }), 5, REACH)).toBe(0);
     expect(grazed(fresh(x), 0, REACH)).toBe(-1);
+    // Whoever draws it for as long as it takes, the catcher for one, which has it on the lower table in front of its
+    // foot a good while after it came over, asks with no limit of time: it is told for as long as the medal is one that
+    // came over the lip at all. The same goes for which mouth a medal went through.
+    for (const sinceDrop of [0, 0.5, 2, 30, 3600]) {
+      expect(grazed(fresh(x, { sinceDrop }), Infinity, REACH)).toBe(0);
+      expect(droppedThrough(fresh(CHECKERS.positions[2], { sinceDrop }), Infinity)).toBe(2);
+    }
+    expect(grazed(fresh(x, { sinceDrop: -1 }), Infinity, REACH)).toBe(-1);
+    expect(grazed(fresh(x, { level: 1 }), Infinity, REACH)).toBe(-1);
+    expect(droppedThrough(fresh(CHECKERS.positions[2], { sinceDrop: -1 }), Infinity)).toBe(-1);
   });
 
   it('measures from the wider width while the wings are open', () => {

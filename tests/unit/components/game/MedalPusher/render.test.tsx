@@ -10,6 +10,7 @@ import {
   BOARD_ROLLS,
   CALC_DEFAULT,
   JACKPOT_LEVELS,
+  LAMP_SHARE,
   OddsTab,
   REACH_ROWS,
   boardSpread,
@@ -61,6 +62,7 @@ import {
   JEWEL,
   JEWEL_SET,
   JEWEL_SPIN_VALUE,
+  JEWEL_TIER,
   JEWEL_VALUE,
   ROULETTE,
   SPIN_TABLE,
@@ -1213,35 +1215,35 @@ describe('strings', () => {
     expect(ja.jewelLamps(2, 5)).toBe('宝石ランプ：5個中2個点灯');
   });
 
-  it('describes the START slots as the engine has them', () => {
+  it('describes the START pockets as the engine has them', () => {
     const en = getStrings('en');
     const ja = getStrings('ja');
     // The field is 100 wide, so a distance across it is a percentage of its width.
     expect(FIELD.width).toBe(100);
     expect(PART_IDS).toEqual(['arms', 'pusher', 'chuckers', 'table', 'sides', 'front']);
-    expect(en.partName.chuckers).toBe('START slots');
+    expect(en.partName.chuckers).toBe('START pockets');
     expect(ja.partName.chuckers).toBe('チャッカー');
-    // How wide a slot is, shut and with its wings open, where the three are, and that they do not move along the lip.
+    // How wide a pocket is, shut and with its wings open, where the three are, and that they do not move along the lip.
     expect(en.partText.chuckers).toContain(`as wide as a medal and ${CHECKERS.halfWidth}% of the field’s width more on either side`);
     expect(ja.partText.chuckers).toContain(`メダル1枚分に左右それぞれ幅の${CHECKERS.halfWidth}%を足した広さ`);
     expect(en.partText.chuckers).toContain(`so that each takes medals up to ${CHECKERS.wingWidth}% of the width to either side`);
     expect(ja.partText.chuckers).toContain(`左右それぞれ幅の${CHECKERS.wingWidth}%までのメダルが入ります`);
-    expect([CHECKERS.halfWidth, CHECKERS.wingWidth]).toEqual([1.13, 1.7]);
+    expect([CHECKERS.halfWidth, CHECKERS.wingWidth]).toEqual([1.13, 1.25]);
     expect(CHECKERS.positions[1]).toBe(FIELD.width / 2);
     expect(en.partText.chuckers).toContain('side by side in the middle of the pusher’s lip');
     expect(en.partText.chuckers).toContain('do not move along it');
     expect(ja.partText.chuckers).toContain('プッシャーの縁の中央に並んでいます');
     expect(ja.partText.chuckers).toContain('左右には動きません');
-    // How a medal gets into one: down the sloped face under the lip, lying flat. One that catches a slot's edge, or
-    // comes down between two slots, slides off the foot of the slope. The wings are flaps on that slope.
+    // How a medal gets into one: down the sloped face under the lip, lying flat. One that catches a pocket's edge, or
+    // comes down between two pockets, slides off the foot of the slope. The wings are flaps on that slope.
     const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
     for (const text of [en.partText.chuckers, info.en]) {
       expect(text).toContain('sloped face that leans toward you');
       expect(text).toMatch(/slides down (the|that) slope lying flat, face up/);
       expect(text).toMatch(/rattles on its frame and slides off the foot of the slope/);
-      expect(text).toContain('flaps on the slope that swing out and funnel medals toward the slots');
+      expect(text).toContain('flaps on the slope that swing out and funnel medals toward the pockets');
     }
-    expect(info.en).toContain('one that comes down between the slots slides off the foot too');
+    expect(info.en).toContain('one that comes down between the pockets slides off the foot too');
     for (const text of [ja.partText.chuckers, info.ja]) {
       expect(text).toContain('手前に傾いた斜面');
       expect(text).toContain('表を上にして寝たまま斜面を滑り落ち');
@@ -1260,9 +1262,9 @@ describe('strings', () => {
     expect(ja.calcNote(MAX_STOCK)).toContain(`約${CALC_DEFAULT.front}%が手前から出て、落としたメダル100枚につき約${CALC_DEFAULT.spins}回の抽選が始まります`);
     // The ways of aiming are named for where each rail feeds, now that there is nothing to follow.
     expect(en.aimName).toEqual({
-      centre: 'Both rails down the middle, behind the START slots',
+      centre: 'Both rails down the middle, behind the START pockets',
       anywhere: 'Anywhere at all, from the rail on that side',
-      beside: 'Each rail at its fixed spot beside the START slots',
+      beside: 'Each rail at its fixed spot beside the START pockets',
       edges: 'Each rail at its own edge',
     });
     expect(ja.aimName).toEqual({
@@ -1271,74 +1273,88 @@ describe('strings', () => {
       beside: '左右のレールをチャッカーの両脇に固定',
       edges: '左右のレールをそれぞれの端に',
     });
-    expect(en.colGate).toBe('Through a START slot');
-    expect(en.colWasted).toBe('START slot hits wasted');
+    expect(en.colGate).toBe('Through a START pocket');
+    expect(en.colWasted).toBe('START pocket hits wasted');
     expect([ja.colGate, ja.colWasted]).toEqual(['チャッカー通過', '無駄になった通過']);
     // Nothing still speaks of gates on the back panel, of their sweep, or of following one.
     const source = (_key: string, value: unknown) => (typeof value === 'function' ? String(value) : value);
     const everything = (['en', 'ja'] as const).map((language) => JSON.stringify(getStrings(language), source)).join(' ');
     expect(everything).not.toMatch(/\bgates?\b|sweep|follow(s|ing)? (a|the) |side to side|左右に動き続け|を追う|追いかけ/i);
-    // Nor of START pockets, or of a pocket as wide as it was: the only pockets left are the roulette's.
-    expect(everything).not.toMatch(/START pockets?|pocket’s mouth|through a pocket|the pockets (sit|do not move)|1\.7% of the field/i);
+    // They are START pockets in every text, as the instruction plate and the record book have them, and never START
+    // slots: the only slots left are the one on the screen and the two the rails are fed at. Nor is a pocket as wide
+    // as it was, with its wings open or shut.
+    expect(everything).not.toMatch(/START slots?|lit slot|slot’s (edge|opening)|(between|toward) the slots|one slot along|1\.7% of the/i);
+    expect(JSON.stringify(getStrings('en'), source).match(/START pockets?/g)?.length).toBeGreaterThan(40);
     expect(en.rouletteIntro(ROULETTE.length, 4)).toContain(`one of ${ROULETTE.length} pockets`);
   });
 
-  it('says what the lucky lamp is, and plainly that it cannot be chased by aiming', () => {
+  it('says what the lucky lamp is, plainly that it cannot be aimed at, and how many spins it makes gold', () => {
     const en = getStrings('en');
     const ja = getStrings('ja');
     const info = { en: en.infoBody(MAX_STOCK).join(' '), ja: ja.infoBody(MAX_STOCK).join('') };
-    // One slot lit at a time, a step along with every stroke of the pusher, and a gold spin for a medal held through it.
+    // One pocket lit at a time, a step along with every stroke of the pusher, and a gold spin for a medal held through it.
     expect(LUCKY.dwell).toBe(PUSHER.period);
-    expect(info.en).toContain('One of the three START slots is lit gold at a time: the lucky lamp. The light steps one slot along with every stroke of the pusher.');
-    expect(info.en).toContain('A medal that is held through the lit slot holds a gold spin.');
+    expect(info.en).toContain('One of the three START pockets is lit gold at a time: the lucky lamp. The light steps one pocket along with every stroke of the pusher.');
+    expect(info.en).toContain('A medal that is held through the lit pocket holds a gold spin.');
     expect(info.ja).toContain('3つのチャッカーのうち1つは金色に光っています。これがラッキーランプです。');
     expect(info.ja).toContain('光っているチャッカーを通って保留されたメダルは、金の抽選になります。');
-    expect(en.partText.chuckers).toContain(`the light steps one slot along with every stroke of the pusher, every ${LUCKY.dwell} seconds`);
+    expect(en.partText.chuckers).toContain(`the light steps one pocket along with every stroke of the pusher, every ${LUCKY.dwell} seconds`);
     expect(ja.partText.chuckers).toContain(`プッシャーが1往復する${LUCKY.dwell}秒ごとに、光がとなりのチャッカーへ移ります`);
-    expect(en.slotIntro(MAX_STOCK)).toContain('A medal that is held through the slot the lucky lamp is on holds a gold spin from the start.');
+    expect(en.slotIntro(MAX_STOCK)).toContain('A medal that is held through the pocket the lucky lamp is on holds a gold spin from the start.');
     expect(ja.slotIntro(MAX_STOCK)).toContain('ラッキーランプが光っているチャッカーを通って保留されたメダルは、はじめから金の抽選です。');
-    // It is luck: a medal is half a minute and more on its way to the lip. The how-to, the Odds tab's note and the Simulation's notes all say so.
-    const note = { en: en.luckyOddsNote('1.37018', '2.18268', '3.6'), ja: ja.luckyOddsNote('1.37018', '2.18268', '3.6') };
+    // It is luck: a medal is about half a minute on its way to the lip. The how-to, the Odds tab's note and the Simulation's notes all say so.
+    const note = { en: en.luckyOddsNote('1.37018', '2.18268', '3.6', '34%'), ja: ja.luckyOddsNote('1.37018', '2.18268', '3.6', '34%') };
     for (const text of [info.en, note.en]) {
-      expect(text).toContain('The lamp cannot be chased by aiming: a medal takes half a minute and more to get from the rail to the lip');
-      expect(text).toMatch(/Which START slot is lit when (your|a) medal (gets there|arrives) is luck\./);
+      expect(text).toContain('The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip');
+      expect(text).toMatch(/Which START pocket is lit when (your|a) medal (gets there|arrives) is luck\./);
     }
     for (const text of [info.ja, note.ja]) {
-      expect(text).toContain('ランプに合わせて狙うことはできません');
-      expect(text).toContain('30秒以上かかり');
+      expect(text).toContain('ランプを狙うことはできません');
+      expect(text).toContain('メダルがレールから縁に着くまでには約30秒かかり');
       expect(text).toContain('メダルが着いたときにどのチャッカーが光っているかは、運しだいです。');
     }
-    expect(en.simNotes('1.37', MAX_STOCK).join(' ')).toContain('The lucky lamp does move, and no aim here goes after it: a medal takes half a minute and more to reach the lip');
-    expect(ja.simNotes('1.37', MAX_STOCK).join('')).toContain('ここではどの狙い方もランプには合わせません。メダルが縁に着くまでに30秒以上かかる');
+    // The Odds tab's note gives the share of all spins the lamp was measured to make gold, as it is handed it.
+    expect(note.en).toContain('Measured at up to two medals a second, the lamp makes about 34% of all spins gold: a third, as one pocket in three is lit.');
+    expect(note.ja).toContain('毎秒2枚までの速さで実測すると、抽選全体の約34%がランプによる金の抽選でした。3つのうち1つが光っているので、3分の1になります。');
+    expect(LAMP_SHARE).toBe(33);
+    expect(en.simNotes('1.37', MAX_STOCK).join(' ')).toContain('The lucky lamp does move, and no aim here goes after it: a medal takes about half a minute to reach the lip');
+    expect(ja.simNotes('1.37', MAX_STOCK).join('')).toContain('ここではどの狙い方もランプには合わせません。メダルが縁に着くまでに約30秒かかる');
     // The calculator's note gives what was measured: how long a medal is on its way, how far the pile carries it, and what aiming at the lamp returned.
-    expect(en.calcNote(MAX_STOCK)).toContain('Aiming at the lit START slot does not pay. A medal takes from 19 to 94 seconds to get from the rail to the lip, half of them between 23 and 49');
-    expect(en.calcNote(MAX_STOCK)).toContain('about 94% came back, and aimed at the column the light would be on half a minute later about 93%: both less than feeding the middle');
-    expect(ja.calcNote(MAX_STOCK)).toContain('光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには19秒から94秒（半数は23秒から49秒）かかり');
-    expect(ja.calcNote(MAX_STOCK)).toContain('約94%、30秒後に光っているはずの列に向けると約93%で、どちらも中央に落とし続ける場合に届きません');
-    // What is said aloud when a medal is held through a lit slot.
-    expect(en.sayLucky).toBe('A medal slid down the slope into a lit START slot. Its spin is gold.');
+    expect(en.calcNote(MAX_STOCK)).toContain('Aiming at the lit START pocket does not pay. Four medals in five take from 19 seconds to two minutes to get from the rail to the lip, half of them between 24 and 53 seconds');
+    expect(en.calcNote(MAX_STOCK)).toContain('about 94% came back, and aimed at the column the light would be on half a minute later about 94% as well: both less than feeding the middle');
+    expect(ja.calcNote(MAX_STOCK)).toContain('光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには、5枚のうち4枚が19秒から約2分（半数は24秒から53秒）かかり');
+    expect(ja.calcNote(MAX_STOCK)).toContain('約94%、30秒後に光っているはずの列に向けても約94%で、どちらも中央に落とし続ける場合に届きません');
+    // What is said aloud when a medal is held through a lit pocket.
+    expect(en.sayLucky).toBe('A medal slid down the slope into a lit START pocket. Its spin is gold.');
     expect(ja.sayLucky).toBe('メダルが斜面を滑って、光っているチャッカーに入りました。金の抽選です。');
   });
 
-  it('gives the measured figures of the narrow slots in the calculator’s note', () => {
+  it('gives the measured figures of the narrow pockets in the calculator’s note, slow play best and fast play worse', () => {
     const en = getStrings('en').calcNote(MAX_STOCK);
     const ja = getStrings('ja').calcNote(MAX_STOCK);
-    // What comes back: at two a second, at five, and with both buttons held down.
+    // What comes back, as scripts/medal-pusher-tune.ts measured it over 36 machines: at two a second, at a medal
+    // every two seconds, which is the best there is, at five a second and with both buttons held down. The order is
+    // the machine's: the slower the better, and a full hold is never worth filling.
     expect(en).toContain('About a third of those spins are gold');
     expect(en).toContain('with what being gold adds, about 95% of the medals come back');
-    expect(en).toContain('so about 96% of the medals come back at five a second and about 94% with both buttons held');
-    expect(en).toContain('Drop anywhere at all instead and a spin starts about 7 times');
-    expect(en).toContain('Dropping more slowly than two a second gains a point or two');
+    expect(en).toContain('Drop anywhere at all instead and a spin starts about 8 times');
+    expect(en).toContain('Dropping more slowly gains a little: at a medal every two seconds about 96.5% comes back, and that is the most this machine gives. Dropping faster loses.');
+    expect(en).toContain('about one in nine of the medals through a START pocket finds the hold full, and about half a point less comes back than at two a second');
+    expect(en).toContain('about four in ten of them find the hold full: about 93% comes back');
+    expect(en).toContain('That gives back part of what a full hold wastes, and never all of it.');
     expect(ja).toContain('そのうち約3分の1は、光っているチャッカーを通ったメダルによる金の抽選です');
     expect(ja).toContain('金の抽選の上乗せ分を入れると、戻ってくるのは約95%です');
-    expect(ja).toContain('戻ってくるのは毎秒5枚で約96%、両方のボタンを押し続けて約94%です');
-    expect(ja).toContain('場所を決めずに落とすと、抽選は約7回になります');
-    // The figures of the wider pockets are gone.
-    for (const text of [en, ja]) expect(text).not.toMatch(/about 18 times|約18回|91%|about 11 times|約11回/);
+    expect(ja).toContain('場所を決めずに落とすと、抽選は約8回になります');
+    expect(ja).toContain('2秒に1枚なら戻ってくるのは約96.5%で、このマシンではこれが最高です。速く落とすと損になります。');
+    expect(ja).toContain('チャッカーを通ったメダルの約9枚に1枚は保留が満杯で抽選を始められません。戻ってくるのは毎秒2枚のときより0.5ポイントほど少なくなります。');
+    expect(ja).toContain('チャッカーを通ったメダルの約4割が満杯の保留に当たって、戻ってくるのは約93%です');
+    expect(ja).toContain('満杯で無駄になった分の一部はこれで戻りますが、全部は戻りません。');
+    // The figures of the wider pockets are gone, and those of the wings as wide as the pockets were.
+    for (const text of [en, ja]) expect(text).not.toMatch(/about 18 times|約18回|91%|about 11 times|約11回|about 7 times|約7回|96%|19 to 94|19秒から94秒/);
     // The calculator's own sum leaves the gold spins out, and the note says so: at what it starts from it comes to
     // less than what comes back, and what being gold adds to a third of the spins is the difference.
     const plain = returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START));
-    expect(percent(plain)).toBe('93.4%');
+    expect(percent(plain)).toBe('93.3%');
     expect(plain).toBeLessThan(0.95);
     expect(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START) + CHANCE_BONUS / 3)).toBeGreaterThan(0.95);
     expect(en).toContain('The sum above counts every spin as an ordinary one');
@@ -1602,18 +1618,19 @@ describe('the page', () => {
     for (const text of ['A prize ball on the field', 'A choice of three chests', 'A roll on the sugoroku board']) expect(html).toContain(text);
     // Each winning line is shown with the pictures its digits wear on the reels, for the eye only: the line's name says the digits.
     const slot = table(html, 'pusher-slot-table');
-    // The chance of each line to its last digit, as the table of 8,000 spins has it, and about one spin in how many that is.
+    // The chance of each line to its last digit, as the table of 25,000 spins has it, and about one spin in how many that is.
     const line = (tier: string) => (slot.split(`<tr data-tier="${tier}">`)[1]?.split('</tr>')[0] ?? '').match(/<td[^>]*>[^<]*/g)?.map((cell) => cell.split('>')[1]);
-    expect(line('seven')?.slice(0, 2)).toEqual(['0.875%', '1 in 114']);
-    expect(line('big')?.slice(0, 2)).toEqual(['1.875%', '1 in 53']);
-    expect(line('small')?.slice(0, 2)).toEqual(['5%', '1 in 20']);
-    expect(line('miss')?.slice(0, 2)).toEqual(['92.25%', '—']);
+    expect(line('seven')?.slice(0, 2)).toEqual(['0.868%', '1 in 115']);
+    expect(line('big')?.slice(0, 2)).toEqual(['1.86%', '1 in 54']);
+    expect(line('small')?.slice(0, 2)).toEqual(['4.96%', '1 in 20']);
+    expect(line('miss')?.slice(0, 2)).toEqual(['92.312%', '—']);
     for (const tier of ['seven', 'big', 'small', 'miss'] as const) {
       // Nothing is rounded away: the percentage that is printed is the table's own count out of its total.
       expect(Number(line(tier)?.[0].replace('%', '')) * (SPIN_TOTAL / 100)).toBeCloseTo(SPIN_TABLE[tier], 9);
       expect(tidyPercent(tierChance(tier), 4)).toBe(line(tier)?.[0]);
+      if (tier !== 'miss') expect(line(tier)?.[1]).toBe(`1 in ${Math.round(SPIN_TOTAL / SPIN_TABLE[tier])}`);
     }
-    expect(SPIN_TOTAL).toBe(8000);
+    expect(SPIN_TOTAL).toBe(25000);
     const pictures = (tier: string) => {
       const row = slot.split(`<tr data-tier="${tier}">`)[1]?.split('</tr>')[0] ?? '';
       return [...row.matchAll(/<svg[^>]*aria-hidden="true">[\s\S]*?<text[^>]*>(\d)<\/text><\/svg>/g)].map(([, digit]) => Number(digit));
@@ -1688,19 +1705,20 @@ describe('the page', () => {
       'Of whatever the bowls pay, 30% is poured onto the field loose and the rest is stacked as towers; what the free places on the pusher cannot hold is poured as well.',
     );
     expect(html).toContain('About 19.8% of all balls get this far.');
-    expect(html).toContain('One ball in 15.2 wins it, and one spin in 1,736 leads to it');
-    expect(Math.round(1 / JACKPOT_CHANCE)).toBe(1736);
+    expect(html).toContain('One ball in 15.2 wins it, and one spin in 1,750 leads to it');
+    expect(Math.round(1 / JACKPOT_CHANCE)).toBe(1750);
     expect(html).toContain('One tower on the pusher');
     expect(html).toContain('the average of the board: 8.75 medals');
     expect(html).toContain(`after ${BOARD_ROLLS} rolls from the start, no square is more than ${percent(boardSpread(BOARD_ROLLS))} away`);
-    // What a spin is worth at each size of jackpot, the jewel a treasure line lets go counted in, and that a medal through a START slot is worth that.
+    // What a spin is worth at each size of jackpot, the jewel a treasure line lets go counted in, and that a medal through a START pocket is worth that.
     const worth = table(html, 'pusher-value-table');
-    expect(worth.match(/<td[^>]*>[^<]*/g)?.map((cell) => cell.split('>')[1])).toEqual(['63.7 medals', '1.396 medals', '76.9 medals', '1.512 medals', '109.8 medals', '1.8 medals']);
+    expect(worth.match(/<td[^>]*>[^<]*/g)?.map((cell) => cell.split('>')[1])).toEqual(['63.7 medals', '1.385 medals', '76.9 medals', '1.5 medals', '109.8 medals', '1.785 medals']);
     for (const level of JACKPOT_LEVELS) expect(worth).toContain(`${Number(spinValue(level).toFixed(3))} medals`);
-    expect(html).toContain('So a medal through a START slot is worth about 1.40 more medals');
+    expect(html).toContain(`So a medal through a START pocket is worth about ${spinValue(JACKPOT_START).toFixed(2)} more medals`);
+    expect(html).toContain('So a medal through a START pocket is worth about 1.39 more medals');
     expect(html).toContain('1,000 medals');
     const expected = percent(returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, spinValue(JACKPOT_START)));
-    expect(expected).toBe('93.4%');
+    expect(expected).toBe('93.3%');
     expect(html).toMatch(new RegExp(`data-testid="pusher-calc-return"[^>]*>${expected.replace('.', '\\.')}<`));
     // At that front share a spin for 18% of the medals dropped would break even.
     expect(percent(breakEvenSpins(CALC_DEFAULT.front / 100, spinValue(JACKPOT_START)), 0)).toBe('18%');
@@ -1722,7 +1740,8 @@ describe('the page', () => {
     expect(html).toContain('it stands too tall for the open sides: the only way off the field is over the front');
     // The exact part: how often one comes, and what a set pays.
     const note = html.split('data-testid="pusher-jewel-note">')[1]?.split('</p>')[0] ?? '';
-    expect(note).toContain('with 18.75 spins in 1,000');
+    expect(note).toContain(`with ${(SPIN_TABLE[JEWEL_TIER] * 1000) / SPIN_TOTAL} spins in 1,000`);
+    expect(note).toContain('with 18.6 spins in 1,000');
     expect(note).toContain(`A set pays ${JEWEL.lamps - 1} × ${JEWEL.prize} + ${JEWEL.bonus} = ${JEWEL_SET} medals, which is ${JEWEL_VALUE} medals a jewel and ${Number(JEWEL_SPIN_VALUE.toFixed(3))} medals a spin`);
     expect(note).toContain('A set pays 4 × 1 + 3 = 7 medals, which is 1.4 medals a jewel and 0.026 medals a spin');
     expect(note).toContain('No jewel is lost: every one the machine lets go is collected sooner or later, so the figure is exact.');
@@ -1736,10 +1755,10 @@ describe('the page', () => {
     expect(line).toContain('21.4 medals');
     // And a spin is worth what it was, and the jewels' share more.
     expect(html).toContain(`${Number(spinValue(JACKPOT_START).toFixed(3))} medals`);
-    expect(html).toContain('1.396 medals');
+    expect(html).toContain('1.385 medals');
     // And in Japanese.
     const ja = render(<OddsTab />, 'ja');
-    for (const text of ['1〜4個目', '各1枚', '5個目：宝石ボーナス（ランプは消える）', '3枚', '3つの宝箱から1つ選ぶ＋宝石1個', '抽選1,000回につき18.75個', '4 × 1 + 3 = 7枚', '宝石1個あたり1.4枚、抽選1回あたり0.026枚', '宝石は失われません', '最初から宝石が2個']) expect(ja).toContain(text);
+    for (const text of ['1〜4個目', '各1枚', '5個目：宝石ボーナス（ランプは消える）', '3枚', '3つの宝箱から1つ選ぶ＋宝石1個', '抽選1,000回につき18.6個', '4 × 1 + 3 = 7枚', '宝石1個あたり1.4枚、抽選1回あたり0.026枚', '宝石は失われません', '最初から宝石が2個']) expect(ja).toContain(text);
   });
 
   it('says how many jewel lamps are lit to anyone who cannot see them', () => {
@@ -1761,13 +1780,13 @@ describe('the page', () => {
     }
     expect(row('long')).toContain('Super reach (the long one)');
     expect(row('long')).toContain('>6.7%<');
-    expect(row('long')).toContain('>69.1%<');
-    expect(row('normal')).toContain('>14.9%<');
-    expect(row('normal')).toContain('>20.9%<');
-    expect(row('any')).toContain('>21.6%<');
-    expect(row('any')).toContain('>35.9%<');
+    expect(row('long')).toContain('>69.0%<');
+    expect(row('normal')).toContain('>14.8%<');
+    expect(row('normal')).toContain('>20.7%<');
+    expect(row('any')).toContain('>21.5%<');
+    expect(row('any')).toContain('>35.7%<');
     // The note after it puts the two side by side and says where the difference comes from.
-    expect(html).toContain('a super reach goes on to hit 69.1% of the time and an ordinary reach 20.9%, so the long one is about 3.3 times as likely to hit');
+    expect(html).toContain('a super reach goes on to hit 69.0% of the time and an ordinary reach 20.7%, so the long one is about 3.3 times as likely to hit');
     expect(html).toContain('played with the long reach 60% of the time');
     expect(html).toContain('lost with a reach only 15% of the time');
     // The reach note that was there before still comes first.
@@ -1776,7 +1795,7 @@ describe('the page', () => {
 
     const ja = render(<OddsTab />, 'ja');
     for (const text of ['ノーマルリーチ', 'スーパーリーチ', 'リーチ全体', '出現率', '信頼度', '約3.3倍']) expect(ja).toContain(text);
-    expect(ja).toContain('スーパーリーチが69.1%、ノーマルリーチが20.9%');
+    expect(ja).toContain('スーパーリーチが69.0%、ノーマルリーチが20.7%');
   });
 
   it('explains the jackpot challenge in Japanese', () => {
@@ -1788,8 +1807,8 @@ describe('the page', () => {
     expect(html).toContain('300枚のとき、90枚がフィールドに降り、プッシャーの上にタワー9本');
     expect(html).toContain('その30%がそのままフィールドに降り、残りがタワーとして積まれます。プッシャーの空いた場所に積みきれない分も、フィールドに降ります。');
     expect(html).toContain('クルーンの払い出しは平均150枚です');
-    expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では1,736回に1回がそこにつながります');
-    for (const text of ['114回に1回', '53回に1回', '20回に1回', '0.875%', '1.875%', '92.25%']) expect(table(html, 'pusher-slot-table')).toContain(text);
+    expect(html).toContain('ボール15.2個に1個がジャックポットを獲得し、抽選では1,750回に1回がそこにつながります');
+    for (const text of ['115回に1回', '54回に1回', '20回に1回', '0.868%', '1.86%', '4.96%', '92.312%']) expect(table(html, 'pusher-slot-table')).toContain(text);
     const info = getStrings('ja').infoBody(MAX_STOCK).join('');
     expect(info).toContain('数字が4回続くと「ジャックポットチャレンジ」です');
     expect(info).not.toContain('6回');
@@ -3050,12 +3069,12 @@ describe('chance time on the screen and in the words', () => {
     // An ordinary spin, a gold one, and what being gold adds, with the jackpot at 300: the board's and the chests' share again.
     // Both spins count the jewel a treasure line lets go, once: 0.02625 medals a spin.
     const [ordinary, gold, more] = [spinValue(JACKPOT_START).toFixed(5), chanceSpinValue(JACKPOT_START).toFixed(5), CHANCE_BONUS.toFixed(5)];
-    expect([ordinary, gold, more]).toEqual(['1.39643', '2.20893', '0.81250']);
-    expect(CHANCE_BONUS).toBeCloseTo(0.8125, 12);
+    expect([ordinary, gold, more]).toEqual(['1.38526', '2.19126', '0.80600']);
+    expect(CHANCE_BONUS).toBeCloseTo(0.806, 12);
     expect(CHANCE_BONUS).toBeCloseTo(tierChance('small') * BOARD_VALUE + tierChance('big') * CHEST_VALUE, 12);
     for (const text of [ordinary, gold, more]) expect(chance).toContain(`${text} medals`);
     // What being gold adds is the same at any size of jackpot: a gold spin's ball is worth what any ball is.
-    expect(chance.match(/0\.81250 medals/g)).toHaveLength(JACKPOT_LEVELS.length);
+    expect(chance.match(/0\.80600 medals/g)).toHaveLength(JACKPOT_LEVELS.length);
     for (const level of JACKPOT_LEVELS) {
       expect(chance).toContain(`${spinValue(level).toFixed(5)} medals`);
       expect(chance).toContain(`${chanceSpinValue(level).toFixed(5)} medals`);
@@ -3065,32 +3084,37 @@ describe('chance time on the screen and in the words', () => {
       // Two chests, and the one jewel that comes with any treasure line.
       expect(chanceTierValue('big', level)).toBe(CHEST_VALUE * 2 + JEWEL_VALUE);
     }
-    expect(html).toContain(`When all ${MAX_STOCK} spins are held, the next medal through a START slot starts no spin of its own.`);
+    expect(html).toContain(`When all ${MAX_STOCK} spins are held, the next medal through a START pocket starts no spin of its own.`);
     expect(html).toContain('It turns one of the held spins gold, and with that chance time begins.');
     // While it lasts the wings are open and every medal that is held holds a gold spin, and it ends with the last gold spin.
-    expect(html).toContain('While it lasts the wings of the START slots are open: flaps on the slope under the lip that swing out and funnel the medals sliding down it toward the slots.');
+    expect(html).toContain('While it lasts the wings of the START pockets are open: flaps on the slope under the lip that swing out and funnel the medals sliding down it toward the pockets.');
     expect(html).toContain('every medal that is held holds a gold spin');
     expect(html).toContain('Chance time ends when the last gold spin has been played.');
     expect(html).toContain('pays 2 times over, and a ball is a ball');
+    expect(html).toContain(`it is worth ${CHANCE_BONUS.toFixed(2)} medals more than one ordinary spin`);
     expect(html).toContain('it is worth 0.81 medals more than one ordinary spin');
-    // Both buttons held down, as it was measured, and not that a full hold never pays.
-    expect(html).toContain('holding both buttons down returns about 94%, a little less than feeding the middle at two medals a second');
+    // Both buttons held down, as it was measured, next to what steady play returns.
+    expect(html).toContain('holding both buttons down returns about 93%, where feeding the middle at two medals a second returns about 95%: a full hold is not worth filling');
     expect(html).not.toContain('never better');
     // At the end of the section, small: the lucky lamp's rule, and the two spins' worth to five places.
     const section = html.split(`>${getStrings('en').chanceOddsTitle}</h2>`)[1]?.split('</section>')[0] ?? '';
     const note = section.match(/<p class="[^"]*note[^"]*" data-testid="pusher-lucky-note">([^<]*)<\/p>$/)?.[1] ?? '';
-    expect(note).toContain(`steps one slot along, from the left, with every stroke of the pusher, which is every ${LUCKY.dwell} seconds`);
-    expect(note).toContain('A medal that is held through the lit slot holds a gold spin from the start, for the one medal.');
+    expect(note).toContain(`steps one pocket along, from the left, with every stroke of the pusher, which is every ${LUCKY.dwell} seconds`);
+    expect(note).toContain('A medal that is held through the lit pocket holds a gold spin from the start, for the one medal.');
     expect(note).toContain(`An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}.`);
-    expect(note).toBe(getStrings('en').luckyOddsNote(ordinary, gold, String(LUCKY.dwell)));
+    // That it cannot be aimed at, and the share of all spins it was measured to make gold.
+    expect(note).toContain('The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip');
+    expect(note).toContain(`Measured at up to two medals a second, the lamp makes about ${LAMP_SHARE}% of all spins gold`);
+    expect(note).toBe(getStrings('en').luckyOddsNote(ordinary, gold, String(LUCKY.dwell), `${LAMP_SHARE}%`));
     const ja = render(<OddsTab />, 'ja');
     expect(ja).toContain('チャンスタイム');
     expect(ja).toContain('ふつうの抽選より0.81枚多く払い出します');
     expect(ja).toContain('羽根は縁の下の斜面についた板で、外へ開いて、斜面を滑ってくるメダルをチャッカーのほうへ寄せます');
-    expect(ja).toContain('両方のボタンを押し続けたときに戻ってくるのは約94%');
+    expect(ja).toContain('両方のボタンを押し続けたときに戻ってくるのは約93%で、中央に毎秒2枚ずつ落とす場合の約95%に届きません');
     expect(ja).toContain(`プッシャーが1往復する${LUCKY.dwell}秒ごとに、光が左から順にとなりのチャッカーへ移ります`);
     expect(ja).toContain(`ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です`);
-    expect(ja).toContain(`data-testid="pusher-lucky-note">${getStrings('ja').luckyOddsNote(ordinary, gold, String(LUCKY.dwell))}</p>`);
+    expect(ja).toContain(`毎秒2枚までの速さで実測すると、抽選全体の約${LAMP_SHARE}%がランプによる金の抽選でした`);
+    expect(ja).toContain(`data-testid="pusher-lucky-note">${getStrings('ja').luckyOddsNote(ordinary, gold, String(LUCKY.dwell), `${LAMP_SHARE}%`)}</p>`);
   });
 
   it('explains it in the how-to, the slot’s note and the simulation’s notes, in both languages', () => {
@@ -3104,11 +3128,11 @@ describe('chance time on the screen and in the words', () => {
     // While it lasts the wings are open and every medal that is held holds a gold spin, and it ends with the last gold spin.
     expect(en.infoBody(MAX_STOCK).join(' ')).toContain('every medal that is held holds a gold spin. Chance time ends when the last gold spin has been played.');
     expect(ja.infoBody(MAX_STOCK).join('')).toContain('保留されたメダルはすべて金の抽選になります。最後の金の抽選が回り終わると、チャンスタイムは終わります。');
-    expect(en.simNotes('1.37', MAX_STOCK).join(' ')).toContain('Until the last gold spin has been played the wings of the START slots are open, and every medal that is held holds a gold spin.');
+    expect(en.simNotes('1.37', MAX_STOCK).join(' ')).toContain('Until the last gold spin has been played the wings of the START pockets are open, and every medal that is held holds a gold spin.');
     expect(ja.simNotes('1.37', MAX_STOCK).join('')).toContain('最後の金の抽選が回り終わるまでチャッカーの羽根が開いて、そのあいだに保留されたメダルはすべて金の抽選になります。');
     expect(en.chanceLeft(4)).toBe('4 left');
     expect(en.sayChance).toContain('Chance time');
-    expect(en.sayChance).toContain('the wings of the START slots swing out to funnel medals in, and every spin held from now on is gold');
+    expect(en.sayChance).toContain('the wings of the START pockets swing out to funnel medals in, and every spin held from now on is gold');
     expect(ja.sayChance).toContain('チャンスタイム');
     expect(ja.sayChance).toContain('チャッカーの羽根が開いてメダルを寄せ、ここから保留される抽選はすべて金の抽選になります');
     expect(en.colGold).toBe('Gold spins');

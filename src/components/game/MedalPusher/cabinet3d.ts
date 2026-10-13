@@ -661,12 +661,18 @@ const RIM_DEEP = light('#b77d12');
 const THROAT_LIT = light('#ffd65c', 1.2);
 /** How far in from the edge of a slot the lit ring inside its frame slopes, and how far under the slide. The throat under it is that much narrower. */
 const RING = { in: 0.4, down: 0.6 } as const;
+/** How brightly the lucky lamp's gold fills the throat of its slot, beside the 1 of a slot a medal has just gone down. */
+export const THROAT_FILL = 0.8;
 /** The far wall of a slot's throat, which the ring above it lights, and its sides, which it barely does. */
 const THROAT_FAR = light('#a58cf5');
 const THROAT_SIDE = light('#3a1a86');
-const THROAT_GOLD = light('#ffd65c');
-/** A slot's frame while its lamp is not on it. */
-const SLOT_FRAME = light('#e0b64a');
+/** The throat of the slot the lucky lamp is on, which its gold fills: the top of its far wall, the foot of that and the far end of its floor, and the near end of the floor. */
+const THROAT_GOLD = light('#ffe9a6', 1.2);
+const THROAT_AMBER = light('#ffc23d');
+const THROAT_DEEP = light('#c98a14');
+/** A slot's frame while its lamp is not on it: polished brass, from its bright top edge down. */
+const FRAME_TOP = light('#fff0b8');
+const FRAME_FOOT = light('#e8bd4a');
 /** The colour of each slot's own light, from the left: its ring while it waits, and its lamp. */
 const SLOT_LAMPS: readonly Rgb[] = [light('#7df0ff', 1.4), light('#ff9bd0', 1.4), light('#9dff8a', 1.4)];
 
@@ -693,13 +699,17 @@ function slideShade(down: number): Rgb {
  * under the lip, its two ends, and its underside, which is never seen and is
  * there for the shadow the catcher throws on the lower table.
  *
- * A slot's ring is in the slot's own colour and its frame a dull gold while
- * it waits. The slot the lucky lamp is on is gold: its frame, its ring and
- * the far wall of its throat. With `wings`, which is chance time, all three
- * are, the openings are wider, and the wings, which otherwise lie along the
- * sides of the frames, have swung out at their upper ends like the cheeks of
- * a funnel. A slot a medal has just dropped through is brighter still for a
- * moment, all the way down its throat.
+ * The slide is brushed steel, and the frames and the wings are brass
+ * (`MATERIAL`): bright trim, with no light of their own while a slot waits.
+ * A slot's ring is in the slot's own colour then, and its throat is dark but
+ * for the far wall. The slot the lucky lamp is on is gold: its frame and its
+ * ring are lit, and the gold fills its mouth, the far wall and the sides of
+ * its throat and its floor, so that it is told from the other two at a
+ * glance. With `wings`, which is chance time, all three are, the openings
+ * are wider, and the wings, which otherwise lie along the sides of the
+ * frames, have swung out at their upper ends like the cheeks of a funnel. A
+ * slot a medal has just dropped through is brighter still for a moment, all
+ * the way down its throat.
  */
 function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: number, calm: boolean, wings: boolean): void {
   const { from, to, tile, rim, foot, throat } = CATCHER;
@@ -723,7 +733,7 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
     const left = from + tile * i;
     const right = left + tile;
     // Its stretch of the slide, round the opening: above it, below it, and to either side.
-    solid.finish(0.85);
+    solid.as(MATERIAL.brushedSteel);
     board(left, right, 0, upper);
     board(left, right, lower, words);
     board(left, x - half, upper, lower);
@@ -733,9 +743,8 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
     const opening = slotCorners(i, time, wings, 0, rim.high);
     const outer = slotCorners(i, time, wings, rim.wide, rim.high);
     const base = slotCorners(i, time, wings, rim.wide);
-    if (lit > 0) solid.finish(0.9, 0.2 + 0.8 * lit).paint(GATE_LIT, RIM_GOLD);
-    else if (gold[i]) solid.finish(0.6, 0.85).paint(GATE_LIT, RIM_GOLD);
-    else solid.finish(0.9, 0.1).paint(SLOT_FRAME, RIM_DEEP);
+    if (lit > 0 || gold[i]) solid.finish(MATERIAL.brass.gloss, Math.max(gold[i] ? 0.85 : 0, 0.2 + 0.8 * lit)).paint(GATE_LIT, RIM_GOLD);
+    else solid.as(MATERIAL.brass).paint(FRAME_TOP, FRAME_FOOT);
     for (let side = 0; side < 4; side++) {
       const next = (side + 1) % 4;
       span(solid, outer[side], outer[next], opening[next], opening[side]);
@@ -747,16 +756,20 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
     solid.finish(0, lit > 0 ? 1 + 0.6 * lit : gold[i] ? 1.3 : 0.55 + 0.3 * pulse).paint(lit > 0 || gold[i] ? GATE_LIT : SLOT_LAMPS[i % SLOT_LAMPS.length]);
     for (let side = 0; side < 4; side++) span(solid, opening[side], opening[(side + 1) % 4], inner[(side + 1) % 4], inner[side]);
     // The throat, straight down from the ring to its floor: its far wall, which catches the light of the ring,
-    // its two sides and its near wall, and its floor.
+    // its two sides and its near wall, and its floor. In a slot that waits it is dark below the top of the far
+    // wall. The lucky lamp's gold fills it, to the floor; and a medal going down it lights it brighter still.
     const bed = inner.map((corner) => ({ ...corner, height: throat }));
-    if (lit > 0) solid.finish(0, 0.35 + 0.65 * lit).paint(THROAT_LIT, RIM_DEEP);
-    else solid.finish(0.1, 0.8).paint(gold[i] ? THROAT_GOLD : THROAT_FAR, BLACK);
+    const filled = lit > 0 || gold[i];
+    const fill = Math.max(gold[i] ? THROAT_FILL : 0, lit);
+    if (filled) solid.finish(0, 0.35 + 0.65 * fill).paint(lit > 0 ? THROAT_LIT : THROAT_GOLD, THROAT_AMBER);
+    else solid.finish(0.1, 0.8).paint(THROAT_FAR, BLACK);
     span(solid, inner[0], inner[1], bed[1], bed[0]);
-    if (lit <= 0) solid.finish(0.1, 0.5).paint(gold[i] ? RIM_DEEP : THROAT_SIDE, BLACK);
+    if (filled) solid.finish(0, 0.25 + 0.6 * fill).paint(THROAT_AMBER, THROAT_DEEP);
+    else solid.finish(0.1, 0.5).paint(THROAT_SIDE, BLACK);
     span(solid, inner[1], inner[2], bed[2], bed[1]);
     span(solid, inner[3], inner[2], bed[2], bed[3]);
     span(solid, inner[0], inner[3], bed[3], bed[0]);
-    if (lit > 0) solid.finish(0, lit).paint(THROAT_LIT, RIM_DEEP);
+    if (filled) solid.finish(0, fill).paint(THROAT_AMBER, THROAT_DEEP);
     else solid.finish(0, 1).paint(BLACK);
     span(solid, bed[0], bed[1], bed[2], bed[3]);
     // Its two wings: low fences on the slide. Folded, each lies along the side of the frame. Open, during chance
@@ -764,10 +777,11 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
     for (const side of [-1, 1]) {
       const low = wingCorners(i, side, time, wings);
       const top = wingCorners(i, side, time, wings, START_SLOT.wing.high);
-      if (wings) solid.finish(0.7, 0.9).paint(GATE_LIT, RIM_GOLD);
-      else solid.finish(0.9, 0.1).paint(RIM_GOLD, RIM_DEEP);
+      if (wings) solid.finish(MATERIAL.brass.gloss, 0.9).paint(GATE_LIT, RIM_GOLD);
+      else solid.as(MATERIAL.brass).paint(FRAME_TOP, FRAME_FOOT);
       span(solid, top[0], top[1], top[2], top[3]);
-      if (wings) solid.finish(0.8, 0.5).paint(RIM_GOLD, RIM_DEEP);
+      if (wings) solid.finish(MATERIAL.brass.gloss, 0.5).paint(RIM_GOLD, RIM_DEEP);
+      else solid.paint(FRAME_FOOT, RIM_DEEP);
       for (let edge = 1; edge < 4; edge++) {
         const next = (edge + 1) % 4;
         span(solid, top[edge], top[next], low[next], low[edge]);
@@ -778,7 +792,7 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
   solid.finish(0.2).paint(GROOVE);
   span(solid, slopeSpot(from, 0, time, 0.02), slopeSpot(to, 0, time, 0.02), slopeSpot(to, 0.45, time, 0.02), slopeSpot(from, 0.45, time, 0.02));
   // The two ends: under the slide, down to the level of its foot.
-  solid.finish(0.8).paint(STEEL_TOP, STEEL_FOOT);
+  solid.as(MATERIAL.brushedSteel).paint(STEEL_TOP, STEEL_FOOT);
   const out = front + foot.out;
   for (const x of [from, to]) solid.quad(x, CATCHER.deck, front, x, foot.height, out, x, foot.height, out, x, foot.height, front);
   // The underside, for the shadow.

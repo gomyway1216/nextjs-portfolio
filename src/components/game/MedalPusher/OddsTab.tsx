@@ -65,6 +65,11 @@ export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
 /** What the calculator starts from: about what feeding both rails down the middle of the pusher, two medals a second between them, measures on the Simulation tab. */
 export const CALC_DEFAULT = { front: 80, spins: 12 } as const;
+/**
+ * The share of all spins that the lucky lamp makes gold, as a percentage: what scripts/medal-pusher-tune.ts measures
+ * feeding the middle at up to two medals a second. One pocket in three is lit, and it comes to a third.
+ */
+export const LAMP_SHARE = 33;
 
 /** Rolls after which the Odds tab shows how even the board has become. */
 export const BOARD_ROLLS = 6;
@@ -194,7 +199,7 @@ export const OddsTab = () => {
                       </span>
                     )}
                   </th>
-                  {/* To four places, which is every digit a chance out of 8,000 has as a percentage: these are exact. */}
+                  {/* To four places, which holds every digit a chance out of 25,000 has as a percentage: these are exact. */}
                   <td className={styles.num}>{tidyPercent(tierChance(tier), 4)}</td>
                   <td className={styles.num}>{tier === 'miss' ? '—' : t.oneIn(fmt(Math.round(SPIN_TOTAL / SPIN_TABLE[tier])))}</td>
                   <td>{linePays(tier)}</td>
@@ -512,9 +517,9 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.chanceOddsNote(CHANCE_BONUS.toFixed(2))}</p>
-        {/* The lucky lamp makes a spin gold with no full hold: its rule, and the two spins' worth again, with the jackpot where it starts. */}
+        {/* The lucky lamp makes a spin gold with no full hold: its rule, the two spins' worth again with the jackpot where it starts, that it cannot be aimed at, and how many spins it makes gold. */}
         <p className={styles.note} data-testid="pusher-lucky-note">
-          {t.luckyOddsNote(spinValue(JACKPOT_START).toFixed(5), chanceSpinValue(JACKPOT_START).toFixed(5), trim(LUCKY.dwell, 1))}
+          {t.luckyOddsNote(spinValue(JACKPOT_START).toFixed(5), chanceSpinValue(JACKPOT_START).toFixed(5), trim(LUCKY.dwell, 1), `${LAMP_SHARE}%`)}
         </p>
       </section>
 

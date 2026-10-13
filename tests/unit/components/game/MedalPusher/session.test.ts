@@ -1472,8 +1472,8 @@ describe('chance time', () => {
 });
 
 describe('the lucky lamp and the wings', () => {
-  /** A place across the lip that is outside the middle slot and inside its open wings. */
-  const BESIDE = CHECKERS.positions[1] + 1.5;
+  /** A place across the lip that is outside the middle slot and inside its open wings: halfway between the two widths. */
+  const BESIDE = CHECKERS.positions[1] + (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2;
 
   it('holds a gold spin for a medal that is held through the slot the lamp is on, and an ordinary one through any other', () => {
     for (const lit of [0, 1, 2]) {
@@ -1525,6 +1525,9 @@ describe('the lucky lamp and the wings', () => {
     expect(spinTimes(after)).toEqual([TIMING.spin]);
     const all = [...start, ...events, ...after];
     expect([count(all, 'chanceStart'), count(all, 'chanceEnd'), session.rush]).toEqual([0, 0, false]);
+    // The medals the board paid are taken off the pusher first: the wings reach so little further than the slot
+    // that one lying by the lip could nudge the medal into it.
+    session.machine.medals = [];
     overTheLip(session, BESIDE);
     expect(pocketed(play(session, DT))).toEqual([]);
   });
@@ -1678,7 +1681,7 @@ describe('a frame that took long', () => {
     Object.assign(session, { stock: MAX_STOCK, hits: MAX_STOCK });
     // A medal over the lip at the middle slot in the first sixtieth of a second, which finds the hold full. And one
     // that comes over two sixtieths later just beside the right slot: outside the slot, and inside its open wings.
-    const beside = CHECKERS.positions[2] + 1.5;
+    const beside = CHECKERS.positions[2] + (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2;
     expect(checkerAt(beside, CHECKERS.halfWidth)).toBe(-1);
     expect(checkerAt(beside, CHECKERS.wingWidth)).toBe(2);
     overTheLip(session, CHECKERS.positions[1]);
@@ -1707,7 +1710,7 @@ describe('a frame that took long', () => {
       // The same two medals, with room in the hold: the first is held, and nothing begins.
       const session = busy();
       overTheLip(session, CHECKERS.positions[1]);
-      overTheLipIn(session, CHECKERS.positions[2] + 1.5, 3);
+      overTheLipIn(session, CHECKERS.positions[2] + (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2, 3);
       const events = played(session, frames);
       expect(pocketed(events)).toEqual([{ type: 'checker', gate: 1, held: true, gold: false, lucky: false }]);
       expect([session.rush, session.hits, session.stock]).toEqual([false, 1, 1]);

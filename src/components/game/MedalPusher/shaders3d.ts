@@ -14,6 +14,14 @@
 import { FIELD, MEDAL_RADIUS } from './engine';
 import { HEIGHT, SCREEN } from './view';
 
+/**
+ * The two lamps under the pusher's lip, to either side of the catcher: how
+ * far in from its side wall each is, how far below the top of the pusher,
+ * and how far out in front of the pusher's face, which they travel with.
+ * The shaders light the heap from there, and the cabinet draws a bulb there.
+ */
+export const LIP_LAMPS = { inset: FIELD.width * 0.14, below: HEIGHT.pusher * 0.5, before: 0.9 } as const;
+
 const HEAD = `#version 300 es
 precision highp float;
 precision highp sampler2DShadow;
@@ -35,8 +43,8 @@ uniform sampler2DShadow uShadow;
 const vec3 KEY_COLOUR = vec3(1.0, 0.93, 0.8);
 // The two lamps under the pusher's lip, to either side of the catcher: warm, small, and near enough to the heap that their light falls off across it.
 const vec3 LIP_LAMP = vec3(1.0, 0.7, 0.36);
-const float LIP_LAMP_OUT = ${(FIELD.width * 0.14).toFixed(1)};
-const float LIP_LAMP_HIGH = ${(HEIGHT.pusher - 1.1).toFixed(2)};
+const float LIP_LAMP_OUT = ${LIP_LAMPS.inset.toFixed(1)};
+const float LIP_LAMP_HIGH = ${(HEIGHT.pusher - LIP_LAMPS.below).toFixed(2)};
 
 /**
  * How much of the roof's light gets to a place on the field. The lamps hang
@@ -51,7 +59,7 @@ float pool(vec3 world) {
 
 /** Where one of the lamps under the lip is: the left one for -1, the right one for 1. */
 vec3 lipLamp(float side) {
-  return vec3(${(FIELD.width / 2).toFixed(1)} + side * (${(FIELD.width / 2).toFixed(1)} - LIP_LAMP_OUT), LIP_LAMP_HIGH, uField.x + 0.9);
+  return vec3(${(FIELD.width / 2).toFixed(1)} + side * (${(FIELD.width / 2).toFixed(1)} - LIP_LAMP_OUT), LIP_LAMP_HIGH, uField.x + ${LIP_LAMPS.before.toFixed(1)});
 }
 // How far apart the roof's lamps are, as a mirror turns from one row to the next and from one tube to the next, and how bright they are.
 const float LAMP_ROW = 0.42;
@@ -147,7 +155,7 @@ vec3 nearLight(vec3 world, vec3 normal) {
   for (float side = -1.0; side < 2.0; side += 2.0) {
     vec3 to = lipLamp(side) - world;
     float far = dot(to, to) + 0.5;
-    light += LIP_LAMP * (2.3 / (1.0 + far / 150.0)) * max(dot(normal, to * inversesqrt(far)) * 0.7 + 0.3, 0.0) * under;
+    light += LIP_LAMP * (3.4 / (1.0 + far / 150.0)) * max(dot(normal, to * inversesqrt(far)) * 0.7 + 0.3, 0.0) * under;
   }
   vec3 toScreen = vec3(${(FIELD.width / 2).toFixed(1)}, ${((SCREEN.foot + SCREEN.top) / 2).toFixed(1)}, 0.0) - world;
   float away = dot(toScreen, toScreen) + 1.0;

@@ -20,6 +20,7 @@ import { JEWEL_CUT, JEWEL_LAMPS, LAMP_OUTLINE, jewelGlint, jewelLampX, lampLight
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
 import { BALL_RADIUS, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, goldFlash, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
+import { LIP_LAMPS } from './shaders3d';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, chuteHeight } from './view';
 
 const TAU = Math.PI * 2;
@@ -1140,6 +1141,9 @@ export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wav
 const GLOW_RED = light('#ff5468');
 const GLOW_GOLD = light('#ffd65c');
 const GLOW_PINK = light('#ff56aa');
+/** A lamp under the pusher's lip: the bulb, and the glare round it. */
+const LIP_BULB = light('#fff2d0');
+const LIP_GLARE = light('#ffb45c');
 const GLOW_CYAN = light('#40e2ff');
 const GLOW_LIT = light('#fff496');
 const ICE = light('#c8f4ff');
@@ -1215,7 +1219,15 @@ function screenTouches(flat: Flat, machine: Machine): void {
 export function buildTouches(flat: Flat, machine: Machine, front: number, stage: Stage, options: DrawOptions): void {
   const calm = options.calm ?? false;
   // Where the pusher's face meets the lower table, and where the tables meet the back wall and the side walls.
-  flat.ink(BLACK, 0.62).fade(BLACK, 0).quad(0, 0.03, front, W, 0.03, front, W, 0.03, front + 9, 0, 0.03, front + 9);
+  // The lamps under the lip shine on the table in front of the pusher, so the dark there is only at its foot.
+  flat.ink(BLACK, 0.5).fade(BLACK, 0).quad(0, 0.03, front, W, 0.03, front, W, 0.03, front + 5, 0, 0.03, front + 5);
+  // The lamps themselves, to either side of the catcher: a small hot bulb each, and its glare. What they
+  // throw on the heap is the shaders' work.
+  for (const side of [-1, 1]) {
+    const x = W / 2 + side * (W / 2 - LIP_LAMPS.inset);
+    flat.ink(LIP_GLARE, 0, 0.6).onPanel(x, P - LIP_LAMPS.below, front + LIP_LAMPS.before, 4.2);
+    flat.ink(LIP_BULB, 0, 1).onPanel(x, P - LIP_LAMPS.below, front + LIP_LAMPS.before + 0.02, 1.1);
+  }
   flat.ink(BLACK, 0.4).fade(BLACK, 0).quad(0, P + 0.03, 0, W, P + 0.03, 0, W, P + 0.03, 5, 0, P + 0.03, 5);
   for (let index = 0; index < 2; index++) {
     const x = index === 0 ? 0 : W;

@@ -2,10 +2,15 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { AIM, ARM_REACH, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { AchievementToast, BonusStrip } from './DailyBonus';
+import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
+import { FeelControls, FeelNote } from './FeelControls';
+import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
+import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
 import {
@@ -20,9 +25,14 @@ import {
   type ScreenState,
 } from './screen';
 import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
+import { grant } from './session';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setMusic, unlockAudio } from './sounds';
-import { STORAGE_KEY, restore, serialize } from './storage';
+import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
+import { keepMachine } from './savedMachine';
+import { savedNoteFor } from './savedNote';
+import { restore } from './storage';
+import { useFeel, type FeelNow } from './useFeel';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -59,6 +69,13 @@ export const AIM_RANGE = [
   { min: aimPercent(ARM_REACH[0].min), max: aimPercent(ARM_REACH[0].max) },
   { min: aimPercent(ARM_REACH[1].min), max: aimPercent(ARM_REACH[1].max) },
 ] as const;
+/** How far along a rail's slider a spot is, from 0 at its left end to 1 at its right: where a mark over the slider goes. */
+export const sliderShare = (arm: Arm, percent: number): number => {
+  const { min, max } = AIM_RANGE[arm];
+  return Math.min(1, Math.max(0, (percent - min) / (max - min)));
+};
+/** The START pockets each rail can feed, in the sliders' percent: what its slider marks as worth timing a press for. */
+export const POCKETS_IN_REACH = ([0, 1] as const).map((arm) => CHECKERS.positions.filter((x) => x >= ARM_REACH[arm].min && x <= ARM_REACH[arm].max).map(aimPercent)) as [number[], number[]];
 
 /** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
 const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
@@ -194,7 +211,17 @@ const WALL_SHEET: CSSProperties = {
 };
 const STAGE_SHAPE: CSSProperties = { aspectRatio: `${VIEW.width} / ${VIEW.height}` };
 
-export const PlayTab = ({ active = true }: { active?: boolean }) => {
+export interface PlayTabProps {
+  active?: boolean;
+  /** Who is playing, as far as the site knows. Left out, everyone is a guest and the machine lives on this device alone. */
+  player?: Player;
+  /** The account's store for the machine. It is read when the cabinet is first set up, and not again. */
+  store?: AccountStore | null;
+  /** Where a guest goes to sign in. With it, the note that the machine is saved on this device invites them to. */
+  signInHref?: string;
+}
+
+export const PlayTab = ({ active = true, player = GUEST, store = null, signInHref }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -217,9 +244,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const [armedAt, setArmedAt] = useState<number | null>(null);
   const armed = armedAt !== null;
   const [switchedOn, setSwitchedOn] = useState(0);
-  const startFresh = useRef(false);
-  // Whether the last attempt to save the machine took. Until one has been made, the page says what the server said.
-  const [kept, setKept] = useState(true);
+  // Where the machine is kept, and whether the last write to this device took. Until the keeper has said, the page says what the server said.
+  const [status, setStatus] = useState<Status>({ where: 'device', kept: true });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The canvas under the field, for the 3D scene.
@@ -232,6 +258,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const strips = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const ball = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<Session | null>(null);
+  // The keeper of the machine: it writes it to this device and, for a player who is signed in, keeps the account's copy
+  // in step. When another machine has to go on the table — the account's, or another player's — it asks for the cabinet
+  // to be switched off and on again, the way a reset does, and gives the machine to open with.
+  const keeper = useRef<Sync | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
   const live = useRef({ auto, sound, active, strings: t });
   // Who is holding each rail's feed down. The two rails are held apart, so two fingers, or two keys, feed both at once.
@@ -242,6 +272,19 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   // The aim keys that are down, and the rail each pointer on the field is aiming.
   const aimKeys = useRef(new Set<string>());
   const aimers = useRef(new Map<number, Arm>());
+  // The fingers on the field that have not shown yet whether they are aiming or scrolling the page: where each went
+  // down, and on which rail's half.
+  const waiting = useRef(new Map<number, { x: number; y: number; arm: Arm }>());
+  // How the machine feels in the hand: Sweep, vibration and the screen kept awake (feel.ts). The frame loop reads the
+  // player's choices from `feelNow`, and tells `wake` of every medal.
+  const feelNow = useRef<FeelNow>({ sweep: false, vibrate: false });
+  const wake = useRef<WakeKeeper | null>(null);
+  const feel = useFeel(feelNow, wake);
+  // What fed each medal since the last frame, noted where the machine took it: a press or a held button. The frame
+  // loop takes the notes when it plays the hand its pattern.
+  const fedBy = useRef<FedBy[]>([]);
+  // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
+  const [lead, setLead] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     live.current = { auto, sound, active, strings: t };
@@ -255,7 +298,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   /** Feeds one medal into a rail, if the purse has one and that rail's slot is free. Neither rail's aim moves. */
   const feedOnce = (arm: Arm) => {
     const session = sessionRef.current;
-    if (session && insert(session, arm)) feedSound(live.current.sound);
+    if (session && noteFed(fedBy.current, 'feed', insert(session, arm))) feedSound(live.current.sound);
   };
   /** A finger or a key goes down on a rail's feed. The first one feeds a medal at once; held, the rail streams. */
   const pressRail = (arm: Arm, by: string) => {
@@ -271,10 +314,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const releaseRail = (arm: Arm, by: string) => {
     if (holds.current[arm].by.delete(by)) showHeld();
   };
+  /** A hand on an aim takes over from Sweep, which goes off and says so. */
+  const takeOver = () => {
+    if (!feelNow.current.sweep) return;
+    feel.setSweep(false);
+    setAnnouncement(t.saySwingTaken);
+  };
   /** Points one rail at a spot across the field, as near as it can point, and shows where that is. */
   const aimRail = (arm: Arm, x: number) => {
     const session = sessionRef.current;
     if (!session) return;
+    takeOver();
     aimArm(session.machine, arm, x);
     setAims([session.machine.aims[0], session.machine.aims[1]]);
   };
@@ -325,6 +375,51 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     };
   }, [active]);
 
+  // A finger's press can end unheard too. The page is hidden, or the window loses the pointer, with a finger still
+  // down, and it comes up where nothing hears it: the rail would go on streaming when the page came back. So whoever
+  // is holding a feed, or aiming on the field, has let go by then, and so they have when this tab is put away.
+  useEffect(() => {
+    if (!active) return;
+    const letGo = () => {
+      for (const hold of holds.current) hold.by.clear();
+      aimers.current.clear();
+      waiting.current.clear();
+      setHeld((was) => (was[0] || was[1] ? [false, false] : was));
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') letGo();
+    };
+    window.addEventListener('blur', letGo);
+    window.addEventListener('pagehide', letGo);
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      window.removeEventListener('blur', letGo);
+      window.removeEventListener('pagehide', letGo);
+      document.removeEventListener('visibilitychange', whenHidden);
+      letGo();
+    };
+  }, [active]);
+
+  // The motor stops with the machine. A reset, leaving this tab or hiding the page in the middle of a long pattern
+  // would leave it buzzing for a machine that is gone or out of sight, and would hold back the next machine's ticks
+  // until the old pattern would have ended. So does the cabinet being taken down. A medal that was noted and not yet
+  // felt is not felt later either.
+  useEffect(() => {
+    if (!active) return;
+    const stop = () => {
+      fedBy.current.length = 0;
+      stopBuzz();
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') stop();
+    };
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', whenHidden);
+      stop();
+    };
+  }, [active, switchedOn]);
+
   // The background loop plays while the sound is on, the player has not switched the loop off, and this tab is
   // showing. Switching the sound off, or leaving the cabinet, cuts short whatever is still ringing. So does a
   // reset: the old machine's reels, fanfare and loop stop with it, and the loop starts again from the top for the new one.
@@ -334,23 +429,39 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   }, [sound, active, switchedOn, musicOn]);
   useEffect(() => (sound && active ? hush : undefined), [sound, active, switchedOn]);
 
+  // The keeper is set up once, before anything asks it for a machine.
+  useEffect(() => {
+    keeper.current ??= keepMachine({
+      store,
+      slots: () => window.localStorage,
+      session: () => sessionRef.current,
+      reopen: () => {
+        setHud(INITIAL_HUD);
+        setScreen(IDLE_SCREEN);
+        // Another machine is not fed for its player before they have seen it.
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+      },
+      onStatus: setStatus,
+    });
+  }, [store]);
+
+  // Who is playing. Signing in or out while the game is open changes whose machine is on the table.
+  useEffect(() => {
+    keeper.current?.player({ uid: player.uid, settled: player.settled, expected: player.expected });
+  }, [player.uid, player.settled, player.expected]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     // In 3D where the browser can, and on the canvas alone where it cannot; `?renderer=2d` asks for the second.
-    const renderer = canvas && createRenderer(canvas, sceneRef.current, window.location.search);
-    if (!canvas || !renderer) return;
+    const keeping = keeper.current;
+    const renderer = canvas && keeping && createRenderer(canvas, sceneRef.current, window.location.search);
+    if (!canvas || !keeping || !renderer) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
-    // The machine this browser remembers, if it holds one that still reads. After a reset the
-    // save is thrown away instead.
-    let remembered: Session | null = null;
-    try {
-      if (startFresh.current) window.localStorage.removeItem(STORAGE_KEY);
-      else remembered = restore(window.localStorage.getItem(STORAGE_KEY), seed);
-    } catch {
-      // Storage is blocked or switched off: the machine is simply a new one.
-    }
-    startFresh.current = false;
-    const session = remembered ?? createSession(seed);
+    // The machine to open with: the account's for a player who is signed in, and otherwise the one this browser
+    // remembers, if it holds one that still reads. After a reset there is none, and the old one is thrown away.
+    const remembered = keeping.open();
+    const session = (remembered === null ? null : restore(remembered, seed)) ?? createSession(seed);
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
     setAims([session.machine.aims[0], session.machine.aims[1]]);
@@ -361,30 +472,32 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     setHeld([false, false]);
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-    // Saved as soon as it stands here, every few seconds while it is showing, when the page is hidden
-    // or left, and when the cabinet is taken down. A write that fails means the machine is not
-    // remembered; the game goes on, and the note under the tally stops saying that it is.
-    const save = () => {
-      let took = false;
-      try {
-        window.localStorage.setItem(STORAGE_KEY, serialize(session));
-        took = true;
-      } catch {
-        // Storage is full, blocked or switched off.
-      }
-      setKept(took);
-    };
+    // Saved on this device as soon as it stands here, every few seconds while it is showing, when the page is
+    // hidden or left, and when the cabinet is taken down. A write that fails means the machine is not remembered;
+    // the game goes on, and the note under the tally stops saying that it is. The keeper sends it on to the
+    // account, for a player who has one, far less often: see SEND_EVERY in account.ts.
     const saveWhileShowing = () => {
-      if (live.current.active && document.visibilityState === 'visible') save();
+      if (live.current.active && document.visibilityState === 'visible') keeping.save('tick');
     };
     const saveWhenHidden = () => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') keeping.save('hidden');
+    };
+    const saveOnLeaving = () => {
+      keeping.save('left');
     };
     const saveTimer = window.setInterval(saveWhileShowing, SAVE_EVERY * 1000);
     document.addEventListener('visibilitychange', saveWhenHidden);
-    window.addEventListener('pagehide', save);
+    window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
-    save();
+    keeping.save('tick');
+    // The day's bonus is paid into this machine's purse, and the machine is saved on this device with it at once.
+    // The cabinet hears of it in its next frame, with everything else that happened.
+    const gifts: SessionEvent[] = [];
+    const closePurse = records.openPurse((medals) => {
+      if (!grant(session, medals, gifts)) return false;
+      keeping.save('tick');
+      return true;
+    });
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -414,6 +527,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let shownAims: [number, number] = [session.machine.aims[0], session.machine.aims[1]];
     let autoClock = 0;
     let autoArm: Arm = 0;
+    // What the hand has been told of: the medals fed so far, and where the sliders' marks stand while the rails swing.
+    // No medal of the machine before is still waiting to be felt.
+    let fedSeen = session.inserted;
+    let shownLead: [number, number] | null = null;
+    fedBy.current.length = 0;
     let lastSpinClock = 0;
     let bowlLights: Stage['party'] = null;
     let last = performance.now();
@@ -437,7 +555,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       }
       for (const arm of [0, 1] as const) {
         const hold = holds.current[arm];
-        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && insert(session, arm)) feedSound(soundOn);
+        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && noteFed(fedBy.current, 'stream', insert(session, arm))) feedSound(soundOn);
       }
       if (autoNow) {
         autoClock += elapsed;
@@ -447,6 +565,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
+      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it.
+      if (session.inserted !== fedSeen) {
+        fedSeen = session.inserted;
+        wake.current?.played();
+      }
 
       // An aim key that is held down moves its rail's aim. Each arm swings after its own aim, and a medal on a
       // rail drops where its arm's tip is when it gets there.
@@ -454,13 +577,30 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         const turn = AIM_KEYS[code];
         if (turn) aimArm(session.machine, turn.arm, session.machine.aims[turn.arm] + turn.by * AIM_KEY.speed * elapsed);
       }
+      // With Sweep on the rails swing by themselves: the aim is put in for the player, from the machine's own clock,
+      // where the tips belong when this frame is over (feel.ts).
+      const sweeping = feelNow.current.sweep;
+      const then = session.machine.time + elapsed;
+      if (sweeping) sweepTo(session.machine, then);
+      // The sliders work in whole percent, so they are told only when an aim has moved by one. While the rails swing,
+      // a mark over each shows where a medal fed now would drop, which is where its tip will be a roll from now; the
+      // marks move when the sliders do, in the same render, so the cabinet is not drawn again for them alone.
       const [leftAim, rightAim] = session.machine.aims;
-      if (leftAim !== shownAims[0] || rightAim !== shownAims[1]) {
+      const moved = aimPercent(leftAim) !== aimPercent(shownAims[0]) || aimPercent(rightAim) !== aimPercent(shownAims[1]);
+      if (moved) {
         shownAims = [leftAim, rightAim];
         setAims(shownAims);
       }
+      if (sweeping ? moved || !shownLead : shownLead !== null) {
+        const drops = sweeping ? sweepLead(then) : null;
+        shownLead = drops && [aimPercent(drops[0]), aimPercent(drops[1])];
+        setLead(shownLead);
+      }
       events.length = 0;
       advance(session, elapsed, events);
+      if (gifts.length > 0) events.push(...gifts.splice(0));
+      // The record book hears everything the machine did, whatever becomes of the machine.
+      records.note(session, events);
       // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
       bowlLights = lightBowlPrize(stage, session.roulette, bowlLights);
       // A medal that has come out of its slot onto the rail in this frame starts to roll along it.
@@ -471,6 +611,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       let lost = false;
       for (const event of events) {
         switch (event.type) {
+          case 'bonus':
+            // The day's bonus: its medals are heard coming down into the tray.
+            playSound('prize', soundOn);
+            playSound('win', soundOn, { count: event.count });
+            setAnnouncement(strings.sayBonus(event.count));
+            break;
           case 'landed':
             landed = true;
             break;
@@ -562,6 +708,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
+            // A jackpot is not left to wait for the minute: it goes to the account now.
+            if (event.jackpot) keeping.save('moment');
             break;
           case 'bowlDrop':
             // Through a hole and into the bowl below: a step up, and the suspense starts again.
@@ -575,6 +723,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) playSound('land', soundOn);
+      // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts). A medal that went
+      // in is felt as what fed it said it was when the machine took it: a tick for a press, a slower one for a
+      // button that stays held, and nothing for Auto, which no finger is working.
+      const felt = hapticFor(events, takeFed(fedBy.current));
+      if (felt) buzz(felt, feelNow.current.vibrate, now);
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
@@ -636,9 +789,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       renderer.dispose();
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
-      window.removeEventListener('pagehide', save);
+      window.removeEventListener('pagehide', saveOnLeaving);
+      closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
-      save();
+      keeping.save('left');
       sessionRef.current = null;
     };
   }, [switchedOn]);
@@ -736,6 +890,11 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     </button>
   );
 
+  const onSweep = (on: boolean) => {
+    feel.setSweep(on);
+    setAnnouncement(on ? t.saySwingOn : t.saySwingOff);
+  };
+
   const toggleSound = () => {
     if (!sound) void unlockAudio();
     setSound(!sound);
@@ -743,7 +902,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const onRefill = () => {
     const session = sessionRef.current;
-    if (session && refill(session)) setHud(hudOf(session));
+    if (session && refill(session)) {
+      setHud(hudOf(session));
+      keeper.current?.save('moment');
+    }
   };
 
   const onPick = (chest: number) => {
@@ -751,24 +913,30 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     if (session) pickChest(session, chest);
   };
 
+  // A player who is signed in resets the machine on the account, and is told so before the second press.
+  const resetConfirm = player.uid === null ? t.resetConfirm : t.resetConfirmAccount;
   const onReset = () => {
     // A press that does not follow a first one within the window is a first press itself,
     // even if the label has not gone back yet.
     const now = Date.now();
     if (!confirmsReset(armedAt, now)) {
       setArmedAt(now);
-      setAnnouncement(t.resetConfirm);
+      setAnnouncement(resetConfirm);
       return;
     }
-    // The second press came in time: the cabinet starts again with a new machine and nothing saved.
+    // The second press came in time: the cabinet starts again with a new machine and nothing saved. For a player
+    // who is signed in the new machine is the account's as well, and takes the old one's place there.
     setArmedAt(null);
-    startFresh.current = true;
+    keeper.current?.fresh();
     setSwitchedOn((times) => times + 1);
     setHud(INITIAL_HUD);
     setScreen(IDLE_SCREEN);
     setAuto(false);
     setAnnouncement(t.sayReset(START_CREDITS));
   };
+
+  // What is true of where the machine is kept: of the account, and of this device, whose last write may not have taken.
+  const savedNote = t[savedNoteFor(status)];
 
   const registerStrip = (reel: number, element: HTMLDivElement | null) => {
     strips.current[reel] = element;
@@ -780,6 +948,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   return (
     <div className={styles.machine}>
       <div className={styles.cabinet} data-banner={screen.banner}>
+        <AchievementToast sound={sound} />
         <div className={styles.bulbs} aria-hidden />
         <div className={styles.marquee}>
           <div className={styles.logo} aria-hidden>
@@ -822,6 +991,12 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
               const x = acrossAt(event);
               if (x === null) return;
               const arm = armFor(x);
+              // A finger may be about to scroll the page instead. It aims once it has shown that it is not: when it
+              // drags sideways, or comes up again where it went down (feel.ts).
+              if (!aimsOnContact(event.pointerType, window.getComputedStyle(event.currentTarget).touchAction)) {
+                waiting.current.set(event.pointerId, { x: event.clientX, y: event.clientY, arm });
+                return;
+              }
               aimers.current.set(event.pointerId, arm);
               try {
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -831,15 +1006,31 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
               aimRail(arm, x);
             }}
             onPointerMove={(event) => {
+              // A finger that was waiting and has gone sideways is dragging across the field: from here on it aims.
+              const began = waiting.current.get(event.pointerId);
+              if (began && isSidewaysDrag(event.clientX - began.x, event.clientY - began.y)) {
+                waiting.current.delete(event.pointerId);
+                aimers.current.set(event.pointerId, began.arm);
+              }
               const arm = aimers.current.get(event.pointerId);
               if (arm !== undefined) {
                 const x = acrossAt(event);
                 if (x !== null) aimRail(arm, x);
               } else if (screen.mode === 'chest' || hoveredChest.current) hoverChest(chestAt(event.clientX, event.clientY), event.currentTarget);
             }}
-            onPointerUp={(event) => aimers.current.delete(event.pointerId)}
+            onPointerUp={(event) => {
+              // A finger that comes up without having scrolled or dragged was a tap: it aims where it is, on the rail
+              // of the half it went down on.
+              const began = waiting.current.get(event.pointerId);
+              waiting.current.delete(event.pointerId);
+              const x = began ? acrossAt(event) : null;
+              if (began && x !== null) aimRail(began.arm, x);
+              aimers.current.delete(event.pointerId);
+            }}
             onPointerCancel={(event) => {
               // The browser took the gesture for a scroll: the aim stays where the drag had got to, and no click follows.
+              // A finger that had not aimed yet never does: scrolling the page past the cabinet leaves the rails alone.
+              waiting.current.delete(event.pointerId);
               aimers.current.delete(event.pointerId);
               pressedChest.current = null;
             }}
@@ -895,8 +1086,17 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
                   value={aimPercent(aims[arm])}
                   aria-valuetext={t.aimValue(aimPercent(aims[arm]))}
                   data-testid={arm === 0 ? 'pusher-aim-left' : 'pusher-aim-right'}
+                  onPointerDown={takeOver}
                   onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
                 />
+                {feel.prefs.sweep && lead && (
+                  <span className={styles.aimMarks} aria-hidden data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]}>
+                    {POCKETS_IN_REACH[arm].map((pocket) => (
+                      <i key={pocket} className={styles.aimPocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
+                    ))}
+                    <i className={styles.aimLead} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -909,7 +1109,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             </button>
             <SoundSettingsButton control={soundControl} strings={t} />
           </div>
+          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
           <SoundSettingsPanel control={soundControl} strings={t} />
+          <FeelNote strings={t} sweep={feel.prefs.sweep} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">
@@ -923,6 +1125,8 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
         )}
         <div className={styles.bulbs} aria-hidden />
       </div>
+
+      <BonusStrip />
 
       <section className={styles.tally} aria-label={t.tallyTitle}>
         <h2 className={styles.tallyTitle}>{t.tallyTitle}</h2>
@@ -953,11 +1157,19 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           </div>
         </dl>
         <p className={styles.note}>{t.tallyNote}</p>
-        <p className={styles.note} data-saved={kept} data-testid="pusher-saved">
-          {kept ? t.savedNote : t.unsavedNote}
+        <p className={styles.note} data-saved={status.kept} data-testid="pusher-saved" data-where={status.where}>
+          {savedNote}
+          {status.where === 'device' && status.kept && player.settled && player.uid === null && signInHref && (
+            <>
+              {' '}
+              <a className={styles.noteLink} href={signInHref} data-testid="pusher-sign-in">
+                {t.signInInvite}
+              </a>
+            </>
+          )}
         </p>
         <button type="button" className={`${styles.btn} ${styles.reset}`} data-armed={armed} data-testid="pusher-reset" onClick={onReset}>
-          {armed ? t.resetConfirm : t.reset}
+          {armed ? resetConfirm : t.reset}
         </button>
       </section>
 

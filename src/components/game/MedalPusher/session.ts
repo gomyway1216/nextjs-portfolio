@@ -207,6 +207,9 @@ export interface Session {
 
 /** Something the cabinet should react to, in the order it happened. */
 export type SessionEvent =
+  | { type: 'bonus'; count: number }
+  // The medal now at a pocket takes the hold's last place: the hold fills. One that finds it full already is a `checker` that is not `held`.
+  | { type: 'holdFilled' }
   | { type: 'won'; count: number }
   | { type: 'lost'; count: number }
   | { type: 'landed'; count: number }
@@ -290,6 +293,17 @@ export function refill(session: Session): boolean {
   if (session.credits > 0) return false;
   session.credits = START_CREDITS;
   session.refills += 1;
+  return true;
+}
+
+/**
+ * Medals given to the player from outside the machine: the day's bonus. They go straight into the purse.
+ * They are not fed, won or paid, so no return counts them. Returns whether there was anything to give.
+ */
+export function grant(session: Session, medals: number, events?: SessionEvent[]): boolean {
+  if (!Number.isInteger(medals) || medals <= 0) return false;
+  session.credits += medals;
+  events?.push({ type: 'bonus', count: medals });
   return true;
 }
 
@@ -449,6 +463,7 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
     events?.push({ type: 'ball', count: field.balls });
   }
   for (const gate of field.checkers) {
+    if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
     // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.

@@ -8,12 +8,15 @@ import { records, useRecords, type RecordsState } from './recordsStore';
 import { getRecordStrings, type AchievementNumbers, type RecordStrings } from './recordsStrings';
 import { MAX_STOCK } from './session';
 import { AchievementStamp, DateStamp, InkPad, useInk } from './Stamps';
+import { VIEW } from './view';
 import styles from './Records.module.css';
 
 /** How long a stamp's toast stays up, in seconds. */
 export const TOAST_SECONDS = 6;
 
 const TOAST_TIME = { '--mp-toast': `${TOAST_SECONDS}s` } as CSSProperties;
+/** The track the toast's rail runs in is the shape of the stage, so it is as tall as the stage whatever the width. */
+const TOAST_TRACK: CSSProperties = { aspectRatio: `${VIEW.width} / ${VIEW.height}` };
 
 /** The numbers the achievements' conditions quote, from the game's own tables. */
 export const ACHIEVEMENT_NUMBERS: AchievementNumbers = { hold: MAX_STOCK, chest: Math.max(...CHESTS), run: CHAIN_GOAL, medals: MANY_MEDALS, days: WEEK };
@@ -190,26 +193,30 @@ export const ToastView = ({ id }: { id: AchievementId | null }) => {
   const ink = useInk();
   const earned = id === null ? null : t.achievement(ACHIEVEMENT_NUMBERS)[id];
   return (
-    <div className={styles.toastRail}>
+    <div className={styles.toastAnchor}>
       <InkPad id={ink} />
-      <div className={styles.toastSlot} role="status" data-testid="pusher-toast">
-        {id !== null && earned && (
-          <div key={id} className={styles.toast} style={TOAST_TIME} data-achievement={id}>
-            <span className={styles.toastStamp}>
-              <AchievementStamp ink={ink} index={0} id={id} fresh />
-            </span>
-            <span className={styles.toastText}>
-              <span className={styles.toastTitle} aria-hidden>
-                {t.toastTitle}
-              </span>
-              <span className={styles.srOnly}>{t.sayStamp(earned.name)}</span>
-              <strong className={styles.toastName} aria-hidden>
-                {earned.name}
-              </strong>
-              <span className={styles.toastHow}>{earned.how}</span>
-            </span>
+      <div className={styles.toastTrack} style={TOAST_TRACK}>
+        <div className={styles.toastRail}>
+          <div className={styles.toastSlot} role="status" data-testid="pusher-toast">
+            {id !== null && earned && (
+              <div key={id} className={styles.toast} style={TOAST_TIME} data-achievement={id}>
+                <span className={styles.toastStamp}>
+                  <AchievementStamp ink={ink} index={0} id={id} fresh />
+                </span>
+                <span className={styles.toastText}>
+                  <span className={styles.toastTitle} aria-hidden>
+                    {t.toastTitle}
+                  </span>
+                  <span className={styles.srOnly}>{t.sayStamp(earned.name)}</span>
+                  <strong className={styles.toastName} aria-hidden>
+                    {earned.name}
+                  </strong>
+                  <span className={styles.toastHow}>{earned.how}</span>
+                </span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

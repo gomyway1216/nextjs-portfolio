@@ -646,14 +646,28 @@
 }
 
 /* ---------- The toast for a stamp just earned ---------- */
-/* A rail of no height at the top of the cabinet. It keeps to the top of what can be seen of the cabinet when the
-   page is scrolled, so the toast is over the sign or the top of the back wall, and never over the controls. */
-.toastRail {
-  position: sticky;
-  top: 8px;
+/* The toast hangs from a rail that keeps to the top of what can be seen of the cabinet when the page is scrolled,
+   so it is over the sign or the top of the back wall. A thing that sticks goes no further than the bottom of the
+   box that holds it, and the rail is held in a track laid over the top of the cabinet that is as tall as the stage
+   is: it ends above the stage's bottom edge by the height of the sign, which is more than the toast's. So the
+   toast never comes down as far as the controls, whatever is under the stage. None of it takes up any room or
+   takes a press. */
+.toastAnchor {
+  position: relative;
   z-index: 6;
   height: 0;
   pointer-events: none;
+}
+.toastTrack {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+.toastRail {
+  position: sticky;
+  top: 8px;
+  height: 0;
 }
 /* It lies over the sign's name, and leaves the jackpot's counter, at the sign's other end, to be read. */
 .toastSlot {

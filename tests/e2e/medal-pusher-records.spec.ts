@@ -1,6 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { ACHIEVEMENT_IDS, BONUS_CARD, RECORDS_KEY, parseBook, viewOf } from '../../src/components/game/MedalPusher/records';
+import {
+  ACHIEVEMENT_IDS,
+  BONUS_CARD,
+  RECORDS_KEY,
+  claim,
+  createBook,
+  dayFrom,
+  dayNumber,
+  dayOf,
+  parseBook,
+  serializeBook,
+  viewOf,
+} from '../../src/components/game/MedalPusher/records';
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/storage';
 
@@ -278,4 +290,73 @@ test('the records count what is played, outlast a reset of the machine, and are 
   await expect(records(page).getByTestId('pusher-records-said')).toHaveText('The records have been cleared.');
   await expect(records(page).getByTestId('pusher-card').locator('li[data-stamped="true"]')).toHaveCount(1);
   await expect(records(page).getByTestId('pusher-card-take')).toHaveCount(0);
+});
+
+test('a stamp that is earned is shown once, in a toast that keeps off the controls wherever the page is scrolled', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.clock.install({ time: new Date('2026-10-12T12:00:00Z') });
+  await openGame(page);
+  await expect(bonus(page)).toHaveAttribute('data-state', 'ready');
+
+  // A card with six days in a row on it, the last of them yesterday on this browser's own calendar: today's stamp is
+  // the seventh, and a week of days in a row earns the "Regular" stamp.
+  const [year, month, date] = await page.evaluate(() => {
+    const now = new Date();
+    return [now.getFullYear(), now.getMonth() + 1, now.getDate()];
+  });
+  const today = dayNumber(dayFrom(year, month, date));
+  if (today === null) throw new Error('the page has no day');
+  let book = createBook('e2edevice1');
+  for (let back = 6; back >= 1; back--) book = claim(book, dayOf(today - back)).book;
+  await page.evaluate(([key, text]) => window.localStorage.setItem(key, text), [RECORDS_KEY, serializeBook(book)]);
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
+  await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`Day 7 is ready: ${BONUS_CARD[6]} medals.`);
+  const toast = machine(page).getByTestId('pusher-toast');
+  await expect(toast).toBeEmpty();
+
+  await takeButton(page).click();
+  await expect.poll(() => counter(page, 'credits')).toBe(START_CREDITS + BONUS_CARD[6]);
+  await expect(toast).toContainText('Regular');
+  await expect(toast).toContainText('Achievement stamped: Regular.');
+  await expect(toast).toHaveAttribute('role', 'status');
+
+  // Wherever the page is scrolled to, the toast lies over none of the controls, nor the line above them, and takes no press.
+  for (const id of ['pusher-jackpot', 'pusher-field', 'pusher-legend', 'pusher-controls', 'pusher-bonus']) {
+    await machine(page)
+      .getByTestId(id)
+      .evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    const over = await page.evaluate(() => {
+      const box = (query: string) => document.querySelector(`#pusher-panel-machine ${query}`)?.getBoundingClientRect();
+      const shown = box('[data-testid="pusher-toast"] > div');
+      const overlap = (other: DOMRect | undefined) => (shown && other ? Math.max(0, Math.min(shown.bottom, other.bottom) - Math.max(shown.top, other.top)) : -1);
+      return { controls: overlap(box('[data-testid="pusher-controls"]')), legend: overlap(box('[data-testid="pusher-legend"]')), bonus: overlap(box('[data-testid="pusher-bonus"]')) };
+    });
+    expect(over, `scrolled to ${id}`).toEqual({ controls: 0, legend: 0, bonus: 0 });
+  }
+  await machine(page).getByTestId('pusher-feed-left').scrollIntoViewIfNeeded();
+  const pressable = await machine(page)
+    .getByTestId('pusher-feed-left')
+    .evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const top = document.elementFromPoint(box.x + box.width / 2, box.y + 4);
+      return top === button || button.contains(top);
+    });
+  expect(pressable).toBe(true);
+
+  // The stamp is on the sheet, with its day, and the card is full.
+  await page.getByRole('tab', { name: 'Records' }).click();
+  await expect(records(page).locator('li[data-achievement="week"]')).toHaveAttribute('data-earned', 'true');
+  await expect(records(page).getByTestId('pusher-achievements-count')).toHaveText(`1 of ${ACHIEVEMENT_IDS.length} stamped`);
+  await expect(records(page).getByTestId('pusher-card').locator('li[data-stamped="true"]')).toHaveCount(BONUS_CARD.length);
+  await page.getByRole('tab', { name: 'Machine' }).click();
+
+  // The toast leaves by itself after its few seconds, and is not shown a second time when the page is loaded again.
+  await page.clock.fastForward(8_000);
+  await expect(toast).toBeEmpty();
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(bonus(page)).toHaveAttribute('data-state', 'taken');
+  await expect(toast).toBeEmpty();
 });

@@ -34,6 +34,7 @@ import {
 import { WAITING, type RecordsState } from '@/components/game/MedalPusher/recordsStore';
 import { BOARD_GROUPS, BOARD_ROWS, getRecordStrings, type BoardRow } from '@/components/game/MedalPusher/recordsStrings';
 import { MAX_STOCK, START_CREDITS } from '@/components/game/MedalPusher/session';
+import { VIEW } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -461,12 +462,20 @@ describe('the styles', () => {
     expect(calm).toMatch(/animation: none/);
   });
 
-  it('keep the toast off the controls: it hangs from the top of the cabinet and takes no presses', () => {
-    const rail = /\.toastRail \{([^}]*)\}/.exec(css)?.[1] ?? '';
-    expect(rail).toContain('position: sticky');
-    expect(rail).toContain('top:');
-    expect(rail).toContain('height: 0');
-    expect(rail).toContain('pointer-events: none');
+  it('keep the toast off the controls: it hangs from the top of the cabinet, goes no lower than the stage, and takes no room and no presses', () => {
+    const rule = (name: string) => new RegExp(`\\.${name} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    // What stands in the cabinet for it has no height and takes no presses, and neither does anything inside it.
+    expect(rule('toastAnchor')).toContain('height: 0');
+    expect(rule('toastAnchor')).toContain('pointer-events: none');
+    // The rail sticks to the top of the window, inside a track laid over the top of the cabinet.
+    expect(rule('toastRail')).toContain('position: sticky');
+    expect(rule('toastRail')).toContain('top: 8px');
+    expect(rule('toastTrack')).toContain('position: absolute');
+    expect(rule('toastTrack')).toContain('top: 0');
+    // The track is the shape of the stage, so it ends above the stage's bottom edge by what the cabinet has over the stage.
+    const html = render(<ToastView id="jackpot" />);
+    expect(html).toContain(`aspect-ratio:${VIEW.width} / ${VIEW.height}`);
+    expect(html.indexOf('aspect-ratio')).toBeLessThan(html.indexOf('data-testid="pusher-toast"'));
   });
 
   it('put the plate beside the cabinet where there are two columns and under it where there is one', () => {

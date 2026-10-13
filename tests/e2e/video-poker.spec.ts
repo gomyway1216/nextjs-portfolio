@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { analyzeHand } from '../../src/components/game/VideoPoker/analysis';
 import { HANDS, PAY_TABLES, payout, rankCards } from '../../src/components/game/VideoPoker/engine';
+import { arrived } from './streamedPage';
 
 // Hands are random: the tests read the cards off the screen, recompute the
 // exact best play and the payout with the engine, and compare.
@@ -10,6 +11,8 @@ async function openVideoPoker(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/video-poker');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.getByTestId('vp-message')).toBeVisible();
 }
 

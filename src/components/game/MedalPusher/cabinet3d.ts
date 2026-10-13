@@ -16,9 +16,11 @@ import { ARMS, HATCH, SLOT, airSpot, armCollar, legOf, railFrame, slotSpot } fro
 import { APRON, CATCHER, apronSpot, mouthSpots } from './catcher';
 import { CHUCKERS } from './chuckers';
 import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, type Arm, type Machine } from './engine';
+import { JEWEL_CUT, JEWEL_LAMPS, LAMP_OUTLINE, jewelGlint, jewelLampX, lampLight } from './jewel';
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
 import { BALL_RADIUS, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, goldFlash, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
+import { LIP_LAMPS } from './shaders3d';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, chuteHeight } from './view';
 
 const TAU = Math.PI * 2;
@@ -63,6 +65,37 @@ export const SOLID_STRIDE = 13;
  * next ones are set first, like choosing a pen, so drawing one takes only its
  * corners and nothing is allocated on the way.
  */
+/** How a kind of surface takes the light: how much it mirrors the cabinet, and how much of its colour it gives off as light of its own. */
+export interface Material {
+  gloss: number;
+  glow: number;
+}
+
+/**
+ * What the cabinet is made of. The shader has two numbers for a surface, and
+ * these are the pairs that look like the stuff a real cabinet is built from,
+ * so that a part added later is made of the same things as the rest:
+ *
+ * - `chrome`: plated tube and trim. A mirror, in its own colour.
+ * - `brushedSteel`: sheet steel, brushed. Mirrors about half of what a mirror would.
+ * - `brass`: cast or pressed trim that has dulled.
+ * - `enamel`: glossy paint on metal. Its own colour, with a mirror's sheen at a slant.
+ * - `plastic`: moulded plastic, cream or coloured. Matte, with a little sheen.
+ * - `rubber`: mats and stops. Matte and dark.
+ * - `backlit`: a printed panel with a lamp behind it. Mostly its own light.
+ * - `lamp`: a tube or a diode. All its own light.
+ */
+export const MATERIAL = {
+  chrome: { gloss: 1, glow: 0 },
+  brushedSteel: { gloss: 0.55, glow: 0 },
+  brass: { gloss: 0.8, glow: 0 },
+  enamel: { gloss: 0.3, glow: 0 },
+  plastic: { gloss: 0.14, glow: 0 },
+  rubber: { gloss: 0.03, glow: 0 },
+  backlit: { gloss: 0.12, glow: 0.6 },
+  lamp: { gloss: 0, glow: 1 },
+} as const satisfies Record<string, Material>;
+
 export class Solid {
   data: Float32Array;
   /** Corners written so far: six to a surface. */
@@ -97,6 +130,11 @@ export class Solid {
     this.gloss = gloss;
     this.glow = glow;
     return this;
+  }
+
+  /** The finish of one of the cabinet's materials: `solid.as(MATERIAL.chrome).paint(colour)` and then the surfaces. */
+  as(material: Material): this {
+    return this.finish(material.gloss, material.glow);
   }
 
   /** The part of the picture the next surfaces show: its first corner, and the corner opposite. */
@@ -301,7 +339,7 @@ export function buildCabinet(solid: Solid): Part[] {
     parts.push({ art, first, count: solid.count - first });
   };
   solid.map().paint(WHITE);
-  part('table', () => solid.finish(0.22).quad(0, 0, 0, W, 0, 0, W, 0, D, 0, 0, D));
+  part('table', () => solid.as(MATERIAL.brushedSteel).quad(0, 0, 0, W, 0, 0, W, 0, D, 0, 0, D));
   part('foot', () => {
     // The front of the shelf, which stands out from the wall, and the panel under it.
     solid.map(0, 0, 1, SHELF_SHARE).finish(0.3, 0.6);
@@ -377,6 +415,9 @@ const ICE_FOOT = light('#0e3a5c');
 const DOOR_RIM = light('#ff6aa6');
 const DOOR_MID = light('#7a0034');
 const DOOR_OPEN = light('#1c0312');
+const LAMP_PALE = light('#ffe3f2', 1.3);
+const LAMP_ROSE = light('#ff5aa8', 1.2);
+const LAMP_DEEP = light('#c4125f');
 /** How much of the hatch's ring is door. */
 const HATCH_DOOR = 0.84;
 
@@ -468,11 +509,11 @@ function taking(machine: Machine, arm: Arm): boolean {
   return false;
 }
 
-/** Whether a prize ball has only just been let go, and the hatch's door is still open behind it. */
+/** Whether a prize ball or a jewel has only just been let go, and the hatch's door is still open behind it. */
 function hatchOpen(machine: Machine): boolean {
   for (let i = 0; i < machine.falling.length; i++) {
     const ball = machine.falling[i];
-    if (ball.ball && ball.remaining > ball.duration * 0.35) return true;
+    if ((ball.ball || ball.jewel) && ball.remaining > ball.duration * 0.35) return true;
   }
   return false;
 }
@@ -564,10 +605,12 @@ function slotDisc(solid: Solid, arm: Arm, w: number, h: number, out: number): vo
  * inside the light a throat that narrows to the mouth, which is dark, stands
  * upright, and is as tall as a medal and several times as wide as one is
  * thick. The ring of light glows on both slots, since either takes a medal at
- * any moment, and flashes gold as one is taken. And the door of the hatch,
- * which stands open for a moment behind a prize ball.
+ * any moment, and flashes gold as one is taken. The door of the hatch,
+ * which stands open for a moment behind a prize ball or a jewel. And the
+ * jewel lamps that are lit, on their plate in the front of the lower table:
+ * each a cut stone seen from the side, its crown over its pavilion.
  */
-function buildFittings(solid: Solid, machine: Machine): void {
+function buildFittings(solid: Solid, machine: Machine, stage: Stage, options: DrawOptions): void {
   const { ring: round, face, back, waist, mouth, deep } = SLOT;
   const wide = mouth.wide / 2;
   const tall = mouth.tall / 2;
@@ -593,6 +636,20 @@ function buildFittings(solid: Solid, machine: Machine): void {
   if (hatchOpen(machine)) solid.finish(0, 0.6).paint(DOOR_OPEN, BLACK);
   else solid.finish(0.6, 0.35).paint(DOOR_RIM, DOOR_MID);
   ring(solid, HATCH.x, HATCH.height, HATCH.radius * HATCH_DOOR, 0, HOUSING.out + 0.3);
+  const [topLeft, topRight, right, point, left] = LAMP_OUTLINE;
+  const z = D + 0.08;
+  for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+    const shine = lampLight(lamp, options.jewels ?? 0, stage.jewelShow, stage.clock, options.calm ?? false);
+    if (shine <= 0) continue;
+    // The one lit last shines brighter for a moment.
+    const fresh = lamp === (options.jewels ?? 0) - 1 && stage.jewelShow <= 0 ? stage.jewelGlow / GLOW_TIME : 0;
+    const at = (corner: readonly [number, number]): [number, number] => [jewelLampX(lamp) + corner[0] * JEWEL_LAMPS.radius, JEWEL_LAMPS.height + corner[1] * JEWEL_LAMPS.radius];
+    const [a, b, c, d, e] = [at(topLeft), at(topRight), at(right), at(point), at(left)];
+    solid.finish(0.2, (0.9 + 0.5 * fresh) * shine).paint(LAMP_PALE, LAMP_ROSE);
+    solid.quad(a[0], a[1], z, b[0], b[1], z, c[0], c[1], z, e[0], e[1], z);
+    solid.paint(LAMP_ROSE, LAMP_DEEP);
+    solid.quad(e[0], e[1], z, c[0], c[1], z, d[0], d[1], z, d[0], d[1], z);
+  }
 }
 
 // ── The catcher ─────────────────────────────────────────────────────────────
@@ -835,7 +892,7 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   catcher.count = solid.count - catcher.first;
 
   fittings.first = solid.count;
-  buildFittings(solid, machine);
+  buildFittings(solid, machine, stage, options);
   fittings.count = solid.count - fittings.first;
 
   apron.first = solid.count;
@@ -1084,6 +1141,9 @@ export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wav
 const GLOW_RED = light('#ff5468');
 const GLOW_GOLD = light('#ffd65c');
 const GLOW_PINK = light('#ff56aa');
+/** A lamp under the pusher's lip: the bulb, and the glare round it. */
+const LIP_BULB = light('#fff2d0');
+const LIP_GLARE = light('#ffb45c');
 const GLOW_CYAN = light('#40e2ff');
 const GLOW_LIT = light('#fff496');
 const ICE = light('#c8f4ff');
@@ -1159,7 +1219,15 @@ function screenTouches(flat: Flat, machine: Machine): void {
 export function buildTouches(flat: Flat, machine: Machine, front: number, stage: Stage, options: DrawOptions): void {
   const calm = options.calm ?? false;
   // Where the pusher's face meets the lower table, and where the tables meet the back wall and the side walls.
-  flat.ink(BLACK, 0.62).fade(BLACK, 0).quad(0, 0.03, front, W, 0.03, front, W, 0.03, front + 9, 0, 0.03, front + 9);
+  // The lamps under the lip shine on the table in front of the pusher, so the dark there is only at its foot.
+  flat.ink(BLACK, 0.5).fade(BLACK, 0).quad(0, 0.03, front, W, 0.03, front, W, 0.03, front + 5, 0, 0.03, front + 5);
+  // The lamps themselves, to either side of the catcher: a small hot bulb each, and its glare. What they
+  // throw on the heap is the shaders' work.
+  for (const side of [-1, 1]) {
+    const x = W / 2 + side * (W / 2 - LIP_LAMPS.inset);
+    flat.ink(LIP_GLARE, 0, 0.6).onPanel(x, P - LIP_LAMPS.below, front + LIP_LAMPS.before, 4.2);
+    flat.ink(LIP_BULB, 0, 1).onPanel(x, P - LIP_LAMPS.below, front + LIP_LAMPS.before + 0.02, 1.1);
+  }
   flat.ink(BLACK, 0.4).fade(BLACK, 0).quad(0, P + 0.03, 0, W, P + 0.03, 0, W, P + 0.03, 5, 0, P + 0.03, 5);
   for (let index = 0; index < 2; index++) {
     const x = index === 0 ? 0 : W;
@@ -1220,5 +1288,21 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
   for (const medal of machine.medals) {
     const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
     if (medal.ball && !dropping) flat.onFloor(medal.x, (medal.level === 1 ? P : 0) + HEIGHT.medal + 0.06, medal.y, BALL_RADIUS * 1.3);
+  }
+  // A jewel's shadow has the stone's own colour in it: the light that came through the stone lies beside it,
+  // on the side away from the lamps. And a glint stands on its table, which comes and goes as the lamps drift.
+  for (const medal of machine.medals) {
+    if (!medal.jewel || (medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL)) continue;
+    const table = medal.level === 1 ? P : 0;
+    const ground = table + HEIGHT.medal + 0.07;
+    flat.ink(BLACK, 0.3).onFloor(medal.x + 0.3, ground, medal.y + 0.4, JEWEL_CUT.girdle * 1.25);
+    flat.ink(GLOW_PINK, 0, 0.55).onFloor(medal.x + JEWEL_CUT.girdle * 0.55, ground + 0.01, medal.y + JEWEL_CUT.girdle * 0.75, JEWEL_CUT.girdle * 1.1);
+    const glint = jewelGlint(medal.id, stage.clock, calm);
+    if (glint > 0) flat.ink(WHITE, 0, 0.85 * glint).onPanel(medal.x - JEWEL_CUT.table * 0.3, table + JEWEL_CUT.pavilion + JEWEL_CUT.crown + 0.2, medal.y, JEWEL_CUT.girdle * (0.5 + 0.35 * glint));
+  }
+  // The glow of each jewel lamp that is lit.
+  for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+    const shine = lampLight(lamp, options.jewels ?? 0, stage.jewelShow, stage.clock, calm);
+    if (shine > 0) flat.ink(GLOW_PINK, 0, 0.5 * shine).onPanel(jewelLampX(lamp), JEWEL_LAMPS.height, D + 0.1, JEWEL_LAMPS.radius * 1.9);
   }
 }

@@ -11,6 +11,10 @@
  *
  * - A list of objects that all have the same fields, which is what the medals
  *   are, is written as one list of field names and a column for each field.
+ * - A list of objects that have a few different sets of fields is written as
+ *   such a table for each set, and the order the rows came in. That is what
+ *   the medals are once one of them is a jewel: a jewel says that it is one,
+ *   and a medal says nothing.
  * - A column of numbers is written as the bytes of the numbers themselves, in
  *   base64, where that is shorter than writing them out in digits. A position
  *   on the field takes 17 or 18 digits and 11 characters this way.
@@ -28,6 +32,8 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 const MARK = '$';
 /** A list has to be at least this long to be worth writing as a table. */
 const WORTH = 2;
+/** The most sets of fields a list may have and still be written as tables, one for each set. */
+const MOST_SHAPES = 8;
 /** How a column written as a string begins: the bytes of numbers, or one character for each yes or no. */
 const BYTES = 'f';
 const BITS = 'b';
@@ -71,17 +77,32 @@ function numbersOf(text: string): number[] | null {
   return numbers;
 }
 
-/** The fields a list's objects share, in their order, if it is a list of objects that all have the same ones. */
-function sharedFields(list: Json[]): string[] | null {
-  if (list.length < WORTH || !isObject(list[0])) return null;
-  const fields = Object.keys(list[0]);
-  if (fields.length === 0) return null;
+/**
+ * The sets of fields a list's objects have, each in its order, and which of
+ * them each row has. Null if the list is not worth writing by column: it is
+ * too short, something in it is not an object or has no fields, or it has too
+ * many sets for its length, so that the tables would hold a row or two each.
+ */
+function shapesOf(list: Json[]): { shapes: string[][]; of: number[] } | null {
+  if (list.length < WORTH) return null;
+  const shapes: string[][] = [];
+  const known = new Map<string, number>();
+  const of: number[] = [];
   for (const row of list) {
     if (!isObject(row)) return null;
-    const own = Object.keys(row);
-    if (own.length !== fields.length || own.some((field, index) => field !== fields[index])) return null;
+    const fields = Object.keys(row);
+    if (fields.length === 0) return null;
+    const name = JSON.stringify(fields);
+    let shape = known.get(name);
+    if (shape === undefined) {
+      shape = shapes.length;
+      if (shape === MOST_SHAPES) return null;
+      known.set(name, shape);
+      shapes.push(fields);
+    }
+    of.push(shape);
   }
-  return fields;
+  return shapes.length * 2 <= list.length || shapes.length === 1 ? { shapes, of } : null;
 }
 
 /** One column of a table: as bytes or as bits where the whole column allows it and it is shorter, and as a list otherwise. */
@@ -95,12 +116,27 @@ function column(cells: Json[]): Json {
   return cells.map(packed);
 }
 
+/** The columns of a table: one for each field, of the rows that have those fields. */
+const columnsOf = (fields: string[], rows: Json[]): Json[] => fields.map((field) => column(rows.map((row) => (row as { [key: string]: Json })[field])));
+
 /** A value with its tables written by column. */
 function packed(value: Json): Json {
   if (Array.isArray(value)) {
-    const fields = sharedFields(value);
-    if (!fields) return value.map(packed);
-    return { [MARK]: 't', k: fields, c: fields.map((field) => column(value.map((row) => (row as { [key: string]: Json })[field]))) };
+    const found = shapesOf(value);
+    if (!found) return value.map(packed);
+    const { shapes, of } = found;
+    if (shapes.length === 1) return { [MARK]: 't', k: shapes[0], c: columnsOf(shapes[0], value) };
+    // A table for each set of fields, and the order the rows came in: a set and how many rows in a row have it, by turns.
+    const runs: number[] = [];
+    of.forEach((shape, index) => {
+      if (index > 0 && of[index - 1] === shape) runs[runs.length - 1] += 1;
+      else runs.push(shape, 1);
+    });
+    return {
+      [MARK]: 'g',
+      r: runs,
+      t: shapes.map((fields, shape) => ({ k: fields, c: columnsOf(fields, value.filter((_, index) => of[index] === shape)) })),
+    };
   }
   if (!isObject(value)) return value;
   const fields: { [key: string]: Json } = {};
@@ -123,23 +159,47 @@ function cellsOf(written: Json | undefined): Json[] {
   return numbers;
 }
 
+/** The rows of a table written as its fields and a column for each. */
+function rowsOf(fields: Json | undefined, columns: Json | undefined): Json[] {
+  if (!Array.isArray(fields) || !Array.isArray(columns) || fields.length === 0 || fields.length !== columns.length) throw NOT_PACKED;
+  if (!fields.every((field): field is string => typeof field === 'string')) throw NOT_PACKED;
+  const cells = columns.map(cellsOf);
+  if (cells.some((cell) => cell.length !== cells[0].length)) throw NOT_PACKED;
+  return cells[0].map((_, row) => {
+    const object: { [key: string]: Json } = {};
+    fields.forEach((field, index) => put(object, field, cells[index][row]));
+    return object;
+  });
+}
+
+/** The rows of a list written as a table for each set of fields, in the order its runs say they came in. */
+function rowsInOrder(runs: Json | undefined, tables: Json | undefined): Json[] {
+  if (!Array.isArray(runs) || !Array.isArray(tables) || tables.length < 2 || runs.length % 2 !== 0) throw NOT_PACKED;
+  const rows = tables.map((table) => {
+    if (!isObject(table)) throw NOT_PACKED;
+    return rowsOf(table.k, table.c);
+  });
+  const taken = rows.map(() => 0);
+  const list: Json[] = [];
+  for (let index = 0; index < runs.length; index += 2) {
+    const [shape, count] = [runs[index], runs[index + 1]];
+    if (typeof shape !== 'number' || typeof count !== 'number' || !Number.isInteger(shape) || !Number.isInteger(count)) throw NOT_PACKED;
+    if (shape < 0 || shape >= rows.length || count < 1 || taken[shape] + count > rows[shape].length) throw NOT_PACKED;
+    for (let row = 0; row < count; row++) list.push(rows[shape][taken[shape] + row]);
+    taken[shape] += count;
+  }
+  // Every row of every table has its place in the list, and a table with no rows was never written.
+  if (rows.some((table, shape) => table.length === 0 || taken[shape] !== table.length)) throw NOT_PACKED;
+  return list;
+}
+
 /** A value with its tables written out again as lists of objects. */
 function unpacked(value: Json): Json {
   if (Array.isArray(value)) return value.map(unpacked);
   if (!isObject(value)) return value;
   const kind = Object.prototype.hasOwnProperty.call(value, MARK) ? value[MARK] : undefined;
-  if (kind === 't') {
-    const { k: fields, c: columns } = value;
-    if (!Array.isArray(fields) || !Array.isArray(columns) || fields.length === 0 || fields.length !== columns.length) throw NOT_PACKED;
-    if (!fields.every((field): field is string => typeof field === 'string')) throw NOT_PACKED;
-    const cells = columns.map(cellsOf);
-    if (cells.some((cell) => cell.length !== cells[0].length)) throw NOT_PACKED;
-    return cells[0].map((_, row) => {
-      const object: { [key: string]: Json } = {};
-      fields.forEach((field, index) => put(object, field, cells[index][row]));
-      return object;
-    });
-  }
+  if (kind === 't') return rowsOf(value.k, value.c);
+  if (kind === 'g') return rowsInOrder(value.r, value.t);
   const source = kind === 'o' ? value.v : kind === undefined ? value : undefined;
   if (!isObject(source)) throw NOT_PACKED;
   const object: { [key: string]: Json } = {};

@@ -5,6 +5,7 @@ import {
   AMBIENCE,
   CHUTE,
   COMPRESSOR,
+  ENTRY,
   GUARD,
   HOPPER,
   LEVEL,
@@ -1675,6 +1676,9 @@ describe('the cap on voices, for every sound there is', () => {
     hopper: { count: 500 },
     pour: { count: 300 },
     guard: { seconds: 0.5, up: true },
+    ride: { seconds: 0.9 },
+    start: { gold: true },
+    spark: { seconds: 0.35 },
     door: { up: true },
     shutter: { up: true },
     button: { up: true },
@@ -1697,7 +1701,7 @@ describe('the cap on voices, for every sound there is', () => {
     playSound(sound, true, FULLEST[sound] ?? {});
     const made = audio.sources.length - before;
     // A medal's own sounds are kept out of the last voices, which are for the jingles: they start nothing here.
-    const medal = ['land', 'insert', 'lost', 'roll', 'button', 'slit', 'win', 'tray'].includes(sound);
+    const medal = ['land', 'insert', 'lost', 'roll', 'button', 'slit', 'ride', 'teeter', 'win', 'tray'].includes(sound);
     expect(made).toBe(medal ? 0 : (MADE_OF[sound] ?? 1));
     // Whatever it started, there are never more than the cap once what was cut has faded.
     expect(audio.sounding(FADE).length).toBeLessThanOrEqual(LIMITS.voices);
@@ -1752,6 +1756,13 @@ describe('the cap on voices, for every sound there is', () => {
     expect(starts('spin', { stops: [0.01, 1.6, 0.02] })).toBe(1);
     expect(starts('roulette', {})).toBe(5);
     expect(starts('pour', { count: 300 })).toBe(1);
+    // An entry is four voices in all: the ride and the drop it ends in, the cabinet's answer, and the spark.
+    expect(starts('ride', { seconds: 0.8 })).toBe(2);
+    expect(starts('start', { gold: true })).toBe(1);
+    expect(starts('spark', {})).toBe(1);
+    expect(starts('teeter', {})).toBe(1);
+    expect(starts('lampStep', {})).toBe(1);
+    expect(starts('full', {})).toBe(1);
     // Every one of them left the list exactly as full as what it started, with nothing else in it: none was cut for a place that was not taken.
     expect(audio.sources.every((source) => source.stopped.length === 1)).toBe(true);
   });
@@ -1821,7 +1832,7 @@ describe('the rotor of the wheel', () => {
 });
 
 describe('a mechanism that runs', () => {
-  const RUNNING = ['roulette', 'lift', 'bowl', 'hopper', 'pour'] as const;
+  const RUNNING = ['roulette', 'lift', 'bowl', 'hopper', 'pour', 'ride'] as const;
   /** How much of the time it is told a mechanism is heard for: the roulette's ball has stopped rolling when it strikes a pocket's lip, 0.72 of the way through its turn. */
   const heardFor = (sound: (typeof RUNNING)[number]): number => (sound === 'roulette' ? 0.72 : 1);
   /** The sources that go round and round: a mechanism's own. */
@@ -1864,7 +1875,7 @@ describe('a mechanism that runs', () => {
   it('runs as long as it usually does when nobody says, and never for less or for longer than it may', async () => {
     fix(0);
     const audio = await switchOn();
-    const usual = { roulette: 2.8, lift: 1.6, bowl: 3, hopper: 2, pour: 2 };
+    const usual = { roulette: 2.8, lift: 1.6, bowl: 3, hopper: 2, pour: 2, ride: 0.8 };
     for (const sound of RUNNING) {
       const lasting = (options: { seconds?: number }): number => {
         audio.currentTime += 20;
@@ -2583,6 +2594,224 @@ describe('the room', () => {
   });
 });
 
+// ── An entry: a medal down a tongue into a START pocket, and what the cabinet says about it ──
+
+describe('an entry', () => {
+  const of = (sample: Sample, variant = 0): number => brightness(rendered(sample, variant), RATE);
+  const peakAt = (samples: Float32Array): number => {
+    let best = 0;
+    for (let i = 0; i < samples.length; i++) if (Math.abs(samples[i]) > Math.abs(samples[best])) best = i;
+    return best / RATE;
+  };
+  /** What comes out of the chain for a steady level going in with the volume at `volume`, by the compressor's own rule. */
+  const through = (level: number, volume: number = VOLUME.usual): number => {
+    const makeUp = -0.6 * COMPRESSOR.threshold * (1 - 1 / COMPRESSOR.ratio);
+    const into = 20 * Math.log10(level * masterGain(volume));
+    const out = into <= COMPRESSOR.threshold ? into : COMPRESSOR.threshold + (into - COMPRESSOR.threshold) / COMPRESSOR.ratio;
+    return 10 ** ((out + makeUp) / 20);
+  };
+
+  it('rides a medal down its tongue for as long as it is told, faster all the way, and drops it into its pocket on the moment', async () => {
+    fix(0);
+    const audio = await switchOn();
+    for (const [at, seconds] of [
+      [5, 0.7],
+      [15, 0.9],
+    ]) {
+      audio.currentTime = at;
+      const made = audio.sources.length;
+      playSound('ride', true, { seconds });
+      const [slide, drop] = audio.sources.slice(made);
+      expect(audio.sources.length - made).toBe(2);
+      expect(slide.loop).toBe(true);
+      expect(slide.begins).toBe(at);
+      expect(slide.ends).toBeCloseTo(at + seconds, 9);
+      // It speeds up all the way down, to nearly twice what it set off at, and is never louder than a slide should be.
+      const speeds = slide.playbackRate.plan;
+      expect(speeds[speeds.length - 1].value).toBeGreaterThan(speeds[0].value * 1.7);
+      for (const step of audio.gainOf(slide).gain.plan) expect(step.value).toBeLessThanOrEqual(SOUND_LEVELS.ride);
+      // The drop is a take of its own, and its clack is the first thing in it: it falls where the slide ends.
+      expect(firstDifference(drop.buffer?.data ?? new Float32Array(0), rendered('rideDrop', 0))).toBe(-1);
+      expect(drop.loop).toBe(false);
+      expect(drop.begins + peakAt(rendered('rideDrop', 0)) / drop.playbackRate.value).toBeGreaterThan(at + seconds - 0.002);
+      expect(drop.begins + peakAt(rendered('rideDrop', 0)) / drop.playbackRate.value).toBeLessThan(at + seconds + 0.004);
+      expect(audio.gainOf(drop).gain.value).toBe(ENTRY.drop.level);
+    }
+    // When nobody says, it is 0.8 s. And no two medals are one medal: with other dice the slide is at another speed and the drop is the other take, a shade quieter.
+    audio.currentTime = 30;
+    playSound('ride', true);
+    const usual = audio.sources[audio.sources.length - 2];
+    expect(usual.ends - usual.begins).toBeCloseTo(0.8, 9);
+    fix(0.999);
+    audio.currentTime = 40;
+    playSound('ride', true);
+    const [other, otherDrop] = audio.sources.slice(-2);
+    expect(other.playbackRate.plan[0].value).toBeGreaterThan(usual.playbackRate.plan[0].value);
+    expect(firstDifference(otherDrop.buffer?.data ?? new Float32Array(0), rendered('rideDrop', 1))).toBe(-1);
+    expect(audio.gainOf(otherDrop).gain.value).toBeLessThan(ENTRY.drop.level);
+    expect(audio.gainOf(otherDrop).gain.value).toBeGreaterThan(ENTRY.drop.level * (1 - WANDER.level) - 1e-9);
+  });
+
+  it('holds a stream of entries to a few rides, like any clink, and still plays the slot that main plays today', async () => {
+    const audio = await switchOn();
+    for (let i = 0; i < 200; i++) playSound('ride', true, { seconds: 0.8 });
+    expect(audio.sources).toHaveLength(2);
+    // Three tongues fed as fast as they can be for two seconds: never more rides in the air than leave the jingles their voices.
+    for (let frame = 0; frame < 120; frame++) {
+      audio.currentTime += 1 / 60;
+      playSound('ride', true, { seconds: 0.9 });
+      expect(audio.sounding().length).toBeLessThanOrEqual(LIMITS.voices - LIMITS.kept);
+    }
+    // Until the cabinet is wired to the ride, a medal through a START pocket is still heard as it was.
+    audio.currentTime += 5;
+    const made = audio.sources.length;
+    playSound('slit', true);
+    expect(audio.sources.length - made).toBe(1);
+    expect(audio.gainOf(audio.sources[made]).gain.value).toBeLessThanOrEqual(SOUND_LEVELS.slit);
+  });
+
+  it('answers an entry with two notes, and a gold one with three and a shimmer', async () => {
+    const audio = await switchOn();
+    playSound('start', true);
+    audio.currentTime = 2;
+    playSound('start', true, { gold: true });
+    audio.currentTime = 4;
+    playSound('start', true, { gold: false });
+    const [plain, gold, again] = audio.sources;
+    expect(firstDifference(plain.buffer?.data ?? new Float32Array(0), rendered('start'))).toBe(-1);
+    expect(firstDifference(gold.buffer?.data ?? new Float32Array(0), rendered('startGold'))).toBe(-1);
+    expect(again.buffer).toBe(plain.buffer);
+    expect(audio.gainOf(plain).gain.value).toBe(SOUND_LEVELS.start);
+    expect(audio.gainOf(gold).gain.value).toBe(ENTRY.gold.level);
+    // The same every time: it is the cabinet speaking, not a medal.
+    for (const source of [plain, gold]) expect(source.playbackRate.value).toBe(1);
+    // The plain one is the two notes that are written, up a fourth on to the key note, over in three quarters of a second.
+    const [bell] = SCORES.start.parts;
+    expect(bell.notes.map((note) => note.hz)).toEqual([pitch('G6'), pitch('C7')]);
+    expect(rendered('start').length / RATE).toBeLessThan(0.8);
+    // The gold one is longer and fuller: a third note above the two, and above that its shimmer, small bells from 4 kHz up.
+    expect(rendered('startGold').length).toBeGreaterThan(rendered('start').length * 1.3);
+    expect(rendered('startGold').length / RATE).toBeLessThan(1.1);
+    expect(shareBetween('startGold', 0, 2500, 8000)).toBeGreaterThan(shareBetween('start', 0, 2500, 8000) * 5);
+    expect(shareBetween('startGold', 0, 4000, 8000)).toBeGreaterThan(shareBetween('start', 0, 4000, 8000) * 2);
+    expect(shareBetween('startGold', 0, 4000, 8000)).toBeGreaterThan(0.04);
+    expect(of('startGold')).toBeGreaterThan(of('start'));
+    expect(ENTRY.gold.level).toBeGreaterThan(SOUND_LEVELS.start);
+    expect(ENTRY.gold.level).toBeLessThanOrEqual(LEVEL.ceiling);
+    // Both are brighter than the chime they take over from, and both come out of the cabinet's speaker.
+    expect(of('start')).toBeGreaterThan(of('gate'));
+    for (const sample of ['start', 'startGold'] as const) expect(shareBelow(rendered(sample), 110, RATE), sample).toBeLessThan(0.06);
+  });
+
+  it('runs a spark up to its lamp in as long as it is told, a few ticks each higher than the last and the lamp\'s tink at the end', async () => {
+    const audio = await switchOn();
+    const played = (options: SoundOptions): FakeSource => {
+      audio.currentTime += 5;
+      playSound('spark', true, options);
+      return audio.sources[audio.sources.length - 1];
+    };
+    expect(ENTRY.spark.seconds).toBe(0.35);
+    expect(played({}).playbackRate.value).toBe(1);
+    expect(ENTRY.spark.seconds / played({ seconds: 0.5 }).playbackRate.value).toBeCloseTo(0.5, 9);
+    expect(ENTRY.spark.seconds / played({ seconds: 0.25 }).playbackRate.value).toBeCloseTo(0.25, 9);
+    expect(played({ seconds: 0.01 }).playbackRate.value).toBe(1.6);
+    expect(played({ seconds: 9 }).playbackRate.value).toBe(0.6);
+    expect(played({ seconds: Number.NaN }).playbackRate.value).toBe(1);
+    expect(audio.gainOf(audio.sources[0]).gain.value).toBe(SOUND_LEVELS.spark);
+    const samples = rendered('spark');
+    // The tink is the loudest thing in it, and it is where the light arrives.
+    expect(peakAt(samples)).toBeGreaterThan(ENTRY.spark.seconds - 0.002);
+    expect(peakAt(samples)).toBeLessThan(ENTRY.spark.seconds + 0.01);
+    // Before it, ticks: at least four that can be told apart, each higher than the one before.
+    const ticks = strikeTimes(samples, 2).filter((time) => time < ENTRY.spark.seconds - 0.02);
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    const pitches = ticks.map((time) => brightness(samples.subarray(Math.round(time * RATE), Math.round((time + 0.02) * RATE)), RATE));
+    pitches.forEach((value, index) => {
+      if (index > 0) expect(value).toBeGreaterThan(pitches[index - 1]);
+    });
+    expect(samples.length / RATE).toBeLessThan(0.7);
+  });
+
+  it('rocks a medal on a rail, quicker each time, and tips it over the side with a duller clack than a pocket\'s, never louder than an entry', () => {
+    expect(SOUND_LEVELS.teeter).toBeLessThan(ENTRY.drop.level);
+    expect(SOUND_LEVELS.teeter).toBeLessThan(SOUND_LEVELS.start);
+    for (const variant of takesOf('teeter')) {
+      const samples = rendered('teeter', variant);
+      const times = strikeTimes(samples, 2);
+      expect(times.length).toBeGreaterThanOrEqual(4);
+      // The rocking quickens: each gap is shorter than the one before it.
+      expect(times[2] - times[1]).toBeLessThan(times[1] - times[0]);
+      expect(times[3] - times[2]).toBeLessThan(times[2] - times[1]);
+      // The last of it, over the side, is the loudest, and duller than the rocking and than a medal into a pocket.
+      const over = peakAt(samples);
+      expect(over).toBeGreaterThan(times[2]);
+      const rocking = brightness(samples.subarray(0, Math.round((over - 0.01) * RATE)), RATE);
+      const gone = brightness(samples.subarray(Math.round(over * RATE)), RATE);
+      expect(gone).toBeLessThan(rocking * 0.8);
+      expect(gone).toBeLessThan(Math.min(...takesOf('rideDrop').map((take) => of('rideDrop', take))));
+      expect(samples.length / RATE).toBeLessThanOrEqual(0.5);
+    }
+    expect(firstDifference(rendered('teeter', 0), rendered('teeter', 1))).not.toBe(-1);
+  });
+
+  it('steps the lucky lamp with a relay\'s click, too quiet and too short to be noticed seventeen times a minute', async () => {
+    const samples = rendered('lampStep');
+    expect(samples.length / RATE).toBeLessThan(0.08);
+    expect(mostlyOverBy(samples)).toBeLessThan(0.02);
+    expect(peakAt(samples)).toBeLessThan(0.01);
+    // Nothing on the cabinet that is a thing struck is as quiet: a fifth of a medal landing, and under the bed's own clunk.
+    expect(SOUND_LEVELS.lampStep).toBeLessThanOrEqual(0.02);
+    expect(SOUND_LEVELS.lampStep).toBeLessThanOrEqual(SOUND_LEVELS.land / 5);
+    expect(SOUND_LEVELS.lampStep).toBeLessThan(MOTOR.level);
+    // Every stroke of the pusher, it is heard: it is not held back as a stream of clinks is.
+    const audio = await switchOn();
+    for (let stroke = 0; stroke < 17; stroke++) {
+      playSound('lampStep', true);
+      audio.currentTime += PUSHER.period;
+    }
+    expect(audio.sources).toHaveLength(17);
+    for (const source of audio.sources) expect(audio.gainOf(source).gain.value).toBe(SOUND_LEVELS.lampStep);
+  });
+
+  it('says a dull, short no to a medal the hold has no place for: a knock on wood and a softer one after it, not a buzzer', () => {
+    const samples = rendered('full');
+    expect(samples.length / RATE).toBeLessThanOrEqual(0.2);
+    expect(of('full')).toBeLessThan(900);
+    expect(of('full')).toBeLessThan(of('lampStep'));
+    // Two knocks, the first the loudest thing in it and the second softer.
+    expect(peakAt(samples)).toBeLessThan(0.01);
+    const times = strikeTimes(samples, 2);
+    expect(times.length).toBeGreaterThanOrEqual(2);
+    const second = Math.round(times[1] * RATE);
+    expect(peakOf(samples.subarray(second))).toBeLessThan(0.7);
+    // It does not go on, as a buzzer does: nine tenths of it is over in a tenth of a second, where the cross's buzz is still going at three.
+    expect(mostlyOverBy(samples)).toBeLessThan(0.11);
+    expect(mostlyOverBy(rendered('cross'))).toBeGreaterThan(0.2);
+    // And it is quiet: the cabinet shrugs, it does not scold.
+    expect(SOUND_LEVELS.full).toBeLessThan(SOUND_LEVELS.teeter);
+  });
+
+  it('stays under the limiter with an entry, a spark and a pour all at their loudest in one instant', () => {
+    // The loudest instant of an entry: the medal's clack in its pocket and the cabinet's gold answer. The slide has ended by then.
+    const entry = ENTRY.drop.level + ENTRY.gold.level;
+    expect(SOUND_LEVELS.ride).toBeLessThan(ENTRY.drop.level);
+    // With a spark and a pour, over the machine's bed and the loop, which is turned down under a pour.
+    const loop = MUSIC.parts.reduce((sum, part) => sum + part.level, 0) * MUSIC.ducked;
+    const together = entry + SOUND_LEVELS.spark + SOUND_LEVELS.pour + MOTOR.level + loop;
+    expect(together).toBeGreaterThan(0.29);
+    expect(together).toBeLessThan(0.32);
+    // 0.39 is where the compressor begins to work as the cabinet was made: this goes through untouched, at 0.31.
+    expect(through(together)).toBeCloseTo(together, 10);
+    // With the volume right up it is twice that going in, and comes out at 0.41.
+    expect(through(together, VOLUME.most)).toBeGreaterThan(0.39);
+    expect(through(together, VOLUME.most)).toBeLessThan(0.41);
+    // And with the room on as well, its tone and two far-off sounds at their loudest landing on the same instant: 0.39 and 0.42.
+    const withTheRoom = together + AMBIENCE.room.level + 2 * AMBIENCE.level;
+    expect(through(withTheRoom)).toBeLessThan(0.4);
+    expect(through(withTheRoom, VOLUME.most)).toBeLessThan(0.42);
+  });
+});
+
 // ── The notes, which are plain data ─────────────────────────────────────────
 
 const scores = Object.entries(SCORES);
@@ -2856,7 +3085,9 @@ describe('what is worked out', () => {
     // A medal on the table, five sizes of rattle and the loop's two notes are kept besides the sounds that have names;
     // and a button coming up, a lift stopping and the machine's own bed; a door, a shutter and a guard going back up;
     // the four moments of a ball on a wheel and in a bowl, and the wheel's rotor; and the five things the room is made of.
-    expect(SAMPLES).toHaveLength(SOUNDS.length + 1 + (POURS.length - 1) + MUSIC.parts.length + 3 + 3 + 5 + 5);
+    // And a medal dropping off a tongue into its pocket, and the cabinet's answer to a gold entry.
+    expect(SAMPLES).toHaveLength(SOUNDS.length + 1 + (POURS.length - 1) + MUSIC.parts.length + 3 + 3 + 5 + 2 + 5);
+    for (const extra of ['rideDrop', 'startGold'] as const) expect(SAMPLES).toContain(extra);
     for (const extra of ['buttonUp', 'liftStop', 'motor', 'doorShut', 'shutterOpen', 'guardUp', 'shot', 'lip', 'settle', 'bowlLand', 'rotor'] as const) expect(SAMPLES).toContain(extra);
     for (const extra of ['room', 'farClink', 'farRattle', 'farPour', 'farTune'] as const) expect(SAMPLES).toContain(extra);
     expect(SAMPLES.slice(0, 4)).toEqual(['land', 'plate', 'insert', 'win']);
@@ -2870,6 +3101,8 @@ describe('what is worked out', () => {
     for (const name of [...old, 'prize', 'ball', 'roulette', 'pocket', 'tower', 'cross', 'crash', 'fever', 'jackpot']) expect(SOUNDS).toContain(name);
     // And the mechanisms have names of their own.
     for (const name of ['button', 'tray', 'hopper', 'shutter', 'lift', 'bowl', 'drop', 'door', 'pour', 'guard', 'slit']) expect(SOUNDS).toContain(name);
+    // And an entry has its own: the ride, the cabinet's answer, the spark, the near miss, the lucky lamp, and the dull no that was there already.
+    for (const name of ['ride', 'start', 'spark', 'teeter', 'lampStep', 'full']) expect(SOUNDS).toContain(name);
   });
 
   it.each(takes)('%s (take %i) is finite, peaks at exactly 1, begins and ends in silence or joins up with itself, and is the same every time', (sample, variant) => {

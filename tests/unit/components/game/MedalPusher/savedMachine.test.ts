@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { ACCOUNT_LIMIT, SEND_EVERY, fromCloud, sizeOf, slotFor, toCloud, type AccountStore, type Slots, type Status } from '@/components/game/MedalPusher/account';
-import { buildTowers, queuePayout } from '@/components/game/MedalPusher/engine';
-import { MACHINE_GAME_KEY, booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
+import { booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
+
+import { KEEPALIVE_LIMIT, SCENARIOS, measure, type Scenario } from '../../../../../scripts/medal-pusher-save-size';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
 import beforeLeftAndRight from './fixtures/save-before-left-and-right.json';
@@ -54,38 +55,41 @@ describe('the machine on its way to the account', () => {
     }
   });
 
-  it('fits the account with room to spare when the tables are as full as they can be made', { timeout: LONG }, () => {
-    // Both feeds held down, twelve hundred medals of towers stood on the pusher every twenty seconds and a hundred
-    // and fifty thrown on every seven: far more than play gives a machine, and what it settles at is the most the
-    // field holds. The fullest moment of it is the one measured. Run for five minutes instead of forty-five seconds,
-    // it comes to 44.5 KB at most over three seeds, against the 64 KB the route takes.
-    const session = createSession(2);
-    let worst = { size: 0, plain: 0, medals: 0, falling: 0 };
-    for (let i = 0; i < 60 * 45; i++) {
-      if (session.credits === 0) refill(session);
-      insert(session, 0);
-      insert(session, 1);
-      if (i % (60 * 20) === 0) buildTowers(session.machine, 1200);
-      if (i % (60 * 7) === 0) queuePayout(session.machine, 150);
-      advance(session, DT);
-      if (i % 30 !== 0) continue;
-      const text = serialize(session);
-      const state = toCloud(text, 'crowded-mark-0001', Date.now());
-      expect(state).not.toBeNull();
-      const size = sizeOf(state as object);
-      if (size > worst.size) worst = { size, plain: text.length, medals: session.machine.medals.length, falling: session.machine.falling.length };
-      // Every one of them comes back as the machine it was.
-      if (i % 600 === 0) expect(fromCloud(throughTheRoute(state as object))?.text).toBe(text);
-    }
-    // It is crowded: over five hundred medals lying, a hundred in the air, and too big for the account as it is.
-    expect(worst.medals).toBeGreaterThan(500);
-    expect(worst.falling).toBeGreaterThan(60);
-    expect(worst.plain).toBeGreaterThan(ACCOUNT_LIMIT * 1.4);
+  it('fits the account with room to spare through forty-five seconds of a field crowded on purpose', { timeout: LONG }, () => {
+    // What this covers, and no more: one machine (seed 2), forty-five seconds of its own time, measured every half
+    // second, with both feeds held down, twelve hundred medals of towers stood on the pusher every twenty seconds
+    // and a hundred and fifty thrown on every seven. That is far more than play gives a machine, and by then the
+    // field is past five hundred medals. It is not the largest a save gets: the field goes on filling for a few
+    // minutes. Five minutes over three seeds is `npx tsx scripts/medal-pusher-save-size.ts`, which takes a minute
+    // or two here and several on CI, and is where the sizes quoted for this game come from. This test runs the
+    // same `measure` for the shorter while, so that a change which makes saves bigger fails here first.
+    const crowded = SCENARIOS.find((scenario) => scenario.crowded);
+    expect(crowded).toBeDefined();
+    const measured = measure(crowded as Scenario, 2, 45);
+    expect(measured.samples).toBe(90);
+    // Every one of them comes back from the packing as the text it was.
+    expect(measured.changed).toBe(0);
+    // It is crowded: over five hundred medals lying, sixty in the air, and too big for the account as it is.
+    expect(measured.medals).toBeGreaterThan(500);
+    expect(measured.falling).toBeGreaterThan(60);
+    expect(measured.deviceMost).toBeGreaterThan(ACCOUNT_LIMIT * 1.4);
     // Packed, it is under three quarters of what the route takes…
-    expect(worst.size).toBeLessThan(ACCOUNT_LIMIT * 0.75);
+    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.75);
     // …and the whole request is under what a browser will send as the page is left (64 KiB of body).
-    const body = JSON.stringify({ gameKey: MACHINE_GAME_KEY, state: toCloud(serialize(session), 'crowded-mark-0001', Date.now()) });
-    expect(new TextEncoder().encode(body).length).toBeLessThan(64 * 1024);
+    expect(measured.requestMost).toBeGreaterThan(measured.accountMost);
+    expect(measured.requestMost).toBeLessThan(KEEPALIVE_LIMIT);
+  });
+
+  it('measures a machine the same way each time, and a new one as what it is', () => {
+    const ordinary = SCENARIOS[0];
+    const [once, again] = [measure(ordinary, 7, 5), measure(ordinary, 7, 5)];
+    expect(again).toEqual(once);
+    const fresh = serialize(createSession(7));
+    expect(once.deviceNew).toBe(fresh.length);
+    expect(once.accountNew).toBe(sizeOf(toCloud(fresh, 'a-mark-of-16-hex', 0) as object));
+    expect(once.samples).toBe(10);
+    expect(once.accountMost).toBeGreaterThanOrEqual(once.accountMean);
+    expect(once.accountMean).toBeGreaterThanOrEqual(once.accountNew);
   });
 
   it.each([

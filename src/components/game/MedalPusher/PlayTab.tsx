@@ -12,9 +12,8 @@ import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS 
 import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
-import { IDLE_DIGITS, Screen, markStrip, placeBall, stripOffset } from './ScreenPanel';
+import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
 import {
-  ballSpot,
   landTimes,
   reelPositions,
   reelsFast,
@@ -169,6 +168,7 @@ const IDLE_SCREEN: ScreenState = {
   amount: 0,
   line: null,
   lit: -1,
+  board: -1,
   square: 0,
   die: 0,
   rolling: false,
@@ -781,9 +781,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         });
       }
 
-      // The ball acts out the jackpot challenge; without motion it waits where it came into each bowl until it is in its hole.
-      const bowl = session.roulette?.bowl;
-      if (bowl && ball.current) placeBall(ball.current, ballSpot(bowl, calm.matches));
+      // The ball acts out its lottery: round the wheel while the roulette turns, then down the bowls. Without motion it waits where each begins until it lies in its pocket or its hole.
+      if (session.roulette && ball.current) placeLottery(ball.current, session.roulette, calm.matches);
 
       const nextScreen = screenState(session, calm.matches);
       if (!sameScreen(nextScreen, shownScreen)) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHUCKERS, chuckerSpot, chuckerSpots, droppedThrough } from '@/components/game/MedalPusher/chuckers';
+import { CHUCKERS, chuckerSpot, chuckerSpots, droppedThrough, grazed } from '@/components/game/MedalPusher/chuckers';
 import {
   CHECKERS,
   FIELD,
@@ -83,6 +83,23 @@ describe('where the chuckers are', () => {
     expect(checkerAt((CHECKERS.positions[1] + CHECKERS.positions[2]) / 2)).toBe(-1);
   });
 
+  it('takes medals at a wider width while its wings are open, and still not the ones half way to the next', () => {
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
+    ALL.forEach((chucker) => {
+      const { x } = chuckerSpot(chucker, 0);
+      for (const side of [-1, 1]) {
+        // Up to the wider width and no further; and what is between the two widths fits only then.
+        expect(checkerAt(x + side * (CHECKERS.wingWidth - 0.001), CHECKERS.wingWidth)).toBe(chucker);
+        expect(checkerAt(x + side * (CHECKERS.wingWidth + 0.001), CHECKERS.wingWidth)).toBe(-1);
+        expect(checkerAt(x + side * (CHECKERS.wingWidth - 0.001))).toBe(-1);
+      }
+    });
+    // Two wide mouths do not run into one another either, and the towers still go over between them.
+    expect(CHECKERS.positions[1] - CHECKERS.positions[0] - (MEDAL_RADIUS + CHECKERS.wingWidth) * 2).toBeGreaterThan(MEDAL_RADIUS);
+    expect(checkerAt((CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, CHECKERS.wingWidth)).toBe(-1);
+    expect(checkerAt((CHECKERS.positions[1] + CHECKERS.positions[2]) / 2, CHECKERS.wingWidth)).toBe(-1);
+  });
+
   it('fits the picture: every mouth is inside the drawing wherever the pusher is', () => {
     for (const time of TIMES) {
       for (const spot of chuckerSpots(time)) {
@@ -142,6 +159,27 @@ describe('the chucker a medal came through', () => {
     expect(droppedThrough(medalAt(CHECKERS.positions[1], 60))).toBe(-1);
   });
 
+  it('is where the engine sends a medal that goes over the lip at a mouth whose wings are open, from further to the side', () => {
+    ALL.forEach((chucker) => {
+      for (const side of [-1, 1]) {
+        for (const wings of [false, true]) {
+          const machine = machineWith([]);
+          machine.time = 1.1;
+          const spot = chuckerSpot(chucker, machine.time);
+          // Between the two widths: it fits the mouth only while the wings are open.
+          const medal = medalAt(spot.x + side * (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5, spot.depth + 0.5, { level: 1 });
+          machine.medals = [medal];
+          expect(step(machine, DT, wings).checkers).toEqual(wings ? [chucker] : []);
+          expect(medal.sinceDrop).toBe(0);
+          expect(droppedThrough(medal, CHUCKERS.drop, wings)).toBe(wings ? chucker : -1);
+          // Whoever asks has to say how the wings are: the same medal, asked the other way, is told the other thing.
+          expect(droppedThrough(medal, CHUCKERS.drop, !wings)).toBe(wings ? -1 : chucker);
+          expect(droppedThrough(medal)).toBe(-1);
+        }
+      }
+    });
+  });
+
   it('is told only while the medal is drawn falling from the lip', () => {
     // The renderers draw that fall for this long.
     expect(CHUCKERS.drop).toBe(LIP_FALL);
@@ -176,5 +214,87 @@ describe('the chucker a medal came through', () => {
     }
     expect(counted).toBeGreaterThan(10);
     expect(seen).toBe(counted);
+  });
+});
+
+describe('the chucker a medal caught the edge of', () => {
+  /** How far to the side of fitting a medal may come over and still catch a mouth's edge, for these tests. */
+  const REACH = 2.2;
+  /** A medal that has just come over the lip at `x`. */
+  const fresh = (x: number, over: Partial<Medal> = {}): Medal => medalAt(x, PUSHER.min + MEDAL_RADIUS, { sinceDrop: 0, ...over });
+
+  it('is the one it came over a little to one side of, on either side, and none for a medal that fitted or came over further off', () => {
+    ALL.forEach((chucker) => {
+      const center = CHECKERS.positions[chucker];
+      for (const side of [-1, 1]) {
+        // Just past fitting, and all the way out to the reach.
+        expect(grazed(fresh(center + side * (CHECKERS.halfWidth + 0.001)), 1, REACH)).toBe(chucker);
+        expect(grazed(fresh(center + side * (CHECKERS.halfWidth + REACH / 2)), 1, REACH)).toBe(chucker);
+        expect(grazed(fresh(center + side * (CHECKERS.halfWidth + REACH - 0.001)), 1, REACH)).toBe(chucker);
+        // Past the reach it caught nothing.
+        expect(grazed(fresh(center + side * (CHECKERS.halfWidth + REACH + 0.001)), 1, REACH)).toBe(-1);
+        // One that fitted went through: it did not catch the edge.
+        expect(grazed(fresh(center + side * (CHECKERS.halfWidth - 0.001)), 1, REACH)).toBe(-1);
+        expect(droppedThrough(fresh(center + side * (CHECKERS.halfWidth - 0.001)))).toBe(chucker);
+      }
+      expect(grazed(fresh(center), 1, REACH)).toBe(-1);
+    });
+    // With no reach at all nothing is caught, and with more of it more is.
+    expect(grazed(fresh(CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5), 1, 0)).toBe(-1);
+    expect(grazed(fresh(CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5), 1, 0.4)).toBe(-1);
+    expect(grazed(fresh(CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5), 1, 0.6)).toBe(1);
+  });
+
+  it('never says a medal both went through a mouth and caught its edge, all across the lip, wings folded or open', () => {
+    let through = 0;
+    let caughtEdge = 0;
+    for (const wings of [false, true]) {
+      for (let x = 0; x <= FIELD.width; x += 0.05) {
+        const medal = fresh(x);
+        const went = droppedThrough(medal, 1, wings);
+        const edge = grazed(medal, 1, REACH, wings);
+        expect(went >= 0 && edge >= 0).toBe(false);
+        if (went >= 0) through++;
+        if (edge >= 0) {
+          caughtEdge++;
+          // The edge it caught is that of the mouth nearest to it.
+          const nearest = ALL.reduce((best, chucker) => (Math.abs(x - CHECKERS.positions[chucker]) < Math.abs(x - CHECKERS.positions[best]) ? chucker : best), 0);
+          expect(edge).toBe(nearest);
+        }
+      }
+    }
+    expect(through).toBeGreaterThan(0);
+    expect(caughtEdge).toBeGreaterThan(through);
+  });
+
+  it('is none for a ball, for a medal that is not on its way down, and once the time it is asked about is up', () => {
+    const x = CHECKERS.positions[0] + CHECKERS.halfWidth + REACH / 2;
+    expect(grazed(fresh(x), 0.5, REACH)).toBe(0);
+    expect(grazed(fresh(x, { ball: true }), 0.5, REACH)).toBe(-1);
+    expect(grazed(fresh(x, { level: 1 }), 0.5, REACH)).toBe(-1);
+    expect(grazed(fresh(x, { sinceDrop: -1 }), 0.5, REACH)).toBe(-1);
+    // It is told for as long as whoever draws the medal says, and no longer.
+    expect(grazed(fresh(x, { sinceDrop: 0.49 }), 0.5, REACH)).toBe(0);
+    expect(grazed(fresh(x, { sinceDrop: 0.5 }), 0.5, REACH)).toBe(-1);
+    expect(grazed(fresh(x, { sinceDrop: 0.5 }), 5, REACH)).toBe(0);
+    expect(grazed(fresh(x), 0, REACH)).toBe(-1);
+  });
+
+  it('measures from the wider width while the wings are open', () => {
+    const center = CHECKERS.positions[2];
+    for (const side of [-1, 1]) {
+      // Between the two widths: it catches the edge of a mouth with folded wings, and goes through one whose wings are open.
+      const between = fresh(center + side * (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5);
+      expect(grazed(between, 1, REACH)).toBe(2);
+      expect(grazed(between, 1, REACH, false)).toBe(2);
+      expect(grazed(between, 1, REACH, true)).toBe(-1);
+      expect(droppedThrough(between, 1, true)).toBe(2);
+      // Past the reach of the narrow mouth and within that of the wide one.
+      const wide = fresh(center + side * (CHECKERS.halfWidth + REACH + (CHECKERS.wingWidth - CHECKERS.halfWidth) / 2));
+      expect(grazed(wide, 1, REACH)).toBe(-1);
+      expect(grazed(wide, 1, REACH, true)).toBe(2);
+      // And past that too.
+      expect(grazed(fresh(center + side * (CHECKERS.wingWidth + REACH + 0.001)), 1, REACH, true)).toBe(-1);
+    }
   });
 });

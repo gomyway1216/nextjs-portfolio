@@ -609,6 +609,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           case 'checker':
             lightGate(stage, event.gate);
             playSound(event.held || event.gold ? 'gate' : 'full', soundOn);
+            // Held through a lit slot: the spin it holds is gold from the start.
+            if (event.lucky) setAnnouncement(strings.sayLucky);
             break;
           case 'chanceStart':
             playSound('fever', soundOn);
@@ -711,7 +713,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
-      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold });
+      renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: session.stock, gold: session.gold, wings: session.rush });
 
       // The reels act out the spin. Without motion each waits, dimmed, and shows its digit at the moment it would have stopped.
       const { spin } = session;

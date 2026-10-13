@@ -221,7 +221,7 @@ function build(gpu: Gpu): Scene3d {
     cameraMatrix(camera, shake);
 
     // This frame's numbers, and each list sent to the graphics card once.
-    writeMedals(medals, machine, stage.exits, stage.fed);
+    writeMedals(medals, machine, stage.exits, stage.fed, calm, options.wings ?? false);
     writeBalls(balls, machine, stage.exits, lowBalls);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
@@ -229,7 +229,7 @@ function build(gpu: Gpu): Scene3d {
     // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
     const wave = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
     buildLamps(beads, flat, machine, front, wave, partying, options, stage.clock);
-    addCatcherLamps(beads, machine, stage, wave);
+    addCatcherLamps(beads, machine, stage, wave, options.wings ?? false);
     // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);

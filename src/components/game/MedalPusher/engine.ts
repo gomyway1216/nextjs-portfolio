@@ -93,17 +93,36 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * where aiming still tells. By the time a medal has been pushed the length of
  * the pusher the pile has spread it far to either side, so pockets spaced
  * evenly across the lip take much the same share whatever column is fed. With
- * the three in the middle, getting on for one medal in five ends up through
- * one when the middle is fed, about one in ten when medals are fed anywhere at
- * all, and about one in twenty when they are fed at the edges. The pockets are
- * as far apart as the towers are, so the towers, which go up to either side of
- * the middle, stand between them.
+ * the three in the middle, about one medal in eight ends up through one when
+ * the middle is fed, about one in fourteen when medals are fed anywhere at
+ * all, and about one in thirty-five when they are fed at the edges. The
+ * pockets are as far apart as the towers are, so the towers, which go up to
+ * either side of the middle, stand between them.
  *
- * `halfWidth` is what the machine's return is tuned with. At this width the
- * best a player can do, feeding the middle slowly, gets about 97% back with
- * average luck on the screen, and about 95% at two medals a second.
+ * `halfWidth` is what the machine's return is tuned with, together with what
+ * a spin is worth (`SPIN_TABLE` in lottery.ts): scripts/medal-pusher-tune.ts
+ * measures both. At this width the best a player can do, feeding the middle
+ * slowly, gets about 97% back with average luck on the screen, and about 95%
+ * at two medals a second. `wingWidth` is how wide a slot takes medals while
+ * its wings are open, which is during chance time: as wide as the pockets
+ * were before they were narrowed.
  */
-export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.7 } as const;
+export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.7 } as const;
+
+/**
+ * The lucky lamp. One of the three slots is lit gold at a time, and the light
+ * steps one slot along, from the left, with every stroke of the pusher: it
+ * moves as the pusher comes to the back of its stroke, so each push has its
+ * own gold slot. Which slot is lit is read off the machine's clock and
+ * nothing else. What a medal through the lit slot is worth is the session's
+ * to say.
+ */
+export const LUCKY = { dwell: PUSHER.period } as const;
+
+/** The slot the lucky lamp is on at `time`. */
+export function luckySlot(time: number): number {
+  return Math.floor(time / LUCKY.dwell + 1e-9) % CHECKERS.positions.length;
+}
 
 /**
  * Payout medals are thrown onto the pusher across this band, a few per second;
@@ -277,8 +296,8 @@ export function pusherFront(time: number): number {
 }
 
 /** The chucker a medal that goes over the lip at `x` drops through, or −1 when it goes over between two of them. */
-export function checkerAt(x: number): number {
-  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= CHECKERS.halfWidth);
+export function checkerAt(x: number, halfWidth: number = CHECKERS.halfWidth): number {
+  return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= halfWidth);
 }
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
@@ -730,7 +749,7 @@ function constrain(medals: Medal[], front: number): void {
   }
 }
 
-function advance(machine: Machine, dt: number, events: StepEvents): void {
+function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: number): void {
   const before = pusherFront(machine.time);
   machine.time += dt;
   const front = pusherFront(machine.time);
@@ -838,7 +857,7 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
-        const checker = medal.ball ? -1 : checkerAt(medal.x);
+        const checker = medal.ball ? -1 : checkerAt(medal.x, halfWidth);
         for (let n = 0; checker >= 0 && n < medal.stack; n++) events.checkers.push(checker);
         if (medal.stack > 1) {
           spill(machine, medal, front);
@@ -873,13 +892,13 @@ function advance(machine: Machine, dt: number, events: StepEvents): void {
 }
 
 /** Moves the machine forward by `dt` seconds and reports what happened. */
-export function step(machine: Machine, dt: number): StepEvents {
+export function step(machine: Machine, dt: number, wings = false): StepEvents {
   if (!(dt >= 0) || !Number.isFinite(dt)) throw new Error('the time step must be a non-negative number');
   const events: StepEvents = { won: 0, lost: 0, checkers: [], landed: 0, toppled: 0, balls: 0 };
   let remaining = dt;
   while (remaining > 1e-9) {
     const piece = Math.min(MAX_STEP, remaining);
-    advance(machine, piece, events);
+    advance(machine, piece, events, wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
     remaining -= piece;
   }
   return events;

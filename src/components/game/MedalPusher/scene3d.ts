@@ -6,7 +6,7 @@
  */
 
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
-import { CATCHER, caught, underCatcher } from './catcher';
+import { caught, rolling, underCatcher } from './catcher';
 import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
 import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
@@ -215,15 +215,16 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
  * them. `fed` says which arm each medal that has been seen on a rail was on,
  * so that one in the air leaves the rail it rolled down.
  */
-export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>): void {
+export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>, calm = false, wings = false): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball) continue;
     // One that has just come over the lip at the catcher is on its way out of sight: into a pocket's mouth and
     // down its throat, or over the lip's edge and down behind the catcher.
-    const held = caught(medal, machine.time);
+    const held = caught(medal, machine.time, calm, wings);
     if (held) {
-      medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id), held.tilt, (chance(medal.id, 2) - 0.5) * 0.5, 0, 0, held.light);
+      // One rocking on a slot's frame rocks from side to side; any other is tipped forward, each a little its own way.
+      medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id), held.tilt, held.heading === 0 ? (chance(medal.id, 2) - 0.5) * 0.5 : held.heading, 0, 0, held.light);
       continue;
     }
     const base = medal.level === 1 ? P : 0;
@@ -300,26 +301,23 @@ export function beadRow(rows: Rows, x: number, y: number, z: number, radius: num
  * or going over the front. A ball that lies on the lower table under the
  * catcher, wholly or in part, goes into `under` instead, if that is given:
  * it is taller than the catcher, and whoever draws it has to hide what of it
- * is under there. One that comes over the lip wholly behind the catcher goes
- * down behind it until none of it shows, which is further than the table.
+ * is under there. One that has just come over the lip at the catcher is on
+ * its slide, rolling down it and off its foot, where the catcher has it.
  */
 export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], under?: Rows): void {
   rows.count = 0;
   if (under) under.count = 0;
   for (const medal of machine.medals) {
     if (!medal.ball) continue;
+    const rolled = rolling(medal, BALL_RADIUS, machine.time);
+    if (rolled) {
+      beadRow(rows, rolled.x, rolled.height, rolled.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+      continue;
+    }
     const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
-    if (medal.level === 0 && underCatcher(medal.x, medal.y, BALL_RADIUS, machine.time)) {
-      if (!dropping) {
-        beadRow(under ?? rows, medal.x, BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
-        continue;
-      }
-      if (medal.x - BALL_RADIUS >= CATCHER.from && medal.x + BALL_RADIUS <= CATCHER.to) {
-        const from = P + BALL_RADIUS;
-        const sunk = (medal.sinceDrop / LIP_FALL) ** 2;
-        beadRow(rows, medal.x, from - (from - (CATCHER.deck - BALL_RADIUS - 0.2)) * sunk, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
-        continue;
-      }
+    if (medal.level === 0 && !dropping && underCatcher(medal.x, medal.y, BALL_RADIUS, machine.time)) {
+      beadRow(under ?? rows, medal.x, BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+      continue;
     }
     beadRow(rows, medal.x, (medal.level === 1 ? P : 0) + lipDrop(medal) + BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }

@@ -47,7 +47,7 @@ import {
   type ReachShown,
   type Tier,
 } from './lottery';
-import { towerSizes } from './engine';
+import { LUCKY, towerSizes } from './engine';
 import { ReelSymbol } from './ReelSymbols';
 import { MAX_STOCK, TIMING } from './session';
 import styles from './MedalPusher.module.css';
@@ -59,7 +59,7 @@ export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
 /** What the calculator starts from: about what feeding both rails down the middle of the pusher, two medals a second between them, measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 80, spins: 18 } as const;
+export const CALC_DEFAULT = { front: 80, spins: 12 } as const;
 
 /** Rolls after which the Odds tab shows how even the board has become. */
 export const BOARD_ROLLS = 6;
@@ -188,7 +188,8 @@ export const OddsTab = () => {
                       </span>
                     )}
                   </th>
-                  <td className={styles.num}>{tidyPercent(tierChance(tier))}</td>
+                  {/* To four places, which is every digit a chance out of 8,000 has as a percentage: these are exact. */}
+                  <td className={styles.num}>{tidyPercent(tierChance(tier), 4)}</td>
                   <td className={styles.num}>{tier === 'miss' ? '—' : t.oneIn(fmt(Math.round(SPIN_TOTAL / SPIN_TABLE[tier])))}</td>
                   <td>{linePays(tier)}</td>
                   <td className={styles.num}>{tier === 'miss' ? '—' : t.paysMedals(trim(tierValue(tier, JACKPOT_START), 1))}</td>
@@ -464,6 +465,10 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.chanceOddsNote(CHANCE_BONUS.toFixed(2))}</p>
+        {/* The lucky lamp makes a spin gold with no full hold: its rule, and the two spins' worth again, with the jackpot where it starts. */}
+        <p className={styles.note} data-testid="pusher-lucky-note">
+          {t.luckyOddsNote(spinValue(JACKPOT_START).toFixed(5), chanceSpinValue(JACKPOT_START).toFixed(5), trim(LUCKY.dwell, 1))}
+        </p>
       </section>
 
       <section className={styles.panelBox}>

@@ -48,6 +48,14 @@
  * three bowls, one under another, and the ball in them is written down as the
  * way it goes and the bowl it has got to. An older save's ball is read as that
  * game wrote it and comes back in today's bowls (see `ballInOneBowl`).
+ *
+ * Version 6 adds two numbers to the session's: how many medals have held a
+ * gold spin by coming through the lit slot or open wings, and whether chance
+ * time is on. In version 5 a spin was gold only because a medal had found the
+ * hold full, and chance time was whenever a gold spin was held or playing:
+ * such a save is read so (see `numbersBeforeLamp`). The lamp itself is read
+ * off the machine's clock and the wings follow chance time, so neither is
+ * stored.
  */
 
 import {
@@ -107,7 +115,14 @@ import {
 
 export const STORAGE_KEY = 'medal-pusher-machine';
 /** The version every save is written with. */
-export const STORAGE_VERSION = 5;
+export const STORAGE_VERSION = 6;
+/**
+ * The version the game wrote before the lucky lamp and the wings: a spin was
+ * gold only because a medal had found the hold full, and chance time was
+ * whenever a gold spin was held or playing. Its field and its screen are
+ * today's; what it lacks is two of the session's numbers.
+ */
+export const VERSION_BEFORE_LAMP = 5;
 /**
  * The version the game wrote while a full run ended in one bowl and chance
  * time was already in it. Its field and its numbers are today's; what differs
@@ -459,14 +474,36 @@ const counters = {
 
 const storedNumbers = shape<StoredNumbers>(
   // In the order a session holds them, which is the order they are written in.
-  { ...purse, gold: whole(0, MAX_STOCK), gilded: count, chance: flag, ...counters },
-  // Only a held spin can be gold, and each gold spin was a medal that found the hold full: the ones still held,
-  // and the one on the screen if the screen is on one. So a screen is never gold on a machine no medal has gilded.
-  (numbers) => numbers.gold <= numbers.stock && numbers.gilded <= numbers.wasted && numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded,
+  { ...purse, gold: whole(0, MAX_STOCK), gilded: count, lucky: count, rush: flag, chance: flag, ...counters },
+  // Only a held spin can be gold. Each gold spin was a medal that found the hold full or one that was held
+  // through the lit slot or open wings: the ones still held, and the one on the screen if the screen is on
+  // one. So a screen is never gold on a machine no medal has made gold. A medal that found the hold full was
+  // wasted, and one that was held was not. And chance time is only ever on with a gold spin still to play, on
+  // a machine whose hold has been found full; it lasts until every gold spin has been played, so with chance
+  // time off every gold spin there is came through the lit slot.
+  (numbers) =>
+    numbers.gold <= numbers.stock &&
+    numbers.gilded <= numbers.wasted &&
+    numbers.lucky <= numbers.hits - numbers.wasted &&
+    numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded + numbers.lucky &&
+    (numbers.rush ? numbers.gilded >= 1 && numbers.gold + (numbers.chance ? 1 : 0) >= 1 : numbers.gold + (numbers.chance ? 1 : 0) <= numbers.lucky),
 );
 
+/**
+ * The numbers of a save written before the lucky lamp, as today's. That game
+ * had no lit slot: none of its gold spins was gold from the start. And its
+ * chance time was whenever a gold spin was held or playing, so it is in
+ * chance time now if one is.
+ */
+const numbersBeforeLamp: Check<StoredNumbers> = (value) => {
+  if (!isRecord(value)) return undefined;
+  const { credits, inserted, won, lost, paidOut, stock, gold, gilded, chance, ...rest } = value;
+  const rush = typeof gold === 'number' && gold + (chance === true ? 1 : 0) > 0;
+  return 'lucky' in value || 'rush' in value ? undefined : storedNumbers({ credits, inserted, won, lost, paidOut, stock, gold, gilded, lucky: 0, rush, chance, ...rest });
+};
+
 /** The session's numbers as the versions before chance time stored them. */
-type NumbersBeforeChance = Omit<StoredNumbers, 'gold' | 'gilded' | 'chance'>;
+type NumbersBeforeChance = Omit<StoredNumbers, 'gold' | 'gilded' | 'lucky' | 'rush' | 'chance'>;
 const numbersWithoutChance = shape<NumbersBeforeChance>({ ...purse, ...counters });
 
 /**
@@ -479,7 +516,7 @@ const numbersBeforeChance: Check<StoredNumbers> = (value) => {
   const old = numbersWithoutChance(value);
   if (!old) return undefined;
   const { credits, inserted, won, lost, paidOut, stock, ...rest } = old;
-  return storedNumbers({ credits, inserted, won, lost, paidOut, stock, gold: 0, gilded: 0, chance: false, ...rest });
+  return storedNumbers({ credits, inserted, won, lost, paidOut, stock, gold: 0, gilded: 0, lucky: 0, rush: false, chance: false, ...rest });
 };
 
 // ── The screen ──────────────────────────────────────────────────────────────
@@ -817,12 +854,12 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    // The field changed shape at versions 2 and 3, the numbers at version 4, and the ball in the bowls at version 5.
+    // The field changed shape at versions 2 and 3, the numbers at versions 4 and 6, and the ball in the bowls at version 5.
     const { version } = save;
-    const withChance = version === STORAGE_VERSION || version === VERSION_WITH_ONE_BOWL;
+    const withChance = version === STORAGE_VERSION || version === VERSION_BEFORE_LAMP || version === VERSION_WITH_ONE_BOWL;
     const read = withChance || version === VERSION_BEFORE_CHANCE ? storedMachine : version === VERSION_WITH_ONE_AIM ? fieldWithOneAim : version === VERSION_BEFORE_ARMS ? fieldBeforeArms : null;
     const field = read?.(save.machine);
-    const numbers = withChance ? storedNumbers(save.session) : numbersBeforeChance(save.session);
+    const numbers = version === STORAGE_VERSION ? storedNumbers(save.session) : withChance ? numbersBeforeLamp(save.session) : numbersBeforeChance(save.session);
     const { screen } = save;
     if (!field || !numbers || !isRecord(screen)) return null;
 
@@ -830,7 +867,7 @@ export function restore(text: string | null, seed: number): Session | null {
       spin: shown(activeSpin(numbers.chance), screen.spin),
       bonus: shown(activeBonus(numbers), screen.bonus),
       // Every version before this one had one bowl, whatever its field was.
-      roulette: shown(version === STORAGE_VERSION ? activeRoulette : rouletteWithOneBowl, screen.roulette),
+      roulette: shown(version === STORAGE_VERSION || version === VERSION_BEFORE_LAMP ? activeRoulette : rouletteWithOneBowl, screen.roulette),
     };
     const busy = [on.spin, on.bonus, on.roulette].filter((thing) => thing !== null).length;
     const session: Session = { ...numbers, ...(busy > 1 ? { spin: null, bonus: null, roulette: null } : on), machine: { ...field, rng: seededRng(seed) } };
@@ -838,6 +875,8 @@ export function restore(text: string | null, seed: number): Session | null {
     // that a medal did gild that spin; if the spin or the game itself did not come through its own check, or
     // was never there, it is gone with its gold, and nothing else on the screen is paid as if it were gold.
     if (session.spin === null && session.bonus === null) session.chance = false;
+    // And chance time is over with its last gold spin.
+    if (session.gold === 0 && !session.chance) session.rush = false;
     if (screen.roulette !== null && screen.roulette !== undefined && session.roulette === null) {
       session.balls = Math.min(LIMITS.balls, session.balls + 1);
       session.roulettes = Math.max(0, session.roulettes - 1);

@@ -6,7 +6,7 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { buildTowers, createMachine, dropBall, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
+import { buildTowers, createMachine, dropBall, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine } from './engine';
 import {
   BOARD,
   BOWLS,
@@ -180,9 +180,18 @@ export interface Session {
    * every gold spin there has been. `chance` says that what is on the screen
    * now is a gold spin, or the game its line led to: its reels are quick, and
    * its sugoroku square or its chest pays `CHANCE.multiplier` times over.
+   *
+   * A spin can also be gold from the start. A medal that goes through the
+   * slot the lucky lamp is on, and is held, holds a gold spin: `lucky`
+   * counts those. And from the moment a medal finds the hold full until the
+   * last gold spin has been played, which is chance time proper, `rush` is
+   * set: the slots' wings are open, they take medals more easily, and every
+   * medal that is held holds a gold spin.
    */
   gold: number;
   gilded: number;
+  lucky: number;
+  rush: boolean;
   chance: boolean;
   jackpot: number;
   /** Medals played since the jackpot last grew. */
@@ -212,7 +221,11 @@ export type SessionEvent =
   | { type: 'landed'; count: number }
   | { type: 'toppled'; count: number }
   | { type: 'ball'; count: number }
-  | { type: 'checker'; gate: number; held: boolean; gold: boolean }
+  /**
+   * A medal through a slot. `held`: it holds a spin. `gold`: it found the hold full and turned a held spin gold.
+   * `lucky`: the spin it holds is gold from the start, because its slot was the lit one or the wings were open.
+   */
+  | { type: 'checker'; gate: number; held: boolean; gold: boolean; lucky: boolean }
   | { type: 'chanceStart' }
   | { type: 'chanceEnd' }
   | { type: 'spinStart'; result: SpinResult; duration: number }
@@ -248,6 +261,8 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     stock: 0,
     gold: 0,
     gilded: 0,
+    lucky: 0,
+    rush: false,
     chance: false,
     hits: 0,
     wasted: 0,
@@ -424,15 +439,18 @@ export const chanceLeft = (session: Pick<Session, 'gold' | 'chance'>): number =>
 
 /** Moves the machine forward by `dt` seconds. Events are appended to `events` when it is given. */
 export function advance(session: Session, dt: number, events?: SessionEvent[]): void {
-  const before = chanceLeft(session);
+  // Chance time begins when a medal finds the hold full, and ends when the last gold spin has been played.
+  const before = session.rush;
   run(session, dt, events);
-  const after = chanceLeft(session);
-  if (before === 0 && after > 0) events?.push({ type: 'chanceStart' });
-  else if (before > 0 && after === 0) events?.push({ type: 'chanceEnd' });
+  if (session.rush && chanceLeft(session) === 0) session.rush = false;
+  if (!before && session.rush) events?.push({ type: 'chanceStart' });
+  else if (before && !session.rush) events?.push({ type: 'chanceEnd' });
 }
 
 function run(session: Session, dt: number, events?: SessionEvent[]): void {
-  const field = step(session.machine, dt);
+  // During chance time the slots' wings are open, and they take medals more easily.
+  const wings = session.rush;
+  const field = step(session.machine, dt, wings);
   if (field.won > 0) {
     session.won += field.won;
     session.credits += field.won;
@@ -453,13 +471,20 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
     const held = session.stock < MAX_STOCK;
     // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
     const gold = !held && session.gold < session.stock;
+    // One that is held holds a gold spin when its slot is the one the lucky lamp is on, or the wings are open.
+    const lucky = held && (wings || gate === luckySlot(session.machine.time));
     if (held) session.stock += 1;
     else session.wasted += 1;
     if (gold) {
       session.gold += 1;
       session.gilded += 1;
+      session.rush = true;
     }
-    events?.push({ type: 'checker', gate, held, gold });
+    if (lucky) {
+      session.gold += 1;
+      session.lucky += 1;
+    }
+    events?.push({ type: 'checker', gate, held, gold, lucky });
   }
 
   // One thing at a time on the screen, and nothing that has started is cut short.

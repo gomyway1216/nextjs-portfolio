@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ARMS, HATCH, PAYOUT_SLOT, SLOT, airSpot, armCollar, armGoal, armStart, armTip, railFrame, rollingSpot, slotSpot, type Spot } from '@/components/game/MedalPusher/arms';
 import { SHELF_SHARE, reliefHeight, reliefMap } from '@/components/game/MedalPusher/art3d';
-import { APRON, CATCHER, caught, mouthSpot, mouthSpots, underCatcher } from '@/components/game/MedalPusher/catcher';
+import { APRON, CATCHER, SLOPE, START_SLOT, caught, lampSpot, litSlots, mouthSpot, mouthSpots, rolling, slotHalf, underCatcher, wingCorners } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS } from '@/components/game/MedalPusher/chuckers';
 import {
   FLAT_STRIDE,
@@ -11,7 +11,6 @@ import {
   MOVING_CAST,
   MOVING_HOOD,
   MOVING_PARTS,
-  RIM_LAMPS,
   SHAPE,
   SOLID_STRIDE,
   STUDS,
@@ -28,6 +27,7 @@ import {
   FALL_TIME,
   FEED,
   FIELD,
+  LUCKY,
   MEDAL_RADIUS,
   MEDAL_THICKNESS,
   PUSHER,
@@ -38,6 +38,7 @@ import {
   buildTowers,
   createMachine,
   dropBall,
+  luckySlot,
   pusherFront,
   step,
   type Machine,
@@ -51,11 +52,14 @@ import {
   GOLD_FLASH,
   LIP_FALL,
   REST_LIGHT,
+  SLOT_LIGHT,
+  SLOT_SHAPE,
   ageStage,
   createStage,
   goldFlash,
   lightGate,
   trackMedals,
+  type DrawOptions,
   type ExitingMedal,
   type Stage,
 } from '@/components/game/MedalPusher/render';
@@ -652,46 +656,110 @@ describe('the medals of the 3D field', () => {
     expect(over(LIP_FALL).up[1]).toBeGreaterThan(0.995);
   });
 
-  it('shows a medal that drops through a START pocket going into its mouth and down its throat, and one beside the pocket going down behind the catcher', () => {
+  it('shows a medal that drops through a START slot sliding to it and nosing into it, one that just misses rattling on its frame, and one between the slots sliding off the foot', () => {
     // A machine that has not run: the lip is as far back as it goes.
     const front = PUSHER.min;
     const mouth = mouthSpot(1, 0);
     const fitting = CHECKERS.positions[1] + CHECKERS.halfWidth * 0.9;
-    const through = (sinceDrop: number) => lying(3, fitting, front + R, 0, 0, { sinceDrop });
-    // In the step it comes over it is still on the lip's edge, at the height it lay at, in full light.
-    const [first] = medalRows(holding([through(0)]));
-    expect(first.z).toBeCloseTo(front, 5);
-    expect(first.y).toBeCloseTo(P + T / 2, 5);
-    expect(first.light).toBe(1);
-    // A fifth of a second on it is over the middle of the mouth and below the deck, level, with no shadow under it, and darker.
-    const [down] = medalRows(holding([through(0.2)]));
-    expect(down.x).toBeCloseTo(mouth.x, 4);
-    expect(down.z).toBeCloseTo(mouth.depth, 4);
-    expect(down.y).toBeLessThan(CATCHER.deck);
-    expect(down.y).toBeGreaterThan(CATCHER.throat);
-    expect(down.up[1]).toBeGreaterThan(0.98);
-    expect(down.contact).toBe(0);
-    expect(down.light).toBeLessThan(0.8);
-    expect(down.light).toBeGreaterThan(0.2);
-    // It is the row the catcher gives, to the number.
-    const held = caught(through(0.2), 0);
-    if (!held) throw new Error('not caught');
-    expect([down.x, down.y, down.z, down.light]).toEqual([held.x, held.height, held.depth, held.light].map(Math.fround));
+    const over = (x: number, sinceDrop: number) => lying(3, x, front + R, 0, 0, { sinceDrop });
+    // One machine for all of it: only the medal on it changes.
+    const machine = holding([]);
+    /** The row of a medal that came over at `x`, and how the catcher has it. */
+    const shown = (x: number, sinceDrop: number) => {
+      const held = caught(over(x, sinceDrop), 0);
+      machine.medals = [over(x, sinceDrop)];
+      const [row] = medalRows(machine);
+      if (!held) throw new Error('not caught');
+      // It is the row the catcher gives, to the number, and tipped out of level by as much as the catcher says. Nothing is under it to rest on.
+      expect([row.x, row.y, row.z, row.light]).toEqual([held.x, held.height, held.depth, held.light].map(Math.fround));
+      expect(row.up[1]).toBeCloseTo(Math.cos(held.tilt), 5);
+      expect(row.contact).toBe(0);
+      return { row, held };
+    };
+    // In the step it comes over it is still on the lip's edge, at the height it lay at, level, in full light.
+    const first = shown(fitting, 0);
+    expect(first.row.z).toBeCloseTo(front, 5);
+    expect(first.row.y).toBeCloseTo(P + T / 2, 5);
+    expect(first.row.up[1]).toBeGreaterThan(0.9999);
+    expect(first.row.light).toBe(1);
+    // On the slide it lies on it: leaning with it, its face up and toward the player, in full light, above the slide.
+    const sliding = shown(fitting, CATCHER.sink * 0.35);
+    expect(sliding.held.leg).toBe('slide');
+    expect(sliding.row.up[1]).toBeCloseTo(Math.cos(SLOPE.angle), 5);
+    expect(sliding.row.up[2]).toBeGreaterThan(Math.sin(SLOPE.angle) * 0.95);
+    expect(sliding.row.light).toBe(1);
+    expect(sliding.row.z).toBeGreaterThan(front);
+    expect(sliding.row.y).toBeLessThan(P + T / 2);
+    // Then it noses into its slot: in the middle of it across, tipped further forward, lower, and darker as it goes.
+    let last = sliding.row;
+    for (const share of [0.6, 0.8, 0.99]) {
+      const { row, held } = shown(fitting, CATCHER.sink * share);
+      expect(held.leg).toBe('slot');
+      expect(row.x).toBeCloseTo(mouth.x, 4);
+      expect(row.up[1]).toBeLessThanOrEqual(last.up[1]);
+      expect(row.up[1]).toBeLessThan(Math.cos(SLOPE.angle));
+      expect(row.up[2]).toBeGreaterThan(Math.sin(SLOPE.angle));
+      expect(row.y).toBeLessThan(last.y);
+      expect(row.light).toBeLessThan(last.light);
+      last = row;
+    }
+    expect(last.y).toBeLessThan(mouth.height);
+    expect(last.light).toBeLessThan(0.3);
+    expect(last.light).toBeGreaterThan(0);
     // Once it is down the throat it lies where the engine has it, under the catcher.
-    const [lain] = medalRows(holding([through(CATCHER.sink + 0.01)]));
+    machine.medals = [over(fitting, CATCHER.sink + 0.01)];
+    const [lain] = medalRows(machine);
     expect(lain.x).toBeCloseTo(fitting, 5);
     expect(lain.z).toBeCloseTo(front + R, 5);
     expect(lain.y).toBeCloseTo(T / 2, 5);
     expect(lain.light).toBe(1);
     expect(underCatcher(lain.x, lain.z, R, 0)).toBe(true);
-    // One that comes over just beside the pocket goes down behind the catcher: at the lip, between the pusher and the mouths, on its edge.
-    const [beside] = medalRows(holding([lying(3, CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5, front + R, 0, 0, { sinceDrop: LIP_FALL / 2 })]));
-    expect(beside.z).toBeGreaterThan(front);
-    expect(beside.z).toBeLessThan(front + CATCHER.back);
-    expect(beside.up[1]).toBeLessThan(0.45);
-    expect(beside.up[2]).toBeGreaterThan(0.85);
-    expect(beside.y).toBeLessThan(P);
-    expect(beside.light).toBe(1);
+    // One that comes over just beside the slot catches its frame: it is rocked to one side and the other as the catcher has it, about the line down the slide.
+    const beside = CHECKERS.positions[1] + CHECKERS.halfWidth + CATCHER.reach / 2;
+    const sways: number[] = [];
+    for (let sinceDrop = 0; sinceDrop < CATCHER.rattle; sinceDrop += 1 / 240) {
+      const { row, held } = shown(beside, sinceDrop);
+      // The moment it is level across it is tipped forward only, each medal a little its own way; there is nothing to compare then.
+      if (held.leg !== 'frame' || held.heading === 0) continue;
+      expect(row.up[0]).toBeCloseTo(-Math.sin(held.heading) * Math.sin(held.tilt), 5);
+      expect(row.up[2]).toBeCloseTo(Math.cos(held.heading) * Math.sin(held.tilt), 5);
+      expect(row.light).toBe(1);
+      sways.push(row.up[0]);
+    }
+    expect(sways.length).toBeGreaterThan(40);
+    expect(Math.max(...sways)).toBeGreaterThan(0.2);
+    expect(Math.min(...sways)).toBeLessThan(-0.2);
+    // With motion reduced it never is: it slides straight down.
+    for (const sinceDrop of [0.1, 0.2, 0.3]) {
+      const rows = createRows(MEDAL_STRIDE, 4);
+      machine.medals = [over(beside, sinceDrop)];
+      writeMedals(rows, machine, [], undefined, true);
+      const still = caught(over(beside, sinceDrop), 0, true);
+      expect(still?.leg).toBe('slide');
+      expect([rows.data[0], rows.data[1], rows.data[2]]).toEqual([still?.x, still?.height, still?.depth].map((value) => Math.fround(value ?? Number.NaN)));
+    }
+    // One that comes over between the slots slides the length of the slide and goes off its foot, out past it and down out of sight.
+    const between = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
+    const low = shown(between, CATCHER.slide * 0.7);
+    expect(low.held.leg).toBe('slide');
+    expect(low.row.z).toBeGreaterThan(front + CATCHER.foot.out / 2);
+    expect(low.row.up[1]).toBeCloseTo(Math.cos(SLOPE.angle), 5);
+    const off = shown(between, CATCHER.slide * 0.99);
+    expect(off.held.leg).toBe('foot');
+    expect(off.row.z).toBeGreaterThan(front + CATCHER.foot.out);
+    expect(off.row.y + R).toBeLessThan(T);
+    expect(off.row.up[1]).toBeLessThan(0.45);
+    machine.medals = [over(between, CATCHER.slide + 0.01)];
+    expect(medalRows(machine)[0].y).toBeCloseTo(T / 2, 5);
+    // With the wings open a medal that would have caught the frame goes down the slot instead.
+    const wide = CHECKERS.positions[1] + (CHECKERS.halfWidth + CHECKERS.wingWidth) / 2;
+    const rows = createRows(MEDAL_STRIDE, 4);
+    machine.medals = [over(wide, CATCHER.sink * 0.8)];
+    writeMedals(rows, machine, [], undefined, false, true);
+    const open = caught(over(wide, CATCHER.sink * 0.8), 0, false, true);
+    expect(open?.chucker).toBe(1);
+    expect(caught(over(wide, CATCHER.sink * 0.8), 0)?.chucker).toBe(-1);
+    expect([rows.data[0], rows.data[1], rows.data[2]]).toEqual([open?.x, open?.height, open?.depth].map((value) => Math.fround(value ?? Number.NaN)));
     // One that lies on the pusher has not dropped at all.
     expect(medalRows(holding([lying(3, CHECKERS.positions[1], 20, 1)]))[0].up[1]).toBeGreaterThan(0.99);
   });
@@ -820,24 +888,37 @@ describe('a ball at the catcher in the 3D field', () => {
     expect([open.count, under.count]).toEqual([0, 0]);
   });
 
-  it('sends a ball that comes over the lip behind the catcher down out of sight, so that it does not stand up through the deck', () => {
+  it('rolls a ball that comes over the lip at the catcher down its slide and off its foot, and then has it under the catcher', () => {
     const over = (x: number, sinceDrop: number) => lists([ball(x, front + R, { sinceDrop })]);
-    // It is in the open while it goes down, and starts where it stood on the pusher.
+    // It is in the open while it rolls, and starts where it stood on the pusher, on the lip's edge.
     const start = over(50, 0);
     expect(start.under).toEqual([]);
     expect(start.open[0][1]).toBeCloseTo(P + BALL_RADIUS, 5);
-    // It keeps going down past where it will lie, until the top of it is under the deck.
-    let last = start.open[0][1];
-    for (const sinceDrop of [LIP_FALL * 0.3, LIP_FALL * 0.6, LIP_FALL * 0.99]) {
+    expect(start.open[0][2]).toBeCloseTo(front, 5);
+    // All the way down it is where the catcher has it, to the number, as large as ever: further out and lower as it goes.
+    let last = start.open[0];
+    for (const share of [0.2, 0.4, 0.6, 0.8, 0.99]) {
+      const sinceDrop = CATCHER.slide * share;
       const { open, under } = over(50, sinceDrop);
+      const rolled = rolling(ball(50, front + R, { sinceDrop }), BALL_RADIUS, 0);
+      if (!rolled) throw new Error('not rolling');
       expect(under).toEqual([]);
-      expect(open[0][1]).toBeLessThan(last);
-      last = open[0][1];
+      expect(open[0].slice(0, 4)).toEqual([rolled.x, rolled.height, rolled.depth, BALL_RADIUS].map(Math.fround));
+      expect(open[0][7]).toBe(BEAD.ball);
+      expect(open[0][2]).toBeGreaterThan(last[2]);
+      expect(open[0][1]).toBeLessThan(last[1]);
+      // It stands on the slide and never in it: its middle is its own radius clear of the slide, or more.
+      const out = open[0][2] - front;
+      const up = open[0][1] - CATCHER.deck;
+      if (out < CATCHER.foot.out) expect(up * Math.cos(SLOPE.angle) + out * Math.sin(SLOPE.angle)).toBeGreaterThan(BALL_RADIUS - 1e-3);
+      last = open[0];
     }
-    expect(last + BALL_RADIUS).toBeLessThan(CATCHER.deck);
-    expect(last + BALL_RADIUS).toBeGreaterThan(CATCHER.deck - 1);
+    // It ends out past the foot of the slide, coming down to stand on the lower table.
+    expect(last[2]).toBeGreaterThan(front + CATCHER.foot.out);
+    expect(last[1]).toBeLessThan(BALL_RADIUS + 0.5);
+    expect(over(50, CATCHER.slide - 1e-6).open[0][1]).toBeCloseTo(BALL_RADIUS, 3);
     // Then it lies on the table under the catcher, in the list that is drawn behind the catcher's hood.
-    const down = over(50, LIP_FALL);
+    const down = over(50, CATCHER.slide);
     expect(down.open).toEqual([]);
     expect(down.under[0][1]).toBeCloseTo(BALL_RADIUS, 5);
     // One that comes over the lip past the end of the catcher, or lapping it, drops to the table like any ball.
@@ -1518,87 +1599,132 @@ describe('the cabinet as shapes', () => {
     }
   });
 
-  it('hangs the catcher on the front of the pusher: a deck cut round three mouths, a rim and a throat to each, a rail, and an apron with the words', () => {
+  it('hangs the catcher on the front of the pusher: a slide that leans down toward the player, with three slots in it, a frame, a ring of light, a throat and two wings to each, and the strip with the words', () => {
     fakeDocument();
     type Corner = ReturnType<typeof corners>[number];
     const bright = (list: Corner[]) => Math.max(...list.flatMap((corner) => corner.colour));
+    const sin = Math.sin(SLOPE.angle);
+    const cos = Math.cos(SLOPE.angle);
+    const { ring } = SLOT_SHAPE;
+    const wordsFrom = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;
     for (const time of [0, 0.9, 2.2, 4.5]) {
       const { solid } = moving(time);
       const front = pusherFront(time);
       const catcher = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count);
       const apron = corners(solid, MOVING_PARTS[6].first, MOVING_PARTS[6].count);
-      // All of it is out in front of the lip, within its own length, between its foot and the top of its rail; and every piece of it faces some way.
+      /** Where a corner is against the slide: how far down it from the lip, and how far clear of it, square to it. */
+      const against = (corner: Corner) => ({ down: (corner.z - front) * cos - (corner.y - CATCHER.deck) * sin, clear: (corner.y - CATCHER.deck) * cos + (corner.z - front) * sin });
+      /** Whether a surface faces the way the slide does: up, and toward the player by as much as the slide leans. */
+      const facesAsSlide = (corner: Corner) => Math.abs(corner.normal[0]) < 1e-4 && Math.abs(corner.normal[1] - cos) < 1e-4 && Math.abs(corner.normal[2] - sin) < 1e-4;
+      // All of it is out in front of the lip, within its own length, no lower than its foot and no higher than a wing stands off the top of the slide; and every piece of it faces some way.
       for (const corner of catcher) {
         expect(corner.x).toBeGreaterThanOrEqual(CATCHER.from - 1e-4);
         expect(corner.x).toBeLessThanOrEqual(CATCHER.to + 1e-4);
         expect(corner.z).toBeGreaterThanOrEqual(front - 1e-4);
         expect(corner.z).toBeLessThanOrEqual(front + CATCHER.foot.out + 1e-4);
         expect(corner.y).toBeGreaterThanOrEqual(CATCHER.foot.height - 1e-4);
-        expect(corner.y).toBeLessThanOrEqual(CATCHER.rail.top + 1e-4);
+        expect(corner.y).toBeLessThanOrEqual(CATCHER.deck + START_SLOT.wing.high + 1e-4);
         expect(Math.hypot(...corner.normal)).toBeCloseTo(1, 4);
       }
       mouthSpots(time).forEach((spot, pocket) => {
-        const reach = (corner: Corner) => Math.hypot(corner.x - spot.x, corner.z - spot.depth);
-        const own = catcher.filter((corner) => Math.abs(corner.x - spot.x) <= CATCHER.tile / 2 + 1e-4);
-        // Its stretch of the deck is level, reaches from the lip to the rail and half way to the next mouth, and is cut round
-        // the mouth: none of it is over the mouth, which is as wide as a medal that just fits.
-        const deck = own.filter((corner) => Math.abs(corner.y - CATCHER.deck) < 1e-4 && corner.normal[1] > 0.999 && corner.gloss > 0.8);
-        expect(deck.length).toBeGreaterThanOrEqual(24 * 6);
-        expect(Math.min(...deck.map(reach))).toBeCloseTo(CHUCKERS.radius, 3);
-        expect(Math.min(...deck.map((corner) => corner.z))).toBeCloseTo(front, 4);
-        expect(Math.max(...deck.map((corner) => corner.z))).toBeCloseTo(front + CATCHER.rail.out - CATCHER.rail.thick, 4);
-        expect(Math.min(...deck.map((corner) => corner.x))).toBeCloseTo(spot.x - CATCHER.tile / 2, 4);
-        expect(Math.max(...deck.map((corner) => corner.x))).toBeCloseTo(spot.x + CATCHER.tile / 2, 4);
-        // The rim stands up out of the deck all round the mouth: polished, and thick enough to see.
-        const rim = own.filter((corner) => Math.abs(corner.y - CATCHER.deck - CATCHER.rim.high) < 1e-4 && corner.normal[1] > 0.999);
-        expect(Math.min(...rim.map(reach))).toBeCloseTo(CHUCKERS.radius, 3);
-        expect(Math.max(...rim.map(reach))).toBeCloseTo(CHUCKERS.radius + CATCHER.rim.wide, 3);
-        expect(rim.every((corner) => corner.gloss > 0.8)).toBe(true);
-        expect(Math.min(...rim.map((corner) => corner.z))).toBeGreaterThanOrEqual(front - 1e-4);
-        // Inside the rim a ring of light slopes in and down, and gives off its own light.
-        const ring = own.filter((corner) => corner.gloss === 0 && corner.glow > 0 && corner.glow < 1.2 && reach(corner) > CHUCKERS.radius - 0.5 && corner.y > CATCHER.deck - 1 && Math.abs(corner.normal[1]) < 0.999 && Math.abs(corner.normal[1]) > 0.1);
-        expect(ring.length).toBe(24 * 6);
-        // Under it the throat goes down to its floor, well below the deck. The floor is black and all inside the mouth.
-        const floor = own.filter((corner) => Math.abs(corner.y - CATCHER.throat) < 1e-4 && corner.normal[1] > 0.999 && reach(corner) < CHUCKERS.radius);
-        expect(floor.length).toBe(11 * 6);
+        // What is the slot's own: every surface that is wholly within its stretch of the catcher.
+        const own = catcher.filter((_corner, at) => catcher.slice(at - (at % 6), at - (at % 6) + 6).every((other) => Math.abs(other.x - spot.x) <= CATCHER.tile / 2 + 1e-4));
+        const off = (corner: Corner) => Math.abs(corner.x - spot.x);
+        // Its stretch of the slide leans as the slide does, polished, from the lip down to where the words begin and half
+        // way to the next slot on either side: four pieces, round the opening, and none of them over it.
+        const board = own.filter((corner) => Math.abs(against(corner).clear) < 1e-4 && corner.gloss > 0.8 && facesAsSlide(corner));
+        expect(board).toHaveLength(4 * 6);
+        expect(Math.min(...board.map((corner) => against(corner).down))).toBeCloseTo(0, 4);
+        expect(Math.max(...board.map((corner) => against(corner).down))).toBeCloseTo(wordsFrom, 4);
+        expect(Math.min(...board.map((corner) => corner.x))).toBeCloseTo(spot.x - CATCHER.tile / 2, 4);
+        expect(Math.max(...board.map((corner) => corner.x))).toBeCloseTo(spot.x + CATCHER.tile / 2, 4);
+        const middle = CATCHER.back + START_SLOT.long / 2;
+        for (let piece = 0; piece < board.length; piece += 6) {
+          const six = board.slice(piece, piece + 6);
+          const across = Math.min(...six.map((corner) => corner.x)) < spot.x && Math.max(...six.map((corner) => corner.x)) > spot.x;
+          const along = Math.min(...six.map((corner) => against(corner).down)) < middle && Math.max(...six.map((corner) => against(corner).down)) > middle;
+          expect(across && along).toBe(false);
+        }
+        // It is darker under the lip and lighter toward its foot.
+        const shade = (down: number) => bright(board.filter((corner) => Math.abs(against(corner).down - down) < 1e-4));
+        expect(shade(wordsFrom)).toBeGreaterThan(shade(0));
+        // The frame stands up out of the slide all round the opening, which is as wide as a medal that just fits and shorter down the slide than a medal is across.
+        const top = own.filter((corner) => Math.abs(against(corner).clear - CATCHER.rim.high) < 1e-4 && facesAsSlide(corner));
+        expect(top).toHaveLength(4 * 6);
+        expect(Math.min(...top.map(off))).toBeCloseTo(slotHalf(), 4);
+        expect(Math.max(...top.map(off))).toBeCloseTo(slotHalf() + CATCHER.rim.wide, 4);
+        expect(Math.min(...top.map((corner) => against(corner).down))).toBeCloseTo(CATCHER.back - CATCHER.rim.wide, 4);
+        expect(Math.max(...top.map((corner) => against(corner).down))).toBeCloseTo(wordsFrom, 4);
+        expect(top.every((corner) => corner.gloss > 0.5)).toBe(true);
+        // Inside the frame a ring of light slopes in and down, and gives off its own light: its own colour, or gold on the slot the lucky lamp is on.
+        const glowing = own.filter((corner) => corner.gloss === 0 && corner.glow > 0 && (Math.abs(against(corner).clear - CATCHER.rim.high) < 1e-4 || Math.abs(against(corner).clear + ring.down) < 1e-4));
+        expect(glowing).toHaveLength(4 * 6);
+        const inner = glowing.filter((corner) => against(corner).clear < 0);
+        expect(Math.max(...inner.map(off))).toBeCloseTo(slotHalf() - ring.in, 4);
+        expect(Math.min(...inner.map((corner) => against(corner).down))).toBeCloseTo(CATCHER.back + ring.in, 4);
+        expect(Math.max(...inner.map((corner) => against(corner).down))).toBeCloseTo(CATCHER.back + START_SLOT.long - ring.in, 4);
+        const lucky = litSlots(time)[pocket];
+        expect(glowing[0].colour).toEqual([...(lucky ? light(SLOT_LIGHT.flash, 1.7) : light(SLOT_LIGHT.own[pocket], 1.4))].map(Math.fround));
+        // Under it the throat goes straight down to its floor, which is level, black and all inside the opening.
+        const floor = own.filter((corner) => Math.abs(corner.y - CATCHER.throat) < 1e-4 && corner.normal[1] > 0.999);
+        expect(floor).toHaveLength(6);
         expect(bright(floor)).toBe(0);
-        expect(Math.max(...floor.map(reach))).toBeGreaterThan(CHUCKERS.radius - 1);
-        expect(CATCHER.deck - CATCHER.throat).toBeGreaterThan(T * 2.5);
-        // Its wall is dark but for the far side, the one the player sees down the mouth, which catches the light of the ring.
-        const wall = own.filter((corner) => Math.abs(corner.normal[1]) < 1e-3 && reach(corner) < CHUCKERS.radius && corner.y < CATCHER.deck - 0.5 && corner.y > CATCHER.throat + 0.1);
-        expect(wall.length).toBeGreaterThan(0);
-        const far = wall.filter((corner) => corner.z < spot.depth - CHUCKERS.radius * 0.8);
-        const nearer = wall.filter((corner) => corner.z > spot.depth + CHUCKERS.radius * 0.5);
-        expect(bright(far)).toBeGreaterThan(bright(nearer) * 3);
-        // Under the mouth, its stretch of the apron: as long as the pockets are apart, from the rail down to the foot, sloping toward the player.
+        expect(Math.max(...floor.map(off))).toBeCloseTo(slotHalf() - ring.in, 4);
+        expect(Math.max(...inner.map((corner) => corner.y)) - CATCHER.throat).toBeGreaterThan(T * 2);
+        expect(Math.min(...inner.map((corner) => corner.y)) - CATCHER.throat).toBeGreaterThan(0);
+        // Its walls stand upright. The far one, under the upper end of the opening, is the one the player sees down the slot, and it catches the light of the ring: it is the brightest of them.
+        const wall = own.filter((corner) => Math.abs(corner.normal[1]) < 1e-3 && off(corner) < slotHalf() - ring.in + 1e-4);
+        expect(wall).toHaveLength(4 * 6);
+        const farEnd = Math.min(...wall.map((corner) => corner.z));
+        const far = wall.filter((corner, at) => wall.slice(at - (at % 6), at - (at % 6) + 6).every((other) => Math.abs(other.z - farEnd) < 1e-3));
+        expect(far).toHaveLength(6);
+        expect(bright(far)).toBeGreaterThan(bright(wall.filter((corner) => !far.includes(corner))) * 1.5);
+        // Its two wings are low fences on the slide, lying along the sides of the frame: as long as the frame, against it, and higher than it.
+        const fence = own.filter((corner) => Math.abs(against(corner).clear - START_SLOT.wing.high) < 1e-4 && facesAsSlide(corner));
+        expect(fence).toHaveLength(2 * 6);
+        expect(Math.min(...fence.map(off))).toBeCloseTo(slotHalf() + CATCHER.rim.wide, 4);
+        expect(Math.max(...fence.map(off))).toBeCloseTo(slotHalf() + CATCHER.rim.wide + START_SLOT.wing.thick, 4);
+        expect(Math.min(...fence.map((corner) => against(corner).down))).toBeCloseTo(CATCHER.back - CATCHER.rim.wide, 4);
+        expect(Math.max(...fence.map((corner) => against(corner).down))).toBeCloseTo(wordsFrom, 4);
+        for (const side of [-1, 1]) {
+          const cornersOfTop = wingCorners(pocket, side, time, false, START_SLOT.wing.high);
+          for (const at of cornersOfTop) expect(fence.some((corner) => Math.hypot(corner.x - at.x, corner.y - at.height, corner.z - at.depth) < 1e-4)).toBe(true);
+        }
+        // Under the slot, its stretch of the strip with the words: as long as the slots are apart, on the slide, from under the frames down to the foot.
         const sign = apron.slice(pocket * 6, pocket * 6 + 6);
         const xs = sign.map((corner) => corner.x);
         expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(spot.x, 4);
         expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(CATCHER.tile, 4);
         for (const corner of sign) {
-          const down = (CATCHER.rail.top - corner.y) / (CATCHER.rail.top - CATCHER.foot.height);
-          expect(corner.z).toBeCloseTo(front + CATCHER.rail.out + (CATCHER.foot.out - CATCHER.rail.out) * down, 4);
-          // The picture is one for the whole apron: this stretch shows its own third of it, the rail at the top.
+          const { down, clear } = against(corner);
+          expect(clear).toBeCloseTo(0, 4);
+          expect(facesAsSlide(corner)).toBe(true);
+          // The picture is one for the whole strip: this stretch shows its own third of it, the top of it under the frames.
           expect(corner.u).toBeCloseTo((corner.x - CATCHER.from) / (CATCHER.to - CATCHER.from), 5);
-          expect(corner.v).toBeCloseTo(down, 5);
-          expect(corner.normal[1]).toBeGreaterThan(0.6);
-          expect(corner.normal[2]).toBeGreaterThan(0.6);
+          expect(corner.v).toBeCloseTo((down - wordsFrom) / APRON, 4);
           // It is lit from inside, so the words read whatever shadow falls on them.
           expect(corner.glow).toBeGreaterThanOrEqual(1);
         }
+        expect(Math.min(...sign.map((corner) => against(corner).down))).toBeCloseTo(wordsFrom, 4);
+        expect(Math.max(...sign.map((corner) => against(corner).down))).toBeCloseTo(SLOPE.long, 4);
         expect(Math.min(...sign.map((corner) => corner.y))).toBeCloseTo(CATCHER.foot.height, 4);
-        expect(Math.max(...sign.map((corner) => corner.y))).toBeCloseTo(CATCHER.rail.top, 4);
       });
       expect(apron).toHaveLength(6 * CHUCKERS.count);
       expect(MOVING_PARTS[6].art).toBe('sign');
-      // The rail along the front of the deck, from end to end, and the underside that throws the catcher's shadow.
-      const rail = catcher.filter((corner) => Math.abs(corner.y - CATCHER.rail.top) < 1e-4 && corner.normal[1] > 0.999);
-      expect(rail).toHaveLength(6);
-      expect([Math.min(...rail.map((corner) => corner.x)), Math.max(...rail.map((corner) => corner.x))]).toEqual([CATCHER.from, CATCHER.to]);
-      expect(Math.max(...rail.map((corner) => corner.z))).toBeCloseTo(front + CATCHER.rail.out, 4);
-      const under = catcher.filter((corner) => Math.abs(corner.y - CATCHER.foot.height) < 1e-4 && Math.abs(corner.normal[1]) > 0.999);
-      expect(under.length).toBeGreaterThanOrEqual(6);
+      // No rail and no level deck: nothing of it is level but the floors of the throats and the underside, which is at the height of its foot from the lip out and throws its shadow.
+      const level = catcher.filter((corner) => Math.abs(corner.normal[1]) > 0.999);
+      expect(level.filter((corner) => Math.abs(corner.y - CATCHER.throat) > 1e-4 && Math.abs(corner.y - CATCHER.foot.height) > 1e-4)).toEqual([]);
+      const under = level.filter((corner) => Math.abs(corner.y - CATCHER.foot.height) < 1e-4);
+      expect(under).toHaveLength(6);
+      expect(Math.min(...under.map((corner) => corner.z))).toBeCloseTo(front, 4);
       expect(Math.max(...under.map((corner) => corner.z))).toBeCloseTo(front + CATCHER.foot.out, 4);
+      // Its two ends are closed, from the slide down to that level.
+      for (const x of [CATCHER.from, CATCHER.to]) {
+        const end = catcher.filter((corner) => Math.abs(Math.abs(corner.normal[0]) - 1) < 1e-4 && Math.abs(corner.x - x) < 1e-4);
+        expect(end).toHaveLength(6);
+        expect(Math.max(...end.map((corner) => corner.y))).toBeCloseTo(CATCHER.deck, 4);
+        expect(Math.min(...end.map((corner) => corner.y))).toBeCloseTo(CATCHER.foot.height, 4);
+      }
       // The hood over it is not in the picture: four surfaces from its foot up past the top of a ball, over all of it.
       const hood = corners(solid, MOVING_PARTS[MOVING_HOOD].first, MOVING_PARTS[MOVING_HOOD].count);
       expect(hood).toHaveLength(4 * 6);
@@ -1610,35 +1736,105 @@ describe('the cabinet as shapes', () => {
       expect(Math.max(...hood.map((corner) => corner.z))).toBeCloseTo(front + CATCHER.foot.out, 4);
       expect(CATCHER.hood).toBeGreaterThan(BALL_RADIUS * 2);
     }
-    // The apron is as long down its slope as the catcher says.
-    expect(APRON).toBeCloseTo(Math.hypot(CATCHER.foot.out - CATCHER.rail.out, CATCHER.rail.top - CATCHER.foot.height), 12);
-    // A pocket a medal has just dropped through turns gold all the way down, and its stretch of the apron lights up. No other does.
-    const dark = moving(1);
-    const stage = createStage(1, false);
-    lightGate(stage, 2);
-    const lit = moving(1, 50, stage);
-    const front = pusherFront(1);
-    /** The corners of one pocket's own stretch of the catcher. */
-    const of = (solid: Solid, pocket: number) => corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count).filter((corner) => Math.abs(corner.x - CHECKERS.positions[pocket]) < CATCHER.tile / 2 - 1e-3 && corner.z < front + CATCHER.rail.out - CATCHER.rail.thick - 1e-3 && corner.y > CATCHER.foot.height + 1e-3);
-    const rimGlow = (solid: Solid, pocket: number) => Math.max(...of(solid, pocket).filter((corner) => Math.abs(corner.y - CATCHER.deck - CATCHER.rim.high) < 1e-4 && corner.normal[1] > 0.999).map((corner) => corner.glow));
-    const floorLight = (solid: Solid, pocket: number) => bright(of(solid, pocket).filter((corner) => Math.abs(corner.y - CATCHER.throat) < 1e-4 && corner.normal[1] > 0.999));
-    expect(rimGlow(lit.solid, 2)).toBeGreaterThan(rimGlow(dark.solid, 2) * 2);
-    expect(floorLight(dark.solid, 2)).toBe(0);
-    expect(floorLight(lit.solid, 2)).toBeGreaterThan(0.5);
-    expect(of(lit.solid, 0)).toEqual(of(dark.solid, 0));
-    expect(of(lit.solid, 1)).toEqual(of(dark.solid, 1));
-    const sign = (solid: Solid, pocket: number) => corners(solid, MOVING_PARTS[6].first + pocket * 6, 1)[0].glow;
-    expect(sign(lit.solid, 2)).toBeGreaterThan(sign(dark.solid, 2));
-    expect(sign(lit.solid, 1)).toBe(sign(dark.solid, 1));
+    // The strip with the words is as long down the slide as the catcher says: what is left of it under the frames.
+    expect(APRON).toBeCloseTo(SLOPE.long - wordsFrom, 12);
   });
 
-  it('lays the dark under the lip on the catcher’s deck, and flashes over a pocket a medal has just gone down and on the apron under it', () => {
+  it('lights the slot the lucky lamp is on gold, all three with the wings open, and a slot a medal has just dropped through brighter still, all the way down', () => {
+    fakeDocument();
+    type Corner = ReturnType<typeof corners>[number];
+    const bright = (list: Corner[]) => Math.max(...list.flatMap((corner) => corner.colour));
+    const sin = Math.sin(SLOPE.angle);
+    const cos = Math.cos(SLOPE.angle);
+    // One machine for all of it: only its clock is moved.
+    const machine = createMachine(3);
+    /** The catcher of the machine at `time`, as it is built with these options on this stage. */
+    const built = (time: number, options: Partial<DrawOptions> = {}, stage: Stage = createStage(1, false)) => {
+      machine.time = time;
+      const solid = new Solid(100);
+      buildMoving(solid, machine, pusherFront(time), stage, { showGuide: false, calm: true, ...options });
+      return { solid, front: pusherFront(time) };
+    };
+    /** The corners of one slot's own stretch of the catcher, and among them the top of its frame, the top of its wings and the floor of its throat. */
+    const of = ({ solid, front }: ReturnType<typeof built>, pocket: number) => {
+      const own = corners(solid, MOVING_PARTS[4].first, MOVING_PARTS[4].count).filter((corner) => Math.abs(corner.x - CHECKERS.positions[pocket]) < CATCHER.tile / 2 - 1e-3 && corner.y > CATCHER.foot.height + 1e-3);
+      const clear = (corner: Corner) => (corner.y - CATCHER.deck) * cos + (corner.z - front) * sin;
+      const facing = (corner: Corner) => Math.abs(corner.normal[1] - cos) < 1e-4 && Math.abs(corner.normal[2] - sin) < 1e-4;
+      return {
+        own,
+        frame: own.filter((corner) => Math.abs(clear(corner) - CATCHER.rim.high) < 1e-4 && facing(corner)),
+        wings: own.filter((corner) => Math.abs(clear(corner) - START_SLOT.wing.high) < 1e-4 && facing(corner)),
+        floor: own.filter((corner) => Math.abs(corner.y - CATCHER.throat) < 1e-4 && corner.normal[1] > 0.999),
+      };
+    };
+    const glowOf = (list: Corner[]) => Math.max(...list.map((corner) => corner.glow));
+    const reach = (list: Corner[], pocket: number) => Math.max(...list.map((corner) => Math.abs(corner.x - CHECKERS.positions[pocket])));
+    // One slot's frame glows gold at a time: the one the engine says, which steps along with every stroke of the pusher.
+    for (let stroke = 0; stroke <= CHUCKERS.count; stroke++) {
+      const time = (stroke + 0.3) * LUCKY.dwell;
+      const catcher = built(time);
+      const lucky = luckySlot(time);
+      expect(lucky).toBe(stroke % CHUCKERS.count);
+      for (let pocket = 0; pocket < CHUCKERS.count; pocket++) {
+        const { frame, floor } = of(catcher, pocket);
+        expect(frame).toHaveLength(4 * 6);
+        if (pocket === lucky) expect(glowOf(frame)).toBeGreaterThan(0.8);
+        else expect(glowOf(frame)).toBeLessThan(0.2);
+        // The floor of a throat is dark either way: the gold is the frame's, the ring's and the far wall's.
+        expect(bright(floor)).toBe(0);
+      }
+      // It is the same on a stage whose clock has run on, with motion: the lit slot is steady. One that waits is not: its ring glows more and less.
+      const later = createStage(1, false);
+      later.clock = 7.3;
+      const waiting = (lucky + 1) % CHUCKERS.count;
+      expect(of(built(time, { calm: false }, later), lucky).own).toEqual(of(built(time, { calm: false }), lucky).own);
+      expect(of(built(time, { calm: false }, later), waiting).own).not.toEqual(of(built(time, { calm: false }), waiting).own);
+      expect(of(built(time, {}, later), waiting).own).toEqual(of(catcher, waiting).own);
+    }
+    // With the wings open all three are gold, their openings are wider, and each wing has swung out from the slot at its upper end.
+    const time = 1.1;
+    const folded = built(time);
+    const open = built(time, { wings: true });
+    expect(built(time, { wings: false }).solid.data.slice(0, folded.solid.count * SOLID_STRIDE)).toEqual(folded.solid.data.slice(0, folded.solid.count * SOLID_STRIDE));
+    for (let pocket = 0; pocket < CHUCKERS.count; pocket++) {
+      const narrow = of(folded, pocket);
+      const wide = of(open, pocket);
+      expect(glowOf(wide.frame)).toBeGreaterThan(0.8);
+      expect(reach(narrow.frame, pocket)).toBeCloseTo(slotHalf() + CATCHER.rim.wide, 4);
+      expect(reach(wide.frame, pocket)).toBeCloseTo(slotHalf(true) + CATCHER.rim.wide, 4);
+      expect(reach(narrow.wings, pocket)).toBeCloseTo(slotHalf() + CATCHER.rim.wide + START_SLOT.wing.thick, 4);
+      expect(reach(wide.wings, pocket)).toBeCloseTo(slotHalf(true) + CATCHER.rim.wide + START_SLOT.wing.out + START_SLOT.wing.thick, 4);
+      // Each open wing is where the catcher has it, corner for corner, and gold.
+      expect(wide.wings).toHaveLength(2 * 6);
+      for (const side of [-1, 1]) {
+        for (const at of wingCorners(pocket, side, time, true, START_SLOT.wing.high)) expect(wide.wings.some((corner) => Math.hypot(corner.x - at.x, corner.y - at.height, corner.z - at.depth) < 1e-4)).toBe(true);
+      }
+      expect(glowOf(wide.wings)).toBeGreaterThan(glowOf(narrow.wings) + 0.5);
+    }
+    // A slot a medal has just dropped through is brighter still, all the way down, and its stretch of the strip of words lights up. No other does.
+    const stage = createStage(1, false);
+    const gate = (luckySlot(time) + 1) % CHUCKERS.count;
+    const other = (luckySlot(time) + 2) % CHUCKERS.count;
+    lightGate(stage, gate);
+    const lit = built(time, {}, stage);
+    expect(glowOf(of(lit, gate).frame)).toBeGreaterThan(glowOf(of(folded, gate).frame) * 2);
+    expect(glowOf(of(lit, gate).frame)).toBeGreaterThan(glowOf(of(folded, luckySlot(time)).frame));
+    expect(bright(of(folded, gate).floor)).toBe(0);
+    expect(bright(of(lit, gate).floor)).toBeGreaterThan(0.5);
+    expect(of(lit, other).own).toEqual(of(folded, other).own);
+    expect(of(lit, luckySlot(time)).own).toEqual(of(folded, luckySlot(time)).own);
+    const sign = ({ solid }: ReturnType<typeof built>, pocket: number) => corners(solid, MOVING_PARTS[6].first + pocket * 6, 1)[0].glow;
+    expect(sign(lit, gate)).toBeGreaterThan(sign(folded, gate));
+    expect(sign(lit, other)).toBe(sign(folded, other));
+  });
+
+  it('lays the dark under the lip on the catcher’s slide, glows steadily over the slot that is lit gold, and flashes over a slot a medal has just gone down and on the words under it', () => {
     fakeDocument();
     const machine = createMachine(3);
     const stage = createStage(1, false);
-    const touches = () => {
+    const touches = (wings = false, calm = true) => {
       const flat = new Flat(600);
-      buildTouches(flat, machine, pusherFront(machine.time), stage, { showGuide: false, calm: true });
+      buildTouches(flat, machine, pusherFront(machine.time), stage, { showGuide: false, calm, wings });
       return flat;
     };
     /** Every touch as its middle, how far it reaches, and what it does. */
@@ -1650,92 +1846,140 @@ describe('the cabinet as shapes', () => {
       }
       return found;
     };
-    /** The touches over one mouth: level, round, at the top of its rim. */
+    /** How far down the slide from the lip the middle of a touch is. */
+    const down = (touch: { y: number; z: number }) => (touch.z - pusherFront(machine.time)) * Math.cos(SLOPE.angle) - (touch.y - CATCHER.deck) * Math.sin(SLOPE.angle);
+    /** The touches over one slot: round, with their middle over the middle of its opening, just clear of the top of its frame. */
     const over = (flat: Flat, pocket: number) => {
       const spot = mouthSpot(pocket, machine.time);
-      return all(flat).filter((touch) => touch.shape === SHAPE.spot && touch.ys[0] === touch.ys[1] && Math.abs(touch.x - spot.x) < 1e-3 && Math.abs(touch.z - spot.depth) < 1e-3 && Math.abs(touch.y - CATCHER.deck - CATCHER.rim.high) < 0.5);
+      return all(flat).filter((touch) => touch.shape === SHAPE.spot && Math.abs(touch.x - spot.x) < 1e-3 && Math.abs(touch.z - spot.depth) < 0.5 && Math.abs(touch.y - spot.height) < CATCHER.rim.high + 0.3);
     };
+    /** The light on one slot's stretch of the strip with the words. */
+    const onWords = (flat: Flat, pocket: number) => all(flat).filter((touch) => touch.shape === SHAPE.spot && Math.abs(touch.x - CHECKERS.positions[pocket]) < 1e-3 && down(touch) > SLOPE.long - APRON && down(touch) < SLOPE.long);
     const idle = touches();
     const front = pusherFront(machine.time);
-    // The deck is dark where it goes in under the lip, all along the catcher, and the dark fades out toward the mouths.
+    const lucky = luckySlot(machine.time);
+    // The slide is dark where it goes in under the lip, all along the catcher, and the dark fades out down it.
     const shade = all(idle).filter((touch) => touch.cover > 0.4 && Math.abs(touch.ys[0] - CATCHER.deck) < 0.1 && Math.abs(touch.x - (CATCHER.from + CATCHER.to) / 2) < 1e-3);
     expect(shade).toHaveLength(1);
     expect(shade[0].z).toBeGreaterThan(front);
-    expect(shade[0].z).toBeLessThan(front + CATCHER.back + CHUCKERS.radius);
-    // Nothing glows over a mouth that is idle: a mouth is to be dark, and its rim's light is the rim's own.
-    for (let pocket = 0; pocket < CHUCKERS.count; pocket++) expect(over(idle, pocket)).toEqual([]);
-    lightGate(stage, 1);
+    expect(down(shade[0])).toBeLessThan(CATCHER.back + START_SLOT.long);
+    expect(shade[0].ys[1]).toBeLessThan(shade[0].ys[0]);
+    // Over the slot the lucky lamp is on there is a glow, light only, and a fainter one on the words under it. Nothing glows over a slot that waits: its light is its ring's and its lamp's own.
+    for (let pocket = 0; pocket < CHUCKERS.count; pocket++) {
+      expect(over(idle, pocket)).toHaveLength(pocket === lucky ? 1 : 0);
+      expect(onWords(idle, pocket)).toHaveLength(pocket === lucky ? 1 : 0);
+    }
+    const [steady] = over(idle, lucky);
+    expect(steady.cover).toBe(0);
+    expect(steady.shine).toBeGreaterThan(0.2);
+    expect(onWords(idle, lucky)[0].shine).toBeLessThan(steady.shine);
+    // It is steady: the same, with motion, on a stage whose clock has run on.
+    const before = over(touches(false, false), lucky);
+    stage.clock = 9.7;
+    expect(over(touches(false, false), lucky)).toEqual(before);
+    expect(before).toEqual(over(idle, lucky));
+    // With the wings open all three glow so.
+    const open = touches(true);
+    for (let pocket = 0; pocket < CHUCKERS.count; pocket++) {
+      expect(over(open, pocket)).toHaveLength(1);
+      expect(onWords(open, pocket)).toHaveLength(1);
+    }
+    const gate = (lucky + 1) % CHUCKERS.count;
+    const other = (lucky + 2) % CHUCKERS.count;
+    lightGate(stage, gate);
     const lit = touches();
-    // Two more touches: the flash over the mouth, and the light on the apron under it.
+    // Two more touches: the flash over the slot, brighter than the steady glow, and the light on the words under it.
     expect(lit.count).toBe(idle.count + 12);
-    const [flash] = over(lit, 1);
+    const [flash] = over(lit, gate);
     expect(flash.cover).toBe(0);
-    expect(flash.shine).toBeGreaterThan(0.3);
-    expect(over(lit, 0)).toEqual([]);
-    expect(over(lit, 2)).toEqual([]);
-    const glow = all(lit).filter((touch) => touch.shape === SHAPE.spot && touch.shine > 0.2 && Math.abs(touch.x - CHECKERS.positions[1]) < 1e-3 && touch.z > front + CATCHER.rail.out && touch.z < front + CATCHER.foot.out);
+    expect(flash.shine).toBeGreaterThan(steady.shine);
+    expect(over(lit, other)).toEqual([]);
+    expect(over(lit, lucky)).toHaveLength(1);
+    const glow = onWords(lit, gate);
     expect(glow).toHaveLength(1);
-    expect(glow[0].y).toBeLessThan(CATCHER.rail.top);
+    expect(glow[0].shine).toBeGreaterThan(0.2);
+    expect(glow[0].y).toBeLessThan(mouthSpot(gate, machine.time).height);
     expect(glow[0].y).toBeGreaterThan(CATCHER.foot.height);
+    expect(onWords(lit, other)).toEqual([]);
     // The catcher rides with the pusher: half a stroke on, the dark under the lip has moved out with it, and the flash has gone.
     machine.time = PUSHER.period / 2;
     ageStage(stage, 1);
     const later = touches();
+    expect(luckySlot(machine.time)).toBe(lucky);
     expect(later.count).toBe(idle.count);
     expect(pusherFront(machine.time)).not.toBeCloseTo(front, 0);
     expect(all(later).filter((touch) => touch.cover > 0.4 && Math.abs(touch.ys[0] - CATCHER.deck) < 0.1 && touch.z > pusherFront(machine.time))).toHaveLength(1);
   });
 
-  it('rings the rim of every mouth with small lamps that a glow travels round, and lights them all when a medal has gone down', () => {
+  it('puts one lamp on the lower bar of each slot’s frame: in the slot’s own colour while it waits, and gold and bigger on the slot that is lit', () => {
     fakeDocument();
     const machine = createMachine(3);
     machine.time = 1.1;
     const stage = createStage(1, false);
-    const lamps = (wave: number) => {
+    const lamps = (wave: number, wings = false) => {
       const beads = createRows(BEAD_STRIDE, 4);
-      addCatcherLamps(beads, machine, stage, wave);
+      addCatcherLamps(beads, machine, stage, wave, wings);
       return Array.from({ length: beads.count }, (_, index) => Array.from(beads.data.subarray(index * BEAD_STRIDE, (index + 1) * BEAD_STRIDE)));
     };
+    const gold = [...light(SLOT_LIGHT.lamp)].map(Math.fround);
     const still = lamps(0);
-    expect(still).toHaveLength(RIM_LAMPS.count * CHUCKERS.count);
-    mouthSpots(machine.time).forEach((spot, pocket) => {
-      const own = still.slice(pocket * RIM_LAMPS.count, (pocket + 1) * RIM_LAMPS.count);
-      for (const [x, y, z, radius, , , , kind] of own) {
-        // On the rim, all round it, standing on its top; small beside the rim, and a bulb.
-        const reach = Math.hypot(x - spot.x, z - spot.depth);
-        expect(reach).toBeGreaterThan(CHUCKERS.radius);
-        expect(reach).toBeLessThan(CHUCKERS.radius + CATCHER.rim.wide);
-        expect(y).toBeGreaterThan(CATCHER.deck + CATCHER.rim.high);
-        expect(y).toBeLessThan(CATCHER.deck + CATCHER.rim.high + radius);
-        expect(radius).toBeCloseTo(RIM_LAMPS.radius, 5);
-        expect(radius * 2).toBeLessThan(CATCHER.rim.wide);
-        expect(kind).toBeGreaterThanOrEqual(2);
-        expect(kind).toBeLessThanOrEqual(3);
+    const lucky = luckySlot(machine.time);
+    expect(still).toHaveLength(CHUCKERS.count);
+    still.forEach(([x, y, z, radius, r, g, b, kind], pocket) => {
+      // Where the catcher has the lamp: on the lower bar of the frame, in the middle. A bulb.
+      const at = lampSpot(pocket, machine.time);
+      expect([x, y, z]).toEqual([at.x, at.height, at.depth].map(Math.fround));
+      expect(kind).toBeGreaterThanOrEqual(2);
+      expect(kind).toBeLessThanOrEqual(3);
+      if (pocket === lucky) {
+        // Gold, a quarter bigger, and wholly lit.
+        expect([r, g, b]).toEqual(gold);
+        expect(radius).toBeCloseTo(START_SLOT.lamp.radius * 1.25, 5);
+        expect(kind).toBe(BEAD.bulb(1));
+      } else {
+        // In the slot's own colour, as big as the catcher says, glowing a little.
+        expect([r, g, b]).toEqual([...light(SLOT_LIGHT.own[pocket], 1.4)].map(Math.fround));
+        expect(radius).toBeCloseTo(START_SLOT.lamp.radius, 5);
+        expect(kind).toBeLessThan(BEAD.bulb(0.7));
+        expect(kind).toBeGreaterThan(BEAD.bulb(0.1));
       }
-      // Evenly round: as many toward the player as away from him, and to either side.
-      expect(own.filter((lamp) => lamp[2] > spot.depth)).toHaveLength(RIM_LAMPS.count / 2);
-      expect(own.filter((lamp) => lamp[0] > spot.x)).toHaveLength(RIM_LAMPS.count / 2);
-      // Some are bright and some dim at any moment: that is what travels.
-      const glows = own.map((lamp) => lamp[7] - 2);
-      expect(Math.max(...glows) - Math.min(...glows)).toBeGreaterThan(0.6);
     });
-    // The glow moves on with the wave, and stands still when the wave does, as it does with reduced motion.
-    expect(lamps(1.3).map((lamp) => lamp[7])).not.toEqual(still.map((lamp) => lamp[7]));
+    // The glow of a lamp that waits moves on with the wave, and stands still when the wave does, as it does with reduced motion. The lit one is steady.
+    const moved = lamps(1.3);
+    moved.forEach((lamp, pocket) => {
+      expect(lamp.slice(0, 7)).toEqual(still[pocket].slice(0, 7));
+      if (pocket === lucky) expect(lamp[7]).toBe(still[pocket][7]);
+      else expect(lamp[7]).not.toBe(still[pocket][7]);
+    });
     expect(lamps(0)).toEqual(still);
-    expect(lamps(1.3).map((lamp) => lamp.slice(0, 4))).toEqual(still.map((lamp) => lamp.slice(0, 4)));
-    // A pocket a medal has just dropped through has every lamp lit, in another colour. The others go on as they were.
-    lightGate(stage, 0);
+    // The gold lamp steps along with the lucky lamp, a slot for every stroke of the pusher.
+    for (let stroke = 0; stroke <= CHUCKERS.count; stroke++) {
+      machine.time = (stroke + 0.3) * LUCKY.dwell;
+      const golden = lamps(0).flatMap((lamp, pocket) => (lamp[4] === gold[0] && lamp[5] === gold[1] && lamp[6] === gold[2] ? [pocket] : []));
+      expect(golden).toEqual([stroke % CHUCKERS.count]);
+    }
+    machine.time = 1.1;
+    // With the wings open all three are gold and big.
+    for (const lamp of lamps(0, true)) {
+      expect(lamp.slice(4, 7)).toEqual(gold);
+      expect(lamp[3]).toBeCloseTo(START_SLOT.lamp.radius * 1.25, 5);
+      expect(lamp[7]).toBe(BEAD.bulb(1));
+    }
+    // A slot a medal has just dropped through has its lamp lit gold too. The others go on as they were.
+    const gate = (lucky + 1) % CHUCKERS.count;
+    lightGate(stage, gate);
     const lit = lamps(0);
-    const first = lit.slice(0, RIM_LAMPS.count);
-    expect(first.every((lamp) => lamp[7] === BEAD.bulb(1))).toBe(true);
-    expect(first[0].slice(4, 7)).not.toEqual(still[0].slice(4, 7));
-    expect(new Set(first.map((lamp) => lamp.slice(4, 7).join())).size).toBe(1);
-    expect(lit.slice(RIM_LAMPS.count)).toEqual(still.slice(RIM_LAMPS.count));
+    expect(lit[gate].slice(4, 7)).toEqual(gold);
+    expect(lit[gate][3]).toBeCloseTo(START_SLOT.lamp.radius * 1.25, 5);
+    expect(lit[gate][7]).toBe(BEAD.bulb(1));
+    lit.forEach((lamp, pocket) => {
+      if (pocket !== gate) expect(lamp).toEqual(still[pocket]);
+    });
     // They are added to the bulbs that are already in the list.
     const beads = createRows(BEAD_STRIDE, 4);
     addCatcherLamps(beads, machine, stage, 0);
     addCatcherLamps(beads, machine, stage, 0);
-    expect(beads.count).toBe(RIM_LAMPS.count * CHUCKERS.count * 2);
+    expect(beads.count).toBe(CHUCKERS.count * 2);
   });
 
   it('has the bulbs in their rows, the hold\u2019s lamps lit from the machine, a lamp at each arm\u2019s tip, and the studs', () => {

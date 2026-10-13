@@ -11,9 +11,14 @@
 export const TIERS = ['miss', 'small', 'big', 'seven'] as const;
 export type Tier = (typeof TIERS)[number];
 
-/** Chances out of 1,000 spins. */
-export const SPIN_TABLE: Record<Tier, number> = { miss: 938, small: 40, big: 15, seven: 7 };
-export const SPIN_TOTAL = 1000;
+/**
+ * Chances out of 8,000 spins: a treasure line once in 20, a chest line in
+ * 53, three sevens in 114. Every winning line comes a quarter more often
+ * than it did while the START slots were wider, when it was 40, 15 and 7 in
+ * 1,000: fewer medals start a spin now, and each spin is worth more.
+ */
+export const SPIN_TABLE: Record<Tier, number> = { miss: 7380, small: 400, big: 150, seven: 70 };
+export const SPIN_TOTAL = 8000;
 
 /** What a line leads to: a roll on the sugoroku board, a choice of chests, or a prize ball on the field. */
 export type Bonus = 'sugoroku' | 'chest' | 'ball';
@@ -305,15 +310,19 @@ export function spinValue(jackpot: number): number {
 }
 
 /**
- * Chance time. A medal that goes through a START pocket when the hold is full
- * starts no spin of its own: it turns one of the held spins gold. A gold spin
- * is drawn from the same table as any other, and what its line pays on the
- * spot, the sugoroku square or the chest, is paid `multiplier` times over. A
- * ball is a ball: three sevens are worth what they always are.
+ * Gold spins. A spin is gold in one of two ways. A medal that goes through
+ * the START slot the lucky lamp is on, or through any slot while the wings
+ * are open, holds a gold spin from the start. And a medal that goes through
+ * a slot when the hold is full starts no spin of its own: it turns one of
+ * the held spins gold, and chance time begins. A gold spin is drawn from the
+ * same table as any other, and what its line pays on the spot, the sugoroku
+ * square or the chest, is paid `multiplier` times over. A ball is a ball:
+ * three sevens are worth what they always are.
  *
- * So a gold spin has cost two medals through a pocket, and is worth less than
- * the two spins they would have been with room in the hold. Filling the hold
- * is never better than not filling it; it is only less of a loss than it was.
+ * A spin turned gold by a full hold has cost two medals through a slot, and
+ * is worth less than the two spins they would have been with room in the
+ * hold. So filling the hold on purpose still returns less than not filling
+ * it, wings and all: scripts/medal-pusher-tune.ts measures by how much.
  */
 export const CHANCE = { multiplier: 2 } as const;
 

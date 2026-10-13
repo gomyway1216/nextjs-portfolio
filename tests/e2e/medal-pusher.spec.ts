@@ -1583,21 +1583,21 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page)).toBeVisible();
 
   const slot = odds(page).getByTestId('pusher-slot-table');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('0.7%');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 143');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('0.875%');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 114');
   await expect(slot.locator('tr[data-tier="seven"]')).toContainText('A prize ball on the field');
   await expect(slot.locator('tr[data-tier="big"]')).toContainText('A choice of three chests');
   await expect(slot.locator('tr[data-tier="small"]')).toContainText('A roll on the sugoroku board');
   await expect(slot.locator('tr[data-tier="small"]')).toContainText('8.8 medals');
   await expect(odds(page).getByTestId('pusher-board-table').locator('tbody td')).toHaveCount(12);
   await expect(odds(page).getByTestId('pusher-chest-table').locator('tbody tr')).toHaveCount(3);
-  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('93.8%');
+  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('92.25%');
   // How far to trust a reach: the long one hits far more often than the ordinary one.
   const reach = odds(page).getByTestId('pusher-reach-table');
   await expect(reach.locator('tbody tr')).toHaveCount(3);
-  await expect(reach.locator('tr[data-reach="long"]')).toContainText('63.8%');
-  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('17.2%');
-  await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
+  await expect(reach.locator('tr[data-reach="long"]')).toContainText('69.1%');
+  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('20.9%');
+  await expect(reach.locator('tr[data-reach="any"]')).toContainText('35.9%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
   // Four numbers in a row lead to the three bowls: a row for what the holes of each bowl do, and each of the three ends one time in three.
@@ -1607,31 +1607,36 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr[data-hole]')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
-  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
+  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 1,736 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.096 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.37 medals');
   // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
   const chance = odds(page).getByTestId('pusher-chance-table');
   await expect(chance.locator('tbody tr')).toHaveCount(3);
-  await expect(chance.locator('tbody tr').first()).toContainText('1.09614 medals');
-  await expect(chance.locator('tbody tr').first()).toContainText('1.74614 medals');
-  await expect(chance.locator('tbody td', { hasText: '0.65000 medals' })).toHaveCount(3);
+  await expect(chance.locator('tbody tr').first()).toContainText('1.37018 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('2.18268 medals');
+  await expect(chance.locator('tbody td', { hasText: '0.81250 medals' })).toHaveCount(3);
   await expect(odds(page)).toContainText('turns one of the held spins gold');
+  // And under it the lucky lamp's rule, with the same two spins' worth.
+  const lamp = odds(page).getByTestId('pusher-lucky-note');
+  await expect(lamp).toContainText('one of the three START slots is lit gold at a time');
+  await expect(lamp).toContainText('An ordinary spin is worth 1.37018 medals on average, and a gold spin 2.18268.');
+  await expect(lamp).toContainText('The lamp cannot be chased by aiming');
 
-  // 80% by the front and 0.18 spins a medal at 1.096 medals a spin.
+  // 80% by the front and 0.12 spins a medal at 1.370 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('95.8%');
+  await expect(result).toHaveText('93.2%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('23%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('18%');
 
   const front = odds(page).getByRole('slider', { name: /leave by the front/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('119.7%');
+  await expect(result).toHaveText('116.4%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('59.9%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('91%');
+  await expect(result).toHaveText('58.2%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('73%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -1649,15 +1654,16 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // Fed down the middle, about one medal in six ends up through a START pocket on the pusher's lip (13% to 22% over
-  // twenty runs of this size, and more when a tower goes over through one). Fed at the edges far fewer do, though
-  // some: the pile carries medals across, and what the screen pays lands all over the pusher.
+  // Fed down the middle, about one medal in eight ends up through a START slot under the pusher's lip (8% to 23%
+  // over twenty runs of this size, the most when a tower goes over through one or chance time opens the wings).
+  // Fed at the edges far fewer do (2% to 5% over the same twenty), though some: the pile carries medals across,
+  // and what the screen pays lands all over the pusher.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
-  const throughAPocket = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
-  const middle = await throughAPocket('centre');
-  expect(middle).toBeGreaterThan(8);
+  const throughASlot = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
+  const middle = await throughASlot('centre');
+  expect(middle).toBeGreaterThan(5);
   expect(middle).toBeLessThan(40);
-  expect(await throughAPocket('edges')).toBeLessThan(middle);
+  expect(await throughASlot('edges')).toBeLessThan(middle);
   for (const aim of ['centre', 'anywhere', 'beside', 'edges']) {
     const front = Number(((await cells(aim).nth(2).textContent()) ?? '').replace('%', ''));
     expect(front).toBeGreaterThan(60);
@@ -1688,7 +1694,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('ナンバースロット');
   await expect(page.getByRole('tab', { name: '確率' })).toBeVisible();
   await page.getByRole('tab', { name: '確率' }).click();
-  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('143回に1回');
+  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('114回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');

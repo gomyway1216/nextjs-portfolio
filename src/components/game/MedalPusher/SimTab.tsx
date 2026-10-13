@@ -258,7 +258,7 @@ export const SimTab = () => {
                         <th scope="row">{name}</th>
                         <td className={styles.num}>{fmt(seen)}</td>
                         <td className={styles.num}>{totalSpins === 0 ? '—' : percent(seen / totalSpins, 2)}</td>
-                        <td className={styles.num}>{tidyPercent(tierChance(tier))}</td>
+                        <td className={styles.num}>{tidyPercent(tierChance(tier), 4)}</td>
                       </tr>
                     );
                   })}

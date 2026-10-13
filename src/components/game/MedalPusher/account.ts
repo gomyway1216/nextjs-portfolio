@@ -30,6 +30,14 @@
  * - Nothing is sent to the account as a player who has signed out. What had
  *   not yet been sent stays in their slot on this device, marked as unsent,
  *   and goes up the next time they open the game here.
+ * - The copy on the table is the last thing the account is sent. One write
+ *   waits for another to be answered; the one made as the page is left
+ *   cannot wait, so a write only settles anything if it was in the air by
+ *   itself, and otherwise the copy goes again. Every copy sent carries a
+ *   mark that is written down on the device before it goes, so that an
+ *   older one of this device's own, found on the account at the next visit
+ *   because it landed last or because the page was gone, is known for what
+ *   it is and written over.
  * - Failing is ordinary. Whatever goes wrong with the network or the
  *   storage, nothing is thrown: the device's copy plays on, the status says
  *   what is true, and it is tried again later.
@@ -86,9 +94,15 @@ interface Copy {
   dirty: boolean;
   /** The mark of the account's copy this one was last in step with: read from it, or written to it and confirmed. */
   known: string | null;
-  /** The mark of a copy sent as the page was left, whose arrival was never heard of, and what this copy looked like then. */
+  /** The mark of the last copy sent, while it is not known that the account has it, and what this copy looked like then. */
   sent: string | null;
   sentPrint: string | null;
+  /**
+   * The marks of copies sent before that one and never known to have come to
+   * anything. If the account holds one of them, nobody else has written
+   * since, and this device's copy is the newer.
+   */
+  earlier: string[];
 }
 
 /** How the two copies stand when the account's has been read. */
@@ -266,6 +280,8 @@ export const slotFor = (slot: string, uid: string | null): string => (uid === nu
 const lastPlayerSlot = (slot: string): string => `${slot}@account`;
 
 const COPY_VERSION = 1;
+/** How many marks of earlier writes a copy remembers. A handful is plenty: one is added when a write is overtaken, not when it is answered. */
+const KEPT_MARKS = 8;
 
 /** An account's copy as it is written on the device: the text, and what is known of how it stands with the account. */
 function writeCopy(copy: Copy): string {
@@ -276,10 +292,12 @@ function writeCopy(copy: Copy): string {
 function readCopy(written: string | null): Copy | null {
   if (written === null) return null;
   try {
-    const { v, text, changedAt, dirty, known, sent, sentPrint } = JSON.parse(written) as Record<string, unknown>;
+    const { v, text, changedAt, dirty, known, sent, sentPrint, earlier } = JSON.parse(written) as Record<string, unknown>;
     if (v !== COPY_VERSION || typeof text !== 'string' || typeof changedAt !== 'number' || !Number.isFinite(changedAt) || typeof dirty !== 'boolean') return null;
     const mark = (value: unknown): string | null => (typeof value === 'string' ? value : null);
-    return { text, changedAt, dirty, known: mark(known), sent: mark(sent), sentPrint: mark(sentPrint) };
+    // A copy written before earlier marks were kept has none.
+    const marks = Array.isArray(earlier) ? earlier.filter((value): value is string => typeof value === 'string').slice(-KEPT_MARKS) : [];
+    return { text, changedAt, dirty, known: mark(known), sent: mark(sent), sentPrint: mark(sentPrint), earlier: marks };
   } catch {
     return null;
   }
@@ -301,6 +319,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
   let known: string | null = null;
   let sent: string | null = null;
   let sentPrint: string | null = null;
+  let earlier: string[] = [];
   let dirty = false;
   let changedAt = 0;
   let lastPrint: string | null = null;
@@ -312,7 +331,19 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
   let readFailures = 0;
   let readAgainAt = 0;
 
-  let sending = false;
+  /** A write of this device's that is in the air: sent, and not yet answered. */
+  interface Flight {
+    since: number;
+    /** Whether its answer is waited for however long it takes. One made as the page is left may never be heard of. */
+    awaited: boolean;
+    /** Whether another write was in the air with it. Which of the two the account took last is then not known. */
+    crossed: boolean;
+    /** Whether the copy on the table has been replaced since it went: a reset. What it carried is then not what is here. */
+    old: boolean;
+  }
+  const air = new Set<Flight>();
+  /** What the copy looked like when it was last sent, unless that write is known to have come to nothing: it is not said twice as the page is left. */
+  let said: string | null = null;
   let sentAt = Number.NEGATIVE_INFINITY;
   let sendFailures = 0;
   let sendAgainAt = 0;
@@ -370,14 +401,39 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
 
   /** Writes the copy to its slot on the device: as it is for a guest, and with what is known of the account's for an account. */
   const write = (text: string): boolean => {
-    keptOnDevice = owner === null ? set(slotFor(kept.slot, null), text) : set(slotFor(kept.slot, owner), writeCopy({ text, changedAt, dirty, known, sent, sentPrint }));
+    keptOnDevice = owner === null ? set(slotFor(kept.slot, null), text) : set(slotFor(kept.slot, owner), writeCopy({ text, changedAt, dirty, known, sent, sentPrint, earlier }));
     return keptOnDevice;
   };
 
   /** Whether the account may be written to: it is this copy's own, it has been read, and nothing is about to replace the copy. */
   const mayWrite = (): boolean => account !== null && owner === account && read === 'done' && incoming === null && !startFresh;
 
-  /** Sends the copy to the account: and waits to hear, or as the page is left, with what is in hand. */
+  /** The marks sent before the last, with one more among them: the oldest makes room. */
+  const withMark = (marks: string[], stamp: string | null): string[] => (stamp === null ? marks : [...marks.filter((had) => had !== stamp), stamp].slice(-KEPT_MARKS));
+
+  /**
+   * Whether anything of this device's is in the air. A write made as the page
+   * was left is given up after a minute without an answer: it has landed or
+   * been lost by then, and the page may have been asleep when the answer came.
+   */
+  const flying = (): boolean => {
+    const time = now();
+    for (const flight of air) if (!flight.awaited && time - flight.since >= SEND_EVERY * 1000) air.delete(flight);
+    return air.size > 0;
+  };
+
+  /** A write came to nothing: it is tried again after a wait, and a longer one each time. */
+  const failed = (): void => {
+    sendFailures += 1;
+    sendAgainAt = now() + retryAfter(sendFailures);
+    tell();
+  };
+
+  /**
+   * Sends the copy to the account: and waits to hear, or as the page is left,
+   * with what is in hand. Its mark is written down on the device before it
+   * goes, since the answer may never be heard.
+   */
   const send = (how: 'wait' | 'leaving'): void => {
     const who = account;
     if (!store || who === null) return;
@@ -386,27 +442,6 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
     const print = kept.print(text);
     const stamp = mark();
     const state = toCloud(text, stamp, changedAt);
-    // What became of a write is only of interest while the copy is still this account's.
-    const stillOurs = (): boolean => !closed && owner === who;
-    const arrived = (): void => {
-      if (!stillOurs()) return;
-      known = stamp;
-      if (sent === stamp || how === 'wait') {
-        sent = null;
-        sentPrint = null;
-      }
-      dirty = lastPrint !== print;
-      sendFailures = 0;
-      const latest = kept.current();
-      if (latest !== null) write(latest);
-      tell();
-    };
-    const failed = (): void => {
-      if (!stillOurs()) return;
-      sendFailures += 1;
-      sendAgainAt = now() + retryAfter(sendFailures);
-      tell();
-    };
     sentAt = now();
     urgent = false;
     if (!state) {
@@ -414,26 +449,79 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
       failed();
       return;
     }
+    const before = { sent, sentPrint, earlier };
+    earlier = withMark(earlier, sent);
+    sent = stamp;
+    sentPrint = print;
+    write(text);
+
+    let going: Promise<boolean>;
     if (how === 'leaving') {
-      // Whether it arrives may never be heard, so the mark is written down first: the next visit can tell by it.
-      sent = stamp;
-      sentPrint = print;
-      write(text);
-      const going = store.storeNow(who, state);
-      if (going) void going.then((took) => (took ? arrived() : undefined));
-      return;
-    }
-    sending = true;
-    store.store(who, state).then(
-      () => {
-        sending = false;
-        arrived();
-      },
-      () => {
-        sending = false;
+      const leaving = store.storeNow(who, state);
+      if (!leaving) {
+        // Nothing was sent: there was no token in hand, or its player is no longer signed in. The mark never left.
+        ({ sent, sentPrint, earlier } = before);
+        write(text);
         failed();
-      },
-    );
+        return;
+      }
+      going = leaving;
+    } else {
+      going = store.store(who, state).then(
+        () => true,
+        () => false,
+      );
+    }
+
+    // Anything else of this device's still in the air makes the order they land in unknown, for it and for this one.
+    const flight: Flight = { since: now(), awaited: how === 'wait', crossed: flying(), old: false };
+    if (flight.crossed) for (const other of air) other.crossed = true;
+    air.add(flight);
+    said = print;
+
+    void going.then((took) => {
+      // What became of a write is only of interest while it is still waited for and the copy is still this account's.
+      if (!air.delete(flight) || closed || owner !== who) return;
+      try {
+        if (!took) {
+          // It may have reached the account all the same, so its mark stays written down.
+          if (!flight.old && said === print) said = null;
+          failed();
+          return;
+        }
+        sendFailures = 0;
+        if (flight.crossed) {
+          // Which of the two the account took last is not known. The copy goes again, by itself, as soon as it can.
+          dirty = true;
+          urgent = true;
+          sentAt = Number.NEGATIVE_INFINITY;
+        } else {
+          // It flew alone: this is what the account holds now.
+          known = stamp;
+          earlier = earlier.filter((had) => had !== stamp);
+          if (!flight.old) {
+            sent = null;
+            sentPrint = null;
+            dirty = lastPrint !== print;
+          }
+          // An old one carried the copy that a reset has since replaced: what is on the table has still to be sent.
+        }
+        const latest = kept.current();
+        if (latest !== null) write(latest);
+        tell();
+        // Whatever was waiting for the air to clear goes now: a reset's new copy, or the copy once more.
+        sendIfDue();
+      } catch {
+        // Nothing is thrown from an answer. The copy is still marked as unsent, and goes with a later save.
+      }
+    });
+  };
+
+  /** Sends the copy if it has changed, the wait since the last write is over, and nothing of this device's is in the air. */
+  const sendIfDue = (): void => {
+    const time = now();
+    const waited = time - sentAt;
+    if (mayWrite() && dirty && !flying() && time >= sendAgainAt && (waited >= SEND_EVERY * 1000 || (urgent && waited >= MOMENT_GAP * 1000))) send('wait');
   };
 
   /** Does what the rule says once the account's copy has been read. */
@@ -447,16 +535,24 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
     if (text !== null) look(text);
     const got = found ? fromCloud(found.state) : null;
     const updatedAt = found?.updatedAt ? Date.parse(found.updatedAt) : Number.NaN;
+    const readable = got !== null && kept.reads(got.text);
+    const theirs = readable ? got.mark : null;
+    // The account holds a copy this device sent before its last one: an older write that landed last, or one whose
+    // copy a reset has replaced. Nobody else has written since, and what is here is the newer. The rule is told so
+    // in the words it knows: the account's mark is one this device knows, and the device's copy has changed.
+    const overtaken = theirs !== null && theirs !== sent && theirs !== known && earlier.includes(theirs);
     const standing: Standing = {
-      account: !found ? { kind: 'none' } : got && kept.reads(got.text) ? { kind: 'save', text: got.text, mark: got.mark, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null } : { kind: 'unreadable' },
-      device: owner === uid && text !== null ? { text, dirty, known, sent, sentIsLatest: sent !== null && lastPrint === sentPrint, changedAt } : null,
+      account: !found ? { kind: 'none' } : got && readable ? { kind: 'save', text: got.text, mark: got.mark, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null } : { kind: 'unreadable' },
+      device:
+        owner === uid && text !== null
+          ? { text, dirty: dirty || overtaken, known: overtaken ? theirs : known, sent, sentIsLatest: sent !== null && lastPrint === sentPrint, changedAt }
+          : null,
       guest: owner === null ? text : null,
       skew,
     };
     const verdict = kept.settle(standing);
     read = verdict.kind === 'hold' ? 'held' : 'done';
     readFailures = 0;
-    const theirs = standing.account.kind === 'save' ? standing.account.mark : null;
     switch (verdict.kind) {
       case 'hold':
         break;
@@ -482,6 +578,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
         known = null;
         sent = null;
         sentPrint = null;
+        earlier = [];
         dirty = true;
         changedAt = now();
         urgent = true;
@@ -494,7 +591,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
     }
     tell();
     if (verdict.kind === 'take') kept.reopen();
-    else if (mayWrite() && dirty && !sending) send('wait');
+    else if (mayWrite() && dirty && !flying()) send('wait');
   };
 
   const startRead = (): void => {
@@ -543,7 +640,6 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
       reading += 1;
       readFailures = 0;
       sendFailures = 0;
-      sending = false;
       sentAt = Number.NEGATIVE_INFINITY;
       urgent = false;
       set(lastPlayerSlot(kept.slot), account);
@@ -563,7 +659,10 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
     account = null;
     read = 'none';
     reading += 1;
-    sending = false;
+    // Whatever is in the air is waited for no longer, and the next player's copy does not wait behind it: its mark
+    // is written down, and the next visit as this player can tell by it.
+    air.clear();
+    said = null;
     readFailures = 0;
     sendFailures = 0;
   };
@@ -595,6 +694,10 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
 
       let text: string | null = null;
       if (incoming && !startFresh) {
+        // The marks of what this device has sent stay with the account's copy; another account's has none of them.
+        earlier = owner === incoming.uid ? withMark(earlier, sent) : [];
+        for (const flight of air) flight.old = true;
+        said = null;
         owner = incoming.uid;
         text = incoming.text;
         known = incoming.mark;
@@ -607,13 +710,20 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
         write(text);
       } else if (startFresh) {
         // A reset. The new one is the account's when there is an account, whatever the account holds: the player has said so.
+        const sameCopy = wanted.uid === null || wanted.uid === owner;
         if (wanted.uid !== null) owner = wanted.uid;
         remove(slotFor(kept.slot, owner));
+        // The old machine may still be on its way to the account, or have been sent and never heard of. Its mark is
+        // kept, so that it is known for the old one wherever it turns up, and its answer settles nothing here.
+        earlier = sameCopy ? withMark(earlier, sent) : [];
+        for (const flight of air) flight.old = true;
+        said = null;
         sent = null;
         sentPrint = null;
         dirty = true;
         changedAt = now();
-        // It goes to the account with the first save, however lately the old one was sent.
+        // It goes to the account with the first save, however lately the old one was sent: at once if nothing is in
+        // the air, and otherwise as soon as what is in the air has been answered, so that it is the last to land.
         urgent = true;
         sentAt = Number.NEGATIVE_INFINITY;
         incoming = null;
@@ -629,7 +739,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
         const copy = uid === null ? null : readCopy(get(slotFor(kept.slot, uid)));
         if (uid !== null && copy && kept.reads(copy.text)) {
           owner = uid;
-          ({ text, changedAt, dirty, known, sent, sentPrint } = copy);
+          ({ text, changedAt, dirty, known, sent, sentPrint, earlier } = copy);
         } else {
           // No copy of that account's on this device: the guest's stays on the table, as the guest's, until the account has answered.
           owner = null;
@@ -637,6 +747,7 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
           known = null;
           sent = null;
           sentPrint = null;
+          earlier = [];
           dirty = false;
           changedAt = now();
         }
@@ -661,13 +772,13 @@ export function createSync({ kept, store, slots, now, mark, onStatus }: SyncDeps
         void store.prepare(account);
         if (why === 'moment') urgent = true;
         if (why === 'hidden' || why === 'left') {
-          // Once for each state of the books: a page that is hidden and then left has only one thing to say.
-          if (mayWrite() && dirty && !sending && lastPrint !== sentPrint) send('leaving');
+          // Once for each state of the books: a page that is hidden and then left has only one thing to say. It does
+          // not wait for a write that is in the air, since the page may be gone before that is answered; but what
+          // has been sent already is not said twice, and after a failure nothing is sent until the wait is over.
+          if (mayWrite() && dirty && lastPrint !== said && now() >= sendAgainAt) send('leaving');
         } else {
-          const time = now();
-          if (read === 'failed' && time >= readAgainAt) startRead();
-          const waited = time - sentAt;
-          if (mayWrite() && dirty && !sending && time >= sendAgainAt && (waited >= SEND_EVERY * 1000 || (urgent && waited >= MOMENT_GAP * 1000))) send('wait');
+          if (read === 'failed' && now() >= readAgainAt) startRead();
+          sendIfDue();
         }
       }
       tell();

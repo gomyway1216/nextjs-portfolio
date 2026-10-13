@@ -61,8 +61,12 @@ class FakeAccounts {
   /** The accounts a token is in hand for, and the ones whose token it has been told to let go of. */
   ready = new Set<string>();
   forgotten: string[] = [];
-  /** Writes that have been sent and not yet answered, when the test wants to answer them itself. */
-  held: (() => void)[] | null = null;
+  /**
+   * Writes that have been sent and not yet answered, when the test wants to answer them itself: as taken, as
+   * refused, or as taken with the answer lost on its way back. One can also be made to land first and be answered
+   * later, with another call.
+   */
+  held: ((how?: 'taken' | 'refused' | 'answer lost' | 'lands') => void)[] | null = null;
   /** The same for reads: each waits here to be answered. */
   heldReads: (() => void)[] | null = null;
   /** A write made as the page is left is sent and never heard of again. */
@@ -104,10 +108,14 @@ class FakeAccounts {
       };
       if (this.held) {
         const held = this.held;
-        return new Promise<void>((resolve) => {
-          held.push(() => {
-            write();
-            resolve();
+        let landed = false;
+        return new Promise<void>((resolve, reject) => {
+          held.push((how = 'taken') => {
+            if (how !== 'refused' && !landed) write();
+            landed = true;
+            if (how === 'lands') return;
+            if (how === 'taken') resolve();
+            else reject(new Error(how));
           });
         });
       }
@@ -792,8 +800,8 @@ describe('a copy that is being played', () => {
     expect(copy('ann')).toMatchObject({ dirty: true });
   });
 
-  it('keeps one write in the air at a time', async () => {
-    const { cabinet, accounts } = await visited();
+  it('keeps one write in the air at a time on the clock, and sends what was waiting as soon as that one is answered', async () => {
+    const { cabinet, accounts, table } = await visited();
     accounts.held = [];
     const before = accounts.count('store');
     cabinet.play();
@@ -801,16 +809,219 @@ describe('a copy that is being played', () => {
     cabinet.play();
     await cabinet.tick(SEND_EVERY);
     await cabinet.moment();
-    await cabinet.hide();
     expect(accounts.count('store')).toBe(before + 1);
-    expect(accounts.count('storeNow')).toBe(0);
-    // It arrives, with what had been played by then left over to send.
+    // It arrives, with what had been played by then left over to send: that goes at once, the minute being long over.
+    accounts.held.splice(0).forEach((answer) => answer());
+    await cabinet.rest();
+    expect(accounts.count('store')).toBe(before + 2);
     accounts.held.splice(0).forEach((answer) => answer());
     accounts.held = null;
     await cabinet.rest();
+    expect(accounts.text('ann')).toBe(table.text);
     cabinet.idle();
     await cabinet.tick(SEND_EVERY);
     expect(accounts.count('store')).toBe(before + 2);
+    expect(accounts.count('storeNow')).toBe(0);
+  });
+
+  it('does not wait for a write in the air as the page is left, and sends the copy once more when the two have crossed', async () => {
+    const { cabinet, accounts, table, copy, where } = await visited();
+    accounts.held = [];
+    const before = accounts.count('store');
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    const older = table.text as string;
+    // Played on while that write is in the air, and the page is hidden: the page may be gone before it is answered.
+    cabinet.play();
+    await cabinet.hide();
+    await cabinet.hide();
+    await cabinet.leave();
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(accounts.text('ann')).toBe(table.text);
+    // The page was only hidden. The older write lands after the newer one: the account is a move behind, and
+    // neither answer is taken for the last word.
+    accounts.held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(accounts.text('ann')).toBe(older);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    // So the copy goes once more, by itself, without waiting for the minute.
+    expect(accounts.count('store')).toBe(before + 2);
+    accounts.held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(copy('ann')).toMatchObject({ text: table.text, dirty: false, sent: null });
+    expect(where()).toBe('account');
+    // And that is the end of it.
+    await cabinet.tick(SEND_EVERY);
+    expect(accounts.count('store')).toBe(before + 2);
+  });
+
+  it('takes neither of two writes that crossed for the last word, even when the copy is back as the first one carried it', async () => {
+    const { cabinet, accounts, table, copy } = await visited();
+    accounts.held = [];
+    const before = accounts.count('store');
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    const first = table.text as string;
+    const [older] = accounts.held;
+    // The first write lands, but its answer is slow. Played on, the page is hidden: the second lands after it.
+    older('lands');
+    cabinet.play();
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(booksIn(accounts.text('ann'))).toBe((booksIn(first) as number) + 1);
+    // The copy goes back to what it was when the first write went, and then that write's answer comes: by its
+    // looks the account has exactly this. It has not: the other one landed last.
+    table.text = first;
+    await cabinet.tick();
+    accounts.held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    expect(accounts.count('store')).toBe(before + 2);
+    accounts.held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    expect(accounts.text('ann')).toBe(first);
+    expect(copy('ann')).toMatchObject({ text: first, dirty: false });
+  });
+
+  it('knows an older write of its own on the next visit, when the page went before the two that crossed were answered', async () => {
+    const first = await visited('ann');
+    first.accounts.held = [];
+    first.cabinet.play();
+    await first.cabinet.tick(SEND_EVERY);
+    first.cabinet.play();
+    first.sync.save('hidden');
+    first.sync.close();
+    const latest = first.table.text as string;
+    // The older write lands last, a few seconds later by the server's clock.
+    first.clock.now += 4000;
+    first.accounts.held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(booksIn(first.accounts.text('ann'))).toBe((booksIn(latest) as number) - 1);
+
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.clock.now = first.clock.now + 3_600_000;
+    await second.cabinet.start(signedIn('ann'));
+    // No clock is asked, though the account's copy has the later time: it is this device's own, and the older.
+    expect(second.table.text).toBe(latest);
+    expect(second.table.reopens).toBe(0);
+    expect(second.accounts.text('ann')).toBe(latest);
+    expect(second.copy('ann')).toMatchObject({ text: latest, dirty: false });
+  });
+
+  it('takes a write made as the page is left that the account did not take for a failure', async () => {
+    const { cabinet, accounts, table, copy, where, clock } = await visited();
+    cabinet.play();
+    await cabinet.tick();
+    accounts.down = true;
+    const stores = accounts.count('store');
+    await cabinet.hide();
+    await cabinet.leave();
+    await cabinet.leave();
+    // Sent once, and refused. The copy is still to be sent, and the player is told the account was not reached.
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    expect(where()).toBe('offline');
+
+    // The page was only hidden. Nothing is tried again until the wait after a failure is over, however it is asked.
+    accounts.down = false;
+    const failedAt = clock.now;
+    cabinet.play();
+    await cabinet.tick(RETRY_AFTER[0] - 5);
+    await cabinet.moment();
+    await cabinet.hide();
+    expect(accounts.count('store')).toBe(stores);
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(where()).toBe('offline');
+    // Then it goes: one failure, one wait, and the first wait at that.
+    await cabinet.tick(5);
+    await cabinet.moment();
+    expect(clock.now - failedAt).toBe(RETRY_AFTER[0] * 1000);
+    expect(accounts.count('store')).toBe(stores + 1);
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(copy('ann')).toMatchObject({ dirty: false });
+    expect(where()).toBe('account');
+  });
+
+  it('says it again as the page is left once the wait is over, when the first time came to nothing', async () => {
+    const { cabinet, accounts, table, copy, where } = await visited();
+    cabinet.play();
+    await cabinet.tick();
+    accounts.down = true;
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(1);
+    accounts.down = false;
+    const stores = accounts.count('store');
+    // Nothing has been played since. Hidden again too soon, it is not tried; after the wait it is, and is taken.
+    await cabinet.tick(RETRY_AFTER[0] - 5);
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(1);
+    await cabinet.tick(5);
+    await cabinet.hide();
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(2);
+    expect(accounts.count('store')).toBe(stores);
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(copy('ann')).toMatchObject({ dirty: false, sent: null });
+    expect(where()).toBe('account');
+  });
+
+  it('takes having nothing to send it with as the page is left for a failure too, and counts it once', async () => {
+    const { cabinet, accounts, table, copy, where, clock, sync } = await visited();
+    cabinet.play();
+    await cabinet.tick();
+    // The token is gone: the player's session has run out, or it was never got ready.
+    accounts.ready.clear();
+    accounts.down = true;
+    const stores = accounts.count('store');
+    sync.save('hidden');
+    sync.save('left');
+    sync.save('left');
+    await settled();
+    expect(accounts.count('storeNow')).toBe(0);
+    expect(copy('ann')).toMatchObject({ dirty: true, sent: null });
+    expect(where()).toBe('offline');
+
+    accounts.down = false;
+    const failedAt = clock.now;
+    cabinet.play();
+    await cabinet.tick(RETRY_AFTER[0] - 5);
+    await cabinet.moment();
+    expect(accounts.count('store')).toBe(stores);
+    // Hidden and then left twice was one failure, not three: the first wait is all there is.
+    await cabinet.tick(5);
+    await cabinet.moment();
+    expect(clock.now - failedAt).toBe(RETRY_AFTER[0] * 1000);
+    expect(accounts.count('store')).toBe(stores + 1);
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(where()).toBe('account');
+  });
+
+  it('gives up waiting for a write made as the page was left after a minute without an answer', async () => {
+    const { cabinet, accounts, table, where } = await visited();
+    accounts.silent = true;
+    cabinet.play();
+    await cabinet.tick();
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(1);
+    const stores = accounts.count('store');
+    // The page was only hidden, and the answer never comes. While that write may still be in the air nothing goes
+    // on the clock, so that it cannot land on top of a later one unnoticed.
+    for (let i = 0; i < 11; i++) {
+      cabinet.play();
+      await cabinet.tick();
+    }
+    await cabinet.moment();
+    expect(accounts.count('store')).toBe(stores);
+    // After a minute it has landed or been lost, and the copy goes by the ordinary way.
+    await cabinet.tick(10);
+    expect(accounts.count('store')).toBe(stores + 1);
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(where()).toBe('account');
   });
 });
 
@@ -1133,6 +1344,35 @@ describe('signing out', () => {
     expect(accounts.text('bob')).toBe(table.text);
   });
 
+  it('does not make the next player’s machine wait for the answer to a write of the one who left', async () => {
+    const { cabinet, accounts, table, copy } = await withUnsentPlay();
+    const held: (() => void)[] = [];
+    accounts.held = held;
+    await cabinet.tick(SEND_EVERY);
+    // Ann's machine is in the air, unanswered, when Bob signs in on the same page. His writes are answered as usual.
+    expect(held).toHaveLength(1);
+    accounts.held = null;
+    await cabinet.signs(signedIn('bob'));
+    cabinet.play();
+    await cabinet.tick(SEND_EVERY);
+    expect(accounts.calls.filter((call) => call === 'store bob')).toHaveLength(2);
+    // Her write lands and is answered: it changes nothing of his, and hers is known for hers when she is back.
+    held.splice(0).forEach((answer) => answer());
+    await cabinet.rest();
+    expect(accounts.text('bob')).toBe(table.text);
+    expect(copy('bob')).toMatchObject({ dirty: false });
+    const anns = copy('ann');
+    expect(anns).toMatchObject({ dirty: true });
+    expect(anns?.sent).toMatch(/^mark-/);
+    expect(accounts.text('ann')).toBe(anns?.text);
+    // Back as Ann: the account holds what this device last sent as her, so there is nothing to take or to send.
+    const sentAsAnn = accounts.calls.filter((call) => call.endsWith(' ann') && !call.startsWith('load') && !call.startsWith('prepare')).length;
+    await cabinet.signs(signedIn('ann'));
+    expect(table.text).toBe(anns?.text);
+    expect(copy('ann')).toMatchObject({ dirty: false, sent: null, known: anns?.sent });
+    expect(accounts.calls.filter((call) => call.endsWith(' ann') && !call.startsWith('load') && !call.startsWith('prepare'))).toHaveLength(sentAsAnn);
+  });
+
   it('starts a new machine for a guest when there is none', async () => {
     const { cabinet, accounts, table, slots } = rig();
     accounts.put('ann', doc(40), 'theirs');
@@ -1187,7 +1427,8 @@ describe('signing out', () => {
     first.cabinet.play();
     // Played with the account out of reach, and the page then lost without a word: nothing was sent as it went.
     await first.cabinet.tick(SEND_EVERY);
-    expect(first.copy('ann')).toMatchObject({ dirty: true, sent: null });
+    expect(first.copy('ann')).toMatchObject({ dirty: true });
+    expect(first.accounts.count('storeNow')).toBe(0);
 
     const second = rig();
     second.slots.map = first.slots.map;
@@ -1347,6 +1588,201 @@ describe('a reset by a player who is signed in', () => {
     await second.cabinet.start(signedIn('ann'));
     expect(second.table.text).toBe(NEW);
     expect(second.accounts.text('ann')).toBe(NEW);
+  });
+
+  /** A player's machine on its way to the account, the write not yet answered, and the machine then reset. */
+  async function resetDuringASend() {
+    const it = await visited('ann');
+    it.accounts.held = [];
+    it.cabinet.play();
+    await it.cabinet.tick(SEND_EVERY);
+    const held = it.accounts.held;
+    expect(held).toHaveLength(1);
+    const old = it.table.text as string;
+    const stores = it.accounts.count('store');
+    await it.cabinet.reset();
+    expect(it.table.text).toBe(NEW);
+    // The new machine cannot go by the ordinary way while the old one is in the air.
+    it.cabinet.idle();
+    await it.cabinet.tick();
+    await it.cabinet.moment();
+    expect(it.accounts.count('store')).toBe(stores);
+    expect(it.copy('ann')).toMatchObject({ dirty: true, sent: null });
+    return { ...it, held, old, stores };
+  }
+
+  /** The same device opened again later, by the same player. */
+  async function nextVisit(first: Awaited<ReturnType<typeof resetDuringASend>>) {
+    const second = rig();
+    second.slots.map = first.slots.map;
+    second.accounts.docs = first.accounts.docs;
+    second.clock.now = first.clock.now + 24 * 3_600_000;
+    await second.cabinet.start(signedIn('ann'));
+    return second;
+  }
+
+  it('waits behind an old machine that is still on its way, and goes the moment that one is answered', async () => {
+    const { cabinet, accounts, table, copy, where, held, old, stores } = await resetDuringASend();
+    held.splice(0).forEach((answer) => answer());
+    await settled();
+    // The old machine has landed, and its answer has marked nothing as sent: the new one is behind it already.
+    expect(accounts.text('ann')).toBe(old);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    expect(accounts.count('store')).toBe(stores + 1);
+    held.splice(0).forEach((answer) => answer());
+    await cabinet.rest();
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(booksIn(accounts.text('ann'))).toBe(0);
+    expect(copy('ann')).toMatchObject({ text: table.text, dirty: false });
+    expect(where()).toBe('account');
+  });
+
+  it('is not taken for sent by the old machine’s answer, even when the two machines have the same books', async () => {
+    // A machine that had only just become the account's, and is reset before that first write has been answered:
+    // by its books the old one cannot be told from the new.
+    const { cabinet, accounts, copy, table } = rig();
+    accounts.held = [];
+    await cabinet.start(signedIn('ann'));
+    expect(accounts.held).toHaveLength(1);
+    await cabinet.reset();
+    expect(booksIn(table.text)).toBe(0);
+    accounts.held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    expect(accounts.count('store')).toBe(2);
+    accounts.held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    expect(copy('ann')).toMatchObject({ dirty: false, known: 'mark-2' });
+  });
+
+  it('is said as the page is left even when the old machine, with the same books, has only just been said', async () => {
+    const { cabinet, accounts, copy } = rig();
+    accounts.held = [];
+    await cabinet.start(signedIn('ann'));
+    expect(accounts.held).toHaveLength(1);
+    await cabinet.reset();
+    // By its books the new machine is what is already in the air. It is not: it is said all the same.
+    await cabinet.hide();
+    await cabinet.leave();
+    expect(accounts.count('storeNow')).toBe(1);
+    accounts.held.splice(0).forEach((answer) => answer());
+    await settled();
+    // The two crossed, so it goes once more by itself.
+    expect(accounts.count('store')).toBe(2);
+    accounts.held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    expect(copy('ann')).toMatchObject({ dirty: false, known: 'mark-3' });
+  });
+
+  it('is sent as the page is left though the old machine is still in the air, and survives that one landing last', async () => {
+    const first = await resetDuringASend();
+    await first.cabinet.hide();
+    first.sync.save('left');
+    first.sync.close();
+    expect(first.accounts.count('storeNow')).toBe(1);
+    expect(first.accounts.text('ann')).toBe(first.table.text);
+    // The page is gone. The old machine lands after the new one, with the later time on the server's clock.
+    first.clock.now += 5000;
+    first.held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(first.accounts.text('ann')).toBe(first.old);
+
+    // The next visit knows the machine on the account for the one it sent before the reset, and sends the reset.
+    const second = await nextVisit(first);
+    expect(second.table.text).toBe(first.table.text);
+    expect(second.table.reopens).toBe(0);
+    expect(booksIn(second.accounts.text('ann'))).toBe(0);
+    expect(second.copy('ann')).toMatchObject({ dirty: false });
+    expect(second.where()).toBe('account');
+  });
+
+  it('survives the old machine landing after it when nothing could be sent as the page was left, or the page was simply gone', async () => {
+    for (const going of ['no token in hand', 'no word at all'] as const) {
+      const first = await resetDuringASend();
+      if (going === 'no token in hand') {
+        // Nor can one be fetched: the account is out of reach of this page, though the write in the air still lands.
+        first.accounts.ready.clear();
+        first.accounts.down = true;
+        first.sync.save('hidden');
+        first.sync.save('left');
+      }
+      first.sync.close();
+      expect(first.accounts.count('storeNow')).toBe(0);
+      first.clock.now += 5000;
+      first.held.splice(0).forEach((answer) => answer());
+      await settled();
+      expect(first.accounts.text('ann')).toBe(first.old);
+
+      const second = await nextVisit(first);
+      expect(second.table.text).toBe(first.table.text);
+      expect(second.table.reopens).toBe(0);
+      expect(booksIn(second.accounts.text('ann'))).toBe(0);
+      expect(second.copy('ann')).toMatchObject({ dirty: false });
+    }
+  });
+
+  it('is still to be sent when the old machine’s write fails, and goes after the wait', async () => {
+    const { cabinet, accounts, table, copy, where, held, stores, clock } = await resetDuringASend();
+    const before = accounts.text('ann');
+    const failedAt = clock.now;
+    held.splice(0).forEach((answer) => answer('refused'));
+    await settled();
+    expect(accounts.text('ann')).toBe(before);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    expect(where()).toBe('offline');
+    expect(accounts.count('store')).toBe(stores);
+    await cabinet.tick(RETRY_AFTER[0] - 5);
+    expect(accounts.count('store')).toBe(stores);
+    await cabinet.tick(5);
+    expect(clock.now - failedAt).toBe(RETRY_AFTER[0] * 1000);
+    expect(accounts.count('store')).toBe(stores + 1);
+    held.splice(0).forEach((answer) => answer());
+    await cabinet.rest();
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(booksIn(accounts.text('ann'))).toBe(0);
+    expect(copy('ann')).toMatchObject({ dirty: false });
+    expect(where()).toBe('account');
+  });
+
+  it('is still to be sent when the old machine’s write landed and only its answer was lost, on this visit or the next', async () => {
+    const first = await resetDuringASend();
+    first.held.splice(0).forEach((answer) => answer('answer lost'));
+    await settled();
+    expect(first.accounts.text('ann')).toBe(first.old);
+    expect(first.copy('ann')).toMatchObject({ dirty: true });
+    // The page goes before the wait is over.
+    first.sync.close();
+    const second = await nextVisit(first);
+    expect(second.table.text).toBe(first.table.text);
+    expect(booksIn(second.accounts.text('ann'))).toBe(0);
+    expect(second.copy('ann')).toMatchObject({ dirty: false });
+  });
+
+  it('is sent once more when the old machine and the new both arrived, the old one last', async () => {
+    const { cabinet, accounts, table, copy, where, held, old, stores } = await resetDuringASend();
+    // Hidden with the old machine still in the air: the new one goes at once, and is taken.
+    await cabinet.hide();
+    expect(accounts.count('storeNow')).toBe(1);
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    // Then the old one lands, and is taken too. The account holds the old machine, and both writes were answered well.
+    held.splice(0).forEach((answer) => answer());
+    await settled();
+    expect(accounts.text('ann')).toBe(old);
+    expect(copy('ann')).toMatchObject({ dirty: true });
+    // The page was only hidden: the new machine goes again, by itself, and is then the last thing written.
+    expect(accounts.count('store')).toBe(stores + 1);
+    held.splice(0).forEach((answer) => answer());
+    accounts.held = null;
+    await cabinet.rest();
+    expect(accounts.text('ann')).toBe(table.text);
+    expect(booksIn(accounts.text('ann'))).toBe(0);
+    expect(copy('ann')).toMatchObject({ dirty: false, sent: null });
+    expect(where()).toBe('account');
+    await cabinet.tick(SEND_EVERY);
+    expect(accounts.count('store')).toBe(stores + 1);
   });
 
   it('ignores the account’s answer to a read that the reset overtook', async () => {

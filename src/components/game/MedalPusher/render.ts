@@ -1668,10 +1668,11 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   // covers them. Two things come after it: a medal on its way down one of its pockets, which is drawn with the
   // pocket, and a ball whose middle has come out from under its front, which is taller than it and stands before it.
   // A ball that has only just come over the lip behind the catcher is still going down behind it, and is drawn
-  // last of all the medals, as far as it shows over the catcher's deck.
+  // last of all the medals, as far as it shows over the catcher's deck; so is a medal that came over beside a pocket.
   const lower: Medal[] = [];
   const upper: Medal[] = [];
   const sinking: Sinking[] = [];
+  const tipping: Sinking[] = [];
   const clear: Medal[] = [];
   const going: Medal[] = [];
   for (const medal of machine.medals) {
@@ -1681,6 +1682,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     }
     const held = caught(medal, machine.time);
     if (held && held.chucker >= 0) sinking.push({ medal, held });
+    else if (held) tipping.push({ medal, held });
     else if (medal.ball && medal.y >= front + CATCHER.foot.out && underCatcher(medal.x, medal.y, BALL_RADIUS * 2, machine.time)) clear.push(medal);
     else if (medal.ball && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL && medal.x - BALL_RADIUS >= CATCHER.from && medal.x + BALL_RADIUS <= CATCHER.to) going.push(medal);
     else lower.push(medal);
@@ -1715,6 +1717,19 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.lineWidth = 2.5;
   line(g, top[3], top[2]);
   drawMedals(g, stage, upper, P, shake);
+  // A medal that came over the lip at the catcher without fitting a pocket tips over the edge and goes down behind
+  // the catcher, on its edge. It is drawn where the catcher has it, not lying where the engine has already put it,
+  // and only as much of it as still stands over the catcher's deck.
+  for (const { medal, held } of tipping) {
+    const point = project(held.x, held.height, held.depth);
+    flat();
+    g.save();
+    g.beginPath();
+    g.rect(-VIEW.width, 0, VIEW.width * 3, project(held.x, CATCHER.deck, front).y);
+    g.clip();
+    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(held.tilt))), turnOf(medal.id), shake);
+    g.restore();
+  }
   for (const ball of going) {
     const from = P + BALL_RADIUS;
     const middle = from - (from - (CATCHER.deck - BALL_RADIUS - 0.2)) * (ball.sinceDrop / LIP_FALL) ** 2;

@@ -346,6 +346,57 @@ describe('the catcher on the canvas', () => {
     expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
   });
 
+  it('draws a medal that came over beside a pocket tipping over the lip and going down behind the catcher, as the 3D picture does', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    // Half way between two pockets: over the lip at the catcher, and through neither.
+    const x = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
+    const beside = (sinceDrop: number): Medal => ({ id: 902, x, y: front + MEDAL_RADIUS, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1 });
+    const drawn = (medal: Medal) => {
+      machine.medals = [medal];
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false });
+      const stamps = screen.stamps.filter((stamp) => stamp.image === stage.medal);
+      return { stamps, medalAt: screen.log.indexOf(`image:${screen.stamps.indexOf(stamps[0])}`), catcherAt: screen.log.indexOf('text:START') };
+    };
+    let last = { y: -Infinity, round: Infinity };
+    const rounds: number[] = [];
+    for (const sinceDrop of [0.02, 0.07, 0.12, 0.17]) {
+      const medal = beside(sinceDrop);
+      const held = caught(medal, machine.time);
+      if (!held) throw new Error('not held');
+      expect(held.chucker).toBe(-1);
+      const { stamps, medalAt, catcherAt } = drawn(medal);
+      // One picture of it: where the catcher has it, after the catcher and the pusher's top, and cut off at the deck.
+      expect(stamps).toHaveLength(1);
+      const at = project(held.x, held.height, held.depth);
+      expect(stamps[0].x).toBeCloseTo(at.x, 6);
+      expect(stamps[0].y).toBeCloseTo(at.y, 6);
+      expect(stamps[0].clipped).toBe(true);
+      expect(medalAt).toBeGreaterThan(catcherAt);
+      // It goes down as it goes.
+      const round = stamps[0].height / stamps[0].width;
+      expect(stamps[0].y).toBeGreaterThan(last.y);
+      rounds.push(round);
+      last = { y: stamps[0].y, round };
+    }
+    // It turns on to its edge quickly and stays there: after the first moment it is much flatter on the drawing than
+    // it began, and by the end much flatter than a medal lying there would be.
+    for (const round of rounds.slice(1)) expect(round).toBeLessThan(rounds[0] * 0.75);
+    expect(last.round).toBeLessThan(project(x, P, front).tilt * 0.5);
+    // Once it is down it is a medal on the lower table again, under the catcher, drawn before the catcher is.
+    const lying = drawn(beside(CHUCKERS.drop + 0.01));
+    expect(lying.stamps).toHaveLength(1);
+    expect(lying.stamps[0].clipped).toBe(false);
+    expect(lying.medalAt).toBeLessThan(lying.catcherAt);
+    const where = project(x, HEIGHT.medal, front + MEDAL_RADIUS);
+    expect(lying.stamps[0].x).toBeCloseTo(where.x, 6);
+    expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
+  });
+
   it('draws a ball that lies under the catcher before the catcher, which covers it, and one that has come out from under it after', () => {
     fakeDocument();
     const stage = createStage(1);

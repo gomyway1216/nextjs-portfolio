@@ -55,7 +55,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('the patterns', () => {
   it('are a tick for a medal, something stronger for a win and something long for the jackpot', () => {
-    expect(HAPTIC_NAMES).toEqual(['stream', 'catch', 'feed', 'start', 'crash', 'chance', 'line', 'prize', 'jackpot']);
+    expect(HAPTIC_NAMES).toEqual(['feed', 'stream', 'catch', 'jewel', 'start', 'crash', 'chance', 'line', 'prize', 'jackpot']);
     for (const name of HAPTIC_NAMES) {
       const { pattern, rank, gap } = HAPTICS[name];
       // On, off, on: an odd number of whole milliseconds, each long enough for a motor to answer.
@@ -71,16 +71,12 @@ describe('the patterns', () => {
     // A tick is one short buzz.
     expect(HAPTICS.feed.pattern).toEqual([15]);
     expect(HAPTICS.stream.pattern).toEqual(HAPTICS.feed.pattern);
-    // From a press upwards, each thing that matters more is longer in the hand, and the jackpot is over a second.
-    const order: Haptic[] = ['feed', 'start', 'line', 'prize', 'jackpot'];
+    // Each thing that matters more is longer in the hand, and the jackpot is over a second.
+    const order: Haptic[] = ['feed', 'catch', 'line', 'prize', 'jackpot'];
     for (let i = 1; i < order.length; i++) {
       expect(HAPTICS[order[i]].rank).toBeGreaterThan(HAPTICS[order[i - 1]].rank);
       expect(hapticLength(order[i])).toBeGreaterThan(hapticLength(order[i - 1]));
     }
-    // A press matters more than what the machine does by itself with a medal: one fed by a held button, one over the front.
-    expect(HAPTICS.feed.rank).toBeGreaterThan(HAPTICS.stream.rank);
-    expect(HAPTICS.feed.rank).toBeGreaterThan(HAPTICS.catch.rank);
-    expect(HAPTICS.catch.rank).toBe(HAPTICS.stream.rank);
     expect(hapticLength('jackpot')).toBeGreaterThanOrEqual(1000);
     expect(hapticLength('jackpot')).toBeLessThanOrEqual(2000);
     expect(HAPTICS.jackpot.pattern.length).toBeGreaterThanOrEqual(5);
@@ -125,60 +121,35 @@ describe('the rule for what may be felt when', () => {
     expect(1000 / HAPTICS.stream.gap).toBeLessThanOrEqual(3.1);
   });
 
-  it('holds medals over the front to one buzz every 220 ms, however many fall', () => {
+  it('holds medals over the front to one buzz every 220 ms, whatever ticks come between', () => {
     const wishes: (readonly [number, Haptic])[] = [];
     for (let at = 0; at < 3000; at += 16) wishes.push([at, 'catch']);
-    const catches = felt(wishes);
+    for (let at = 5; at < 3000; at += 70) wishes.push([at, 'feed']);
+    wishes.sort((a, b) => a[0] - b[0]);
+    const catches = felt(wishes).filter(([, name]) => name === 'catch');
     expect(catches.length).toBeLessThanOrEqual(14);
     expect(catches.length).toBeGreaterThanOrEqual(12);
     for (let i = 1; i < catches.length; i++) expect(catches[i][0] - catches[i - 1][0]).toBeGreaterThanOrEqual(HAPTICS.catch.gap);
   });
 
-  it('always answers a press, though medals are falling into the tray at that very moment', () => {
-    // Medals go over the front in every frame for three seconds, and a thumb taps twice a second all the while,
-    // each tap in the same instant as a medal and a few milliseconds after the last one that was felt.
-    const wishes: (readonly [number, Haptic])[] = [];
-    for (let at = 0; at < 3000; at += 16) wishes.push([at, 'catch']);
-    const taps = [8, 500, 1000, 1500, 2000, 2500];
-    for (const at of taps) wishes.push([at, 'feed']);
-    wishes.sort((a, b) => a[0] - b[0]);
-    const through = felt(wishes);
-    // Every tap is felt as a tap.
-    expect(through.filter(([, name]) => name === 'feed').map(([at]) => at)).toEqual(taps);
-    // The medals are felt between the taps, each waiting its gap after a tap as after another medal.
-    const catches = through.filter(([, name]) => name === 'catch');
-    expect(catches.length).toBeGreaterThanOrEqual(6);
-    for (let i = 1; i < through.length; i++) if (through[i][1] === 'catch') expect(through[i][0] - through[i - 1][0]).toBeGreaterThanOrEqual(HAPTICS.catch.gap);
-    // A press just after a medal was felt is not held back by it, and neither is one just after a held button's tick.
-    expect(
-      felt([
-        [0, 'catch'],
-        [5, 'feed'],
-      ]),
-    ).toHaveLength(2);
-    expect(
-      felt([
-        [0, 'stream'],
-        [5, 'feed'],
-      ]),
-    ).toHaveLength(2);
-    // The other way round they wait: the motor is the press's for its tick, and for their own gap after it.
-    expect(
-      felt([
-        [0, 'feed'],
-        [5, 'catch'],
-        [100, 'stream'],
-        [219, 'catch'],
-        [220, 'catch'],
-      ]).map(([at, name]) => `${name}@${at}`),
-    ).toEqual(['feed@0', 'catch@220']);
+  it('lets a jewel through among falling medals, and holds the medals back behind it', () => {
+    // Medals have just been felt going over. The jewel that goes over 30 ms after them is felt all the same.
+    const medals = afterBuzz(UNFELT, 'catch', 1000);
+    expect(mayBuzz(medals, 'catch', 1030)).toBe(false);
+    expect(mayBuzz(medals, 'jewel', 1030)).toBe(true);
+    // While its tick plays a medal's does not cut it short, and the medals' own gap runs from it.
+    const jewel = afterBuzz(medals, 'jewel', 1030);
+    expect(mayBuzz(jewel, 'catch', 1040)).toBe(false);
+    expect(mayBuzz(jewel, 'catch', 1030 + HAPTICS.catch.gap - 1)).toBe(false);
+    expect(mayBuzz(jewel, 'catch', 1030 + HAPTICS.catch.gap)).toBe(true);
+    // Two jewels in a row are two ticks.
+    expect(mayBuzz(jewel, 'jewel', 1030 + hapticLength('jewel'))).toBe(true);
   });
 
   it('never cuts a pattern short for one that matters less, and always gives way to one that matters more', () => {
     // Ticks and falling medals all through a jackpot: none of them is felt until it is over.
     const wishes: (readonly [number, Haptic])[] = [[1000, 'jackpot']];
     for (let at = 1001; at < 1000 + hapticLength('jackpot') + 400; at += 37) wishes.push([at, at % 2 ? 'feed' : 'catch'], [at + 1, 'prize']);
-    expect(wishes.some(([, name]) => name === 'feed') && wishes.some(([, name]) => name === 'catch')).toBe(true);
     const through = felt(wishes);
     expect(through[0]).toEqual([1000, 'jackpot']);
     for (const [at] of through.slice(1)) expect(at).toBeGreaterThanOrEqual(1000 + hapticLength('jackpot'));
@@ -186,8 +157,8 @@ describe('the rule for what may be felt when', () => {
     // The other way round, the stronger one is felt at once.
     expect(
       felt([
-        [0, 'catch'],
-        [1, 'feed'],
+        [0, 'feed'],
+        [1, 'catch'],
         [2, 'start'],
         [3, 'line'],
         [4, 'prize'],
@@ -232,6 +203,19 @@ describe('what the hand feels of a frame', () => {
     expect(HAPTICS.chance.rank).toBeGreaterThan(HAPTICS.start.rank);
     expect(hapticLength('chance')).toBeLessThan(hapticLength('line'));
     expect(hapticFor([{ type: 'toppled', count: 1 }])).toBe('crash');
+    // A jewel over the front is a light tick of its own, felt over the medals that go over with it and never held back
+    // by them; the one that makes the set is a prize, like any other that is paid.
+    expect(hapticFor([{ type: 'jewel', lamps: 2, payout: 1 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'won', count: 3 }, { type: 'jewel', lamps: 2, payout: 1 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'jewel', lamps: 2, payout: 1 }, { type: 'won', count: 3 }])).toBe('jewel');
+    expect(hapticFor([{ type: 'jewelBonus', payout: 3 }])).toBe('prize');
+    expect(hapticFor([{ type: 'jewel', lamps: 4, payout: 1 }, { type: 'jewelBonus', payout: 3 }])).toBe('prize');
+    expect(HAPTICS.jewel.pattern).toEqual([28]);
+    expect(hapticLength('jewel')).toBeGreaterThan(hapticLength('catch'));
+    expect(hapticLength('jewel')).toBeLessThan(hapticLength('start'));
+    expect(HAPTICS.jewel.rank).toBeGreaterThan(HAPTICS.catch.rank);
+    expect(HAPTICS.jewel.rank).toBeLessThan(HAPTICS.prize.rank);
+    expect(HAPTICS.jewel.gap).toBe(0);
     expect(hapticFor([{ type: 'ball', count: 1 }])).toBe('line');
     expect(hapticFor([{ type: 'spinEnd', result: spin('small') }])).toBe('line');
     expect(hapticFor([{ type: 'spinEnd', result: spin('seven') }])).toBe('line');
@@ -269,6 +253,8 @@ describe('what the hand feels of a frame', () => {
       { type: 'rouletteStart', pocket: 2, duration: 2.8 },
       { type: 'rouletteEnd', total: 0, level: 0 },
       { type: 'bowlStart', holes: [1, 0, 0], duration: 6.5 },
+      // A jewel thrown from the hatch has only begun as well: it is felt when it is collected.
+      { type: 'jewelDrop' },
     ];
     for (const event of quiet) expect(hapticFor([event])).toBeNull();
   });
@@ -424,10 +410,7 @@ describe('what fed a medal', () => {
     expect(hapticFor([], 'stream')).toBe('stream');
     expect(hapticFor([], null)).toBeNull();
     expect(hapticFor([{ type: 'landed', count: 1 }], 'feed')).toBe('feed');
-    // A press in the very frame a medal goes over the front is felt as the press.
-    expect(hapticFor([{ type: 'won', count: 1 }], 'feed')).toBe('feed');
-    expect(hapticFor([{ type: 'won', count: 1 }], null)).toBe('catch');
-    expect(hapticFor([{ type: 'checker', gate: 1, held: true, gold: false }], 'feed')).toBe('start');
+    expect(hapticFor([{ type: 'won', count: 1 }], 'feed')).toBe('catch');
     expect(hapticFor([{ type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true }], 'stream')).toBe('jackpot');
   });
 

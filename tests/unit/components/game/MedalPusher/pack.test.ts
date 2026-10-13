@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { seededRng } from '@/components/game/MedalPusher/engine';
+import { dropJewel, jewelsOnField, seededRng } from '@/components/game/MedalPusher/engine';
 import { pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { restore, serialize } from '@/components/game/MedalPusher/storage';
@@ -71,6 +71,62 @@ describe('a packed save', () => {
     expect(ball).toBe(`b${medals.map((medal) => (medal.ball ? '1' : '0')).join('')}`);
     expect(source).toHaveLength(40);
     expect(there({ medals })).toBe(JSON.stringify({ medals }));
+  });
+
+  it('writes a list whose objects have a few different sets of fields as a table for each set, in the order the rows came in', () => {
+    // Medals, and among them jewels, which say that they are jewels where a medal says nothing.
+    const medals = Array.from({ length: 60 }, (_, index) => {
+      const medal = { id: index + 1, x: 3.2 + index * 1.0123456789, y: 50.123456789012 - index / 7, ball: index % 9 === 0 };
+      return index % 13 === 5 ? { ...medal, jewel: true } : index === 40 ? { ...medal, jewel: true, note: 'a third set of fields' } : medal;
+    });
+    const text = JSON.stringify({ medals });
+    const small = JSON.parse(pack(text) as string);
+    expect(small.medals.$).toBe('g');
+    expect(small.medals.t.map((table: { k: string[] }) => table.k)).toEqual([
+      ['id', 'x', 'y', 'ball'],
+      ['id', 'x', 'y', 'ball', 'jewel'],
+      ['id', 'x', 'y', 'ball', 'jewel', 'note'],
+    ]);
+    // The order: a set of fields and how many rows in a row have it, by turns. Five medals, a jewel, twelve medals, a jewel, …
+    expect(small.medals.r.slice(0, 8)).toEqual([0, 5, 1, 1, 0, 12, 1, 1]);
+    expect(small.medals.r.filter((_: number, index: number) => index % 2 === 1).reduce((sum: number, count: number) => sum + count, 0)).toBe(60);
+    expect(small.medals.t[0].c[1]).toMatch(/^f[A-Za-z0-9+/]+=*$/);
+    // Five of the sixty are jewels and nothing more, and each says so with one bit.
+    expect(small.medals.t[1].c[4]).toBe('b11111');
+    expect(small.medals.t[2].c[5]).toEqual(['a third set of fields']);
+    expect(unpack(pack(text))).toBe(text);
+    expect((pack(text) as string).length).toBeLessThan(text.length / 2);
+    // Two jewels side by side, a jewel first, a jewel last: every row comes back in its place.
+    for (const jewels of [[0], [59], [0, 1], [20, 21, 22], [0, 30, 59], [1, 3, 5, 7, 9]]) {
+      const rows = Array.from({ length: 60 }, (_, index) => (jewels.includes(index) ? { id: index, x: index / 3, jewel: true } : { id: index, x: index / 3 }));
+      expect(there(rows)).toBe(JSON.stringify(rows));
+      expect(JSON.parse(pack(JSON.stringify(rows)) as string).$).toBe('g');
+    }
+    // As many sets of fields as rows, or nearly, is not worth a table for each, and neither are more sets than eight.
+    const few = [{ a: 1 }, { b: 2 }, { a: 3 }];
+    expect(pack(JSON.stringify(few))).toBe(JSON.stringify(few));
+    const many = Array.from({ length: 40 }, (_, index) => ({ id: index, [`field${index % 9}`]: index }));
+    expect(pack(JSON.stringify(many))).toBe(JSON.stringify(many));
+    expect(there(many)).toBe(JSON.stringify(many));
+  });
+
+  it('packs a machine with jewels on its tables and in the air as small as one without', { timeout: LONG }, () => {
+    for (const session of [createSession(1), played(2, 20)]) {
+      dropJewel(session.machine);
+      expect(session.machine.medals.some((medal) => medal.jewel)).toBe(true);
+      expect(session.machine.falling.some((medal) => medal.jewel)).toBe(true);
+      expect(jewelsOnField(session.machine)).toBeGreaterThanOrEqual(2);
+      const text = serialize(session);
+      const small = pack(text) as string;
+      expect(unpack(small)).toBe(text);
+      expect(small.length).toBeLessThan(text.length / 2);
+      expect(serialize(restore(unpack(small), 1) as Session)).toBe(text);
+      // The same machine with its jewels taken off is no smaller on its way than a few hundred characters.
+      const without = JSON.parse(text) as { machine: { medals: { jewel?: boolean }[]; falling: { jewel?: boolean }[] } };
+      without.machine.medals = without.machine.medals.filter((medal) => !medal.jewel);
+      without.machine.falling = without.machine.falling.filter((medal) => !medal.jewel);
+      expect(small.length - (pack(JSON.stringify(without)) as string).length).toBeLessThan(600);
+    }
   });
 
   it('leaves alone what is not a table, and keeps the order of every field', () => {
@@ -153,6 +209,18 @@ describe('what is not a packed save', () => {
     ['a column of bytes holding an infinity', { $: 't', k: ['x'], c: [`f${btoa(String.fromCharCode(0, 0, 0, 0, 0, 0, 0xf0, 0x7f))}`] }],
     ['a column of bits with a 2 in it', { $: 't', k: ['x'], c: ['b0121'] }],
     ['a column written some other way', { $: 't', k: ['x'], c: ['zzzz'] }],
+    ['tables for sets of fields with no order to them', { $: 'g', t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with no tables', { $: 'g', r: [0, 1, 1, 1] }],
+    ['an order for a single table', { $: 'g', r: [0, 1], t: [{ k: ['x'], c: [[1]] }] }],
+    ['an order that names a table there is not', { $: 'g', r: [0, 1, 2, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that takes more rows than a table has', { $: 'g', r: [0, 2, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that leaves a row of a table out', { $: 'g', r: [0, 1, 1, 1], t: [{ k: ['x'], c: [[1, 5]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with a run of no rows', { $: 'g', r: [0, 1, 1, 0, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with half a run', { $: 'g', r: [0, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that is not whole numbers', { $: 'g', r: [0, 1.5, 1, 1], t: [{ k: ['x'], c: [[1, 5]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order in words', { $: 'g', r: ['0', '1', '1', '1'], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['a table for a set of fields that has no rows', { $: 'g', r: [0, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[]] }] }],
+    ['a table for a set of fields that is not a table', { $: 'g', r: [0, 1, 1, 1], t: [{ k: ['x'], c: [[1]] }, [2]] }],
     ['a mark of no kind', { $: 'q', v: {} }],
     ['a wrapped object that is not an object', { $: 'o', v: [1, 2] }],
     ['a wrapped object with nothing in it', { $: 'o' }],

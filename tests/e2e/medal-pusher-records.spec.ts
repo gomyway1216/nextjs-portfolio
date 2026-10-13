@@ -15,6 +15,7 @@ import {
 } from '../../src/components/game/MedalPusher/records';
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/storage';
+import { settled } from './medalPusherPage';
 
 // The Medal Pusher's daily bonus and record book. The machine itself is covered in medal-pusher.spec.ts; these
 // check what is the player's own: the stamp card, the Records tab, and that neither gets in the machine's way.
@@ -23,8 +24,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/medal-pusher');
   expect(response?.status()).toBe(200);
-  // While the page streams in, React briefly keeps a second, hidden copy of the content in the document.
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until it has all arrived.
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
 }
 
@@ -225,7 +226,7 @@ test('the daily bonus is taken once a day, adds exactly what the card says, and 
 
   // Loaded again the same day, it is not offered again, and the medals are where they were left.
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   await expect(bonus(page)).toHaveAttribute('data-state', 'taken');
   await expect(takeButton(page)).toHaveCount(0);
@@ -290,7 +291,7 @@ test('the records count what is played, outlast a reset of the machine, and are 
   };
   await expect.poll(fedInStorage, { timeout: 20_000 }).toBe(played);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   await page.getByRole('tab', { name: 'Records' }).click();
   await expect(fed).toHaveText(String(played));
@@ -329,7 +330,7 @@ test('a stamp that is earned is shown once, in a toast that keeps off the contro
   for (let back = 6; back >= 1; back--) book = claim(book, dayOf(today - back)).book;
   await page.evaluate(([key, text]) => window.localStorage.setItem(key, text), [RECORDS_KEY, serializeBook(book)]);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`Day 7 is ready: ${BONUS_CARD[6]} medals.`);
   const toast = machine(page).getByTestId('pusher-toast');
@@ -375,7 +376,7 @@ test('a stamp that is earned is shown once, in a toast that keeps off the contro
   await page.clock.fastForward(8_000);
   await expect(toast).toBeEmpty();
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(bonus(page)).toHaveAttribute('data-state', 'taken');
   await expect(toast).toBeEmpty();
 });
@@ -413,7 +414,7 @@ test('two tabs of the game pay a day’s bonus once between them, and both end u
 
   // Pressing again in either, after a reload, pays nothing more.
   await other.reload();
-  await expect(other.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(other);
   await expect(bonus(other)).toHaveAttribute('data-state', 'taken');
   await expect(takeButton(other)).toHaveCount(0);
   const book = await savedBook(other);

@@ -2,8 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { FIELD } from '../../src/components/game/MedalPusher/engine';
-import { CHESTS, JACKPOT_START, JEWEL } from '../../src/components/game/MedalPusher/lottery';
-import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
+import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
+import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
 
@@ -803,6 +804,156 @@ test('Auto drops medals until it is switched off', async ({ page }) => {
   await expectPurseToBalance(page);
 });
 
+// ── The sound settings: a volume and a switch for the music, in a row that opens from a button beside Sound ──
+
+const soundButton = (page: Page) => machine(page).getByTestId('pusher-sound');
+const soundSettings = (page: Page) => machine(page).getByTestId('pusher-sound-settings');
+const soundRow = (page: Page) => machine(page).getByTestId('pusher-sound-panel');
+const volumeSlider = (page: Page) => machine(page).getByTestId('pusher-volume');
+const musicSwitch = (page: Page) => machine(page).getByTestId('pusher-music');
+
+/** Opens the row of sound settings with its button, retrying until hydration has attached the handler. */
+async function openSoundSettings(page: Page) {
+  await expect(async () => {
+    if ((await soundSettings(page).getAttribute('aria-expanded')) !== 'true') await soundSettings(page).click({ timeout: 1_000 });
+    await expect(soundRow(page)).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+test('the sound has a volume and a switch for the music, worked from the keyboard, in a row that opens beside Sound', async ({ page }) => {
+  await openGame(page);
+  await feedOne(page);
+  // Closed, there is only the button, which says what it opens and that it is shut.
+  await expect(soundSettings(page)).toHaveAccessibleName('Sound settings');
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(soundRow(page)).toHaveCount(0);
+  await openSoundSettings(page);
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(machine(page).getByRole('group', { name: 'Sound settings' })).toBeVisible();
+
+  // The volume is a slider with a name, on the level the cabinet was made at, which it says in words.
+  await expect(volumeSlider(page)).toHaveAccessibleName('Volume');
+  await expect(volumeSlider(page)).toHaveValue('100');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '100%, the usual level');
+  await expect(machine(page).getByTestId('pusher-volume-value')).toHaveText('100%usual');
+  // The arrow keys move it a step; Home is silent and End is as loud as it goes, twice the usual.
+  await volumeSlider(page).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(volumeSlider(page)).toHaveValue('105');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '105%');
+  await page.keyboard.press('Home');
+  await expect(volumeSlider(page)).toHaveValue('0');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '0%, silent');
+  await page.keyboard.press('End');
+  await expect(volumeSlider(page)).toHaveValue('200');
+  for (let step = 0; step < 6; step++) await page.keyboard.press('ArrowLeft');
+  await expect(volumeSlider(page)).toHaveValue('170');
+
+  // The music has a switch of its own, which says which way it is.
+  await expect(musicSwitch(page)).toHaveAccessibleName('Music');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await musicSwitch(page).focus();
+  await page.keyboard.press('Space');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+
+  // A letter does nothing in a slider, so with the focus there the machine's keys are still the machine's,
+  // as they are in the aim sliders: J feeds the right rail and the volume stays where it was.
+  const played = await counter(page, 'played');
+  await volumeSlider(page).focus();
+  await page.keyboard.press('j');
+  await expect.poll(() => counter(page, 'played')).toBe(played + 1);
+  await expect(volumeSlider(page)).toHaveValue('170');
+
+  // Escape shuts the row and puts the focus back on the button that opened it.
+  await page.keyboard.press('Escape');
+  await expect(soundRow(page)).toHaveCount(0);
+  await expect(soundSettings(page)).toBeFocused();
+  await expect(soundSettings(page)).toHaveAttribute('aria-expanded', 'false');
+  // None of it has switched the sound on: that still takes its own press.
+  await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
+  await expectPurseToBalance(page);
+});
+
+test('the sound settings are remembered on this device, apart from the machine, and nonsense is not believed', async ({ page }) => {
+  await openGame(page);
+  await feedOne(page);
+  await openSoundSettings(page);
+  await volumeSlider(page).focus();
+  for (let step = 0; step < 8; step++) await page.keyboard.press('ArrowLeft');
+  await expect(volumeSlider(page)).toHaveValue('60');
+  await musicSwitch(page).click();
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  // They are kept under a key of their own, and the machine's save says nothing about them.
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false}');
+  const saved = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
+  expect(saved).not.toBeNull();
+  expect(saved).not.toMatch(/volume|music/);
+
+  // After a reload the row is shut and the sound is off, as on any visit, and the settings are as they were left.
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await expect(soundRow(page)).toHaveCount(0);
+  await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('60');
+  await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '60%');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+
+  // What is kept there but makes no sense is not believed: the settings are the usual ones.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7}'), SOUND_SETTINGS_KEY);
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('100');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  // A volume that is a number but out of range is brought into it.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":9000,"music":false}'), SOUND_SETTINGS_KEY);
+  await page.reload();
+  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveValue('200');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('on a phone the sound settings are one short row inside the controls, and the page does not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page);
+  await feedOne(page);
+  const controls = machine(page).getByTestId('pusher-controls');
+  // The button is in the row of switches, beside Sound and as tall as it, and wide enough for a finger.
+  const [sound, button, closed] = await Promise.all([soundButton(page).boundingBox(), soundSettings(page).boundingBox(), controls.boundingBox()]);
+  if (!sound || !button || !closed) throw new Error('the switches have no boxes');
+  expect(Math.abs(sound.y - button.y)).toBeLessThan(2);
+  expect(Math.abs(sound.height - button.height)).toBeLessThan(2);
+  expect(button.x).toBeGreaterThanOrEqual(sound.x + sound.width);
+  expect(button.width).toBeGreaterThanOrEqual(32);
+  expect(button.x + button.width).toBeLessThanOrEqual(closed.x + closed.width);
+
+  await openSoundSettings(page);
+  const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+  const [row, slider, music, open] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), controls.boundingBox()]);
+  if (!row || !slider || !music || !open) throw new Error('the sound settings have no boxes');
+  // The row is inside the controls, under the switches, and short: it adds less than the height of a feed button.
+  expect(row.x).toBeGreaterThanOrEqual(open.x);
+  expect(row.x + row.width).toBeLessThanOrEqual(open.x + open.width);
+  expect(row.y).toBeGreaterThan(button.y + button.height - 1);
+  expect(row.height).toBeLessThanOrEqual(72);
+  expect(open.height - closed.height).toBeLessThanOrEqual(80);
+  // The slider has room to be dragged, and the music's switch is beside it, both inside the row.
+  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.x).toBeGreaterThanOrEqual(row.x);
+  expect(music.x).toBeGreaterThanOrEqual(slider.x + slider.width);
+  expect(music.x + music.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(music.y).toBeGreaterThanOrEqual(row.y);
+  expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // The feed buttons and the aims are where they were: the row opened under them.
+  await expect(feedButton(page, 'left')).toBeVisible();
+  await expect(aimSlider(page, 'right')).toBeVisible();
+  const aim = await aimSlider(page, 'left').boundingBox();
+  expect(aim && aim.y + aim.height).toBeLessThan(row.y);
+});
+
 test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {
   await openGame(page);
   await feedOne(page);
@@ -909,10 +1060,12 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  // Four numbers in a row lead to the bowl, and each of its three holes is as likely as the next.
+  // Four numbers in a row lead to the three bowls: a row for what the holes of each bowl do, and each of the three ends one time in three.
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
-  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr[data-hole]')).toHaveCount(5);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   // The jewels: what each of a set of five pays, and the most they can be worth to a spin.
@@ -925,6 +1078,14 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(slot.locator('tr[data-tier="big"]')).toContainText('21.4 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.117 medals');
+  // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
+  // Both count the jewel a treasure line lets go, once: a gold spin doubles the chest and not the jewel.
+  const chance = odds(page).getByTestId('pusher-chance-table');
+  await expect(chance.locator('tbody tr')).toHaveCount(3);
+  await expect(chance.locator('tbody tr').first()).toContainText('1.11714 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.76714 medals');
+  await expect(chance.locator('tbody td', { hasText: '0.65000 medals' })).toHaveCount(3);
+  await expect(odds(page)).toContainText('turns one of the held spins gold');
 
   // 80% by the front and 0.18 spins a medal at 1.117 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
@@ -1001,6 +1162,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
+  await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('3段目');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
   await expect(odds(page).getByTestId('pusher-jewel-table')).toContainText('宝石ボーナス');
 });
@@ -1089,4 +1251,55 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(oddsSizes.scroll).toBeLessThanOrEqual(oddsSizes.inner);
+});
+
+test('a jackpot is counted out on the screen and on the marquee, up to what was paid and no further', async ({ page }) => {
+  // A machine that has just won. A full run of four tens is behind it and the ball is in the funnel of the last of
+  // the three bowls; it is played on here until the ball has dropped and the jackpot is half counted out, and
+  // saved as the game saves one, for the page to find. That leaves the page over five seconds of the show.
+  // No jewel lies on this machine. The jackpot's pour would push one over the front within six seconds, and it would
+  // be paid for: without them nothing but the jackpot is paid for the first ten seconds, and the last line counts that.
+  const session = createSession(5, { jewels: 0 });
+  const ten = ROULETTE.indexOf(10);
+  session.roulettes = 1;
+  session.roulette = {
+    pocket: ten,
+    from: ten,
+    elapsed: TIMING.roulette + TIMING.step,
+    duration: TIMING.roulette,
+    landed: true,
+    level: CHAIN_GOAL,
+    total: 10 * CHAIN_GOAL,
+    gain: 0,
+    over: false,
+    jackpot: false,
+    bowl: { holes: [0, 0, 0], stage: 2, elapsed: BOWL_TIMES[2] - 0.5, duration: BOWL_TIMES[2], payout: -1 },
+  };
+  for (let i = 0; i < 3 * 60; i++) advance(session, 1 / 60);
+  expect(session.roulette?.bowl?.payout).toBe(JACKPOT_START);
+  expect(session.paidOut).toBe(JACKPOT_START);
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The bowls are on the screen, the view down at the last of them, and the hole the ball took in each is lit.
+  const screen = machine(page).getByTestId('pusher-screen');
+  await expect(screen).toHaveAttribute('data-mode', 'bowl');
+  await expect(screen).toHaveAttribute('data-banner', 'jackpot');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-stage', '2');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-fallen', '0 0 0');
+  await expect(machine(page).getByTestId('pusher-ladder').locator('li')).toHaveCount(3);
+  // The jackpot has the stage, and the plate on the marquee counts with it.
+  await expect(machine(page).getByTestId('pusher-pay-show')).toHaveAttribute('data-kind', 'jackpot');
+  const plate = machine(page).getByTestId('pusher-jackpot');
+  await expect(plate).toHaveAttribute('data-counting', 'true');
+  // Both run up to what the jackpot stood at and stop there, and that is what the machine has paid.
+  await expect(machine(page).getByTestId('pusher-pay-count')).toHaveText(`+${JACKPOT_START}`, { timeout: 20_000 });
+  await expect(plate).toHaveText(String(JACKPOT_START));
+  expect(await counter(page, 'paid')).toBe(JACKPOT_START);
 });

@@ -2,8 +2,9 @@
 
 import { Fragment, useState, type CSSProperties } from 'react';
 import type { PusherStrings } from './i18n';
-import { BOWL, CHAIN_GOAL, FEVER_SQUARE, ROULETTE, TIER_BONUS } from './lottery';
+import { BOWLS, CHAIN_GOAL, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS, type BowlHole } from './lottery';
 import { ReelSymbol, tierOfDigit } from './ReelSymbols';
+import { GOLD_FLASH } from './render';
 import {
   BOARD_SQUARES,
   BOWL_SHAPE,
@@ -338,84 +339,117 @@ const Wheel = ({ lit }: { lit: number }) => (
   </div>
 );
 
-// ── The bowl ────────────────────────────────────────────────────────────────
+// ── The bowls ───────────────────────────────────────────────────────────────
 
 /**
- * The bowl as it is drawn, in ems of the dish it lies in, where one em is the
+ * A bowl as it is drawn, in ems of the dish it lies in, where one em is the
  * dish's radius out to its rim: the radius of the bowl the ball rolls in, how
  * far towards the player its floor is drawn so that it looks sunk below the
  * rim, the ball's own radius as a share of the bowl's, and the share of its
  * size the ball loses as it sinks.
  */
 const BOWL_VIEW = { radius: 0.84, sunk: 0.05, ball: 0.1, sink: 0.3 } as const;
+/** How far one dish is below the one above it, in the same ems. */
+const DISH_DROP = BOWL_SHAPE.drop * BOWL_VIEW.radius;
 
-/** The CSS transform that puts the ball on `spot` of the dish's floor. */
+/**
+ * The CSS transform that puts the ball on `spot`: so far across and down the
+ * floor of its bowl, and as far below the top bowl as that bowl is, less
+ * whatever it still has to fall.
+ */
 export function ballTransform(spot: BallSpot): string {
   const x = spot.x * BOWL_VIEW.radius;
   const y = spot.y * BOWL_VIEW.radius;
-  return `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${(1 - BOWL_VIEW.sink * spot.sunk).toFixed(3)})`;
+  const z = (spot.lift - spot.bowl * BOWL_SHAPE.drop) * BOWL_VIEW.radius;
+  return `translate3d(${x.toFixed(3)}em, ${y.toFixed(3)}em, ${z.toFixed(3)}em) scale(${(1 - BOWL_VIEW.sink * spot.sunk).toFixed(3)})`;
 }
 
-/** The ball's radius, for the stylesheet. */
-const BALL_SIZE = cssVars({ '--mp-ball': `${(BOWL_VIEW.ball * BOWL_VIEW.radius).toFixed(4)}em` });
+/** The CSS transform that keeps the ball's shadow on the floor while the ball is in the air over it. */
+export const shadowTransform = (spot: BallSpot): string => `translateZ(${(-spot.lift * BOWL_VIEW.radius).toFixed(3)}em)`;
 
-/** A point of the bowl's floor as CSS places it in the dish's box: how far across, and how far down. */
+/** Moves the ball the cabinet was handed to `spot`, and its shadow, which is the first thing in it, with it. */
+export function placeBall(ball: HTMLElement, spot: BallSpot): void {
+  ball.style.transform = ballTransform(spot);
+  const shadow = ball.firstElementChild;
+  if (shadow instanceof HTMLElement) shadow.style.transform = shadowTransform(spot);
+}
+
+/** The ball's radius and the drop from dish to dish, for the stylesheet. */
+const BOWL_SIZES = cssVars({ '--mp-ball': `${(BOWL_VIEW.ball * BOWL_VIEW.radius).toFixed(4)}em`, '--mp-drop': `${DISH_DROP.toFixed(4)}em` });
+
+/** A point of a bowl's floor as CSS places it in the dish's box: how far across, and how far down. */
 const onFloor = ({ x, y }: BowlPoint): CSSProperties => ({
   left: `${(50 + x * BOWL_VIEW.radius * 50).toFixed(2)}%`,
   top: `${(50 + (y * BOWL_VIEW.radius + BOWL_VIEW.sunk) * 50).toFixed(2)}%`,
 });
 
 /**
- * Where a hole's sign stands: behind the hole as the player sees it, and a
- * little out to its side, so that neither the hole nor the boss in the middle
- * is covered. Behind the far hole is where the ball rolls, so its sign stands
- * back at the edge of the floor instead.
+ * What a hole does is painted on the floor of its bowl, where the ball rolls
+ * over it and nothing hides the ball. It is beside the hole on the player's
+ * side, `below` it, and so clear of the lip the ball comes to rest on, which
+ * is straight out from the hole; for a hole at the far side or in the middle,
+ * where the boss or the hole itself is in the way, it is `beyond` it instead.
+ * It is `size` high and drawn `tall` times taller than it is, since the dish
+ * is seen at a slant and what lies on it looks squashed.
  */
-function signSpot(hole: number): BowlPoint {
-  const { x, y } = holeSpot(hole);
-  const behind = y - BOWL_SHAPE.hole * 1.25;
-  if (Math.hypot(x, behind) > BOWL_SHAPE.ring) return { x: 0, y: -1 };
-  return { x: x * 1.16, y: behind };
+const HOLE_LABEL = { below: 0.35, beyond: 0.42, size: 0.22, tall: 1.4 } as const;
+function labelSpot(hole: number, bowl: number): BowlPoint {
+  const { x, y } = holeSpot(hole, bowl);
+  return Math.abs(x) < 0.01 ? { x: 0, y: y - HOLE_LABEL.beyond } : { x: x * 1.06, y: y + HOLE_LABEL.below };
 }
 
+/** The colours of each dish, the top one first: its floor, the ring inside that, and the floor the holes are in. */
+const DISH_PAINT = [
+  { floor: '#4a38a8', inner: '#35278c', well: '#211460' },
+  { floor: '#a1285f', inner: '#7c1b48', well: '#4f0e2c' },
+  { floor: '#d9a520', inner: '#b07c0a', well: '#7d5403' },
+] as const;
+/** The colour of a hole's edge and of what is written beside it, by what the hole does. */
+const HOLE_PAINT = { down: '#7df0ff', prize: '#ffc2d0', jackpot: '#fffbe0' } as const;
+const holeKind = (hole: BowlHole): keyof typeof HOLE_PAINT => (hole === 'down' || hole === 'jackpot' ? hole : 'prize');
+
 /**
- * The jackpot challenge: a dish seen from the front with a hole for each
- * prize and a sign behind each hole. It is drawn on one flat sheet, the floor
- * a little towards the player so that it lies below the rim; the signs and the
- * ball stand on that sheet. The ball is moved by whoever it is registered
- * with; here it only waits where it is let go.
+ * One bowl of the challenge: a dish with its holes, what each does written beside it, and the one the ball went
+ * through lit. `on` is the bowl the ball is in, and `above` a bowl it has left, which the stylesheet turns to glass
+ * for as long as the ball takes to fall out from under it.
  */
-const Bowl = ({ hole, jackpot, registerBall }: { hole: number; jackpot: string; registerBall: (element: HTMLDivElement | null) => void }) => (
-  <div className={styles.dishScene}>
-    <div className={styles.dishTilt}>
-      <span className={styles.dishShadow} />
+const Dish = ({ bowl, taken, on, above, jackpot }: { bowl: number; taken: number; on: boolean; above: boolean; jackpot: string }) => {
+  const holes = BOWLS[bowl];
+  const paint = DISH_PAINT[bowl];
+  const funnel = holes.length === 1;
+  const size = funnel ? BOWL_SHAPE.last : BOWL_SHAPE.hole;
+  return (
+    <div className={styles.dish} style={cssVars({ '--mp-bowl': bowl })} data-bowl={bowl} data-on={on} data-above={above}>
       <span className={styles.dishSide} />
-      <svg className={styles.bowl} viewBox="-1 -1 2 2" data-testid="pusher-bowl" data-landed={hole}>
+      <svg className={styles.bowl} viewBox="-1 -1 2 2">
         {/* The wall of the dish, which shows on the far side between the rim and the floor. */}
         <circle r="0.9" fill="#6b4300" />
         <g transform={`translate(0 ${BOWL_VIEW.sunk}) scale(${BOWL_VIEW.radius})`}>
-          <circle r="1" fill="#4a38a8" />
-          <circle r="0.8" fill="#35278c" />
-          {/* The floor the holes are in, out to where the ball runs round them. */}
-          <circle r={(BOWL_SHAPE.ring + BOWL_SHAPE.lip + BOWL_VIEW.ball).toFixed(3)} fill="#211460" />
-          {BOWL.map((prize, index) => {
-            const { x, y } = holeSpot(index);
-            const best = prize === 'jackpot';
-            const on = hole === index;
+          <circle r="1" fill={paint.floor} />
+          <circle r={funnel ? 0.72 : 0.8} fill={paint.inner} />
+          {/* The floor the holes are in, out to where the ball runs round them; in the funnel, the last turn before the hole. */}
+          <circle r={(funnel ? 0.46 : BOWL_SHAPE.ring + BOWL_SHAPE.lip + BOWL_VIEW.ball).toFixed(3)} fill={paint.well} />
+          {holes.map((hole, index) => {
+            const { x, y } = holeSpot(index, bowl);
+            const label = labelSpot(index, bowl);
+            const kind = holeKind(hole);
+            const lit = taken === index;
             return (
-              <g key={index} data-hole={index} data-in={on}>
-                <circle cx={x.toFixed(3)} cy={y.toFixed(3)} r={(BOWL_SHAPE.hole + 0.03).toFixed(3)} fill={best ? '#ffd65c' : '#ff9db1'} />
-                <circle cx={x.toFixed(3)} cy={y.toFixed(3)} r={BOWL_SHAPE.hole} fill={on ? (best ? '#fff3a8' : '#ffd0da') : '#05020f'} />
+              <g key={index} data-hole={index} data-kind={kind} data-in={lit}>
+                <circle cx={x.toFixed(3)} cy={y.toFixed(3)} r={(size + 0.03).toFixed(3)} fill={HOLE_PAINT[kind]} />
+                <circle cx={x.toFixed(3)} cy={y.toFixed(3)} r={size} fill={lit ? '#fffbe0' : '#05020f'} />
                 {/* The far wall of the hole, which is all of its inside that can be seen from the front. */}
-                {!on && (
-                  <ellipse
-                    cx={x.toFixed(3)}
-                    cy={(y - BOWL_SHAPE.hole * 0.42).toFixed(3)}
-                    rx={(BOWL_SHAPE.hole * 0.86).toFixed(3)}
-                    ry={(BOWL_SHAPE.hole * 0.5).toFixed(3)}
-                    fill="#2a1c5c"
-                  />
-                )}
+                {!lit && <ellipse cx={x.toFixed(3)} cy={(y - size * 0.42).toFixed(3)} rx={(size * 0.86).toFixed(3)} ry={(size * 0.5).toFixed(3)} fill={paint.inner} />}
+                <text
+                  className={styles.holeLabel}
+                  transform={`translate(${label.x.toFixed(3)} ${label.y.toFixed(3)}) scale(1 ${HOLE_LABEL.tall})`}
+                  y={(HOLE_LABEL.size * 0.36).toFixed(3)}
+                  fontSize={HOLE_LABEL.size}
+                  textAnchor="middle"
+                  fill={lit ? '#ffffff' : HOLE_PAINT[kind]}
+                >
+                  {hole === 'down' ? '▼' : hole === 'jackpot' ? jackpot : hole}
+                </text>
               </g>
             );
           })}
@@ -425,35 +459,65 @@ const Bowl = ({ hole, jackpot, registerBall }: { hole: number; jackpot: string; 
         <circle r="0.95" fill="none" stroke="#ffd65c" strokeWidth="0.07" />
         <circle r="0.955" fill="none" stroke="#fff3b0" strokeWidth="0.022" />
       </svg>
-      <span className={styles.dishHub} style={onFloor({ x: 0, y: 0 })} data-dish="bowl" />
-      {BOWL.map((prize, index) => {
-        const best = prize === 'jackpot';
-        const spot = signSpot(index);
-        return (
-          <span
-            key={index}
-            className={styles.holeSign}
-            style={onFloor(spot)}
-            data-best={best}
-            data-on={hole === index}
-            data-side={Math.abs(spot.x) < 0.01 ? 'middle' : spot.x < 0 ? 'left' : 'right'}
-          >
-            {best ? jackpot : prize}
-          </span>
-        );
-      })}
-      <div
-        className={styles.ballSpot}
-        ref={registerBall}
-        style={{ ...onFloor({ x: 0, y: 0 }), ...BALL_SIZE, transform: ballTransform(bowlBall(0, 0)) }}
-        data-testid="pusher-bowl-ball"
-      >
-        <span className={styles.ballShadow} />
-        <span className={styles.ball} />
+      {!funnel && <span className={styles.dishHub} style={onFloor({ x: 0, y: 0 })} data-dish="bowl" />}
+      {/* A bowl the ball is not in stands in the shade. */}
+      <span className={styles.dishShade} />
+    </div>
+  );
+};
+
+/**
+ * The jackpot challenge: three dishes one under another, seen from the front
+ * and above. The stylesheet lifts the stack so that the dish the ball is in
+ * is the one in the middle of the view, and the ball is seen to fall from one
+ * to the next. The ball is moved by whoever it is registered with; here it
+ * only waits where it is let go.
+ */
+const Bowls = ({ stage, fallen, jackpot, registerBall }: { stage: number; fallen: readonly number[]; jackpot: string; registerBall: (element: HTMLDivElement | null) => void }) => {
+  const waiting = bowlBall(0, 0);
+  return (
+    <div className={styles.bowlWindow} data-testid="pusher-bowl" data-stage={stage} data-fallen={fallen.join(' ')}>
+      <div className={styles.bowlScene}>
+        <div className={styles.bowlTilt} style={BOWL_SIZES}>
+          <div className={styles.bowlLift} style={cssVars({ '--mp-stage': stage })}>
+            {BOWLS.map((_, bowl) => (
+              <Dish key={bowl} bowl={bowl} taken={fallen[bowl] ?? -1} on={bowl === stage} above={bowl < stage} jackpot={jackpot} />
+            ))}
+            <div className={styles.ballSpot} ref={registerBall} style={{ ...onFloor({ x: 0, y: 0 }), transform: ballTransform(waiting) }} data-testid="pusher-bowl-ball">
+              <span className={styles.ballShadow} style={{ transform: shadowTransform(waiting) }} />
+              <span className={styles.ball} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  );
+};
+
+/** How many medals rain down the stage while the jackpot is counted out. */
+const RAIN = 18;
+
+/**
+ * What the bowls paid, over the stage, as far as it has been counted out.
+ * The jackpot has the whole stage, with medals raining down it. Each medal
+ * of the rain has its own place across the stage and its own moment to start.
+ * The stylesheet is told how many digits the number has, so that a jackpot
+ * that has grown past a thousand still fits across the stage.
+ */
+const PayShow = ({ amount, jackpot }: { amount: number; jackpot: boolean }) => (
+  <div className={styles.payShow} data-kind={jackpot ? 'jackpot' : 'prize'} data-digits={Math.min(5, String(amount).length)} aria-hidden data-testid="pusher-pay-show">
+    {jackpot &&
+      Array.from({ length: RAIN }, (_, coin) => (
+        <span key={coin} className={styles.payCoin} style={cssVars({ '--mp-across': ((coin * 7 + 3) % RAIN) / (RAIN - 1), '--mp-wait': (coin * 5) % RAIN })} />
+      ))}
+    <span className={styles.payCount} data-testid="pusher-pay-count">
+      +{amount}
+    </span>
   </div>
 );
+
+/** How long one flash of a gold spin's lamp takes on the page, from bright to bright: the stylesheet takes it from here, so it is the cabinet's own rate. */
+export const GOLD_FLASH_STYLE = { '--mp-gold-flash': `${1 / GOLD_FLASH.perSecond}s` } as CSSProperties;
 
 export interface ScreenProps {
   state: ScreenState;
@@ -508,15 +572,23 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
         <span className={styles.screenTitle} data-testid="pusher-mode">
           {title}
         </span>
-        <div className={styles.stock} role="img" aria-label={t.stockAria(stock, MAX_STOCK)} data-testid="pusher-stock" data-held={stock}>
+        <div className={styles.stock} role="img" aria-label={t.stockAria(stock, MAX_STOCK)} data-testid="pusher-stock" data-held={stock} style={GOLD_FLASH_STYLE}>
           <span className={styles.stockLabel} aria-hidden>
             {t.stock}
           </span>
           {Array.from({ length: MAX_STOCK }, (_, index) => (
-            <span key={index} className={styles.lamp} data-lit={index < stock} aria-hidden />
+            <span key={index} className={styles.lamp} data-lit={index < stock} data-gold={index < state.chance - (state.gold ? 1 : 0)} aria-hidden />
           ))}
         </div>
       </div>
+      {/* Chance time, for as long as a gold spin is still to come: what it is called, what a gold spin pays, and how many are left. It is said aloud once, where the cabinet makes its announcements. */}
+      {state.chance > 0 && (
+        <div className={styles.chance} data-gold={state.gold} data-testid="pusher-chance" aria-hidden>
+          <span className={styles.chanceTitle}>{t.chanceTitle}</span>
+          <span className={styles.chanceTimes}>×{CHANCE.multiplier}</span>
+          <span className={styles.chanceLeft}>{t.chanceLeft(state.chance)}</span>
+        </div>
+      )}
 
       <div className={styles.stage}>
         <div className={styles.reels} aria-hidden data-hidden={state.mode !== 'slot'} data-line={state.line ?? 'none'}>
@@ -589,14 +661,35 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
 
         {(state.mode === 'roulette' || state.mode === 'bowl') && (
           <div className={styles.bonus} data-row="true" aria-hidden>
-            {state.mode === 'bowl' ? <Bowl hole={state.hole} jackpot={t.jackpot} registerBall={registerBall} /> : <Wheel lit={state.lit} />}
+            {state.mode === 'bowl' ? (
+              <Bowls stage={state.stage} fallen={state.fallen} jackpot={t.jackpot} registerBall={registerBall} />
+            ) : (
+              <Wheel lit={state.lit} />
+            )}
             <div className={styles.chain} data-testid="pusher-chain" data-level={state.level}>
-              <span className={styles.chainLabel}>{t.chainLevel(state.level, CHAIN_GOAL)}</span>
-              <span className={styles.chainLamps}>
-                {Array.from({ length: CHAIN_GOAL }, (_, index) => (
-                  <span key={index} className={styles.lamp} data-lit={index < state.level} data-goal={index === CHAIN_GOAL - 1} />
-                ))}
-              </span>
+              {state.mode === 'bowl' ? (
+                // The way down, beside the bowls: what each one holds, and which of them the ball is in.
+                <ol className={styles.ladder} data-testid="pusher-ladder">
+                  {BOWLS.map((holes, bowl) => {
+                    const prize = holes.find((hole) => hole !== 'down');
+                    return (
+                      <li key={bowl} className={styles.rung} data-on={bowl === state.stage} data-done={bowl < state.stage}>
+                        <span className={styles.rungNumber}>{bowl + 1}</span>
+                        <span className={styles.rungPrize}>{prize === 'jackpot' ? t.jackpot : prize}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <>
+                  <span className={styles.chainLabel}>{t.chainLevel(state.level, CHAIN_GOAL)}</span>
+                  <span className={styles.chainLamps}>
+                    {Array.from({ length: CHAIN_GOAL }, (_, index) => (
+                      <span key={index} className={styles.lamp} data-lit={index < state.level} data-goal={index === CHAIN_GOAL - 1} />
+                    ))}
+                  </span>
+                </>
+              )}
               <span className={styles.chainTower}>
                 <Heap coins={Math.min(TOWER.coins, Math.ceil(state.total / TOWER.each))} />
               </span>
@@ -604,6 +697,8 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
             </div>
           </div>
         )}
+
+        {state.mode === 'bowl' && state.banner !== 'none' && <PayShow amount={state.amount} jackpot={state.banner === 'jackpot'} />}
       </div>
 
       <div className={styles.caption} aria-hidden data-testid="pusher-caption">

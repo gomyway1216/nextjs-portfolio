@@ -36,8 +36,24 @@ import {
   pointInCabinet,
   type JewelSpot,
 } from '@/components/game/MedalPusher/jewel';
-import { APRON_CAP, BALL_RADIUS, EXIT_TIME, GLOW_TIME, ageStage, createStage, drawField, lightGate, showJewel, trackMedals, type ExitingMedal, type Stage } from '@/components/game/MedalPusher/render';
-import { CHUTE, HEIGHT, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
+import {
+  APRON_CAP,
+  BALL_RADIUS,
+  EXIT_TIME,
+  GLOW_TIME,
+  GOLD_FLASH,
+  ageStage,
+  celebrate,
+  createStage,
+  drawField,
+  goldFlash,
+  lightGate,
+  showJewel,
+  trackMedals,
+  type ExitingMedal,
+  type Stage,
+} from '@/components/game/MedalPusher/render';
+import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
 
@@ -873,6 +889,77 @@ describe('the feed arms on the canvas', () => {
     expect(near(starts, swinging.x, swinging.y)).toBe(true);
     expect(near(starts, there.x, there.y)).toBe(false);
     expect(near(starts, apex.x, apex.y)).toBe(true);
+  });
+});
+
+describe('the gold spins’ lamps on the canvas', () => {
+  /** A stand-in context that remembers every circle drawn: where its middle is and how big it is, on the drawing. */
+  const circles = () => {
+    const drawn: { x: number; y: number; r: number }[] = [];
+    let matrix = [1, 0, 0, 1, 0, 0];
+    const gradient = { addColorStop: () => undefined };
+    const own: Record<string, unknown> = {
+      setTransform: (...values: number[]) => {
+        matrix = values;
+      },
+      arc: (x: number, y: number, r: number) => {
+        drawn.push({ x: matrix[0] * x + matrix[2] * y + matrix[4], y: matrix[1] * x + matrix[3] * y + matrix[5], r: r * Math.hypot(matrix[0], matrix[1]) });
+      },
+    };
+    const context = new Proxy(own, { get: (target, name: string) => target[name] ?? (() => gradient), set: () => true }) as unknown as CanvasRenderingContext2D;
+    return { context, drawn };
+  };
+  /**
+   * How bright one lamp of the hold is drawn, from 0 to 1, in a frame of this stage: read back from the halo round
+   * it, which is 2.2 times the lamp across when it does not flash and 3.6 times at the top of a flash.
+   */
+  const flashOf = (stage: ReturnType<typeof createStage>, machine: Machine, lamp: number, calm: boolean): number => {
+    const { context, drawn } = circles();
+    drawField(context, stage, machine, { showGuide: false, calm, stock: 8, gold: 3 });
+    const at = project(HOLD_LAMPS.first + HOLD_LAMPS.step * lamp, (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
+    // A celebration shakes the picture sideways by a few pixels; the lamps are much further apart than that.
+    const own = drawn.filter((circle) => Math.abs(circle.y - at.y) < 1e-6 && Math.abs(circle.x - at.x) < (HOLD_LAMPS.step * at.scale) / 2);
+    const body = HOLD_LAMPS.radius * at.scale;
+    const halo = Math.max(...own.map((circle) => circle.r));
+    expect(own.some((circle) => Math.abs(circle.r - body) < 1e-6)).toBe(true);
+    return (halo / body - 2.2) / 1.4;
+  };
+  const risings = (seen: number[]) => seen.filter((bright, frame) => frame > 0 && seen[frame - 1] < 0.5 && bright >= 0.5).length;
+
+  it('flash at the cabinet’s one rate by the stage’s own clock, in a fever and a jackpot as at any other time', () => {
+    fakeDocument();
+    const machine = createMachine(3);
+    for (const party of [null, 'fever', 'jackpot'] as const) {
+      const stage = createStage(1);
+      if (party) celebrate(stage, party);
+      for (const lamp of [0, 2]) {
+        const seen: number[] = [];
+        for (let frame = 0; frame <= 120; frame++) {
+          stage.clock = 3 + frame / 120;
+          const flash = flashOf(stage, machine, lamp, false);
+          expect(flash).toBeCloseTo(goldFlash(stage.clock, lamp, false), 6);
+          seen.push(flash);
+        }
+        // In one second it comes up bright as many times as the rate says: twice, and not the dozen and more that the hurried lights of a celebration would make of it.
+        expect(risings(seen)).toBe(GOLD_FLASH.perSecond);
+      }
+    }
+  });
+
+  it('do not flash at all with motion reduced, and a held spin that is not gold never does', () => {
+    fakeDocument();
+    const machine = createMachine(3);
+    const stage = createStage(1);
+    for (const clock of [3, 3.1, 3.25, 3.4, 9.99]) {
+      stage.clock = clock;
+      // The three gold ones are steadily at their brightest.
+      for (const lamp of [0, 1, 2]) expect(flashOf(stage, machine, lamp, true)).toBeCloseTo(1, 6);
+      // The five that are only held have their one steady halo, with motion or without.
+      for (const lamp of [3, 7]) {
+        expect(flashOf(stage, machine, lamp, false)).toBeCloseTo(0, 6);
+        expect(flashOf(stage, machine, lamp, true)).toBeCloseTo(0, 6);
+      }
+    }
   });
 });
 

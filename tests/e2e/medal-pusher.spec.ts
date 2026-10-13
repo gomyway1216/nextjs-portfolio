@@ -389,6 +389,9 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect.poll(async () => (await savedMachine(page))?.machine.aims[1] ?? -1, { timeout: 20_000 }).toBeGreaterThan(95);
   await expect.poll(async () => (await savedMachine(page))?.machine.aims[0] ?? 99, { timeout: 20_000 }).toBeLessThan(5);
   await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
+  // Nobody is signed in, so the machine is this device's alone, and the note says how to keep it on an account.
+  await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-where', 'device');
+  await expect(machine(page).getByTestId('pusher-sign-in')).toHaveAttribute('href', '/signin?redirect=%2Fgames%2Fmedal-pusher', { timeout: 15_000 });
 
   await page.reload();
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);

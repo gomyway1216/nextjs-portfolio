@@ -79,6 +79,13 @@ export interface PusherStrings {
   sayReset: (medals: number) => string;
   sayResetOff: string;
   unsavedNote: string;
+  // A player who is signed in has the machine on the account as well
+  signInInvite: string;
+  accountNote: string;
+  offlineNote: string;
+  unreadableNote: string;
+  checkingNote: string;
+  resetConfirmAccount: string;
   // Announcements for screen readers
   saySugorokuStart: (digits: string) => string;
   saySugoroku: (medals: number) => string;
@@ -292,6 +299,13 @@ const en: PusherStrings = {
   sayReset: (medals) => `The machine has been reset. You have ${medals} medals.`,
   sayResetOff: 'Reset cancelled.',
   unsavedNote: 'This machine could not be saved on this device: the browser is blocking storage, or it is full. It will start again when the page is reloaded.',
+  signInInvite: 'Sign in to keep it on your account.',
+  accountNote: 'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave, and this device keeps a copy.',
+  offlineNote: 'Could not reach your account just now. The machine is kept on this device and will be sent when the account can be reached again.',
+  unreadableNote:
+    'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is, and the machine here is kept on this device only. Reloading the page may help.',
+  checkingNote: 'Looking for the machine saved to your account…',
+  resetConfirmAccount: 'Press again to reset the machine on your account',
   saySugorokuStart: (digits) => `${digits}. Sugoroku chance: the die is rolling.`,
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
@@ -538,6 +552,13 @@ const ja: PusherStrings = {
   sayReset: (medals) => `マシンをリセットしました。メダルは${medals}枚です。`,
   sayResetOff: 'リセットを取り消しました。',
   unsavedNote: 'この端末には保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。ページを読み込み直すと、マシンは最初からになります。',
+  signInInvite: 'サインインすると、アカウントに預けておけます。',
+  accountNote: 'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られ、この端末にも控えが残ります。',
+  offlineNote: 'いまアカウントに接続できません。マシンはこの端末に預けてあり、接続できしだい送り直します。',
+  unreadableNote:
+    'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここのマシンはこの端末にだけ預けています。ページを読み込み直すと直ることがあります。',
+  checkingNote: 'アカウントに預けたマシンを確認しています…',
+  resetConfirmAccount: 'もう一度押すと、アカウントのマシンをリセットします',
   saySugorokuStart: (digits) => `${digits}。すごろくチャンスです。サイコロを振ります。`,
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,

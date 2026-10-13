@@ -2120,9 +2120,20 @@
   font-size: 0.82rem;
   line-height: 1.55;
 }
-/* The note that the machine is saved turns into a warning when it could not be. */
-.note[data-saved='false'] {
+/* The note that the machine is saved turns into a warning when it could not be, on this device or on the account. */
+.note[data-saved='false'],
+.note[data-where='offline'],
+.note[data-where='unreadable'] {
   color: var(--mp-lose-text);
+}
+.noteLink {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.noteLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
 }
 /* Reset, under the tally. Armed, it says so in words as well as in colour. */
 .reset {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACCOUNT_LIMIT, SEND_EVERY, fromCloud, sizeOf, slotFor, toCloud, type AccountStore, type Slots, type Status } from '@/components/game/MedalPusher/account';
+import { ACCOUNT_LIMIT, SEND_EVERY, fromCloud, sizeOf, slotFor, toCloud, type AccountStore, type CloudState, type Slots, type Status } from '@/components/game/MedalPusher/account';
 import { booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
 
-import { KEEPALIVE_LIMIT, SCENARIOS, measure, type Scenario } from '../../../../../scripts/medal-pusher-save-size';
+import { KEEPALIVE_LIMIT, SCENARIOS, measure, onTheWire, stepsIn, type Scenario } from '../../../../../scripts/medal-pusher-save-size';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
 import beforeLeftAndRight from './fixtures/save-before-left-and-right.json';
@@ -31,6 +31,9 @@ function play(session: Session, seconds: number, every = 30): void {
 /** What the account stores and gives back: the state as JSON, there and back. */
 const throughTheRoute = (state: object): unknown => JSON.parse(JSON.stringify(state));
 
+/** The bytes of a text in UTF-8. Every size in these tests is in bytes, as the route's limit and the browser's are; `sizeOf` is the route's own measure of a copy. */
+const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
+
 describe('the machine on its way to the account', () => {
   it('comes back as the identical machine', { timeout: LONG }, () => {
     const session = createSession(11);
@@ -43,15 +46,16 @@ describe('the machine on its way to the account', () => {
     expect(serialize(restore(back?.text ?? null, 3) as Session)).toBe(text);
   });
 
-  it('is about a third of the size it has on the device', { timeout: LONG }, () => {
+  it('is about a quarter of the size it has on the device', { timeout: LONG }, () => {
     const session = createSession(12);
     const fresh = serialize(session);
     play(session, 40);
     const inPlay = serialize(session);
     for (const text of [fresh, inPlay]) {
       const size = sizeOf(toCloud(text, newMark(), Date.now()) as object);
-      expect(size).toBeLessThan(text.length * 0.45);
-      expect(size).toBeLessThan(ACCOUNT_LIMIT / 2);
+      expect(size).toBeLessThan(bytesOf(text) * 0.3);
+      expect(size).toBeGreaterThan(bytesOf(text) * 0.15);
+      expect(size).toBeLessThan(ACCOUNT_LIMIT / 4);
     }
   });
 
@@ -73,10 +77,11 @@ describe('the machine on its way to the account', () => {
     expect(measured.medals).toBeGreaterThan(500);
     expect(measured.falling).toBeGreaterThan(60);
     expect(measured.deviceMost).toBeGreaterThan(ACCOUNT_LIMIT * 1.4);
-    // Packed, it is under nine tenths of what the route takes. It was under three quarters while the slot threw on
-    // what the towers' places could not hold, nine medals a second: the hopper pours that four times as fast, so
-    // the same forty-five seconds put far more medals on this field (56,081 bytes at the most here, where it was 38,540).
-    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.9);
+    // Packed, it is under three quarters of what the route takes. The hopper pours a prize four times as fast as
+    // the slot threw it, so these forty-five seconds put far more medals in the air than they did (665 lying and 241
+    // falling at the most), and packed as format 1 packed it that came to 56,081 bytes, for which this bound was
+    // let out to nine tenths. Format 2 writes the same save in 31,553, and the bound is where it was.
+    expect(measured.accountMost).toBeLessThan(ACCOUNT_LIMIT * 0.75);
     // …and the whole request is under what a browser will send as the page is left (64 KiB of body).
     expect(measured.requestMost).toBeGreaterThan(measured.accountMost);
     expect(measured.requestMost).toBeLessThan(KEEPALIVE_LIMIT);
@@ -87,11 +92,36 @@ describe('the machine on its way to the account', () => {
     const [once, again] = [measure(ordinary, 7, 5), measure(ordinary, 7, 5)];
     expect(again).toEqual(once);
     const fresh = serialize(createSession(7));
-    expect(once.deviceNew).toBe(fresh.length);
+    expect(once.deviceNew).toBe(bytesOf(fresh));
     expect(once.accountNew).toBe(sizeOf(toCloud(fresh, 'a-mark-of-16-hex', 0) as object));
     expect(once.samples).toBe(10);
     expect(once.accountMost).toBeGreaterThanOrEqual(once.accountMean);
     expect(once.accountMean).toBeGreaterThanOrEqual(once.accountNew);
+  });
+
+  it('plays a machine in whole steps of a sixtieth of a second, and not at all in less than half of one', () => {
+    expect(stepsIn(1)).toBe(60);
+    expect(stepsIn(45)).toBe(2700);
+    expect(stepsIn(1 / 60)).toBe(1);
+    expect(stepsIn(0.0084)).toBe(1);
+    for (const none of [0.008, 0.001, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) expect(stepsIn(none)).toBe(0);
+    // Played for no step a machine is measured as the new machine it is, and nothing is thrown.
+    const still = measure(SCENARIOS[0], 7, 0.001);
+    expect(still.samples).toBe(0);
+    expect([still.accountMost, still.accountMean, still.deviceMost]).toEqual([still.accountNew, still.accountNew, still.deviceNew]);
+  });
+
+  it('measures a packed text as it is sent: its bytes inside the copy, where the limit is', () => {
+    const state = toCloud(serialize(createSession(7)), 'a-mark-of-16-hex', 0) as CloudState;
+    // A copy is the packed text as a string, and a few fields round it.
+    const round = sizeOf({ ...state, data: '' });
+    expect(onTheWire(state.data)).toBe(sizeOf(state) - round);
+    // That is more than the packed text's own bytes: each quote in it is sent with a backslash before it.
+    const quotes = [...state.data].filter((char) => char === '"').length;
+    expect(quotes).toBeGreaterThan(50);
+    expect(onTheWire(state.data)).toBe(bytesOf(state.data) + quotes);
+    // And it is bytes, not characters: a letter outside ASCII is as many as UTF-8 takes for it.
+    expect([onTheWire(''), onTheWire(null), onTheWire('a'), onTheWire('"'), onTheWire('\\'), onTheWire('é'), onTheWire('メ'), onTheWire('🪙')]).toEqual([0, 0, 1, 2, 2, 2, 3, 4]);
   });
 
   it.each([

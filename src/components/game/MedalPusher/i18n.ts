@@ -289,6 +289,9 @@ export interface PusherStrings {
   jewelLast: (of: number) => string;
   jewelPrizeEach: (medals: number) => string;
   jewelNote: (perThousand: number, sum: string, set: number, average: string, perSpin: string, start: number) => string;
+  /** What is on the control panel for the eye only: the second line of the maker's plate, and the small print along the panel's near edge. */
+  makerLine: string;
+  panelWarning: string;
   /**
    * The lucky lamp: what is said when a medal is held through a lit START pocket, and the lamp's rule at the end of
    * the Odds tab's chance time, with what an ordinary spin and a gold one are worth, how often the light steps, that
@@ -623,6 +626,8 @@ const en: PusherStrings = {
   jewelPrizeEach: (medals) => (medals === 1 ? '1 medal each' : `${medals} medals each`),
   jewelNote: (perThousand, sum, set, average, perSpin, start) =>
     `A jewel comes with every treasure line, so with ${perThousand} spins in 1,000. A set pays ${sum} = ${set} medals, which is ${average} medals a jewel and ${perSpin} medals a spin. That is counted in what the treasure line is worth in the first table, and in what a spin is worth below. A gold spin’s treasure line lets one jewel go like any other, and a jewel pays the same whichever spin it came with: chance time doubles the chest, not the jewel. No jewel is lost: every one the machine lets go is collected sooner or later, so the figure is exact. What the medals it pays do next is the field’s business, as with any others. A new machine has ${start} jewels lying on it already, which these figures leave out.`,
+  makerLine: 'MODEL GF-777',
+  panelWarning: 'MEDALS ONLY · DO NOT STRIKE OR ROCK THE MACHINE',
   sayLucky: 'A medal slid down the slope into a lit START pocket. Its spin is gold.',
   luckyOddsNote: (ordinary, gold, seconds, share) =>
     `The lucky lamp: one of the three START pockets is lit gold at a time, and the light steps one pocket along, from the left, with every stroke of the pusher, which is every ${seconds} seconds. A medal that is held through the lit pocket holds a gold spin from the start, for the one medal. An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}. The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip, and the light has moved many times by then. Which START pocket is lit when a medal arrives is luck. Measured at up to two medals a second, the lamp makes about ${share} of all spins gold: a third, as one pocket in three is lit.`,
@@ -951,6 +956,8 @@ const ja: PusherStrings = {
   jewelPrizeEach: (medals) => `各${medals}枚`,
   jewelNote: (perThousand, sum, set, average, perSpin, start) =>
     `宝石は宝箱チャンスのそろい目のたびに1個出るので、抽選1,000回につき${perThousand}個です。1セットの払い出しは ${sum} = ${set}枚、つまり宝石1個あたり${average}枚、抽選1回あたり${perSpin}枚です。この分は、最初の表の宝箱のそろい目の「平均の価値」と、下の「抽選1回の価値」に含めてあります。金の抽選で宝箱チャンスがそろったときも、出てくる宝石は1個で、宝石の払い出しは変わりません。チャンスタイムで2倍になるのは宝箱で、宝石ではありません。宝石は失われません。出てきた宝石はいずれ必ず獲得できるので、この数字は正確です。払い出されたメダルがその後どうなるかは、ほかのメダルと同じくフィールドしだいです。新しいマシンには最初から宝石が${start}個置いてありますが、ここの数字には入れていません。`,
+  makerLine: '型式 GF-777',
+  panelWarning: 'メダル専用　台をたたいたり、ゆらしたりしないでください',
   sayLucky: 'メダルが斜面を滑って、光っているチャッカーに入りました。金の抽選です。',
   luckyOddsNote: (ordinary, gold, seconds, share) =>
     `ラッキーランプ：3つのチャッカーのうち1つが金色に光り、プッシャーが1往復する${seconds}秒ごとに、光が左から順にとなりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、その1枚ではじめから金の抽選になります。ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です。ランプを狙うことはできません。メダルがレールから縁に着くまでには約30秒かかり、そのあいだに光は何度も移るからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。毎秒2枚までの速さで実測すると、抽選全体の約${share}がランプによる金の抽選でした。3つのうち1つが光っているので、3分の1になります。`,

@@ -4,6 +4,7 @@ import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { mouthOnDrawing } from '../../src/components/game/MedalPusher/catcher';
 import { FIELD, PUSHER, buildTowers, queuePayout } from '../../src/components/game/MedalPusher/engine';
 import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { TRAY_ARRIVAL } from '../../src/components/game/MedalPusher/panel';
 import { SLOT_LIGHT } from '../../src/components/game/MedalPusher/render';
 import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
@@ -819,6 +820,54 @@ function hitSizes(page: Page, ids: string[]) {
     ids,
   );
 }
+/**
+ * What a display of LED digits shows, read off its lit segments: the display that follows the number in type with
+ * this test id. Null if a place lights something that is no digit.
+ */
+function digitsShown(page: Page, testId: string): Promise<string | null> {
+  return page.evaluate((id) => {
+    const digitOf: Record<string, string> = { '1111110': '0', '0110000': '1', '1101101': '2', '1111001': '3', '0110011': '4', '1011011': '5', '1011111': '6', '1110000': '7', '1111111': '8', '1111011': '9', '0000000': '' };
+    const written = document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`);
+    const places = [...(written?.parentElement?.querySelectorAll('svg') ?? [])].filter((svg) => svg.querySelector('polygon'));
+    const read = places.map((svg) => digitOf[[...svg.querySelectorAll('polygon')].map((segment) => (segment.getAttribute('data-on') === 'true' ? '1' : '0')).join('')]);
+    return places.length === 0 || read.includes(undefined as unknown as string) ? null : read.join('');
+  }, testId);
+}
+/** Opens the game on a machine this browser remembers, with so many medals in its purse. */
+async function openWithPurse(page: Page, credits: number) {
+  const session = createSession(5, { balls: 0 });
+  session.credits = credits;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  await expect.poll(() => counter(page, 'credits'), { timeout: 15_000 }).toBe(credits);
+}
+const medalTray = (page: Page) => machine(page).getByTestId('pusher-tray');
+/**
+ * Notes every medal the tray acts out, from the moment the page opens: what it came out of for one that comes in
+ * ('chute' or 'cup'), and 'out' for one that leaves. Returns a way to read what has been noted so far.
+ */
+async function recordTray(page: Page) {
+  await page.addInitScript(() => {
+    const acted: string[] = [];
+    (window as unknown as { trayActed?: string[] }).trayActed = acted;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          for (const flight of node.matches('[data-way]') ? [node] : [...node.querySelectorAll('[data-way]')]) acted.push(flight.getAttribute('data-from') ?? 'out');
+        }
+      }
+    }).observe(document, { childList: true, subtree: true });
+  });
+  return () => page.evaluate(() => [...((window as unknown as { trayActed?: string[] }).trayActed ?? [])]);
+}
 /** Has the page believe it is hidden, or showing again, and tells it so. */
 async function setHidden(page: Page, hidden: boolean) {
   await page.evaluate((hide) => {
@@ -1301,6 +1350,184 @@ test.describe('in the hand, on a phone', () => {
     await expectPurseToBalance(page);
   });
 
+  test('the control panel is a machine’s: LED digits for the medals over a tray that holds them, lamps in the buttons and the switches', async ({ page }) => {
+    test.setTimeout(60_000);
+    const trouble = watchForTrouble(page);
+    await openWithPurse(page, 25);
+    await alive(page);
+    const controls = machine(page).getByTestId('pusher-controls');
+    await controls.scrollIntoViewIfNeeded();
+    // The number of medals is still written, for whoever reads the page, and is not what is seen: the display over it is.
+    const written = machine(page).getByTestId('pusher-credits');
+    await expect(written).toHaveText('25');
+    await expect(written).toHaveCSS('color', 'rgba(0, 0, 0, 0)');
+    expect(await digitsShown(page, 'pusher-credits')).toBe('25');
+    // The tray holds the purse: twenty-five medals, each drawn.
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '25');
+    await expect(medalTray(page)).toHaveAttribute('aria-hidden', 'true');
+    // The panel is hardly taller for all this than it was as a row of plain controls (about 258 px in the site's own
+    // type). How tall the lines of words stand differs by a few pixels from one system's fonts to the next, so the
+    // bound leaves room for that: it is there to catch a row added, not a pixel.
+    const panel = await controls.boundingBox();
+    expect(panel?.height ?? 999).toBeLessThanOrEqual(272);
+    const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+    expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+
+    // A medal is fed: the counter, the digits and the heap are one fewer, and stay in step.
+    await expect(async () => {
+      await feedButton(page, 'left').tap();
+      await page.waitForTimeout(400);
+      expect(await counter(page, 'credits')).toBeLessThan(25);
+    }).toPass({ timeout: 20_000 });
+    await expect
+      .poll(async () => {
+        const purse = await counter(page, 'credits');
+        return [(await digitsShown(page, 'pusher-credits')) === String(purse), (await medalTray(page).getAttribute('data-heap')) === String(Math.min(60, purse))];
+      })
+      .toEqual([true, true]);
+
+    // L and R are lit while a medal can be fed. Held down, the cap goes down its travel in a bezel that stays put.
+    const cap = (rail: Rail) =>
+      feedButton(page, rail).evaluate((button) => {
+        const dome = getComputedStyle(button, '::before');
+        return { travel: dome.transform, bezel: getComputedStyle(button).transform, box: button.getBoundingClientRect().width };
+      });
+    const up = await cap('right');
+    expect(up.travel).toBe('none');
+    const touch = await touchScreen(page);
+    const r = await middleOf(feedButton(page, 'right'));
+    await touch('touchStart', [{ ...r, id: 1 }]);
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    await expect.poll(async () => (await cap('right')).travel).toBe('matrix(1, 0, 0, 1, 0, 3)');
+    const down = await cap('right');
+    expect(down.bezel).toBe('none');
+    expect(down.box).toBe(up.box);
+    await touch('touchEnd', [{ ...r, id: 1 }]);
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'false');
+
+    // A switch says that it is on with a lamp: its cap is lit, and the switch itself is never a filled pill.
+    const lamp = () =>
+      autoButton(page).evaluate((button) => {
+        const cap = getComputedStyle(button, '::before');
+        return { fill: getComputedStyle(button).backgroundImage, glow: cap.boxShadow, width: cap.width, height: cap.height };
+      });
+    const off = await lamp();
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'true');
+    const on = await lamp();
+    expect(off.fill).toBe('none');
+    expect(on.fill).toBe('none');
+    expect([on.width, on.height]).toEqual(['26px', '26px']);
+    expect(on.glow).not.toBe(off.glow);
+    expect(on.glow).toMatch(/11px 2px/);
+    expect(off.glow).not.toMatch(/11px 2px/);
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'false');
+
+    // The jackpot is on a display too, and the display shows what is written on its plate, whoever writes it: the
+    // show that pays a jackpot counts the plate up, and the digits follow.
+    const plate = machine(page).getByTestId('pusher-jackpot');
+    await expect(plate).toHaveText(String(JACKPOT_START));
+    expect(await digitsShown(page, 'pusher-jackpot')).toBe(String(JACKPOT_START));
+    await plate.evaluate((element) => {
+      (element.firstChild as Text).data = '1,205';
+    });
+    await expect.poll(() => digitsShown(page, 'pusher-jackpot')).toBe('1205');
+    // What is printed and riveted on the panel is there to be seen, not read out.
+    await expect(machine(page).getByTestId('pusher-maker')).toHaveAttribute('aria-hidden', 'true');
+    await expect(machine(page).getByTestId('pusher-warning')).toHaveText('MEDALS ONLY · DO NOT STRIKE OR ROCK THE MACHINE');
+    expect(trouble).toEqual([]);
+  });
+
+  test('a refill is tipped into the empty tray, each medal showing its share of the heap as it lands, and all of them are down at once when less motion is asked for', async ({ page }) => {
+    test.setTimeout(60_000);
+    // The page's clock is the test's: it runs as usual until it is stopped, and from then on a medal in the air stays
+    // in the air until the test lets time pass.
+    await page.clock.install();
+    const acted = await recordTray(page);
+    await openWithPurse(page, 0);
+    await alive(page);
+    await expect(feedButton(page, 'left')).toBeDisabled();
+    await expect(feedButton(page, 'right')).toBeDisabled();
+    expect(await digitsShown(page, 'pusher-credits')).toBe('0');
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '0');
+    await expect(medalTray(page).locator('ellipse')).toHaveCount(0);
+    // A machine this browser remembered with an empty purse, a hundred fewer than a new one's: nothing was acted out.
+    expect(await acted()).toEqual([]);
+
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+    const refill = machine(page).getByTestId('pusher-refill');
+    await expect(async () => {
+      await refill.tap({ timeout: 1_000 });
+      expect(await counter(page, 'credits')).toBe(START_CREDITS);
+    }).toPass({ timeout: 20_000 });
+    expect(await digitsShown(page, 'pusher-credits')).toBe(String(START_CREDITS));
+    // A refill is a cupful tipped in over the rim: its medals are seen on their way, none of them out of the chute,
+    // and the heap they are bringing, a full one, is not lying there yet.
+    const { medals, time, apart } = TRAY_ARRIVAL.refill;
+    const cupful = medalTray(page).locator('[data-way="in"][data-from="cup"]');
+    await expect(cupful).toHaveCount(medals);
+    expect((await acted()).filter((from) => from === 'cup')).toHaveLength(medals);
+    expect(await acted()).not.toContain('out');
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '0');
+    // Each brings its share of the heap, and that share is seen when that medal lands and not before: the first when
+    // its time in the air is up, and one more for every gap between them after that.
+    await page.clock.runFor(time + 10);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', String(60 / medals));
+    await expect(cupful).toHaveCount(medals - 1);
+    await page.clock.runFor(apart);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', String((2 * 60) / medals));
+    await expect(cupful).toHaveCount(medals - 2);
+    // Less motion is asked for with the rest still in the air. They are not drawn on their way any more, so they are
+    // down: the whole heap is lying there, and nothing waits for a drawing that will never finish.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(medalTray(page).locator('[data-way]')).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    // And motion is allowed again: they do not set off a second time.
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.clock.runFor(1_000);
+    await expect(cupful).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect((await acted()).filter((from) => from === 'cup')).toHaveLength(medals);
+    await page.clock.resume();
+    await expect(feedButton(page, 'left')).toBeEnabled();
+  });
+
+  test('the tray acts out what happened and never a change in the count: nothing for a machine that is remembered or reset, a medal leaving for one that is fed', async ({ page }) => {
+    test.setTimeout(60_000);
+    const acted = await recordTray(page);
+    // Twenty fewer than a new machine's purse: a small change in the count, and nothing has happened but that this
+    // browser remembered the machine.
+    await openWithPurse(page, START_CREDITS - 20);
+    await alive(page);
+    await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect(await acted()).toEqual([]);
+    // The machine is reset: twenty more in the purse, a win's worth, and none of them was won. Nothing is acted out.
+    const reset = machine(page).getByTestId('pusher-reset');
+    await reset.scrollIntoViewIfNeeded();
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'true');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'false');
+    await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+    expect(await acted()).toEqual([]);
+    // A medal is fed on the left rail: one is seen to leave the tray.
+    await feedButton(page, 'left').scrollIntoViewIfNeeded();
+    await expect(async () => {
+      await feedButton(page, 'left').tap();
+      await page.waitForTimeout(300);
+      expect(await counter(page, 'credits')).toBeLessThan(START_CREDITS);
+    }).toPass({ timeout: 20_000 });
+    await expect.poll(acted).toContain('out');
+    expect(await acted()).not.toContain('cup');
+    // When it has gone the tray is as it says: nothing in the air, and the heap lying there.
+    await expect(medalTray(page).locator('[data-way="out"]')).toHaveCount(0);
+    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
+  });
+
   test('on a phone with no vibration and no fullscreen, as an iPhone is, neither switch is shown and nothing is kept free for it', async ({ page }) => {
     test.setTimeout(60_000);
     await page.addInitScript(() => {
@@ -1327,6 +1554,92 @@ test.describe('in the hand, on a phone', () => {
   });
 });
 
+test.describe('in the hand, a phone on its side', () => {
+  test.use({ viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+
+  test('filling the screen, the stage stands in the middle and each rail’s controls are at their own hand', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openGame(page);
+    await alive(page);
+    const button = feelSwitch(page, 'fullscreen');
+    await button.scrollIntoViewIfNeeded();
+    await button.tap();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    const laidOut = () =>
+      page.evaluate(() => {
+        const full = document.fullscreenElement;
+        const box = (id: string) => document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`)?.getBoundingClientRect();
+        const ids = ['pusher-feed-left', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-fullscreen', 'pusher-credits', 'pusher-jackpot', 'pusher-tray'];
+        const field = box('pusher-field');
+        return {
+          // Nothing in it scrolls, though the place a record's toast hangs from is still at the top of the cabinet.
+          scrolls: !!full && (full.scrollHeight > full.clientHeight || full.scrollWidth > full.clientWidth),
+          offScreen: ids.filter((id) => {
+            const rect = box(id);
+            return !rect || rect.left < 0 || rect.top < 0 || rect.right > window.innerWidth || rect.bottom > window.innerHeight;
+          }),
+          field: field ? { left: field.left, right: field.right, top: field.top, bottom: field.bottom } : null,
+          left: ['pusher-feed-left', 'pusher-aim-left'].map((id) => box(id)?.right ?? Infinity),
+          right: ['pusher-feed-right', 'pusher-aim-right'].map((id) => box(id)?.left ?? -Infinity),
+          tall: window.innerHeight,
+          wide: window.innerWidth,
+          // How far what is in the cabinet reaches, and how much of it the screen shows.
+          reach: full ? [full.scrollHeight, full.clientHeight, full.scrollWidth, full.clientWidth] : null,
+          // The place a record's toast hangs from: the first thing in the cabinet.
+          band: (() => {
+            const band = full?.firstElementChild;
+            if (!band) return null;
+            const rect = band.getBoundingClientRect();
+            const style = getComputedStyle(band);
+            return { position: style.position, clips: style.overflowY, takes: style.pointerEvents, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+          })(),
+        };
+      });
+    // The picture is as tall as the screen allows, and that is settled a frame after the layout changes.
+    await expect.poll(async () => ((await laidOut()).field?.bottom ?? 0) - ((await laidOut()).field?.top ?? 0), { timeout: 5_000 }).toBeGreaterThan(300);
+    const side = await laidOut();
+    if (!side.field) throw new Error('the field has no box');
+    expect(side.scrolls).toBe(false);
+    expect(side.offScreen).toEqual([]);
+    expect(side.field.bottom - side.field.top).toBeLessThanOrEqual(side.tall);
+    // What is in the cabinet reaches exactly as far as the screen, both ways. The track a toast's rail runs in on the
+    // page is as tall as the stage is wide, and left in the cabinet as it was it reached 24 px below the bottom of a
+    // screen this short. Here it is a band over the top of the stage: it has no place in the layout, it is no taller
+    // than a toast, it is clear of both hands' plates, and a press goes through it.
+    expect(side.reach).toEqual([side.tall, side.tall, side.wide, side.wide]);
+    if (!side.band) throw new Error('the toast has no band');
+    expect(side.band.position).toBe('absolute');
+    expect(side.band.clips).toBe('hidden');
+    expect(side.band.takes).toBe('none');
+    expect(side.band.top).toBeGreaterThanOrEqual(0);
+    expect(side.band.bottom).toBeLessThanOrEqual(side.tall / 2);
+    expect(side.band.left).toBeGreaterThanOrEqual(side.field.left - 1);
+    expect(side.band.right).toBeLessThanOrEqual(side.field.right + 1);
+    // L and the left rail's aim are to the left of the picture, R and the right rail's to its right.
+    for (const edge of side.left) expect(edge).toBeLessThanOrEqual(side.field.left + 1);
+    for (const edge of side.right) expect(edge).toBeGreaterThanOrEqual(side.field.right - 1);
+    // Two thumbs hold both, one at either side of the screen.
+    const touch = await touchScreen(page);
+    const l = await middleOf(feedButton(page, 'left'));
+    const r = await middleOf(feedButton(page, 'right'));
+    await touch('touchStart', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'true');
+    await expect(feedButton(page, 'right')).toHaveAttribute('data-held', 'true');
+    await touch('touchEnd', [
+      { ...l, id: 1 },
+      { ...r, id: 2 },
+    ]);
+    await expect(feedButton(page, 'left')).toHaveAttribute('data-held', 'false');
+    await expect.poll(() => counter(page, 'played')).toBeGreaterThanOrEqual(2);
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expectPurseToBalance(page);
+  });
+});
+
 test('on a desk there is a fullscreen button and no vibration switch, and with less motion asked for vibration starts off', async ({ page, browser }) => {
   test.setTimeout(60_000);
   await openGame(page);
@@ -1346,6 +1659,16 @@ test('on a desk there is a fullscreen button and no vibration switch, and with l
   await feelSwitch(phone, 'vibration').tap();
   await expect(feelSwitch(phone, 'vibration')).toHaveAttribute('aria-pressed', 'true');
   expect(await phone.evaluate((key) => window.localStorage.getItem(key), FEEL_STORAGE_KEY)).toBe(JSON.stringify({ v: 1, vibration: true, sweep: false }));
+  // There the panel keeps still: the bulbs along the sign do not chase, a pressed button's cap does not travel, and
+  // no medal is acted out leaving the tray. The lamps and the numbers work as anywhere.
+  const still = await phone.evaluate(() => {
+    const sign = document.querySelector('#pusher-panel-machine [data-testid="pusher-jackpot"]')?.parentElement?.parentElement;
+    return sign ? getComputedStyle(sign, '::before').animationName : 'no sign';
+  });
+  expect(still).toBe('none');
+  await feedOne(phone);
+  await expect(machine(phone).getByTestId('pusher-tray').locator('[data-way]')).toHaveCount(0);
+  await expect.poll(async () => (await machine(phone).getByTestId('pusher-tray').getAttribute('data-heap')) === String(Math.min(60, await counter(phone, 'credits')))).toBe(true);
   await context.close();
 });
 

@@ -1,0 +1,997 @@
+/* The control panel and the sign over the cabinet, as objects.
+
+   A station's panel is a sloped plate with a printed overlay, screwed down at its corners: illuminated push buttons
+   in chrome bezels, small lit switches, sliders in slots with a printed scale, a counter of LED digits behind smoked
+   acrylic, and a steel tray the medals are paid into. This sheet draws those over the controls the cabinet already
+   has. It changes how they look and nothing of how they work: where they are, how large they are to hit, what they
+   are called and what they do is the other sheet's and the components' own. So the parts are found here by what
+   they are (a button with a rail, a button that is pressed or not, a slider), not by a name, and a switch or a
+   slider that is added to the panel later looks like the rest without being told to. */
+
+/* ---------- The plate ---------- */
+
+/* A dark printed overlay on a metal plate. It catches the light along its far edge and has a thick near edge, as a
+   plate that slopes towards the player does; a screw at each corner; a fine print of pinstripes; and the overlay is
+   rubbed pale where the two thumbs rest. (Each of the panel's own classes is written with its element, so that it
+   outranks the class it sits beside in the other sheet whichever of the two is loaded last.) */
+div.plate {
+  position: relative;
+  padding-bottom: 0.8rem;
+  border-radius: 7px 7px 13px 13px;
+  background:
+    radial-gradient(circle at 9px 9px, #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+    radial-gradient(circle at calc(100% - 9px) 9px, #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+    radial-gradient(circle at 9px calc(100% - 9px), #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #f1f3f9 0 1px, #9096ab 1.2px 2.6px, #23203a 2.8px 3.8px, transparent 4px),
+    radial-gradient(64px 50px at 14% 24%, rgba(255, 255, 255, 0.09), transparent 72%),
+    radial-gradient(64px 50px at 86% 24%, rgba(255, 255, 255, 0.09), transparent 72%),
+    repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, #41327a 0%, #2a1e56 38%, #1a1238 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.55),
+    0 3px 0 #0b0720,
+    0 6px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- L and R: illuminated push buttons ---------- */
+
+/* The button is its bezel: a ring of chrome let into the plate. The cap that is pressed is a dome of amber plastic
+   inside it with a lamp under it, and stands proud of the bezel until it is pressed. */
+.plate button[data-arm] {
+  border: 0;
+  background: conic-gradient(from 205deg, #f6f8fc, #7c8397 11%, #eceff6 24%, #575c6f 38%, #e3e7f1 52%, #6b7184 66%, #f6f8fc 82%, #8a90a4 93%, #f6f8fc);
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  color: #5d3100;
+}
+.plate button[data-arm]::before {
+  content: '';
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  /* The lamp is lit: a medal can be fed. */
+  background: radial-gradient(circle at 50% 42%, #fffbe1 0%, #ffe487 20%, #ffc526 48%, #e58c00 76%, #8c4c00 100%);
+  box-shadow:
+    0 0 0 2px #17100a,
+    0 3px 0 #5d3700,
+    0 5px 6px rgba(0, 0, 0, 0.6),
+    inset 0 -7px 11px rgba(126, 62, 0, 0.6),
+    inset 0 4px 8px rgba(255, 255, 255, 0.55),
+    0 0 14px rgba(255, 201, 64, 0.55);
+  transition:
+    transform 70ms ease-out,
+    box-shadow 70ms ease-out;
+}
+/* The light on the dome's shoulder. */
+.plate button[data-arm]::after {
+  content: '';
+  position: absolute;
+  left: 23%;
+  top: 15%;
+  width: 40%;
+  height: 21%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
+  transform: rotate(-18deg);
+  pointer-events: none;
+  transition: transform 70ms ease-out;
+}
+/* The letter is moulded into the cap. */
+.plate button[data-arm] > span {
+  position: relative;
+  z-index: 1;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6),
+    0 -1px 0 rgba(94, 44, 0, 0.45);
+  transition: transform 70ms ease-out;
+}
+/* Pressed: the cap goes down its travel into the bezel, the shadow under it closes, and the lamp flares. */
+.plate button[data-arm][data-held='true']:not(:disabled) {
+  transform: none;
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.plate button[data-arm][data-held='true']:not(:disabled)::before {
+  transform: translateY(3px);
+  background: radial-gradient(circle at 50% 44%, #ffffff 0%, #fff6c4 26%, #ffd84e 56%, #f0a000 82%, #a05c00 100%);
+  box-shadow:
+    0 0 0 2px #17100a,
+    0 0 0 #5d3700,
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 -5px 9px rgba(126, 62, 0, 0.45),
+    inset 0 3px 7px rgba(255, 255, 255, 0.7),
+    0 0 26px 7px rgba(255, 222, 122, 0.9);
+}
+.plate button[data-arm][data-held='true']:not(:disabled)::after {
+  transform: translateY(3px) rotate(-18deg);
+}
+.plate button[data-arm][data-held='true']:not(:disabled) > span {
+  transform: translateY(3px);
+}
+/* No medal to feed: the lamp is out, and the cap is the colour of the plastic alone. */
+.plate button[data-arm]:disabled {
+  border: 0;
+  background: conic-gradient(from 205deg, #c9ccd6, #6b7083 11%, #c2c6d1 24%, #4d5162 38%, #babfcb 52%, #5d6273 66%, #c9ccd6 82%, #747a8c 93%, #c9ccd6);
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  color: #d8ccb0;
+}
+.plate button[data-arm]:disabled::before {
+  background: radial-gradient(circle at 50% 42%, #a08a5a 0%, #7d6537 45%, #4e3d1d 80%, #2f240f 100%);
+  box-shadow:
+    0 0 0 2px #17100a,
+    0 3px 0 #2b2110,
+    0 5px 6px rgba(0, 0, 0, 0.6),
+    inset 0 -7px 11px rgba(0, 0, 0, 0.45),
+    inset 0 4px 8px rgba(255, 255, 255, 0.18);
+}
+.plate button[data-arm]:disabled::after {
+  opacity: 0.35;
+}
+.plate button[data-arm]:disabled > span {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+/* The key that works a button is printed on the plate beside it, at the corner nearer the middle: a small square
+   legend, not a badge on the cap. */
+.plate button[data-arm] > kbd {
+  top: auto;
+  bottom: -1px;
+  left: auto;
+  right: auto;
+  z-index: 1;
+  min-width: 1.5em;
+  padding: 0.08em 0.25em;
+  border: 1px solid rgba(236, 232, 255, 0.75);
+  border-radius: 3px;
+  background: #1b1340;
+  color: #ece8ff;
+  font-size: 0.62rem;
+  transform: none;
+}
+.plate button[data-arm='0'] > kbd {
+  right: -3px;
+}
+.plate button[data-arm='1'] > kbd {
+  left: -3px;
+}
+
+/* ---------- The switches ---------- */
+
+/* Every switch of the panel is a small square push switch with a lamp under its cap, and its name is printed on the
+   plate beside it. What says that it is on is the light, and the cap sitting lower in its bezel; the colour of the
+   lamp is only which switch it is. A picture the switch carries is printed on its cap. */
+.plate button[aria-pressed],
+.plate button[aria-expanded] {
+  --cap: #8ff3ff;
+  --cap-deep: #1fa9c6;
+  flex: none;
+  gap: 0;
+  /* As tall as the cap in its bezel: the strip that takes a thumb (the other sheet's) reaches 5 px past it either
+     way, and the rows of switches are further apart than twice that. */
+  min-height: 34px;
+  padding: 0 0.05rem 0 32px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #e9e4ff;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.plate button[aria-pressed]::before,
+.plate button[aria-expanded]::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin-top: -14px;
+  border-radius: 5px;
+  /* Off: smoked plastic, with the lamp behind it just to be made out. */
+  background: radial-gradient(circle at 50% 45%, #45435f 0%, #24213c 62%, #14121f 100%);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--cap) 34%, #1a1730) 0%, #24213c 62%, #14121f 100%);
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 3px #9ba1b6,
+    0 0 0 4px #2c2f40,
+    0 2px 0 4px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 70ms ease-out,
+    box-shadow 70ms ease-out;
+}
+/* On: the lamp is lit, the cap glows and has latched a little lower. */
+.plate button[aria-pressed='true'],
+.plate button[aria-expanded='true'] {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: #ffffff;
+}
+.plate button[aria-pressed='true']::before,
+.plate button[aria-expanded='true']::before {
+  background: radial-gradient(circle at 50% 42%, #ffffff 0%, var(--cap) 42%, var(--cap-deep) 100%);
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 3px #b9bfd2,
+    0 0 0 4px #2c2f40,
+    0 1px 0 4px rgba(0, 0, 0, 0.45),
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    0 0 11px 2px rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 3px #b9bfd2,
+    0 0 0 4px #2c2f40,
+    0 1px 0 4px rgba(0, 0, 0, 0.45),
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    0 0 11px 2px color-mix(in srgb, var(--cap) 75%, transparent);
+  transform: translateY(1px);
+}
+/* The picture on a cap: the first thing in the switch, if it is a picture and not its name. */
+.plate button[aria-pressed] > :is(svg, span[aria-hidden]):first-child,
+.plate button[aria-expanded] > :is(svg, span[aria-hidden]):first-child {
+  position: absolute;
+  left: 1px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: -14px;
+  padding: 5px;
+  color: #c9c4e6;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+  transition: transform 70ms ease-out;
+}
+.plate button[aria-pressed='true'] > :is(svg, span[aria-hidden]):first-child,
+.plate button[aria-expanded='true'] > :is(svg, span[aria-hidden]):first-child {
+  color: #06222b;
+  transform: translateY(1px);
+}
+/* A switch that is nothing but its cap: the cap is in the middle of a button wide enough for a thumb. */
+.plate button[aria-expanded] {
+  width: 44px;
+  padding: 0;
+}
+.plate button[aria-expanded]::before,
+.plate button[aria-expanded] > :is(svg, span[aria-hidden]):first-child {
+  left: 50%;
+  margin-left: -13px;
+}
+/* Which switch is which lamp. One that is not named here, as a switch added to the panel later is not, is pale blue. */
+.plate button[data-testid='pusher-auto'] {
+  --cap: #ffd94a;
+  --cap-deep: #d99200;
+}
+.plate button[data-testid='pusher-sound'],
+.plate button[data-testid='pusher-music'] {
+  --cap: #8dff9a;
+  --cap-deep: #1fae3c;
+}
+.plate button[data-testid='pusher-sound-settings'] {
+  --cap: #ffffff;
+  --cap-deep: #a9b0c6;
+}
+.plate button[data-testid='pusher-vibration'] {
+  --cap: #ffb1f0;
+  --cap-deep: #c941a8;
+}
+.plate button[data-testid='pusher-fullscreen'] {
+  --cap: #ffffff;
+  --cap-deep: #a9b0c6;
+}
+.plate button[data-testid='pusher-arcade'] {
+  --cap: #ffb86b;
+  --cap-deep: #d86a12;
+}
+
+/* The row of sound settings has three things on one line of a phone: a fader and two switches. There is no room
+   there for a name beside each cap, and on a machine's panel there would be none either: the switches of a row like
+   this are small ones, each with its name printed on the plate under it. So here: a smaller cap, 22 px, in the
+   middle of a button wide enough for a thumb, and its name under it. The two are then narrow enough, in either
+   language and in a wide font, for the fader to keep well over the width it needs: the row's e2e test asks for 120 px
+   of slider, and the harness (soundrow.mjs) measures what is to spare. Cap and name together are no taller than
+   the fader with its words over it, so the row is as short as it was. */
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] {
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 46px;
+  min-height: 39px;
+  padding: 29px 0.1rem 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed]::before,
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] > span[aria-hidden]:first-child {
+  left: 50%;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 -11px;
+}
+.plate [data-testid='pusher-sound-panel'] > button[aria-pressed] > span[aria-hidden]:first-child {
+  padding: 4px;
+  font-size: 0.8rem;
+}
+
+/* ---------- The sliders ---------- */
+
+/* A slider is a fader: a slot milled in the plate, a ridged metal cap that runs in it, and a scale printed along it.
+   The cap is 28 px wide, a broad one, because on a phone it is the cap that has to be caught. The scale is the
+   slider's own background, so every slider of the panel has one; it runs along the cap's travel, which is the slot
+   less half a cap at either end. */
+.plate input[type='range'] {
+  background: repeating-linear-gradient(90deg, rgba(233, 228, 255, 0.75) 0 1px, transparent 1px calc((100% - 1px) / 10)) 14px calc(50% + 11px) / calc(100% - 28px) 5px no-repeat;
+}
+.plate input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: #05030c;
+  box-shadow:
+    inset 0 1px 2px #000000,
+    0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.plate input[type='range']::-moz-range-track {
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: #05030c;
+  box-shadow:
+    inset 0 1px 2px #000000,
+    0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.plate input[type='range']::-webkit-slider-thumb {
+  width: 28px;
+  height: 30px;
+  margin-top: -12px;
+  border: 1px solid #1a1c2a;
+  border-radius: 4px;
+  background:
+    linear-gradient(#ff6a3d, #ff6a3d) center / 2px 62% no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, #6a7186, #eef1f8 28%, #b3b9ca 50%, #eef1f8 72%, #6a7186);
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.plate input[type='range']::-moz-range-thumb {
+  width: 28px;
+  height: 30px;
+  border: 1px solid #1a1c2a;
+  border-radius: 4px;
+  background:
+    linear-gradient(#ff6a3d, #ff6a3d) center / 2px 62% no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, #6a7186, #eef1f8 28%, #b3b9ca 50%, #eef1f8 72%, #6a7186);
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+/* What a slider is for is printed over it. */
+.plate label {
+  color: #e9e4ff;
+  letter-spacing: 0.06em;
+}
+/* The marks of an aim's scale: a pip under the slot for each START pocket the rail can feed, printed gold, and
+   over the slot, while the rails swing, a lit arrow where a medal fed now would drop. They are placed along the cap's
+   travel, which is the slot less half a cap at either end. */
+.scale {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  height: 0;
+  pointer-events: none;
+}
+.scale > i {
+  position: absolute;
+  left: calc(100% * var(--mp-at, 0));
+  transform: translateX(-50%);
+}
+/* A pip is just under where the cap reaches, so that it is still seen when the cap stands on it: the line down the
+   cap's middle is set against it. */
+.pocket {
+  top: 15px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid #ffd65c;
+}
+.lead {
+  bottom: 8px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #fff3b0;
+  filter: drop-shadow(0 0 3px rgba(255, 214, 92, 0.95));
+}
+
+/* ---------- The counter and the tray ---------- */
+
+/* Between the two buttons: the counter of medals, a row of LED digits behind a smoked window with its name printed
+   over it, and under it the tray the medals lie in. Together they are as tall as a button. */
+div.counter {
+  align-self: stretch;
+  justify-self: center;
+  width: min(100%, 9.5rem);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-items: center;
+  justify-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+/* Its name, printed on the plate over the window. */
+.counter > span:first-child {
+  grid-area: 1 / 1;
+  color: #e9e4ff;
+  font-size: 0.47rem;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-align: center;
+}
+/* The number in type: it lies over the window, exactly, where the digits show it, and is not seen. It is what a
+   screen reader reads and what the page is asked for. */
+.counter > strong {
+  grid-area: 2 / 1;
+  align-self: stretch;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0.7rem;
+  line-height: 1;
+  text-shadow: none;
+  white-space: nowrap;
+}
+.counter > .display {
+  grid-area: 2 / 1;
+  margin: 2px 3px 3px;
+}
+.counter > .tray {
+  grid-area: 3 / 1;
+}
+
+/* A display: LED digits behind a window of smoked acrylic, in a bezel. Every segment can be made out; the lit ones
+   glow. */
+.display {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background:
+    linear-gradient(170deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%),
+    #120404;
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 2.5px #8f95aa,
+    0 0 0 3.5px #262838,
+    inset 0 2px 5px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.display[data-tone='amber'] {
+  background:
+    linear-gradient(170deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%),
+    #140c02;
+}
+.digit {
+  display: block;
+  flex: none;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 14 / 20;
+  overflow: visible;
+}
+.digit polygon {
+  fill: #ff4a26;
+  opacity: 0.11;
+}
+.digit polygon[data-on='true'] {
+  opacity: 1;
+  filter: drop-shadow(0 0 1.2px rgba(255, 88, 44, 0.95));
+}
+.display[data-tone='amber'] .digit polygon {
+  fill: #ffc02e;
+}
+.display[data-tone='amber'] .digit polygon[data-on='true'] {
+  filter: drop-shadow(0 0 1.2px rgba(255, 196, 62, 0.95));
+}
+.mirror {
+  display: block;
+}
+
+/* The tray: a dish of pressed steel that fills what room the counter leaves, and asks for none of its own. Its rim
+   is bright at the near edge; its well is dark at the back, under the panel, and catches the light at the front. At
+   the back of the well is the mouth of the chute the machine pays through, with the lip the medals slide off. */
+.tray {
+  position: relative;
+  display: block;
+  align-self: stretch;
+  min-height: 0;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #3c4152 0%, #8f96aa 50%, #d9deea 100%);
+  box-shadow:
+    0 0 0 1px #1b1d28,
+    0 1px 0 1px rgba(255, 255, 255, 0.18);
+  line-height: 0;
+  overflow: hidden;
+}
+.tray::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #0c0d14 0%, #3a3f50 55%, #7c8498 100%);
+  box-shadow: inset 0 0 0 1px #0a0b10;
+}
+.tray::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 24px;
+  height: 9px;
+  margin-left: -12px;
+  border-bottom: 1.5px solid #aeb5c8;
+  background: #05060a;
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+}
+/* The medals are drawn over the dish, at their own shape, standing on its floor. */
+.tray > svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* A medal on its way: in to its place, out of the chute's mouth or over the rim, with a small bounce as it comes to
+   rest; or off the heap towards the button that fed it, and gone. Where it sets off, how long it takes and how long
+   after the others it goes are the medal's own (panel.ts), and so is when it has landed: the place it lands on is
+   not drawn until then, and is drawn then whether or not this has been seen to finish. */
+.flight[data-way='in'] {
+  animation: mp-tray-in 300ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
+}
+/* A cupful comes down faster, and straighter, than medals sliding out of the chute. */
+.flight[data-way='in'][data-from='cup'] {
+  animation-timing-function: cubic-bezier(0.5, 0, 1, 0.7);
+}
+.flight[data-way='out'] {
+  animation: mp-tray-out 220ms ease-in both;
+}
+@keyframes mp-tray-in {
+  0% {
+    transform: translate(var(--mp-dx), var(--mp-dy));
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  84% {
+    transform: translate(0, 0);
+  }
+  92% {
+    transform: translate(0, -1.8px);
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+@keyframes mp-tray-out {
+  from {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--mp-dx), var(--mp-dy));
+    opacity: 0;
+  }
+}
+/* Where less motion is asked for nothing is acted out: the heap only changes. */
+@media (prefers-reduced-motion: reduce) {
+  .flight {
+    display: none;
+  }
+  .plate button[data-arm]::before,
+  .plate button[data-arm]::after,
+  .plate button[data-arm] > span,
+  .plate button[aria-pressed]::before,
+  .plate button[aria-expanded]::before {
+    transition: none;
+  }
+  .plate button[data-arm][data-held='true']:not(:disabled)::before,
+  .plate button[data-arm][data-held='true']:not(:disabled)::after,
+  .plate button[data-arm][data-held='true']:not(:disabled) > span {
+    transform: none;
+  }
+  .plate button[data-arm][data-held='true']:not(:disabled)::after {
+    transform: rotate(-18deg);
+  }
+}
+
+/* ---------- What is printed and riveted on the plate ---------- */
+
+/* The row the first switches are in starts at the left, and has the maker's plate at its other end where there is
+   room for one: a row too narrow for both has the switches alone. */
+div.switches {
+  position: relative;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  container-type: inline-size;
+}
+/* In the middle of the row where the plate is not beside them: on a wide panel, where it is at the row's end, and on
+   the narrowest phones, where it is not there at all. */
+@media (min-width: 30rem), (max-width: 23rem) {
+  div.switches {
+    justify-content: center;
+  }
+}
+/* The maker's plate: a small plate of brushed metal, riveted on at the end of the row of switches. */
+.maker {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  flex: none;
+  margin-left: auto;
+  padding: 3px 9px;
+  border-radius: 2px;
+  background:
+    radial-gradient(circle at 3px 50%, #3a3d4b 0 1px, transparent 1.3px),
+    radial-gradient(circle at calc(100% - 3px) 50%, #3a3d4b 0 1px, transparent 1.3px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 2px),
+    linear-gradient(180deg, #d5d9e4, #9aa0b3);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  color: #1c1d29;
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.maker > b {
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+@container (max-width: 18.5rem) {
+  .maker {
+    display: none;
+  }
+}
+/* On a wide panel the switches are in the middle of their row, like the row under them, and the plate is at the
+   row's end without pushing them aside. */
+@container (min-width: 23rem) {
+  .maker {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    margin: 0;
+    transform: translateY(-50%);
+  }
+}
+/* The warning every such panel carries, in small print along its near edge. */
+.warning {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 3px;
+  margin: 0;
+  overflow: hidden;
+  color: rgba(233, 228, 255, 0.72);
+  font-size: 0.47rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The pay card: what each line of the slot leads to, printed on a strip of black plate under the glass, as the
+   card of a machine's pays is. Its three legends are the three lamps' colours, as they were, and it is no wider
+   inside than the strip was, so that they stay on one line on a phone. */
+div.card {
+  margin-top: 5px;
+  padding: 2px 1px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #17142a, #0c0a18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+}
+/* Its legends stand a little closer together than they did, to leave the plate a margin at either end. */
+div.card > span {
+  gap: 0.1rem 0.55rem;
+}
+/* The button under the panel that an empty purse lights: a wide illuminated push button, as the one that calls for
+   more medals is, in a bezel of its own. It is lit because it is there only when it can be pressed. */
+button.attendant {
+  position: relative;
+  /* Room round it for its bezel, which is drawn outside it. */
+  width: calc(100% - 10px);
+  margin: 13px 5px 6px;
+  border: 0;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #fff2a6 0%, #ffc526 42%, #e58c00 100%);
+  box-shadow:
+    0 0 0 2px #17100a,
+    0 0 0 4px #aab0c4,
+    0 0 0 5px #2c2f40,
+    0 4px 0 5px rgba(0, 0, 0, 0.45),
+    inset 0 2px 3px rgba(255, 255, 255, 0.7),
+    inset 0 -5px 8px rgba(126, 62, 0, 0.45),
+    0 0 18px rgba(255, 201, 64, 0.6);
+  color: #3d2000;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+button.attendant:active {
+  box-shadow:
+    0 0 0 2px #17100a,
+    0 0 0 4px #aab0c4,
+    0 0 0 5px #2c2f40,
+    0 1px 0 5px rgba(0, 0, 0, 0.45),
+    inset 0 2px 3px rgba(255, 255, 255, 0.7),
+    inset 0 -3px 6px rgba(126, 62, 0, 0.4),
+    0 0 26px 4px rgba(255, 222, 122, 0.85);
+}
+
+/* ---------- The sign ---------- */
+
+/* The marquee is a backlit sign: a sheet of pink acrylic in a chrome frame with lamps behind it, letters of gold
+   acrylic standing off it, and a row of bulbs along its top and bottom edges that light by turns. */
+div.sign {
+  position: relative;
+  border: 2px solid #c9ced9;
+  border-radius: 12px 12px 6px 6px;
+  background:
+    radial-gradient(90px 60px at 18% 50%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(90px 60px at 52% 50%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(90px 60px at 86% 50%, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #ff4fa3 0%, #e0277f 45%, #8a1058 100%);
+  box-shadow:
+    0 0 0 1px #3d4152,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 -7px 12px rgba(60, 0, 40, 0.55),
+    0 0 16px rgba(255, 79, 163, 0.45);
+}
+.sign::before,
+.sign::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 4px;
+  background-image: radial-gradient(circle at 50% 50%, #fffbe0 0 1.1px, #ffd65c 1.5px, rgba(255, 214, 92, 0) 2.2px), radial-gradient(circle at 50% 50%, #7b3a5e 0 1.3px, rgba(123, 58, 94, 0) 1.8px);
+  background-size:
+    16px 4px,
+    16px 4px;
+  background-position:
+    0 0,
+    8px 0;
+  /* Two changes a second: every other bulb, then the ones between. */
+  animation: mp-sign-chase 1s steps(1, end) infinite;
+  pointer-events: none;
+}
+.sign::before {
+  top: 2px;
+}
+.sign::after {
+  bottom: 2px;
+  animation-delay: -0.5s;
+}
+@keyframes mp-sign-chase {
+  0% {
+    background-position:
+      0 0,
+      8px 0;
+  }
+  50% {
+    background-position:
+      8px 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      0 0,
+      8px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sign::before,
+  .sign::after {
+    animation: none;
+  }
+}
+/* The letters: gold acrylic, lit from behind and standing off the sheet. */
+.sign > div:first-child > span:first-child {
+  color: #fff7cf;
+  -webkit-text-stroke: 0.6px #8a5200;
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.95),
+    0 0 14px rgba(255, 224, 120, 0.9),
+    0 2px 0 #c58a12,
+    0 3px 0 #8f6208,
+    0 5px 4px rgba(50, 0, 30, 0.6);
+}
+.sign > div:first-child > span:last-child {
+  color: #ffffff;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
+}
+/* The JACKPOT plate: its name printed on a black plate, and under it the figure on a display like the counter's.
+   The figure in type lies over the display, unseen, as the counter's does. */
+.sign > div:last-child {
+  position: relative;
+  gap: 2px;
+  padding: 3px 7px 5px;
+  border: 1px solid #b9bfd2;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #23243a, #0d0e18);
+  box-shadow:
+    0 0 0 1px #05040b,
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+}
+.sign > div:last-child > [data-testid='pusher-jackpot'] {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 5px;
+  height: 24px;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0.7rem;
+  text-shadow: none;
+}
+.sign .display {
+  min-width: 4.6rem;
+}
+/* While a jackpot is being counted out on the plate its digits burn brighter. */
+.sign [data-counting='true'] + .mirror .digit polygon[data-on='true'] {
+  filter: drop-shadow(0 0 2.4px rgba(255, 226, 120, 1)) brightness(1.25);
+}
+
+/* Where the page's own colours are overridden (a high-contrast mode), type that is not to be seen would be seen,
+   over the digits that show the same number. There the numbers are plain type and the displays are put away. */
+@media (forced-colors: active) {
+  .display,
+  .mirror {
+    display: none;
+  }
+  .counter > strong,
+  .sign > div:last-child > [data-testid='pusher-jackpot'] {
+    position: static;
+    height: auto;
+    color: CanvasText;
+    font-size: 1.2rem;
+  }
+}
+
+/* ---------- The cabinet filling the screen ---------- */
+
+/* The panel has no foot there. What is stuck on the cabinet's front under it on the page (the instruction plate's
+   sticker) is not a control, and puts itself away while the cabinet fills the screen, by a rule of its own sheet:
+   that is the one rule about it, and this sheet has none. The screen is the game and its controls, laid out to fit
+   without scrolling, and on a short phone there are only a few pixels of it to spare. */
+
+/* A short screen held upright has no room under the last row of switches for the small print. */
+@media (orientation: portrait) and (max-height: 720px) {
+  :fullscreen .warning {
+    display: none;
+  }
+}
+
+/* On its side the controls leave the plate for the two hands (the other sheet lays a plate under each), so what is
+   printed along the plate's near edge has no edge to be on, and a narrow column has no room for the maker's. The
+   counter and its tray stand at the head of the left hand's column, and the tray has a height of its own there. */
+@media (orientation: landscape) {
+  :fullscreen .warning {
+    display: none;
+  }
+  /* The sign is taken apart there too: its name heads one hand's plate and the jackpot the other's, and there is no
+     sheet for the row of bulbs to run along. */
+  :fullscreen div.sign::before,
+  :fullscreen div.sign::after {
+    display: none;
+  }
+  /* The counter is beside its tray there, to be no taller than a switch. */
+  :fullscreen div.counter {
+    align-self: start;
+    align-content: start;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 30px;
+    width: min(100%, 12.5rem);
+  }
+  :fullscreen .counter > span:first-child {
+    grid-area: 1 / 1 / 2 / 3;
+    text-align: left;
+  }
+  :fullscreen .counter > strong,
+  :fullscreen .counter > .display {
+    grid-area: 2 / 1;
+  }
+  :fullscreen .counter > .display {
+    margin: 3px 6px 3px 3px;
+  }
+  :fullscreen .counter > .tray {
+    grid-area: 2 / 2;
+  }
+  /* A hand's column is narrower than the panel, and a phone on its side is short: a second line of switches there,
+     with the sound settings open under it, is more than the screen is tall. So the switches at the right hand keep
+     to one line. Where the column has room for their names beside their caps they are as on the page; where it has
+     not, each is a cap with its name printed under it, as in the row of sound settings, and the three of them are
+     then well inside the narrowest column whatever their names are. */
+  :fullscreen div.switches {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+  :fullscreen .maker {
+    align-self: center;
+  }
+  @container (max-width: 14rem) {
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded]) {
+      flex-direction: column;
+      justify-content: flex-end;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 34px 0.1rem 0;
+      font-size: 0.6rem;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded])::before,
+    :fullscreen div.switches > button:is([aria-pressed], [aria-expanded]) > :is(svg, span[aria-hidden]):first-child {
+      left: 50%;
+      top: 3px;
+      margin: 0 0 0 -13px;
+    }
+  }
+}
+@media (orientation: landscape) and (max-width: 900px) {
+  :fullscreen .maker {
+    display: none;
+  }
+}
+/* A phone on its side is short: the jackpot's name is beside its figure there, on one line. */
+@media (orientation: landscape) and (max-height: 480px) {
+  :fullscreen .sign > div:last-child {
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+  }
+  :fullscreen .sign > div:last-child > [data-testid='pusher-jackpot'] {
+    left: auto;
+    right: 6px;
+    bottom: 4px;
+    width: 4.6rem;
+  }
+}

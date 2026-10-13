@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { caught } from './catcher';
+import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
@@ -10,11 +11,14 @@ import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS } from './lottery';
+import { MedalTray, type MedalTrayHandle } from './MedalTray';
+import type { TrayCause } from './panel';
 import { PlateSticker } from './PlateSticker';
 import { ageStage, celebrate, createStage, lightGate, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
+import { SegmentDisplay, SegmentMirror } from './SegmentDisplay';
 import {
   ballRollsAt,
   ballTipsAt,
@@ -43,6 +47,7 @@ import { hopperBusy } from './hopper';
 import { LIFT, holds as liftHolds } from './lift';
 import { getWorksStrings } from './worksStrings';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
+import look from './ControlPanel.module.css';
 import styles from './MedalPusher.module.css';
 
 /** Medals a second when Auto is on, between the two rails: it feeds them by turns. */
@@ -85,6 +90,10 @@ export const sliderShare = (arm: Arm, percent: number): number => {
 };
 /** The START pockets each rail can feed, in the sliders' percent: what its slider marks as worth timing a press for. */
 export const POCKETS_IN_REACH = ([0, 1] as const).map((arm) => CHECKERS.positions.filter((x) => x >= ARM_REACH[arm].min && x <= ARM_REACH[arm].max).map(aimPercent)) as [number[], number[]];
+
+/** How many digits the counter of medals has, and the jackpot's plate. */
+export const COUNTER_PLACES = 5;
+export const JACKPOT_PLACES = 4;
 
 /** The kinds of input a letter does nothing in, so a key pressed with the focus there is still the machine's. */
 const NOT_TYPED_IN = ['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'color', 'file'];
@@ -164,6 +173,9 @@ interface Hud {
   paid: number;
   jewels: number;
 }
+
+/** No medal was fed in a frame: most frames. */
+const NONE_FED: readonly (-1 | 1)[] = [];
 
 const hudOf = (session: Session): Hud => ({
   credits: session.credits,
@@ -304,6 +316,11 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   // What fed each medal since the last frame, noted where the machine took it: a press or a held button. The frame
   // loop takes the notes when it plays the hand its pattern.
   const fedBy = useRef<FedBy[]>([]);
+  // The tray in front of the player. It is told what happened to the purse (a medal fed, medals won, the day's
+  // bonus, a refill) and acts that out; it is never left to tell why from how much the count changed. Medals that
+  // are seen to land in it are heard there as they land.
+  const tray = useRef<MedalTrayHandle>(null);
+  const landInTray = useCallback((medals: number) => playSound('tray', live.current.sound, { count: medals }), []);
   // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
   const [lead, setLead] = useState<[number, number] | null>(null);
 
@@ -497,7 +514,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
     setAims([session.machine.aims[0], session.machine.aims[1]]);
-    // Nothing is held over from the machine before.
+    // Nothing is held over from the machine before, and none of its medals is still on its way into the tray: a
+    // machine that is restored, reset or swapped for the account's shows its purse and acts nothing out.
+    tray.current?.still();
     for (const hold of holds.current) hold.by.clear();
     aimKeys.current.clear();
     aimers.current.clear();
@@ -602,8 +621,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
-      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it.
+      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it, and
+      // it is seen to leave the tray towards the button of the rail it is on. The newest medals on the rails are the
+      // ones that went in: nothing has rolled off a rail since they did.
+      let fedNow = NONE_FED;
       if (session.inserted !== fedSeen) {
+        const rolling = session.machine.rolling;
+        fedNow = rolling.slice(Math.max(0, rolling.length - (session.inserted - fedSeen))).map((medal) => (medal.arm === 0 ? -1 : 1));
         fedSeen = session.inserted;
         wake.current?.played();
       }
@@ -649,13 +673,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
       let landed = false;
       let won = 0;
+      let bonus = 0;
       let lost = false;
       for (const event of events) {
         switch (event.type) {
           case 'bonus':
-            // The day's bonus: its medals are heard coming down into the tray.
+            // The day's bonus: its medals come down into the tray, and are heard there (below).
             playSound('prize', soundOn);
-            playSound('win', soundOn, { count: event.count });
+            bonus += event.count;
             setAnnouncement(strings.sayBonus(event.count));
             break;
           case 'landed':
@@ -827,8 +852,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         if (medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= elapsed - 1e-9) continue;
         if ((caught(medal, session.machine.time, calm.matches, session.rush)?.near ?? -1) >= 0) playSound('land', soundOn, { bare: true });
       }
+      // The tray is told what this frame did to the purse, by what happened: the medals fed, the day's bonus and the
+      // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it
+      // (`landInTray`); where it does not (less motion is asked for) they are heard as they always were, after the
+      // fall from the front. Never both: a medal is one medal in the tray.
+      if (fedNow.length > 0 || bonus > 0 || won > 0) {
+        const arrived: { cause: TrayCause; count: number }[] = [];
+        if (bonus > 0) arrived.push({ cause: 'bonus', count: bonus });
+        if (won > 0) arrived.push({ cause: 'won', count: won });
+        if (!tray.current?.happened({ purse: session.credits, fed: fedNow, arrived }) && bonus + won > 0) playSound('win', soundOn, { count: bonus + won });
+      }
       // Each is its own sound: a medal can land in the very frame another goes over the front or off the side.
-      if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) {
         // On the bare table a medal rings, and on other medals it is damped: the machine knows which it came down on.
@@ -1020,6 +1054,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const onRefill = () => {
     const session = sessionRef.current;
     if (session && refill(session)) {
+      // A cupful, tipped into the tray: it is seen to come down, and heard as it does.
+      tray.current?.happened({ purse: session.credits, fed: [], arrived: [{ cause: 'refill', count: session.credits }] });
       setHud(hudOf(session));
       keeper.current?.save('moment');
     }
@@ -1067,7 +1103,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       <div className={styles.cabinet} data-banner={screen.banner}>
         <AchievementToast sound={sound} />
         <div className={styles.bulbs} aria-hidden />
-        <div className={styles.marquee}>
+        <div className={`${styles.marquee} ${look.sign}`}>
           <div className={styles.logo} aria-hidden>
             <span className={styles.logoMain}>GOLDEN FEVER</span>
             <span className={styles.logoSub}>ゴールデンフィーバー</span>
@@ -1078,6 +1114,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             <span className={styles.jackpotValue} data-testid="pusher-jackpot" data-counting={screen.banner === 'jackpot'}>
               {fmt(screen.banner === 'jackpot' ? screen.amount : hud.jackpot)}
             </span>
+            <SegmentMirror initial={hud.jackpot} places={JACKPOT_PLACES} tone="amber" />
           </div>
         </div>
 
@@ -1165,7 +1202,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           />
         </div>
         {/* What each line of the slot leads to. There is no room for it on the screen now that the screen is in the cabinet. */}
-        <div className={styles.legendBelow} aria-hidden data-testid="pusher-legend">
+        <div className={`${styles.legendBelow} ${look.card}`} aria-hidden data-testid="pusher-legend">
           <span className={styles.legend}>
             <span data-tier="seven">{t.legendSeven}</span>
             <span data-tier="big">{t.legendOdd}</span>
@@ -1174,13 +1211,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         </div>
 
         {/* The controls: a feed button for each rail at either end, the medals on a plate between them, and under them an aim for each rail. */}
-        <div className={styles.panel} data-testid="pusher-controls">
+        <div className={`${styles.panel} ${look.plate}`} data-testid="pusher-controls">
           {feedButton(0)}
-          <div className={styles.credit}>
+          {/* The counter and the tray. The number is in type, for whoever reads the page; what is seen is the display
+              over it and the heap under it. */}
+          <div className={`${styles.credit} ${look.counter}`}>
             <span className={styles.creditLabel}>{t.medals}</span>
             <strong className={styles.creditValue} data-testid="pusher-credits">
               {fmt(hud.credits)}
             </strong>
+            <SegmentDisplay value={hud.credits} places={COUNTER_PLACES} />
+            <MedalTray ref={tray} credits={hud.credits} onLand={landInTray} />
           </div>
           {feedButton(1)}
           <div className={styles.aims}>
@@ -1206,29 +1247,33 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
                   onPointerDown={takeOver}
                   onChange={(event) => aimRail(arm, percentAim(Number(event.target.value)))}
                 />
-                {feel.prefs.sweep && lead && (
-                  <span className={styles.aimMarks} aria-hidden data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]}>
-                    {POCKETS_IN_REACH[arm].map((pocket) => (
-                      <i key={pocket} className={styles.aimPocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
-                    ))}
-                    <i className={styles.aimLead} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
-                  </span>
-                )}
+                {/* What is printed along the slot: a pip for each START pocket this rail can feed. While the rails swing,
+                    a lit arrow over the slot shows where a medal fed now would drop. */}
+                <span className={look.scale} aria-hidden>
+                  {POCKETS_IN_REACH[arm].map((pocket) => (
+                    <i key={pocket} className={look.pocket} style={{ '--mp-at': sliderShare(arm, pocket) } as CSSProperties} />
+                  ))}
+                  {feel.prefs.sweep && lead && (
+                    <i className={look.lead} data-testid={arm === 0 ? 'pusher-lead-left' : 'pusher-lead-right'} data-at={lead[arm]} style={{ '--mp-at': sliderShare(arm, lead[arm]) } as CSSProperties} />
+                  )}
+                </span>
               </div>
             ))}
           </div>
-          <div className={styles.toggles}>
+          <div className={`${styles.toggles} ${look.switches}`}>
             <button type="button" className={styles.toggle} aria-pressed={auto} title={t.autoHint} data-testid="pusher-auto" onClick={() => setAuto(!auto)}>
-              {t.auto}
+              <AutoIcon /> {t.auto}
             </button>
             <button type="button" className={styles.toggle} aria-pressed={sound} data-testid="pusher-sound" onClick={toggleSound}>
-              <span aria-hidden>{sound ? '🔊' : '🔇'}</span> {t.sound}
+              <SpeakerIcon on={sound} /> {t.sound}
             </button>
             <SoundSettingsButton control={soundControl} strings={t} />
+            <MakersPlate strings={t} />
           </div>
           <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
           <SoundSettingsPanel control={soundControl} strings={t} />
           <FeelNote strings={t} sweep={feel.prefs.sweep} />
+          <PanelWarning strings={t} />
         </div>
 
         <p className={styles.keysNote} data-testid="pusher-keys">
@@ -1236,7 +1281,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         </p>
 
         {hud.credits === 0 && (
-          <button type="button" className={styles.refill} data-testid="pusher-refill" onClick={onRefill}>
+          <button type="button" className={`${styles.refill} ${look.attendant}`} data-testid="pusher-refill" onClick={onRefill}>
             {t.refill(START_CREDITS)}
           </button>
         )}

@@ -730,7 +730,7 @@ function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: numbe
   const { time } = machine;
   const spots = mouthSpots(time);
   const half = slotHalf(wings);
-  const gold = litSlots(time, wings);
+  const gold = litSlots(time, wings, calm);
   const upper = CATCHER.back;
   const lower = upper + START_SLOT.long;
   const words = SLOPE.long - APRON;
@@ -871,7 +871,7 @@ function buildHood(solid: Solid, front: number): void {
  * when a medal has just gone down a slot, the burst of light over the slot,
  * well out over the slide at first, and on the words.
  */
-function catcherTouches(flat: Flat, machine: Machine, stage: Stage, wings: boolean): void {
+function catcherTouches(flat: Flat, machine: Machine, stage: Stage, wings: boolean, calm: boolean): void {
   const { from, to, rim, tile } = CATCHER;
   const { time } = machine;
   /** A touch on the slide: from x0 to x1 across and from `s0` down it to `s1`, `lift` clear of it. */
@@ -882,7 +882,7 @@ function catcherTouches(flat: Flat, machine: Machine, stage: Stage, wings: boole
   flat.ink(BLACK, WELL_DARK.lip).fade(BLACK, WELL_DARK.edge);
   lay(from, to, 0, CATCHER.gap, 0);
   const spots = mouthSpots(time);
-  const gold = litSlots(time, wings);
+  const gold = litSlots(time, wings, calm);
   const middle = CATCHER.back + START_SLOT.long / 2;
   const words = SLOPE.long - APRON;
   /** A glow over slot `i`, reaching `wide` to either side of its middle and up and down the slide. */
@@ -1178,8 +1178,8 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
  * all three are; and so is the lamp of a slot a medal has just dropped
  * through, for as long as the slot shines.
  */
-export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wave: number, wings = false): void {
-  const gold = litSlots(machine.time, wings);
+export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wave: number, wings = false, calm = false): void {
+  const gold = litSlots(machine.time, wings, calm);
   for (let i = 0; i < gold.length; i++) {
     // Gold, and bigger, while the lucky lamp is on the slot or a medal has just gone down it; in the slot's own
     // colour, glowing a little, when not.
@@ -1321,7 +1321,7 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
   // The light of the gap under the hood, on the hood's own face.
   flat.ink(GLOW_GOLD, 0, 0.4).quad(0, HOUSING.hood + 3, HOUSING.out + 0.05, W, HOUSING.hood + 3, HOUSING.out + 0.05, W, HOUSING.hood - 1.6, HOUSING.out + 0.05, 0, HOUSING.hood - 1.6, HOUSING.out + 0.05, SHAPE.line);
 
-  catcherTouches(flat, machine, stage, options.wings ?? false);
+  catcherTouches(flat, machine, stage, options.wings ?? false, options.calm ?? false);
 
   // Where a medal that leaves each arm now is let go, and how far from that it can land: from the
   // arm's tip, which is over its aim once it has swung there, down to the pusher. One guide for each arm.

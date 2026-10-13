@@ -2028,7 +2028,7 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
   g.lineWidth = 1.2;
   line(g, board[0], board[1]);
 
-  const gold = litSlots(time, wings);
+  const gold = litSlots(time, wings, calm);
   const { ring } = SLOT_SHAPE;
   CHECKERS.positions.forEach((x, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;

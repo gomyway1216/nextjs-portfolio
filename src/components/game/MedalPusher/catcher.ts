@@ -192,8 +192,27 @@ export const slotHalf = (wings = false): number => MEDAL_RADIUS + (wings ? CHECK
 /** Half the width of a tongue: the rule's width, so that a medal's middle is over it exactly when the rule counts the medal. It is wider while the wings are open. */
 export const tongueHalf = (wings = false): number => (wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
 
-/** Which slots are lit gold at `time`, from the left: the one the lucky lamp is on, or all of them while the wings are open. */
-export const litSlots = (time: number, wings = false): boolean[] => CHECKERS.positions.map((_x, slot) => wings || slot === luckySlot(time));
+/**
+ * The slot the lucky lamp is shown on at `time`, from the left.
+ *
+ * The lamp itself steps as the pusher comes to the back of its stroke, by
+ * the machine's clock, and a medal's slot was lit or was not as the medal
+ * came over the lip (`luckySlot` in engine.ts; the session keeps that with
+ * the medal). But the medal drops into its slot a ride later, and medals come
+ * over the lip late in the pusher's way back: for most of them the lamp
+ * steps while they are on their tongues. Shown where the lamp stands, a slot
+ * would be dark as a medal that came over it lit dropped in, and gold as one
+ * that did not: six entries in ten, on a quiet table. So the light is shown
+ * where the lamp stood a ride ago. It is then on a medal's slot as the medal
+ * drops exactly when it was as the medal came over, for every medal, and it
+ * is seen to step a ride after the pusher turns. Where nothing is shown
+ * moving (`still`) a medal is taken as it comes over, and the light is where
+ * the lamp is.
+ */
+export const lampShown = (time: number, still = false): number => luckySlot(Math.max(0, time - (still ? 0 : START_RIDE)));
+
+/** Which slots are lit gold at `time`, from the left: the one the lucky lamp is shown on (`lampShown`), or all of them while the wings are open. */
+export const litSlots = (time: number, wings = false, still = false): boolean[] => CHECKERS.positions.map((_x, slot) => wings || slot === lampShown(time, still));
 
 /** How far down the slide from the lip the strip with the words begins: under the lower bars of the slots' frames. */
 const WORDS_FROM = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { CATCHER, caught, nearness } from './catcher';
+import { CATCHER, caught, lampShown, nearness } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
-import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, luckySlot, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
@@ -602,8 +602,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const airborne: number[] = [];
     // The clock of the roulette's turn as it was a frame ago, or less than nothing while no turn was on.
     let turnClock = -1;
-    // The pocket the lucky lamp was on when the last frame was drawn: it is heard to step when that changes.
-    let lampOn = luckySlot(session.machine.time);
+    // The pocket the lucky lamp was shown on when the last frame was drawn: it is heard to step when that changes.
+    let lampOn = lampShown(session.machine.time, calm.matches);
     let frameId = 0;
 
     const frame = (now: number) => {
@@ -867,9 +867,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
         }
       }
-      // The lucky lamp steps to the next pocket as the pusher comes to the back of its stroke, and its relay is
-      // heard. Not in chance time: every pocket is lit then, and no light is seen to move.
-      const lamp = luckySlot(session.machine.time);
+      // The lucky lamp's light steps to the next pocket a ride after the pusher comes to the back of its stroke
+      // (`lampShown` in catcher.ts), and its relay is heard as it does. Not in chance time: every pocket is lit then,
+      // and no light is seen to move.
+      const lamp = lampShown(session.machine.time, calm.matches);
       if (lamp !== lampOn) {
         lampOn = lamp;
         if (!session.rush) playSound('lampStep', soundOn);

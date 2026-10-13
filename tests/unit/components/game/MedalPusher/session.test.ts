@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CATCHER, caught } from '@/components/game/MedalPusher/catcher';
+import { CATCHER, caught, lampShown, litSlots } from '@/components/game/MedalPusher/catcher';
 import {
   AIM,
   CHECKERS,
@@ -1946,7 +1946,8 @@ describe('the ride from the lip to the pocket', () => {
       session.credits = 1e6;
       const events: SessionEvent[] = [];
       /** The medals on their tongues as the screen was told of them: the step each is due to drop in, its slot, and whether that was lit. */
-      const due: { at: number; gate: number; lit: boolean }[] = [];
+      const due: { at: number; gate: number; lit: boolean; wings: boolean }[] = [];
+      let byLamp = 0;
       let over = 0;
       let taken = 0;
       let gold = 0;
@@ -1960,12 +1961,19 @@ describe('the ride from the lip to the pocket', () => {
           if (event.type === 'riding') {
             // Lit by the lamp where the machine's clock has it, or by the wings as they stood when the step began.
             expect(event.lit).toBe(wings || event.gate === luckySlot(session.machine.time));
-            due.push({ at: step + RIDE, gate: event.gate, lit: event.lit });
+            due.push({ at: step + RIDE, gate: event.gate, lit: event.lit, wings });
             over += 1;
           } else if (event.type === 'checker') {
             // The oldest of them, in this very step; and a spin it holds is gold exactly when its slot was lit as it came over.
             const first = due.shift();
             expect(first).toMatchObject({ at: step, gate: event.gate });
+            // And the light the cabinet shows on its slot as it drops is what the lamp was as it came over: the
+            // picture never has a medal drop into a gold slot for a plain spin, or into a dark one for a gold spin.
+            if (first && !first.wings) {
+              expect(lampShown(session.machine.time) === event.gate).toBe(first.lit);
+              expect(litSlots(session.machine.time)[event.gate]).toBe(first.lit);
+              byLamp += 1;
+            }
             if (event.held) expect(event.lucky).toBe(first?.lit);
             else expect(event.lucky).toBe(false);
             taken += 1;
@@ -1978,6 +1986,8 @@ describe('the ride from the lip to the pocket', () => {
         expect(over).toBe(taken + session.riding.length);
       }
       expect(taken).toBeGreaterThan(100);
+      // With both rails held the wings are open most of the time; a good many came over with them shut all the same.
+      expect(byLamp).toBeGreaterThan(10);
       expect(gold).toBeGreaterThan(10);
       expect(session.lucky).toBe(gold);
       // Every medal that dropped started a spin, is held, or found the hold full.

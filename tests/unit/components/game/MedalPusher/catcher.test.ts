@@ -10,6 +10,7 @@ import {
   apronSpot,
   caught,
   clearOfFoot,
+  lampShown,
   lampSpot,
   litSlots,
   mouthOnDrawing,
@@ -29,7 +30,7 @@ import {
   type Rolled,
 } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS, chuckerSpot, droppedThrough, grazed } from '@/components/game/MedalPusher/chuckers';
-import { CHECKERS, FIELD, JEWEL_DROP, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, JEWEL_DROP, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, START_RIDE, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
 import { advance, createSession, insert } from '@/components/game/MedalPusher/session';
 import { APRON_CAP, BALL_RADIUS, SLOT_SHAPE } from '@/components/game/MedalPusher/render';
 import { EYE_AT, HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
@@ -316,21 +317,40 @@ describe('the catcher for the START slots', () => {
     }
   });
 
-  it('lights one slot gold at a time, which steps along with every stroke of the pusher, and all three while the wings are open', () => {
+  it('lights one slot gold at a time, which steps along with every stroke of the pusher, a ride after the lamp itself; and all three while the wings are open', () => {
     expect(LUCKY.dwell).toBe(PUSHER.period);
+    expect(CATCHER.sink).toBe(START_RIDE);
     for (let stroke = 0; stroke < CHUCKERS.count * 2 + 1; stroke++) {
-      for (const share of [0, 0.25, 0.5, 0.99]) {
+      for (const share of [0, 0.1, 0.25, 0.5, 0.99]) {
         const time = (stroke + share) * LUCKY.dwell;
         const lit = litSlots(time);
         expect(lit).toHaveLength(CHUCKERS.count);
-        // One and only one, the one the engine says, which is the next one along from the stroke before.
+        // One and only one: the one the lamp stood on a ride ago, which is the one a medal dropping now came over.
         expect(lit.filter(Boolean)).toHaveLength(1);
-        expect(lit.indexOf(true)).toBe(luckySlot(time));
-        expect(lit.indexOf(true)).toBe(stroke % CHUCKERS.count);
+        expect(lit.indexOf(true)).toBe(lampShown(time));
+        expect(lampShown(time)).toBe(luckySlot(Math.max(0, time - START_RIDE)));
+        // That is the lamp's own slot for most of a stroke, and the one before it for the first ride's length of one.
+        const stepped = share * LUCKY.dwell >= START_RIDE || stroke === 0;
+        expect(lit.indexOf(true)).toBe((stepped ? stroke : stroke - 1) % CHUCKERS.count);
         expect(litSlots(time, false)).toEqual(lit);
         expect(litSlots(time, true)).toEqual(ALL.map(() => true));
+        // Where nothing is shown moving a medal is taken as it comes over, and the light is where the lamp is.
+        expect(lampShown(time, true)).toBe(luckySlot(time));
+        expect(litSlots(time, false, true).indexOf(true)).toBe(stroke % CHUCKERS.count);
       }
     }
+  });
+
+  it('has the light on a medal’s slot as the medal drops exactly when the lamp was on it as the medal came over, whenever in the stroke that was', () => {
+    for (let came = 0; came < PUSHER.period * 7; came += 1 / 60) {
+      const drops = came + START_RIDE;
+      for (const slot of ALL) expect(litSlots(drops)[slot]).toBe(slot === luckySlot(came));
+    }
+    // Most medals come over late in the pusher's way back, less than a ride before the lamp steps. Shown where the
+    // lamp stands, the slot of such a medal would have changed its light before the medal dropped.
+    const late = PUSHER.period - START_RIDE / 2;
+    expect(luckySlot(late)).not.toBe(luckySlot(late + START_RIDE));
+    expect(lampShown(late + START_RIDE)).toBe(luckySlot(late));
   });
 
   it('shows each slot on the drawing as an opening wider than it is tall, three side by side, big enough to be seen on a phone and clear of the lip', () => {

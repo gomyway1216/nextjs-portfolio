@@ -13,6 +13,7 @@ import {
   JEWEL_DROP,
   MEDAL_RADIUS,
   PUSHER,
+  RELEASE,
   ROLL_TIME,
   SETTLE,
   TOWER,
@@ -448,10 +449,26 @@ const ball = (save: Save): Row => find(save.machine.medals, (medal) => medal.bal
 const loose = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0 && medal.jewel !== true);
 const jewel = (save: Save): Row => find(save.machine.medals, (medal) => medal.jewel === true);
 /** Makes the medal in the air a jewel the hatch has let go. */
-const jewelInAir = (save: Save): Row => Object.assign(inAir(save), { source: 'payout', level: 0, rank: 0, jewel: true });
+const jewelInAir = (save: Save): Row =>
+  Object.assign(inAir(save), {
+    x: (JEWEL_DROP.from + JEWEL_DROP.to) / 2,
+    y: (JEWEL_DROP.near + JEWEL_DROP.far) / 2,
+    level: 0,
+    fromX: (JEWEL_DROP.from + JEWEL_DROP.to) / 2,
+    fromY: RELEASE.depth,
+    rank: 0,
+    ball: false,
+    remaining: JEWEL_DROP.time / 2,
+    duration: JEWEL_DROP.time,
+    source: 'payout',
+    jewel: true,
+  });
 /** Marks `count` more of the loose medals on the tables as jewels. */
 const moreJewels = (save: Save, count: number): void => {
-  const plainOnes = save.machine.medals.filter((medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0 && medal.tier === 0 && medal.jewel !== true);
+  // Only where a jewel can be: on the lower table, on the table itself, and not on its way down from the pusher's lip.
+  const plainOnes = save.machine.medals.filter(
+    (medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0 && medal.tier === 0 && medal.level === 0 && medal.sinceDrop === -1 && medal.jewel !== true,
+  );
   if (plainOnes.length < count) throw new Error('the good save has too few medals for that');
   for (const medal of plainOnes.slice(0, count)) medal.jewel = true;
 };
@@ -769,11 +786,25 @@ describe('a save that has been damaged', () => {
       },
     ],
     ['a jewel lying on top of the pile', (save) => (jewel(save).tier = 1)],
+    // Every way a jewel is made puts it on the lower table, and nothing carries one up onto the pusher.
+    ['a jewel on the pusher, where none can get', (save) => (jewel(save).level = 1)],
+    ['a jewel on the pusher among its medals, as a medal there is stored', (save) => Object.assign(jewel(save), { level: 1, y: PUSHER.min })],
+    ['a jewel on its way down from the pusher’s lip, which none has come over', (save) => (jewel(save).sinceDrop = 0.1)],
+    ['a jewel that has just come over the lip', (save) => (jewel(save).sinceDrop = 0)],
     ['more jewels than a machine can hold', (save) => moreJewels(save, LIMITS.jewels + 1 - START_JEWELS)],
     ['a jewel in the air that the player fed', (save) => (jewelInAir(save).source = 'player')],
     ['a jewel in the air that is a ball as well', (save) => (jewelInAir(save).ball = true)],
     ['a jewel in the air over the pusher, where the hatch throws none', (save) => (jewelInAir(save).level = 1)],
     ['a jewel in the air off a tower', (save) => (jewelInAir(save).rank = 1)],
+    // The hatch throws a jewel one way only: straight out, in the time its throw takes, onto the middle of the lower table.
+    ['a jewel in the air that will land to one side of where the hatch throws', (save) => Object.assign(jewelInAir(save), { x: JEWEL_DROP.to + 0.5, fromX: JEWEL_DROP.to + 0.5 })],
+    ['a jewel in the air that will land on the other side of it', (save) => Object.assign(jewelInAir(save), { x: JEWEL_DROP.from - 0.5, fromX: JEWEL_DROP.from - 0.5 })],
+    ['a jewel in the air that will land short of where the hatch throws', (save) => (jewelInAir(save).y = JEWEL_DROP.near - 0.5)],
+    ['a jewel in the air that will land past it', (save) => (jewelInAir(save).y = JEWEL_DROP.far + 0.5)],
+    ['a jewel in the air thrown from somewhere that is not the hatch', (save) => (jewelInAir(save).fromY = RELEASE.depth + 4)],
+    ['a jewel in the air thrown across the field', (save) => (jewelInAir(save).fromX = JEWEL_DROP.from)],
+    ['a jewel in the air for longer than the hatch’s throw takes', (save) => (jewelInAir(save).duration = JEWEL_DROP.time + 0.1)],
+    ['a jewel in the air for less than the throw takes', (save) => Object.assign(jewelInAir(save), { duration: JEWEL_DROP.time / 2, remaining: JEWEL_DROP.time / 4 })],
     ['a medal in the air that says it is not a jewel', (save) => (inAir(save).jewel = false)],
     ['as many lamps lit as there are', (save) => (save.session.jewels = JEWEL.lamps)],
     ['half a lamp lit', (save) => (save.session.jewels = 0.5)],

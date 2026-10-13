@@ -60,7 +60,9 @@ import {
   ARM_REACH,
   DROP_INTERVAL,
   FIELD,
+  JEWEL_DROP,
   MEDAL_RADIUS,
+  RELEASE,
   ROLL_TIME,
   SETTLE,
   TOWER,
@@ -266,11 +268,16 @@ const plainMedal = shape<Omit<Medal, 'jewel'>>(
 );
 
 /**
- * A jewel is stored as a medal that says it is one, and is neither a ball
- * nor a tower, nor lying on top of anything. Whatever is not a jewel is
- * stored without the field, exactly as it was before there were jewels.
+ * A jewel is stored as a medal that says it is one. It is held to everything
+ * the machine makes true of a jewel. It is neither a ball nor a tower. It
+ * lies on the lower table, on the table itself: a new machine has its two
+ * there and the hatch throws every other there, nothing carries one onto the
+ * pusher, and nothing lies under one. And it has never come over the
+ * pusher's lip, so it is not on its way down from it. Whatever is not a
+ * jewel is stored without the field, exactly as it was before there were
+ * jewels.
  */
-const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.grow === 0 && m.tier === 0);
+const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.grow === 0 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
 
 const medal: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedal(value) : plainMedal(value));
 
@@ -303,8 +310,28 @@ const inAir = {
 
 const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir, (m) => m.remaining <= m.duration);
 
-/** A jewel in the air is one the machine has let go: on its way to the lower table, and not a ball. */
-const jewelFalling = shape<Required<FallingMedal>>({ ...inAir, jewel: set }, (m) => m.remaining <= m.duration && !m.ball && m.source === 'payout' && m.level === 0 && m.rank === 0);
+/**
+ * A jewel in the air is one the hatch has thrown, and the hatch throws one
+ * way only (`dropJewel`): not a ball and not off a tower, straight out from
+ * the hatch, in the time its throw takes, to come down on the lower table
+ * within the patch in the middle of it that the hatch throws to.
+ */
+const jewelFalling = shape<Required<FallingMedal>>(
+  { ...inAir, jewel: set },
+  (m) =>
+    m.remaining <= m.duration &&
+    !m.ball &&
+    m.source === 'payout' &&
+    m.level === 0 &&
+    m.rank === 0 &&
+    m.duration === JEWEL_DROP.time &&
+    m.fromX === m.x &&
+    m.fromY === RELEASE.depth &&
+    m.x >= JEWEL_DROP.from &&
+    m.x <= JEWEL_DROP.to &&
+    m.y >= JEWEL_DROP.near &&
+    m.y <= JEWEL_DROP.far,
+);
 
 const fallingMedal: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : plainFalling(value));
 

@@ -338,16 +338,18 @@ export function ballSpot(bowl: ActiveBowl, calm: boolean): BallSpot {
 }
 
 /**
- * How what the bowls paid is counted out: the number runs up from nothing,
- * a prize from an upper bowl in `prize` seconds and the jackpot in `jackpot`,
- * moving on `rate` times a second.
+ * How what the bowls paid is counted out: the number runs up to it, a prize
+ * from an upper bowl in `prize` seconds and the jackpot in `jackpot`, moving
+ * on `rate` times a second. It sets off `from` of the way there and not from
+ * nothing, so that the first thing read is a prize already and not a medal
+ * or two.
  */
-const COUNT = { prize: 1.4, jackpot: 5, rate: 20 } as const;
+const COUNT = { prize: 1.4, jackpot: 5, rate: 20, from: 0.1 } as const;
 
 /** What the bowls paid, as far as it has been counted out `since` seconds after the ball dropped. */
 export function countedUp(payout: number, since: number, jackpot: boolean): number {
   const share = Math.floor(Math.max(0, since) * COUNT.rate + 1e-9) / COUNT.rate / (jackpot ? COUNT.jackpot : COUNT.prize);
-  return share >= 1 ? payout : Math.floor(payout * share);
+  return share >= 1 ? payout : Math.floor(payout * (COUNT.from + (1 - COUNT.from) * share));
 }
 
 // ── What the whole screen shows ─────────────────────────────────────────────
@@ -406,7 +408,7 @@ export function sugorokuSquare(bonus: ActiveSugoroku): number {
 /**
  * The jackpot challenge: the bowl the ball is in, with the holes it has gone
  * through above, and once it has dropped for good the hole it ended in and
- * what that paid, counted up from nothing. The run's total counts up with it.
+ * what that paid, counted up to it. The run's total counts up with it.
  */
 function bowlState(run: ScreenState, roulette: ActiveRoulette, bowl: ActiveBowl): ScreenState {
   const state: ScreenState = { ...run, mode: 'bowl', lit: -1, stage: bowl.stage, fallen: bowl.holes.slice(0, bowl.stage) };

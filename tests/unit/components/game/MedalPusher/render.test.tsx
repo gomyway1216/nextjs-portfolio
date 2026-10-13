@@ -842,14 +842,17 @@ describe('the ball in the bowls', () => {
     }
   });
 
-  it('counts a prize up from nothing in steps, and never past what was paid', () => {
-    expect(countedUp(100, -1, false)).toBe(0);
-    expect(countedUp(100, 0, false)).toBe(0);
-    // A prize from an upper bowl in 1.4 seconds, the jackpot in five.
-    expect(countedUp(100, 0.72, false)).toBe(50);
+  it('counts a prize up in steps from a tenth of it, and never past what was paid', () => {
+    // It sets off a tenth of the way there: the first number read is a prize, never "+0" or one medal.
+    expect(countedUp(50, 0, false)).toBe(5);
+    expect(countedUp(100, -1, false)).toBe(10);
+    expect(countedUp(100, 0, false)).toBe(10);
+    expect(countedUp(300, 0, true)).toBe(30);
+    // A prize from an upper bowl in 1.4 seconds, the jackpot in five: a quarter of the time in, a quarter of the rest is counted.
+    expect(countedUp(100, 0.37, false)).toBe(32);
     expect(countedUp(100, 1.38, false)).toBeLessThan(100);
     expect(countedUp(100, 1.4, false)).toBe(100);
-    expect(countedUp(312, 2.52, true)).toBe(156);
+    expect(countedUp(312, 2.52, true)).toBe(171);
     expect(countedUp(312, 4.98, true)).toBeLessThan(312);
     expect(countedUp(312, 5, true)).toBe(312);
     expect(countedUp(312, 500, true)).toBe(312);
@@ -863,9 +866,12 @@ describe('the ball in the bowls', () => {
         for (const count of counts) expect(Number.isInteger(count)).toBe(true);
         for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
         const shown = new Set(counts);
-        expect(shown.size).toBeGreaterThan(jackpot ? 50 : 20);
+        expect(shown.size).toBeGreaterThan(jackpot ? 40 : 20);
         expect(shown.size).toBeLessThanOrEqual(Math.round((jackpot ? 5 : 1.4) * 20) + 1);
         expect(counts[counts.length - 1]).toBe(payout);
+        // The first of them is already several medals, and still most of the prize away.
+        expect(counts[0]).toBeGreaterThanOrEqual(5);
+        expect(counts[0]).toBeLessThan(payout / 5);
       }
     }
   });
@@ -2131,12 +2137,12 @@ describe('what the screen shows for a session', () => {
       expect(screenState(session, false)).toMatchObject({ mode: 'bowl', banner: 'none', stage: 1, fallen: [1], lit: -1, level: 4, total: 60 });
       expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
     }
-    // A hundred medals from the middle bowl: counted up from nothing, and the run's total with it.
+    // A hundred medals from the middle bowl: counted up from a tenth of it, and the run's total with it.
     Object.assign(bowl, { elapsed: BOWL_TIMES[1], payout: 100 });
     Object.assign(run, { gain: 100, total: 160, over: true });
-    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 1, fallen: [1, 1], banner: 'medals', amount: 0, total: 60, lit: -1 });
-    bowl.elapsed = BOWL_TIMES[1] + 0.72;
-    expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: 50, total: 110 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 1, fallen: [1, 1], banner: 'medals', amount: 10, total: 70, lit: -1 });
+    bowl.elapsed = BOWL_TIMES[1] + 0.37;
+    expect(screenState(session, false)).toMatchObject({ banner: 'medals', amount: 32, total: 92 });
     // The count is the number that is paid, so a player who asked for less motion has it too.
     expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
     for (const elapsed of [BOWL_TIMES[1] + 1.4, BOWL_TIMES[1] + bowlShowTime(false) - 0.01]) {
@@ -2148,9 +2154,9 @@ describe('what the screen shows for a session', () => {
     const last: ActiveBowl = { holes: [0, 0, 0], stage: 2, elapsed: BOWL_TIMES[2], duration: BOWL_TIMES[2], payout: 312 };
     run.bowl = last;
     Object.assign(run, { gain: 312, total: 372, jackpot: true });
-    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 0, total: 60 });
+    expect(screenState(session, false)).toMatchObject({ mode: 'bowl', stage: 2, fallen: [0, 0, 0], banner: 'jackpot', amount: 31, total: 91 });
     last.elapsed = BOWL_TIMES[2] + 2.52;
-    expect(screenState(session, false)).toMatchObject({ banner: 'jackpot', amount: 156, total: 216 });
+    expect(screenState(session, false)).toMatchObject({ banner: 'jackpot', amount: 171, total: 231 });
     expect(sameScreen(screenState(session, true), screenState(session, false))).toBe(true);
     for (const elapsed of [BOWL_TIMES[2] + 5, BOWL_TIMES[2] + bowlShowTime(true) - 0.01]) {
       last.elapsed = elapsed;

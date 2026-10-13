@@ -11,14 +11,17 @@ import {
   hapticFor,
   hapticLength,
   mayBuzz,
-  resetHaptics,
+  noteFed,
   stopBuzz,
+  takeFed,
   type Buzzed,
+  type FedBy,
   type Haptic,
   type Vibrator,
 } from '@/components/game/MedalPusher/haptics';
 import type { SpinResult } from '@/components/game/MedalPusher/lottery';
-import type { SessionEvent } from '@/components/game/MedalPusher/session';
+import { HOLD_DELAY } from '@/components/game/MedalPusher/PlayTab';
+import { advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
 
 /** Plays a timeline of wishes through the rule and returns the ones that were felt. */
 function felt(wishes: readonly (readonly [number, Haptic])[]): (readonly [number, Haptic])[] {
@@ -46,7 +49,8 @@ const phone = () => {
   return { nav, sent };
 };
 
-beforeEach(() => resetHaptics());
+// Nothing is carried over from one test to the next: no pattern playing, nothing felt.
+beforeEach(() => stopBuzz(null));
 afterEach(() => vi.unstubAllGlobals());
 
 describe('the patterns', () => {
@@ -235,7 +239,7 @@ describe('buzz', () => {
     expect(buzz('feed', true, hapticLength('jackpot') + 1, nav)).toBe(true);
     expect(sent).toHaveLength(2);
     // What was not sent is not remembered as felt: the next tick is not held back by it.
-    resetHaptics();
+    stopBuzz(null);
     expect(buzz('stream', true, 0, nav)).toBe(true);
     expect(buzz('stream', true, 100, nav)).toBe(false);
     expect(buzz('stream', true, 200, nav)).toBe(false);
@@ -265,6 +269,11 @@ describe('buzz', () => {
     expect(buzz('jackpot', true, 1, angry)).toBe(false);
     expect(() => stopBuzz(angry)).not.toThrow();
     expect(() => stopBuzz(null)).not.toThrow();
+    expect(() => stopBuzz({})).not.toThrow();
+    // Nor does stopping a pattern that is playing, on a browser that throws when it is asked to.
+    expect(buzz('prize', true, 2, phone().nav)).toBe(true);
+    expect(() => stopBuzz(angry)).not.toThrow();
+    expect(buzz('prize', true, 3, phone().nav)).toBe(true);
     expect(() => stopBuzz({})).not.toThrow();
   });
 
@@ -299,6 +308,143 @@ describe('buzz', () => {
     expect(sent[1]).toBe(0);
     // The jackpot that was stopped no longer holds a tick back.
     expect(buzz('feed', true, 10, nav)).toBe(true);
+  });
+
+  it('does not carry a jackpot over a reset: the new machine’s first press is felt at once', () => {
+    const { nav, sent } = phone();
+    // The old machine pays its jackpot, a pattern a second and a quarter long.
+    expect(buzz('jackpot', true, 1000, nav)).toBe(true);
+    // Left alone, it holds every tick back until it is over.
+    expect(buzz('feed', true, 1100, nav)).toBe(false);
+    expect(buzz('feed', true, 1000 + hapticLength('jackpot') - 1, nav)).toBe(false);
+    // The cabinet is reset a tenth of a second in: the motor is stopped, and what it was playing is forgotten.
+    stopBuzz(nav);
+    expect(sent).toEqual([[...HAPTICS.jackpot.pattern], 0]);
+    // The new machine's first medal goes in straight away, long before the old pattern would have ended, and is felt.
+    expect(buzz('feed', true, 1150, nav)).toBe(true);
+    expect(sent[2]).toEqual([15]);
+    // And the held button after it ticks on the new machine's own time.
+    expect(buzz('stream', true, 1150 + HAPTICS.stream.gap - 1, nav)).toBe(false);
+    expect(buzz('stream', true, 1150 + HAPTICS.stream.gap, nav)).toBe(true);
+  });
+
+  it('does not ask a motor that has played nothing to stop', () => {
+    const { nav, sent } = phone();
+    // A page hidden, or a tab left, before anything was felt: nothing was playing.
+    stopBuzz(nav);
+    expect(sent).toEqual([]);
+    expect(buzz('feed', true, 0, nav)).toBe(true);
+    stopBuzz(nav);
+    // Stopped once, it is not stopped again for the same pattern.
+    stopBuzz(nav);
+    expect(sent).toEqual([[15], 0]);
+  });
+});
+
+describe('what fed a medal', () => {
+  const DT = 1 / 60;
+
+  it('is noted only when the machine took the medal, and what the machine answered is handed back', () => {
+    const fed: FedBy[] = [];
+    expect(noteFed(fed, 'feed', true)).toBe(true);
+    expect(noteFed(fed, 'stream', false)).toBe(false);
+    expect(noteFed(fed, 'feed', false)).toBe(false);
+    expect(noteFed(fed, 'stream', true)).toBe(true);
+    expect(fed).toEqual(['feed', 'stream']);
+  });
+
+  it('is taken once: a press if there was one, a held button otherwise, and then nothing', () => {
+    expect(takeFed([])).toBeNull();
+    expect(takeFed(['stream'])).toBe('stream');
+    expect(takeFed(['stream', 'stream'])).toBe('stream');
+    expect(takeFed(['feed'])).toBe('feed');
+    // Two thumbs in one frame, one pressing and one holding: the press is what is felt.
+    expect(takeFed(['stream', 'feed', 'stream'])).toBe('feed');
+    const fed: FedBy[] = ['feed', 'stream'];
+    expect(takeFed(fed)).toBe('feed');
+    expect(fed).toEqual([]);
+    expect(takeFed(fed)).toBeNull();
+  });
+
+  it('is felt as the tick it was, unless something that matters more happened in the same frame', () => {
+    expect(hapticFor([], 'feed')).toBe('feed');
+    expect(hapticFor([], 'stream')).toBe('stream');
+    expect(hapticFor([], null)).toBeNull();
+    expect(hapticFor([{ type: 'landed', count: 1 }], 'feed')).toBe('feed');
+    expect(hapticFor([{ type: 'won', count: 1 }], 'feed')).toBe('catch');
+    expect(hapticFor([{ type: 'bowlEnd', hole: 0, payout: 300, total: 500, jackpot: true }], 'stream')).toBe('jackpot');
+  });
+
+  it('says nothing for a medal that Auto feeds while the other rail is held and its slot is not free', () => {
+    const session = createSession(3);
+    const fed: FedBy[] = [];
+    const { nav, sent } = phone();
+    const frame = (at: number) => {
+      const felt = hapticFor([], takeFed(fed));
+      if (felt) buzz(felt, true, at, nav);
+    };
+    // A thumb goes down on R: its medal goes in, and is felt.
+    expect(noteFed(fed, 'feed', insert(session, 1))).toBe(true);
+    frame(0);
+    expect(sent).toEqual([[15]]);
+    // The thumb stays down. Long after the tick's own gap, R's slot is asked again the moment after it has taken a
+    // medal, and is not free: nothing goes in there. In that same frame Auto feeds the left rail.
+    for (let i = 0; i < 60; i++) advance(session, DT);
+    expect(noteFed(fed, 'stream', insert(session, 1))).toBe(true);
+    frame(1000);
+    expect(sent).toEqual([[15], [15]]);
+    advance(session, DT);
+    expect(session.machine.waits[1]).toBeGreaterThan(0);
+    expect(noteFed(fed, 'stream', insert(session, 1))).toBe(false);
+    const before = session.inserted;
+    expect(insert(session, 0)).toBe(true);
+    expect(session.inserted).toBe(before + 1);
+    // A medal went in with a button held, and long enough after the last tick for another: but it was Auto's.
+    expect(fed).toEqual([]);
+    frame(1000 + HAPTICS.stream.gap + 50);
+    expect(sent).toEqual([[15], [15]]);
+  });
+
+  it('feels a tap once, though the finger is up again before the frame comes', () => {
+    const session = createSession(4);
+    const fed: FedBy[] = [];
+    const { nav, sent } = phone();
+    // Down and up between two frames: by the time the frame runs nothing is held, and it may run late.
+    expect(noteFed(fed, 'feed', insert(session, 0))).toBe(true);
+    const late = HOLD_DELAY * 1000 + 400;
+    const first = hapticFor([], takeFed(fed));
+    expect(first).toBe('feed');
+    expect(buzz(first ?? 'stream', true, late, nav)).toBe(true);
+    // The frames after it have nothing more to feel of that medal.
+    for (let i = 1; i <= 5; i++) {
+      advance(session, DT);
+      expect(hapticFor([], takeFed(fed))).toBeNull();
+    }
+    expect(sent).toEqual([[15]]);
+  });
+
+  it('ticks a held button at most every 330 ms, each medal noted as the machine takes it', () => {
+    const session = createSession(5);
+    const fed: FedBy[] = [];
+    const { nav, sent } = phone();
+    const ticks: number[] = [];
+    let medals = 0;
+    // Ten seconds of frames with a thumb on L: the press, and from a fifth of a second on a medal whenever the slot is free.
+    for (let i = 0; i < 600; i++) {
+      const at = i * DT * 1000;
+      if (i === 0 && noteFed(fed, 'feed', insert(session, 0))) medals++;
+      if (i * DT >= HOLD_DELAY && noteFed(fed, 'stream', insert(session, 0))) medals++;
+      advance(session, DT);
+      // Only the medals are of interest here: what the machine did meanwhile is left out.
+      const felt = hapticFor([], takeFed(fed));
+      if (felt && buzz(felt, true, at, nav)) ticks.push(at);
+    }
+    expect(medals).toBeGreaterThan(45);
+    expect(ticks.length).toBeGreaterThanOrEqual(25);
+    expect(ticks.length).toBeLessThanOrEqual(31);
+    for (let i = 1; i < ticks.length; i++) expect(ticks[i] - ticks[i - 1]).toBeGreaterThanOrEqual(HAPTICS.stream.gap);
+    expect(sent.every((pattern) => Array.isArray(pattern) && pattern.length === 1 && pattern[0] === 15)).toBe(true);
+    expect(DROP_INTERVAL * 1000).toBeLessThan(HAPTICS.stream.gap);
   });
 });
 

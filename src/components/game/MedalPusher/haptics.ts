@@ -90,9 +90,44 @@ export function afterBuzz(felt: Buzzed, name: Haptic, now: number): Buzzed {
   return { began, until: now + hapticLength(name), rank };
 }
 
-/** The pattern the hand should feel for what happened in one frame: the one that matters most, or null for nothing. */
-export function hapticFor(events: readonly SessionEvent[]): Haptic | null {
-  let most: Haptic | null = null;
+/**
+ * What fed a medal, as the hand is told of it: a press, or a button that is
+ * still held. A medal that Auto feeds is not told of at all: no finger is
+ * working it.
+ */
+export type FedBy = 'feed' | 'stream';
+
+/**
+ * Notes what fed a medal, where it was fed and only if the machine took it.
+ * `took` is what `insert` answered, and is handed straight back, so this
+ * goes round the call. Whoever plays the patterns takes the notes with
+ * `takeFed`, once a frame. Nothing is worked out afterwards from what
+ * happens to be held by then: a tap can be over before the frame, and a held
+ * button whose slot is not free feeds nothing while Auto feeds the other rail.
+ */
+export function noteFed(fed: FedBy[], how: FedBy, took: boolean): boolean {
+  if (took) fed.push(how);
+  return took;
+}
+
+/**
+ * Takes what has been noted since it was last taken, and leaves nothing
+ * behind, so that a medal is felt once. If a press is among them it is the
+ * press that is felt: its tick is the one a hand waits for.
+ */
+export function takeFed(fed: FedBy[]): FedBy | null {
+  const how = fed.includes('feed') ? 'feed' : fed.length > 0 ? 'stream' : null;
+  fed.length = 0;
+  return how;
+}
+
+/**
+ * The pattern the hand should feel for one frame: of the medal that was fed
+ * (`fed`, from `takeFed`) and of what happened on the machine, the one thing
+ * that matters most. Null for nothing.
+ */
+export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = null): Haptic | null {
+  let most: Haptic | null = fed;
   const feel = (name: Haptic) => {
     if (!most || HAPTICS[name].rank > HAPTICS[most].rank) most = name;
   };
@@ -149,11 +184,6 @@ export function canVibrate(nav: Vibrator | null = device()): boolean {
 
 let felt: Buzzed = UNFELT;
 
-/** Forgets what has been felt. For a new machine, and for tests. */
-export function resetHaptics(): void {
-  felt = UNFELT;
-}
-
 /**
  * Plays a pattern, if the player has vibration on, the device has a motor
  * and the rule above lets it through. Returns whether it was sent. It never
@@ -174,9 +204,19 @@ export function buzz(name: Haptic, enabled: boolean, now: number = performance.n
   return true;
 }
 
-/** Stops whatever is playing, as when vibration is switched off in the middle of a jackpot. It never throws either. */
+/**
+ * Stops whatever is playing and forgets what has been felt. The cabinet
+ * calls it when vibration is switched off, when the machine is reset, when
+ * its tab is left and when the page is hidden: a pattern belongs to the
+ * machine that earned it, and one that was cut off, or outlived its machine,
+ * must not hold back the next tick until it would have ended. A motor that
+ * has played nothing since it was last stopped is not asked to stop. It
+ * never throws either.
+ */
 export function stopBuzz(nav: Vibrator | null = device()): void {
+  const played = felt !== UNFELT;
   felt = UNFELT;
+  if (!played) return;
   try {
     if (nav && typeof nav.vibrate === 'function') nav.vibrate(0);
   } catch {

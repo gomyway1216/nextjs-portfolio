@@ -5,7 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls } from './FeelControls';
-import { buzz, hapticFor } from './haptics';
+import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
 import { getStrings } from './i18n';
 import { CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, TIER_BONUS } from './lottery';
 import { ageStage, celebrate, createStage, lightGate, trackMedals, type Stage } from './render';
@@ -236,6 +236,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const feelNow = useRef<FeelNow>({ sweep: false, vibrate: false });
   const wake = useRef<WakeKeeper | null>(null);
   const feel = useFeel(feelNow, wake);
+  // What fed each medal since the last frame, noted where the machine took it: a press or a held button. The frame
+  // loop takes the notes when it plays the hand its pattern.
+  const fedBy = useRef<FedBy[]>([]);
   // While the rails swing: where a medal fed now would drop, each rail's, in the sliders' percent. Null while they do not.
   const [lead, setLead] = useState<[number, number] | null>(null);
 
@@ -251,7 +254,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   /** Feeds one medal into a rail, if the purse has one and that rail's slot is free. Neither rail's aim moves. */
   const feedOnce = (arm: Arm) => {
     const session = sessionRef.current;
-    if (session && insert(session, arm)) feedSound(live.current.sound);
+    if (session && noteFed(fedBy.current, 'feed', insert(session, arm))) feedSound(live.current.sound);
   };
   /** A finger or a key goes down on a rail's feed. The first one feeds a medal at once; held, the rail streams. */
   const pressRail = (arm: Arm, by: string) => {
@@ -353,6 +356,26 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     };
   }, [active]);
 
+  // The motor stops with the machine. A reset, leaving this tab or hiding the page in the middle of a long pattern
+  // would leave it buzzing for a machine that is gone or out of sight, and would hold back the next machine's ticks
+  // until the old pattern would have ended. So does the cabinet being taken down. A medal that was noted and not yet
+  // felt is not felt later either.
+  useEffect(() => {
+    if (!active) return;
+    const stop = () => {
+      fedBy.current.length = 0;
+      stopBuzz();
+    };
+    const whenHidden = () => {
+      if (document.visibilityState === 'hidden') stop();
+    };
+    document.addEventListener('visibilitychange', whenHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', whenHidden);
+      stop();
+    };
+  }, [active, switchedOn]);
+
   // The background loop plays while the sound is on and this tab is showing. Switching the sound off, or
   // leaving the cabinet, cuts short whatever is still ringing. So does a reset: the old machine's reels,
   // fanfare and loop stop with it, and the loop starts again from the top for the new one.
@@ -443,8 +466,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     let autoClock = 0;
     let autoArm: Arm = 0;
     // What the hand has been told of: the medals fed so far, and where the sliders' marks stand while the rails swing.
+    // No medal of the machine before is still waiting to be felt.
     let fedSeen = session.inserted;
     let shownLead: [number, number] | null = null;
+    fedBy.current.length = 0;
     let lastSpinClock = 0;
     let last = performance.now();
     const events: SessionEvent[] = [];
@@ -467,7 +492,7 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       }
       for (const arm of [0, 1] as const) {
         const hold = holds.current[arm];
-        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && insert(session, arm)) feedSound(soundOn);
+        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && noteFed(fedBy.current, 'stream', insert(session, arm))) feedSound(soundOn);
       }
       if (autoNow) {
         autoClock += elapsed;
@@ -477,15 +502,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
           autoArm = autoArm === 0 ? 1 : 0;
         }
       }
-      // A medal has gone in since the last frame, from a button, a key or Auto. The screen is kept awake for it, and the
-      // hand is told: a tick for a press, a slower one while a button stays held, and nothing for Auto, which no
-      // finger is working (haptics.ts).
+      // A medal has gone in since the last frame, from a button, a key or Auto: the screen is kept awake for it.
       if (session.inserted !== fedSeen) {
         fedSeen = session.inserted;
         wake.current?.played();
-        const pressed = holds.current.some((hold) => now / 1000 - hold.since < HOLD_DELAY);
-        const holding = holds.current.some((hold) => hold.by.size > 0);
-        if (pressed || holding) buzz(pressed ? 'feed' : 'stream', feelNow.current.vibrate, now);
       }
 
       // An aim key that is held down moves its rail's aim. Each arm swings after its own aim, and a medal on a
@@ -614,8 +634,10 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
       if (won > 0) playSound('win', soundOn, { count: won });
       if (lost) playSound('lost', soundOn);
       if (landed) playSound('land', soundOn);
-      // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts).
-      const felt = hapticFor(events);
+      // And what the hand feels of it: the one thing in this frame that matters most (haptics.ts). A medal that went
+      // in is felt as what fed it said it was when the machine took it: a tick for a press, a slower one for a
+      // button that stays held, and nothing for Auto, which no finger is working.
+      const felt = hapticFor(events, takeFed(fedBy.current));
       if (felt) buzz(felt, feelNow.current.vibrate, now);
 
       trackMedals(stage, session.machine, won);

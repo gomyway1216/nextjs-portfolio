@@ -1042,6 +1042,44 @@ test.describe('in the hand, on a phone', () => {
     expect(times.length).toBeGreaterThanOrEqual(2);
     expect(times.length).toBeLessThanOrEqual(fed);
     for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(325);
+    // Auto feeds with no finger on anything: its medals are not felt.
+    await forget();
+    const byAuto = await counter(page, 'played');
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBeGreaterThanOrEqual(byAuto + 3);
+    await autoButton(page).tap();
+    await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'false');
+    expect(await ticks()).toBe(0);
+    /** Taps L until a medal has gone in, which is a tick: a tap the slot was not ready for feeds nothing. */
+    const tapIn = async () => {
+      const had = await counter(page, 'played');
+      await expect(async () => {
+        await feedButton(page, 'left').tap();
+        await page.waitForTimeout(400);
+        expect(await counter(page, 'played')).toBeGreaterThan(had);
+      }).toPass({ timeout: 20_000 });
+      await expect.poll(ticks).toBeGreaterThanOrEqual(1);
+    };
+    // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
+    // forgotten, and the new machine's first press is felt at once.
+    await tapIn();
+    await forget();
+    await setHidden(page, true);
+    expect(await asked()).toContainEqual([0]);
+    await setHidden(page, false);
+    await tapIn();
+    await forget();
+    const reset = machine(page).getByTestId('pusher-reset');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'true');
+    await reset.tap();
+    await expect(reset).toHaveAttribute('data-armed', 'false');
+    await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
+    expect(await asked()).toContainEqual([0]);
+    await forget();
+    await tapIn();
+    await expect.poll(async () => (await ticks()) - (await counter(page, 'played'))).toBe(0);
     // Switched off: whatever was playing is stopped, which is the last thing asked of the motor. Medals go on falling
     // and being fed, and none of it buzzes.
     await feelSwitch(page, 'vibration').tap();

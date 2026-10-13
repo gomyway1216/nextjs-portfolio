@@ -63,11 +63,47 @@ export const ARMS = {
 } as const;
 
 /**
- * The slot at the near end of each arm: how big the ring round its mouth
- * is, and how far in front of the mouth a medal is shown for a moment before
- * it is taken in.
+ * The slot at the near end of each arm, which is a funnel: a ring that faces
+ * the player, a mouth set back inside it, and between the two a throat that
+ * narrows from the one to the other.
  */
-export const SLOT = { ring: 4.4, out: 7 } as const;
+export const SLOT = {
+  /** How big the ring round its face is. */
+  ring: 4.9,
+  /** How much of that ring is inside its ring of light, and how much of it is the throat inside that. */
+  light: 0.9,
+  throat: 0.78,
+  /** How far in front of the slot a medal is shown for a moment before it is taken in. */
+  out: 7,
+  /** How far in front of its collar the slot's face stands, and how far behind the collar its body ends. */
+  face: 1.6,
+  back: 4.2,
+  /** How big its body is at the back. It flares from there to the ring. */
+  waist: 3.6,
+  /**
+   * The mouth a medal goes in at, standing on its edge: how wide it is,
+   * which is getting on for four times as wide as a medal is thick, and how
+   * tall, which is a little more than a medal is across.
+   */
+  mouth: { wide: 3.4, tall: MEDAL_RADIUS * 2 + 0.6 },
+  /** How far in from the face the mouth is. */
+  deep: 2.4,
+  /** How far the slot's face is tipped back, in radians: it looks up at the player, who looks down into it. */
+  tilt: 0.38,
+} as const;
+
+/**
+ * A point of an arm's slot: `across` its face to the player's right, `up`
+ * its face, and `out` from the collar the way the slot faces, which is toward
+ * the player and upward by its tilt. The middle of its face is `SLOT.face`
+ * out, and the middle of its mouth `SLOT.face − SLOT.deep`.
+ */
+export function slotSpot(arm: Arm, across: number, up: number, out: number): Spot {
+  const collar = armCollar(arm);
+  const sin = Math.sin(SLOT.tilt);
+  const cos = Math.cos(SLOT.tilt);
+  return { x: collar.x + across, height: collar.height + up * cos + out * sin, depth: collar.depth - up * sin + out * cos };
+}
 
 /** The hatch a prize ball comes out of: a round door in the middle of the hood's face. */
 export const HATCH = { x: FIELD.width / 2, height: (HOUSING.hood + HEIGHT.top) / 2, depth: HOUSING.out, radius: 4.7 } as const;

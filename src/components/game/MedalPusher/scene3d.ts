@@ -6,11 +6,11 @@
  */
 
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
-import { droppedThrough } from './chuckers';
+import { CATCHER, caught, underCatcher } from './catcher';
 import { FIELD, MEDAL_RADIUS, SETTLE, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
-import { BALL_RADIUS, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
-import { HEIGHT, VIEW, project } from './view';
+import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
+import { HEIGHT, VIEW, chuteHeight, project } from './view';
 
 const R = MEDAL_RADIUS;
 const P = HEIGHT.pusher;
@@ -219,6 +219,13 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball) continue;
+    // One that has just come over the lip at the catcher is on its way out of sight: into a pocket's mouth and
+    // down its throat, or over the lip's edge and down behind the catcher.
+    const held = caught(medal, machine.time);
+    if (held) {
+      medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id), held.tilt, (chance(medal.id, 2) - 0.5) * 0.5, 0, 0, held.light);
+      continue;
+    }
     const base = medal.level === 1 ? P : 0;
     const drop = lipDrop(medal);
     const lift = liftOf(medal);
@@ -231,10 +238,9 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     let heading = TAU * chance(id, 2);
     // One lying on others is held up by the edge it leans on, so its low side rests on them instead of sinking in.
     const propped = medal.tier === 1 ? R * Math.sin(tilt) : 0;
-    // Coming over the lip it tips forward, and is level again as it lands. One that drops through a START pocket
-    // hardly tips at all: it goes down inside the hoop.
+    // Coming over the lip beside the catcher it tips forward, and is level again as it lands.
     if (drop > 0) {
-      tilt = (droppedThrough(medal) >= 0 ? 0.2 : 0.75) * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
+      tilt = 0.75 * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
       heading = (chance(id, 2) - 0.5) * 0.8;
     }
     const ground = base + (medal.tier === 1 ? T : 0);
@@ -263,9 +269,13 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const fall = (EXIT.gravity * a * a) / 2;
     const x = exit.x + (won ? 0 : exit.side * EXIT.sideways * a);
     const z = exit.y + (won ? EXIT.forward * a : 0);
-    // It tips over the edge it left by: forward into the tray, or outward into the pit.
-    const turned = Math.min(Math.PI, a * EXIT.turn);
-    medalRow(rows, exit.id, x, T / 2 - fall, z, turnOf(exit.id), won ? turned : -exit.side * turned, won ? 0 : Math.PI / 2, 0, 0, light);
+    // It tips over the edge it left by: forward into the tray, or outward onto the chute, which it then slides down, lying along it.
+    if (won) {
+      medalRow(rows, exit.id, x, T / 2 - fall, z, turnOf(exit.id), Math.min(Math.PI, a * EXIT.turn), 0, 0, 0, light);
+      continue;
+    }
+    const slide = chuteHeight(Math.max(0, exit.side < 0 ? -x : x - FIELD.width)) + T / 2 + 0.05;
+    medalRow(rows, exit.id, x, Math.max(T / 2 - fall, slide), z, turnOf(exit.id), -exit.side * Math.min(CHUTE_LEAN, a * EXIT.turn), Math.PI / 2, 0, 0, light);
   }
 }
 
@@ -285,11 +295,33 @@ export function beadRow(rows: Rows, x: number, y: number, z: number, radius: num
   data[at + 7] = kind;
 }
 
-/** The prize balls: lying among the medals, on their way down from the hatch, or going over the front. */
-export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
+/**
+ * The prize balls: lying among the medals, on their way down from the hatch,
+ * or going over the front. A ball that lies on the lower table under the
+ * catcher, wholly or in part, goes into `under` instead, if that is given:
+ * it is taller than the catcher, and whoever draws it has to hide what of it
+ * is under there. One that comes over the lip wholly behind the catcher goes
+ * down behind it until none of it shows, which is further than the table.
+ */
+export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], under?: Rows): void {
   rows.count = 0;
+  if (under) under.count = 0;
   for (const medal of machine.medals) {
-    if (medal.ball) beadRow(rows, medal.x, (medal.level === 1 ? P : 0) + lipDrop(medal) + BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+    if (!medal.ball) continue;
+    const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
+    if (medal.level === 0 && underCatcher(medal.x, medal.y, BALL_RADIUS, machine.time)) {
+      if (!dropping) {
+        beadRow(under ?? rows, medal.x, BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+        continue;
+      }
+      if (medal.x - BALL_RADIUS >= CATCHER.from && medal.x + BALL_RADIUS <= CATCHER.to) {
+        const from = P + BALL_RADIUS;
+        const sunk = (medal.sinceDrop / LIP_FALL) ** 2;
+        beadRow(rows, medal.x, from - (from - (CATCHER.deck - BALL_RADIUS - 0.2)) * sunk, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+        continue;
+      }
+    }
+    beadRow(rows, medal.x, (medal.level === 1 ? P : 0) + lipDrop(medal) + BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }
   for (const medal of machine.falling) {
     if (!medal.ball) continue;

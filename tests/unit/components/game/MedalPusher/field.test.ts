@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ARMS, SLOT, armCollar, armStart, armTip, fedSpot, legOf, letGo, railFrame, rollingSpot } from '@/components/game/MedalPusher/arms';
-import { CHUCKERS, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
+import { ARMS, SLOT, armCollar, armStart, armTip, fedSpot, legOf, letGo, railFrame, rollingSpot, slotSpot } from '@/components/game/MedalPusher/arms';
+import { APRON, CATCHER, apronSpot, caught, mouthOnDrawing, mouthSpots, underCatcher } from '@/components/game/MedalPusher/catcher';
+import { CHUCKERS } from '@/components/game/MedalPusher/chuckers';
 import {
   AIM,
   ARM_REACH,
@@ -17,15 +18,17 @@ import {
   step,
   type Arm,
   type Machine,
+  type Medal,
 } from '@/components/game/MedalPusher/engine';
-import { PANEL_SPAN, START_PANEL, createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
-import { HEIGHT, project } from '@/components/game/MedalPusher/view';
+import { APRON_CAP, BALL_RADIUS, createStage, drawField, lightGate } from '@/components/game/MedalPusher/render';
+import { CHUTE, HEIGHT, VIEW, chuteHeight, project } from '@/components/game/MedalPusher/view';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
 
 /**
- * A medal's face as it was stamped on the canvas: where its middle is, how wide and how tall it was drawn, how far
- * it was turned, and the two lines across its face that the canvas was told to draw it between.
+ * A medal's face, or a ball, as it was stamped on the canvas: where its middle is, how wide and how tall it was
+ * drawn, how far it was turned, the two lines across its face that the canvas was told to draw it between, how
+ * much of it shows through, which picture it is, and whether the canvas was drawing only inside some outline.
  */
 interface Stamp {
   x: number;
@@ -35,6 +38,9 @@ interface Stamp {
   turn: number;
   across: [number, number];
   down: [number, number];
+  alpha: number;
+  image: unknown;
+  clipped: boolean;
 }
 
 /** A stretch of an ellipse as it was drawn: its middle, how far it reaches across and down, and from what angle to what. */
@@ -49,25 +55,55 @@ interface Arc {
 
 /**
  * A stand-in for a canvas's 2D context. It draws nothing and remembers what
- * the tests look for: every piece of text, at the pixel it was drawn, every
- * point a path was started from or carried on to, every stretch of an
- * ellipse, and every image stamped.
+ * the tests look for: every piece of text, at the pixel it was drawn, how
+ * large and in what colour; every point a path was started from or carried
+ * on to; every stretch of an ellipse; every rectangle filled, by where it was
+ * asked for and in what colour; every image stamped; and the order the words
+ * and the images came in, each image by its place among the stamps. It keeps the transform as a canvas does, through
+ * `save` and `restore` too.
  */
 function recorder() {
   const arcs: Arc[] = [];
-  const texts: { text: string; x: number; y: number }[] = [];
+  const texts: { text: string; x: number; y: number; wide: number; tall: number; style: string }[] = [];
   const starts: { x: number; y: number }[] = [];
   const lines: { x: number; y: number }[] = [];
   const stamps: Stamp[] = [];
+  const rects: { at: [number, number]; style: string }[] = [];
+  const log: string[] = [];
   let matrix = [1, 0, 0, 1, 0, 0];
+  let alpha = 1;
+  let style = '';
+  let clipped = false;
+  const saved: { matrix: number[]; alpha: number; clipped: boolean }[] = [];
   const at = (x: number, y: number) => ({ x: matrix[0] * x + matrix[2] * y + matrix[4], y: matrix[1] * x + matrix[3] * y + matrix[5] });
   const gradient = { addColorStop: () => undefined };
   const own: Record<string, unknown> = {
     setTransform: (...values: number[]) => {
       matrix = values;
     },
+    translate: (x: number, y: number) => {
+      const moved = at(x, y);
+      matrix = [matrix[0], matrix[1], matrix[2], matrix[3], moved.x, moved.y];
+    },
+    scale: (x: number, y: number) => {
+      matrix = [matrix[0] * x, matrix[1] * x, matrix[2] * y, matrix[3] * y, matrix[4], matrix[5]];
+    },
+    save: () => {
+      saved.push({ matrix, alpha, clipped });
+    },
+    restore: () => {
+      const last = saved.pop();
+      if (last) ({ matrix, alpha, clipped } = last);
+    },
+    clip: () => {
+      clipped = true;
+    },
     fillText: (text: string, x: number, y: number) => {
-      texts.push({ text, ...at(x, y) });
+      texts.push({ text, ...at(x, y), wide: Math.hypot(matrix[0], matrix[1]), tall: Math.hypot(matrix[2], matrix[3]), style });
+      log.push(`text:${text}`);
+    },
+    fillRect: (x: number, y: number) => {
+      rects.push({ at: [x, y], style });
     },
     moveTo: (x: number, y: number) => {
       starts.push(at(x, y));
@@ -78,18 +114,23 @@ function recorder() {
     ellipse: (x: number, y: number, rx: number, ry: number, _turn: number, from: number, to: number) => {
       arcs.push({ ...at(x, y), across: rx * matrix[0], down: ry * matrix[3], from, to });
     },
-    drawImage: () => {
+    drawImage: (image: unknown) => {
       // A sprite is stamped on a square of two units about the origin: the transform says the rest.
       const [a, b, c, d, x, y] = matrix;
-      stamps.push({ x, y, width: Math.hypot(a, c), height: Math.hypot(b, d), turn: Math.atan2(-c, a), across: [a, b], down: [c, d] });
+      log.push(`image:${stamps.length}`);
+      stamps.push({ x, y, width: Math.hypot(a, c), height: Math.hypot(b, d), turn: Math.atan2(-c, a), across: [a, b], down: [c, d], alpha, image, clipped });
     },
   };
-  // Everything else a context can do is accepted and ignored; the two calls that return something return a gradient.
+  // Everything else a context can do is accepted and ignored; the calls that return something return a gradient.
   const context = new Proxy(own, {
     get: (target, name: string) => target[name] ?? (() => gradient),
-    set: () => true,
+    set: (_target, name: string, value: unknown) => {
+      if (name === 'globalAlpha' && typeof value === 'number') alpha = value;
+      if (name === 'fillStyle') style = typeof value === 'string' ? value : '';
+      return true;
+    },
   }) as unknown as CanvasRenderingContext2D;
-  return { context, texts, starts, lines, stamps, arcs };
+  return { context, texts, starts, lines, stamps, arcs, rects, log };
 }
 
 type Recorder = ReturnType<typeof recorder>;
@@ -111,7 +152,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('the START panel on the canvas', () => {
+describe('the catcher on the canvas', () => {
   /** One frame of the field at `time`, and what it drew. */
   const frame = (time: number, calm: boolean) => {
     const stage = createStage(1);
@@ -124,33 +165,41 @@ describe('the START panel on the canvas', () => {
   /** Moments all through the pusher's stroke: out, back, and on the way. */
   const TIMES = [0, 0.75, 1.5, 2.2, 4.5, 5.3];
   const P = HEIGHT.pusher;
-  const near = (points: { x: number; y: number }[], x: number, y: number) => points.some((point) => Math.hypot(point.x - x, point.y - y) < 1e-6);
+  const near = (points: { x: number; y: number }[], x: number, y: number, within = 1e-6) => points.some((point) => Math.hypot(point.x - x, point.y - y) < within);
+  const seen = (spot: { x: number; height: number; depth: number }) => project(spot.x, spot.height, spot.depth);
+  /** How many pixels of a phone's screen a pixel of the drawing is, when the stage is as wide as it is on a 375-pixel page. */
+  const PHONE = 345 / VIEW.width;
 
-  it('paints nothing of the panel into the layer that is drawn once: it rides with the pusher', () => {
+  it('paints nothing of the catcher into the layer that is drawn once: it rides with the pusher', () => {
     const made = fakeDocument();
     createStage(1);
     const once = made.flatMap((canvas) => canvas.texts.map((entry) => entry.text));
-    // The words on the table and under the screen are there, so the layer was recorded; the panel's are not.
+    // The words on the table and under the screen are there, so the layer was recorded; the catcher's are not.
     expect(once.filter((text) => text === 'GET')).toHaveLength(3);
     expect(once.filter((text) => text === 'OUT')).toHaveLength(2);
     expect(once.filter((text) => text === 'HOLD')).toHaveLength(1);
     expect(once).not.toContain('START');
   });
 
-  it('writes START under every pocket, on the pusher\u2019s face, wherever the stroke has taken it', () => {
+  it('writes START under every mouth, on the apron, tall enough to read on a phone, wherever the stroke has taken it', () => {
     fakeDocument();
     const heights = new Set<number>();
     for (const time of TIMES) {
-      const front = pusherFront(time);
       const words = frame(time, false).texts.filter((entry) => entry.text === 'START');
       expect(words).toHaveLength(CHUCKERS.count);
       words.forEach((word, pocket) => {
-        // Straight under the pocket, on the face, between the lip and the lower table.
-        const under = project(CHECKERS.positions[pocket], P * 0.54, front);
-        expect(word.x).toBeCloseTo(under.x, 6);
-        expect(word.y).toBeCloseTo(under.y, 6);
-        expect(word.y).toBeGreaterThan(project(CHECKERS.positions[pocket], P, front).y);
-        expect(word.y).toBeLessThan(project(CHECKERS.positions[pocket], 0, front).y);
+        // The foot of its letters: half the capitals' height below the middle of the apron, straight under the mouth.
+        const foot = seen(apronSpot(CATCHER.tile * (pocket + 0.5), APRON / 2 + APRON_CAP / 2, time));
+        expect(Math.hypot(word.x - foot.x, word.y - foot.y)).toBeLessThan(1.5);
+        // The apron is nearer the player than the deck, so a word under an outer mouth is a pixel or two further out than the mouth is.
+        expect(Math.abs(word.x - mouthOnDrawing(pocket, time).x)).toBeLessThan(2.5);
+        // Between the rail and the foot of the apron, which is above the medals on the lower table.
+        expect(word.y).toBeGreaterThan(seen(apronSpot(0, 0, time)).y);
+        expect(word.y).toBeLessThan(seen(apronSpot(0, APRON, time)).y);
+        // Its capitals, as the canvas was told to draw them: a canvas that cannot measure is taken to draw them 7.16 tall at the size asked for.
+        expect(7.16 * word.tall * PHONE).toBeGreaterThanOrEqual(11);
+        // And the word is no wider than its pocket's stretch of the apron.
+        expect(36.7 * word.wide).toBeLessThan(CATCHER.tile * (seen(apronSpot(1, 0, time)).x - seen(apronSpot(0, 0, time)).x));
         heights.add(Math.round(word.y));
       });
     }
@@ -159,51 +208,64 @@ describe('the START panel on the canvas', () => {
     expect(frame(PUSHER.period / 2, false).texts.find((entry) => entry.text === 'START')?.y).toBeGreaterThan((frame(0, false).texts.find((entry) => entry.text === 'START')?.y ?? 0) + 30);
   });
 
-  it('draws a hoop round every pocket, on the lip: half of it on the pusher and half out in front', () => {
+  it('draws every mouth as a hole out in front of the lip: an oval as wide as its pocket, a rim round it, and a floor down inside it', () => {
     fakeDocument();
     for (const time of TIMES) {
       const { arcs } = frame(time, false);
-      chuckerSpots(time).forEach((spot) => {
-        const middle = project(spot.x, spot.height, spot.depth);
-        const own = arcs.filter((arc) => Math.hypot(arc.x - middle.x, arc.y - middle.y) < 1e-6);
-        // On the pusher's side of the lip, the dark of the pocket and the hoop round it; on the player's, the hoop and its glow.
-        const far = own.filter((arc) => arc.from === Math.PI && arc.to === Math.PI * 2);
-        const front = own.filter((arc) => arc.from === 0 && arc.to === Math.PI);
-        expect(far).toHaveLength(2);
-        expect(front).toHaveLength(2);
-        // As wide inside as a medal that just fits, and seen from above like anything lying level there.
-        expect(Math.min(...far.map((arc) => arc.across))).toBeCloseTo(CHUCKERS.radius * middle.scale, 6);
-        for (const arc of [far[1], ...front]) expect(arc.across).toBeCloseTo((CHUCKERS.radius + START_PANEL.rim / 2) * middle.scale, 6);
-        for (const arc of own) expect(arc.down / arc.across).toBeCloseTo(middle.tilt, 6);
+      mouthSpots(time).forEach((spot, pocket) => {
+        const top = project(spot.x, spot.height + CATCHER.rim.high, spot.depth);
+        const own = arcs.filter((arc) => Math.hypot(arc.x - top.x, arc.y - top.y) < 1e-6);
+        const whole = own.filter((arc) => arc.from === 0 && arc.to === Math.PI * 2);
+        // The mouth itself, as wide inside as a medal that just fits, and the rim round it, which is a good deal wider.
+        expect(whole.some((arc) => Math.abs(arc.across - CHUCKERS.radius * top.scale) < 1e-6)).toBe(true);
+        expect(Math.max(...own.map((arc) => arc.across))).toBeCloseTo((CHUCKERS.radius + CATCHER.rim.wide) * top.scale, 6);
         expect(CHUCKERS.radius).toBeCloseTo(MEDAL_RADIUS + CHECKERS.halfWidth, 12);
+        // Each is seen from above like anything lying level there.
+        for (const arc of own) expect(arc.down / arc.across).toBeCloseTo(top.tilt, 6);
+        // The near half of the rim is drawn again, last, over whatever is in the mouth.
+        expect(own.filter((arc) => arc.from === 0 && arc.to === Math.PI).length).toBeGreaterThanOrEqual(1);
+        // It is where the catcher says the mouth is on the drawing, beyond the lip, and it is big enough to see on a phone.
+        const mouth = mouthOnDrawing(pocket, time);
+        expect(top.x).toBeCloseTo(mouth.x, 9);
+        expect(top.y).toBeCloseTo(mouth.y, 9);
+        expect(top.y - (mouth.tall / 2) * 1.01).toBeGreaterThan(project(spot.x, P, pusherFront(time)).y);
+        expect(mouth.wide * PHONE).toBeGreaterThan(23);
+        // Down inside it, the floor of the throat: a smaller oval, lower on the drawing, which is what gives the hole its depth.
+        const floor = project(spot.x, CATCHER.throat, spot.depth);
+        const below = arcs.filter((arc) => Math.hypot(arc.x - floor.x, arc.y - floor.y) < 1e-6);
+        expect(below).toHaveLength(1);
+        expect(below[0].across).toBeLessThan(CHUCKERS.radius * top.scale);
+        expect(floor.y).toBeGreaterThan(top.y + mouth.tall / 4);
       });
     }
   });
 
-  it('is one piece: a plate along the middle of the lip, on the pusher\u2019s top and down its face, as long as the three pockets take', () => {
+  it('is one piece: a deck from the lip to its rail and an apron from the rail to its foot, as long as the three pockets take', () => {
     fakeDocument();
-    expect(START_PANEL.tile).toBe(CHECKERS.positions[1] - CHECKERS.positions[0]);
-    expect(PANEL_SPAN).toEqual({ from: CHECKERS.positions[0] - START_PANEL.tile / 2, to: CHECKERS.positions[2] + START_PANEL.tile / 2 });
-    // The hoops do not touch one another, and the plate takes them all in.
-    expect(CHUCKERS.radius + START_PANEL.rim).toBeLessThan(START_PANEL.tile / 2);
-    expect(START_PANEL.back).toBeGreaterThan(CHUCKERS.radius + START_PANEL.rim);
     for (const time of TIMES) {
       const front = pusherFront(time);
       const { starts, lines } = frame(time, false);
-      // On the face, from the lip down to the table; on the top, from the lip back.
       for (const [x, height, depth] of [
-        [PANEL_SPAN.from, P, front],
-        [PANEL_SPAN.to, 0, front],
-        [PANEL_SPAN.from, P, front - START_PANEL.back],
-        [PANEL_SPAN.to, P, front - START_PANEL.back],
+        // The deck: from the lip out to the back of the rail.
+        [CATCHER.from, CATCHER.deck, front],
+        [CATCHER.to, CATCHER.deck, front],
+        [CATCHER.to, CATCHER.deck, front + CATCHER.rail.out - CATCHER.rail.thick],
+        // The rail, and the apron from it down to its foot.
+        [CATCHER.from, CATCHER.rail.top, front + CATCHER.rail.out],
+        [CATCHER.to, CATCHER.rail.top, front + CATCHER.rail.out],
+        [CATCHER.to, CATCHER.foot.height, front + CATCHER.foot.out],
+        [CATCHER.from, CATCHER.foot.height, front + CATCHER.foot.out],
       ]) {
         const corner = project(x, height, depth);
         expect(near([...starts, ...lines], corner.x, corner.y)).toBe(true);
       }
+      // Nothing of the old panel is on the pusher's top: no plate behind the lip.
+      const behind = project(CATCHER.from, P, front - 7.4);
+      expect(near([...starts, ...lines], behind.x, behind.y)).toBe(false);
     }
   });
 
-  it('draws the panel the same with reduced motion: it is part of the machine', () => {
+  it('draws the catcher in the same place with reduced motion: it is part of the machine', () => {
     fakeDocument();
     for (const time of TIMES) {
       const moving = frame(time, false);
@@ -213,17 +275,18 @@ describe('the START panel on the canvas', () => {
     }
   });
 
-  it('lights the pocket of the number it is told, and no other', () => {
+  it('lights the pocket of the number it is told, and no other: its stretch of the apron, and its word', () => {
     fakeDocument();
     const stage = createStage(1);
     const machine = createMachine(3);
     machine.time = 1.5;
-    const front = pusherFront(machine.time);
-    /** Whether a pocket's own stretch of the face was filled over: it is, when the pocket is lit. */
-    const stretch = (pocket: number) => project(CHECKERS.positions[pocket] - START_PANEL.tile / 2, P, front);
+    /** The stretches of the apron that were filled over with light, by where each begins along it. */
+    const litFrom = (screen: Recorder) => screen.rects.filter((rect) => rect.style.startsWith('rgba(255, 244, 150')).map((rect) => rect.at[0]);
+    const words = (screen: Recorder) => screen.texts.filter((entry) => entry.text === 'START').map((entry) => entry.style);
     const dark = recorder();
     drawField(dark.context, stage, machine, { showGuide: false });
-    expect(near(dark.starts, stretch(2).x, stretch(2).y)).toBe(false);
+    expect(litFrom(dark)).toEqual([]);
+    expect(new Set(words(dark)).size).toBe(1);
     lightGate(stage, 2);
     expect(stage.gateGlow).toEqual([0, 0, expect.any(Number)]);
     expect(stage.gateGlow[2]).toBeGreaterThan(0);
@@ -231,9 +294,140 @@ describe('the START panel on the canvas', () => {
     expect(stage.gateGlow).toHaveLength(CHUCKERS.count);
     const screen = recorder();
     expect(() => drawField(screen.context, stage, machine, { showGuide: false })).not.toThrow();
-    expect(screen.texts.filter((entry) => entry.text === 'START')).toHaveLength(3);
-    expect(near(screen.starts, stretch(2).x, stretch(2).y)).toBe(true);
-    expect(near(screen.starts, stretch(1).x, stretch(1).y)).toBe(false);
+    expect(litFrom(screen)).toEqual([CATCHER.tile * 2]);
+    const colours = words(screen);
+    expect(colours).toHaveLength(3);
+    expect(colours[0]).toBe(colours[1]);
+    expect(colours[2]).not.toBe(colours[0]);
+  });
+
+  it('draws a medal on its way down a pocket inside the mouth, lower and darker as it goes, and not among the medals on the table', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    const x = CHECKERS.positions[0] + 1;
+    const through = (sinceDrop: number): Medal => ({ id: 901, x, y: front + MEDAL_RADIUS, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1 });
+    /** One frame with only that medal on the field: what was drawn, and the pictures of medals among it. */
+    const drawn = (medal: Medal) => {
+      machine.medals = [medal];
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false });
+      return { ...screen, stamps: screen.stamps.filter((stamp) => stamp.image === stage.medal) };
+    };
+    let last: { x: number; y: number; alpha: number } = { x: 0, y: -Infinity, alpha: 2 };
+    for (const sinceDrop of [0.02, 0.12, 0.2, 0.3]) {
+      const medal = through(sinceDrop);
+      const held = caught(medal, machine.time);
+      if (!held) throw new Error('not caught');
+      const { stamps } = drawn(medal);
+      // One picture of it, with its face where the catcher has it, and nothing where the engine has it lying.
+      expect(stamps).toHaveLength(1);
+      const face = project(held.x, held.height + HEIGHT.medal / 2, held.depth);
+      expect(stamps[0].x).toBeCloseTo(face.x, 6);
+      expect(stamps[0].y).toBeCloseTo(face.y, 6);
+      expect(stamps[0].alpha).toBeCloseTo(held.light, 9);
+      expect(stamps[0].y).toBeGreaterThan(last.y);
+      expect(stamps[0].alpha).toBeLessThanOrEqual(last.alpha);
+      last = stamps[0];
+    }
+    // It ends in the mouth, on the drawing as in the cabinet.
+    const mouth = mouthOnDrawing(0, machine.time);
+    expect(Math.abs(last.x - mouth.x)).toBeLessThan(mouth.wide / 2);
+    expect(Math.abs(last.y - mouth.y)).toBeLessThan(mouth.tall);
+    expect(last.alpha).toBeLessThan(0.5);
+    // Once it is down it is a medal on the lower table again, under the catcher, drawn before the catcher is.
+    const lying = drawn(through(CATCHER.sink + 0.01));
+    expect(lying.stamps).toHaveLength(1);
+    expect(lying.stamps[0].alpha).toBe(1);
+    const where = project(x, HEIGHT.medal, front + MEDAL_RADIUS);
+    expect(lying.stamps[0].x).toBeCloseTo(where.x, 6);
+    expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
+  });
+
+  it('draws a medal that came over beside a pocket tipping over the lip and going down behind the catcher, as the 3D picture does', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    // Half way between two pockets: over the lip at the catcher, and through neither.
+    const x = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
+    const beside = (sinceDrop: number): Medal => ({ id: 902, x, y: front + MEDAL_RADIUS, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1 });
+    const drawn = (medal: Medal) => {
+      machine.medals = [medal];
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false });
+      const stamps = screen.stamps.filter((stamp) => stamp.image === stage.medal);
+      return { stamps, medalAt: screen.log.indexOf(`image:${screen.stamps.indexOf(stamps[0])}`), catcherAt: screen.log.indexOf('text:START') };
+    };
+    let last = { y: -Infinity, round: Infinity };
+    const rounds: number[] = [];
+    for (const sinceDrop of [0.02, 0.07, 0.12, 0.17]) {
+      const medal = beside(sinceDrop);
+      const held = caught(medal, machine.time);
+      if (!held) throw new Error('not held');
+      expect(held.chucker).toBe(-1);
+      const { stamps, medalAt, catcherAt } = drawn(medal);
+      // One picture of it: where the catcher has it, after the catcher and the pusher's top, and cut off at the deck.
+      expect(stamps).toHaveLength(1);
+      const at = project(held.x, held.height, held.depth);
+      expect(stamps[0].x).toBeCloseTo(at.x, 6);
+      expect(stamps[0].y).toBeCloseTo(at.y, 6);
+      expect(stamps[0].clipped).toBe(true);
+      expect(medalAt).toBeGreaterThan(catcherAt);
+      // It goes down as it goes.
+      const round = stamps[0].height / stamps[0].width;
+      expect(stamps[0].y).toBeGreaterThan(last.y);
+      rounds.push(round);
+      last = { y: stamps[0].y, round };
+    }
+    // It turns on to its edge quickly and stays there: after the first moment it is much flatter on the drawing than
+    // it began, and by the end much flatter than a medal lying there would be.
+    for (const round of rounds.slice(1)) expect(round).toBeLessThan(rounds[0] * 0.75);
+    expect(last.round).toBeLessThan(project(x, P, front).tilt * 0.5);
+    // Once it is down it is a medal on the lower table again, under the catcher, drawn before the catcher is.
+    const lying = drawn(beside(CHUCKERS.drop + 0.01));
+    expect(lying.stamps).toHaveLength(1);
+    expect(lying.stamps[0].clipped).toBe(false);
+    expect(lying.medalAt).toBeLessThan(lying.catcherAt);
+    const where = project(x, HEIGHT.medal, front + MEDAL_RADIUS);
+    expect(lying.stamps[0].x).toBeCloseTo(where.x, 6);
+    expect(lying.stamps[0].y).toBeCloseTo(where.y, 6);
+  });
+
+  it('draws a ball that lies under the catcher before the catcher, which covers it, and one that has come out from under it after', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const machine = createMachine(3);
+    machine.time = 1.5;
+    const front = pusherFront(machine.time);
+    const ball = (y: number, sinceDrop = 1): Medal => ({ id: 902, x: 50, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: true, grown: 1 });
+    const order = (medal: Medal) => {
+      machine.medals = [medal];
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false });
+      const balls = screen.stamps.flatMap((stamp, index) => (stamp.image === stage.ball ? [index] : []));
+      expect(balls).toHaveLength(1);
+      return { ball: screen.log.indexOf(`image:${balls[0]}`), catcher: screen.log.indexOf('text:START'), clipped: screen.stamps[balls[0]].clipped };
+    };
+    // At the foot of the pusher's face, under the catcher: it is taller than the catcher, and the catcher is drawn over it.
+    expect(BALL_RADIUS * 2).toBeGreaterThan(CATCHER.deck);
+    const under = order(ball(front + MEDAL_RADIUS));
+    expect(under.ball).toBeLessThan(under.catcher);
+    expect(underCatcher(50, front + MEDAL_RADIUS, BALL_RADIUS, machine.time)).toBe(true);
+    // Its middle out past the catcher's foot: it stands in front of the apron, and is drawn over it.
+    const clear = order(ball(front + CATCHER.foot.out + 1));
+    expect(clear.ball).toBeGreaterThan(clear.catcher);
+    // Far down the table it is nowhere near the catcher, and is drawn with the other medals as it always was.
+    const far = order(ball(front + CATCHER.foot.out + BALL_RADIUS * 2 + 5));
+    expect(far.ball).toBeLessThan(far.catcher);
+    // One that has only just come over the lip behind the catcher is still going down behind it: drawn last, and only what shows over the deck.
+    const going = order(ball(front + MEDAL_RADIUS, 0.05));
+    expect(going.ball).toBeGreaterThan(going.catcher);
+    expect(going.clipped).toBe(true);
+    expect(under.clipped).toBe(false);
   });
 });
 
@@ -415,12 +609,83 @@ describe('the feed arms on the canvas', () => {
       expect(area / (full * full)).toBeGreaterThan(0.65);
       // Larger than a medal lying at the very front of the table.
       expect(full).toBeGreaterThan(MEDAL_RADIUS * project(FIELD.width / 2, 0, FIELD.depth).scale * 1.2);
-      // Taken in: the slot is drawn over where it is, and the medal itself is not drawn until it comes out on the rail.
+      expect(shown.stamp.clipped).toBe(false);
+      // Taken in: it has turned edge on to go in at the mouth, so much less of its face shows, and it is inside the
+      // funnel, whose near side is in front of the foot of it.
       step(machine, FEED.slot - 1 / 60);
       const inside = fedSpot(arm, machine.tips[arm], machine.rolling[0].remaining);
       expect(inside.leg).toBe('slot');
-      expect(stampAt(frame(machine).stamps, inside.x, inside.height, inside.depth).off).toBeGreaterThan(5);
+      const taken = stampAt(frame(machine).stamps, inside.x, inside.height, inside.depth);
+      expect(taken.off).toBeLessThan(1e-6);
+      expect(Math.abs(taken.stamp.across[0] * taken.stamp.down[1] - taken.stamp.across[1] * taken.stamp.down[0])).toBeLessThan(area * 0.7);
+      expect(taken.stamp.clipped).toBe(true);
+      expect(inside.depth).toBeLessThan(slotSpot(arm, 0, -SLOT.ring * SLOT.throat, SLOT.face).depth);
     }
+  });
+
+  it('draws each slot as a funnel with a mouth a medal plainly fits: as tall as a medal, and several times as wide as one is thick', () => {
+    fakeDocument();
+    const PHONE = 345 / VIEW.width;
+    const { arcs } = frame(createMachine(3));
+    for (const arm of [0, 1] as const) {
+      const middle = slotSpot(arm, 0, 0, SLOT.face - SLOT.deep);
+      const at = project(middle.x, middle.height, middle.depth);
+      // The mouth is drawn on its own plane, set back inside the ring: its bright edge, and the dark inside that.
+      const own = arcs.filter((arc) => Math.hypot(arc.x - at.x, arc.y - at.y) < 1e-6);
+      expect(own).toHaveLength(2);
+      const [wide, tall] = [Math.min(...own.map((arc) => Math.abs(arc.across))) * 2, Math.min(...own.map((arc) => Math.abs(arc.down))) * 2];
+      const across = slotSpot(arm, 1, 0, SLOT.face - SLOT.deep);
+      const up = slotSpot(arm, 0, 1, SLOT.face - SLOT.deep);
+      expect(wide).toBeCloseTo(SLOT.mouth.wide * (project(across.x, across.height, across.depth).x - at.x), 6);
+      expect(tall).toBeCloseTo(SLOT.mouth.tall * (at.y - project(up.x, up.height, up.depth).y), 6);
+      // A medal standing on its edge goes in with room to spare, on the drawing as in the cabinet.
+      expect(SLOT.mouth.tall).toBeGreaterThan(MEDAL_RADIUS * 2);
+      expect(SLOT.mouth.wide).toBeGreaterThan(HEIGHT.medal * 3);
+      expect(SLOT.mouth.wide).toBeLessThan(MEDAL_RADIUS * 2);
+      expect(tall).toBeGreaterThan(MEDAL_RADIUS * 2 * at.scale * 0.9);
+      // On a phone the mouth is a dozen pixels wide and two dozen tall; before, it was a slit of five.
+      expect(wide * PHONE).toBeGreaterThan(12);
+      expect(tall * PHONE).toBeGreaterThan(22);
+      // The ring round it is all on the drawing, and stays above the open side of the lower table, which begins where the wall ends.
+      const ring = [slotSpot(arm, -SLOT.ring, 0, SLOT.face), slotSpot(arm, SLOT.ring, 0, SLOT.face), slotSpot(arm, 0, -SLOT.ring, SLOT.face)].map((spot) => project(spot.x, spot.height, spot.depth));
+      expect(Math.min(ring[0].x, ring[1].x)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(ring[0].x, ring[1].x)).toBeLessThanOrEqual(VIEW.width);
+      expect(ring[2].y).toBeLessThan(project(arm === 0 ? 0 : FIELD.width, 0, FIELD.sideOpenFrom).y);
+      expect((ring[1].x - ring[0].x) * PHONE).toBeGreaterThan(38);
+      // The throat inside the ring of light is wide enough to take the whole mouth in.
+      expect(SLOT.ring * SLOT.throat).toBeGreaterThan(SLOT.mouth.tall / 2 + 0.3);
+      expect(SLOT.light).toBeGreaterThan(SLOT.throat);
+      expect(SLOT.light).toBeLessThan(1);
+    }
+  });
+
+  it('draws beside each open side a chute with arrows on it that point the way out', () => {
+    const made = fakeDocument();
+    createStage(1);
+    const once = made.flatMap((canvas) => [...canvas.starts, ...canvas.lines]);
+    for (const side of [-1, 1]) {
+      const edge = side < 0 ? 0 : FIELD.width;
+      // The chute starts under the table's edge where the wall ends, and falls away outward.
+      const top = project(edge, chuteHeight(0), FIELD.sideOpenFrom);
+      expect(near(once, top.x, top.y)).toBe(true);
+      expect(chuteHeight(0)).toBeLessThan(0);
+      expect(chuteHeight(5)).toBeLessThan(chuteHeight(0));
+      for (const mark of CHUTE.marks) {
+        // An arrow: its point further out than its barbs, half way between them, all of it beside the open stretch of the table.
+        const point = project(edge + side * CHUTE.far, chuteHeight(CHUTE.far), mark);
+        const barbs = [-1, 1].map((end) => project(edge + side * CHUTE.near, chuteHeight(CHUTE.near), mark + (end * CHUTE.span) / 2));
+        expect(near(once, point.x, point.y)).toBe(true);
+        for (const barb of barbs) expect(near(once, barb.x, barb.y)).toBe(true);
+        expect((point.x - barbs[0].x) * side).toBeGreaterThan(10);
+        expect(mark - CHUTE.span / 2).toBeGreaterThan(FIELD.sideOpenFrom);
+        expect(mark + CHUTE.span / 2).toBeLessThan(FIELD.depth);
+        // And it is on the drawing, where it can be seen.
+        expect(point.x).toBeGreaterThan(0);
+        expect(point.x).toBeLessThan(VIEW.width);
+        expect(point.y).toBeLessThan(VIEW.height);
+      }
+    }
+    expect(CHUTE.marks).toHaveLength(3);
   });
 
   it('lets a medal go without a jump: its last frame on the rail and its first in the air are the same picture', () => {
@@ -476,7 +741,7 @@ describe('the feed arms on the canvas', () => {
       const end = onRail(0, left, railFrame(0, left).length + 0.6);
       return lines.filter((line) => Math.hypot(line.x - end.x, line.y - end.y) < 30);
     });
-    // The arms are part of the machine, like the START panel: with reduced motion the rail is drawn in the very same place.
+    // The arms are part of the machine, like the catcher: with reduced motion the rail is drawn in the very same place.
     expect(pictures[0].length).toBeGreaterThan(0);
     expect(pictures[1]).toEqual(pictures[0]);
   });

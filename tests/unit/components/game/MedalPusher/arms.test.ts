@@ -19,6 +19,7 @@ import {
   railLength,
   rolled,
   rollingSpot,
+  slotSpot,
   swing,
   type Spot,
 } from '@/components/game/MedalPusher/arms';
@@ -44,7 +45,7 @@ import {
   type Arm,
   type FallingMedal,
 } from '@/components/game/MedalPusher/engine';
-import { HEIGHT, HOUSING, SCREEN, VIEW, project, wallBehind } from '@/components/game/MedalPusher/view';
+import { EYE_AT, HEIGHT, HOUSING, SCREEN, VIEW, project, wallBehind } from '@/components/game/MedalPusher/view';
 
 import { dropAt } from './feeding';
 
@@ -75,6 +76,59 @@ describe('where the arms hang', () => {
       expect(ring * 2).toBeGreaterThan(VIEW.width / 10);
       // And it hides nothing that leaves the table: it is over the end of the side wall, above where the side opens.
       expect(mouth.y + ring).toBeLessThan(project(arm === 0 ? 0 : FIELD.width, 0, FIELD.sideOpenFrom).y);
+    }
+  });
+
+  it('makes each slot a funnel tipped back to look up at the player, with a mouth a medal on its edge plainly fits', () => {
+    const [sin, cos] = [Math.sin(SLOT.tilt), Math.cos(SLOT.tilt)];
+    const seen = (spot: Spot) => project(spot.x, spot.height, spot.depth);
+    for (const arm of BOTH) {
+      const collar = armCollar(arm);
+      const from = (spot: Spot): Spot => ({ x: spot.x - collar.x, height: spot.height - collar.height, depth: spot.depth - collar.depth });
+      // Its three ways from the collar: across its face is across the cabinet; up its face is up and away from
+      // the player; out of it is toward the player and upward. Each is a unit long and square to the other two.
+      expect(slotSpot(arm, 0, 0, 0)).toEqual(collar);
+      const across = from(slotSpot(arm, 1, 0, 0));
+      const up = from(slotSpot(arm, 0, 1, 0));
+      const out = from(slotSpot(arm, 0, 0, 1));
+      expect(across).toEqual({ x: 1, height: 0, depth: 0 });
+      expect(up).toMatchObject({ x: 0, height: expect.closeTo(cos, 12), depth: expect.closeTo(-sin, 12) });
+      expect(out).toMatchObject({ x: 0, height: expect.closeTo(sin, 12), depth: expect.closeTo(cos, 12) });
+      for (const [a, b] of [[across, up], [across, out], [up, out]]) expect(dot(a, b)).toBeCloseTo(0, 12);
+      for (const way of [across, up, out]) expect(dot(way, way)).toBeCloseTo(1, 12);
+      // Tipped back, it looks more nearly at the player's eye than a slot that stood upright would.
+      const face = slotSpot(arm, 0, 0, SLOT.face);
+      const toEye = { x: EYE_AT.x - face.x, height: EYE_AT.height - face.height, depth: EYE_AT.depth - face.depth };
+      const far = Math.sqrt(dot(toEye, toEye));
+      expect(dot(out, toEye) / far).toBeGreaterThan(toEye.depth / far + 0.15);
+      expect(SLOT.tilt).toBeGreaterThan(0.2);
+      expect(SLOT.tilt).toBeLessThan(0.7);
+      // So on the drawing its ring is nearly as tall as it is wide: an upright one is three quarters as tall.
+      const [left, right, top, foot] = [slotSpot(arm, -SLOT.ring, 0, SLOT.face), slotSpot(arm, SLOT.ring, 0, SLOT.face), slotSpot(arm, 0, SLOT.ring, SLOT.face), slotSpot(arm, 0, -SLOT.ring, SLOT.face)].map(seen);
+      expect((foot.y - top.y) / (right.x - left.x)).toBeGreaterThan(0.88);
+      // All of the ring is on the drawing, large in it, and its foot is above where the side of the table opens.
+      expect(left.x).toBeGreaterThanOrEqual(0);
+      expect(right.x).toBeLessThanOrEqual(VIEW.width);
+      expect(right.x - left.x).toBeGreaterThan(VIEW.width / 9);
+      expect(foot.y).toBeLessThan(project(arm === 0 ? 0 : FIELD.width, 0, FIELD.sideOpenFrom).y);
+      // The mouth is set back inside the ring, behind the face and a little behind the collar, so a medal at
+      // the end of its way in is in the funnel, in front of the mouth, where it is seen going in.
+      expect(SLOT.face - SLOT.deep).toBeLessThan(0);
+      expect(SLOT.face - SLOT.deep).toBeGreaterThan(-SLOT.back);
+      // It takes a medal standing on its edge with room to spare: taller than a medal is across, and several
+      // times as wide as a medal is thick. Before, it was a slit a medal and a half thick.
+      expect(SLOT.mouth.tall).toBeGreaterThan(MEDAL_RADIUS * 2);
+      expect(SLOT.mouth.tall).toBeLessThan(MEDAL_RADIUS * 2 + 1);
+      expect(SLOT.mouth.wide).toBeGreaterThan(HEIGHT.medal * 3.5);
+      const mouth = [slotSpot(arm, -SLOT.mouth.wide / 2, 0, SLOT.face - SLOT.deep), slotSpot(arm, SLOT.mouth.wide / 2, 0, SLOT.face - SLOT.deep), slotSpot(arm, 0, SLOT.mouth.tall / 2, SLOT.face - SLOT.deep), slotSpot(arm, 0, -SLOT.mouth.tall / 2, SLOT.face - SLOT.deep)].map(seen);
+      // On a phone, where the stage is 345 pixels wide, that is a dozen pixels across and two dozen tall.
+      expect(((mouth[1].x - mouth[0].x) * 345) / VIEW.width).toBeGreaterThan(12);
+      expect(((mouth[3].y - mouth[2].y) * 345) / VIEW.width).toBeGreaterThan(22);
+      // The whole mouth is inside the throat, the throat inside the ring of light, and that inside the ring.
+      expect(SLOT.mouth.tall / 2).toBeLessThan(SLOT.ring * SLOT.throat);
+      expect(SLOT.throat).toBeLessThan(SLOT.light);
+      expect(SLOT.light).toBeLessThan(1);
+      expect(SLOT.waist).toBeLessThan(SLOT.ring);
     }
   });
 

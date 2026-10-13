@@ -43,6 +43,7 @@ import {
   SOLID_SHADOW_VERTEX,
   SOLID_VERTEX,
 } from './shaders3d';
+import { WORKS_PARTS, buildWorks } from './works3d';
 
 /** The shadow map is this many texels square: about a twentieth of a field unit each. */
 const SHADOW_SIZE = 2048;
@@ -262,7 +263,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     cameraMatrix(camera, shake);
 
     // This frame's numbers, and each list sent to the graphics card once.
-    writeMedals(medals, machine, stage.exits, stage.fed);
+    writeMedals(medals, machine, stage.exits, stage.fed, calm);
     writeBalls(balls, machine, stage.exits, lowBalls);
     writeJewels(jewels, machine, stage.exits);
     buildMoving(moving, machine, front, stage, options);
@@ -272,6 +273,8 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     const wave = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
     buildLamps(beads, flat, machine, front, wave, partying, options, stage.clock);
     addCatcherLamps(beads, machine, stage, wave);
+    // The payout works: the hopper's doors and the tower lifts, after the cabinet's own moving parts (works3d.ts).
+    buildWorks(moving, flat, beads, machine, front, calm);
     // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);
@@ -339,6 +342,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     switchTo(solidProgram);
     drawParts(stillArray, stillParts);
     drawParts(movingArray, MOVING_PARTS);
+    drawParts(movingArray, WORKS_PARTS);
 
     // The flat touches go on last and leave the depths alone: each darkens or lights what is already there.
     // What they are given is already multiplied by how much they hide, which is also how the page lays this

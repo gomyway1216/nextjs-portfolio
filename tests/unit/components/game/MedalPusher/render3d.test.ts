@@ -2247,7 +2247,8 @@ describe('the 3D scene on a graphics card', () => {
     expect(during('drawElementsInstanced')).toBe(5);
     // The contact shadows are one more call for all the medals together.
     expect(during('drawArraysInstanced')).toBe(1);
-    expect(scene.last.calls).toBeLessThan(20);
+    // Twenty in all, the payout works' one run of surfaces included: the hopper's doors are always there to draw.
+    expect(scene.last.calls).toBeLessThan(21);
     expect(during('drawElementsInstanced') + during('drawArraysInstanced') + during('drawArrays')).toBe(scene.last.calls);
     // One upload for the medals, and one for each of the four other lists that change.
     expect(during('bufferData')).toBe(5);

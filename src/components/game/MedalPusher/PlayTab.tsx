@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { AchievementToast, BonusStrip } from './DailyBonus';
-import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
@@ -38,6 +38,9 @@ import { keepMachine } from './savedMachine';
 import { savedNoteFor } from './savedNote';
 import { restore } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
+import { hopperBusy } from './hopper';
+import { LIFT, holds as liftHolds } from './lift';
+import { getWorksStrings } from './worksStrings';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import styles from './MedalPusher.module.css';
 
@@ -140,6 +143,13 @@ export function lightBowlPrize(stage: Stage, roulette: ActiveRoulette | null, li
   if (lit && stage.party === lit) stage.party = null;
   return null;
 }
+
+/**
+ * Whether what the bowls paid is up on the screen. Its announcement has told all of it: how many of the medals are
+ * poured onto the field, and that the rest go up as towers. So for as long as it is up the payout works say nothing
+ * of their own: the pour they finish and the towers they build in that time are that prize, said already.
+ */
+export const bowlPrizeUp = (roulette: ActiveRoulette | null): boolean => !!roulette?.bowl && roulette.bowl.payout >= 0;
 
 /** The numbers shown around the cabinet. */
 interface Hud {
@@ -272,7 +282,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   // to be switched off and on again, the way a reset does, and gives the machine to open with.
   const keeper = useRef<Sync | null>(null);
   // What the frame loop reads; it runs outside React, so it takes these from refs.
-  const live = useRef({ auto, sound, active, strings: t });
+  const live = useRef({ auto, sound, active, strings: t, works: getWorksStrings(language) });
   // Who is holding each rail's feed down. The two rails are held apart, so two fingers, or two keys, feed both at once.
   const holds = useRef<[Hold, Hold]>([
     { by: new Set(), since: 0 },
@@ -296,7 +306,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const [lead, setLead] = useState<[number, number] | null>(null);
 
   useEffect(() => {
-    live.current = { auto, sound, active, strings: t };
+    live.current = { auto, sound, active, strings: t, works: getWorksStrings(language) };
   });
 
   /** Shows on the buttons which rails are held, when that has changed. */
@@ -554,6 +564,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     fedBy.current.length = 0;
     let lastSpinClock = 0;
     let bowlLights: Stage['party'] = null;
+    let shownWorks = '';
     let last = performance.now();
     const events: SessionEvent[] = [];
     // The medals that were in the air before a frame, by name: the ones that have come down in it are among them.
@@ -767,7 +778,33 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound('tower', soundOn);
             setAnnouncement(strings.sayJewelBonus(event.payout, JEWEL.lamps));
             break;
+          // The payout works. What they have done is read out once it is done, so that it does not talk over the
+          // prize that set them going; and not at all while a prize from the bowls is up, which has said it itself.
+          case 'pourStart':
+            // The hopper's doors drop open and the medals rush down the chute for as long as there are medals to pour.
+            playSound('door', soundOn);
+            playSound('pour', soundOn, { count: event.medals });
+            break;
+          case 'pourEnd':
+            playSound('door', soundOn, { up: true });
+            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayPoured(event.medals));
+            break;
+          case 'towersRise':
+            // The guards rise first, then the lifts bring the towers up: the motor runs for as long as the tallest takes.
+            playSound('guard', soundOn, { up: true, seconds: LIFT.opens });
+            playSound('lift', soundOn, { after: LIFT.opens, seconds: LIFT.opens + event.medals / event.towers / TOWER.perSecond });
+            break;
+          case 'towersReady':
+            playSound('guard', soundOn, { seconds: LIFT.closes });
+            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowers(event.towers));
+            break;
         }
+      }
+      // The field says what the payout works are doing: whether the hopper's doors are open, and how many lifts hold a tower.
+      const works = `${hopperBusy(session.machine.hopper) ? 'open' : 'shut'} ${session.machine.lifts.filter(liftHolds).length}`;
+      if (works !== shownWorks) {
+        shownWorks = works;
+        [canvas.dataset.hopper, canvas.dataset.lifts] = works.split(' ');
       }
       // A run of the roulette is several turns and only the first is announced. Each is told by its clock starting
       // again, and the ball is heard round the wheel for the whole of it; without motion it is not seen to go round.

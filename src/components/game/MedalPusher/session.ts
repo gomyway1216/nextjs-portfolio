@@ -7,6 +7,8 @@
  */
 
 import { JEWEL_SPOTS, buildTowers, createMachine, dropBall, dropJewel, dropMedal, queuePayout, step, type Arm, type Machine } from './engine';
+import { hopperBusy } from './hopper';
+import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
   BOARD,
   BOWLS,
@@ -243,7 +245,9 @@ export type SessionEvent =
   | { type: 'bowlDrop'; bowl: number; hole: number; duration: number }
   | { type: 'jewelDrop' }
   | { type: 'jewel'; lamps: number; payout: number }
-  | { type: 'jewelBonus'; payout: number };
+  | { type: 'jewelBonus'; payout: number }
+  // The payout works: the hopper's doors opening and shutting, towers coming up on their lifts and standing free.
+  | WorksEvent;
 
 export interface SessionOptions {
   /** Prize balls on the field at the start. */
@@ -345,6 +349,8 @@ export const isBusy = (session: Session): boolean =>
   session.balls > 0 ||
   session.machine.payoutQueue > 0 ||
   session.machine.growing > 0 ||
+  hopperBusy(session.machine.hopper) ||
+  session.machine.lifts.length > 0 ||
   session.machine.rolling.length > 0 ||
   session.machine.falling.length > 0;
 
@@ -476,7 +482,9 @@ export const chanceLeft = (session: Pick<Session, 'gold' | 'chance'>): number =>
 /** Moves the machine forward by `dt` seconds. Events are appended to `events` when it is given. */
 export function advance(session: Session, dt: number, events?: SessionEvent[]): void {
   const before = chanceLeft(session);
+  const works = events ? watchWorks(session.machine) : null;
   run(session, dt, events);
+  if (works && events) for (const event of worksEvents(works, session.machine)) events.push(event);
   const after = chanceLeft(session);
   if (before === 0 && after > 0) events?.push({ type: 'chanceStart' });
   else if (before > 0 && after === 0) events?.push({ type: 'chanceEnd' });

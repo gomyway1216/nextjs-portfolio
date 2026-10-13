@@ -9,7 +9,8 @@ import {
   BALL_JACKPOT_CHANCE,
   BOARD,
   BOARD_VALUE,
-  BOWL,
+  BOWLS,
+  BOWL_POURED,
   CHAIN_GOAL,
   CHANCE,
   CHANCE_BONUS,
@@ -32,6 +33,8 @@ import {
   boardAfter,
   bowlValue,
   chainChance,
+  holeChance,
+  pouredOf,
   reachChance,
   reachHitChance,
   chanceSpinValue,
@@ -39,6 +42,7 @@ import {
   spinValue,
   tierChance,
   tierValue,
+  type BowlHole,
   type Pocket,
   type ReachShown,
   type Tier,
@@ -76,10 +80,27 @@ export function pocketGroups(): { pocket: Pocket; count: number }[] {
 }
 
 /**
+ * The holes of each bowl grouped by what they do, the top bowl's first and a
+ * bowl's way down before its prize: how many of the bowl's holes are of that
+ * kind, and the chance that the ball, once it is in the top bowl, ends up in one.
+ */
+export function holeGroups(): { bowl: number; hole: BowlHole; count: number; holes: number; overall: number }[] {
+  return BOWLS.flatMap((holes, bowl) =>
+    [...new Set(holes)].map((hole) => {
+      const alike = holes.flatMap((one, index) => (one === hole ? [index] : []));
+      return { bowl, hole, count: alike.length, holes: holes.length, overall: alike.reduce((sum, index) => sum + holeChance(bowl, index), 0) };
+    }),
+  );
+}
+
+/**
  * What comes back per medal dropped when `front` of the medals on the field
  * leave by the front and each medal dropped starts `spins` spins worth `value`.
  */
 export const returnFor = (front: number, spins: number, value: number): number => front * (1 + spins * value);
+
+/** How a prize of the bowls is paid: the medals poured onto the field loose, and the towers the rest is stacked in. */
+export const bowlSplit = (medals: number): [poured: number, towers: number] => [pouredOf(medals), towerSizes(medals - pouredOf(medals)).length];
 
 /** The spins per medal that would make the return exactly 1 at this front share. */
 export const breakEvenSpins = (front: number, value: number): number => (1 / front - 1) / value;
@@ -329,33 +350,50 @@ export const OddsTab = () => {
             </tbody>
           </table>
         </div>
-        <p className={styles.body}>{t.bowlIntro(BOWL.length)}</p>
+        <p className={styles.body}>{t.bowlIntro(BOWLS.length)}</p>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-bowl-table">
             <caption className={styles.srOnly}>{t.bowlCaption}</caption>
             <thead>
               <tr>
                 <th scope="col">{t.colHole}</th>
-                <th scope="col" className={styles.num}>
-                  {t.colChance}
+                <th scope="col" className={styles.numHead}>
+                  {t.colInBowl}
                 </th>
-                <th scope="col">{t.colPaidAs}</th>
+                <th scope="col" className={styles.numHead}>
+                  {t.colOverall}
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {BOWL.map((hole) => (
-                <tr key={hole} data-hole={hole}>
-                  <th scope="row">{hole === 'jackpot' ? t.holeJackpot : t.paysMedals(hole)}</th>
-                  <td className={styles.num}>{percent(1 / BOWL.length)}</td>
-                  <td>
-                    {hole === 'jackpot' ? t.holeJackpotPaid(towerSizes(JACKPOT_START).length, JACKPOT_START) : t.chestPaidTowers(towerSizes(hole).length)}
-                  </td>
+            {/* A part for each bowl, under a row that names it. Three columns, so that it fits a phone: how many of the
+                bowl's holes do the same thing, and how a prize is paid, are written under what the hole does. */}
+            {BOWLS.map((all, bowl) => (
+              <tbody key={bowl} data-bowl={bowl + 1}>
+                <tr>
+                  <th colSpan={3} scope="rowgroup" className={styles.groupHead}>
+                    {t.bowlHead(bowl + 1, all.length)}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
+                {holeGroups()
+                  .filter((group) => group.bowl === bowl)
+                  .map(({ hole, count, holes, overall }) => (
+                    <tr key={hole} data-bowl={bowl + 1} data-hole={hole}>
+                      <th scope="row">
+                        {hole === 'down' ? t.holeDown : hole === 'jackpot' ? t.holeJackpot : t.paysMedals(hole)}
+                        <span className={styles.holeNote}>{t.holeShare(count, holes)}</span>
+                        <span className={styles.holeNote}>
+                          {hole === 'down' ? t.holeDownPaid : hole === 'jackpot' ? t.holeJackpotPaid(...bowlSplit(JACKPOT_START), JACKPOT_START) : t.bowlPaid(...bowlSplit(hole))}
+                        </span>
+                      </th>
+                      <td className={styles.num}>{percent(count / holes)}</td>
+                      <td className={styles.num}>{percent(overall)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            ))}
           </table>
         </div>
-        <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE))}</p>
+        <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE), tidyPercent(BOWL_POURED))}</p>
         <p className={styles.note}>
           {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
         </p>

@@ -1571,47 +1571,80 @@
   background: radial-gradient(circle at 38% 32%, #ffffff 0%, #ffffff 30%, #fff3a8 62%, #ffd65c 100%);
   transform: translateZ(0.1em) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.8);
 }
-/* The bowl of the jackpot challenge has a smaller boss, in the middle of its floor. The cabinet moves its ball every frame. */
+/* The jackpot challenge is three bowls one under another, each a dish like the wheel's, seen from the same place.
+   The view follows the ball: the stack is lifted (--mp-stage) so that the bowl the ball is in is the one in the
+   middle of the stage, with the near edge of the bowl above showing at the top and the far edge of the bowl below
+   at the bottom. The cabinet moves the ball every frame, and it is seen to fall from one bowl into the next.
+   The window is what cuts the stack off at the edges of the stage: it is the box round the scene, not the scene
+   itself, since a box that both clips and is looked into in 3D cuts into what stands in it. */
+.bowlWindow {
+  position: relative;
+  flex: none;
+  width: 63cqw;
+  height: 100cqh;
+  overflow: hidden;
+}
+.bowlScene {
+  position: absolute;
+  inset: 0;
+  perspective: 300cqh;
+  perspective-origin: 50% 0%;
+}
+.bowlTilt {
+  --mp-dish-tilt: 52deg;
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 2em;
+  height: 2em;
+  margin: -1em 0 0 -1em;
+  font-size: 47cqh;
+  transform: rotateX(var(--mp-dish-tilt));
+  transform-style: preserve-3d;
+}
+.bowlLift {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(calc(var(--mp-stage) * var(--mp-drop)));
+  transform-style: preserve-3d;
+}
+/* One bowl: --mp-drop below the one above it. */
+.dish {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(calc(var(--mp-bowl) * var(--mp-drop) * -1));
+  transform-style: preserve-3d;
+}
+/* A bowl the ball is not in stands in the shade. */
+.dishShade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #05020f;
+  opacity: 0.5;
+  transform: translateZ(0.012em);
+}
+.dish[data-on='true'] .dishShade {
+  opacity: 0;
+}
+/* A bowl has a smaller boss than the wheel, in the middle of its floor. */
 .dishHub[data-dish='bowl'] {
   width: 0.24em;
   height: 0.24em;
   margin: -0.12em 0 0 -0.12em;
 }
-/* The sign behind a hole, saying what it pays. */
-.holeSign {
-  position: absolute;
-  padding: 0.16em 0.42em;
-  border: 1px solid #ff9db1;
-  border-radius: 0.36em;
-  background: rgba(10, 5, 32, 0.9);
-  color: #ffe0f1;
-  font-size: 7.6cqh;
+/* What a hole does, painted on the floor beside it: an arrow on one that leads down to the next bowl, and on the
+   others what they pay. */
+.holeLabel {
   font-weight: 900;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
-  white-space: nowrap;
-  transform-origin: 50% 100%;
-  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1));
+  stroke: #05020f;
+  stroke-width: 0.07px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
-.holeSign[data-best='true'] {
-  border-color: #fff3b0;
-  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
-  color: #3a1d00;
-}
-/* A sign to one side of the boss grows away from it, keeping the edge next to it where it is, so as not to cut through it. */
-.holeSign[data-side='left'] {
-  transform-origin: 100% 100%;
-}
-.holeSign[data-side='right'] {
-  transform-origin: 0% 100%;
-}
-/* The sign of the hole the ball dropped into. */
-.holeSign[data-on='true'] {
-  border-color: #ffffff;
-  background: linear-gradient(180deg, #ffffff 0%, #ffd65c 100%);
-  color: #3a1d00;
-  transform: translate(-50%, -100%) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.25);
-}
+/* The ball. It is placed from the middle of the top bowl's floor, and its shadow is kept on the floor of the bowl
+   it is over while it falls. */
 .ballSpot {
   position: absolute;
   width: 0;
@@ -1637,6 +1670,175 @@
   border-radius: 50%;
   background: radial-gradient(circle at 34% 28%, #ffffff 0%, #f4f4fb 22%, #b4b4c8 62%, #5a5a78 100%);
   transform: translateZ(var(--mp-ball)) rotateX(calc(var(--mp-dish-tilt) * -1));
+}
+/* The way down, beside the bowls: a rung for each, with what it holds, and the one the ball is in lit. */
+.ladder {
+  display: grid;
+  gap: 1.4cqh;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rung {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+  padding: 0.6cqh 1.6cqw 0.6cqh 0.8cqw;
+  border-radius: 99cqh;
+  border: max(1px, 0.3cqw) solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 5, 32, 0.55);
+  color: #cdbfe6;
+  font-size: 6.6cqh;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+.rungNumber {
+  display: grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: #3b2a6b;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+/* What the bowl holds: a number of medals, or the jackpot. */
+.rungPrize {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.rung[data-done='true'] {
+  border-color: #7df0ff;
+  color: #7df0ff;
+}
+.rung[data-done='true'] .rungNumber {
+  background: #0e7490;
+}
+.rung[data-on='true'] {
+  border-color: #fff3b0;
+  background: linear-gradient(180deg, #fff3a8 0%, #ffd65c 100%);
+  color: #3a1d00;
+}
+.rung[data-on='true'] .rungNumber {
+  background: #7a3b00;
+}
+/* What the bowls paid, counted up over the stage. A prize from one of the upper bowls is counted over its bowl;
+   the jackpot has the whole stage, which goes dark behind it, and medals rain down it. */
+.payShow {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  width: 63cqw;
+  height: 46cqh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+}
+.payShow[data-kind='jackpot'] {
+  width: 100cqw;
+  height: 100cqh;
+  overflow: hidden;
+  background: radial-gradient(80% 100% at 50% 50%, rgba(10, 5, 32, 0.93) 0%, rgba(10, 5, 32, 0.84) 60%, rgba(10, 5, 32, 0.55) 100%);
+}
+.payCount {
+  position: relative;
+  font-size: 22cqh;
+  font-weight: 900;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff3a8;
+  -webkit-text-stroke: max(0.5px, 0.5cqh) #7a3b00;
+  text-shadow: 0 0.06em 0 #3a1d00;
+}
+.payShow[data-kind='jackpot'] .payCount {
+  font-size: 52cqh;
+  color: #ffffff;
+}
+/* A jackpot of four digits, or of five, is written smaller, so that it is still inside the stage. */
+.payShow[data-kind='jackpot'][data-digits='4'] .payCount {
+  font-size: 44cqh;
+}
+.payShow[data-kind='jackpot'][data-digits='5'] .payCount {
+  font-size: 36cqh;
+}
+/* Chance time's strip lies across the top of the stage for as long as a gold spin is held, and a ball can be in the
+   bowls all that while. What stands beside the bowls and over them keeps clear of it: the ladder starts lower, with
+   the picture of the tower left out to make the room, and a prize from an upper bowl is counted lower over its
+   bowl, and a little smaller. The jackpot's count is in the middle of the stage, under the strip as it is. */
+.chance ~ .stage .ladder ~ .chainTower {
+  display: none;
+}
+.chance ~ .stage .ladder {
+  margin-top: 4cqh;
+}
+.chance ~ .stage .payShow[data-kind='prize'] {
+  top: 8cqh;
+}
+.chance ~ .stage .payShow[data-kind='prize'] .payCount {
+  font-size: 18cqh;
+}
+/* A medal of the rain. It is drawn only for a player who has not asked for less motion. */
+.payCoin {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The view goes down the stack with the ball, in the time the ball takes to fall. */
+  .bowlLift {
+    transition: transform 0.75s cubic-bezier(0.45, 0, 0.3, 1);
+  }
+  .dishShade {
+    transition: opacity 0.5s ease-out;
+  }
+  /* A bowl the ball has just dropped out of is glass while the ball falls: its floor fades until the ball can be
+     seen through it on its way down, and comes back once the ball is out from under it. The shade waits for that.
+     Only the flat sheet of the floor fades, never the dish that stands the bowl in depth. */
+  .dish[data-above='true'] > .bowl {
+    animation: mp-glass 1.05s ease-in-out backwards;
+  }
+  .dish[data-above='true'] > .dishShade {
+    transition-delay: 0.7s;
+  }
+  .payShow {
+    animation: mp-pay-in 0.3s ease-out backwards;
+  }
+  .payCoin {
+    position: absolute;
+    left: calc(3cqw + var(--mp-across) * 88cqw);
+    top: -14cqh;
+    display: block;
+    width: 11cqh;
+    height: 11cqh;
+    border-radius: 50%;
+    border: max(1px, 0.7cqh) solid #7a4f06;
+    background: radial-gradient(circle at 36% 30%, #fffbe0 0%, #ffd65c 46%, #c9900a 100%);
+    animation: mp-rain 1.3s linear infinite backwards;
+    animation-delay: calc(var(--mp-wait) * 0.072s);
+  }
+}
+@keyframes mp-glass {
+  14%,
+  68% {
+    opacity: 0.28;
+  }
+}
+@keyframes mp-pay-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+/* From above the stage to below it, turning over as it falls. */
+@keyframes mp-rain {
+  from {
+    transform: translateY(0) rotateX(0deg);
+  }
+  to {
+    transform: translateY(130cqh) rotateX(900deg);
+  }
 }
 /* The run a ball is on: how many numbers in a row, a lamp for each, and the tower they have built. */
 .chain {
@@ -2817,6 +3019,33 @@
 }
 .oddsTable tbody th {
   font-weight: 700;
+}
+/* The table of the bowls' holes is in three parts, one for each bowl, each under a row that names the bowl. What is
+   written under a hole, in smaller letters, is how many of the bowl's holes are like it and how it is paid. */
+.oddsTable .groupHead {
+  padding-top: 0.8rem;
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+/* The heads of its two columns of chances are over numbers, like them to the right, but may break into two lines:
+   on a phone that leaves the room to the column that has the words. */
+.oddsTable .numHead {
+  text-align: right;
+}
+@media (min-width: 40rem) {
+  .oddsTable .numHead {
+    white-space: nowrap;
+  }
+}
+.holeNote {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--games-route-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.45;
 }
 .oddsTable tr[data-best='true'] th,
 .oddsTable tr[data-best='true'] td {

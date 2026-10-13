@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { CHESTS, JACKPOT_START } from '../../src/components/game/MedalPusher/lottery';
-import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
+import { CHAIN_GOAL, CHESTS, JACKPOT_START, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
@@ -1600,10 +1600,12 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(reach.locator('tr[data-reach="any"]')).toContainText('30.6%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
-  // Four numbers in a row lead to the bowl, and each of its three holes is as likely as the next.
+  // Four numbers in a row lead to the three bowls: a row for what the holes of each bowl do, and each of the three ends one time in three.
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td')).toHaveCount(4);
   await expect(odds(page).getByTestId('pusher-chain-table').locator('tbody td').last()).toHaveText('19.8%');
-  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody')).toHaveCount(3);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr[data-hole]')).toHaveCount(5);
+  await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 2,170 leads to it');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
@@ -1691,6 +1693,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
+  await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('3段目');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
 });
 
@@ -1778,4 +1781,53 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   await page.getByRole('tab', { name: 'Odds' }).click();
   const oddsSizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(oddsSizes.scroll).toBeLessThanOrEqual(oddsSizes.inner);
+});
+
+test('a jackpot is counted out on the screen and on the marquee, up to what was paid and no further', async ({ page }) => {
+  // A machine that has just won. A full run of four tens is behind it and the ball is in the funnel of the last of
+  // the three bowls; it is played on here until the ball has dropped and the jackpot is half counted out, and
+  // saved as the game saves one, for the page to find. That leaves the page over five seconds of the show.
+  const session = createSession(5);
+  const ten = ROULETTE.indexOf(10);
+  session.roulettes = 1;
+  session.roulette = {
+    pocket: ten,
+    from: ten,
+    elapsed: TIMING.roulette + TIMING.step,
+    duration: TIMING.roulette,
+    landed: true,
+    level: CHAIN_GOAL,
+    total: 10 * CHAIN_GOAL,
+    gain: 0,
+    over: false,
+    jackpot: false,
+    bowl: { holes: [0, 0, 0], stage: 2, elapsed: BOWL_TIMES[2] - 0.5, duration: BOWL_TIMES[2], payout: -1 },
+  };
+  for (let i = 0; i < 3 * 60; i++) advance(session, 1 / 60);
+  expect(session.roulette?.bowl?.payout).toBe(JACKPOT_START);
+  expect(session.paidOut).toBe(JACKPOT_START);
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The bowls are on the screen, the view down at the last of them, and the hole the ball took in each is lit.
+  const screen = machine(page).getByTestId('pusher-screen');
+  await expect(screen).toHaveAttribute('data-mode', 'bowl');
+  await expect(screen).toHaveAttribute('data-banner', 'jackpot');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-stage', '2');
+  await expect(machine(page).getByTestId('pusher-bowl')).toHaveAttribute('data-fallen', '0 0 0');
+  await expect(machine(page).getByTestId('pusher-ladder').locator('li')).toHaveCount(3);
+  // The jackpot has the stage, and the plate on the marquee counts with it.
+  await expect(machine(page).getByTestId('pusher-pay-show')).toHaveAttribute('data-kind', 'jackpot');
+  const plate = machine(page).getByTestId('pusher-jackpot');
+  await expect(plate).toHaveAttribute('data-counting', 'true');
+  // Both run up to what the jackpot stood at and stop there, and that is what the machine has paid.
+  await expect(machine(page).getByTestId('pusher-pay-count')).toHaveText(`+${JACKPOT_START}`, { timeout: 20_000 });
+  await expect(plate).toHaveText(String(JACKPOT_START));
+  expect(await counter(page, 'paid')).toBe(JACKPOT_START);
 });

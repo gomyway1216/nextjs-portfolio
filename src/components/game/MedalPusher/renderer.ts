@@ -17,7 +17,7 @@
  */
 
 import type { Machine } from './engine';
-import { drawField, drawOverlay, paintStage, type DrawOptions, type Stage } from './render';
+import { drawField, drawOverlay, glassShift, paintStage, type DrawOptions, type Stage } from './render';
 import { createScene3d, type Scene3d } from './render3d';
 
 export type RendererKind = 'webgl' | '2d';
@@ -79,6 +79,8 @@ export function createRenderer(field: HTMLCanvasElement, under: HTMLCanvasElemen
   // What the upper canvas was last cleared for: nothing has to be drawn on it again while that still holds.
   let cleared: Stage | null = null;
   let busy = false;
+  // How far the bands on the glass had drifted when the upper canvas was last drawn, in half pixels of the drawing.
+  let drifted = Number.NaN;
 
   const start = () => {
     if (!gl || gl.isContextLost()) return;
@@ -126,14 +128,18 @@ export function createRenderer(field: HTMLCanvasElement, under: HTMLCanvasElemen
         under.height = field.height;
       }
       scene.draw(stage, machine, options);
-      // The glass never changes, so the upper canvas is redrawn only while something is on it, and once more to clear it.
+      // The glass changes slowly: the bands on it drift a pixel or two a second, and stand still in a calm cabinet.
+      // So the upper canvas is redrawn while something is on it, once more to clear it, and otherwise only when the
+      // bands have moved half a pixel of the drawing, which is a few times a second at most.
       const lively = stage.sparks.length > 0 || stage.popups.length > 0 || stage.party !== null;
-      if (lively || busy || cleared !== stage) {
+      const shifted = Math.round(glassShift(stage.clock, options.calm) * 2);
+      if (lively || busy || cleared !== stage || shifted !== drifted) {
         context.setTransform(1, 0, 0, 1, 0, 0);
         context.clearRect(0, 0, field.width, field.height);
         drawOverlay(context, stage, options.calm, WASH_OVER_3D);
         cleared = stage;
         busy = lively;
+        drifted = shifted;
       }
     },
     dispose() {

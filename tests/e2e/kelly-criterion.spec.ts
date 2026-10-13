@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { SCENARIOS, START_BANKROLL, fixedFractionPath, isFinished, kellyFraction } from '../../src/components/game/KellyCriterion/engine';
 import { exactFor } from '../../src/components/game/KellyCriterion/sim';
+import { arrived } from './streamedPage';
 
 // The coin is random: the tests read the flips off the page, replay them
 // through the engine and compare the money.
@@ -10,6 +11,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/kelly-criterion');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   // While the page streams in, React briefly keeps a second, hidden copy of the
   // content in the document. Wait until there is one before looking anything up.
   await expect(page.getByTestId('kelly-message')).toHaveCount(1);

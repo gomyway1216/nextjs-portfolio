@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { resolveRoll, totalOnTable, type Dice } from '../../src/components/game/Craps/engine';
+import { arrived } from './streamedPage';
 
 // Random rolls are read back from the table and checked against the engine;
 // scripted rolls force the dice through Math.random (rollDice draws twice).
@@ -9,6 +10,8 @@ async function openCraps(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/craps');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.locator('[data-rolling]')).toBeVisible();
 }
 

@@ -1,11 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
-import { CHAIN_GOAL, CHESTS, JACKPOT_START, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
+import { FIELD, buildTowers, queuePayout } from '../../src/components/game/MedalPusher/engine';
+import { CHAIN_GOAL, CHESTS, JACKPOT_START, JEWEL, ROULETTE } from '../../src/components/game/MedalPusher/lottery';
 import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../../src/components/game/MedalPusher/session';
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
+import { settled } from './medalPusherPage';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -14,9 +16,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en', query = '') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto(`/games/medal-pusher${query}`);
   expect(response?.status()).toBe(200);
-  // While the page streams in, React briefly keeps a second, hidden copy of the
-  // content in the document. Wait until there is one before looking anything up.
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until it has all arrived.
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
 }
 
@@ -35,6 +36,7 @@ const ON_SCREEN = 0.26;
 const machine = (page: Page) => page.locator('#pusher-panel-machine');
 const odds = (page: Page) => page.locator('#pusher-panel-odds');
 const sim = (page: Page) => page.locator('#pusher-panel-sim');
+const records = (page: Page) => page.locator('#pusher-panel-records');
 type Rail = 'left' | 'right';
 /** The feed button of a rail: L for the left one, R for the right. */
 const feedButton = (page: Page, rail: Rail) => machine(page).getByTestId(`pusher-feed-${rail}`);
@@ -145,6 +147,8 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   // The hold's lamps are drawn in the cabinet, under the screen. What says how many are lit is still on the page, by the name it had.
   await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeAttached();
   await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('data-held', '0');
+  // So are the jewel lamps, on the front of the lower table: none of them is lit yet.
+  await expect(machine(page).getByTestId('pusher-jewels')).toHaveAttribute('data-lit', '0');
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
   await expect(machine(page).getByTestId('pusher-caption')).toContainText('7·7·7 ▸ BALL');
@@ -395,7 +399,7 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(machine(page).getByTestId('pusher-sign-in')).toHaveAttribute('href', '/signin?redirect=%2Fgames%2Fmedal-pusher', { timeout: 15_000 });
 
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
   // The page is first drawn as a new machine, and then shows the one it remembers.
   await expect.poll(() => counter(page, 'played'), { timeout: 15_000 }).toBe(dropped);
@@ -581,6 +585,33 @@ test('a chest on the screen is picked by pressing it, though the picture is over
   await expect.poll(async () => [await aimOf(page, 'left'), await aimOf(page, 'right')]).not.toEqual(aimed);
   await page.waitForTimeout(400);
   expect(await counter(page, 'played')).toBe(played);
+});
+
+test('a jewel pushed over the front lights the next jewel lamp and is paid for at once', async ({ page }) => {
+  // A machine saved as the game saves one, with three lamps lit and the jewel on its lower table just past the front edge:
+  // the first step the page takes collects it.
+  const session = createSession(5);
+  session.jewels = JEWEL.lamps - 2;
+  const jewel = session.machine.medals.find((medal) => medal.jewel && medal.level === 0);
+  if (!jewel) throw new Error('a new machine has no jewel on its lower table');
+  jewel.y = FIELD.depth + 0.1;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The lamps are drawn on the cabinet. What says how many are lit is on the page, for anyone who cannot see them.
+  const lamps = machine(page).getByTestId('pusher-jewels');
+  await expect(lamps).toHaveAttribute('data-lit', String(JEWEL.lamps - 1));
+  await expect(lamps).toHaveText(`Jewel lamps: ${JEWEL.lamps - 1} of ${JEWEL.lamps} lit.`);
+  await expect(machine(page).getByTestId('pusher-announcement')).toHaveText(`A jewel went over the front edge: 1 medal. ${JEWEL.lamps - 1} of ${JEWEL.lamps} jewel lamps are lit.`);
+  // Its prize is the machine's to throw onto the field: it is paid, and it is not in the purse.
+  await expect.poll(() => counter(page, 'paid')).toBe(JEWEL.prize);
+  await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
 });
 
 test('a chest on the screen is picked from the keyboard too', async ({ page }) => {
@@ -788,7 +819,7 @@ test.describe('in the hand, on a phone', () => {
     await expect(machine(page).getByTestId('pusher-saved')).toHaveAttribute('data-saved', 'true');
 
     await page.reload();
-    await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+    await settled(page);
     await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
     // The page is first drawn with nothing chosen, and then shows what this browser remembers.
     await expect(feelSwitch(page, 'sweep')).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
@@ -853,7 +884,7 @@ test.describe('in the hand, on a phone', () => {
     expect(open.height - closed.height).toBeLessThanOrEqual(120);
     // Every one of them is at least 44 px to hit, the sound settings' own included: their slider is the cabinet's
     // slider, with its thumb, and the mark at the level the cabinet was made at is still behind the thumb there.
-    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-volume', 'pusher-music', 'pusher-aim-left', 'pusher-aim-right']);
+    const reach = await hitSizes(page, ['pusher-auto', 'pusher-sound', 'pusher-sound-settings', 'pusher-sweep', 'pusher-vibration', 'pusher-fullscreen', 'pusher-volume', 'pusher-music', 'pusher-arcade', 'pusher-aim-left', 'pusher-aim-right']);
     for (const control of reach) {
       expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
       expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(32);
@@ -1132,15 +1163,23 @@ test.describe('in the hand, on a phone', () => {
     await autoButton(page).tap();
     await expect(autoButton(page)).toHaveAttribute('aria-pressed', 'false');
     expect(await ticks()).toBe(0);
-    /** Taps L until a medal has gone in, which is a tick: a tap the slot was not ready for feeds nothing. */
+    /** How many times the motor has been asked to run, whatever the pattern: asking it to stop is not one. */
+    const felt = async () => (await asked()).filter((pattern) => pattern.some((ms) => ms > 0)).length;
+    /**
+     * Taps L until a medal has gone in, which is felt: a tap the slot was not ready for feeds nothing. What is felt is
+     * the tick, unless something stronger happens in the same frame (medals going over the front, a START pocket),
+     * which is felt instead of it; so this asks only that the motor ran, and ran since these taps began: what Auto's
+     * medals set off before them does not count.
+     */
     const tapIn = async () => {
       const had = await counter(page, 'played');
+      const feltBefore = await felt();
       await expect(async () => {
         await feedButton(page, 'left').tap();
         await page.waitForTimeout(400);
         expect(await counter(page, 'played')).toBeGreaterThan(had);
       }).toPass({ timeout: 20_000 });
-      await expect.poll(ticks).toBeGreaterThanOrEqual(1);
+      await expect.poll(felt).toBeGreaterThan(feltBefore);
     };
     // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
     // forgotten, and the new machine's first press is felt at once.
@@ -1344,13 +1383,14 @@ test('Auto drops medals until it is switched off', async ({ page }) => {
   await expectPurseToBalance(page);
 });
 
-// ── The sound settings: a volume and a switch for the music, in a row that opens from a button beside Sound ──
+// ── The sound settings: a volume, a switch for the music and one for the arcade round the cabinet, in a row that opens from a button beside Sound ──
 
 const soundButton = (page: Page) => machine(page).getByTestId('pusher-sound');
 const soundSettings = (page: Page) => machine(page).getByTestId('pusher-sound-settings');
 const soundRow = (page: Page) => machine(page).getByTestId('pusher-sound-panel');
 const volumeSlider = (page: Page) => machine(page).getByTestId('pusher-volume');
 const musicSwitch = (page: Page) => machine(page).getByTestId('pusher-music');
+const arcadeSwitch = (page: Page) => machine(page).getByTestId('pusher-arcade');
 
 /** Opens the row of sound settings with its button, retrying until hydration has attached the handler. */
 async function openSoundSettings(page: Page) {
@@ -1396,6 +1436,19 @@ test('the sound has a volume and a switch for the music, worked from the keyboar
   await page.keyboard.press('Space');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
 
+  // The arcade round the cabinet has a switch of its own beside it, which is off until it is asked for. Tab goes
+  // on to it from the music's, and neither switch moves the other.
+  await expect(arcadeSwitch(page)).toHaveAccessibleName('Arcade');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Tab');
+  await expect(arcadeSwitch(page)).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Enter');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(volumeSlider(page)).toHaveValue('170');
+
   // A letter does nothing in a slider, so with the focus there the machine's keys are still the machine's,
   // as they are in the aim sliders: J feeds the right rail and the volume stays where it was.
   const played = await counter(page, 'played');
@@ -1423,36 +1476,43 @@ test('the sound settings are remembered on this device, apart from the machine, 
   await expect(volumeSlider(page)).toHaveValue('60');
   await musicSwitch(page).click();
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await arcadeSwitch(page).click();
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
   // They are kept under a key of their own, and the machine's save says nothing about them.
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false}');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SOUND_SETTINGS_KEY)).toBe('{"volume":60,"music":false,"arcade":true}');
   const saved = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
   expect(saved).not.toBeNull();
-  expect(saved).not.toMatch(/volume|music/);
+  expect(saved).not.toMatch(/volume|music|arcade/);
 
   // After a reload the row is shut and the sound is off, as on any visit, and the settings are as they were left.
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await expect(soundRow(page)).toHaveCount(0);
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('60');
   await expect(volumeSlider(page)).toHaveAttribute('aria-valuetext', '60%');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
 
-  // What is kept there but makes no sense is not believed: the settings are the usual ones.
-  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7}'), SOUND_SETTINGS_KEY);
+  // What is kept there but makes no sense is not believed: the settings are the usual ones, and the arcade is off.
+  await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":"loud","music":7,"arcade":"yes"}'), SOUND_SETTINGS_KEY);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('100');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
-  // A volume that is a number but out of range is brought into it.
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  // A volume that is a number but out of range is brought into it. This is also what a device kept before there
+  // was an arcade to switch on: the rest is read as it was, and the arcade is off.
   await page.evaluate((key) => window.localStorage.setItem(key, '{"volume":9000,"music":false}'), SOUND_SETTINGS_KEY);
   await page.reload();
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  await settled(page);
   await openSoundSettings(page);
   await expect(volumeSlider(page)).toHaveValue('200');
   await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('on a phone the sound settings are one short row inside the controls, and the page does not scroll sideways', async ({ page }) => {
@@ -1472,8 +1532,14 @@ test('on a phone the sound settings are one short row inside the controls, and t
   await openSoundSettings(page);
   const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
-  const [row, slider, music, open] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), controls.boundingBox()]);
-  if (!row || !slider || !music || !open) throw new Error('the sound settings have no boxes');
+  const [row, slider, music, arcade, open] = await Promise.all([
+    soundRow(page).boundingBox(),
+    volumeSlider(page).boundingBox(),
+    musicSwitch(page).boundingBox(),
+    arcadeSwitch(page).boundingBox(),
+    controls.boundingBox(),
+  ]);
+  if (!row || !slider || !music || !arcade || !open) throw new Error('the sound settings have no boxes');
   // The row is inside the controls, under the switches, and short: it adds less than the height of a feed button.
   expect(row.x).toBeGreaterThanOrEqual(open.x);
   expect(row.x + row.width).toBeLessThanOrEqual(open.x + open.width);
@@ -1481,17 +1547,91 @@ test('on a phone the sound settings are one short row inside the controls, and t
   expect(row.height).toBeLessThanOrEqual(72);
   expect(open.height - closed.height).toBeLessThanOrEqual(80);
   // The slider has room to be dragged, and the music's switch is beside it, both inside the row.
-  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.width).toBeGreaterThanOrEqual(120);
   expect(slider.x).toBeGreaterThanOrEqual(row.x);
   expect(music.x).toBeGreaterThanOrEqual(slider.x + slider.width);
   expect(music.x + music.width).toBeLessThanOrEqual(row.x + row.width);
   expect(music.y).toBeGreaterThanOrEqual(row.y);
   expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // The arcade's switch is beside the music's on the same line, as tall as it, wide enough for a finger, and inside the row.
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(Math.abs(arcade.height - music.height)).toBeLessThan(2);
+  expect(arcade.width).toBeGreaterThanOrEqual(44);
   // The feed buttons and the aims are where they were: the row opened under them.
   await expect(feedButton(page, 'left')).toBeVisible();
   await expect(aimSlider(page, 'right')).toBeVisible();
   const aim = await aimSlider(page, 'left').boundingBox();
   expect(aim && aim.y + aim.height).toBeLessThan(row.y);
+});
+
+test('the sound settings read in Japanese on a phone, the arcade switch with them, and still do not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page, 'ja');
+  await feedOne(page);
+  await expect(soundSettings(page)).toHaveAccessibleName('音の設定');
+  await openSoundSettings(page);
+  await expect(volumeSlider(page)).toHaveAccessibleName('音量');
+  await expect(musicSwitch(page)).toHaveAccessibleName('BGM');
+  await expect(arcadeSwitch(page)).toHaveAccessibleName('店内の音');
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await arcadeSwitch(page).click();
+  await expect(arcadeSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  const sizes = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.inner);
+  // Its words are longer than the English ones and still fit on the one line beside the music's, inside the row.
+  const [row, slider, music, arcade] = await Promise.all([soundRow(page).boundingBox(), volumeSlider(page).boundingBox(), musicSwitch(page).boundingBox(), arcadeSwitch(page).boundingBox()]);
+  if (!row || !slider || !music || !arcade) throw new Error('the sound settings have no boxes');
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(slider.width).toBeGreaterThanOrEqual(120);
+  expect(row.height).toBeLessThanOrEqual(72);
+});
+
+test('with the cabinet filling a phone held on its side, the volume has the row and the two switches share the line under it', async ({ page, browser }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  // A phone on its side: the controls are at either hand there, and the sound settings open in the column at the right.
+  const context = await browser.newContext({ viewport: { width: 667, height: 375 }, screen: { width: 667, height: 375 }, hasTouch: true, isMobile: true, baseURL: new URL(page.url()).origin });
+  const phone = await context.newPage();
+  await openGame(phone);
+  await alive(phone);
+  await feelSwitch(phone, 'fullscreen').scrollIntoViewIfNeeded();
+  await feelSwitch(phone, 'fullscreen').tap();
+  await expect(feelSwitch(phone, 'fullscreen')).toHaveAttribute('aria-pressed', 'true');
+  await soundSettings(phone).tap();
+  await expect(soundRow(phone)).toBeVisible();
+  const [row, slider, music, arcade] = await Promise.all([soundRow(phone).boundingBox(), volumeSlider(phone).boundingBox(), musicSwitch(phone).boundingBox(), arcadeSwitch(phone).boundingBox()]);
+  if (!row || !slider || !music || !arcade) throw new Error('the sound settings have no boxes');
+  // The row is in the column at the right hand, on the screen.
+  expect(row.x).toBeGreaterThan(667 / 2);
+  expect(row.x + row.width).toBeLessThanOrEqual(667);
+  expect(row.y + row.height).toBeLessThanOrEqual(375);
+  // The slider has the width of the row to itself.
+  expect(slider.width).toBeGreaterThanOrEqual(140);
+  expect(slider.x).toBeGreaterThanOrEqual(row.x);
+  expect(slider.x + slider.width).toBeLessThanOrEqual(row.x + row.width);
+  // The two switches are on one line under it, side by side and as wide as each other, neither over the other.
+  expect(music.y).toBeGreaterThan(slider.y + slider.height / 2);
+  expect(Math.abs(arcade.y - music.y)).toBeLessThan(2);
+  expect(music.x).toBeGreaterThanOrEqual(row.x);
+  expect(arcade.x).toBeGreaterThanOrEqual(music.x + music.width);
+  expect(arcade.x + arcade.width).toBeLessThanOrEqual(row.x + row.width);
+  expect(Math.abs(arcade.width - music.width)).toBeLessThan(2);
+  expect(music.width).toBeGreaterThanOrEqual(60);
+  expect(music.y + music.height).toBeLessThanOrEqual(row.y + row.height);
+  // Each is 44 px to hit, and takes its own touch: a finger on one does not move the other.
+  for (const control of await hitSizes(phone, ['pusher-music', 'pusher-arcade'])) expect(control.tall, `${control.id} is ${control.tall} px tall to hit`).toBeGreaterThanOrEqual(44);
+  await arcadeSwitch(phone).tap();
+  await expect(arcadeSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await expect(musicSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await musicSwitch(phone).tap();
+  await expect(musicSwitch(phone)).toHaveAttribute('aria-pressed', 'false');
+  await expect(arcadeSwitch(phone)).toHaveAttribute('aria-pressed', 'true');
+  await context.close();
 });
 
 test('each rail can be aimed from the keyboard, by its slider and by the keys beside its feed key', async ({ page }) => {
@@ -1567,7 +1707,11 @@ test('the tabs work from the keyboard and the machine waits while it is out of s
   await page.waitForTimeout(1_500);
   expect(await counter(page, 'played')).toBe(paused);
 
+  // End goes to the last tab, which is Records, and the arrow comes back from it.
   await page.keyboard.press('End');
+  await expect(tabs.nth(3)).toBeFocused();
+  await expect(records(page)).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
   await expect(tabs.nth(2)).toBeFocused();
   await expect(sim(page)).toBeVisible();
   await page.keyboard.press('Home');
@@ -1608,24 +1752,33 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
   await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 1,736 leads to it');
+  // The jewels: what each of a set of five pays, and the most they can be worth to a spin.
+  const jewels = odds(page).getByTestId('pusher-jewel-table');
+  await expect(jewels.locator('tbody tr')).toHaveCount(2);
+  await expect(jewels.locator('tr[data-jewel="prize"]')).toContainText('1 medal each');
+  await expect(jewels.locator('tr[data-jewel="bonus"]')).toContainText('3 medals');
+  await expect(odds(page).getByTestId('pusher-jewel-note')).toContainText('1.4 medals a jewel and 0.026 medals a spin');
+  // The treasure line is worth its chests and the jewel that comes with it, and a spin the 0.026 more for it.
+  await expect(slot.locator('tr[data-tier="big"]')).toContainText('21.4 medals');
   await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.37 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.396 medals');
   // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
+  // Both count the jewel a treasure line lets go, once: a gold spin doubles the chest and not the jewel.
   const chance = odds(page).getByTestId('pusher-chance-table');
   await expect(chance.locator('tbody tr')).toHaveCount(3);
-  await expect(chance.locator('tbody tr').first()).toContainText('1.37018 medals');
-  await expect(chance.locator('tbody tr').first()).toContainText('2.18268 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('1.39643 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('2.20893 medals');
   await expect(chance.locator('tbody td', { hasText: '0.81250 medals' })).toHaveCount(3);
   await expect(odds(page)).toContainText('turns one of the held spins gold');
   // And under it the lucky lamp's rule, with the same two spins' worth.
   const lamp = odds(page).getByTestId('pusher-lucky-note');
   await expect(lamp).toContainText('one of the three START slots is lit gold at a time');
-  await expect(lamp).toContainText('An ordinary spin is worth 1.37018 medals on average, and a gold spin 2.18268.');
+  await expect(lamp).toContainText('An ordinary spin is worth 1.39643 medals on average, and a gold spin 2.20893.');
   await expect(lamp).toContainText('The lamp cannot be chased by aiming');
 
-  // 80% by the front and 0.12 spins a medal at 1.370 medals a spin.
+  // 80% by the front and 0.12 spins a medal at 1.396 medals a spin.
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('93.2%');
+  await expect(result).toHaveText('93.4%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('18%');
 
@@ -1633,10 +1786,10 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('116.4%');
+  await expect(result).toHaveText('116.8%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('58.2%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('73%');
+  await expect(result).toHaveText('58.4%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('72%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -1701,6 +1854,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('ジャックポット');
   await expect(odds(page).getByTestId('pusher-bowl-table')).toContainText('3段目');
   await expect(odds(page)).toContainText('数字が4回続くとジャックポットチャレンジが始まります');
+  await expect(odds(page).getByTestId('pusher-jewel-table')).toContainText('宝石ボーナス');
 });
 
 test('fits a phone without scrolling sideways', async ({ page }) => {
@@ -1793,7 +1947,9 @@ test('a jackpot is counted out on the screen and on the marquee, up to what was 
   // A machine that has just won. A full run of four tens is behind it and the ball is in the funnel of the last of
   // the three bowls; it is played on here until the ball has dropped and the jackpot is half counted out, and
   // saved as the game saves one, for the page to find. That leaves the page over five seconds of the show.
-  const session = createSession(5);
+  // No jewel lies on this machine. The jackpot's pour would push one over the front within six seconds, and it would
+  // be paid for: without them nothing but the jackpot is paid for the first ten seconds, and the last line counts that.
+  const session = createSession(5, { jewels: 0 });
   const ten = ROULETTE.indexOf(10);
   session.roulettes = 1;
   session.roulette = {
@@ -1836,4 +1992,83 @@ test('a jackpot is counted out on the screen and on the marquee, up to what was 
   await expect(machine(page).getByTestId('pusher-pay-count')).toHaveText(`+${JACKPOT_START}`, { timeout: 20_000 });
   await expect(plate).toHaveText(String(JACKPOT_START));
   expect(await counter(page, 'paid')).toBe(JACKPOT_START);
+});
+
+test('a ball’s roulette is a wheel behind a window: twelve pockets on the board of the run, and the ball’s pocket lit when it lands', async ({ page }) => {
+  // A machine saved as the game saves one: one number of the run behind it, and the second turn just begun, the
+  // ball on its way to a ten.
+  const session = createSession(5);
+  const ten = ROULETTE.indexOf(10);
+  session.roulettes = 1;
+  session.roulette = { pocket: ten, from: ten, elapsed: 0, duration: TIMING.roulette, landed: false, level: 1, total: 10, gain: 0, over: false, jackpot: false, bowl: null };
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [STORAGE_KEY, save],
+  );
+  await openGame(page);
+  // The monitor has given way to the ball's lottery, and the wheel is in it: a rotor of twelve pockets, four of
+  // them crosses, the ball on it, and beside it the four boards of the run.
+  const screen = machine(page).getByTestId('pusher-screen');
+  await expect(screen).toHaveAttribute('data-mode', 'roulette');
+  await expect(screen).toHaveAttribute('data-monitor', 'challenge');
+  const wheel = machine(page).getByTestId('pusher-wheel');
+  await expect(wheel.locator('g[data-pocket]')).toHaveCount(ROULETTE.length);
+  await expect(wheel.locator('g[data-holds="stop"]')).toHaveCount(4);
+  await expect(machine(page).getByTestId('pusher-wheel-ball')).toHaveCount(1);
+  await expect(machine(page).getByTestId('pusher-boards').locator('li')).toHaveCount(4);
+  // The ball lands in the pocket that was drawn, which lights, and its ten is paid.
+  await expect(wheel.locator(`g[data-pocket="${ten}"]`)).toHaveAttribute('data-lit', 'true', { timeout: 20_000 });
+  await expect.poll(() => counter(page, 'paid'), { timeout: 10_000 }).toBeGreaterThanOrEqual(10);
+});
+
+test('a big prize is poured out of the hopper’s doors, towers come up on their lifts, and the purse still balances', async ({ page }) => {
+  test.setTimeout(90_000);
+  // A machine saved as the game saves one, at the moment it is paid two prizes: sixty medals to pour, and fifty that go up as two towers.
+  const session = createSession(5, { balls: 0 });
+  queuePayout(session.machine, 60);
+  buildTowers(session.machine, 50);
+  session.paidOut += 110;
+  const save = serialize(session);
+  expect(restore(save, 1)).not.toBeNull();
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+      // The field says what the payout works are doing. It is over in a couple of seconds, so every word of it is kept.
+      const said: string[] = [];
+      (window as unknown as { worksSaid: string[] }).worksSaid = said;
+      new MutationObserver((changes) => {
+        for (const change of changes) {
+          if (change.attributeName) said.push(`${change.attributeName.replace('data-', '')} ${(change.target as HTMLElement).getAttribute(change.attributeName)}`);
+        }
+      }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-hopper', 'data-lifts'] });
+    },
+    [STORAGE_KEY, save],
+  );
+  const trouble = watchForTrouble(page);
+  await openGame(page);
+  const worksSaid = () => page.evaluate(() => (window as unknown as { worksSaid: string[] }).worksSaid);
+  const last = (said: string[], what: string) => said.filter((word) => word.startsWith(what)).pop();
+  // The doors open for the sixty and shut again when the last has gone; the lifts hold a tower each until it is built.
+  await expect
+    .poll(
+      async () => {
+        const said = await worksSaid();
+        return said.includes('hopper open') && last(said, 'hopper') === 'hopper shut' && said.includes('lifts 2') && last(said, 'lifts') === 'lifts 0';
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  const said = await worksSaid();
+  expect(said.lastIndexOf('hopper shut')).toBeGreaterThan(said.indexOf('hopper open'));
+  expect(said.lastIndexOf('lifts 0')).toBeGreaterThan(said.indexOf('lifts 2'));
+  const field = machine(page).getByTestId('pusher-field');
+  await expect(field).toHaveAttribute('data-hopper', 'shut');
+  await expect(field).toHaveAttribute('data-lifts', '0');
+  await expectFieldPainted(page);
+  await expectPurseToBalance(page);
+  expect(trouble).toEqual([]);
 });

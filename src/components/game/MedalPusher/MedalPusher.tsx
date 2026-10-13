@@ -1,20 +1,37 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent } from 'react';
-import { InfoModal } from '../common';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import type { AccountStore } from './account';
+import { BonusDot } from './DailyBonus';
+import { POUR } from './hopper';
 import { getStrings } from './i18n';
+import { InstructionPlateDialog, PlateSwitch } from './InstructionPlate';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
+import { records } from './recordsStore';
+import { RecordsTab } from './RecordsTab';
 import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
+import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
 
-type Tab = 'machine' | 'odds' | 'sim';
+type Tab = 'machine' | 'odds' | 'sim' | 'records';
+
+export interface MedalPusherProps extends Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> {
+  /** The account's store for the record book, which is a document of its own beside the machine. Without one the book is this device's alone. */
+  recordsStore?: AccountStore | null;
+}
 
 /** The game. Who is playing and where their machine is kept is the cabinet's business: it is passed straight on. */
-export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> = {}) => {
+export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: MedalPusherProps = {}) => {
   const [tab, setTab] = useState<Tab>('machine');
+  // The record book follows the player as the machine does. It is told who they are before anything on the page
+  // listens to it (a layout effect runs before the effects that listen), so the first book it opens is theirs.
+  const { uid = null, settled = true, expected = false } = player ?? {};
+  useLayoutEffect(() => {
+    records.attend({ uid, settled, expected }, recordsStore);
+  }, [uid, settled, expected, recordsStore]);
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -23,6 +40,7 @@ export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'p
     { id: 'machine', label: t.tabMachine },
     { id: 'odds', label: t.tabOdds },
     { id: 'sim', label: t.tabSim },
+    { id: 'records', label: t.tabRecords },
   ];
   const tabButtons = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
@@ -55,7 +73,7 @@ export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'p
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>
-          <button type="button" className={styles.btn} onClick={() => setInfoOpen(true)}>
+          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="pusher-how-to-play" onClick={() => setInfoOpen(true)}>
             {t.howToPlay}
           </button>
         </div>
@@ -78,6 +96,7 @@ export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'p
               onKeyDown={(event) => onTabKeyDown(event, index)}
             >
               {tb.label}
+              {tb.id === 'records' && <BonusDot />}
             </button>
           ))}
         </div>
@@ -85,7 +104,10 @@ export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'p
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs never
             resets the machine or drops a finished simulation. The machine only runs while its tab is showing. */}
         <div role="tabpanel" id="pusher-panel-machine" aria-labelledby="pusher-tab-machine" hidden={tab !== 'machine'}>
-          <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
+          {/* The compact instruction plate on the cabinet opens the full one, which is held here. */}
+          <PlateSwitch.Provider value={setInfoOpen}>
+            <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
+          </PlateSwitch.Provider>
         </div>
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
@@ -93,15 +115,18 @@ export const MedalPusher = ({ player, store, signInHref }: Pick<PlayTabProps, 'p
         <div role="tabpanel" id="pusher-panel-sim" aria-labelledby="pusher-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />
         </div>
+        <div role="tabpanel" id="pusher-panel-records" aria-labelledby="pusher-tab-records" hidden={tab !== 'records'}>
+          <RecordsTab />
+        </div>
       </div>
 
-      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howToPlay}>
-        {t.infoBody(MAX_STOCK).map((p, i) => (
-          <p key={i} className={styles.infoP}>
-            {p}
-          </p>
-        ))}
-      </InfoModal>
+      <InstructionPlateDialog
+        isOpen={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title={t.howToPlay}
+        body={[...t.infoBody(MAX_STOCK), ...getWorksStrings(language).howItPays(POUR.threshold)]}
+      />
+
     </div>
   );
 };

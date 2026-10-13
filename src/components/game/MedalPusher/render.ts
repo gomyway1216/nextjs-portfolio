@@ -13,9 +13,27 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
+import { drawHopper, drawLifts } from './works2d';
 import { APRON, CATCHER, SLOPE, START_SLOT, apronSpot, caught, lampSpot, litSlots, rolling, slopeSpot, slotCorners, slotHalf, underCatcher, wingCorners } from './catcher';
 import { CHUCKERS } from './chuckers';
 import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, pusherFront, type Arm, type Machine, type Medal } from './engine';
+import {
+  JEWEL_CUT,
+  JEWEL_FACETS,
+  JEWEL_GIRDLE,
+  JEWEL_LAMPS,
+  JEWEL_PLATE,
+  JEWEL_SHOW,
+  LAMP_OUTLINE,
+  collectedJewel,
+  facetInCabinet,
+  fallingJewel,
+  jewelLampX,
+  lampLight,
+  lyingJewel,
+  pointInCabinet,
+  type JewelSpot,
+} from './jewel';
 import { CHUTE, EYE_AT, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -84,6 +102,8 @@ export type Party = keyof typeof PARTY_TIME;
 /** The most sparks alive at once. */
 const MAX_SPARKS = 220;
 export const SPARK_COLORS = ['#fff3a8', '#ffd65c', '#ff7cc0', '#7df0ff', '#b6ff8f', '#ffffff'] as const;
+/** The sparks a jewel throws: its own colour, and white. */
+const JEWEL_SPARKS = ['#ff7cc0', '#ffffff', '#ffd0ea'] as const;
 
 export interface ExitingMedal {
   id: number;
@@ -93,6 +113,8 @@ export interface ExitingMedal {
   /** −1 for the left side, 1 for the right. */
   side: number;
   ball: boolean;
+  /** Set on a jewel, which is drawn as the stone it is on its way out. It only ever leaves by the front. */
+  jewel?: boolean;
   age: number;
 }
 
@@ -101,6 +123,7 @@ interface Seen {
   x: number;
   y: number;
   ball: boolean;
+  jewel: boolean;
   /** Whether it was a tower: a tower that disappears has toppled, not left the field. */
   tower: boolean;
 }
@@ -117,12 +140,13 @@ interface Spark {
   color: string;
 }
 
-/** A count that floats up from the tray: the medals just won. */
+/** A count that floats up from the tray: the medals just won, or what a jewel has just paid, in its own colour. */
 interface Popup {
   x: number;
   y: number;
   text: string;
   age: number;
+  color?: string;
 }
 
 export interface Stage {
@@ -132,6 +156,8 @@ export interface Stage {
   painted: boolean;
   background: HTMLCanvasElement;
   medal: HTMLCanvasElement;
+  /** The medal's face in each of the tones a medal can have gone to: `medal` itself first (see `FACES`). */
+  faces: HTMLCanvasElement[];
   ball: HTMLCanvasElement;
   /** Seconds the stage has been drawn for, for its running lights. */
   clock: number;
@@ -150,6 +176,9 @@ export interface Stage {
   trayGlow: number;
   sideGlow: [number, number];
   party: { kind: Party; left: number } | null;
+  /** Seconds the jewel lamp that was lit last still shines brighter, and seconds a jewel bonus's show has left. */
+  jewelGlow: number;
+  jewelShow: number;
 }
 
 const path = (g: CanvasRenderingContext2D, points: Projected[]): void => {
@@ -271,6 +300,42 @@ function medalSprite(): HTMLCanvasElement {
   circle(r * 0.98);
   g.fill();
   return canvas;
+}
+
+/**
+ * What is laid over a medal's face to make each of the tones a medal can
+ * have gone to in the machine: as it was struck, still pale and bright,
+ * dulled by handling, and gone brown. Every one of them is first washed with
+ * the colour of brass, which is far less yellow than the gilt the face is
+ * painted in.
+ */
+export const FACES = ['rgba(150, 104, 52, 0.2)', 'rgba(255, 240, 206, 0.22)', 'rgba(74, 44, 10, 0.34)', 'rgba(92, 50, 20, 0.5)'] as const;
+
+/** Which of `FACES` a medal has, fixed by its id: of sixteen medals, seven as struck, three pale, four dulled and two brown. */
+export function faceOf(id: number): number {
+  const lot = (Math.imul(id, 0x9e3779b1) >>> 0) % 16;
+  return lot < 7 ? 0 : lot < 10 ? 1 : lot < 14 ? 2 : 3;
+}
+
+/** The medal's face in every tone: copies of the one sprite, each with its wash laid on where the medal is. */
+function medalFaces(struck: HTMLCanvasElement): HTMLCanvasElement[] {
+  return FACES.map((wash, tone) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = struck.width;
+    canvas.height = struck.height;
+    const g = canvas.getContext('2d');
+    if (!g) return struck;
+    g.drawImage(struck, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = FACES[0];
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    if (tone > 0) {
+      g.fillStyle = wash;
+      g.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    g.globalCompositeOperation = 'source-over';
+    return canvas;
+  });
 }
 
 /** A prize ball: a glossy sphere with a star on it. */
@@ -583,20 +648,29 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
 
-  // The lower table: a mirror-blue plate with lanes, an emblem and the words the player needs.
+  // The lower table: a sheet of brushed steel with lanes scribed in it, an emblem etched and the words the player needs printed on.
   const floor = [project(0, 0, 0), project(W, 0, 0), project(W, 0, D), project(0, 0, D)];
   const floorShade = g.createLinearGradient(0, floor[0].y, 0, floor[2].y);
-  floorShade.addColorStop(0, '#061a33');
-  floorShade.addColorStop(0.5, '#0b3764');
-  floorShade.addColorStop(1, '#1668a6');
+  floorShade.addColorStop(0, '#272d3a');
+  floorShade.addColorStop(0.5, '#4a5462');
+  floorShade.addColorStop(1, '#6e7886');
   g.fillStyle = floorShade;
   path(g, floor);
   g.fill();
-  g.strokeStyle = 'rgba(160, 215, 255, 0.09)';
+  // The brushing: strokes across the sheet, finer the further back they lie.
+  for (let stroke = 0; stroke < 140; stroke++) {
+    const depth = PUSHER.min + ((stroke * 61) % 97) * ((D - PUSHER.min) / 97);
+    const x = (stroke * 37) % W;
+    const long = 6 + ((stroke * 13) % 22);
+    g.strokeStyle = stroke % 2 === 0 ? 'rgba(236, 244, 255, 0.07)' : 'rgba(6, 10, 20, 0.1)';
+    g.lineWidth = 0.6;
+    line(g, project(Math.max(0, x - long / 2), 0, depth), project(Math.min(W, x + long / 2), 0, depth));
+  }
+  g.strokeStyle = 'rgba(8, 12, 22, 0.22)';
   g.lineWidth = 1.5;
   for (let x = 10; x < W; x += 10) line(g, project(x, 0, PUSHER.min), project(x, 0, D));
   onTable(g, ratio, W / 2, 70);
-  g.strokeStyle = 'rgba(150, 215, 255, 0.16)';
+  g.strokeStyle = 'rgba(10, 16, 30, 0.24)';
   g.lineWidth = 0.9;
   for (const radius of [20, 15.5]) {
     g.beginPath();
@@ -604,15 +678,15 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     g.stroke();
   }
   starPath(g, 0, 0, 13, 5.4);
-  g.fillStyle = 'rgba(150, 215, 255, 0.12)';
+  g.fillStyle = 'rgba(10, 16, 30, 0.18)';
   g.fill();
   g.font = '900 6.5px "Arial Black", Arial, sans-serif';
-  g.fillStyle = 'rgba(255, 226, 120, 0.42)';
+  g.fillStyle = 'rgba(244, 208, 96, 0.55)';
   for (const x of [20, 50, 80]) {
     onTable(g, ratio, x, 93.5);
     g.fillText('GET', 0, 0);
   }
-  g.fillStyle = 'rgba(255, 130, 150, 0.5)';
+  g.fillStyle = 'rgba(232, 96, 110, 0.62)';
   g.font = '900 4.6px "Arial Black", Arial, sans-serif';
   for (const x of [7.5, W - 7.5]) {
     onTable(g, ratio, x, 84);
@@ -621,7 +695,7 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   flat();
   const sheen = g.createLinearGradient(0, project(0, 0, 55).y, 0, floor[2].y);
   sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  sheen.addColorStop(1, 'rgba(190, 230, 255, 0.14)');
+  sheen.addColorStop(1, 'rgba(214, 228, 246, 0.16)');
   g.fillStyle = sheen;
   path(g, [project(0, 0, 55), project(W, 0, 55), project(W, 0, D), project(0, 0, D)]);
   g.fill();
@@ -668,15 +742,32 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   g.strokeStyle = '#ffd65c';
   g.lineWidth = 2.5;
   line(g, lip[0], lip[1]);
-  // Arrows pointing down into the tray.
+  // Arrows pointing down into the tray, to either side of the plate the jewel lamps are in.
   g.strokeStyle = 'rgba(255, 214, 92, 0.8)';
   g.lineJoin = 'round';
   for (let x = 14; x < W; x += 12) {
+    if (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to) continue;
     const arrow = [project(x - 3.2, -7.5, D), project(x, -13, D), project(x + 3.2, -7.5, D)];
     g.beginPath();
     g.moveTo(arrow[0].x, arrow[0].y);
     g.lineTo(arrow[1].x, arrow[1].y);
     g.lineTo(arrow[2].x, arrow[2].y);
+    g.stroke();
+  }
+  // The plate for the jewel lamps: dark, in a gold frame, with a socket the shape of a cut stone for each lamp.
+  // Neither is black: in this picture black is the inside of a hole a medal goes down, and nothing else.
+  g.fillStyle = '#1d0d36';
+  path(g, facing(JEWEL_PLATE.from, JEWEL_PLATE.to, JEWEL_PLATE.top, JEWEL_PLATE.foot, D));
+  g.fill();
+  g.strokeStyle = '#ffd65c';
+  g.lineWidth = 1.6;
+  g.stroke();
+  for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+    g.fillStyle = '#150a26';
+    path(g, lampOutline(lamp));
+    g.fill();
+    g.strokeStyle = 'rgba(255, 124, 192, 0.45)';
+    g.lineWidth = 1;
     g.stroke();
   }
   return canvas;
@@ -693,7 +784,7 @@ export function createStage(ratio: number, painted = true): Stage {
     ratio,
     painted,
     background: blank ?? backgroundLayer(ratio),
-    medal: blank ?? medalSprite(),
+    ...(blank ? { medal: blank, faces: FACES.map(() => blank) } : facesOf(medalSprite())),
     ball: blank ?? ballSprite(),
     clock: 0,
     seen: new Map(),
@@ -707,6 +798,8 @@ export function createStage(ratio: number, painted = true): Stage {
     trayGlow: 0,
     sideGlow: [0, 0],
     party: null,
+    jewelGlow: 0,
+    jewelShow: 0,
   };
 }
 
@@ -714,7 +807,7 @@ export function createStage(ratio: number, painted = true): Stage {
 export function paintStage(stage: Stage): void {
   if (stage.painted) return;
   stage.background = backgroundLayer(stage.ratio);
-  stage.medal = medalSprite();
+  Object.assign(stage, facesOf(medalSprite()));
   stage.ball = ballSprite();
   stage.painted = true;
 }
@@ -758,7 +851,7 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
       present.set(medal.id, known);
       stage.seen.delete(medal.id);
     } else {
-      present.set(medal.id, { x: medal.x, y: medal.y, ball: medal.ball, tower: medal.stack > 1 });
+      present.set(medal.id, { x: medal.x, y: medal.y, ball: medal.ball, jewel: medal.jewel === true, tower: medal.stack > 1 });
     }
   }
   for (const [id, last] of stage.seen) {
@@ -766,14 +859,14 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
     if (last.tower) continue;
     const toFront = D - last.y;
     const toSide = Math.min(last.x, W - last.x);
-    const isWon = last.ball || toFront <= toSide;
+    const isWon = last.ball || last.jewel || toFront <= toSide;
     const side = last.x < W / 2 ? -1 : 1;
-    stage.exits.push({ id, x: last.x, y: last.y, kind: isWon ? 'won' : 'lost', side, ball: last.ball, age: 0 });
+    stage.exits.push({ id, x: last.x, y: last.y, kind: isWon ? 'won' : 'lost', side, ball: last.ball, ...(last.jewel ? { jewel: true } : {}), age: 0 });
     if (isWon) {
       stage.trayGlow = GLOW_TIME;
       // A glint where it went over.
       const at = project(last.x, T, Math.min(D, last.y));
-      for (let i = 0; i < (last.ball ? 14 : 2); i++) {
+      for (let i = 0; i < (last.ball || last.jewel ? 14 : 2); i++) {
         const angle = -Math.PI / 2 + (((id * 7 + i * 37) % 100) / 100 - 0.5) * 2.2;
         const speed = 50 + ((id * 13 + i * 29) % 70);
         addSpark(stage, {
@@ -784,7 +877,7 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
           age: 0,
           life: 0.55,
           size: last.ball ? 3 : 2.2,
-          color: SPARK_COLORS[(id + i) % 3],
+          color: last.jewel ? JEWEL_SPARKS[i % JEWEL_SPARKS.length] : SPARK_COLORS[(id + i) % 3],
         });
       }
     } else {
@@ -804,6 +897,8 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
   stage.trayGlow = Math.max(0, stage.trayGlow - dt);
   stage.sideGlow[0] = Math.max(0, stage.sideGlow[0] - dt);
   stage.sideGlow[1] = Math.max(0, stage.sideGlow[1] - dt);
+  stage.jewelGlow = Math.max(0, stage.jewelGlow - dt);
+  stage.jewelShow = Math.max(0, stage.jewelShow - dt);
 
   // The medals won in the last moment float up from the tray as one count.
   stage.tallyAge += dt;
@@ -850,8 +945,17 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
 /** The turn each medal lies at, fixed by its id so a pile does not look stamped. */
 export const turnOf = (id: number): number => id * 2.399963;
 
-/** Stamps one medal's face where `point` is, squashed to `tilt` and turned by `turn`. */
-function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt: number, turn: number, shift = 0, narrow = 1): void {
+/** The stage's medal as it was struck, and in every tone: the first of the faces is the one the stage calls its medal. */
+function facesOf(struck: HTMLCanvasElement): Pick<Stage, 'medal' | 'faces'> {
+  const faces = medalFaces(struck);
+  return { medal: faces[0], faces };
+}
+
+/**
+ * Stamps one medal's face where `point` is, squashed to `tilt` and turned by
+ * `turn`. Given the medal's `id`, the face is the one of its own tone.
+ */
+function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt: number, turn: number, shift = 0, narrow = 1, id = -1): void {
   const k = stage.ratio;
   const rx = R * point.scale * k;
   const ry = rx * tilt;
@@ -859,7 +963,7 @@ function stamp(g: CanvasRenderingContext2D, stage: Stage, point: Projected, tilt
   const sin = Math.sin(turn);
   // `narrow` squeezes it sideways: a medal turned part of the way edge on to the player.
   g.setTransform(rx * cos * narrow, ry * sin, -rx * sin * narrow, ry * cos, (point.x + shift) * k, point.y * k);
-  g.drawImage(stage.medal, -1, -1, 2, 2);
+  g.drawImage(id < 0 ? stage.medal : (stage.faces[faceOf(id)] ?? stage.medal), -1, -1, 2, 2);
 }
 
 const byDepth = (a: Medal, b: Medal): number => a.y - b.y;
@@ -953,7 +1057,8 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     // A medal that has just come over the lip is still on its way down to the lower table.
     const drop = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
     drops.push(drop);
-    points.push(medal.ball ? null : project(medal.x, base + drop + T + liftOf(medal), medal.y));
+    // A ball is drawn after the medals, and a jewel by whoever draws the field: neither has a medal's face.
+    points.push(medal.ball || medal.jewel ? null : project(medal.x, base + drop + T + liftOf(medal), medal.y));
   }
   const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
 
@@ -989,7 +1094,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
     g.fill();
     for (let i = 0; i < medals.length; i++) {
       const point = points[i];
-      if (point && chosen(medals[i])) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift);
+      if (point && chosen(medals[i])) stamp(g, stage, point, point.tilt, turnOf(medals[i].id), shift, 1, medals[i].id);
     }
   };
 
@@ -1050,9 +1155,9 @@ function bulbs(g: CanvasRenderingContext2D, from: Projected, to: Projected, coun
  * `stamp` draws it, so a medal can go from the one to the other without a
  * jump. `light` is how much light it gets, from 1 in the open down to none:
  * with less it is darker, not fainter, so that it is seen against something
- * bright.
+ * bright. Given the medal's `id`, the face is the one of its own tone.
  */
-function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: number, tilt: number, heading: number, shift: number, light = 1): void {
+function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: number, tilt: number, heading: number, shift: number, light = 1, id = -1): void {
   const k = stage.ratio;
   const ch = Math.cos(heading);
   const sh = Math.sin(heading);
@@ -1082,7 +1187,7 @@ function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: nu
   g.arc(0, 0, 1, 0, TAU);
   g.fill();
   g.setTransform((a.x - o.x) * k, (a.y - o.y) * k, (b.x - o.x) * k, (b.y - o.y) * k, (o.x + shift) * k, o.y * k);
-  g.drawImage(stage.medal, -1, -1, 2, 2);
+  g.drawImage(id < 0 ? stage.medal : (stage.faces[faceOf(id)] ?? stage.medal), -1, -1, 2, 2);
   if (light >= 1) return;
   g.globalAlpha = 1 - Math.max(0, light);
   g.fillStyle = '#1c0f02';
@@ -1328,6 +1433,169 @@ function drawSlot(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, a
   flat();
 }
 
+// ── Jewels ──────────────────────────────────────────────────────────────────
+
+/** The way to the cabinet's lamps, as the shadows on the tables have it: over the back of the field and a little to the left. */
+const LAMP_WAY = (() => {
+  const length = Math.hypot(SUN.x, 1, SUN.depth);
+  return [-SUN.x / length, 1 / length, -SUN.depth / length] as const;
+})();
+
+/** The colour of a face of a stone that is lit this much: deep rose in the dark, pink in the light, white where a lamp is mirrored. */
+function roseAt(light: number): string {
+  const stops = [
+    [0, 92, 6, 52],
+    [0.45, 255, 46, 146],
+    [0.8, 255, 160, 208],
+    [1.1, 255, 255, 255],
+  ];
+  const at = Math.min(1.1, Math.max(0, light));
+  let i = 1;
+  while (i < stops.length - 1 && stops[i][0] < at) i++;
+  const [from, to] = [stops[i - 1], stops[i]];
+  const share = (at - from[0]) / (to[0] - from[0]);
+  const mix = (channel: number) => Math.round(from[channel] + (to[channel] - from[channel]) * share);
+  return `rgb(${mix(1)}, ${mix(2)}, ${mix(3)})`;
+}
+
+/**
+ * A jewel, drawn face by face from the cut both renderers share: each face
+ * of the crown that looks toward the player, as bright as the lamps make it,
+ * with a glint where one of them is mirrored, and a dark line round the
+ * stone so that it stands out from the gold it lies among. Lying on a table
+ * it throws a shadow with its own colour in it. Unless the cabinet is calm
+ * its faces flash by turns, as they do when the lamps drift.
+ */
+function drawJewel(g: CanvasRenderingContext2D, stage: Stage, spot: JewelSpot, resting: boolean, calm: boolean, shift: number): void {
+  const k = stage.ratio;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  const seen = (corner: readonly [number, number, number]): Projected => project(corner[0], corner[1], corner[2]);
+  if (resting) {
+    // The shadow lies on whatever the stone stands on, away from the lamps, and the light that came through the stone lies in it.
+    const ground = spot.height - JEWEL_CUT.pavilion;
+    const foot = project(spot.x + JEWEL_CUT.pavilion * SUN.x, ground + T, spot.depth + JEWEL_CUT.pavilion * SUN.depth);
+    const rx = JEWEL_CUT.girdle * foot.scale;
+    g.fillStyle = 'rgba(40, 0, 30, 0.4)';
+    g.beginPath();
+    g.ellipse(foot.x, foot.y, rx * 1.05, rx * 1.05 * foot.tilt, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = 'rgba(255, 70, 170, 0.34)';
+    g.beginPath();
+    g.ellipse(foot.x + rx * 0.2, foot.y + rx * 0.15, rx * 0.6, rx * 0.6 * foot.tilt, 0, 0, TAU);
+    g.fill();
+  }
+  let brightest = { light: 0, x: 0, y: 0, scale: 1 };
+  g.lineJoin = 'round';
+  JEWEL_FACETS.forEach((face, index) => {
+    const { corners, normal } = facetInCabinet(spot, face);
+    const middle = corners.reduce((sum, corner) => [sum[0] + corner[0] / corners.length, sum[1] + corner[1] / corners.length, sum[2] + corner[2] / corners.length], [0, 0, 0]);
+    const toEye = [EYE_AT.x - middle[0], EYE_AT.height - middle[1], EYE_AT.depth - middle[2]];
+    const far = Math.hypot(toEye[0], toEye[1], toEye[2]);
+    const facing = (normal[0] * toEye[0] + normal[1] * toEye[1] + normal[2] * toEye[2]) / far;
+    if (facing <= 0) return;
+    const lamp = Math.max(0, normal[0] * LAMP_WAY[0] + normal[1] * LAMP_WAY[1] + normal[2] * LAMP_WAY[2]);
+    // Half way between the lamps and the eye: a face that looks that way mirrors a lamp straight at the player.
+    const half = [LAMP_WAY[0] + toEye[0] / far, LAMP_WAY[1] + toEye[1] / far, LAMP_WAY[2] + toEye[2] / far];
+    const mirror = Math.max(0, (normal[0] * half[0] + normal[1] * half[1] + normal[2] * half[2]) / Math.hypot(half[0], half[1], half[2])) ** 30;
+    const flash = calm ? 0 : Math.max(0, Math.sin(stage.clock * 2.6 + index * 2.4 + spot.id)) ** 8;
+    const light = (0.2 + 0.5 * lamp + 0.9 * mirror + 0.6 * flash) * spot.light;
+    const points = corners.map(seen);
+    g.fillStyle = roseAt(light);
+    path(g, points);
+    g.fill();
+    g.strokeStyle = 'rgba(255, 230, 245, 0.35)';
+    g.lineWidth = 0.6;
+    g.stroke();
+    if (light > brightest.light) {
+      const at = seen(middle as [number, number, number]);
+      brightest = { light, x: at.x, y: at.y, scale: at.scale };
+    }
+  });
+  // The girdle, all round: the line that tells the stone from the medals.
+  g.strokeStyle = 'rgba(86, 4, 46, 0.85)';
+  g.lineWidth = 1.1;
+  path(
+    g,
+    JEWEL_GIRDLE.map((corner) => seen(pointInCabinet(spot, corner))),
+  );
+  g.stroke();
+  // A glint on its brightest face: four rays.
+  if (brightest.light > 0.75) {
+    const ray = JEWEL_CUT.girdle * 0.55 * brightest.scale * Math.min(1, brightest.light);
+    g.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    g.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const reach = i % 2 === 0 ? ray : ray * 0.16;
+      g.lineTo(brightest.x + Math.cos((i * Math.PI) / 4) * reach, brightest.y + Math.sin((i * Math.PI) / 4) * reach);
+    }
+    g.closePath();
+    g.fill();
+  }
+}
+
+/** The corners of a jewel lamp on the front of the lower table, on the drawing. */
+const lampOutline = (lamp: number): Projected[] => LAMP_OUTLINE.map(([across, up]) => project(jewelLampX(lamp) + across * JEWEL_LAMPS.radius, JEWEL_LAMPS.height + up * JEWEL_LAMPS.radius, D));
+
+/**
+ * The jewel lamps that are lit, on their plate in the front of the lower
+ * table: each a cut stone seen from the side, rose, with its table and its
+ * girdle picked out and a glow round it. The one lit last shines brighter for
+ * a moment, and while a bonus is being shown all five are lit and flash.
+ */
+function drawJewelLamps(g: CanvasRenderingContext2D, stage: Stage, lit: number, calm: boolean, shift: number): void {
+  const k = stage.ratio;
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
+    const light = lampLight(lamp, lit, stage.jewelShow, stage.clock, calm);
+    if (light <= 0) continue;
+    const fresh = lamp === lit - 1 && stage.jewelShow <= 0 ? stage.jewelGlow / GLOW_TIME : 0;
+    const outline = lampOutline(lamp);
+    const middle = project(jewelLampX(lamp), JEWEL_LAMPS.height, D);
+    const reach = JEWEL_LAMPS.radius * middle.scale;
+    g.fillStyle = `rgba(255, 86, 170, ${(0.3 + 0.3 * fresh) * light})`;
+    g.beginPath();
+    g.arc(middle.x, middle.y, reach * (1.5 + 0.5 * fresh), 0, TAU);
+    g.fill();
+    const rose = g.createLinearGradient(0, outline[0].y, 0, outline[3].y);
+    rose.addColorStop(0, light > 0.7 ? '#ffe3f2' : '#ff9fd0');
+    rose.addColorStop(0.35, light > 0.7 ? '#ff5aa8' : '#d81b78');
+    rose.addColorStop(1, light > 0.7 ? '#c4125f' : '#7a0e44');
+    g.fillStyle = rose;
+    path(g, outline);
+    g.fill();
+    // Its cut: the girdle across it, and the edges of the faces down to the point.
+    g.strokeStyle = 'rgba(255, 240, 248, 0.8)';
+    g.lineWidth = 1;
+    line(g, outline[4], outline[2]);
+    const [left, right] = [project(jewelLampX(lamp) - JEWEL_LAMPS.radius * 0.35, JEWEL_LAMPS.height + JEWEL_LAMPS.radius * 0.3, D), project(jewelLampX(lamp) + JEWEL_LAMPS.radius * 0.35, JEWEL_LAMPS.height + JEWEL_LAMPS.radius * 0.3, D)];
+    line(g, left, outline[3]);
+    line(g, right, outline[3]);
+    g.strokeStyle = '#fff3fa';
+    g.lineWidth = 1.4;
+    g.lineJoin = 'round';
+    path(g, outline);
+    g.stroke();
+  }
+}
+
+/**
+ * Tells the stage that a jewel has been collected: the lamp it lit shines for
+ * a moment, sparks fly from it, and what it paid floats up from the plate. A
+ * bonus lights all five lamps for its show, with more sparks and its name.
+ */
+export function showJewel(stage: Stage, lamp: number, medals: number, bonus: boolean): void {
+  stage.jewelGlow = GLOW_TIME;
+  if (bonus) stage.jewelShow = JEWEL_SHOW;
+  const at = project(jewelLampX(Math.min(JEWEL_LAMPS.count - 1, Math.max(0, lamp))), JEWEL_LAMPS.height, D);
+  for (let i = 0; i < (bonus ? 40 : 14); i++) {
+    const angle = -Math.PI / 2 + (((i * 37 + lamp * 11) % 100) / 100 - 0.5) * (bonus ? 3 : 2.2);
+    const speed = 60 + ((i * 29 + lamp * 7) % 90);
+    addSpark(stage, { x: bonus ? VIEW.width / 2 + (((i * 53) % 100) / 100 - 0.5) * (JEWEL_PLATE.to - JEWEL_PLATE.from) * at.scale : at.x, y: at.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, age: 0, life: bonus ? 1.1 : 0.7, size: 3, color: JEWEL_SPARKS[i % JEWEL_SPARKS.length] });
+  }
+  const top = project(FIELD.width / 2, JEWEL_PLATE.top, D);
+  stage.popups.push({ x: top.x, y: top.y - 8, text: bonus ? `JEWEL BONUS +${medals}` : `JEWEL +${medals}`, age: 0, color: '#ffb7dc' });
+}
+
 // ── The catcher ─────────────────────────────────────────────────────────────
 
 /** How tall the capitals of the words on the catcher's slide are, in field units down its slope. */
@@ -1442,7 +1710,7 @@ function stampSliding(g: CanvasRenderingContext2D, stage: Stage, { medal, held }
     g.rect(-VIEW.width, 0, VIEW.width * 3, project(held.x, T, held.depth).y);
     g.clip();
   }
-  stampHeld(g, stage, held, turnOf(medal.id), held.tilt, held.heading, shift, held.light);
+  stampHeld(g, stage, held, turnOf(medal.id), held.tilt, held.heading, shift, held.light, medal.id);
   g.restore();
 }
 
@@ -1665,7 +1933,26 @@ export interface DrawOptions {
   gold?: number;
   /** Whether the START slots' wings are open, which they are during chance time: all three slots are lit gold and take medals more easily. */
   wings?: boolean;
+  /** How many jewels have been collected since the jewel lamps last went out, which is how many of them are lit. */
+  jewels?: number;
+  /**
+   * The light the screen throws into the cabinet: its colour, each part from 0 to 1, and how strong it is, 0 for
+   * a dark screen and about 1 for one that is all white. Whatever lies on the pusher in front of the screen takes
+   * it. Left out, the screen glows as an idle one does (`SCREEN_GLOW`). Only the 3D renderer has light to add it to.
+   */
+  glow?: Glow;
+  /** Ask the 3D renderer for its plain picture, the one it also drops to by itself on a device that is slow. */
+  plain?: boolean;
 }
+
+/** A light's colour, each part from 0 to 1, and how strong it is. */
+export interface Glow {
+  colour: readonly [number, number, number];
+  level: number;
+}
+
+/** What the screen throws into the cabinet when nobody says otherwise: the blue-violet of its idle picture, not strong. */
+export const SCREEN_GLOW: Glow = { colour: [0.55, 0.5, 1], level: 0.32 };
 
 /** Draws one frame of the field. */
 export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, options: DrawOptions): void {
@@ -1769,11 +2056,13 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   // covers them. A ball whose middle has come out from under its foot is taller than it and stands before it, so it
   // comes after. Whatever has just come over the lip at the catcher is on its slide, above everything it passes, and
   // is drawn last of all the medals: a medal sliding down it, into a slot or off its foot, and a ball rolling down it.
+  // A jewel is lower than the catcher and lies under it like a medal. Every list is drawn from the back forward, so
+  // that of two things that overlap, the nearer is the one seen.
   const lower: Medal[] = [];
   const upper: Medal[] = [];
   const sliding: Sliding[] = [];
   const clear: Medal[] = [];
-  const going: Spot[] = [];
+  const going: { ball: Medal; at: Spot }[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       upper.push(medal);
@@ -1782,13 +2071,21 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const held = caught(medal, machine.time, calm, wings);
     const rolled = held ? null : rolling(medal, BALL_RADIUS, machine.time);
     if (held) sliding.push({ medal, held });
-    else if (rolled) going.push(rolled);
+    else if (rolled) going.push({ ball: medal, at: rolled });
     else if (medal.ball && medal.y >= front + CATCHER.foot.out && underCatcher(medal.x, medal.y, BALL_RADIUS * 2, machine.time)) clear.push(medal);
     else lower.push(medal);
   }
   lower.sort(byDepth);
   upper.sort(byDepth);
+  clear.sort(byDepth);
+  // Two balls as far down the slide as each other are told apart by where the machine has them.
+  going.sort((a, b) => a.at.depth - b.at.depth || byDepth(a.ball, b.ball));
+  /** The jewels among some medals, each drawn where it lies: after the medals of its table, as a ball is. */
+  const jewelsOf = (medals: readonly Medal[]) => {
+    for (const medal of medals) if (medal.jewel) drawJewel(g, stage, lyingJewel(medal, machine.time), medal.level === 1 || medal.sinceDrop < 0 || medal.sinceDrop >= LIP_FALL, calm, shake);
+  };
   drawMedals(g, stage, lower, 0, shake);
+  jewelsOf(lower);
   drawCatcher(g, stage, machine, front, phase, calm, wings, shake);
   drawMedals(g, stage, clear, 0, shake);
 
@@ -1816,11 +2113,18 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.lineWidth = 2.5;
   line(g, top[3], top[2]);
   drawMedals(g, stage, upper, P, shake);
+  jewelsOf(upper);
+  // The guards of the lifts that are bringing towers up through the deck (works2d.ts).
+  drawLifts(g, k, machine, front, calm, shake, (tower) => drawTower(g, stage, tower, P, shake));
   // What has just come over the lip at the catcher is drawn where the catcher has it, not lying where the engine has
-  // already put it: the medals on its slide, the nearest to the lip first, and a ball rolling down it.
-  sliding.sort((a, b) => a.held.depth - b.held.depth);
-  for (const slid of sliding) stampSliding(g, stage, slid, machine.time, wings, shake);
-  for (const ball of going) drawBall(g, stage, ball.x, ball.height - BALL_RADIUS, ball.depth, false, shake);
+  // already put it: the medals on its slide, the nearest to the lip first, and a ball rolling down it. A jewel fits
+  // no slot and goes down the slide as a medal that fits none does.
+  sliding.sort((a, b) => a.held.depth - b.held.depth || byDepth(a.medal, b.medal));
+  for (const slid of sliding) {
+    if (slid.medal.jewel) drawJewel(g, stage, lyingJewel(slid.medal, machine.time), false, calm, shake);
+    else stampSliding(g, stage, slid, machine.time, wings, shake);
+  }
+  for (const { at } of going) drawBall(g, stage, at.x, at.height - BALL_RADIUS, at.depth, false, shake);
   flat();
 
   // Where a medal that leaves each arm now is let go, and how far from that it can land: from the
@@ -1890,13 +2194,14 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.restore();
 
   // Medals in the air: off an arm's tip, out of the slot under the hood, or off a tower that is going over.
+  // One the hopper pours is drawn with its doors, further down.
   for (const medal of machine.falling) {
-    if (medal.ball) continue;
+    if (medal.ball || medal.jewel || medal.source === 'pour') continue;
     const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
     if (medal.source === 'spill') {
       const from = P + T * (medal.rank + 1);
       const point = project(medal.fromX + (medal.x - medal.fromX) * t, T + (from - T) * (1 - t * t), medal.fromY + (medal.y - medal.fromY) * t);
-      stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake);
+      stamp(g, stage, point, point.tilt * (0.4 + 0.6 * Math.abs(Math.cos(t * 9 + medal.id))), turnOf(medal.id) + t * 5, shake, 1, medal.id);
       continue;
     }
     // It is drawn where it will lie once it is down, on top of the pile.
@@ -1911,7 +2216,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const point = project(at.x, at.height, at.depth);
     const flip = Math.abs(Math.cos(t * Math.PI * 2.5 + Math.PI / 2 + (1 - t) * 0.6));
     const landing = smooth(Math.max(0, (t - 0.8) / 0.2));
-    stamp(g, stage, point, (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing, turnOf(medal.id), shake);
+    stamp(g, stage, point, (0.14 + 0.78 * flip) * (1 - landing) + point.tilt * landing, turnOf(medal.id), shake, 1, medal.id);
   }
 
   // The hood is in front of whatever is still inside it: a medal on its way out of the slot, a ball in the hatch.
@@ -1925,7 +2230,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   bulbs(g, project(3, across, HOUSING.out), project(reach, across, HOUSING.out), 10, phase, lights, 2.8);
   bulbs(g, project(W - reach, across, HOUSING.out), project(W - 3, across, HOUSING.out), 10, phase, lights, 2.8);
   // The door of the hatch stands open for a moment behind a prize ball.
-  const open = machine.falling.some((ball) => ball.ball && ball.remaining > ball.duration * 0.35);
+  const open = machine.falling.some((ball) => (ball.ball || ball.jewel) && ball.remaining > ball.duration * 0.35);
   const hatch = project(HATCH.x, HATCH.height, HOUSING.out);
   const door = HATCH.radius * 0.84 * hatch.scale;
   const glaze = g.createRadialGradient(hatch.x - door * 0.3, hatch.y - door * 0.3, door * 0.1, hatch.x, hatch.y, door);
@@ -1941,7 +2246,13 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const at = airSpot(ball, P + BALL_RADIUS);
     drawBall(g, stage, at.x, at.height - BALL_RADIUS, at.depth, false, shake);
   }
+  // A jewel comes out of the hatch as a ball does, tumbling.
+  for (const jewel of machine.falling) if (jewel.jewel) drawJewel(g, stage, fallingJewel(jewel), false, calm, shake);
   flat();
+  drawJewelLamps(g, stage, options.jewels ?? 0, calm, shake);
+  flat();
+  // The hopper's doors in the hood's face, and the medals pouring out of them (works2d.ts).
+  drawHopper(g, k, machine, calm, shake, P + T * 2 + RIDE * 0.5, (point, round, id) => stamp(g, stage, point, round, turnOf(id), shake));
 
   // Whatever has just left the field: it goes on the way it was pushed, tips over the edge and falls.
   for (const exit of stage.exits) {
@@ -1956,14 +2267,48 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
       drawBall(g, stage, x, -fall, depth, false, shake);
       continue;
     }
+    if (exit.jewel) {
+      drawJewel(g, stage, collectedJewel(exit.id, exit.x, exit.y, a), false, calm, shake);
+      continue;
+    }
     // One that went off a side comes down on the chute there and slides down it.
     const slide = won ? -Infinity : chuteHeight(Math.max(0, exit.side < 0 ? -x : x - W)) + T;
     const point = project(x, Math.max(T - fall, slide), depth);
     const turn = Math.min(won ? Math.PI : CHUTE_LEAN, a * EXIT.turn);
-    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake);
+    stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake, 1, exit.id);
   }
   g.globalAlpha = 1;
+  // The light falls off across the field: strongest where the pusher meets the lower table, under the roof's
+  // lamps, and dim toward the side walls and the front corners. One shade over everything that has been drawn.
+  flat();
+  const middle = project(W / 2, 0, POOL.depth);
+  const pool = g.createRadialGradient(middle.x, middle.y, VIEW.width * POOL.from, middle.x, middle.y, VIEW.width * POOL.to);
+  pool.addColorStop(0, 'rgba(6, 3, 16, 0)');
+  pool.addColorStop(1, `rgba(6, 3, 16, ${POOL.dark})`);
+  g.fillStyle = pool;
+  g.fillRect(0, project(0, HEIGHT.pusher, 0).y, VIEW.width, VIEW.height);
   drawOverlay(g, stage, calm);
+}
+
+/** Where the roof's light is strongest on the field, how far from there it stays full and where it is at its dimmest, in widths of the drawing, and how dim that is. */
+export const POOL = { depth: 44, from: 0.22, to: 0.74, dark: 0.36 } as const;
+
+/**
+ * The glass at the front of the cabinet. What shows of a pane of glass is
+ * what is on it and what it mirrors: here a soft band of the room's light
+ * and a thin bright one beside it, slanting across; a haze of dust and
+ * finger marks toward its edges, where nobody wipes; and along the top edge
+ * the line of light a pane catches from the lamps over it.
+ */
+export const GLASS = { drift: 22, period: 46, bands: [0.24, 0.36], dust: 0.085, line: 0.3 } as const;
+
+/**
+ * How far the bands on the glass have drifted at `clock`, in pixels of the
+ * drawing: there and back in `GLASS.period` seconds, as they do when the
+ * player's head moves a little. Not at all in a calm cabinet.
+ */
+export function glassShift(clock: number, calm = false): number {
+  return calm ? 0 : GLASS.drift * Math.sin((clock * TAU) / GLASS.period);
 }
 
 /**
@@ -1993,9 +2338,9 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
     g.globalAlpha = Math.max(0, 1 - popup.age ** 2);
     const y = popup.y - popup.age * 46;
     g.lineWidth = 5;
-    g.strokeStyle = '#3a2400';
+    g.strokeStyle = popup.color ? '#3d0420' : '#3a2400';
     g.strokeText(popup.text, popup.x, y);
-    g.fillStyle = '#ffe98a';
+    g.fillStyle = popup.color ?? '#ffe98a';
     g.fillText(popup.text, popup.x, y);
   }
   g.globalAlpha = 1;
@@ -2006,14 +2351,32 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
     g.fillStyle = `hsla(${hue}, 100%, 60%, ${(0.07 + 0.05 * Math.sin(stage.clock * 12)) * wash})`;
     g.fillRect(0, 0, VIEW.width, VIEW.height);
   }
-  // The glass in front of it all: two bands of reflected light.
-  const glass = g.createLinearGradient(0, 0, VIEW.width, VIEW.height * 0.9);
-  glass.addColorStop(0.18, 'rgba(255, 255, 255, 0)');
-  glass.addColorStop(0.24, 'rgba(255, 255, 255, 0.07)');
-  glass.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
-  glass.addColorStop(0.36, 'rgba(255, 255, 255, 0.04)');
-  glass.addColorStop(0.4, 'rgba(255, 255, 255, 0)');
+  // The glass in front of it all. Two bands of the room's light slant across it, a broad soft one and a thin
+  // one beside it, and drift a little unless the cabinet is calm.
+  const shift = glassShift(stage.clock, calm);
+  const glass = g.createLinearGradient(shift, 0, VIEW.width + shift, VIEW.height * 0.9);
+  const [broad, thin] = GLASS.bands;
+  glass.addColorStop(broad - 0.08, 'rgba(236, 244, 255, 0)');
+  glass.addColorStop(broad, 'rgba(236, 244, 255, 0.075)');
+  glass.addColorStop(broad + 0.07, 'rgba(236, 244, 255, 0)');
+  glass.addColorStop(thin - 0.012, 'rgba(255, 255, 255, 0)');
+  glass.addColorStop(thin, 'rgba(255, 255, 255, 0.06)');
+  glass.addColorStop(thin + 0.012, 'rgba(255, 255, 255, 0)');
   g.fillStyle = glass;
   g.fillRect(0, 0, VIEW.width, VIEW.height);
+  // Dust and finger marks toward the edges, which lift the dark there a little: a pane is never clean to its frame.
+  const dust = g.createRadialGradient(VIEW.width / 2, VIEW.height * 0.52, VIEW.width * 0.42, VIEW.width / 2, VIEW.height * 0.52, VIEW.height * 0.72);
+  dust.addColorStop(0, 'rgba(196, 190, 204, 0)');
+  dust.addColorStop(1, `rgba(196, 190, 204, ${GLASS.dust})`);
+  g.fillStyle = dust;
+  g.fillRect(0, 0, VIEW.width, VIEW.height);
+  // The line of light along the top edge of the pane.
+  const edge = g.createLinearGradient(0, 0, VIEW.width, 0);
+  edge.addColorStop(0.04, 'rgba(255, 250, 236, 0)');
+  edge.addColorStop(0.3, `rgba(255, 250, 236, ${GLASS.line})`);
+  edge.addColorStop(0.62, 'rgba(255, 250, 236, 0.06)');
+  edge.addColorStop(0.96, 'rgba(255, 250, 236, 0)');
+  g.fillStyle = edge;
+  g.fillRect(0, 1.5, VIEW.width, 1.2);
   g.setTransform(1, 0, 0, 1, 0, 0);
 }

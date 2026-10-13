@@ -15,6 +15,7 @@ export interface PusherStrings {
   tabMachine: string;
   tabOdds: string;
   tabSim: string;
+  tabRecords: string;
   howToPlay: string;
   infoBody: (held: number) => string[];
 
@@ -39,7 +40,6 @@ export interface PusherStrings {
   feverWin: (medals: number) => string;
   feverTag: string;
   finishWin: (medals: number) => string;
-  chainLevel: (level: number, goal: number) => string;
   chainTotal: (medals: number) => string;
   ballWin: string;
   chance: string;
@@ -104,6 +104,7 @@ export interface PusherStrings {
   sayFinish: (medals: number) => string;
   sayJackpot: (medals: number, poured: number) => string;
   sayEmpty: string;
+  sayBonus: (medals: number) => string;
   // Tally
   tallyTitle: string;
   tallyPlayed: string;
@@ -228,6 +229,9 @@ export interface PusherStrings {
   /** A volume as it is read out to someone who cannot see the slider: the percent, and its mark where it has one. */
   volumeValue: (percent: number) => string;
   music: string;
+  /** The switch for the room the cabinet stands in, and what it says when it is pointed at. */
+  arcade: string;
+  arcadeHint: string;
   /** Chance time: what the screen writes while a gold spin is still to come, and what is said when it begins and ends. */
   chanceTitle: string;
   chanceLeft: (spins: number) => string;
@@ -269,6 +273,22 @@ export interface PusherStrings {
   holeDown: string;
   holeDownPaid: string;
   bowlPaid: (poured: number, towers: number) => string;
+  // Jewels
+  /** The jewel lamps, for anyone who cannot see them on the cabinet: how many of them are lit. */
+  jewelLamps: (lit: number, of: number) => string;
+  sayJewelDrop: string;
+  sayJewel: (medals: number, lit: number, of: number) => string;
+  sayJewelBonus: (medals: number, of: number) => string;
+  /** What a treasure line pays, in the table of lines: its chests, and the jewel that comes with it. */
+  paysJewel: string;
+  jewelTitle: string;
+  jewelIntro: (lamps: number) => string;
+  jewelCaption: string;
+  colJewel: string;
+  jewelEarly: (to: number) => string;
+  jewelLast: (of: number) => string;
+  jewelPrizeEach: (medals: number) => string;
+  jewelNote: (perThousand: number, sum: string, set: number, average: string, perSpin: string, start: number) => string;
   /**
    * The lucky lamp: what is said when a medal is held through a lit START slot, and the lamp's rule at the end of
    * the Odds tab's chance time, with what an ordinary spin and a gold one are worth and how often the light steps.
@@ -283,6 +303,7 @@ const en: PusherStrings = {
   tabMachine: 'Machine',
   tabOdds: 'Odds',
   tabSim: 'Simulation',
+  tabRecords: 'Records',
   howToPlay: 'How to play',
   infoBody: (held) => [
     'You start with 100 medals. Two rails feed them in, one from each side: the L button feeds the left rail and the R button the right, and both can be pressed at once. A medal goes in at the slot by that button, rolls along its feed arm’s rail to the back of the cabinet, drops off the tip onto the pusher a little to one side of where that rail is aimed, and gets shoved forward with the rest.',
@@ -297,6 +318,7 @@ const en: PusherStrings = {
     'A tower rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it. If it goes over at a START slot, every medal in it drops through.',
     'Three sevens drop a prize ball onto the field.',
     'Push a ball over the front edge and the jackpot chance starts: a roulette that keeps turning. Every number it stops on is stacked on the pusher as a medal tower, and it turns again until it stops on a cross. Four numbers in a row start the jackpot challenge: three bowls, one under another. The ball rolls round the top bowl and drops into one of its three holes: two let it down into the middle bowl, and one ends it with 50 medals. The middle bowl has two holes, one down to the bottom bowl and one worth 100. The bottom bowl has a single hole, and it is the jackpot, which begins at 300 medals and grows as the machine is played. Two balls are already lying on the field.',
+    'A treasure line also lets a jewel go: the hatch throws it over the pusher onto the middle of the lower table. It is pushed along like a medal, but it does not fit through the open sides, so it can only leave over the front. Push it over and it lights one of the five jewel lamps on the front of the table and pays 1 medal at once. The fifth jewel pays the jewel bonus instead, 3 medals stacked as a tower, and the lamps go out. Two jewels are already lying on the field.',
     'The Odds tab lists the exact chances on the screen, and the Simulation tab measures what cannot be calculated: how much of what you drop comes back, depending on where and how fast you drop it.',
   ],
 
@@ -320,7 +342,6 @@ const en: PusherStrings = {
   feverWin: (medals) => `FEVER! +${medals}`,
   feverTag: 'FEVER',
   finishWin: (medals) => (medals > 0 ? `FINISH! TOTAL ${medals}` : 'FINISH…'),
-  chainLevel: (level, goal) => `LEVEL ${level} / ${goal}`,
   chainTotal: (medals) => `TOWER ${medals}`,
   ballWin: 'BALL GET!',
   chance: 'JACKPOT CHANCE',
@@ -393,6 +414,7 @@ const en: PusherStrings = {
       poured >= medals ? 'All of them are poured onto the field: the pusher has no room for a tower.' : `${poured} of them are poured onto the field and the rest go up as towers.`
     }`,
   sayEmpty: 'You are out of medals.',
+  sayBonus: (medals) => `Daily bonus: ${medals} medals added to your medals.`,
   tallyTitle: 'This machine so far',
   tallyPlayed: 'Dropped',
   tallyWon: 'Won',
@@ -548,6 +570,8 @@ const en: PusherStrings = {
   volumeMark: (percent) => (percent === 0 ? 'silent' : percent === 100 ? 'usual' : ''),
   volumeValue: (percent) => (percent === 0 ? '0%, silent' : percent === 100 ? '100%, the usual level' : `${percent}%`),
   music: 'Music',
+  arcade: 'Arcade',
+  arcadeHint: 'The sound of the arcade around this machine',
   chanceTitle: 'CHANCE TIME',
   chanceLeft: (spins) => `${spins} left`,
   sayChance: 'Chance time. The hold is full: the wings of the START slots swing out to funnel medals in, and every spin held from now on is gold. Gold spins pay double on the board and the chests.',
@@ -581,6 +605,21 @@ const en: PusherStrings = {
   holeDown: 'A hole down to the next bowl',
   holeDownPaid: 'Nothing yet: the ball rolls on in the bowl below',
   bowlPaid: (poured, towers) => `${poured} poured onto the field and ${towers === 1 ? 'one tower' : `${towers} towers`} on the pusher`,
+  jewelLamps: (lit, of) => `Jewel lamps: ${lit} of ${of} lit.`,
+  sayJewelDrop: 'The hatch throws a jewel onto the lower table.',
+  sayJewel: (medals, lit, of) => `A jewel went over the front edge: ${medals === 1 ? '1 medal' : `${medals} medals`}. ${lit} of ${of} jewel lamps are lit.`,
+  sayJewelBonus: (medals, of) => `A jewel went over the front edge and made the set of ${of}. Jewel bonus: ${medals} medals go up as a tower, and the lamps go out.`,
+  paysJewel: 'A choice of three chests, and a jewel',
+  jewelTitle: 'Jewels',
+  jewelIntro: (lamps) =>
+    `Every treasure line also lets a jewel go: a cut stone about a medal across, which the hatch throws over the pusher onto the middle of the lower table. It is pushed along like a medal, but nothing lies on it or under it, and it stands too tall for the open sides: the only way off the field is over the front. There it is collected, and lights one of the ${lamps} jewel lamps on the front of the table.`,
+  jewelCaption: 'What each jewel of a set pays',
+  colJewel: 'Jewel of a set',
+  jewelEarly: (to) => `1st to ${to}th`,
+  jewelLast: (of) => `${of}th: the jewel bonus, and the lamps go out`,
+  jewelPrizeEach: (medals) => (medals === 1 ? '1 medal each' : `${medals} medals each`),
+  jewelNote: (perThousand, sum, set, average, perSpin, start) =>
+    `A jewel comes with every treasure line, so with ${perThousand} spins in 1,000. A set pays ${sum} = ${set} medals, which is ${average} medals a jewel and ${perSpin} medals a spin. That is counted in what the treasure line is worth in the first table, and in what a spin is worth below. A gold spin’s treasure line lets one jewel go like any other, and a jewel pays the same whichever spin it came with: chance time doubles the chest, not the jewel. No jewel is lost: every one the machine lets go is collected sooner or later, so the figure is exact. What the medals it pays do next is the field’s business, as with any others. A new machine has ${start} jewels lying on it already, which these figures leave out.`,
   sayLucky: 'A medal slid down the slope into a lit START slot. Its spin is gold.',
   luckyOddsNote: (ordinary, gold, seconds) =>
     `The lucky lamp: one of the three START slots is lit gold at a time, and the light steps one slot along, from the left, with every stroke of the pusher, which is every ${seconds} seconds. A medal that is held through the lit slot holds a gold spin from the start, for the one medal. An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}. The lamp cannot be chased by aiming: a medal takes half a minute and more to get from the rail to the lip, and the light has moved many times by then. Which START slot is lit when a medal arrives is luck.`,
@@ -592,6 +631,7 @@ const ja: PusherStrings = {
   tabMachine: 'マシン',
   tabOdds: '確率',
   tabSim: 'シミュレーション',
+  tabRecords: '記録',
   howToPlay: '遊び方',
   infoBody: (held) => [
     'メダル100枚から始めます。メダルは左右2本のレールから入れます。Lボタンで左のレール、Rボタンで右のレールに入り、両方を同時に押すこともできます。メダルはそのボタンのそばの入り口から入り、アームのレールを奥まで転がって先端から落ち、そのレールの狙いから少しずれてプッシャーの上に乗り、ほかのメダルと一緒に前へ押し出されます。',
@@ -606,6 +646,7 @@ const ja: PusherStrings = {
     'タワーはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。チャッカーのところで縁を越えると、タワーのメダルが全部チャッカーを通ります。',
     '7が3つそろうと、ボールが1個フィールドに落ちてきます。',
     'ボールを手前の端から落とすとジャックポットチャンスが始まります。ルーレットが回り続け、止まった数字の枚数がプッシャーの上にメダルタワーとして積まれ、×に止まるまで続きます。数字が4回続くと「ジャックポットチャレンジ」です。クルーン（すり鉢状の皿）が3段に重なっています。ボールはまずいちばん上の皿を転がり、3つの穴のどれかに落ちます。2つは下の段へ進む穴、1つは50枚で終わる穴です。2段目は穴が2つで、1つは最後の段へ進み、もう1つは100枚です。最後の段の穴は1つだけで、それがジャックポットです。ジャックポットは300枚から始まり、遊ぶほど増えていきます。ボールは最初から2個フィールドに置いてあります。',
+    '宝箱チャンスのそろい目が出ると、宝石も1個出てきます。ハッチからプッシャーを越えて、下のテーブルの中央あたりに飛んできます。宝石はメダルと同じように押されて進みますが、開いている脇は通らないので、出口は手前の端だけです。手前から落とすと、テーブルの手前にある5個の宝石ランプが1つ点灯し、すぐにメダル1枚が払い出されます。5個目は「宝石ボーナス」で、代わりにメダル3枚がタワーとして積まれ、ランプは消えます。宝石は最初から2個フィールドに置いてあります。',
     '「確率」タブには画面の抽選の正確な確率を載せています。「シミュレーション」タブでは計算では出せないもの、つまり落とす場所と速さによって何割戻ってくるかを実測します。',
   ],
 
@@ -629,7 +670,6 @@ const ja: PusherStrings = {
   feverWin: (medals) => `フィーバー！ ${medals}枚`,
   feverTag: 'フィーバー',
   finishWin: (medals) => (medals > 0 ? `終了！ 合計${medals}枚` : '終了…'),
-  chainLevel: (level, goal) => `レベル ${level} / ${goal}`,
   chainTotal: (medals) => `タワー ${medals}枚`,
   ballWin: 'ボール GET！',
   chance: 'ジャックポットチャンス',
@@ -702,6 +742,7 @@ const ja: PusherStrings = {
       poured >= medals ? 'プッシャーにタワーを積む場所がないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
     }`,
   sayEmpty: 'メダルがなくなりました。',
+  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
   tallyTitle: 'このマシンのここまで',
   tallyPlayed: '落とした',
   tallyWon: '獲得',
@@ -856,6 +897,8 @@ const ja: PusherStrings = {
   volumeMark: (percent) => (percent === 0 ? '無音' : percent === 100 ? '標準' : ''),
   volumeValue: (percent) => (percent === 0 ? '0%（無音）' : percent === 100 ? '100%（標準）' : `${percent}%`),
   music: 'BGM',
+  arcade: '店内の音',
+  arcadeHint: 'まわりの台のメダルの音や、店内のざわめき',
   chanceTitle: 'チャンスタイム',
   chanceLeft: (spins) => `あと${spins}回`,
   sayChance: 'チャンスタイム。保留が満杯です。チャッカーの羽根が開いてメダルを寄せ、ここから保留される抽選はすべて金の抽選になります。金の抽選は、すごろくと宝箱の払い出しが2倍になります。',
@@ -889,6 +932,21 @@ const ja: PusherStrings = {
   holeDown: '下の段へ進む穴',
   holeDownPaid: 'まだ払い出しなし（ボールは下の段で転がり続けます）',
   bowlPaid: (poured, towers) => `${poured}枚がフィールドに降り、プッシャーの上にタワー${towers}本`,
+  jewelLamps: (lit, of) => `宝石ランプ：${of}個中${lit}個点灯`,
+  sayJewelDrop: '宝石がハッチから下のテーブルに飛んできました。',
+  sayJewel: (medals, lit, of) => `宝石が手前の端から落ちました。メダル${medals}枚。宝石ランプは${of}個中${lit}個点灯しています。`,
+  sayJewelBonus: (medals, of) => `宝石が手前の端から落ちて、${of}個そろいました。宝石ボーナス：メダル${medals}枚がタワーとして積まれ、ランプは消えます。`,
+  paysJewel: '3つの宝箱から1つ選ぶ＋宝石1個',
+  jewelTitle: '宝石',
+  jewelIntro: (lamps) =>
+    `宝箱チャンスのそろい目が出ると、宝石も1個出てきます。宝石はメダルくらいの大きさの、カットされた石で、ハッチからプッシャーを越えて、下のテーブルの中央あたりに飛んできます。メダルと同じように押されて進みますが、上にも下にもメダルは重なりません。背が高いので、開いている両脇も通りません。出口は手前の端だけです。そこから落ちると獲得となり、テーブルの手前にある${lamps}個の宝石ランプが1つ点灯します。`,
+  jewelCaption: 'セットの何個目の宝石がいくら払うか',
+  colJewel: 'セットの何個目',
+  jewelEarly: (to) => `1〜${to}個目`,
+  jewelLast: (of) => `${of}個目：宝石ボーナス（ランプは消える）`,
+  jewelPrizeEach: (medals) => `各${medals}枚`,
+  jewelNote: (perThousand, sum, set, average, perSpin, start) =>
+    `宝石は宝箱チャンスのそろい目のたびに1個出るので、抽選1,000回につき${perThousand}個です。1セットの払い出しは ${sum} = ${set}枚、つまり宝石1個あたり${average}枚、抽選1回あたり${perSpin}枚です。この分は、最初の表の宝箱のそろい目の「平均の価値」と、下の「抽選1回の価値」に含めてあります。金の抽選で宝箱チャンスがそろったときも、出てくる宝石は1個で、宝石の払い出しは変わりません。チャンスタイムで2倍になるのは宝箱で、宝石ではありません。宝石は失われません。出てきた宝石はいずれ必ず獲得できるので、この数字は正確です。払い出されたメダルがその後どうなるかは、ほかのメダルと同じくフィールドしだいです。新しいマシンには最初から宝石が${start}個置いてありますが、ここの数字には入れていません。`,
   sayLucky: 'メダルが斜面を滑って、光っているチャッカーに入りました。金の抽選です。',
   luckyOddsNote: (ordinary, gold, seconds) =>
     `ラッキーランプ：3つのチャッカーのうち1つが金色に光り、プッシャーが1往復する${seconds}秒ごとに、光が左から順にとなりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、その1枚ではじめから金の抽選になります。ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です。ランプに合わせて狙うことはできません。メダルがレールから縁に着くまでには30秒以上かかり、そのあいだに光は何度も移るからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。`,

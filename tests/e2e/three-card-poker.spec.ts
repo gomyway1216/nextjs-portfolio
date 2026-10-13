@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { handOdds } from '../../src/components/game/ThreeCardPoker/analysis';
 import { decide, evaluate, settle, type Bets, type Card, type Decision, type Rank, type Suit } from '../../src/components/game/ThreeCardPoker/engine';
+import { arrived } from './streamedPage';
 
 // Hands are random: the tests read the dealt cards off the table, settle them
 // with the engine and check the table against it.
@@ -10,6 +11,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/three-card-poker');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.getByTestId('tcp-callout')).toBeVisible();
 }
 

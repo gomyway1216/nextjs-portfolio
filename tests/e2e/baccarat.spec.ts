@@ -10,6 +10,7 @@ import {
   type Rank,
   type Suit,
 } from '../../src/components/game/Baccarat/engine';
+import { arrived } from './streamedPage';
 
 // Hands are random: the test reads the dealt cards off the table, replays
 // them through the engine's drawing rules and checks the table against it.
@@ -18,6 +19,8 @@ async function openBaccarat(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/baccarat');
   expect(response?.status()).toBe(200);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
+  await arrived(page);
   await expect(page.getByTestId('baccarat-callout')).toBeVisible();
 }
 

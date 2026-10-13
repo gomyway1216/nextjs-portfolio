@@ -111,6 +111,13 @@
     font-size: 0.84rem;
   }
 }
+/* Four tabs across the narrowest phones. */
+@media (max-width: 359px) {
+  .tab {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
 .btn {
   appearance: none;
   border: 1px solid var(--games-route-border);
@@ -149,6 +156,16 @@
 @media (max-width: 980px) {
   .machine {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The day's bonus plate comes between the cabinet and the tally. Where there are two columns the cabinet fills
+   the first from top to bottom, and the plate and the tally share the second, the plate on top. */
+@media (min-width: 981px) {
+  .machine {
+    grid-template-rows: auto 1fr;
+  }
+  .cabinet {
+    grid-row: 1 / span 2;
   }
 }
 .cabinet {
@@ -306,12 +323,6 @@
 .screen[data-mode='chest'] {
   background: radial-gradient(120% 120% at 50% 20%, #8a4a0c 0%, #3a1d04 55%, var(--mp-screen) 100%);
 }
-.screen[data-mode='roulette'] {
-  background: radial-gradient(120% 120% at 50% 20%, #8a0f5a 0%, #36052a 55%, var(--mp-screen) 100%);
-}
-.screen[data-mode='bowl'] {
-  background: radial-gradient(120% 120% at 50% 20%, #9c1230 0%, #3c0714 55%, var(--mp-screen) 100%);
-}
 /* Rays turning slowly behind whatever is on. */
 .rays {
   position: absolute;
@@ -332,6 +343,214 @@
 .screen[data-banner='jackpot'] .rays {
   background: repeating-conic-gradient(rgba(255, 226, 120, 0.3) 0deg 9deg, rgba(255, 255, 255, 0) 9deg 18deg);
   animation-duration: 6s;
+}
+/* The monitor has modes, as a real machine's has: the world round whatever game is on. Each has its own backdrop,
+   its own light (--mp-glow, which the cabinet also lights the medals in front of the screen with) and its own frame
+   of lamps. The everyday mode leaves each game the colour it has above. */
+.screen[data-monitor='chance'] {
+  background:
+    radial-gradient(90% 70% at 50% 108%, rgba(255, 246, 190, 0.5) 0%, rgba(255, 214, 92, 0) 70%),
+    radial-gradient(120% 120% at 50% 12%, #ffcf4a 0%, #b97400 48%, #3d2200 100%);
+}
+.screen[data-monitor='fever'] {
+  background:
+    radial-gradient(90% 70% at 50% 108%, rgba(255, 170, 120, 0.55) 0%, rgba(255, 120, 80, 0) 70%),
+    radial-gradient(120% 120% at 50% 12%, #ff5a3c 0%, #b1123f 50%, #3a0520 100%);
+}
+/* The ball's lottery is no picture: the monitor gives way to a window on the machine itself, a dark chamber of
+   brushed steel lit from above, with the wheel or the bowls standing in it. */
+.screen[data-monitor='challenge'] {
+  background:
+    radial-gradient(70% 60% at 32% 0%, rgba(63, 224, 200, 0.34) 0%, rgba(63, 224, 200, 0) 70%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, rgba(255, 255, 255, 0) 1px 5px),
+    linear-gradient(180deg, #1c2733 0%, #0d131b 58%, #05080d 100%);
+}
+.screen[data-monitor='jackpot'] {
+  background:
+    linear-gradient(180deg, #3d2200 0%, rgba(61, 34, 0, 0.85) 16%, rgba(61, 34, 0, 0) 34%),
+    radial-gradient(100% 80% at 50% 56%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 242, 189, 0) 62%),
+    radial-gradient(120% 120% at 50% 12%, #fff2bd 0%, #e2a917 46%, #5a3a00 100%);
+}
+/* The rays are the monitor's own graphics. The chamber has none: it is lit by lamps, not by a picture. */
+.screen[data-monitor='challenge'] .rays {
+  display: none;
+}
+.screen[data-monitor='chance'] .rays,
+.screen[data-monitor='fever'] .rays,
+.screen[data-monitor='jackpot'] .rays {
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.2) 0deg 9deg, rgba(255, 255, 255, 0) 9deg 18deg);
+}
+/* The frame of lamps inside the bezel, along the top and the bottom of the monitor: a row of round lamps in the
+   mode's colour. They are steady. For a player who has not asked for less motion, a band of brighter light runs
+   along them (below), no lamp brightening oftener than the gold lamps of the hold flash. */
+.frameLamps {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+.frameLamps::before,
+.frameLamps::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: max(3px, 1.1cqw);
+  background: radial-gradient(circle, var(--mp-glow, #5b7cff) 0 34%, rgba(0, 0, 0, 0) 40%) 0 50% / max(7px, 2.6cqw) 100% repeat-x;
+  opacity: 0.55;
+}
+.frameLamps::before {
+  top: max(1px, 0.3cqw);
+}
+.frameLamps::after {
+  bottom: max(1px, 0.3cqw);
+}
+.screen[data-monitor='normal'] .frameLamps::before,
+.screen[data-monitor='normal'] .frameLamps::after {
+  opacity: 0.3;
+}
+.screen[data-monitor='jackpot'] .frameLamps::before,
+.screen[data-monitor='jackpot'] .frameLamps::after,
+.screen[data-monitor='fever'] .frameLamps::before,
+.screen[data-monitor='fever'] .frameLamps::after {
+  opacity: 0.95;
+}
+/* The glass in front of it all: the monitor is a panel behind a pane, with the fine lines of the panel, the shade
+   of the bezel round its edge and a band of the room's light across it. The chamber is not a panel, so it has the
+   pane and the light on it without the lines. */
+.glass {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.09) 38%, rgba(255, 255, 255, 0.02) 46%, rgba(255, 255, 255, 0) 47%, rgba(255, 255, 255, 0.05) 60%, rgba(255, 255, 255, 0) 66%),
+    radial-gradient(130% 120% at 50% 50%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.42) 100%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.1) 0 1px, rgba(0, 0, 0, 0) 1px 3px);
+}
+.screen[data-monitor='challenge'] .glass {
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.11) 38%, rgba(255, 255, 255, 0.02) 46%, rgba(255, 255, 255, 0) 47%, rgba(255, 255, 255, 0.06) 60%, rgba(255, 255, 255, 0) 66%),
+    radial-gradient(130% 120% at 50% 50%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.55) 100%);
+}
+/* Changing gear. When the monitor goes from one mode to another, two shutters close over it from the top and the
+   bottom, the name of the mode it is going to is up on them for a moment, and they open on it. It is drawn only
+   for a player who has not asked for less motion; without it the mode simply changes. */
+.gear {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .frameLamps::before,
+  .frameLamps::after {
+    -webkit-mask: linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 30%, #000 50%, rgba(0, 0, 0, 0.35) 70% 100%) 0 0 / 50% 100% repeat-x;
+    mask: linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 30%, #000 50%, rgba(0, 0, 0, 0.35) 70% 100%) 0 0 / 50% 100% repeat-x;
+    animation: mp-frame-chase calc(var(--mp-gold-flash, 0.5s) * 4) linear infinite;
+  }
+  .frameLamps::after {
+    animation-direction: reverse;
+  }
+  .screen[data-monitor='chance'] .frameLamps::before,
+  .screen[data-monitor='chance'] .frameLamps::after,
+  .screen[data-monitor='challenge'] .frameLamps::before,
+  .screen[data-monitor='challenge'] .frameLamps::after {
+    animation-duration: calc(var(--mp-gold-flash, 0.5s) * 2.5);
+  }
+  .screen[data-monitor='fever'] .frameLamps::before,
+  .screen[data-monitor='fever'] .frameLamps::after,
+  .screen[data-monitor='jackpot'] .frameLamps::before,
+  .screen[data-monitor='jackpot'] .frameLamps::after {
+    animation-duration: calc(var(--mp-gold-flash, 0.5s) * 1.5);
+  }
+  .gear {
+    position: absolute;
+    z-index: 7;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .shutter {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 50.5%;
+    background:
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.1) 0 1px, rgba(0, 0, 0, 0.16) 1px 2px, rgba(0, 0, 0, 0) 2px 9px),
+      linear-gradient(180deg, #5d6878 0%, #2c3440 100%);
+    animation: mp-shutter 0.8s cubic-bezier(0.5, 0, 0.3, 1) forwards;
+  }
+  .shutter[data-side='top'] {
+    top: 0;
+    --mp-away: -102%;
+    border-bottom: max(2px, 0.7cqw) solid var(--mp-glow, #5b7cff);
+  }
+  .shutter[data-side='bottom'] {
+    bottom: 0;
+    --mp-away: 102%;
+    border-top: max(2px, 0.7cqw) solid var(--mp-glow, #5b7cff);
+  }
+  .gear[data-to='jackpot'] .shutter,
+  .gear[data-to='chance'] .shutter {
+    background:
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.16) 0 1px, rgba(0, 0, 0, 0.12) 1px 2px, rgba(0, 0, 0, 0) 2px 9px),
+      linear-gradient(180deg, #ffd65c 0%, #9a6a05 100%);
+  }
+  .gear[data-to='fever'] .shutter {
+    background:
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.14) 0 1px, rgba(0, 0, 0, 0.14) 1px 2px, rgba(0, 0, 0, 0) 2px 9px),
+      linear-gradient(180deg, #ff6a4f 0%, #8f0f35 100%);
+  }
+  .gearTitle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    padding: 0.12em 0.7em;
+    border-radius: 0.3em;
+    border: max(1px, 0.5cqw) solid var(--mp-glow, #5b7cff);
+    background: #05080d;
+    color: #ffffff;
+    font-size: clamp(0.7rem, 4.2cqw, 1.7rem);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    animation: mp-gear-title 0.8s linear forwards;
+  }
+}
+/* The band of light runs one lamp-group along in each turn of the animation. */
+@keyframes mp-frame-chase {
+  to {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+}
+/* Away, shut, held shut, and away again. */
+@keyframes mp-shutter {
+  0% {
+    transform: translateY(var(--mp-away));
+  }
+  28%,
+  62% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(var(--mp-away));
+  }
+}
+@keyframes mp-gear-title {
+  0%,
+  22% {
+    opacity: 0;
+  }
+  30%,
+  60% {
+    opacity: 1;
+  }
+  70%,
+  100% {
+    opacity: 0;
+  }
 }
 /* How a reach is dressed. All of it is decoration, so none of it is on for a player who asked for less motion:
    the caption's words are the whole of a reach then. */
@@ -1439,26 +1658,30 @@
   }
 }
 
-/* The roulette and the bowl are each a dish lying on the stage, 1em from its middle to its rim, with the run it
-   belongs to beside it. What stands on a dish turns up to face the player (--mp-dish-tilt). A dish is one flat sheet
-   with its side below it, so that nothing standing on it cuts through another sheet. */
-.dishScene {
+/* The roulette is a machine seen through a window: a rotor turning inside a bowl, under a dome, 1em from its
+   middle to its rim. The window is what cuts it off at the edges of the stage, and the scene inside it is what is
+   looked into; the wheel is flat sheets lying in the plane of the bowl, with the ball the only thing above them. */
+.wheelWindow {
   position: relative;
   flex: none;
   width: 63cqw;
   height: 100cqh;
+  overflow: hidden;
+}
+.wheelScene {
+  position: absolute;
+  inset: 0;
   perspective: 300cqh;
   perspective-origin: 50% 0%;
 }
-.dishTilt {
-  --mp-dish-tilt: 52deg;
+.wheelTilt {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 53%;
   width: 2em;
   height: 2em;
   margin: -1em 0 0 -1em;
-  font-size: 50cqh;
+  font-size: 56cqh;
   transform: rotateX(var(--mp-dish-tilt));
   transform-style: preserve-3d;
 }
@@ -1490,13 +1713,65 @@
   --mp-side: #5c4005;
   transform: translateZ(-0.07em);
 }
-.wheel,
+.wheelBowl,
 .bowl {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+}
+/* The track is metal: a broad light lies across it on the side the lamp is, and a narrower one opposite. It is a
+   flat ring of its own over the bowl, so the light stays put while the rotor turns. */
+.trackSheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 285deg,
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0.42) 34deg,
+    rgba(255, 255, 255, 0) 78deg,
+    rgba(255, 255, 255, 0) 172deg,
+    rgba(255, 255, 255, 0.2) 204deg,
+    rgba(255, 255, 255, 0) 238deg,
+    rgba(255, 255, 255, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(closest-side, rgba(0, 0, 0, 0) 79%, #000 80.5%, #000 90.5%, rgba(0, 0, 0, 0) 92%);
+  mask: radial-gradient(closest-side, rgba(0, 0, 0, 0) 79%, #000 80.5%, #000 90.5%, rgba(0, 0, 0, 0) 92%);
+}
+/* The rotor turns as the cabinet tells it to (--mp-rotor); nothing else of the wheel does. */
+.rotor {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--mp-rotor, 0deg));
+}
+/* A pocket's number, on the plate outside it. It is turned back by as much as the rotor has turned, so it always
+   reads the right way up, and drawn taller than it is, since the wheel is seen at a slant. */
+.plateNumber {
+  position: absolute;
+  font-size: 0.165em;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 0.07em 0 rgba(0, 0, 0, 0.75),
+    0.05em 0 0 rgba(0, 0, 0, 0.75),
+    -0.05em 0 0 rgba(0, 0, 0, 0.75),
+    0 -0.05em 0 rgba(0, 0, 0, 0.75);
+  transform: translate(-50%, -50%) rotate(calc(var(--mp-rotor, 0deg) * -1)) scaleY(1.4);
+}
+.plateNumber[data-holds='50'] {
+  text-shadow: none;
+}
+.plateNumber[data-on='true'] {
+  text-shadow: none;
+  font-size: 0.21em;
+}
+/* The lamps round the rim are lit, every other one a little dimmer. */
+.trackLamp[data-odd='true'] {
+  opacity: 0.55;
 }
 /* The boss in the middle of a dish, stepped up to a dome. */
 .dishHub,
@@ -1527,49 +1802,45 @@
   background: radial-gradient(circle at 38% 32%, #ffd0da 0%, #e0173f 55%, #7a0026 100%);
   transform: translateZ(0.06em);
 }
-/* A pocket's number, standing in it. */
-.pocketLabel {
+/* The wheel's is a chrome turret, taller than a bowl's boss. */
+.dishHub[data-dish='wheel'] {
+  width: 0.3em;
+  height: 0.3em;
+  margin: -0.15em 0 0 -0.15em;
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #c9d1dd 42%, #5d6778 100%);
+  transform: translateZ(0.04em);
+}
+.dishHub[data-dish='wheel']::before {
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #dfe5ee 46%, #6f7a8c 100%);
+  transform: translateZ(0.05em);
+}
+.dishHub[data-dish='wheel']::after {
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #fff3b0 40%, #c98a0a 100%);
+  transform: translateZ(0.1em);
+}
+/* The dome is clear, so all that shows of it is the light it catches: a bright bow high on the side the light comes
+   from, a fainter one low on the other, and its edge where it meets the rim. It is drawn over the scene and is no
+   part of it. */
+.dome {
   position: absolute;
-  font-size: 9.6cqh;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  color: #f4f0ff;
-  text-shadow:
-    0 0.09em 0 #0a0520,
-    0.07em 0 0 #0a0520,
-    -0.07em 0 0 #0a0520,
-    0 -0.07em 0 #0a0520;
-  transform-origin: 50% 100%;
-  transform: translate(-50%, -78%) rotateX(calc(var(--mp-dish-tilt) * -1));
-}
-.pocketLabel[data-stop='true'] {
-  color: #ff9db1;
-}
-.pocketLabel[data-on='true'] {
-  color: #ffffff;
-  text-shadow:
-    0 0.09em 0 #5a3a00,
-    0.07em 0 0 #5a3a00,
-    -0.07em 0 0 #5a3a00,
-    0 -0.07em 0 #5a3a00;
-  transform: translate(-50%, -78%) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.35);
-}
-/* The lamps round the rim: the light runs from one to the next. The lit one is bigger and brighter, with no glow:
-   in Chromium a blurred shadow on a small card stood up to face the player came out cut off square, so none of
-   those cards has one. */
-.rimLamp {
-  position: absolute;
-  width: 0.11em;
-  height: 0.11em;
-  margin: -0.055em 0 0 -0.055em;
+  left: 50%;
+  top: 53%;
+  width: 1.96em;
+  height: 1.66em;
+  margin: -1.04em 0 0 -0.98em;
+  font-size: 56cqh;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 32%, #b9a8ff 0%, #5a4691 55%, #2a1c5c 100%);
-  transform: translateZ(0.05em) rotateX(calc(var(--mp-dish-tilt) * -1));
+  pointer-events: none;
+  background:
+    radial-gradient(30% 9% at 31% 13%, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.2) 60%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(46% 30% at 30% 18%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(26% 10% at 74% 86%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(closest-side, rgba(255, 255, 255, 0) 93%, rgba(255, 255, 255, 0.28) 97%, rgba(255, 255, 255, 0) 100%);
 }
-.rimLamp[data-on='true'] {
-  background: radial-gradient(circle at 38% 32%, #ffffff 0%, #ffffff 30%, #fff3a8 62%, #ffd65c 100%);
-  transform: translateZ(0.1em) rotateX(calc(var(--mp-dish-tilt) * -1)) scale(1.8);
+/* Over the bowls it is the size of a bowl, and stands over the one the ball is in. */
+.dome[data-over='bowls'] {
+  top: 52%;
+  font-size: 47cqh;
 }
 /* The jackpot challenge is three bowls one under another, each a dish like the wheel's, seen from the same place.
    The view follows the ball: the stack is lifted (--mp-stage) so that the bowl the ball is in is the one in the
@@ -1723,6 +1994,16 @@
 .rung[data-on='true'] .rungNumber {
   background: #7a3b00;
 }
+/* The wheel's ladder has a rung for each of its four boards, so its rungs are smaller and the tower beside it shorter. */
+.ladder[data-rungs='4'] {
+  gap: 1cqh;
+}
+.ladder[data-rungs='4'] .rung {
+  font-size: 5.6cqh;
+}
+.ladder[data-rungs='4'] ~ .chainTower {
+  height: 17cqh;
+}
 /* What the bowls paid, counted up over the stage. A prize from one of the upper bowls is counted over its bowl;
    the jackpot has the whole stage, which goes dark behind it, and medals rain down it. */
 .payShow {
@@ -1848,20 +2129,6 @@
   justify-items: center;
   align-content: center;
   gap: 2.6cqh;
-}
-.chainLabel {
-  font-size: clamp(0.62rem, 7.2cqh, 1.05rem);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  color: #ffe0f1;
-}
-.chainLamps {
-  display: flex;
-  gap: 0.3rem;
-}
-.chainLamps .lamp[data-goal='true'] {
-  border-color: #ffd65c;
 }
 .chainTower {
   display: flex;
@@ -2258,21 +2525,37 @@
   height: 1.05rem;
 }
 /* The sound settings, in a row of their own under the switches, as wide as the panel: the volume, and beside it the
-   switch for the background loop alone. On a phone the row is as short as an aim slider. */
+   switch for the background loop alone and the switch for the arcade round the cabinet. On a phone the row is as
+   short as an aim slider. */
 .soundPanel {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 0.4rem 0.7rem;
+  gap: 0.4rem 0.5rem;
   padding: 0.45rem 0.65rem 0.5rem;
   border-radius: 10px;
   border: 1px solid #4b3f8a;
   background: #0b0620;
 }
-/* Its switch is as tall as the switches above it, which a picture on one of them makes taller than their words. */
+/* Its switches are as tall as the switches above them, which a picture on one of them makes taller than their words.
+   They keep their words on one line and are no wider than those need, so that the slider has the rest of the row. */
 .soundPanel .toggle {
   min-height: 2.15rem;
+  padding-inline: 0.5rem;
+  white-space: nowrap;
+}
+/* On the narrowest phones the volume has a line to itself, and the two switches share the one under it. */
+@media (max-width: 350px) {
+  .soundPanel {
+    grid-template-columns: 1fr 1fr;
+  }
+  .soundPanel .volume {
+    grid-column: 1 / -1;
+  }
+  .soundPanel .toggle {
+    justify-content: center;
+  }
 }
 .volume {
   display: grid;
@@ -2315,9 +2598,12 @@
   background: rgba(255, 255, 255, 0.55);
   pointer-events: none;
 }
+/* A range input has a width of its own that it will not go under unless it is told it may: with three things in the
+   row, on a narrow phone, it would stay that wide and lie over the switch beside it. */
 .volumeSlider {
   position: relative;
   width: 100%;
+  min-width: 0;
   margin: 0.2rem 0;
   accent-color: var(--mp-neon);
 }
@@ -2809,15 +3095,17 @@
     width: clamp(4.2rem, 20cqh, 6rem);
   }
 }
-/* On a small phone on its side the column is too narrow for the volume's slider and the Music switch side by side.
-   The slider has the width of the row there; the volume's words and the switch are over it, the words on two lines.
-   They are far enough apart that the switch's 44 px end above the slider's thumb, and where the two boxes meet, in
-   the clear part over the slider's track, the touch is the switch's. */
-@media (orientation: landscape) and (max-width: 800px) {
+/* On its side the column at the right hand is too narrow, on a phone, for the volume's slider and its two switches
+   side by side. So there the volume's words have a line, the slider under them has the width of the row, and the
+   switch for the loop and the switch for the arcade share the line under that, each half of it. Where a switch's box
+   and the slider's 44 px meet, in the clear part under the slider's track, the touch is the switch's. */
+@media (orientation: landscape) {
   .cabinet:fullscreen .soundPanel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      'words music'
-      'track track';
+      'words words'
+      'track track'
+      'music arcade';
     gap: 0.5rem;
   }
   .cabinet:fullscreen .volume {
@@ -2825,19 +3113,17 @@
   }
   .cabinet:fullscreen .volumeLabel {
     grid-area: words;
-    flex-wrap: wrap;
-  }
-  /* There is no room beside the switch for the word that names the level: the number stays, the notch marks the
-     usual level, and a screen reader is still told. */
-  .cabinet:fullscreen .volumeMark {
-    display: none;
   }
   .cabinet:fullscreen .volumeTrack {
     grid-area: track;
   }
   .cabinet:fullscreen .soundPanel .toggle {
     grid-area: music;
+    justify-content: center;
     z-index: 2;
+  }
+  .cabinet:fullscreen .soundPanel .toggle + .toggle {
+    grid-area: arcade;
   }
 }
 

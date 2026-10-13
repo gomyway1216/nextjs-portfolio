@@ -197,9 +197,9 @@ export async function simulate(
 
   for (let a = 0; a < AIM_IDS.length; a++) {
     const id = AIM_IDS[a];
-    // No balls to begin with: a ball left on the field is a gift, and this measures the machine without one.
+    // No balls and no jewels to begin with: one left on the field is a gift, and this measures the machine without.
     // Its player picks a chest the moment it is offered, so no spin waits on a choice.
-    const session = createSession(seed, { balls: 0, quickPick: true });
+    const session = createSession(seed, { balls: 0, jewels: 0, quickPick: true });
     // The experiment is about the machine, not about a purse running dry.
     session.credits = Number.MAX_SAFE_INTEGER;
     // The aim has a generator of its own, so the machine's draws do not depend on it.

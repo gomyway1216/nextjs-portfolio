@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { seededRng } from '@/components/game/MedalPusher/engine';
+import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
+import { holds } from '@/components/game/MedalPusher/lift';
 import { pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
-import { restore, serialize } from '@/components/game/MedalPusher/storage';
+import { STORAGE_VERSION, VERSION_BEFORE_LAMP, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
 import beforeLeftAndRight from './fixtures/save-before-left-and-right.json';
 import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 import beforeSlots from './fixtures/save-before-the-front-slots.json';
+import beforeLamp from './fixtures/save-before-the-lucky-lamp.json';
+import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
 
 const DT = 1 / 60;
 /** Tests that run the machine for a good while get room on a slow machine. */
@@ -73,6 +76,161 @@ describe('a packed save', () => {
     expect(there({ medals })).toBe(JSON.stringify({ medals }));
   });
 
+  it('writes a list whose objects have a few different sets of fields as a table for each set, in the order the rows came in', () => {
+    // Medals, and among them jewels, which say that they are jewels where a medal says nothing.
+    const medals = Array.from({ length: 60 }, (_, index) => {
+      const medal = { id: index + 1, x: 3.2 + index * 1.0123456789, y: 50.123456789012 - index / 7, ball: index % 9 === 0 };
+      return index % 13 === 5 ? { ...medal, jewel: true } : index === 40 ? { ...medal, jewel: true, note: 'a third set of fields' } : medal;
+    });
+    const text = JSON.stringify({ medals });
+    const small = JSON.parse(pack(text) as string);
+    expect(small.medals.$).toBe('g');
+    expect(small.medals.t.map((table: { k: string[] }) => table.k)).toEqual([
+      ['id', 'x', 'y', 'ball'],
+      ['id', 'x', 'y', 'ball', 'jewel'],
+      ['id', 'x', 'y', 'ball', 'jewel', 'note'],
+    ]);
+    // The order: a set of fields and how many rows in a row have it, by turns. Five medals, a jewel, twelve medals, a jewel, …
+    expect(small.medals.r.slice(0, 8)).toEqual([0, 5, 1, 1, 0, 12, 1, 1]);
+    expect(small.medals.r.filter((_: number, index: number) => index % 2 === 1).reduce((sum: number, count: number) => sum + count, 0)).toBe(60);
+    expect(small.medals.t[0].c[1]).toMatch(/^f[A-Za-z0-9+/]+=*$/);
+    // Five of the sixty are jewels and nothing more, and each says so with one bit.
+    expect(small.medals.t[1].c[4]).toBe('b11111');
+    expect(small.medals.t[2].c[5]).toEqual(['a third set of fields']);
+    expect(unpack(pack(text))).toBe(text);
+    expect((pack(text) as string).length).toBeLessThan(text.length / 2);
+    // Two jewels side by side, a jewel first, a jewel last: every row comes back in its place.
+    for (const jewels of [[0], [59], [0, 1], [20, 21, 22], [0, 30, 59], [1, 3, 5, 7, 9]]) {
+      const rows = Array.from({ length: 60 }, (_, index) => (jewels.includes(index) ? { id: index, x: index / 3, jewel: true } : { id: index, x: index / 3 }));
+      expect(there(rows)).toBe(JSON.stringify(rows));
+      expect(JSON.parse(pack(JSON.stringify(rows)) as string).$).toBe('g');
+    }
+    // As many sets of fields as rows, or nearly, is not worth a table for each, and neither are more sets than eight.
+    const few = [{ a: 1 }, { b: 2 }, { a: 3 }];
+    expect(pack(JSON.stringify(few))).toBe(JSON.stringify(few));
+    const many = Array.from({ length: 40 }, (_, index) => ({ id: index, [`field${index % 9}`]: index }));
+    expect(pack(JSON.stringify(many))).toBe(JSON.stringify(many));
+    expect(there(many)).toBe(JSON.stringify(many));
+  });
+
+  it('packs a machine with jewels on its tables and in the air as small as one without', { timeout: LONG }, () => {
+    for (const session of [createSession(1), played(2, 20)]) {
+      dropJewel(session.machine);
+      expect(session.machine.medals.some((medal) => medal.jewel)).toBe(true);
+      expect(session.machine.falling.some((medal) => medal.jewel)).toBe(true);
+      expect(jewelsOnField(session.machine)).toBeGreaterThanOrEqual(2);
+      const text = serialize(session);
+      const small = pack(text) as string;
+      expect(unpack(small)).toBe(text);
+      expect(small.length).toBeLessThan(text.length / 2);
+      expect(serialize(restore(unpack(small), 1) as Session)).toBe(text);
+      // The same machine with its jewels taken off is no smaller on its way than a few hundred characters.
+      const without = JSON.parse(text) as { machine: { medals: { jewel?: boolean }[]; falling: { jewel?: boolean }[] } };
+      without.machine.medals = without.machine.medals.filter((medal) => !medal.jewel);
+      without.machine.falling = without.machine.falling.filter((medal) => !medal.jewel);
+      expect(small.length - (pack(JSON.stringify(without)) as string).length).toBeLessThan(600);
+    }
+  });
+
+  it('packs the payout works as it packs everything else: the doors, the lifts and the medals that were poured', () => {
+    // A prize pouring out of the hopper's doors while another goes up as three towers on their lifts.
+    const session = createSession(4, { balls: 0 });
+    queuePayout(session.machine, 80);
+    buildTowers(session.machine, 75);
+    session.paidOut += 155;
+    for (let i = 0; i < 300 && !(session.machine.hopper.phase === 'pouring' && session.machine.hopper.poured >= 12); i++) advance(session, DT);
+    const { machine } = session;
+    expect(machine.hopper).toMatchObject({ phase: 'pouring', pours: 1 });
+    expect(machine.lifts.filter(holds)).toHaveLength(3);
+    const pouring = machine.falling.filter((medal) => medal.source === 'pour');
+    expect(pouring.length).toBeGreaterThanOrEqual(10);
+    const text = serialize(session);
+    const small = pack(text) as string;
+    expect(unpack(small)).toBe(text);
+    expect(small.length).toBeLessThan(text.length / 2);
+    // The lifts are a table like the medals, the doors are four fields as they were written, and what was poured says so in its column.
+    const packed = JSON.parse(small) as { machine: { hopper: unknown; lifts: { $: string; k: string[] }; falling: { $: string; k: string[]; c: unknown[] } } };
+    expect(packed.machine.hopper).toEqual(machine.hopper);
+    expect(packed.machine.lifts.$).toBe('t');
+    expect(packed.machine.lifts.k).toEqual(['id', 'x', 'behind', 'size', 'wait', 'sunk']);
+    expect(packed.machine.falling.$).toBe('t');
+    const sources = packed.machine.falling.c[packed.machine.falling.k.indexOf('source')] as string[];
+    expect(sources.filter((source) => source === 'pour')).toHaveLength(pouring.length);
+    // And what comes back is the same machine, which plays on as the one that was packed does.
+    const back = restore(unpack(small), 1) as Session;
+    expect(serialize(back)).toBe(text);
+    session.machine.rng = seededRng(5);
+    back.machine.rng = seededRng(5);
+    for (let i = 0; i < 180; i++) {
+      advance(session, DT);
+      advance(back, DT);
+    }
+    expect(serialize(back)).toBe(serialize(session));
+  });
+
+  it('packs the lucky lamp’s two numbers with the rest of a session’s, and they come back as they were', { timeout: LONG }, () => {
+    /** A machine with both rails held down from the start, at the first moment `when` says. */
+    const caught = (when: (session: Session) => boolean): Session => {
+      const session = createSession(20261014, { balls: 0 });
+      for (let i = 0; i < 150 * 60 && !when(session); i++) {
+        if (session.credits === 0) refill(session);
+        insert(session, 0);
+        insert(session, 1);
+        advance(session, DT);
+      }
+      if (!when(session)) throw new Error('no such moment');
+      return session;
+    };
+    // A spin the lamp alone made gold, with the wings shut; and chance time, the wings open, with spins the lamp and the wings made gold among those held.
+    const lamp = caught((session) => session.lucky >= 1 && session.gold >= 1 && !session.rush);
+    const rush = caught((session) => session.rush && session.gold >= 2 && session.lucky >= 2);
+    expect([lamp.rush, lamp.gilded]).toEqual([false, 0]);
+    expect(rush.gilded).toBeGreaterThanOrEqual(1);
+    for (const session of [lamp, rush]) {
+      const text = serialize(session);
+      const small = pack(text) as string;
+      expect(unpack(small)).toBe(text);
+      expect(small.length).toBeLessThan(text.length / 2);
+      // A session's numbers are no table: they travel as they were written, the lamp's two among them, where a session holds them.
+      const written = JSON.parse(text) as { version: number; session: Record<string, unknown> };
+      const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
+      expect(packed.version).toBe(STORAGE_VERSION);
+      expect(JSON.stringify(packed.session)).toBe(JSON.stringify(written.session));
+      expect([packed.session.lucky, packed.session.rush]).toEqual([session.lucky, session.rush]);
+      const keys = Object.keys(packed.session);
+      expect(keys.slice(keys.indexOf('gilded'), keys.indexOf('chance') + 1)).toEqual(['gilded', 'lucky', 'rush', 'chance']);
+      // And what comes back is the same machine, which plays on as the one that was packed does.
+      const back = restore(unpack(small), 1) as Session;
+      expect(serialize(back)).toBe(text);
+      expect([back.lucky, back.rush, back.gold, back.gilded, back.chance]).toEqual([session.lucky, session.rush, session.gold, session.gilded, session.chance]);
+      session.machine.rng = seededRng(5);
+      back.machine.rng = seededRng(5);
+      for (let i = 0; i < 180; i++) {
+        advance(session, DT);
+        advance(back, DT);
+      }
+      expect(serialize(back)).toBe(serialize(session));
+    }
+  });
+
+  it('carries a save written the day before the lucky lamp, and it comes back in chance time with none of its gold spins the lamp’s', () => {
+    const save = dayBeforeLamp.save;
+    const small = pack(save) as string;
+    expect(small.length).toBeLessThan(save.length / 2);
+    expect(unpack(small)).toBe(save);
+    // It travels as that version wrote it: its number, and no word of the lamp.
+    const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
+    expect(packed.version).toBe(VERSION_BEFORE_LAMP);
+    for (const key of ['lucky', 'rush']) expect(packed.session).not.toHaveProperty(key);
+    const back = restore(unpack(small), 7) as Session;
+    expect(back).toMatchObject({ lucky: 0, rush: true, chance: true });
+    expect(serialize(back)).toBe(serialize(restore(save, 7) as Session));
+    // Written again it is a save of today's version, and that travels too.
+    const today = serialize(back);
+    expect(JSON.parse(today).version).toBe(STORAGE_VERSION);
+    expect(unpack(pack(today))).toBe(today);
+  });
+
   it('leaves alone what is not a table, and keeps the order of every field', () => {
     const odd = {
       z: 1,
@@ -120,6 +278,8 @@ describe('a packed save', () => {
     ['with one aim for both arms', beforeLeftAndRight.save],
     ['before the chuckers were on the lip', beforeLipChuckers.save],
     ['before the slots were at the front', beforeSlots.save],
+    ['in chance time before the lucky lamp, the jewels and the payout works', beforeLamp.save],
+    ['the day before the lucky lamp, with the payout works at work', dayBeforeLamp.save],
   ])('carries a save written %s, and it comes back as the machine it was', (_name, save) => {
     const small = pack(save);
     expect(small).not.toBeNull();
@@ -153,6 +313,18 @@ describe('what is not a packed save', () => {
     ['a column of bytes holding an infinity', { $: 't', k: ['x'], c: [`f${btoa(String.fromCharCode(0, 0, 0, 0, 0, 0, 0xf0, 0x7f))}`] }],
     ['a column of bits with a 2 in it', { $: 't', k: ['x'], c: ['b0121'] }],
     ['a column written some other way', { $: 't', k: ['x'], c: ['zzzz'] }],
+    ['tables for sets of fields with no order to them', { $: 'g', t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with no tables', { $: 'g', r: [0, 1, 1, 1] }],
+    ['an order for a single table', { $: 'g', r: [0, 1], t: [{ k: ['x'], c: [[1]] }] }],
+    ['an order that names a table there is not', { $: 'g', r: [0, 1, 2, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that takes more rows than a table has', { $: 'g', r: [0, 2, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that leaves a row of a table out', { $: 'g', r: [0, 1, 1, 1], t: [{ k: ['x'], c: [[1, 5]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with a run of no rows', { $: 'g', r: [0, 1, 1, 0, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order with half a run', { $: 'g', r: [0, 1, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order that is not whole numbers', { $: 'g', r: [0, 1.5, 1, 1], t: [{ k: ['x'], c: [[1, 5]] }, { k: ['y'], c: [[2]] }] }],
+    ['an order in words', { $: 'g', r: ['0', '1', '1', '1'], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[2]] }] }],
+    ['a table for a set of fields that has no rows', { $: 'g', r: [0, 1], t: [{ k: ['x'], c: [[1]] }, { k: ['y'], c: [[]] }] }],
+    ['a table for a set of fields that is not a table', { $: 'g', r: [0, 1, 1, 1], t: [{ k: ['x'], c: [[1]] }, [2]] }],
     ['a mark of no kind', { $: 'q', v: {} }],
     ['a wrapped object that is not an object', { $: 'o', v: [1, 2] }],
     ['a wrapped object with nothing in it', { $: 'o' }],

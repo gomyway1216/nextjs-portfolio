@@ -56,8 +56,8 @@ export const CATCHER = {
   back: 0.85,
   /** What stands up round a slot, and how far: its frame. */
   rim: { wide: 0.5, high: 0.3 },
-  /** The foot of the slide: how far out from the lip, and how high above the lower table, which is higher than the medals that lie there. */
-  foot: { out: 9.3, height: 2.3 },
+  /** The foot of the slide: how far out from the lip, and how high above the lower table, which is higher than the medals that lie there, and than a jewel (jewel.ts). */
+  foot: { out: 9.3, height: 2.4 },
   /** How high the floor of a throat is: nearly as deep as the catcher goes. */
   throat: 2.6,
   /** Seconds a medal that drops through a slot is shown sliding to it and going down it. */

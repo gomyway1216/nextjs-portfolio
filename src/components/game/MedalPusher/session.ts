@@ -6,7 +6,9 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { buildTowers, createMachine, dropBall, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine } from './engine';
+import { JEWEL_SPOTS, buildTowers, createMachine, dropBall, dropJewel, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine } from './engine';
+import { hopperBusy } from './hopper';
+import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
   BOARD,
   BOWLS,
@@ -18,6 +20,8 @@ import {
   FEVER_SQUARE,
   JACKPOT_START,
   JACKPOT_STEP,
+  JEWEL,
+  JEWEL_TIER,
   ROULETTE,
   TIER_BONUS,
   drawDie,
@@ -25,6 +29,7 @@ import {
   drawPocket,
   drawSpin,
   holePays,
+  jewelPays,
   pouredOf,
   shuffleChests,
   squareAfter,
@@ -37,6 +42,8 @@ export const START_CREDITS = 100;
 export const MAX_STOCK = 8;
 /** Prize balls lying on the field when a machine is switched on. */
 export const START_BALLS = 2;
+/** Jewels lying on the field when a machine is switched on. */
+export const START_JEWELS = JEWEL_SPOTS.length;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
  * spins are queueing up, the extra suspense of a reach and what a long reach
@@ -212,10 +219,17 @@ export interface Session {
   refills: number;
   /** Whether a chest is picked the moment it is offered, as the simulation's player does. */
   quickPick: boolean;
+  /** Jewel lamps that are lit: one for each jewel collected since the lamps last went out. */
+  jewels: number;
+  /** Jewel bonuses paid since the machine was switched on: one for every full set of lamps. */
+  jewelBonuses: number;
 }
 
 /** Something the cabinet should react to, in the order it happened. */
 export type SessionEvent =
+  | { type: 'bonus'; count: number }
+  // The medal now at a pocket takes the hold's last place: the hold fills. One that finds it full already is a `checker` that is not `held`.
+  | { type: 'holdFilled' }
   | { type: 'won'; count: number }
   | { type: 'lost'; count: number }
   | { type: 'landed'; count: number }
@@ -241,18 +255,25 @@ export type SessionEvent =
   | { type: 'bowlStart'; holes: readonly number[]; duration: number }
   // `poured` is how many of the medals paid are thrown onto the field loose: the share that always is, and what the pusher had no free place to stack.
   | { type: 'bowlEnd'; bowl: number; hole: number; payout: number; poured: number; total: number; jackpot: boolean }
-  | { type: 'bowlDrop'; bowl: number; hole: number; duration: number };
+  | { type: 'bowlDrop'; bowl: number; hole: number; duration: number }
+  | { type: 'jewelDrop' }
+  | { type: 'jewel'; lamps: number; payout: number }
+  | { type: 'jewelBonus'; payout: number }
+  // The payout works: the hopper's doors opening and shutting, towers coming up on their lifts and standing free.
+  | WorksEvent;
 
 export interface SessionOptions {
   /** Prize balls on the field at the start. */
   balls?: number;
   /** Pick a chest at once instead of waiting for the player. */
   quickPick?: boolean;
+  /** Jewels on the field at the start. */
+  jewels?: number;
 }
 
 export function createSession(seed: number, options: SessionOptions = {}): Session {
   return {
-    machine: createMachine(seed, options.balls ?? START_BALLS),
+    machine: createMachine(seed, options.balls ?? START_BALLS, options.jewels ?? START_JEWELS),
     credits: START_CREDITS,
     inserted: 0,
     won: 0,
@@ -280,8 +301,13 @@ export function createSession(seed: number, options: SessionOptions = {}): Sessi
     jackpots: 0,
     refills: 0,
     quickPick: options.quickPick ?? false,
+    jewels: 0,
+    jewelBonuses: 0,
   };
 }
+
+/** Jewels pushed over the front since the machine was switched on: a full set of lamps for every bonus, and the lamps lit now. */
+export const jewelsCollected = (session: Pick<Session, 'jewels' | 'jewelBonuses'>): number => session.jewelBonuses * JEWEL.lamps + session.jewels;
 
 /**
  * Feeds one of the player's medals into an arm, the left (0) or the right (1), wherever that arm is pointed.
@@ -308,6 +334,17 @@ export function refill(session: Session): boolean {
   return true;
 }
 
+/**
+ * Medals given to the player from outside the machine: the day's bonus. They go straight into the purse.
+ * They are not fed, won or paid, so no return counts them. Returns whether there was anything to give.
+ */
+export function grant(session: Session, medals: number, events?: SessionEvent[]): boolean {
+  if (!Number.isInteger(medals) || medals <= 0) return false;
+  session.credits += medals;
+  events?.push({ type: 'bonus', count: medals });
+  return true;
+}
+
 /** Picks a chest for the player. Returns whether there was a choice to make. */
 export function pickChest(session: Session, chest: number): boolean {
   const { bonus } = session;
@@ -327,6 +364,8 @@ export const isBusy = (session: Session): boolean =>
   session.balls > 0 ||
   session.machine.payoutQueue > 0 ||
   session.machine.growing > 0 ||
+  hopperBusy(session.machine.hopper) ||
+  session.machine.lifts.length > 0 ||
   session.machine.rolling.length > 0 ||
   session.machine.falling.length > 0;
 
@@ -336,6 +375,24 @@ function pay(session: Session, medals: number, towers: boolean): void {
   if (towers) buildTowers(session.machine, medals);
   else queuePayout(session.machine, medals);
   session.paidOut += medals;
+}
+
+/**
+ * A jewel has been pushed over the front. It lights a lamp and pays its prize
+ * at once, thrown on loose. The one that would light the last lamp pays the
+ * bonus instead, as towers, and the lamps go out.
+ */
+function collectJewel(session: Session, events?: SessionEvent[]): void {
+  const { medals, towers } = jewelPays(session.jewels);
+  pay(session, medals, towers);
+  if (towers) {
+    session.jewels = 0;
+    session.jewelBonuses += 1;
+    events?.push({ type: 'jewelBonus', payout: medals });
+  } else {
+    session.jewels += 1;
+    events?.push({ type: 'jewel', lamps: session.jewels, payout: medals });
+  }
 }
 
 /** The seconds a roll takes from the die to the piece landing. */
@@ -441,7 +498,9 @@ export const chanceLeft = (session: Pick<Session, 'gold' | 'chance'>): number =>
 export function advance(session: Session, dt: number, events?: SessionEvent[]): void {
   // Chance time begins when a medal finds the hold full, and ends when the last gold spin has been played.
   const before = session.rush;
+  const works = events ? watchWorks(session.machine) : null;
   run(session, dt, events);
+  if (works && events) for (const event of worksEvents(works, session.machine)) events.push(event);
   if (session.rush && chanceLeft(session) === 0) session.rush = false;
   if (!before && session.rush) events?.push({ type: 'chanceStart' });
   else if (before && !session.rush) events?.push({ type: 'chanceEnd' });
@@ -466,7 +525,9 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
     session.balls += field.balls;
     events?.push({ type: 'ball', count: field.balls });
   }
+  for (let i = 0; i < field.jewels; i++) collectJewel(session, events);
   for (const gate of field.checkers) {
+    if (session.stock === MAX_STOCK - 1) events?.push({ type: 'holdFilled' });
     session.hits += 1;
     const held = session.stock < MAX_STOCK;
     // A medal that finds the hold full starts no spin of its own. It turns one of the held spins gold, if one is left to turn.
@@ -571,6 +632,11 @@ function run(session: Session, dt: number, events?: SessionEvent[]): void {
       const fallback = Math.min(CHESTS.length - 1, Math.floor(session.machine.rng() * CHESTS.length));
       session.bonus = { kind: 'chest', prizes, fallback, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
       events?.push({ type: 'chestStart' });
+    }
+    // A treasure line also lets a jewel go from the hatch: one, whether the spin was gold or not.
+    if (tier === JEWEL_TIER) {
+      dropJewel(session.machine);
+      events?.push({ type: 'jewelDrop' });
     }
     return;
   }

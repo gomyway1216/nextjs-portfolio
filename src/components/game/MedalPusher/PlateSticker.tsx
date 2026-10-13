@@ -21,7 +21,9 @@ export const PlateSwitch = createContext<((open: boolean) => void) | null>(null)
  * each, not for their sentences, so pressing it opens the full plate.
  *
  * It is one block with nothing outside it, so it can be mounted anywhere on
- * the cabinet.
+ * the cabinet. While the cabinet fills the screen it is not shown: that is
+ * the game and its controls and nothing else, laid out to fit, and the
+ * stylesheet puts the sticker away with the cabinet's other strips.
  */
 export const PlateSticker = memo(function PlateSticker() {
   const open = useContext(PlateSwitch);

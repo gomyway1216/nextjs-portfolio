@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
@@ -677,12 +680,45 @@ describe('where the plate lives', () => {
     expect(asked.startsWith('<button')).toBe(true);
   });
 
-  it('adds nothing to the page twice', () => {
+  it('is put away while the cabinet fills the screen, where every place is spoken for', () => {
+    const css = readFileSync(join(process.cwd(), 'src/components/game/MedalPusher/InstructionPlate.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }));
+    // One rule hides the sticker inside whatever is filling the screen, and it is not hidden anywhere else.
+    const hiding = rules.filter((rule) => /\.sticker\b(?![A-Za-z])/.test(rule.selector) && /display:\s*none/.test(rule.body));
+    expect(hiding.map((rule) => rule.selector)).toEqual([':fullscreen:not(:root) .sticker']);
+    // It is the sticker's own rule, so it holds wherever on the cabinet the sticker is mounted, and it gives the
+    // sticker no place in the cabinet's grid to keep in step with: it has none there.
+    expect(rules.filter((rule) => rule.selector.includes('.sticker') && /grid-area|grid-row|grid-column/.test(rule.body))).toEqual([]);
+    // The sticker is inside the cabinet, which is what fills the screen: the last thing in it before its lower bulbs.
+    const cabinet = render(<PlayTab />);
+    const [controls, sticker, tally] = ['data-testid="pusher-controls"', 'data-testid="pusher-plate-strip"', 'data-testid="pusher-played"'].map((mark) => cabinet.indexOf(mark));
+    expect(sticker).toBeGreaterThan(controls);
+    expect(sticker).toBeLessThan(tally);
+  });
+
+  it('adds nothing to the page twice, closed or open', () => {
     const html = render(<MedalPusher />);
     const testIds = valuesOf(html, 'data-testid');
     expect(testIds.filter((id, index) => testIds.indexOf(id) !== index)).toEqual([]);
     const ids = valuesOf(html, ' id');
     expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+    // With the plate held up, the dialog has more in it. Nothing in it, in either language, goes by a name that
+    // anything else on the page answers to: the cabinet, the Odds, the Simulation or the Records.
+    for (const language of LANGUAGES) {
+      const page = render(<MedalPusher />, language);
+      const closed = page.match(/<dialog[^>]*>[\s\S]*<\/dialog>/)?.[0] ?? '';
+      const elsewhere = valuesOf(page.replace(closed, ''), 'data-testid');
+      expect(elsewhere.length).toBeGreaterThan(40);
+      const opened = valuesOf(render(<InstructionPlateDialog isOpen onClose={() => undefined} title="How to play" body={['One.']} />, language), 'data-testid');
+      // Everything the plate names: the dialog, its way out, the plate and its parts, and the text under it.
+      for (const id of ['pusher-plate-dialog', 'pusher-plate-close', 'pusher-plate', 'pusher-plate-steps', 'pusher-plate-payout', 'pusher-plate-path', 'pusher-plate-hands', 'pusher-plate-text']) expect(opened, id).toContain(id);
+      expect(opened.filter((id, index) => opened.indexOf(id) !== index)).toEqual([]);
+      expect(opened.filter((id) => elsewhere.includes(id))).toEqual([]);
+      // The closed dialog is the same dialog with less in it, and the sticker is the only other thing of the plate's.
+      expect(valuesOf(closed, 'data-testid').filter((id) => !opened.includes(id))).toEqual([]);
+      expect(elsewhere.filter((id) => id.startsWith('pusher-plate'))).toEqual(['pusher-plate-strip']);
+      expect(elsewhere.filter((id) => id === 'pusher-how-to-play')).toHaveLength(1);
+    }
     // The plate's own marks are its own: none of them is one the cabinet's tests count.
     const plateOnly = plate('en');
     for (const mark of ['data-tier=', 'data-leads=', 'data-here=', 'data-lit=', 'data-pocket=', 'data-hole=', 'data-on=', 'data-arm=', 'data-badge=', 'data-bowl=', 'data-gold=', 'data-kind=', 'role="tab"', '<canvas']) {

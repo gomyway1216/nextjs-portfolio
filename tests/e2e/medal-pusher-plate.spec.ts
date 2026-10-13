@@ -5,6 +5,7 @@ import { BOWLS, CHAIN_GOAL, CHANCE, CHESTS, JACKPOT_START, TIER_BONUS, TIER_DIGI
 import { PLATE_STEPS, payoutLines } from '../../src/components/game/MedalPusher/plateData';
 import { getPlateStrings } from '../../src/components/game/MedalPusher/plateStrings';
 import { MAX_STOCK } from '../../src/components/game/MedalPusher/session';
+import { settled } from './medalPusherPage';
 
 // The cabinet's instruction plate: what the How to play button opens, and the compact one on the cabinet's front.
 // The unit tests hold what is printed on it to the lottery's tables. These hold it to the page: that it opens as a
@@ -14,9 +15,8 @@ async function openGame(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/medal-pusher');
   expect(response?.status()).toBe(200);
-  // While the page streams in, React briefly keeps a second, hidden copy of the
-  // content in the document. Wait until there is one before looking anything up.
-  await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
+  // The page streams in, and for a moment there is a second, hidden copy of it: wait until it has all arrived.
+  await settled(page);
   await expect(machine(page).getByTestId('pusher-field')).toBeVisible();
 }
 
@@ -219,3 +219,90 @@ test('on a phone the compact plate is on the cabinet under the controls, covers 
   await expect(dialog(page)).toBeHidden();
   await expect(strip(page)).toBeFocused();
 });
+
+// With the cabinet filling the screen a player has asked for the game and nothing else. The cabinet lays itself out
+// to fit, upright as a column and on its side as a grid with every cell spoken for, so the compact plate is put away
+// there: it takes no place in either layout, and what the cabinet lays out fits the screen. Leaving fullscreen brings
+// it back.
+//
+// `still` says whether the cabinet is also held to scrolling not at all. Upright it is. On its side, on a screen 375
+// high, it is not held to that here: the track the record book's toast hangs in is laid over the cabinet without a
+// place in its layout, and reaches below the screen there whether the compact plate is in the page or not.
+for (const { name, viewport, still } of [
+  { name: 'upright', viewport: { width: 375, height: 667 }, still: true },
+  { name: 'on its side', viewport: { width: 667, height: 375 }, still: false },
+]) {
+  test.describe(`with the cabinet filling a phone held ${name}`, () => {
+    test.use({ viewport, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+
+    test('the compact plate is put away, the cabinet fits the screen, and the plate is back when fullscreen is left', async ({ page }) => {
+      test.setTimeout(60_000);
+      await openGame(page);
+      // The fullscreen switch is there once the browser has taken the page over.
+      const fullscreen = machine(page).getByTestId('pusher-fullscreen');
+      await expect(fullscreen).toBeVisible({ timeout: 20_000 });
+      await expect(strip(page)).toBeVisible();
+
+      await fullscreen.scrollIntoViewIfNeeded();
+      await fullscreen.tap();
+      await expect(fullscreen).toHaveAttribute('aria-pressed', 'true');
+      // It is the cabinet that fills the screen, with the sticker in it and not shown.
+      await expect(strip(page)).toBeHidden();
+      const inside = await page.evaluate(() => {
+        const full = document.fullscreenElement;
+        const sticker = document.querySelector<HTMLElement>('#pusher-panel-machine [data-testid="pusher-plate-strip"]');
+        const within = (id: string) => {
+          const box = document.querySelector(`#pusher-panel-machine [data-testid="${id}"]`)?.getBoundingClientRect();
+          return !!box && box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight;
+        };
+        // How far what the cabinet lays out reaches: everything in it that is shown and has a place in its layout.
+        // Something hung over the cabinet with no place of its own there is not counted, nor is anything inside it.
+        const reach = { right: 0, bottom: 0 };
+        const walk = (element: Element) => {
+          const style = getComputedStyle(element);
+          if (style.display === 'none' || style.position === 'absolute' || style.position === 'fixed') return;
+          const box = element.getBoundingClientRect();
+          if (box.width > 0 && box.height > 0) {
+            reach.right = Math.max(reach.right, box.right);
+            reach.bottom = Math.max(reach.bottom, box.bottom);
+          }
+          for (const child of element.children) walk(child);
+        };
+        if (full) for (const child of full.children) walk(child);
+        return {
+          holdsSticker: !!full && !!sticker && full.contains(sticker),
+          display: sticker ? getComputedStyle(sticker).display : 'absent',
+          room: sticker ? sticker.getBoundingClientRect().width * sticker.getBoundingClientRect().height : -1,
+          reach,
+          screen: { width: window.innerWidth, height: window.innerHeight },
+          scrolls: !full || full.scrollHeight > full.clientHeight || full.scrollWidth > full.clientWidth,
+          scrollsSideways: !full || full.scrollWidth > full.clientWidth || document.documentElement.scrollWidth > window.innerWidth,
+          offScreen: ['pusher-feed-left', 'pusher-feed-right', 'pusher-aim-left', 'pusher-aim-right', 'pusher-auto', 'pusher-sound', 'pusher-sweep', 'pusher-fullscreen', 'pusher-credits', 'pusher-jackpot'].filter((id) => !within(id)),
+        };
+      });
+      expect(inside.holdsSticker).toBe(true);
+      expect(inside.display).toBe('none');
+      expect(inside.room).toBe(0);
+      // Every control is on the screen, and nothing the cabinet lays out reaches past its edges.
+      expect(inside.offScreen).toEqual([]);
+      expect(inside.reach.bottom).toBeGreaterThan(0);
+      expect(inside.reach.bottom).toBeLessThanOrEqual(inside.screen.height + 0.5);
+      expect(inside.reach.right).toBeLessThanOrEqual(inside.screen.width + 0.5);
+      expect(inside.scrollsSideways).toBe(false);
+      if (still) expect(inside.scrolls).toBe(false);
+
+      // Leaving it the system's way, as Escape or the back gesture does: the sticker is on the cabinet again, and
+      // opens the plate.
+      await page.evaluate(() => document.exitFullscreen());
+      await expect(fullscreen).toHaveAttribute('aria-pressed', 'false');
+      await expect(strip(page)).toBeVisible();
+      await strip(page).scrollIntoViewIfNeeded();
+      await strip(page).tap();
+      await expect(dialog(page)).toBeVisible();
+      await expect(plate(page)).toBeVisible();
+      expect(await repeatedTestIds(page)).toEqual([]);
+      await page.getByTestId('pusher-plate-close').tap();
+      await expect(dialog(page)).toBeHidden();
+    });
+  });
+}

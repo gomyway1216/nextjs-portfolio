@@ -1401,6 +1401,13 @@ button.sticker {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* With the cabinet filling the screen a player has asked for the game and nothing else, and the cabinet lays itself
+   out to fit without scrolling: upright as a column, and on its side as a grid in which every cell is spoken for.
+   The sticker is put away there, as the cabinet's other strips that are not controls are, and so takes no place in
+   either layout. It is back, and opens the plate, as soon as the cabinet is on the page again. */
+:fullscreen:not(:root) .sticker {
+  display: none;
+}
 button.sticker:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 2px;

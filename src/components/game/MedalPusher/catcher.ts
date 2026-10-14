@@ -74,8 +74,8 @@ const R = MEDAL_RADIUS;
  */
 const RIM = { wide: 0.4, high: 0.3 } as const;
 const WELL = R * 2 + 0.3;
-const MOUTH = 4.45;
-const WORDS = 3.95;
+const MOUTH = 4.5;
+const WORDS = 5.1;
 /**
  * All of it together is a little shorter than the pusher's stroke, and has to
  * be. A medal that goes down the well lies at the foot of the pusher's face,
@@ -85,9 +85,9 @@ const WORDS = 3.95;
  * gone back, and would stay out of sight until the pile had shoved it
  * further: a quarter of a minute, on a quiet table. Reaching less, the
  * catcher draws back off it at the end of the stroke after the one it fell
- * in, and it is seen again where it lies. The well cannot give, nor the
- * words much, so it is the openings and their frames that are a little
- * shorter than they might be.
+ * in, and it is seen again where it lies. The well cannot be shorter than a
+ * medal is across, and an opening cannot be as long as one; what the stroke
+ * leaves beyond those goes to the words.
  */
 const LONG = WELL + RIM.wide + MOUTH + RIM.wide + WORDS;
 /** How high the tongues leave the lip, just under the edge of the pusher's top, and how high the foot is: higher than the medals that lie on the lower table, and than a jewel (jewel.ts). */

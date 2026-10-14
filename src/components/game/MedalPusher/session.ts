@@ -8,6 +8,7 @@
 
 import { MAX_STEP, START_RIDE, buildTowers, createMachine, dropBall, dropJewel, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine, type StepEvents } from './engine';
 import { hopperBusy } from './hopper';
+import { stackerBusy } from './stacker';
 import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
   BOARD,
@@ -154,7 +155,7 @@ export interface ActiveBowl {
 
 /**
  * The roulette a ball starts: a run of turns. Each turn the light goes round
- * and stops on a pocket. A number is stacked on the pusher as a tower and the
+ * and stops on a pocket. A number is stacked onto the run’s tower and the
  * roulette turns again; a cross ends the run; enough numbers in a row send the
  * ball into the bowls, with the jackpot at the bottom of them.
  */
@@ -307,7 +308,7 @@ export type SessionEvent =
   | { type: 'jewelDrop' }
   | { type: 'jewel'; lamps: number; payout: number }
   | { type: 'jewelBonus'; payout: number }
-  // The payout works: the hopper's doors opening and shutting, towers coming up on their lifts and standing free.
+  // The payout works: the hopper's doors opening and shutting, and the tubes stacking towers and pushing them out.
   | WorksEvent;
 
 export interface SessionOptions {
@@ -413,16 +414,25 @@ export const isBusy = (session: Session): boolean =>
   session.riding.length > 0 ||
   session.balls > 0 ||
   session.machine.payoutQueue > 0 ||
-  session.machine.growing > 0 ||
   hopperBusy(session.machine.hopper) ||
-  session.machine.lifts.length > 0 ||
+  stackerBusy(session.machine.stacker) ||
   session.machine.rolling.length > 0 ||
   session.machine.falling.length > 0;
 
-/** Pays a prize onto the field: thrown on loose, or stacked on the pusher as towers. */
-function pay(session: Session, medals: number, towers: boolean): void {
+/**
+ * Whether a ball's roulette is running: from its first turn until it comes to
+ * a cross, or until the bowls have paid. The towers it pays are stacked onto
+ * one tower meanwhile, and that tower waits in its tube until the run is over.
+ */
+export const gathering = (session: Pick<Session, 'roulette'>): boolean => session.roulette !== null && !session.roulette.over;
+
+/**
+ * Pays a prize onto the field: thrown on loose, or stacked in the tubes as
+ * towers. With `gather` its towers go on top of the run's tower first.
+ */
+function pay(session: Session, medals: number, towers: boolean, gather = false): void {
   if (medals <= 0) return;
-  if (towers) buildTowers(session.machine, medals);
+  if (towers) buildTowers(session.machine, medals, gather);
   else queuePayout(session.machine, medals);
   session.paidOut += medals;
 }
@@ -434,7 +444,8 @@ function pay(session: Session, medals: number, towers: boolean): void {
  */
 function collectJewel(session: Session, events?: SessionEvent[]): void {
   const { medals, towers } = jewelPays(session.jewels);
-  pay(session, medals, towers);
+  // In the middle of a roulette's run it goes on the run's tower, as everything stacked then does.
+  pay(session, medals, towers, gathering(session));
   if (towers) {
     session.jewels = 0;
     session.jewelBonuses += 1;
@@ -524,11 +535,12 @@ function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBow
     roulette.total += bowl.payout;
     roulette.over = true;
     roulette.jackpot = hole === 'jackpot';
-    // A share of it is poured loose and the rest is given to the pusher as towers. The pusher throws on whatever
-    // its free places cannot hold, so what is poured is whatever this prize adds to the queue, and that is what is said.
+    // A share of it is poured loose and the rest is stacked: on top of the run's tower first, and then as towers of
+    // its own. The hopper pours whatever the tubes have no room for, so what is poured is whatever this prize adds to
+    // the queue, and that is what is said.
     const queued = session.machine.payoutQueue;
     const loose = pouredOf(bowl.payout);
-    pay(session, bowl.payout - loose, true);
+    pay(session, bowl.payout - loose, true, true);
     pay(session, loose, false);
     const poured = session.machine.payoutQueue - queued;
     if (roulette.jackpot) {
@@ -637,7 +649,8 @@ function runField(session: Session, dt: number, still: boolean, slots?: SessionE
     remaining -= piece;
     // During chance time the slots' wings are open, and they take medals more easily.
     const wings = session.rush;
-    const field = step(session.machine, piece, wings);
+    // While a ball's roulette is running, its tower waits in its tube for the next number.
+    const field = step(session.machine, piece, wings, gathering(session));
     rideOn(session, piece, slots);
     for (const gate of field.checkers) {
       // Settled here, at the lip: which slot, and whether it was lit, by the lucky lamp or by the wings being open.
@@ -704,11 +717,11 @@ function run(session: Session, dt: number, still: boolean, events?: SessionEvent
         roulette.gain = 0;
         roulette.over = true;
       } else {
-        // The number goes up on the pusher as a tower straight away.
+        // The number is stacked at once, on top of the run's tower: it goes out when the run is over.
         roulette.level += 1;
         roulette.gain = pocket;
         roulette.total += pocket;
-        pay(session, pocket, true);
+        pay(session, pocket, true, true);
         events?.push({ type: 'rouletteStep', pocket: roulette.pocket, medals: pocket, level: roulette.level });
       }
       if (roulette.over) events?.push({ type: 'rouletteEnd', total: roulette.total, level: roulette.level });

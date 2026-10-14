@@ -190,12 +190,18 @@ describe('recording what the machine did', () => {
       { type: 'chestPicked', chest: 1 },
       { type: 'chestEnd', chest: 1, payout: 10 },
       { type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) },
-      // The payout works: the fever square's thirty were poured, and the big chest went up as two towers. A pour is
-      // counted as its doors drop open and a tower as it stands built, so their other two events add nothing.
+      // The payout works: the fever square's thirty were poured, and the big chest was stacked as a tower in each
+      // tube. A pour is counted as its doors drop open and a tower as the arm lets it go in its place, so the other
+      // events of each add nothing.
       { type: 'pourStart', medals: 30 },
       { type: 'pourEnd', medals: 30 },
-      { type: 'towersRise', towers: 2, medals: Math.max(...CHESTS) },
-      { type: 'towersReady', towers: 2 },
+      { type: 'stacked', tube: 0, medals: 1 },
+      { type: 'towerDown', tube: 0, medals: Math.max(...CHESTS) / 2 },
+      { type: 'gateOpen', tube: 0 },
+      { type: 'towerOut', tube: 0, medals: Math.max(...CHESTS) / 2 },
+      { type: 'towerSet', tube: 0, medals: Math.max(...CHESTS) / 2 },
+      { type: 'towerSet', tube: 1, medals: Math.max(...CHESTS) / 2 },
+      { type: 'gateShut', tube: 0 },
       { type: 'toppled', count: 2 },
       { type: 'ball', count: 1 },
       { type: 'rouletteStart', pocket: 1, duration: 2.8 },
@@ -1014,7 +1020,7 @@ describe('the hold filling', () => {
   /** Lays a medal on the pusher just past its lip at a START pocket: the next step takes it through. */
   const throughPocket = (session: Session): void => {
     const { machine } = session;
-    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
   };
   const DT = 1 / 60;
   /**
@@ -1113,7 +1119,7 @@ describe('the hold filling', () => {
     /** Lays a medal on the pusher just past its lip at a pocket, and takes it through. */
     const through = (pocket: number): void => {
       const { machine } = session;
-      machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[pocket], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+      machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[pocket], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
       advance(session, DT, events, STILL);
     };
     // One through the pocket the lucky lamp is on, and one through another.

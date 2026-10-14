@@ -317,13 +317,13 @@ const en: PusherStrings = {
     'Medals pile two deep. One that comes down where there is no room lies on top of the others, rides along with them, slides over them when it is pushed, and drops in as soon as a gap opens under it.',
     'Medals pushed over the middle of the front edge are yours. Near the front the sides of the table are open, and medals squeezed out there are gone. The side holes that take them turn the front corners, so a medal that goes over either end of the front edge, a fifth of its length at each side, is gone as well.',
     'A medal that goes over the pusher’s lip through one of the three START pockets starts a spin on the screen, on its way down to the lower table. Any medal does: one you dropped, one the screen paid, or one off a tower. Under the lip is an open well, and beyond it a sloped face that leans toward you, with the START pockets in it: three openings, each a medal wide and a little more. The only way over the well is a narrow tongue from the lip to each pocket. A medal that comes over the lip with its middle on a tongue rides it lying flat, face up, and tips over its end into the pocket. One with only some of a tongue under it hangs on the tongue’s edge for a moment and tips off into the well, and one that comes over between the tongues drops straight into it: neither starts anything. The START pockets sit side by side under the middle of the lip and ride out and back with it, so the place to feed is the middle of the pusher: what you drop there pushes the pile out through them. A medal you feed takes most of a second to go in at its slot and roll the length of its arm, and about half a second more to fall, and it drops wherever the arm is pointing when it gets to the tip.',
-    `The machine holds up to ${held} spins at a time and plays them one after another. One of the three START pockets is lit gold at a time: the lucky lamp. The light steps one pocket along with every stroke of the pusher. A medal that is held through the lit pocket holds a gold spin. Gold spins are played first and fast, and the sugoroku square or the chest a gold spin leads to pays double. The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip, and by then the light has moved many times. Which START pocket is lit when your medal gets there is luck.`,
+    `The machine holds up to ${held} spins at a time and plays them one after another. One of the three START pockets is lit gold at a time: the lucky lamp. The light steps one pocket along with every stroke of the pusher. A medal that is held through the lit pocket holds a gold spin. Gold spins are played first and fast, and the sugoroku square or the chest a gold spin leads to pays double. The lamp cannot be aimed at: a medal takes the best part of a minute to get from the rail to the lip, and by then the light has moved many times. Which START pocket is lit when your medal gets there is luck.`,
     'A medal through a START pocket when the hold is full starts no spin of its own, but turns one of the held spins gold: that is CHANCE TIME. While it lasts the wings of the START pockets are open: flaps beside the pockets that swing out, as the pockets and their tongues widen. All three pockets are lit, they take medals more easily, and every medal that is held holds a gold spin. Chance time ends when the last gold spin has been played.',
     'Three even digits, the ones drawn as ways of travelling (a car, a boat, a balloon and a rocket), roll the die on the sugoroku board that lies across the front of the screen: the piece hops on and you are paid what its square says, 3 to 20 medals, or a fever of 40.',
-    'Three odd digits, the ones drawn as treasures (a medal, a jewel, a crown and a sack of gold), open the treasure chance: pick one of three chests. They hold 15, 30 and 45 medals, and the bigger two are stacked on the pusher as medal towers.',
-    'A tower rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it. If it goes over at a START pocket, every medal in it drops through.',
+    'Three odd digits, the ones drawn as treasures (a medal, a jewel, a crown and a sack of gold), open the treasure chance: pick one of three chests. They hold 15, 30 and 45 medals, and the bigger two are paid as medal towers.',
+    'A medal tower is stacked in front of you: in a glass tube in a window cut in one of the screen’s lower corners, a medal at a time, with the count over the window. Built, it is let down to the pusher, the shutter at the foot of the window slides aside, and an arm pushes the whole tower out across the pusher to a little behind the lip. From there it rides the pusher like any medal. Push it over the lip and it comes down across the lower table, shoving a wave of medals ahead of it. If it goes over at a START pocket, every medal in it drops through.',
     'Three sevens drop a prize ball onto the field.',
-    'Push a ball over the front edge and the jackpot chance starts: a roulette that keeps turning. Every number it stops on is stacked on the pusher as a medal tower, and it turns again until it stops on a cross. Four numbers in a row start the jackpot challenge: three bowls, one under another. The ball rolls round the top bowl and drops into one of its three holes: two let it down into the middle bowl, and one ends it with 50 medals. The middle bowl has two holes, one down to the bottom bowl and one worth 100. The bottom bowl has a single hole, and it is the jackpot, which begins at 500 medals and grows by one for every 20 medals played. One ball is already lying on the field.',
+    'Push a ball over the front edge and the jackpot chance starts: a roulette that keeps turning. Every number it stops on is stacked onto one medal tower in a window, and it turns again until it stops on a cross; then the tower is pushed out. Four numbers in a row start the jackpot challenge: three bowls, one under another. The ball rolls round the top bowl and drops into one of its three holes: two let it down into the middle bowl, and one ends it with 50 medals. The middle bowl has two holes, one down to the bottom bowl and one worth 100. The bottom bowl has a single hole, and it is the jackpot, which begins at 500 medals and grows by one for every 20 medals played. One ball is already lying on the field.',
     'A treasure line also lets a jewel go: the hatch throws it over the pusher onto the middle of the lower table. It is pushed along like a medal, but it does not fit through the open sides or down the side holes at the front corners, so it can only leave over the front, and it is collected wherever it goes over. Push it over and it lights one of the five jewel lamps on the front of the table and pays 1 medal at once. The fifth jewel pays the jewel bonus instead, 3 medals stacked as a tower, and the lamps go out. One jewel is already lying on the field.',
     'The Odds tab lists the exact chances on the screen, and the Simulation tab measures what cannot be calculated: how much of what you drop comes back, depending on where and how fast you drop it. Played the best way, slowly and down the middle, the machine gives back about 90 medals of every 100, which is about what a real one is set to: the field alone returns under 60, and the screen’s games make up the rest.',
   ],
@@ -353,19 +353,19 @@ const en: PusherStrings = {
   chance: 'JACKPOT CHANCE',
   challenge: 'JACKPOT CHALLENGE',
   sayGoal: (medals, level) =>
-    `${medals} medals go up as a tower. Level ${level}: the jackpot challenge. The ball goes into the top one of three bowls, and the jackpot is at the bottom of them.`,
+    `${medals} medals are stacked on the run’s tower. Level ${level}: the jackpot challenge. The ball goes into the top one of three bowls, and the jackpot is at the bottom of them.`,
   sayHole: (bowl, medals, poured, total) =>
     `The ball dropped into the ${medals} hole of bowl ${bowl}. ${
-      poured >= medals ? `All ${medals} medals are poured onto the field: the pusher has no room for a tower.` : `${poured} of those ${medals} medals are poured onto the field and the rest go up as towers.`
+      poured >= medals ? `All ${medals} medals are poured onto the field: the tubes have no room for a tower.` : `${poured} of those ${medals} medals are poured onto the field and the rest are stacked as towers.`
     } The run is over: it paid ${total} medals.`,
   bowlIntro: (bowls) =>
     `The jackpot challenge is ${bowls} bowls, one under another. The ball circles under the rim of a bowl, spirals in as it slows and drops into one of that bowl’s holes, each as likely as the next. A hole either lets it down into the bowl below or ends the challenge with a prize. The bottom bowl is a funnel with one hole in the middle, and that hole is the jackpot’s. The ball only acts it out: the whole way down is drawn before it is let go.`,
   bowlCaption: 'The holes of each bowl: what they do, the chance of each in its own bowl and overall, and how it is paid',
   colHole: 'The ball drops into',
   holeJackpot: 'The jackpot',
-  holeJackpotPaid: (poured, towers, start) => `${poured} poured onto the field and ${towers} towers on the pusher when it stands at ${start}`,
+  holeJackpotPaid: (poured, towers, start) => `${poured} poured onto the field and ${towers} towers stacked in the windows when it stands at ${start}`,
   bowlNote: (start, average, perBall, poured) =>
-    `With the jackpot at ${start} medals the bowls pay ${average} medals on average: the three ways the challenge can end are as likely as each other, so it is the three prizes added up, divided by three. About ${perBall} of all balls get this far. Of whatever the bowls pay, ${poured} is poured onto the field loose and the rest is stacked as towers; what the free places on the pusher cannot hold is poured as well.`,
+    `With the jackpot at ${start} medals the bowls pay ${average} medals on average: the three ways the challenge can end are as likely as each other, so it is the three prizes added up, divided by three. About ${perBall} of all balls get this far. Of whatever the bowls pay, ${poured} is poured onto the field loose and the rest is stacked as towers, first on top of the run’s own; what the tubes have no room for is poured as well.`,
   slotName: 'NUMBER SLOT',
   sugorokuTitle: 'SUGOROKU CHANCE',
   sugorokuRolling: 'Rolling…',
@@ -409,15 +409,15 @@ const en: PusherStrings = {
   saySugoroku: (medals) => `The piece landed on ${medals} medals.`,
   sayFever: (medals) => `Fever! ${medals} medals rain onto the field.`,
   sayChestStart: (digits) => `${digits}. Treasure chance: pick one of the three chests.`,
-  sayChest: (chest, medals, towers) => `Chest ${chest} held ${medals} medals${towers ? ', stacked on the pusher as towers' : ''}.`,
+  sayChest: (chest, medals, towers) => `Chest ${chest} held ${medals} medals${towers ? ', stacked as a tower in a window' : ''}.`,
   saySevens: 'Seven, seven, seven. A prize ball drops onto the field.',
   sayBall: 'A ball went over the front edge. The jackpot chance starts.',
   sayToppled: 'A tower came down onto the lower table.',
-  sayStep: (medals, level) => `${medals} medals go up as a tower. Level ${level}. The roulette turns again.`,
-  sayFinish: (medals) => `A cross. The run is over: ${medals} medals in towers.`,
+  sayStep: (medals, level) => `${medals} medals are stacked on the run’s tower. Level ${level}. The roulette turns again.`,
+  sayFinish: (medals) => `A cross. The run is over: ${medals} medals stacked, and the tower goes out.`,
   sayJackpot: (medals, poured) =>
     `The ball dropped into the jackpot hole. Jackpot: ${medals} medals. ${
-      poured >= medals ? 'All of them are poured onto the field: the pusher has no room for a tower.' : `${poured} of them are poured onto the field and the rest go up as towers.`
+      poured >= medals ? 'All of them are poured onto the field: the tubes have no room for a tower.' : `${poured} of them are poured onto the field and the rest are stacked as towers.`
     }`,
   sayEmpty: 'You are out of medals.',
   sayBonus: (medals) => `Daily bonus: ${medals} medals added to your medals.`,
@@ -431,7 +431,7 @@ const en: PusherStrings = {
   tallyNote: 'Medals won per medal dropped. Medals still lying on the field are not counted yet.',
 
   oddsIntro:
-    'This is two machines in one cabinet. The screen is a lottery, and its odds can be written down exactly. The field is physics: no table of odds, just a place where medals can go missing. Together they are set to give back about what a real machine does: about 90 medals of every 100 to the best play. About 57 of those are your own medals coming back over the front, and about 33 are medals the screen paid.',
+    'This is two machines in one cabinet. The screen is a lottery, and its odds can be written down exactly. The field is physics: no table of odds, just a place where medals can go missing. Together they are set to give back about what a real machine does: about 90 medals of every 100 to the best play. About 58 of those are your own medals coming back over the front, and about 32 are medals the screen paid.',
   fieldTitle: 'The field',
   diagramAria: 'The field from above: the feed arms running back from the front corners, the pusher with the three START pockets under its lip, the lower table with its open sides, and the front edge with the mouth of a side hole at each end',
   partName: {
@@ -481,18 +481,18 @@ const en: PusherStrings = {
   chestOddsCaption: 'What the three chests hold and how each prize is paid',
   colChest: 'A chest holds',
   chestPaidLoose: 'Medals thrown onto the field',
-  chestPaidTowers: (towers) => (towers === 1 ? 'One tower on the pusher' : `${towers} towers on the pusher`),
+  chestPaidTowers: (towers) => (towers === 1 ? 'One tower, stacked in a window' : `${towers} towers, stacked in the windows`),
   chestOddsNote: (average) =>
     `Each prize is behind your chest one time in three, whichever chest you pick, so the choice is worth ${average} medals on average. There is no better chest.`,
   paysMedals: (medals) => `${medals} medals`,
   towerNote:
-    'A tower is stacked on the pusher a little behind its lip and rides it like any medal, only harder to push. When it goes over the lip its medals come down across the lower table. Drop medals behind it to bring it down sooner.',
+    'A tower is stacked in a glass tube in one of the windows at the screen’s lower corners, and an arm pushes it out across the pusher to a little behind its lip. From there it rides the pusher like any medal, only harder to push. When it goes over the lip its medals come down across the lower table. Drop medals behind it to bring it down sooner.',
   oneIn: (n) => `1 in ${n}`,
   reachNote: (percent) =>
     `The result is drawn the moment a spin starts, and the reels only act it out. About ${percent} of losing spins stop the two outer reels alike first — a “reach” — before the centre misses. It looks close. It changes nothing: the spin was lost before the reels moved.`,
   rouletteTitle: 'The jackpot chance',
   rouletteIntro: (pockets, goal) =>
-    `A ball pushed over the front edge starts the roulette. Each turn it stops on one of ${pockets} pockets, each as likely as the next. A number is stacked on the pusher as a medal tower and the roulette turns again; a cross ends the run. ${goal} numbers in a row start the jackpot challenge. A ball is never lost: it does not fit through the open sides or down the side holes at the front corners, so sooner or later it goes over the front, and it is collected wherever it goes over.`,
+    `A ball pushed over the front edge starts the roulette. Each turn it stops on one of ${pockets} pockets, each as likely as the next. A number is stacked onto the run’s medal tower and the roulette turns again; a cross ends the run, and the tower is pushed out. ${goal} numbers in a row start the jackpot challenge. A ball is never lost: it does not fit through the open sides or down the side holes at the front corners, so sooner or later it goes over the front, and it is collected wherever it goes over.`,
   rouletteCaption: 'The roulette’s pockets and the chance of each on one turn',
   colPocket: 'Pocket',
   colPockets: 'Pockets',
@@ -525,7 +525,7 @@ const en: PusherStrings = {
   calcBreakEven: (percent) => `At this share you would break even with a spin for ${percent} of the medals you drop.`,
   calcNever: 'At this share you could not break even even with a spin for every medal you drop.',
   calcNote: (held, growth) =>
-    `The Simulation tab measures both. Feeding both rails down the middle of the pusher, two medals a second between them, about 57% of the medals that leave the field drop into the tray, and a spin starts about 13 times for every 100 medals dropped: about 88% of the medals come back. That is about what a real machine is set to give. There the field alone returns about half to six tenths of what reaches it, the side holes take the rest, and the lottery makes up the difference; so it is here. The sum above pays each spin its exact average with the jackpot where the slider has it, and a third of what being gold adds on top, since the lucky lamp makes about a third of all spins gold. It also adds the ${growth} medals that every 100 dropped grow the jackpot by, because all of that is paid when the jackpot is won. The jackpot is the part of the return you will usually not see: played the best way it comes about once in 7,500 medals. It is about 7 of the 90 medals in 100 that come back, and without it about 83 do. Not every spin is your own medals’ doing. What the screen pays lands on the pusher as well: thrown on loose, which is about a sixth of the medals that go over the lip one at a time, or stacked in towers that go over whole. The loose ones come down all over the pusher, so few of them find a START pocket: more than nine in ten of the medals through one are medals you dropped. The machine holds up to ${held} spins, and at that pace about one medal in fifteen through a START pocket finds the hold full. Drop anywhere at all instead and a spin starts about 8 or 9 times, and about 79% comes back. Dropping more slowly gains: at a medal a second about 89% comes back and at a medal every two seconds about 90%, and that is the most this machine gives. Dropping faster loses. At five a second the screen cannot keep up: about a third of the medals through a START pocket find the hold full, and about a point less comes back than at two a second. Hold both buttons down, which feeds about eleven a second, and about six in ten of them find the hold full: about 79% comes back. The first medal to find the hold full starts chance time, which opens the wings and makes every spin that is held while it lasts a gold one. That gives back part of what a full hold wastes, and never all of it. Aiming at the lit START pocket does not pay. Four medals in five take from 19 seconds to two minutes to get from the rail to the lip, half of them between 24 and 53 seconds, and the pile carries a medal about a fifth of the field’s width to one side or the other on the way, so the light has moved many times before it arrives. With both rails aimed at the lit pocket’s column about 87% came back, and aimed at the column the light would be on half a minute later about 87% as well: both less than feeding the middle, because fewer medals reach a START pocket at all.`,
+    `The Simulation tab measures both. Feeding both rails down the middle of the pusher, two medals a second between them, about 56% of the medals that leave the field drop into the tray, and a spin starts about 13 times for every 100 medals dropped: about 88% of the medals come back. That is about what a real machine is set to give. There the field alone returns about half to six tenths of what reaches it, the side holes take the rest, and the lottery makes up the difference; so it is here. The sum above pays each spin its exact average with the jackpot where the slider has it, and a third of what being gold adds on top, since the lucky lamp makes about a third of all spins gold. It also adds the ${growth} medals that every 100 dropped grow the jackpot by, because all of that is paid when the jackpot is won. The jackpot is the part of the return you will usually not see: played the best way it comes about once in 7,800 medals. It is about 7 of the 90 medals in 100 that come back, and without it about 83 do. Not every spin is your own medals’ doing. What the screen pays lands on the pusher as well: thrown on loose, which is about a sixth of the medals that go over the lip one at a time, or stacked in towers that go over whole. The loose ones come down all over the pusher, so few of them find a START pocket: more than nine in ten of the medals through one are medals you dropped. The machine holds up to ${held} spins, and at that pace about one medal in eleven through a START pocket finds the hold full. Drop anywhere at all instead and a spin starts about 9 times, and about 82% comes back. Dropping more slowly gains: at a medal a second about 89% comes back and at a medal every two seconds about 90%, and that is the most this machine gives. Dropping faster loses. At five a second the screen cannot keep up: about a third of the medals through a START pocket find the hold full, and about four points less comes back than at two a second. Hold both buttons down, which feeds about eleven a second, and about six in ten of them find the hold full: about 75% comes back. The first medal to find the hold full starts chance time, which opens the wings and makes every spin that is held while it lasts a gold one. That gives back part of what a full hold wastes, and never all of it. Aiming at the lit START pocket does not pay. Four medals in five take from 25 seconds to two minutes to get from the rail to the lip, half of them between 33 and 66 seconds, and the pile carries a medal about a fifth of the field’s width to one side or the other on the way, so the light has moved many times before it arrives. With both rails aimed at the lit pocket’s column about 86% came back, and aimed at the column the light would be on 47 seconds later about 86% as well: both less than feeding the middle, because fewer medals reach a START pocket at all.`,
 
   simTitle: 'Where to drop, measured',
   simIntro: (warmUp) =>
@@ -558,9 +558,9 @@ const en: PusherStrings = {
   simNotes: (exactPerSpin, held, step) => [
     '“Return, this run” is what the machine actually handed back. It swings with the screen: one roulette can pay more than a hundred medals, and a ball still lying on the field has paid nothing yet.',
     `“With average luck” takes the luck out. It keeps what this run measured — the share of the medals leaving the field that dropped into the tray, and the spins started per medal — and pays each spin its exact average of ${exactPerSpin} medals, with the jackpot where it starts. It also counts the medal the jackpot grows by for every ${step} dropped: all of that is paid when the jackpot is won, though a run this short seldom lives to see it.`,
-    'Over many runs at two medals a second, the middle returns about 88% with average luck, anywhere at all about 79%, the fixed spots beside the START pockets about 75% and the edges about 58%. “Into the tray” is what the field alone gives back: about 57% down the middle and about 49% from the edges, the rest going down the side holes, off the open sides or over the front corners. Faster, the aims draw together. The screen plays about one spin every two seconds at most, so with both buttons held down every aim wastes most of its medals through a START pocket: the middle then returns about 79% and the edges about 67%.',
+    'Over many runs at two medals a second, the middle returns about 88% with average luck, anywhere at all about 82%, the fixed spots beside the START pockets about 78% and the edges about 60%. “Into the tray” is what the field alone gives back: about 56% down the middle and about 51% from the edges, the rest going down the side holes, off the open sides or over the front corners. Faster, the aims draw together. The screen plays about one spin every two seconds at most, so with both buttons held down every aim wastes most of its medals through a START pocket: the middle then returns about 75% and the edges about 67%.',
     `A medal through a START pocket is wasted when ${held} spins are already held. It is not all lost: it turns one of the held spins gold, if one is left to turn, and with that chance time begins. Until the last gold spin has been played the wings of the START pockets are open, and every medal that is held holds a gold spin. Dropping faster than the screen can spin fills the hold, and so does a tower that goes over through a START pocket: all its medals arrive at once. A spin is gold without any of that when its medal came through the pocket the lucky lamp was on. “Gold spins” counts the gold spins that were played in the run, however they came to be gold, and “With average luck” pays each of them its own exact average.`,
-    'A medal drops where its arm is pointing when it leaves the tip, so every aim here keeps each arm on its spot until the medal has gone. Three of the four feed the left and the right rail by turns and never move them; the fourth picks a new spot for every medal and feeds it from the rail on that side. The START pockets do not move, so an aim is only a choice of column for each rail. The lucky lamp does move, and no aim here goes after it: a medal takes about half a minute to reach the lip, so the pocket that is lit when it is fed says nothing about the one that will be lit when it arrives. “Through a START pocket” counts every medal that dropped through one, whoever put it on the field, against the medals dropped: what the screen pays goes over the lip too. The fixed spots beside the START pockets lie as far outside the outer two as those are from the middle one. By the time a medal reaches the lip the pile has carried it well to one side or the other, which is why even medals dropped at the edges find a START pocket now and then.',
+    'A medal drops where its arm is pointing when it leaves the tip, so every aim here keeps each arm on its spot until the medal has gone. Three of the four feed the left and the right rail by turns and never move them; the fourth picks a new spot for every medal and feeds it from the rail on that side. The START pockets do not move, so an aim is only a choice of column for each rail. The lucky lamp does move, and no aim here goes after it: a medal takes the best part of a minute to reach the lip, so the pocket that is lit when it is fed says nothing about the one that will be lit when it arrives. “Through a START pocket” counts every medal that dropped through one, whoever put it on the field, against the medals dropped: what the screen pays goes over the lip too. The fixed spots beside the START pockets lie as far outside the outer two as those are from the middle one. By the time a medal reaches the lip the pile has carried it well to one side or the other, which is why even medals dropped at the edges find a START pocket now and then.',
   ],
   slotCheckTitle: 'The screen in this run, against its exact odds',
   slotCheckIntro: (spins) => `All four machines together spun ${spins} times.`,
@@ -590,7 +590,7 @@ const en: PusherStrings = {
   colChanceValue: 'A gold spin pays, on average',
   colChanceMore: 'More than an ordinary spin',
   chanceOddsNote: (more) =>
-    `A spin that a full hold turned gold has cost two medals through a START pocket, the one that was held and the one that turned it gold, and it is worth ${more} medals more than one ordinary spin, which is less than the two spins those medals would have been with room in the hold. What a full hold gives back is the rest of chance time: wings that let more medals into the START pockets, and every spin held while it lasts gold for the one medal it cost. Measured on the Simulation tab, holding both buttons down returns about 79%, where feeding the middle at two medals a second returns about 88%: a full hold is not worth filling.`,
+    `A spin that a full hold turned gold has cost two medals through a START pocket, the one that was held and the one that turned it gold, and it is worth ${more} medals more than one ordinary spin, which is less than the two spins those medals would have been with room in the hold. What a full hold gives back is the rest of chance time: wings that let more medals into the START pockets, and every spin held while it lasts gold for the one medal it cost. Measured on the Simulation tab, holding both buttons down returns about 75%, where feeding the middle at two medals a second returns about 88%: a full hold is not worth filling.`,
   colGold: 'Gold spins',
   feelLabel: 'Ways to play',
   swing: 'Swing',
@@ -611,11 +611,11 @@ const en: PusherStrings = {
   holeShare: (count, holes) => (holes === 1 ? 'Its only hole' : `${count} of its ${holes} holes`),
   holeDown: 'A hole down to the next bowl',
   holeDownPaid: 'Nothing yet: the ball rolls on in the bowl below',
-  bowlPaid: (poured, towers) => `${poured} poured onto the field and ${towers === 1 ? 'one tower' : `${towers} towers`} on the pusher`,
+  bowlPaid: (poured, towers) => `${poured} poured onto the field and ${towers === 1 ? 'one tower stacked in a window' : `${towers} towers stacked in the windows`}`,
   jewelLamps: (lit, of) => `Jewel lamps: ${lit} of ${of} lit.`,
   sayJewelDrop: 'The hatch throws a jewel onto the lower table.',
   sayJewel: (medals, lit, of) => `A jewel went over the front edge: ${medals === 1 ? '1 medal' : `${medals} medals`}. ${lit} of ${of} jewel lamps are lit.`,
-  sayJewelBonus: (medals, of) => `A jewel went over the front edge and made the set of ${of}. Jewel bonus: ${medals} medals go up as a tower, and the lamps go out.`,
+  sayJewelBonus: (medals, of) => `A jewel went over the front edge and made the set of ${of}. Jewel bonus: ${medals} medals are stacked as a tower, and the lamps go out.`,
   paysJewel: 'A choice of three chests, and a jewel',
   jewelTitle: 'Jewels',
   jewelIntro: (lamps) =>
@@ -631,7 +631,7 @@ const en: PusherStrings = {
   panelWarning: 'MEDALS ONLY · DO NOT STRIKE OR ROCK THE MACHINE',
   sayLucky: 'A medal rode its tongue into a lit START pocket. Its spin is gold.',
   luckyOddsNote: (ordinary, gold, seconds, share) =>
-    `The lucky lamp: one of the three START pockets is lit gold at a time, and the light steps one pocket along, from the left, with every stroke of the pusher, which is every ${seconds} seconds. A medal that is held through the lit pocket holds a gold spin from the start, for the one medal. An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}. The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip, and the light has moved many times by then. Which START pocket is lit when a medal arrives is luck. Measured at up to two medals a second, the lamp makes about ${share} of all spins gold: a third, as one pocket in three is lit.`,
+    `The lucky lamp: one of the three START pockets is lit gold at a time, and the light steps one pocket along, from the left, with every stroke of the pusher, which is every ${seconds} seconds. A medal that is held through the lit pocket holds a gold spin from the start, for the one medal. An ordinary spin is worth ${ordinary} medals on average, and a gold spin ${gold}. The lamp cannot be aimed at: a medal takes the best part of a minute to get from the rail to the lip, and the light has moved many times by then. Which START pocket is lit when a medal arrives is luck. Measured at up to two medals a second, the lamp makes about ${share} of all spins gold: a third, as one pocket in three is lit.`,
   goldTag: 'GOLD',
 };
 
@@ -649,13 +649,13 @@ const ja: PusherStrings = {
     'メダルは2段まで重なります。置く場所がないところに落ちたメダルはほかのメダルの上に乗り、下のメダルと一緒に運ばれ、押されるとその上を滑り、下にすき間ができると落ち込みます。',
     '手前の端の中央から落ちたメダルがあなたのものです。テーブルの手前側は両脇が開いていて、そこから押し出されたメダルは戻りません。その脇の穴は手前の角を回り込んでいて、手前の端のうち左右それぞれ5分の1は穴の上です。そこを越えたメダルも戻りません。',
     'プッシャーの縁から下のテーブルへ落ちるメダルが、縁の下にある3つのチャッカーのどれかを通ると、中央画面のスロットが1回まわります。自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも同じです。縁のすぐ下は口を開けた溝で、その先に手前に傾いた斜面があり、チャッカーはその斜面に開いた口です。幅はメダル1枚分より少し広いだけです。溝を渡る道は、縁から各チャッカーへのびる細い橋だけです。縁を越えたとき中心が橋の上にあるメダルは、表を上にして寝たまま橋を滑り、先端からチャッカーに落ちます。橋に一部しかかからなかったメダルは、橋の端で少し揺れてから溝に落ちます。橋のあいだを越えたメダルは、そのまま溝に落ちます。どちらも抽選は始まりません。チャッカーは縁の中央の下に3つ並んでいて、プッシャーと一緒に前後に動きます。だから狙い目はプッシャーの中央です。そこに落としたメダルが、山をチャッカーのほうへ押し出します。自分で入れたメダルは、入り口から入ってアームのレールを奥まで転がるのに1秒近く、先端から落ちるのにもう0.5秒ほどかかります。落ちる場所は、メダルが先端に着いたときにアームが向いている位置で決まります。',
-    `抽選は${held}回分までためられ、順番に回ります。3つのチャッカーのうち1つは金色に光っています。これがラッキーランプです。光は、プッシャーが1往復するたびに、となりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、金の抽選になります。金の抽選は先に、速く回り、当たったときのすごろくのマスや宝箱の払い出しが2倍になります。ランプを狙うことはできません。メダルがレールから縁に着くまでには約30秒かかり、そのあいだに光は何度も移ってしまうからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。`,
+    `抽選は${held}回分までためられ、順番に回ります。3つのチャッカーのうち1つは金色に光っています。これがラッキーランプです。光は、プッシャーが1往復するたびに、となりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、金の抽選になります。金の抽選は先に、速く回り、当たったときのすごろくのマスや宝箱の払い出しが2倍になります。ランプを狙うことはできません。メダルがレールから縁に着くまでには1分近くかかり、そのあいだに光は何度も移ってしまうからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。`,
     '保留が満杯のときにチャッカーを通ったメダルは、自分の抽選を始めるかわりに、保留中の抽選を1つ金色に変えます。これがチャンスタイムです。チャンスタイムのあいだは、チャッカーの羽根が開きます。羽根はチャッカーの両わきについた板で、外へ開き、チャッカーの口とそこへ渡る橋が広くなります。3つのチャッカーがすべて金色に光り、メダルが入りやすくなり、保留されたメダルはすべて金の抽選になります。最後の金の抽選が回り終わると、チャンスタイムは終わります。',
     '偶数（車・ヨット・気球・ロケットの、乗り物の絵柄）が3つそろうと「すごろくチャンス」です。画面の手前に置かれたすごろく盤でサイコロを振り、コマが止まったマスの枚数（3〜20枚、フィーバーなら40枚）がもらえます。',
-    '奇数（メダル・宝石・王冠・金貨の袋の、宝物の絵柄）が3つそろうと「宝箱チャンス」です。3つの宝箱から1つ選びます。中身は15枚・30枚・45枚で、30枚と45枚はプッシャーの上にメダルタワーとして積まれます。',
-    'タワーはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。チャッカーのところで縁を越えると、タワーのメダルが全部チャッカーを通ります。',
+    '奇数（メダル・宝石・王冠・金貨の袋の、宝物の絵柄）が3つそろうと「宝箱チャンス」です。3つの宝箱から1つ選びます。中身は15枚・30枚・45枚で、30枚と45枚はメダルタワーで払い出されます。',
+    'メダルタワーは目の前で積み上がります。画面の下の左右の隅をくり抜いた窓の中の透明な筒に、1枚ずつ積まれ、窓の上に枚数が出ます。積み上がるとプッシャーの高さまで下り、窓の下のシャッターが開いて、アームがタワーをまるごとプッシャーの縁の少し奥まで押し出します。そこからはほかのメダルと同じようにプッシャーに乗って進みます。縁の向こうへ押し出すと崩れて下のテーブルに雪崩れ込み、その先のメダルをまとめて押し出します。チャッカーのところで縁を越えると、タワーのメダルが全部チャッカーを通ります。',
     '7が3つそろうと、ボールが1個フィールドに落ちてきます。',
-    'ボールを手前の端から落とすとジャックポットチャンスが始まります。ルーレットが回り続け、止まった数字の枚数がプッシャーの上にメダルタワーとして積まれ、×に止まるまで続きます。数字が4回続くと「ジャックポットチャレンジ」です。クルーン（すり鉢状の皿）が3段に重なっています。ボールはまずいちばん上の皿を転がり、3つの穴のどれかに落ちます。2つは下の段へ進む穴、1つは50枚で終わる穴です。2段目は穴が2つで、1つは最後の段へ進み、もう1つは100枚です。最後の段の穴は1つだけで、それがジャックポットです。ジャックポットは500枚から始まり、メダルを20枚入れるごとに1枚増えます。ボールは最初から1個フィールドに置いてあります。',
+    'ボールを手前の端から落とすとジャックポットチャンスが始まります。ルーレットが回り続け、止まった数字の枚数が窓の中の1本のメダルタワーに積み重なり、×に止まるまで続きます。終わるとタワーが押し出されます。数字が4回続くと「ジャックポットチャレンジ」です。クルーン（すり鉢状の皿）が3段に重なっています。ボールはまずいちばん上の皿を転がり、3つの穴のどれかに落ちます。2つは下の段へ進む穴、1つは50枚で終わる穴です。2段目は穴が2つで、1つは最後の段へ進み、もう1つは100枚です。最後の段の穴は1つだけで、それがジャックポットです。ジャックポットは500枚から始まり、メダルを20枚入れるごとに1枚増えます。ボールは最初から1個フィールドに置いてあります。',
     '宝箱チャンスのそろい目が出ると、宝石も1個出てきます。ハッチからプッシャーを越えて、下のテーブルの中央あたりに飛んできます。宝石はメダルと同じように押されて進みますが、開いている脇も手前の角の穴も通らないので、出口は手前の端だけで、端のどこから落ちても回収されます。手前から落とすと、テーブルの手前にある5個の宝石ランプが1つ点灯し、すぐにメダル1枚が払い出されます。5個目は「宝石ボーナス」で、代わりにメダル3枚がタワーとして積まれ、ランプは消えます。宝石は最初から1個フィールドに置いてあります。',
     '「確率」タブには画面の抽選の正確な確率を載せています。「シミュレーション」タブでは計算では出せないもの、つまり落とす場所と速さによって何割戻ってくるかを実測します。いちばん得な遊び方（中央に、2秒に1枚）で戻ってくるのはメダル100枚につき約90枚で、実機の設定とほぼ同じです。フィールドだけなら戻りは60枚に届かず、残りは画面の抽選が補います。',
   ],
@@ -685,19 +685,19 @@ const ja: PusherStrings = {
   chance: 'ジャックポットチャンス',
   challenge: 'ジャックポットチャレンジ',
   sayGoal: (medals, level) =>
-    `${medals}枚がタワーに積まれます。レベル${level}。ジャックポットチャレンジです。ボールが3段のクルーンのいちばん上に入ります。いちばん下がジャックポットです。`,
+    `${medals}枚がルーレットのタワーに積まれます。レベル${level}。ジャックポットチャレンジです。ボールが3段のクルーンのいちばん上に入ります。いちばん下がジャックポットです。`,
   sayHole: (bowl, medals, poured, total) =>
     `ボールが${bowl}段目のクルーンで${medals}枚の穴に落ちました。${
-      poured >= medals ? `プッシャーにタワーを積む場所がないため、${medals}枚すべてがフィールドに降ります。` : `${medals}枚のうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
+      poured >= medals ? `筒にタワーを積む空きがないため、${medals}枚すべてがフィールドに降ります。` : `${medals}枚のうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
     }終了です。払い出しは合計${total}枚です。`,
   bowlIntro: (bowls) =>
     `ジャックポットチャレンジは、${bowls}段に重なったクルーン（すり鉢状の皿）での抽選です。ボールは皿の縁の内側を回り、勢いが落ちるにつれて内側へ寄っていき、その皿の穴のどれか1つに落ちます。同じ皿の穴はどれも同じ確率です。穴は、下の段へ進む穴か、賞を払ってそこで終わる穴のどちらかです。いちばん下の段は真ん中に穴が1つだけ開いたじょうご型で、その穴がジャックポットです。ボールは結果を演じているだけで、どの穴を通って落ちるかはボールが放たれる前に決まっています。`,
   bowlCaption: 'クルーンの段ごとの穴：穴の役割、その段での確率、全体での確率、出方',
   colHole: 'ボールが落ちる穴',
   holeJackpot: 'ジャックポット',
-  holeJackpotPaid: (poured, towers, start) => `${start}枚のとき、${poured}枚がフィールドに降り、プッシャーの上にタワー${towers}本`,
+  holeJackpotPaid: (poured, towers, start) => `${start}枚のとき、${poured}枚がフィールドに降り、窓でタワー${towers}本`,
   bowlNote: (start, average, perBall, poured) =>
-    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3通りの結末はどれも同じ確率なので、3つの賞の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。クルーンの払い出しは、その${poured}がそのままフィールドに降り、残りがタワーとして積まれます。プッシャーの空いた場所に積みきれない分も、フィールドに降ります。`,
+    `ジャックポットが${start}枚のとき、クルーンの払い出しは平均${average}枚です。3通りの結末はどれも同じ確率なので、3つの賞の枚数を足して3で割った値です。ここまで届くのは、ボール全体の約${perBall}です。クルーンの払い出しは、その${poured}がそのままフィールドに降り、残りがタワーとして積まれます。まずそのルーレットで積んでいるタワーの上に積まれ、筒に入りきらない分もフィールドに降ります。`,
   slotName: 'ナンバースロット',
   sugorokuTitle: 'すごろくチャンス',
   sugorokuRolling: 'サイコロを振っています…',
@@ -741,15 +741,15 @@ const ja: PusherStrings = {
   saySugoroku: (medals) => `コマが${medals}枚のマスに止まりました。`,
   sayFever: (medals) => `フィーバーです。メダルが${medals}枚降ってきます。`,
   sayChestStart: (digits) => `${digits}。宝箱チャンスです。3つの宝箱から1つ選んでください。`,
-  sayChest: (chest, medals, towers) => `宝箱${chest}の中身は${medals}枚でした。${towers ? 'プッシャーの上にタワーとして積まれます。' : ''}`,
+  sayChest: (chest, medals, towers) => `宝箱${chest}の中身は${medals}枚でした。${towers ? '窓の中でタワーとして積まれます。' : ''}`,
   saySevens: '7が3つそろいました。ボールがフィールドに落ちてきます。',
   sayBall: 'ボールが手前から落ちました。ジャックポットチャンスが始まります。',
   sayToppled: 'タワーが崩れて下のテーブルに落ちました。',
-  sayStep: (medals, level) => `${medals}枚がタワーに積まれます。レベル${level}。ルーレットがもう一度回ります。`,
-  sayFinish: (medals) => `×に止まりました。終了です。タワーは合計${medals}枚です。`,
+  sayStep: (medals, level) => `${medals}枚がルーレットのタワーに積まれます。レベル${level}。ルーレットがもう一度回ります。`,
+  sayFinish: (medals) => `×に止まりました。終了です。合計${medals}枚のタワーが押し出されます。`,
   sayJackpot: (medals, poured) =>
     `ボールがジャックポットの穴に落ちました。ジャックポット、${medals}枚です。${
-      poured >= medals ? 'プッシャーにタワーを積む場所がないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
+      poured >= medals ? '筒にタワーを積む空きがないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
     }`,
   sayEmpty: 'メダルがなくなりました。',
   sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
@@ -763,7 +763,7 @@ const ja: PusherStrings = {
   tallyNote: '落としたメダル1枚あたりの獲得枚数です。フィールドに残っているメダルはまだ数えていません。',
 
   oddsIntro:
-    'この筐体には2つの機械が入っています。画面は抽選で、その確率は正確に書き出せます。フィールドは物理です。確率表はなく、メダルが消える場所があるだけです。2つを合わせた戻りは実機とほぼ同じにしてあります。いちばん得な遊び方で、メダル100枚につき約90枚です。そのうち約57枚は自分のメダルが手前から戻った分、約33枚は画面から払い出されたメダルです。',
+    'この筐体には2つの機械が入っています。画面は抽選で、その確率は正確に書き出せます。フィールドは物理です。確率表はなく、メダルが消える場所があるだけです。2つを合わせた戻りは実機とほぼ同じにしてあります。いちばん得な遊び方で、メダル100枚につき約90枚です。そのうち約58枚は自分のメダルが手前から戻った分、約32枚は画面から払い出されたメダルです。',
   fieldTitle: 'フィールド',
   diagramAria: '上から見たフィールド。手前の角から奥へ伸びる左右の投入アーム、縁に3つのチャッカーが並んだプッシャー、両脇が開いた下のテーブル、そして両端が脇の穴の口になっている手前の端',
   partName: {
@@ -813,17 +813,17 @@ const ja: PusherStrings = {
   chestOddsCaption: '3つの宝箱の中身と、それぞれの出方',
   colChest: '中身',
   chestPaidLoose: 'メダルがフィールドに降る',
-  chestPaidTowers: (towers) => `プッシャーの上にタワー${towers}本`,
+  chestPaidTowers: (towers) => `窓でタワー${towers}本`,
   chestOddsNote: (average) => `どの箱を選んでも、それぞれの賞が入っている確率は3分の1です。だから選択の価値は平均${average}枚です。当たりやすい箱はありません。`,
   paysMedals: (medals) => `${medals}枚`,
   towerNote:
-    'タワーはプッシャーの縁の少し奥に積まれ、ほかのメダルと同じようにプッシャーに乗って進みます。ただし普通のメダルより押しにくくなっています。縁を越えると崩れて、メダルが下のテーブルに広がります。タワーの後ろにメダルを落とすと早く崩せます。',
+    'タワーは画面の下の左右の隅の窓の中の透明な筒で積まれ、アームがプッシャーの縁の少し奥まで押し出します。そこからはほかのメダルと同じようにプッシャーに乗って進みます。ただし普通のメダルより押しにくくなっています。縁を越えると崩れて、メダルが下のテーブルに広がります。タワーの後ろにメダルを落とすと早く崩せます。',
   oneIn: (n) => `${n}回に1回`,
   reachNote: (percent) =>
     `結果は抽選が始まった瞬間に決まっていて、リールはそれを演じているだけです。はずれの約${percent}では、左右のリールが先に同じ数字で止まり（リーチ）、最後に中央がはずれます。惜しく見えますが、確率は何も変わりません。リールが動く前にはずれは決まっています。`,
   rouletteTitle: 'ジャックポットチャンス',
   rouletteIntro: (pockets, goal) =>
-    `ボールを手前の端から落とすとルーレットが始まります。1回ごとに${pockets}個のポケットのどれかに止まり、どのポケットも同じ確率です。数字に止まるとその枚数がプッシャーの上にメダルタワーとして積まれ、もう一度回ります。×に止まると終了です。数字が${goal}回続くとジャックポットチャレンジが始まります。ボールが失われることはありません。開いた両脇も手前の角の穴も通れないので、いつかは必ず手前から落ち、端のどこから落ちても回収されます。`,
+    `ボールを手前の端から落とすとルーレットが始まります。1回ごとに${pockets}個のポケットのどれかに止まり、どのポケットも同じ確率です。数字に止まるとその枚数がルーレットのメダルタワーに積み重なり、もう一度回ります。×に止まると終了で、タワーが押し出されます。数字が${goal}回続くとジャックポットチャレンジが始まります。ボールが失われることはありません。開いた両脇も手前の角の穴も通れないので、いつかは必ず手前から落ち、端のどこから落ちても回収されます。`,
   rouletteCaption: 'ルーレットのポケットと、1回あたりのそれぞれの確率',
   colPocket: 'ポケット',
   colPockets: '個数',
@@ -856,7 +856,7 @@ const ja: PusherStrings = {
   calcBreakEven: (percent) => `この割合なら、落としたメダルの${percent}にあたる回数の抽選があれば収支がゼロになります。`,
   calcNever: 'この割合では、落としたメダルと同じ回数の抽選があっても収支はゼロに届きません。',
   calcNote: (held, growth) =>
-    `どちらも「シミュレーション」タブで実測できます。左右のレールを両方ともプッシャーの中央に向け、合わせて毎秒2枚入れると、フィールドを出るメダルの約57%が受け皿に落ち、落としたメダル100枚につき約13回の抽選が始まります。戻ってくるのは約88%です。これは実機の設定とほぼ同じです。実機でも、フィールドだけで戻るのは乗ったメダルの5〜6割ほどで、残りは脇の穴に落ち、その差を抽選が埋めています。このマシンも同じです。上の式は、抽選1回をスライダーで決めたジャックポットでの正確な平均で数え、そこに金の抽選の上乗せ分の3分の1を足しています。ラッキーランプで抽選の約3分の1が金の抽選になるからです。さらに、メダル100枚ごとにジャックポットが増える${growth}枚も足しています。増えた分は、ジャックポットが出たときにすべて払い出されるからです。ただしジャックポットは、ふだんは目にしない部分です。いちばん得な遊び方でも、出るのはメダル約7,500枚に1回です。100枚につき戻る約90枚のうち約7枚がその分で、ジャックポットを除くと戻りは約83枚です。抽選のすべてが自分のメダルによるものではありません。払い出されたメダルもプッシャーの上に乗ります。ばらで払い出された分は、縁を1枚ずつ越えるメダルの約6分の1を占め、残りはタワーに積まれてまとめて縁を越えます。ばらのメダルはプッシャーのあちこちに落ちるので、チャッカーを通るものは多くありません。チャッカーを通るメダルの10枚に9枚以上は、自分で落としたメダルです。保留は${held}回分までためられ、この速さでは、チャッカーを通ったメダルの約15枚に1枚が満杯の保留に当たります。場所を決めずに落とすと、抽選は8〜9回になり、戻ってくるのは約79%です。ゆっくり落とすと得になります。1秒に1枚なら戻ってくるのは約89%、2秒に1枚なら約90%で、このマシンではこれが最高です。速く落とすと損になります。毎秒5枚で落とすと画面が追いつかず、チャッカーを通ったメダルの約3分の1は保留が満杯で抽選を始められません。戻ってくるのは毎秒2枚のときより1ポイントほど少なくなります。両方のボタンを押し続けると毎秒11枚ほど入り、チャッカーを通ったメダルの約6割が満杯の保留に当たって、戻ってくるのは約79%です。満杯の保留に最初に当たった1枚でチャンスタイムが始まり、羽根が開いて、そのあいだに保留された抽選がすべて金の抽選になります。満杯で無駄になった分の一部はこれで戻りますが、全部は戻りません。光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには、5枚のうち4枚が19秒から約2分（半数は24秒から53秒）かかり、そのあいだに山に押されて左右に幅の5分の1ほどずれるので、着くころには光は何度も移っています。両方のレールを光っているチャッカーの列に向けると戻ってくるのは約87%、30秒後に光っているはずの列に向けても約87%で、どちらも中央に落とし続ける場合に届きません。チャッカーまで届くメダルが減るからです。`,
+    `どちらも「シミュレーション」タブで実測できます。左右のレールを両方ともプッシャーの中央に向け、合わせて毎秒2枚入れると、フィールドを出るメダルの約56%が受け皿に落ち、落としたメダル100枚につき約13回の抽選が始まります。戻ってくるのは約88%です。これは実機の設定とほぼ同じです。実機でも、フィールドだけで戻るのは乗ったメダルの5〜6割ほどで、残りは脇の穴に落ち、その差を抽選が埋めています。このマシンも同じです。上の式は、抽選1回をスライダーで決めたジャックポットでの正確な平均で数え、そこに金の抽選の上乗せ分の3分の1を足しています。ラッキーランプで抽選の約3分の1が金の抽選になるからです。さらに、メダル100枚ごとにジャックポットが増える${growth}枚も足しています。増えた分は、ジャックポットが出たときにすべて払い出されるからです。ただしジャックポットは、ふだんは目にしない部分です。いちばん得な遊び方でも、出るのはメダル約7,800枚に1回です。100枚につき戻る約90枚のうち約7枚がその分で、ジャックポットを除くと戻りは約83枚です。抽選のすべてが自分のメダルによるものではありません。払い出されたメダルもプッシャーの上に乗ります。ばらで払い出された分は、縁を1枚ずつ越えるメダルの約6分の1を占め、残りはタワーに積まれてまとめて縁を越えます。ばらのメダルはプッシャーのあちこちに落ちるので、チャッカーを通るものは多くありません。チャッカーを通るメダルの10枚に9枚以上は、自分で落としたメダルです。保留は${held}回分までためられ、この速さでは、チャッカーを通ったメダルの約11枚に1枚が満杯の保留に当たります。場所を決めずに落とすと、抽選は約9回になり、戻ってくるのは約82%です。ゆっくり落とすと得になります。1秒に1枚なら戻ってくるのは約89%、2秒に1枚なら約90%で、このマシンではこれが最高です。速く落とすと損になります。毎秒5枚で落とすと画面が追いつかず、チャッカーを通ったメダルの約3分の1は保留が満杯で抽選を始められません。戻ってくるのは毎秒2枚のときより4ポイントほど少なくなります。両方のボタンを押し続けると毎秒11枚ほど入り、チャッカーを通ったメダルの約6割が満杯の保留に当たって、戻ってくるのは約75%です。満杯の保留に最初に当たった1枚でチャンスタイムが始まり、羽根が開いて、そのあいだに保留された抽選がすべて金の抽選になります。満杯で無駄になった分の一部はこれで戻りますが、全部は戻りません。光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには、5枚のうち4枚が25秒から約2分（半数は33秒から66秒）かかり、そのあいだに山に押されて左右に幅の5分の1ほどずれるので、着くころには光は何度も移っています。両方のレールを光っているチャッカーの列に向けると戻ってくるのは約86%、47秒後に光っているはずの列に向けても約86%で、どちらも中央に落とし続ける場合に届きません。チャッカーまで届くメダルが減るからです。`,
 
   simTitle: 'どこに落とすかを実測する',
   simIntro: (warmUp) =>
@@ -889,9 +889,9 @@ const ja: PusherStrings = {
   simNotes: (exactPerSpin, held, step) => [
     '「今回の還元率」は、マシンが実際に返した枚数です。画面の運で大きく振れます。ルーレット1回で100枚以上払い出されることもあれば、フィールドに残ったボールはまだ1枚も払い出していません。',
     `「運を平均にすると」は、その運を取り除いた値です。今回実測した「受け皿に落ちた割合」（フィールドを出たメダルのうち受け皿に落ちた分）と「メダル1枚あたりの抽選回数」はそのまま使い、抽選1回の払い出しを、ジャックポットが始まりの枚数のときの正確な平均の${exactPerSpin}枚に置き換えています。さらに、メダル${step}枚ごとにジャックポットが1枚増える分も数えます。増えた分はジャックポットが出たときにすべて払い出されますが、この長さの計測でそこまで行くことはめったにありません。`,
-    '何度も計測すると、毎秒2枚の場合、運を平均にした戻りは、中央で約88%、場所を決めない場合で約79%、チャッカーの両脇に固定で約75%、両端で約58%です。「受け皿に落ちた」はフィールドだけの戻りで、中央で約57%、両端で約49%です。残りは、開いた両脇か手前の角から脇の穴に落ちます。速く入れるほど、狙い方による差は縮まります。画面が回せる抽選は多くても2秒に1回ほどなので、両方のボタンを押し続けると、どの狙い方でもチャッカーを通ったメダルの大半が無駄になるからです。そのときの戻りは、中央で約79%、両端で約67%です。',
+    '何度も計測すると、毎秒2枚の場合、運を平均にした戻りは、中央で約88%、場所を決めない場合で約82%、チャッカーの両脇に固定で約78%、両端で約60%です。「受け皿に落ちた」はフィールドだけの戻りで、中央で約56%、両端で約51%です。残りは、開いた両脇か手前の角から脇の穴に落ちます。速く入れるほど、狙い方による差は縮まります。画面が回せる抽選は多くても2秒に1回ほどなので、両方のボタンを押し続けると、どの狙い方でもチャッカーを通ったメダルの大半が無駄になるからです。そのときの戻りは、中央で約75%、両端で約67%です。',
     `保留が${held}回分たまっているときにチャッカーを通ると、その通過は無駄になります。ただし全部が無駄になるわけではありません。まだ金色でない保留があれば、そのうち1つが金の抽選に変わります。そこからチャンスタイムが始まり、最後の金の抽選が回り終わるまでチャッカーの羽根が開いて、そのあいだに保留されたメダルはすべて金の抽選になります。画面の抽選より速く落とすと、保留は満杯になります。タワーがチャッカーのところで崩れて、メダルが一度に通るときもそうです。これとは別に、ラッキーランプが光っているチャッカーを通ったメダルの抽選も、金の抽選です。「金の抽選」は、金色になった理由を問わず、今回の計測中に回った金の抽選の回数です。「運を平均にすると」は、金の抽選をその正確な平均で計算します。`,
-    'メダルは先端を離れるときにアームが向いている位置に落ちるので、どの狙い方でも、メダルが離れるまでアームをその位置に合わせておきます。4通りのうち3通りは左右のレールに交互に入れ、レールは動かしません。残りの1通りは1枚ごとに場所を選び、その側のレールから入れます。チャッカーは動かないので、狙い方の違いは、それぞれのレールで落とす列の違いだけです。ラッキーランプの光は移っていきますが、ここではどの狙い方もランプには合わせません。メダルが縁に着くまでに約30秒かかるので、入れたときに光っているチャッカーは、着いたときに光っているチャッカーの手がかりになりません。「チャッカー通過」は、だれがフィールドに乗せたメダルかを問わず、チャッカーを通ったメダルをすべて数え、落とした枚数に対する割合で示します。払い出されたメダルも縁を越えるからです。「チャッカーの両脇に固定」の位置は、外側の2つのチャッカーから、チャッカーどうしの間隔と同じだけ外にあります。メダルは縁に着くまでに山に押されて左右に大きくずれるので、端に落としたメダルもときどきチャッカーを通ります。',
+    'メダルは先端を離れるときにアームが向いている位置に落ちるので、どの狙い方でも、メダルが離れるまでアームをその位置に合わせておきます。4通りのうち3通りは左右のレールに交互に入れ、レールは動かしません。残りの1通りは1枚ごとに場所を選び、その側のレールから入れます。チャッカーは動かないので、狙い方の違いは、それぞれのレールで落とす列の違いだけです。ラッキーランプの光は移っていきますが、ここではどの狙い方もランプには合わせません。メダルが縁に着くまでに1分近くかかるので、入れたときに光っているチャッカーは、着いたときに光っているチャッカーの手がかりになりません。「チャッカー通過」は、だれがフィールドに乗せたメダルかを問わず、チャッカーを通ったメダルをすべて数え、落とした枚数に対する割合で示します。払い出されたメダルも縁を越えるからです。「チャッカーの両脇に固定」の位置は、外側の2つのチャッカーから、チャッカーどうしの間隔と同じだけ外にあります。メダルは縁に着くまでに山に押されて左右に大きくずれるので、端に落としたメダルもときどきチャッカーを通ります。',
   ],
   slotCheckTitle: '今回の画面の抽選と、正確な確率',
   slotCheckIntro: (spins) => `4台のマシンを合わせて${spins}回抽選しました。`,
@@ -921,7 +921,7 @@ const ja: PusherStrings = {
   colChanceValue: '金の抽選1回の平均払い出し',
   colChanceMore: 'ふつうの抽選との差',
   chanceOddsNote: (more) =>
-    `満杯の保留で金色に変わった抽選1回には、チャッカーを通ったメダルが2枚かかっています。保留されていた1枚と、それを金色に変えた1枚です。金の抽選はふつうの抽選より${more}枚多く払い出しますが、保留に空きがあればその2枚は抽選2回になっていたので、それには及びません。満杯にして得られるのは、そのあとのチャンスタイムです。羽根が開いてメダルが入りやすくなり、そのあいだに保留された抽選は、メダル1枚で金の抽選になります。「シミュレーション」タブで実測すると、両方のボタンを押し続けたときに戻ってくるのは約79%で、中央に毎秒2枚ずつ落とす場合の約88%に届きません。保留を満杯にしても得にはなりません。`,
+    `満杯の保留で金色に変わった抽選1回には、チャッカーを通ったメダルが2枚かかっています。保留されていた1枚と、それを金色に変えた1枚です。金の抽選はふつうの抽選より${more}枚多く払い出しますが、保留に空きがあればその2枚は抽選2回になっていたので、それには及びません。満杯にして得られるのは、そのあとのチャンスタイムです。羽根が開いてメダルが入りやすくなり、そのあいだに保留された抽選は、メダル1枚で金の抽選になります。「シミュレーション」タブで実測すると、両方のボタンを押し続けたときに戻ってくるのは約75%で、中央に毎秒2枚ずつ落とす場合の約88%に届きません。保留を満杯にしても得にはなりません。`,
   colGold: '金の抽選',
   feelLabel: '遊び方の設定',
   swing: 'スイング',
@@ -942,7 +942,7 @@ const ja: PusherStrings = {
   holeShare: (count, holes) => (holes === 1 ? 'この段の穴はこれだけ' : `${holes}つの穴のうち${count}つ`),
   holeDown: '下の段へ進む穴',
   holeDownPaid: 'まだ払い出しなし（ボールは下の段で転がり続けます）',
-  bowlPaid: (poured, towers) => `${poured}枚がフィールドに降り、プッシャーの上にタワー${towers}本`,
+  bowlPaid: (poured, towers) => `${poured}枚がフィールドに降り、窓でタワー${towers}本`,
   jewelLamps: (lit, of) => `宝石ランプ：${of}個中${lit}個点灯`,
   sayJewelDrop: '宝石がハッチから下のテーブルに飛んできました。',
   sayJewel: (medals, lit, of) => `宝石が手前の端から落ちました。メダル${medals}枚。宝石ランプは${of}個中${lit}個点灯しています。`,
@@ -962,7 +962,7 @@ const ja: PusherStrings = {
   panelWarning: 'メダル専用　台をたたいたり、ゆらしたりしないでください',
   sayLucky: 'メダルが橋を滑って、光っているチャッカーに入りました。金の抽選です。',
   luckyOddsNote: (ordinary, gold, seconds, share) =>
-    `ラッキーランプ：3つのチャッカーのうち1つが金色に光り、プッシャーが1往復する${seconds}秒ごとに、光が左から順にとなりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、その1枚ではじめから金の抽選になります。ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です。ランプを狙うことはできません。メダルがレールから縁に着くまでには約30秒かかり、そのあいだに光は何度も移るからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。毎秒2枚までの速さで実測すると、抽選全体の約${share}がランプによる金の抽選でした。3つのうち1つが光っているので、3分の1になります。`,
+    `ラッキーランプ：3つのチャッカーのうち1つが金色に光り、プッシャーが1往復する${seconds}秒ごとに、光が左から順にとなりのチャッカーへ移ります。光っているチャッカーを通って保留されたメダルは、その1枚ではじめから金の抽選になります。ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です。ランプを狙うことはできません。メダルがレールから縁に着くまでには1分近くかかり、そのあいだに光は何度も移るからです。メダルが着いたときにどのチャッカーが光っているかは、運しだいです。毎秒2枚までの速さで実測すると、抽選全体の約${share}がランプによる金の抽選でした。3つのうち1つが光っているので、3分の1になります。`,
   goldTag: '金の抽選',
 };
 

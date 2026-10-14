@@ -577,6 +577,22 @@ describe('the volume', () => {
     for (const volume of [0.25, 0.5, 0.75]) expect(through(everything, volume)).toBeLessThan(through(everything));
   });
 
+  it('keeps the tower tubes at work under where the compressor begins as the cabinet was made, and under half of full scale right up', () => {
+    // The loudest the tubes are by themselves: a medal landing on the stack in each tube in the same frame, both arms'
+    // motors running and a gate seating, all on one peak. That is 0.335 going in, which comes out as it went in, and
+    // 0.41 with the volume right up.
+    const tubes = 2 * SOUND_LEVELS.land + 2 * SOUND_LEVELS.lift + SOUND_LEVELS.guard;
+    expect(tubes).toBeCloseTo(0.335, 10);
+    expect(through(tubes)).toBeCloseTo(tubes, 10);
+    expect(through(tubes)).toBeLessThan(0.34);
+    expect(through(tubes, VOLUME.most)).toBeLessThan(0.42);
+    // With the hopper's doors out and the loudest rattle they pour, and the bed's clunk, landing on that peak as well:
+    // 0.58 going in, 0.41 and 0.43 coming out, which is the worst play makes of the tray (above).
+    const worst = tubes + SOUND_LEVELS.hopper + pourLevel(POURS[POURS.length - 1]) + MOTOR.level;
+    expect(through(worst)).toBeLessThan(0.41);
+    expect(through(worst, VOLUME.most)).toBeLessThan(0.44);
+  });
+
   it('is what the cabinet starts at when it is set before the sound is switched on, and makes nothing by itself', async () => {
     vi.stubGlobal('AudioContext', FakeContext);
     setVolume(0.5);

@@ -44,12 +44,12 @@ export const SIDE_HOLE = {
    * edge has nothing under its nose; the two are closer together than a ball
    * or a jewel is across, which rides between them.
    */
-  rails: [4.2, 7.2] as readonly [number, number],
-  bar: 0.4,
-  top: -0.3,
-  lean: 0.8,
+  rails: [3.55, 6] as readonly [number, number],
+  bar: 0.33,
+  top: -0.25,
+  lean: 0.65,
   /** The cheek between a mouth and the tray, whose top is level with the table: half its width. */
-  cheek: 0.7,
+  cheek: 0.57,
   /**
    * The arrows on the chute, which point the way a lost medal goes: how far
    * in from the side each one is, how far out from the edge its barbs start
@@ -77,7 +77,7 @@ export const SIDE_HOLE = {
  * second. One that went over beside the cheek has part of itself over the
  * cheek, and comes off it into the mouth in `aside` seconds.
  */
-export const SINK = { forward: 7, slip: 60, turn: 6.5, tip: 1, gravity: 190, settle: 0.1, slide: 80, aside: 0.15 } as const;
+export const SINK = { forward: 7, slip: 60, turn: 6.5, tip: 1, gravity: 190, settle: 0.11, slide: 80, aside: 0.15 } as const;
 
 /** Seconds from the moment a medal's middle goes over the edge of a mouth until its tail is off the edge: it has slipped half its own width. */
 export const SUNK_OFF = (-SINK.forward + Math.sqrt(SINK.forward ** 2 + 4 * SINK.slip * MEDAL_RADIUS)) / (2 * SINK.slip);

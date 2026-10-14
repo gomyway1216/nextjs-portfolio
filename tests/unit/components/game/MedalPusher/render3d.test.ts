@@ -106,6 +106,8 @@ import {
   type Rows,
   type Shape,
 } from '@/components/game/MedalPusher/scene3d';
+import { TUBE } from '@/components/game/MedalPusher/stacker';
+import { WINDOW } from '@/components/game/MedalPusher/works';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, UPPER, VIEW, chuteHeight, project, unproject, unprojectPanel } from '@/components/game/MedalPusher/view';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
@@ -310,7 +312,7 @@ function readMedals(rows: Rows) {
   });
 }
 
-const lying = (id: number, x: number, y: number, level: 0 | 1, tier: 0 | 1 = 0, more: Partial<Medal> = {}): Medal => ({ id, x, y, level, tier, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, ...more });
+const lying = (id: number, x: number, y: number, level: 0 | 1, tier: 0 | 1 = 0, more: Partial<Medal> = {}): Medal => ({ id, x, y, level, tier, sinceDrop: -1, stack: 1, ball: false, grown: 1, ...more });
 
 /** A machine holding just these medals. */
 const holding = (medals: Medal[]): Machine => ({ ...createMachine(1), medals, falling: [] });
@@ -416,18 +418,15 @@ describe('the medals of the 3D field', () => {
     });
     // Its top face is as high as the tower is tall.
     expect(column[11].y + T / 2).toBeCloseTo(P + 12 * T, 5);
-    // A tower still going up is as tall as it has got, not as tall as it will be.
-    expect(medalRows(holding([{ ...tower, stack: 3, grow: 9 }]))).toHaveLength(3);
   });
 
   it('builds the towers a real payout makes', () => {
     const machine = createMachine(5, 2);
     buildTowers(machine, 180);
-    // Long enough for their lifts to have brought them up and let them go: a tower its lift still holds is the lift's to write (works3d.ts).
-    step(machine, 7);
-    expect(machine.lifts.some((lift) => lift.sunk < 0)).toBe(false);
+    // Long enough for the tubes to have stacked the first two and pushed them out: the medals still in a tube are the works' to write (works3d.ts).
+    step(machine, 8);
     const towers = machine.medals.filter((medal) => medal.stack > 1);
-    expect(towers.length).toBeGreaterThan(5);
+    expect(towers.length).toBeGreaterThanOrEqual(2);
     const medals = machine.medals.filter((medal) => !medal.ball);
     const rows = medalRows(machine);
     expect(rows).toHaveLength(medals.reduce((sum, medal) => sum + medal.stack, 0) + machine.falling.filter((medal) => !medal.ball).length);
@@ -1389,10 +1388,13 @@ describe('the cabinet as shapes', () => {
       expect(corner.v).toBeCloseTo(corner.z / FIELD.depth, 6);
     }
     // The wall under the screen is one picture on two surfaces: the front of the shelf, which stands out from
-    // the wall, and under it the panel, down to the top of the pusher. Both face the player.
+    // the wall, and under it the panel, down to the top of the pusher. Both face the player. Both are cut where the
+    // tubes' windows are, so each is three pieces, the stretches beside the windows, each with its own stretch of
+    // the picture.
     const foot = corners(solid, parts[1].first, parts[1].count);
-    expect(foot).toHaveLength(12);
-    const [shelf, panel] = [foot.slice(0, 6), foot.slice(6)];
+    expect(foot).toHaveLength(36);
+    const shelf = foot.filter((_, index) => Math.floor(index / 6) % 2 === 0);
+    const panel = foot.filter((_, index) => Math.floor(index / 6) % 2 === 1);
     expect([Math.min(...shelf.map((corner) => corner.y)), Math.max(...shelf.map((corner) => corner.y))]).toEqual([HOUSING.shelf, SCREEN.foot]);
     expect([Math.min(...panel.map((corner) => corner.y)), Math.max(...panel.map((corner) => corner.y))]).toEqual([P, HOUSING.shelf]);
     for (const corner of shelf) expect(corner.z).toBe(Math.fround(HOUSING.ledge));
@@ -1401,6 +1403,10 @@ describe('the cabinet as shapes', () => {
       expect(corner.normal).toEqual([0, 0, 1]);
       // The picture's top is the foot of the screen and its bottom the top of the pusher, whichever of the two a point is on.
       expect(corner.v).toBeCloseTo((SCREEN.foot - corner.y) / (SCREEN.foot - P), 6);
+      // And across, it is where the point is across the wall, whichever piece it is on.
+      expect(corner.u).toBeCloseTo((corner.x + 0.8) / (FIELD.width + 1.6), 5);
+      // No piece is where a window is.
+      for (const x of TUBE.x) expect(Math.abs(corner.x - x)).toBeGreaterThanOrEqual(WINDOW.half + WINDOW.frame - 1e-4);
     }
     expect(SHELF_SHARE).toBeCloseTo((SCREEN.foot - HOUSING.shelf) / (SCREEN.foot - P), 12);
     // The walls stop where the sides open, the two face each other, and they go up to the top, beside the screen.
@@ -1415,7 +1421,8 @@ describe('the cabinet as shapes', () => {
       if (inside) expect(corner.y <= 0.05 || (corner.y >= HOUSING.shelf && corner.z <= (corner.y >= HOUSING.hood ? HOUSING.out + 0.6 : HOUSING.ledge + 0.1))).toBe(true);
       expect(Number.isFinite(corner.x + corner.y + corner.z)).toBe(true);
     }
-    expect(HOUSING.ledge).toBeLessThan(PUSHER.min - Math.max(...TOWER.rows) - R);
+    // A tower an arm has let go stands clear of the shelf, whatever the pusher's stroke.
+    expect(HOUSING.ledge).toBeLessThan(PUSHER.min - TUBE.behind - R);
     expect(HOUSING.shelf).toBeGreaterThan(P + T * 3 + BALL_RADIUS * 2);
   });
 
@@ -1478,17 +1485,26 @@ describe('the cabinet as shapes', () => {
       const [d1, d2, d3] = [side(a, b), side(b, c), side(c, a)];
       return (d1 > 1e-6 && d2 > 1e-6 && d3 > 1e-6) || (d1 < -1e-6 && d2 < -1e-6 && d3 < -1e-6);
     };
+    // But for its lower corners, which are cut out for the windows the towers are stacked in, the count over each.
+    const inWindow = (x: number, y: number) => TUBE.x.some((middle) => Math.abs(x - middle) <= WINDOW.half + WINDOW.frame + 0.3) && y <= WINDOW.top + WINDOW.frame + 0.3 + WINDOW.count.height + 0.3;
     let onWall = 0;
+    let windows = 0;
     for (let i = 0; i < all.length; i += 3) {
       const [a, b, c] = [all[i], all[i + 1], all[i + 2]];
       // A surface that faces the player, on the wall or out from it: the strips, the shelf, the hood, the wall itself.
       if (Math.abs(a.normal[2]) < 0.2 || Math.min(a.z, b.z, c.z) > HOUSING.out + 1 || Math.max(a.x, b.x, c.x) < 0 || Math.min(a.x, b.x, c.x) > FIELD.width) continue;
       onWall++;
       for (const x of [opening.left + 0.01, 30, 50, 70, opening.right - 0.01]) {
-        for (const y of [opening.foot + 0.01, 45, 60, 75, opening.top - 0.01]) expect(covers(a, b, c, x, y)).toBe(false);
+        for (const y of [opening.foot + 0.01, 45, 60, 75, opening.top - 0.01]) if (!inWindow(x, y)) expect(covers(a, b, c, x, y)).toBe(false);
       }
+      // The back of a window's recess covers the corner of the screen it is cut in.
+      for (const x of TUBE.x) if (covers(a, b, c, x, SCREEN.foot + 1)) windows++;
     }
     expect(onWall).toBeGreaterThan(40);
+    expect(windows).toBeGreaterThanOrEqual(2);
+    expect(inWindow(opening.left + 0.01, opening.foot + 0.01)).toBe(true);
+    expect(inWindow(30, opening.foot + 0.01)).toBe(false);
+    expect(inWindow(opening.left + 0.01, 45)).toBe(false);
     // The housing laps over each edge of the screen: the wall is closed right up to the opening on every side.
     const at = (x: number, y: number, z: number) => all.some((corner) => Math.abs(corner.x - x) < 1e-4 && Math.abs(corner.y - y) < 1e-4 && Math.abs(corner.z - z) < 1e-4);
     expect(at(opening.left, HOUSING.hood, 0)).toBe(true);
@@ -1516,8 +1532,14 @@ describe('the cabinet as shapes', () => {
     expect(frame.length).toBeGreaterThan(100);
     expect(Math.max(...frame.map((corner) => Math.hypot(corner.x - HATCH.x, corner.y - HATCH.height)))).toBeCloseTo(HATCH.radius, 4);
     expect(HATCH.radius).toBeGreaterThan(BALL_RADIUS);
-    // None of it is behind the wall.
-    expect(Math.min(...all.map((corner) => corner.z))).toBeGreaterThanOrEqual(0);
+    // None of it is behind the wall but the recesses of the two windows, which go back as far as their tubes need.
+    const behind = all.filter((corner) => corner.z < 0);
+    expect(behind.length).toBeGreaterThan(0);
+    for (const corner of behind) {
+      expect(corner.z).toBeGreaterThanOrEqual(Math.fround(WINDOW.recess));
+      expect(Math.min(...TUBE.x.map((x) => Math.abs(corner.x - x)))).toBeLessThanOrEqual(WINDOW.half + 1e-4);
+      expect(corner.y).toBeLessThanOrEqual(WINDOW.top + 1e-4);
+    }
   });
 
   it('hangs each slot on a bracket that comes in from the cabinet\u2019s frame at a front corner', () => {
@@ -3032,12 +3054,13 @@ describe('the choice of renderer', () => {
     renderer.draw(first, machine, options);
     renderer.draw(first, machine, options);
     expect(flat.calls.clearRect).toBe(1);
-    // A count floating up is drawn every frame, and cleared once when it has gone.
+    // A count floating up is drawn every frame, and cleared once when it has gone. Each time the glass is drawn the
+    // counts over the windows are too, under it: at rest, each plate's two digits unlit.
     first.popups.push({ x: 300, y: 400, text: '+3', age: 0 });
     renderer.draw(first, machine, options);
     renderer.draw(first, machine, options);
     expect(flat.calls.clearRect).toBe(3);
-    expect(flat.calls.fillText).toBe(2);
+    expect(flat.calls.fillText).toBe(2 + 3 * 2);
     first.popups.length = 0;
     renderer.draw(first, machine, options);
     renderer.draw(first, machine, options);

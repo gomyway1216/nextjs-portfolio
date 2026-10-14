@@ -51,7 +51,7 @@ const COS = Math.cos(SLOPE.angle);
 const WORDS_FROM = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;
 
 /** A medal on the lower table that came over the lip `sinceDrop` seconds ago. */
-const over = (x: number, y: number, sinceDrop: number, more: Partial<Medal> = {}): Medal => ({ id: 9, x, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1, ...more });
+const over = (x: number, y: number, sinceDrop: number, more: Partial<Medal> = {}): Medal => ({ id: 9, x, y, level: 0, tier: 0, sinceDrop, stack: 1, ball: false, grown: 1, ...more });
 /** Where a spot of the cabinet is against the catcher's top at `time`: how far down it from the lip, and how far clear of it, square to it. */
 const onSlide = (spot: Spot, time: number): { down: number; clear: number } => {
   const out = spot.depth - pusherFront(time);
@@ -129,8 +129,8 @@ describe('the catcher for the START slots', () => {
       // And from where the player sits all of it is seen: the line of sight to it comes down on its upper side.
       const sight = { height: EYE_AT.height - middle.height, depth: EYE_AT.depth - middle.depth };
       expect(sight.height * COS + sight.depth * SIN).toBeGreaterThan(0);
-      // The well is as much of the picture as a medal: twelve pixels of a phone's screen from the lip to the slide, or more.
-      expect((seen(well[3]).y - seen(well[0]).y) * PHONE).toBeGreaterThan(12);
+      // The well is as much of the picture as a medal: ten pixels of a phone's screen from the lip to the slide, or more.
+      expect((seen(well[3]).y - seen(well[0]).y) * PHONE).toBeGreaterThan(10);
     }
   });
 
@@ -253,10 +253,10 @@ describe('the catcher for the START slots', () => {
           for (const corner of tongueCorners(chucker, time, wings, CATCHER.rim.high - TONGUE.deep)) expect(onSlide(corner, time).clear).toBeCloseTo(CATCHER.rim.high - TONGUE.deep, 9);
         }
         expect(tongueCorners(chucker, time, false)).toEqual(tongueCorners(chucker, time));
-        // On a phone it is five pixels across and thirteen long, or more: a rail, and seen as one.
+        // On a phone it is five pixels across and eleven long, or more: a rail, and seen as one.
         const [a, b, , d] = tongueCorners(chucker, time).map(seen);
         expect((b.x - a.x) * PHONE).toBeGreaterThan(5);
-        expect((d.y - a.y) * PHONE).toBeGreaterThan(13);
+        expect((d.y - a.y) * PHONE).toBeGreaterThan(11);
       });
     }
   });
@@ -368,16 +368,17 @@ describe('the catcher for the START slots', () => {
         expect(mouth.tall).toBeLessThan(mouth.wide);
         // The board leans toward the player, so the opening is seen more nearly square on than it would be in a level one.
         expect(mouth.tall).toBeGreaterThan(START_SLOT.long * at.scale * at.tilt * 1.15);
-        // On a phone it is twenty-two pixels across and nine down, or more, with its frame outside that. It was ten
-        // down while the catcher reached past the pusher's stroke, which hid whatever went down the well (see below).
-        expect(mouth.wide * PHONE).toBeGreaterThan(22);
+        // On a phone it is eighteen pixels across, as a medal that just fits it is, and nine down, or more, with its
+        // frame outside that. It was ten down while the catcher reached past the pusher's stroke, which hid whatever
+        // went down the well (see below).
+        expect(mouth.wide * PHONE).toBeGreaterThan(18);
         expect(mouth.tall * PHONE).toBeGreaterThan(8.8);
         // Down it the floor of its throat is seen, under the foot of the far wall, which is what is black in a slot that
-        // waits and gold in the lucky one: twenty pixels of a phone's screen across and four and a half down, or more. Its lamp
+        // waits and gold in the lucky one: sixteen pixels of a phone's screen across and four down, or more. Its lamp
         // stands up into the lower end of that by no more than two and a half.
         const throat = slotCorners(chucker, time, false, -SLOT_SHAPE.ring.in, -SLOT_SHAPE.ring.down).map((corner) => project(corner.x, CATCHER.throat, corner.depth));
-        expect((throat[1].x - throat[0].x) * PHONE).toBeGreaterThan(20);
-        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(4.5);
+        expect((throat[1].x - throat[0].x) * PHONE).toBeGreaterThan(16);
+        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(4);
         const lamp = seen(lampSpot(chucker, time));
         expect((seen(lower).y - (lamp.y - START_SLOT.lamp.radius * lamp.scale)) * PHONE).toBeLessThan(2.5);
         // All of it is on the drawing, in the lower half, below the lip.
@@ -1149,7 +1150,7 @@ describe('what has gone down the well', () => {
 describe('how near a medal on a tongue’s edge was to fitting', () => {
   const FRONT = PUSHER.min;
   const hanging = (x: number, wings = false) => {
-    const medal: Medal = { id: 9, x, y: FRONT + R, level: 0, tier: 0, sinceDrop: CATCHER.teeter.out + 0.01, stack: 1, grow: 0, ball: false, grown: 1 };
+    const medal: Medal = { id: 9, x, y: FRONT + R, level: 0, tier: 0, sinceDrop: CATCHER.teeter.out + 0.01, stack: 1, ball: false, grown: 1 };
     return caught(medal, 0, false, wings);
   };
 
@@ -1174,9 +1175,9 @@ describe('how near a medal on a tongue’s edge was to fitting', () => {
     expect(wide).toMatchObject({ near: 1 });
     expect(nearness(wide as Caught, true)).toBeCloseTo(0.75, 6);
     // A medal on its way into the pocket, and one clear of the tongues, are no near miss.
-    const rider = caught({ id: 10, x: pocket, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    const rider = caught({ id: 10, x: pocket, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, ball: false, grown: 1 }, 0);
     expect(rider && nearness(rider)).toBe(0);
-    const between = caught({ id: 11, x: (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    const between = caught({ id: 11, x: (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, ball: false, grown: 1 }, 0);
     expect(between && [between.near, nearness(between)]).toEqual([-1, 0]);
   });
 
@@ -1184,7 +1185,7 @@ describe('how near a medal on a tongue’s edge was to fitting', () => {
     const edge = CHECKERS.positions[1] + CHECKERS.halfWidth;
     /** How long a medal that came over `off` beyond the tongue's edge is on the tongue before it lets go of it. */
     const hangs = (off: number): number => {
-      const medal: Medal = { id: 12, x: edge + off, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0, stack: 1, grow: 0, ball: false, grown: 1 };
+      const medal: Medal = { id: 12, x: edge + off, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0, stack: 1, ball: false, grown: 1 };
       let since = 0;
       for (; since < 2; since += 1 / 240) {
         medal.sinceDrop = since;

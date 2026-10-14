@@ -40,8 +40,9 @@ export interface HapticPattern {
  * - `crash`: a tower going over the pusher's lip.
  * - `chance`: chance time begins. Two ticks, a little heavier than a START pocket's.
  * - `line`: the slot stops on a winning line, a ball goes over the front, or the ball drops through a hole to the bowl below.
- * - `towers`: towers stand built on the pusher and their guards sink: two thuds, the second the heavier. It comes a
- *   second or so after the prize that paid them, when that prize's own pattern is over.
+ * - `towers`: a tower built in its tube is pushed out onto the pusher: two thuds, the second the heavier, as the arm
+ *   takes it out of the tube. It comes some seconds after the prize that paid it, when that prize's own pattern is
+ *   long over.
  * - `prize`: a prize is paid: a square of the board, a chest, a number of the roulette, a hole of the bowl, or the
  *   jewel bonus for a full set of lamps.
  * - `pour`: the hopper's doors drop open for a prize big enough to pour. The machine says so in the frame after it
@@ -186,7 +187,7 @@ export function hapticFor(events: readonly SessionEvent[], fed: FedBy | null = n
       case 'bowlEnd':
         feel(event.jackpot ? 'jackpot' : 'prize');
         break;
-      case 'towersReady':
+      case 'towerOut':
         feel('towers');
         break;
       case 'pourStart':

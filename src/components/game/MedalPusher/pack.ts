@@ -26,12 +26,18 @@
  *     takes), as those values once and, for each cell, which of them it is, in
  *     as few bits as say that; no bits at all when every cell is the same;
  *   - whole numbers that lie near one another, which is what the medals' ids
- *     are, as the smallest of them and how far above it each one is, in bits.
+ *     are, as the smallest of them and how far above it each one is, in bits;
+ *   - numbers a byte at a time: each of the eight bytes of a number is a
+ *     plane down the column, and each plane is written as its bytes, or as
+ *     the few values it takes and which each cell's is. A position on the
+ *     field has the same first byte in every cell and one of a few dozen
+ *     second bytes, so the two take a byte between them where they took two.
  *
- * The last two came with format 2. Format 1 is everything before them, and a
- * copy written in it is read as it always was: there are such copies on
- * players' accounts. Which format a copy is in is said beside it (account.ts),
- * and is not guessed from the copy.
+ * The fourth and fifth came with format 2, and the planes with format 3.
+ * Formats 1 and 2 are everything before them, and a copy written in either is
+ * read as it always was: there are such copies on players' accounts. Which
+ * format a copy is in is said beside it (account.ts), and is not guessed from
+ * the copy.
  *
  * Why the text that comes out is the text that went in, for each way of
  * writing a column:
@@ -42,7 +48,9 @@
  *   cell comes back as the value it was said to be;
  * - as the smallest and how far above it: only for whole numbers small
  *   enough that adding and taking away are exact (`Number.isSafeInteger`), so
- *   `smallest + (cell − smallest)` is the cell.
+ *   `smallest + (cell − smallest)` is the cell;
+ * - a byte at a time: the eight planes put back together are the eight bytes
+ *   of each number, and so the number.
  * No step rounds, and nothing is worked out from anything else.
  *
  * Nothing is trusted on the way back: `unpack` gives null for anything `pack`
@@ -53,9 +61,13 @@
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 /** The way `pack` writes now. */
-export const PACK_FORMAT = 2;
+export const PACK_FORMAT = 3;
 /** The way it wrote before columns could be a few values or whole numbers in bits. Still read, never written. */
 const FIRST_FORMAT = 1;
+/** The way it wrote before numbers could be written a byte at a time. Still read, never written. */
+const SECOND_FORMAT = 2;
+/** How many bytes a number is, and so how many planes a column of numbers written a byte at a time has. */
+const PLANES = 8;
 
 /** The field that marks a packed table, or an object that had a field of that name itself. */
 const MARK = '$';
@@ -107,11 +119,24 @@ function base64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/** The bytes of a list of numbers, eight to a number with the low byte first. */
+function rawBytesOf(numbers: readonly number[]): Uint8Array {
+  const view = new DataView(new ArrayBuffer(numbers.length * PLANES));
+  numbers.forEach((value, index) => view.setFloat64(index * PLANES, value, true));
+  return new Uint8Array(view.buffer);
+}
+
 /** The bytes of a list of numbers, eight to a number with the low byte first, as base64. */
-function bytesOf(numbers: readonly number[]): string {
-  const view = new DataView(new ArrayBuffer(numbers.length * 8));
-  numbers.forEach((value, index) => view.setFloat64(index * 8, value, true));
-  return base64(new Uint8Array(view.buffer));
+const bytesOf = (numbers: readonly number[]): string => base64(rawBytesOf(numbers));
+
+/** The bytes of a string that `btoa` wrote, or null for any other: not base64, or not as `btoa` writes it. */
+function binaryOf(text: string): string | null {
+  try {
+    const binary = atob(text);
+    return btoa(binary) === text ? binary : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The numbers such a string holds, or null if it holds none: not base64, or not a whole number of eights. */
@@ -158,14 +183,8 @@ function bitsOf(values: readonly number[], width: number): string {
  * writes it, too long or too short, or with something in the bits left over.
  */
 function valuesOf(text: string, width: number, count: number): number[] | null {
-  let binary: string;
-  try {
-    binary = atob(text);
-    if (btoa(binary) !== text) return null;
-  } catch {
-    return null;
-  }
-  if (binary.length !== Math.ceil((count * width) / 8)) return null;
+  const binary = binaryOf(text);
+  if (binary === null || binary.length !== Math.ceil((count * width) / 8)) return null;
   const bitAt = (at: number): number => (binary.charCodeAt(at >> 3) >> (7 - (at & 7))) & 1;
   const values: number[] = [];
   let at = 0;
@@ -212,9 +231,41 @@ function shapesOf(list: Json[]): { shapes: string[][]; of: number[] } | null {
 }
 
 /**
- * The ways of writing a column that came with format 2, for these cells: none,
- * one or both. `written` is what JSON writes each cell as: two cells are the
- * same value when, and only when, that is the same.
+ * One plane of a column of numbers written a byte at a time: the byte of
+ * each number, as those bytes in base64, or as the values they take and
+ * which each one is, whichever is fewer bytes on the wire.
+ */
+function plane(bytes: number[]): Json {
+  const values: number[] = [];
+  const places = new Map<number, number>();
+  const which = bytes.map((byte) => {
+    let place = places.get(byte);
+    if (place === undefined) {
+      place = values.length;
+      places.set(byte, place);
+      values.push(byte);
+    }
+    return place;
+  });
+  const width = bitsFor(values.length - 1);
+  const few: { [key: string]: Json } = { v: values };
+  if (width > 0) few.i = bitsOf(which, width);
+  const raw = base64(Uint8Array.from(bytes));
+  return weight(few) < weight(raw) ? few : raw;
+}
+
+/** A column of numbers written a byte at a time: how many there are, and a plane for each of their eight bytes. */
+function planesOf(numbers: readonly number[]): Json {
+  const bytes = rawBytesOf(numbers);
+  const planes: Json[] = [];
+  for (let at = 0; at < PLANES; at++) planes.push(plane(numbers.map((_, index) => bytes[index * PLANES + at])));
+  return { n: numbers.length, q: planes };
+}
+
+/**
+ * The ways of writing a column that came with formats 2 and 3, for these
+ * cells: none, one, two or all three. `written` is what JSON writes each cell
+ * as: two cells are the same value when, and only when, that is the same.
  */
 function inBits(cells: Json[], written: string[]): Json[] {
   const ways: Json[] = [];
@@ -248,6 +299,9 @@ function inBits(cells: Json[], written: string[]): Json[] {
       ways.push({ m: least, n: cells.length, w: width, i: bitsOf(cells.map((cell) => cell - least), width) });
     }
   }
+
+  // Numbers, a byte at a time. As for their own bytes, −0 would come back as −0 where JSON writes it as 0.
+  if (cells.every((cell): cell is number => typeof cell === 'number' && Number.isFinite(cell) && !Object.is(cell, -0))) ways.push(planesOf(cells));
   return ways;
 }
 
@@ -333,10 +387,48 @@ function count(characters: number): void {
   if (unfolded > MOST_UNFOLDED) throw NOT_PACKED;
 }
 
-/** The cells of a column written in bits: a few values and which is which, or whole numbers above the smallest. */
+/** The `size` bytes of one plane of a column of numbers written a byte at a time. */
+function planeOf(written: Json, size: number): number[] {
+  if (typeof written === 'string') {
+    const binary = binaryOf(written);
+    if (binary === null || binary.length !== size) throw NOT_PACKED;
+    return Array.from(binary, (char) => char.charCodeAt(0));
+  }
+  if (!isObject(written)) throw NOT_PACKED;
+  const { v, i, ...more } = written;
+  // A byte is a whole number below 256, and each value is there once.
+  if (Object.keys(more).length > 0 || !Array.isArray(v) || v.length === 0 || v.length > 256) throw NOT_PACKED;
+  if (!v.every((byte): byte is number => typeof byte === 'number' && Number.isInteger(byte) && byte >= 0 && byte < 256) || new Set(v).size !== v.length) throw NOT_PACKED;
+  const width = bitsFor(v.length - 1);
+  const which = width === 0 ? (i === undefined ? new Array<number>(size).fill(0) : null) : typeof i === 'string' ? valuesOf(i, width, size) : null;
+  if (!which || which.some((place) => place >= v.length)) throw NOT_PACKED;
+  return which.map((place) => v[place]);
+}
+
+/** The numbers of a column written a byte at a time: its eight planes put back together. */
+function cellsInPlanes(planes: Json, size: number): number[] {
+  if (!Array.isArray(planes) || planes.length !== PLANES) throw NOT_PACKED;
+  const view = new DataView(new ArrayBuffer(size * PLANES));
+  planes.forEach((written, at) => planeOf(written, size).forEach((byte, index) => view.setUint8(index * PLANES + at, byte)));
+  const numbers: number[] = [];
+  for (let index = 0; index < size; index++) {
+    const value = view.getFloat64(index * PLANES, true);
+    // JSON has no way to write these, and `pack` writes no −0 this way, so no copy holds them.
+    if (!Number.isFinite(value) || Object.is(value, -0)) throw NOT_PACKED;
+    numbers.push(value);
+  }
+  count(numbers.reduce((sum, number) => sum + String(number).length, 0));
+  return numbers;
+}
+
+/** The cells of a column written in bits: a few values and which is which, whole numbers above the smallest, or numbers a byte at a time. */
 function cellsInBits(written: { [key: string]: Json }, format: number): Json[] {
-  const { d, m, n, w, i, ...more } = written;
+  const { d, m, n, w, i, q, ...more } = written;
   if (Object.keys(more).length > 0 || typeof n !== 'number' || !Number.isInteger(n) || n < WORTH || n > MOST_CELLS) throw NOT_PACKED;
+  if (q !== undefined) {
+    if (format < PACK_FORMAT || d !== undefined || m !== undefined || w !== undefined || i !== undefined) throw NOT_PACKED;
+    return cellsInPlanes(q, n);
+  }
   if (d !== undefined) {
     if (m !== undefined || w !== undefined) throw NOT_PACKED;
     const values = cellsOf(d, format);
@@ -362,7 +454,7 @@ function cellsInBits(written: { [key: string]: Json }, format: number): Json[] {
 /** The cells of one column, whichever way it was written. */
 function cellsOf(written: Json | undefined, format: number): Json[] {
   if (Array.isArray(written)) return written.map((cell) => unpacked(cell, format));
-  if (isObject(written) && format >= PACK_FORMAT) return cellsInBits(written, format);
+  if (isObject(written) && format >= SECOND_FORMAT) return cellsInBits(written, format);
   if (typeof written !== 'string') throw NOT_PACKED;
   const body = written.slice(1);
   if (written[0] === BITS && /^[01]*$/.test(body)) return [...body].map((bit) => bit === '1');
@@ -438,7 +530,7 @@ export function pack(text: string): string | null {
  * written by `serialize` comes back character for character.
  */
 export function unpack(text: unknown, format: number = PACK_FORMAT): string | null {
-  if (typeof text !== 'string' || (format !== FIRST_FORMAT && format !== PACK_FORMAT)) return null;
+  if (typeof text !== 'string' || (format !== FIRST_FORMAT && format !== SECOND_FORMAT && format !== PACK_FORMAT)) return null;
   try {
     unfolded = 0;
     return JSON.stringify(unpacked(JSON.parse(text) as Json, format));

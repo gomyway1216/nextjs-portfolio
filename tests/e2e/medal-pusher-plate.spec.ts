@@ -116,7 +116,7 @@ test('How to play opens the instruction plate: a named dialog that takes the foc
   // Under the plate, the explanation it replaced.
   await dialog(page).getByTestId('pusher-plate-text').locator('summary').click();
   await expect(dialog(page).getByTestId('pusher-plate-text').locator('p').first()).toBeVisible();
-  // The explanation, and after it how the machine pays a big prize: the hopper's doors and the towers' lifts.
+  // The explanation, and after it how the machine pays a big prize: the hopper's doors and the towers' tubes.
   const said = [...t.infoBody(MAX_STOCK), ...getWorksStrings('en').howItPays(POUR.threshold)];
   await expect(dialog(page).getByTestId('pusher-plate-text').locator('p')).toHaveCount(said.length);
   await expect(dialog(page).getByTestId('pusher-plate-text').locator('p').last()).toHaveText(said[said.length - 1]);

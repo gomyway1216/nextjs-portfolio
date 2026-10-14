@@ -10,7 +10,8 @@
  *
  * The screen is not here. It is the page's own, stood behind this picture
  * exactly where the opening in the housing is, and nothing is drawn in that
- * opening but what is in front of it.
+ * opening but what is in front of it, and the two windows cut in its lower
+ * corners, where the towers are stacked (`buildWindows`).
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, legOf, railFrame, slotSpot, type Spot } from './arms';
@@ -23,6 +24,8 @@ import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
 import { LIP_LAMPS } from './shaders3d';
 import { SIDE_HOLE, acrossAt, holeFloor, railTop } from './sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, chuteHeight } from './view';
+import { TUBE } from './stacker';
+import { WINDOW } from './works';
 
 const TAU = Math.PI * 2;
 const R = MEDAL_RADIUS;
@@ -297,9 +300,9 @@ function buildHousing(solid: Solid): void {
     solid.finish(0.1, 0.5).paint(BED);
     solid.quad(middle - 0.8, hood - 1.6, ledge + 0.02, middle + 0.8, hood - 1.6, ledge + 0.02, middle + 0.8, foot + 1.6, ledge + 0.02, middle - 0.8, foot + 1.6, ledge + 0.02);
   }
-  // The top of the shelf, sloping back from its front edge to lap over the foot of the screen.
+  // The top of the shelf, sloping back from its front edge to lap over the foot of the screen, between the windows.
   solid.finish(0.9).paint(GOLD, GOLD_BRIGHT);
-  solid.quad(-LEDGE, foot + lap, 0, W + LEDGE, foot + lap, 0, W + LEDGE, foot, ledge, -LEDGE, foot, ledge);
+  for (const [x0, x1] of BESIDE_WINDOWS) solid.quad(x0, foot + lap, 0, x1, foot + lap, 0, x1, foot, ledge, x0, foot, ledge);
   // The wall over the screen, in the dark under the hood.
   solid.finish(0.05).paint(SOFFIT);
   solid.quad(-LEDGE, hood, 0, W + LEDGE, hood, 0, W + LEDGE, top - lap, 0, -LEDGE, top - lap, 0);
@@ -323,6 +326,74 @@ function buildHousing(solid: Solid): void {
   band(solid, HATCH.x, HATCH.height, HATCH.radius, out, out + 0.5);
   solid.finish(0.6).paint(HUB_MID, HUB_RIM);
   ring(solid, HATCH.x, HATCH.height, HATCH.radius, HATCH.radius * HATCH_DOOR, out + 0.5);
+}
+
+/**
+ * How far out the frame round a window stands from the wall: as far as the
+ * shelf, and a little more, from the shelf up; and below it, where the medals
+ * on the pusher lie against the wall, hardly at all.
+ */
+const WINDOW_FRAME_OUT = HOUSING.ledge + 0.1;
+const WINDOW_FRAME_LOW = 0.12;
+
+/** The stretches of the wall's foot, from side to side, that are not windows: the shelf and the panel under it run along these. */
+const BESIDE_WINDOWS: readonly (readonly [number, number])[] = (() => {
+  const reach = WINDOW.half + WINDOW.frame;
+  return [
+    [-LEDGE, TUBE.x[0] - reach],
+    [TUBE.x[0] + reach, TUBE.x[1] - reach],
+    [TUBE.x[1] + reach, W + LEDGE],
+  ];
+})();
+
+const RECESS_BACK = light('#0a0720');
+const RECESS_TOP = light('#1b1440');
+const RECESS_SIDE = light('#2a2060');
+const RECESS_FLOOR = light('#2b3150');
+const PLATE_DARK = light('#07040f');
+
+/**
+ * The two windows cut in the wall at the screen's lower corners, which never
+ * move: the recess each goes back into, dark, with its sides, its floor at
+ * the deck's height and the slot in its top the medals drop in through; the
+ * chrome frame round its opening, down both sides and across the top and
+ * none at its foot, since a tower goes out over the deck there; and over it
+ * the plate the count is lit on, dark in a gold rim. The tube in it and what
+ * moves are the works' (works3d.ts).
+ */
+function buildWindows(solid: Solid): void {
+  const { half, top, recess, frame } = WINDOW;
+  for (const x of TUBE.x) {
+    const x0 = x - half;
+    const x1 = x + half;
+    solid.as(MATERIAL.rubber).paint(RECESS_TOP, RECESS_BACK);
+    solid.quad(x0, top, recess, x1, top, recess, x1, P, recess, x0, P, recess);
+    solid.paint(RECESS_SIDE, RECESS_BACK);
+    solid.quad(x0, top, recess, x0, top, 0, x0, P, 0, x0, P, recess);
+    solid.quad(x1, top, recess, x1, top, 0, x1, P, 0, x1, P, recess);
+    solid.as(MATERIAL.brushedSteel).paint(RECESS_FLOOR);
+    solid.quad(x0, P - 0.01, recess, x1, P - 0.01, recess, x1, P - 0.01, 0, x0, P - 0.01, 0);
+    // The frame.
+    solid.as(MATERIAL.chrome).paint(CHROME, STEEL_FOOT);
+    for (const [a, b] of [
+      [x0 - frame, x0],
+      [x1, x1 + frame],
+    ]) {
+      solid.box(a, HOUSING.shelf, 0, b, top + frame, WINDOW_FRAME_OUT);
+      solid.box(a, P, 0, b, HOUSING.shelf, WINDOW_FRAME_LOW);
+    }
+    solid.box(x0 - frame, top, 0, x1 + frame, top + frame, WINDOW_FRAME_OUT);
+    // The plate of the count, in its rim.
+    const foot = top + frame + 0.3;
+    const head = foot + WINDOW.count.height;
+    solid.as(MATERIAL.backlit).paint(PLATE_DARK);
+    const p0 = x - WINDOW.count.half;
+    const p1 = x + WINDOW.count.half;
+    solid.quad(p0, head, WINDOW.count.out, p1, head, WINDOW.count.out, p1, foot, WINDOW.count.out, p0, foot, WINDOW.count.out);
+    solid.as(MATERIAL.brass).paint(GOLD_BRIGHT, GOLD_DEEP);
+    solid.box(p0 - 0.25, head, 0, p1 + 0.25, head + 0.25, WINDOW.count.out + 0.05);
+    solid.box(p0 - 0.25, foot - 0.25, 0, p1 + 0.25, foot, WINDOW.count.out + 0.05);
+  }
 }
 
 /**
@@ -389,11 +460,15 @@ export function buildCabinet(solid: Solid): Part[] {
   solid.map().paint(WHITE);
   part('table', () => solid.as(MATERIAL.brushedSteel).quad(0, 0, 0, W, 0, 0, W, 0, D, 0, 0, D));
   part('foot', () => {
-    // The front of the shelf, which stands out from the wall, and the panel under it.
-    solid.map(0, 0, 1, SHELF_SHARE).finish(0.3, 0.6);
-    solid.quad(-LEDGE, SCREEN.foot, HOUSING.ledge, W + LEDGE, SCREEN.foot, HOUSING.ledge, W + LEDGE, HOUSING.shelf, HOUSING.ledge, -LEDGE, HOUSING.shelf, HOUSING.ledge);
-    solid.map(0, SHELF_SHARE, 1, 1).finish(0.12, 0.55);
-    solid.quad(-LEDGE, HOUSING.shelf, 0, W + LEDGE, HOUSING.shelf, 0, W + LEDGE, P, 0, -LEDGE, P, 0);
+    // The front of the shelf, which stands out from the wall, and the panel under it: on either side of each window,
+    // each piece showing its own stretch of the picture.
+    const u = (x: number): number => (x + LEDGE) / (W + LEDGE * 2);
+    for (const [x0, x1] of BESIDE_WINDOWS) {
+      solid.map(u(x0), 0, u(x1), SHELF_SHARE).finish(0.3, 0.6);
+      solid.quad(x0, SCREEN.foot, HOUSING.ledge, x1, SCREEN.foot, HOUSING.ledge, x1, HOUSING.shelf, HOUSING.ledge, x0, HOUSING.shelf, HOUSING.ledge);
+      solid.map(u(x0), SHELF_SHARE, u(x1), 1).finish(0.12, 0.55);
+      solid.quad(x0, HOUSING.shelf, 0, x1, HOUSING.shelf, 0, x1, P, 0, x0, P, 0);
+    }
     solid.map();
   });
   part('lip', () => {
@@ -441,6 +516,7 @@ export function buildCabinet(solid: Solid): Part[] {
       buildMouth(solid, side);
     }
     buildHousing(solid);
+    buildWindows(solid);
     // The bracket each slot hangs from: a bar in from the cabinet's frame, at the front corner.
     for (const collar of COLLARS) {
       const side = collar.x < W / 2 ? -1 : 1;

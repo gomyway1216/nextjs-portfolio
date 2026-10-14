@@ -474,11 +474,14 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
   expect(Math.abs(middle.centre - box.width / 2)).toBeLessThan(1);
   expect(middle.centre - first.centre).toBeCloseTo(last.centre - middle.centre, 6);
   for (const pocket of waiting(look)) expect(middle.centre - first.centre).toBeGreaterThan(pocket.dark + 4);
-  // Each slot's mouth is dark too, a medal's height tall and a good deal wider than a medal is thick.
+  // Each slot's mouth is dark too, a medal's height tall and a good deal wider than a medal is thick. The dark of it
+  // reads a couple of pixels short of the mouth, which arms.test.ts holds to more than 20 pixels on a phone: about 18.
+  // It is no narrower than a dozen pixels whatever the medal's size, so that it is seen, which leaves it half as tall
+  // again as it is wide, or a little less, now that the medals are as small as real ones.
   for (const slot of await slotMouths()) {
     expect(slot.wide).toBeGreaterThanOrEqual(10);
-    expect(slot.tall).toBeGreaterThanOrEqual(20);
-    expect(slot.tall).toBeGreaterThan(slot.wide * 1.5);
+    expect(slot.tall).toBeGreaterThanOrEqual(16);
+    expect(slot.tall).toBeGreaterThan(slot.wide * 1.3);
   }
 });
 
@@ -2260,15 +2263,15 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   const lamp = odds(page).getByTestId('pusher-lucky-note');
   await expect(lamp).toContainText('one of the three START pockets is lit gold at a time');
   await expect(lamp).toContainText('An ordinary spin is worth 3.18855 medals on average, and a gold spin 5.18855.');
-  await expect(lamp).toContainText('The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip');
+  await expect(lamp).toContainText('The lamp cannot be aimed at: a medal takes the best part of a minute to get from the rail to the lip');
   await expect(lamp).toContainText('Measured at up to two medals a second, the lamp makes about 33% of all spins gold');
 
-  // 57% into the tray and 0.13 spins a medal, each worth its 3.18855 medals and a third of the 2 that being gold
-  // adds, and the 0.05 of a medal that each medal grows the jackpot by: 0.57 × (1 + 0.13 × 3.84855 + 0.05).
+  // 56% into the tray and 0.13 spins a medal, each worth its 3.18855 medals and a third of the 2 that being gold
+  // adds, and the 0.05 of a medal that each medal grows the jackpot by: 0.56 × (1 + 0.13 × 3.84855 + 0.05).
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('88.4%');
+  await expect(result).toHaveText('86.8%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('18%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('19%');
   // What it is set to give back, said where the sum is.
   await expect(odds(page)).toContainText('about 88% of the medals come back. That is about what a real machine is set to give.');
 
@@ -2517,27 +2520,34 @@ test('a ball’s roulette is a wheel behind a window: twelve pockets on the boar
   await expect.poll(() => counter(page, 'paid'), { timeout: 10_000 }).toBeGreaterThanOrEqual(10);
 });
 
-test('a big prize is poured out of the hopper’s doors, towers come up on their lifts, and the purse still balances', async ({ page }) => {
+test('a big prize is poured out of the hopper’s doors, towers are stacked in the tubes and pushed out, and the purse still balances', async ({ page }) => {
   test.setTimeout(90_000);
-  // A machine saved as the game saves one, at the moment it is paid two prizes: sixty medals to pour, and fifty that go up as two towers.
+  // A machine saved as the game saves one, at the moment it is paid two prizes: sixty medals to pour, and a hundred that are stacked as two towers.
   const session = createSession(5, { balls: 0 });
   queuePayout(session.machine, 60);
-  buildTowers(session.machine, 50);
-  session.paidOut += 110;
+  buildTowers(session.machine, 100);
+  session.paidOut += 160;
   const save = serialize(session);
   expect(restore(save, 1)).not.toBeNull();
   await page.addInitScript(
     ([key, text]) => {
       if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
-      // The field says what the payout works are doing. The pour is over in a couple of seconds and the towers are
-      // built in six or seven, a medal at a time, so every word of it is kept.
+      // The field says what the payout works are doing. The pour is over in a couple of seconds, and the towers are
+      // stacked a medal at a time and pushed out in seven or eight, so every word of it is kept.
       const said: string[] = [];
       (window as unknown as { worksSaid: string[] }).worksSaid = said;
       new MutationObserver((changes) => {
         for (const change of changes) {
           if (change.attributeName) said.push(`${change.attributeName.replace('data-', '')} ${(change.target as HTMLElement).getAttribute(change.attributeName)}`);
         }
-      }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-hopper', 'data-lifts'] });
+      }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-hopper', 'data-tubes'] });
+      // And every word the screen reader is given, as it changes.
+      const told: string[] = [];
+      (window as unknown as { told: string[] }).told = told;
+      new MutationObserver(() => {
+        const now = [...document.querySelectorAll('[data-testid="pusher-announcement"]')].map((element) => element.textContent ?? '').join(' | ');
+        if (now !== told[told.length - 1]) told.push(now);
+      }).observe(document, { subtree: true, childList: true, characterData: true });
     },
     [STORAGE_KEY, save],
   );
@@ -2545,22 +2555,27 @@ test('a big prize is poured out of the hopper’s doors, towers come up on their
   await openGame(page);
   const worksSaid = () => page.evaluate(() => (window as unknown as { worksSaid: string[] }).worksSaid);
   const last = (said: string[], what: string) => said.filter((word) => word.startsWith(what)).pop();
-  // The doors open for the sixty and shut again when the last has gone; the lifts hold a tower each until it is built.
+  // The doors open for the sixty and shut again when the last has gone; the tubes hold a tower each, stack it, and
+  // push it out, and have none left when both are out.
   await expect
     .poll(
       async () => {
         const said = await worksSaid();
-        return said.includes('hopper open') && last(said, 'hopper') === 'hopper shut' && said.includes('lifts 2') && last(said, 'lifts') === 'lifts 0';
+        return said.includes('hopper open') && last(said, 'hopper') === 'hopper shut' && said.includes('tubes 2') && last(said, 'tubes') === 'tubes 0';
       },
       { timeout: 30_000 },
     )
     .toBe(true);
   const said = await worksSaid();
   expect(said.lastIndexOf('hopper shut')).toBeGreaterThan(said.indexOf('hopper open'));
-  expect(said.lastIndexOf('lifts 0')).toBeGreaterThan(said.indexOf('lifts 2'));
+  expect(said.lastIndexOf('tubes 0')).toBeGreaterThan(said.indexOf('tubes 2'));
+  // The two towers are fifty each, stacked side by side, and leave their tubes in the same frame: the screen reader
+  // is told of both at once, not of the second in the place of the first.
+  const told = await page.evaluate(() => (window as unknown as { told: string[] }).told);
+  expect(told.some((text) => text.includes('A tower of 50 medals is pushed out of the left window') && text.includes('A tower of 50 medals is pushed out of the right window'))).toBe(true);
   const field = machine(page).getByTestId('pusher-field');
   await expect(field).toHaveAttribute('data-hopper', 'shut');
-  await expect(field).toHaveAttribute('data-lifts', '0');
+  await expect(field).toHaveAttribute('data-tubes', '0');
   await expectFieldPainted(page);
   await expectPurseToBalance(page);
   expect(trouble).toEqual([]);

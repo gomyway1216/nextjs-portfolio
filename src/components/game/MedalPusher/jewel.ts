@@ -29,9 +29,10 @@ const T = MEDAL_THICKNESS;
  * its widest, the crown goes up to the table and the pavilion down to the
  * point. It has `sides` corners round the girdle and as many round the
  * table, half a side on, so the crown is cut in twice that many triangles:
- * no two of them face the same way, and that is what makes it flash.
+ * no two of them face the same way, and that is what makes it flash. Every
+ * measure of it is a medal's, so it keeps its shape beside them.
  */
-export const JEWEL_CUT = { girdle: MEDAL_RADIUS - 0.15, table: 1.7, crown: 0.85, pavilion: 1.45, sides: 8 } as const;
+export const JEWEL_CUT = { girdle: MEDAL_RADIUS - 0.12, table: MEDAL_RADIUS * 0.53, crown: MEDAL_RADIUS * 0.27, pavilion: MEDAL_RADIUS * 0.45, sides: 8 } as const;
 /** How tall a stone stands. It is taller than two medals lying one on the other, and passes under the catcher on the pusher's front. */
 export const JEWEL_HEIGHT = JEWEL_CUT.crown + JEWEL_CUT.pavilion;
 

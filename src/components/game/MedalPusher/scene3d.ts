@@ -13,7 +13,7 @@ import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 }
 import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, railedJewel, turnOf, type ExitingMedal } from './render';
 import { railed, sinking } from './sidehole';
 import { HEIGHT, VIEW, chuteHeight, project } from './view';
-import { onLift, pourPose } from './works';
+import { pourPose } from './works';
 
 const R = MEDAL_RADIUS;
 const P = HEIGHT.pusher;
@@ -270,8 +270,6 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball || medal.jewel) continue;
-    // A tower that a lift still holds is not standing on the deck yet: the lift writes it, as far up through its hatch as it has come (works3d.ts).
-    if (medal.stack + medal.grow > 1 && onLift(machine, medal)) continue;
     // One that has just come over the lip at the catcher is on its way down it: along its tongue and into its slot,
     // hanging on a tongue's edge, or going down into the well under the lip. Once it is down it is the engine's.
     const held = caught(medal, machine.time, calm, wings);

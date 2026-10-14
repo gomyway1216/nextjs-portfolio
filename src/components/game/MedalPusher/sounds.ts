@@ -376,7 +376,10 @@ export const CHUTE = { rate: 36, loop: 2 } as const;
  */
 export const ROTOR = { level: 0.028, stretch: 0.5, overlap: 0.08, lead: 0.1 } as const;
 
-/** How long a lift's guard travels before it seats when nobody says: rising, and coming down. */
+/**
+ * How long a guard travels before it seats when nobody says: one way, and back. The sound was a lift's guard's when
+ * towers came up through the deck; it is the gate at the foot of a tower's window now, sliding aside and shut.
+ */
 export const GUARD = { up: 0.5, down: 0.45 } as const;
 
 /**
@@ -1085,7 +1088,7 @@ function looped(t: Take, cross: number): Take {
   return { out: out.slice(0, length), rate };
 }
 
-/** The guard of a lift: it slides in its guides for `travel` seconds and seats with a soft clack, plastic on rubber. */
+/** A guard, which is the gate at the foot of a tower's window: it slides in its guides for `travel` seconds and seats with a soft clack, plastic on rubber. */
 function guardOf(rate: number, travel: number, rising: boolean): Take {
   const t = take(travel + 0.14, rate);
   const slide = (seconds: number) => 0.14 * Math.min(1, seconds / 0.04, (travel - seconds) / 0.04);
@@ -1545,8 +1548,9 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     }
     return rounded(looped(t, cross), 0.5);
   },
-  // A lift bringing something up, made to go round and round: a geared motor's whine and the whine's octave, wavering
-  // with the shaft, the teeth of its rack going by, and the rattle of the carriage.
+  // A geared motor moving something, made to go round and round: its whine and the whine's octave, wavering with the
+  // shaft, the teeth of its rack going by, and the rattle of the carriage. It was a lift's; it is a tube's now, its
+  // platform letting a tower down, its arm pushing the tower out and drawing back.
   lift: (rate) => {
     const length = 1;
     const cross = 0.06;
@@ -1563,7 +1567,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     hiss(t, 0, length + cross, () => 0.18, { kind: 'band', hz: 950, q: 0.9 }, 191);
     return looped(t, cross);
   },
-  // The lift reaching the top: it stops against its end with a clunk, and what it carried settles.
+  // The motor reaching the end of its travel: it stops against its end with a clunk, and what it carried settles.
   liftStop: (rate) => {
     const t = take(0.3, rate);
     glide(t, LEAD, 0.25, 210, 120, 0.05, dying(0.035));
@@ -1649,7 +1653,7 @@ const RECIPES: Record<Sample, (rate: number, variant: number) => Take> = {
     }
     return rounded(looped(t, cross), 0.5);
   },
-  // The guard of a lift, coming down to seat and going up.
+  // A guard, the gate at the foot of a tower's window: sliding shut to seat, and sliding aside.
   guard: (rate) => guardOf(rate, GUARD.down, false),
   guardUp: (rate) => guardOf(rate, GUARD.up, true),
   // A medal dropping into a narrow slot standing on its edge: it rattles between the two walls, faster and higher as

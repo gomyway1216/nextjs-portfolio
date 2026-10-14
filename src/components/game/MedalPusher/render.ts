@@ -38,6 +38,10 @@ import {
 } from './jewel';
 import { SIDE_HOLE, acrossAt, fromSide, holeAt, holeFloor, railTime, railTop, railed, sinking } from './sidehole';
 import { CHUTE, EYE_AT, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise, type Projected } from './view';
+import { FACES, MEDAL_PAINT, MEDAL_SHADE, TOWER_PAINT, faceOf, strikeMedal, towerShade } from './medalLook';
+
+// What a medal looks like is medalLook.ts's: these are its tones, for whoever draws a medal of the field's.
+export { FACES, faceOf };
 
 const TAU = Math.PI * 2;
 const R = MEDAL_RADIUS;
@@ -290,94 +294,6 @@ export const starPath = (g: CanvasRenderingContext2D, cx: number, cy: number, ou
   }
   g.closePath();
 };
-
-/** One medal seen from straight above, drawn once and stamped wherever a medal lies. */
-function medalSprite(): HTMLCanvasElement {
-  const size = 160;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const g = canvas.getContext('2d');
-  if (!g) return canvas;
-  g.translate(size / 2, size / 2);
-  const r = size / 2 - 1;
-  const circle = (radius: number) => {
-    g.beginPath();
-    g.arc(0, 0, radius, 0, TAU);
-  };
-
-  const body = g.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r);
-  body.addColorStop(0, '#fffbe0');
-  body.addColorStop(0.35, '#fbd55a');
-  body.addColorStop(0.8, '#dba21f');
-  body.addColorStop(1, '#b97c0c');
-  g.fillStyle = body;
-  circle(r);
-  g.fill();
-
-  // A milled edge, a raised rim and a ring of beads inside it.
-  g.strokeStyle = 'rgba(120, 76, 2, 0.55)';
-  g.lineWidth = r * 0.03;
-  for (let i = 0; i < 72; i++) {
-    const angle = (i / 72) * TAU;
-    g.beginPath();
-    g.moveTo(Math.cos(angle) * r * 0.9, Math.sin(angle) * r * 0.9);
-    g.lineTo(Math.cos(angle) * r * 0.99, Math.sin(angle) * r * 0.99);
-    g.stroke();
-  }
-  g.lineWidth = r * 0.06;
-  g.strokeStyle = '#a56a06';
-  circle(r * 0.88);
-  g.stroke();
-  g.lineWidth = r * 0.035;
-  g.strokeStyle = 'rgba(255, 250, 215, 0.9)';
-  circle(r * 0.82);
-  g.stroke();
-  g.fillStyle = 'rgba(150, 96, 6, 0.6)';
-  for (let i = 0; i < 28; i++) {
-    const angle = (i / 28) * TAU;
-    g.beginPath();
-    g.arc(Math.cos(angle) * r * 0.7, Math.sin(angle) * r * 0.7, r * 0.028, 0, TAU);
-    g.fill();
-  }
-  g.lineWidth = r * 0.03;
-  g.strokeStyle = 'rgba(132, 84, 4, 0.55)';
-  circle(r * 0.6);
-  g.stroke();
-
-  // An embossed star: a dark copy below-right, a light copy above-left, the face on top.
-  for (const [dx, dy, fill] of [
-    [r * 0.035, r * 0.04, 'rgba(120, 74, 0, 0.7)'],
-    [-r * 0.03, -r * 0.035, '#fff8cf'],
-    [0, 0, '#f6c544'],
-  ] as const) {
-    starPath(g, dx, dy, r * 0.46, r * 0.19);
-    g.fillStyle = fill;
-    g.fill();
-  }
-  // A glint across the upper left.
-  const glint = g.createLinearGradient(-r, -r, r * 0.2, r * 0.2);
-  glint.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
-  glint.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
-  g.fillStyle = glint;
-  circle(r * 0.98);
-  g.fill();
-  return canvas;
-}
-
-/**
- * What is laid over a medal's face to make each of the tones a medal can
- * have gone to in the machine: as it was struck, still pale and bright,
- * dulled by handling, and gone brown. Every one of them is first washed with
- * the colour of brass, which is far less yellow than the gilt the face is
- * painted in.
- */
-export const FACES = ['rgba(150, 104, 52, 0.2)', 'rgba(255, 240, 206, 0.22)', 'rgba(74, 44, 10, 0.34)', 'rgba(92, 50, 20, 0.5)'] as const;
-
-/** Which of `FACES` a medal has, fixed by its id: of sixteen medals, seven as struck, three pale, four dulled and two brown. */
-export function faceOf(id: number): number {
-  const lot = (Math.imul(id, 0x9e3779b1) >>> 0) % 16;
-  return lot < 7 ? 0 : lot < 10 ? 1 : lot < 14 ? 2 : 3;
-}
 
 /** The medal's face in every tone: copies of the one sprite, each with its wash laid on where the medal is. */
 function medalFaces(struck: HTMLCanvasElement): HTMLCanvasElement[] {
@@ -968,7 +884,7 @@ export function createStage(ratio: number, painted = true): Stage {
     ratio,
     painted,
     background: blank ?? backgroundLayer(ratio),
-    ...(blank ? { medal: blank, faces: FACES.map(() => blank) } : facesOf(medalSprite())),
+    ...(blank ? { medal: blank, faces: FACES.map(() => blank) } : facesOf(strikeMedal())),
     ball: blank ?? ballSprite(),
     clock: 0,
     seen: new Map(),
@@ -994,7 +910,7 @@ export function createStage(ratio: number, painted = true): Stage {
 export function paintStage(stage: Stage): void {
   if (stage.painted) return;
   stage.background = backgroundLayer(stage.ratio);
-  Object.assign(stage, facesOf(medalSprite()));
+  Object.assign(stage, facesOf(strikeMedal()));
   stage.ball = ballSprite();
   stage.painted = true;
 }
@@ -1421,13 +1337,7 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
   g.beginPath();
   g.ellipse(foot.x + rx0 * 0.9, foot.y + ry0 * 0.35, rx0 * 1.5, ry0 * 0.9, 0, 0, TAU);
   g.fill();
-  const shade = g.createLinearGradient(foot.x - rx0, 0, foot.x + rx0, 0);
-  shade.addColorStop(0, '#7a4f06');
-  shade.addColorStop(0.28, '#ffe07a');
-  shade.addColorStop(0.42, '#f6cb55');
-  shade.addColorStop(0.7, '#c98c14');
-  shade.addColorStop(1, '#6b4304');
-  g.fillStyle = shade;
+  g.fillStyle = towerShade(g, foot.x - rx0, foot.x + rx0);
   g.beginPath();
   g.moveTo(head.x - rx1, head.y);
   g.lineTo(foot.x - rx0, foot.y);
@@ -1435,9 +1345,9 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
   g.lineTo(head.x + rx1, head.y);
   g.closePath();
   g.fill();
-  g.strokeStyle = 'rgba(88, 54, 0, 0.6)';
+  g.strokeStyle = TOWER_PAINT.seam;
   // The line between one medal and the next is three tenths of a medal's thickness as it is seen there, and no wider
-  // than a pixel of the drawing: however thin the medals are, the column is brass with lines in it and not the other way about.
+  // than a pixel of the drawing: however thin the medals are, the column is metal with lines in it and not the other way about.
   g.lineWidth = Math.min(1, T * rise(foot) * 0.3);
   g.beginPath();
   for (let i = 1; i < tower.stack - 1; i++) {
@@ -1505,7 +1415,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
   /** The chosen medals themselves: rims, then faces. */
   const pile = (chosen: (medal: Medal) => boolean) => {
     flat();
-    g.fillStyle = '#8a5a08';
+    g.fillStyle = MEDAL_PAINT.edge;
     g.beginPath();
     for (let i = 0; i < medals.length; i++) {
       const point = points[i];
@@ -1531,7 +1441,7 @@ function drawMedals(g: CanvasRenderingContext2D, stage: Stage, medals: Medal[], 
   // A medal on its way into the lower tier is still above its neighbours, so it is drawn over them.
   pile(dropping);
   // The upper tier throws its shadow on the medals it lies on.
-  shadows(onTop, 2.2, 'rgba(20, 10, 0, 0.42)');
+  shadows(onTop, 2.2, MEDAL_SHADE.onMedals);
   pile(onTop);
   for (let i = 0; i < medals.length; i++) {
     const medal = medals[i];
@@ -1607,7 +1517,7 @@ function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: nu
   const b = project(at.x + bx * R, at.height + by * R, at.depth + bz * R);
   const rim = project(at.x + nx * away, at.height + ny * away, at.depth + nz * away);
   g.setTransform((a.x - o.x) * k, (a.y - o.y) * k, (b.x - o.x) * k, (b.y - o.y) * k, (rim.x + shift) * k, rim.y * k);
-  g.fillStyle = '#8a5a08';
+  g.fillStyle = MEDAL_PAINT.edge;
   g.beginPath();
   g.arc(0, 0, 1, 0, TAU);
   g.fill();
@@ -1615,7 +1525,7 @@ function stampHeld(g: CanvasRenderingContext2D, stage: Stage, at: Spot, turn: nu
   g.drawImage(id < 0 ? stage.medal : (stage.faces[faceOf(id)] ?? stage.medal), -1, -1, 2, 2);
   if (light >= 1) return;
   g.globalAlpha = 1 - Math.max(0, light);
-  g.fillStyle = '#1c0f02';
+  g.fillStyle = MEDAL_SHADE.dark;
   g.beginPath();
   g.arc(0, 0, 1, 0, TAU);
   g.fill();

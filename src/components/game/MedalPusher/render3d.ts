@@ -50,7 +50,7 @@ const SHADOW_SIZE = 2048;
 /** Texels across the relief of a medal's face. */
 const RELIEF_SIZE = 256;
 /** How dark the contact shadow under a lying medal is at its darkest. */
-const CONTACT_DARK = 0.72;
+const CONTACT_DARK = 0.8;
 /** How far the roof's lamps drift, in rows of them, and how many seconds a drift there and back takes. */
 const LAMP_DRIFT = { reach: 0.24, period: 9 } as const;
 /**

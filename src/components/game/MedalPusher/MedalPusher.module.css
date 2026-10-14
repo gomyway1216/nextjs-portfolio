@@ -22,6 +22,8 @@
   --mp-d-lost: #b91c1c;
   --mp-d-won: #a16207;
   --mp-d-gate: #0e7490;
+  /* A medal on the diagram: copper-nickel grey, its outline at least 3:1 on the table it lies on. */
+  --mp-d-medal: #64748b;
 
   min-height: 100%;
   color: var(--games-route-fg);
@@ -41,6 +43,7 @@
   --mp-d-lost: #f87171;
   --mp-d-won: #fbbf24;
   --mp-d-gate: #67e8f9;
+  --mp-d-medal: #cbd5e1;
 }
 .shell {
   max-width: 1160px;
@@ -60,6 +63,11 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.titleMedal {
+  flex: none;
+  width: 1em;
+  height: 1em;
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -2095,8 +2103,10 @@
     width: 11cqh;
     height: 11cqh;
     border-radius: 50%;
-    border: max(1px, 0.7cqh) solid #7a4f06;
-    background: radial-gradient(circle at 36% 30%, #fffbe0 0%, #ffd65c 46%, #c9900a 100%);
+    /* Copper-nickel, as every medal of the game is (medalLook.ts): the jackpot is gold, and what it pays is medals. */
+    border: max(1px, 0.7cqh) solid #3f434a;
+    background: radial-gradient(circle at 36% 30%, #f4f6f8 0%, #b9bfc7 38%, #7c828b 74%, #5a5f67 100%);
+    box-shadow: inset 0 0 0 max(1px, 0.8cqh) rgba(255, 255, 255, 0.28);
     animation: mp-rain 1.3s linear infinite backwards;
     animation-delay: calc(var(--mp-wait) * 0.072s);
   }

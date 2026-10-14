@@ -98,6 +98,7 @@ import {
   type ExitingMedal,
   type Stage,
 } from '@/components/game/MedalPusher/render';
+import { MEDAL_SHADE } from '@/components/game/MedalPusher/medalLook';
 import { MAX_STOCK, advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { SIDE_HOLE, acrossAt, holeFloor, railTop, railed, sinking } from '@/components/game/MedalPusher/sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
@@ -833,7 +834,7 @@ describe('the catcher on the canvas', () => {
       // On its tongue it is seen whole. In the slot, what of it is under the slide is seen only down the opening.
       expect(stamps[0].clipped).toBe(held.leg === 'slot');
       // The less light it gets the darker it is: a dark wash over its face, as strong as the light is weak. It is never fainter.
-      const washes = screen.fills.filter((fill) => fill.style === '#1c0f02');
+      const washes = screen.fills.filter((fill) => fill.style === MEDAL_SHADE.dark);
       expect(washes).toHaveLength(held.light < 1 ? 1 : 0);
       const dark = washes.length ? washes[0].alpha : 0;
       expect(dark).toBeCloseTo(1 - held.light, 9);
@@ -866,7 +867,7 @@ describe('the catcher on the canvas', () => {
       expect(calm.stamps[0].x).toBeCloseTo(seen(faceOf(still)).x, 6);
       expect(calm.stamps[0].y).toBeCloseTo(seen(faceOf(still)).y, 6);
       expect(calm.after).toBe(true);
-      const dark = calm.screen.fills.filter((fill) => fill.style === '#1c0f02').map((fill) => fill.alpha)[0] ?? 0;
+      const dark = calm.screen.fills.filter((fill) => fill.style === MEDAL_SHADE.dark).map((fill) => fill.alpha)[0] ?? 0;
       expect(dark).toBeGreaterThan(shade);
       shade = dark;
     }
@@ -894,7 +895,7 @@ describe('the catcher on the canvas', () => {
       // It is going down behind the slide: nothing of it is drawn below the slide's upper edge. And it is never fainter, only darker.
       expect(stamps[0].clipped).toBe(true);
       expect(stamps[0].alpha).toBe(1);
-      const dark = screen.fills.filter((fill) => fill.style === '#1c0f02').map((fill) => fill.alpha)[0] ?? 0;
+      const dark = screen.fills.filter((fill) => fill.style === MEDAL_SHADE.dark).map((fill) => fill.alpha)[0] ?? 0;
       expect(dark).toBeCloseTo(1 - held.light, 9);
       expect(dark).toBeGreaterThanOrEqual(last.dark);
       // It goes down the drawing all the way, and throws no shadow on a table it does not come down on in sight.

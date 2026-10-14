@@ -1268,7 +1268,17 @@ describe('the shapes', () => {
 describe('the face of a medal', () => {
   it('has a star in the middle, a border near the rim and a flat field between', () => {
     expect(reliefHeight(0, 0)).toBe(1);
-    expect(reliefHeight(0, -0.4)).toBeGreaterThan(0.2);
+    // The star reads as a cross: its four long points stand up out along the arms, its short ones between them, and
+    // past the short ones the field is flat.
+    for (const [x, y] of [
+      [0, -0.4],
+      [0.4, 0],
+      [0, 0.4],
+      [-0.4, 0],
+    ])
+      expect(reliefHeight(x, y)).toBeGreaterThan(0.2);
+    expect(reliefHeight(0.17, -0.17)).toBeGreaterThan(0.2);
+    expect(reliefHeight(0, -0.53)).toBe(0);
     expect(reliefHeight(0.33, 0.33)).toBe(0);
     expect(reliefHeight(0.86, 0)).toBeCloseTo(1, 5);
     expect(reliefHeight(0.99, 0)).toBe(0);

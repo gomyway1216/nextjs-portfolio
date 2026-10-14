@@ -25,6 +25,7 @@ import { APRON, CATCHER, SLOPE, apronSpot, mouthOnDrawing, mouthSpot, slopeSpot,
 import { ARM_REACH, CHECKERS, FIELD, LANDING, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, type Arm } from './engine';
 import type { Bonus } from './lottery';
 import type { PlateRules, StepId } from './plateData';
+import { PLATE_SILVER } from './medalLook';
 import { ReelSymbol } from './ReelSymbols';
 import { BOWL_SHAPE } from './screen';
 import { SIDE_HOLE, acrossAt } from './sidehole';
@@ -38,6 +39,10 @@ export const INK = {
   gold: '#f5b91f',
   goldLight: '#ffe58a',
   goldDark: '#b3740a',
+  /** A medal's inks: medals are copper-nickel, and only what is lit is gold (medalLook.ts). */
+  silver: PLATE_SILVER.face,
+  silverLight: PLATE_SILVER.light,
+  silverDark: PLATE_SILVER.dark,
   magenta: '#d8246f',
   pink: '#f59ac0',
   purple: '#4c2ea3',
@@ -365,17 +370,17 @@ function medal(x: number, depth: number, up = false, sink = 0): Shape[] {
   // Its rim shows under its face: as much of it as the camera sees of a medal's thickness there.
   const rim = HEIGHT.medal * rise(spot);
   return [
-    { d: oval(spot.x, spot.y + sink + rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
-    { d: oval(spot.x, spot.y + sink, rx, ry), fill: INK.gold, line: 0.8, flat: true },
-    { d: oval(spot.x, spot.y + sink, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
+    { d: oval(spot.x, spot.y + sink + rim, rx, ry), fill: INK.silverDark, line: 0.8, flat: true },
+    { d: oval(spot.x, spot.y + sink, rx, ry), fill: INK.silver, line: 0.8, flat: true },
+    { d: oval(spot.x, spot.y + sink, rx * 0.62, ry * 0.62), fill: INK.silverLight, line: 0 },
   ];
 }
 const medals = (spots: readonly (readonly [number, number])[], up = false): Shape[] => spots.flatMap(([x, depth]) => medal(x, depth, up));
 
 /** A medal standing on its edge, as it goes in at a slot or rolls along a rail: `size` from its middle to its rim. */
 const coin = (cx: number, cy: number, size: number, lean = 0.42): Shape[] => [
-  { d: oval(cx, cy, size * lean, size), fill: INK.gold, line: 0.8, flat: true },
-  { d: oval(cx, cy, size * lean * 0.55, size * 0.62), fill: INK.goldLight, line: 0 },
+  { d: oval(cx, cy, size * lean, size), fill: INK.silver, line: 0.8, flat: true },
+  { d: oval(cx, cy, size * lean * 0.55, size * 0.62), fill: INK.silverLight, line: 0 },
 ];
 
 /** A cross in a disc: what is lost, or what ends a run. */
@@ -693,9 +698,9 @@ function dropping(mouth: Mouth, chucker: number): Shape[] {
     // Its rim shows under its face: a medal's thickness nearer the tongue, as the camera sees that there.
     const rim = xy(...onSlide(x, SLIDING_AT, SLIDING_CLEAR - MEDAL_THICKNESS))[1];
     return [
-      { d: oval(cx, rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
-      { d: oval(cx, cy, rx, ry), fill: INK.gold, line: 0.8, flat: true },
-      { d: oval(cx, cy, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
+      { d: oval(cx, rim, rx, ry), fill: INK.silverDark, line: 0.8, flat: true },
+      { d: oval(cx, cy, rx, ry), fill: INK.silver, line: 0.8, flat: true },
+      { d: oval(cx, cy, rx * 0.62, ry * 0.62), fill: INK.silverLight, line: 0 },
       // From its middle down the tongue, into the pocket.
       { d: arrow(cx, cy - ry * 0.35, mouth.x, mouth.y + mouth.tall * 0.32, 8), fill: INK.red },
     ];
@@ -709,8 +714,8 @@ function dropping(mouth: Mouth, chucker: number): Shape[] {
   const cy = mouth.y - ry * 0.6;
   const beside = mouth.x - rx - 17;
   return [
-    { d: oval(mouth.x, cy, rx, ry), fill: INK.gold, line: 0.8, flat: true },
-    { d: oval(mouth.x, cy, rx * 0.6, ry * 0.66), fill: INK.goldLight, line: 0 },
+    { d: oval(mouth.x, cy, rx, ry), fill: INK.silver, line: 0.8, flat: true },
+    { d: oval(mouth.x, cy, rx * 0.6, ry * 0.66), fill: INK.silverLight, line: 0 },
     { d: arrow(beside, cy - ry * 0.9, beside, mouth.y - 2, 10), fill: INK.red },
   ];
 }
@@ -929,8 +934,8 @@ const Jackpot = ({ rules, words }: ArtProps) => {
               // The front edge of the table, and the ball going over it.
               { d: 'M6 40L88 40L100 90L-6 90Z', fill: INK.cyan },
               { d: box(-6, 90, 106, 20), fill: INK.purpleDark },
-              { d: oval(22, 62, 13, 7.5), fill: INK.gold, line: 0.8 },
-              { d: oval(76, 56, 12, 7), fill: INK.gold, line: 0.8 },
+              { d: oval(22, 62, 13, 7.5), fill: INK.silver, line: 0.8 },
+              { d: oval(76, 56, 12, 7), fill: INK.silver, line: 0.8 },
               ...ball(48, 110, 19),
               { d: arrow(48, 44, 48, 86, 10), fill: INK.red },
               ...wheelShapes(rules, wheel.x, wheel.y, wheel.r),
@@ -997,7 +1002,7 @@ const Glyph = ({ name, view, fine = 34, shapes, children }: { name: string; view
 
 /** A stack of medals: a tower. */
 const stack = (cx: number, foot: number, count: number, rx: number): Shape[] =>
-  Array.from({ length: count }, (_unused, index) => ({ d: oval(cx, foot - index * rx * 0.36, rx, rx * 0.42), fill: index === count - 1 ? INK.goldLight : INK.gold, line: 0.8 }));
+  Array.from({ length: count }, (_unused, index) => ({ d: oval(cx, foot - index * rx * 0.36, rx, rx * 0.42), fill: index === count - 1 ? INK.silverLight : INK.silver, line: 0.8 }));
 
 const DIE_PIPS: readonly (readonly [number, number])[] = [
   [13, 13],
@@ -1041,8 +1046,8 @@ export const PathGlyph = ({ stage, rules, bowl = 0 }: { stage: 'ball' | 'roulett
         shapes={[
           { d: 'M8 8L52 8L58 30L2 30Z', fill: INK.cyan },
           { d: box(2, 30, 56, 8), fill: INK.purpleDark },
-          { d: oval(16, 19, 7, 4), fill: INK.gold, line: 0.8 },
-          { d: oval(44, 17, 6.5, 3.8), fill: INK.gold, line: 0.8 },
+          { d: oval(16, 19, 7, 4), fill: INK.silver, line: 0.8 },
+          { d: oval(44, 17, 6.5, 3.8), fill: INK.silver, line: 0.8 },
           ...ball(30, 42, 12),
           { d: arrow(30, 8, 30, 27, 6), fill: INK.red },
         ]}
@@ -1091,7 +1096,7 @@ const miniStart = (kind: MouthKind): Shape[] => [
             { d: box(x - 1.3, 15.2, 2.6, 5.6, 1.3), fill: INK.key, line: 0 },
           ],
   ),
-  kind === 'pockets' ? { d: oval(22, 10.4, 4.6, 3), fill: INK.gold, line: 0.8 } : kind === 'holes' ? { d: oval(22, 6, 5.5, 3.2), fill: INK.gold, line: 0.8 } : { d: oval(22, 8.5, 1.9, 5.8), fill: INK.gold, line: 0.8 },
+  kind === 'pockets' ? { d: oval(22, 10.4, 4.6, 3), fill: INK.silver, line: 0.8 } : kind === 'holes' ? { d: oval(22, 6, 5.5, 3.2), fill: INK.silver, line: 0.8 } : { d: oval(22, 8.5, 1.9, 5.8), fill: INK.silver, line: 0.8 },
   kind === 'pockets' ? { d: arrow(22, 9.6, 22, 19, 3.2), fill: INK.red } : kind === 'holes' ? { d: arrow(22, 8, 22, 16.5, 3.8), fill: INK.red } : { d: arrow(15.5, 3, 15.5, 13, 3.8), fill: INK.red },
 ];
 
@@ -1109,15 +1114,15 @@ const MINI: Record<Exclude<StepId, 'start'>, Shape[]> = {
     { d: 'M3 28L25 10', line: 2.6, ink: INK.lilac },
     { d: arrow(26.5, 5.5, 14, 5.5, 4), fill: INK.red },
     { d: arrow(29.5, 5.5, 42, 5.5, 4), fill: INK.red },
-    { d: oval(29, 21, 7, 4), fill: INK.goldDark, line: 0.8 },
-    { d: oval(29, 19.4, 7, 4), fill: INK.gold, line: 0.8 },
+    { d: oval(29, 21, 7, 4), fill: INK.silverDark, line: 0.8 },
+    { d: oval(29, 19.4, 7, 4), fill: INK.silver, line: 0.8 },
   ],
   push: [
     { d: 'M8 3L36 3L42 16L2 16Z', fill: INK.cyan },
     { d: box(2, 16, 40, 5), fill: INK.purpleDark },
-    { d: oval(15, 9, 5.5, 3), fill: INK.gold, line: 0.8 },
-    { d: oval(30, 10, 5.5, 3), fill: INK.gold, line: 0.8 },
-    { d: oval(22, 24, 6, 3.4), fill: INK.gold, line: 0.8 },
+    { d: oval(15, 9, 5.5, 3), fill: INK.silver, line: 0.8 },
+    { d: oval(30, 10, 5.5, 3), fill: INK.silver, line: 0.8 },
+    { d: oval(22, 24, 6, 3.4), fill: INK.silver, line: 0.8 },
     { d: arrow(8, 19, 8, 29, 4.4), fill: INK.green },
     { d: arrow(36, 19, 36, 29, 4.4), fill: INK.green },
   ],

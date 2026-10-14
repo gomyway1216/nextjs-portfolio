@@ -25,7 +25,7 @@ import {
   type TrayAir,
   type TrayNews,
 } from '@/components/game/MedalPusher/panel';
-import { FACES } from '@/components/game/MedalPusher/render';
+import { FACES, MEDAL_PAINT } from '@/components/game/MedalPusher/medalLook';
 import { START_CREDITS } from '@/components/game/MedalPusher/session';
 
 describe('seven-segment digits', () => {
@@ -418,13 +418,14 @@ describe("the tray's medals", () => {
     expect(washed('#ffffff', [])).toBe('#ffffff');
     expect(washed('#000000', ['rgba(255, 255, 255, 0.5)'])).toBe('#808080');
     expect(washed('#ff0000', ['rgba(0, 0, 255, 0.25)', 'rgba(0, 0, 0, 0.5)'])).toBe('#600020');
-    // Brass over gilt is less yellow and no brighter.
-    const [red, green, blue] = [1, 3, 5].map((at) => parseInt(washed('#fbd55a', [FACES[0]]).slice(at, at + 2), 16));
-    expect(red).toBeLessThan(0xfb);
-    expect(green).toBeLessThan(0xd5);
-    expect(red - blue).toBeLessThan(0xfb - 0x5a);
+    // Nickel under the lamps over the struck face is no brighter, and still a grey: no part of it far from another.
+    const [red, green, blue] = [1, 3, 5].map((at) => parseInt(washed(MEDAL_PAINT.face, [FACES[0]]).slice(at, at + 2), 16));
+    const struck = [1, 3, 5].map((at) => parseInt(MEDAL_PAINT.face.slice(at, at + 2), 16));
+    expect(red).toBeLessThanOrEqual(struck[0]);
+    expect(green).toBeLessThanOrEqual(struck[1]);
+    expect(Math.max(red, green, blue) - Math.min(red, green, blue)).toBeLessThan(24);
     expect(() => washed('gold', [])).toThrow();
     expect(() => washed('#ffffff', ['brown'])).toThrow();
-    for (const wash of FACES) expect(() => washed('#dba21f', [wash])).not.toThrow();
+    for (const wash of FACES) expect(() => washed(MEDAL_PAINT.face, [wash])).not.toThrow();
   });
 });

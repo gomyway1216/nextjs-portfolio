@@ -883,8 +883,10 @@ describe('the medals on the plate', () => {
     for (const step of ['push', 'start']) {
       // Every oval of the drawing that is filled with one of the medal's inks, in the order it is drawn: where its left end is, how high, and how big.
       const ovals = [...artOf(plate('en'), step).split('data-plate-drop=')[0].matchAll(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) [^"]*" fill="(#[0-9a-f]+)"/g)].map(([, left, y, rx, ry, fill]) => ({ left: Number(left), y: Number(y), rx: Number(rx), ry: Number(ry), fill }));
-      const rims = ovals.flatMap((oval, index) => (oval.fill === INK.goldDark && ovals[index + 1]?.fill === INK.gold ? [{ rim: oval, face: ovals[index + 1] }] : []));
+      const rims = ovals.flatMap((oval, index) => (oval.fill === INK.silverDark && ovals[index + 1]?.fill === INK.silver ? [{ rim: oval, face: ovals[index + 1] }] : []));
       expect(rims.length).toBeGreaterThan(4);
+      // A medal is copper-nickel on the plate as in the machine: none of them is printed in gold.
+      expect(ovals.some((oval, index) => oval.fill === INK.goldDark && ovals[index + 1]?.fill === INK.gold)).toBe(false);
       for (const { rim, face } of rims) {
         // The same oval, lower by the rim: each is written to a tenth of a pixel.
         expect([rim.left, rim.rx, rim.ry]).toEqual([face.left, face.rx, face.ry]);

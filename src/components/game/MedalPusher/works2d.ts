@@ -13,6 +13,7 @@
 
 import { MEDAL_RADIUS, MEDAL_THICKNESS, type Machine, type Medal } from './engine';
 import { DOORS, POUR } from './hopper';
+import { TOWER_PAINT, towerShade } from './medalLook';
 import { DECK, DOOR, GUARD, DECK_HATCH, chuteShows, doorLampLit, doorSwing, hatchViews, lampGlow, liftViews, onFlap, onLift, pourPose, type HatchView, type LiftView } from './works';
 import { project, rise, type Projected } from './view';
 
@@ -343,13 +344,7 @@ function drawRising(g: CanvasRenderingContext2D, view: LiftView, face: (point: P
   g.beginPath();
   g.ellipse(foot.x + rx0 * 0.9, foot.y + ry0 * 0.35, rx0 * 1.5, ry0 * 0.9, 0, 0, TAU);
   g.fill();
-  const shade = g.createLinearGradient(foot.x - rx0, 0, foot.x + rx0, 0);
-  shade.addColorStop(0, '#7a4f06');
-  shade.addColorStop(0.28, '#ffe07a');
-  shade.addColorStop(0.42, '#f6cb55');
-  shade.addColorStop(0.7, '#c98c14');
-  shade.addColorStop(1, '#6b4304');
-  g.fillStyle = shade;
+  g.fillStyle = towerShade(g, foot.x - rx0, foot.x + rx0);
   g.beginPath();
   g.moveTo(head.x - rx1, head.y);
   g.lineTo(foot.x - rx0, foot.y);
@@ -358,7 +353,7 @@ function drawRising(g: CanvasRenderingContext2D, view: LiftView, face: (point: P
   g.closePath();
   g.fill();
   // The line under each medal, counted down from the top: they come up out of the deck with the tower.
-  g.strokeStyle = 'rgba(88, 54, 0, 0.6)';
+  g.strokeStyle = TOWER_PAINT.seam;
   g.lineWidth = Math.min(1, T * rise(foot) * 0.3);
   g.beginPath();
   for (let down = T; down < view.top - 0.02; down += T) {

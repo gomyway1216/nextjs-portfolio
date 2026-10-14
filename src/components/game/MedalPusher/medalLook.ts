@@ -82,16 +82,21 @@ export const MEDAL_PAINT = {
   edge: '#40444b',
 } as const;
 
-/** What a tower's column is shaded with across it, left to right, and the line between one medal and the next. */
+/**
+ * What a tower's column is shaded with across it, left to right, and the line
+ * between one medal and the next. The side of a stack is the milled edges of
+ * worn medals: darker than their faces, with a bright stripe where the lamps
+ * catch it, and a dark line between every two.
+ */
 export const TOWER_PAINT = {
   stops: [
-    [0, '#33363c'],
-    [0.28, '#eceff3'],
-    [0.42, '#c3c8cf'],
-    [0.7, '#858b94'],
-    [1, '#2f3237'],
+    [0, '#2b2d31'],
+    [0.28, '#d3d6da'],
+    [0.42, '#a4a8ae'],
+    [0.7, '#6c7077'],
+    [1, '#26282c'],
   ],
-  seam: 'rgba(22, 24, 30, 0.55)',
+  seam: 'rgba(16, 17, 20, 0.62)',
 } as const satisfies { stops: readonly (readonly [number, string])[]; seam: string };
 
 /** The shading across a tower's column, from its left edge to its right. */

@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from 'react';
 import type { PusherStrings } from './i18n';
 import { BOWLS, CHANCE, FEVER_SQUARE, ROULETTE, TIER_BONUS, type BowlHole } from './lottery';
+import { SCREEN_STACK } from './medalLook';
 import { ReelSymbol, tierOfDigit } from './ReelSymbols';
 import { GOLD_FLASH } from './render';
 import {
@@ -71,19 +72,19 @@ const Heap = ({ coins }: { coins: number }) => {
     cy: (height - MEDAL.flat - 0.5 - under * MEDAL.thick).toFixed(1),
     rx: MEDAL.across / 2,
     ry: MEDAL.flat,
-    stroke: '#6b4300',
+    stroke: SCREEN_STACK.line,
     strokeWidth: 0.9,
   });
   return (
     <svg className={styles.heap} viewBox={`0 0 ${MEDAL.across + 2} ${height.toFixed(1)}`} data-coins={coins}>
       {Array.from({ length: coins }, (_, coin) => (
-        <ellipse key={coin} {...medal(coin)} fill="#c9900a" />
+        <ellipse key={coin} {...medal(coin)} fill={SCREEN_STACK.edge} />
       ))}
       {coins > 0 && (
         <>
           {/* The face of the top one. */}
-          <ellipse {...medal(coins)} fill="#ffd65c" />
-          <ellipse {...medal(coins)} rx={MEDAL.across / 2 - 3.5} ry={MEDAL.flat - 1.5} fill="#fff3b0" stroke="none" />
+          <ellipse {...medal(coins)} fill={SCREEN_STACK.face} />
+          <ellipse {...medal(coins)} rx={MEDAL.across / 2 - 3.5} ry={MEDAL.flat - 1.5} fill={SCREEN_STACK.shine} stroke="none" />
         </>
       )}
     </svg>

@@ -105,6 +105,8 @@ const PANEL = 'var(--mp-d-panel)';
 const LINE = 'var(--mp-d-line)';
 const LOST = 'var(--mp-d-lost)';
 const WON = 'var(--mp-d-won)';
+/** A medal: grey, as the medals are. The amber of WON is for where medals are paid. */
+const MEDAL = 'var(--mp-d-medal)';
 const GATE = 'var(--mp-d-gate)';
 
 /** Where each numbered badge of the diagram sits, in field units (depth may be negative: on the back panel). */
@@ -167,7 +169,7 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
         strokeWidth={1.6}
       />
       {SAMPLE_MEDALS.map((medal, index) => (
-        <circle key={index} cx={X(medal.x)} cy={Y(medal.depth)} r={MEDAL_RADIUS * scale} fill={WON} fillOpacity={0.35} stroke={WON} strokeWidth={1.2} />
+        <circle key={index} cx={X(medal.x)} cy={Y(medal.depth)} r={MEDAL_RADIUS * scale} fill={MEDAL} fillOpacity={0.35} stroke={MEDAL} strokeWidth={1.2} />
       ))}
       {/* Side walls, and the stretch near the front where there are none */}
       {[0, right].map((x) => (
@@ -198,7 +200,7 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
           </g>
         );
       })}
-      <circle cx={X(19)} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.55} stroke={WON} strokeWidth={1.2} />
+      <circle cx={X(19)} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={MEDAL} fillOpacity={0.55} stroke={MEDAL} strokeWidth={1.2} />
       {/* The front edge: its middle is over the tray, and its two ends are over the side holes, which turn the corners */}
       <line data-front="pays" x1={X(FIELD.sideReach)} x2={X(right - FIELD.sideReach)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={WON} strokeWidth={3.5} />
       {[0, right - FIELD.sideReach].map((x) => (

@@ -10,6 +10,7 @@
 import { APRON, CATCHER } from './catcher';
 import { FIELD, PUSHER } from './engine';
 import { JEWEL_LAMPS, JEWEL_PLATE, LAMP_OUTLINE, jewelLampX } from './jewel';
+import { FACE_STAR } from './medalLook';
 import { TABLE_WORDS, TRAY, paintApron, starPath } from './render';
 import { SIDE_HOLE, acrossAt } from './sidehole';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
@@ -417,12 +418,8 @@ export function paintPlain(): HTMLCanvasElement {
 
 // ── The face of a medal ─────────────────────────────────────────────────────
 
-/** The corners of the star on a medal's face, as shares of the medal's radius. */
-const STAR = Array.from({ length: 10 }, (_, i) => {
-  const radius = i % 2 === 0 ? 0.46 : 0.19;
-  const angle = -Math.PI / 2 + (i * Math.PI) / 5;
-  return [Math.cos(angle) * radius, Math.sin(angle) * radius] as const;
-});
+/** The corners of the star on a medal's face, as shares of the medal's radius: the one every renderer strikes (medalLook.ts). */
+const STAR = FACE_STAR;
 
 /** How far inside the star a point is; negative outside it. */
 function insideStar(x: number, y: number): number {
@@ -449,7 +446,8 @@ const ease = (from: number, to: number, value: number): number => {
 /**
  * How high the face of a medal stands at a point, from 0 (the field) to 1.
  * `x` and `y` are shares of the medal's radius from its middle. A raised
- * border, a ring of beads inside it, a fine ring, and a star cut in facets.
+ * border, a ring of beads inside it, a fine ring, and a star of four long
+ * points and four short ones, which reads as a cross from a step away.
  */
 export function reliefHeight(x: number, y: number): number {
   const r = Math.hypot(x, y);

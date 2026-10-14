@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BRUSH_STROKES, paintTable, paintWall } from '@/components/game/MedalPusher/art3d';
 import { FLAT_STRIDE, Flat, MATERIAL, SHAPE, SOLID_STRIDE, Solid, buildCabinet, buildTouches } from '@/components/game/MedalPusher/cabinet3d';
 import { FIELD, createMachine, pusherFront } from '@/components/game/MedalPusher/engine';
+import { HEAP_SEEN, NICKEL, WEAR, glsl } from '@/components/game/MedalPusher/medalLook';
 import { FACES, GLASS, POOL, SCREEN_GLOW, createStage, drawOverlay, faceOf, glassShift, paintStage, trackMedals } from '@/components/game/MedalPusher/render';
 import { SLOW, createScene3d } from '@/components/game/MedalPusher/render3d';
 import * as shaders from '@/components/game/MedalPusher/shaders3d';
@@ -94,21 +95,39 @@ const lastOf = (sent: { name: string; values: number[] }[], name: string): numbe
 describe('the medals’ metal', () => {
   const medal = shaders.MEDAL_FRAGMENT;
 
-  it('is brass, far less yellow than the gilt it was, and no two medals the same', () => {
-    const [, r, g, b] = /const vec3 BRASS = vec3\(([\d.]+), ([\d.]+), ([\d.]+)\);/.exec(medal)?.map(Number) ?? [];
-    expect(r).toBeGreaterThanOrEqual(g);
-    expect(g).toBeGreaterThan(b);
-    // The gilt had hardly any blue in it at all (0.06): that is what made it the yellow of a sweet wrapper.
-    expect(b).toBeGreaterThan(0.2);
-    expect((r - b) / r).toBeLessThan(0.8);
+  it('is copper-nickel: a grey, a hair cool, that mirrors about half the light, and no two medals the same', () => {
+    const [, r, g, b] = /const vec3 NICKEL = vec3\(([\d.]+), ([\d.]+), ([\d.]+)\);/.exec(medal)?.map(Number) ?? [];
+    expect([r, g, b]).toEqual(NICKEL.map((part) => Number(part.toFixed(3))));
+    // Grey: no part of it a tenth over another, and blue the most of the three, which the warm lamps make neutral.
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(0.1);
+    expect(b).toBeGreaterThanOrEqual(r);
+    // It is not the near-white of chrome or silver, and not dark either.
+    expect(g).toBeGreaterThan(0.35);
+    expect(g).toBeLessThan(0.7);
+    // The brass and the gilt before it are gone.
+    expect(medal).not.toContain('BRASS');
+    expect(medal).not.toContain('vec3(1.0, 0.74, 0.27)');
     expect(medal).not.toContain('vec3(1.0, 0.64, 0.06)');
     // Each medal has its own wear and its own kind, worked out from the one number that is its own.
     expect(medal).toContain('float wear = own(1.0);');
     expect(medal).toContain('float kind = own(2.0);');
-    expect(medal).toMatch(/float polish = kind > 0\.\d+ && kind < 0\.\d+ \? 0\.95 : mix\(0\.8, 0\.22, wear\);/);
-    // Tarnished ones and redder ones are the few, at either end.
-    expect(medal).toMatch(/if \(kind < 0\.125\) metal \*= vec3\(/);
-    expect(medal).toMatch(/else if \(kind > 0\.9\d*\) metal \*= vec3\(/);
+    // A few are bright, some dark, a few faintly warm, and most only dulled, by their kind.
+    expect(medal).toContain(`float polish = kind > ${(1 - WEAR.bright).toFixed(3)} ? ${WEAR.polish.bright.toFixed(2)} : mix(${WEAR.polish.worn.toFixed(2)}, ${WEAR.polish.dull.toFixed(2)}, wear);`);
+    expect(medal).toContain(`if (kind < ${WEAR.dark.toFixed(3)}) {\n    metal *= ${glsl(WEAR.darkTint)};`);
+    expect(medal).toContain(`} else if (kind < ${(WEAR.dark + WEAR.warm).toFixed(3)}) metal *= ${glsl(WEAR.warmTint)};`);
+    expect(WEAR.bright + WEAR.dark + WEAR.warm).toBeLessThan(0.4);
+    // Faintly warm: more red than blue, by less than a fifth. Dark: dark grey, not brown.
+    expect(WEAR.warmTint[0] / WEAR.warmTint[2]).toBeGreaterThan(1);
+    expect(WEAR.warmTint[0] / WEAR.warmTint[2]).toBeLessThan(1.2);
+    expect(Math.max(...WEAR.darkTint) - Math.min(...WEAR.darkTint)).toBeLessThan(0.03);
+    expect(Math.max(...WEAR.darkTint)).toBeLessThan(0.7);
+    // The heap a mirror sees is grey too, lit and in its gaps: no medal or trim reflects a heap of gold.
+    for (const seen of [HEAP_SEEN.lit, HEAP_SEEN.gaps]) {
+      expect(medal).toContain(glsl(seen));
+      expect(Math.max(...seen) - Math.min(...seen)).toBeLessThan(0.06);
+    }
+    expect(medal).not.toContain('vec3(1.0, 0.84, 0.55)');
+    expect(medal).not.toContain('vec3(0.15, 0.105, 0.06)');
   });
 
   it('takes the light from near by as well as the roof’s, and less of the roof’s away from the middle of the field', () => {
@@ -373,14 +392,24 @@ describe('what is printed and worn on the cabinet', () => {
 });
 
 describe('the canvas renderer’s medals', () => {
-  it('have one of four tones each, fixed by the medal, most of them as struck', () => {
-    expect(FACES).toHaveLength(4);
-    const share = [0, 0, 0, 0];
+  it('have one of five tones each, fixed by the medal: most of them as they are or dulled, a few bright, dark or warm', () => {
+    expect(FACES).toHaveLength(5);
+    const share = [0, 0, 0, 0, 0];
     for (let id = 1; id <= 1600; id++) share[faceOf(id)] += 1 / 1600;
-    expect(share[0]).toBeCloseTo(7 / 16, 1);
+    expect(share[0]).toBeCloseTo(6 / 16, 1);
     expect(share[1]).toBeCloseTo(3 / 16, 1);
     expect(share[2]).toBeCloseTo(4 / 16, 1);
     expect(share[3]).toBeCloseTo(2 / 16, 1);
+    expect(share[4]).toBeCloseTo(1 / 16, 1);
+    // Every wash is a grey but the warm one, whose red is over its blue; and none of them is the brass or brown they were.
+    const parts = (wash: string) => (/^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(wash) ?? []).slice(1).map(Number);
+    for (const wash of FACES.slice(0, 4)) {
+      const [r, g, b] = parts(wash);
+      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(20);
+    }
+    const [warmRed, , warmBlue, warmAlpha] = parts(FACES[4]);
+    expect(warmRed).toBeGreaterThan(warmBlue);
+    expect(warmAlpha).toBeLessThanOrEqual(0.25);
     for (const id of [1, 2, 3, 77, 4096, 123456]) expect(faceOf(id)).toBe(faceOf(id));
     // Neighbours in the order they were made are not all alike.
     expect(new Set(Array.from({ length: 12 }, (_, index) => faceOf(100 + index))).size).toBeGreaterThanOrEqual(3);
@@ -396,10 +425,10 @@ describe('the canvas renderer’s medals', () => {
     expect(bare.faces).toHaveLength(FACES.length);
     expect(bare.faces[0]).toBe(bare.medal);
     expect(new Set(bare.faces).size).toBe(FACES.length);
-    // Each is the struck medal with a wash laid on only where the medal is: brass over all of them, and its own tone over that.
+    // Each is the struck medal with a wash laid on only where the medal is: nickel under the lamps over all of them, and its own tone over that.
     const washes = made.filter((drawn) => drawn.calls.some((call) => call.name === 'drawImage') && drawn.fills.includes(FACES[0]));
     expect(washes).toHaveLength(FACES.length);
-    expect(washes.map((drawn) => drawn.fills.length)).toEqual([1, 2, 2, 2]);
+    expect(washes.map((drawn) => drawn.fills.length)).toEqual(FACES.map((_, tone) => (tone === 0 ? 1 : 2)));
     FACES.slice(1).forEach((wash, index) => expect(washes[index + 1].fills[1]).toBe(wash));
   });
 });

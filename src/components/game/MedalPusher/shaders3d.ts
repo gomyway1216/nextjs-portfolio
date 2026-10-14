@@ -12,6 +12,7 @@
  */
 
 import { FIELD, MEDAL_RADIUS } from './engine';
+import { HEAP_SEEN, NICKEL, WEAR, glsl } from './medalLook';
 import { HEIGHT, SCREEN } from './view';
 
 /**
@@ -86,11 +87,11 @@ float sunlit(vec3 world, vec3 normal) {
  * What a mirror in the cabinet shows when it looks along a direction, the
  * lamps apart: a dim roof, purple walls with a pink light to the left and a
  * cyan one to the right, and below, the dark between the medals. It is dim
- * on purpose: gold is only as bright as what it mirrors, and it glitters
+ * on purpose: metal is only as bright as what it mirrors, and it glitters
  * when most of that is dark and a little of it is very bright.
  */
 vec3 surroundings(vec3 r) {
-  vec3 below = vec3(0.15, 0.105, 0.06);
+  vec3 below = ${glsl(HEAP_SEEN.gaps)};
   vec3 walls = vec3(0.27, 0.23, 0.33);
   vec3 roof = vec3(1.0, 0.95, 0.88) * mix(0.48, 0.74, smoothstep(0.25, 0.95, r.y));
   vec3 c = mix(below, walls, smoothstep(-0.45, 0.05, r.y));
@@ -125,7 +126,7 @@ float lamps(vec3 r) {
  * tower, even on the side the key lamp does not reach.
  */
 vec3 pile(vec3 r) {
-  return vec3(1.0, 0.84, 0.55) * pow(max(dot(r, vec3(-0.64, -0.68, 0.37)), 0.0), 4.0);
+  return ${glsl(HEAP_SEEN.lit)} * pow(max(dot(r, vec3(-0.64, -0.68, 0.37)), 0.0), 4.0);
 }
 
 /** The light of the roof as a mirror shows it: the glow of the whole lit roof, widest toward the key lamp, and the lamps themselves, far brighter. */
@@ -248,8 +249,8 @@ uniform sampler2D uRelief;
 out vec4 colour;
 ${WORLD}
 ${TURN}
-// Brass as a medal is struck from it: a pale gold, far less yellow than paint. What it has turned to in the machine is worked out for each medal below.
-const vec3 BRASS = vec3(1.0, 0.74, 0.27);
+// Copper-nickel, as a medal is struck from it and dulled in the machine: a grey that mirrors a little under half of what it sees (medalLook.ts). What it has turned to in the machine is worked out for each medal below.
+const vec3 NICKEL = ${glsl(NICKEL)};
 
 /** A number from 0 to 1 that is one medal's own: a different one for each number asked with. */
 float own(float which) {
@@ -274,14 +275,17 @@ void main() {
   float face = smoothstep(0.9, 0.99, abs(n.y));
   float hollow = 1.0;
   float steep = 0.0;
-  // What this medal has been through. Most have been round the machine for years and are dulled; one in
-  // four is still bright from the hopper; one in eight has gone brown; a few were struck from a redder batch.
+  // What this medal has been through. Most have been round the machine for years and are dulled, some a little and
+  // some a good deal; a few are still bright from the hopper; some have gone dark with hands and the machine's dirt;
+  // and a few are faintly warm. No two are quite as bright as each other.
   float wear = own(1.0);
   float kind = own(2.0);
-  float polish = kind > 0.65 && kind < 0.9 ? 0.95 : mix(0.8, 0.22, wear);
-  vec3 metal = BRASS * mix(vec3(0.74, 0.7, 0.6), vec3(1.04, 1.03, 1.0), vOwn.x);
-  if (kind < 0.125) metal *= vec3(0.7, 0.6, 0.5);
-  else if (kind > 0.93) metal *= vec3(1.04, 0.88, 0.76);
+  float polish = kind > ${(1 - WEAR.bright).toFixed(3)} ? ${WEAR.polish.bright.toFixed(2)} : mix(${WEAR.polish.worn.toFixed(2)}, ${WEAR.polish.dull.toFixed(2)}, wear);
+  vec3 metal = NICKEL * mix(0.6, 1.08, vOwn.x);
+  if (kind < ${WEAR.dark.toFixed(3)}) {
+    metal *= ${glsl(WEAR.darkTint)};
+    polish = ${WEAR.polish.dark.toFixed(2)};
+  } else if (kind < ${(WEAR.dark + WEAR.warm).toFixed(3)}) metal *= ${glsl(WEAR.warmTint)};
   if (face > 0.0) {
     // The relief struck into the face: it bends the light, what stands up is a little brighter, and
     // the foot of every edge is dark with wear, which is what draws the star and the ring from far off.
@@ -319,9 +323,9 @@ void main() {
   // the cabinet is that way and little of its colours, which is most of why a worn medal looks grey beside a new one.
   vec3 seen = surroundings(mirrored) * mix(0.5, 1.0, lit) * hollow;
   float bright = dot(seen, vec3(0.3, 0.5, 0.2));
-  seen = mix(vec3(bright) * vec3(1.0, 0.95, 0.88), seen, 0.3 + 0.7 * polish) * (0.7 + 0.3 * polish);
-  // Brass seen in brass is deeper brass: the darker what a medal mirrors, the warmer it turns.
-  seen *= mix(vec3(1.0, 0.86, 0.66), vec3(1.0), smoothstep(0.1, 0.6, bright));
+  seen = mix(vec3(bright) * vec3(1.0, 0.985, 0.96), seen, 0.45 + 0.55 * polish) * (0.45 + 0.55 * polish);
+  // What a medal mirrors of the dark is greyed a little by the film of dirt on it.
+  seen *= mix(vec3(0.95, 0.94, 0.92), vec3(1.0), smoothstep(0.1, 0.6, bright));
   // The roof's lamps: tube by tube in a polished face, and spread into one soft sheen in a dulled one. Either
   // way they show on the smooth of the face and on the rounded edge, not in every nick of the relief.
   float toward = max(dot(mirrored, uKey), 0.0);

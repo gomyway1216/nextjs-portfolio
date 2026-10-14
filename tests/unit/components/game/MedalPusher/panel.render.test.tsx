@@ -12,7 +12,7 @@ import { SegmentDisplay, SegmentMirror } from '@/components/game/MedalPusher/Seg
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import { JACKPOT_START } from '@/components/game/MedalPusher/lottery';
 import { HEAP_CAP, SEGMENTS, segmentsFor, washed } from '@/components/game/MedalPusher/panel';
-import { FACES, faceOf } from '@/components/game/MedalPusher/render';
+import { FACES, MEDAL_PAINT, faceOf } from '@/components/game/MedalPusher/medalLook';
 import { START_CREDITS } from '@/components/game/MedalPusher/session';
 import { createI18nInstance } from '@/lib/i18n';
 
@@ -105,31 +105,42 @@ describe('the tray', () => {
     expect(rulesFor(sheet, '.tray::after')).toContain('clip-path: polygon(');
   });
 
-  it("holds the field's medals: worn brass in the field's own tones, not new gilt", () => {
-    // Every tone a medal on the table can have gone to, struck in the colours the field's renderer strikes it in and
-    // washed as it washes them: brass first, and then the tone's own wash.
+  it("holds the field's medals: worn nickel in the field's own tones, and no gold", () => {
+    // Every tone a medal on the table can have gone to, struck in the paints the field's renderer strikes it in and
+    // washed as it washes them: nickel under the lamps first, and then the tone's own wash.
     expect(TRAY_TONES).toHaveLength(FACES.length);
-    expect(TRAY_TONES[0].face).toBe(washed('#dba21f', [FACES[0]]));
+    expect(TRAY_TONES[0].face).toBe(washed(MEDAL_PAINT.face, [FACES[0]]));
     FACES.forEach((wash, tone) => {
       const washes = tone === 0 ? [FACES[0]] : [FACES[0], wash];
       expect(TRAY_TONES[tone]).toEqual({
-        light: washed('#fbd55a', washes),
-        face: washed('#dba21f', washes),
-        dark: washed('#b97c0c', washes),
-        rim: washed('#a56a06', washes),
-        edge: washed('#6a4204', washes),
-        glint: washed('#fffbe0', washes),
+        light: washed(MEDAL_PAINT.light, washes),
+        face: washed(MEDAL_PAINT.face, washes),
+        dark: washed(MEDAL_PAINT.dark, washes),
+        rim: washed(MEDAL_PAINT.rim, washes),
+        edge: washed(MEDAL_PAINT.edge, washes),
+        glint: washed(MEDAL_PAINT.glint, washes),
       });
     });
     const html = render(<MedalTray credits={HEAP_CAP} />);
-    // The bright gilt the tray's medals were first painted in is gone from it.
-    for (const gilt of ['#fff1a8', '#f6c544', '#fff7c8']) expect(html).not.toContain(gilt);
+    // The gilt the tray's medals were first painted in is gone from it, and so is the brass after it.
+    for (const gilt of ['#fff1a8', '#f6c544', '#fff7c8', '#fbd55a', '#dba21f', '#b97c0c', '#a56a06']) expect(html).not.toContain(gilt);
+    // Every paint of a medal in the tray is a grey, but the faintly warm tone's, whose red is over its blue by a little.
+    const greyness = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+      return { spread: Math.max(r, g, b) - Math.min(r, g, b), warm: r - b };
+    };
+    TRAY_TONES.forEach((tone, index) => {
+      for (const paint of Object.values(tone)) {
+        if (index === FACES.length - 1) expect(greyness(paint).warm).toBeLessThan(40);
+        else expect(greyness(paint).spread).toBeLessThan(24);
+      }
+    });
     // A paint for each tone, and each medal of the heap in the tone the field gives a medal of its number.
     const paints = [...html.matchAll(/<radialGradient id="([^"]+)-(\d)"/g)].map(([, , tone]) => Number(tone));
     expect(paints).toEqual(FACES.map((_, tone) => tone));
     const tones = [...html.matchAll(/fill="url\(#[^)]*-(\d)\)"/g)].map(([, tone]) => Number(tone));
     expect(tones).toEqual(Array.from({ length: HEAP_CAP }, (_, place) => faceOf(place)));
-    // All four are in a full heap, and most of it is as it was struck or only dulled: a heap of brass, not of brown.
+    // All five are in a full heap, and most of it is as it is or only dulled: a heap of grey, not of dark or warm medals.
     const share = FACES.map((_, tone) => tones.filter((one) => one === tone).length);
     for (const medals of share) expect(medals).toBeGreaterThan(0);
     expect(share[0]).toBe(Math.max(...share));

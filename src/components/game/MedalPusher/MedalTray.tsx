@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useId, useImperativeHandle, useState, useSyncExternalStore, type CSSProperties, type Ref } from 'react';
 import { HEAP_SPOTS, STILL_TRAY, TRAY, heapCount, trayDue, trayHappen, trayHidden, trayLand, trayLanding, trayStill, washed, type TrayAir, type TrayNews } from './panel';
-import { FACES, faceOf } from './render';
+import { FACES, MEDAL_PAINT, faceOf } from './medalLook';
 import look from './ControlPanel.module.css';
 
 /** Whether the device asks for less motion. On the server, and in the render that takes over from it, the answer is no. */
@@ -17,20 +17,20 @@ const onServer = () => false;
 
 /**
  * A medal as it is drawn in the tray, in each of the tones a medal on the
- * field can have gone to (see `FACES` in render.ts): the colours the field's
- * renderer strikes a medal in, with the same washes laid over them. The
- * medals in the tray are the ones that were on the table, worn brass and not
- * new gilt, and a few of them paler, duller or browner than the rest.
+ * field can have gone to (see `FACES` in medalLook.ts): the paints the
+ * field's renderer strikes a medal in, with the same washes laid over them.
+ * The medals in the tray are the ones that were on the table, worn nickel,
+ * and a few of them brighter, duller, darker or warmer than the rest.
  */
 export const TRAY_TONES = FACES.map((wash, tone) => {
   const washes = tone === 0 ? [FACES[0]] : [FACES[0], wash];
   return {
-    light: washed('#fbd55a', washes),
-    face: washed('#dba21f', washes),
-    dark: washed('#b97c0c', washes),
-    rim: washed('#a56a06', washes),
-    edge: washed('#6a4204', washes),
-    glint: washed('#fffbe0', washes),
+    light: washed(MEDAL_PAINT.light, washes),
+    face: washed(MEDAL_PAINT.face, washes),
+    dark: washed(MEDAL_PAINT.dark, washes),
+    rim: washed(MEDAL_PAINT.rim, washes),
+    edge: washed(MEDAL_PAINT.edge, washes),
+    glint: washed(MEDAL_PAINT.glint, washes),
   };
 });
 

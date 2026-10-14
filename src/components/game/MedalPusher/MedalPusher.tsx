@@ -5,6 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import type { AccountStore } from './account';
 import { BonusDot } from './DailyBonus';
 import { POUR } from './hopper';
+import { FACE_STAR, MEDAL_PAINT } from './medalLook';
 import { getStrings } from './i18n';
 import { InstructionPlateDialog, PlateSwitch } from './InstructionPlate';
 import { OddsTab } from './OddsTab';
@@ -17,6 +18,19 @@ import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
 
 type Tab = 'machine' | 'odds' | 'sim' | 'records';
+
+/** The star on the title's medal, in its view box: the one struck on every medal (medalLook.ts). */
+const TITLE_STAR = FACE_STAR.map(([x, y]) => `${(16 + x * 15).toFixed(2)},${(16 + y * 15).toFixed(2)}`).join(' ');
+
+/** The title's medal: one of the machine's own, copper-nickel with a raised rim and its star, where a coin emoji would be gold. */
+const TitleMedal = () => (
+  <svg className={styles.titleMedal} viewBox="0 0 32 32" aria-hidden focusable="false">
+    <circle cx="16" cy="16" r="15" fill={MEDAL_PAINT.face} stroke={MEDAL_PAINT.edge} strokeWidth="1.4" />
+    <circle cx="16" cy="16" r="12.2" fill="none" stroke={MEDAL_PAINT.light} strokeWidth="1.6" />
+    <circle cx="16.4" cy="16.5" r="12.2" fill="none" stroke={MEDAL_PAINT.rim} strokeWidth="0.8" opacity="0.7" />
+    <polygon points={TITLE_STAR} fill={MEDAL_PAINT.dark} />
+  </svg>
+);
 
 export interface MedalPusherProps extends Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> {
   /** The account's store for the record book, which is a document of its own beside the machine. Without one the book is this device's alone. */
@@ -69,7 +83,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
             <h1 className={styles.title}>
-              <span aria-hidden>🪙</span> {t.title}
+              <TitleMedal /> {t.title}
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>

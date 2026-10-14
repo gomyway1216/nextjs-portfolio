@@ -54,7 +54,7 @@ export const LIMITS = {
   medals: 1_000_000_000_000,
   /** Rows a ledger keeps: one for every browser that has played it. A copy with more is not a ledger. */
   devices: 256,
-  /** Purses moved in, and games whose machines are kept track of. */
+  /** Purses moved in, and sources looked at. */
   names: 64,
   /** Times the bank can be reset. */
   eras: 1_000_000,
@@ -82,11 +82,22 @@ export interface Ledger {
    * member's medals (`welcomeOf`). In this era.
    */
   imports: Readonly<Record<string, number>>;
-  /** What has been moved in and is worth nothing now: everything of an era before this one, and a new member's medals given to a player who was not one. Never moved in again. */
+  /**
+   * What has been moved in and is worth nothing now (every purse of an era
+   * before this one, and a new member's medals given to a player who was not
+   * one), and what has been looked for and need not be looked for again
+   * (`markChecked`). Never moved in again. A new member's medals of an era
+   * before this one are not kept here: nothing of that era can come back.
+   */
   voided: readonly string[];
   /** The days the daily bonus was taken. No reset forgets them. */
   claimed: DaySet;
-  /** The era each game's machines were last started over in: a machine played in an era before the bank's is started again. */
+  /**
+   * For each game and each device, the era that device last started its
+   * copy of the game's machine over in (`game@device`). A machine is a copy
+   * on every device that has played it, and each copy kept from before a
+   * reset has to start over on its own device. Only this era's are kept.
+   */
   restarted: Readonly<Record<string, number>>;
 }
 
@@ -96,6 +107,22 @@ const NAME_SHAPE = /^[a-z0-9@:-]{1,64}$/;
 export const isDevice = (value: unknown): value is string => typeof value === 'string' && DEVICE_SHAPE.test(value);
 /** Whether a text will do as the name of a purse's source or of a game. */
 export const isName = (value: unknown): value is string => typeof value === 'string' && NAME_SHAPE.test(value);
+
+/** The names voided, once each and in order, without a new member's medals of an era other than `era`: they can never be in the bank again. */
+function tidyVoided(voided: Iterable<string>, era: number): string[] {
+  const current = welcomeOf(era);
+  return [...new Set(voided)].filter((name) => !name.startsWith('welcome:') || name === current).sort();
+}
+
+/** The restarts of `era` alone: one from an era before it says nothing now. */
+function tidyRestarted(restartedAt: Readonly<Record<string, number>>, era: number): Record<string, number> {
+  return Object.fromEntries(
+    Object.keys(restartedAt)
+      .filter((key) => restartedAt[key] >= era)
+      .sort()
+      .map((key) => [key, restartedAt[key]]),
+  );
+}
 
 const own = (record: Readonly<Record<string, unknown>>, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);
 /** A device's row, if the ledger has one. A name is looked up among the ledger's own rows and nowhere else. */
@@ -153,8 +180,15 @@ export function take(ledger: Ledger, medals: number): Ledger | null {
   return { ...ledger, rows: { ...ledger.rows, [ledger.device]: { got: row.got, spent: Math.min(LIMITS.medals, row.spent + medals) } } };
 }
 
-/** Whether a purse from `source` has been moved in, in this era or one before. */
+/** Whether a purse from `source` has been moved in, in this era or one before, or looked for and found to have nothing to move in. */
 export const hasImported = (ledger: Ledger, source: string): boolean => own(ledger.imports, source) || ledger.voided.includes(source);
+
+/**
+ * The ledger noting that `source` has been looked at, so that nobody looks
+ * at it again: kept among the names voided, which no reset forgets.
+ */
+export const markChecked = (ledger: Ledger, source: string): Ledger =>
+  !isName(source) || hasImported(ledger, source) ? ledger : { ...ledger, voided: tidyVoided([...ledger.voided, source], ledger.era) };
 
 /**
  * The ledger with the purse a machine held before there was a bank moved in,
@@ -217,18 +251,29 @@ export function resetLedger(ledger: Ledger): Ledger {
     era,
     rows: {},
     imports: { [welcomeOf(era)]: WELCOME },
-    voided: [...new Set([...ledger.voided, ...Object.keys(ledger.imports)])].sort(),
+    voided: tidyVoided([...ledger.voided, ...Object.keys(ledger.imports)], era),
     claimed: ledger.claimed,
-    restarted: ledger.restarted,
+    restarted: {},
   };
 }
 
-/** Whether a game's machines are to be started over: the bank has been reset since that game last was. */
-export const restartDue = (ledger: Ledger, game: string): boolean => ledger.era > (own(ledger.restarted, game) ? ledger.restarted[game] : 0);
+/** The name a game's machine on this ledger's device is started over under. */
+const restartKey = (ledger: Ledger, game: string): string => `${game}@${ledger.device}`;
 
-/** The ledger noting that a game's machines have been started over in this era. */
+/**
+ * Whether this device's copy of a game's machine is to be started over: the
+ * bank has been reset since this device last started it over. Every device
+ * starts its own copy over once, so that no copy kept from before a reset is
+ * played after it, on whichever device it was kept.
+ */
+export const restartDue = (ledger: Ledger, game: string): boolean => {
+  const key = restartKey(ledger, game);
+  return ledger.era > (own(ledger.restarted, key) ? ledger.restarted[key] : 0);
+};
+
+/** The ledger noting that this device's copy of a game's machine has been started over in this era. */
 export const restarted = (ledger: Ledger, game: string): Ledger =>
-  !isName(game) || !restartDue(ledger, game) ? ledger : { ...ledger, restarted: { ...ledger.restarted, [game]: ledger.era } };
+  !isName(restartKey(ledger, game)) || !restartDue(ledger, game) ? ledger : { ...ledger, restarted: { ...ledger.restarted, [restartKey(ledger, game)]: ledger.era } };
 
 // ── Two copies of one ledger ────────────────────────────────────────────────
 
@@ -257,12 +302,12 @@ function largest(a: Readonly<Record<string, number>>, b: Readonly<Record<string,
 export function mergeLedgers(a: Ledger, b: Ledger): Ledger {
   const claimed = unionDays(a.claimed, b.claimed);
   const restartedAt = largest(a.restarted, b.restarted);
-  const everVoided = new Set([...a.voided, ...b.voided]);
+  const everVoided = [...a.voided, ...b.voided];
   if (a.era !== b.era) {
     const [newer, older] = a.era > b.era ? [a, b] : [b, a];
     // What the older era moved in is void in the newer.
-    const voided = [...new Set([...everVoided, ...Object.keys(older.imports)])].sort();
-    return { ...newer, device: a.device, voided, claimed, restarted: restartedAt };
+    const voided = tidyVoided([...everVoided, ...Object.keys(older.imports)], newer.era);
+    return { ...newer, device: a.device, voided, claimed, restarted: tidyRestarted(restartedAt, newer.era) };
   }
   return {
     v: LEDGER_VERSION,
@@ -270,9 +315,9 @@ export function mergeLedgers(a: Ledger, b: Ledger): Ledger {
     era: a.era,
     rows: laterRows(a.rows, b.rows),
     imports: largest(a.imports, b.imports),
-    voided: [...everVoided].sort(),
+    voided: tidyVoided(everVoided, a.era),
     claimed,
-    restarted: restartedAt,
+    restarted: tidyRestarted(restartedAt, a.era),
   };
 }
 
@@ -336,9 +381,9 @@ export function parseLedger(text: unknown): Ledger | null {
     if (got === null || spent === null) return null;
     rows[device] = { got, spent };
   }
-  const named = (record: Record<string, unknown>, read: (stored: unknown) => number | null): Record<string, number> | null => {
+  const named = (record: Record<string, unknown>, read: (stored: unknown) => number | null, most: number = LIMITS.names): Record<string, number> | null => {
     const entries = Object.entries(record);
-    if (entries.length > LIMITS.names) return null;
+    if (entries.length > most) return null;
     const out: Record<string, number> = {};
     for (const [name, stored] of entries) {
       const amount = read(stored);
@@ -348,11 +393,12 @@ export function parseLedger(text: unknown): Ledger | null {
     return out;
   };
   const imports = named(value.imports, count);
-  const restartedAt = named(value.restarted, (stored) => (typeof stored === 'number' && Number.isInteger(stored) && stored >= 0 && stored <= LIMITS.eras ? stored : null));
+  // One for each game on each device that has started its machine over since the last reset.
+  const restartedAt = named(value.restarted, (stored) => (typeof stored === 'number' && Number.isInteger(stored) && stored >= 0 && stored <= LIMITS.eras ? stored : null), LIMITS.devices);
   if (!imports || !restartedAt) return null;
   if (value.voided.length > LIMITS.names || !value.voided.every(isName)) return null;
-  const voided = [...new Set(value.voided as string[])].sort();
+  const voided = tidyVoided(value.voided as string[], era);
   // The days are the record book's own sets, read the way it reads them: a day that is not on the calendar is left out.
   const claimed = readDays(value.claimed);
-  return { v: LEDGER_VERSION, device: value.device, era, rows, imports, voided, claimed, restarted: restartedAt };
+  return { v: LEDGER_VERSION, device: value.device, era, rows, imports, voided, claimed, restarted: tidyRestarted(restartedAt, era) };
 }

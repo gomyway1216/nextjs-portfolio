@@ -10,6 +10,7 @@ import {
   give,
   hasImported,
   importPurse,
+  markChecked,
   mergeLedgers,
   parseLedger,
   printOf,
@@ -126,7 +127,7 @@ describe('one ledger', () => {
     expect(importPurse(reset, 'medal-pusher@guest', 900)).toBe(reset);
   });
 
-  it('says when a game’s machines are to be started over after a reset, and stops saying it once they have', () => {
+  it('says when this device’s copy of a game’s machine is to be started over after a reset, and stops saying it once it has', () => {
     const start = createLedger('phone00001');
     expect(restartDue(start, 'medal-pusher')).toBe(false);
     const reset = resetLedger(start);
@@ -136,6 +137,35 @@ describe('one ledger', () => {
     expect(restartDue(done, 'slot-machine')).toBe(true);
     expect(restarted(done, 'medal-pusher')).toBe(done);
     expect(restartDue(resetLedger(done), 'medal-pusher')).toBe(true);
+    // Another device's copy of the same machine is its own, and starts over on that device: the phone's restart is not the laptop's.
+    const laptop = mergeLedgers({ ...reset, device: 'laptop0001' }, done);
+    expect(restartDue(laptop, 'medal-pusher')).toBe(true);
+    expect(restartDue(mergeLedgers(done, laptop), 'medal-pusher')).toBe(false);
+  });
+
+  it('stays readable however often it is reset: what an older era moved in or started over is not kept', () => {
+    let ledger = importPurse(claimBonus(createLedger('phone00001'), DAY).ledger, 'medal-pusher@guest', 5);
+    for (let time = 0; time < 300; time++) ledger = restarted(resetLedger(play(ledger, [-3, 7])), 'medal-pusher');
+    expect(ledger.era).toBe(300);
+    expect(ledger.voided).toEqual(['medal-pusher@guest']);
+    expect(Object.keys(ledger.restarted)).toEqual(['medal-pusher@phone00001']);
+    const text = serializeLedger(ledger);
+    expect(parseLedger(text)).toEqual(ledger);
+    expect(balanceOf(ledger)).toBe(WELCOME);
+    expect(tookBonus(ledger, DAY)).toBe(true);
+    // Joined with a copy of any era before it, the same.
+    const older = resetLedger(createLedger('laptop0001'));
+    expect(serializeLedger(mergeLedgers(ledger, older))).toBe(text);
+  });
+
+  it('notes a source that has been looked at for good, without a medal and without taking a new member’s medals back', () => {
+    const start = createLedger('phone00001');
+    const checked = markChecked(start, 'medal-pusher-days@account');
+    expect(hasImported(checked, 'medal-pusher-days@account')).toBe(true);
+    expect(balanceOf(checked)).toBe(WELCOME);
+    expect(markChecked(checked, 'medal-pusher-days@account')).toBe(checked);
+    expect(hasImported(resetLedger(checked), 'medal-pusher-days@account')).toBe(true);
+    expect(hasImported(mergeLedgers(start, checked), 'medal-pusher-days@account')).toBe(true);
   });
 });
 

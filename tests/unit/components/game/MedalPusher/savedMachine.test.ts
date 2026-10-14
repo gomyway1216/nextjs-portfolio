@@ -5,6 +5,8 @@ import { banked, booksOf, booksOfText, keepMachine, newMark } from '@/components
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
 
+import { FakeAccounts, settled as settledFakes } from './accountFakes';
+
 import { KEEPALIVE_LIMIT, SCENARIOS, measure, onTheWire, stepsIn, type Scenario } from '../../../../../scripts/medal-pusher-save-size';
 
 import beforeArms from './fixtures/save-before-feed-arms.json';
@@ -140,6 +142,61 @@ describe('the machine on its way to the account', () => {
     const [original, travelled] = [restore(save, 9), restore(back?.text ?? null, 9)];
     expect(original).not.toBeNull();
     expect(serialize(travelled as Session)).toBe(serialize(original as Session));
+  });
+});
+
+describe('a machine kept by a page that has let the card go', () => {
+  /**
+   * Two tabs of one browser, one machine on one account. Tab A's write to the account is still on its way when the
+   * card goes to tab B, which plays on and saves its own machine; then A's write is answered. The answer writes down
+   * what A's keeper is shown, and the cabinet shows it nothing once its page no longer holds the card (PlayTab.tsx).
+   */
+  async function handoff(showsNothingAfterTheCardGoes: boolean) {
+    const slots = new MapSlots();
+    const accounts = new FakeAccounts(() => Date.now());
+    accounts.held = [];
+    const uid = 'a-made-up-player';
+    const machineA = createSession(21);
+    play(machineA, 2);
+    let aHolds = true;
+    const keeperA = keepMachine({
+      store: accounts.store,
+      slots: () => slots,
+      session: () => (aHolds || !showsNothingAfterTheCardGoes ? machineA : null),
+      reopen: () => undefined,
+      onStatus: () => undefined,
+    });
+    keeperA.player({ uid, settled: true, expected: true });
+    keeperA.open();
+    keeperA.save('tick');
+    await settledFakes();
+    // The account had nothing: A's machine becomes the account's, and is on its way there.
+    expect(accounts.held.length).toBe(1);
+    // The card goes to tab B, which opens the machine as A left it, plays on, and saves.
+    aHolds = false;
+    let machineB: Session | null = null;
+    const keeperB = keepMachine({ store: accounts.store, slots: () => slots, session: () => machineB, reopen: () => undefined, onStatus: () => undefined });
+    keeperB.player({ uid, settled: true, expected: true });
+    machineB = restore(keeperB.open(), 5) as Session;
+    play(machineB, 3);
+    keeperB.save('tick');
+    const bSaved = JSON.parse(slots.getItem(slotFor(STORAGE_KEY, uid)) ?? '{}').text as string;
+    expect(bSaved).toBe(serialize(banked(machineB)));
+    // A's write is answered now.
+    accounts.held.shift()?.('taken');
+    await settledFakes();
+    return { kept: JSON.parse(slots.getItem(slotFor(STORAGE_KEY, uid)) ?? '{}').text as string, bSaved, aSaved: serialize(banked(machineA)) };
+  }
+
+  it('does not write its old machine over the one another tab has saved since, when its write to the account is answered', async () => {
+    const { kept, bSaved } = await handoff(true);
+    expect(kept).toBe(bSaved);
+  });
+
+  it('would have, had it gone on being shown its machine: which is what the test above guards', async () => {
+    const { kept, aSaved, bSaved } = await handoff(false);
+    expect(kept).toBe(aSaved);
+    expect(kept).not.toBe(bSaved);
   });
 });
 

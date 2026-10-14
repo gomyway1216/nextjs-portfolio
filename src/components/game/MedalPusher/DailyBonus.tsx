@@ -32,8 +32,13 @@ export const cardNow = ({ ledger, day }: BankState): BonusCard | null => (ledger
 /** Whether this browser pays a daily bonus at all: it keeps the bank, and it keeps its tabs apart, so that a day cannot be paid twice. */
 export const paysBonus = (state: BankState): boolean => state.kept && state.apart;
 
-/** Whether today's bonus can be taken here and now: it is ready, this browser pays one, and nothing is still being asked. */
-export const canTake = (state: BankState, card: BonusCard | null): boolean => card !== null && card.state === 'ready' && paysBonus(state) && state.loaded && !state.asking;
+/**
+ * Whether today's bonus can be taken here and now: it is ready, this browser pays one, and nothing is still being
+ * asked, of the account or of whether there is one: until the bank of a player who is signed in has been found, the
+ * day may have been taken on another device.
+ */
+export const canTake = (state: BankState, card: BonusCard | null): boolean =>
+  card !== null && card.state === 'ready' && paysBonus(state) && state.loaded && !state.asking && state.where !== 'checking';
 
 /** What the card has to say for itself, in a sentence or two. */
 export function bonusStatus(t: RecordStrings, state: BankState, card: BonusCard | null): string {
@@ -42,8 +47,8 @@ export function bonusStatus(t: RecordStrings, state: BankState, card: BonusCard 
   if (!state.apart) return t.bonusNotApart;
   switch (card.state) {
     case 'ready':
-      // A press is waiting to hear whether another device has taken today's already.
-      if (state.asking) return t.bonusAsking;
+      // A press is waiting to hear whether another device has taken today's already, or the account is still being found.
+      if (state.asking || state.where === 'checking') return t.bonusAsking;
       return `${card.restarted ? `${t.bonusRestarted} ` : ''}${t.bonusReady(card.today, card.medals)}`;
     case 'taken':
       return `${t.bonusTaken(card.medals)} ${card.stamped === BONUS_CARD.length ? t.bonusNewCard(card.next) : t.bonusTomorrow(card.next)}`;

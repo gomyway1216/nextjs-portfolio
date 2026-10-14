@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { slotFor, toCloud } from '@/components/game/MedalPusher/account';
 import { BONUS_CARD, RECORDS_KEY, addDay, claim, createBook, dayNumber, dayOf, serializeBook } from '@/components/game/MedalPusher/records';
+import { RECORDS_GAME_KEY as BOOK_GAME_KEY } from '@/components/game/MedalPusher/recordsStore';
 import { STORAGE_KEY } from '@/components/game/MedalPusher/storage';
 import { MACHINE_GAME_KEY } from '@/components/game/MedalPusher/savedMachine';
 import { RECORDS_GAME_KEY, bookKey } from '@/components/game/MedalPusher/recordsStore';
@@ -77,6 +78,7 @@ describe('the old purses', () => {
     expect(PUSHER.bookKey(null)).toBe(RECORDS_KEY);
     expect(PUSHER.bookKey(UID)).toBe(bookKey(UID));
     expect(RECORDS_GAME_KEY).not.toBe('medal-center');
+    expect(PUSHER.booksGameKey).toBe(BOOK_GAME_KEY);
   });
 
   it('moves a guest’s old purse into the bank once, instead of a new member’s medals, and never again on this device', async () => {
@@ -102,6 +104,18 @@ describe('the old purses', () => {
     later.bank.subscribe(() => undefined);
     await quiet(browser);
     expect(storedBalance(browser)).toBe(WELCOME);
+  });
+
+  it('takes an empty purse for no purse: a machine saved since the bank keeps one, and its player is a new member', async () => {
+    // Copilot's case: a guest plays (the machine is saved with an empty purse), signs in, and the guest's bank becomes
+    // the account's; the machine stays in the guest's place. Signed out, the next guest's bank is a new member's.
+    const browser = new FakeBrowser();
+    browser.storage.set(STORAGE_KEY, oldSave(beforeTheRide, 0));
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(page.bank.getState().balance).toBe(WELCOME);
+    expect(browser.storage.has(BANKED_KEY)).toBe(false);
   });
 
   it('opens a new member’s bank for a guest who never played', async () => {
@@ -217,6 +231,17 @@ describe('the card: one page at a time writes the bank', () => {
     expect(JSON.parse(browser.storage.get(CARD_KEY) ?? '{}')).toEqual({ [PUSHER.game]: first.name });
   });
 
+  it('lets the machine write down what it has while it still holds the card, and only then lets the card go', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const holdingWhenYielding: boolean[] = [];
+    const seat = page.bank.sit(PUSHER.game, { granted: () => undefined, yielding: () => holdingWhenYielding.push(seat.holding()) });
+    await quiet(browser);
+    page.hide();
+    expect(holdingWhenYielding).toEqual([true]);
+    expect(seat.holding()).toBe(false);
+  });
+
   it('lets the card go when its page is hidden or left, and asks for it again when it is shown', async () => {
     const browser = new FakeBrowser();
     const pusher = browser.open();
@@ -303,7 +328,38 @@ describe('the refill and the reset', () => {
     pusher.bank.restarted(PUSHER.game);
     await quiet(browser);
     expect(pusher.bank.restartDue(PUSHER.game)).toBe(false);
-    expect(stored(browser)?.restarted).toEqual({ [PUSHER.game]: 1 });
+    // Started over on this device: the key is the game's and the device's, since every device's copy starts over once.
+    expect(stored(browser)?.restarted).toEqual({ [`${PUSHER.game}@${stored(browser)?.device}`]: 1 });
+  });
+});
+
+describe('a reset, on every device', () => {
+  it('starts every device’s copy of the machine over once, whichever device started its own over first', async () => {
+    const accounts = new FakeAccounts(() => 0);
+    const machines = new FakeAccounts(() => 0);
+    accounts.put(UID, serializeLedger(createLedger('first00001', 500)), 'm-start');
+    const [phone, laptop] = [new FakeBrowser(), new FakeBrowser()];
+    const [p, l] = [phone.open(), laptop.open()];
+    for (const page of [p, l]) {
+      page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+      page.bank.subscribe(() => undefined);
+    }
+    await quiet(phone, laptop);
+    p.bank.reset();
+    await pass(30, [phone, laptop], [p]);
+    // The phone has started its machine over. The laptop, which kept a copy of the machine from before the reset,
+    // has not, and when it hears of the reset its copy is still due to start over.
+    expect(p.bank.restartDue(PUSHER.game)).toBe(true);
+    p.bank.restarted(PUSHER.game);
+    await pass(30, [phone, laptop], [p]);
+    expect(p.bank.restartDue(PUSHER.game)).toBe(false);
+    // The laptop hears of the reset the next time it sends: it plays a medal.
+    machine(l);
+    await quiet(laptop);
+    l.bank.give(1);
+    await pass(90, [phone, laptop], [p, l]);
+    expect(l.bank.getState().ledger?.era).toBe(1);
+    expect(l.bank.restartDue(PUSHER.game)).toBe(true);
   });
 });
 
@@ -322,7 +378,7 @@ describe('the bank of a player who is signed in', () => {
     machine(page);
     await quiet(browser);
     page.bank.take(30);
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     await quiet(browser);
     expect(page.bank.getState()).toMatchObject({ owner: UID, where: 'account', balance: WELCOME - 30 });
     expect(browser.storage.has(BANK_KEY)).toBe(false);
@@ -330,7 +386,7 @@ describe('the bank of a player who is signed in', () => {
     const sent = parseLedger(accounts.text(UID));
     expect(sent && balanceOf(sent)).toBe(WELCOME - 30);
     // Signed out, the guest has a new member's bank of their own, and the account's stays the account's.
-    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, machines.store);
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, { machines: machines.store });
     await quiet(browser);
     expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
     expect(storedBalance(browser, UID)).toBe(WELCOME - 30);
@@ -344,7 +400,7 @@ describe('the bank of a player who is signed in', () => {
     machine(page);
     await quiet(browser);
     expect(page.bank.getState().balance).toBe(500);
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     await quiet(browser);
     // The account had no bank: the guest's, with the purse in it, is the account's now.
     expect(page.bank.getState()).toMatchObject({ owner: UID, balance: 500 });
@@ -374,7 +430,7 @@ describe('the bank of a player who is signed in', () => {
     const page = browser.open();
     page.bank.subscribe(() => undefined);
     await quiet(browser);
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     await quiet(browser);
     expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME + 4000 });
     expect(storedBalance(browser)).toBe(WELCOME);
@@ -390,7 +446,7 @@ describe('the bank of a player who is signed in', () => {
     const laptop = new FakeBrowser();
     const [p, l] = [phone.open(), laptop.open()];
     for (const page of [p, l]) {
-      page.bank.attend(signedIn(UID), accounts.store, machines.store);
+      page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
       machine(page);
     }
     await quiet(phone, laptop);
@@ -417,7 +473,7 @@ describe('the bank of a player who is signed in', () => {
     const laptop = new FakeBrowser();
     const pages = [phone.open(), laptop.open()];
     for (const page of pages) {
-      page.bank.attend(signedIn(UID), accounts.store, machines.store);
+      page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
       page.bank.subscribe(() => undefined);
     }
     await pass(90, [phone, laptop], pages);
@@ -430,11 +486,56 @@ describe('the bank of a player who is signed in', () => {
     expect(machines.count('load')).toBeLessThanOrEqual(2);
   });
 
+  it('keeps a new member’s medals for an account whose machine had an empty purse, and does not look again', async () => {
+    const { browser, accounts, machines } = setup();
+    machines.put(UID, oldSave(beforeLamp, 0), 'm-machine');
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    machine(page);
+    await quiet(browser);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME });
+    expect(stored(browser, UID)?.imports[PUSHER.accountPurse]).toBe(0);
+    expect(stored(browser, UID)?.voided).not.toContain('welcome:0');
+    const reads = machines.count('load');
+    const again = browser.open();
+    again.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    again.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(machines.count('load')).toBe(reads);
+  });
+
+  it('does not pay a day the account’s old record book took, on a device that keeps no copy of the book', async () => {
+    const { browser, accounts, machines } = setup();
+    const books = new FakeAccounts(() => browser.clock);
+    // Before the bank, the record book on another device took today's bonus, and the account has that book.
+    books.put(UID, serializeBook(claim(createBook('laptop0001'), browser.day).book), 'm-book');
+    const page = browser.open();
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store, books: books.store });
+    page.bank.subscribe(() => undefined);
+    machine(page);
+    // Pressed at once, while the book may still be on its way: the press waits for it.
+    page.bank.claimBonus();
+    await quiet(browser);
+    page.bank.claimBonus();
+    await quiet(browser);
+    expect(page.bank.cardToday()?.state).toBe('taken');
+    expect(page.bank.getState().balance).toBe(WELCOME);
+    expect(books.count('load')).toBe(1);
+    // Looked at once, for good: the next page does not ask again.
+    const again = browser.open();
+    again.bank.attend(signedIn(UID), accounts.store, { machines: machines.store, books: books.store });
+    again.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(books.count('load')).toBe(1);
+  });
+
   it('asks the account before it pays a day’s bonus, and does not pay a day another device has taken', async () => {
     const { browser, accounts, machines } = setup();
     accounts.put(UID, serializeLedger(createLedger('laptop0001')), 'm-1');
     const page = browser.open();
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     page.bank.subscribe(() => undefined);
     await quiet(browser);
     // Meanwhile the laptop took today's bonus.
@@ -450,7 +551,7 @@ describe('the bank of a player who is signed in', () => {
     const { browser, accounts, machines } = setup();
     accounts.docs.set(UID, { state: { format: 99, mark: 'x', changedAt: 0, data: '???' }, updatedAt: 0 });
     const page = browser.open();
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     page.bank.subscribe(() => undefined);
     await quiet(browser);
     expect(page.bank.getState().where).toBe('unreadable');
@@ -461,11 +562,11 @@ describe('the bank of a player who is signed in', () => {
   it('sends nothing as a player who has signed out', async () => {
     const { browser, accounts, machines } = setup();
     const page = browser.open();
-    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
     machine(page);
     await quiet(browser);
     const writes = accounts.count('store');
-    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, machines.store);
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, { machines: machines.store });
     await quiet(browser);
     page.bank.take(5);
     browser.clock += 120_000;

@@ -10,6 +10,8 @@ import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../..
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { createLedger, serializeLedger } from '../../src/components/game/MedalCenter/ledger';
 import { resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 
@@ -1504,6 +1506,14 @@ test.describe('in the hand, on a phone', () => {
     // in the air until the test lets time pass.
     await page.clock.install();
     const acted = await recordTray(page);
+    // A bank with nothing in it. (A machine from before the bank with an empty purse is not one: its player is given
+    // a new member's medals, as a refill would have.)
+    await page.addInitScript(
+      ([key, text]) => {
+        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+      },
+      [BANK_KEY, serializeLedger(createLedger('e2edevice01', 0))],
+    );
     await openWithPurse(page, 0);
     await alive(page);
     await expect(feedButton(page, 'left')).toBeDisabled();

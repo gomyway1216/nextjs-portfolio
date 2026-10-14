@@ -162,7 +162,11 @@ test('the reset asks first, then empties the bank to a new member’s medals and
   await openPusher(page);
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(WELCOME));
-  await expect.poll(async () => (await storedBank(page))?.restarted[PUSHER.game] ?? -1).toBe(1);
+  // This device's copy of the machine is written down as started over in the new era.
+  await expect.poll(async () => {
+    const ledger = await storedBank(page);
+    return ledger ? (ledger.restarted[`${PUSHER.game}@${ledger.device}`] ?? -1) : -1;
+  }).toBe(1);
   // And it is not started over again the next time.
   await feedOne(page);
   await page.waitForTimeout(6_000);

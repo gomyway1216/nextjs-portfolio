@@ -72,7 +72,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
-import { dayFrom, readDays, type Day, type DaySet } from '../MedalPusher/records';
+import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
 import {
   REFILL,
   balanceOf,
@@ -82,6 +82,7 @@ import {
   give,
   hasImported,
   importPurse,
+  markChecked,
   mergeLedgers,
   parseLedger,
   printOf,
@@ -122,6 +123,9 @@ export const PUSHER = {
   /** Where a purse moved in came from: a guest's machine, or an account's. */
   guestPurse: 'medal-pusher@guest',
   accountPurse: 'medal-pusher@account',
+  /** The account's record book, read once for the days it took the bonus on before the bank paid it. */
+  booksGameKey: 'medal-pusher-records',
+  accountDays: 'medal-pusher-days@account',
   /** The record book, whose days the bonus was taken on are the bank's now. */
   bookKey: (uid: string | null): string => (uid === null ? 'medal-pusher-records' : `medal-pusher-book:${uid}`),
 } as const;
@@ -327,6 +331,8 @@ interface Desk {
   imports: { source: string; medals: number; machine: boolean }[];
   /** Days the record book took the bonus on, still to be put in. */
   days: DaySet | null;
+  /** Sources looked at, still to be written down as such. */
+  checks: string[];
   /** Whether this is a guest's bank that has become the account's, and has still to leave the guest's place. */
   moved: boolean;
   /** The guest purse this bank was opened with, to be written down as moved in once it is stored. */
@@ -348,6 +354,11 @@ export function createBank(env: BankEnv) {
   let accounts: AccountStore | null = null;
   /** The store of the Medal Pusher's machine on the account, read once for a purse from before the bank. */
   let machines: AccountStore | null = null;
+  /** The store of the Medal Pusher's record book on the account, read once for the days it took the bonus on. */
+  let books: AccountStore | null = null;
+  /** The accounts whose record book has been looked at on this page, and the reading of it while it is under way. */
+  const lookedBooks = new Set<string>();
+  let bookReading: Promise<void> | null = null;
   let sync: Sync | null = null;
   let where: Status['where'] = 'device';
   let kept = true;
@@ -447,8 +458,10 @@ export function createBank(env: BankEnv) {
    */
   const newLedger = (owner: string | null): { ledger: Ledger; banked: string | null } => {
     if (owner === null) {
+      // An empty purse is no purse: a machine saved since the bank keeps one, and a player whose machine had run out
+      // would have been given a refill of as many as a new member is.
       const purse = banked().includes(PUSHER.guestPurse) ? null : purseIn(read(PUSHER.machineKey));
-      if (purse !== null) return { ledger: importPurse(createLedger(env.device(), 0), PUSHER.guestPurse, purse), banked: PUSHER.guestPurse };
+      if (purse !== null && purse > 0) return { ledger: importPurse(createLedger(env.device(), 0), PUSHER.guestPurse, purse), banked: PUSHER.guestPurse };
     }
     // An account's bank is never begun out of nothing on a device: it comes from the account, or from the guest's.
     return { ledger: createLedger(env.device(), owner === null ? undefined : 0), banked: null };
@@ -460,6 +473,7 @@ export function createBank(env: BankEnv) {
     for (const theirs of at.joins) next = mergeLedgers(next, theirs);
     for (const { source, medals, machine } of at.imports) next = importPurse(next, source, medals, machine);
     if (at.days) next = withClaimed(next, at.days);
+    for (const source of at.checks) next = markChecked(next, source);
     return next;
   };
 
@@ -506,6 +520,7 @@ export function createBank(env: BankEnv) {
     at.joins = [];
     at.imports = [];
     at.days = null;
+    at.checks = [];
     if (at.banked) {
       // The guest's machine's purse is in the bank now, and is never moved in again on this device.
       const list = banked();
@@ -531,12 +546,13 @@ export function createBank(env: BankEnv) {
   const letGo = (why: 'moment' | 'hidden' | 'left'): void => {
     if (!held) return;
     if (seat?.held) {
-      seat.held = false;
+      // The machine writes down what it has while it still holds the card, and is told it has not afterwards.
       try {
         seat.handlers.yielding(why);
       } catch {
         // The card goes all the same.
       }
+      seat.held = false;
     }
     const { release } = held;
     held = null;
@@ -749,6 +765,7 @@ export function createBank(env: BankEnv) {
         where = status.where;
         if (started) {
           lookForPurse();
+          lookForBookDays();
           publish();
         }
       },
@@ -773,7 +790,9 @@ export function createBank(env: BankEnv) {
         // nobody asks again.
         const purse = found ? purseIn(text) : 0;
         if (purse === null) return;
-        const move = { source: PUSHER.accountPurse, medals: purse, machine: found !== null };
+        // An empty purse is no purse, and takes nothing back (see `newLedger`): only a purse with medals in it says
+        // that the player was not a new member.
+        const move = { source: PUSHER.accountPurse, medals: purse, machine: purse > 0 };
         at.imports.push(move);
         at.ledger = importPurse(at.ledger, move.source, move.medals, move.machine);
         commit(at);
@@ -783,6 +802,46 @@ export function createBank(env: BankEnv) {
       () => {
         // Not now: the next time the bank is opened.
         looked.delete(uid);
+      },
+    );
+  };
+
+  /**
+   * The days the account's record book took the bonus on before the bank
+   * paid it, read once, so that a day taken on another device before the
+   * bank is not paid again here. The copy of the book this device keeps is
+   * read whenever the bank is opened (`bookDays`); this is for a device that
+   * keeps none.
+   */
+  const lookForBookDays = (): void => {
+    const at = desk;
+    const uid = at?.owner ?? null;
+    if (!at || uid === null || where !== 'account' || !books || lookedBooks.has(uid) || hasImported(at.ledger, PUSHER.accountDays)) return;
+    lookedBooks.add(uid);
+    bookReading = books.load(uid).then(
+      (found) => {
+        bookReading = null;
+        if (!started || desk !== at || hasImported(at.ledger, PUSHER.accountDays)) return;
+        const text = found ? (fromCloud(found.state)?.text ?? null) : null;
+        let days: DaySet = {};
+        try {
+          const parsed = text === null ? null : (JSON.parse(text) as unknown);
+          if (isRecord(parsed)) days = readDays(parsed.claimed);
+        } catch {
+          // A book this page cannot read has no days to give.
+        }
+        // A book that is there and cannot be read here is asked for again the next time; one that is not there is not.
+        if (found && text === null) return;
+        at.days = unionDays(at.days ?? {}, days);
+        at.checks.push(PUSHER.accountDays);
+        at.ledger = markChecked(withClaimed(at.ledger, days), PUSHER.accountDays);
+        commit(at);
+        sync?.save('moment');
+        publish();
+      },
+      () => {
+        bookReading = null;
+        lookedBooks.delete(uid);
       },
     );
   };
@@ -805,14 +864,14 @@ export function createBank(env: BankEnv) {
     else if (fromStorage || given) ledger = (fromStorage ?? given)!;
     else if (had) ledger = had.ledger;
     else ({ ledger, banked: bankedNow } = newLedger(owner));
-    const at: Desk = had ?? { owner, key, ledger, unsaved: false, joins: [], imports: [], days: null, moved: false, banked: null };
+    const at: Desk = had ?? { owner, key, ledger, unsaved: false, joins: [], imports: [], days: null, checks: [], moved: false, banked: null };
     at.ledger = ledger;
     at.moved ||= moved && owner !== null;
     at.banked ??= bankedNow;
     // An account's machine kept on this device from before the bank may hold a purse: it is moved in.
     if (owner !== null && !hasImported(ledger, PUSHER.accountPurse)) {
       const purse = purseInCopy(read(slotFor(PUSHER.machineKey, owner)));
-      if (purse !== null) at.imports.push({ source: PUSHER.accountPurse, medals: purse, machine: true });
+      if (purse !== null && purse > 0) at.imports.push({ source: PUSHER.accountPurse, medals: purse, machine: true });
     }
     at.days = bookDays(owner);
     at.ledger = withPending(at, at.ledger);
@@ -834,6 +893,7 @@ export function createBank(env: BankEnv) {
     if (desk && desk.owner !== owner) asking = null;
     seatDesk(text, owner, carried);
     lookForPurse();
+    lookForBookDays();
     publish();
     sync.save('tick');
   }
@@ -863,6 +923,7 @@ export function createBank(env: BankEnv) {
     sync?.player(wanted);
     era = null;
     seatDesk(sync ? sync.open() : null, sync ? sync.owner() : null, false);
+    lookForBookDays();
     unwatch = env.watch({
       tick,
       changed: (key) => {
@@ -970,12 +1031,15 @@ export function createBank(env: BankEnv) {
     },
 
     /**
-     * Says who is playing, and where their account keeps the bank (and, for a
-     * purse from before the bank, the Medal Pusher's machine).
+     * Says who is playing, and where their account keeps the bank; and,
+     * for what the Medal Pusher kept before the bank, where the account keeps
+     * its machine (for its purse) and its record book (for the days it took
+     * the bonus on).
      */
-    attend(player: Player, store: AccountStore | null = null, machineStore: AccountStore | null = null): void {
+    attend(player: Player, store: AccountStore | null = null, legacy: { machines?: AccountStore | null; books?: AccountStore | null } = {}): void {
       wanted = store ? player : GUEST;
-      machines = machineStore;
+      machines = legacy.machines ?? null;
+      books = legacy.books ?? null;
       if (store === accounts) {
         sync?.player(wanted);
         return;
@@ -1045,7 +1109,10 @@ export function createBank(env: BankEnv) {
       const at = desk;
       if (!started || !at || asking || !env.card.apart) return;
       const uid = wanted.uid;
-      if (!accounts || uid === null || at.owner !== uid || where !== 'account') {
+      // A player who is signed in is paid into their own bank, once it is known whether the account has one: not into
+      // the guest's that stands on the table while the account is asked.
+      if (accounts && uid !== null && (where === 'checking' || at.owner !== uid)) return;
+      if (!accounts || uid === null || where !== 'account') {
         pays();
         return;
       }
@@ -1058,8 +1125,10 @@ export function createBank(env: BankEnv) {
         if (waited) pays();
         publish();
       };
-      accounts.load(uid).then(
-        (found) => {
+      // The days the account's old record book took the bonus on are waited for too, if they are still being read.
+      const days = bookReading ?? Promise.resolve();
+      Promise.all([accounts.load(uid), days.catch(() => undefined)]).then(
+        ([found]) => {
           const text = found ? fromCloud(found.state)?.text : null;
           const theirs = typeof text === 'string' ? parseLedger(text) : null;
           if (theirs || !found) heardAt = env.now();
@@ -1155,7 +1224,7 @@ export function createBank(env: BankEnv) {
       };
     },
 
-    /** A text of the bank as it is, and the card of today. For the page and the tests. */
+    /** Today's bonus card, from the bank on the table: null until it has been read. */
     cardToday: () => (desk ? cardOf(desk.ledger, env.today()) : null),
   };
 }

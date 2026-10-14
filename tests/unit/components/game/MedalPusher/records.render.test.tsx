@@ -476,6 +476,10 @@ describe('the record board and the achievement sheet', () => {
       const asking = { ...ready, where: 'account' as const, asking: true };
       expect(canTake(ready, cardNow(ready))).toBe(true);
       expect(canTake(asking, cardNow(asking))).toBe(false);
+      // Nor while the bank of a player who is signed in is still being looked for: the day may have been taken elsewhere.
+      const checking = { ...ready, where: 'checking' as const };
+      expect(canTake(checking, cardNow(checking))).toBe(false);
+      expect(shown(render(<BonusStripView state={checking} />, lang), 'pusher-bonus-status')).toBe(t.bonusAsking);
       const html = render(<BonusStripView state={asking} />, lang);
       expect(shown(html, 'pusher-bonus-status')).toBe(t.bonusAsking);
       expect(html).not.toContain('pusher-bonus-take');

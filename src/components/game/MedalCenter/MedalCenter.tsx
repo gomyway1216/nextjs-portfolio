@@ -108,14 +108,15 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const opener = openerRef.current;
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      // However it is closed, the keyboard goes back to the button that opened it.
+      opener?.focus();
+    };
   }, [confirming]);
 
-  const closeDialog = () => {
-    setConfirming(false);
-    // Back to the button that opened it.
-    window.setTimeout(() => openerRef.current?.focus(), 0);
-  };
+  const closeDialog = () => setConfirming(false);
 
   const onReset = () => {
     medalBank().reset();

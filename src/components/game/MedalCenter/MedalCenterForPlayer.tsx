@@ -11,8 +11,10 @@ import { MedalCenter } from './MedalCenter';
 // and a guest's bank for everyone else. This is the one place the hub asks the site who is playing.
 
 const BANK = accountStoreFor(BANK_GAME_KEY);
-// The Medal Pusher's machine on the account, read once for the purse a machine from before the bank kept.
+// The Medal Pusher's machine and record book on the account, read once for the purse a machine from before the bank
+// kept, and for the days the book took the bonus on before the bank paid it.
 const PUSHER_MACHINE = accountStoreFor(PUSHER.game);
+const PUSHER_BOOK = accountStoreFor(PUSHER.booksGameKey);
 const SIGN_IN = `/signin?redirect=${encodeURIComponent(MEDAL_CENTER_PATH)}`;
 
 export const MedalCenterForPlayer = () => {
@@ -22,7 +24,7 @@ export const MedalCenterForPlayer = () => {
   const settled = uid !== null || !resolving;
   // Told before anything on the page listens to the bank (a layout effect runs before the effects that listen), so the first bank it opens is theirs.
   useLayoutEffect(() => {
-    medalBank().attend({ uid, settled, expected: presumedSignedIn }, BANK, PUSHER_MACHINE);
+    medalBank().attend({ uid, settled, expected: presumedSignedIn }, BANK, { machines: PUSHER_MACHINE, books: PUSHER_BOOK });
   }, [uid, settled, presumedSignedIn]);
   return <MedalCenter signInHref={SIGN_IN} />;
 };

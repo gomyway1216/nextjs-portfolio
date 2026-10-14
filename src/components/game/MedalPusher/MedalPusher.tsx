@@ -51,7 +51,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
   const { uid = null, settled = true, expected = false } = player ?? {};
   useLayoutEffect(() => {
     records.attend({ uid, settled, expected }, recordsStore);
-    medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? (store ?? null) : null);
+    medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? { machines: store ?? null, books: recordsStore } : {});
   }, [uid, settled, expected, recordsStore, bankStore, store]);
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();

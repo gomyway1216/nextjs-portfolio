@@ -533,7 +533,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     keeper.current ??= keepMachine({
       store,
       slots: () => window.localStorage,
-      session: () => sessionRef.current,
+      // The machine is this page's to write down only while this page holds the card. A write that is still on its
+      // way to the account when the card goes is answered after another tab may have saved its own machine, and the
+      // answer writes down what the keeper is shown: nothing, then, so the other tab's machine stays.
+      session: () => (seat.current?.holding() ? sessionRef.current : null),
       reopen: () => {
         setHud(INITIAL_HUD);
         setScreen(IDLE_SCREEN);

@@ -448,7 +448,7 @@ const en: PusherStrings = {
     chuckers: 'Three of them side by side in the middle of the pusher’s lip. They ride out and back with it and do not move along it. Each is an opening with a frame round it, in the sloped face that leans toward you beyond the well under the lip, with a narrow tongue from the lip across the well to it. A medal that goes over the lip with its middle on a tongue rides it lying flat, face up, into the pocket and starts a spin: one you dropped, one the screen paid, or one off a tower, which sends every medal in it through if it goes over there. A START pocket’s opening is as wide as a medal and 1.13% of the field’s width more on either side. A medal that comes over a little further to the side has too little of the tongue under it, hangs on its edge and tips off into the well, and one that comes over between the tongues drops straight into the well. One of the three is lit gold at a time, the lucky lamp, and the light steps one pocket along with every stroke of the pusher, every 3.6 seconds. During chance time their wings are open, and the pockets and their tongues are wider, so that each takes medals up to 1.25% of the width to either side. A ball does not fit.',
     table: 'The pusher’s face shoves these medals toward you, a row at a time. Here too they lie two deep, and the ones on top slide forward over the rest.',
     sides: 'The last fifth of the table has no side walls. A medal squeezed out there drops into a side hole and is lost. The holes turn the front corners and run a fifth of the way along the front edge from each side. They are the only place the machine takes anything, and they take about four medals in ten. A ball does not fit, and neither does a jewel.',
-    front: 'What goes over the middle three fifths is yours. A medal that goes over within a fifth of the edge’s length of either corner drops into the side hole there. A ball or a jewel is collected wherever it goes over.',
+    front: 'What goes over the middle three fifths is yours. A medal that goes over within a fifth of the edge’s length of either corner drops into the side hole there. A ball or a jewel is collected wherever it goes over: at a corner it comes down on the rail across the hole’s mouth and rolls along it into the tray.',
   },
   slotTitle: 'The slot on the screen',
   slotIntro: (held) =>
@@ -780,7 +780,7 @@ const ja: PusherStrings = {
     chuckers: '3つがプッシャーの縁の中央に並んでいます。プッシャーと一緒に前後に動き、左右には動きません。縁の下の溝の先にある、手前に傾いた斜面に開いた口で、まわりに枠がついています。縁からは溝を渡る細い橋が1本ずつのびています。縁を越えたとき中心が橋の上にあるメダルは、表を上にして寝たまま橋を滑ってチャッカーに入り、抽選が1回始まります。自分で落としたメダルでも、払い出されたメダルでも、タワーから崩れたメダルでも数えます。タワーがそこで縁を越えると、タワーのメダルが全部通ります。チャッカーの口は、メダル1枚分に左右それぞれ幅の1.13%を足した広さです。それより少し横にずれたメダルは、橋に一部しかかからず、橋の端で揺れてから溝に落ちます。橋のあいだを越えたメダルは、そのまま溝に落ちます。3つのうち1つは金色に光っていて（ラッキーランプ）、プッシャーが1往復する3.6秒ごとに、光がとなりのチャッカーへ移ります。チャンスタイムのあいだは羽根が開きます。羽根が開くとチャッカーの口と橋が広くなるので、左右それぞれ幅の1.25%までのメダルが入ります。ボールは通れません。',
     table: 'プッシャーの前面が、ここのメダルを一列ずつ手前へ押します。ここでもメダルは2段に重なり、上のメダルは下のメダルの上を滑って前へ進みます。',
     sides: 'テーブルの手前5分の1には脇の壁がありません。ここから押し出されたメダルは脇の穴に落ちて失われます。穴は手前の角を回り込み、手前の端の左右それぞれ5分の1まで続いています。機械が取り分を得るのはこの穴だけで、メダル10枚のうち約4枚がここに落ちます。ボールと宝石は通れません。',
-    front: 'ここの中央5分の3を越えたメダルがあなたのものです。左右の角から端の長さの5分の1までのところを越えたメダルは、そこの脇の穴に落ちます。ボールと宝石は、どこを越えても回収されます。',
+    front: 'ここの中央5分の3を越えたメダルがあなたのものです。左右の角から端の長さの5分の1までのところを越えたメダルは、そこの脇の穴に落ちます。ボールと宝石は、どこを越えても回収されます。角では、穴の口に渡したレールに乗って受け皿まで転がります。',
   },
   slotTitle: '画面のスロット',
   slotIntro: (held) =>

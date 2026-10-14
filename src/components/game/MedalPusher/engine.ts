@@ -1044,8 +1044,9 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
       }
       kept.push(medal);
     } else if (medal.y > FIELD.depth) {
-      // A ball or a jewel is collected wherever it goes over: the side holes' mouths are barred a medal's
-      // thickness apart, so a prize that goes over at a corner rolls across the bars into the tray.
+      // A ball or a jewel is collected wherever it goes over: across each side hole's mouth lies a ball rail
+      // (sidehole.ts). A medal tips over the edge and drops short of its first bar; a prize that goes over at a
+      // corner comes down on the bars and rolls along them into the tray.
       if (medal.jewel) events.jewels++;
       else if (medal.ball) events.balls++;
       else if (frontPays(medal.x)) events.won++;

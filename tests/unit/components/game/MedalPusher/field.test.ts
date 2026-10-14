@@ -75,8 +75,10 @@ import {
   SLOT_SHAPE,
   SLOT_THROAT,
   TONGUE_BRASS,
+  TRAY,
   WELL_SHADE,
   ageStage,
+  railedJewel,
   celebrate,
   createStage,
   drawField,
@@ -96,6 +98,7 @@ import {
   type Stage,
 } from '@/components/game/MedalPusher/render';
 import { MAX_STOCK, advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
+import { SIDE_HOLE, acrossAt, holeFloor, railTop, railed, sinking } from '@/components/game/MedalPusher/sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
 import { pourPose } from '@/components/game/MedalPusher/works';
 
@@ -217,6 +220,8 @@ function recorder() {
     },
     stroke: () => {
       strokes.push({ width: width * Math.hypot(matrix[0], matrix[1]), arcs: arcs.slice(begun) });
+      // A straight line that was stroked is in the order of things by its two ends.
+      if (outline.points.length === 2) log.push(`line:${outline.points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')}`);
     },
     moveTo: (x: number, y: number) => {
       starts.push(at(x, y));
@@ -353,7 +358,8 @@ describe('the catcher on the canvas', () => {
     const once = made.flatMap((canvas) => canvas.texts.map((entry) => entry.text));
     // The words on the table and under the screen are there, so the layer was recorded; the catcher's are not.
     expect(once.filter((text) => text === 'GET')).toHaveLength(3);
-    expect(once.filter((text) => text === 'OUT')).toHaveLength(2);
+    // OUT before each open side, and before each side hole's mouth at the front corners.
+    expect(once.filter((text) => text === 'OUT')).toHaveLength(4);
     expect(once.filter((text) => text === 'HOLD')).toHaveLength(1);
     expect(once).not.toContain('START');
   });
@@ -1639,12 +1645,15 @@ describe('the jewels on the canvas', () => {
     for (let lamp = 0; lamp < JEWEL_LAMPS.count; lamp++) {
       for (const [across, up] of LAMP_OUTLINE) expect(near(once, project(jewelLampX(lamp) + across * JEWEL_LAMPS.radius, JEWEL_LAMPS.height + up * JEWEL_LAMPS.radius, D))).toBe(true);
     }
-    // The arrows down into the tray keep clear of it: none is drawn where the plate is.
+    // The arrows down into the tray keep clear of it: none is drawn where the plate is. There is one to either side of
+    // it, in the tray's stretch of the front, and none under the corners, which are the side holes' mouths.
     const starts = made.flatMap((canvas) => canvas.starts);
     const arrowsOn = (from: number, to: number) => starts.filter((point) => Math.abs(point.y - project(50, -7.5, D).y) < 0.5 && point.x > project(from, -7.5, D).x && point.x < project(to, -7.5, D).x).length;
     expect(arrowsOn(JEWEL_PLATE.from, JEWEL_PLATE.to)).toBe(0);
-    expect(arrowsOn(0, JEWEL_PLATE.from)).toBeGreaterThanOrEqual(2);
-    expect(arrowsOn(JEWEL_PLATE.to, FIELD.width)).toBeGreaterThanOrEqual(2);
+    expect(arrowsOn(TRAY.from, JEWEL_PLATE.from)).toBe(1);
+    expect(arrowsOn(JEWEL_PLATE.to, TRAY.to)).toBe(1);
+    expect(arrowsOn(0, TRAY.from)).toBe(0);
+    expect(arrowsOn(TRAY.to, FIELD.width)).toBe(0);
   });
 
   it('lights the lamps from the left, one for each jewel collected, and all five while a bonus is shown', () => {
@@ -2144,5 +2153,204 @@ describe('the well under the lip on the canvas', () => {
     expect(SLOT_THROAT.floor).toBe('#000000');
     // Darker the further down it is.
     expect(light(edge)).toBeLessThan(light(lip));
+  });
+});
+
+describe('the side holes on the canvas', () => {
+  const D = FIELD.depth;
+  const W = FIELD.width;
+  const T = HEIGHT.medal;
+  const SIDES = [-1, 1] as const;
+  const near = (points: { x: number; y: number }[], at: { x: number; y: number }, within = 1e-6) => points.some((point) => Math.hypot(point.x - at.x, point.y - at.y) < within);
+  /** The outlines that go through every one of these places of the cabinet, among some that were filled. */
+  const through = (fills: Fill[], corners: [number, number, number][]) => fills.filter((fill) => corners.every(([x, height, depth]) => near(fill.points, project(x, height, depth))));
+  /** A side hole's mouth, across: its side of the table, the face of its cheek, and the cheek's face on the tray's side. */
+  const ends = (side: number) => ({ from: side < 0 ? 0 : W, hole: acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side), tray: acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side) });
+  /** One frame of an empty field with these on their way out of it, and what it drew. */
+  const frame = (exits: ExitingMedal[], calm = false, stage: Stage = createStage(1)) => {
+    stage.exits.push(...exits);
+    const machine = createMachine(3);
+    machine.medals = [];
+    machine.time = 1.5;
+    const screen = recorder();
+    drawField(screen.context, stage, machine, { showGuide: false, calm });
+    return { screen, stage };
+  };
+  /** Where in the order of a frame the first bar of a side's ball rail was laid, by its two ends. */
+  const railLaid = (screen: Recorder, side: number): number => {
+    const out = SIDE_HOLE.rails[0];
+    const to = project(ends(side).hole, railTop(SIDE_HOLE.reach) - SIDE_HOLE.bar / 2, D + out);
+    return screen.log.findIndex((entry) => entry.startsWith('line:') && entry.endsWith(` ${to.x.toFixed(2)},${to.y.toFixed(2)}`));
+  };
+
+  it('paints a dark mouth under each front corner once, with its chute, its arrows and its red edge, and the tray between two cheeks', () => {
+    const made = fakeDocument();
+    createStage(1);
+    const fills = made.flatMap((canvas) => canvas.fills);
+    const drawn = made.flatMap((canvas) => [...canvas.starts, ...canvas.lines]);
+    const past = D + SIDE_HOLE.past;
+    for (const side of SIDES) {
+      const { from, hole, tray } = ends(side);
+      // Black under the edge, which in this picture is the inside of a hole and nothing else.
+      const [wall] = through(fills, [
+        [from, 0, D],
+        [hole, 0, D],
+        [hole, holeFloor(0), D],
+        [from, holeFloor(0), D],
+      ]);
+      expect(wall.style).toBe('#030104');
+      // The chute in it: lit red where it comes out from under the edge, black where it goes out of sight.
+      const [chute] = through(fills, [
+        [from, holeFloor(0), D],
+        [hole, holeFloor(0), D],
+        [hole, holeFloor(SIDE_HOLE.past), past],
+        [from, holeFloor(SIDE_HOLE.past), past],
+      ]);
+      expect(chute.stops).toEqual(['#7a1429', '#27080f', '#070205']);
+      // An arrow at each mark, pointing away from the table: its barbs start nearer the edge than its point is.
+      for (const mark of SIDE_HOLE.marks) {
+        const x = acrossAt(mark, side);
+        expect(near(drawn, project(x, holeFloor(SIDE_HOLE.far), D + SIDE_HOLE.far))).toBe(true);
+        for (const end of [x - SIDE_HOLE.span / 2, x + SIDE_HOLE.span / 2]) expect(near(drawn, project(end, holeFloor(SIDE_HOLE.near), D + SIDE_HOLE.near))).toBe(true);
+      }
+      // The red edge runs along the front from the side of the table to the cheek, and the gold one does not come this far.
+      expect(made.some((canvas) => canvas.log.includes(`line:${[project(from, 0, D), project(hole, 0, D)].map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')}`))).toBe(true);
+      // The cheek: its top, level with the table and out past the foot of the picture, in steel; and its face to the tray.
+      const [top] = through(fills, [
+        [hole, 0, D],
+        [tray, 0, D],
+        [tray, 0, past],
+        [hole, 0, past],
+      ]);
+      expect(top.stops).toEqual(['#e4e8f4', '#8d97b8']);
+      expect(project(hole, 0, past).y).toBeGreaterThan(VIEW.height);
+      expect(
+        through(fills, [
+          [tray, 0, D],
+          [tray, 0, past],
+          [tray, -18, past],
+          [tray, -18, D],
+        ]),
+      ).toHaveLength(1);
+    }
+    // The front of the table is the tray's between the cheeks and no wider: nothing is painted down the whole of it.
+    expect(
+      through(fills, [
+        [TRAY.from, 0, D],
+        [TRAY.to, 0, D],
+        [TRAY.to, -18, D],
+        [TRAY.from, -18, D],
+      ]),
+    ).toHaveLength(1);
+    expect(fills.some((fill) => near(fill.points, project(0, -18, D)) || near(fill.points, project(W, -18, D)))).toBe(false);
+    const gold = [project(TRAY.from, 0, D), project(TRAY.to, 0, D)].map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ');
+    expect(made.some((canvas) => canvas.log.includes(`line:${gold}`))).toBe(true);
+    // The rails are not in this layer: every frame lays them, over whatever has gone down a mouth.
+    expect(made.every((canvas) => railLaid(canvas, -1) < 0 && railLaid(canvas, 1) < 0)).toBe(true);
+  });
+
+  it('lights the tray between the cheeks only, and the whole of a hole a medal has gone down: its chute and its mouth', () => {
+    fakeDocument();
+    const lit = (stage: Stage) => frame([], true, stage).screen;
+    const won = createStage(1);
+    won.trayGlow = GLOW_TIME;
+    const gold = lit(won).fills.filter((fill) => fill.style === 'rgba(255, 214, 92, 0.4)');
+    expect(gold).toHaveLength(1);
+    for (const x of [TRAY.from, TRAY.to]) for (const height of [0, -18]) expect(near(gold[0].points, project(x, height, D))).toBe(true);
+    for (const index of [0, 1]) {
+      const side = index === 0 ? -1 : 1;
+      const lost = createStage(1);
+      lost.sideGlow[index] = GLOW_TIME;
+      const red = lit(lost).fills.filter((fill) => fill.style === 'rgba(255, 70, 96, 0.45)');
+      // Two patches of the same light: the chute beside the open side, and the mouth round the corner from it.
+      expect(red).toHaveLength(2);
+      const { from, hole } = ends(side);
+      expect(near(red[0].points, project(from, chuteHeight(0), FIELD.sideOpenFrom))).toBe(true);
+      expect(near(red[1].points, project(from, holeFloor(0), D))).toBe(true);
+      expect(near(red[1].points, project(hole, holeFloor(0), D))).toBe(true);
+      // And nothing of the tray's.
+      expect(lit(lost).fills.some((fill) => fill.style.startsWith('rgba(255, 214, 92, 0.4'))).toBe(false);
+    }
+    // With nothing lit there is neither.
+    const dark = lit(createStage(1));
+    expect(dark.fills.some((fill) => fill.style.startsWith('rgba(255, 70, 96,') || fill.style === 'rgba(255, 214, 92, 0.4)')).toBe(false);
+  });
+
+  it('lays the ball rail across each mouth in every frame, from the cabinet’s frame to the cheek, leaning toward the tray', () => {
+    fakeDocument();
+    for (const calm of [false, true]) {
+      const { screen } = frame([], calm);
+      for (const side of SIDES) {
+        for (const out of SIDE_HOLE.rails) {
+          const to = project(ends(side).hole, railTop(SIDE_HOLE.reach) - SIDE_HOLE.bar / 2, D + out);
+          const laid = screen.log.filter((entry) => entry.startsWith('line:') && entry.endsWith(` ${to.x.toFixed(2)},${to.y.toFixed(2)}`));
+          // Its shade and its body end here; the bright line along its top is a hair higher.
+          expect(laid).toHaveLength(2);
+          // It starts out past the side of the picture, higher than it ends: it leans toward the tray.
+          const [x, y] = laid[0].slice(5).split(' ')[0].split(',').map(Number);
+          expect(side < 0 ? x : VIEW.width - x).toBeLessThan(0);
+          expect(y).toBeLessThan(to.y);
+        }
+      }
+    }
+  });
+
+  it('stamps a medal that drops into a mouth where the hole has it, fading into the dark, and lays the rail over it', () => {
+    fakeDocument();
+    for (const side of SIDES) {
+      for (const age of [0.02, 0.1, 0.2, 0.3, 0.4]) {
+        const x = acrossAt(9, side);
+        const { screen, stage } = frame([{ id: 5, x, y: D + 0.1, kind: 'lost', side, ball: false, corner: true, age }]);
+        const medals = screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement));
+        expect(medals).toHaveLength(1);
+        const sunk = sinking(x, D + 0.1, side, age, T);
+        const at = project(sunk.x, sunk.height + T / 2, sunk.depth);
+        expect(medals[0].x).toBeCloseTo(at.x, 6);
+        expect(medals[0].y).toBeCloseTo(at.y, 6);
+        // It goes dark as one that goes down the side's chute does, and it is gone before a medal's moment is up.
+        expect(medals[0].alpha).toBeCloseTo(Math.max(0, 1 - (age / (EXIT_TIME * 0.7)) ** 2), 9);
+        // The further it has tipped, nose toward the player, the more of its face is seen: it is never a sliver.
+        expect(medals[0].height / medals[0].width).toBeGreaterThanOrEqual(at.tilt - 1e-9);
+        // The rail is laid after it: the medal is seen through the bars.
+        const stamped = screen.log.indexOf(`image:${screen.stamps.indexOf(medals[0])}`);
+        expect(stamped).toBeGreaterThanOrEqual(0);
+        expect(railLaid(screen, side)).toBeGreaterThan(stamped);
+      }
+    }
+    // Under the edge it has left the table behind: half way through its fall it is lower on the picture than the red edge.
+    const low = sinking(9, D, -1, 0.15, T);
+    expect(project(low.x, low.height + T / 2, low.depth).y).toBeGreaterThan(project(9, 0, D).y + 4);
+  });
+
+  it('rolls a ball or a jewel that went over a corner along the rail, drawn over the bars, and with motion reduced takes it straight across', () => {
+    fakeDocument();
+    for (const side of SIDES) {
+      for (const calm of [false, true]) {
+        for (const age of [0.05, 0.3, 0.6]) {
+          const x = acrossAt(5, side);
+          const { screen, stage } = frame([{ id: 6, x, y: D + 0.1, kind: 'won', side, ball: true, corner: true, age }], calm);
+          const balls = screen.stamps.filter((stamp) => stamp.image === stage.ball);
+          expect(balls).toHaveLength(1);
+          const at = railed(x, D + 0.1, side, age, BALL_RADIUS, calm);
+          const centre = project(at.x, at.height, at.depth);
+          expect(balls[0].x).toBeCloseTo(centre.x, 6);
+          expect(balls[0].y).toBeCloseTo(centre.y, 6);
+          expect(balls[0].alpha).toBe(1);
+          // It is on the bars: drawn after them.
+          expect(screen.log.indexOf(`image:${screen.stamps.indexOf(balls[0])}`)).toBeGreaterThan(railLaid(screen, side));
+          // No medal is stamped for it.
+          expect(screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement))).toHaveLength(0);
+        }
+        // A jewel is drawn as the stone it is, where the rail has it.
+        const exit: ExitingMedal = { id: 7, x: acrossAt(5, side), y: D + 0.1, kind: 'won', side, ball: false, jewel: true, corner: true, age: 0.3 };
+        const { screen } = frame([exit], calm);
+        const spot = railedJewel(exit, calm);
+        const drawn = [...screen.starts, ...screen.lines];
+        expect(JEWEL_GIRDLE.every((corner) => near(drawn, ((at) => project(at[0], at[1], at[2]))(pointInCabinet(spot, corner))))).toBe(true);
+      }
+    }
+    // With the roll, by 0.6 s it is well along the rail toward the tray; with motion reduced it has not moved across.
+    expect(railed(5, D, -1, 0.6, BALL_RADIUS).x).toBeGreaterThan(12);
+    expect(railed(5, D, -1, 0.3, BALL_RADIUS, true).x).toBe(5);
   });
 });

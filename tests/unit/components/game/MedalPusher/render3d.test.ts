@@ -63,8 +63,11 @@ import {
   RIDE,
   SLOT_LIGHT,
   SLOT_SHAPE,
+  TRAY,
+  TRAY_BULBS,
   ageStage,
   createStage,
+  railedJewel,
   glassShift,
   goldFlash,
   lightGate,
@@ -76,6 +79,7 @@ import {
 } from '@/components/game/MedalPusher/render';
 import { createScene3d } from '@/components/game/MedalPusher/render3d';
 import * as shaders from '@/components/game/MedalPusher/shaders3d';
+import { HOLE_LEAN, SIDE_HOLE, acrossAt, holeFloor, railTop, railed, sinking } from '@/components/game/MedalPusher/sidehole';
 import { WASH_OVER_3D, askedFor, createRenderer, sceneContext } from '@/components/game/MedalPusher/renderer';
 import {
   BEAD,
@@ -2600,7 +2604,8 @@ describe('the cabinet as shapes', () => {
     expect(stage.sideGlow[1]).toBeGreaterThan(0);
     const after = new Flat(600);
     buildTouches(after, machine, 40, stage, { showGuide: false });
-    expect(after.count).toBe(before.count + 6);
+    // Two touches of light: on the side's chute, and on the mouth round the corner from it, which is the same hole.
+    expect(after.count).toBe(before.count + 12);
     ageStage(stage, 1);
     const later = new Flat(600);
     buildTouches(later, machine, 40, stage, { showGuide: false });
@@ -3265,6 +3270,213 @@ describe('the gold spins’ lamps in the 3D scene', () => {
           expect(kindOf(machine, lamp, clock, partying, true)).toBeCloseTo(BEAD.bulb(1), 5);
         }
       }
+    }
+  });
+});
+
+describe('the side holes in the 3D cabinet', () => {
+  const D = FIELD.depth;
+  const W = FIELD.width;
+  const SIDES = [-1, 1] as const;
+  const ends = (side: number) => ({ from: side < 0 ? 0 : W, hole: acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side), tray: acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side) });
+  /** The cabinet's surfaces, each as its six corners, with the picture each is in. */
+  const surfaces = () => {
+    const solid = new Solid(600);
+    const parts = buildCabinet(solid);
+    return parts.flatMap((part) => {
+      const all = corners(solid, part.first, part.count);
+      return Array.from({ length: all.length / 6 }, (_, index) => ({ art: part.art, corners: all.slice(index * 6, index * 6 + 6) }));
+    });
+  };
+  const span = (surface: { corners: { x: number; y: number; z: number }[] }, axis: 'x' | 'y' | 'z'): [number, number] => [Math.min(...surface.corners.map((corner) => corner[axis])), Math.max(...surface.corners.map((corner) => corner[axis]))];
+  const close = (a: [number, number], b: [number, number]) => Math.abs(a[0] - b[0]) < 1e-4 && Math.abs(a[1] - b[1]) < 1e-4;
+
+  it('has the front of the table between the cheeks only: the tray’s stretch of the picture, and its gold edge', () => {
+    const all = surfaces();
+    const lip = all.filter((surface) => surface.art === 'lip');
+    expect(lip).toHaveLength(1);
+    expect(close(span(lip[0], 'x'), [TRAY.from, TRAY.to])).toBe(true);
+    for (const corner of lip[0].corners) {
+      expect(corner.z).toBe(D);
+      // The picture is the whole front's: this surface shows the part of it that is its own.
+      expect(corner.u).toBeCloseTo(corner.x / W, 6);
+      expect(corner.normal).toEqual([0, 0, 1]);
+    }
+    // The lit edge along the front: gold over the tray, red over each mouth, and nothing lit runs the whole width.
+    const lit = all.filter((surface) => surface.corners.every((corner) => corner.glow === 1 && Math.abs(corner.y - 0.04) < 1e-4 && corner.z >= D - 0.5 && corner.z <= D));
+    expect(lit).toHaveLength(3);
+    const reds = lit.filter((surface) => surface.corners[0].colour[1] < surface.corners[0].colour[0] * 0.5);
+    const golds = lit.filter((surface) => !reds.includes(surface));
+    expect(golds).toHaveLength(1);
+    expect(close(span(golds[0], 'x'), [TRAY.from, TRAY.to])).toBe(true);
+    expect(reds.map((surface) => span(surface, 'x')[0]).sort((a, b) => a - b)).toEqual([0, Math.fround(ends(1).hole)]);
+    for (const side of SIDES) {
+      const { from, hole } = ends(side);
+      expect(reds.some((surface) => close(span(surface, 'x'), [Math.min(from, hole), Math.max(from, hole)]))).toBe(true);
+    }
+  });
+
+  it('builds at each front corner a dark mouth with a chute that falls away, arrows on it, a ball rail of chrome and a cheek of brushed steel', () => {
+    const plain = surfaces().filter((surface) => surface.art === 'plain');
+    const past = D + SIDE_HOLE.past;
+    for (const side of SIDES) {
+      const { from, hole, tray } = ends(side);
+      const across: [number, number] = [Math.min(from, hole), Math.max(from, hole)];
+      // The dark under the edge: black, matte, facing the player, from the edge down to where the chute begins.
+      const walls = plain.filter((surface) => surface.corners.every((corner) => corner.z === D) && close(span(surface, 'x'), across) && close(span(surface, 'y'), [holeFloor(0), 0]));
+      expect(walls).toHaveLength(1);
+      for (const corner of walls[0].corners) {
+        expect(corner.colour).toEqual([0, 0, 0]);
+        expect(corner.gloss).toBe(Math.fround(MATERIAL.rubber.gloss));
+        expect(corner.normal).toEqual([0, 0, 1]);
+      }
+      // The chute: from under the edge out past where the picture ends, lower the further out, red by the table and all but black beyond.
+      const chutes = plain.filter((surface) => close(span(surface, 'x'), across) && close(span(surface, 'z'), [D, past]) && close(span(surface, 'y'), [holeFloor(SIDE_HOLE.past), holeFloor(0)]));
+      expect(chutes).toHaveLength(1);
+      for (const corner of chutes[0].corners) {
+        expect(corner.y).toBeCloseTo(holeFloor(corner.z - D), 4);
+        expect(corner.glow).toBe(0);
+        expect(corner.normal[1]).toBeGreaterThan(0.8);
+        // It is turned up toward the player, who looks down it.
+        expect(corner.normal[2]).toBeGreaterThan(0.3);
+        expect(corner.colour[0]).toBeGreaterThan(corner.colour[1]);
+      }
+      const light = (corner: { colour: number[] }) => corner.colour[0] + corner.colour[1] + corner.colour[2];
+      const near = chutes[0].corners.filter((corner) => corner.z === D);
+      const far = chutes[0].corners.filter((corner) => corner.z > D);
+      expect(Math.min(...near.map(light))).toBeGreaterThan(Math.max(...far.map(light)) * 5);
+      // The arrows on it: two lit barbs to each mark, lying on the chute, meeting at the point, which is the further out.
+      const barbs = plain.filter(
+        (surface) =>
+          surface.corners.every((corner) => corner.glow === 1 && corner.z > D && corner.z < D + SIDE_HOLE.far + 0.1 && Math.abs(corner.y - holeFloor(corner.z - D) - 0.05) < 1e-4) &&
+          span(surface, 'x')[0] >= across[0] &&
+          span(surface, 'x')[1] <= across[1],
+      );
+      expect(barbs).toHaveLength(SIDE_HOLE.marks.length * 2);
+      for (const barb of barbs) expect(close(span(barb, 'z'), [D + SIDE_HOLE.near, D + SIDE_HOLE.far])).toBe(true);
+      // The ball rail: two bars of chrome, each a top and a face to the player, from the cabinet's frame to the cheek, leaning toward the tray.
+      const chrome = plain.filter((surface) => surface.corners.every((corner) => corner.gloss === MATERIAL.chrome.gloss && corner.glow === 0 && corner.z > D + 1 && corner.z < past) && surface.corners.some((corner) => corner.x === Math.fround(hole)));
+      expect(chrome).toHaveLength(SIDE_HOLE.rails.length * 2);
+      for (const out of SIDE_HOLE.rails) {
+        const bar = chrome.filter((surface) => surface.corners.every((corner) => Math.abs(corner.z - D - out) <= SIDE_HOLE.bar / 2 + 1e-4));
+        expect(bar).toHaveLength(2);
+        const tops = bar.flatMap((surface) => surface.corners).filter((corner) => corner.x === Math.fround(hole));
+        expect(Math.max(...tops.map((corner) => corner.y))).toBeCloseTo(railTop(SIDE_HOLE.reach), 5);
+        const ends3d = bar.flatMap((surface) => surface.corners).filter((corner) => corner.x !== Math.fround(hole));
+        // Its other end is out past the side of the table, and higher.
+        for (const corner of ends3d) expect((corner.x - from) * side).toBeGreaterThan(16);
+        expect(Math.max(...ends3d.map((corner) => corner.y))).toBeCloseTo(railTop(0), 5);
+      }
+      // The cheek: a block of brushed steel, its top level with the table, from the front edge out, between the mouth and the tray.
+      const steel = plain.filter((surface) => surface.corners.every((corner) => corner.gloss === Math.fround(MATERIAL.brushedSteel.gloss) && corner.z >= D && corner.x >= Math.min(hole, tray) - 1e-4 && corner.x <= Math.max(hole, tray) + 1e-4));
+      expect(steel).toHaveLength(4);
+      expect(Math.max(...steel.flatMap((surface) => surface.corners).map((corner) => corner.y))).toBe(0);
+      expect(Math.max(...steel.flatMap((surface) => surface.corners).map((corner) => corner.z))).toBe(past);
+    }
+  });
+
+  it('writes a medal that drops into a mouth where the hole has it, nose down, and darker the further in', () => {
+    const empty = holding([]);
+    for (const side of SIDES) {
+      const x = acrossAt(9, side);
+      const row = (age: number) => medalRows(empty, [{ id: 5, x, y: D + 0.1, kind: 'lost', side, ball: false, corner: true, age }]);
+      for (const age of [0, 0.05, 0.15, 0.25, 0.35]) {
+        const [medal] = row(age);
+        const sunk = sinking(x, D + 0.1, side, age, T);
+        expect(medal.x).toBeCloseTo(sunk.x, 4);
+        expect(medal.y).toBeCloseTo(sunk.height, 4);
+        expect(medal.z).toBeCloseTo(sunk.depth, 4);
+        // Its nose is down toward the player: its upper face has turned to look out of the mouth, by as much as it has tipped.
+        expect(medal.up[0]).toBeCloseTo(0, 5);
+        expect(medal.up[2]).toBeCloseTo(Math.sin(sunk.tilt), 5);
+        expect(medal.light).toBeCloseTo(Math.max(0, 1 - (age / (EXIT_TIME * 0.7)) ** 2), 5);
+        expect(medal.lead).toBe(0);
+      }
+      expect(row(0.3)[0].up[2]).toBeCloseTo(Math.sin(HOLE_LEAN), 5);
+      // Once it is dark it is not drawn; and it is never where a medal on its way into the tray would be.
+      expect(row(EXIT_TIME * 0.7 + 0.01)).toEqual([]);
+      const won = medalRows(empty, [{ id: 5, x, y: D + 0.1, kind: 'won', side, ball: false, age: 0.25 }])[0];
+      // That one is still turning over in the light; this one is coming to lie along the chute, in the dark.
+      expect(row(0.25)[0].up[1]).toBeGreaterThan(won.up[1] + 0.3);
+      expect(row(0.25)[0].light).toBeLessThan(won.light);
+    }
+  });
+
+  it('writes a ball and a jewel that went over a corner on the rail, rolling to the tray, and straight across it with motion reduced', () => {
+    const empty = holding([]);
+    for (const side of SIDES) {
+      const x = acrossAt(5, side);
+      for (const calm of [false, true]) {
+        for (const age of [0.05, 0.3, 0.6, 0.9]) {
+          const balls = createRows(BEAD_STRIDE, 8);
+          writeBalls(balls, empty, [{ id: 6, x, y: D + 0.1, kind: 'won', side, ball: true, corner: true, age }], undefined, calm);
+          expect(balls.count).toBe(1);
+          const at = railed(x, D + 0.1, side, age, BALL_RADIUS, calm);
+          expect(balls.data[0]).toBeCloseTo(at.x, 4);
+          expect(balls.data[1]).toBeCloseTo(at.height, 4);
+          expect(balls.data[2]).toBeCloseTo(at.depth, 4);
+          expect(balls.data[3]).toBeCloseTo(BALL_RADIUS, 5);
+          // While it is on the rail it is above the bars, not down in the mouth.
+          if (!at.over) expect(balls.data[1] - BALL_RADIUS).toBeGreaterThan(railTop(SIDE_HOLE.reach) - SIDE_HOLE.bar - 1);
+          const exit: ExitingMedal = { id: 7, x, y: D + 0.1, kind: 'won', side, ball: false, jewel: true, corner: true, age };
+          const jewels = createRows(MEDAL_STRIDE, 8);
+          writeJewels(jewels, empty, [exit], calm);
+          const [stone] = readMedals(jewels);
+          const spot = railedJewel(exit, calm);
+          expect([stone.x, stone.y, stone.z]).toEqual([Math.fround(spot.x), Math.fround(spot.height), Math.fround(spot.depth)]);
+          // No medal is written for either.
+          expect(medalRows(empty, [{ id: 6, x, y: D + 0.1, kind: 'won', side, ball: true, corner: true, age }, exit])).toEqual([]);
+        }
+      }
+      // One that goes over the tray is written as it always was: forward and down.
+      const over = createRows(BEAD_STRIDE, 8);
+      writeBalls(over, empty, [{ id: 6, x: 50, y: D + 0.1, kind: 'won', side, ball: true, age: 0.3 }]);
+      expect(over.data[0]).toBe(50);
+      expect(over.data[1]).toBeLessThan(BALL_RADIUS - 5);
+    }
+  });
+
+  it('glows red round each corner as far as the cheek and gold along the tray, and runs the tray’s bulbs between the cheeks', () => {
+    fakeDocument();
+    const machine = holding([]);
+    const stage = createStage(1, false);
+    const flat = new Flat(600);
+    buildTouches(flat, machine, 40, stage, { showGuide: false, calm: true });
+    const touches = Array.from({ length: flat.count / 6 }, (_, index) =>
+      Array.from({ length: 6 }, (_unused, corner) => {
+        const at = (index * 6 + corner) * FLAT_STRIDE;
+        return { x: flat.data[at], y: flat.data[at + 1], z: flat.data[at + 2], colour: [flat.data[at + 3], flat.data[at + 4], flat.data[at + 5]], shape: flat.data[at + 10] };
+      }),
+    );
+    // The lines of light along the front edge, on the table: one over the tray and one over each mouth.
+    const front = touches.filter((touch) => touch.every((corner) => corner.shape === SHAPE.line && Math.abs(corner.y - 0.05) < 1e-4 && corner.z >= D - 2.5 && corner.z <= D + 0.3));
+    expect(front).toHaveLength(3);
+    const xs = (touch: { x: number }[]): [number, number] => [Math.min(...touch.map((corner) => corner.x)), Math.max(...touch.map((corner) => corner.x))];
+    const red = (touch: { colour: number[] }[]) => touch[0].colour[1] < touch[0].colour[0] * 0.5;
+    expect(front.filter((touch) => !red(touch)).map(xs)).toEqual([[Math.fround(TRAY.from), Math.fround(TRAY.to)]]);
+    expect(
+      front
+        .filter(red)
+        .map(xs)
+        .sort((a, b) => a[0] - b[0]),
+    ).toEqual([
+      [0, Math.fround(ends(-1).hole)],
+      [Math.fround(ends(1).hole), W],
+    ]);
+    // An arrow's glow at each mark in each mouth, steady with motion reduced, on the chute.
+    const marks = touches.filter((touch) => touch.every((corner) => corner.shape === SHAPE.spot && corner.z >= D && corner.z <= D + SIDE_HOLE.far + 1 && Math.abs(corner.y - holeFloor(corner.z - D) - 0.12) < 1e-4));
+    expect(marks).toHaveLength(SIDE_HOLE.marks.length * 2);
+    // The tray's bulbs: as many as the canvas draws, all between the cheeks, under the edge.
+    const beads = createRows(BEAD_STRIDE, 16);
+    buildLamps(beads, new Flat(16), machine, 40, 1, false, { showGuide: false }, 0);
+    const first = LAMP_ROWS.hood + LAMP_ROWS.strip * 2 + LAMP_ROWS.rail * 2;
+    expect(LAMP_ROWS.tray).toBe(TRAY_BULBS);
+    for (let index = first; index < first + LAMP_ROWS.tray; index++) {
+      const [x, y, z] = beads.data.subarray(index * BEAD_STRIDE, index * BEAD_STRIDE + 3);
+      expect(x).toBeGreaterThan(TRAY.from + 1);
+      expect(x).toBeLessThan(TRAY.to - 1);
+      expect(y).toBe(-3);
+      expect(z).toBeCloseTo(D + 0.15, 5);
     }
   });
 });

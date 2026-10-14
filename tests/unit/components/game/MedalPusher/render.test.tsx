@@ -1398,10 +1398,12 @@ describe('strings', () => {
     expect(info.ja).toContain('その脇の穴は手前の角を回り込んでいて、手前の端のうち左右それぞれ5分の1は穴の上です。そこを越えたメダルも戻りません。');
     expect(en.partName.sides).toBe('Side holes');
     expect(en.partText.sides).toContain('The holes turn the front corners and run a fifth of the way along the front edge from each side.');
-    expect(en.partText.front).toBe('What goes over the middle three fifths is yours. A medal that goes over within a fifth of the edge’s length of either corner drops into the side hole there. A ball or a jewel is collected wherever it goes over.');
+    expect(en.partText.front).toBe('What goes over the middle three fifths is yours. A medal that goes over within a fifth of the edge’s length of either corner drops into the side hole there. A ball or a jewel is collected wherever it goes over: at a corner it comes down on the rail across the hole’s mouth and rolls along it into the tray.');
     expect(ja.partName.sides).toBe('脇の穴');
     expect(ja.partText.sides).toContain('穴は手前の角を回り込み、手前の端の左右それぞれ5分の1まで続いています。');
     expect(ja.partText.front).toContain('ここの中央5分の3を越えたメダルがあなたのものです。');
+    // What is drawn across each mouth is said: the rail a ball or a jewel rolls along to the tray.
+    expect(ja.partText.front).toContain('角では、穴の口に渡したレールに乗って受け皿まで転がります。');
     expect([en.tallyLost, ja.tallyLost]).toEqual(['Lost down the side holes', '脇の穴に落ちた']);
     expect([en.calcFront, ja.calcFront, en.colFront, ja.colFront]).toEqual(['Share of medals that reach your tray', '受け皿に落ちるメダルの割合', 'Into the tray', '受け皿に落ちた']);
     // What the board, the chests and the jackpot pay, and what lies on a new machine.

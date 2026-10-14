@@ -27,6 +27,7 @@ import type { Bonus } from './lottery';
 import type { PlateRules, StepId } from './plateData';
 import { ReelSymbol } from './ReelSymbols';
 import { BOWL_SHAPE } from './screen';
+import { SIDE_HOLE, acrossAt } from './sidehole';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, project, rise } from './view';
 import styles from './InstructionPlate.module.css';
 
@@ -135,13 +136,42 @@ const tone = (art: string): string => `url(#${toneId(art)})`;
 
 // ── The parts of the cabinet ────────────────────────────────────────────────
 
-/** The lower table, from the foot of the pusher to the front edge, and the cabinet's front under it. */
+/** How far under the front edge the plate shows the cabinet's front and the side holes' mouths, and how wide the red edge over a mouth is printed. */
+const FRONT_DROP = 9;
+const HOLE_EDGE = 1.8;
+
+/**
+ * A side hole's mouth under the front edge at a corner, where the cabinet has
+ * it (sidehole.ts): the dark of the hole from the side of the table to the
+ * tray's cheek, the red edge that warns of it, and the cheek. The plate is a
+ * print, and leaves the ball rail across the mouth out.
+ */
+export function holeMouth(side: number): Shape[] {
+  const D = FIELD.depth;
+  const from = side < 0 ? 0 : W;
+  const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+  const tray = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+  return [
+    { d: outline([from, 0, D], [hole, 0, D], [hole, -FRONT_DROP, D], [from, -FRONT_DROP, D]), fill: INK.key },
+    { d: outline([from, 0, D - HOLE_EDGE], [hole, 0, D - HOLE_EDGE], [hole, 0, D], [from, 0, D]), fill: INK.red, line: 0.8 },
+    { d: outline([hole, 0, D], [tray, 0, D], [tray, -FRONT_DROP, D], [hole, -FRONT_DROP, D]), fill: INK.steel },
+  ];
+}
+
+/**
+ * The lower table, from the foot of the pusher to the front edge, and the
+ * cabinet's front under it: the tray's stretch in the middle, between its
+ * cheeks, and a side hole's mouth at each corner.
+ */
 function table(art: string): Shape[] {
-  const front = outline([0, 0, FIELD.depth], [W, 0, FIELD.depth], [W, -9, FIELD.depth], [0, -9, FIELD.depth]);
+  const tray: [number, number] = [SIDE_HOLE.reach + SIDE_HOLE.cheek, W - SIDE_HOLE.reach - SIDE_HOLE.cheek];
+  const front = outline([tray[0], 0, FIELD.depth], [tray[1], 0, FIELD.depth], [tray[1], -FRONT_DROP, FIELD.depth], [tray[0], -FRONT_DROP, FIELD.depth]);
   return [
     { d: outline([0, 0, LIP], [W, 0, LIP], [W, 0, FIELD.depth], [0, 0, FIELD.depth]), fill: INK.cyan },
     { d: front, fill: INK.purpleDark },
     { d: front, fill: tone(art), line: 0 },
+    ...holeMouth(-1),
+    ...holeMouth(1),
   ];
 }
 
@@ -574,12 +604,17 @@ const Aim = ({ mouths }: ArtProps) => {
   );
 };
 
-/** 3. Medals pushed over the front edge are won; those squeezed out of the open sides are gone. */
+/** Where the push drawing's marks stand: how far in from the side the medal that goes down each mouth is, and how far from the middle of the tray each of its two arrows. */
+export const PUSH_MARKS = { lost: SIDE_HOLE.reach / 2 - 0.5, won: 108 } as const;
+
+/** 3. Medals pushed over the middle of the front edge are won; those squeezed out of the open sides, or pushed over a front corner into the side hole's mouth there, are gone. */
 const Push = ({ words, mouths }: ArtProps) => {
   const view: View = [-66, 474, 772, 515];
   const front = project(50, 0, FIELD.depth);
   const open = project(0, 0, (FIELD.sideOpenFrom + FIELD.depth) / 2);
   const openRight = project(W, 0, (FIELD.sideOpenFrom + FIELD.depth) / 2);
+  const hole = project(PUSH_MARKS.lost, 0, FIELD.depth);
+  const holeRight = project(W - PUSH_MARKS.lost, 0, FIELD.depth);
   return (
     <Sheet art="push" view={view} fine={124}>
       {(k) => (
@@ -599,12 +634,19 @@ const Push = ({ words, mouths }: ArtProps) => {
               // The pusher shoves forward.
               { d: arrow(120, 590, 120, 672, 22), fill: INK.white },
               { d: arrow(520, 590, 520, 672, 22), fill: INK.white },
-              // Over the front edge: won.
+              // Over the middle of the front edge, into the tray: won.
               ...medal(34, 100.5, false, 26),
               ...medal(47, 101, false, 60),
               ...medal(62, 100.5, false, 34),
-              { d: arrow(front.x - 160, front.y + 32, front.x - 160, front.y + 140, 32), fill: INK.green },
-              { d: arrow(front.x + 160, front.y + 32, front.x + 160, front.y + 140, 32), fill: INK.green },
+              { d: arrow(front.x - PUSH_MARKS.won, front.y + 32, front.x - PUSH_MARKS.won, front.y + 140, 32), fill: INK.green },
+              { d: arrow(front.x + PUSH_MARKS.won, front.y + 32, front.x + PUSH_MARKS.won, front.y + 140, 32), fill: INK.green },
+              // Over the front edge at a corner, down the side hole's mouth: lost.
+              ...medal(PUSH_MARKS.lost, 100.5, false, 16),
+              ...medal(W - PUSH_MARKS.lost, 100.5, false, 16),
+              { d: arrow(hole.x, hole.y + 44, hole.x, hole.y + 100, 18), fill: INK.red },
+              { d: arrow(holeRight.x, holeRight.y + 44, holeRight.x, holeRight.y + 100, 18), fill: INK.red },
+              ...lostMark(hole.x, hole.y + 128, 22),
+              ...lostMark(holeRight.x, holeRight.y + 128, 22),
               // Out of the open sides: lost.
               ...medal(-4.5, 88),
               ...medal(104.5, 90),

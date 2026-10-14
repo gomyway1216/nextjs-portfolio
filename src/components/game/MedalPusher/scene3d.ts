@@ -10,7 +10,8 @@ import { CATCHER, caught, rolling, underCatcher, type Caught } from './catcher';
 import { FIELD, MEDAL_RADIUS, SETTLE, pusherFront, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
 import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, type JewelSpot } from './jewel';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
-import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, turnOf, type ExitingMedal } from './render';
+import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, railedJewel, turnOf, type ExitingMedal } from './render';
+import { railed, sinking } from './sidehole';
 import { HEIGHT, VIEW, chuteHeight, project } from './view';
 import { onLift, pourPose } from './works';
 
@@ -322,6 +323,12 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const won = exit.kind === 'won';
     const light = lightLeft(exit);
     if (light <= 0) continue;
+    // Over the front edge at a side hole's mouth it tips nose down into the mouth, under the bars across it, and on to the chute.
+    if (exit.corner) {
+      const sunk = sinking(exit.x, exit.y, exit.side, a, T);
+      medalRow(rows, exit.id, sunk.x, sunk.height, sunk.depth, turnOf(exit.id), sunk.tilt, 0, 0, 0, light);
+      continue;
+    }
     const fall = (EXIT.gravity * a * a) / 2;
     const x = exit.x + (won ? 0 : exit.side * EXIT.sideways * a);
     const z = exit.y + (won ? EXIT.forward * a : 0);
@@ -337,15 +344,17 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
 
 /**
  * The jewels: lying among the medals, thrown from the hatch, or going over
- * the front. A row is a medal's row, since a stone is held the way a medal
- * is: a place and an attitude.
+ * the front: into the tray, or at a corner along the bars across a side
+ * hole's mouth and then into it. A row is a medal's row, since a stone is
+ * held the way a medal is: a place and an attitude. `calm` leaves the roll
+ * along the bars out.
  */
-export function writeJewels(rows: Rows, machine: Machine, exits: readonly ExitingMedal[]): void {
+export function writeJewels(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], calm = false): void {
   rows.count = 0;
   const row = (spot: JewelSpot) => medalRow(rows, spot.id, spot.x, spot.height, spot.depth, spot.turn, spot.tilt, spot.heading, 0, 0, spot.light);
   for (const medal of machine.medals) if (medal.jewel) row(lyingJewel(medal, machine.time));
   for (const medal of machine.falling) if (medal.jewel) row(fallingJewel(medal));
-  for (const exit of exits) if (exit.jewel) row(collectedJewel(exit.id, exit.x, exit.y, exit.age));
+  for (const exit of exits) if (exit.jewel) row(exit.corner ? railedJewel(exit, calm) : collectedJewel(exit.id, exit.x, exit.y, exit.age));
 }
 
 /** What a bead is, as the number the shader reads: a prize ball, a stud of polished metal, or a bulb lit this far. */
@@ -373,9 +382,11 @@ export function beadRow(rows: Rows, x: number, y: number, z: number, radius: num
  * its slide, rolling down it and off its foot, where the catcher has it;
  * and one that has come down in front of the foot stands there, where the
  * catcher has it, until the engine has it there too: under the catcher's
- * hood too, when the catcher comes over it.
+ * hood too, when the catcher comes over it. One that went over the front at
+ * a corner is on the bars across the side hole's mouth, rolling along them to
+ * the tray; with `calm` it crosses them the way it was going.
  */
-export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], under?: Rows): void {
+export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], under?: Rows, calm = false): void {
   rows.count = 0;
   if (under) under.count = 0;
   for (const medal of machine.medals) {
@@ -402,6 +413,11 @@ export function writeBalls(rows: Rows, machine: Machine, exits: readonly Exiting
   }
   for (const exit of exits) {
     if (!exit.ball) continue;
+    if (exit.corner) {
+      const at = railed(exit.x, exit.y, exit.side, exit.age, BALL_RADIUS, calm);
+      beadRow(rows, at.x, at.height, at.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+      continue;
+    }
     const fall = (EXIT.gravity * exit.age * exit.age) / 2;
     beadRow(rows, exit.x, BALL_RADIUS - fall, exit.y + EXIT.forward * exit.age, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }

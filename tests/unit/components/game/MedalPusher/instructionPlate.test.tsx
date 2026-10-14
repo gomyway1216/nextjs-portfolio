@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
 import { InstructionPlate, InstructionPlateDialog, PlateSticker, PlateSwitch } from '@/components/game/MedalPusher/InstructionPlate';
-import { INK, StepArt, StepGlyph, arrow, dropPose, hasArt, holePlaces, mouthOutline, startMouths, tongueOutline, type Mouth } from '@/components/game/MedalPusher/PlateArt';
+import { INK, PUSH_MARKS, StepArt, StepGlyph, arrow, dropPose, hasArt, holeMouth, holePlaces, mouthOutline, startMouths, tongueOutline, type Mouth } from '@/components/game/MedalPusher/PlateArt';
 import { AIM_CAPS, KEY_CAPS, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { armCollar, armTip } from '@/components/game/MedalPusher/arms';
 import { CATCHER, mouthOnDrawing, slopeSpot, slotCorners, tongueCorners, wellCorners } from '@/components/game/MedalPusher/catcher';
-import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, frontPays, pusherFront } from '@/components/game/MedalPusher/engine';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import {
   BOARD,
@@ -37,6 +37,7 @@ import {
 import { PLATE_NOTES, PLATE_RULES, PLATE_STEPS, hotterReach, jackpotPath, payoutLines, type PlateRules, type WinTier } from '@/components/game/MedalPusher/plateData';
 import { getPlateStrings } from '@/components/game/MedalPusher/plateStrings';
 import { holeSpot } from '@/components/game/MedalPusher/screen';
+import { SIDE_HOLE, acrossAt } from '@/components/game/MedalPusher/sidehole';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
 import { HEIGHT, project, rise } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
@@ -890,6 +891,97 @@ describe('the medals on the plate', () => {
         expect(rim.y - face.y).toBeGreaterThan(0);
         expect(Math.abs(rim.y - face.y - share * face.rx)).toBeLessThan(0.2);
       }
+    }
+  });
+});
+
+describe('the side holes on the instruction plate', () => {
+  const D = FIELD.depth;
+  const W = FIELD.width;
+  /** An outline through places of the cabinet, as the plate writes one. */
+  const outlineOf = (corners: [number, number, number][]): string =>
+    `M${corners
+      .map(([x, height, depth]) => project(x, height, depth))
+      .map((point) => `${one(point.x)} ${one(point.y)}`)
+      .join('L')}Z`;
+
+  it('draws a dark mouth with a red edge under each front corner, where the cabinet has it, and the tray’s front between two cheeks', () => {
+    const html = plate('en');
+    const tray: [number, number] = [SIDE_HOLE.reach + SIDE_HOLE.cheek, W - SIDE_HOLE.reach - SIDE_HOLE.cheek];
+    const front = outlineOf([
+      [tray[0], 0, D],
+      [tray[1], 0, D],
+      [tray[1], -9, D],
+      [tray[0], -9, D],
+    ]);
+    // Every drawing that shows the front of the table shows it so.
+    for (const step of ['insert', 'aim', 'push', 'start']) {
+      const art = artOf(html, step);
+      expect(art).toContain(`d="${front}"`);
+      for (const side of [-1, 1]) {
+        const from = side < 0 ? 0 : W;
+        const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+        const cheek = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+        const [dark, edge, steel] = holeMouth(side);
+        // The dark of the hole, in the key's own black, from the side of the table to the cheek.
+        expect(dark).toMatchObject({ fill: INK.key });
+        expect(dark.d).toBe(
+          outlineOf([
+            [from, 0, D],
+            [hole, 0, D],
+            [hole, -9, D],
+            [from, -9, D],
+          ]),
+        );
+        expect(art).toContain(`<path d="${dark.d}" fill="${INK.key}"`);
+        // The red edge over it, on the table, and the cheek beside it.
+        expect(edge.fill).toBe(INK.red);
+        expect(art).toContain(`<path d="${edge.d}" fill="${INK.red}"`);
+        expect(steel.d).toBe(
+          outlineOf([
+            [hole, 0, D],
+            [cheek, 0, D],
+            [cheek, -9, D],
+            [hole, -9, D],
+          ]),
+        );
+        expect(art).toContain(`<path d="${steel.d}" fill="${INK.steel}"`);
+        // It comes after the tray's front in the drawing, and nothing is printed down the whole width of the table's front.
+        expect(art.indexOf(`d="${dark.d}"`)).toBeGreaterThan(art.indexOf(`d="${front}"`));
+      }
+      expect(art).not.toContain(
+        `d="${outlineOf([
+          [0, 0, D],
+          [W, 0, D],
+          [W, -9, D],
+          [0, -9, D],
+        ])}"`,
+      );
+    }
+  });
+
+  it('shows, where it says what is yours, a medal going down each mouth with a cross under it, and the winnings going into the tray only', () => {
+    for (const language of LANGUAGES) {
+      const art = artOf(plate(language), 'push');
+      // A cross for each way a medal is lost: the two open sides, and the two mouths at the front corners.
+      expect(count(art, new RegExp(`stroke="${INK.red}"`, 'g'))).toBe(4);
+      // The medal that goes down each mouth is well inside it, where the rule loses it.
+      expect(frontPays(PUSH_MARKS.lost)).toBe(false);
+      expect(frontPays(W - PUSH_MARKS.lost)).toBe(false);
+      expect(PUSH_MARKS.lost - MEDAL_RADIUS).toBeGreaterThan(0);
+      expect(PUSH_MARKS.lost + MEDAL_RADIUS).toBeLessThan(SIDE_HOLE.reach - SIDE_HOLE.cheek);
+      for (const x of [PUSH_MARKS.lost, W - PUSH_MARKS.lost]) {
+        const hole = project(x, 0, D);
+        expect(art).toContain(`d="${arrow(hole.x, hole.y + 44, hole.x, hole.y + 100, 18)}" fill="${INK.red}"`);
+      }
+      // The green arrows are under the tray's stretch of the edge, head and all, and clear of the cheeks.
+      const middle = project(50, 0, D);
+      const half = (project(W - SIDE_HOLE.reach - SIDE_HOLE.cheek, 0, D).x - project(SIDE_HOLE.reach + SIDE_HOLE.cheek, 0, D).x) / 2;
+      expect(PUSH_MARKS.won + 32 * 1.15).toBeLessThan(half - 10);
+      for (const way of [-1, 1]) {
+        expect(art).toContain(`d="${arrow(middle.x + way * PUSH_MARKS.won, middle.y + 32, middle.x + way * PUSH_MARKS.won, middle.y + 140, 32)}" fill="${INK.green}"`);
+      }
+      expect(count(art, new RegExp(`fill="${INK.green}"`, 'g'))).toBe(2);
     }
   });
 });

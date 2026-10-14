@@ -264,8 +264,8 @@ function build(gpu: Gpu, now: () => number): Scene3d {
 
     // This frame's numbers, and each list sent to the graphics card once.
     writeMedals(medals, machine, stage.exits, stage.fed, calm, options.wings ?? false);
-    writeBalls(balls, machine, stage.exits, lowBalls);
-    writeJewels(jewels, machine, stage.exits);
+    writeBalls(balls, machine, stage.exits, lowBalls, calm);
+    writeJewels(jewels, machine, stage.exits, calm);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
     buildTouches(flat, machine, front, stage, options);

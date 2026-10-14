@@ -1,5 +1,6 @@
 /**
  * The cabinet as shapes: the tables, the walls and chutes that never move,
+ * the side holes' mouths at the front corners with the tray between them,
  * the housing round the screen, the pusher with the catcher for the START
  * pockets hung on its front, the feed arms and their slots, the bulbs and
  * lamps, and the flat touches laid over them —
@@ -17,9 +18,10 @@ import { APRON, CATCHER, SLOPE, START_SLOT, TONGUE, apronSpot, lampSpot, litSlot
 import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, type Arm, type Machine } from './engine';
 import { JEWEL_CUT, JEWEL_LAMPS, LAMP_OUTLINE, jewelGlint, jewelLampX, lampLight } from './jewel';
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
-import { BALL_RADIUS, BURST, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, goldFlash, type DrawOptions, type Stage } from './render';
+import { BALL_RADIUS, BURST, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, TRAY, TRAY_BULBS, goldFlash, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
 import { LIP_LAMPS } from './shaders3d';
+import { SIDE_HOLE, acrossAt, holeFloor, railTop } from './sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, chuteHeight } from './view';
 
 const TAU = Math.PI * 2;
@@ -324,11 +326,58 @@ function buildHousing(solid: Solid): void {
 }
 
 /**
- * Everything that stands still: the lower table and its front, the wall
- * under the screen with the shelf on it, the housing round the screen, the
- * two side walls with their rails, the brackets the slots hang from, the
- * chutes beside the open part of the table with the arrows on them that
- * point the way out, and the lit edges that warn of them.
+ * A side hole's mouth under the front edge at a corner, where the side's
+ * chute turns the corner (sidehole.ts): the dark under the edge, which is the
+ * inside of the hole, and the step down beside the table's corner from the
+ * side's chute; the chute in it, lit red at the top and black further down,
+ * falling away from the table, with arrows on it that point the way out; the
+ * red edge that warns of it; the ball rail across it, bars of chrome that
+ * lean toward the tray; and the cheek of brushed steel that parts it from the
+ * tray.
+ */
+function buildMouth(solid: Solid, side: number): void {
+  const x = side < 0 ? 0 : W;
+  const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+  const tray = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+  const past = D + SIDE_HOLE.past;
+  const deep = holeFloor(SIDE_HOLE.past);
+  solid.as(MATERIAL.rubber).paint(BLACK).quad(x, 0, D, hole, 0, D, hole, holeFloor(0), D, x, holeFloor(0), D);
+  solid.paint(PIT_FAR).quad(x, chuteHeight(0), D, x, chuteHeight(0), past, x, deep, past, x, holeFloor(0), D);
+  solid.paint(PIT_NEAR, PIT_FAR).quad(x, holeFloor(0), D, hole, holeFloor(0), D, hole, deep, past, x, deep, past);
+  solid.finish(0, 1).paint(NEON_RED);
+  const ay = holeFloor(SIDE_HOLE.near) + 0.05;
+  const by = holeFloor(SIDE_HOLE.far) + 0.05;
+  for (const mark of SIDE_HOLE.marks) {
+    const at = acrossAt(mark, side);
+    for (const barb of [-1, 1]) {
+      const end = at + (barb * SIDE_HOLE.span) / 2;
+      const lean = -barb * 0.45;
+      solid.quad(end - lean, ay, D + SIDE_HOLE.near, at - lean, by, D + SIDE_HOLE.far, at + lean, by, D + SIDE_HOLE.far, end + lean, ay, D + SIDE_HOLE.near);
+    }
+  }
+  solid.quad(x, 0.04, D - 0.45, hole, 0.04, D - 0.45, hole, 0.04, D, x, 0.04, D);
+  solid.quad(x, 0.04, D + 0.02, hole, 0.04, D + 0.02, hole, -0.45, D + 0.02, x, -0.45, D + 0.02);
+  // The bars start at the cabinet's frame, out past the side's chute, and end at the cheek, over the tray.
+  const frame = x + side * OUT;
+  const from = railTop(0);
+  const to = railTop(SIDE_HOLE.reach);
+  solid.as(MATERIAL.chrome).paint(CHROME, STEEL_TOP);
+  for (const out of SIDE_HOLE.rails) {
+    const z0 = D + out - SIDE_HOLE.bar / 2;
+    const z1 = D + out + SIDE_HOLE.bar / 2;
+    solid.quad(frame, from, z0, hole, to, z0, hole, to, z1, frame, from, z1);
+    solid.quad(frame, from, z1, hole, to, z1, hole, to - SIDE_HOLE.bar, z1, frame, from - SIDE_HOLE.bar, z1);
+  }
+  solid.as(MATERIAL.brushedSteel).paint(STEEL_BRIGHT, STEEL_FOOT).box(Math.min(hole, tray), -TRAY_DROP, D, Math.max(hole, tray), 0, past);
+}
+
+/**
+ * Everything that stands still: the lower table and its front, which is the
+ * tray's between the cheeks; the wall under the screen with the shelf on it,
+ * the housing round the screen, the two side walls with their rails, the
+ * brackets the slots hang from, the chutes beside the open part of the table
+ * with the arrows on them that point the way out, the side holes' mouths
+ * round the front corners, and the lit edges that warn of them.
  */
 export function buildCabinet(solid: Solid): Part[] {
   const parts: Part[] = [];
@@ -347,7 +396,11 @@ export function buildCabinet(solid: Solid): Part[] {
     solid.quad(-LEDGE, HOUSING.shelf, 0, W + LEDGE, HOUSING.shelf, 0, W + LEDGE, P, 0, -LEDGE, P, 0);
     solid.map();
   });
-  part('lip', () => solid.finish(0.15).quad(0, 0, D, W, 0, D, W, -TRAY_DROP, D, 0, -TRAY_DROP, D));
+  part('lip', () => {
+    // The tray's stretch of the picture, between the cheeks: the rest of the front edge is over the side holes' mouths.
+    solid.map(TRAY.from / W, 0, TRAY.to / W, 1).finish(0.15).quad(TRAY.from, 0, D, TRAY.to, 0, D, TRAY.to, -TRAY_DROP, D, TRAY.from, -TRAY_DROP, D);
+    solid.map();
+  });
   part('wall', () => {
     // Dark mirror in gold frames: it shows the lit cabinet back, and its strips of light are its own.
     solid.finish(0.45, 0.42);
@@ -385,6 +438,7 @@ export function buildCabinet(solid: Solid): Part[] {
       const inner = x - side * 0.45;
       solid.quad(x, 0.04, OPEN, inner, 0.04, OPEN, inner, 0.04, D, x, 0.04, D);
       solid.paint(NEON_PINK).box(Math.min(x, x + side * 0.6), 1, OPEN - 0.3, Math.max(x, x + side * 0.6), WALL - 2, OPEN + 0.3);
+      buildMouth(solid, side);
     }
     buildHousing(solid);
     // The bracket each slot hangs from: a bar in from the cabinet's frame, at the front corner.
@@ -395,10 +449,10 @@ export function buildCabinet(solid: Solid): Part[] {
       solid.finish(0.7).paint(BRACKET_TOP, BRACKET_FOOT);
       solid.box(Math.min(near, far), collar.height - 1.3, collar.depth - 3.4, Math.max(near, far), collar.height + 1.3, collar.depth - 0.8);
     }
-    // The gold edge the winnings go over.
+    // The gold edge the winnings go over: the tray's stretch of the front edge.
     solid.finish(0, 1).paint(NEON_GOLD);
-    solid.quad(0, 0.04, D - 0.45, W, 0.04, D - 0.45, W, 0.04, D, 0, 0.04, D);
-    solid.quad(0, 0.04, D + 0.02, W, 0.04, D + 0.02, W, -0.45, D + 0.02, 0, -0.45, D + 0.02);
+    solid.quad(TRAY.from, 0.04, D - 0.45, TRAY.to, 0.04, D - 0.45, TRAY.to, 0.04, D, TRAY.from, 0.04, D);
+    solid.quad(TRAY.from, 0.04, D + 0.02, TRAY.to, 0.04, D + 0.02, TRAY.to, -0.45, D + 0.02, TRAY.from, -0.45, D + 0.02);
   });
   return parts;
 }
@@ -1068,7 +1122,7 @@ const STUD = light('#ffd98a');
  * screen, along each rail of the table, under the front edge, across the
  * pusher's face, and the hold's lamps on the shelf.
  */
-export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: 30, face: 24, hold: 8 } as const;
+export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: TRAY_BULBS, face: 24, hold: 8 } as const;
 /** Gold studs: at each end of the shelf and of the hood's face. */
 export const STUDS = 4;
 
@@ -1121,7 +1175,7 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
     flat.ink(colour, 0, 0.12 + 0.5 * glow).onWall(x + side * 0.24, RAIL + 1.6, z, 2.6);
   }
   for (let i = 0; i < LAMP_ROWS.tray; i++) {
-    const x = 2 + ((i + 0.5) / LAMP_ROWS.tray) * (W - 4);
+    const x = TRAY.from + 1.3 + ((i + 0.5) / LAMP_ROWS.tray) * (TRAY.to - TRAY.from - 2.6);
     const colour = TRAY_LAMPS[i % 2];
     const glow = 0.5 + 0.5 * Math.sin(wave - (i * TAU) / 3);
     beadRow(beads, x, -3, D + 0.15, 0.46, colour[0], colour[1], colour[2], BEAD.bulb(glow));
@@ -1293,16 +1347,30 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
   flat.ink(ICE, 0, 0.5).quad(0, P + 0.04, front - 2.2, W, P + 0.04, front - 2.2, W, P + 0.04, front + 0.6, 0, P + 0.04, front + 0.6, SHAPE.line);
   flat.ink(ICE, 0, 0.3).quad(0, 1.6, front + 0.05, W, 1.6, front + 0.05, W, -0.2, front + 0.05, 0, -0.2, front + 0.05, SHAPE.line);
 
-  // The glow of the lit edges: red along the open sides, gold along the front, pink up the pillars.
+  // The glow of the lit edges: red along the open sides and round the corners as far as the tray, gold along the
+  // tray's stretch of the front, pink up the pillars.
   for (let index = 0; index < 2; index++) {
     const x = index === 0 ? 0 : W;
     const side = index === 0 ? -1 : 1;
+    const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
     const lit = stage.sideGlow[index] / GLOW_TIME;
     flat.ink(GLOW_RED, 0, 0.5 + 0.5 * lit).quad(x - 2.2, 0.05, OPEN, x - 2.2, 0.05, D, x + 2.2, 0.05, D, x + 2.2, 0.05, OPEN, SHAPE.line);
-    // A medal that has just gone out by this side lights its chute for a moment.
+    flat.quad(x, 0.05, D - 2.4, hole, 0.05, D - 2.4, hole, 0.05, D + 0.2, x, 0.05, D + 0.2, SHAPE.line);
+    // A medal that has just gone down this hole lights it for a moment, the side's chute and the mouth alike.
     if (lit > 0) {
       flat.ink(GLOW_RED, 0, 0.55 * lit).fade(GLOW_RED, 0, 0);
       flat.quad(x, chuteHeight(0) + 0.1, OPEN, x, chuteHeight(0) + 0.1, D + CHUTE_PAST, x + side * OUT, chuteHeight(OUT) + 0.1, D + CHUTE_PAST, x + side * OUT, chuteHeight(OUT) + 0.1, OPEN);
+      flat.quad(x, holeFloor(0) + 0.1, D, hole, holeFloor(0) + 0.1, D, hole, holeFloor(SIDE_HOLE.past) + 0.1, D + SIDE_HOLE.past, x, holeFloor(SIDE_HOLE.past) + 0.1, D + SIDE_HOLE.past);
+    }
+    // The arrows in the mouth glow after the side's, from the side toward the tray.
+    for (let i = 0; i < SIDE_HOLE.marks.length; i++) {
+      const glow = calm ? 0.3 : 0.12 + 0.5 * Math.max(0, Math.sin(stage.clock * 3.2 - (CHUTE.marks.length + i) * 1.3));
+      const at = acrossAt(SIDE_HOLE.marks[i], side);
+      const reach = SIDE_HOLE.span / 2 + 1;
+      const near = SIDE_HOLE.near - 0.8;
+      const far = SIDE_HOLE.far + 0.8;
+      flat.ink(GLOW_RED, 0, glow);
+      flat.quad(at - reach, holeFloor(near) + 0.12, D + near, at + reach, holeFloor(near) + 0.12, D + near, at + reach, holeFloor(far) + 0.12, D + far, at - reach, holeFloor(far) + 0.12, D + far, SHAPE.spot);
     }
     // The arrows on it glow one after another, away from the wall and toward the player: the way a medal that is lost goes.
     for (let i = 0; i < CHUTE.marks.length; i++) {
@@ -1316,8 +1384,8 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
     flat.ink(GLOW_PINK, 0, 0.5).quad(x - side * 2.4, 1, OPEN + 0.35, x - side * 2.4, WALL - 2, OPEN + 0.35, x + side * 3, WALL - 2, OPEN + 0.35, x + side * 3, 1, OPEN + 0.35, SHAPE.line);
   }
   const tray = stage.trayGlow / GLOW_TIME;
-  flat.ink(GLOW_GOLD, 0, 0.45 + 0.4 * tray).quad(0, 0.05, D - 2.4, W, 0.05, D - 2.4, W, 0.05, D + 0.2, 0, 0.05, D + 0.2, SHAPE.line);
-  flat.ink(GLOW_GOLD, 0, 0.14 + 0.36 * tray).fade(GLOW_GOLD, 0, 0.22 * tray).quad(0, 0, D + 0.04, W, 0, D + 0.04, W, -TRAY_DROP, D + 0.04, 0, -TRAY_DROP, D + 0.04);
+  flat.ink(GLOW_GOLD, 0, 0.45 + 0.4 * tray).quad(TRAY.from, 0.05, D - 2.4, TRAY.to, 0.05, D - 2.4, TRAY.to, 0.05, D + 0.2, TRAY.from, 0.05, D + 0.2, SHAPE.line);
+  flat.ink(GLOW_GOLD, 0, 0.14 + 0.36 * tray).fade(GLOW_GOLD, 0, 0.22 * tray).quad(TRAY.from, 0, D + 0.04, TRAY.to, 0, D + 0.04, TRAY.to, -TRAY_DROP, D + 0.04, TRAY.from, -TRAY_DROP, D + 0.04);
   // The light of the gap under the hood, on the hood's own face.
   flat.ink(GLOW_GOLD, 0, 0.4).quad(0, HOUSING.hood + 3, HOUSING.out + 0.05, W, HOUSING.hood + 3, HOUSING.out + 0.05, W, HOUSING.hood - 1.6, HOUSING.out + 0.05, 0, HOUSING.hood - 1.6, HOUSING.out + 0.05, SHAPE.line);
 

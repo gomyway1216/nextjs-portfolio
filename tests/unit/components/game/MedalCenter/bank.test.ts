@@ -1,0 +1,490 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { slotFor, toCloud } from '@/components/game/MedalPusher/account';
+import { BONUS_CARD, RECORDS_KEY, addDay, claim, createBook, dayNumber, dayOf, serializeBook } from '@/components/game/MedalPusher/records';
+import { STORAGE_KEY } from '@/components/game/MedalPusher/storage';
+import { MACHINE_GAME_KEY } from '@/components/game/MedalPusher/savedMachine';
+import { RECORDS_GAME_KEY, bookKey } from '@/components/game/MedalPusher/recordsStore';
+import { BANKED_KEY, BANK_KEY, CARD_KEY, PUSHER, ledgerKey, purseIn, purseInCopy, settleLedgers, type BankEvent, type SeatHandlers } from '@/components/game/MedalCenter/bank';
+import { WELCOME, balanceOf, createLedger, give, importPurse, parseLedger, resetLedger, serializeLedger, take, type Ledger } from '@/components/game/MedalCenter/ledger';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
+import { FakeBrowser, quiet, type FakePage } from './bankFakes';
+
+import beforeTheRide from '../MedalPusher/fixtures/save-before-the-ride.json';
+import beforeArms from '../MedalPusher/fixtures/save-before-feed-arms.json';
+import beforeJewels from '../MedalPusher/fixtures/save-before-jewels.json';
+import beforeLamp from '../MedalPusher/fixtures/save-before-the-lucky-lamp.json';
+
+const UID = 'test-player-1';
+
+/** An old Medal Pusher's save from a fixture, with its purse set to `credits`. */
+function oldSave(fixture: { save: string }, credits: number): string {
+  const save = JSON.parse(fixture.save) as { session: { credits: number } };
+  save.session.credits = credits;
+  return JSON.stringify(save);
+}
+
+/** The bank a browser keeps for a player, read the way the bank reads it. */
+const stored = (browser: FakeBrowser, uid: string | null = null): Ledger | null => parseLedger(browser.storage.get(ledgerKey(uid)) ?? null);
+const storedBalance = (browser: FakeBrowser, uid: string | null = null): number | null => {
+  const ledger = stored(browser, uid);
+  return ledger ? balanceOf(ledger) : null;
+};
+
+/** A page with a machine on it: it sits at the bank and writes down what it is told. */
+function machine(page: FakePage, game = PUSHER.game) {
+  const told: string[] = [];
+  const handlers: SeatHandlers = {
+    granted: (moved) => told.push(moved ? 'granted, moved' : 'granted'),
+    yielding: (why) => told.push(`yielding ${why}`),
+  };
+  const seat = page.bank.sit(game, handlers);
+  return { seat, told };
+}
+
+/** Lets `seconds` go by, second by second: the clocks move on, every page's timer ticks, and what follows happens. */
+async function pass(seconds: number, browsers: FakeBrowser[], pages: FakePage[]): Promise<void> {
+  for (let second = 0; second < seconds; second++) {
+    for (const browser of browsers) browser.clock += 1000;
+    for (const page of pages) page.watchers?.tick();
+    await quiet(...browsers);
+  }
+}
+
+const hear = (page: FakePage): BankEvent[] => {
+  const events: BankEvent[] = [];
+  page.bank.listen((event) => events.push(event));
+  return events;
+};
+
+describe('the old purses', () => {
+  it('reads the purse out of every shape of save the Medal Pusher has written, and nothing out of anything else', () => {
+    for (const fixture of [beforeArms, beforeJewels, beforeLamp, beforeTheRide]) expect(purseIn(oldSave(fixture, 321))).toBe(321);
+    expect(purseIn(beforeTheRide.save)).toBeGreaterThanOrEqual(0);
+    expect(purseIn('not json')).toBeNull();
+    expect(purseIn(null)).toBeNull();
+    expect(purseIn(JSON.stringify({ version: 9, session: { credits: -1 } }))).toBeNull();
+    expect(purseIn(JSON.stringify({ version: 9, session: { credits: 2.5 } }))).toBeNull();
+    expect(purseIn(JSON.stringify({ session: { credits: 5 } }))).toBeNull();
+    // The copy an account's machine is kept in on a device, with what is known of the account's around it.
+    expect(purseInCopy(JSON.stringify({ v: 1, changedAt: 0, dirty: false, text: oldSave(beforeTheRide, 77) }))).toBe(77);
+    expect(purseInCopy('{"v":1}')).toBeNull();
+  });
+
+  it('knows the Medal Pusher’s storage by the names the Medal Pusher keeps it under', () => {
+    expect(PUSHER.machineKey).toBe(STORAGE_KEY);
+    expect(PUSHER.game).toBe(MACHINE_GAME_KEY);
+    expect(PUSHER.bookKey(null)).toBe(RECORDS_KEY);
+    expect(PUSHER.bookKey(UID)).toBe(bookKey(UID));
+    expect(RECORDS_GAME_KEY).not.toBe('medal-center');
+  });
+
+  it('moves a guest’s old purse into the bank once, instead of a new member’s medals, and never again on this device', async () => {
+    const browser = new FakeBrowser();
+    browser.storage.set(STORAGE_KEY, oldSave(beforeTheRide, 1234));
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(hub.bank.getState().balance).toBe(1234);
+    expect(storedBalance(browser)).toBe(1234);
+    expect(JSON.parse(browser.storage.get(BANKED_KEY) ?? '[]')).toEqual([PUSHER.guestPurse]);
+
+    // Another page, and the machine reporting the same purse it still holds: nothing more.
+    const other = browser.open();
+    other.bank.subscribe(() => undefined);
+    other.bank.importPurse(null, PUSHER.guestPurse, 1234);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(1234);
+
+    // The guest's bank is gone (it became an account's): a new guest bank is a new member's, and the old purse is not moved in again.
+    browser.storage.delete(BANK_KEY);
+    const later = browser.open();
+    later.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME);
+  });
+
+  it('opens a new member’s bank for a guest who never played', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(hub.bank.getState()).toMatchObject({ loaded: true, balance: WELCOME, owner: null, where: 'device', kept: true });
+    expect(storedBalance(browser)).toBe(WELCOME);
+  });
+
+  it('keeps the days the record book took the bonus on, so that none of them is paid twice and the card carries on', async () => {
+    const browser = new FakeBrowser();
+    const today = dayNumber(browser.day)!;
+    let book = createBook('book000001');
+    for (let back = 6; back >= 1; back--) book = claim(book, dayOf(today - back)).book;
+    book = claim(book, browser.day).book;
+    browser.storage.set(RECORDS_KEY, serializeBook(book));
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(hub.bank.cardToday()?.state).toBe('taken');
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME);
+    browser.day = dayOf(today + 1);
+    expect(hub.bank.cardToday()).toMatchObject({ state: 'ready', medals: BONUS_CARD[0] });
+  });
+});
+
+describe('the card: one page at a time writes the bank', () => {
+  it('lets a machine play from the bank: a medal fed is taken out, a medal won goes back, and every other page sees it', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    const pusher = browser.open();
+    const { seat, told } = machine(pusher);
+    await quiet(browser);
+    expect(told).toEqual(['granted']);
+    expect(seat.holding()).toBe(true);
+    expect(pusher.bank.getState().card).toBe('here');
+    expect(pusher.bank.take(3)).toBe(true);
+    expect(pusher.bank.give(10)).toBe(true);
+    expect(pusher.bank.take(WELCOME + 8)).toBe(false);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME + 7);
+    expect(hub.bank.getState().balance).toBe(WELCOME + 7);
+    // A page that does not hold the card takes nothing and gives nothing.
+    expect(hub.bank.take(1)).toBe(false);
+    expect(hub.bank.give(1)).toBe(false);
+    expect(storedBalance(browser)).toBe(WELCOME + 7);
+  });
+
+  it('lends the card to the hub for a moment and has it straight back: the day’s bonus is paid once, between the machine’s medals', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    const heard = hear(hub);
+    hub.bank.subscribe(() => undefined);
+    const pusher = browser.open();
+    const { seat, told } = machine(pusher);
+    await quiet(browser);
+    pusher.bank.take(5);
+    hub.bank.claimBonus();
+    // The machine keeps on until the card is asked for, then writes down what it has and lets it go.
+    await quiet(browser);
+    expect(told).toEqual(['granted', 'yielding moment', 'granted']);
+    expect(heard).toEqual([{ type: 'bonus', medals: BONUS_CARD[0] }]);
+    expect(seat.holding()).toBe(true);
+    expect(storedBalance(browser)).toBe(WELCOME - 5 + BONUS_CARD[0]);
+    expect(pusher.bank.getState().balance).toBe(WELCOME - 5 + BONUS_CARD[0]);
+    pusher.bank.give(2);
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME - 3 + BONUS_CARD[0]);
+    expect(heard).toHaveLength(1);
+  });
+
+  it('pays a day once when two pages reach for it at the same moment', async () => {
+    const browser = new FakeBrowser();
+    const [a, b] = [browser.open(), browser.open()];
+    a.bank.subscribe(() => undefined);
+    b.bank.subscribe(() => undefined);
+    await quiet(browser);
+    a.bank.claimBonus();
+    b.bank.claimBonus();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME + BONUS_CARD[0]);
+  });
+
+  it('pauses the machine in one tab when the player starts one in another, and opens it again from the other’s save when it is played again', async () => {
+    const browser = new FakeBrowser();
+    const first = browser.open();
+    const one = machine(first);
+    await quiet(browser);
+    first.bank.take(10);
+    const second = browser.open();
+    const two = machine(second);
+    await quiet(browser);
+    expect(one.told).toEqual(['granted', 'yielding moment']);
+    expect(first.bank.getState().card).toBe('away');
+    expect(one.seat.holding()).toBe(false);
+    expect(first.bank.take(1)).toBe(false);
+    expect(two.told).toEqual(['granted']);
+    expect(second.bank.getState().balance).toBe(WELCOME - 10);
+    second.bank.give(4);
+    // Back to the first: the second pauses, and the first is told that the other played its game since.
+    one.seat.play();
+    await quiet(browser);
+    expect(two.told).toEqual(['granted', 'yielding moment']);
+    expect(second.bank.getState().card).toBe('away');
+    expect(one.told).toEqual(['granted', 'yielding moment', 'granted, moved']);
+    expect(first.bank.getState().balance).toBe(WELCOME - 6);
+    expect(JSON.parse(browser.storage.get(CARD_KEY) ?? '{}')).toEqual({ [PUSHER.game]: first.name });
+  });
+
+  it('lets the card go when its page is hidden or left, and asks for it again when it is shown', async () => {
+    const browser = new FakeBrowser();
+    const pusher = browser.open();
+    const { seat, told } = machine(pusher);
+    await quiet(browser);
+    pusher.hide();
+    await quiet(browser);
+    expect(told).toEqual(['granted', 'yielding hidden']);
+    expect(seat.holding()).toBe(false);
+    expect(browser.holder).toBeNull();
+    pusher.show();
+    await quiet(browser);
+    expect(told).toEqual(['granted', 'yielding hidden', 'granted']);
+    pusher.hide('left');
+    expect(told.at(-1)).toBe('yielding left');
+  });
+
+  it('gives the card on when a page holding it is closed without a word, as a browser lets go of a closed page’s lock', async () => {
+    const browser = new FakeBrowser();
+    const gone = browser.open();
+    machine(gone);
+    await quiet(browser);
+    gone.bank.take(1);
+    gone.closed = true;
+    browser.pages = browser.pages.filter((page) => page !== gone);
+    browser.holder = null;
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME - 1 + BONUS_CARD[0]);
+  });
+
+  it('pays no bonus where the browser cannot keep its pages apart, and plays on all the same', async () => {
+    const browser = new FakeBrowser();
+    browser.apart = false;
+    const pusher = browser.open();
+    const { seat } = machine(pusher);
+    await quiet(browser);
+    expect(seat.holding()).toBe(true);
+    expect(pusher.bank.take(2)).toBe(true);
+    pusher.bank.claimBonus();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME - 2);
+    expect(pusher.bank.getState().apart).toBe(false);
+  });
+});
+
+describe('the refill and the reset', () => {
+  it('refills a bank with nothing in it, once, by the attendant’s cupful', async () => {
+    const browser = new FakeBrowser();
+    const pusher = browser.open();
+    const heard = hear(pusher);
+    machine(pusher);
+    await quiet(browser);
+    expect(pusher.bank.refill()).toBe(false);
+    pusher.bank.take(WELCOME);
+    expect(pusher.bank.refill()).toBe(true);
+    expect(pusher.bank.refill()).toBe(false);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME);
+    expect(heard).toEqual([{ type: 'refill', medals: WELCOME }]);
+  });
+
+  it('resets from the hub: the bank is a new member’s, the bonus days stay, and the machine in the other tab hears it and starts over', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    const pusher = browser.open();
+    const heard = hear(pusher);
+    machine(pusher);
+    await quiet(browser);
+    pusher.bank.give(900);
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(pusher.bank.restartDue(PUSHER.game)).toBe(false);
+    hub.bank.reset();
+    await quiet(browser);
+    expect(stored(browser)?.era).toBe(1);
+    expect(storedBalance(browser)).toBe(WELCOME);
+    expect(hub.bank.cardToday()?.state).toBe('taken');
+    expect(heard).toEqual([{ type: 'reset' }]);
+    expect(pusher.bank.restartDue(PUSHER.game)).toBe(true);
+    pusher.bank.restarted(PUSHER.game);
+    await quiet(browser);
+    expect(pusher.bank.restartDue(PUSHER.game)).toBe(false);
+    expect(stored(browser)?.restarted).toEqual({ [PUSHER.game]: 1 });
+  });
+});
+
+describe('the bank of a player who is signed in', () => {
+  const setup = () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const machines = new FakeAccounts(() => browser.clock);
+    return { browser, accounts, machines };
+  };
+
+  it('moves the guest’s bank into an account that has none, once: it does not become a second account’s', async () => {
+    const { browser, accounts, machines } = setup();
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    machine(page);
+    await quiet(browser);
+    page.bank.take(30);
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, where: 'account', balance: WELCOME - 30 });
+    expect(browser.storage.has(BANK_KEY)).toBe(false);
+    expect(storedBalance(browser, UID)).toBe(WELCOME - 30);
+    const sent = parseLedger(accounts.text(UID));
+    expect(sent && balanceOf(sent)).toBe(WELCOME - 30);
+    // Signed out, the guest has a new member's bank of their own, and the account's stays the account's.
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, machines.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(storedBalance(browser, UID)).toBe(WELCOME - 30);
+  });
+
+  it('plays the account’s bank where the account has one, and leaves the guest’s on this device for the guest', async () => {
+    const { browser, accounts, machines } = setup();
+    accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 4000)), 'm-elsewhere');
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    await quiet(browser);
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME + 4000 });
+    expect(storedBalance(browser)).toBe(WELCOME);
+    // Taken under this device's own name, so that what it plays is a row of its own.
+    expect(stored(browser, UID)?.device).not.toBe('laptop0001');
+  });
+
+  it('adds together what two devices have each done with the account’s medals, whichever reaches the account second', async () => {
+    const accounts = new FakeAccounts(() => 0);
+    const machines = new FakeAccounts(() => 0);
+    accounts.put(UID, serializeLedger(createLedger('first00001', 500)), 'm-start');
+    const phone = new FakeBrowser();
+    const laptop = new FakeBrowser();
+    const [p, l] = [phone.open(), laptop.open()];
+    for (const page of [p, l]) {
+      page.bank.attend(signedIn(UID), accounts.store, machines.store);
+      machine(page);
+    }
+    await quiet(phone, laptop);
+    expect(p.bank.getState().balance).toBe(500);
+    p.bank.take(100);
+    p.bank.give(40);
+    l.bank.give(7);
+    // Both send at the same moment, and the one whose read came before the other's write writes over it. Each reads
+    // the account again a little after its write, and sends again what it finds missing.
+    await pass(90, [phone, laptop], [p, l]);
+    const onAccount = parseLedger(accounts.text(UID));
+    expect(onAccount && balanceOf(onAccount)).toBe(500 - 100 + 40 + 7);
+    expect(p.bank.getState().balance).toBe(447);
+    expect(l.bank.getState().balance).toBe(447);
+  });
+
+  it('moves an account’s old purse in once, from the copy on this device or from the account’s machine, however many devices do', async () => {
+    const accounts = new FakeAccounts(() => 0);
+    const machines = new FakeAccounts(() => 0);
+    machines.put(UID, oldSave(beforeLamp, 2000), 'm-machine');
+    // The phone kept a copy of the account's machine from before the bank; the laptop never played here.
+    const phone = new FakeBrowser();
+    phone.storage.set(slotFor(STORAGE_KEY, UID), JSON.stringify({ v: 1, changedAt: 0, dirty: false, known: null, sent: null, sentPrint: null, earlier: [], text: oldSave(beforeLamp, 1800) }));
+    const laptop = new FakeBrowser();
+    const pages = [phone.open(), laptop.open()];
+    for (const page of pages) {
+      page.bank.attend(signedIn(UID), accounts.store, machines.store);
+      page.bank.subscribe(() => undefined);
+    }
+    await pass(90, [phone, laptop], pages);
+    const onAccount = parseLedger(accounts.text(UID));
+    // One purse, at the larger of the two copies of it, and no new member's medals for an account that had a machine.
+    expect(onAccount?.imports[PUSHER.accountPurse]).toBe(2000);
+    expect(onAccount?.voided).toEqual(['welcome:0']);
+    expect(onAccount && balanceOf(onAccount)).toBe(2000);
+    for (const page of pages) expect(page.bank.getState().balance).toBe(2000);
+    expect(machines.count('load')).toBeLessThanOrEqual(2);
+  });
+
+  it('asks the account before it pays a day’s bonus, and does not pay a day another device has taken', async () => {
+    const { browser, accounts, machines } = setup();
+    accounts.put(UID, serializeLedger(createLedger('laptop0001')), 'm-1');
+    const page = browser.open();
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.subscribe(() => undefined);
+    await quiet(browser);
+    // Meanwhile the laptop took today's bonus.
+    const there = parseLedger(accounts.text(UID))!;
+    accounts.put(UID, serializeLedger(give({ ...there, claimed: addDay(there.claimed, browser.day) }, BONUS_CARD[0])), 'm-2');
+    page.bank.claimBonus();
+    await quiet(browser);
+    expect(page.bank.getState().balance).toBe(WELCOME + BONUS_CARD[0]);
+    expect(page.bank.cardToday()?.state).toBe('taken');
+  });
+
+  it('leaves an account’s copy it cannot read as it is, and keeps playing this device’s', async () => {
+    const { browser, accounts, machines } = setup();
+    accounts.docs.set(UID, { state: { format: 99, mark: 'x', changedAt: 0, data: '???' }, updatedAt: 0 });
+    const page = browser.open();
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    page.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(page.bank.getState().where).toBe('unreadable');
+    expect(accounts.docs.get(UID)?.state).toEqual({ format: 99, mark: 'x', changedAt: 0, data: '???' });
+    expect(accounts.count('store')).toBe(0);
+  });
+
+  it('sends nothing as a player who has signed out', async () => {
+    const { browser, accounts, machines } = setup();
+    const page = browser.open();
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    machine(page);
+    await quiet(browser);
+    const writes = accounts.count('store');
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store, machines.store);
+    await quiet(browser);
+    page.bank.take(5);
+    browser.clock += 120_000;
+    for (let i = 0; i < 30; i++) page.watchers?.tick();
+    await quiet(browser);
+    expect(accounts.count('store')).toBe(writes);
+  });
+});
+
+describe('which copy wins', () => {
+  const name = vi.fn(() => 'fresh00001');
+  const text = (ledger: Ledger) => serializeLedger(ledger);
+  const mine = take(createLedger('phone00001'), 10)!;
+  const theirs = give(createLedger('laptop0001', 0), 50);
+
+  it('holds when the account’s copy cannot be read', () => {
+    expect(settleLedgers({ account: { kind: 'unreadable' }, device: null, guest: text(mine), skew: 0 }, name).verdict).toEqual({ kind: 'hold' });
+    expect(settleLedgers({ account: { kind: 'save', text: 'not a ledger', mark: null, updatedAt: null }, device: null, guest: null, skew: 0 }, name).verdict).toEqual({ kind: 'hold' });
+  });
+
+  it('moves the guest’s bank into an account with none, and sends this device’s own copy to one that has lost it', () => {
+    expect(settleLedgers({ account: { kind: 'none' }, device: null, guest: text(mine), skew: 0 }, name)).toEqual({ verdict: { kind: 'take', text: text(mine), send: true }, fromGuest: true });
+    const device = { text: text(mine), dirty: false, known: null, sent: null, sentIsLatest: false, changedAt: 0 };
+    expect(settleLedgers({ account: { kind: 'none' }, device, guest: null, skew: 0 }, name)).toEqual({ verdict: { kind: 'take', text: text(mine), send: true }, fromGuest: false });
+    expect(settleLedgers({ account: { kind: 'none' }, device: null, guest: null, skew: 0 }, name).verdict).toEqual({ kind: 'adopt' });
+  });
+
+  it('joins this device’s copy with the account’s, and takes the account’s under a new name where this device has none: the guest’s stays the guest’s', () => {
+    const device = { text: text(mine), dirty: true, known: null, sent: null, sentIsLatest: false, changedAt: 0 };
+    const joined = settleLedgers({ account: { kind: 'save', text: text(theirs), mark: 'm', updatedAt: 0 }, device, guest: null, skew: 0 }, name);
+    expect(joined.fromGuest).toBe(false);
+    expect(joined.verdict.kind === 'take' && balanceOf(parseLedger(joined.verdict.text)!)).toBe(WELCOME - 10 + 50);
+    expect(joined.verdict.kind === 'take' && joined.verdict.send).toBe(true);
+    const taken = settleLedgers({ account: { kind: 'save', text: text(theirs), mark: 'm', updatedAt: 0 }, device: null, guest: text(mine), skew: 0 }, name);
+    expect(taken.fromGuest).toBe(false);
+    expect(taken.verdict.kind === 'take' && parseLedger(taken.verdict.text)).toMatchObject({ device: 'fresh00001' });
+    expect(taken.verdict.kind === 'take' && balanceOf(parseLedger(taken.verdict.text)!)).toBe(50);
+    expect(taken.verdict.kind === 'take' && taken.verdict.send).toBe(false);
+  });
+
+  it('lets a reset on the account win over this device’s older era', () => {
+    const reset = resetLedger(importPurse(theirs, PUSHER.accountPurse, 10));
+    const device = { text: text(give(mine, 5000)), dirty: true, known: null, sent: null, sentIsLatest: false, changedAt: 0 };
+    const verdict = settleLedgers({ account: { kind: 'save', text: text(reset), mark: 'm', updatedAt: 0 }, device, guest: null, skew: 0 }, name).verdict;
+    expect(verdict.kind === 'take' && balanceOf(parseLedger(verdict.text)!)).toBe(WELCOME);
+  });
+});
+
+it('fits the account’s limit with room to spare, however many devices have played', () => {
+  let ledger = createLedger('phone00001');
+  for (let i = 0; i < 200; i++) ledger = { ...ledger, rows: { ...ledger.rows, [`device${String(i).padStart(5, '0')}`]: { got: 999_999_999, spent: 999_999_999 } } };
+  const cloud = toCloud(serializeLedger(ledger), 'mark000000000000', 0);
+  expect(cloud).not.toBeNull();
+});

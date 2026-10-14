@@ -20,7 +20,7 @@ import {
   type Vibrator,
 } from '@/components/game/MedalPusher/haptics';
 import { POUR } from '@/components/game/MedalPusher/hopper';
-import { LIFT } from '@/components/game/MedalPusher/lift';
+import { CYCLE, STACK } from '@/components/game/MedalPusher/stacker';
 import type { SpinResult } from '@/components/game/MedalPusher/lottery';
 import { HOLD_DELAY } from '@/components/game/MedalPusher/PlayTab';
 import { advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
@@ -299,12 +299,12 @@ describe('what the hand feels of a frame', () => {
     expect(hapticFor([{ type: 'bowlDrop', bowl: 0, hole: 1, duration: 6 }])).toBe('line');
     expect(hapticFor([{ type: 'bowlEnd', bowl: 0, hole: 1, payout: 50, poured: 15, total: 250, jackpot: false }])).toBe('prize');
     expect(hapticFor([{ type: 'bowlEnd', bowl: 2, hole: 0, payout: 300, poured: 90, total: 500, jackpot: true }])).toBe('jackpot');
-    // The payout works: the hopper's doors dropping open for a prize big enough to pour, and towers standing built.
+    // The payout works: the hopper's doors dropping open for a prize big enough to pour, and a tower pushed out of its tube.
     expect(hapticFor([{ type: 'pourStart', medals: 30 }])).toBe('pour');
     expect(hapticFor([{ type: 'won', count: 2 }, { type: 'pourStart', medals: 30 }])).toBe('pour');
-    expect(hapticFor([{ type: 'towersReady', towers: 2 }])).toBe('towers');
-    expect(hapticFor([{ type: 'towersReady', towers: 2 }, { type: 'toppled', count: 1 }])).toBe('towers');
-    expect(hapticFor([{ type: 'towersReady', towers: 2 }, { type: 'chestEnd', chest: 0, payout: 30 }])).toBe('prize');
+    expect(hapticFor([{ type: 'towerOut', tube: 0, medals: 30 }])).toBe('towers');
+    expect(hapticFor([{ type: 'towerOut', tube: 1, medals: 30 }, { type: 'toppled', count: 1 }])).toBe('towers');
+    expect(hapticFor([{ type: 'towerOut', tube: 0, medals: 30 }, { type: 'chestEnd', chest: 0, payout: 30 }])).toBe('prize');
     // Several things in one frame: the strongest, whatever order they came in.
     const busy: SessionEvent[] = [
       { type: 'won', count: 4 },
@@ -333,8 +333,13 @@ describe('what the hand feels of a frame', () => {
       { type: 'bowlStart', holes: [1, 0, 0], duration: 6.5 },
       // A jewel thrown from the hatch has only begun as well: it is felt when it is collected.
       { type: 'jewelDrop' },
-      // Towers starting up on their lifts have only begun too, and the doors shutting after a pour is nothing new to the hand.
-      { type: 'towersRise', towers: 2, medals: 50 },
+      // A tower being stacked, let down, its gate opening or shutting, or let go in its place is not felt: the hand
+      // feels it come out. Nor are the doors shutting after a pour anything new to the hand.
+      { type: 'stacked', tube: 0, medals: 1 },
+      { type: 'towerDown', tube: 0, medals: 30 },
+      { type: 'gateOpen', tube: 1 },
+      { type: 'towerSet', tube: 0, medals: 30 },
+      { type: 'gateShut', tube: 1 },
       { type: 'pourEnd', medals: 30 },
     ];
     for (const event of quiet) expect(hapticFor([event])).toBeNull();
@@ -382,16 +387,18 @@ describe('what the hand feels of a frame', () => {
     expect(HAPTICS.towers.pattern).toEqual([50, 45, 80]);
     expect(HAPTICS.towers.rank).toBe(HAPTICS.line.rank);
     expect(HAPTICS.towers.rank).toBeLessThan(HAPTICS.prize.rank);
-    // The quickest a tower is built is the half second its guard takes to rise: longer than a prize's pattern.
-    expect(LIFT.opens * 1000).toBeGreaterThan(hapticLength('prize'));
+    // The quickest a tower comes out of its tube is after it is let down and its gate opened, three medals being
+    // the smallest tower: longer than a prize's pattern.
+    const soonest = (3 / STACK.perSecond + STACK.lowers + STACK.opens) * 1000;
+    expect(soonest).toBeGreaterThan(hapticLength('prize'));
     expect(
       felt([
         [0, 'prize'],
-        [LIFT.opens * 1000 + 120, 'towers'],
+        [soonest, 'towers'],
       ]),
     ).toHaveLength(2);
-    // And a jackpot's towers, which are as tall as towers are, are built after its pattern is over.
-    expect((LIFT.opens + (TOWER.max - 3) / TOWER.perSecond) * 1000).toBeGreaterThan(hapticLength('jackpot'));
+    // And a jackpot's towers, which are as tall as towers are, come out after its pattern is over.
+    expect((TOWER.max / STACK.perSecond + CYCLE - STACK.pushes - STACK.returns) * 1000).toBeGreaterThan(hapticLength('jackpot'));
   });
 });
 

@@ -123,7 +123,7 @@ export interface PayoutLine {
   prizes: readonly number[];
   /** What the board's fever square pays, on the line that leads to the board. */
   fever: number | null;
-  /** A prize this big or bigger goes up on the pusher as towers, on the line that leads to the chests. */
+  /** A prize this big or bigger is stacked as towers, on the line that leads to the chests. */
   towersFrom: number | null;
   /** How many times over a gold spin pays this line, in chance time; null on a line it pays no more on. */
   gold: number | null;

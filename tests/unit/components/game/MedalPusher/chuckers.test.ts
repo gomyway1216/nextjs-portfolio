@@ -6,7 +6,6 @@ import {
   FIELD,
   MEDAL_RADIUS,
   PUSHER,
-  TOWER,
   checkerAt,
   createMachine,
   pusherFront,
@@ -15,6 +14,7 @@ import {
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { LIP_FALL } from '@/components/game/MedalPusher/render';
+import { TUBE } from '@/components/game/MedalPusher/stacker';
 import { HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
 
 import { dropAt } from './feeding';
@@ -25,7 +25,7 @@ const TIMES = [0, 0.4, PUSHER.period / 4, PUSHER.period / 2, 2.9, PUSHER.period,
 const ALL = [0, 1, 2];
 
 /** A medal lying where it is put. */
-const medalAt = (x: number, y: number, over: Partial<Medal> = {}): Medal => ({ id: 1, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, ...over });
+const medalAt = (x: number, y: number, over: Partial<Medal> = {}): Medal => ({ id: 1, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1, ...over });
 /** A machine with nothing on it but these. */
 const machineWith = (medals: Medal[]): Machine => {
   const machine = createMachine(3);
@@ -77,8 +77,8 @@ describe('where the chuckers are', () => {
     // Two mouths do not run into one another: there is more than half a medal's width of lip between them.
     const gap = CHECKERS.positions[1] - CHECKERS.positions[0] - CHUCKERS.radius * 2;
     expect(gap).toBeGreaterThan(MEDAL_RADIUS);
-    // The towers go up halfway between two chuckers, and a tower that comes straight down the pusher goes over there.
-    expect(CHECKERS.positions[1] - CHECKERS.positions[0]).toBe(TOWER.spacing);
+    // The arms leave the towers halfway between two chuckers, and a tower that comes straight down the pusher goes over there.
+    expect(TUBE.site).toEqual([(CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, (CHECKERS.positions[1] + CHECKERS.positions[2]) / 2]);
     expect(checkerAt((CHECKERS.positions[0] + CHECKERS.positions[1]) / 2)).toBe(-1);
     expect(checkerAt((CHECKERS.positions[1] + CHECKERS.positions[2]) / 2)).toBe(-1);
   });

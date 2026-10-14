@@ -2380,6 +2380,21 @@
   padding: 0.5cqh 1.6cqw;
   font-size: 7.8cqh;
 }
+/* The screen's lower corners are cut out for the windows the towers are stacked in, with the count over each
+   (works.ts). In the wall what stands low on the stage keeps clear of them: the slot's board is a little narrower,
+   and the column beside the wheel or the bowls stands a little in from the right. */
+.wall .screen:not([data-mode='sugoroku']) .boardPlane {
+  --mp-board-width: 92cqw;
+  left: 4cqw;
+}
+.wall .wheelWindow,
+.wall .bowlWindow {
+  width: 62cqw;
+}
+.wall .chain {
+  width: 31cqw;
+  margin-right: 4cqw;
+}
 /* What each line of the slot leads to, under the stage. */
 .legendBelow {
   display: flex;

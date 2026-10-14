@@ -169,8 +169,9 @@ export type Pocket = 'stop' | number;
 
 /**
  * The twelve pockets in the order they sit on the wheel, each as likely as the
- * next. A number adds that many medals to the towers on the pusher and the
- * roulette turns again; a cross ends the run.
+ * next. A number stacks that many medals onto the run's tower, in a tube in
+ * one of the windows at the screen's lower corners, and the roulette turns
+ * again; a cross ends the run, and the tower is pushed out onto the pusher.
  */
 export const ROULETTE: readonly Pocket[] = ['stop', 10, 20, 30, 'stop', 10, 20, 50, 'stop', 10, 20, 'stop'];
 
@@ -265,8 +266,9 @@ export const holePays = (hole: Hole, jackpot: number): number => (hole === 'jack
 
 /**
  * The share of what the bowls pay that the machine pours onto the field
- * loose. The rest goes up on the pusher as towers, as far as the pusher has
- * free places for them: what those cannot hold is poured as well.
+ * loose. The rest is stacked as towers, on top of the run's tower first, as
+ * far as the tubes have room for them: what they cannot take is poured as
+ * well.
  */
 export const BOWL_POURED = 0.3;
 /** How many of `medals` paid by the bowls are poured loose whatever room the pusher has: the fewest that ever are. */
@@ -332,7 +334,7 @@ export const JACKPOT_CHANCE = tierChance('seven') * BALL_JACKPOT_CHANCE;
  * and it lies on the field among the medals. Pushed over the front it is
  * collected: it lights one of the jewel lamps and pays `prize` medals at
  * once. The one that would light the last lamp pays `bonus` medals instead,
- * stacked on the pusher as towers, and the lamps go out. No jewel is lost:
+ * stacked as a tower, and the lamps go out. No jewel is lost:
  * it does not fit through an open side, or down a side hole's barred mouth.
  */
 export const JEWEL = { lamps: 5, prize: 1, bonus: 3 } as const;

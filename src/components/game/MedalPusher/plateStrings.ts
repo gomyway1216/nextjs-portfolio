@@ -219,7 +219,7 @@ const ja: PlateStrings = {
   jackpotFrom: (start) => `${start}枚〜`,
   jackpotGrows: (step) => `はメダル${step}枚ごとに1枚ふえるよ`,
   pathSays: (path) =>
-    `JACKPOT への道：ボールを手前に落とすとルーレットが回ります。数字（${path.pockets.join('・')}枚）に止まるとその枚数がタワーになり、もう一度回ります。×に止まると終了です。数字が${path.chainGoal}回つづくと、${path.bowls.length}段のクルーンへ進みます。${path.bowls.map((bowl, index) => bowlJa(bowl, index, path.jackpotStart)).join('。')}。JACKPOT はメダル${path.jackpotStep}枚ごとに1枚ふえます。`,
+    `JACKPOT への道：ボールを手前に落とすとルーレットが回ります。数字（${path.pockets.join('・')}枚）に止まるとその枚数が窓のタワーに積まれ、もう一度回ります。×に止まると終了で、タワーが押し出されます。数字が${path.chainGoal}回つづくと、${path.bowls.length}段のクルーンへ進みます。${path.bowls.map((bowl, index) => bowlJa(bowl, index, path.jackpotStart)).join('。')}。JACKPOT はメダル${path.jackpotStep}枚ごとに1枚ふえます。`,
   oddsNote: 'くわしい確率は「確率」タブを見てね。',
 
   handsTitle: '操作方法',
@@ -326,7 +326,7 @@ const en: PlateStrings = {
   jackpotFrom: (start) => `${start}+`,
   jackpotGrows: (step) => `grows by 1 for every ${step} medals played`,
   pathSays: (path) =>
-    `The way to the jackpot: a ball pushed over the front spins the roulette. A number (${path.pockets.join(', ')}) is stacked as a tower of that many medals and the roulette turns again. A cross ends the run. ${path.chainGoal} numbers in a row send the ball to ${path.bowls.length > 1 ? `${path.bowls.length} bowls, one under another` : 'the bowl'}, where it drops through a hole. ${path.bowls.map((bowl, index) => bowlEn(bowl, index, path.jackpotStart)).join('. ')}. The jackpot grows by one for every ${path.jackpotStep} medals played.`,
+    `The way to the jackpot: a ball pushed over the front spins the roulette. A number (${path.pockets.join(', ')}) stacks that many medals onto the tower in a window and the roulette turns again. A cross ends the run, and the tower is pushed out. ${path.chainGoal} numbers in a row send the ball to ${path.bowls.length > 1 ? `${path.bowls.length} bowls, one under another` : 'the bowl'}, where it drops through a hole. ${path.bowls.map((bowl, index) => bowlEn(bowl, index, path.jackpotStart)).join('. ')}. The jackpot grows by one for every ${path.jackpotStep} medals played.`,
   oddsNote: 'The exact chances are on the Odds tab.',
 
   handsTitle: 'CONTROLS',

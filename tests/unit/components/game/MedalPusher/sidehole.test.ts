@@ -49,7 +49,7 @@ describe('the side holes at the front corners, as the cabinet has them', () => {
     expect([holeAt(FIELD.sideReach - 1e-9), holeAt(FIELD.sideReach), holeAt(W - FIELD.sideReach), holeAt(W - FIELD.sideReach + 1e-9)]).toEqual([-1, 0, 0, 1]);
     // The cheeks stand on the rule's own lines, half to either side, and are narrow: a fifth of a medal.
     expect(TRAY).toEqual({ from: SIDE_HOLE.reach + SIDE_HOLE.cheek, to: W - SIDE_HOLE.reach - SIDE_HOLE.cheek });
-    expect((TRAY.from + TRAY.to) / 2).toBe(W / 2);
+    expect((TRAY.from + TRAY.to) / 2).toBeCloseTo(W / 2, 12);
     expect(SIDE_HOLE.cheek * 2).toBeLessThan(R / 2);
     for (const side of SIDES) {
       expect(fromSide(acrossAt(7, side), side)).toBeCloseTo(7, 12);
@@ -321,7 +321,7 @@ describe('a ball or a jewel that crosses a side hole’s mouth', () => {
 });
 
 describe('what the stage shows of a medal that has left the field', () => {
-  const lying = (id: number, x: number, y: number, more: Partial<Medal> = {}): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, ...more });
+  const lying = (id: number, x: number, y: number, more: Partial<Medal> = {}): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1, ...more });
   /** A stage that saw these medals on the table and then saw them gone, told that the machine counted `won` of them. */
   const gone = (medals: Medal[], won?: number): Stage => {
     const stage = createStage(1, false);

@@ -5,14 +5,14 @@
  *   npx tsx scripts/medal-pusher-tune.ts --first [machines] [hundreds]
  *
  * It plays the real machine (engine, session and lottery as they are in
- * src/components/game/MedalPusher: the field, the hopper and the lifts that
+ * src/components/game/MedalPusher: the field, the hopper and the tubes that
  * pay onto it, the jewels, the roulette and its bowls) in each of the ways
  * listed in PLAYS, over `seeds` machines of `medals` medals each after a
  * warm-up, and prints one table. Defaults: 12 seeds, 3,000 medals. `only`
  * keeps the ways whose name has that text in it. Thirty-six seeds bring the
  * error on a return down to about a third of a point, and the whole table then
- * takes some twenty-five minutes on a dozen cores: the slow ways are most of
- * it.
+ * takes some forty minutes on a dozen cores, with medals as small as they are
+ * and half as many again on the tables: the slow ways are most of it.
  *
  * What a row says, per 100 medals fed unless it is a share:
  *
@@ -115,8 +115,8 @@ export interface Play {
   rush?: boolean;
 }
 
-/** About how many seconds the middle one of the medals fed down the middle takes to reach the lip. Half of them take between 24 and 53, and one in ten two minutes. */
-const TRANSIT = 35;
+/** About how many seconds the middle one of the medals fed down the middle, two a second, takes to reach the lip. Half of them take between 33 and 66, and one in ten two minutes. */
+const TRANSIT = 47;
 
 /** What each way of aiming is called in the table. */
 const AIM_NAMES: Record<AimId, string> = { centre: 'middle', anywhere: 'anywhere', beside: 'beside', edges: 'edges' };

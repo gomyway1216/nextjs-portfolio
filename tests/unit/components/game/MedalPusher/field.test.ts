@@ -420,7 +420,7 @@ describe('the catcher on the canvas', () => {
         expect(opening[0].y).toBeLessThan(mouth.y);
         expect(opening[3].y).toBeGreaterThan(mouth.y);
         expect(opening[3].y - opening[0].y).toBeCloseTo(mouth.tall, 9);
-        expect(mouth.wide * PHONE).toBeGreaterThan(20);
+        expect(mouth.wide * PHONE).toBeGreaterThan(18);
         expect(mouth.tall * PHONE).toBeGreaterThan(8.8);
         // As wide inside as a medal that just fits, and the whole of it, frame and all, below the lip.
         expect(mouth.wide).toBeCloseTo((MEDAL_RADIUS + CHECKERS.halfWidth) * 2 * seen(slopeSpot(spot.x, CATCHER.back + START_SLOT.long / 2, time, CATCHER.rim.high)).scale, 9);
@@ -772,7 +772,7 @@ describe('the catcher on the canvas', () => {
     const machine = createMachine(3);
     machine.time = 1.5;
     const front = pusherFront(machine.time);
-    const medal = (sinceDrop: number): Medal => ({ id, x, y: front + MEDAL_RADIUS, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1 });
+    const medal = (sinceDrop: number): Medal => ({ id, x, y: front + MEDAL_RADIUS, level: 0, tier: 0, sinceDrop, stack: 1, ball: false, grown: 1 });
     /** What was drawn, the pictures of medals among it, and whether the medal's was drawn after the catcher. */
     const drawn = (sinceDrop: number, options: Partial<DrawOptions> = {}) => {
       machine.medals = [medal(sinceDrop)];
@@ -958,7 +958,7 @@ describe('the catcher on the canvas', () => {
     // It is seen rocked for a good many frames: its right-hand side, the one with nothing under it, is the low one, never the other, and in the end by many pixels of the drawing.
     expect(droops.length).toBeGreaterThan(40);
     expect(Math.min(...droops)).toBeGreaterThan(-0.5);
-    expect(Math.max(...droops)).toBeGreaterThan(8);
+    expect(Math.max(...droops)).toBeGreaterThan(6);
     // With motion reduced it never hangs: it goes over the lip's edge nose first, level across, and is down in the time that takes.
     for (let sinceDrop = 0.005; sinceDrop < CATCHER.fall; sinceDrop += 1 / 60) {
       const still = caught(medal(sinceDrop), machine.time, true);
@@ -980,7 +980,7 @@ describe('the catcher on the canvas', () => {
     machine.time = 1.5;
     const front = pusherFront(machine.time);
     // A ball that came over the lip long ago, unless it is said when: it lies where the engine has it.
-    const ball = (y: number, sinceDrop = 30): Medal => ({ id: 902, x: 50, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: true, grown: 1 });
+    const ball = (y: number, sinceDrop = 30): Medal => ({ id: 902, x: 50, y, level: 0, tier: 0, sinceDrop, stack: 1, ball: true, grown: 1 });
     const order = (medal: Medal) => {
       machine.medals = [medal];
       const screen = recorder();
@@ -1037,7 +1037,7 @@ describe('the catcher on the canvas', () => {
     machine.time = 1.5;
     const front = pusherFront(machine.time);
     // Balls that came over the lip long ago, unless it is said when: they lie where the engine has them.
-    const ball = (id: number, x: number, y: number, sinceDrop = 30): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: true, grown: 1 });
+    const ball = (id: number, x: number, y: number, sinceDrop = 30): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop, stack: 1, ball: true, grown: 1 });
     /** How far out from the back wall each ball that was drawn is, in the order they were drawn, and whether each was drawn after the catcher. */
     const drawn = (medals: Medal[]) => {
       machine.medals = medals;
@@ -1288,9 +1288,9 @@ describe('the feed arms on the canvas', () => {
       expect(SLOT.mouth.wide).toBeGreaterThan(HEIGHT.medal * 3);
       expect(SLOT.mouth.wide).toBeLessThan(MEDAL_RADIUS * 2);
       expect(tall).toBeGreaterThan(MEDAL_RADIUS * 2 * at.scale * 0.9);
-      // On a phone the mouth is a dozen pixels wide and two dozen tall; before, it was a slit of five.
+      // On a phone the mouth is a dozen pixels wide and twenty tall; before, it was a slit of five.
       expect(wide * PHONE).toBeGreaterThan(12);
-      expect(tall * PHONE).toBeGreaterThan(22);
+      expect(tall * PHONE).toBeGreaterThan(20);
       // The ring round it is all on the drawing, and stays above the open side of the lower table, which begins where the wall ends.
       const ring = [slotSpot(arm, -SLOT.ring, 0, SLOT.face), slotSpot(arm, SLOT.ring, 0, SLOT.face), slotSpot(arm, 0, -SLOT.ring, SLOT.face)].map((spot) => project(spot.x, spot.height, spot.depth));
       expect(Math.min(ring[0].x, ring[1].x)).toBeGreaterThanOrEqual(0);
@@ -1537,8 +1537,8 @@ describe('the gold spins’ lamps on the canvas', () => {
 
 describe('the jewels on the canvas', () => {
   const D = FIELD.depth;
-  const jewel = (id: number, x: number, y: number, level: 0 | 1, more: Partial<Medal> = {}): Medal => ({ id, x, y, level, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1, jewel: true, ...more });
-  const plain = (id: number, x: number, y: number): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+  const jewel = (id: number, x: number, y: number, level: 0 | 1, more: Partial<Medal> = {}): Medal => ({ id, x, y, level, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1, jewel: true, ...more });
+  const plain = (id: number, x: number, y: number): Medal => ({ id, x, y, level: 0, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
   /** One frame of a field that holds just these, and what it drew. */
   const frame = (medals: Medal[], options: { calm?: boolean; jewels?: number } = {}, stage: Stage = createStage(1), change: (machine: Machine) => void = () => undefined) => {
     const machine = createMachine(3);
@@ -1754,7 +1754,7 @@ describe('a tower on the canvas', () => {
     const stage = createStage(1);
     const machine = createMachine(3);
     const depth = pusherFront(machine.time) - 12;
-    machine.medals = [{ id: 900, x: 50, y: depth, level: 1, tier: 0, sinceDrop: -1, stack, grow: 0, ball: false, grown: 1 }];
+    machine.medals = [{ id: 900, x: 50, y: depth, level: 1, tier: 0, sinceDrop: -1, stack, ball: false, grown: 1 }];
     const screen = recorder();
     drawField(screen.context, stage, machine, { showGuide: false, calm: true });
     return { screen, stage, depth };
@@ -1788,13 +1788,13 @@ describe('a tower on the canvas', () => {
     }
   });
 
-  it('stands about two medals’ widths high at its tallest: stout, as a stack of real medals is', () => {
-    expect(TOWER.max * T).toBeGreaterThan(MEDAL_RADIUS * 2 * 1.5);
-    expect(TOWER.max * T).toBeLessThan(MEDAL_RADIUS * 2 * 2.5);
-    // And on a phone, where the stage is 345 pixels wide, that is a column some twenty pixels high: still plainly a tower over a pile two deep.
+  it('stands four and a half medals’ widths high at its tallest, as tall as a tower can stand under the feed arms', () => {
+    expect(TOWER.max * T).toBeGreaterThan(MEDAL_RADIUS * 2 * 4.4);
+    expect(TOWER.max * T).toBeLessThan(MEDAL_RADIUS * 2 * 4.7);
+    // And on a phone, where the stage is 345 pixels wide, that is a column some forty pixels high: plainly a tower over a pile two deep.
     const depth = pusherFront(0) - 12;
     const tall = (project(50, P + T, depth).y - project(50, P + TOWER.max * T, depth).y) * (345 / VIEW.width);
-    expect(tall).toBeGreaterThan(18);
+    expect(tall).toBeGreaterThan(36);
     expect(tall).toBeGreaterThan(10 * (project(50, P, depth).y - project(50, P + T * 2, depth).y) * (345 / VIEW.width));
   });
 });

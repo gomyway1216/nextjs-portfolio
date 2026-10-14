@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { fedSpot, legOf, rollingSpot } from '@/components/game/MedalPusher/arms';
-import { caught as onCatcher } from '@/components/game/MedalPusher/catcher';
 import {
   AIM,
   ARM_REACH,
@@ -23,6 +22,7 @@ import {
   armStart,
   ballsOnField,
   buildTowers,
+  createMachine,
   dropJewel,
   jewelsOnField,
   medalsOnField,
@@ -30,11 +30,10 @@ import {
   queuePayout,
   seededRng,
   tipOf,
-  towerSizes,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { POUR, shutHopper } from '@/components/game/MedalPusher/hopper';
-import { LIFT, holds, liftAtWork, stands, type Lift } from '@/components/game/MedalPusher/lift';
+import { STACK, TUBE, armSpot, idleStacker, medalsInTubes, stackTowers, towersIn, type Tube } from '@/components/game/MedalPusher/stacker';
 import { chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import {
   BOARD,
@@ -49,7 +48,6 @@ import {
   JEWEL,
   REACH_KINDS,
   ROULETTE,
-  SPIN_TABLE,
   fallEnd,
   pouredOf,
   squareAfter,
@@ -85,6 +83,7 @@ import {
   VERSION_BEFORE_JEWELS,
   VERSION_BEFORE_LAMP,
   VERSION_BEFORE_RIDE,
+  VERSION_BEFORE_TUBES,
   VERSION_BEFORE_WORKS,
   VERSION_WITH_ONE_AIM,
   VERSION_WITH_ONE_BOWL,
@@ -103,12 +102,14 @@ import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 import beforeLamp from './fixtures/save-before-the-lucky-lamp.json';
 import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
 import beforeRide from './fixtures/save-before-the-ride.json';
+import beforeTubes from './fixtures/save-before-the-tubes.json';
 import beforeJewels from './fixtures/save-before-jewels.json';
 import threeBowlsBeforeJewels from './fixtures/save-with-the-three-bowls-before-jewels.json';
 import beforeThreeBowls from './fixtures/save-before-the-three-bowls.json';
 import withChanceAndOneBowl from './fixtures/save-with-chance-time-and-one-bowl.json';
 
 import { aimBoth, insertAt } from './feeding';
+import { TOWER_THEN, holds, liftAtWork, type Lift, type MedalThen } from './liftsBefore';
 
 const DT = 1 / 60;
 /** Tests that run the machine for a good while get room on a slow machine. */
@@ -150,70 +151,6 @@ const ROLL = {
 
 /** A session with no balls lying about and no spins held, so that nothing comes onto its screen unasked. */
 const quiet = (): Session => createSession(5, { balls: 0 });
-
-/**
- * How wide a START pocket was in the games that wrote the old saves below, before the pockets were narrowed and
- * given wings: what the engine's `CHECKERS.halfWidth` was then.
- */
-const POCKET_THEN = 1.7;
-/**
- * Plays `play` with the wings opening `width` wide, and puts today's width back. Today's open wings take a medal
- * from less far to the side than the pockets of those games did, so a machine in chance time counts fewer of the
- * medals that come over beside a slot than they did. Where a test says an old save plays on exactly as the game
- * that wrote it did, that is the one difference it sets aside, and this is how.
- */
-function withWings<T>(width: number, play: () => T): T {
-  const checkers = CHECKERS as { wingWidth: number };
-  const today = checkers.wingWidth;
-  checkers.wingWidth = width;
-  try {
-    return play();
-  } finally {
-    checkers.wingWidth = today;
-  }
-}
-/** How often each line came, of 25,000 spins, in the games that wrote the old saves below: before the machine was set to give back what a real one does. */
-const TABLE_THEN = { miss: 23078, small: 1240, big: 465, seven: 217 } as const;
-/**
- * Plays `play` with the lottery and the table as those games had them, and puts today's back: how often each line
- * came, what the board's squares and the chests held (`PAID_BEFORE`), and a front edge that paid along its whole
- * length. Where a test follows an old save through the very spins that game then played, this is the difference it
- * sets aside, as `withWings` sets aside the pockets' width. The jackpot is not put back: an old save's comes back
- * as today's, and is paid as today's.
- */
-function withTheTableThen<T>(play: () => T): T {
-  const [board, chests, field] = [BOARD as unknown as number[], CHESTS as unknown as number[], FIELD as { sideReach: number }];
-  const today = { table: { ...SPIN_TABLE }, board: [...board], chests: [...chests], reach: field.sideReach };
-  Object.assign(SPIN_TABLE, TABLE_THEN);
-  board.splice(0, board.length, ...PAID_BEFORE.board);
-  chests.splice(0, chests.length, ...PAID_BEFORE.chests);
-  field.sideReach = 0;
-  try {
-    return play();
-  } finally {
-    Object.assign(SPIN_TABLE, today.table);
-    board.splice(0, board.length, ...today.board);
-    chests.splice(0, chests.length, ...today.chests);
-    field.sideReach = today.reach;
-  }
-}
-/**
- * How many of the medals an older game won are lost by today's table over the same stretch of play: the ones that
- * go over the front edge within the side holes' reach of a corner. In every other way the field is the field it
- * was, so as many medals leave it as left it then, and no more of them over the tray than did.
- */
-function lostAtTheCorners(events: SessionEvent[], then: { won: number; lost: number }): number {
-  const count = (type: 'won' | 'lost'): number => events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
-  expect(count('won') + count('lost')).toBe(then.won + then.lost);
-  expect(count('won')).toBeLessThanOrEqual(then.won);
-  return then.won - count('won');
-}
-/** Whether `part` is some of `whole`, in the order `whole` has them. */
-function someOf<T>(part: readonly T[], whole: readonly T[]): boolean {
-  let found = 0;
-  for (const one of whole) if (found < part.length && one === part[found]) found += 1;
-  return found === part.length;
-}
 
 /** The roll that stops the roulette on a given pocket, and the one that sends the ball down a given way through the bowls. */
 const pocketRoll = (pocket: number): number => (pocket + 0.5) / ROULETTE.length;
@@ -482,10 +419,10 @@ interface Save {
 }
 
 /**
- * A field as version 2 wrote it, in today's shape: the one slot's wait for both slots, and the one aim as near as
- * each arm points to it. Everything else is as it was, in the order a machine holds it.
+ * A field as version 2 wrote it, as versions 7 to 9 wrote theirs: the one slot's wait for both slots, and the one
+ * aim as near as each arm points to it. Everything else is as it was, in the order a machine held it.
  */
-const asToday = (machine: Row): Row => {
+const asNine = (machine: Row): Row => {
   const { cooldown, aim, tips, nextId, ...tables } = machine;
   return withWorks({ ...tables, waits: [cooldown, cooldown], aims: [tipOf(0, aim as number), tipOf(1, aim as number)], tips, nextId });
 };
@@ -507,15 +444,102 @@ const withJackpot = (session: Row): Row => {
  */
 const withRide = (session: Row): Row => ({ ...withJackpot(session), riding: [] });
 /**
- * A field as the versions before the payout works wrote it, in today's shape: the hopper's doors shut, and a lift
- * at work, its guard up, under every tower that was going up. Everything else is as it was, in the order a
- * machine holds it.
+ * A field as the versions before the payout works wrote it, as versions 7 to 9 wrote theirs: the hopper's doors
+ * shut, and a lift at work, its guard up, under every tower that was going up. Everything else is as it was, in
+ * the order a machine held it.
  */
 function withWorks(machine: Row): Row {
   const { waits, aims, tips, nextId, ...tables } = machine;
   const front = pusherFront(tables.time as number);
-  const lifts = (tables.medals as Medal[]).filter((medal) => medal.grow > 0).map((medal) => liftAtWork(medal, front));
+  const lifts = (tables.medals as MedalThen[]).filter((medal) => medal.grow > 0).map((medal) => liftAtWork(medal, front));
   return { ...tables, hopper: shutHopper(), lifts, waits, aims, tips, nextId };
+}
+
+/**
+ * The medals on a field of a version before 10, counted as that game counted them: every medal lying, and those its
+ * towers had still to gain, on the rails, in the air and waiting to be paid. A ball or a jewel is not a medal.
+ */
+const onFieldThen = (machine: Row): number => {
+  const prize = (medal: Row): boolean => medal.ball === true || medal.jewel === true;
+  const lying = (machine.medals as Row[]).reduce((sum, medal) => sum + (prize(medal) ? 0 : (medal.stack as number) + (medal.grow as number)), 0);
+  const inTheAir = (machine.falling as Row[]).filter((medal) => !prize(medal)).length;
+  return lying + inTheAir + ((machine.rolling as Row[] | undefined)?.length ?? 0) + (machine.payoutQueue as number);
+};
+
+/**
+ * Puts a medal over the pusher's lip in line with a slot, on top of the pile, so that it goes through that slot in the
+ * machine's next step: on a new heap the medals that went through a pocket in an old game's play are not there to.
+ */
+const overTheLip = (session: Session, x: number): void => {
+  const { machine } = session;
+  machine.medals.push({ id: machine.nextId++, x, y: pusherFront(machine.time) + 0.01, level: 1, tier: 1, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
+};
+
+/** The parts of a field as versions 7 to 9 wrote it, the last before the tubes and today's medals, in the order a machine held them. */
+const FIELD_THEN = ['time', 'medals', 'rolling', 'falling', 'payoutQueue', 'payoutClock', 'growing', 'towerClock', 'hopper', 'lifts', 'waits', 'aims', 'tips', 'nextId'];
+
+/**
+ * Today's field as versions 7 to 9 wrote theirs: every tower on it built, none going up and no lift at work. What is
+ * in the tubes has no place in a field of then, and neither has a tower taller than any of then, or a medal in the
+ * air off one: they are left out. So it is the same machine only when there are none of those.
+ */
+const fieldThen = (machine: Row): Row => {
+  const { time, medals, rolling, falling, payoutQueue, payoutClock, hopper, waits, aims, tips, nextId } = machine;
+  const grown = (medals as Row[]).filter((medal) => (medal.stack as number) <= TOWER_THEN.max).map((medal) => {
+    const { id, x, y, level, tier, sinceDrop, stack, ball, grown: room, ...jewel } = medal;
+    return { id, x, y, level, tier, sinceDrop, stack, grow: 0, ball, grown: room, ...jewel };
+  });
+  // Nor has a medal in the air off a tower taller than any of then.
+  const fell = (falling as Row[]).filter((medal) => (medal.rank as number) < TOWER_THEN.max);
+  return { time, medals: grown, rolling, falling: fell, payoutQueue, payoutClock, growing: 0, towerClock: 0, hopper, lifts: [], waits, aims, tips, nextId };
+};
+
+/**
+ * Checks what a save of a version before 10 comes back as: on a new heap of today's medals, with everything on the
+ * old field that was the player's to win carried over to it, as storage.ts has it (`onANewHeap`). `then` is the
+ * field as versions 7 to 9 wrote theirs, and `seed` what the save was read with.
+ */
+function expectANewHeap(then: Row, back: Session, seed: number): void {
+  const { machine } = back;
+  const medalsThen = then.medals as MedalThen[];
+  // As they were: the clock, what is on the rails and in the air, the doors, the arms.
+  expect(machine.time).toBe(then.time);
+  expect(machine.rolling).toEqual(then.rolling);
+  expect(machine.falling).toEqual(then.falling);
+  expect(machine.payoutClock).toBe(then.payoutClock);
+  expect(machine.hopper).toEqual(then.hopper);
+  expect([machine.waits, machine.aims, machine.tips]).toEqual([then.waits, then.aims, then.tips]);
+  // Every tower going up, and every tower a lift held, is given to the tubes; what they have no room for is poured.
+  const held = new Set((then.lifts as Lift[]).filter(holds).map((lift) => lift.id));
+  const tubes = idleStacker();
+  let poured = 0;
+  for (const medal of medalsThen) if (medal.grow > 0 || held.has(medal.id)) poured += medal.stack + medal.grow - stackTowers(tubes, medal.stack + medal.grow);
+  expect(machine.stacker).toEqual(tubes);
+  expect(machine.payoutQueue).toBe((then.payoutQueue as number) + poured);
+  // Every other tower, and every ball and jewel, is where it was: on its table, within a medal of it.
+  const tall = (medal: Medal): boolean => medal.stack > 1 || medal.ball || medal.jewel === true;
+  const kept = medalsThen.filter((medal) => tall(medal) && medal.grow === 0 && !held.has(medal.id));
+  const now = machine.medals.filter(tall);
+  expect(now).toHaveLength(kept.length);
+  for (const one of kept) {
+    const same = now.filter((medal) => medal.level === one.level && medal.stack === one.stack && medal.ball === one.ball && (medal.jewel === true) === (one.jewel === true));
+    expect(Math.min(...same.map((medal) => Math.hypot(medal.x - one.x, medal.y - one.y)))).toBeLessThan(MEDAL_RADIUS * 2);
+  }
+  // The rest is the heap a new machine is switched on with, carried as far forward as the pusher had come, numbered
+  // after every id the old machine gave out; less what would have lain on top of a tower, a ball or a jewel.
+  const heap = createMachine(seed).medals;
+  const first = then.nextId as number;
+  const ahead = pusherFront(machine.time) - pusherFront(0);
+  expect(machine.nextId).toBe(first + heap.length);
+  expect(machine.medals.length).toBeGreaterThan(heap.length - 6 * (kept.length + 1));
+  for (const medal of machine.medals) {
+    const fresh = heap[medal.id - first];
+    expect({ x: medal.x, y: medal.y, level: medal.level, tier: medal.tier }).toEqual({ x: fresh.x, y: fresh.level === 1 ? fresh.y + ahead : fresh.y, level: fresh.level, tier: fresh.tier });
+    if (!tall(medal)) expect(medal).toMatchObject({ stack: 1, ball: false, sinceDrop: -1, grown: 1 });
+  }
+  for (const medal of machine.medals.filter((one) => one.tier === 1)) {
+    expect(now.every((one) => one.level !== medal.level || Math.hypot(one.x - medal.x, one.y - medal.y) >= MEDAL_RADIUS * 2)).toBe(true);
+  }
 }
 /**
  * A session's numbers as the versions before chance time wrote them, in today's shape: none of the held spins gold,
@@ -550,23 +574,39 @@ const withoutLamp = (save: Save): Save => {
   const { lucky: _lucky, rush: _rush, ...session } = withoutRide(save).session;
   return { ...save, session: session as Save['session'] };
 };
-/** A whole save of version 2 or 3 as today's game writes the same machine. */
-const writtenToday = (text: string): string => {
+/** A whole save of version 2 or 3 as versions 7 to 9 wrote the same machine, but for the version they said they were. */
+const writtenThen = (text: string): Save => {
   const save = JSON.parse(text) as Save;
-  return JSON.stringify({ ...save, version: STORAGE_VERSION, machine: save.version === VERSION_WITH_ONE_AIM ? asToday(save.machine) : withWorks(save.machine), session: numbersToday(save.session) });
+  return { ...save, machine: (save.version === VERSION_WITH_ONE_AIM ? asNine(save.machine) : withWorks(save.machine)) as Save['machine'], session: numbersToday(save.session) as Save['session'] };
+};
+
+/** What a save written back from an older one says, but for its field: today's version, and the numbers and the screen as they came back. */
+const withoutField = (text: string): Row => {
+  const { machine: _machine, ...rest } = JSON.parse(text) as Save;
+  return rest;
 };
 
 /**
  * A good save with one of everything: medals in both tiers of both tables,
- * a ball, a jewel, three towers still going up, a medal in the air and
- * another on its way down an arm.
+ * a ball, a jewel, a tower standing on the pusher, two more being stacked in
+ * the tubes, a medal in the air and another on its way down an arm.
  */
 const GOOD = (() => {
   const session = createSession(3);
-  // The first medal has rolled down its arm and dropped off the tip.
+  // A tower of twenty, stacked and pushed out: the arm lets it go, and it stands on the pusher. On its way out it
+  // shoves a few medals over the lip, and the spins they start are played out before anything else is put on.
+  buildTowers(session.machine, 20);
+  const done = (): boolean => {
+    const { machine } = session;
+    const still = machine.stacker.tubes.every((tube) => tube.phase === 'stacking' && tube.size === 0) && machine.hopper.phase === 'shut' && machine.payoutQueue === 0 && machine.falling.length === 0;
+    return still && machine.stacker.made === 1 && session.spin === null && session.bonus === null && session.stock === 0 && session.riding.length === 0;
+  };
+  for (let i = 0; i < 120 * 60 && !done(); i++) advance(session, DT);
+  // A hundred and thirty more as three towers: one in each tube and the third waiting its turn behind one of them;
+  // and the first medal has rolled down its arm and dropped off the tip.
+  buildTowers(session.machine, 130);
   insertAt(session, 50);
   advance(session, ROLL_TIME + DT);
-  buildTowers(session.machine, 60);
   insertAt(session, 50);
   for (let i = 0; i < 4; i++) advance(session, DT);
   session.roulettes = 3;
@@ -584,12 +624,13 @@ const find = (rows: Row[], test: (row: Row) => boolean): Row => {
   if (!row) throw new Error('the good save has no such medal');
   return row;
 };
-const tower = (save: Save): Row => find(save.machine.medals, (medal) => (medal.grow as number) > 0);
-/** The lifts of a save, and the one under a tower. */
-const liftsOf = (save: Save): Row[] => save.machine.lifts as Row[];
-const liftUnder = (save: Save, medal: Row): Row => find(liftsOf(save), (lift) => lift.id === medal.id);
+const tower = (save: Save): Row => find(save.machine.medals, (medal) => (medal.stack as number) > 1);
+/** The two tubes of a save, the one that is stacking a tower that is not built yet, and the one with a tower waiting its turn. */
+const tubesOf = (save: Save): Row[] => (save.machine.stacker as { tubes: Row[] }).tubes;
+const stacking = (save: Save): Row => find(tubesOf(save), (tube) => tube.phase === 'stacking' && (tube.stacked as number) < (tube.size as number) && (tube.waiting as number[]).length === 0);
+const queued = (save: Save): Row => find(tubesOf(save), (tube) => (tube.waiting as number[]).length > 0);
 const ball = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === true);
-const loose = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0 && medal.jewel !== true);
+const loose = (save: Save): Row => find(save.machine.medals, (medal) => medal.ball === false && medal.stack === 1 && medal.jewel !== true);
 const jewel = (save: Save): Row => find(save.machine.medals, (medal) => medal.jewel === true);
 /** Makes the medal in the air a jewel the hatch has let go. */
 const jewelInAir = (save: Save): Row =>
@@ -609,9 +650,7 @@ const jewelInAir = (save: Save): Row =>
 /** Marks `count` more of the loose medals on the tables as jewels. */
 const moreJewels = (save: Save, count: number): void => {
   // Only where a jewel can be: on the lower table, on the table itself, and not on its way down from the pusher's lip.
-  const plainOnes = save.machine.medals.filter(
-    (medal) => medal.ball === false && medal.stack === 1 && medal.grow === 0 && medal.tier === 0 && medal.level === 0 && medal.sinceDrop === -1 && medal.jewel !== true,
-  );
+  const plainOnes = save.machine.medals.filter((medal) => medal.ball === false && medal.stack === 1 && medal.tier === 0 && medal.level === 0 && medal.sinceDrop === -1 && medal.jewel !== true);
   if (plainOnes.length < count) throw new Error('the good save has too few medals for that');
   for (const medal of plainOnes.slice(0, count)) medal.jewel = true;
 };
@@ -630,7 +669,14 @@ describe('the good save the damaged ones are made from', () => {
   it('reads, and holds one of everything', () => {
     const save = good();
     expect(restore(GOOD, 1)).not.toBeNull();
-    expect(save.machine.medals.filter((medal) => (medal.grow as number) > 0)).toHaveLength(3);
+    // A tower of twenty on the pusher; and in the tubes one being stacked, and one waiting its turn behind the arm that is drawing back.
+    expect(save.machine.medals.filter((medal) => (medal.stack as number) > 1).map((medal) => [medal.stack, medal.level])).toEqual([[20, 1]]);
+    expect(tubesOf(save).map((tube) => [tube.phase, tube.size, tube.waiting])).toEqual([
+      ['stacking', 43, [43]],
+      ['stacking', 44, []],
+    ]);
+    expect(stacking(save).stacked).toBeGreaterThan(0);
+    expect(save.screen).toEqual({ spin: null, bonus: null, roulette: null });
     expect(save.machine.medals.filter((medal) => medal.ball)).toHaveLength(START_BALLS);
     // One jewel, and it is the only thing on the field that says whether it is one.
     expect(save.machine.medals.filter((medal) => medal.jewel === true)).toHaveLength(START_JEWELS);
@@ -649,7 +695,7 @@ describe('the good save the damaged ones are made from', () => {
     expect(onRail(save).arm).toBe(1);
     expect(save.machine.aims).toEqual([armStart(0), 50]);
     expect(save.machine.tips).toEqual([armStart(0), 50]);
-    expect(save.machine.growing).toBeGreaterThan(0);
+    expect(queued(save)).toBe(tubesOf(save)[0]);
     // Damage that changes nothing is no damage.
     expect(restore(damaged(() => {}), 1)).not.toBeNull();
   });
@@ -695,6 +741,7 @@ describe('a save that has been damaged', () => {
   const cases: [string, (save: Save) => void][] = [
     // The save as a whole
     ['the version before the feed arms, on a machine that has them', (save) => (save.version = VERSION_BEFORE_ARMS)],
+    ['the version before the tubes, on a machine that has them', (save) => (save.version = VERSION_BEFORE_TUBES)],
     ['a version before any', (save) => (save.version = 0)],
     ['a newer version', (save) => (save.version = STORAGE_VERSION + 1)],
     ['a version written as text', (save) => (save.version = String(STORAGE_VERSION))],
@@ -767,7 +814,7 @@ describe('a save that has been damaged', () => {
     ['an absurd payout queue', (save) => (save.machine.payoutQueue = LIMITS.purse + 1)],
     ['a payout clock running backwards', (save) => (save.machine.payoutClock = -0.1)],
     ['a payout clock past a minute', (save) => (save.machine.payoutClock = LIMITS.timer + 1)],
-    ['a tower clock that is not a number', (save) => (save.machine.towerClock = Number.NaN)],
+    ['the towers’ clock of the versions before the tubes, beside the tubes', (save) => (save.machine.towerClock = 0)],
     ['a slot’s wait below zero', (save) => (save.machine.waits = [0, -1])],
     ['a wait longer than a slot ever waits', (save) => (save.machine.waits = [DROP_INTERVAL * 2, 0])],
     ['a wait for one slot only', (save) => (save.machine.waits = [0.05])],
@@ -775,8 +822,33 @@ describe('a save that has been damaged', () => {
     ['one wait for both slots, as the version before wrote it', (save) => (save.machine.waits = 0.1)],
     ['no waits', (save) => delete save.machine.waits],
     ['a wait written as text', (save) => (save.machine.waits = ['0', 0.1])],
-    ['more medals to stack than the towers are waiting for', (save) => (save.machine.growing = (save.machine.growing as number) + 1)],
-    ['no medals to stack while towers are waiting', (save) => (save.machine.growing = 0)],
+    ['the medals the towers of the versions before were waiting for', (save) => (save.machine.growing = 0)],
+    ['the lifts of the versions before, beside the tubes', (save) => (save.machine.lifts = [])],
+    ['no tubes', (save) => delete save.machine.stacker],
+    ['tubes that are a list', (save) => (save.machine.stacker = tubesOf(save))],
+    ['one tube', (save) => ((save.machine.stacker as Row).tubes = [stacking(save)])],
+    ['a third tube', (save) => ((save.machine.stacker as Row).tubes = [...tubesOf(save), stacking(save)])],
+    ['no count of the towers the arms have pushed out', (save) => delete (save.machine.stacker as Row).made],
+    ['half a tower pushed out', (save) => ((save.machine.stacker as Row).made = 0.5)],
+    ['a part the tubes do not have', (save) => ((save.machine.stacker as Row).lifts = [])],
+    ['a tube doing what a tube does not do', (save) => (stacking(save).phase = 'rising')],
+    ['a tube with more stacked than its tower is to have', (save) => (stacking(save).stacked = (stacking(save).size as number) + 1)],
+    ['a tube stacking a tower taller than the tallest', (save) => (stacking(save).size = TOWER.max + 1)],
+    ['a tube with half a medal stacked', (save) => (stacking(save).stacked = 1.5)],
+    ['a tube whose clock is past the next medal', (save) => (stacking(save).clock = 1)],
+    ['a tube whose clock runs backwards', (save) => (stacking(save).clock = -0.1)],
+    ['a tube stacking with a tower on its arm', (save) => (stacking(save).tower = loose(save).id)],
+    ['a tube with more towers than it holds', (save) => (queued(save).waiting = [10, 10, 10])],
+    ['a tube with a tower waiting that is no tower', (save) => (queued(save).waiting = [0])],
+    ['a tube with a tower waiting that is taller than the tallest', (save) => (queued(save).waiting = [TOWER.max + 1])],
+    ['a tube with a tower waiting and none begun', (save) => Object.assign(stacking(save), { size: 0, stacked: 0, waiting: [10] })],
+    ['a tube letting down a tower that is not built', (save) => Object.assign(stacking(save), { phase: 'lowering', clock: 0 })],
+    ['a tube opening its gate on nothing', (save) => Object.assign(stacking(save), { phase: 'opening', clock: 0, size: 0, stacked: 0 })],
+    ['a tube drawing its arm back with a tower in it', (save) => Object.assign(stacking(save), { phase: 'returning', clock: 0, stacked: stacking(save).size })],
+    ['a tube drawing its arm back for longer than it takes', (save) => Object.assign(queued(save), { phase: 'returning', clock: STACK.returns, size: 0, stacked: 0 })],
+    ['a tube pushing out a tower that is not on the field', (save) => Object.assign(stacking(save), { phase: 'pushing', clock: 0, size: 0, stacked: 0, tower: save.machine.nextId })],
+    ['a tube pushing out a tower that is not where its arm has it', (save) => Object.assign(stacking(save), { phase: 'pushing', clock: 0, size: 0, stacked: 0, tower: tower(save).id })],
+    ['a tube pushing out a ball', (save) => Object.assign(stacking(save), { phase: 'pushing', clock: 0, size: 0, stacked: 0, tower: ball(save).id })],
     ['a next id of zero', (save) => (save.machine.nextId = 0)],
     ['a next id a medal already has', (save) => (save.machine.nextId = loose(save).id)],
     ['a next id past its bound', (save) => (save.machine.nextId = LIMITS.count + 1)],
@@ -799,8 +871,8 @@ describe('a save that has been damaged', () => {
     ['a medal whose tier is true', (save) => (loose(save).tier = true)],
     ['a stack of no medals', (save) => (loose(save).stack = 0)],
     ['a tower taller than the tallest', (save) => (loose(save).stack = TOWER.max + 1)],
-    ['a tower that will be taller than the tallest', (save) => (tower(save).stack = TOWER.max)],
-    ['a tower waiting for fewer than no medals', (save) => (tower(save).grow = -1)],
+    ['a tower with the medals it has yet to gain, as the versions before the tubes wrote one', (save) => (tower(save).grow = 0)],
+    ['a tower of half a medal more', (save) => (tower(save).stack = 20.5)],
     ['a ball that is a tower', (save) => (ball(save).stack = 2)],
     ['a ball that is a number', (save) => (ball(save).ball = 1)],
     ['a medal that has taken up no room', (save) => (loose(save).grown = 0)],
@@ -814,7 +886,7 @@ describe('a save that has been damaged', () => {
     [
       'more balls than a field ever holds',
       (save) => {
-        for (const medal of save.machine.medals) if (medal.stack === 1 && medal.grow === 0) medal.ball = true;
+        for (const medal of save.machine.medals) if (medal.stack === 1) medal.ball = true;
       },
     ],
 
@@ -921,13 +993,7 @@ describe('a save that has been damaged', () => {
     ['a medal that says it is not a jewel', (save) => (loose(save).jewel = false)],
     ['a jewel that is a ball as well', (save) => (jewel(save).ball = true)],
     ['a jewel that is a tower', (save) => (jewel(save).stack = 2)],
-    [
-      'a jewel with a tower still going up on it',
-      (save) => {
-        jewel(save).grow = 1;
-        save.machine.growing = (save.machine.growing as number) + 1;
-      },
-    ],
+    ['a jewel with a tower still going up on it, as the versions before the tubes wrote one', (save) => (jewel(save).grow = 1)],
     ['a jewel lying on top of the pile', (save) => (jewel(save).tier = 1)],
     // Every way a jewel is made puts it on the lower table, and nothing carries one up onto the pusher.
     ['a jewel on the pusher, where none can get', (save) => (jewel(save).level = 1)],
@@ -975,16 +1041,14 @@ describe('a save at the very edge of what a machine can be', () => {
     ['a quick pick', (save) => (save.session.quickPick = true)],
     ['a medal a diameter outside the left wall', (save) => (loose(save).x = -LIMITS.margin)],
     ['a medal a diameter beyond the front', (save) => (loose(save).y = FIELD.depth + LIMITS.margin)],
-    [
-      'a tower that will be as tall as the tallest',
-      (save) => {
-        // Its guard is still on the way up, so all but the one medal on the hatch are still to come.
-        const one = tower(save);
-        save.machine.growing = (save.machine.growing as number) + TOWER.max - 1 - (one.grow as number);
-        one.grow = TOWER.max - 1;
-        liftUnder(save, one).size = TOWER.max;
-      },
-    ],
+    ['a tower as tall as the tallest, on the field', (save) => (tower(save).stack = TOWER.max)],
+    ['a tower as tall as the tallest, being stacked', (save) => (stacking(save).size = TOWER.max)],
+    ['a tower as tall as the tallest, waiting its turn', (save) => (queued(save).waiting = [TOWER.max])],
+    ['as many towers as a tube holds', (save) => (queued(save).waiting = Array.from({ length: STACK.queue - 1 }, () => 10))],
+    ['a tube drawing its arm back with the next tower waiting', (save) => Object.assign(queued(save), { phase: 'returning', clock: STACK.returns / 2, size: 0, stacked: 0 })],
+    ['a tube with its tower stacked and the next medal not begun', (save) => Object.assign(stacking(save), { stacked: stacking(save).size, clock: 0 })],
+    ['a tube with its tower let down and its gate opening', (save) => Object.assign(stacking(save), { phase: 'opening', clock: STACK.opens / 2, stacked: stacking(save).size })],
+    ['tubes that have pushed out a great many towers', (save) => ((save.machine.stacker as Row).made = LIMITS.count)],
     ['a medal that has only just landed', (save) => (loose(save).grown = SETTLE.from)],
     ['a medal that dropped this instant', (save) => (loose(save).sinceDrop = 0)],
     ['a slot that has only just fed a medal', (save) => (save.machine.waits = [0, DROP_INTERVAL])],
@@ -993,10 +1057,8 @@ describe('a save at the very edge of what a machine can be', () => {
     [
       'a clock that has run for years',
       (save) => {
-        // At a moment when the pusher is fully forward, each lift as far behind its lip as its tower stands.
-        const time = Math.floor(LIMITS.clock / 2 / PUSHER.period) * PUSHER.period + PUSHER.period / 2;
-        save.machine.time = time;
-        for (const lift of liftsOf(save)) lift.behind = pusherFront(time) - (find(save.machine.medals, (medal) => medal.id === lift.id).y as number);
+        // At a moment when the pusher is fully forward, nothing on an arm.
+        save.machine.time = Math.floor(LIMITS.clock / 2 / PUSHER.period) * PUSHER.period + PUSHER.period / 2;
       },
     ],
     ['nothing in the air', (save) => (save.machine.falling = [])],
@@ -1037,8 +1099,16 @@ describe('a save at the very edge of what a machine can be', () => {
       (save) => {
         save.machine.medals = [];
         save.machine.falling = [];
-        save.machine.growing = 0;
-        save.machine.lifts = [];
+      },
+    ],
+    [
+      'a tower on its arm, at that moment of its push',
+      (save) => {
+        const one = tower(save);
+        const clock = STACK.pushes * 0.6;
+        Object.assign(stacking(save), { phase: 'pushing', clock, size: 0, stacked: 0, tower: one.id });
+        Object.assign(one, armSpot(1, clock, pusherFront(save.machine.time as number)), { level: 1, tier: 0 });
+        (save.machine.stacker as Row).made = 2;
       },
     ],
     ['every jewel lamp but the last lit', (save) => (save.session.jewels = JEWEL.lamps - 1)],
@@ -1278,18 +1348,19 @@ describe('a save written before the machine had its feed arms', () => {
     expect(save.machine.medals.length).toBeGreaterThan(300);
   });
 
-  it('reads back as the same machine, its arms empty and pointing at the middle', () => {
+  it('reads back on a new heap of today’s medals, its arms empty and pointing at the middle', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
-    // The field is what was written, to the last digit, with what the arms brought added to it.
-    const { rng: _rng, rolling, aims, waits, tips, hopper, lifts, ...field } = back.machine;
-    const { cooldown, ...tables } = save.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(tables));
-    // That game had no payout works: the doors are shut, and it was building no tower for a lift to be under.
+    // What was in the air and waiting to be paid is as it was, on a new heap, with what the arms brought added to it.
+    // That game had no payout works: the doors are shut, and it was building no tower for the tubes to stack again.
+    const { cooldown, nextId, ...tables } = save.machine;
+    const then = withWorks({ ...tables, rolling: [], waits: [cooldown, cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)], nextId });
+    expectANewHeap(then, back, 1);
+    const { rolling, aims, waits, tips, hopper, stacker } = back.machine;
     expect(hopper).toEqual(shutHopper());
-    expect(lifts).toEqual([]);
+    expect(stacker).toEqual(idleStacker());
     expect(rolling).toEqual([]);
     // That game had one slot: neither arm's slot is free until it would have been.
     expect(waits).toEqual([cooldown, cooldown]);
@@ -1302,10 +1373,6 @@ describe('a save written before the machine had its feed arms', () => {
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
-    // Not a medal more or fewer on the field than were written.
-    const lying = save.machine.medals.reduce((sum, medal) => sum + (medal.ball ? 0 : (medal.stack as number) + (medal.grow as number)), 0);
-    const inTheAir = save.machine.falling.filter((medal) => !medal.ball).length;
-    expect(medalsOnField(back.machine)).toBe(lying + inTheAir + (save.machine.payoutQueue as number));
   });
 
   it('has its medals in the air already in their fall: each lands where and when it was going to', () => {
@@ -1338,23 +1405,20 @@ describe('a save written before the machine had its feed arms', () => {
     }
   });
 
-  it('plays on as the game that wrote it did: the same field to the last medal, and spins by today’s rule', () => {
+  it('plays on by today’s machine: what was in the air and waiting to be paid comes down as it did then, and spins by today’s rule', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, stock: back.stock, spins: back.spins, wasted: back.wasted };
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps; i++) advance(back, DT, events);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The field is the field it was: as many medals land and as many leave it. Those that go over the front at a
-    // corner go down a side hole now, and the purse is short by as many.
+    // The seven in the air and the eight waiting to be paid come down, as many as came down then. Where they go from
+    // there is the new heap's business: it is not the field that game had.
     expect(total(events, 'landed')).toBe(then.landed);
-    const corners = lostAtTheCorners(events, then);
-    expect([back.credits, back.paidOut]).toEqual([then.credits - corners, then.paidOut]);
     // What starts a spin is not what it was. Then, one of the medals in the air came down through the centre gate
     // as it swept by. Now landing starts nothing: the medals that count are the ones the pusher takes over its lip
-    // through a chucker, and some of this machine's were on their way there.
+    // through a chucker.
     expect(then.gates).toEqual([1]);
     const through = events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []));
-    expect(through.length).toBeGreaterThan(0);
     expect(through.every((chucker) => chucker >= 0 && chucker < CHECKERS.positions.length)).toBe(true);
     expect(back.hits - at.hits).toBe(through.length);
     // Each of them was spun, is held, or found the hold full, and the hold never went over what it holds.
@@ -1365,16 +1429,10 @@ describe('a save written before the machine had its feed arms', () => {
     expect(at.stock).toBe(7);
     expect(back.spins).toBeGreaterThanOrEqual(then.spins);
     expect(back.gilded).toBe(events.filter((event) => event.type === 'checker' && event.gold).length);
-    expect(back.machine.medals).toHaveLength(then.medals);
     expect(back.machine.falling).toHaveLength(then.falling);
-    // And each of them lies where that game's machine left it.
+    // And each of the seven lies on the pusher, at the back of it, where it came down.
     expect(then.resting).toHaveLength(7);
-    for (const rest of then.resting) {
-      const medal = back.machine.medals.find((m) => m.id === rest.id);
-      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(medal?.x).toBeCloseTo(rest.x, 6);
-      expect(medal?.y).toBeCloseTo(rest.y, 6);
-    }
+    for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
@@ -1460,7 +1518,7 @@ describe('a save written while the START gates still swept the back panel', () =
   it('is a save of the version before this one, caught in the middle of a stream', () => {
     const save = old();
     expect(save.version).toBe(VERSION_WITH_ONE_AIM);
-    expect(Object.keys(asToday(save.machine)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    expect(Object.keys(asNine(save.machine))).toEqual(FIELD_THEN);
     expect(Object.keys(numbersToday(save.session)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session).sort());
     // Three medals on a rail, three of the player's and four the machine paid in the air, more to be paid,
     // the slot still waiting from the last one fed, a spin on the screen and seven more held.
@@ -1475,15 +1533,14 @@ describe('a save written while the START gates still swept the back panel', () =
     expect(save.machine.medals.length).toBeGreaterThan(300);
   });
 
-  it('reads back as the same machine, to the last digit', () => {
+  it('reads back on a new heap of today’s medals, and everything else to the last digit', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
-    // Written again it is the same machine in today's shape: each arm with the one aim, each slot with the one wait.
-    expect(serialize(back)).toBe(writtenToday(OLD));
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(asToday(save.machine)));
+    // Written again it is a save of today's: each arm with the one aim, each slot with the one wait, on a new heap.
+    expect(withoutField(serialize(back))).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
+    expectANewHeap(asNine(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -1588,7 +1645,7 @@ describe('a save written while both rails shared one slot and one aim', () => {
     expect(save.session.stock).toBeGreaterThanOrEqual(1);
   });
 
-  it('reads back as the same machine, each arm pointed at the one aim as near as it reaches', () => {
+  it('reads back on a new heap of today’s medals, each arm pointed at the one aim as near as it reaches', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
@@ -1598,11 +1655,10 @@ describe('a save written while both rails shared one slot and one aim', () => {
     expect(back.machine.aims).toEqual([tipOf(0, aim), tipOf(1, aim)]);
     // That game's one slot fed either rail, so neither slot is free until it would have been.
     expect(back.machine.waits).toEqual([save.machine.cooldown, save.machine.cooldown]);
-    // Everything else is what was written, to the last digit: the tips, the medals on the rails, the tables.
+    // Everything else is what was written, to the last digit: the tips, the medals on the rails and in the air; on a new heap.
     expect(back.machine.tips).toEqual(save.machine.tips);
     expect(back.machine.rolling).toEqual(save.machine.rolling);
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(asToday(save.machine)));
+    expectANewHeap(asNine(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -1613,7 +1669,7 @@ describe('a save written while both rails shared one slot and one aim', () => {
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(text).toBe(writtenToday(OLD));
+    expect(withoutField(text)).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.machine).not.toHaveProperty('aim');
@@ -1623,7 +1679,7 @@ describe('a save written while both rails shared one slot and one aim', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on exactly as the game that wrote it did: every medal leaves its arm where and when it was going to', () => {
+  it('plays on as the game that wrote it did on its arms: every medal leaves its arm where and when it was going to', () => {
     const back = restore(OLD, then.seed) as Session;
     const events: SessionEvent[] = [];
     const left: { id: number; arm: number; step: number; fromX: number }[] = [];
@@ -1640,30 +1696,11 @@ describe('a save written while both rails shared one slot and one aim', () => {
     expect(left).toEqual(then.left);
     expect(left.map((one) => one.arm)).toEqual([1, 1, 1, 0, 0]);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
+    // As many came down as came down then: those that left the rails, and those that were in the air and waiting to be
+    // paid. What they do there is the new heap's business: it is not the field that game had.
     expect(total(events, 'landed')).toBe(then.landed);
-    // As many medals leave the field as left it then; those that go over the front at a corner go down a side hole now.
-    const corners = lostAtTheCorners(events, then);
-    // The field is that game's field to the last medal. What starts a spin on it has been narrowed since: then, two
-    // medals went over the lip through a pocket in these four seconds, the first through the right one and the
-    // second through the middle one. The first is in line with today's narrower slot as well. The second went over
-    // more than a slot's width to the side of the middle slot and less than a pocket's, and starts nothing now.
-    expect(then.gates).toEqual([2, 1]);
-    const through = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(through.map((event) => event.gate)).toEqual([2]);
-    expect(through[0]).toMatchObject({ held: true, gold: false });
-    expect([back.credits, back.wasted, back.paidOut]).toEqual([then.credits - corners, then.wasted, then.paidOut]);
-    // So it has one medal fewer through a slot than that game had through a pocket, and holds one spin fewer.
-    expect([back.hits, back.stock, back.spins]).toEqual([then.hits - 1, then.stock - 1, then.spins]);
-    expect(back.machine.medals).toHaveLength(then.medals);
     expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
-    // And each of them lies where that game's machine left it.
-    expect(then.resting).toHaveLength(5);
-    for (const rest of then.resting) {
-      const medal = back.machine.medals.find((m) => m.id === rest.id);
-      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(medal?.x).toBeCloseTo(rest.x, 6);
-      expect(medal?.y).toBeCloseTo(rest.y, 6);
-    }
+    for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
     // One thing is not as it was, and nothing on the tables hangs on it: that game's right arm went back to a
     // resting place once its rail was empty, and this one stays on its aim.
     expect(then.tips[1]).toBeGreaterThan(ARM_REACH[1].min);
@@ -2619,90 +2656,104 @@ describe('a screen exactly on a threshold', () => {
 });
 
 describe('any moment of any session', () => {
-  it('is a save that reads back as it was, and plays on as the session would have', { timeout: LONG }, () => {
-    const chance = seededRng(20261011);
-    const seen = new Map<string, number>();
-    const note = (phase: string) => seen.set(phase, (seen.get(phase) ?? 0) + 1);
+  /*
+   * Twenty-four machines are played, six to a test, and each is written down and read back at many moments, and now
+   * and then played on beside the session it was taken from. What they come to is counted across all of them, and the
+   * last test asks that every phase of the screen, the arms and the tubes was come to many times. One generator
+   * decides what happens to all of them, in order, so the machines are the same however they are split between the
+   * tests; each test has the time it needs for its six.
+   */
+  const chance = seededRng(20261011);
+  const seen = new Map<string, number>();
+  const note = (phase: string) => seen.set(phase, (seen.get(phase) ?? 0) + 1);
+  let saves = 0;
+  let replays = 0;
+  let played = 0;
 
-    /** Seconds until the screen comes to one of its thresholds, if that is soon. */
-    const untilThreshold = (session: Session): number => {
-      const { spin, bonus, roulette } = session;
-      const at: number[] = [];
-      if (spin) at.push(spin.duration - spin.elapsed, spin.duration + TIMING.celebrate - spin.elapsed);
-      if (bonus?.kind === 'sugoroku') at.push(bonus.duration - bonus.elapsed, bonus.duration + TIMING.prize - bonus.elapsed);
-      if (bonus?.kind === 'chest') {
-        if (bonus.picked < 0) at.push(TIMING.choose - bonus.elapsed);
-        else at.push(bonus.pickedAt + TIMING.open - bonus.elapsed, bonus.pickedAt + TIMING.open + TIMING.prize - bonus.elapsed);
+  /** Seconds until the screen comes to one of its thresholds, if that is soon. */
+  const untilThreshold = (session: Session): number => {
+    const { spin, bonus, roulette } = session;
+    const at: number[] = [];
+    if (spin) at.push(spin.duration - spin.elapsed, spin.duration + TIMING.celebrate - spin.elapsed);
+    if (bonus?.kind === 'sugoroku') at.push(bonus.duration - bonus.elapsed, bonus.duration + TIMING.prize - bonus.elapsed);
+    if (bonus?.kind === 'chest') {
+      if (bonus.picked < 0) at.push(TIMING.choose - bonus.elapsed);
+      else at.push(bonus.pickedAt + TIMING.open - bonus.elapsed, bonus.pickedAt + TIMING.open + TIMING.prize - bonus.elapsed);
+    }
+    if (roulette?.bowl) at.push(roulette.bowl.duration - roulette.bowl.elapsed, roulette.bowl.duration + bowlShowTime(roulette.jackpot) - roulette.bowl.elapsed);
+    else if (roulette) at.push(roulette.duration - roulette.elapsed, roulette.duration + TIMING.step - roulette.elapsed, roulette.duration + TIMING.prize - roulette.elapsed);
+    const soon = at.filter((seconds) => seconds > 0 && seconds <= 0.25);
+    return soon.length > 0 ? soon[Math.floor(chance() * soon.length)] : 0;
+  };
+
+  /** The draws of a machine: fair ones, or far more winning lines than a slot gives. */
+  const drawsFor = (seed: number, lucky: boolean): (() => number) => {
+    const draws = seededRng(seed);
+    return lucky ? () => (draws() < 0.3 ? draws() * 0.06 : draws()) : draws;
+  };
+
+  const check = (session: Session, lucky: boolean): void => {
+    const text = serialize(session);
+    const back = restore(text, 1);
+    if (!back || serialize(back) !== text) {
+      const { screen, session: numbers } = JSON.parse(text);
+      throw new Error(`a save taken from a session did not read back: ${JSON.stringify({ screen, square: numbers.square, quickPick: numbers.quickPick })}`);
+    }
+    saves += 1;
+    const { spin, bonus, roulette } = session;
+    if (spin) {
+      note(spin.done ? 'line held up' : 'reels running');
+      if (spin.result.reachKind === 'long') note(spin.result.tier === 'miss' ? 'long reach that misses' : 'long reach that wins');
+      if (spin.result.reachKind === 'normal') note(spin.result.tier === 'miss' ? 'reach that misses' : 'reach that wins');
+      if (spin.elapsed === spin.duration) note('on a threshold');
+    } else if (bonus?.kind === 'sugoroku') {
+      note(bonus.payout < 0 ? 'die and hops' : 'prize shown');
+      if (bonus.elapsed === bonus.duration) note('on a threshold');
+    } else if (bonus?.kind === 'chest') {
+      note(bonus.picked < 0 ? 'choosing' : !bonus.told ? 'just picked' : bonus.payout < 0 ? 'picked' : 'open');
+      if (bonus.picked >= 0 && (bonus.elapsed === bonus.pickedAt + TIMING.open || bonus.pickedAt === TIMING.choose)) note('on a threshold');
+    } else if (roulette?.bowl) {
+      note(roulette.bowl.payout < 0 ? 'ball rolling' : roulette.jackpot ? 'ball in the jackpot' : 'ball in a hole');
+      if (roulette.bowl.payout < 0 && roulette.bowl.stage > 0) note(roulette.bowl.stage === 1 ? 'ball in the middle bowl' : 'ball in the last bowl');
+      // The instant it drops for good, and the instant it comes through a hole into the bowl below.
+      if (roulette.bowl.elapsed === roulette.bowl.duration || (roulette.bowl.stage > 0 && roulette.bowl.elapsed === 0)) note('on a threshold');
+    } else if (roulette) {
+      note(!roulette.landed ? 'turning' : roulette.over ? 'on a cross' : roulette.level === CHAIN_GOAL ? 'on the last number' : 'on a number');
+      if (roulette.elapsed === roulette.duration) note('on a threshold');
+    } else {
+      note('nothing on');
+    }
+
+    // What the arms hold is in the save as well, whatever the screen is doing.
+    const onRails = session.machine.rolling.length;
+    const onOne = Math.max(...([0, 1] as const).map((arm) => session.machine.rolling.filter((medal) => medal.arm === arm).length));
+    if (onRails > 0) note(onOne === LIMITS.rolling / 2 ? 'a rail full' : 'a medal on a rail');
+    if (session.machine.rolling.some((medal) => medal.arm === 0) && session.machine.rolling.some((medal) => medal.arm === 1)) note('both arms in use');
+    // And what the tower tubes are doing: stacking a tower, letting it down, opening, pushing it out, drawing back.
+    for (const tube of session.machine.stacker.tubes) {
+      if (tube.phase !== 'stacking') note(`a tube ${tube.phase}`);
+      else if (tube.size > 0) note(tube.stacked < tube.size ? 'a tube stacking' : 'a tower waiting in its tube');
+    }
+
+    // Now and then, play the save on beside the session it was taken from. A save does not hold the
+    // generator, so both are given the same one; with the same play they must end in the same place.
+    if (saves % 40 !== 0) return;
+    replays += 1;
+    session.machine.rng = drawsFor(7000 + saves, lucky);
+    back.machine.rng = drawsFor(7000 + saves, lucky);
+    for (let step = 0; step < 30; step++) {
+      for (const machine of [session, back]) {
+        if (machine.credits === 0) refill(machine);
+        if (step % 6 === 0) insertAt(machine, 15 + ((step * 11) % 70));
+        advance(machine, step % 5 === 0 ? 0.1 : DT);
       }
-      if (roulette?.bowl) at.push(roulette.bowl.duration - roulette.bowl.elapsed, roulette.bowl.duration + bowlShowTime(roulette.jackpot) - roulette.bowl.elapsed);
-      else if (roulette) at.push(roulette.duration - roulette.elapsed, roulette.duration + TIMING.step - roulette.elapsed, roulette.duration + TIMING.prize - roulette.elapsed);
-      const soon = at.filter((seconds) => seconds > 0 && seconds <= 0.25);
-      return soon.length > 0 ? soon[Math.floor(chance() * soon.length)] : 0;
-    };
+    }
+    if (serialize(back) !== serialize(session)) throw new Error('a save that was read back did not play on as its session did');
+  };
 
-    /** The draws of a machine: fair ones, or far more winning lines than a slot gives. */
-    const drawsFor = (seed: number, lucky: boolean): (() => number) => {
-      const draws = seededRng(seed);
-      return lucky ? () => (draws() < 0.3 ? draws() * 0.06 : draws()) : draws;
-    };
-
-    let saves = 0;
-    let replays = 0;
-    const check = (session: Session, lucky: boolean): void => {
-      const text = serialize(session);
-      const back = restore(text, 1);
-      if (!back || serialize(back) !== text) {
-        const { screen, session: numbers } = JSON.parse(text);
-        throw new Error(`a save taken from a session did not read back: ${JSON.stringify({ screen, square: numbers.square, quickPick: numbers.quickPick })}`);
-      }
-      saves += 1;
-      const { spin, bonus, roulette } = session;
-      if (spin) {
-        note(spin.done ? 'line held up' : 'reels running');
-        if (spin.result.reachKind === 'long') note(spin.result.tier === 'miss' ? 'long reach that misses' : 'long reach that wins');
-        if (spin.result.reachKind === 'normal') note(spin.result.tier === 'miss' ? 'reach that misses' : 'reach that wins');
-        if (spin.elapsed === spin.duration) note('on a threshold');
-      } else if (bonus?.kind === 'sugoroku') {
-        note(bonus.payout < 0 ? 'die and hops' : 'prize shown');
-        if (bonus.elapsed === bonus.duration) note('on a threshold');
-      } else if (bonus?.kind === 'chest') {
-        note(bonus.picked < 0 ? 'choosing' : !bonus.told ? 'just picked' : bonus.payout < 0 ? 'picked' : 'open');
-        if (bonus.picked >= 0 && (bonus.elapsed === bonus.pickedAt + TIMING.open || bonus.pickedAt === TIMING.choose)) note('on a threshold');
-      } else if (roulette?.bowl) {
-        note(roulette.bowl.payout < 0 ? 'ball rolling' : roulette.jackpot ? 'ball in the jackpot' : 'ball in a hole');
-        if (roulette.bowl.payout < 0 && roulette.bowl.stage > 0) note(roulette.bowl.stage === 1 ? 'ball in the middle bowl' : 'ball in the last bowl');
-        // The instant it drops for good, and the instant it comes through a hole into the bowl below.
-        if (roulette.bowl.elapsed === roulette.bowl.duration || (roulette.bowl.stage > 0 && roulette.bowl.elapsed === 0)) note('on a threshold');
-      } else if (roulette) {
-        note(!roulette.landed ? 'turning' : roulette.over ? 'on a cross' : roulette.level === CHAIN_GOAL ? 'on the last number' : 'on a number');
-        if (roulette.elapsed === roulette.duration) note('on a threshold');
-      } else {
-        note('nothing on');
-      }
-
-      // What the arms hold is in the save as well, whatever the screen is doing.
-      const onRails = session.machine.rolling.length;
-      const onOne = Math.max(...([0, 1] as const).map((arm) => session.machine.rolling.filter((medal) => medal.arm === arm).length));
-      if (onRails > 0) note(onOne === LIMITS.rolling / 2 ? 'a rail full' : 'a medal on a rail');
-      if (session.machine.rolling.some((medal) => medal.arm === 0) && session.machine.rolling.some((medal) => medal.arm === 1)) note('both arms in use');
-
-      // Now and then, play the save on beside the session it was taken from. A save does not hold the
-      // generator, so both are given the same one; with the same play they must end in the same place.
-      if (saves % 40 !== 0) return;
-      replays += 1;
-      session.machine.rng = drawsFor(7000 + saves, lucky);
-      back.machine.rng = drawsFor(7000 + saves, lucky);
-      for (let step = 0; step < 30; step++) {
-        for (const machine of [session, back]) {
-          if (machine.credits === 0) refill(machine);
-          if (step % 6 === 0) insertAt(machine, 15 + ((step * 11) % 70));
-          advance(machine, step % 5 === 0 ? 0.1 : DT);
-        }
-      }
-      if (serialize(back) !== serialize(session)) throw new Error('a save that was read back did not play on as its session did');
-    };
-
-    for (let n = 0; n < 24; n++) {
+  /** Plays machines `from` to `to`, writing each down and reading it back as it goes. */
+  const playMachines = (from: number, to: number): void => {
+    for (let n = from; n < to; n++) {
       // Every sixth machine picks its chests at once, as the simulation's does.
       const session = createSession(100 + n, { balls: n % 3, quickPick: n % 6 === 4 });
       // One machine in four keeps its tables as they are. The others are swept bare now and then:
@@ -2714,7 +2765,7 @@ describe('any moment of any session', () => {
       session.machine.rng = drawsFor(900 + n, lucky);
 
       for (let i = 0; i < (swept ? 3000 : 500); i++) {
-        if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, growing: 0, hopper: shutHopper(), lifts: [] });
+        if (swept && i % 300 === 0) Object.assign(session.machine, { medals: [], falling: [], payoutQueue: 0, hopper: shutHopper(), stacker: idleStacker() });
         // The player and the field: medals dropped, a medal through a chucker, a ball over the front, a chest picked.
         if (session.credits === 0) refill(session);
         if (chance() < 0.2) insertAt(session, 10 + chance() * 80);
@@ -2731,13 +2782,25 @@ describe('any moment of any session', () => {
         advance(session, exact > 0 ? exact : roll < 0.05 ? 0 : roll < 0.4 ? DT : roll < 0.5 ? 0.1 : chance() * 0.1);
         if (chance() < 0.4) check(session, lucky);
       }
+      played += 1;
     }
+  };
 
+  it.each([0, 6, 12, 18].map((from) => [from, from + 6] as const))('is a save that reads back as it was, and plays on as the session would have: machines %i to %i', { timeout: LONG }, (from, to) => {
+    // The batches are played in order: each takes up the generator where the one before left it.
+    expect(played).toBe(from);
+    playMachines(from, to);
+    expect(played).toBe(to);
+  });
+
+  it('comes to every phase of the screen, the arms and the tower tubes across the twenty-four machines, many times over', () => {
+    expect(played).toBe(24);
     const spins = ['reels running', 'line held up', 'reach that wins', 'reach that misses', 'long reach that wins', 'long reach that misses'];
     const games = ['die and hops', 'prize shown', 'choosing', 'just picked', 'picked', 'open'];
     const runs = ['turning', 'on a number', 'on a cross', 'on the last number', 'ball rolling', 'ball in the middle bowl', 'ball in the last bowl', 'ball in the jackpot', 'ball in a hole'];
     for (const phase of ['nothing on', ...spins, ...games, ...runs]) expect(seen.get(phase) ?? 0, phase).toBeGreaterThan(5);
     for (const rails of ['a medal on a rail', 'a rail full', 'both arms in use']) expect(seen.get(rails) ?? 0, rails).toBeGreaterThan(20);
+    for (const phase of ['stacking', 'lowering', 'opening', 'pushing', 'returning']) expect(seen.get(`a tube ${phase}`) ?? 0, phase).toBeGreaterThan(5);
     expect(seen.get('on a threshold') ?? 0).toBeGreaterThan(20);
     expect(saves).toBeGreaterThan(10_000);
     expect(replays).toBeGreaterThan(200);
@@ -2822,18 +2885,18 @@ describe('the versions a save can carry', () => {
    */
   const withoutJewels = (save: Save): Save => {
     const { jewels: _jewels, jewelBonuses: _bonuses, ...session } = withoutLamp(save).session;
-    const { hopper: _hopper, lifts: _lifts, ...field } = save.machine;
+    const { hopper: _hopper, lifts: _lifts, ...field } = fieldThen(save.machine);
     const noJewel = (medal: Row): boolean => medal.jewel !== true;
     if (save.session.chance !== false) throw new Error('a gold spin on the screen may be the lamp’s, and that game could not show it');
     return {
       ...save,
       version: VERSION_BEFORE_JEWELS,
-      machine: { ...field, medals: save.machine.medals.filter(noJewel), falling: save.machine.falling.filter(noJewel) },
+      machine: { ...field, medals: (field.medals as Row[]).filter(noJewel), falling: (field.falling as Row[]).filter(noJewel) } as Save['machine'],
       session: { ...session, gold: Math.min(session.gold as number, session.gilded as number) } as Save['session'],
     };
   };
 
-  it('are nine: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp and the ride to the pocket each took one', () => {
+  it('are ten: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp, the ride to the pocket, and today’s medals with the tubes each took one', () => {
     expect([
       VERSION_BEFORE_ARMS,
       VERSION_WITH_ONE_AIM,
@@ -2843,9 +2906,21 @@ describe('the versions a save can carry', () => {
       VERSION_BEFORE_WORKS,
       VERSION_BEFORE_LAMP,
       VERSION_BEFORE_RIDE,
+      VERSION_BEFORE_TUBES,
       STORAGE_VERSION,
-    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(JSON.parse(serialize(createSession(1))).version).toBe(9);
+    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(JSON.parse(serialize(createSession(1))).version).toBe(10);
+  });
+
+  it('do not take a save of this version for one of the version before it, nor one of that version for this', () => {
+    for (const phase of Object.keys(PHASES)) {
+      const today = JSON.parse(PHASES[phase]) as Save;
+      // Today's field has tubes, and the field of then had lifts and medals that were still to come.
+      expect(restore(JSON.stringify({ ...today, version: VERSION_BEFORE_TUBES }), 1), phase).toBeNull();
+      const then = { ...today, version: VERSION_BEFORE_TUBES, machine: fieldThen(today.machine) };
+      expect(restore(JSON.stringify(then), 1), phase).not.toBeNull();
+      expect(restore(JSON.stringify({ ...then, version: STORAGE_VERSION }), 1), phase).toBeNull();
+    }
   });
 
   it('do not take a save of this version for one of an older: it has a list of riders no older game wrote, and two numbers none before the lamp did', () => {
@@ -2855,6 +2930,7 @@ describe('the versions a save can carry', () => {
       expect(today.session, phase).toHaveProperty('riding');
       for (const older of [VERSION_BEFORE_RIDE, VERSION_BEFORE_LAMP, VERSION_BEFORE_WORKS, VERSION_BEFORE_JEWELS, VERSION_WITH_ONE_BOWL, VERSION_BEFORE_CHANCE, VERSION_WITH_ONE_AIM, VERSION_BEFORE_ARMS]) {
         expect(restore(JSON.stringify({ ...today, version: older }), 1), `${phase} as ${older}`).toBeNull();
+        expect(restore(JSON.stringify({ ...today, version: older, machine: fieldThen(today.machine) }), 1), `${phase} as ${older}, on the field of then`).toBeNull();
       }
       // Nor is it a save of this version without its riders, without the lamp's numbers too, or with only one of those.
       expect(restore(JSON.stringify(withoutRide(today)), 1), phase).toBeNull();
@@ -2867,18 +2943,19 @@ describe('the versions a save can carry', () => {
     }
   });
 
-  it('take a save of this version less its riders for the one before the ride, which had today’s field and today’s numbers', () => {
+  it('take a save of this version less its riders, on the field of then, for the one before the ride, which had today’s numbers', () => {
     for (const phase of Object.keys(PHASES)) {
       const today = JSON.parse(PHASES[phase]) as Save;
-      // None of them was caught with a medal on a tongue, so the version before wrote the same save but for the
-      // number and the empty list. It reads as the same machine, and is written back as today's save of it.
+      // None of them was caught with a medal on a tongue, so the version before wrote the same numbers and screen but
+      // for the version and the empty list. It reads as them, on a new heap, and is written back as today's save of it.
       expect(today.session.riding, phase).toEqual([]);
-      const before = restore(JSON.stringify({ ...withoutRide(today), version: VERSION_BEFORE_RIDE }), 1);
+      const then = { ...withoutRide(today), version: VERSION_BEFORE_RIDE, machine: fieldThen(today.machine) };
+      const before = restore(JSON.stringify(then), 1);
       expect(before, phase).not.toBeNull();
       expect(before?.riding, phase).toEqual([]);
-      expect(serialize(before as Session), phase).toBe(PHASES[phase]);
+      expect(withoutField(serialize(before as Session)), phase).toEqual(withoutField(PHASES[phase]));
       // Called a save of that version with the list still in it, it is a save of neither.
-      expect(restore(JSON.stringify({ ...today, version: VERSION_BEFORE_RIDE }), 1), phase).toBeNull();
+      expect(restore(JSON.stringify({ ...then, session: today.session }), 1), phase).toBeNull();
     }
   });
 
@@ -2889,14 +2966,14 @@ describe('the versions a save can carry', () => {
       const { gold, gilded, lucky, rush, chance } = today.session as unknown as Pick<Session, 'gold' | 'gilded' | 'lucky' | 'rush' | 'chance'>;
       // None of them was caught with a gold spin on its screen.
       expect(chance, phase).toBe(false);
-      const before = restore(JSON.stringify({ ...withoutLamp(today), version: VERSION_BEFORE_LAMP }), 1);
+      const before = restore(JSON.stringify({ ...withoutLamp(today), version: VERSION_BEFORE_LAMP, machine: fieldThen(today.machine) }), 1);
       if (lucky === 0) {
-        // A machine the lamp has made no spin gold on: the version before the lamp wrote the same save but for the
-        // number and those two. It reads as the same machine, and is written back as today's save of it.
+        // A machine the lamp has made no spin gold on: the version before the lamp wrote the same numbers and screen
+        // but for the version and those two. It reads as them, on a new heap, and is written back as today's save of it.
         seen.same += 1;
         expect(rush, phase).toBe(gold > 0);
         expect(before, phase).not.toBeNull();
-        expect(serialize(before as Session), phase).toBe(PHASES[phase]);
+        expect(withoutField(serialize(before as Session)), phase).toEqual(withoutField(PHASES[phase]));
       } else if (gold > gilded) {
         // More gold spins held than medals that found the hold full: less the lamp's count there is no medal to
         // account for one of them, and the game before the lamp could not have written that.
@@ -2923,14 +3000,14 @@ describe('the versions a save can carry', () => {
         expect(restore(JSON.stringify({ ...withoutLamp(today), version: older }), 1), `${phase} as ${older}`).toBeNull();
       }
       // With the jewels off its field, no payout works in it and no lamps among its numbers it is what the version
-      // before jewels would have written, and reads as that: the same machine, with no lamp lit, the doors shut and a
-      // lift at work under any tower that was going up.
+      // before jewels would have written, and reads as that: on a new heap, with no lamp lit and the doors shut.
       const before = withoutJewels(today);
       const back = restore(JSON.stringify(before), 1);
       expect(back, phase).not.toBeNull();
       if (!back) continue;
       expect([jewelsOnField(back.machine), back.jewels, back.jewelBonuses], phase).toEqual([0, 0, 0]);
-      expect(JSON.parse(serialize(back)), phase).toEqual({ ...before, version: STORAGE_VERSION, machine: withWorks(before.machine), session: numbersWithLamp(before.session) });
+      expect(withoutField(serialize(back)), phase).toEqual(withoutField(JSON.stringify({ ...before, version: STORAGE_VERSION, session: numbersWithLamp(before.session) })));
+      expectANewHeap(withWorks(before.machine), back, 1);
       // Called a save of this version, it has not this version's numbers.
       expect(restore(JSON.stringify({ ...before, version: STORAGE_VERSION }), 1), phase).toBeNull();
     }
@@ -3012,11 +3089,11 @@ describe.each(ONE_BOWL_SAVES)('a save written when a full run ended in one bowl,
     const save = old();
     expect(save.version).toBe(version);
     expect(save.version).not.toBe(STORAGE_VERSION);
-    // Nothing of the field has another shape than today's, but that it has no payout works, which came after it. The
-    // numbers are today's too, but for the jewel lamps, which no version before the sixth had, for the lucky lamp's
-    // two, and for chance time's three before there was chance time.
+    // Nothing of the field has another shape than the last before today's medals had, but that it has no payout works,
+    // which came after it. The numbers are today's, but for the jewel lamps, which no version before the sixth had,
+    // for the lucky lamp's two, and for chance time's three before there was chance time.
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
-    expect(Object.keys(withWorks(save.machine))).toEqual(Object.keys(good().machine));
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect(Object.keys(good().session).slice(-JEWEL_NUMBERS.length - 1)).toEqual([...JEWEL_NUMBERS, 'riding']);
     const today = Object.keys(good().session).filter((key) => !JEWEL_NUMBERS.includes(key));
     const lampless = today.filter((key) => !SINCE_LAMP.includes(key));
@@ -3044,14 +3121,13 @@ describe.each(ONE_BOWL_SAVES)('a save written when a full run ended in one bowl,
     expect(TIMING.bowl).toBe(ONE_BOWL.time);
   });
 
-  it('reads back as the same machine, the ball in the top bowl of three and as far into its roll', () => {
+  it('reads back on a new heap of today’s medals, the ball in the top bowl of three and as far into its roll', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
-    // The field, the purse and the counters are what was written, to the last digit, with the payout works at rest.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
+    // The purse and the counters are what was written, to the last digit; the field is on a new heap, the payout works at rest.
+    expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersNow(save.session)));
     expect([spin, bonus]).toEqual([null, null]);
@@ -3077,7 +3153,7 @@ describe.each(ONE_BOWL_SAVES)('a save written when a full run ended in one bowl,
     const text = serialize(back);
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
-    expect(again.machine).toEqual(withWorks(old().machine));
+    expectANewHeap(withWorks(old().machine), back, 1);
     expect(JSON.stringify(again.session)).toBe(JSON.stringify(numbersNow(old().session)));
     expect((again.screen.roulette as Row).bowl).toEqual(back.roulette?.bowl);
     const twice = restore(text, 2) as Session;
@@ -3318,58 +3394,81 @@ describe('garbage', () => {
     }
   });
 
-  it('either refuses a good save with one thing changed, or gives a machine that runs', { timeout: LONG }, () => {
+  describe('a good save with one thing changed', () => {
+    /*
+     * Fifteen hundred changes, five hundred to a test, and what came of them is counted across all of them by the
+     * last. One generator decides every change, in order, so the changes are the same however they are split.
+     */
     const random = seededRng(99);
     const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)];
     const junk: unknown[] = [null, true, false, -1, 0, 1, 2, 3, 7, 25, 26, 99, 101, 0.5, -0.5, 0.1, 1e5, 1e15, '', '0', 'chest', [], {}, [1, 2, 3]];
     // A machine in play with a roulette on its screen, a ball's turn having come round, and spins held behind it.
-    const start = serialize((() => {
+    let start = '';
+    const startOf = (): string => {
+      if (start) return start;
       const session = played(31, 6);
       session.balls = 1;
       for (let i = 0; i < 60 * 30 && !session.roulette; i++) advance(session, DT);
       session.stock = 2;
-      return session;
-    })());
-    expect(JSON.parse(start).screen.roulette).not.toBeNull();
-
+      start = serialize(session);
+      return start;
+    };
     let refused = 0;
     let ran = 0;
-    for (let i = 0; i < 1500; i++) {
-      const save = JSON.parse(start);
-      // Walk down to somewhere in the save and change what is there, take it out, or add to it.
-      let node: Record<string, unknown> | unknown[] = save;
-      for (let depth = 0; depth < 4; depth++) {
-        const keys = Object.keys(node);
-        if (keys.length === 0) break;
-        const key = pick(keys);
-        const next = (node as Record<string, unknown>)[key];
-        if (typeof next === 'object' && next !== null && random() < 0.8) {
-          node = next as Record<string, unknown> | unknown[];
-          continue;
+    let tried = 0;
+
+    it('is a machine with a roulette on its screen to begin with', () => {
+      expect(JSON.parse(startOf()).screen.roulette).not.toBeNull();
+    });
+
+    for (const [from, to] of [
+      [0, 500],
+      [500, 1000],
+      [1000, 1500],
+    ] as const) {
+      it(`is either refused or gives a machine that runs: changes ${from} to ${to}`, { timeout: LONG }, () => {
+        for (let i = from; i < to; i++) {
+          tried++;
+          const save = JSON.parse(startOf());
+          // Walk down to somewhere in the save and change what is there, take it out, or add to it.
+          let node: Record<string, unknown> | unknown[] = save;
+          for (let depth = 0; depth < 4; depth++) {
+            const keys = Object.keys(node);
+            if (keys.length === 0) break;
+            const key = pick(keys);
+            const next = (node as Record<string, unknown>)[key];
+            if (typeof next === 'object' && next !== null && random() < 0.8) {
+              node = next as Record<string, unknown> | unknown[];
+              continue;
+            }
+            const what = random();
+            if (what < 0.75) (node as Record<string, unknown>)[key] = pick(junk);
+            else if (what < 0.9) delete (node as Record<string, unknown>)[key];
+            else (node as Record<string, unknown>)[`${key}2`] = pick(junk);
+            break;
+          }
+          const back = restore(JSON.stringify(save), i);
+          if (!back) {
+            refused++;
+            continue;
+          }
+          ran++;
+          for (let step = 0; step < 40; step++) {
+            if (step % 10 === 0) insertAt(back, 20 + step);
+            advance(back, DT);
+          }
+          expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+          expect(Number.isSafeInteger(back.credits)).toBe(true);
+          expect(restore(serialize(back), 1)).not.toBeNull();
         }
-        const what = random();
-        if (what < 0.75) (node as Record<string, unknown>)[key] = pick(junk);
-        else if (what < 0.9) delete (node as Record<string, unknown>)[key];
-        else (node as Record<string, unknown>)[`${key}2`] = pick(junk);
-        break;
-      }
-      const back = restore(JSON.stringify(save), i);
-      if (!back) {
-        refused++;
-        continue;
-      }
-      ran++;
-      for (let step = 0; step < 40; step++) {
-        if (step % 10 === 0) insertAt(back, 20 + step);
-        advance(back, DT);
-      }
-      expect(everyPosition(back).every(Number.isFinite)).toBe(true);
-      expect(Number.isSafeInteger(back.credits)).toBe(true);
-      expect(restore(serialize(back), 1)).not.toBeNull();
+      });
     }
-    // Most changes spoil the save; the ones that do not leave a machine that plays.
-    expect(refused).toBeGreaterThan(300);
-    expect(ran).toBeGreaterThan(50);
+
+    it('is mostly refused, and where it is not it leaves a machine that plays', () => {
+      expect(tried).toBe(1500);
+      expect(refused).toBeGreaterThan(300);
+      expect(ran).toBeGreaterThan(50);
+    });
   });
 });
 
@@ -3397,13 +3496,14 @@ describe('a save written when the arms were short and a fed medal went straight 
     expect(save.session.inserted).toBeGreaterThan(100);
   });
 
-  it('reads back as the same machine to the last digit, every medal on a rail still on its rail', () => {
+  it('reads back on a new heap of today’s medals, every medal on a rail still on its rail', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
-    // Nothing is added, dropped or changed but the shape the arms are written in: written again, it is that text
-    // with each arm given the one aim and each slot the one wait.
-    expect(serialize(back)).toBe(writtenToday(OLD));
+    // Nothing is added, dropped or changed of the numbers and the screen, and the arms are written in today's shape:
+    // each arm given the one aim and each slot the one wait. The field is on a new heap.
+    expect(withoutField(serialize(back))).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
+    expectANewHeap(asNine(old().machine), back, 1);
     expect(back.machine.rolling).toEqual(old().machine.rolling);
     // The rail's leg of the way in is longer than the whole way was then, so a medal that was on a rail is on
     // its rail now, with as long to go as it had: not back at the slot.
@@ -3420,7 +3520,7 @@ describe('a save written when the arms were short and a fed medal went straight 
     expect(LIMITS.rolling).toBeGreaterThan(3);
   });
 
-  it('plays on exactly as the game that wrote it did: each medal leaves its arm in the same step, from the same place', () => {
+  it('plays on as the game that wrote it did on its arms: each medal leaves its arm in the same step, from the same place', () => {
     const back = restore(OLD, then.seed) as Session;
     const events: SessionEvent[] = [];
     const left: { id: number; step: number; fromX: number }[] = [];
@@ -3432,35 +3532,20 @@ describe('a save written when the arms were short and a fed medal went straight 
     expect(left).toEqual(then.left);
     expect(left).toHaveLength(3);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    expect(total(events, 'landed')).toBe(then.landed);
-    // What starts a spin has changed since that game was written: the START pockets are on the pusher's lip now
-    // (see the save from while the gates still swept the back panel, above). In these four seconds no medal went
-    // through a gate then, and none drops through a pocket now, so the screen has nothing to differ about and the
-    // two games agree to the last medal. What this save is here to show is the feed, and that is `left`.
-    expect(then.gates).toEqual([]);
-    expect(events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []))).toEqual(then.gates);
-    // As many medals leave the field as left it then; those that go over the front at a corner go down a side hole now, and the purse is short by as many.
-    const corners = lostAtTheCorners(events, then);
-    expect([back.credits, back.hits, back.stock, back.spins, back.paidOut]).toEqual([then.credits - corners, then.hits, then.stock, then.spins, then.paidOut]);
-    expect(back.machine.medals).toHaveLength(then.medals);
+    // As many come down as came down then, those that left the rails and those that were in the air, but for the ten
+    // of a tower (below), which came down one by one onto its lift then. What they do there is the new heap's
+    // business: it is not the field that game had.
+    expect(total(events, 'landed')).toBe(then.landed - 10);
     expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
-    // And each of the medals that was on its way then lies where that game's machine left it, to within a
-    // third of a medal's radius. It was to the last digit until the towers had lifts: a prize of ten comes up
-    // as a tower in these four seconds, and a tower in its guard is not leant aside by its neighbours as that
-    // game's was. They give way to it instead, which moves the medals round it by a fraction of a unit. The
-    // lift takes its time now, so the tower is still coming up in its guard when the four seconds are out,
-    // eight of its ten medals high, where that game's stood built.
     expect(then.resting).toHaveLength(5);
-    const coming = back.machine.medals.filter((m) => m.stack + m.grow === 10);
-    expect(coming).toHaveLength(1);
-    expect(coming[0].stack).toBeGreaterThan(1);
-    expect(coming[0].stack).toBeLessThan(10);
-    expect(back.machine.lifts.filter(holds).map((lift) => lift.id)).toEqual([coming[0].id]);
-    for (const rest of then.resting) {
-      const medal = back.machine.medals.find((m) => m.id === rest.id);
-      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(Math.hypot((medal?.x ?? NaN) - rest.x, (medal?.y ?? NaN) - rest.y)).toBeLessThan(MEDAL_RADIUS / 3);
-    }
+    for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
+    // A roulette's number of ten is paid in these four seconds. That game raised it as a tower on a lift; now it is
+    // stacked in a tube, and, built, waits there for the run's next number to be stacked on top of it.
+    expect(old().machine.medals.some((medal) => (medal.grow as number) > 0)).toBe(false);
+    expect(back.roulette).not.toBeNull();
+    const { stacker } = back.machine;
+    expect(stacker.made).toBe(0);
+    expect(stacker.tubes.filter((tube) => tube.size > 0)).toEqual([expect.objectContaining({ phase: 'stacking', stacked: 10, size: 10 })]);
   });
 
   it('feeds the next medal at the slot, behind the ones it was saved with', () => {
@@ -3505,12 +3590,12 @@ describe('a save written before chance time', () => {
     // A roll on the board is on its screen and has not paid yet, and both rails have medals on them.
     expect(save.screen.bonus).toMatchObject({ kind: 'sugoroku', payout: -1 });
     expect(new Set(save.machine.rolling.map((medal) => medal.arm)).size).toBe(2);
-    // Its field is today's field but for the payout works, which came after it.
-    expect(Object.keys(withWorks(save.machine)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    // Its field is the field of the last version before today's medals but for the payout works, which came after it.
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
   });
 
-  it('reads back as the same machine, with none of its held spins gold', () => {
+  it('reads back on a new heap of today’s medals, with none of its held spins gold', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
@@ -3519,9 +3604,8 @@ describe('a save written before chance time', () => {
     expect([back.gold, back.gilded, back.lucky, back.rush, back.chance]).toEqual([0, 0, 0, false, false]);
     expect(chanceLeft(back)).toBe(0);
     expect([back.stock, back.wasted]).toEqual([save.session.stock, save.session.wasted]);
-    // Everything else is what was written, to the last digit, with the payout works at rest.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
+    // Everything else is what was written, to the last digit, on a new heap with the payout works at rest.
+    expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -3530,7 +3614,7 @@ describe('a save written before chance time', () => {
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(text).toBe(writtenToday(OLD));
+    expect(withoutField(text)).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.session).toMatchObject({ gold: 0, gilded: 0, lucky: 0, rush: false, chance: false });
@@ -3542,41 +3626,22 @@ describe('a save written before chance time', () => {
   it('plays on by today’s rule: the next medal to find its hold full turns a held spin gold, and chance time begins', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
-    const events: SessionEvent[] = [];
-    for (let i = 0; i < then.steps; i++) advance(back, DT, events);
-    expect(back.machine.time).toBeCloseTo(then.time, 9);
     // Then, the medals that went through a pocket in these twelve seconds all found the hold full and were wasted.
     expect(then.pockets.length).toBeGreaterThan(0);
     expect(then.pockets.every((pocket) => !pocket.held)).toBe(true);
-    // Now the first of them goes through the same pocket, which is a narrower slot than it was and still in line
-    // with this medal, and turns a held spin gold as it drops in, a ride after it came over. With that chance time
-    // begins and the wings open. They open less wide than the pockets were: of the others, those that come over
-    // inside them once they are open go through, in the order they did then, and the rest slide by.
+    // Now the first medal to go through one turns a held spin gold as it drops in, a ride after it came over, and
+    // with that chance time begins and the wings open. The heap is a new one, so it is not the medal that went through
+    // first then: this one is put over the lip in line with the middle slot, on top of the pile, the moment it starts.
+    expect(back.stock).toBe(MAX_STOCK);
+    const { machine } = back;
+    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.01, level: 1, tier: 1, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < then.steps; i++) advance(back, DT, events);
+    expect(back.machine.time).toBeCloseTo(then.time, 9);
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets[0]).toEqual({ type: 'checker', gate: then.pockets[0].pocket, held: false, gold: true, lucky: false });
+    expect(pockets[0]).toEqual({ type: 'checker', gate: 1, held: false, gold: true, lucky: false });
     expect(events.filter((event) => event.type === 'chanceStart')).toHaveLength(1);
-    const began = events.findIndex((event) => event.type === 'chanceStart');
-    expect(began).toBeGreaterThan(events.indexOf(pockets[0]));
-    expect(began).toBeLessThan(events.indexOf(pockets[1]));
-    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
-    expect(pockets.length).toBeGreaterThanOrEqual(2);
-    expect(
-      someOf(
-        pockets.map((event) => event.gate),
-        then.pockets.map(({ pocket }) => pocket),
-      ),
-    ).toBe(true);
-    // With wings as wide as that game's pockets, the ones that come over once the wings are open go through as they
-    // did then. They open as the first medal drops into its pocket: the two that came over while it was still on
-    // its tongue found the pockets as narrow as they are, and slid by, and the last found the wings open.
-    const wide = withWings(POCKET_THEN, () => {
-      const again = restore(OLD, then.seed) as Session;
-      const said: SessionEvent[] = [];
-      for (let i = 0; i < then.steps; i++) advance(again, DT, said);
-      return said.flatMap((event) => (event.type === 'checker' ? [event.gate] : []));
-    });
-    expect(then.pockets).toHaveLength(4);
-    expect(wide).toEqual([then.pockets[0].pocket, then.pockets[3].pocket]);
+    expect(events.findIndex((event) => event.type === 'chanceStart')).toBeGreaterThan(events.indexOf(pockets[0]));
     expect(back.gilded).toBe(pockets.filter((event) => event.gold).length);
     expect(back.gilded).toBeGreaterThanOrEqual(1);
     expect(back.lucky).toBe(pockets.filter((event) => event.lucky).length);
@@ -3627,13 +3692,13 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect(save.version).toBe(5);
     expect(save.version).not.toBe(STORAGE_VERSION);
     for (const key of LAMP_NUMBERS) expect(save.session).not.toHaveProperty(key);
-    // Its numbers are today's but for those two and the jewel lamps, in today's order; its field is today's but for
-    // the payout works; and its screen is today's.
+    // Its numbers are today's but for those two and the jewel lamps, in today's order; its field is the field of the
+    // last version before today's medals but for the payout works; and its screen is today's.
     const today = JSON.parse(serialize(createSession(1))) as Save;
     expect(Object.keys(save.session)).toEqual(Object.keys(today.session).filter((key) => !SINCE_LAMP.includes(key) && key !== 'jewels' && key !== 'jewelBonuses'));
     expect(Object.keys(numbersWithLamp(save.session))).toEqual(Object.keys(today.session));
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
-    expect(Object.keys(withWorks(save.machine))).toEqual(Object.keys(today.machine));
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect([...save.machine.medals, ...save.machine.falling].some((medal) => 'jewel' in medal)).toBe(false);
     expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK - 1, gilded: MAX_STOCK, chance: true });
     expect(save.session.wasted as number).toBeGreaterThan(MAX_STOCK);
@@ -3641,10 +3706,10 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect(spin.done).toBe(false);
     expect(spin.duration).toBe(TIMING.chanceSpin + reachTime(spin.result));
     expect(new Set(save.machine.rolling.map((medal) => medal.arm)).size).toBe(2);
-    expect(medalsOnField({ ...save.machine, rng: Math.random } as unknown as Session['machine'])).toBe(then.onField);
+    expect(onFieldThen(save.machine)).toBe(then.onField);
   });
 
-  it('reads back as the same machine, none of its gold spins the lamp’s, and in chance time as it was', () => {
+  it('reads back on a new heap of today’s medals, none of its gold spins the lamp’s, and in chance time as it was', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
@@ -3654,11 +3719,10 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect([back.lucky, back.rush]).toEqual([0, true]);
     expect([back.stock, back.gold, back.gilded, back.chance]).toEqual([save.session.stock, save.session.gold, save.session.gilded, true]);
     expect(chanceLeft(back)).toBe(MAX_STOCK);
-    // Everything else is what was written, to the last digit, with the payout works at rest: no tower was going up,
-    // so no lift is at work. No jewel is laid on a machine that was already in play, and no jewel lamp is lit.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
-    expect([back.machine.hopper, back.machine.lifts]).toEqual([shutHopper(), []]);
+    // Everything else is what was written, to the last digit, on a new heap with the payout works at rest: no tower
+    // was going up, so the tubes are empty. No jewel is laid on a machine that was already in play, and no jewel lamp is lit.
+    expectANewHeap(withWorks(save.machine), back, 1);
+    expect([back.machine.hopper, back.machine.stacker]).toEqual([shutHopper(), idleStacker()]);
     expect([jewelsOnField(back.machine), back.jewels, back.jewelBonuses]).toEqual([0, 0, 0]);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
@@ -3669,9 +3733,9 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    // The same text but for the version's number, the payout works at rest in its field, and the numbers it lacked
-    // where a session holds them: the two the lamp added, and the jewel lamps.
-    expect(text).toBe(JSON.stringify({ ...old(), version: STORAGE_VERSION, machine: withWorks(old().machine), session: numbersWithLamp(old().session) }));
+    // The same text but for the version's number, its field on a new heap, and the numbers it lacked where a session
+    // holds them: the two the lamp added, and the jewel lamps.
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.session).toMatchObject({ lucky: 0, rush: true });
@@ -3681,79 +3745,32 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on in chance time by today’s rule: the medals inside today’s wings count, and each one that is held holds a gold spin', () => {
-    /** Twelve seconds of it with nobody feeding, and what the screen was told of its slots. What is true however wide the wings open is checked here. */
-    const playOn = () => {
-      const back = restore(OLD, then.seed) as Session;
-      const at = { won: back.won, lost: back.lost, hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted, gilded: back.gilded };
-      expect(medalsOnField(back.machine)).toBe(then.onField);
-      const events: SessionEvent[] = [];
-      for (let i = 0; i < then.steps; i++) advance(back, DT, events);
-      expect(back.machine.time).toBeCloseTo(then.time, 9);
-      // The field is that game's field: as many medals left it, and as many are left lying. Those that went over the
-      // front at a corner go down a side hole now. What a slot counts moves no medal, and the screen paid nothing in
-      // these twelve seconds, then or now.
-      expect(back.won - at.won + (back.lost - at.lost)).toBe(then.won + then.lost);
-      expect(back.won - at.won).toBeLessThanOrEqual(then.won);
-      expect(medalsOnField(back.machine)).toBe(then.onFieldAfter);
-      expect(back.paidOut).toBe(then.paidOut);
-      const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-      // Then, a medal that was held held an ordinary spin. Now it holds a gold one, as every medal does while chance time lasts.
-      expect(pockets.every((event) => event.lucky === event.held)).toBe(true);
-      expect(back.lucky).toBe(pockets.filter((event) => event.held).length);
-      // The first came over as the save was written, with the hold full. Then, it turned the last ordinary spin gold
-      // there and then. Now it rides its tongue first, and by the time it drops a gold spin has been played and there
-      // is room for it: it is held, and the spin it holds is gold.
-      expect(then.pockets[0]).toEqual({ pocket: pockets[0].gate, held: false, gold: true });
-      expect(pockets[0]).toMatchObject({ held: true, gold: false, lucky: true });
-      expect(back.gilded - at.gilded).toBe(pockets.filter((event) => event.gold).length);
-      // No chance time began, since it was chance time already, and the books still balance.
-      expect(events.filter((event) => event.type === 'chanceStart')).toEqual([]);
-      expect(back.gold).toBeLessThanOrEqual(back.stock);
-      expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
-      expect(everyPosition(back).every(Number.isFinite)).toBe(true);
-      expect(plain(reread(back))).toEqual(plain(back));
-      return { back, events, pockets };
-    };
+  it('plays on in chance time by today’s rule: each medal that is held while it lasts holds a gold spin', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted, gilded: back.gilded };
+    // Then, a medal that was held held an ordinary spin.
     expect(then.pockets.filter((pocket) => pocket.held).every((pocket) => !pocket.gold)).toBe(true);
-
-    // With the wings as wide as that game's pockets were, the same medals go through the same slots, and as many
-    // of them are held: the first four now, where it was the four after the first then, since each finds the hold
-    // as it stands a ride after it came over.
-    const wide = withWings(POCKET_THEN, playOn);
-    expect(wide.pockets.map(({ gate }) => gate)).toEqual(then.pockets.map(({ pocket }) => pocket));
-    expect(wide.back.riding).toEqual([]);
-    expect(wide.pockets.map(({ held }) => held)).toEqual([true, true, true, true, false, false]);
-    expect(then.pockets.map(({ held }) => held)).toEqual([false, true, true, true, true, false]);
-    expect(wide.pockets.length).toBeGreaterThanOrEqual(4);
-    expect(wide.back.lucky).toBe(then.pockets.filter((pocket) => pocket.held).length);
-    // The last two found it full again. One ordinary spin was still held, which the first of them turned gold; for
-    // the last there was none left to turn. Then, a spin held meanwhile was there for it. Now they were gold already, and it is only wasted.
-    const last = wide.pockets.length - 1;
-    expect(then.pockets[last]).toMatchObject({ held: false, gold: true });
-    expect(wide.pockets[last]).toMatchObject({ held: false, gold: false, lucky: false });
-    expect(wide.back.gilded).toBe(then.gilded - 1);
-    // It was chance time throughout then, and is with those wings, with more gold spins left to play than that game had.
-    expect(then.chanceEnds).toBe(0);
-    expect(wide.events.filter((event) => event.type === 'chanceEnd')).toEqual([]);
-    expect(wide.back.rush).toBe(true);
-    expect(chanceLeft(wide.back)).toBeGreaterThan(then.chanceLeft);
-    expect(wide.back.spins).toBeGreaterThanOrEqual(then.spins);
-
-    // Today's wings open less wide than that. The medals that go through a slot now are some of those that did
-    // then, in the order they did: the ones that came over inside today's wings. The first of them is one, which
-    // the narrow slot itself takes, and at least one more is, which is held.
-    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
-    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
-    const now = playOn();
-    expect(
-      someOf(
-        now.pockets.map((event) => event.gate),
-        then.pockets.map(({ pocket }) => pocket),
-      ),
-    ).toBe(true);
-    expect(now.pockets.length).toBeLessThanOrEqual(then.pockets.length);
-    expect(now.pockets.filter((event) => event.held).length).toBeGreaterThanOrEqual(1);
+    // Now it holds a gold one, as every medal does while chance time lasts. The heap is a new one, so the medals that
+    // went through a pocket then are not there to: three are put over the lip half way through, one in line with each
+    // slot, by when the screen has played gold spins enough to make room for some of them.
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < then.steps; i++) {
+      if (i === then.steps / 2) for (const x of CHECKERS.positions) overTheLip(back, x);
+      advance(back, DT, events);
+    }
+    expect(back.machine.time).toBeCloseTo(then.time, 9);
+    const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
+    expect(pockets.map((event) => event.gate)).toEqual(expect.arrayContaining([0, 1, 2]));
+    expect(pockets.some((event) => event.held)).toBe(true);
+    expect(pockets.every((event) => event.lucky === event.held)).toBe(true);
+    expect(back.lucky).toBe(pockets.filter((event) => event.held).length);
+    expect(back.gilded - at.gilded).toBe(pockets.filter((event) => event.gold).length);
+    // No chance time began, since it was chance time already, and the books still balance.
+    expect(events.filter((event) => event.type === 'chanceStart')).toEqual([]);
+    expect(back.gold).toBeLessThanOrEqual(back.stock);
+    expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+    expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+    expect(plain(reread(back))).toEqual(plain(back));
   });
 
   it('is in chance time exactly when one of its spins is gold: that is what chance time was then', () => {
@@ -3815,7 +3832,6 @@ describe('a save written the day before the lucky lamp', () => {
   const OLD = dayBeforeLamp.save;
   const old = (): Save => JSON.parse(OLD);
   const { then } = dayBeforeLamp;
-  const total = (events: SessionEvent[], type: 'landed' | 'won' | 'lost'): number => events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
 
   it('is a save of version 7: in chance time, the hold full and all but one of its spins gold, a gold spin on the reels, a tower coming up on its lift, and no word of the lamp', () => {
     const save = old();
@@ -3823,11 +3839,12 @@ describe('a save written the day before the lucky lamp', () => {
     expect(save.version).toBe(7);
     expect(save.version).not.toBe(STORAGE_VERSION);
     for (const key of LAMP_NUMBERS) expect(save.session).not.toHaveProperty(key);
-    // Its numbers are today's but for those two, in today's order, and its field and its screen are today's.
+    // Its numbers are today's but for those two, in today's order; its field is the field of the last version before
+    // today's medals; and its screen is today's.
     const today = JSON.parse(serialize(createSession(1))) as Save;
     expect(Object.keys(save.session)).toEqual(Object.keys(today.session).filter((key) => !SINCE_LAMP.includes(key)));
     expect(Object.keys(numbersWithLamp(save.session))).toEqual(Object.keys(today.session));
-    expect(Object.keys(save.machine)).toEqual(Object.keys(today.machine));
+    expect(Object.keys(save.machine)).toEqual(FIELD_THEN);
     // Chance time as that game had it: the hold full, seven of its spins gold and the eighth gold spin on the reels,
     // a tenth of a second into them.
     expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK - 1, chance: true });
@@ -3854,10 +3871,10 @@ describe('a save written the day before the lucky lamp', () => {
     expect(new Set(save.machine.rolling.map((medal) => medal.arm)).size).toBe(2);
     expect(save.machine.rolling.length).toBeGreaterThanOrEqual(4);
     expect(save.session.inserted).toBeGreaterThan(3000);
-    expect(medalsOnField({ ...save.machine, rng: Math.random } as unknown as Session['machine'])).toBe(then.onField);
+    expect(onFieldThen(save.machine)).toBe(then.onField);
   });
 
-  it('reads back as the same machine, none of its gold spins the lamp’s, and in chance time as it was', () => {
+  it('reads back on a new heap of today’s medals, none of its gold spins the lamp’s, and in chance time as it was', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
@@ -3867,23 +3884,23 @@ describe('a save written the day before the lucky lamp', () => {
     expect([back.lucky, back.rush]).toEqual([0, true]);
     expect([back.stock, back.gold, back.gilded, back.chance]).toEqual([save.session.stock, save.session.gold, save.session.gilded, true]);
     expect(chanceLeft(back)).toBe(MAX_STOCK);
-    // Everything else is what was written, to the last digit: the field with its lift at work, the numbers with
-    // their jewel bonus, and the spin on the reels.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(save.machine));
+    // Everything else is what was written, to the last digit: the numbers with their jewel bonus, and the spin on the
+    // reels. The field is on a new heap, and the tower that was coming up on its lift is in a tube, to be stacked again.
+    expectANewHeap(save.machine, back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect(JSON.stringify(numbers)).toBe(JSON.stringify({ ...numbersWithLamp(save.session), lucky: 0, rush: true }));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 1]);
-    expect(back.machine.lifts.filter(holds)).toHaveLength(1);
+    expect(back.machine.stacker.tubes.map((tube) => tube.size).sort()).toEqual([0, 3]);
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    // The same text but for the version's number and the two numbers the lamp added, where a session holds them.
-    expect(text).toBe(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) }));
+    // The same text but for the version's number, its field on a new heap, and the two numbers the lamp added, where a
+    // session holds them.
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.session).toMatchObject({ lucky: 0, rush: true });
@@ -3893,110 +3910,30 @@ describe('a save written the day before the lucky lamp', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on as the game that wrote it did on the screen and in the hopper, its chance time out to the last gold spin, and on the field as nearly as a slower lift lets it', () => {
+  it('plays on by today’s machine: in chance time for as long as a gold spin is left, and its tower stacked in a tube and pushed out whole', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
-    expect(medalsOnField(back.machine)).toBe(then.onField);
     const events: SessionEvent[] = [];
-    const works: { step: number; event: SessionEvent }[] = [];
     let over = -1;
-    // Its spins are followed through the very draws that game made, so they are played by the table it drew them
-    // from, on the table it played them on: the lines as often as they came then, and a front edge that paid all along.
-    withTheTableThen(() => {
-      for (let step = 1; step <= then.steps; step++) {
-        const now: SessionEvent[] = [];
-        advance(back, DT, now);
-        for (const event of now) {
-          if (event.type === 'pourStart' || event.type === 'pourEnd' || event.type === 'towersRise' || event.type === 'towersReady') works.push({ step, event });
-          if (event.type === 'chanceEnd') over = step;
-        }
-        events.push(...now);
-        // The wings are open for exactly as long as chance time lasts.
-        expect(back.rush).toBe(over < 0);
-        // A tower in its guard is where its lift is, however the medals round it are pushed.
-        for (const lift of back.machine.lifts.filter(holds)) {
-          const tower = back.machine.medals.find((medal) => medal.id === lift.id);
-          expect(tower?.x).toBeCloseTo(lift.x, 6);
-          expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
-        }
-      }
-    });
+    for (let step = 1; step <= then.steps; step++) {
+      const now: SessionEvent[] = [];
+      advance(back, DT, now);
+      if (now.some((event) => event.type === 'chanceEnd')) over = step;
+      events.push(...now);
+      // The wings are open for exactly as long as chance time lasts.
+      expect(back.rush).toBe(over < 0);
+    }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // As many medals landed as in that game. The field was that game's field to the medal until the lifts were
-    // slowed: the tower of three that was coming up in this save stood built in half a second then, and today it
-    // comes up at a watchable pace and stands a moment in its guard, three quarters of a second longer in all. A
-    // tower in its guard is not pushed, so the medals round it go another way for that long, and after twelve
-    // seconds nine more of them have gone over the front and three more out of the sides. Not one is lost or made.
-    const [won, lost] = [total(events, 'won'), total(events, 'lost')];
-    expect(total(events, 'landed')).toBe(then.landed);
-    expect([won - then.won, lost - then.lost]).toEqual([9, 3]);
-    expect(medalsOnField(back.machine) + won + lost).toBe(then.onFieldAfter + then.won + then.lost);
-    // Today's wings open less wide than a pocket was. Every medal that went through one in that game's twelve
-    // seconds came over squarely enough for today's all the same, and the same medals go through the same slots
-    // here; one more follows them, on the field as it now goes. Each of them came over with the hold full, then and
-    // now. Then, that was what it found: the first turned the last ordinary spin gold, and the rest were wasted.
-    // Now each finds the hold as it stands a ride later. For the first three that is the same. The fourth and the
-    // sixth came over while the board's prize was still up, and drop when the next spin is on the reels and has left
-    // room: each is held, and the spin it holds is gold, since the wings were open as it came over. The fifth and
-    // the seventh drop to find the hold full again.
-    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth);
-    expect(CHECKERS.wingWidth).toBeLessThan(POCKET_THEN);
-    const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets.map(({ gate }) => gate)).toEqual([...then.pockets.map(({ pocket }) => pocket), 0]);
-    expect(then.pockets.map(({ held, gold }) => [held, gold])).toEqual([[false, true], ...Array(5).fill([false, false])]);
-    expect(pockets.slice(0, 3).map(({ gate, held, gold }) => ({ pocket: gate, held, gold }))).toEqual(then.pockets.slice(0, 3));
-    expect(pockets.map(({ held, gold, lucky }) => (held ? (lucky ? 'gold spin held' : 'spin held') : gold ? 'turned one gold' : 'wasted'))).toEqual([
-      'turned one gold',
-      'wasted',
-      'wasted',
-      'gold spin held',
-      'wasted',
-      'gold spin held',
-      'wasted',
-    ]);
-    expect(back.lucky).toBe(2);
-    expect(back.riding).toEqual([]);
-    // The same spins end the same way: the gold one on the reels is a line of three even digits, and its square on
-    // the board pays twice over, which is enough to open the hopper's doors for.
-    expect(events.flatMap((event) => (event.type === 'spinEnd' ? [event.result.tier] : []))).toEqual(then.lines);
+    // The gold spin on the reels ends as it did then, a line of three even digits.
+    expect(events.find((event): event is Extract<SessionEvent, { type: 'spinEnd' }> => event.type === 'spinEnd')?.result.tier).toBe(then.lines[0]);
     expect(then.lines[0]).toBe('small');
-    expect(then.lines.slice(1).every((line) => line === 'miss')).toBe(true);
-    const square = events.flatMap((event) => (event.type === 'sugorokuEnd' ? [event] : []));
-    expect(square).toHaveLength(1);
-    expect(square[0].payout).toBe(PAID_BEFORE.board[square[0].square] * CHANCE.multiplier);
-    expect(square[0].payout).toBe(then.paid);
-    // The payout works do what they did: the tower that was coming up is built, and the board's prize is poured, in
-    // the very steps it was poured in then. The tower is let go later than it was: its lift had 0.35 of a second
-    // to its first medal, as the save says, and from there today's takes its two medals' time and a moment's standing.
-    expect(works.map(({ event }) => event)).toEqual(then.works.map(({ event }) => event));
-    expect(works.map(({ event }) => event.type)).toEqual(['towersReady', 'pourStart', 'pourEnd']);
-    expect(works.slice(1)).toEqual(then.works.slice(1));
-    const stood = (old().machine.lifts as Lift[])[0].wait + 2 / TOWER.perSecond + LIFT.stands;
-    expect(Math.abs(works[0].step * DT - stood)).toBeLessThanOrEqual(3 * DT);
-    expect(works[0].step).toBeGreaterThan(then.works[0].step);
-    expect(back.machine.hopper).toEqual(then.hopper);
-    expect([back.machine.payoutQueue, back.machine.growing, back.machine.lifts]).toEqual([then.payoutQueue, then.growing, []]);
-    // That game's chance time ended in these twelve seconds, with its last gold spin. Today's has not: the two
-    // medals that were held hold gold spins, one of them is on the reels as the twelve seconds end and the other
-    // is still held, and it began no second time.
-    expect(then.chanceEnds).toBe(1);
-    expect(events.filter((event) => event.type === 'chanceEnd' || event.type === 'chanceStart')).toEqual([]);
-    expect([back.rush, back.chance, chanceLeft(back), then.chanceLeft]).toEqual([true, true, 2, 0]);
-    // And the books are that game's books, but for what the field did differently, the nine more medals that came
-    // over the front and the one more through a pocket, and for the two that were held where that game wasted
-    // them: one more spin started, one more held, and that one gold.
-    expect([back.credits, back.hits, back.stock, back.spins, back.wasted, back.gold, back.gilded, back.paidOut]).toEqual([
-      then.credits + 9,
-      then.hits + 1,
-      then.stock + 1,
-      then.spins + 1,
-      then.wasted + 1 - 2,
-      then.gold + 1,
-      then.gilded,
-      then.paidOut,
-    ]);
-    expect([jewelsOnField(back.machine), back.jewels]).toEqual([then.jewelsOnField, then.lamps]);
+    // The tower of three that was coming up on its lift then is stacked in a tube now, let down, and pushed out whole.
+    expect(events.filter((event) => event.type === 'towerOut')).toEqual([{ type: 'towerOut', tube: expect.any(Number), medals: 3 }]);
+    expect(back.machine.stacker.made).toBe(1);
+    expect(medalsInTubes(back.machine.stacker)).toBe(0);
+    // Whatever else the new heap did, the books balance.
     expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+    expect(back.gold).toBeLessThanOrEqual(back.stock);
     expect(everyPosition(back).every(Number.isFinite)).toBe(true);
     expect(plain(reread(back))).toEqual(plain(back));
   });
@@ -4008,11 +3945,13 @@ describe('a save written the day before the lucky lamp', () => {
     save.session.gold = MAX_STOCK - 2;
     const back = restore(JSON.stringify(save), then.seed) as Session;
     expect(back).toMatchObject({ rush: true, lucky: 0, stock: MAX_STOCK - 2, gold: MAX_STOCK - 2 });
+    overTheLip(back, CHECKERS.positions[1]);
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps && !events.some((event) => event.type === 'checker'); i++) advance(back, DT, events);
-    // The first medal through a slot is the one that found the hold full in that game. Here it is held, and its spin is gold.
+    // The first medal through a slot found the hold full in that game. Here one is, on a new heap, put over the lip
+    // as it starts: it is held, and its spin is gold.
     const [first] = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(first).toEqual({ type: 'checker', gate: then.pockets[0].pocket, held: true, gold: false, lucky: true });
+    expect(first).toEqual({ type: 'checker', gate: 1, held: true, gold: false, lucky: true });
     expect(back.lucky).toBeGreaterThanOrEqual(1);
     expect(back.rush).toBe(true);
     expect(serialize(reread(back))).toBe(serialize(back));
@@ -4072,7 +4011,7 @@ describe('chance time and the lucky lamp in a save', () => {
   const caught = (when: (session: Session) => boolean, enough: (session: Session) => boolean = () => false): Session => {
     // A seed at which each moment below is the one its tests take it for: chance time begins between two spins, with
     // no gold spin on the screen, and medals are held through open wings before the first gold roll on the board is paid.
-    const session = createSession(20261016, { balls: 0 });
+    const session = createSession(20261020, { balls: 0 });
     let feeding = true;
     for (let i = 0; i < 150 * 60 && !when(session); i++) {
       if (feeding && enough(session)) feeding = false;
@@ -4237,6 +4176,7 @@ describe('chance time and the lucky lamp in a save', () => {
     const before = (name: string): Save => {
       const save = withoutLamp(saved(name));
       save.version = VERSION_BEFORE_LAMP;
+      save.machine = fieldThen(save.machine) as Save['machine'];
       // That game counted every gold spin among the ones a medal had turned, and each of those medals among the wasted.
       const turned = (save.session.gilded as number) + (saved(name).session.lucky as number);
       Object.assign(save.session, { gilded: turned, wasted: Math.max(save.session.wasted as number, turned), hits: (save.session.hits as number) + turned });
@@ -4256,7 +4196,8 @@ describe('chance time and the lucky lamp in a save', () => {
       expect(again.version, name).toBe(STORAGE_VERSION);
       expect(again.session, name).toEqual(numbersWithLamp(save.session));
       expect(JSON.stringify(again.session), name).toBe(JSON.stringify(numbersWithLamp(save.session)));
-      expect([again.machine, again.screen], name).toEqual([save.machine, save.screen]);
+      expect(again.screen, name).toEqual(save.screen);
+      expectANewHeap(save.machine, back as Session, 1);
       expect(serialize(restore(JSON.stringify(again), 1) as Session), name).toBe(JSON.stringify(again));
       // Given either of the lamp's numbers under its own version, it is no save of that version.
       for (const extra of [{ lucky: 0 }, { rush: left(save) > 0 }, { lucky: 0, rush: left(save) > 0 }]) {
@@ -4333,7 +4274,7 @@ describe('chance time and the lucky lamp in a save', () => {
     session.machine.medals = [];
     script(session, [ROLL.small, 0.3, 0.9, 0.2]);
     const { machine } = session;
-    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[0], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[0], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
     const events: SessionEvent[] = [];
     advance(session, DT, events);
     // It is on its tongue, and a save taken now has it there: read back, it drops when its ride is up, as it does here.
@@ -4500,13 +4441,13 @@ describe('a save written before the machine had jewels, chance time or the three
   const total = (events: SessionEvent[], type: 'landed' | 'won' | 'lost'): number =>
     events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
 
-  it('is a save of version 3: today’s field with no jewel on it and no payout works in it, and today’s numbers but for chance time’s and the lamps', () => {
+  it('is a save of version 3: the field of then with no jewel on it and no payout works in it, and today’s numbers but for chance time’s and the lamps', () => {
     const save = old();
     expect(save.version).toBe(VERSION_BEFORE_CHANCE);
     expect(save.version).not.toBe(STORAGE_VERSION);
     const today = JSON.parse(serialize(createSession(1))) as Save;
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
-    expect(Object.keys(withWorks(save.machine))).toEqual(Object.keys(today.machine));
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect(Object.keys(numbersToday(save.session))).toEqual(Object.keys(today.session));
     for (const key of ['jewels', 'jewelBonuses', 'gold', 'gilded', 'chance']) expect(save.session).not.toHaveProperty(key);
     expect([...save.machine.medals, ...save.machine.falling].some((medal) => 'jewel' in medal)).toBe(false);
@@ -4520,15 +4461,14 @@ describe('a save written before the machine had jewels, chance time or the three
     expect(save.machine.medals.length).toBeGreaterThan(300);
   });
 
-  it('reads back as the same machine to the last digit, with no jewel on it, no lamp lit and no spin gold', () => {
+  it('reads back on a new heap of today’s medals, with no jewel on it, no lamp lit and no spin gold', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
-    // With the payout works at rest: no tower was going up, so no lift is at work.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
-    expect([back.machine.hopper, back.machine.lifts]).toEqual([shutHopper(), []]);
+    // With the payout works at rest: no tower was going up, so the tubes are empty. Its ball lies where it lay.
+    expectANewHeap(withWorks(save.machine), back, 1);
+    expect([back.machine.hopper, back.machine.stacker]).toEqual([shutHopper(), idleStacker()]);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -4542,47 +4482,31 @@ describe('a save written before the machine had jewels, chance time or the three
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(text).toBe(JSON.stringify({ ...old(), version: STORAGE_VERSION, machine: withWorks(old().machine), session: numbersToday(old().session) }));
-    expect(text).toBe(writtenToday(OLD));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersToday(old().session) })));
+    expect(withoutField(text)).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on as the game that wrote it did, until its first treasure line or its first full hold, but for the spin the lucky lamp makes gold', () => {
+  it('plays on by today’s machine: what was on the rails and in the air comes down as it did then, and the spin on its screen ends as it did', () => {
     const back = restore(OLD, then.seed) as Session;
+    const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps; i++) advance(back, DT, events);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
+    // As many come down as came down then. What they do there is the new heap's business: it is not the field that game had.
     expect(total(events, 'landed')).toBe(then.landed);
-    // As many medals leave the field as left it then; those that go over the front at a corner go down a side hole now, and the purse is short by as many.
-    const corners = lostAtTheCorners(events, then);
-    expect(events.flatMap((event) => (event.type === 'checker' ? [event.gate] : []))).toEqual(then.gates);
-    // No treasure line ended in those seconds, so no jewel came out; and no medal found the hold full, so no spin turned
-    // gold. The machine with jewels and chance time did what the one without did.
-    expect(events.flatMap((event) => (event.type === 'spinEnd' ? [event.result.tier] : []))).toEqual(then.lines);
+    expect(back.machine.rolling).toHaveLength(then.rolling);
+    // The spin that was on its screen ends as it did then, and no treasure line has let a jewel go.
+    expect(events.find((event): event is Extract<SessionEvent, { type: 'spinEnd' }> => event.type === 'spinEnd')?.result.tier).toBe(then.lines[0]);
     expect(then.lines).not.toContain('big');
     expect(events.some((event) => event.type === 'jewelDrop')).toBe(false);
-    expect(then.wasted).toBe(old().session.wasted);
-    // One thing that game did not have has its say. The one medal through a slot in those seconds went through the
-    // lit one, so the spin it holds is gold, and a gold spin's reels are quick: one more of the held spins has started
-    // than had then. It lost, like the others, so it paid nothing twice over, and nothing else differs.
-    expect(events.flatMap((event) => (event.type === 'checker' ? [event.lucky] : []))).toEqual([true]);
-    expect([back.lucky, back.gold, back.gilded, back.chance, back.rush]).toEqual([1, 0, 0, false, false]);
-    expect([back.stock, back.spins]).toEqual([then.stock - 1, then.spins + 1]);
-    expect([back.credits, back.hits, back.wasted, back.paidOut]).toEqual([then.credits - corners, then.hits, then.wasted, then.paidOut]);
-    expect(back.tiers).toEqual(then.tiers);
-    expect(back.machine.medals).toHaveLength(then.medals);
+    // Its ball lies on the field, and the books balance.
     expect(ballsOnField(back.machine)).toBe(then.balls);
-    expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
-    // And each medal lies where that game's machine left it.
-    expect(then.resting).toHaveLength(40);
-    for (const rest of then.resting) {
-      const medal = back.machine.medals.find((m) => m.id === rest.id);
-      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(medal?.x).toBeCloseTo(rest.x, 6);
-      expect(medal?.y).toBeCloseTo(rest.y, 6);
-    }
+    expect(back.hits - at.hits).toBe(back.spins - at.spins + (back.stock - at.stock) + (back.wasted - at.wasted));
+    expect(everyPosition(back).every(Number.isFinite)).toBe(true);
+    expect(plain(reread(back))).toEqual(plain(back));
   });
 
   it('lets a jewel go with its next treasure line, like any machine', () => {
@@ -4624,17 +4548,15 @@ describe('a save written the day before the machine had jewels', () => {
   const OLD = threeBowlsBeforeJewels.save;
   const old = (): Save => JSON.parse(OLD);
   const { then } = threeBowlsBeforeJewels;
-  const total = (events: SessionEvent[], type: 'landed' | 'won' | 'lost'): number =>
-    events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
 
   it('is a save of version 5: the ball in the middle bowl of three, every held spin gold, and no word of jewels', () => {
     const save = old();
     expect(save.version).toBe(VERSION_BEFORE_JEWELS);
     expect(save.version).not.toBe(STORAGE_VERSION);
     const today = JSON.parse(serialize(createSession(1))) as Save;
-    // Its field is today's but for the payout works, which came two versions after it.
+    // Its field is the field of then but for the payout works, which came two versions after it.
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
-    expect(Object.keys(withWorks(save.machine))).toEqual(Object.keys(today.machine));
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect(Object.keys(numbersWithLamp(save.session))).toEqual(Object.keys(today.session));
     for (const key of ['jewels', 'jewelBonuses', ...LAMP_NUMBERS]) expect(save.session).not.toHaveProperty(key);
     expect([...save.machine.medals, ...save.machine.falling].some((medal) => 'jewel' in medal)).toBe(false);
@@ -4655,15 +4577,14 @@ describe('a save written the day before the machine had jewels', () => {
     expect(save.session.jackpot).toBeGreaterThan(PAID_BEFORE.jackpotStart);
   });
 
-  it('reads back as the same machine to the last digit, with no jewel on it and no lamp lit', () => {
+  it('reads back on a new heap of today’s medals, with no jewel on it and no lamp lit', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
-    // With the payout works at rest: no tower was going up, so no lift is at work.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
-    expect([back.machine.hopper, back.machine.lifts]).toEqual([shutHopper(), []]);
+    // With the payout works at rest: no tower was going up, so the tubes are empty.
+    expectANewHeap(withWorks(save.machine), back, 1);
+    expect([back.machine.hopper, back.machine.stacker]).toEqual([shutHopper(), idleStacker()]);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
@@ -4678,33 +4599,26 @@ describe('a save written the day before the machine had jewels', () => {
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(text).toBe(JSON.stringify({ ...old(), version: STORAGE_VERSION, machine: withWorks(old().machine), session: numbersWithLamp(old().session) }));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on exactly as the game that wrote it did: the ball down to the jackpot, paid once and to the medal', () => {
-    /** That game's seconds of it, with nobody feeding: what was said, when the ball dropped and when the challenge ended. */
-    const playOn = () => {
-      const back = restore(OLD, then.seed) as Session;
-      const events: SessionEvent[] = [];
-      const drops: { step: number; bowl: number }[] = [];
-      let ended = -1;
-      for (let step = 1; step <= then.steps; step++) {
-        const now: SessionEvent[] = [];
-        advance(back, DT, now);
-        for (const event of now) {
-          if (event.type === 'bowlDrop') drops.push({ step, bowl: event.bowl });
-          if (event.type === 'bowlEnd') ended = step;
-        }
-        events.push(...now);
+  it('plays on as the game that wrote it did on its screen: the ball down to the jackpot, paid once and to the medal', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const events: SessionEvent[] = [];
+    const drops: { step: number; bowl: number }[] = [];
+    let ended = -1;
+    for (let step = 1; step <= then.steps; step++) {
+      const now: SessionEvent[] = [];
+      advance(back, DT, now);
+      for (const event of now) {
+        if (event.type === 'bowlDrop') drops.push({ step, bowl: event.bowl });
+        if (event.type === 'bowlEnd') ended = step;
       }
-      return { back, events, drops, ended };
-    };
-    // It was in chance time, and its pockets were wider than today's are with their wings open: for this the wings
-    // are set as wide as its pockets were, and the table is the one it was played on, with a front edge that paid all along.
-    const { back, events, drops, ended } = withTheTableThen(() => withWings(POCKET_THEN, playOn));
+      events.push(...now);
+    }
     // Through the middle bowl's hole and into the jackpot's in the very steps that game's ball did.
     expect(drops).toEqual(then.drops);
     expect(ended).toBe(then.steps);
@@ -4713,57 +4627,21 @@ describe('a save written the day before the machine had jewels', () => {
     const owed = withJackpot(old().session).jackpot as number;
     expect(owed).toBe(JACKPOT_START + Math.floor((old().session.jackpotProgress as number) / JACKPOT_STEP));
     const end = { ...then.end, payout: owed, poured: pouredOf(owed), total: then.end.total - then.end.payout + owed };
-    const more = { medals: owed - then.end.payout, poured: pouredOf(owed) - then.end.poured, towers: towerSizes(owed - pouredOf(owed)).length - towerSizes(then.end.payout - then.end.poured).length };
     expect(events.filter((event) => event.type === 'bowlEnd')).toEqual([end]);
     expect(then.end).toMatchObject({ jackpot: true, payout: old().session.jackpot, poured: pouredOf(old().session.jackpot as number) });
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    expect(total(events, 'landed')).toBe(then.landed);
-    expect(total(events, 'won')).toBe(then.won);
-    expect(total(events, 'lost')).toBe(then.lost);
-    expect(events.flatMap((event) => (event.type === 'checker' ? [{ pocket: event.gate, held: event.held, gold: event.gold }] : []))).toEqual(then.pockets);
-    // The screen was the ball's all that time: no spin ended, so no treasure line let a jewel go, and the machine
-    // with jewels did what the one without did.
+    // The screen was the ball's all that time: no spin ended, so no treasure line let a jewel go.
     expect(events.flatMap((event) => (event.type === 'spinEnd' ? [event.result.tier] : []))).toEqual(then.lines);
     expect(then.lines).toEqual([]);
     expect(events.some((event) => event.type === 'jewelDrop' || event.type === 'jewel' || event.type === 'jewelBonus')).toBe(false);
-    // The books are that game's but for the larger jackpot, which starts over where one starts now.
+    // The screen's books are that game's but for the larger jackpot, which starts over where one starts now; and its
+    // gold spins are all still held. The jackpot's towers are in the tubes, and three tenths of it is to be poured.
     expect(then.jackpot).toBe(PAID_BEFORE.jackpotStart);
-    expect([back.credits, back.paidOut, back.jackpots, back.jackpot, back.hits, back.wasted]).toEqual([then.credits, then.paidOut + more.medals, then.jackpots, JACKPOT_START, then.hits, then.wasted]);
-    expect([back.stock, back.gold, back.gilded, back.chance]).toEqual([then.stock, then.gold, then.gilded, then.chance]);
+    expect([back.paidOut, back.jackpots, back.jackpot]).toEqual([then.paidOut + owed - then.end.payout, then.jackpots, JACKPOT_START]);
+    expect([back.stock, back.gold, back.chance]).toEqual([then.stock, then.gold, then.chance]);
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 0]);
-    // So is the field, but for the towers and the medals the larger jackpot adds to it in this last step.
-    expect(back.machine.medals).toHaveLength(then.medals + more.towers);
-    expect(medalsOnField(back.machine)).toBe(then.onField + more.medals);
-    expect(ballsOnField(back.machine)).toBe(then.balls);
-    expect(back.machine.payoutQueue).toBe(then.payoutQueue + more.poured);
-    // And each medal lies where that game's machine left it.
-    expect(then.resting).toHaveLength(40);
-    for (const rest of then.resting) {
-      const medal = back.machine.medals.find((m) => m.id === rest.id);
-      expect(medal).toMatchObject({ level: rest.level, tier: rest.tier });
-      expect(medal?.x).toBeCloseTo(rest.x, 6);
-      expect(medal?.y).toBeCloseTo(rest.y, 6);
-    }
-
-    // With today's wings it is the same machine in every way but one. What a slot counts moves no medal, and the
-    // screen was the ball's, so no medal through a slot could start a spin: the field, the ball and the prize are
-    // what they were. But only the medals that came over inside today's wings were counted, and those that were
-    // not are missing from the medals wasted on its full hold.
-    const today = withTheTableThen(playOn);
-    const counted = today.events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(
-      someOf(
-        counted.map((event) => event.gate),
-        then.pockets.map(({ pocket }) => pocket),
-      ),
-    ).toBe(true);
-    expect(counted.every((event) => !event.held && !event.lucky)).toBe(true);
-    const missed = then.pockets.length - counted.length;
-    expect([today.back.hits, today.back.wasted]).toEqual([then.hits - missed, then.wasted - missed]);
-    expect([today.drops, today.ended]).toEqual([then.drops, then.steps]);
-    expect(today.events.filter((event) => event.type === 'bowlEnd')).toEqual([end]);
-    expect([today.back.credits, today.back.paidOut, today.back.jackpots, today.back.jackpot]).toEqual([then.credits, then.paidOut + more.medals, then.jackpots, JACKPOT_START]);
-    expect(today.back.machine.medals.map(({ id, x, y, level, tier }) => ({ id, x, y, level, tier }))).toEqual(back.machine.medals.map(({ id, x, y, level, tier }) => ({ id, x, y, level, tier })));
+    expect(medalsInTubes(back.machine.stacker)).toBeGreaterThanOrEqual(owed - pouredOf(owed));
+    expect(back.machine.payoutQueue).toBeGreaterThanOrEqual(pouredOf(owed));
   });
 
   it('lets one jewel go with its next treasure line, which is a gold spin’s', () => {
@@ -4836,30 +4714,27 @@ describe('a save written before the payout works, the three bowls and the jewels
     expect(save.machine.falling.every((medal) => medal.source !== 'pour')).toBe(true);
     // Its numbers are today's numbers but for the jewel lamps and the lucky lamp's two: chance time was in that game, and jewels and the lamp were not.
     expect(Object.keys(numbersWithLamp(save.session)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session).sort());
-    expect(Object.keys(withWorks(save.machine)).sort()).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine).sort());
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     // The run on its screen has its last number and the ball is not in a bowl yet, so the screen is one every version can show.
     expect(save.screen.roulette).toMatchObject({ level: CHAIN_GOAL, landed: true, bowl: null });
   });
 
-  it('reads back as the same machine, the doors shut and a lift at work under each tower that was going up', () => {
+  it('reads back on a new heap of today’s medals, the doors shut and each tower that was going up given to the tubes', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
     expect(back.machine.hopper).toEqual(shutHopper());
-    const front = pusherFront(back.machine.time);
-    const growing = back.machine.medals.filter((medal) => medal.grow > 0);
-    expect(back.machine.lifts).toEqual(growing.map((medal) => ({ id: medal.id, x: medal.x, behind: front - medal.y, size: medal.stack + medal.grow, wait: 0, sunk: -1 })));
-    expect(back.machine.lifts).toHaveLength(2);
-    expect(back.machine.lifts.every(holds)).toBe(true);
-    // Everything else is what was written, to the last digit: the field, the numbers and the screen. No jewel is laid
-    // on a machine that was already in play, and no lamp is lit.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
+    // The two towers that were going up are to be stacked again, every medal of each, one in each tube.
+    const growing = save.machine.medals.filter((medal) => (medal.grow as number) > 0);
+    expect(back.machine.stacker.tubes.map((tube) => tube.size)).toEqual(growing.map((medal) => (medal.stack as number) + (medal.grow as number)));
+    expect(onFieldThen(save.machine)).toBe(then.onField);
+    // Everything else is what was written, to the last digit: the numbers and the screen, and what was in the air
+    // and waiting to be paid. No jewel is laid on a machine that was already in play, and no lamp is lit.
+    expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
-    expect(medalsOnField(back.machine)).toBe(then.onField);
     expect(jewelsOnField(back.machine)).toBe(0);
   });
 
@@ -4867,25 +4742,21 @@ describe('a save written before the payout works, the three bowls and the jewels
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
     const save = old();
-    expect(text).toBe(JSON.stringify({ ...save, version: STORAGE_VERSION, machine: withWorks(save.machine), session: numbersWithLamp(save.session) }));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, session: numbersWithLamp(save.session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on by today’s machine: the prize that was waiting is poured, the towers are held until they are built, and not a medal is lost or made', () => {
+  it('plays on by today’s machine: the prize that was waiting is poured, the towers are stacked and pushed out, and not a medal is lost or made', () => {
     const back = restore(OLD, then.seed) as Session;
     const paid = back.paidOut;
+    const start = medalsOnField(back.machine);
     const events: SessionEvent[] = [];
     let emptied = -1;
     for (let i = 0; i < then.steps; i++) {
       advance(back, DT, events);
       if (emptied < 0 && back.machine.payoutQueue === 0) emptied = (i + 1) * DT;
-      for (const lift of back.machine.lifts.filter(holds)) {
-        const tower = back.machine.medals.find((medal) => medal.id === lift.id);
-        expect(tower?.x).toBeCloseTo(lift.x, 6);
-        expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
-      }
     }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     // The doors open at once for what was waiting, and it is out in a second and a bit; that game took five to throw it.
@@ -4894,22 +4765,21 @@ describe('a save written before the payout works, the three bowls and the jewels
     expect(events.find((event) => event.type === 'pourEnd')).toEqual({ type: 'pourEnd', medals: waiting });
     expect(emptied).toBeLessThan(POUR.opens + waiting / POUR.perSecond + 0.1);
     expect(emptied).toBeLessThan(waiting / 9 / 2);
-    // Both towers are finished first, together, and stand free. The ball then goes into the top bowl of today's
-    // three, where that game had one bowl, and what its hole pays goes up as more towers after them.
-    expect(events.filter((event) => event.type === 'towersReady')).toEqual([{ type: 'towersReady', towers: 2 }]);
+    // Both towers are stacked again, one in each tube. Its run is still on the screen, so one of them waits in its
+    // tube, built, while the ball rolls, and what its hole pays is stacked on top of it: the run's prizes go on one
+    // tower, as they do now. The other is pushed out whole as it is.
+    const towers = old().machine.medals.filter((medal) => (medal.grow as number) > 0).map((medal) => (medal.stack as number) + (medal.grow as number));
+    expect(towers).toEqual([25, 25]);
+    const out = events.flatMap((event) => (event.type === 'towerOut' ? [event.medals] : []));
+    expect(out[0]).toBe(25);
+    expect(out.reduce((sum, medals) => sum + medals, 0) + medalsInTubes(back.machine.stacker)).toBe(50 + 50 - pouredOf(50));
     const hole = events.find((event) => event.type === 'bowlEnd');
     expect(hole).toMatchObject({ bowl: 0, payout: 50, poured: pouredOf(50), jackpot: false });
     // Fifteen loose medals are too few to open the doors for: they come out of the slot, and the doors have opened once.
     expect(events.filter((event) => event.type === 'pourStart')).toHaveLength(1);
     expect(back.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: waiting });
-    expect(back.machine.growing).toBe(then.growing);
-    // Those towers come up slowly, as towers now do: when the twelve seconds are out each has its last medal and
-    // stands in its guard, a moment from being let go.
-    expect(back.machine.lifts.map((lift) => [lift.size, stands(lift)])).toEqual(towerSizes(50 - pouredOf(50)).map((size) => [size, true]));
-    for (const lift of back.machine.lifts) expect(back.machine.medals.find((medal) => medal.id === lift.id)).toMatchObject({ stack: lift.size, grow: 0 });
-    // Every medal is accounted for, as it was in that game: what lies on the field and what has left it are what was there and what has been paid since.
-    expect(then.onFieldAfter + then.won + then.lost).toBe(then.onField + then.paidOut - paid);
-    expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(then.onField + back.paidOut - paid);
+    // Every medal is accounted for: what lies on the field and what has left it are what was there and what has been paid since.
+    expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(start + back.paidOut - paid);
     expect(everyPosition(back).every(Number.isFinite)).toBe(true);
     expect(plain(reread(back))).toEqual(plain(back));
   });
@@ -4946,8 +4816,9 @@ describe('a save written the day before the payout works', () => {
     expect(save.version).not.toBe(STORAGE_VERSION);
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
     const today = JSON.parse(serialize(createSession(1))) as Save;
-    // Its field is today's but for the payout works, and its numbers are today's but for the lucky lamp's two: the jewel lamps were in that game.
-    expect(Object.keys(withWorks(save.machine))).toEqual(Object.keys(today.machine));
+    // Its field is the field of then but for the payout works, and its numbers are today's but for the lucky lamp's
+    // two: the jewel lamps were in that game.
+    expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect(Object.keys(save.session)).toEqual(Object.keys(today.session).filter((key) => !SINCE_LAMP.includes(key)));
     expect(Object.keys(numbersWithLamp(save.session))).toEqual(Object.keys(today.session));
     // One of the two jewels a machine starts with is still lying on the lower table, and the other has lit a lamp.
@@ -4979,25 +4850,21 @@ describe('a save written the day before the payout works', () => {
     expect(save.session.stock).toBe(5);
   });
 
-  it('reads back as the same machine, the doors shut and a lift at work under each of the two towers, where that game had pushed them', () => {
+  it('reads back on a new heap of today’s medals, the doors shut, its two towers that were going up given to the tubes, and its three standing towers and its jewel where they were', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     const save = old();
     expect(back.machine.hopper).toEqual(shutHopper());
-    const front = pusherFront(back.machine.time);
-    const growing = back.machine.medals.filter((medal) => medal.grow > 0);
-    expect(growing).toHaveLength(2);
-    expect(back.machine.lifts).toEqual(growing.map((medal) => ({ id: medal.id, x: medal.x, behind: front - medal.y, size: 25, wait: 0, sunk: -1 })));
-    expect(back.machine.lifts.every(holds)).toBe(true);
-    // Everything else is what was written, to the last digit: the field with its jewel, the numbers with their lamp, and the ball in its bowl.
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(withWorks(save.machine)));
+    expect(back.machine.stacker.tubes.map((tube) => tube.size)).toEqual([25, 25]);
+    expect(back.machine.medals.filter((medal) => medal.stack > 1).map((medal) => medal.stack).sort()).toEqual(save.machine.medals.filter((medal) => (medal.stack as number) > 1 && medal.grow === 0).map((medal) => medal.stack).sort());
+    expect(onFieldThen(save.machine)).toBe(then.onField);
+    // Everything else is what was written, to the last digit: the numbers with their lamp, and the ball in its bowl.
+    expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect([back.lucky, back.rush]).toEqual([0, false]);
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
-    expect(medalsOnField(back.machine)).toBe(then.onField);
     expect(jewelsOnField(back.machine)).toBe(1);
     expect([back.jewels, back.jewelBonuses]).toEqual([1, 0]);
   });
@@ -5006,64 +4873,40 @@ describe('a save written the day before the payout works', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
     const save = old();
-    expect(text).toBe(JSON.stringify({ ...save, version: STORAGE_VERSION, machine: withWorks(save.machine), session: numbersWithLamp(save.session) }));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, session: numbersWithLamp(save.session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on by today’s machine: its towers finish in their guards, its jewel lights the second lamp, and the bowl pays what that game’s bowl paid, in the same step', () => {
+  it('plays on by today’s machine: its towers are stacked again and pushed out, and the bowl pays what that game’s bowl paid, in the same step', () => {
     const back = restore(OLD, then.seed) as Session;
     const paid = back.paidOut;
+    const start = medalsOnField(back.machine);
     const events: SessionEvent[] = [];
-    const said: { step: number; event: SessionEvent }[] = [];
     let ended = -1;
     for (let step = 1; step <= then.steps; step++) {
       const now: SessionEvent[] = [];
       advance(back, DT, now);
-      for (const event of now) {
-        if (event.type === 'bowlEnd') ended = step;
-        if (event.type === 'jewel' || event.type === 'jewelBonus' || event.type === 'jewelDrop') said.push({ step, event });
-      }
+      if (now.some((event) => event.type === 'bowlEnd')) ended = step;
       events.push(...now);
-      // A tower in its guard is where its lift is, however the medals round it are pushed.
-      for (const lift of back.machine.lifts.filter(holds)) {
-        const tower = back.machine.medals.find((medal) => medal.id === lift.id);
-        expect(tower?.x).toBeCloseTo(lift.x, 6);
-        expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
-      }
     }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The two towers that were going up are built first, together, in the time their last three medals take and a
-    // moment's standing: within a second and a bit, where it was a sixth of a second, so the jewel has gone over by then.
-    const works = events.filter((event) => event.type === 'towersReady' || event.type === 'towersRise' || event.type === 'pourStart' || event.type === 'pourEnd');
-    expect(works[0]).toEqual({ type: 'towersReady', towers: 2 });
-    const built = events.findIndex((event) => event.type === 'towersReady');
-    expect(built).toBeGreaterThan(events.findIndex((event) => event.type === 'jewel'));
-    expect(built).toBeLessThan(events.findIndex((event) => event.type === 'bowlEnd'));
-    // The jewel that lay at the front edge goes over in the very step it did in that game, and lights the second lamp.
-    expect(said).toEqual(then.jewels);
-    expect([back.jewels, back.jewelBonuses]).toEqual([then.lamps, then.jewelBonuses]);
-    // So does the ball drop, into the hole that was drawn for it, for the same medals split the same way: fifteen
-    // loose and the rest as two towers, which come up on their lifts and are let go before the twelve seconds are
-    // out, the smaller a medal's time before the taller. Their guards are still on the way down.
+    // The two towers that were going up are stacked again, one in each tube. Its run is still on the screen, so one of
+    // them waits in its tube, built, while the ball rolls, and what its hole pays is stacked on top of it: the run's
+    // prizes go on one tower, as they do now. The other is pushed out whole as it is.
+    const out = events.flatMap((event) => (event.type === 'towerOut' ? [event.medals] : []));
+    expect(out[0]).toBe(25);
+    expect(out.reduce((sum, medals) => sum + medals, 0) + medalsInTubes(back.machine.stacker)).toBe(50 + 50 - pouredOf(50));
+    // The ball drops into the hole that was drawn for it, in the step it did then, for the same medals split the same
+    // way: fifteen loose and the rest as a tower.
     expect(ended).toBe(then.ended);
     expect(events.filter((event) => event.type === 'bowlEnd')).toEqual([then.end]);
     expect(then.end).toMatchObject({ payout: 50, poured: pouredOf(50), jackpot: false });
-    expect(works.slice(1)).toEqual([
-      { type: 'towersRise', towers: 2, medals: 50 - pouredOf(50) },
-      { type: 'towersReady', towers: 1 },
-      { type: 'towersReady', towers: 1 },
-    ]);
-    // Fifteen and a jewel's one are too few to open the doors for: they came out of the slot, and the hopper has never poured.
+    // Fifteen, and a jewel's one if it has gone over, are too few to open the doors for: the hopper has never poured.
     expect(back.machine.hopper).toEqual(shutHopper());
-    expect([back.machine.payoutQueue, back.machine.growing]).toEqual([then.payoutQueue, then.growing]);
-    expect(back.machine.lifts.map((lift) => [lift.size, holds(lift), lift.sunk < LIFT.closes])).toEqual(towerSizes(50 - pouredOf(50)).map((size) => [size, false, true]));
-    // What the machine has paid is what that game's machine paid, and every medal is accounted for, as it was there.
-    expect(back.paidOut).toBe(then.paidOut);
-    expect(back.paidOut - paid).toBe(then.paid);
-    expect(then.onFieldAfter + then.won + then.lost).toBe(then.onField + then.paid);
-    expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(then.onField + then.paid);
+    // Every medal is accounted for: what lies on the field and what has left it are what was there and what has been paid since.
+    expect(medalsOnField(back.machine) + total(events, 'won') + total(events, 'lost')).toBe(start + back.paidOut - paid);
     expect(everyPosition(back).every(Number.isFinite)).toBe(true);
     expect(plain(reread(back))).toEqual(plain(back));
   });
@@ -5091,22 +4934,29 @@ describe('a save written the day before the payout works', () => {
 describe('every version before the payout works', () => {
   /**
    * A machine paid a prize to pour and a prize in towers, as each older version would have written it: without the
-   * payout works or the lucky lamp's two numbers, and without whatever else that version did not have. Nothing is on its rails and its arms are
-   * where a new machine's are, so the fields of the versions that had one aim, or none, say the same thing.
+   * payout works or the lucky lamp's two numbers, and without whatever else that version did not have; and with three
+   * towers going up, as those games put a prize in towers up, a medal on each and nineteen to come. Nothing is on its
+   * rails and its arms are where a new machine's are, so the fields of the versions that had one aim, or none, say the
+   * same thing.
    */
   const written = (version: number): Save => {
     const session = createSession(20261013, { balls: 0, jewels: 0 });
-    buildTowers(session.machine, 60);
     queuePayout(session.machine, 40);
     session.paidOut += 100;
     const save = JSON.parse(serialize(session)) as Save;
-    const { hopper: _hopper, lifts: _lifts, rolling, waits, aims, tips, nextId, ...tables } = save.machine;
+    const then = fieldThen(save.machine);
+    const front = pusherFront(then.time as number);
+    let next = then.nextId as number;
+    const towers = [36, 50, 64].map((x) => ({ id: next++, x, y: front - 9, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 19, ball: false, grown: 1 }));
+    const withTowers: Row = { ...then, medals: [...(then.medals as Row[]), ...towers], growing: 57 };
+    const { hopper: _hopper, lifts: _lifts, rolling, waits, aims, tips, nextId: _nextId, ...tables } = withTowers;
     const beforeLamp = withoutLamp(save).session;
     const { jewels: _jewels, jewelBonuses: _bonuses, ...beforeJewels } = beforeLamp;
     const { gold: _gold, gilded: _gilded, chance: _chance, ...beforeChance } = beforeJewels;
+    const nextId = next;
     const machine = version >= VERSION_BEFORE_CHANCE ? { ...tables, rolling, waits, aims, tips, nextId } : version === VERSION_WITH_ONE_AIM ? { ...tables, rolling, cooldown: 0, aim: 50, tips, nextId } : { ...tables, cooldown: 0, nextId };
     const numbers = version >= VERSION_BEFORE_WORKS ? beforeLamp : version >= VERSION_WITH_ONE_BOWL ? beforeJewels : beforeChance;
-    return { ...save, version, machine: machine as Save['machine'], session: numbers as Save['session'] };
+    return { ...save, version, machine: machine as unknown as Save['machine'], session: numbers as Save['session'] };
   };
   const OLDER = [VERSION_BEFORE_WORKS, VERSION_BEFORE_JEWELS, VERSION_WITH_ONE_BOWL, VERSION_BEFORE_CHANCE, VERSION_WITH_ONE_AIM, VERSION_BEFORE_ARMS];
 
@@ -5115,40 +4965,36 @@ describe('every version before the payout works', () => {
     for (const version of OLDER) {
       const save = written(version);
       expect(restore(JSON.stringify(save), 1), `version ${version}`).not.toBeNull();
-      // Called today's, it has no doors and no lifts.
+      // Called today's, it has no doors and no tubes.
       expect(restore(JSON.stringify({ ...save, version: STORAGE_VERSION }), 1), `version ${version} as today's`).toBeNull();
       // Given the payout works under its old number, it is not a save of that version either.
       expect(restore(JSON.stringify({ ...save, machine: { ...save.machine, hopper: shutHopper(), lifts: [] } }), 1), `version ${version} with works`).toBeNull();
     }
   });
 
-  it.each(OLDER)('comes back, from version %i, with the doors shut and a lift at work under each tower that was going up, and plays on', (version) => {
+  it.each(OLDER)('comes back, from version %i, with the doors shut and each tower that was going up given to the tubes, and plays on', (version) => {
     const back = restore(JSON.stringify(written(version)), 7) as Session;
     expect(back).not.toBeNull();
-    // The doors are shut and have never poured. Each of the three towers is found on a lift whose guard is up.
+    // The doors are shut and have never poured. Each of the three towers is to be stacked again, all twenty of it:
+    // one in each tube, and the third waiting its turn in one of them.
     expect(back.machine.hopper).toEqual(shutHopper());
-    const front = pusherFront(back.machine.time);
-    const growing = back.machine.medals.filter((medal) => medal.grow > 0);
-    expect(growing).toHaveLength(3);
-    expect(back.machine.lifts).toEqual(growing.map((medal) => liftAtWork(medal, front)));
-    expect(back.machine.lifts.map((lift) => [lift.size, lift.wait, lift.sunk])).toEqual([
-      [20, 0, -1],
-      [20, 0, -1],
-      [20, 0, -1],
-    ]);
+    const tubes = idleStacker();
+    for (let i = 0; i < 3; i++) stackTowers(tubes, 20);
+    expect(back.machine.stacker).toEqual(tubes);
+    expect(medalsInTubes(back.machine.stacker)).toBe(60);
+    expect(back.machine.medals.some((medal) => medal.stack > 1)).toBe(false);
     // It is written as a save of today's version, which reads back the same.
     const text = serialize(back);
     expect((JSON.parse(text) as Save).version).toBe(STORAGE_VERSION);
     expect(serialize(restore(text, 7) as Session)).toBe(text);
-    // Played on, the forty that were waiting are poured at once, and the towers stand built: not a medal lost or made.
+    // Played on, the forty that were waiting are poured at once, and the towers are stacked and pushed out: not a medal lost or made.
     const start = medalsOnField(back.machine);
     const events: SessionEvent[] = [];
     advance(back, DT, events);
     expect(events.filter((event) => event.type === 'pourStart')).toEqual([{ type: 'pourStart', medals: 40 }]);
-    expect(events.some((event) => event.type === 'towersRise')).toBe(false);
-    for (let i = 0; i < 240 && (back.machine.lifts.length > 0 || back.machine.hopper.phase !== 'shut'); i++) advance(back, DT, events);
+    for (let i = 0; i < 60 * 30 && (back.machine.stacker.made < 3 || back.machine.hopper.phase !== 'shut'); i++) advance(back, DT, events);
     expect(events.filter((event) => event.type === 'pourEnd')).toEqual([{ type: 'pourEnd', medals: 40 }]);
-    expect(events.filter((event) => event.type === 'towersReady')).toEqual([{ type: 'towersReady', towers: 3 }]);
+    expect(events.flatMap((event) => (event.type === 'towerOut' ? [event.medals] : []))).toEqual([20, 20, 20]);
     expect(back.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: 40 });
     const gone = events.reduce((sum, event) => sum + (event.type === 'won' || event.type === 'lost' ? event.count : 0), 0);
     expect(medalsOnField(back.machine) + gone).toBe(start);
@@ -5160,20 +5006,23 @@ describe('the payout works in a save', () => {
   const caught = (when: (session: Session) => boolean): Session => {
     const session = createSession(20261012, { balls: 0 });
     queuePayout(session.machine, 70);
-    buildTowers(session.machine, 60);
-    session.paidOut += 130;
-    for (let i = 0; i < 1200 && !when(session); i++) advance(session, DT);
+    buildTowers(session.machine, 100);
+    session.paidOut += 170;
+    for (let i = 0; i < 1800 && !when(session); i++) advance(session, DT);
     if (!when(session)) throw new Error('no such moment');
     return session;
   };
+  const tubeIn = (s: Session, phase: string): Tube | undefined => s.machine.stacker.tubes.find((tube) => tube.phase === phase);
   const MOMENTS: [string, (session: Session) => boolean][] = [
-    ['the doors dropping open and the guards rising', (s) => s.machine.hopper.phase === 'opening' && s.machine.hopper.clock > 0.2 && s.machine.lifts[0].wait > 0],
-    ['the prize pouring and the towers coming up', (s) => s.machine.hopper.phase === 'pouring' && s.machine.hopper.poured > 20 && s.machine.medals.some((medal) => medal.grow > 0 && medal.stack > 4)],
+    ['the doors dropping open and the tubes stacking', (s) => s.machine.hopper.phase === 'opening' && s.machine.hopper.clock > 0.2 && (tubeIn(s, 'stacking')?.stacked ?? 0) > 0],
+    ['the prize pouring and the towers half stacked', (s) => s.machine.hopper.phase === 'pouring' && s.machine.hopper.poured > 20 && (tubeIn(s, 'stacking')?.stacked ?? 0) > 10],
     ['the last medal gone and the doors being drawn shut', (s) => s.machine.hopper.phase === 'closing' && s.machine.hopper.clock > 0.2],
-    ['the towers built and their guards sinking', (s) => s.machine.lifts.length > 0 && s.machine.lifts.every((lift) => lift.sunk > 0.1)],
-    ['everything at rest again, the hopper still saying what it poured', (s) => s.machine.hopper.phase === 'shut' && s.machine.lifts.length === 0 && s.machine.hopper.poured === 70],
-    // Last, so that the moments before it keep their places in the list.
-    ['the towers built and standing in their guards for a moment', (s) => s.machine.lifts.length > 0 && s.machine.lifts.every((lift) => stands(lift) && lift.sunk > -LIFT.stands / 2)],
+    ['the towers built and being let down', (s) => (tubeIn(s, 'lowering')?.clock ?? 0) > 0.2],
+    ['the gates sliding aside', (s) => (tubeIn(s, 'opening')?.clock ?? 0) > 0.1],
+    ['a tower on its arm, still in its window behind the wall’s face', (s) => (tubeIn(s, 'pushing')?.clock ?? 1) < STACK.pushes * STACK.out * 0.5],
+    ['a tower on its arm, on its way across the pusher', (s) => (tubeIn(s, 'pushing')?.clock ?? 0) > STACK.pushes * 0.6],
+    ['the arms drawing back and the gates shutting', (s) => (tubeIn(s, 'returning')?.clock ?? 0) > STACK.returns * 0.7],
+    ['everything at rest again, the hopper still saying what it poured', (s) => s.machine.hopper.phase === 'shut' && s.machine.hopper.poured === 70 && s.machine.stacker.made === 2 && s.machine.stacker.tubes.every((tube) => tube.phase === 'stacking' && tube.size === 0)],
   ];
 
   it.each(MOMENTS)('keeps %s, and plays on from there as the session does', (_name, when) => {
@@ -5184,7 +5033,7 @@ describe('the payout works in a save', () => {
     if (!back) return;
     expect(serialize(back)).toBe(text);
     expect(back.machine.hopper).toEqual(session.machine.hopper);
-    expect(back.machine.lifts).toEqual(session.machine.lifts);
+    expect(back.machine.stacker).toEqual(session.machine.stacker);
     session.machine.rng = seededRng(99);
     back.machine.rng = seededRng(99);
     for (let i = 0; i < 240; i++) {
@@ -5194,87 +5043,64 @@ describe('the payout works in a save', () => {
     expect(serialize(back)).toBe(serialize(session));
   });
 
+  it('is at each moment what its name says', () => {
+    // On its way out of its window a tower is still behind the face of the back wall, and on its way across it is on the pusher.
+    const inWindow = caught(MOMENTS[5][1]);
+    const out = caught(MOMENTS[6][1]);
+    for (const [session, behind] of [
+      [inWindow, true],
+      [out, false],
+    ] as const) {
+      const tube = tubeIn(session, 'pushing') as Tube;
+      const tower = session.machine.medals.find((medal) => medal.id === tube.tower) as Medal;
+      expect(tower).toMatchObject({ level: 1, tier: 0, stack: 50 });
+      expect(tower.y < 0).toBe(behind);
+    }
+  });
+
   /** A save caught at one of those moments, typed loosely enough to spoil. */
   const at = (index: number): Save => JSON.parse(serialize(caught(MOMENTS[index][1])));
-  const liftsIn = (save: Save): Row[] => save.machine.lifts as Row[];
   const doors = (save: Save): Row => save.machine.hopper as Row;
-  const towerOn = (save: Save, lift: Row): Row => find(save.machine.medals, (medal) => medal.id === lift.id);
+  const tubeOf = (save: Save, phase: string): Row => find(tubesOf(save), (tube) => tube.phase === phase);
+  const onArm = (save: Save): Row => find(save.machine.medals, (medal) => medal.id === tubeOf(save, 'pushing').tower);
 
   const forged: [string, number, (save: Save) => void][] = [
     ['doors pouring with nothing left to pour', 1, (save) => (save.machine.payoutQueue = 0)],
     ['doors dropping open for a prize too small to pour', 0, (save) => (save.machine.payoutQueue = POUR.threshold - 1)],
     ['doors that have been dropping open for longer than they take', 0, (save) => (doors(save).clock = POUR.opens + 0.01)],
     ['doors that have been shutting for as long as they take, and are not shut', 2, (save) => (doors(save).clock = POUR.closes)],
-    ['shut doors with their clock still running', 4, (save) => (doors(save).clock = 0.1)],
+    ['shut doors with their clock still running', 8, (save) => (doors(save).clock = 0.1)],
     ['open doors with a clock running', 1, (save) => (doors(save).clock = 0.1)],
     ['doors doing something a hopper does not do', 1, (save) => (doors(save).phase = 'jammed')],
     ['doors that have poured half a medal', 1, (save) => (doors(save).poured = 20.5)],
     ['doors that are pouring and have never begun a pour', 1, (save) => (doors(save).pours = 0)],
-    ['shut doors that have poured and have never begun a pour', 4, (save) => (doors(save).pours = 0)],
+    ['shut doors that have poured and have never begun a pour', 8, (save) => (doors(save).pours = 0)],
     ['doors that have begun half a pour', 1, (save) => (doors(save).pours = 1.5)],
     ['doors with no count of their pours', 1, (save) => delete doors(save).pours],
     ['doors still dropping open with some of the prize already gone', 0, (save) => (doors(save).poured = 3)],
     ['doors with a part too many', 1, (save) => (doors(save).swing = 1)],
     ['no doors at all', 1, (save) => delete save.machine.hopper],
-    ['no list of lifts', 1, (save) => delete save.machine.lifts],
-    ['a tower going up with no lift under it', 1, (save) => liftsIn(save).pop()],
-    ['a lift with no tower', 1, (save) => (liftsIn(save)[0].id = (save.machine.nextId as number) - 1)],
-    ['two lifts under one tower', 1, (save) => (liftsIn(save)[1].id = liftsIn(save)[0].id)],
-    ['a lift whose tower stands somewhere else', 1, (save) => (towerOn(save, liftsIn(save)[0]).x = (liftsIn(save)[0].x as number) + 1)],
-    ['a lift whose tower has slipped back from it', 1, (save) => (liftsIn(save)[0].behind = (liftsIn(save)[0].behind as number) + 0.5)],
-    ['a lift building a taller tower than the one on it', 1, (save) => (liftsIn(save)[0].size = (liftsIn(save)[0].size as number) + 1)],
-    ['a lift under a ball', 1, (save) => Object.assign(towerOn(save, liftsIn(save)[0]), { ball: true })],
-    ['a lift under a tower on the lower table', 1, (save) => (towerOn(save, liftsIn(save)[0]).level = 0)],
-    // A tower is put on the deck itself. One lying on other medals is carried along by them after its lift has placed it.
-    ['a tower in its guard lying on top of other medals', 1, (save) => (towerOn(save, liftsIn(save)[0]).tier = 1)],
-    ['a tower in its guard lying on top of other medals, its guard still rising', 0, (save) => (towerOn(save, liftsIn(save)[0]).tier = 1)],
-    [
-      'a lift whose hatch is in the side wall, its tower with it',
-      1,
-      (save) => {
-        liftsIn(save)[0].x = 1;
-        towerOn(save, liftsIn(save)[0]).x = 1;
-      },
-    ],
-    [
-      'a tower held inside the back wall, where its hatch has gone',
-      1,
-      (save) => {
-        const [lift] = liftsIn(save);
-        lift.behind = pusherFront(save.machine.time as number) - 1;
-        towerOn(save, lift).y = 1;
-      },
-    ],
-    [
-      'a tower that has begun to come up before its guard is',
-      0,
-      (save) => {
-        const tower = towerOn(save, liftsIn(save)[0]);
-        tower.stack = 2;
-        tower.grow = (tower.grow as number) - 1;
-        save.machine.growing = (save.machine.growing as number) - 1;
-      },
-    ],
-    ['a guard that is up, with its tower built, and not sinking', 3, (save) => (liftsIn(save)[0].sunk = -1)],
-    ['a guard sinking round a tower that is still coming up', 1, (save) => (liftsIn(save)[0].sunk = 0.1)],
-    ['a tower said to be built and standing in its guard, with medals still to come', 1, (save) => (liftsIn(save)[0].sunk = -LIFT.stands / 2)],
-    ['a tower said to be standing in its guard while the guard is still rising', 0, (save) => (liftsIn(save)[0].sunk = -LIFT.stands / 2)],
-    ['a tower with longer yet to stand in its guard than towers stand', 5, (save) => (liftsIn(save)[0].sunk = -LIFT.stands - 0.01)],
-    ['a tower standing in its guard for as long as one that is not built', 5, (save) => (liftsIn(save)[0].sunk = -0.99)],
-    ['a tower standing in its guard somewhere other than on its lift', 5, (save) => (towerOn(save, liftsIn(save)[0]).x = (liftsIn(save)[0].x as number) + 1)],
-    [
-      'a guard standing round a tower that is not there',
-      5,
-      (save) => {
-        const [lift] = liftsIn(save);
-        save.machine.medals = save.machine.medals.filter((medal) => medal.id !== lift.id);
-      },
-    ],
-    ['a guard rising and sinking at once', 0, (save) => (liftsIn(save)[0].sunk = 0.1)],
-    ['a guard that has sunk for as long as it takes and is still there', 3, (save) => (liftsIn(save)[0].sunk = LIFT.closes)],
-    ['a hatch that takes longer to open than it does', 0, (save) => (liftsIn(save)[0].wait = LIFT.opens + 0.01)],
-    ['a lift in front of the pusher’s lip', 1, (save) => (liftsIn(save)[0].behind = -1)],
-    ['more lifts than there could be', 4, (save) => (save.machine.lifts = Array.from({ length: LIMITS.lifts + 1 }, (_, i) => ({ id: 900000 + i, x: 50, behind: 9, size: 5, wait: 0, sunk: 0.1 })))],
+    ['no tubes at all', 1, (save) => delete save.machine.stacker],
+    ['lifts beside the tubes', 1, (save) => (save.machine.lifts = [])],
+    ['a tube with more stacked than its tower is to have', 1, (save) => (tubeOf(save, 'stacking').stacked = (tubeOf(save, 'stacking').size as number) + 1)],
+    ['a tube letting down a tower that is not built', 1, (save) => (tubeOf(save, 'stacking').phase = 'lowering')],
+    ['a tube letting a tower down for as long as that takes, and still letting it down', 3, (save) => (tubeOf(save, 'lowering').clock = STACK.lowers)],
+    ['a gate sliding aside for as long as that takes, and still sliding', 4, (save) => (tubeOf(save, 'opening').clock = STACK.opens)],
+    ['a gate sliding aside in front of no tower', 4, (save) => Object.assign(tubeOf(save, 'opening'), { size: 0, stacked: 0 })],
+    ['an arm pushing for as long as a push takes, and still pushing', 6, (save) => (tubeOf(save, 'pushing').clock = STACK.pushes)],
+    ['an arm with no tower on it', 6, (save) => (save.machine.medals = save.machine.medals.filter((medal) => medal.id !== tubeOf(save, 'pushing').tower))],
+    ['an arm pushing a tower with an id not given out yet', 6, (save) => (tubeOf(save, 'pushing').tower = save.machine.nextId)],
+    ['an arm whose tower stands somewhere else', 6, (save) => (onArm(save).x = (onArm(save).x as number) + 1)],
+    ['an arm whose tower has slipped back from it', 6, (save) => (onArm(save).y = (onArm(save).y as number) - 0.5)],
+    ['an arm whose tower is still in its window when the arm is across the pusher', 6, (save) => (onArm(save).y = TUBE.back)],
+    ['an arm pushing a tower lying on top of other medals', 6, (save) => (onArm(save).tier = 1)],
+    ['an arm pushing a tower on the lower table', 6, (save) => (onArm(save).level = 0)],
+    ['an arm pushing a ball', 6, (save) => Object.assign(onArm(save), { stack: 1, ball: true })],
+    ['an arm pushing a jewel', 6, (save) => Object.assign(onArm(save), { stack: 1, level: 0, jewel: true })],
+    ['both arms pushing one tower', 6, (save) => (tubesOf(save)[1].tower = tubesOf(save)[0].tower)],
+    ['an arm pushing a tower and no tower ever pushed', 6, (save) => ((save.machine.stacker as Row).made = 0)],
+    ['an arm drawing back with a tower on it', 7, (save) => (tubeOf(save, 'returning').tower = save.machine.medals[0].id)],
+    ['an arm drawing back for as long as that takes, and still drawing back', 7, (save) => (tubeOf(save, 'returning').clock = STACK.returns)],
     ['a poured medal that is a ball', 1, (save) => Object.assign(find(save.machine.falling, (medal) => medal.source === 'pour'), { ball: true })],
     ['a poured medal on its way to the lower table', 1, (save) => (find(save.machine.falling, (medal) => medal.source === 'pour').level = 0)],
   ];
@@ -5286,116 +5112,20 @@ describe('the payout works in a save', () => {
     expect(restore(JSON.stringify(save), 1)).toBeNull();
   });
 
-  it('would have had a tower lying on other medals carried off its lift by the next step, which is why it is refused', () => {
-    const session = caught(MOMENTS[1][1]);
-    const [lift] = session.machine.lifts;
-    const tower = session.machine.medals.find((medal) => medal.id === lift.id) as Medal;
-    // As the machine makes it, the tower is on the deck, and it is still on its lift a step later.
-    expect(tower.tier).toBe(0);
-    const offLift = (): number => Math.hypot(tower.x - lift.x, tower.y - (pusherFront(session.machine.time) - lift.behind));
-    advance(session, DT);
-    expect(offLift()).toBeLessThan(LIMITS.held);
+  it('would have had a tower anywhere but where its arm has it moved there by the next step, which is why it is refused', () => {
+    const session = caught(MOMENTS[6][1]);
+    const tube = tubeIn(session, 'pushing') as Tube;
+    const tower = session.machine.medals.find((medal) => medal.id === tube.tower) as Medal;
     expect(restore(serialize(session), 1)).not.toBeNull();
-    // Forged onto the pile, with a medal under it that another is pushing aside, it is carried along with that medal after its lift has placed it.
-    tower.tier = 1;
-    const lying = (x: number): Medal => ({ id: session.machine.nextId++, x, y: tower.y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
-    session.machine.medals.push(lying(tower.x + 1), lying(tower.x + 1 + MEDAL_RADIUS * 1.8));
+    // Forged a unit to the side of its arm, it is no machine; and the machine itself puts it back on its arm in a step.
+    tower.x += 1;
     expect(restore(serialize(session), 1)).toBeNull();
-    let furthest = 0;
-    for (let i = 0; i < 30; i++) {
-      advance(session, DT);
-      furthest = Math.max(furthest, offLift());
-    }
-    expect(furthest).toBeGreaterThan(LIMITS.held);
-  });
-
-  it('takes a tower held against the back wall where the wall has come as far forward as its hatch, and goes on taking it', () => {
-    // Only a tower that was going up near the wall in a game before the lifts can be found there: today's hatches are all clear of it.
-    const session = caught(MOMENTS[1][1]);
-    const [lift] = session.machine.lifts;
-    const tower = session.machine.medals.find((medal) => medal.id === lift.id) as Medal;
-    lift.behind = pusherFront(session.machine.time) - 1;
-    tower.y = MEDAL_RADIUS;
-    let back = restore(serialize(session), 1);
-    expect(back).not.toBeNull();
-    for (let i = 0; i < 90 && back; i++) {
-      advance(back, DT);
-      const held = back.machine.lifts.find((one) => one.id === lift.id && holds(one));
-      const at = back.machine.medals.find((medal) => medal.id === lift.id);
-      if (held && at) expect(at.y).toBeCloseTo(Math.max(MEDAL_RADIUS, pusherFront(back.machine.time) - held.behind), 6);
-      back = restore(serialize(back), 1);
-    }
-    expect(back).not.toBeNull();
-  });
-
-  it('keeps a tower that stands built in its guard held until its moment is up, and lets it go then', () => {
-    const session = caught(MOMENTS[5][1]);
-    const back = restore(serialize(session), 1) as Session;
-    expect(back).not.toBeNull();
-    expect(back.machine.lifts.every((lift) => holds(lift) && stands(lift))).toBe(true);
-    for (const lift of back.machine.lifts) {
-      expect(lift.sunk).toBeGreaterThan(-LIFT.stands);
-      expect(lift.sunk).toBeLessThan(0);
-      expect(back.machine.medals.find((medal) => medal.id === lift.id)).toMatchObject({ stack: lift.size, grow: 0, tier: 0, level: 1 });
-    }
-    const left = -back.machine.lifts[0].sunk;
-    const events: SessionEvent[] = [];
-    let steps = 0;
-    while (back.machine.lifts.some(holds) && steps < 120) {
-      advance(back, DT, events);
-      steps += 1;
-      for (const lift of back.machine.lifts.filter(holds)) {
-        const tower = back.machine.medals.find((medal) => medal.id === lift.id);
-        expect(tower?.x).toBeCloseTo(lift.x, 6);
-        expect(tower?.y).toBeCloseTo(pusherFront(back.machine.time) - lift.behind, 6);
-      }
-    }
-    expect(Math.abs(steps * DT - left)).toBeLessThanOrEqual(2 * DT);
-    expect(events.filter((event) => event.type === 'towersReady')).toEqual([{ type: 'towersReady', towers: 3 }]);
-    // A tower never stands for as long as a second, so a lift's one clock tells standing from not yet built.
-    expect(LIFT.stands).toBeLessThan(1);
-  });
-
-  it('reads a lift as the game wrote it while a hatch took half a second to open and a guard less than that to sink: every number means what it meant', () => {
-    // The lifts were slowed without a new version. A save of this version from before holds a wait of up to half a
-    // second, which is still that long before the first medal, and a guard that has sunk for up to 0.45, which has
-    // still sunk for that long; it holds no tower standing in its guard, which that game did not have.
-    const THEN = { opens: 0.5, closes: 0.45 } as const;
-    expect(THEN.opens).toBeLessThan(LIFT.opens);
-    expect(THEN.closes).toBeLessThan(LIFT.closes);
-    const opening = at(0);
-    for (const lift of liftsIn(opening)) lift.wait = THEN.opens;
-    const first = restore(JSON.stringify(opening), 1) as Session;
-    expect(first).not.toBeNull();
-    let steps = 0;
-    while (first.machine.medals.every((medal) => medal.grow === 0 || medal.stack === 1) && steps < 240) {
-      advance(first, DT);
-      steps += 1;
-    }
-    // The first medal comes up half a second on and a medal's time after that, as its lift said.
-    expect(Math.abs(steps * DT - (THEN.opens + 1 / TOWER.perSecond))).toBeLessThanOrEqual(3 * DT);
-    const sinking = at(3);
-    for (const lift of liftsIn(sinking)) lift.sunk = THEN.closes - 0.01;
-    const second = restore(JSON.stringify(sinking), 1) as Session;
-    expect(second).not.toBeNull();
-    // Its towers are free, as they were: nothing holds them, and the guards are gone when the rest of their way down is.
-    expect(second.machine.lifts.some(holds)).toBe(false);
-    steps = 0;
-    while (second.machine.lifts.length > 0 && steps < 240) {
-      advance(second, DT);
-      steps += 1;
-    }
-    expect(Math.abs(steps * DT - (LIFT.closes - THEN.closes + 0.01))).toBeLessThanOrEqual(2 * DT);
-  });
-
-  it('takes a guard that is sinking with its tower already pushed away and gone over', () => {
-    const save = at(3);
-    const [lift] = liftsIn(save);
-    save.machine.medals = save.machine.medals.filter((medal) => medal.id !== lift.id);
-    const back = restore(JSON.stringify(save), 1);
-    expect(back).not.toBeNull();
-    for (let i = 0; i < 60; i++) advance(back as Session, DT);
-    expect((back as Session).machine.lifts).toEqual([]);
+    advance(session, DT);
+    const index = session.machine.stacker.tubes.indexOf(tube) as 0 | 1;
+    const spot = armSpot(index, tube.clock, pusherFront(session.machine.time));
+    expect(tower.x).toBeCloseTo(spot.x, 6);
+    expect(tower.y).toBeCloseTo(spot.y, 6);
+    expect(restore(serialize(session), 1)).not.toBeNull();
   });
 
   it('opens the doors of an older save as soon as it starts, when it was saved with a prize big enough to pour still waiting', () => {
@@ -5403,17 +5133,136 @@ describe('the payout works in a save', () => {
     queuePayout(session.machine, 64);
     // As the version before the payout works wrote it: no doors, no lifts, and neither of the lucky lamp's two numbers.
     const save = withoutLamp(JSON.parse(serialize(session)) as Save);
+    save.machine = fieldThen(save.machine) as Save['machine'];
     delete save.machine.hopper;
     delete save.machine.lifts;
     save.version = VERSION_BEFORE_WORKS;
     const back = restore(JSON.stringify(save), 1) as Session;
     expect(back).not.toBeNull();
     expect(back.machine.hopper).toEqual(shutHopper());
-    // That version had jewels: the two a new machine has are still on its lower table.
+    // That version had jewels: the one a new machine has lies where it lay, on the new heap.
     expect(jewelsOnField(back.machine)).toBe(START_JEWELS);
     const events: SessionEvent[] = [];
     advance(back, DT, events);
     expect(events).toContainEqual({ type: 'pourStart', medals: 64 });
+  });
+});
+
+describe('a save written the day before the tubes, with towers going up on their lifts', () => {
+  // Written by main's own `serialize` the day before the towers were stacked in tubes and today's medals: see the fixture's `about`.
+  const OLD = beforeTubes.save;
+  const old = (): Save => JSON.parse(OLD);
+  const { facts } = beforeTubes;
+  const liftsIn = (save: Save): Lift[] => save.machine.lifts as unknown as Lift[];
+  const towerOn = (save: Save, lift: Lift): Row => find(save.machine.medals, (medal) => medal.id === lift.id);
+
+  it('is a save of version 9: five towers going up on their lifts, a prize pouring, and the field of then', () => {
+    const save = old();
+    expect(save.version).toBe(VERSION_BEFORE_TUBES);
+    expect(save.version).toBe(9);
+    expect(Object.keys(save.machine)).toEqual(FIELD_THEN);
+    expect(Object.keys(save.session)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session));
+    // Every lift still holds its tower: three of them with nine medals still to come, and two whose hatches had only begun to open.
+    expect(liftsIn(save).map((lift) => [lift.size, holds(lift), lift.wait > 0])).toEqual([
+      [20, true, false],
+      [20, true, false],
+      [20, true, false],
+      [20, true, true],
+      [20, true, true],
+    ]);
+    expect(liftsIn(save).map((lift) => towerOn(save, lift).grow)).toEqual([9, 9, 9, 19, 19]);
+    expect(save.machine.growing).toBe(facts.growing);
+    expect(save.machine.hopper).toMatchObject({ phase: 'pouring', pours: 1 });
+    expect(save.machine.payoutQueue).toBe(facts.payoutQueue);
+    expect([save.machine.rolling.length, save.machine.falling.length]).toEqual([facts.rolling, facts.falling]);
+    expect(save.machine.medals).toHaveLength(facts.lying);
+  });
+
+  it('reads back on a new heap of today’s medals, the towers its lifts held given to the tubes, and the prize still pouring', () => {
+    const back = restore(OLD, 3);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    const save = old();
+    expectANewHeap(save.machine, back, 3);
+    // All five towers are to be stacked again, every medal of each: two in one tube and three in the other.
+    expect(medalsInTubes(back.machine.stacker)).toBe(100);
+    expect(back.machine.stacker.tubes.map(towersIn).sort()).toEqual([2, 3]);
+    expect(back.machine.payoutQueue).toBe(facts.payoutQueue);
+    expect(back.machine.hopper).toEqual(save.machine.hopper);
+    // The numbers and the screen are what was written.
+    expect(withoutField(serialize(back))).toEqual({ ...withoutField(OLD), version: STORAGE_VERSION });
+  });
+
+  it('plays on: what was pouring is poured, the towers are stacked and pushed out, and not a medal that was the player’s is lost or made', { timeout: LONG }, () => {
+    const back = restore(OLD, 3) as Session;
+    const start = medalsOnField(back.machine);
+    const paid = back.paidOut;
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 60 * 40 && (back.machine.stacker.made < 5 || back.machine.hopper.phase !== 'shut'); i++) advance(back, DT, events);
+    expect(events.filter((event) => event.type === 'pourEnd')).toHaveLength(1);
+    expect(events.flatMap((event) => (event.type === 'towerOut' ? [event.medals] : []))).toEqual([20, 20, 20, 20, 20]);
+    const gone = events.reduce((sum, event) => sum + (event.type === 'won' || event.type === 'lost' ? event.count : 0), 0);
+    expect(medalsOnField(back.machine) + gone).toBe(start + back.paidOut - paid);
+    expect(plain(reread(back))).toEqual(plain(back));
+  });
+
+  it('takes a guard that is sinking with its tower already pushed away and gone over', () => {
+    const save = old();
+    const [lift] = liftsIn(save);
+    const tower = towerOn(save, lift);
+    // Built and let go: its guard is on the way down, and the tower has gone.
+    save.machine.growing = (save.machine.growing as number) - (tower.grow as number);
+    save.machine.medals = save.machine.medals.filter((medal) => medal.id !== lift.id);
+    lift.sunk = 0.1;
+    const back = restore(JSON.stringify(save), 3);
+    expect(back).not.toBeNull();
+    expect(medalsInTubes((back as Session).machine.stacker)).toBe(80);
+  });
+
+  // That version's field is held to that version's shape: its lifts each on a tower of its own, where it can be.
+  const spoilt: [string, (save: Save) => void][] = [
+    ['called a save of this version', (save) => (save.version = STORAGE_VERSION)],
+    ['given tubes, which that game did not have', (save) => (save.machine.stacker = idleStacker() as unknown as Row)],
+    ['left without its lifts', (save) => delete save.machine.lifts],
+    ['left without its count of the medals still to be stacked', (save) => delete save.machine.growing],
+    ['with a tower going up with no lift under it', (save) => liftsIn(save).pop()],
+    ['with a lift with no tower', (save) => (liftsIn(save)[0].id = (save.machine.nextId as number) - 1)],
+    ['with two lifts under one tower', (save) => (liftsIn(save)[1].id = liftsIn(save)[0].id)],
+    ['with a lift whose tower stands somewhere else', (save) => (towerOn(save, liftsIn(save)[0]).x = liftsIn(save)[0].x + 1)],
+    ['with a lift whose tower has slipped back from it', (save) => (liftsIn(save)[0].behind += 0.5)],
+    ['with a lift building a taller tower than the one on it', (save) => (liftsIn(save)[0].size += 1)],
+    ['with a lift under a ball', (save) => Object.assign(towerOn(save, liftsIn(save)[0]), { ball: true })],
+    ['with a lift under a tower on the lower table', (save) => (towerOn(save, liftsIn(save)[0]).level = 0)],
+    ['with a tower in its guard lying on top of other medals', (save) => (towerOn(save, liftsIn(save)[0]).tier = 1)],
+    ['with a lift whose hatch is in the side wall, its tower with it', (save) => {
+      liftsIn(save)[0].x = 1;
+      towerOn(save, liftsIn(save)[0]).x = 1;
+    }],
+    ['with a tower that has begun to come up before its guard is', (save) => {
+      const tower = towerOn(save, liftsIn(save)[3]);
+      tower.stack = 2;
+      tower.grow = (tower.grow as number) - 1;
+      save.machine.growing = (save.machine.growing as number) - 1;
+    }],
+    ['with a guard sinking round a tower that is still coming up', (save) => (liftsIn(save)[0].sunk = 0.1)],
+    ['with a tower said to be built and standing in its guard, with medals still to come', (save) => (liftsIn(save)[0].sunk = -0.25)],
+    ['with a hatch that takes longer to open than it did', (save) => (liftsIn(save)[3].wait = 1.31)],
+    ['with a lift in front of the pusher’s lip', (save) => (liftsIn(save)[0].behind = -1)],
+    ['with more lifts than there could be', (save) => (save.machine.lifts = Array.from({ length: LIMITS.liftsBefore + 1 }, (_, i) => ({ id: 900000 + i, x: 50, behind: 9, size: 5, wait: 0, sunk: 0.1 })) as unknown as Row[])],
+    ['with a tower taller than any of then', (save) => {
+      const tower = towerOn(save, liftsIn(save)[0]);
+      tower.grow = (tower.grow as number) + 6;
+      liftsIn(save)[0].size += 6;
+      save.machine.growing = (save.machine.growing as number) + 6;
+    }],
+    ['with a medal that does not say how many its tower has yet to gain', (save) => delete find(save.machine.medals, (medal) => medal.stack === 1 && medal.grow === 0).grow],
+  ];
+
+  it.each(spoilt)('is refused when it is %s', (_name, spoil) => {
+    const save = old();
+    expect(restore(JSON.stringify(save), 3)).not.toBeNull();
+    spoil(save);
+    expect(restore(JSON.stringify(save), 3)).toBeNull();
   });
 });
 
@@ -5425,7 +5274,7 @@ describe('the medals on their tongues in a save', () => {
     session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
     for (const slot of [0, 1, 2]) {
       const { machine } = session;
-      machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[slot], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: 0, ball: false, grown: 1 });
+      machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[slot], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
       advance(session, DT);
     }
     return session;
@@ -5551,7 +5400,7 @@ describe('a save written before a medal rode to its pocket', () => {
   const old = (): Save => JSON.parse(OLD);
   const { at, onTheirWay, then } = beforeRide;
 
-  it('is a save of version 8: today’s field and today’s numbers but for the riders, caught with three medals that had come over a pocket within the last ride', () => {
+  it('is a save of version 8: the field of then and today’s numbers but for the riders, caught with three medals that had come over a pocket within the last ride', () => {
     const save = old();
     expect(save.version).toBe(VERSION_BEFORE_RIDE);
     expect(save.version).toBe(8);
@@ -5559,7 +5408,7 @@ describe('a save written before a medal rode to its pocket', () => {
     expect(save.session).not.toHaveProperty('riding');
     const today = JSON.parse(serialize(createSession(1))) as Save;
     expect(Object.keys(save.session)).toEqual(Object.keys(today.session).filter((key) => key !== 'riding'));
-    expect(Object.keys(save.machine)).toEqual(Object.keys(today.machine));
+    expect(Object.keys(save.machine)).toEqual(FIELD_THEN);
     expect(Object.keys(save.screen)).toEqual(Object.keys(today.screen));
     // Three medals had come over the lip through a pocket less than a ride ago, the first two most of one ago and
     // the last in the very step the save was written in. Each lies on the lower table with its own clock running.
@@ -5584,14 +5433,13 @@ describe('a save written before a medal rode to its pocket', () => {
     expect(save.session.rush).toBe(false);
   });
 
-  it('reads back as the same machine to the last digit, with no medal on a tongue: every one that had come over is in its numbers already', () => {
+  it('reads back on a new heap of today’s medals, with no medal on a tongue: every one that had come over is in its numbers already', () => {
     const back = restore(OLD, 1);
     expect(back).not.toBeNull();
     if (!back) return;
     expect(back.riding).toEqual([]);
     const save = old();
-    const { rng: _rng, ...field } = back.machine;
-    expect(JSON.stringify(field)).toBe(JSON.stringify(save.machine));
+    expectANewHeap(save.machine, back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     // Its jackpot stood below where one starts now, and is brought up to it; every other number is what was written.
     expect(save.session.jackpot as number).toBeLessThan(JACKPOT_START);
@@ -5604,7 +5452,7 @@ describe('a save written before a medal rode to its pocket', () => {
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(text).toBe(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: withRide(old().session) }));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: withRide(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(Object.keys(again.session)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session));
@@ -5613,27 +5461,21 @@ describe('a save written before a medal rode to its pocket', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('counts none of the medals that were on their way a second time, though the catcher shows them riding on to their pockets', () => {
+  it('counts none of the medals that were on their way a second time: that game counted them as they came over, and they went with its heap', () => {
     const back = restore(OLD, then.seed) as Session;
     const steps = Math.round(START_RIDE / DT);
-    // This game shows a medal that has just come over a pocket on its tongue, whoever counted it: the last of the
-    // three, which came over in the step the save was written in, is one. The first two have been pushed about on
-    // the lower table since they came over, and are shown wherever that has left them.
-    const last = back.machine.medals.find((medal) => medal.id === onTheirWay[2].id);
-    if (!last) throw new Error('the medal is gone');
-    expect(onCatcher(last, back.machine.time)).toMatchObject({ chucker: onTheirWay[2].pocket, leg: 'tongue' });
+    // They lay on the lower table of the old heap, on their way down from the lip. The new heap has none of them, and
+    // nothing is on a tongue.
+    for (const medal of onTheirWay) expect(back.machine.medals.some((one) => one.id === medal.id)).toBe(false);
+    expect(back.riding).toEqual([]);
     const events: SessionEvent[] = [];
-    let shown = 0;
     for (let step = 1; step <= then.steps; step++) {
       const said: SessionEvent[] = [];
       advance(back, DT, said);
       events.push(...said);
-      if (onCatcher(last, back.machine.time)) shown = step;
       // Whatever drops into a pocket now came over after the save was read, and a whole ride ago.
       if (step < steps) expect(said.filter((event) => event.type === 'checker')).toEqual([]);
     }
-    // It was shown for the whole of its ride, and nothing was said of it when it dropped.
-    expect(shown).toBe(steps - 1);
     // In that game no medal went through a pocket in these two seconds, and none comes over one now: the machine's
     // count is what it was, and the three are in it once.
     expect(then.pockets).toEqual([]);
@@ -5822,8 +5664,8 @@ describe('a save written before the lottery was made richer', () => {
     const back = restore(beforeRide.save, 1);
     expect(back).not.toBeNull();
     expect([back?.jackpot, back?.jackpotProgress]).toEqual([JACKPOT_START + Math.floor(progress / JACKPOT_STEP), progress % JACKPOT_STEP]);
-    // Its purse, its counters and its field are what was written.
+    // Its purse and its counters are what was written, and its field is on a new heap.
     expect([back?.credits, back?.inserted, back?.won, back?.lost, back?.paidOut, back?.spins]).toEqual([save.session.credits, save.session.inserted, save.session.won, save.session.lost, save.session.paidOut, save.session.spins]);
-    expect(back?.machine.medals).toHaveLength(save.machine.medals.length);
+    expectANewHeap(save.machine, back as Session, 1);
   });
 });

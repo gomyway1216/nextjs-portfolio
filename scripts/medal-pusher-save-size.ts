@@ -25,7 +25,7 @@
  * seconds by default): each part of its largest save packed by itself, as
  * format 1 packed it and as it is packed now, and what that comes to for
  * each medal of each kind; then each column of the medals lying and of the
- * medals in the air. The parts again for the moment its lifts held the most
+ * medals in the air. The parts again for the moment its tubes held the most
  * towers, which is seldom the moment the save is largest. Format 1 is the
  * packer of the day before format 2, kept among the tests.
  *
@@ -44,7 +44,7 @@
 
 import { ACCOUNT_LIMIT, fromCloud, sizeOf, toCloud } from '../src/components/game/MedalPusher/account';
 import { buildTowers, queuePayout, type FallingMedal, type Medal } from '../src/components/game/MedalPusher/engine';
-import { holds } from '../src/components/game/MedalPusher/lift';
+import { towersIn } from '../src/components/game/MedalPusher/stacker';
 import { pack } from '../src/components/game/MedalPusher/pack';
 import { MACHINE_GAME_KEY } from '../src/components/game/MedalPusher/savedMachine';
 import { advance, createSession, insert, refill, type Session } from '../src/components/game/MedalPusher/session';
@@ -178,13 +178,13 @@ export interface Part {
  */
 export function partsOf(text: string): Part[] {
   const save = JSON.parse(text) as { machine: Record<string, unknown>; session: unknown; screen: unknown };
-  const { medals, falling, rolling, lifts, hopper, ...rest } = save.machine;
+  const { medals, falling, rolling, stacker, hopper, ...rest } = save.machine;
   const [lying, inTheAir] = [medals as Medal[], falling as FallingMedal[]];
   const part = (name: string, value: unknown): Part => {
     const written = JSON.stringify(value);
     return { name, rows: Array.isArray(value) ? value.length : null, device: bytes(written), before: onTheWire(packFormat1(written)), now: onTheWire(pack(written)) };
   };
-  const single = (medal: Medal): boolean => !medal.ball && !medal.jewel && medal.stack + medal.grow === 1;
+  const single = (medal: Medal): boolean => !medal.ball && !medal.jewel && medal.stack === 1;
   const from = (source: FallingMedal['source']) => inTheAir.filter((medal) => medal.source === source && !medal.ball && !medal.jewel);
   return [
     part('the whole save', save),
@@ -200,7 +200,7 @@ export function partsOf(text: string): Part[] {
     part('- dropped by the player', from('player')),
     part('- prize balls and jewels', inTheAir.filter((medal) => medal.ball || medal.jewel)),
     part('medals on the rails', rolling),
-    part('lifts under towers', lifts),
+    part('the tower tubes', stacker),
     part('the hopper', hopper),
     part('the rest of the machine', rest),
     part('the session’s numbers', save.session),
@@ -257,7 +257,7 @@ function columnsTable(rows: Record<string, unknown>[]): string[] {
   return lines;
 }
 
-/** Says where the bytes are, for one crowded machine: at its largest save, and when its lifts held the most towers. */
+/** Says where the bytes are, for one crowded machine: at its largest save, and when its tubes held the most towers. */
 function where(seconds: number, seed: number): void {
   const scenario = SCENARIOS.find((candidate) => candidate.crowded) as Scenario;
   const session = createSession(seed);
@@ -265,7 +265,7 @@ function where(seconds: number, seed: number): void {
   let lifting = { held: 0, text: '', at: 0 };
   for (let i = 0; i < stepsIn(seconds); i++) {
     step(session, scenario, i);
-    const held = session.machine.lifts.filter(holds).length;
+    const held = session.machine.stacker.tubes.reduce((sum, tube) => sum + towersIn(tube), 0);
     if (held > lifting.held) lifting = { held, text: serialize(session), at: (i + 1) * DT };
     if (i % 30 !== 0) continue;
     const text = serialize(session);
@@ -284,7 +284,7 @@ function where(seconds: number, seed: number): void {
   ];
   const { medals, falling } = (JSON.parse(largest.text) as { machine: { medals: Record<string, unknown>[]; falling: Record<string, unknown>[] } }).machine;
   lines.push('The columns of the medals lying on the tables, in that save:', '', ...columnsTable(medals), '', 'The columns of the medals in the air:', '', ...columnsTable(falling), '');
-  if (lifting.held > 0) lines.push(`With the most towers held on lifts (${lifting.held}), at ${lifting.at.toFixed(2)} s:`, '', ...partsTable(partsOf(lifting.text)), '', jewelsOf(lifting.text), '');
+  if (lifting.held > 0) lines.push(`With the most towers in the tubes (${lifting.held}), at ${lifting.at.toFixed(2)} s:`, '', ...partsTable(partsOf(lifting.text)), '', jewelsOf(lifting.text), '');
   process.stdout.write(lines.join('\n'));
 }
 

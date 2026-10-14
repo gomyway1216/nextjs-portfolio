@@ -110,6 +110,37 @@
  * And the jackpot's hole, once the ball has dropped, shows what the jackpot
  * then stood at, which was never less than a jackpot started at then.
  * Nothing is paid again and nothing is taken back (see `settleJackpot`).
+ *
+ * Version 10 has smaller medals, as small beside the field as real ones are,
+ * and the tower tubes. Until then a tower stood on the pusher from the moment
+ * its prize was paid and gained its medals there, on a lift in the deck; now
+ * it is stacked in a tube in the back wall and pushed out whole. So the field
+ * has the tubes and no lifts, a medal no longer says how many its tower has
+ * yet to gain, since a tower on the field is built, and a tower can be
+ * taller.
+ *
+ * A save of any version before it holds a field of medals of the old size,
+ * packed as medals that size pack, which today's do not fit: lying where
+ * they lay they would be a field full of gaps, which gives back nothing until
+ * it has been fed full again. So such a save comes back on a new heap, the
+ * one a machine is switched on with, and with everything on the old field
+ * that was the player's to win carried over to it (see `onANewHeap`):
+ *
+ *   a tower, a ball or a jewel   stands or lies where it did, in the place of
+ *                                the medal of the new heap nearest it
+ *   a tower still going up       every medal it was to have is given to the
+ *                                tubes to be stacked again, a tower of its
+ *                                own, and what they have no room for is
+ *                                poured; so is a tower a lift still held
+ *   in the air, on the rails     as it was: each comes down where and when it
+ *   and waiting to be paid       was going to
+ *   the purse, the counters,     as they were, as in every save
+ *   the lottery and the screen
+ *
+ * The plain medals of the old heap are not carried: a heap is the machine's
+ * and not the player's, and the new one is as full. Each older version is
+ * still held to its own shape before any of that, towers no taller than they
+ * could be then.
  */
 
 import {
@@ -126,8 +157,8 @@ import {
   SETTLE,
   START_RIDE,
   TOWER,
-  TOWER_SITES,
   armStart,
+  createMachine,
   pusherFront,
   seededRng,
   tipOf,
@@ -137,7 +168,7 @@ import {
   type RollingMedal,
 } from './engine';
 import { POUR, shutHopper, type Hopper } from './hopper';
-import { LIFT, holds, liftAtWork, stands, type Lift } from './lift';
+import { PHASE_TIME, STACK, TUBE_PHASES, armSpot, idleStacker, stackTowers, towersIn, type Stacker, type Tube } from './stacker';
 import {
   BOARD,
   BOWL,
@@ -189,8 +220,16 @@ export const PAID_BEFORE = { jackpotStart: 300, jackpotStep: 40, board: [10, 3, 
 /** The least a jackpot has ever stood at, and the most medals a save has ever counted towards its next one. */
 const JACKPOT_FLOOR = Math.min(JACKPOT_START, PAID_BEFORE.jackpotStart);
 const JACKPOT_STEPS = Math.max(JACKPOT_STEP, PAID_BEFORE.jackpotStep);
+/** The tallest tower there was before the tubes, and how many places on the pusher a tower could come up in. */
+const TOWERS_BEFORE = { max: 25, places: 18 } as const;
 /** The version every save is written with. */
-export const STORAGE_VERSION = 9;
+export const STORAGE_VERSION = 10;
+/**
+ * The version the game wrote while a tower came up through a hatch in the
+ * pusher's deck on a lift, and gained its medals standing there. Its numbers
+ * and its screen are today's; its field has lifts where today's has tubes.
+ */
+export const VERSION_BEFORE_TUBES = 9;
 /**
  * The version the game wrote while a medal through a START pocket was counted
  * as it came over the lip: it had the lucky lamp and the wings, and no medal
@@ -234,7 +273,7 @@ export const VERSION_WITH_ONE_BOWL = 4;
 export const VERSION_BEFORE_CHANCE = 3;
 /** The version the game wrote while its two arms shared one slot and one aim. */
 export const VERSION_WITH_ONE_AIM = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these nine is refused. */
+/** The version the game wrote before it had its feed arms. A save carrying any number but these ten is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -243,21 +282,21 @@ export const VERSION_BEFORE_ARMS = 1;
  * choke on, or more medals than it could ever hold.
  */
 export const LIMITS = {
-  /** Medals lying on the two tables. Packed two deep with every tower standing, they hold about 650. */
+  /** Medals lying on the two tables. Packed two deep, as small as they are, they hold about 850. */
   medals: 1000,
   /** Medals on their way in, at a slot or on an arm's rail: as many as the two slots can feed in the time one takes to get to the tip. */
   rolling: 2 * Math.ceil(ROLL_TIME / DROP_INTERVAL),
-  /** Medals in the air. Every tower coming down at once is 450. */
+  /** Medals in the air. Every tower the tubes take on, as tall as a tower can be, coming down at once is 384. */
   falling: 600,
-  /** Lifts at work: one under every place a tower can stand, and as many again whose guards are still sinking. */
-  lifts: 2 * TOWER_SITES,
+  /** Lifts at work in versions 7 to 9: one under every place a tower could stand, and as many again whose guards were still sinking. */
+  liftsBefore: 2 * TOWERS_BEFORE.places,
   /**
    * Medals on their way from the lip to a START pocket. A tower that goes over at a pocket sends every one of its
-   * medals: three rows of towers in line with the three pockets, all over in one ride, would be 225, and play does
-   * not come near it.
+   * medals: nine towers as tall as a tower can be, three at each pocket, all over in one ride, would be 576, and
+   * play does not come near it.
    */
-  riding: 300,
-  /** How far a tower in its guard may be from where its lift has it, in field units: nothing moves it, but the sums that say so are not exact. */
+  riding: 1000,
+  /** How far a tower may be from where its arm has it, in field units: nothing moves it, but the sums that say so are not exact. */
   held: 1e-6,
   /** Prize balls, on the field or waiting for their roulette. */
   balls: 50,
@@ -354,7 +393,7 @@ const level = oneOf([0, 1]);
 /** Only `true` will do: what is not a jewel is stored without the field. */
 const set: Check<true> = (value) => (value === true ? true : undefined);
 
-/** What a medal, a ball or a tower is stored as, in every version. */
+/** What a medal, a ball or a tower is stored as. Every tower is built before it is on the field. */
 const lying = {
   id: whole(1, LIMITS.count),
   x: across,
@@ -363,17 +402,12 @@ const lying = {
   tier: oneOf([0, 1]),
   sinceDrop: real(-1, LIMITS.clock),
   stack: whole(1, TOWER.max),
-  grow: whole(0, TOWER.max - 1),
   ball: flag,
   grown: real(SETTLE.from, 1),
 };
 
-/** A medal, a ball or a tower: the only things that lay on the field before there were jewels. */
-const plainMedal = shape<Omit<Medal, 'jewel'>>(
-  lying,
-  // A tower is never taller than the tallest, and a ball is not a tower.
-  (m) => m.stack + m.grow <= TOWER.max && (!m.ball || m.stack + m.grow === 1),
-);
+/** A medal, a ball or a tower: the only things that lay on the field before there were jewels. A ball is not a tower. */
+const plainMedal = shape<Omit<Medal, 'jewel'>>(lying, (m) => !m.ball || m.stack === 1);
 
 /**
  * A jewel is stored as a medal that says it is one. It is held to everything
@@ -385,9 +419,29 @@ const plainMedal = shape<Omit<Medal, 'jewel'>>(
  * jewel is stored without the field, exactly as it was before there were
  * jewels.
  */
-const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.grow === 0 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
+const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
 
 const medal: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedal(value) : plainMedal(value));
+
+/**
+ * A medal as versions 1 to 9 stored it. Then a tower stood on the field from
+ * the moment its prize was paid and gained its medals there, so a medal also
+ * said how many its tower had yet to gain; and no tower was taller than
+ * `TOWERS_BEFORE.max`.
+ */
+type GrowingMedal = Medal & { grow: number };
+
+const lyingBefore = { ...lying, stack: whole(1, TOWERS_BEFORE.max), grow: whole(0, TOWERS_BEFORE.max - 1) };
+
+const plainMedalBefore = shape<Omit<GrowingMedal, 'jewel'>>(
+  lyingBefore,
+  // A tower was never taller than the tallest, and a ball is not a tower.
+  (m) => m.stack + m.grow <= TOWERS_BEFORE.max && (!m.ball || m.stack + m.grow === 1),
+);
+
+const jewelMedalBefore = shape<Required<GrowingMedal>>({ ...lyingBefore, jewel: set }, (m) => !m.ball && m.stack === 1 && m.grow === 0 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
+
+const medalBefore: Check<GrowingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedalBefore(value) : plainMedalBefore(value));
 
 /**
  * A medal on its way in. What is stored is how long it has to go to the tip of its arm, which means what it
@@ -404,25 +458,28 @@ const rollingMedal = shape<RollingMedal>({
 /** The ways a medal was let go before the payout works, when nothing was poured. */
 const THROWN = ['player', 'payout', 'spill'] as const;
 
-/** What something in the air is stored as, in every version, let go in one of the ways listed. */
-const inAir = <const S extends readonly FallingMedal['source'][]>(sources: S) => ({
+/** What something in the air is stored as, in every version, let go in one of the ways listed, off a tower no taller than `tallest`. */
+const inAir = <const S extends readonly FallingMedal['source'][]>(sources: S, tallest: number) => ({
   id: whole(1, LIMITS.count),
   x: across,
   y: along,
   level,
   fromX: across,
   fromY: along,
-  rank: whole(0, TOWER.max - 1),
+  rank: whole(0, tallest - 1),
   ball: flag,
   remaining: timer,
   duration: lasting,
   source: oneOf(sources),
 });
 
-const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir(THROWN), (m) => m.remaining <= m.duration);
+const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir(THROWN, TOWERS_BEFORE.max), (m) => m.remaining <= m.duration);
 
 /** With the payout works a medal may have been poured. What the hopper pours is medals, on their way to the pusher. */
-const thrownOrPoured = shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payout', 'pour', 'spill']), (m) => m.remaining <= m.duration && (m.source !== 'pour' || (!m.ball && m.level === 1)));
+const pouredToo = (tallest: number) =>
+  shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payout', 'pour', 'spill'], tallest), (m) => m.remaining <= m.duration && (m.source !== 'pour' || (!m.ball && m.level === 1)));
+const thrownOrPouredBefore = pouredToo(TOWERS_BEFORE.max);
+const thrownOrPoured = pouredToo(TOWER.max);
 
 /**
  * A jewel in the air is one the hatch has thrown, and the hatch throws one
@@ -432,7 +489,7 @@ const thrownOrPoured = shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payo
  * pours none.
  */
 const jewelFalling = shape<Required<FallingMedal>>(
-  { ...inAir(THROWN), jewel: set },
+  { ...inAir(THROWN, 1), jewel: set },
   (m) =>
     m.remaining <= m.duration &&
     !m.ball &&
@@ -448,8 +505,9 @@ const jewelFalling = shape<Required<FallingMedal>>(
     m.y <= JEWEL_DROP.far,
 );
 
-/** Something in the air in version 6, which had jewels and no hopper, and in today's field. */
+/** Something in the air in version 6, which had jewels and no hopper; in versions 7 to 9, which had the hopper; and in today's field. */
 const fallingBeforeWorks: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : plainFalling(value));
+const fallingBeforeTubes: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : thrownOrPouredBefore(value));
 const fallingMedal: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : thrownOrPoured(value));
 
 /** The hopper's doors. Only what they are doing is checked here; that it fits what is waiting to be paid is checked with the field. */
@@ -460,21 +518,48 @@ const hopper = shape<Hopper>({
   poured: whole(0, LIMITS.purse),
 });
 
-/** A lift at work. That it has a tower, and where, is checked with the field. */
-const lift = shape<Lift>(
+/**
+ * A tube. It is in one of its phases, with no more than that phase's time
+ * run, and holds what that phase holds: stacking, a tower that is not yet
+ * built, or nothing at all, with no more of the next medal dropped than one
+ * medal and none of it once the tower is built; letting a tower down, or
+ * opening its gate, a tower that is built; and pushing a tower out, or
+ * drawing back, nothing, since the tower is on the field. It has a tower on
+ * its arm while it is pushing, and only then. Every tower it holds is a
+ * tower, as tall as a tower can be at the most, and it holds no more of
+ * them than `STACK.queue`. A tube that is stacking nothing has nothing
+ * waiting either: the first tower waiting would have been begun.
+ */
+const tube = shape<Tube>(
   {
-    id: whole(1, LIMITS.count),
-    // Its hatch is in the pusher's deck, between the side walls where a medal can lie.
-    x: real(MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS),
-    behind: real(0, PUSHER.max),
-    size: whole(1, TOWER.max),
-    wait: real(0, LIFT.opens),
-    sunk: real(-1, LIFT.closes),
+    phase: oneOf(TUBE_PHASES),
+    clock: real(0, Math.max(1, ...Object.values(PHASE_TIME))),
+    stacked: whole(0, TOWER.max),
+    size: whole(0, TOWER.max),
+    waiting: list(whole(1, TOWER.max), STACK.queue),
+    tower: whole(0, LIMITS.count),
   },
-  // Its guard is on the way up, up with medals still to come, up with the tower built and standing in it, or on the
-  // way down: not two of them. −1 is the only way to say the tower is not built, and a built one stands no longer
-  // than `LIFT.stands` before it is let go.
-  (l) => (l.sunk === -1 || l.sunk >= -LIFT.stands) && (l.sunk === -1 || l.wait === 0),
+  (t) => {
+    if (t.stacked > t.size || towersIn(t) > STACK.queue) return false;
+    if (t.phase === 'stacking') return t.clock < 1 && (t.stacked < t.size || t.clock === 0) && t.tower === 0 && (t.size > 0 || t.waiting.length === 0);
+    if (t.clock >= PHASE_TIME[t.phase]) return false;
+    if (t.phase === 'lowering' || t.phase === 'opening') return t.size > 0 && t.stacked === t.size && t.tower === 0;
+    return t.size === 0 && t.stacked === 0 && (t.phase === 'pushing' ? t.tower > 0 : t.tower === 0);
+  },
+);
+
+/** The two tubes, and how many towers their arms have begun to push out: at least as many as are being pushed now. */
+const stacker = shape<Stacker>(
+  {
+    tubes: (value) => {
+      if (!Array.isArray(value) || value.length !== 2) return undefined;
+      const left = tube(value[0]);
+      const right = tube(value[1]);
+      return left && right ? [left, right] : undefined;
+    },
+    made: count,
+  },
+  (s) => s.made >= s.tubes.filter((t) => t.phase === 'pushing').length && !(s.tubes[0].tower > 0 && s.tubes[0].tower === s.tubes[1].tower),
 );
 
 /**
@@ -501,12 +586,52 @@ const waits: Check<[number, number]> = (value) => {
 
 /** The field as it is stored: everything but the generator. */
 type StoredMachine = Omit<Machine, 'rng'>;
+
+/**
+ * A lift as versions 7 to 9 stored it, which brought a tower up through a
+ * hatch in the pusher's deck: the tower, where its hatch was, how many medals
+ * the tower would have, how long until its first medal came up, and how far
+ * its guard had sunk (less than nothing while it held its tower).
+ */
+interface LiftBefore {
+  id: number;
+  x: number;
+  behind: number;
+  size: number;
+  wait: number;
+  sunk: number;
+}
+/** How long a lift's hatch took to open, a built tower stood in its guard, and its guard took to sink and its hatch to shut. */
+const LIFT_BEFORE = { opens: 1.3, stands: 0.5, closes: 0.9 } as const;
+/** Whether a lift still held its tower, and whether that tower stood built in its guard. */
+const holdsBefore = (lift: LiftBefore): boolean => lift.sunk < 0;
+const standsBefore = (lift: LiftBefore): boolean => lift.sunk < 0 && lift.sunk > -1;
+
+/** The field as versions 7 to 9 stored it: towers that gained their medals on the field, on lifts. */
+type MachineWithLifts = Omit<StoredMachine, 'medals' | 'stacker'> & { medals: GrowingMedal[]; growing: number; towerClock: number; lifts: LiftBefore[] };
 /** The field as versions 3 to 6 stored it: no doors to pour from, and no lifts. */
-type MachineBeforeWorks = Omit<StoredMachine, 'hopper' | 'lifts'>;
+type MachineBeforeWorks = Omit<MachineWithLifts, 'hopper' | 'lifts'>;
 /** The field as version 2 stored it: one slot's wait and one aim for both arms. */
 type MachineWithOneAim = Omit<MachineBeforeWorks, 'waits' | 'aims'> & { cooldown: number; aim: number };
 /** The field as version 1 stored it: no arms, so nothing on a rail, no aim and no tips. */
 type MachineBeforeArms = Omit<MachineWithOneAim, 'rolling' | 'aim' | 'tips'>;
+
+/** A lift at work, as versions 7 to 9 stored it. That it has a tower, and where, is checked with the field. */
+const liftBefore = shape<LiftBefore>(
+  {
+    id: whole(1, LIMITS.count),
+    // Its hatch is in the pusher's deck, between the side walls where a medal can lie.
+    x: real(MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS),
+    behind: real(0, PUSHER.max),
+    size: whole(1, TOWERS_BEFORE.max),
+    wait: real(0, LIFT_BEFORE.opens),
+    sunk: real(-1, LIFT_BEFORE.closes),
+  },
+  // Its guard is on the way up, up with medals still to come, up with the tower built and standing in it, or on the
+  // way down: not two of them. −1 is the only way to say the tower is not built, and a built one stands no longer
+  // than `LIFT_BEFORE.stands` before it is let go.
+  (l) => (l.sunk === -1 || l.sunk >= -LIFT_BEFORE.stands) && (l.sunk === -1 || l.wait === 0),
+);
 
 /**
  * How closely the medals on the rails are held to a slot's pace, in seconds.
@@ -514,25 +639,31 @@ type MachineBeforeArms = Omit<MachineWithOneAim, 'rolling' | 'aim' | 'tips'>;
  */
 const SLACK = 1e-6;
 
-/** What every version of the field holds. Before version 6 nothing on it or over it is a jewel, and before version 7 nothing over it was poured. */
-const tables = {
+/** What every version of the field holds, the same in all of them. */
+const always = {
   time: real(0, LIMITS.clock),
-  medals: list<Medal>(plainMedal, LIMITS.medals),
-  falling: list<FallingMedal>(plainFalling, LIMITS.falling),
   payoutQueue: whole(0, LIMITS.purse),
   payoutClock: timer,
-  growing: whole(0, LIMITS.medals * TOWER.max),
-  towerClock: timer,
   nextId: whole(1, LIMITS.count),
+};
+/** What versions 1 to 9 held besides: the medals with their towers still to gain, and the towers' clock. Before version 6 nothing on the field or over it is a jewel, and before version 7 nothing over it was poured. */
+const tablesBefore = {
+  time: always.time,
+  medals: list<GrowingMedal>(plainMedalBefore, LIMITS.medals),
+  falling: list<FallingMedal>(plainFalling, LIMITS.falling),
+  payoutQueue: always.payoutQueue,
+  payoutClock: always.payoutClock,
+  growing: whole(0, LIMITS.medals * TOWERS_BEFORE.max),
+  towerClock: timer,
+  nextId: always.nextId,
 };
 const rolling = list(rollingMedal, LIMITS.rolling);
 /** The one wait and the one aim of the versions before each arm had its own. */
 const oneSlot = { cooldown: real(0, DROP_INTERVAL) };
 const oneAim = { aim: real(AIM.min, AIM.max) };
 
-/** What has to agree in any field, whatever feeds it. */
-function tablesAgree(machine: Pick<MachineBeforeWorks, 'medals' | 'falling' | 'growing' | 'nextId'>, onRails: RollingMedal[]): boolean {
-  // Every medal has an id of its own, lower than the next one to be given out.
+/** What has to agree in any field, whatever feeds it: every medal has an id of its own, lower than the next one to be given out. */
+function tablesAgree(machine: Pick<StoredMachine, 'medals' | 'falling' | 'nextId'>, onRails: RollingMedal[]): boolean {
   const ids = new Set<number>();
   for (const { id } of [...machine.medals, ...onRails, ...machine.falling]) {
     if (id >= machine.nextId || ids.has(id)) return false;
@@ -540,10 +671,12 @@ function tablesAgree(machine: Pick<MachineBeforeWorks, 'medals' | 'falling' | 'g
   }
   const balls = [...machine.medals, ...machine.falling].filter((m) => m.ball).length;
   const jewels = [...machine.medals, ...machine.falling].filter((m) => m.jewel).length;
-  // The medals still to be stacked are the ones the towers are waiting for.
-  const growing = machine.medals.reduce((sum, m) => sum + m.grow, 0);
-  return growing === machine.growing && balls <= LIMITS.balls && jewels <= LIMITS.jewels;
+  return balls <= LIMITS.balls && jewels <= LIMITS.jewels;
 }
+
+/** And in a field of versions 1 to 9: the medals still to be stacked are the ones the towers are waiting for. */
+const tablesAgreeBefore = (machine: Pick<MachineBeforeWorks, 'medals' | 'falling' | 'growing' | 'nextId'>, onRails: RollingMedal[]): boolean =>
+  tablesAgree(machine, onRails) && machine.medals.reduce((sum, m) => sum + m.grow, 0) === machine.growing;
 
 /**
  * Whether medals fed through one slot, in the order they were fed, keep to that slot's pace. A slot feeds one
@@ -560,7 +693,7 @@ function keepsPace(fed: RollingMedal[], wait: number): boolean {
 }
 
 /** Each arm's slot keeps its own pace: what is on one rail says nothing about the other. */
-const railsKeepPace = (machine: Pick<MachineBeforeWorks, 'rolling' | 'waits'>): boolean =>
+const railsKeepPace = (machine: Pick<StoredMachine, 'rolling' | 'waits'>): boolean =>
   keepsPace(
     machine.rolling.filter((m) => m.arm === 0),
     machine.waits[0],
@@ -571,44 +704,71 @@ const railsKeepPace = (machine: Pick<MachineBeforeWorks, 'rolling' | 'waits'>): 
   );
 
 /**
- * Whether the payout works fit the field they are in. The doors are in a
- * state the hopper passes through with what is waiting to be paid: shut and
- * at rest, dropping open for a prize big enough to pour with none of it gone
- * yet, open with medals still to come, or being drawn shut. A hopper that has
- * never begun a pour is shut and has poured nothing. Every lift is on a tower
- * of its own. One that still holds its tower has it standing on the pusher
- * where the machine leaves a tower it holds, as many medals as the lift is
- * building, and not yet begun while the guard is still on its way up; and
- * the guard is rising, or there are medals still to come, or the tower is
- * built and standing in its guard. One whose guard is sinking has finished.
- * And no tower is going up without a lift under it.
- *
- * Where the machine leaves a tower it holds is on the deck itself, since a
- * tower is put there and nothing lifts it onto other medals, and over its
- * hatch, or against the back wall where the wall has come as far forward as
- * the hatch: the wall holds its ground against everything. A tower let
- * through anywhere else would be moved by the machine's first step, and the
- * save written after that step would not pass this check.
+ * Whether the hopper's doors are in a state the hopper passes through with
+ * what is waiting to be paid: shut and at rest, dropping open for a prize big
+ * enough to pour with none of it gone yet, open with medals still to come, or
+ * being drawn shut. A hopper that has never begun a pour is shut and has
+ * poured nothing.
  */
-function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'lifts'>): boolean {
-  const { hopper: doors, lifts, medals, payoutQueue } = machine;
+function doorsAgree(doors: Hopper, payoutQueue: number): boolean {
   if (doors.pours === 0 && (doors.phase !== 'shut' || doors.poured !== 0)) return false;
   if (doors.phase === 'shut' && doors.clock !== 0) return false;
   if (doors.phase === 'opening' && (doors.clock > POUR.opens || doors.poured !== 0 || payoutQueue < POUR.threshold)) return false;
   if (doors.phase === 'pouring' && (doors.clock !== 0 || payoutQueue === 0)) return false;
   if (doors.phase === 'closing' && doors.clock >= POUR.closes) return false;
+  return true;
+}
+
+/**
+ * Whether the payout works fit the field they are in: the hopper's doors, and
+ * the towers on the arms. A tube that is pushing a tower out has it on the
+ * field, a tower standing on the pusher's deck where its arm has it at that
+ * moment of the push, with the pusher's lip where the machine's clock has it.
+ * A tower let through anywhere else would be moved by the machine's first
+ * step, and the save written after that step would not pass this check.
+ */
+function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'stacker'>): boolean {
+  if (!doorsAgree(machine.hopper, machine.payoutQueue)) return false;
+  const front = pusherFront(machine.time);
+  return machine.stacker.tubes.every((one, index) => {
+    if (one.phase !== 'pushing') return true;
+    const tower = machine.medals.find((m) => m.id === one.tower);
+    if (!tower || tower.ball || tower.jewel || tower.level !== 1 || tower.tier !== 0) return false;
+    const at = armSpot(index as 0 | 1, one.clock, front);
+    return Math.abs(tower.x - at.x) <= LIMITS.held && Math.abs(tower.y - at.y) <= LIMITS.held;
+  });
+}
+
+/**
+ * Whether the payout works of versions 7 to 9 fit the field they are in. The
+ * doors are as above. Every lift is on a tower of its own. One that still
+ * holds its tower has it standing on the pusher where the machine leaves a
+ * tower it holds, as many medals as the lift is building, and not yet begun
+ * while the guard is still on its way up; and the guard is rising, or there
+ * are medals still to come, or the tower is built and standing in its guard.
+ * One whose guard is sinking has finished. And no tower is going up without
+ * a lift under it.
+ *
+ * Where the machine left a tower it held was on the deck itself, since a
+ * tower was put there and nothing lifted it onto other medals, and over its
+ * hatch, or against the back wall where the wall had come as far forward as
+ * the hatch: the wall holds its ground against everything.
+ */
+function worksAgreeBefore(machine: Pick<MachineWithLifts, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'lifts'>): boolean {
+  const { lifts, medals } = machine;
+  if (!doorsAgree(machine.hopper, machine.payoutQueue)) return false;
   const front = pusherFront(machine.time);
   const lifted = new Set<number>();
   for (const one of lifts) {
     if (lifted.has(one.id)) return false;
     lifted.add(one.id);
     const tower = medals.find((m) => m.id === one.id);
-    if (!holds(one)) {
-      if (one.sunk >= LIFT.closes || (tower && tower.grow > 0)) return false;
+    if (!holdsBefore(one)) {
+      if (one.sunk >= LIFT_BEFORE.closes || (tower && tower.grow > 0)) return false;
       continue;
     }
     if (!tower || tower.ball || tower.level !== 1 || tower.tier !== 0 || tower.stack + tower.grow !== one.size) return false;
-    if (stands(one) ? tower.grow !== 0 : one.wait > 0 ? tower.stack !== 1 : tower.grow === 0) return false;
+    if (standsBefore(one) ? tower.grow !== 0 : one.wait > 0 ? tower.stack !== 1 : tower.grow === 0) return false;
     if (Math.abs(tower.x - one.x) > LIMITS.held || Math.abs(tower.y - Math.max(MEDAL_RADIUS, front - one.behind)) > LIMITS.held) return false;
   }
   return medals.every((m) => m.grow === 0 || lifted.has(m.id));
@@ -618,51 +778,125 @@ const storedMachine = shape<StoredMachine>(
   // In the order a machine holds them, which is the order they are written in: a machine read back and
   // written again is the same text.
   {
-    time: tables.time,
+    time: always.time,
     medals: list(medal, LIMITS.medals),
     rolling,
     falling: list(fallingMedal, LIMITS.falling),
-    payoutQueue: tables.payoutQueue,
-    payoutClock: tables.payoutClock,
-    growing: tables.growing,
-    towerClock: tables.towerClock,
+    payoutQueue: always.payoutQueue,
+    payoutClock: always.payoutClock,
     hopper,
-    lifts: list(lift, LIMITS.lifts),
+    stacker,
     waits,
     aims: acrossArms,
     tips: acrossArms,
-    nextId: tables.nextId,
+    nextId: always.nextId,
   },
   (machine) => tablesAgree(machine, machine.rolling) && railsKeepPace(machine) && worksAgree(machine),
 );
 
+/** The field of versions 7 to 9, as they wrote it. */
+const machineWithLifts = shape<MachineWithLifts>(
+  {
+    time: tablesBefore.time,
+    medals: list(medalBefore, LIMITS.medals),
+    rolling,
+    falling: list(fallingBeforeTubes, LIMITS.falling),
+    payoutQueue: tablesBefore.payoutQueue,
+    payoutClock: tablesBefore.payoutClock,
+    growing: tablesBefore.growing,
+    towerClock: tablesBefore.towerClock,
+    hopper,
+    lifts: list(liftBefore, LIMITS.liftsBefore),
+    waits,
+    aims: acrossArms,
+    tips: acrossArms,
+    nextId: tablesBefore.nextId,
+  },
+  (machine) => tablesAgreeBefore(machine, machine.rolling) && railsKeepPace(machine) && worksAgreeBefore(machine),
+);
+
 /**
- * Builds today's field from the parts of an older one, in the order a machine
- * holds them, and checks it as a whole. No older game had the payout works.
- * Its doors were never there to be open, so they are shut: if it was saved
- * with a prize big enough to pour still waiting, they open as the machine
- * starts. A tower it was building is found on a lift whose guard is up and
- * whose medals are coming, where the tower stood: it finishes at the pace it
- * was going up at, held meanwhile as a tower in its guard is.
+ * Today's field from a field of versions 7 to 9, and so from every version
+ * before the tubes, which were all of medals of the old size: on a new heap,
+ * with what was the player's to win on the old field carried over to it, as
+ * the heading of this file says. The heap is the one `createMachine` throws
+ * on from `seed`, carried as far forward as the pusher had come at the
+ * moment the save was written, so that it rests behind the lip as a new
+ * machine's does; and its medals are numbered after every one the old machine
+ * gave out, so that no id is given twice. No medal that was the player's is
+ * lost or paid twice.
+ *
+ * Then a tower came up on a lift in the pusher's deck where it was to stand,
+ * and stood there gaining its medals. There are no lifts now, so a tower that
+ * a lift still held, still coming up or standing built in its guard, goes
+ * back to be stacked: all of its medals are given to the tubes, as a tower of
+ * its own, and it comes out of a window as every tower does now. Whatever the
+ * tubes have no room for is poured by the hopper, as a prize too big to stack
+ * is. A tower whose guard was already sinking had been let go, and it stands
+ * where it stood, as a ball or a jewel lies where it lay: in the place of the
+ * medal of the new heap nearest to it on its table, which is on the table
+ * itself. Nothing of the new heap lies on top of it.
  */
-const asStored = (field: Pick<MachineBeforeWorks, keyof typeof tables>, rest: Pick<MachineBeforeWorks, 'rolling' | 'waits' | 'aims' | 'tips'>): StoredMachine | undefined => {
+function onANewHeap(field: MachineWithLifts, seed: number): StoredMachine | undefined {
+  const heap = createMachine(seed);
+  const ahead = pusherFront(field.time) - pusherFront(heap.time);
+  let { nextId, payoutQueue } = field;
+  const medals: Medal[] = heap.medals.map((one) => ({ ...one, id: nextId++, y: one.level === 1 ? one.y + ahead : one.y }));
+  const tubes = idleStacker();
+  const held = new Set(field.lifts.filter(holdsBefore).map((one) => one.id));
+  const standing: Medal[] = [];
+  for (const { grow, ...one } of field.medals) {
+    if (grow > 0 || held.has(one.id)) {
+      const size = one.stack + grow;
+      payoutQueue += size - stackTowers(tubes, size);
+      continue;
+    }
+    if (one.stack === 1 && !one.ball && !one.jewel) continue;
+    let nearest: Medal | undefined;
+    for (const medal of medals) {
+      if (medal.level !== one.level || medal.tier !== 0 || medal.stack > 1 || medal.ball || medal.jewel) continue;
+      if (!nearest || Math.hypot(medal.x - one.x, medal.y - one.y) < Math.hypot(nearest.x - one.x, nearest.y - one.y)) nearest = medal;
+    }
+    // A new heap has medals on both tables, so there is always one; were there none, it lies where it lay.
+    const place = nearest ?? medals[medals.push({ ...one, tier: 0, id: nextId++ }) - 1];
+    place.stack = one.stack;
+    place.ball = one.ball;
+    if (one.jewel) place.jewel = true;
+    standing.push(place);
+  }
+  const clear = medals.filter((medal) => medal.tier === 0 || !standing.some((tall) => tall.level === medal.level && Math.hypot(tall.x - medal.x, tall.y - medal.y) < MEDAL_RADIUS * 2));
+  const { time, rolling: onRails, falling, payoutClock, hopper: doors, waits: slots, aims, tips } = field;
+  return storedMachine({ time, medals: clear, rolling: onRails, falling, payoutQueue, payoutClock, hopper: doors, stacker: tubes, waits: slots, aims, tips, nextId });
+}
+
+/**
+ * The field of versions 7 to 9 from the parts of a field older than the
+ * payout works, in the order a machine holds them. That game had no doors to
+ * pour from, so they are shut: if it was saved with a prize big enough to
+ * pour still waiting, they open as the machine starts. A tower it was
+ * building was on the field with no lift under it; read as the next version
+ * would have read it, it is on a lift whose guard is up and whose medals are
+ * coming, and so it goes back to be stacked in a tube (see `onANewHeap`).
+ */
+const withLifts = (field: Pick<MachineBeforeWorks, keyof typeof tablesBefore>, rest: Pick<MachineBeforeWorks, 'rolling' | 'waits' | 'aims' | 'tips'>): MachineWithLifts | undefined => {
   const { time, medals, falling, payoutQueue, payoutClock, growing, towerClock, nextId } = field;
   const front = pusherFront(time);
-  const lifts = medals.filter((m) => m.grow > 0).map((m) => liftAtWork(m, front));
-  return storedMachine({ time, medals, rolling: rest.rolling, falling, payoutQueue, payoutClock, growing, towerClock, hopper: shutHopper(), lifts, waits: rest.waits, aims: rest.aims, tips: rest.tips, nextId });
+  // A lift at work with no word of when it began: its guard is up and its medals are coming.
+  const lifts = medals.filter((m) => m.grow > 0).map((m): LiftBefore => ({ id: m.id, x: m.x, behind: front - m.y, size: m.stack + m.grow, wait: 0, sunk: -1 }));
+  return machineWithLifts({ time, medals, rolling: rest.rolling, falling, payoutQueue, payoutClock, growing, towerClock, hopper: shutHopper(), lifts, waits: rest.waits, aims: rest.aims, tips: rest.tips, nextId });
 };
 
 /** Where the arms are and what is on their rails, as every version since each arm had its own has stored it. */
 const arms = { rolling, waits, aims: acrossArms, tips: acrossArms };
 
 /**
- * The field of a version-6 save, as today's machine. That game's field was
- * today's, jewels and all, but for the payout works: no doors, no lifts, and
- * nothing in the air that had been poured.
+ * The field of a version-6 save, as versions 7 to 9 had it. That game's field
+ * was the next version's, jewels and all, but for the payout works: no doors,
+ * no lifts, and nothing in the air that had been poured.
  */
-const fieldBeforeWorks: Check<StoredMachine> = (value) => {
-  const field = shape<MachineBeforeWorks>({ ...tables, medals: list(medal, LIMITS.medals), falling: list(fallingBeforeWorks, LIMITS.falling), ...arms })(value);
-  return field && asStored(field, field);
+const fieldBeforeWorks: Check<MachineWithLifts> = (value) => {
+  const field = shape<MachineBeforeWorks>({ ...tablesBefore, medals: list(medalBefore, LIMITS.medals), falling: list(fallingBeforeWorks, LIMITS.falling), ...arms })(value);
+  return field && withLifts(field, field);
 };
 
 /**
@@ -670,19 +904,19 @@ const fieldBeforeWorks: Check<StoredMachine> = (value) => {
  * after them in every part, and has no jewel on it: those games had none, and
  * a save of theirs that claims one is not a save of theirs.
  */
-const fieldBeforeJewels: Check<StoredMachine> = (value) => {
-  const field = shape<MachineBeforeWorks>({ ...tables, ...arms })(value);
-  return field && asStored(field, field);
+const fieldBeforeJewels: Check<MachineWithLifts> = (value) => {
+  const field = shape<MachineBeforeWorks>({ ...tablesBefore, ...arms })(value);
+  return field && withLifts(field, field);
 };
 
 // In version 2 one slot fed both rails, so the medals on the two rails together keep one slot's pace.
 const machineWithOneAim = shape<MachineWithOneAim>(
-  { ...tables, rolling, ...oneSlot, ...oneAim, tips: acrossArms },
-  (machine) => tablesAgree(machine, machine.rolling) && keepsPace(machine.rolling, machine.cooldown),
+  { ...tablesBefore, rolling, ...oneSlot, ...oneAim, tips: acrossArms },
+  (machine) => tablesAgreeBefore(machine, machine.rolling) && keepsPace(machine.rolling, machine.cooldown),
 );
 
 /**
- * The field of a version-2 save, as today's machine. That game pointed both
+ * The field of a version-2 save, as versions 7 to 9 had it. That game pointed both
  * arms with one aim: each arm's tip went over it as far as the arm reached,
  * when the aim was on its side or a medal was on its rail, and to a resting
  * place otherwise. So each arm's aim is that one aim, as near as the arm can
@@ -691,15 +925,15 @@ const machineWithOneAim = shape<MachineWithOneAim>(
  * over, with nothing on its rail to mind. Its one slot fed either rail, so
  * neither slot is free until that one would have been.
  */
-const fieldWithOneAim: Check<StoredMachine> = (value) => {
+const fieldWithOneAim: Check<MachineWithLifts> = (value) => {
   const field = machineWithOneAim(value);
-  return field && asStored(field, { rolling: field.rolling, waits: [field.cooldown, field.cooldown], aims: [tipOf(0, field.aim), tipOf(1, field.aim)], tips: field.tips });
+  return field && withLifts(field, { rolling: field.rolling, waits: [field.cooldown, field.cooldown], aims: [tipOf(0, field.aim), tipOf(1, field.aim)], tips: field.tips });
 };
 
-const machineBeforeArms = shape<MachineBeforeArms>({ ...tables, ...oneSlot }, (machine) => tablesAgree(machine, []));
+const machineBeforeArms = shape<MachineBeforeArms>({ ...tablesBefore, ...oneSlot }, (machine) => tablesAgreeBefore(machine, []));
 
 /**
- * The field of a version-1 save, as today's machine. That game had no arms: a
+ * The field of a version-1 save, as versions 7 to 9 had it. That game had no arms: a
  * medal was in the air, with its landing spot, from the moment it was dropped.
  * So whatever such a save holds in the air is already in its fall, and lands
  * where and when it was going to, whatever the arms do; nothing is on a rail;
@@ -707,9 +941,9 @@ const machineBeforeArms = shape<MachineBeforeArms>({ ...tables, ...oneSlot }, (m
  * pointing a little to its own side of the middle. Neither slot is free until
  * the one that game had would have been.
  */
-const fieldBeforeArms: Check<StoredMachine> = (value) => {
+const fieldBeforeArms: Check<MachineWithLifts> = (value) => {
   const field = machineBeforeArms(value);
-  return field && asStored(field, { rolling: [], waits: [field.cooldown, field.cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)] });
+  return field && withLifts(field, { rolling: [], waits: [field.cooldown, field.cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)] });
 };
 
 // ── The purse and the counters ──────────────────────────────────────────────
@@ -1181,7 +1415,7 @@ export function serialize(session: Session): string {
 
 /**
  * The session a text was written from, or null when the text is not a save
- * that this game, or one of the eight versions of it before this one, could
+ * that this game, or one of the nine versions of it before this one, could
  * have written. It never throws.
  *
  * The generator's state is shut inside a closure and cannot be read, so it is
@@ -1206,16 +1440,18 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    // The field changed shape at versions 2 and 3, took jewels at version 6 and the payout works at version 7; the
-    // numbers changed at versions 4, 6, 8 and 9; and the ball in the bowls at version 5.
+    // The field changed shape at versions 2 and 3, took jewels at version 6, the payout works at version 7 and the
+    // tubes and today's medals at version 10; the numbers changed at versions 4, 6, 8 and 9; and the ball in the bowls
+    // at version 5. Every field before version 10 is read as versions 7 to 9 wrote theirs, and comes back on a new heap.
     const { version } = save;
-    const withRide = version === STORAGE_VERSION;
+    const withTubes = version === STORAGE_VERSION;
+    const withRide = withTubes || version === VERSION_BEFORE_TUBES;
     const withLamp = withRide || version === VERSION_BEFORE_RIDE;
     const withWorks = withLamp || version === VERSION_BEFORE_LAMP;
     const withJewels = withWorks || version === VERSION_BEFORE_WORKS;
     const withChance = withJewels || version === VERSION_BEFORE_JEWELS || version === VERSION_WITH_ONE_BOWL;
-    const read = withWorks
-      ? storedMachine
+    const readBefore = withWorks
+      ? machineWithLifts
       : withJewels
         ? fieldBeforeWorks
         : withChance || version === VERSION_BEFORE_CHANCE
@@ -1225,7 +1461,8 @@ export function restore(text: string | null, seed: number): Session | null {
             : version === VERSION_BEFORE_ARMS
               ? fieldBeforeArms
               : null;
-    const field = read?.(save.machine);
+    const before = withTubes ? undefined : readBefore?.(save.machine);
+    const field = withTubes ? storedMachine(save.machine) : before && onANewHeap(before, seed);
     const counted = withRide
       ? storedNumbers(save.session)
       : withLamp

@@ -5,7 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { CATCHER, caught, lampShown, nearness } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
-import { AIM, ARM_REACH, CHECKERS, FEED, TOWER, aimArm, armFor, armStart, type Arm } from './engine';
+import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
 import { aimsOnContact, isSidewaysDrag, sweepLead, sweepTo, type WakeKeeper } from './feel';
 import { FeelControls, FeelNote } from './FeelControls';
 import { buzz, hapticFor, noteFed, stopBuzz, takeFed, type FedBy } from './haptics';
@@ -44,7 +44,8 @@ import { savedNoteFor } from './savedNote';
 import { restore } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
 import { hopperBusy } from './hopper';
-import { LIFT, holds as liftHolds } from './lift';
+import { STACK, towersIn } from './stacker';
+import { GATE } from './works';
 import { getWorksStrings } from './worksStrings';
 import { HEIGHT, VIEW, screenPlacement, unproject, unprojectPanel } from './view';
 import look from './ControlPanel.module.css';
@@ -842,28 +843,27 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound('door', soundOn, { up: true });
             if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayPoured(event.medals));
             break;
-          case 'towersRise':
-            // The rings of light come on, which is not heard; then the hatches open and the lifts bring the towers up.
-            // The motor starts as the first medal comes and runs until the tallest tower has its last one, which is a
-            // medal's time after it has gained them all.
-            playSound('lift', soundOn, { after: LIFT.opens, seconds: LIFT.opens + Math.ceil(event.medals / event.towers) / TOWER.perSecond });
+          case 'stacked':
+            // A medal lands on the stack in a tube: on the bare platform if it is the first. One a frame, whatever came.
+            playSound('land', soundOn, { bare: session.machine.stacker.tubes[event.tube].stacked === event.medals && session.machine.stacker.tubes[event.tube].phase === 'stacking' });
             break;
-          case 'hatchesOpen':
-            // The doors of the hatches slide apart: the first of a row's, and the rest are in its ripple.
-            playSound('door', soundOn);
+          case 'towerDown':
+            // The platform's motor lets the built tower down to the deck, and stops.
+            playSound('lift', soundOn, { seconds: STACK.lowers });
             break;
-          case 'guardsRise':
-            // The guards slide up out of their collars and seat: the first of a row's, and the rest are in its ripple.
-            playSound('guard', soundOn, { up: true, seconds: LIFT.rises });
+          case 'gateOpen':
+            // The gate slides aside into the wall, and seats there.
+            playSound('guard', soundOn, { up: true, seconds: STACK.opens });
             break;
-          case 'towersReady':
-            // The towers have stood their moment: the guards sink, and seat as they are down.
-            playSound('guard', soundOn, { seconds: LIFT.sinks });
-            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowers(event.towers));
+          case 'towerOut':
+            // The arm's motor runs while it pushes the tower out and across, and stops as it lets it go.
+            playSound('lift', soundOn, { seconds: STACK.pushes });
+            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowerOut(event.medals, event.tube));
             break;
-          case 'hatchesShut':
-            // The guards are down, and the hatches shut round the towers' feet.
-            playSound('door', soundOn, { up: true });
+          case 'gateShut':
+            // The arm is back in: the gate slides shut and seats, and the platform rises for the next tower.
+            playSound('guard', soundOn, { seconds: GATE.shuts });
+            playSound('lift', soundOn, { after: GATE.shuts, seconds: STACK.returns * (1 - STACK.back) });
             break;
         }
       }
@@ -875,11 +875,12 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         lampOn = lamp;
         if (!session.rush) playSound('lampStep', soundOn);
       }
-      // The field says what the payout works are doing: whether the hopper's doors are open, and how many lifts hold a tower.
-      const works = `${hopperBusy(session.machine.hopper) ? 'open' : 'shut'} ${session.machine.lifts.filter(liftHolds).length}`;
+      // The field says what the payout works are doing: whether the hopper's doors are open, and how many towers the
+      // tubes are stacking, have waiting or are pushing out.
+      const works = `${hopperBusy(session.machine.hopper) ? 'open' : 'shut'} ${session.machine.stacker.tubes.reduce((sum, tube) => sum + towersIn(tube) + (tube.phase === 'pushing' ? 1 : 0), 0)}`;
       if (works !== shownWorks) {
         shownWorks = works;
-        [canvas.dataset.hopper, canvas.dataset.lifts] = works.split(' ');
+        [canvas.dataset.hopper, canvas.dataset.tubes] = works.split(' ');
       }
       // A run of the roulette is several turns and only the first is announced. Each is told by its clock starting
       // again, and the ball is heard round the wheel for the whole of it; without motion it is not seen to go round.

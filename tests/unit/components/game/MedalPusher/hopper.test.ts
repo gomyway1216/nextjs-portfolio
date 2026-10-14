@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { HATCH } from '@/components/game/MedalPusher/arms';
-import { FALL_TIME, FIELD, LANDING, PAYOUT, RELEASE, buildTowers, createMachine, medalsOnField, queuePayout, step, type FallingMedal, type Machine } from '@/components/game/MedalPusher/engine';
+import { FALL_TIME, FIELD, LANDING, PAYOUT, RELEASE, TOWER, buildTowers, createMachine, medalsOnField, queuePayout, step, type FallingMedal, type Machine } from '@/components/game/MedalPusher/engine';
 import { CHANNEL_BAND, CHANNEL_ORDER, DOORS, POUR, channelFrom, channelX, doorsOpen, hopperBusy, shutHopper } from '@/components/game/MedalPusher/hopper';
+import { TUBE_ROOM } from '@/components/game/MedalPusher/stacker';
 import { pourTime } from '@/components/game/MedalPusher/works';
 
 const DT = 1 / 60;
@@ -215,8 +216,8 @@ describe('a prize big enough to pour', () => {
 
   it('pours what the towers could not hold', () => {
     const machine = createMachine(13);
-    // Every place taken, and a jackpot's worth more than they can hold.
-    buildTowers(machine, 18 * 25 + 80);
+    // Every tower the tubes take on, as tall as a tower can be, and more than they can hold.
+    buildTowers(machine, TUBE_ROOM * TOWER.max + 80);
     expect(machine.payoutQueue).toBe(80);
     step(machine, DT);
     expect(machine.hopper.phase).toBe('opening');

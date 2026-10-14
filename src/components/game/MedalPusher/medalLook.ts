@@ -75,11 +75,11 @@ export const FACE_STAR: readonly (readonly [number, number])[] = Array.from({ le
  */
 export const MEDAL_PAINT = {
   glint: '#ffffff',
-  light: '#eef1f5',
-  face: '#b8bec7',
-  dark: '#7d848d',
-  rim: '#666c75',
-  edge: '#40444b',
+  light: '#eff0f2',
+  face: '#bbbec3',
+  dark: '#80848a',
+  rim: '#696d73',
+  edge: '#44474c',
 } as const;
 
 /**
@@ -137,10 +137,10 @@ export function strikeMedal(): HTMLCanvasElement {
   };
 
   const body = g.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r);
-  body.addColorStop(0, '#f7f9fb');
-  body.addColorStop(0.35, '#d0d5dc');
-  body.addColorStop(0.8, '#a3a9b2');
-  body.addColorStop(1, '#7b818a');
+  body.addColorStop(0, '#f8f8f9');
+  body.addColorStop(0.35, '#d2d4d8');
+  body.addColorStop(0.8, '#a6a9ae');
+  body.addColorStop(1, '#7e8186');
   g.fillStyle = body;
   circle(r);
   g.fill();
@@ -186,7 +186,7 @@ export function strikeMedal(): HTMLCanvasElement {
   for (const [dx, dy, fill] of [
     [r * 0.04, r * 0.045, 'rgba(40, 44, 52, 0.75)'],
     [-r * 0.032, -r * 0.036, '#fbfcfd'],
-    [0, 0, '#c4c9d0'],
+    [0, 0, '#c7cacf'],
   ] as const) {
     faceStarPath(g, dx, dy, r);
     g.fillStyle = fill;
@@ -209,7 +209,7 @@ export function strikeMedal(): HTMLCanvasElement {
  * Over that, one more for a medal that is still bright, one that is dulled,
  * one that has gone dark, and one that is faintly warm.
  */
-export const FACES = ['rgba(108, 116, 128, 0.14)', 'rgba(255, 255, 255, 0.24)', 'rgba(62, 64, 68, 0.3)', 'rgba(30, 30, 30, 0.5)', 'rgba(170, 118, 66, 0.2)'] as const;
+export const FACES = ['rgba(112, 116, 122, 0.14)', 'rgba(255, 255, 255, 0.24)', 'rgba(62, 64, 68, 0.3)', 'rgba(30, 30, 30, 0.5)', 'rgba(170, 118, 66, 0.2)'] as const;
 
 /** Which of `FACES` a medal has, fixed by its id: of sixteen medals, six as they are, three bright, four dulled, two dark and one warm. */
 export function faceOf(id: number): number {

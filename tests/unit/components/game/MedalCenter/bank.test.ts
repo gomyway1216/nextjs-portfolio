@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { slotFor, toCloud } from '@/components/game/MedalPusher/account';
+import { fromCloud, slotFor, toCloud } from '@/components/game/MedalPusher/account';
 import { BONUS_CARD, RECORDS_KEY, addDay, claim, createBook, dayNumber, dayOf, serializeBook } from '@/components/game/MedalPusher/records';
 import { RECORDS_GAME_KEY as BOOK_GAME_KEY } from '@/components/game/MedalPusher/recordsStore';
-import { STORAGE_KEY } from '@/components/game/MedalPusher/storage';
+import { createSession } from '@/components/game/MedalPusher/session';
+import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
 import { MACHINE_GAME_KEY } from '@/components/game/MedalPusher/savedMachine';
 import { RECORDS_GAME_KEY, bookKey } from '@/components/game/MedalPusher/recordsStore';
 import { BANKED_KEY, BANK_KEY, CARD_KEY, PUSHER, ledgerKey, purseIn, purseInCopy, settleLedgers, type BankEvent, type SeatHandlers } from '@/components/game/MedalCenter/bank';
@@ -15,6 +16,38 @@ import beforeTheRide from '../MedalPusher/fixtures/save-before-the-ride.json';
 import beforeArms from '../MedalPusher/fixtures/save-before-feed-arms.json';
 import beforeJewels from '../MedalPusher/fixtures/save-before-jewels.json';
 import beforeLamp from '../MedalPusher/fixtures/save-before-the-lucky-lamp.json';
+import beforeChance from '../MedalPusher/fixtures/save-before-chance-time.json';
+import beforeLeftAndRight from '../MedalPusher/fixtures/save-before-left-and-right.json';
+import beforeLipChuckers from '../MedalPusher/fixtures/save-before-lip-chuckers.json';
+import beforeFrontSlots from '../MedalPusher/fixtures/save-before-the-front-slots.json';
+import beforeLampWithWorks from '../MedalPusher/fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
+import beforeWorks from '../MedalPusher/fixtures/save-before-the-payout-works.json';
+import beforeThreeBowls from '../MedalPusher/fixtures/save-before-the-three-bowls.json';
+import beforeTheTubes from '../MedalPusher/fixtures/save-before-the-tubes.json';
+import chanceAndOneBowl from '../MedalPusher/fixtures/save-with-chance-time-and-one-bowl.json';
+import jewelsBeforeWorks from '../MedalPusher/fixtures/save-with-jewels-before-the-payout-works.json';
+import threeBowlsBeforeJewels from '../MedalPusher/fixtures/save-with-the-three-bowls-before-jewels.json';
+import packedInFormat1 from '../MedalPusher/fixtures/copies-packed-in-format-1.json';
+import packedInFormat2 from '../MedalPusher/fixtures/copies-packed-in-format-2.json';
+
+/** Every save of an older version the Medal Pusher's own tests keep, as players' devices and accounts hold them. */
+const OLD_SAVES: { save: string }[] = [
+  beforeArms,
+  beforeLipChuckers,
+  beforeLeftAndRight,
+  beforeFrontSlots,
+  beforeChance,
+  beforeJewels,
+  beforeThreeBowls,
+  chanceAndOneBowl,
+  threeBowlsBeforeJewels,
+  beforeWorks,
+  beforeLamp,
+  jewelsBeforeWorks,
+  beforeLampWithWorks,
+  beforeTheRide,
+  beforeTheTubes,
+];
 
 const UID = 'test-player-1';
 
@@ -72,6 +105,23 @@ describe('the old purses', () => {
     expect(purseInCopy('{"v":1}')).toBeNull();
   });
 
+  it('reads the same purse out of a save of every version as the machine itself does, the version it writes now among them', () => {
+    // A machine of today's version, saved with a purse as a player on main before the bank would have had it saved.
+    const today = createSession(7);
+    today.credits = 432;
+    const saves = [...OLD_SAVES.map((fixture) => fixture.save), serialize(today)];
+    const versions = new Set(saves.map((text) => (JSON.parse(text) as { version: number }).version));
+    // Every version there has been, from the first to the one written now; the one before it is a save of yesterday's main.
+    expect([...versions].sort((a, b) => a - b)).toEqual(Array.from({ length: STORAGE_VERSION }, (_, at) => at + 1));
+    for (const text of saves) {
+      const purse = purseIn(text);
+      expect(purse).toBeGreaterThan(0);
+      // The hub reads only the purse, and the machine reads the whole save onto today's field: they agree.
+      expect(purse).toBe(restore(text, 1)?.credits);
+    }
+    expect(purseIn(serialize(today))).toBe(432);
+  });
+
   it('knows the Medal Pusher’s storage by the names the Medal Pusher keeps it under', () => {
     expect(PUSHER.machineKey).toBe(STORAGE_KEY);
     expect(PUSHER.game).toBe(MACHINE_GAME_KEY);
@@ -104,6 +154,22 @@ describe('the old purses', () => {
     later.bank.subscribe(() => undefined);
     await quiet(browser);
     expect(storedBalance(browser)).toBe(WELCOME);
+  });
+
+  it('moves in a guest’s purse from a save of yesterday’s version and from one of today’s', async () => {
+    const today = createSession(11);
+    today.credits = 2500;
+    for (const save of [beforeTheTubes.save, serialize(today)]) {
+      const purse = purseIn(save) ?? 0;
+      expect(purse).toBeGreaterThan(0);
+      const browser = new FakeBrowser();
+      browser.storage.set(STORAGE_KEY, save);
+      const hub = browser.open();
+      hub.bank.subscribe(() => undefined);
+      await quiet(browser);
+      expect(hub.bank.getState().balance).toBe(purse);
+      expect(stored(browser)?.imports[PUSHER.guestPurse]).toBe(purse);
+    }
   });
 
   it('takes an empty purse for no purse: a machine saved since the bank keeps one, and its player is a new member', async () => {
@@ -484,6 +550,32 @@ describe('the bank of a player who is signed in', () => {
     expect(onAccount && balanceOf(onAccount)).toBe(2000);
     for (const page of pages) expect(page.bank.getState().balance).toBe(2000);
     expect(machines.count('load')).toBeLessThanOrEqual(2);
+  });
+
+  it('moves an account’s old purse in from the account’s machine as it lies there packed in every older format', async () => {
+    // The copies as the packer of their day wrote them on players' accounts: a save of version 6 in format 1, and
+    // yesterday's main's version 9 in format 2. Each is read in the format it says it is in.
+    for (const [fixture, save] of [
+      [packedInFormat1, jewelsBeforeWorks],
+      [packedInFormat2, beforeTheTubes],
+    ] as const) {
+      const { state } = fixture.copies[0];
+      expect(fromCloud(state)?.text).toBe(save.save);
+      const purse = purseIn(save.save) ?? 0;
+      expect(purse).toBeGreaterThan(0);
+      const { browser, accounts, machines } = setup();
+      machines.docs.set(UID, { state, updatedAt: 0 });
+      const page = browser.open();
+      page.bank.subscribe(() => undefined);
+      page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+      await quiet(browser);
+      expect(page.bank.getState()).toMatchObject({ owner: UID, balance: purse });
+      expect(stored(browser, UID)?.imports[PUSHER.accountPurse]).toBe(purse);
+      // And the account has it, as soon as the bank is next sent.
+      await pass(90, [browser], [page]);
+      expect(parseLedger(accounts.text(UID))?.imports[PUSHER.accountPurse]).toBe(purse);
+      expect(machines.count('load')).toBe(1);
+    }
   });
 
   it('keeps a new member’s medals for an account whose machine had an empty purse, and does not look again', async () => {

@@ -74,6 +74,7 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
   const dialogBody = useId();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const resetRef = useRef<HTMLButtonElement | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
 
   // What the bank does on this page is said out loud: a bonus, a refill.
   useEffect(
@@ -113,13 +114,13 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
   const closeDialog = () => {
     setConfirming(false);
     // Back to the button that opened it.
-    window.setTimeout(() => document.querySelector<HTMLButtonElement>('[data-testid="center-reset"]')?.focus(), 0);
+    window.setTimeout(() => openerRef.current?.focus(), 0);
   };
 
   const onReset = () => {
-    setConfirming(false);
     medalBank().reset();
     setAnnouncement(t.sayReset(WELCOME));
+    closeDialog();
   };
 
   const account = state.owner !== null;
@@ -261,7 +262,7 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
             {t.resetTitle}
           </h2>
           <p className={styles.sectionLead}>{t.resetLead}</p>
-          <button type="button" className={styles.resetButton} data-testid="center-reset" aria-haspopup="dialog" disabled={!state.loaded} onClick={() => setConfirming(true)}>
+          <button ref={openerRef} type="button" className={styles.resetButton} data-testid="center-reset" aria-haspopup="dialog" disabled={!state.loaded} onClick={() => setConfirming(true)}>
             {t.resetButton}
           </button>
         </section>

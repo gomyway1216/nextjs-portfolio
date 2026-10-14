@@ -18,7 +18,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('the second press of Reset', () => {
+describe('the second press of a button that takes two (clearing the records)', () => {
   const first = 1_700_000_000_000;
   const window = RESET_WINDOW * 1000;
 
@@ -47,11 +47,12 @@ describe('the second press of Reset', () => {
 });
 
 describe('the cabinet and its save', () => {
-  it('offers a reset that is not armed, and says the machine is kept on this device', () => {
+  it('has no reset of its own, says the medals are the medal bank’s and where they are reset, and that the machine is kept on this device', () => {
     const html = render(<PlayTab />);
-    expect(html).toMatch(/<button[^>]*data-armed="false"[^>]*data-testid="pusher-reset"[^>]*>Reset the machine<\/button>/);
+    expect(html).not.toContain('data-testid="pusher-reset"');
+    expect(html).toMatch(/data-testid="pusher-bank-note"[^>]*>Your medals are not this machine’s: they are in your medal bank/);
+    expect(html).toMatch(/<a[^>]*href="\/games\/medal-center"[^>]*data-testid="pusher-center-link"[^>]*>Go to the Medal Center<\/a>/);
     expect(html).toContain('This machine is saved on this device.');
-    expect(html).not.toContain('Press again to reset');
     // Until a save has been tried, the note is the one the server sent: the page cannot know better yet.
     expect(html).toMatch(/<p[^>]*data-saved="true"[^>]*data-testid="pusher-saved"[^>]*>This machine is saved on this device\./);
     expect(html).not.toContain('could not be saved');
@@ -68,12 +69,12 @@ describe('the cabinet and its save', () => {
 
   it('says so in Japanese', () => {
     const html = render(<PlayTab />, 'ja');
-    expect(html).toMatch(/data-testid="pusher-reset"[^>]*>マシンをリセット<\/button>/);
-    expect(html).toContain('メダルはこの端末に預けてあります。');
+    expect(html).toContain('このマシンはこの端末に預けてあります。');
+    expect(html).toContain('メダルはこのマシンのものではなく、メダルバンクに預けてあります。');
+    expect(html).toMatch(/data-testid="pusher-center-link"[^>]*>メダルゲームセンターへ<\/a>/);
     const ja = getStrings('ja');
-    expect(ja.sayReset(START_CREDITS)).toContain(`${START_CREDITS}枚`);
-    expect(getStrings('en').sayReset(START_CREDITS)).toContain(`${START_CREDITS} medals`);
-    expect(ja.resetConfirm).not.toBe(ja.reset);
+    expect(ja.sayCenterReset).toContain('リセット');
+    expect(getStrings('en').sayCenterReset).toContain('reset');
   });
 
   it('renders a new machine on the server whatever the browser remembers, and never touches storage there', () => {

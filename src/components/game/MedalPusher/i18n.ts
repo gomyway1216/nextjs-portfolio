@@ -72,12 +72,15 @@ export interface PusherStrings {
   autoHint: string;
   sound: string;
   refill: (medals: number) => string;
-  // The machine is saved in the browser, and can be reset
-  reset: string;
-  resetConfirm: string;
+  // The medals are the medal bank's, and are reset at the medal center with every machine
+  bankNote: string;
+  bankLink: string;
+  centerLink: string;
+  cardAway: string;
+  playHere: string;
+  sayCenterReset: string;
+  // The machine is saved in the browser
   savedNote: string;
-  sayReset: (medals: number) => string;
-  sayResetOff: string;
   unsavedNote: string;
   // A player who is signed in has the machine on the account as well
   signInInvite: string;
@@ -85,7 +88,6 @@ export interface PusherStrings {
   offlineNote: string;
   unreadableNote: string;
   checkingNote: string;
-  resetConfirmAccount: string;
   // The same four when this device could not keep its own copy
   accountUnsavedNote: string;
   offlineUnsavedNote: string;
@@ -385,11 +387,13 @@ const en: PusherStrings = {
   autoHint: 'Feeds two medals a second, the left and right rails by turns, each at its own aim',
   sound: 'Sound',
   refill: (medals) => `Out of medals — take ${medals} more`,
-  reset: 'Reset the machine',
-  resetConfirm: 'Press again to reset',
-  savedNote: 'This machine is saved on this device. Your medals, the jackpot and the field are as you left them when you come back.',
-  sayReset: (medals) => `The machine has been reset. You have ${medals} medals.`,
-  sayResetOff: 'Reset cancelled.',
+  bankNote: 'Your medals are not this machine’s: they are in your medal bank, and every game at the Medal Center plays from it. They, and every machine, are reset only at the Medal Center.',
+  bankLink: 'Go to the Medal Center',
+  centerLink: 'Medal Center',
+  cardAway: 'Your medals are being played on a machine in another tab. This machine waits where it is.',
+  playHere: 'Play here',
+  sayCenterReset: 'The medal center has been reset: a new machine, and a new member’s medals in the bank.',
+  savedNote: 'This machine is saved on this device. The field and the jackpot are as you left them when you come back.',
   unsavedNote: 'This machine could not be saved on this device: the browser is blocking storage, or it is full. It will start again when the page is reloaded.',
   signInInvite: 'Sign in to keep it on your account.',
   accountNote: 'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave, and this device keeps a copy.',
@@ -397,7 +401,6 @@ const en: PusherStrings = {
   unreadableNote:
     'The machine saved to your account cannot be read by this page; it may come from a newer version of the game. It has been left as it is, and the machine here is kept on this device only. Reloading the page may help.',
   checkingNote: 'Looking for the machine saved to your account…',
-  resetConfirmAccount: 'Press again to reset the machine on your account',
   accountUnsavedNote:
     'This machine is saved to your account, so it follows you to your other devices. It is sent about once a minute and when you leave. This device could not keep a copy of its own: the browser is blocking storage, or it is full.',
   offlineUnsavedNote:
@@ -717,11 +720,13 @@ const ja: PusherStrings = {
   autoHint: '左右のレールに交互に、毎秒2枚入れます。それぞれのレールの狙いに落ちます',
   sound: '音',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
-  reset: 'マシンをリセット',
-  resetConfirm: 'もう一度押すとリセットします',
-  savedNote: 'メダルはこの端末に預けてあります。次に来たときも、メダル・ジャックポット・フィールドはそのまま残っています。',
-  sayReset: (medals) => `マシンをリセットしました。メダルは${medals}枚です。`,
-  sayResetOff: 'リセットを取り消しました。',
+  bankNote: 'メダルはこのマシンのものではなく、メダルバンクに預けてあります。メダルゲームセンターのどのゲームも、ここから遊びます。メダルとすべてのマシンのリセットは、メダルゲームセンターでのみ行えます。',
+  bankLink: 'メダルゲームセンターへ',
+  centerLink: 'メダルゲームセンター',
+  cardAway: 'メダルは別のタブのマシンで遊ばれています。このマシンはそのまま待っています。',
+  playHere: 'ここで遊ぶ',
+  sayCenterReset: 'メダルゲームセンターをリセットしました。マシンは新しくなり、バンクには新規会員のメダルが入っています。',
+  savedNote: 'このマシンはこの端末に預けてあります。次に来たときも、フィールドとジャックポットはそのまま残っています。',
   unsavedNote: 'この端末には保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。ページを読み込み直すと、マシンは最初からになります。',
   signInInvite: 'サインインすると、アカウントに預けておけます。',
   accountNote: 'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られ、この端末にも控えが残ります。',
@@ -729,7 +734,6 @@ const ja: PusherStrings = {
   unreadableNote:
     'アカウントに預けてあるマシンを、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここのマシンはこの端末にだけ預けています。ページを読み込み直すと直ることがあります。',
   checkingNote: 'アカウントに預けたマシンを確認しています…',
-  resetConfirmAccount: 'もう一度押すと、アカウントのマシンをリセットします',
   accountUnsavedNote:
     'このマシンはアカウントに預けてあります。ほかの端末でも続きから遊べます。およそ1分ごとと、ページを離れるときに送られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
   offlineUnsavedNote:

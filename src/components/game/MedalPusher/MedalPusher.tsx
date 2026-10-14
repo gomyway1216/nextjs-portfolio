@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank } from '../MedalCenter/bank';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import type { AccountStore } from './account';
 import { BonusDot } from './DailyBonus';
 import { POUR } from './hopper';
@@ -35,17 +37,22 @@ const TitleMedal = () => (
 export interface MedalPusherProps extends Pick<PlayTabProps, 'player' | 'store' | 'signInHref'> {
   /** The account's store for the record book, which is a document of its own beside the machine. Without one the book is this device's alone. */
   recordsStore?: AccountStore | null;
+  /** The account's store for the medal bank, which every game at the medal center plays from. Without one the bank is this device's alone. */
+  bankStore?: AccountStore | null;
 }
 
 /** The game. Who is playing and where their machine is kept is the cabinet's business: it is passed straight on. */
-export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: MedalPusherProps = {}) => {
+export const MedalPusher = ({ player, store, signInHref, recordsStore = null, bankStore = null }: MedalPusherProps = {}) => {
   const [tab, setTab] = useState<Tab>('machine');
-  // The record book follows the player as the machine does. It is told who they are before anything on the page
-  // listens to it (a layout effect runs before the effects that listen), so the first book it opens is theirs.
+  // The record book and the medal bank follow the player as the machine does. They are told who they are before
+  // anything on the page listens to them (a layout effect runs before the effects that listen), so the first book and
+  // the first bank they open are theirs. The bank is told where the machine is kept on the account too: a machine
+  // from before the bank may have had a purse, which is moved into the bank once.
   const { uid = null, settled = true, expected = false } = player ?? {};
   useLayoutEffect(() => {
     records.attend({ uid, settled, expected }, recordsStore);
-  }, [uid, settled, expected, recordsStore]);
+    medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? (store ?? null) : null);
+  }, [uid, settled, expected, recordsStore, bankStore, store]);
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
@@ -82,6 +89,11 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null }: 
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The machine stands in the medal center, whose front has the bank, the daily bonus and the reset. */}
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="pusher-center">
+              <span aria-hidden>← </span>
+              {t.centerLink}
+            </a>
             <h1 className={styles.title}>
               <TitleMedal /> {t.title}
             </h1>

@@ -273,6 +273,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'medal-center',
+    title: 'Medal Game Center',
+    description: 'A Japanese arcade’s medal counter: one medal bank for every machine on the floor, kept on your account, with a daily bonus, a free refill when you run out, and the one reset.',
+    thumbnail: '🏦',
+    path: '/games/medal-center',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'medal-pusher',
     title: 'Medal Pusher',
     description: 'Drop medals into a Japanese-style arcade pusher: spin the slot, roll the sugoroku die, pick a treasure chest, topple medal towers and push prize balls over the edge — then measure how much the open sides keep.',

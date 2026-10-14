@@ -2,9 +2,11 @@
 
 import { useEffect, type CSSProperties } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank, useBank, type BankState } from '../MedalCenter/bank';
+import { cardOf } from '../MedalCenter/ledger';
 import { CHAIN_GOAL, CHESTS } from './lottery';
-import { BONUS_CARD, MANY_MEDALS, WEEK, cardFor, type AchievementId, type BonusCard } from './records';
-import { records, useRecords, type RecordsState } from './recordsStore';
+import { BONUS_CARD, MANY_MEDALS, WEEK, type AchievementId, type BonusCard } from './records';
+import { records, useRecords } from './recordsStore';
 import { getRecordStrings, type AchievementNumbers, type RecordStrings } from './recordsStrings';
 import { MAX_STOCK } from './session';
 import { AchievementStamp, DateStamp, InkPad, useInk } from './Stamps';
@@ -21,24 +23,25 @@ const TOAST_TRACK: CSSProperties = { aspectRatio: `${VIEW.width} / ${VIEW.height
 /** The numbers the achievements' conditions quote, from the game's own tables. */
 export const ACHIEVEMENT_NUMBERS: AchievementNumbers = { hold: MAX_STOCK, chest: Math.max(...CHESTS), run: CHAIN_GOAL, medals: MANY_MEDALS, days: WEEK };
 
-/** The card as the page can show it now: null until the book has been read. */
-const cardOf = ({ book, day }: RecordsState): BonusCard | null => (book && day ? cardFor(book, day) : null);
+/**
+ * The card as the page can show it now: null until the bank has been read. The daily bonus is the medal bank's,
+ * which every game at the medal center shares, and the card is worked out from the days it was taken on.
+ */
+export const cardNow = ({ ledger, day }: BankState): BonusCard | null => (ledger && day ? cardOf(ledger, day) : null);
 
-/** Whether this browser pays a daily bonus at all: it keeps the book, and it keeps its tabs apart, so that a day cannot be paid twice. */
-export const paysBonus = (state: RecordsState): boolean => state.kept && state.apart;
+/** Whether this browser pays a daily bonus at all: it keeps the bank, and it keeps its tabs apart, so that a day cannot be paid twice. */
+export const paysBonus = (state: BankState): boolean => state.kept && state.apart;
 
-/** Whether today's bonus can be taken here and now: it is ready, this browser pays one, and a machine is there to be paid. */
-export const canTake = (state: RecordsState, card: BonusCard | null): boolean =>
-  card !== null && card.state === 'ready' && paysBonus(state) && state.purse && !state.asking;
+/** Whether today's bonus can be taken here and now: it is ready, this browser pays one, and nothing is still being asked. */
+export const canTake = (state: BankState, card: BonusCard | null): boolean => card !== null && card.state === 'ready' && paysBonus(state) && state.loaded && !state.asking;
 
 /** What the card has to say for itself, in a sentence or two. */
-export function bonusStatus(t: RecordStrings, state: RecordsState, card: BonusCard | null): string {
+export function bonusStatus(t: RecordStrings, state: BankState, card: BonusCard | null): string {
   if (!card) return t.bonusWaiting;
   if (!state.kept) return t.bonusNotKept;
   if (!state.apart) return t.bonusNotApart;
   switch (card.state) {
     case 'ready':
-      if (!state.purse) return t.bonusNoMachine;
       // A press is waiting to hear whether another device has taken today's already.
       if (state.asking) return t.bonusAsking;
       return `${card.restarted ? `${t.bonusRestarted} ` : ''}${t.bonusReady(card.today, card.medals)}`;
@@ -57,14 +60,14 @@ export function bonusStatus(t: RecordStrings, state: RecordsState, card: BonusCa
  * place and says nothing of the day, so the page the server sent and the page
  * in the browser begin the same.
  */
-export const BonusStrip = () => <BonusStripView state={useRecords()} />;
+export const BonusStrip = () => <BonusStripView state={useBank()} />;
 
-/** The plate for a given state of the book. */
-export const BonusStripView = ({ state }: { state: RecordsState }) => {
+/** The plate for a given state of the bank. */
+export const BonusStripView = ({ state }: { state: BankState }) => {
   const { language } = useGameLanguage();
   const t = getRecordStrings(language);
   const ink = useInk();
-  const card = cardOf(state);
+  const card = cardNow(state);
   const stampedHere = state.claims > 0 && card?.state === 'taken';
 
   return (
@@ -84,7 +87,7 @@ export const BonusStripView = ({ state }: { state: RecordsState }) => {
         </p>
       </div>
       {card && canTake(state, card) ? (
-        <button type="button" className={styles.take} data-testid="pusher-bonus-take" onClick={() => records.claimBonus()}>
+        <button type="button" className={styles.take} data-testid="pusher-bonus-take" onClick={() => medalBank().claimBonus()}>
           {t.bonusTake(card.medals)}
           <span className={styles.srOnly}>{t.bonusTakeMore}</span>
         </button>
@@ -100,12 +103,15 @@ export const BonusStripView = ({ state }: { state: RecordsState }) => {
 };
 
 /** The stamp card itself, on the Records tab: the week's seven squares, what each gives, and the stamps so far. */
-export const StampCard = ({ state }: { state: RecordsState }) => {
+export const StampCard = () => <StampCardView state={useBank()} />;
+
+/** The card for a given state of the bank. */
+export const StampCardView = ({ state }: { state: BankState }) => {
   const { language } = useGameLanguage();
   const t = getRecordStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const ink = useInk();
-  const card = cardOf(state);
+  const card = cardNow(state);
   const stampedHere = state.claims > 0 && card?.state === 'taken';
 
   return (
@@ -147,7 +153,7 @@ export const StampCard = ({ state }: { state: RecordsState }) => {
       </ol>
       <div className={styles.cardAction}>
         {card && canTake(state, card) && (
-          <button type="button" className={styles.take} data-testid="pusher-card-take" onClick={() => records.claimBonus()}>
+          <button type="button" className={styles.take} data-testid="pusher-card-take" onClick={() => medalBank().claimBonus()}>
             {t.bonusTake(card.medals)}
             <span className={styles.srOnly}>{t.bonusTakeMore}</span>
           </button>
@@ -163,10 +169,10 @@ export const StampCard = ({ state }: { state: RecordsState }) => {
 };
 
 /** A dot on the Records tab while today's bonus is waiting to be taken. */
-export const BonusDot = () => <BonusDotView state={useRecords()} />;
+export const BonusDot = () => <BonusDotView state={useBank()} />;
 
-export const BonusDotView = ({ state }: { state: RecordsState }) => {
-  const card = cardOf(state);
+export const BonusDotView = ({ state }: { state: BankState }) => {
+  const card = cardNow(state);
   return card?.state === 'ready' && paysBonus(state) ? <span className={styles.dot} aria-hidden data-testid="pusher-bonus-dot" /> : null;
 };
 

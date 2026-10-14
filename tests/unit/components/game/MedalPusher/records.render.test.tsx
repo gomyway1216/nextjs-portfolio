@@ -6,7 +6,9 @@ import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
-import { ACHIEVEMENT_NUMBERS, BonusDot, BonusDotView, BonusStrip, BonusStripView, StampCard, TOAST_SECONDS, ToastView, bonusStatus, canTake } from '@/components/game/MedalPusher/DailyBonus';
+import { WAITING as BANK_WAITING, type BankState } from '@/components/game/MedalCenter/bank';
+import { createLedger } from '@/components/game/MedalCenter/ledger';
+import { ACHIEVEMENT_NUMBERS, BonusDot, BonusDotView, BonusStrip, BonusStripView, StampCardView, TOAST_SECONDS, ToastView, bonusStatus, canTake, cardNow } from '@/components/game/MedalPusher/DailyBonus';
 import { PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { RecordsTab, RecordsView, boardValue } from '@/components/game/MedalPusher/RecordsTab';
 import { stampDate, tiltOf } from '@/components/game/MedalPusher/Stamps';
@@ -19,7 +21,6 @@ import {
   MANY_MEDALS,
   RECORDS_KEY,
   WEEK,
-  cardFor,
   claim,
   createBook,
   dayNumber,
@@ -47,8 +48,19 @@ afterEach(() => {
 
 const MONDAY: Day = '2026-10-12';
 const after = (days: number): Day => dayOf((dayNumber(MONDAY) as number) + days);
-/** The page with a book read: kept, with a machine to pay into. */
-const reading = (book: RecordBook, day: Day = MONDAY, more: Partial<RecordsState> = {}): RecordsState => ({ ...WAITING, book, day, purse: true, ...more });
+/** The page with a book read, and kept. */
+const reading = (book: RecordBook, day: Day = MONDAY, more: Partial<RecordsState> = {}): RecordsState => ({ ...WAITING, book, day, ...more });
+/**
+ * The medal bank read, which pays the daily bonus now, with the days a book took it on: kept, in a browser that keeps
+ * its tabs apart. The bank goes by a record book's days from before it paid the bonus, so a book stands for them here.
+ */
+const banking = (book: RecordBook, day: Day = MONDAY, more: Partial<BankState> = {}): BankState => ({
+  ...BANK_WAITING,
+  loaded: true,
+  day,
+  ledger: { ...createLedger('device0001'), claimed: book.claimed },
+  ...more,
+});
 const taking = (days: Day[], book = createBook('device0001')): RecordBook => days.reduce((kept, day) => claim(kept, day).book, book);
 /** What one thing on the page shows, by its test id. There has to be exactly one thing of that name, as there has to be for a test in a browser. */
 const shown = (html: string, id: string): string => {
@@ -181,7 +193,7 @@ describe('the bonus plate beside the cabinet', () => {
   const book = createBook('device0001');
 
   it('offers the first day’s bonus, with the button that takes it', () => {
-    const html = render(<BonusStripView state={reading(book)} />);
+    const html = render(<BonusStripView state={banking(book)} />);
     expect(html).toContain('data-state="ready"');
     expect(shown(html, 'pusher-bonus-status')).toBe(`Day 1 is ready: ${BONUS_CARD[0]} medals.`);
     expect(html).toMatch(new RegExp(`<button[^>]*data-testid="pusher-bonus-take"[^>]*>TAKE \\+${BONUS_CARD[0]}<span[^>]*> medals: today’s daily bonus</span></button>`));
@@ -193,68 +205,68 @@ describe('the bonus plate beside the cabinet', () => {
 
   it('shows the week so far and what today gives', () => {
     const three = taking([after(-3), after(-2), after(-1)]);
-    const html = render(<BonusStripView state={reading(three)} />);
+    const html = render(<BonusStripView state={banking(three)} />);
     expect(shown(html, 'pusher-bonus-status')).toBe(`Day 4 is ready: ${BONUS_CARD[3]} medals.`);
     expect(count(html, /data-on="true"/g)).toBe(3);
     expect(html).toContain(`aria-label="3 of ${BONUS_CARD.length} stamped"`);
-    expect(render(<BonusStripView state={reading(three)} />, 'ja')).toContain(`4日目のボーナスを受け取れます: ${BONUS_CARD[3]}枚`);
+    expect(render(<BonusStripView state={banking(three)} />, 'ja')).toContain(`4日目のボーナスを受け取れます: ${BONUS_CARD[3]}枚`);
   });
 
   it('shows today’s stamp once it is taken, and what tomorrow gives', () => {
     const taken = taking([after(-1), MONDAY]);
-    const html = render(<BonusStripView state={reading(taken)} />);
+    const html = render(<BonusStripView state={banking(taken)} />);
     expect(html).toContain('data-state="taken"');
     expect(html).not.toContain('<button');
     expect(shown(html, 'pusher-bonus-status')).toBe(`Stamped today: +${BONUS_CARD[1]} medals. Tomorrow: +${BONUS_CARD[2]}.`);
     expect(html).toContain('26.10.12');
     // The stamp comes down only on the page that took it.
     expect(html).toContain('data-fresh="false"');
-    expect(render(<BonusStripView state={reading(taken, MONDAY, { claims: 1, paid: BONUS_CARD[1] })} />)).toContain('data-fresh="true"');
+    expect(render(<BonusStripView state={banking(taken, MONDAY, { claims: 1 })} />)).toContain('data-fresh="true"');
   });
 
   it('says so when a day was missed, when the card is full, and when the card is ahead of the clock', () => {
     const t = getRecordStrings('en');
-    const missed = reading(taking([after(-4), after(-3)]));
-    expect(bonusStatus(t, missed, cardFor(missed.book as RecordBook, MONDAY))).toBe(`A day was missed, so this is a new card. Day 1 is ready: ${BONUS_CARD[0]} medals.`);
-    const full = reading(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))));
-    expect(bonusStatus(t, full, cardFor(full.book as RecordBook, MONDAY))).toBe(`Stamped today: +${BONUS_CARD[6]} medals. The card is full! A new one starts tomorrow: +${BONUS_CARD[0]}.`);
-    const ahead = reading(taking([MONDAY, after(3)]));
-    expect(bonusStatus(t, ahead, cardFor(ahead.book as RecordBook, MONDAY))).toBe(`The card is stamped ahead of today. The next bonus is on Oct 16, 2026: +${BONUS_CARD[1]}.`);
+    const missed = banking(taking([after(-4), after(-3)]));
+    expect(bonusStatus(t, missed, cardNow(missed))).toBe(`A day was missed, so this is a new card. Day 1 is ready: ${BONUS_CARD[0]} medals.`);
+    const full = banking(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))));
+    expect(bonusStatus(t, full, cardNow(full))).toBe(`Stamped today: +${BONUS_CARD[6]} medals. The card is full! A new one starts tomorrow: +${BONUS_CARD[0]}.`);
+    const ahead = banking(taking([MONDAY, after(3)]));
+    expect(bonusStatus(t, ahead, cardNow(ahead))).toBe(`The card is stamped ahead of today. The next bonus is on Oct 16, 2026: +${BONUS_CARD[1]}.`);
     const html = render(<BonusStripView state={ahead} />);
     expect(html).toContain('data-state="later"');
     expect(html).not.toContain('<button');
-    const offCalendar = reading(book, '2150-01-01');
-    expect(bonusStatus(t, offCalendar, cardFor(book, '2150-01-01'))).toBe(t.bonusNoDay);
-    expect(bonusStatus(getRecordStrings('ja'), ahead, cardFor(ahead.book as RecordBook, MONDAY))).toContain('2026年10月16日');
+    const offCalendar = banking(book, '2150-01-01');
+    expect(bonusStatus(t, offCalendar, cardNow(offCalendar))).toBe(t.bonusNoDay);
+    expect(bonusStatus(getRecordStrings('ja'), ahead, cardNow(ahead))).toContain('2026年10月16日');
   });
 
-  it('offers nothing where the book is not kept or no machine is running, and says why', () => {
+  it('offers nothing where the bank is not kept or not read yet, and says why', () => {
     const t = getRecordStrings('en');
-    const notKept = reading(book, MONDAY, { kept: false });
-    const noMachine = reading(book, MONDAY, { purse: false });
-    expect(canTake(reading(book), cardFor(book, MONDAY))).toBe(true);
-    expect(canTake(notKept, cardFor(book, MONDAY))).toBe(false);
-    expect(canTake(noMachine, cardFor(book, MONDAY))).toBe(false);
-    expect(canTake(WAITING, null)).toBe(false);
+    const notKept = banking(book, MONDAY, { kept: false });
+    const notRead = banking(book, MONDAY, { loaded: false });
+    expect(canTake(banking(book), cardNow(banking(book)))).toBe(true);
+    expect(canTake(notKept, cardNow(notKept))).toBe(false);
+    expect(canTake(notRead, cardNow(notRead))).toBe(false);
+    expect(canTake(BANK_WAITING, null)).toBe(false);
     const html = render(<BonusStripView state={notKept} />);
     expect(html).toContain('data-state="off"');
     expect(html).not.toContain('<button');
     expect(shown(html, 'pusher-bonus-status')).toBe(t.bonusNotKept);
-    expect(shown(render(<BonusStripView state={noMachine} />), 'pusher-bonus-status')).toBe(t.bonusNoMachine);
-    expect(render(<BonusStripView state={noMachine} />)).not.toContain('<button');
+    expect(t.bonusNotKept).toContain('medal bank');
+    expect(render(<BonusStripView state={notRead} />)).not.toContain('<button');
   });
 
   it('offers nothing in a browser that cannot keep its tabs apart, and says why, on the plate, the card and the tab', () => {
     for (const lang of ['en', 'ja'] as const) {
       const t = getRecordStrings(lang);
-      const state = reading(book, MONDAY, { apart: false });
-      expect(canTake(state, cardFor(book, MONDAY))).toBe(false);
+      const state = banking(book, MONDAY, { apart: false });
+      expect(canTake(state, cardNow(state))).toBe(false);
       const plate = render(<BonusStripView state={state} />, lang);
       expect(plate).toContain('data-state="off"');
       expect(plate).not.toContain('<button');
       expect(plate).not.toContain('data-today="true"');
       expect(shown(plate, 'pusher-bonus-status')).toBe(t.bonusNotApart);
-      const card = render(<StampCard state={state} />, lang);
+      const card = render(<StampCardView state={state} />, lang);
       expect(card).toMatch(/data-state="off"[^>]*data-testid="pusher-card"/);
       expect(card).not.toContain('pusher-card-take');
       expect(card).not.toContain('data-today="true"');
@@ -264,23 +276,23 @@ describe('the bonus plate beside the cabinet', () => {
     expect(getRecordStrings('en').bonusNotApart).toContain('no way to keep two tabs');
     expect(getRecordStrings('ja').bonusNotApart).toContain('2つのタブ');
     // A book that is not kept says that first: it is the nearer reason.
-    const neither = reading(book, MONDAY, { apart: false, kept: false });
+    const neither = banking(book, MONDAY, { apart: false, kept: false });
     expect(shown(render(<BonusStripView state={neither} />), 'pusher-bonus-status')).toBe(getRecordStrings('en').bonusNotKept);
   });
 
   it('puts a dot on the Records tab while the bonus is waiting, and takes it off once it is taken', () => {
-    expect(render(<BonusDotView state={reading(book)} />)).toContain('data-testid="pusher-bonus-dot"');
-    expect(render(<BonusDotView state={reading(book)} />)).toContain('aria-hidden="true"');
-    expect(render(<BonusDotView state={reading(taking([MONDAY]))} />)).toBe('');
-    expect(render(<BonusDotView state={reading(book, MONDAY, { kept: false })} />)).toBe('');
-    expect(render(<BonusDotView state={WAITING} />)).toBe('');
+    expect(render(<BonusDotView state={banking(book)} />)).toContain('data-testid="pusher-bonus-dot"');
+    expect(render(<BonusDotView state={banking(book)} />)).toContain('aria-hidden="true"');
+    expect(render(<BonusDotView state={banking(taking([MONDAY]))} />)).toBe('');
+    expect(render(<BonusDotView state={banking(book, MONDAY, { kept: false })} />)).toBe('');
+    expect(render(<BonusDotView state={BANK_WAITING} />)).toBe('');
   });
 });
 
 describe('the stamp card', () => {
   it('stamps the days taken with their dates, marks today’s square, and reads each square out', () => {
     const three = taking([after(-3), after(-2), after(-1)]);
-    const html = render(<StampCard state={reading(three)} />);
+    const html = render(<StampCardView state={banking(three)} />);
     expect(count(html, /data-stamped="true"/g)).toBe(3);
     expect(count(html, /data-today="true"/g)).toBe(1);
     expect(html).toMatch(/data-stamped="false" data-today="true" data-last="false"/);
@@ -297,7 +309,7 @@ describe('the stamp card', () => {
   it('says on the card that free medals change no return, and what a changed clock gets', () => {
     for (const lang of ['en', 'ja'] as const) {
       const t = getRecordStrings(lang);
-      const html = render(<StampCard state={reading(createBook('device0001'))} />, lang);
+      const html = render(<StampCardView state={banking(createBook('device0001'))} />, lang);
       expect(html).toContain(t.cardNote);
       expect(html).toContain(t.clockNote);
       expect(html).toContain(t.cardLead(WEEK));
@@ -310,10 +322,10 @@ describe('the stamp card', () => {
   });
 
   it('is a full card on the seventh day, and a new one after a missed day', () => {
-    const full = render(<StampCard state={reading(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))))} />);
+    const full = render(<StampCardView state={banking(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))))} />);
     expect(count(full, /data-stamped="true"/g)).toBe(WEEK);
     expect(full).not.toContain('pusher-card-take');
-    const missed = render(<StampCard state={reading(taking([after(-5), after(-4), after(-3), after(-2)]))} />);
+    const missed = render(<StampCardView state={banking(taking([after(-5), after(-4), after(-3), after(-2)]))} />);
     expect(count(missed, /data-stamped="true"/g)).toBe(0);
     expect(missed).toMatch(/data-stamped="false" data-today="true" data-last="false"/);
     expect(shown(missed, 'pusher-card-status')).toContain('A day was missed');
@@ -460,14 +472,14 @@ describe('the record board and the achievement sheet', () => {
   it('holds the bonus back, and says why, while the account is asked whether another device has taken it', () => {
     for (const lang of ['en', 'ja'] as const) {
       const t = getRecordStrings(lang);
-      const ready = reading(createBook('device0001'));
+      const ready = banking(createBook('device0001'));
       const asking = { ...ready, where: 'account' as const, asking: true };
-      expect(canTake(ready, cardFor(ready.book as RecordBook, MONDAY))).toBe(true);
-      expect(canTake(asking, cardFor(ready.book as RecordBook, MONDAY))).toBe(false);
+      expect(canTake(ready, cardNow(ready))).toBe(true);
+      expect(canTake(asking, cardNow(asking))).toBe(false);
       const html = render(<BonusStripView state={asking} />, lang);
       expect(shown(html, 'pusher-bonus-status')).toBe(t.bonusAsking);
       expect(html).not.toContain('pusher-bonus-take');
-      expect(render(<StampCard state={asking} />, lang)).not.toContain('pusher-card-take');
+      expect(render(<StampCardView state={asking} />, lang)).not.toContain('pusher-card-take');
     }
   });
 
@@ -490,14 +502,20 @@ describe('the names the tests find things by', () => {
   const book = createBook('device0001');
   const states: [string, RecordsState][] = [
     ['before the book is read', WAITING],
-    ['an empty book, the bonus ready', reading(book)],
-    ['a book that has been played, the bonus ready', reading(played())],
-    ['the bonus taken on this page', reading(taking([MONDAY]), MONDAY, { claims: 1, paid: BONUS_CARD[0] })],
-    ['a full card', reading(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))))],
+    ['an empty book', reading(book)],
+    ['a book that has been played', reading(played())],
     ['the book not kept', reading(book, MONDAY, { kept: false })],
-    ['a browser that cannot keep its tabs apart', reading(book, MONDAY, { apart: false })],
-    ['no machine running', reading(book, MONDAY, { purse: false })],
     ['a stamp just earned', reading(played(), MONDAY, { fresh: ['jackpot'] })],
+  ];
+  // The daily bonus is the medal bank's: the plate and the card show the bank's card, in each state it can be in.
+  const bankStates: [string, BankState][] = [
+    ['before the bank is read', BANK_WAITING],
+    ['the bonus ready', banking(book)],
+    ['the bonus taken on this page', banking(taking([MONDAY]), MONDAY, { claims: 1 })],
+    ['a full card', banking(taking(Array.from({ length: WEEK }, (_, index) => after(index - WEEK + 1))))],
+    ['the bank not kept', banking(book, MONDAY, { kept: false })],
+    ['a browser that cannot keep its tabs apart', banking(book, MONDAY, { apart: false })],
+    ['the account being asked', banking(book, MONDAY, { asking: true, where: 'account' })],
   ];
 
   it('are each one thing’s alone on the Records tab, in every state and both languages', () => {
@@ -516,9 +534,12 @@ describe('the names the tests find things by', () => {
     }
     // Every row of the board has its name, and so has everything the tests in the browser ask for.
     for (const row of BOARD_GROUPS.flatMap((group) => [...BOARD_ROWS[group]])) expect(ids).toContain(`pusher-record-${row}`);
-    for (const id of ['pusher-records', 'pusher-card', 'pusher-card-squares', 'pusher-card-take', 'pusher-card-status', 'pusher-records-board', 'pusher-achievements', 'pusher-achievements-count', 'pusher-records-kept', 'pusher-records-clear', 'pusher-records-said']) {
+    for (const id of ['pusher-records', 'pusher-card', 'pusher-card-squares', 'pusher-card-status', 'pusher-records-board', 'pusher-achievements', 'pusher-achievements-count', 'pusher-records-kept', 'pusher-records-clear', 'pusher-records-said']) {
       expect(ids, id).toContain(id);
     }
+    // The card on the tab is the bank's, and has its button while the day's bonus is ready; it is one thing's alone in each state.
+    for (const [name, state] of bankStates) expect(sharedIds(render(<StampCardView state={state} />)), name).toEqual([]);
+    expect(testIds(render(<StampCardView state={banking(book)} />))).toContain('pusher-card-take');
   });
 
   it('are each one thing’s alone on the Machine tab, with the plate and the toast in every state', () => {
@@ -527,10 +548,10 @@ describe('the names the tests find things by', () => {
     expect(sharedIds(cabinet)).toEqual([]);
     for (const id of ['pusher-toast', 'pusher-bonus', 'pusher-bonus-pips', 'pusher-bonus-status']) expect(testIds(cabinet), id).toContain(id);
     const others = testIds(cabinet).filter((id) => !id.startsWith('pusher-bonus') && id !== 'pusher-toast');
-    for (const [name, state] of states) {
+    for (const [name, state] of bankStates) {
       const mine = render(
         <>
-          <ToastView id={state.fresh.length > 0 ? state.fresh[0] : null} />
+          <ToastView id={name === 'the bonus ready' ? 'jackpot' : null} />
           <BonusStripView state={state} />
         </>,
       );
@@ -538,7 +559,7 @@ describe('the names the tests find things by', () => {
       // Nothing of the plate's or the toast's goes by a name the cabinet already uses.
       expect(testIds(mine).filter((id) => others.includes(id)), name).toEqual([]);
     }
-    expect(testIds(render(<BonusStripView state={reading(book)} />))).toContain('pusher-bonus-take');
+    expect(testIds(render(<BonusStripView state={banking(book)} />))).toContain('pusher-bonus-take');
   });
 
   it('are not shared between the Machine tab and the Records tab either, but for nothing', () => {

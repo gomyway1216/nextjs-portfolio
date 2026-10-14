@@ -269,6 +269,8 @@ export interface BankState {
   ledger: Ledger | null;
   /** Whether a press on the bonus is waiting to hear from the account. */
   asking: boolean;
+  /** How many days' bonuses have been taken on this page: the stamp for the one just taken is struck fresh. */
+  claims: number;
   /**
    * The card, for a page with a machine: held here, being asked for, held by a
    * machine in another tab (`away`, the machine here paused until the player
@@ -277,7 +279,7 @@ export interface BankState {
   card: 'here' | 'asking' | 'away' | 'none';
 }
 
-export const WAITING: BankState = { loaded: false, balance: 0, owed: 0, owner: null, where: 'device', kept: true, apart: true, day: null, ledger: null, asking: false, card: 'none' };
+export const WAITING: BankState = { loaded: false, balance: 0, owed: 0, owner: null, where: 'device', kept: true, apart: true, day: null, ledger: null, asking: false, claims: 0, card: 'none' };
 
 /** Something that happened to the bank that a machine on the page acts out. */
 export type BankEvent =
@@ -354,6 +356,8 @@ export function createBank(env: BankEnv) {
   /** When the account is to be read again, to see that the last write was not written over. */
   let checkAt: number | null = null;
   let asking: { at: Desk; until: number } | null = null;
+  /** How many days' bonuses this page has paid. */
+  let claims = 0;
   /** The accounts whose machine has been looked at for a purse from before the bank, on this page. */
   const looked = new Set<string>();
 
@@ -383,6 +387,7 @@ export function createBank(env: BankEnv) {
       day: started ? env.today() : null,
       ledger,
       asking: asking !== null,
+      claims,
       card,
     };
     for (const listener of [...listeners]) listener();
@@ -935,6 +940,7 @@ export function createBank(env: BankEnv) {
       }
       at.ledger = ledger;
       if (!store(at)) return;
+      claims += 1;
       tell({ type: 'bonus', medals });
       sync?.save('moment');
     });

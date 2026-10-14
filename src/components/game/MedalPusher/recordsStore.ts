@@ -4,9 +4,12 @@
  * The record book in the browser: where `records.ts`, which is only
  * arithmetic, meets the things it must not touch itself. This reads the
  * player's clock for the day, keeps the book in the browser's storage, hears
- * from the cabinet what the machine did, pays the day's bonus into the
- * machine's purse, and keeps the book of a player who is signed in on their
- * account as well.
+ * from the cabinet what the machine did, and keeps the book of a player who
+ * is signed in on their account as well.
+ *
+ * The day's bonus is not the book's any more. It is the medal bank's, which
+ * every game at the medal center shares (MedalCenter/bank.ts), and the bank
+ * goes by the days this book took it on before, so that none is paid twice.
  *
  * The page is drawn on the server first, where there is no browser, no book
  * and no today. So nothing is read until the page is in the browser and
@@ -14,8 +17,8 @@
  * `WAITING`, and everything that shows the book draws its empty form.
  *
  * The day is looked at once a second, by a timer. A page left open over
- * midnight finds the new day's bonus ready without being loaded again, and so
- * does one whose clock is changed under it.
+ * midnight counts what is played after it on the new day, and so does one
+ * whose clock is changed under it.
  *
  * Several tabs of the game share one stored book, and storage can only read a
  * value or write one: a tab that reads, works something out and writes can
@@ -23,24 +26,17 @@
  * everything that writes is a transaction, and a transaction runs under a
  * lock that the whole browser shares (the Web Locks API): no other tab reads
  * or writes the book while it runs. What a tab has counted since it last
- * looked is added to what is stored, never written over it, and a day's
- * bonus is paid only by a transaction that holds the lock, after the day has
- * been written into the book and read back out of storage.
+ * looked is added to what is stored, never written over it.
  *
  * A browser without Web Locks (Safari before 15.4), or one that will not
  * grant the lock, has nothing that keeps the tabs apart, and nothing in
  * storage can stand in for it: a tab does not see what another tab is writing
  * until its own run of work is over, so reading a value back proves nothing
- * about the other tabs. (Tried in a real browser with the lock taken away,
- * two tabs pressing at once were both paid most of the time.) So there:
- *
- * - No daily bonus is paid at all, and the page says so. Nothing can be paid
- *   twice that is never paid.
- * - The records are still kept, by the same transactions run with no lock. A
- *   count can be lost when two tabs write in the same instant: the later
- *   write does not have the earlier one's medals in it. Nothing is ever
- *   counted that did not happen, and a tab that finds storage has lost
- *   something it wrote writes it again.
+ * about the other tabs. There the records are still kept, by the same
+ * transactions run with no lock. A count can be lost when two tabs write in
+ * the same instant: the later write does not have the earlier one's medals in
+ * it. Nothing is ever counted that did not happen, and a tab that finds
+ * storage has lost something it wrote writes it again.
  *
  * The account. A player who is signed in has the book on their account too,
  * and `account.ts` keeps the two copies in step, as it does the machine's.
@@ -60,25 +56,15 @@
  *   moved, not copied: it leaves the guest's key, so that it cannot become a
  *   second account's as well.
  * - The book goes to the account far less often than the machine does: at
- *   once when a stamp is earned, the bonus taken or the records cleared, at
- *   most every five minutes otherwise, and when the page is hidden or the
- *   cabinet left.
+ *   once when a stamp is earned or the records cleared, at most every five
+ *   minutes otherwise, and when the page is hidden or the cabinet left.
  * - It is never sent blind. The account keeps one copy and takes whatever it
  *   is sent, so a device that wrote what it had would wipe out what another
- *   device had written since it last read: a day's bonus taken there, which
- *   this device, or a third, would then pay again. So every write reads the
- *   account first and sends the two joined (`joining`), and nothing is sent
- *   in the way that outlives the page, which cannot read first. A page that
- *   is closed with something unsent keeps it on this device, and sends it the
+ *   device had written since it last read. So every write reads the account
+ *   first and sends the two joined (`joining`), and nothing is sent in the
+ *   way that outlives the page, which cannot read first. A page that is
+ *   closed with something unsent keeps it on this device, and sends it the
  *   next time the game is opened here.
- * - Before a day's bonus is paid to a player whose account has been reached,
- *   the account is asked once more for its book, and the day is paid only if
- *   it has not been taken there either. When the account does not answer,
- *   the day is paid from what this device knows. So a player with two
- *   devices, one of them with no network, can take a day's bonus on each:
- *   the books are joined later and show the day taken once and two bonuses
- *   counted. That is accepted; nothing but a server that decides could
- *   prevent it.
  * - Clearing the records is a new era of the book, and a book of a later era
  *   wins a joining, so a clearing reaches the account and, through it, the
  *   player's other devices.
@@ -101,19 +87,15 @@ import {
 } from './account';
 import {
   RECORDS_KEY,
-  cardFor,
   clearBook,
-  countBonus,
   createBook,
   dayFrom,
-  hasDay,
   mergeBooks,
   newStamps,
   parseBook,
   rebase,
   record,
   serializeBook,
-  spendDay,
   stamp,
   type AchievementId,
   type Day,
@@ -126,15 +108,13 @@ import { playSound } from './sounds';
 
 /**
  * How often the book is written while it has something new in it, in seconds.
- * A bonus, a stamp and a clearing are written as they happen. A write waits
+ * A stamp and a clearing are written as they happen. A write waits
  * its turn for the lock, so a page that is closed may not get to make its
  * last one: this is the most play that can go unwritten.
  */
 export const SAVE_EVERY = 2;
 /** The name of the lock the tabs share. */
 export const RECORDS_LOCK = 'medal-pusher-records';
-/** How many times a day's stamp is written again when reading it back does not show it. */
-export const WRITE_TRIES = 3;
 
 /** The key the book has among a player's saves on the account. */
 export const RECORDS_GAME_KEY = 'medal-pusher-records';
@@ -142,13 +122,11 @@ export const RECORDS_GAME_KEY = 'medal-pusher-records';
  * How often a book that has changed goes to the account, in seconds. Nearly
  * every medal changes it, and each write costs the server a document written,
  * an entry in the activity log and two functions run: so five minutes, where
- * the machine has one. A stamp, a bonus and a clearing do not wait for it.
+ * the machine has one. A stamp and a clearing do not wait for it.
  */
 export const BOOK_SEND_EVERY = 300;
 /** How often the account's keeper is shown the book, in seconds: that is when it sends what is due, and asks again for an account it could not reach. */
 export const BOOK_LOOK_EVERY = 10;
-/** How long a press on the bonus waits to hear from the account, in seconds, before the day is paid from what this device knows. */
-export const ASK_SECONDS = 4;
 /** How long what the account has just said is taken to be what it holds, in milliseconds: a write made within it does not ask again first. */
 export const HEARD_FOR = 2000;
 
@@ -230,8 +208,6 @@ export interface RecordsEnv {
    * and `leaving` when the page is hidden or left. Returns what stops it.
    */
   watch: (handlers: { tick: () => void; changed: (key?: string | null) => void; leaving: () => void }) => () => void;
-  /** Whether this browser can keep its tabs apart at all: whether it has Web Locks. */
-  apart: () => boolean;
   /**
    * Runs `task` while no other tab is running one, telling it that it is
    * `alone`, and lets the next one go when the task calls `release`. Where
@@ -248,25 +224,16 @@ export interface RecordsState {
   book: RecordBook | null;
   /** Today on the player's calendar. Null until then, too. */
   day: Day | null;
-  /** Whether this browser keeps the book. Where it cannot, there is no daily bonus: nothing would remember that a day had been paid. */
+  /** Whether this browser keeps the book. */
   kept: boolean;
-  /** Whether a machine is there to pay a bonus into. */
-  purse: boolean;
-  /** Whether this browser keeps its tabs apart. Where it cannot, there is no daily bonus either: two tabs could each pay the same day. */
-  apart: boolean;
   /** Where else the book is kept: nowhere (a guest's), on the account, or on an account that has not been reached, cannot be read, or is still being asked. */
   where: Status['where'];
-  /** Whether a press on the bonus is waiting to hear from the account. */
-  asking: boolean;
   /** Stamps earned on this page and not yet shown, the earliest first. */
   fresh: readonly AchievementId[];
-  /** How many bonuses have been taken on this page, and the medals the last of them paid. What plays the stamp's ceremony looks at these. */
-  claims: number;
-  paid: number;
 }
 
 /** The state before anything has been read, and on the server. */
-export const WAITING: RecordsState = { book: null, day: null, kept: true, purse: false, apart: true, where: 'device', asking: false, fresh: [], claims: 0, paid: 0 };
+export const WAITING: RecordsState = { book: null, day: null, kept: true, where: 'device', fresh: [] };
 
 /** The local calendar day of a moment on the player's clock. */
 export const localDay = (moment: Date): Day => dayFrom(moment.getFullYear(), moment.getMonth() + 1, moment.getDate());
@@ -318,7 +285,6 @@ export function createRecords(env: RecordsEnv) {
   let unshown = false;
   let ticks = 0;
   let sound = false;
-  let pay: ((medals: number) => boolean) | null = null;
   let unwatch: (() => void) | null = null;
   const listeners = new Set<() => void>();
   /** What each machine's own counters stood at when the book last looked. */
@@ -332,15 +298,13 @@ export function createRecords(env: RecordsEnv) {
   let where: Status['where'] = 'device';
   /** Whether the copy the keeper is about to hand over has the guest's book in it. */
   let moving = false;
-  /** A press on the bonus that is waiting to hear from the account, and the tick at which it stops waiting. */
-  let asking: { at: Desk; until: number } | null = null;
   /** When the account's copy was last read and joined into the book here, by this device's clock. */
   let heardAt = Number.NEGATIVE_INFINITY;
 
   /** Shows the page the book as it is now, with whatever else has changed. */
   const publish = (changes: Partial<RecordsState> = {}): void => {
     if (!started) return;
-    state = { ...state, ...changes, book: desk ? desk.book : null, where, asking: asking !== null };
+    state = { ...state, ...changes, book: desk ? desk.book : null, where };
     unshown = false;
     for (const listener of [...listeners]) listener();
   };
@@ -630,8 +594,7 @@ export function createRecords(env: RecordsEnv) {
     if (was && other) {
       if (carried) was.unsaved = false;
       else if (was.unsaved) saveSoon(was);
-      // Nothing of the player who has left is shown to the next, and a bonus they were waiting on is not paid.
-      asking = null;
+      // Nothing of the player who has left is shown to the next.
       state = { ...state, fresh: [] };
     }
     const day = env.today();
@@ -651,11 +614,6 @@ export function createRecords(env: RecordsEnv) {
     if (desk.unsaved && ticks % SAVE_EVERY === 0) saveSoon(desk);
     // An account that could not be reached is tried again as soon as its wait is over, not at the book's five minutes.
     if (ticks % BOOK_LOOK_EVERY === 0) sync?.save(where === 'offline' ? 'moment' : 'tick');
-    if (asking && ticks >= asking.until) {
-      // The account has not answered in time: the day is paid from what this device knows.
-      asking = null;
-      pays();
-    }
   };
 
   const start = (): void => {
@@ -666,7 +624,7 @@ export function createRecords(env: RecordsEnv) {
     started = true;
     unshown = false;
     ticks = 0;
-    state = { ...WAITING, day, kept: readable, purse: pay !== null, apart: env.apart() };
+    state = { ...WAITING, day, kept: readable };
     unwatch = env.watch({
       tick,
       // Another tab has written. Reading what it wrote is one read and needs no turn; writing, if this page has more, does.
@@ -699,86 +657,11 @@ export function createRecords(env: RecordsEnv) {
     sync = null;
     where = 'device';
     moving = false;
-    asking = null;
     unwatch?.();
     unwatch = null;
     started = false;
     state = WAITING;
   };
-
-  /**
-   * Takes today's bonus, if there is one to take and a machine to pay it
-   * into. It is a transaction, and it pays only when it holds the lock, so
-   * that no other tab is anywhere in these steps at the same time:
-   *
-   * 1. What storage holds is taken in and the book is written. A browser
-   *    that will not take the write pays no bonus.
-   * 2. The card is looked at. If today's stamp is on it already, from this
-   *    tab, another, or another device by way of the account, there is
-   *    nothing to take.
-   * 3. The day is stamped in the book, the book is written, and it is read
-   *    back out of storage. Only a day that is there to be read is paid.
-   * 4. The medals are paid, and only then counted as bonus medals.
-   *
-   * What the page is shown says how it went: `claims` and `paid`.
-   */
-  function pays(): void {
-    transact(function* (alone) {
-      const at = desk;
-      if (!started || !at || !pay) {
-        publish();
-        return;
-      }
-      if (!alone) {
-        // Nothing keeps another tab out of these steps, so nothing is paid. The page stops offering it.
-        publish({ apart: false });
-        return;
-      }
-      const day = env.today();
-      /** The stamps earned along the way: by what storage brought in, by the day, and by the bonus. */
-      const earned: AchievementId[] = [];
-      const first = yield* write(at, day);
-      if (first === null) {
-        publish({ day });
-        return;
-      }
-      earned.push(...first);
-      const card = cardFor(at.book, day);
-      if (card.state !== 'ready') {
-        publish({ day, fresh: announce(earned) });
-        return;
-      }
-      at.book = spendDay(at.book, day);
-      at.unsaved = true;
-      let written = false;
-      for (let attempt = 0; !written && attempt < WRITE_TRIES; attempt++) {
-        const again = yield* write(at, day);
-        if (again === null) break;
-        earned.push(...again);
-        const back = yield* get(at.key);
-        written = typeof back === 'string' && hasDay(parseBook(back)?.claimed ?? {}, day);
-      }
-      if (!written || at !== desk) {
-        // The day could not be written down where it could be read again. It stays stamped here, and no medals go with it.
-        publish({ day, fresh: announce(earned) });
-        return;
-      }
-      if (!pay || !pay(card.medals)) {
-        publish({ day, fresh: announce(earned) });
-        return;
-      }
-      const before = at.book;
-      at.book = countBonus(before, card.medals, day);
-      earned.push(...newStamps(before, at.book));
-      at.unsaved = true;
-      earned.push(...((yield* write(at, day)) ?? []));
-      // The stamp comes down on the card.
-      playSound('reelStop', sound);
-      publish({ day, claims: state.claims + 1, paid: card.medals, fresh: announce(earned) });
-      // A day that has been taken does not wait five minutes to reach the account.
-      sync?.save('moment');
-    });
-  }
 
   return {
     getState: (): RecordsState => state,
@@ -848,66 +731,6 @@ export function createRecords(env: RecordsEnv) {
       // A stamp is shown at once, and written as soon as the lock is this tab's.
       publish({ fresh: announce(earned) });
       saveSoon(desk);
-    },
-
-    /**
-     * Gives the store the machine's purse: what pays medals into it, and says
-     * whether it did. Returns what takes the purse away again.
-     */
-    openPurse(into: (medals: number) => boolean): () => void {
-      pay = into;
-      if (desk) publish({ purse: true });
-      return () => {
-        if (pay !== into) return;
-        pay = null;
-        if (desk) publish({ purse: false });
-      };
-    },
-
-    /**
-     * Takes today's bonus: see `pays`. A player whose account has been
-     * reached has the account asked first, since another device may have
-     * taken the day since this page last heard: its book is joined into this
-     * one, and the day is paid only if it is still to take. An account that
-     * fails to answer, or takes longer than `ASK_SECONDS`, is not waited for.
-     */
-    claimBonus(): void {
-      const at = desk;
-      if (!started || !at || !pay || asking) return;
-      const uid = wanted.uid;
-      if (!accounts || uid === null || at.owner !== uid || where !== 'account') {
-        pays();
-        return;
-      }
-      const mine = (asking = { at, until: ticks + ASK_SECONDS });
-      publish();
-      const heard = (theirs: RecordBook | null): void => {
-        const waited = asking === mine;
-        if (waited) asking = null;
-        // An answer that comes too late to be waited for is still what the account holds.
-        if (theirs && started && desk === mine.at) {
-          const earned = join(mine.at, theirs, env.today());
-          if (earned.length > 0 || !waited) publish({ fresh: announce(earned) });
-        }
-        if (waited) pays();
-      };
-      let reading: ReturnType<AccountStore['load']>;
-      try {
-        reading = accounts.load(uid);
-      } catch {
-        heard(null);
-        return;
-      }
-      reading.then(
-        (found) => {
-          const text = found ? fromCloud(found.state)?.text : null;
-          const theirs = typeof text === 'string' ? parseBook(text) : null;
-          // The account has answered, with a book or with none: the write that follows a bonus need not ask again.
-          if (theirs || !found) heardAt = env.now();
-          heard(theirs);
-        },
-        () => heard(null),
-      );
     },
 
     /** A stamp's toast has been shown: it leaves the queue. */
@@ -998,7 +821,6 @@ const browser: RecordsEnv = {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   },
-  apart: () => typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function',
   lock: (task) => {
     // No Web Locks here (Safari before 15.4), or the browser will not grant one: the task runs beside whatever
     // another tab is doing, and is told so. The top of this file says what that costs and what it is not let do.

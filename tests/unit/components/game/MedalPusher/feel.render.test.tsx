@@ -200,7 +200,7 @@ describe('the stylesheet, for a thumb', () => {
     expect(strip).toContain('height: 44px');
     expect(strip).toContain('top: 50%');
     expect(css).toMatch(/\.toggle,\s*\.tab \{\s*position: relative;\s*\}/);
-    expect(css).toMatch(/\.refill,\s*\.reset \{\s*min-height: 44px;\s*\}/);
+    expect(css).toMatch(/\.refill \{\s*min-height: 44px;\s*\}/);
     // A slider is 44 px tall, and a swipe up or down it still scrolls the page: the aims' and the volume's alike.
     for (const name of ['.aimSlider', '.volumeSlider']) {
       const slider = rulesFor(css, name);

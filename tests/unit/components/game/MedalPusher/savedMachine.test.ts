@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ACCOUNT_LIMIT, SEND_EVERY, fromCloud, sizeOf, slotFor, toCloud, type AccountStore, type CloudState, type Slots, type Status } from '@/components/game/MedalPusher/account';
-import { booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
+import { banked, booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
 
@@ -144,12 +144,38 @@ describe('the machine on its way to the account', () => {
 });
 
 describe('the machine’s books', () => {
-  it('are the same from the machine and from its save', () => {
+  it('are the same from the machine and from its save, and leave out the purse, which is the medal bank’s', () => {
     const session = createSession(3);
     play(session, 5);
     expect(booksOfText(serialize(session))).toBe(booksOf(session));
-    expect(JSON.parse(booksOf(session))).toMatchObject({ credits: session.credits, inserted: session.inserted, jackpot: session.jackpot });
+    expect(JSON.parse(booksOf(session))).toMatchObject({ inserted: session.inserted, jackpot: session.jackpot });
+    expect(JSON.parse(booksOf(session))).not.toHaveProperty('credits');
     expect(booksOf(session)).not.toContain('medals');
+    // Medals coming into the purse or going out of it are the bank's business, not the machine's.
+    const richer = { ...session, credits: session.credits + 500 };
+    expect(booksOf(richer)).toBe(booksOf(session));
+    expect(booksOfText(serialize(richer))).toBe(booksOf(session));
+  });
+
+  it('are kept with an empty purse, so that a machine saved since the bank has no purse to move into it', () => {
+    const session = createSession(5);
+    play(session, 3);
+    expect(session.credits).toBeGreaterThan(0);
+    expect(banked(session).credits).toBe(0);
+    expect(banked(session).inserted).toBe(session.inserted);
+    expect(session.credits).toBeGreaterThan(0);
+    const kept: { text: string | null } = { text: null };
+    const keeper = keepMachine({
+      store: null,
+      slots: () => ({ getItem: () => kept.text, setItem: (_key, value) => void (kept.text = value), removeItem: () => void (kept.text = null) }),
+      session: () => session,
+      reopen: () => undefined,
+      onStatus: () => undefined,
+    });
+    keeper.open();
+    keeper.save('tick');
+    expect(restore(kept.text, 1)?.credits).toBe(0);
+    expect(restore(kept.text, 1)?.inserted).toBe(session.inserted);
   });
 
   it('do not change while the machine is only watched, and do when it is played', () => {
@@ -265,7 +291,8 @@ describe('a real machine kept on an account', () => {
     clock.now += SEND_EVERY * 1000;
     first.keeping.save('tick');
     await first.rest();
-    const left = serialize(first.table.session as Session);
+    // What travels is the machine with an empty purse: the medals are the bank's, which travels on its own.
+    const left = serialize(banked(first.table.session as Session));
     expect(account.docs.size).toBe(1);
     expect(sizeOf(account.docs.get(uid)?.state as object)).toBeLessThan(ACCOUNT_LIMIT / 2);
 
@@ -274,7 +301,7 @@ describe('a real machine kept on an account', () => {
     const second = cabinetOn(slots, account, clock);
     second.keeping.player({ uid, settled: true, expected: false });
     second.open();
-    const guests = serialize(second.table.session as Session);
+    const guests = serialize(banked(second.table.session as Session));
     await second.rest();
     expect(second.table.reopens).toBe(1);
     expect(serialize(second.table.session as Session)).toBe(left);

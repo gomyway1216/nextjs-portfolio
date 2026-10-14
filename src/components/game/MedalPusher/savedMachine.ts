@@ -21,14 +21,24 @@ import { STORAGE_KEY, restore, serialize } from './storage';
 export const MACHINE_GAME_KEY = 'medal-pusher';
 
 /**
- * The machine's books: the purse, the counters, the jackpot, the spins held,
- * as one short text. A machine is worth sending again when these have
- * changed. The pusher going to and fro, medals settling and an arm being
- * turned change the field and not the books, so a machine that is only being
- * watched is not sent to the account again and again.
+ * The machine as it is kept now that its medals are the medal bank's: with
+ * an empty purse. The player's medals are in the bank (MedalCenter/bank.ts),
+ * and a machine saved with a purse in it is one saved before the bank, whose
+ * purse is moved into the bank once when it is opened. So a machine kept
+ * since then says it holds none, and nothing in it is ever moved in again.
+ */
+export const banked = (session: Session): Session => (session.credits === 0 ? session : { ...session, credits: 0 });
+
+/**
+ * The machine's books: the counters, the jackpot, the spins held, as one
+ * short text. A machine is worth sending again when these have changed. The
+ * pusher going to and fro, medals settling and an arm being turned change
+ * the field and not the books, so a machine that is only being watched is
+ * not sent to the account again and again. The purse is the bank's, and is
+ * not among them.
  */
 export function booksOf(session: Session): string {
-  const { machine: _machine, spin: _spin, bonus: _bonus, roulette: _roulette, ...numbers } = session;
+  const { machine: _machine, spin: _spin, bonus: _bonus, roulette: _roulette, credits: _credits, ...numbers } = session;
   return JSON.stringify(numbers);
 }
 
@@ -36,7 +46,11 @@ export function booksOf(session: Session): string {
 export function booksOfText(text: string): string {
   try {
     const save = JSON.parse(text) as { session?: unknown } | null;
-    return save && typeof save === 'object' && 'session' in save ? JSON.stringify(save.session) : text;
+    if (!save || typeof save !== 'object' || !('session' in save)) return text;
+    const session = save.session;
+    if (!session || typeof session !== 'object' || Array.isArray(session)) return JSON.stringify(session);
+    const { credits: _credits, ...numbers } = session as Record<string, unknown>;
+    return JSON.stringify(numbers);
   } catch {
     return text;
   }
@@ -74,7 +88,7 @@ export function keepMachine({ store, slots, session, reopen, onStatus, now = Dat
       slot: STORAGE_KEY,
       current() {
         const machine = session();
-        seen = machine ? { text: serialize(machine), books: booksOf(machine) } : null;
+        seen = machine ? { text: serialize(banked(machine)), books: booksOf(machine) } : null;
         return seen ? seen.text : null;
       },
       reads: (text) => restore(text, 1) !== null,

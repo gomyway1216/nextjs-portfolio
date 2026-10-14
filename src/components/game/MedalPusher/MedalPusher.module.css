@@ -69,6 +69,22 @@
   width: 1em;
   height: 1em;
 }
+/* The way back to the medal center's front, over the machine's name. */
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
 .subtitle {
   margin: 0.4rem 0 0;
   color: var(--games-route-muted);
@@ -2730,7 +2746,7 @@
 }
 /* Every control is at least 44 px to hit. The switches and the tabs were 32 to 37 px tall: they look as they did,
    and what takes the touch is a strip 44 px tall through the middle of each. The rows of switches are far enough
-   apart that the strips of two rows do not meet. The refill and the reset are simply that tall. */
+   apart that the strips of two rows do not meet. The refill is simply that tall. */
 .toggle,
 .tab {
   position: relative;
@@ -2745,8 +2761,7 @@
   height: 44px;
   transform: translateY(-50%);
 }
-.refill,
-.reset {
+.refill {
   min-height: 44px;
 }
 .toggle {
@@ -3218,14 +3233,41 @@
   outline: 2px solid var(--games-route-fg);
   outline-offset: 2px;
 }
-/* Reset, under the tally. Armed, it says so in words as well as in colour. */
-.reset {
-  margin-top: 0.75rem;
-  font-size: 0.88rem;
+/* The member's card is in a machine in another tab: a plate over the field, and a button to play this one again. */
+.cardAway {
+  position: absolute;
+  inset: auto 6% 38% 6%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.92);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+  font-size: 0.92rem;
 }
-.reset[data-armed='true'] {
-  border-color: var(--mp-lose-text);
-  color: var(--mp-lose-text);
+.cardAway p {
+  margin: 0;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
 }
 .srOnly {
   position: absolute;

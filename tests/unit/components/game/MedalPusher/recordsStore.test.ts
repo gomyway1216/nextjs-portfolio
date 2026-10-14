@@ -5,13 +5,11 @@ import { seededRng } from '@/components/game/MedalPusher/engine';
 import {
   ACHIEVEMENT_IDS,
   BEST_IDS,
-  BONUS_CARD,
   COUNTER_IDS,
   LIMITS,
   RECORDS_KEY,
   cardFor,
   claim,
-  countDays,
   createBook,
   dayNumber,
   dayOf,
@@ -25,14 +23,12 @@ import {
   type RecordBook,
 } from '@/components/game/MedalPusher/records';
 import {
-  ASK_SECONDS,
   BOOK_LOOK_EVERY,
   BOOK_SEND_EVERY,
   RECORDS_GAME_KEY,
   RECORDS_LOCK,
   SAVE_EVERY,
   WAITING,
-  WRITE_TRIES,
   bookKey,
   createRecords,
   deviceName,
@@ -40,11 +36,10 @@ import {
   localDay,
   printOf,
   settleBooks,
-  type Records,
   type RecordsEnv,
   type Steps,
 } from '@/components/game/MedalPusher/recordsStore';
-import { MAX_STOCK, START_CREDITS, createSession, grant, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
+import { MAX_STOCK, START_CREDITS, createSession, type Session, type SessionEvent } from '@/components/game/MedalPusher/session';
 
 import { FakeAccounts, RESTORING, settled, signedIn } from './accountFakes';
 
@@ -142,7 +137,6 @@ function browser(day: Day = MONDAY, { locks = true, clock = { now: Date.UTC(2026
           handlers = null;
         };
       },
-      apart: () => lock !== 'none',
       lock: lock === 'granted' ? granted : beside,
       drive: stepped
         ? (steps, done) => void pending.push({ steps, done })
@@ -168,13 +162,6 @@ function browser(day: Day = MONDAY, { locks = true, clock = { now: Date.UTC(2026
       told: () => told,
       book: () => store.getState().book as RecordBook,
       total: () => viewOf(store.getState().book as RecordBook).total,
-      /** Takes today's bonus and says how many medals this tab was paid for it. */
-      take: (): number => {
-        const before = store.getState().claims;
-        store.claimBonus();
-        const now = store.getState();
-        return now.claims > before ? now.paid : 0;
-      },
       /** Whether a transaction of this tab's has a step waiting to be taken. */
       waiting: () => pending.length > 0,
       /** Takes one step of this tab's transaction: up to its next read or write, or to its end. */
@@ -216,15 +203,9 @@ function browser(day: Day = MONDAY, { locks = true, clock = { now: Date.UTC(2026
 }
 type Tab = ReturnType<ReturnType<typeof browser>['open']>;
 
-/** A machine with a purse the store can pay into, as the cabinet gives it one. */
-function machine(store: Records, seed = 4) {
-  const session = createSession(seed, { balls: 0 });
-  const paid: number[] = [];
-  const close = store.openPurse((medals) => {
-    paid.push(medals);
-    return grant(session, medals);
-  });
-  return { session, paid, close };
+/** A machine whose counters the book reads, as the cabinet shows it one. (The day's bonus is the medal bank's now: see MedalCenter.) */
+function machine(seed = 4) {
+  return { session: createSession(seed, { balls: 0 }) };
 }
 
 /**
@@ -232,19 +213,11 @@ function machine(store: Records, seed = 4) {
  * field of medals, which the tests that open hundreds of tabs have no use for.
  */
 const counters = (): Session => ({ inserted: 0, refills: 0, credits: START_CREDITS }) as unknown as Session;
-/** A purse for a tab that is one of many. */
-function purse(store: Records) {
-  const session = counters();
-  const paid: number[] = [];
-  store.openPurse((medals) => {
-    paid.push(medals);
-    return grant(session, medals);
-  });
-  return { session, paid };
+/** A machine's counters for a tab that is one of many. */
+function purse() {
+  return { session: counters() };
 }
 
-/** How many days a stored book says the bonus was taken on. */
-const countDaysTaken = (book: RecordBook | null): number => (book ? countDays(book.claimed) : 0);
 
 /** Feeds the machine medals the way the cabinet's counters show it. */
 const feed = (session: Session, medals: number) => {
@@ -257,17 +230,15 @@ describe('the record book in the browser', () => {
     const world = browser();
     const tab = world.open();
     expect(tab.store.getState()).toBe(WAITING);
-    expect(WAITING).toEqual({ book: null, day: null, kept: true, purse: false, apart: true, where: 'device', asking: false, fresh: [], claims: 0, paid: 0 });
-    // Nothing that is done to it reads or writes, and nothing is paid.
-    const { session, paid } = machine(tab.store);
+    expect(WAITING).toEqual({ book: null, day: null, kept: true, where: 'device', fresh: [] });
+    // Nothing that is done to it reads or writes.
+    const { session } = machine();
     tab.store.note(session, [line]);
-    tab.store.claimBonus();
     tab.store.clearRecords();
     expect(tab.store.absorb(serializeBook(createBook('other00001')))).toBe(false);
     expect(tab.store.exportBook()).toBeNull();
     expect(tab.store.getState()).toBe(WAITING);
     expect(world.disk).toMatchObject({ reads: 0, writes: 0, touched: 0, text: null });
-    expect(paid).toEqual([]);
     expect(tab.watching()).toBe(false);
   });
 
@@ -276,7 +247,7 @@ describe('the record book in the browser', () => {
     const tab = world.open();
     const stop = tab.listen();
     const state = tab.store.getState();
-    expect(state).toMatchObject({ day: MONDAY, kept: true, purse: false, apart: true, fresh: [], claims: 0, paid: 0 });
+    expect(state).toMatchObject({ day: MONDAY, kept: true, fresh: [] });
     expect(isDevice(state.book?.device)).toBe(true);
     expect(state.book).toEqual(createBook(state.book?.device as string));
     expect(world.stored()).toEqual(state.book);
@@ -300,7 +271,7 @@ describe('the record book in the browser', () => {
     const first = world.open();
     const stop = first.listen();
     const device = first.book().device;
-    const { session } = machine(first.store);
+    const { session } = machine();
     first.store.note(session, []);
     feed(session, 7);
     first.store.note(session, [{ type: 'won', count: 3 }]);
@@ -350,17 +321,13 @@ describe('the record book in the browser', () => {
     const tab = world.open();
     tab.listen();
     expect(tab.store.getState()).toMatchObject({ kept: false, day: MONDAY });
-    const { session, paid } = machine(tab.store);
+    const { session } = machine();
     tab.store.note(session, []);
     feed(session, 5);
     tab.store.note(session, [line]);
     tab.tick();
     expect(tab.total().fed).toBe(5);
     expect(tab.store.getState().fresh).toEqual(['firstLine']);
-    // Nothing would remember that a day had been paid, so no day is.
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-    expect(session.credits).toBe(START_CREDITS - 5);
     tab.tick(SAVE_EVERY * 3);
     tab.leaving();
     expect(world.disk.writes).toBe(0);
@@ -373,10 +340,8 @@ describe('the record book in the browser', () => {
     const tab = world.open();
     tab.listen();
     expect(tab.store.getState().kept).toBe(false);
-    const { session, paid } = machine(tab.store);
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-    // Room is made. The next time the book has something to write, it is kept after all, and the bonus is there.
+    const { session } = machine();
+    // Room is made. The next time the book has something to write, it is kept after all.
     world.disk.full = false;
     tab.store.note(session, []);
     feed(session, 1);
@@ -384,7 +349,6 @@ describe('the record book in the browser', () => {
     tab.tick(SAVE_EVERY);
     expect(tab.store.getState().kept).toBe(true);
     expect(viewOf(world.stored() as RecordBook).total.fed).toBe(1);
-    expect(tab.take()).toBe(BONUS_CARD[0]);
   });
 });
 
@@ -518,278 +482,22 @@ describe('hearing what the machine did', () => {
   });
 });
 
-describe('taking the day’s bonus', () => {
-  it('pays what the card says into the machine’s purse, once', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    expect(tab.store.getState().purse).toBe(false);
-    // With no machine there is nowhere to pay it.
-    expect(tab.take()).toBe(0);
-    const { session, paid } = machine(tab.store);
-    expect(tab.store.getState().purse).toBe(true);
-    expect(cardFor(tab.book(), MONDAY).state).toBe('ready');
-    expect(session.credits).toBe(START_CREDITS);
-
-    expect(tab.take()).toBe(BONUS_CARD[0]);
-    expect(paid).toEqual([BONUS_CARD[0]]);
-    expect(session.credits).toBe(START_CREDITS + BONUS_CARD[0]);
-    expect(tab.store.getState()).toMatchObject({ claims: 1, paid: BONUS_CARD[0], day: MONDAY });
-    expect(cardFor(tab.book(), MONDAY).state).toBe('taken');
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(true);
-    expect(tab.total()).toMatchObject({ claims: 1, bonus: BONUS_CARD[0], fed: 0, won: 0 });
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ claims: 1, bonus: BONUS_CARD[0] });
-    // Nothing is kept in storage but the book.
-    expect([...world.held.keys()]).toEqual([RECORDS_KEY]);
-
-    // It is not there a second time.
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([BONUS_CARD[0]]);
-    expect(session.credits).toBe(START_CREDITS + BONUS_CARD[0]);
-    expect(tab.store.getState().claims).toBe(1);
-  });
-
-  it('writes the day into the book and reads it back out of storage before a medal is paid', () => {
-    const world = browser();
-    const tab = world.open({ stepped: true });
-    tab.listen();
-    tab.run();
-    const { paid } = machine(tab.store);
-    tab.store.claimBonus();
-    // Step by step: at the moment the purse is paid, the stored book already has the day, and no bonus counted yet.
-    let before: { claimed: boolean; counted: number; read: number } | null = null;
-    while (tab.waiting()) {
-      const was = { claimed: hasDay(world.stored()?.claimed ?? {}, MONDAY), counted: viewOf(world.stored() as RecordBook).total.claims, read: world.disk.reads };
-      tab.step();
-      // The step that pays is the one that reads the book back: nothing is paid on the strength of the write alone.
-      if (paid.length === 1 && before === null) before = { ...was, read: world.disk.reads - was.read };
-    }
-    expect(paid).toEqual([BONUS_CARD[0]]);
-    expect(before).toEqual({ claimed: true, counted: 0, read: 1 });
-    // The bonus is counted only once it has been paid, and that is written too.
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ claims: 1, bonus: BONUS_CARD[0] });
-  });
-
-  it('is not offered again when the page is loaded again that day, and is the next day', () => {
-    const world = browser();
-    const first = world.open();
-    const stop = first.listen();
-    machine(first.store);
-    expect(first.take()).toBe(BONUS_CARD[0]);
-    stop();
-
-    const again = world.open();
-    again.listen();
-    const { paid } = machine(again.store);
-    expect(cardFor(again.book(), MONDAY).state).toBe('taken');
-    // The page that took it plays the stamp's ceremony; a page that finds it taken does not.
-    expect(again.store.getState()).toMatchObject({ claims: 0, paid: 0 });
-    expect(again.take()).toBe(0);
-    expect(paid).toEqual([]);
-
-    world.setDay(after(1));
-    expect(again.take()).toBe(BONUS_CARD[1]);
-    expect(paid).toEqual([BONUS_CARD[1]]);
-  });
-
-  it('becomes ready at midnight on a page that is left open, by its timer', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    const { paid } = machine(tab.store);
-    tab.take();
-    const ready = () => {
-      const { book, day } = tab.store.getState();
-      return book !== null && day !== null && cardFor(book, day).state === 'ready';
-    };
-    expect(ready()).toBe(false);
-    const told = tab.told();
-    tab.tick(30);
-    expect(tab.told()).toBe(told);
-    // Midnight passes. The next tick of the timer sees the new day and tells the page.
-    world.setDay(after(1));
-    expect(ready()).toBe(false);
-    tab.tick();
-    expect(tab.told()).toBe(told + 1);
-    expect(tab.store.getState().day).toBe(after(1));
-    expect(ready()).toBe(true);
-    expect(tab.take()).toBe(BONUS_CARD[1]);
-    expect(paid).toEqual([BONUS_CARD[0], BONUS_CARD[1]]);
-  });
-
-  it('pays each day once however the clock is moved', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    const { paid } = machine(tab.store);
-    expect(tab.take()).toBe(BONUS_CARD[0]);
-    // Forward three days: a missed day, so the first square of a new card, and it is taken.
-    world.setDay(after(3));
-    tab.tick();
-    expect(tab.take()).toBe(BONUS_CARD[0]);
-    // Back again: nothing is ready on the days before the one that was stamped, nor on that day when it comes.
-    for (const days of [0, 1, 2, 3]) {
-      world.setDay(after(days));
-      tab.tick();
-      expect(tab.take()).toBe(0);
-    }
-    world.setDay(after(4));
-    tab.tick();
-    expect(tab.take()).toBe(BONUS_CARD[1]);
-    expect(paid).toEqual([BONUS_CARD[0], BONUS_CARD[0], BONUS_CARD[1]]);
-    // A clock set off the calendar altogether has no bonus.
-    world.setDay('2150-01-01');
-    tab.tick();
-    expect(tab.take()).toBe(0);
-  });
-
-  it('pays nothing, and takes nothing, when the day cannot be written down', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    const { session, paid } = machine(tab.store);
-    const before = tab.book();
-    world.disk.full = true;
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-    expect(session.credits).toBe(START_CREDITS);
-    expect(tab.book()).toBe(before);
-    expect(tab.store.getState()).toMatchObject({ kept: false, claims: 0 });
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(false);
-    // The day is not spent: it is there to be taken when storage takes a write again.
-    world.disk.full = false;
-    expect(tab.take()).toBe(BONUS_CARD[0]);
-  });
-
-  it('pays no bonus in a browser that cannot keep its tabs apart, and says so; the records are kept all the same', () => {
-    const world = browser(MONDAY, { locks: false });
-    const tab = world.open();
-    tab.listen();
-    expect(tab.store.getState()).toMatchObject({ apart: false, kept: true });
-    const { session, paid } = machine(tab.store);
-    expect(cardFor(tab.book(), MONDAY).state).toBe('ready');
-    const told = tab.told();
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-    expect(session.credits).toBe(START_CREDITS);
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(false);
-    expect(tab.total()).toMatchObject({ claims: 0, bonus: 0 });
-    expect(tab.told()).toBe(told + 1);
-    // However often it is asked, and on whatever day.
-    for (const days of [0, 1, 2]) {
-      world.setDay(after(days));
-      tab.tick();
-      expect(tab.take()).toBe(0);
-    }
-    expect(paid).toEqual([]);
-    expect(countDaysTaken(world.stored())).toBe(0);
-    // What is played is counted and written, lock or no lock.
-    tab.store.note(session, []);
-    feed(session, 6);
-    tab.store.note(session, [line]);
-    tab.leaving();
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 6, small: 1 });
-    expect((world.stored() as RecordBook).stamps.firstLine).toBe(after(2));
-  });
-
-  it('stops offering the bonus in a tab the lock is refused to, and pays it nothing', () => {
-    const world = browser();
-    const tab = world.open({ lock: 'refused' });
-    tab.listen();
-    // The browser has Web Locks, so the bonus is offered. Then the lock is asked for, and is not given.
-    expect(tab.store.getState().apart).toBe(true);
-    const { paid } = machine(tab.store);
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-    expect(tab.store.getState().apart).toBe(false);
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(false);
-    // A tab that has the lock is paid as ever.
-    const other = world.open();
-    other.listen();
-    const purseOfOther = machine(other.store, 5);
-    expect(other.take()).toBe(BONUS_CARD[0]);
-    expect(purseOfOther.paid).toEqual([BONUS_CARD[0]]);
-  });
-
-  it('counts no bonus when the machine will not be paid: the day is spent, and nothing is said to have been given', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    tab.store.openPurse(() => false);
-    expect(tab.take()).toBe(0);
-    expect(tab.store.getState().claims).toBe(0);
-    expect(tab.total()).toMatchObject({ claims: 0, bonus: 0 });
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ claims: 0, bonus: 0 });
-    // The day was written down before the purse was asked, and a day is written down once.
-    expect(cardFor(tab.book(), MONDAY).state).toBe('taken');
-    const { paid } = machine(tab.store);
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
-  });
-
-  it('pays into the machine that is there now: a purse that has been closed is not paid', () => {
-    const world = browser();
-    const tab = world.open();
-    tab.listen();
-    const old = machine(tab.store, 4);
-    const now = machine(tab.store, 5);
-    // The old cabinet is taken down after the new one stands: that does not take the new one's purse away.
-    old.close();
-    expect(tab.store.getState().purse).toBe(true);
-    expect(tab.take()).toBe(BONUS_CARD[0]);
-    expect(old.paid).toEqual([]);
-    expect(now.paid).toEqual([BONUS_CARD[0]]);
-    now.close();
-    expect(tab.store.getState().purse).toBe(false);
-    world.setDay(after(1));
-    expect(tab.take()).toBe(0);
-  });
-
-  it('earns the week’s stamp with the seventh day in a row, and queues it', () => {
-    const world = browser();
-    let book = createBook('device0001');
-    for (let days = 0; days < 6; days++) book = claim(book, after(days)).book;
-    world.disk.text = serializeBook(book);
-    world.setDay(after(6));
-    const tab = world.open();
-    tab.listen();
-    machine(tab.store);
-    expect(tab.take()).toBe(BONUS_CARD[6]);
-    expect(tab.store.getState().fresh).toEqual(['week']);
-    expect(world.stored()?.stamps).toEqual({ week: after(6) });
-  });
-});
-
 describe('two tabs of the game, one after the other', () => {
-  it('pay a day’s bonus once between them', () => {
-    const world = browser();
-    const [one, two] = [world.open(), world.open()];
-    one.listen();
-    two.listen();
-    expect(two.book().device).toBe(one.book().device);
-    const [first, second] = [machine(one.store, 4), machine(two.store, 5)];
-    // Both show it ready. The first takes it; the second looks at what is stored before it pays, and does not.
-    expect(cardFor(two.book(), MONDAY).state).toBe('ready');
-    expect(one.take()).toBe(BONUS_CARD[0]);
-    expect(two.take()).toBe(0);
-    expect(first.paid).toEqual([BONUS_CARD[0]]);
-    expect(second.paid).toEqual([]);
-    expect(cardFor(two.book(), MONDAY).state).toBe('taken');
-    expect(two.store.getState().claims).toBe(0);
-  });
-
   it('hear each other: a tab is told when the other has written', () => {
     const world = browser();
     const [one, two] = [world.open(), world.open()];
     one.listen();
     two.listen();
-    machine(one.store);
-    one.take();
+    const { session } = machine();
+    one.store.note(session, []);
+    feed(session, 3);
+    one.store.note(session, []);
+    one.leaving();
     const told = two.told();
-    expect(cardFor(two.book(), MONDAY).state).toBe('ready');
+    expect(two.total().fed).toBe(0);
     two.changed();
     expect(two.told()).toBe(told + 1);
-    expect(cardFor(two.book(), MONDAY).state).toBe('taken');
+    expect(two.total().fed).toBe(3);
     // Hearing writes nothing, so two tabs do not answer each other for ever.
     const writes = world.disk.writes;
     two.changed();
@@ -866,7 +574,7 @@ describe('tabs whose reads and writes fall between each other’s', () => {
       tab.listen();
       // The first write of a new book, and the reading of it by the others.
       for (const other of open) other.run();
-      return purse(tab.store);
+      return purse();
     });
     for (const tab of open) tab.changed();
     return { world, open, machines };
@@ -942,12 +650,12 @@ describe('tabs whose reads and writes fall between each other’s', () => {
     expect(viewOf(world.stored() as RecordBook).total.fed).toBe(7);
   });
 
-  it('count every medal once under the lock, whatever order they play, write, hear and take the bonus in', () => {
+  it('count every medal once under the lock, whatever order they play, write and hear in', () => {
     for (const count of [2, 3]) {
       for (let schedule = 0; schedule < 40; schedule++) {
         const rng = seededRng(7000 + 100 * count + schedule);
         const pick = (n: number) => Math.min(n - 1, Math.floor(rng() * n));
-        const { world, open, machines } = tabs(count, true);
+        const { world, open } = tabs(count, true);
         const sessions = open.map(counters);
         open.forEach((tab, index) => tab.store.note(sessions[index], []));
         let truth = 0;
@@ -961,8 +669,7 @@ describe('tabs whose reads and writes fall between each other’s', () => {
             truth += medals;
           } else if (what === 3) open[who].leaving();
           else if (what === 4) open[who].changed();
-          else if (what === 5) open[who].store.claimBonus();
-          else if (what === 6) open[who].tick(SAVE_EVERY);
+          else if (what === 5 || what === 6) open[who].tick(SAVE_EVERY);
           else {
             // One read or one write, of whichever tab the lock lets go on.
             const ready = open.filter((tab) => tab.waiting());
@@ -974,142 +681,16 @@ describe('tabs whose reads and writes fall between each other’s', () => {
         }
         shuffle(open, rng);
         settle(open);
-        const paid = machines.flatMap((each) => each.paid);
-        const asked = paid.length > 0 || open.some((tab) => cardFor(tab.book(), MONDAY).state === 'taken');
         expect(viewOf(world.stored() as RecordBook).total.fed, `tabs ${count}, schedule ${schedule}`).toBe(truth);
-        // The bonus: paid once if anybody reached for it, to the first that did, and counted once.
-        expect(paid).toEqual(asked ? [BONUS_CARD[0]] : []);
-        expect(viewOf(world.stored() as RecordBook).total.claims).toBe(paid.length);
         for (const tab of open) expect(tab.total().fed).toBe(truth);
       }
     }
   });
 
-  it('pay a day once under the lock when every tab reaches for it at once: the tab that asked first, and no other', () => {
-    for (const count of [2, 3, 4]) {
-      for (let schedule = 0; schedule < 25; schedule++) {
-        const rng = seededRng(9000 + 1000 * count + schedule);
-        const { world, open, machines } = tabs(count, true);
-        const sessions = open.map(counters);
-        // Every tab has medals of its own to write, and every tab reaches for today's bonus, in an order drawn by lot.
-        const order = open.map((_, index) => index).sort(() => rng() - 0.5);
-        for (const index of order) {
-          open[index].store.note(sessions[index], []);
-          feed(sessions[index], 1 + index);
-          open[index].store.note(sessions[index], []);
-          if (rng() < 0.5) open[index].leaving();
-          open[index].store.claimBonus();
-        }
-        // Their steps are taken in whatever order the lock allows, with the tabs hearing each other at odd moments.
-        for (let steps = 0; open.some((tab) => tab.waiting()); steps++) {
-          const ready = open.filter((tab) => tab.waiting());
-          expect(ready).toHaveLength(1);
-          ready[0].step();
-          if (rng() < 0.3) open[Math.min(count - 1, Math.floor(rng() * count))].changed();
-          if (steps > 10_000) throw new Error('the tabs never finished');
-        }
-        expect(machines.map((each) => each.paid)).toEqual(open.map((_, index) => (index === order[0] ? [BONUS_CARD[0]] : [])));
-        settle(open);
-        for (const tab of open) expect(cardFor(tab.book(), MONDAY).state).toBe('taken');
-        // Asked again, nobody is paid again, and a tab opened later finds the day taken.
-        for (const tab of open) tab.store.claimBonus();
-        shuffle(open, rng);
-        const late = world.open();
-        late.listen();
-        const lateOne = purse(late.store);
-        expect(late.take()).toBe(0);
-        expect(lateOne.paid).toEqual([]);
-        expect(machines.flatMap((each) => each.paid)).toEqual([BONUS_CARD[0]]);
-        // One bonus counted, and every medal.
-        expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ claims: 1, bonus: BONUS_CARD[0], fed: (count * (count + 1)) / 2 });
-      }
-    }
-  });
-
-  it('pay no bonus at all where nothing keeps them apart, whatever order their reads and writes fall in', () => {
-    for (const count of [2, 3]) {
-      for (let schedule = 0; schedule < 40; schedule++) {
-        const rng = seededRng(12_000 + 1000 * count + schedule);
-        const { world, open, machines } = tabs(count, false);
-        const sessions = open.map(counters);
-        open.forEach((tab, index) => {
-          tab.store.note(sessions[index], []);
-          feed(sessions[index], 1 + index);
-          tab.store.note(sessions[index], []);
-          if (rng() < 0.5) tab.leaving();
-          tab.store.claimBonus();
-        });
-        shuffle(open, rng);
-        settle(open);
-        // Nobody was paid, no day was spent, and no tab offers the bonus any more.
-        expect(machines.flatMap((each) => each.paid)).toEqual([]);
-        expect(countDaysTaken(world.stored())).toBe(0);
-        for (const tab of open) expect(tab.store.getState().apart).toBe(false);
-        // The medals are counted as well as tabs with nothing between them can: never more than were fed.
-        const fed = viewOf(world.stored() as RecordBook).total.fed;
-        expect(fed).toBeGreaterThan(0);
-        expect(fed).toBeLessThanOrEqual((count * (count + 1)) / 2);
-      }
-    }
-  });
-
-  it('write the day again when a write from a tab outside the lock lands on it before it is read back, and pay once it shows', () => {
-    // The first tab has the lock. The second is one the lock was refused to: its writes are not kept out.
-    const { world, open, machines } = tabs(2, ['granted', 'refused']);
-    const [one, two] = open;
-    // The second tab has a medal to write. It reads the book and then stops, with the write still to make.
-    const second = counters();
-    two.store.note(second, []);
-    feed(second, 1);
-    two.store.note(second, []);
-    two.leaving();
-    two.step();
-    two.step();
-    // The first tab reaches for the bonus and gets as far as writing the day into the book.
-    one.store.claimBonus();
-    one.stepUntil(() => hasDay(world.stored()?.claimed ?? {}, MONDAY));
-    expect(machines[0].paid).toEqual([]);
-    // Now the second tab's write lands: it was worked out before the day was there, and the day is gone from storage.
-    two.run();
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(false);
-    // The first tab reads the book back, does not find its day, and pays nothing yet.
-    one.step();
-    expect(machines[0].paid).toEqual([]);
-    // It writes again, reads again, finds it, and pays.
-    one.run();
-    expect(machines[0].paid).toEqual([BONUS_CARD[0]]);
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(true);
-    expect(WRITE_TRIES).toBeGreaterThanOrEqual(2);
-    // The second tab, hearing, finds the day taken, and the medal it wrote is still counted. It was never paid.
-    settle(open);
-    expect(cardFor(two.book(), MONDAY).state).toBe('taken');
-    expect(machines[1].paid).toEqual([]);
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 1, claims: 1 });
-  });
-
-  it('pay nothing when the day will not stay written however often it is written', () => {
-    // A tab outside the lock that writes over the book every time: the day never reads back, and no medal is given.
-    const { world, open, machines } = tabs(2, ['granted', 'refused']);
-    const [one, two] = open;
-    const stale = world.disk.text as string;
-    one.store.claimBonus();
-    for (let steps = 0; one.waiting(); steps++) {
-      const before = world.disk.writes;
-      one.step();
-      // Whatever the first tab writes is written over at once with the book as it was before.
-      if (world.disk.writes > before) world.disk.text = stale;
-      if (steps > 1000) throw new Error('the tab never finished');
-    }
-    expect(machines[0].paid).toEqual([]);
-    expect(one.store.getState().claims).toBe(0);
-    expect(one.total()).toMatchObject({ claims: 0, bonus: 0 });
-    void two;
-  });
-
   it('put back what a write made over theirs has taken out of storage, as soon as they hear of it', () => {
-    const { world, open, machines } = tabs(2, ['granted', 'refused']);
+    const { world, open } = tabs(2, ['granted', 'refused']);
     const [one, two] = open;
-    // The second tab reads, then the first takes the bonus from start to finish, then the second writes over it.
+    // The second tab reads, then the first earns a stamp and writes it at once, then the second writes over it.
     const second = counters();
     two.store.note(second, []);
     feed(second, 2);
@@ -1117,30 +698,33 @@ describe('tabs whose reads and writes fall between each other’s', () => {
     two.leaving();
     two.step();
     two.step();
-    one.store.claimBonus();
+    const first = counters();
+    one.store.note(first, []);
+    one.store.note(first, [line]);
     one.run();
-    expect(machines[0].paid).toEqual([BONUS_CARD[0]]);
+    expect((world.stored() as RecordBook).stamps.firstLine).toBe(MONDAY);
     two.run();
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(false);
-    // The first tab hears the write, sees that storage has lost the day, and writes it back without waiting for its timer.
+    expect((world.stored() as RecordBook).stamps.firstLine).toBeUndefined();
+    // The first tab hears the write, sees that storage has lost the stamp, and writes it back without waiting for its timer.
     one.changed();
     expect(one.waiting()).toBe(true);
     one.run();
-    expect(hasDay((world.stored() as RecordBook).claimed, MONDAY)).toBe(true);
-    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 2, claims: 1, bonus: BONUS_CARD[0] });
+    expect((world.stored() as RecordBook).stamps.firstLine).toBe(MONDAY);
+    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 2, small: 1 });
   });
 });
 
 describe('clearing the records', () => {
-  it('wipes the board and the stamps here and in storage, and keeps the bonus card', () => {
+  it('wipes the board and the stamps here and in storage, and keeps the days the bonus was taken on', () => {
     const world = browser();
+    // A book from before the medal bank paid the bonus: today's was taken here.
+    world.disk.text = serializeBook(claim(createBook('device0001'), MONDAY).book);
     const tab = world.open();
     tab.listen();
-    const { session } = machine(tab.store);
+    const { session } = machine();
     tab.store.note(session, []);
     feed(session, 9);
     tab.store.note(session, [line]);
-    tab.take();
     expect(tab.total()).toMatchObject({ fed: 9, small: 1, claims: 1 });
     expect(tab.store.getState().fresh).toEqual(['firstLine']);
 
@@ -1153,8 +737,6 @@ describe('clearing the records', () => {
     expect(world.stored()).toEqual(tab.book());
     // Today's bonus stays taken: clearing is not a way to have it again.
     expect(cardFor(tab.book(), MONDAY).state).toBe('taken');
-    expect(tab.take()).toBe(0);
-    expect(session.credits).toBe(START_CREDITS - 9 + BONUS_CARD[0]);
     // Play goes on counting, from nothing.
     feed(session, 2);
     tab.store.note(session, []);
@@ -1217,9 +799,7 @@ describe('a copy of the book from somewhere else', () => {
     expect(tab.store.getState().fresh).toEqual([]);
     expect(world.stored()).toEqual(tab.book());
     // The phone took today's bonus: it is taken here.
-    const { paid } = machine(tab.store);
-    expect(tab.take()).toBe(0);
-    expect(paid).toEqual([]);
+    expect(cardFor(tab.book(), MONDAY).state).toBe('taken');
 
     // The same copy again, the book's own copy from before, and its copy as it is now: nothing moves.
     const joined = tab.store.exportBook();
@@ -1312,15 +892,9 @@ async function sit(world: World, accounts: FakeAccounts, player: Player = GUEST)
   await settled();
   const session = counters();
   tab.store.note(session, []);
-  const paid: number[] = [];
-  tab.store.openPurse((medals) => {
-    paid.push(medals);
-    return grant(session, medals);
-  });
   return {
     tab,
     store: tab.store,
-    paid,
     /** Closes the page. */
     stop,
     state: () => tab.store.getState(),
@@ -1336,11 +910,6 @@ async function sit(world: World, accounts: FakeAccounts, player: Player = GUEST)
         world.wait(1);
         tab.tick();
       }
-    },
-    /** Presses for today's bonus and lets the account answer. */
-    take: async () => {
-      tab.store.claimBonus();
-      await settled();
     },
     /** Says who is playing now. */
     attend: async (next: Player) => {
@@ -1506,108 +1075,15 @@ describe('the book of a player who is signed in', () => {
     expect((await sit(laptop, accounts, signedIn(ANNA))).total().fed).toBe(55);
   });
 
-  it('asks the account before it pays a day’s bonus, and does not pay a day another device has taken', async () => {
-    const { accounts, device, held } = devices();
-    const a = await sit(device('phone'), accounts, signedIn(ANNA));
-    const b = await sit(device('laptop'), accounts, signedIn(ANNA));
-    // Both pages are open, and both say today's is ready.
-    expect([cardFor(a.tab.book(), MONDAY).state, cardFor(b.tab.book(), MONDAY).state]).toEqual(['ready', 'ready']);
-
-    a.store.claimBonus();
-    // The press waits to hear from the account, and the page says so.
-    expect(a.state().asking).toBe(true);
-    expect(a.paid).toEqual([]);
-    await settled();
-    expect(a.state().asking).toBe(false);
-    expect(a.paid).toEqual([BONUS_CARD[0]]);
-    // A day that has been taken goes to the account at once.
-    expect(hasDay((held(ANNA) as RecordBook).claimed, MONDAY)).toBe(true);
-
-    // The other device has not been loaded again. Its press asks, hears that the day is taken, and pays nothing.
-    await b.take();
-    expect(b.paid).toEqual([]);
-    expect(cardFor(b.tab.book(), MONDAY).state).toBe('taken');
-    expect(b.total()).toMatchObject({ claims: 1, bonus: BONUS_CARD[0] });
-    expect(b.state().claims).toBe(0);
-  });
-
-  it('does not wait long for an account that is slow to answer, and not at all for one that fails: the day is paid from what this device knows', async () => {
-    const { accounts, device, held } = devices();
-    const a = await sit(device('phone'), accounts, signedIn(ANNA));
-    accounts.heldReads = [];
-    const asked = accounts.count('load');
-    a.store.claimBonus();
-    await settled();
-    expect(a.state().asking).toBe(true);
-    // A second press while it waits is not a second question, and not a second bonus.
-    a.store.claimBonus();
-    await settled();
-    expect(accounts.count('load')).toBe(asked + 1);
-    a.tab.tick(ASK_SECONDS - 1);
-    expect(a.paid).toEqual([]);
-    a.tab.tick();
-    expect(a.paid).toEqual([BONUS_CARD[0]]);
-    expect(a.state().asking).toBe(false);
-    // The answer, when it comes at last, pays nothing more. What it says the account holds is still taken in.
-    a.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
-    await settled();
-    const there = held(ANNA) as RecordBook;
-    expect(hasDay(there.claimed, MONDAY)).toBe(true);
-    // (Another device has counted nine medals meanwhile.)
-    accounts.put(ANNA, serializeBook({ ...there, counters: { ...there.counters, tablet0001: { fed: 9 } } }), 'their-mark');
-    for (const answer of accounts.heldReads) answer();
-    accounts.heldReads = null;
-    await settled();
-    expect(a.paid).toEqual([BONUS_CARD[0]]);
-    expect(a.total()).toMatchObject({ fed: 9, claims: 1 });
-
-    // The next day the account cannot be reached at all when the press comes.
-    const world = device('laptop');
-    const b = await sit(world, accounts, signedIn(ANNA));
-    expect(b.state().where).toBe('account');
-    world.setDay(after(1));
-    b.tab.tick();
-    accounts.down = true;
-    await b.take();
-    expect(b.paid).toEqual([BONUS_CARD[1]]);
-  });
-
-  it('counts a day taken on two devices that could not reach the account as one day on the card and two bonuses', async () => {
-    const { accounts, device, held } = devices();
-    accounts.down = true;
-    const a = await sit(device('phone'), accounts, signedIn(ANNA));
-    const b = await sit(device('laptop'), accounts, signedIn(ANNA));
-    expect([a.state().where, b.state().where]).toEqual(['offline', 'offline']);
-    // Neither can ask, so each pays from what it knows. This is the double that is accepted.
-    await a.take();
-    await b.take();
-    expect([a.paid, b.paid]).toEqual([[BONUS_CARD[0]], [BONUS_CARD[0]]]);
-
-    // The account comes back, and each device reaches it when its wait is over.
-    accounts.down = false;
-    a.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
-    await settled();
-    b.pass(RETRY_AFTER[0] + BOOK_LOOK_EVERY);
-    await settled();
-    expect([a.state().where, b.state().where]).toEqual(['account', 'account']);
-    const joined = held(ANNA) as RecordBook;
-    expect(countDays(joined.claimed)).toBe(1);
-    expect(viewOf(joined).total).toMatchObject({ claims: 2, bonus: 2 * BONUS_CARD[0] });
-    expect(cardFor(joined, MONDAY)).toMatchObject({ state: 'taken', stamped: 1 });
-    // Nothing more is paid on either, today.
-    await a.take();
-    await b.take();
-    expect([a.paid.length, b.paid.length]).toEqual([1, 1]);
-    expect(b.total()).toMatchObject({ claims: 2, bonus: 2 * BONUS_CARD[0] });
-  });
-
   it('clears the account’s book with this device’s, and the other device’s when it next reaches the account', async () => {
     const { accounts, device, held } = devices();
     const [phone, laptop] = [device('phone'), device('laptop')];
     const a = await sit(phone, accounts, signedIn(ANNA));
     a.play(30, [line]);
-    await a.take();
-    a.pass(BOOK_LOOK_EVERY);
+    // A book from before the medal bank paid the bonus, with today's taken.
+    a.store.absorb(serializeBook(claim(createBook('older00001'), MONDAY).book));
+    await settled();
+    a.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
     await settled();
     const b = await sit(laptop, accounts, signedIn(ANNA));
     b.play(20);
@@ -1649,16 +1125,14 @@ describe('the book of a player who is signed in', () => {
       const page = await sit(world, accounts, signedIn(ANNA));
       expect(page.state().where).toBe('unreadable');
       page.play(30, [line]);
-      await page.take();
       page.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
       page.tab.leaving();
       page.stop();
       await settled();
       expect(accounts.count('store') + accounts.count('storeNow')).toBe(0);
       expect(accounts.docs.get(ANNA)).toEqual({ state, updatedAt: 1 });
-      // What was played is kept here, and the bonus was paid from what this device knows.
-      expect(page.paid).toEqual([BONUS_CARD[0]]);
-      expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 30, small: 1, claims: 1 });
+      // What was played is kept here.
+      expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ fed: 30, small: 1 });
     }
   });
 
@@ -1669,11 +1143,12 @@ describe('the book of a player who is signed in', () => {
     a.play(10);
     a.pass(BOOK_LOOK_EVERY);
     await settled();
-    // The second device, open all the while, earns a stamp and takes the day's bonus. Both go up.
+    // The second device, open all the while, earns a stamp and is given a book from before the medal bank paid the
+    // bonus, with today's taken. Both go up.
     b.play(20, [line]);
-    await b.take();
-    expect(b.paid).toEqual([BONUS_CARD[0]]);
-    b.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    b.store.absorb(serializeBook(claim(createBook('older00001'), MONDAY).book));
+    await settled();
+    b.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
     await settled();
     expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 30, claims: 1 });
 
@@ -1690,8 +1165,6 @@ describe('the book of a player who is signed in', () => {
     expect(cardFor(a.tab.book(), MONDAY).state).toBe('taken');
     expect(a.total()).toMatchObject({ fed: 35, claims: 1 });
     expect(a.tab.book().stamps.firstLine).toBe(MONDAY);
-    await a.take();
-    expect(a.paid).toEqual([]);
 
     // What it learnt is news to the keeper, which has it sent in its turn. The account holds all of it already, so
     // the account is read and nothing is written.
@@ -1832,17 +1305,20 @@ describe('the book of a player who is signed in', () => {
     two.play(100);
     two.pass(BOOK_LOOK_EVERY);
     await settled();
-    // The first tab has not looked at storage since. A press on the bonus asks the account, which tells it of the hundred.
+    // The first tab has not looked at storage since. A stamp of its own goes to the account at once, and the write reads
+    // the account first, which tells it of the hundred.
     expect(one.total().fed).toBe(0);
-    await one.take();
+    one.play(1, [line]);
+    one.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
+    await settled();
     one.tab.tick(SAVE_EVERY);
-    expect(one.total().fed).toBe(100);
-    expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(100);
+    expect(one.total().fed).toBe(101);
+    expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(101);
     // And what it counts itself from here is added, once.
     one.play(5);
     one.tab.tick(SAVE_EVERY);
     two.tab.changed(bookKey(ANNA));
-    expect([one.total().fed, two.total().fed]).toEqual([105, 105]);
+    expect([one.total().fed, two.total().fed]).toEqual([106, 106]);
   });
 
   it('reads storage when another tab has written this player’s book, and not for anything else another tab writes', async () => {
@@ -1863,7 +1339,7 @@ describe('the book of a player who is signed in', () => {
     expect(one.total().fed).toBe(7);
   });
 
-  it('pays a day once to two tabs of a player who is signed in, and moves the guest’s book once', async () => {
+  it('moves the guest’s book into the account once, from two tabs of a player who has signed in', async () => {
     const { accounts, device, held } = devices();
     const world = device('phone');
     // A guest has played in one tab. Signed in, the two tabs of this browser each hear from the account.
@@ -1880,15 +1356,11 @@ describe('the book of a player who is signed in', () => {
     two.tab.changed();
     expect([one.total().fed, two.total().fed]).toEqual([12, 12]);
     expect(viewOf(parseBook(world.at(bookKey(ANNA))) as RecordBook).total.fed).toBe(12);
-    // Both press for the day at once: each asks the account, and the lock lets one of them pay.
-    one.store.claimBonus();
-    two.store.claimBonus();
+    // Both send what they have: the account holds the guest's medals once.
+    one.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
+    two.pass(BOOK_SEND_EVERY + BOOK_LOOK_EVERY);
     await settled();
-    expect([...one.paid, ...two.paid]).toEqual([BONUS_CARD[0]]);
-    one.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
-    two.pass(MOMENT_GAP + BOOK_LOOK_EVERY);
-    await settled();
-    expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 12, claims: 1, bonus: BONUS_CARD[0] });
+    expect(viewOf(held(ANNA) as RecordBook).total).toMatchObject({ fed: 12 });
   });
 
   it('opens with the book of whoever played here last while the site is still finding out who is signed in, and touches no account until it knows', async () => {

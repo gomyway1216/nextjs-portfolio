@@ -336,6 +336,38 @@ describe('the bank of a player who is signed in', () => {
     expect(storedBalance(browser, UID)).toBe(WELCOME - 30);
   });
 
+  it('moves a guest machine’s purse in once, even when the machine has become an account’s before it is played', async () => {
+    const { browser, accounts, machines } = setup();
+    browser.storage.set(STORAGE_KEY, oldSave(beforeTheRide, 500));
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    machine(page);
+    await quiet(browser);
+    expect(page.bank.getState().balance).toBe(500);
+    page.bank.attend(signedIn(UID), accounts.store, machines.store);
+    await quiet(browser);
+    // The account had no bank: the guest's, with the purse in it, is the account's now.
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: 500 });
+    // The machine, opened as the guest's, reports its purse as the guest's: it is in already, and is not moved in again.
+    page.bank.importPurse(UID, PUSHER.guestPurse, 500);
+    await quiet(browser);
+    expect(page.bank.getState().balance).toBe(500);
+    expect(storedBalance(browser, UID)).toBe(500);
+  });
+
+  it('writes down a guest purse the machine moves in, so that no later guest’s bank on this device moves it in again', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.subscribe(() => undefined);
+    machine(page);
+    await quiet(browser);
+    // A purse the bank had not seen when it was opened, as a machine of the old game in another tab would have left.
+    page.bank.importPurse(null, PUSHER.guestPurse, 70);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(70);
+    expect(JSON.parse(browser.storage.get(BANKED_KEY) ?? '[]')).toEqual([PUSHER.guestPurse]);
+  });
+
   it('plays the account’s bank where the account has one, and leaves the guest’s on this device for the guest', async () => {
     const { browser, accounts, machines } = setup();
     accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 4000)), 'm-elsewhere');

@@ -792,7 +792,7 @@ export function createBank(env: BankEnv) {
    * the copy the keeper has handed over joined in. Nothing is written here;
    * whatever storage lacks is written with the card.
    */
-  const seat_ = (text: string | null, owner: string | null, moved: boolean): void => {
+  const seatDesk = (text: string | null, owner: string | null, moved: boolean): void => {
     const key = ledgerKey(owner);
     const stored = read(key);
     kept = stored !== undefined;
@@ -832,7 +832,7 @@ export function createBank(env: BankEnv) {
     const owner = sync.owner();
     if (!started) return;
     if (desk && desk.owner !== owner) asking = null;
-    seat_(text, owner, carried);
+    seatDesk(text, owner, carried);
     lookForPurse();
     publish();
     sync.save('tick');
@@ -862,7 +862,7 @@ export function createBank(env: BankEnv) {
     sync = accounts ? keeper(accounts) : null;
     sync?.player(wanted);
     era = null;
-    seat_(sync ? sync.open() : null, sync ? sync.owner() : null, false);
+    seatDesk(sync ? sync.open() : null, sync ? sync.owner() : null, false);
     unwatch = env.watch({
       tick,
       changed: (key) => {
@@ -1094,6 +1094,8 @@ export function createBank(env: BankEnv) {
       if (!at || at.owner !== owner || hasImported(at.ledger, source)) return;
       at.imports.push({ source, medals, machine: true });
       at.ledger = importPurse(at.ledger, source, medals);
+      // This device's guest purse is written down as moved in, so that no later guest's bank here moves it in again.
+      if (source === PUSHER.guestPurse && owner === null) at.banked = source;
       commit(at);
       sync?.save('moment');
       publish();

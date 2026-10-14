@@ -635,6 +635,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     // The medals are the bank's. A machine saved before there was a bank kept its own purse: that is moved into the
     // bank, once, as soon as the bank on the table is this machine's player's (`playable`). A new machine has none.
     let oldPurse = restored && restored.credits > 0 ? restored.credits : null;
+    // Whose purse it was is settled by whose machine it was when it was opened: a guest's machine that becomes an
+    // account's carries the guest's purse, which came into the account's bank with the guest's bank.
+    const purseFrom = keeping.owner() === null ? PUSHER.guestPurse : PUSHER.accountPurse;
     session.credits = purse.balance();
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
@@ -734,7 +737,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       const elapsed = playing ? sinceLast : 0;
       if (playing && oldPurse !== null) {
         // The purse a machine from before the bank kept, moved into its player's bank once (bank.ts says how once).
-        purse.importPurse(keeping.owner(), keeping.owner() === null ? PUSHER.guestPurse : PUSHER.accountPurse, oldPurse);
+        purse.importPurse(keeping.owner(), purseFrom, oldPurse);
         oldPurse = null;
       }
       // The purse is the bank's: what the machine takes and pays in this frame is taken out of it and put back in it

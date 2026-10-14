@@ -90,16 +90,20 @@ function played(): RecordBook {
     { type: 'spinEnd', result: { tier: 'miss', digits: [2, 3, 2], reach: true, reachKind: 'normal' } },
     { type: 'spinEnd', result: { tier: 'miss', digits: [1, 2, 3], reach: false, reachKind: 'none' } },
     { type: 'sugorokuEnd', square: 7, payout: 30, fever: true },
-    // The fever square's thirty are poured, and each number of the roulette comes up as a tower on its lift.
+    // The fever square's thirty are poured, and the roulette's numbers are stacked on one tower, which an arm pushes
+    // out once the run is over; and the jewel bonus's three are stacked as a tower of their own in the other tube.
     { type: 'pourStart', medals: 30 },
     { type: 'pourEnd', medals: 30 },
     { type: 'rouletteStep', pocket: 1, medals: 10, level: 1 },
-    { type: 'towersRise', towers: 1, medals: 10 },
-    { type: 'towersReady', towers: 1 },
+    { type: 'stacked', tube: 0, medals: 1 },
     { type: 'rouletteStep', pocket: 2, medals: 20, level: 2 },
-    { type: 'towersRise', towers: 1, medals: 20 },
-    { type: 'towersReady', towers: 1 },
     { type: 'rouletteEnd', total: 30, level: 2 },
+    { type: 'towerDown', tube: 0, medals: 30 },
+    { type: 'gateOpen', tube: 0 },
+    { type: 'towerOut', tube: 0, medals: 30 },
+    { type: 'towerSet', tube: 0, medals: 30 },
+    { type: 'gateShut', tube: 0 },
+    { type: 'towerSet', tube: 1, medals: 3 },
     { type: 'refill', count: 2 },
   ];
   let book = record(createBook('device0001'), events, after(-1));

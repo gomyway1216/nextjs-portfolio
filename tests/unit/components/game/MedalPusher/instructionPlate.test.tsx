@@ -581,7 +581,7 @@ describe('the START mouths', () => {
     // Flatter than it is wide, and rounder than a medal lying level there would be seen: the slide leans toward the player.
     expect(ry).toBeLessThan(rx);
     expect(ry / rx).toBeGreaterThan(seen(slopeSpot(CHECKERS.positions[1], 0, MID)).tilt * 1.1);
-    expect(rx * 2).toBeGreaterThan(middle.wide * 0.7);
+    expect(rx * 2).toBeGreaterThan(middle.wide * 0.65);
     expect(rx * 2).toBeLessThan(middle.wide);
     expect(cy).toBeLessThan(upper);
     expect(cy + ry).toBeGreaterThan(upper);

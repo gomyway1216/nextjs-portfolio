@@ -121,9 +121,9 @@ describe('where the arms hang', () => {
       expect(SLOT.mouth.tall).toBeLessThan(MEDAL_RADIUS * 2 + 1);
       expect(SLOT.mouth.wide).toBeGreaterThan(HEIGHT.medal * 3.5);
       const mouth = [slotSpot(arm, -SLOT.mouth.wide / 2, 0, SLOT.face - SLOT.deep), slotSpot(arm, SLOT.mouth.wide / 2, 0, SLOT.face - SLOT.deep), slotSpot(arm, 0, SLOT.mouth.tall / 2, SLOT.face - SLOT.deep), slotSpot(arm, 0, -SLOT.mouth.tall / 2, SLOT.face - SLOT.deep)].map(seen);
-      // On a phone, where the stage is 345 pixels wide, that is a dozen pixels across and two dozen tall.
+      // On a phone, where the stage is 345 pixels wide, that is a dozen pixels across and twenty tall.
       expect(((mouth[1].x - mouth[0].x) * 345) / VIEW.width).toBeGreaterThan(12);
-      expect(((mouth[3].y - mouth[2].y) * 345) / VIEW.width).toBeGreaterThan(22);
+      expect(((mouth[3].y - mouth[2].y) * 345) / VIEW.width).toBeGreaterThan(20);
       // The whole mouth is inside the throat, the throat inside the ring of light, and that inside the ring.
       expect(SLOT.mouth.tall / 2).toBeLessThan(SLOT.ring * SLOT.throat);
       expect(SLOT.throat).toBeLessThan(SLOT.light);

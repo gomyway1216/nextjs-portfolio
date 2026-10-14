@@ -14,8 +14,8 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
-import { offLifts } from './works';
-import { drawHatches, drawHopper, drawLifts } from './works2d';
+import { offArms, onArm } from './works';
+import { drawArms, drawHopper, drawTubeCounts, drawTubes, paintWindows } from './works2d';
 import { APRON, CATCHER, SLOPE, START_SLOT, TONGUE, apronSpot, caught, lampSpot, litSlots, mouthSpot, rolling, slopeSpot, slotCorners, slotHalf, tongueCorners, tongueHalf, underCatcher, wellCorners, wingCorners, type Caught } from './catcher';
 import { CHUCKERS } from './chuckers';
 import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, frontPays, pusherFront, type Arm, type Machine, type Medal } from './engine';
@@ -97,8 +97,12 @@ const SUN = { x: 0.29, depth: 0.39 } as const;
  * player's left shoulder.
  */
 const CAST = { x: 0.3, y: -0.55 } as const;
-/** A prize ball is drawn this large. It overhangs the flat medals round it, so it touches them over less. */
-export const BALL_RADIUS = 4.3;
+/**
+ * A prize ball is drawn this large: about half as wide again as a medal, as
+ * the balls on a real station are beside its medals. It overhangs the flat
+ * medals round it, so it touches them over less.
+ */
+export const BALL_RADIUS = 3.8;
 /** How far out from the table's edge the chute beside an open side is drawn: past the edge of the picture. */
 const CHUTE_OUT = 16;
 /**
@@ -663,6 +667,8 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   }
 
   paintHousing(g, ratio);
+  // The windows at the screen's lower corners, with the tubes the towers are stacked in (works2d.ts).
+  paintWindows(g, ratio);
   flat();
   // The bracket each slot hangs from: a bar in from the cabinet's frame, at the front corner. The slots themselves light up, so every frame draws them.
   g.lineCap = 'butt';
@@ -1336,8 +1342,32 @@ function drawBall(g: CanvasRenderingContext2D, stage: Stage, x: number, height: 
   g.drawImage(stage.ball, -1, -1, 2, 2);
 }
 
+/**
+ * The lowest medal of a tower, as the medals lying round it are drawn: its shadow on the table, its rim and its
+ * face. `drawMedals` draws it with them, and `drawTower` the rest of the tower on it; a tower on an arm is drawn
+ * apart from the medals it is pushed through, and so is given this first.
+ */
+function drawFoot(g: CanvasRenderingContext2D, stage: Stage, tower: Pick<Medal, 'id' | 'x' | 'y'>, base: number, shift: number): void {
+  const k = stage.ratio;
+  const point = project(tower.x, base + T, tower.y);
+  const rx = R * point.scale;
+  const thickness = T * rise(point);
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.fillStyle = TABLE_SHADE.color;
+  g.beginPath();
+  g.ellipse(point.x + rx * 1.06 * 0.12, point.y + thickness * TABLE_SHADE.reach, rx * 1.06, rx * 1.06 * point.tilt, 0, 0, TAU);
+  g.fill();
+  g.fillStyle = MEDAL_PAINT.edge;
+  g.beginPath();
+  g.moveTo(point.x + rx, point.y + thickness);
+  g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
+  g.rect(point.x - rx, point.y, rx * 2, thickness);
+  g.fill();
+  stamp(g, stage, point, point.tilt, turnOf(tower.id), shift, 1, tower.id);
+}
+
 /** The medals of a tower above its lowest one: a column with a rim line for each, and the top medal's face. */
-function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base: number, shift: number): void {
+function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Pick<Medal, 'id' | 'x' | 'y' | 'stack'>, base: number, shift: number): void {
   const k = stage.ratio;
   const foot = project(tower.x, base + T, tower.y);
   const head = project(tower.x, base + tower.stack * T, tower.y);
@@ -1948,7 +1978,7 @@ export function showJewel(stage: Stage, lamp: number, medals: number, bonus: boo
 // ── The catcher ─────────────────────────────────────────────────────────────
 
 /** How tall the capitals of the words on the catcher's slide are, in field units down its slope. */
-export const APRON_CAP = 3.5;
+export const APRON_CAP = 4.2;
 /** A heavy face for a word that has to be read from across the cabinet, narrow where the device has one that is. */
 const SIGN_FACE = 'Impact, "Avenir Next Condensed", "Arial Narrow", "Arial Black", Arial, sans-serif';
 
@@ -2391,6 +2421,19 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.drawImage(stage.background, shake * k, 0);
   g.globalCompositeOperation = 'source-over';
   flat();
+  // In the windows at the screen's lower corners: the stacks in the tubes, and the glass in front of them (works2d.ts).
+  // A stack of medals in a tube is drawn as a tower is, from the platform its lowest medal lies on.
+  drawTubes(
+    g,
+    k,
+    machine,
+    front,
+    calm,
+    shake,
+    (x, depth, floor, stacked, id) => drawTower(g, stage, { id, x, y: depth, stack: stacked + 1 }, floor - T, shake),
+    (point, round, id) => stamp(g, stage, point, round, turnOf(id), shake, 1, id),
+  );
+  flat();
 
   // Running lights down both sides of the screen, along the rails and under the front edge. The row across the hood comes later, with the hood.
   const partying = party !== null && party.kind !== 'crash';
@@ -2556,22 +2599,14 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.strokeStyle = 'rgba(236, 252, 255, 0.95)';
   g.lineWidth = 2.5;
   line(g, top[3], top[2]);
-  // The tower lifts' hatches are in the deck, under whatever lies on it (works2d.ts).
-  drawHatches(g, k, machine, front, calm, shake);
-  // A tower that a lift still holds is not standing on the deck yet: the lift draws it, as far up through its hatch as it has come.
-  drawMedals(g, stage, offLifts(machine, upper), P, shake);
+  // A tower on an arm is drawn with its arm, over the medals it is pushed through.
+  drawMedals(g, stage, offArms(machine, upper), P, shake);
   jewelsOf(upper);
-  // The lifts that are bringing towers up through the deck, each with its tower and its guard (works2d.ts).
-  drawLifts(
-    g,
-    k,
-    machine,
-    front,
-    calm,
-    shake,
-    (tower) => drawTower(g, stage, tower, P, shake),
-    (point, id) => stamp(g, stage, point, point.tilt, turnOf(id), shake),
-  );
+  // The arms pushing towers out of their tubes and across the pusher, each with its tower (works2d.ts).
+  drawArms(g, k, machine, front, calm, shake, (tower) => {
+    if (onArm(machine, tower)) drawFoot(g, stage, tower, P, shake);
+    drawTower(g, stage, tower, P, shake);
+  });
   // What has just come over the lip at the catcher is drawn where the catcher has it, not lying where the engine has
   // already put it: the medals on their way down it, the nearest to the lip first, and a ball rolling down its
   // slide. A jewel fits no slot and goes down into the well as a medal that fits none does.
@@ -2767,6 +2802,8 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   pool.addColorStop(1, `rgba(6, 3, 16, ${POOL.dark})`);
   g.fillStyle = pool;
   g.fillRect(0, project(0, HEIGHT.pusher, 0).y, VIEW.width, VIEW.height);
+  // The counts over the windows, lit on their plates, under the glass of the cabinet.
+  drawTubeCounts(g, k, machine, front, calm, shake);
   drawOverlay(g, stage, calm);
 }
 

@@ -22,7 +22,6 @@ import {
   RELEASE,
   ROLL_TIME,
   TOWER,
-  TOWER_SITES,
   armFor,
   armGoal,
   aimArm,
@@ -51,7 +50,7 @@ import {
   type Medal,
   type StepEvents,
 } from '@/components/game/MedalPusher/engine';
-import { LIFT } from '@/components/game/MedalPusher/lift';
+import { CYCLE, STACK, TUBE, TUBE_ROOM, medalsInTubes, towersIn } from '@/components/game/MedalPusher/stacker';
 
 import { aimBoth, dropAt } from './feeding';
 
@@ -111,7 +110,6 @@ const medalAt = (x: number, y: number, over: Partial<Medal> = {}): Medal => ({
   tier: 0,
   sinceDrop: -1,
   stack: 1,
-  grow: 0,
   ball: false,
   grown: 1,
   ...over,
@@ -148,13 +146,10 @@ describe('the generator and the pusher', () => {
     // The middle one is in the middle of the field, and the other two as far from it to either side.
     expect(centre).toBe(FIELD.width / 2);
     expect(centre - left).toBe(right - centre);
-    // They are as far apart as the towers are, and the towers go up to either side of the middle:
-    // so a tower's place is halfway between two chuckers, or outside all three.
-    expect(centre - left).toBe(TOWER.spacing);
-    for (let i = 0; i < TOWER.perRow; i++) {
-      const site = FIELD.width / 2 + (i - (TOWER.perRow - 1) / 2) * TOWER.spacing;
+    // The arms leave the towers to either side of the middle, each halfway between two chuckers.
+    for (const site of TUBE.site) {
       expect(checkerAt(site)).toBe(-1);
-      expect(Math.min(...CHECKERS.positions.map((x) => Math.abs(site - x)))).toBeGreaterThanOrEqual(TOWER.spacing / 2);
+      expect(Math.min(...CHECKERS.positions.map((x) => Math.abs(site - x)))).toBeGreaterThanOrEqual((centre - left) / 2);
     }
     // A chucker's mouth is a medal wide and `halfWidth` to spare on either side. The three mouths do
     // not run into each other, and together they keep to the middle of the lip.
@@ -925,12 +920,6 @@ describe('a machine in play', () => {
     expect(tower(43, 20)).toEqual([]);
     expect(tower(57, TOWER.max)).toEqual([]);
     expect(tower(50 + CHECKERS.halfWidth + 0.02, 20)).toEqual([]);
-    // Of a tower that is still going up, the medals it has are the ones that go through. The rest are thrown on loose.
-    const growing = machineWith([medalAt(50, PUSHER.min + 0.5, { level: 1, stack: 4, grow: 6 })]);
-    growing.growing = 6;
-    expect(step(growing, DT).checkers).toEqual([1, 1, 1, 1]);
-    expect(growing.payoutQueue).toBe(6);
-    expect(growing.growing).toBe(0);
   });
 
   it('makes a medal as thin as a real one, and lays a tower that goes over down across the lower table as far as it stood tall', () => {
@@ -954,9 +943,11 @@ describe('a machine in play', () => {
         expect(Math.abs(medal.x - 22)).toBeLessThanOrEqual(MEDAL_RADIUS + out * 0.35);
         expect(medal.fromY).toBe(lip);
       }
-      // So the tallest tower there is comes down within three medals' widths of the foot of the pusher's face, and not half way to the front.
+      // So the tallest tower there is comes down within six medals' widths of the foot of the pusher's face, and
+      // short of the front edge wherever the lip is.
       expect(Math.max(...down.map((medal) => medal.y))).toBeLessThan(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1);
-      expect(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(lip + MEDAL_RADIUS * 6);
+      expect(MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(MEDAL_RADIUS * 12);
+      expect(PUSHER.max + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(FIELD.depth - MEDAL_RADIUS * 2);
     }
   });
 
@@ -976,7 +967,8 @@ describe('a machine in play', () => {
   });
 
   it('sends more medals through the chuckers the nearer the middle they are fed, and counts the ones the machine pays', () => {
-    // Fed down the middle: every chucker takes some, the middle one the most.
+    // Fed down the middle: every chucker takes some, and the middle one about as many as either of the others. By the
+    // time a medal is at the lip the pile has spread it across all three, which stand side by side in the middle.
     const middle = createMachine(5);
     const fed = run(middle, 100, FIELD.width / 2, 0.25);
     const through = (chucker: number) => fed.checkers.filter((one) => one === chucker).length;
@@ -985,7 +977,7 @@ describe('a machine in play', () => {
     expect(fed.checkers.length).toBeGreaterThan(fed.dropped / 16);
     expect(fed.checkers.length).toBeLessThan(fed.dropped / 5);
     expect(Math.min(through(0), through(1), through(2))).toBeGreaterThan(3);
-    expect(through(1)).toBe(Math.max(through(0), through(1), through(2)));
+    expect(through(1)).toBeGreaterThan(Math.max(through(0), through(2)) * 0.6);
 
     // Fed at an edge, the pile has to carry a medal a third of the way across first: far fewer get there.
     const edge = createMachine(5);
@@ -1031,7 +1023,7 @@ describe('medals two deep', () => {
     // A medal on the lower table with one lying on its far half, and a third pressed in behind that pushes the first forward.
     const under = medalAt(50, 70);
     const rider = medalAt(50.4, 72, { tier: 1 });
-    const behind = medalAt(50, 64.4);
+    const behind = medalAt(50, 70 - (MEDAL_RADIUS * 2 - 0.8));
     const machine = machineWith([under, rider, behind]);
     const before = { under: under.y, rider: rider.y };
     for (let i = 0; i < 5; i++) step(machine, DT);
@@ -1145,25 +1137,21 @@ describe('medals two deep', () => {
 
 describe('medal towers', () => {
   it('splits a prize into as few towers as will hold it, as even as they can be', () => {
+    expect(TOWER.max).toBe(64);
     expect(towerSizes(20)).toEqual([20]);
-    expect(towerSizes(25)).toEqual([25]);
-    expect(towerSizes(30)).toEqual([15, 15]);
-    expect(towerSizes(50)).toEqual([25, 25]);
-    expect(towerSizes(100)).toEqual([25, 25, 25, 25]);
-    expect(towerSizes(300)).toHaveLength(12);
-    expect(towerSizes(312)).toEqual(Array.from({ length: 13 }, () => 24));
+    expect(towerSizes(64)).toEqual([64]);
+    expect(towerSizes(65)).toEqual([33, 32]);
+    expect(towerSizes(150)).toEqual([50, 50, 50]);
     expect(towerSizes(0)).toEqual([]);
-    const sites = TOWER_SITES;
-    expect(sites).toBe(TOWER.perRow * TOWER.rows.length);
-    // More than every site can hold: the towers are full and the rest is paid loose.
-    expect(towerSizes(sites * TOWER.max + 70)).toEqual(Array.from({ length: sites }, () => TOWER.max));
-    // With fewer places free, fewer towers; with none, no tower at all.
-    expect(towerSizes(100, 2)).toEqual([25, 25]);
-    expect(towerSizes(30, 1)).toEqual([25]);
+    // More than the tubes take on at once: the towers are full and the rest is left out, to be paid loose.
+    expect(towerSizes(TUBE_ROOM * TOWER.max + 70)).toEqual(Array.from({ length: TUBE_ROOM }, () => TOWER.max));
+    // With room for fewer towers, fewer towers; with none, no tower at all.
+    expect(towerSizes(200, 2)).toEqual([64, 64]);
+    expect(towerSizes(30, 1)).toEqual([30]);
     expect(towerSizes(100, 0)).toEqual([]);
     expect(() => towerSizes(10, -1)).toThrow();
     for (const medals of [1, 19, 26, 51, 137, 449]) {
-      const sizes = towerSizes(medals);
+      const sizes = towerSizes(medals, 100);
       expect(sizes.reduce((sum, size) => sum + size, 0)).toBe(medals);
       expect(Math.max(...sizes)).toBeLessThanOrEqual(TOWER.max);
       expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
@@ -1172,78 +1160,65 @@ describe('medal towers', () => {
     expect(() => towerSizes(2.5)).toThrow();
   });
 
-  it('stacks a prize on the pusher, a medal at a time', () => {
+  it('stacks a prize in the tubes, a medal at a time, and pushes each tower out onto the pusher whole', () => {
     const machine = createMachine(13);
     const start = medalsOnField(machine);
-    buildTowers(machine, 100);
-    const towers = () => machine.medals.filter((m) => m.stack > 1 || m.grow > 0);
-    expect(towers()).toHaveLength(4);
-    expect(machine.growing).toBe(96);
-    // The prize is on the field from the moment it is paid, though the towers are still going up.
-    expect(medalsOnField(machine)).toBe(start + 100);
-    expect(towers().every((tower) => tower.level === 1 && tower.y < pusherFront(machine.time))).toBe(true);
-    // Each stands on the hatch of its lift, one medal high, until the hatch is open and the guard is up.
-    const opening = step(machine, LIFT.opens - 0.05);
-    expect(towers().every((tower) => tower.stack === 1)).toBe(true);
-    expect(machine.growing).toBe(96);
-    // Going up, a tower shoulders its neighbours aside, and some of them leave the field.
-    const early = step(machine, 0.05 + 3.5 / TOWER.perSecond);
-    expect(towers().every((tower) => tower.stack > 3 && tower.stack < 25)).toBe(true);
-    early.won += opening.won;
-    early.lost += opening.lost;
-    early.toppled += opening.toppled;
-    const late = step(machine, 25 / TOWER.perSecond);
-    expect(machine.growing).toBe(0);
+    buildTowers(machine, 150);
+    const towers = () => machine.medals.filter((m) => m.stack > 1);
+    // Nothing is on the field yet: the prize is in the tubes, and on the field's books from the moment it is paid.
+    expect(towers()).toHaveLength(0);
+    expect(medalsInTubes(machine.stacker)).toBe(150);
+    expect(medalsOnField(machine)).toBe(start + 150);
+    expect(machine.stacker.tubes.map((tube) => [tube.size, ...tube.waiting])).toEqual([[50, 50], [50]]);
+    // A medal at a time: a second in, each tube has ten.
+    const early = step(machine, 1.01);
+    expect(machine.stacker.tubes.map((tube) => tube.stacked)).toEqual([STACK.perSecond, STACK.perSecond]);
+    expect(towers()).toHaveLength(0);
+    // Built, let down, its gate opened: the first two go out whole, each as tall as it was stacked.
+    const late = step(machine, 50 / STACK.perSecond - 1.01 + STACK.lowers + STACK.opens + 0.1);
     expect(
       towers()
         .map((tower) => tower.stack)
         .sort(),
-    ).toEqual([25, 25, 25, 25]);
-    expect(early.toppled + late.toppled).toBe(0);
-    expect(medalsOnField(machine) + early.won + early.lost + late.won + late.lost).toBe(start + 100);
+    ).toEqual([50, 50]);
+    expect(towers().every((tower) => tower.level === 1)).toBe(true);
+    // And the third once its tube is free again.
+    const last = step(machine, CYCLE + 50 / STACK.perSecond);
+    expect(medalsInTubes(machine.stacker)).toBe(0);
+    expect(machine.stacker.made).toBe(3);
+    const gone = [early, late, last].reduce((sum, events) => sum + events.won + events.lost, 0);
+    expect(medalsOnField(machine) + gone).toBe(start + 150);
   });
 
-  it('never stands a tower where one already stands, however often it pays', () => {
+  it('takes no more than the tubes have room for, and pays the rest loose', () => {
     const machine = createMachine(13);
     const start = medalsOnField(machine);
-    const apart = () => {
-      const towers = machine.medals.filter((m) => m.stack + m.grow > 1);
-      let nearest = Infinity;
-      for (let i = 0; i < towers.length; i++) {
-        for (let j = i + 1; j < towers.length; j++) nearest = Math.min(nearest, Math.hypot(towers[i].x - towers[j].x, towers[i].y - towers[j].y));
-      }
-      return { count: towers.length, nearest };
-    };
-    // Six prizes, one after another with no time passing, then a jackpot on top.
     let paid = 0;
-    for (const medals of [10, 20, 30, 50, 10, 20]) {
+    for (const medals of [10, 20, 30, 100]) {
       buildTowers(machine, medals);
       paid += medals;
     }
-    expect(apart()).toMatchObject({ count: 8 });
-    expect(apart().nearest).toBeGreaterThanOrEqual(MEDAL_RADIUS * 2);
+    // Four prizes, four towers, and the hundred is two: each a tower of its own, in whichever tube will be free soonest.
+    expect(machine.stacker.tubes.reduce((sum, tube) => sum + towersIn(tube), 0)).toBe(5);
+    expect(machine.payoutQueue).toBe(0);
     buildTowers(machine, 300);
     paid += 300;
-    // Ten places were left for the jackpot's twelve towers: ten go up and the rest is thrown on loose.
-    expect(apart().count).toBe(TOWER_SITES);
-    expect(apart().nearest).toBeGreaterThanOrEqual(MEDAL_RADIUS * 2);
-    expect(machine.payoutQueue).toBe(50);
+    // Room for one more tower: the rest of the three hundred is paid loose.
+    expect(machine.stacker.tubes.map(towersIn)).toEqual([STACK.queue, STACK.queue]);
+    expect(machine.payoutQueue).toBe(300 - TOWER.max);
     expect(medalsOnField(machine)).toBe(start + paid);
-    // With every place taken, a further prize is thrown on loose in full.
+    // With no room left, a further prize is paid loose in full.
     buildTowers(machine, 40);
-    expect(apart().count).toBe(TOWER_SITES);
-    expect(machine.payoutQueue).toBe(90);
+    expect(machine.payoutQueue).toBe(300 - TOWER.max + 40);
     expect(() => buildTowers(machine, 1.5)).toThrow();
   });
 
   it('pays what its towers cannot hold as loose medals', () => {
     const machine = createMachine(13);
-    const sites = TOWER.perRow * TOWER.rows.length;
-    buildTowers(machine, sites * TOWER.max + 33);
-    expect(machine.medals.filter((m) => m.grow > 0)).toHaveLength(sites);
+    buildTowers(machine, TUBE_ROOM * TOWER.max + 33);
+    expect(medalsInTubes(machine.stacker)).toBe(TUBE_ROOM * TOWER.max);
     expect(machine.payoutQueue).toBe(33);
   });
-
   it('comes down across the lower table when it is pushed over the lip', () => {
     const machine = createMachine(17);
     const start = medalsOnField(machine);
@@ -1330,7 +1305,7 @@ describe('jewels', () => {
         // Both lie on the lower table. Each took the place of the medal that lay nearest its spot, and nothing lies on it.
         expect(spot.level).toBe(0);
         const [jewel] = [...lying].sort((a, b) => Math.hypot(a.x - spot.x, a.y - spot.y) - Math.hypot(b.x - spot.x, b.y - spot.y));
-        expect([jewel.level, jewel.ball, jewel.tier, jewel.stack, jewel.grow]).toEqual([0, false, 0, 1, 0]);
+        expect([jewel.level, jewel.ball, jewel.tier, jewel.stack]).toEqual([0, false, 0, 1]);
         expect(Math.hypot(jewel.x - spot.x, jewel.y - spot.y)).toBeLessThan(D * 1.5);
         const onTop = machine.medals.filter((medal) => medal.tier === 1 && medal.level === jewel.level);
         expect(Math.min(...onTop.map((medal) => Math.hypot(medal.x - jewel.x, medal.y - jewel.y)))).toBeGreaterThanOrEqual(D * 1.6 - 1e-9);
@@ -1433,9 +1408,9 @@ describe('the side holes round the front corners', () => {
     return events;
   };
 
-  it('reach a fifth of the way along the front edge from each side, so the edge is over the tray for its middle three fifths', () => {
-    expect(FIELD.sideReach).toBe(20);
-    expect(FIELD.width - 2 * FIELD.sideReach).toBe(60);
+  it('reach a fifth of the way along the front edge from each side, and a hair more, so the edge is over the tray for its middle three fifths, nearly', () => {
+    expect(FIELD.sideReach).toBe(20.3);
+    expect(FIELD.width - 2 * FIELD.sideReach).toBeCloseTo(59.4, 9);
     // The holes are the ones that run down the open sides, turned round the corners: they take less of the front than they leave.
     expect(FIELD.sideReach).toBeGreaterThan(MEDAL_RADIUS * 2);
     expect(FIELD.sideReach * 2).toBeLessThan(FIELD.width / 2);

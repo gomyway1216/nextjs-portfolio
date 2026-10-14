@@ -9,16 +9,19 @@
  * the whole picture is on it, and with the 3D one only what lies flat on the
  * glass — sparks, confetti, the counts — while the scene is on the canvas
  * underneath. A canvas gives out one kind of context for good, so which of
- * the two is asked for which is settled before either is touched.
+ * the two is asked for which is settled before either is touched. The counts
+ * over the tube windows are lit lamps on the cabinet, and they are drawn
+ * there too, under the glass, so that both renderers show the same digits.
  *
  * Under both of them the page stands its screen, in the back wall of the
  * cabinet. Whichever renderer draws leaves that part of its picture clear,
  * so the screen shows through with everything else in front of it.
  */
 
-import type { Machine } from './engine';
-import { drawField, drawOverlay, glassShift, paintStage, type DrawOptions, type Stage } from './render';
+import { pusherFront, type Machine } from './engine';
+import { PARTY_TIME, drawField, drawOverlay, glassShift, paintStage, type DrawOptions, type Stage } from './render';
 import { createScene3d, type Scene3d } from './render3d';
+import { countsShown, drawTubeCounts } from './works2d';
 
 export type RendererKind = 'webgl' | '2d';
 
@@ -81,6 +84,8 @@ export function createRenderer(field: HTMLCanvasElement, under: HTMLCanvasElemen
   let busy = false;
   // How far the bands on the glass had drifted when the upper canvas was last drawn, in half pixels of the drawing.
   let drifted = Number.NaN;
+  // What the counts over the windows said when the upper canvas was last drawn.
+  let counted = '';
 
   const start = () => {
     if (!gl || gl.isContextLost()) return;
@@ -133,13 +138,19 @@ export function createRenderer(field: HTMLCanvasElement, under: HTMLCanvasElemen
       // bands have moved half a pixel of the drawing, which is a few times a second at most.
       const lively = stage.sparks.length > 0 || stage.popups.length > 0 || stage.party !== null;
       const shifted = Math.round(glassShift(stage.clock, options.calm) * 2);
-      if (lively || busy || cleared !== stage || shifted !== drifted) {
+      const front = pusherFront(machine.time);
+      const counts = countsShown(machine, front, options.calm ?? false);
+      if (lively || busy || cleared !== stage || shifted !== drifted || counts !== counted) {
         context.setTransform(1, 0, 0, 1, 0, 0);
         context.clearRect(0, 0, field.width, field.height);
+        // The counts shake with the cabinet when a tower comes down, as the scene does.
+        const shake = !options.calm && stage.party?.kind === 'crash' ? Math.sin(stage.clock * 90) * 2.2 * (stage.party.left / PARTY_TIME.crash) : 0;
+        drawTubeCounts(context, stage.ratio, machine, front, options.calm ?? false, shake);
         drawOverlay(context, stage, options.calm, WASH_OVER_3D);
         cleared = stage;
         busy = lively;
         drifted = shifted;
+        counted = counts;
       }
     },
     dispose() {

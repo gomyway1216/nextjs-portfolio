@@ -533,8 +533,9 @@ function advanceBowl(session: Session, roulette: ActiveRoulette, bowl: ActiveBow
     const poured = session.machine.payoutQueue - queued;
     if (roulette.jackpot) {
       session.jackpots += 1;
+      // It starts over, and the medals played toward its next medal count toward the new one's: none of what the
+      // players put toward it is lost when it is won, so it pays exactly `JACKPOT_GROWTH` a medal over a long run.
       session.jackpot = JACKPOT_START;
-      session.jackpotProgress = 0;
     }
     events?.push({ type: 'bowlEnd', bowl: bowl.stage, hole: taken, payout: bowl.payout, poured, total: roulette.total, jackpot: roulette.jackpot });
   }

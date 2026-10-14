@@ -846,7 +846,8 @@ describe('the jackpot challenge', () => {
     expect(session.roulette).toMatchObject({ over: true, jackpot: true, gain: 337, total: 377 });
     expect(session.jackpots).toBe(1);
     expect(session.jackpot).toBe(JACKPOT_START);
-    expect(session.jackpotProgress).toBe(0);
+    // The twelve medals played toward its next medal count toward the new one's: nothing put toward the jackpot is lost.
+    expect(session.jackpotProgress).toBe(12);
     // A hundred and one medals wait to be poured from the lip, and the other 236 are towers going up.
     expect(session.machine.payoutQueue).toBe(101);
     expect(inTowers(session) - stacked).toBe(236);
@@ -909,7 +910,7 @@ describe('the jackpot challenge', () => {
       const jackpot = JACKPOT_START + ((i * 37) % 900);
       const down = i % 2;
       session.jackpot = jackpot;
-      session.jackpotProgress = i % 40;
+      session.jackpotProgress = i % JACKPOT_STEP;
       session.balls = 1;
       // Four tens, then the draw that goes down this hole of the top bowl and on to the jackpot.
       const draws = [draw(1), draw(1), draw(1), draw(1), (down + 0.5) / FALLS.length];
@@ -950,7 +951,7 @@ describe('the jackpot challenge', () => {
       expect(session.paidOut - paidBefore).toBe(40 + jackpot);
       expect(session.jackpots).toBe(i + 1);
       expect(session.jackpot).toBe(JACKPOT_START);
-      expect(session.jackpotProgress).toBe(0);
+      expect(session.jackpotProgress).toBe(i % JACKPOT_STEP);
       owed += 40 + jackpot;
     }
     expect(session.paidOut).toBe(owed);

@@ -14,7 +14,7 @@ import { BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, JACKPOT_START, JEWEL, TIER_BONUS 
 import { MedalTray, type MedalTrayHandle } from './MedalTray';
 import type { TrayCause } from './panel';
 import { PlateSticker } from './PlateSticker';
-import { BURST, ageStage, celebrate, createStage, dropEntries, enterGate, holdShown, showJewel, trackMedals, type Stage } from './render';
+import { BURST, ageStage, celebrate, createStage, dropEntries, enterGate, holdCount, holdShown, showJewel, trackMedals, type Stage } from './render';
 import { records } from './recordsStore';
 import { createRenderer } from './renderer';
 import { IDLE_DIGITS, Screen, markStrip, placeLottery, stripOffset } from './ScreenPanel';
@@ -950,10 +950,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       const felt = hapticFor(events, takeFed(fedBy.current));
       if (felt) buzz(felt, feelNow.current.vibrate, now);
 
-      // The hold's lamps show a spin once its medal's spark has reached them, a moment after the machine has it.
-      const hold = holdShown(stage, session.stock, session.gold);
+      // The hold's lamps show a spin once its medal's spark has reached them, a moment after the machine has it. The
+      // sparks are bound by the count taken before they move; the lamps are drawn by the one taken after, so a spark
+      // that gets to its lamp in this frame finds it lit in this frame, under its shine.
+      holdShown(stage, session.stock, session.gold);
       trackMedals(stage, session.machine, won);
       ageStage(stage, elapsed, calm.matches);
+      const hold = holdCount(stage, session.stock, session.gold);
       // The monitor lights what stands in front of it, in the colour of the mode it is in.
       const glow = monitorGlow(monitorMode(screenState(session, calm.matches)));
       renderer.draw(stage, session.machine, { showGuide: true, calm: calm.matches, stock: hold.stock, gold: hold.gold, wings: session.rush, jewels: session.jewels, glow });

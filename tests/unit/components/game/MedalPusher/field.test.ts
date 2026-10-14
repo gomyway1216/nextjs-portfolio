@@ -87,6 +87,7 @@ import {
   enterGate,
   faceOf,
   goldFlash,
+  holdCount,
   holdShown,
   lampFor,
   lightGate,
@@ -1883,6 +1884,26 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(words(stage)).toHaveLength(0);
     expect(stage.holdGlow.every((glow) => glow === 0)).toBe(true);
     expect(BURST.word).toBeGreaterThan(BURST.run * 2);
+  });
+
+  it('draws the lamp a spark gets to lit in the frame it gets there, under its shine, and keeps the count the sparks were bound by', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    // The machine held two spins and has just taken a third; its spark sets out for the third lamp.
+    enterGate(stage, plain);
+    holdShown(stage, 3, 0);
+    dropEntries(stage, time);
+    while (stage.entries[0].run + FRAME < BURST.run) ageStage(stage, FRAME);
+    // The frame before it gets there, the hold shows two and the third lamp is dark.
+    expect(holdShown(stage, 3, 0)).toMatchObject({ stock: 2 });
+    expect(stage.holdGlow[2]).toBe(0);
+    ageStage(stage, FRAME);
+    // In the frame it gets there, the lamp shines, and the count the lamps are drawn by has it lit under the shine.
+    expect(stage.entries).toHaveLength(0);
+    expect(stage.holdGlow[2]).toBeGreaterThan(0);
+    expect(holdCount(stage, 3, 0)).toEqual({ stock: 3, gold: 0, taken: 0, gilt: 0 });
+    // The stage is not told it: it keeps the count it bound the sparks by until it is asked again.
+    expect(stage.hold).toMatchObject({ stock: 2 });
   });
 
   it('tells a gold spin from an everyday one, a held spin turned gold from both, and a medal that started nothing from them all', () => {

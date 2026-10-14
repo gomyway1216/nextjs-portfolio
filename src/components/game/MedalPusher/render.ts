@@ -1135,6 +1135,18 @@ export function dropEntries(stage: Stage, time: number, calm = false): Arrival[]
  * have nowhere to go.
  */
 export function holdShown(stage: Stage, stock: number, gold: number): Stage['hold'] {
+  stage.hold = holdCount(stage, stock, gold);
+  return stage.hold;
+}
+
+/**
+ * What `holdShown` says, and the stage does not remember it. It is for the
+ * lamps as they are drawn at the end of a frame: a spark that reached its lamp
+ * in the frame has lit it by then, and the lamp is drawn lit under its shine.
+ * The sparks themselves stay bound by the count the stage remembers, which was
+ * taken before they moved.
+ */
+export function holdCount(stage: Stage, stock: number, gold: number): Stage['hold'] {
   let held = 0;
   let gilt = 0;
   for (const entry of stage.entries) {
@@ -1142,8 +1154,7 @@ export function holdShown(stage: Stage, stock: number, gold: number): Stage['hol
     if (goldEntry(entry)) gilt++;
   }
   const shown = Math.max(0, stock - held);
-  stage.hold = { stock: shown, gold: Math.min(shown, Math.max(0, gold - gilt)), taken: Math.max(0, held - stock), gilt: Math.max(0, gilt - gold) };
-  return stage.hold;
+  return { stock: shown, gold: Math.min(shown, Math.max(0, gold - gilt)), taken: Math.max(0, held - stock), gilt: Math.max(0, gilt - gold) };
 }
 
 /** Starts the cabinet's lights for a tower coming down, a fever or the jackpot. */

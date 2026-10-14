@@ -187,8 +187,9 @@ export const JACKPOT_STEP = 20;
 /**
  * Medals the jackpot's growing adds to what the machine pays, for each medal
  * played. Every medal it grows by is paid out when it is won, and it goes
- * back to where it starts: so over a long run this is exact, however long
- * the jackpot stood between two wins. It is the one part of what the screen
+ * back to where it starts, keeping the medals played toward its next one
+ * (session.ts): so over a long run this is exact, however long the jackpot
+ * stood between two wins. It is the one part of what the screen
  * pays that no spin's average has in it, since `spinValue` counts the
  * jackpot as it stands.
  */

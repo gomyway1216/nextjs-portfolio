@@ -238,7 +238,7 @@ describe('recording what the machine did', () => {
     });
     // Every counter the book has is in that list: a new one has to be put there too.
     expect(Object.keys(totals(next)).sort()).toEqual([...COUNTER_IDS].sort());
-    expect(viewOf(next).best).toEqual({ prize: 30, jackpot: 0, run: 2 });
+    expect(viewOf(next).best).toEqual({ prize: Math.max(...CHESTS), jackpot: 0, run: 2 });
     // It all went into this device's own row, and the book it was made from is as it was.
     expect(Object.keys(next.counters)).toEqual(['device0001']);
     expect(book.counters).toEqual({});
@@ -533,7 +533,7 @@ describe('two copies of one book', () => {
   });
 
   it('take the larger of two bests, the earlier of two dates for a stamp, and every day in either', () => {
-    const a = record(record(phone(), [spin('small'), { type: 'chestEnd', chest: 0, payout: 30 }, fed(1)], after(2)), [fed(1)], after(3));
+    const a = record(record(phone(), [spin('small'), { type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) }, fed(1)], after(2)), [fed(1)], after(3));
     const b = record(record(laptop(), [spin('big'), { type: 'rouletteStep', pocket: 1, medals: 50, level: 3 }, { type: 'rouletteEnd', total: 90, level: 3 }, fed(1)], MONDAY), [fed(1)], after(1));
     const joined = mergeBooks(a, b);
     expect(viewOf(joined).best).toEqual({ prize: 90, jackpot: 0, run: 3 });
@@ -849,7 +849,7 @@ describe('two tabs of the game on one device', () => {
 describe('the book as text', () => {
   const used = (): RecordBook => {
     let book = createBook('device0001');
-    book = record(book, [fed(120), won(95), { type: 'lost', count: 9 }, spin('small', 'long'), { type: 'chestEnd', chest: 0, payout: 30 }], MONDAY);
+    book = record(book, [fed(120), won(95), { type: 'lost', count: 9 }, spin('small', 'long'), { type: 'chestEnd', chest: 0, payout: Math.max(...CHESTS) }], MONDAY);
     book = claim(book, MONDAY).book;
     return mergeBooks(book, record(createBook('laptop0001'), [fed(7)], after(1)));
   };
@@ -870,7 +870,7 @@ describe('the book as text', () => {
       device: 'device0001',
       era: 0,
       counters: { device0001: { fed: 120, won: 95, lost: 9, spins: 1, reaches: 1, supers: 1, small: 1, superWins: 1, chests: 1, topChests: 1, claims: 1, bonus: 30 }, laptop0001: { fed: 7 } },
-      bests: { prize: 30 },
+      bests: { prize: Math.max(...CHESTS) },
       stamps: { firstLine: MONDAY, superWin: MONDAY, treasure: MONDAY },
       played: { '2026-10': 2 ** 11 + 2 ** 12 },
       claimed: { '2026-10': 2 ** 11 },

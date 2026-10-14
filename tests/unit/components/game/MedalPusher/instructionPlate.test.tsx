@@ -722,6 +722,11 @@ describe('the words', () => {
       expect(t.small.length).toBeGreaterThan(0);
     }
     expect(ja.cautions).toHaveLength(en.cautions.length);
+    // What goes down a side hole is not returned, and the holes turn the front corners: the plate says so where it says what is yours.
+    expect(en.steps.push.line(PLATE_RULES)).toBe('Medals over the middle of the front edge are yours. Off the sides or over a front corner, they are gone.');
+    expect(ja.steps.push.line(PLATE_RULES)).toBe('手前のまん中から落ちたメダルをゲット！ 横や手前の角の穴に落ちるともどらないよ。');
+    expect(en.cautions[0]).toBe('Medals that fall down the side holes are not returned.');
+    expect(ja.cautions[0]).toBe('横や手前の角の穴に落ちたメダルはもどりません。');
     // The Japanese plate is titled as the makers title theirs, and its headings urge.
     expect(ja.title).toBe('遊び方');
     for (const step of PLATE_STEPS) expect(ja.steps[step].head.endsWith('！')).toBe(true);

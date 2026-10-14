@@ -35,6 +35,7 @@ import {
   createMachine,
   dropBall,
   dropJewel,
+  frontPays,
   jewelsOnField,
   luckySlot,
   medalsOnField,
@@ -1421,4 +1422,74 @@ describe('jewels', () => {
     step(pushed, DT);
     expect(pushed.medals[0].y).toBeGreaterThanOrEqual(pusherFront(pushed.time) + MEDAL_RADIUS - 1e-9);
   });
+});
+
+describe('the side holes round the front corners', () => {
+  /** What the machine says of one thing that has just gone over the front edge at `x`. */
+  const over = (x: number, medal: Partial<Medal> = {}): StepEvents => {
+    const machine = machineWith([medalAt(x, FIELD.depth + 0.1, medal)]);
+    const events = step(machine, DT);
+    expect(machine.medals).toEqual([]);
+    return events;
+  };
+
+  it('reach a fifth of the way along the front edge from each side, so the edge is over the tray for its middle three fifths', () => {
+    expect(FIELD.sideReach).toBe(20);
+    expect(FIELD.width - 2 * FIELD.sideReach).toBe(60);
+    // The holes are the ones that run down the open sides, turned round the corners: they take less of the front than they leave.
+    expect(FIELD.sideReach).toBeGreaterThan(MEDAL_RADIUS * 2);
+    expect(FIELD.sideReach * 2).toBeLessThan(FIELD.width / 2);
+    expect(FIELD.sideOpenFrom).toBeLessThan(FIELD.depth);
+    // The three START pockets, where the best aim feeds, are over the part that pays.
+    for (const pocket of CHECKERS.positions) expect(frontPays(pocket)).toBe(true);
+    for (const x of [FIELD.sideReach, 35, FIELD.width / 2, 65, FIELD.width - FIELD.sideReach]) expect(frontPays(x)).toBe(true);
+    for (const x of [0, MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, 90, FIELD.width - MEDAL_RADIUS, FIELD.width]) expect(frontPays(x)).toBe(false);
+    // The two sides are alike.
+    for (let x = 0; x <= FIELD.width; x += 0.5) expect(frontPays(x)).toBe(frontPays(FIELD.width - x));
+  });
+
+  it('pay a medal that goes over the middle of the front edge, and take one that goes over within their reach of a side', () => {
+    const none = { checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 };
+    for (const x of [FIELD.sideReach, 30, 50, 70, FIELD.width - FIELD.sideReach]) expect(over(x)).toEqual({ ...none, won: 1, lost: 0 });
+    for (const x of [MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, 90, FIELD.width - MEDAL_RADIUS]) expect(over(x)).toEqual({ ...none, won: 0, lost: 1 });
+    // A medal lying on another goes the way the one under it does: the hole takes whatever is flat.
+    expect(over(10, { tier: 1 })).toEqual({ ...none, won: 0, lost: 1 });
+    expect(over(50, { tier: 1 })).toEqual({ ...none, won: 1, lost: 0 });
+    // One still on the table at a corner, however near the edge, has gone nowhere yet.
+    const lying = machineWith([medalAt(10, FIELD.depth - 0.1), medalAt(90, FIELD.depth - 0.1)]);
+    expect(step(lying, DT)).toEqual({ ...none, won: 0, lost: 0 });
+    expect(lying.medals).toHaveLength(2);
+  });
+
+  it('do not take a ball or a jewel: one that goes over at a corner is collected like any other', () => {
+    for (const x of [MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, 50, FIELD.width - 10, FIELD.width - MEDAL_RADIUS]) {
+      expect(over(x, { ball: true })).toMatchObject({ won: 0, lost: 0, balls: 1, jewels: 0 });
+      expect(over(x, { jewel: true })).toMatchObject({ won: 0, lost: 0, balls: 0, jewels: 1 });
+    }
+  });
+
+  it('take about four medals in ten of a field fed down the middle, where the open sides alone took two', () => {
+    /** The share of the medals that left a machine fed down the middle which left it over the tray, with the side holes reaching `reach`. */
+    const share = (reach: number): number => {
+      const field = FIELD as { sideReach: number };
+      const today = field.sideReach;
+      field.sideReach = reach;
+      try {
+        const machine = createMachine(31);
+        // Two minutes of it, a medal every half second: some two hundred medals leave the field in that time.
+        const events = run(machine, 120, 50, 0.5);
+        expect(events.won + events.lost).toBeGreaterThan(150);
+        return events.won / (events.won + events.lost);
+      } finally {
+        field.sideReach = today;
+      }
+    };
+    const [sidesOnly, withCorners] = [share(0), share(FIELD.sideReach)];
+    expect(sidesOnly).toBeGreaterThan(0.72);
+    expect(sidesOnly).toBeLessThan(0.9);
+    expect(withCorners).toBeGreaterThan(0.48);
+    expect(withCorners).toBeLessThan(0.68);
+    // The same field, medal for medal: the corners only take what would have gone over the front there.
+    expect(sidesOnly - withCorners).toBeGreaterThan(0.12);
+  }, LONG);
 });

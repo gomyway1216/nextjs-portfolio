@@ -20,6 +20,7 @@ import {
   CHEST_VALUE,
   FEVER_SQUARE,
   JACKPOT_CHANCE,
+  JACKPOT_GROWTH,
   JACKPOT_START,
   JACKPOT_STEP,
   JEWEL,
@@ -61,10 +62,12 @@ import styles from './MedalPusher.module.css';
 const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
 /** The reaches the Odds tab weighs up: the long one, the usual one, and the two together. */
 export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
-/** Jackpot sizes the value table is worked out for. */
-export const JACKPOT_LEVELS = [JACKPOT_START, 500, 1000] as const;
+/** Jackpot sizes the value table is worked out for: where it starts, and two it grows to. */
+export const JACKPOT_LEVELS = [JACKPOT_START, 1000, 2000] as const;
 /** What the calculator starts from: about what feeding both rails down the middle of the pusher, two medals a second between them, measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 80, spins: 12 } as const;
+export const CALC_DEFAULT = { front: 57, spins: 13 } as const;
+/** The least and the most the calculator's share into the tray goes to, as percentages: fed at the edges the field gives back less than half. */
+export const CALC_FRONT = { min: 30, max: 100 } as const;
 /**
  * The share of all spins that the lucky lamp makes gold, as a percentage: what scripts/medal-pusher-tune.ts measures
  * feeding the middle at up to two medals a second. One pocket in three is lit, and it comes to a third.
@@ -104,16 +107,25 @@ export function holeGroups(): { bowl: number; hole: BowlHole; count: number; hol
 }
 
 /**
- * What comes back per medal dropped when `front` of the medals on the field
- * leave by the front and each medal dropped starts `spins` spins worth `value`.
+ * What a spin is worth to the calculator with the jackpot at `jackpot`: an
+ * ordinary spin's exact average, and what being gold adds to it for the share
+ * of the spins that the lucky lamp makes gold.
  */
-export const returnFor = (front: number, spins: number, value: number): number => front * (1 + spins * value);
+export const calcSpinValue = (jackpot: number): number => spinValue(jackpot) + (LAMP_SHARE / 100) * CHANCE_BONUS;
+
+/**
+ * What comes back per medal dropped when `front` of the medals that leave the
+ * field drop into the tray and each medal dropped starts `spins` spins worth
+ * `value`: the medal itself, what its spins pay and what it grows the jackpot
+ * by, each with the tray's share of it.
+ */
+export const returnFor = (front: number, spins: number, value: number): number => front * (1 + spins * value + JACKPOT_GROWTH);
 
 /** How a prize of the bowls is paid: the medals poured onto the field loose, and the towers the rest is stacked in. */
 export const bowlSplit = (medals: number): [poured: number, towers: number] => [pouredOf(medals), towerSizes(medals - pouredOf(medals)).length];
 
 /** The spins per medal that would make the return exactly 1 at this front share. */
-export const breakEvenSpins = (front: number, value: number): number => (1 / front - 1) / value;
+export const breakEvenSpins = (front: number, value: number): number => (1 / front - 1 - JACKPOT_GROWTH) / value;
 
 export const OddsTab = () => {
   const { language } = useGameLanguage();
@@ -128,7 +140,7 @@ export const OddsTab = () => {
   const [spins, setSpins] = useState<number>(CALC_DEFAULT.spins);
   const [jackpot, setJackpot] = useState<number>(JACKPOT_START);
 
-  const value = spinValue(jackpot);
+  const value = calcSpinValue(jackpot);
   const result = returnFor(front / 100, spins / 100, value);
   const needed = breakEvenSpins(front / 100, value);
 
@@ -538,8 +550,8 @@ export const OddsTab = () => {
               id={frontId}
               type="range"
               className={styles.slider}
-              min={50}
-              max={100}
+              min={CALC_FRONT.min}
+              max={CALC_FRONT.max}
               step={1}
               value={front}
               onChange={(event) => setFront(Number(event.target.value))}
@@ -589,7 +601,7 @@ export const OddsTab = () => {
             {needed <= 1 ? t.calcBreakEven(percent(Math.max(0, needed), 0)) : t.calcNever}
           </p>
         </div>
-        <p className={styles.note}>{t.calcNote(MAX_STOCK)}</p>
+        <p className={styles.note}>{t.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)}</p>
       </section>
     </div>
   );

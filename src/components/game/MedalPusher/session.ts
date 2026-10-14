@@ -6,7 +6,7 @@
  * the simulation tab run exactly the same thing.
  */
 
-import { JEWEL_SPOTS, MAX_STEP, START_RIDE, buildTowers, createMachine, dropBall, dropJewel, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine, type StepEvents } from './engine';
+import { MAX_STEP, START_RIDE, buildTowers, createMachine, dropBall, dropJewel, dropMedal, luckySlot, queuePayout, step, type Arm, type Machine, type StepEvents } from './engine';
 import { hopperBusy } from './hopper';
 import { watchWorks, worksEvents, type WorksEvent } from './works';
 import {
@@ -40,10 +40,23 @@ import {
 export const START_CREDITS = 100;
 /** Spins the machine holds while the screen is busy; a chucker hit beyond that is wasted. */
 export const MAX_STOCK = 8;
-/** Prize balls lying on the field when a machine is switched on. */
-export const START_BALLS = 2;
-/** Jewels lying on the field when a machine is switched on. */
-export const START_JEWELS = JEWEL_SPOTS.length;
+/**
+ * Prize balls lying on the field when a machine is switched on: one, on the
+ * lower table.
+ *
+ * A machine that has been played for a while has a ball lying on it more
+ * often than not, and medals its screen has paid on their way to the front.
+ * A new one has neither. With no ball on it, a new machine gives back about
+ * 72, 76 and 77 of its first three hundred medals, played the best way,
+ * where the long run gives 90: it is the meaner for being new. With one
+ * ball it gives back about 79, 101 and 87, which is 89 of each hundred: a
+ * little under the long run's share, and no head start. It had two balls
+ * once, and two jewels, and that was one: about 99 of each hundred at
+ * today's odds. `scripts/medal-pusher-tune.ts --first` measures all three.
+ */
+export const START_BALLS = 1;
+/** Jewels lying on the field when a machine is switched on: one, near the front. It is worth a medal or so, and it is the first thing a new player sees collected. */
+export const START_JEWELS = 1;
 /**
  * How long things take on the screen, in seconds: a spin, a quicker one when
  * spins are queueing up, the extra suspense of a reach and what a long reach

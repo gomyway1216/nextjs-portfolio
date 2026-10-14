@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AIM, CHECKERS, DROP_INTERVAL, TOWER, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
-import { CHANCE_BONUS, JACKPOT_START, TIERS, chanceSpinValue, spinValue } from '@/components/game/MedalPusher/lottery';
+import { CHANCE_BONUS, JACKPOT_GROWTH, JACKPOT_START, JACKPOT_STEP, TIERS, chanceSpinValue, spinValue } from '@/components/game/MedalPusher/lottery';
 import { MAX_STOCK, TIMING, advance, createSession, reachTime, type SessionEvent } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
@@ -14,6 +14,7 @@ import {
   frontShare,
   goldStarted,
   simulate,
+  steadyPaid,
   steadyReturn,
   type AimResult,
 } from '@/components/game/MedalPusher/sim';
@@ -107,17 +108,29 @@ describe('what a run measured', () => {
     expect(frontShare({ ...result, won: 0, lost: 0 })).toBe(0);
   });
 
+  it('works out what the screen pays onto the field with average luck', () => {
+    // Every spin at its exact average, and what the medals played grew the jackpot by: a medal for every twenty of them, all of it paid when the jackpot is won.
+    expect(JACKPOT_GROWTH).toBe(1 / JACKPOT_STEP);
+    expect(steadyPaid(result)).toBeCloseTo(0.2 * spinValue(JACKPOT_START) + JACKPOT_GROWTH, 12);
+    // A gold spin is worth what any spin is and, on top, what being gold adds.
+    expect(steadyPaid({ ...result, gold: 12 })).toBeCloseTo(0.2 * spinValue(JACKPOT_START) + 0.012 * CHANCE_BONUS + JACKPOT_GROWTH, 12);
+    // With no spins there is still the jackpot's growth, and with no medals played there is nothing.
+    expect(steadyPaid({ ...result, spins: 0 })).toBe(JACKPOT_GROWTH);
+    expect(steadyPaid({ ...result, played: 0 })).toBe(0);
+  });
+
   it('works out the return with average luck on the screen', () => {
-    expect(steadyReturn(result)).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START)), 12);
+    expect(steadyReturn(result)).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START) + JACKPOT_GROWTH), 12);
+    expect(steadyReturn(result)).toBeCloseTo(frontShare(result) * (1 + steadyPaid(result)), 12);
     expect(steadyReturn({ ...result, played: 0 })).toBe(0);
     // A gold spin is worth what any spin is and, on top, what being gold adds: a medal wasted on a full hold
     // that turned a spin gold gets that much back.
-    expect(steadyReturn({ ...result, gold: 12 })).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START) + 0.012 * CHANCE_BONUS), 12);
+    expect(steadyReturn({ ...result, gold: 12 })).toBeCloseTo((900 / 1150) * (1 + 0.2 * spinValue(JACKPOT_START) + 0.012 * CHANCE_BONUS + JACKPOT_GROWTH), 12);
     expect(steadyReturn({ ...result, gold: 12 })).toBeGreaterThan(steadyReturn(result));
     // It never gets back what a spin of its own would have been worth.
     expect(steadyReturn({ ...result, gold: 20 })).toBeLessThan(steadyReturn({ ...result, spins: 220 }));
-    // With no spins, what comes back is just the front's share.
-    expect(steadyReturn({ ...result, spins: 0 })).toBeCloseTo(900 / 1150, 12);
+    // With no spins, what comes back is the front's share of the medals and of what they grew the jackpot by.
+    expect(steadyReturn({ ...result, spins: 0 })).toBeCloseTo((900 / 1150) * (1 + JACKPOT_GROWTH), 12);
   });
 });
 
@@ -181,8 +194,8 @@ describe('the gold spins of a stretch of play', () => {
     expect([session.gilded, session.wasted, session.rush]).toEqual([0, 0, false]);
     // With average luck each of them is paid as a gold spin: what any spin is worth and, on top, what being gold adds.
     const result: AimResult = { played: 30, won: 24, lost: 6, hits: 3, wasted: 0, spins: 3, gold: 2, paidOut: 0, tiers: { miss: 3, small: 0, big: 0, seven: 0 }, jackpots: 0, fieldChange: 0, points: [] };
-    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (3 * spinValue(JACKPOT_START) + 2 * CHANCE_BONUS) / 30), 12);
-    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (spinValue(JACKPOT_START) + 2 * chanceSpinValue(JACKPOT_START)) / 30), 12);
+    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (3 * spinValue(JACKPOT_START) + 2 * CHANCE_BONUS) / 30 + JACKPOT_GROWTH), 12);
+    expect(steadyReturn(result)).toBeCloseTo(0.8 * (1 + (spinValue(JACKPOT_START) + 2 * chanceSpinValue(JACKPOT_START)) / 30 + JACKPOT_GROWTH), 12);
   });
 });
 
@@ -191,8 +204,8 @@ describe('the simulation', () => {
     const medals = 120;
     const progress: number[] = [];
     // A run this short shows the order of the aims on most seeds and not on all: over the twenty from 2024 on, the
-    // medals through a slot come to 329 down the middle, 199 anywhere, 180 beside the middle and 95 from the edges,
-    // and fourteen of the twenty have every one of the comparisons below. This is one of them.
+    // medals through a slot come to 383 down the middle, 230 anywhere, 229 beside the middle and 91 from the edges,
+    // and eleven of the twenty have every one of the comparisons below. This is one of them.
     const result = await simulate(medals, 5, { onProgress: (done, total) => progress.push(done / total) }, 2030);
     expect(result).not.toBeNull();
     if (!result) return;
@@ -215,8 +228,10 @@ describe('the simulation', () => {
       expect(finished - aim.spins === 0 || finished - aim.spins === 1).toBe(true);
       expect(aim.points[aim.points.length - 1]).toEqual({ medals, rate: aim.won / aim.played });
       expect(aim.points.every((point, index) => index === 0 || point.medals > aim.points[index - 1].medals)).toBe(true);
-      expect(frontShare(aim)).toBeGreaterThan(0.5);
-      expect(frontShare(aim)).toBeLessThan(0.95);
+      // The side holes take four medals in ten of what leaves the field, and more of it from the edges: over those
+      // twenty seeds the share that drops into the tray runs from 48% to 66%.
+      expect(frontShare(aim)).toBeGreaterThan(0.4);
+      expect(frontShare(aim)).toBeLessThan(0.75);
     }
     // Aim still tells. Down the middle about one medal in eight ends up through a slot, and more at this pace,
     // which fills the hold and opens the wings, or in a run where a tower goes over through one; the further from

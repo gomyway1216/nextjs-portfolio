@@ -154,7 +154,7 @@ const en: RecordStrings = {
   row: {
     fed: 'Medals fed',
     won: 'Won over the front',
-    lost: 'Lost out of the sides',
+    lost: 'Lost down the side holes',
     return: 'Lifetime return',
     bonus: 'Bonus medals taken',
     refills: 'Refills taken',
@@ -287,7 +287,7 @@ const ja: RecordStrings = {
   row: {
     fed: '投入したメダル',
     won: '手前に落として獲得',
-    lost: '横から落ちたメダル',
+    lost: '脇の穴に落ちたメダル',
     return: '通算の還元率',
     bonus: 'ボーナスでもらったメダル',
     refills: 'メダルを補充した回数',

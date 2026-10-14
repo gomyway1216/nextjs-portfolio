@@ -21,7 +21,9 @@ import {
   FEVER_SQUARE,
   HOLE_JACKPOT_CHANCE,
   JACKPOT_CHANCE,
+  JACKPOT_GROWTH,
   JACKPOT_START,
+  JACKPOT_STEP,
   JEWEL,
   JEWEL_CHANCE,
   JEWEL_SET,
@@ -64,38 +66,35 @@ import {
   tierValue,
 } from '@/components/game/MedalPusher/lottery';
 
-/**
- * How many times as often each winning line comes as it did when the table was 40, 15 and 7 in 1,000: the number
- * the machine's return is tuned with, in lottery.ts. Whatever a spin's own games are worth is that many times what
- * it was, and the figures below are worked out from it.
- */
-const MORE = 1.24;
+/** The table as it was while the machine gave back nearly all it took: the lines came less than half as often. */
+const TABLE_BEFORE = { small: 1240, big: 465, seven: 217 } as const;
+/** What the board's squares held then. No square holds less now, and the two richest hold more. */
+const BOARD_BEFORE = [10, 3, 5, 8, 3, 10, 5, 30, 3, 8, 5, 15];
 
 describe('the slot', () => {
   it('has a table that adds up', () => {
     expect(TIERS.reduce((sum, tier) => sum + SPIN_TABLE[tier], 0)).toBe(SPIN_TOTAL);
     expect(TIERS.reduce((sum, tier) => sum + tierChance(tier), 0)).toBeCloseTo(1, 12);
-    expect(SPIN_TABLE).toEqual({ miss: 23078, small: 1240, big: 465, seven: 217 });
+    expect(SPIN_TABLE).toEqual({ miss: 20875, small: 3125, big: 625, seven: 375 });
     expect(SPIN_TOTAL).toBe(25000);
-    expect(tierChance('seven')).toBe(0.00868);
-    expect(tierChance('big')).toBe(0.0186);
-    expect(tierChance('small')).toBe(0.0496);
-    expect(tierChance('miss')).toBe(0.92312);
-    // The three winning lines stand to each other as they always have: 40 to 15 to 7.
-    expect([SPIN_TABLE.small / 40, SPIN_TABLE.big / 15, SPIN_TABLE.seven / 7]).toEqual([31, 31, 31]);
-    // And each comes 1.24 times as often as it did when the table was 7, 15 and 40 in 1,000.
-    expect(MORE).toBe(SPIN_TABLE.small / SPIN_TOTAL / 0.04);
-    expect(tierChance('seven')).toBeCloseTo(MORE * 0.007, 12);
-    expect(tierChance('big')).toBeCloseTo(MORE * 0.015, 12);
-    expect(tierChance('small')).toBeCloseTo(MORE * 0.04, 12);
-    expect(1 - tierChance('miss')).toBeCloseTo(MORE * (1 - 0.938), 12);
+    expect(tierChance('seven')).toBe(0.015);
+    expect(tierChance('big')).toBe(0.025);
+    expect(tierChance('small')).toBe(0.125);
+    expect(tierChance('miss')).toBe(0.835);
+    // A sugoroku line once in 8 spins, a treasure line once in 40, three sevens once in 67: about one spin in six wins something.
+    expect([SPIN_TOTAL / SPIN_TABLE.small, SPIN_TOTAL / SPIN_TABLE.big]).toEqual([8, 40]);
+    expect(Math.round(SPIN_TOTAL / SPIN_TABLE.seven)).toBe(67);
+    expect(1 / (1 - tierChance('miss'))).toBeCloseTo(6.06, 2);
+    // Every line comes more often than it did while the machine gave back nearly all it took, and the three together more than twice as often.
+    for (const tier of ['small', 'big', 'seven'] as const) expect(SPIN_TABLE[tier]).toBeGreaterThan(TABLE_BEFORE[tier]);
+    expect((SPIN_TOTAL - SPIN_TABLE.miss) / (TABLE_BEFORE.small + TABLE_BEFORE.big + TABLE_BEFORE.seven)).toBeCloseTo(2.146, 3);
   });
 
   it('turns a roll into a tier at the right boundaries', () => {
     const upTo = { seven: tierChance('seven'), big: tierChance('seven') + tierChance('big'), small: tierChance('seven') + tierChance('big') + tierChance('small') };
-    expect(upTo.seven).toBeCloseTo(0.00868, 12);
-    expect(upTo.big).toBeCloseTo(0.02728, 12);
-    expect(upTo.small).toBeCloseTo(0.07688, 12);
+    expect(upTo.seven).toBeCloseTo(0.015, 12);
+    expect(upTo.big).toBeCloseTo(0.04, 12);
+    expect(upTo.small).toBeCloseTo(0.165, 12);
     expect(tierFor(0)).toBe('seven');
     expect(tierFor(upTo.seven - 0.0001)).toBe('seven');
     expect(tierFor(upTo.seven + 0.0001)).toBe('big');
@@ -181,8 +180,8 @@ describe('the two kinds of reach', () => {
       const queue = [...draws];
       return drawSpin(() => queue.shift() ?? 0.5);
     };
-    const wonLong = spin([0.03, 0.3, 0.59]);
-    const wonNormal = spin([0.03, 0.3, 0.61]);
+    const wonLong = spin([0.1, 0.3, 0.59]);
+    const wonNormal = spin([0.1, 0.3, 0.61]);
     expect(wonLong).toEqual({ tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'long' });
     expect(wonNormal).toEqual({ ...wonLong, reachKind: 'normal' });
     const lostLong = spin([0.5, 0.45, 0.1, 0.2, 0.14]);
@@ -229,12 +228,12 @@ describe('how far to trust a reach', () => {
     expect(reachHitChance('long')).toBeCloseTo((win * LONG_REACH.win) / (win * LONG_REACH.win + tease * LONG_REACH.miss), 12);
     expect(reachHitChance('normal')).toBeCloseTo((win * (1 - LONG_REACH.win)) / (win * (1 - LONG_REACH.win) + tease * (1 - LONG_REACH.miss)), 12);
     // The figures the Odds tab prints.
-    expect(reachChance()).toBeCloseTo(0.215348, 6);
-    expect(reachChance('long')).toBeCloseTo(0.066898, 6);
-    expect(reachChance('normal')).toBeCloseTo(0.14845, 6);
-    expect(reachHitChance()).toBeCloseTo(0.357004, 6);
-    expect(reachHitChance('long')).toBeCloseTo(0.689525, 6);
-    expect(reachHitChance('normal')).toBeCloseTo(0.207154, 6);
+    expect(reachChance()).toBeCloseTo(0.29025, 6);
+    expect(reachChance('long')).toBeCloseTo(0.1177875, 6);
+    expect(reachChance('normal')).toBeCloseTo(0.1724625, 6);
+    expect(reachHitChance()).toBeCloseTo(0.5684755, 6);
+    expect(reachHitChance('long')).toBeCloseTo(0.8404967, 6);
+    expect(reachHitChance('normal')).toBeCloseTo(0.3826919, 6);
     // A long reach is the better sign, an ordinary one the worse, and neither changes how often a spin wins.
     expect(reachHitChance('long')).toBeGreaterThan(reachHitChance());
     expect(reachHitChance('normal')).toBeLessThan(reachHitChance());
@@ -297,8 +296,21 @@ describe('the roulette a ball starts', () => {
     expect(BALL_JACKPOT_CHANCE).toBeCloseTo(0.0658, 4);
     expect(JACKPOT_CHANCE).toBeCloseTo(tierChance('seven') * (16 / 243), 12);
     expect(JACKPOT_CHANCE).toBeCloseTo((SPIN_TABLE.seven / SPIN_TOTAL) * (16 / 243), 12);
-    expect(JACKPOT_CHANCE).toBeCloseTo((217 / 25000) * (16 / 243), 12);
-    expect(Math.round(1 / JACKPOT_CHANCE)).toBe(1750);
+    expect(JACKPOT_CHANCE).toBeCloseTo((375 / 25000) * (16 / 243), 12);
+    expect(Math.round(1 / JACKPOT_CHANCE)).toBe(1013);
+  });
+
+  it('starts the jackpot at five hundred medals and grows it by one for every twenty played, all of which is paid in the end', () => {
+    expect(JACKPOT_START).toBe(500);
+    expect(JACKPOT_STEP).toBe(20);
+    // What it grows by for each medal played. Every medal of it is paid when the jackpot is won, so over a long run
+    // it is part of what the machine returns: five medals for every hundred played, which no spin's average has in it.
+    expect(JACKPOT_GROWTH).toBe(1 / JACKPOT_STEP);
+    expect(JACKPOT_GROWTH).toBe(0.05);
+    expect(spinValue(JACKPOT_START + 1) - spinValue(JACKPOT_START)).toBeCloseTo(JACKPOT_CHANCE, 12);
+    // It started at 300 once and grew by one in 40: it starts higher now and grows twice as fast.
+    expect(JACKPOT_START).toBeGreaterThan(300);
+    expect(40 / JACKPOT_STEP).toBe(2);
   });
 
   it('gets to those three ends through three bowls, every hole of a bowl as likely as the next', () => {
@@ -345,51 +357,43 @@ describe('the roulette a ball starts', () => {
 
   it('is worth exactly what it was when the challenge was one bowl, to the last digit', () => {
     // These are the figures of the game with one bowl of three holes, as that game worked them out. What a ball is
-    // worth has not changed since. What a spin is worth has: `spinThen` is that game's sum, with its table of 40, 15
-    // and 7 lines in 1,000 spins and no jewels, and what the screen's own games make a spin of today's table worth
-    // is next to it.
+    // worth at a given jackpot has not changed since: not when the bowls became three, and not when the lottery was
+    // made richer, which moved where the jackpot starts and how often a ball comes, and nothing in its roulette.
     expect(CHALLENGE_CHANCE).toBe(0.19753086419753083);
     expect(HOLE_JACKPOT_CHANCE).toBe(0.3333333333333333);
     expect(BALL_JACKPOT_CHANCE).toBe(0.06584362139917693);
-    expect(0.007 * BALL_JACKPOT_CHANCE).toBe(0.00046090534979423856);
-    expect(JACKPOT_CHANCE).toBe(0.0005715226337448558);
-    expect(JACKPOT_CHANCE).toBe(MORE * 0.00046090534979423856);
-    const spinThen = (jackpot: number): number => 0.04 * BOARD_VALUE + 0.015 * CHEST_VALUE + 0.007 * rouletteValue(jackpot);
-    const then: [jackpot: number, bowl: number, roulette: number, spin: number, spinNow: number][] = [
-      [300, 150, 63.734567901234556, 1.0961419753086419, 1.3592160493827161],
-      [301, 150.33333333333334, 63.80041152263374, 1.0966028806584363, 1.359787572016461],
-      [337, 162.33333333333334, 66.17078189300412, 1.1131954732510287, 1.3803623868312758],
-      [500, 216.66666666666666, 76.90329218106994, 1.1883230452674898, 1.4735205761316872],
-      [1000, 383.3333333333333, 109.82510288065842, 1.418775720164609, 1.7592818930041152],
-      [2000, 716.6666666666666, 175.66872427983535, 1.8796810699588473, 2.330804526748971],
+    expect(JACKPOT_CHANCE).toBe(0.000987654320987654);
+    expect(JACKPOT_CHANCE).toBe(tierChance('seven') * BALL_JACKPOT_CHANCE);
+    const then: [jackpot: number, bowl: number, roulette: number][] = [
+      [300, 150, 63.734567901234556],
+      [301, 150.33333333333334, 63.80041152263374],
+      [337, 162.33333333333334, 66.17078189300412],
+      [500, 216.66666666666666, 76.90329218106994],
+      [1000, 383.3333333333333, 109.82510288065842],
+      [2000, 716.6666666666666, 175.66872427983535],
     ];
-    // That game had no jewels. What the screen's own games make a spin worth is added up as it was then, line by
-    // line, with today's table; a spin today is worth that and the jewels' exact share.
-    const games = (jackpot: number): number => {
-      const worth: Record<(typeof TIERS)[number], number> = { miss: 0, small: BOARD_VALUE, big: CHEST_VALUE, seven: rouletteValue(jackpot) };
-      return TIERS.reduce((sum, tier) => sum + tierChance(tier) * worth[tier], 0);
-    };
-    for (const [jackpot, bowl, roulette, spin, spinNow] of then) {
+    for (const [jackpot, bowl, roulette] of then) {
       expect(bowlValue(jackpot)).toBe(bowl);
       expect(rouletteValue(jackpot)).toBe(roulette);
-      expect(spinThen(jackpot)).toBe(spin);
-      expect(games(jackpot)).toBe(spinNow);
-      // Every line that many times as often is a spin whose games are worth that many times as much.
-      expect(games(jackpot)).toBeCloseTo(MORE * spin, 12);
-      expect(spinValue(jackpot)).toBeCloseTo(spinNow + JEWEL_SPIN_VALUE, 12);
+    }
+    // What a spin of today's table is worth at the sizes of jackpot the Odds tab lists, added up line by line: the
+    // board, the chests with the jewel that comes with them, and the ball.
+    const now: [jackpot: number, spin: number][] = [
+      [500, 3.188549382716049],
+      [1000, 3.6823765432098763],
+      [2000, 4.67003086419753],
+    ];
+    expect(now[0][0]).toBe(JACKPOT_START);
+    for (const [jackpot, spin] of now) {
+      expect(spinValue(jackpot)).toBe(spin);
+      expect(spinValue(jackpot)).toBeCloseTo(tierChance('small') * BOARD_VALUE + tierChance('big') * (CHEST_VALUE + JEWEL_VALUE) + tierChance('seven') * rouletteValue(jackpot), 12);
     }
     // And for every jackpot there can be, the three prizes added up and divided by three, as that game had it.
     for (let jackpot = JACKPOT_START; jackpot <= 5000; jackpot++) expect(bowlValue(jackpot)).toBe((jackpot + 50 + 100) / 3);
-    // Every whole jackpot from 300 to 5,000 folded into one number, which that game's figures come to as well, and
-    // the same fold with a spin of today's table.
+    // Every whole jackpot from where it starts to 5,000 folded into one number.
     let fold = 0;
-    let foldNow = 0;
-    for (let jackpot = 300; jackpot <= 5000; jackpot++) {
-      fold = (fold * 31 + bowlValue(jackpot) * 7 + rouletteValue(jackpot) * 3 + spinThen(jackpot)) % 1e9;
-      foldNow = (foldNow * 31 + bowlValue(jackpot) * 7 + rouletteValue(jackpot) * 3 + games(jackpot)) % 1e9;
-    }
-    expect(fold).toBe(811751721.9670362);
-    expect(foldNow).toBe(530990848.8407767);
+    for (let jackpot = JACKPOT_START; jackpot <= 5000; jackpot++) fold = (fold * 31 + bowlValue(jackpot) * 7 + rouletteValue(jackpot) * 3 + spinValue(jackpot)) % 1e9;
+    expect(fold).toBe(403364687.1822891);
   });
 
   it('draws the way down so that a draw comes to the end it came to with one bowl', () => {
@@ -498,7 +502,7 @@ describe('the roulette a ball starts', () => {
     expect(Math.abs(medals / runs - rouletteValue(300))).toBeLessThan(0.9);
   });
 
-  it('makes a spin worth a little over a medal and a third', () => {
+  it('makes a spin worth a little over three medals', () => {
     expect(TIER_BONUS).toEqual({ small: 'sugoroku', big: 'chest', seven: 'ball' });
     expect(tierValue('miss', JACKPOT_START)).toBe(0);
     expect(tierValue('small', JACKPOT_START)).toBe(BOARD_VALUE);
@@ -507,19 +511,23 @@ describe('the roulette a ball starts', () => {
     expect(tierValue('seven', 900)).toBeCloseTo(rouletteValue(900), 12);
     const expected = tierChance('small') * BOARD_VALUE + tierChance('big') * (CHEST_VALUE + JEWEL_VALUE) + tierChance('seven') * rouletteValue(JACKPOT_START);
     expect(spinValue(JACKPOT_START)).toBeCloseTo(expected, 12);
-    expect(spinValue(JACKPOT_START)).toBeCloseTo(0.0496 * 8.75 + 0.0186 * (20 + 1.4) + 0.00868 * rouletteValue(JACKPOT_START), 12);
-    // What the screen's own games pay is what they paid before there were jewels, as many times over as the lines
-    // are more likely, and the jewels add their exact share to it.
-    expect(spinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toBeCloseTo(MORE * 1.0961419753086419, 12);
-    expect((spinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toFixed(5)).toBe('1.35922');
-    expect(spinValue(900) - JEWEL_SPIN_VALUE).toBeCloseTo(1.70213, 5);
-    expect(spinValue(JACKPOT_START).toFixed(5)).toBe('1.38526');
+    expect(spinValue(JACKPOT_START)).toBeCloseTo(0.125 * 10 + 0.025 * (30 + 1.4) + 0.015 * rouletteValue(JACKPOT_START), 12);
+    // The board is a medal and a quarter of it, the chests three quarters of a medal, and the ball a little more than either with the jackpot where it starts.
+    expect(tierChance('small') * BOARD_VALUE).toBeCloseTo(1.25, 12);
+    expect(tierChance('big') * CHEST_VALUE).toBeCloseTo(0.75, 12);
+    expect(tierChance('seven') * rouletteValue(JACKPOT_START)).toBeCloseTo(1.15355, 5);
+    // The jewels add their exact share to that.
+    expect((spinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toFixed(5)).toBe('3.15355');
+    expect(spinValue(900) - JEWEL_SPIN_VALUE).toBeCloseTo(3.54861, 5);
+    expect(spinValue(JACKPOT_START).toFixed(5)).toBe('3.18855');
+    // It was 1.38526 with the jackpot at the 300 it started at then: a spin is worth more than twice that now.
+    expect(spinValue(JACKPOT_START) / 1.38526).toBeGreaterThan(2.3);
   });
 
   it('makes a gold spin worth what its board and its chests pay twice over, its ball once and, with the chests, one jewel', () => {
     expect(CHANCE.multiplier).toBe(2);
     // Chance time pays the board's square and the chest twice over and nothing else: a ball is a ball, and a jewel a jewel.
-    for (const jackpot of [JACKPOT_START, 500, 1000, 2000]) {
+    for (const jackpot of [JACKPOT_START, 1000, 2000]) {
       expect(chanceTierValue('miss', jackpot)).toBe(0);
       expect(chanceTierValue('small', jackpot)).toBe(2 * BOARD_VALUE);
       expect(chanceTierValue('big', jackpot)).toBe(2 * CHEST_VALUE + JEWEL_VALUE);
@@ -529,25 +537,31 @@ describe('the roulette a ball starts', () => {
       // what it added before there were jewels, since both spins count the jewels' share once.
       expect(chanceSpinValue(jackpot) - spinValue(jackpot)).toBeCloseTo(tierChance('small') * BOARD_VALUE + tierChance('big') * CHEST_VALUE, 12);
     }
-    expect(CHANCE_BONUS).toBeCloseTo(0.806, 12);
-    expect(CHANCE_BONUS.toFixed(5)).toBe('0.80600');
+    // The board's medal and a quarter and the chests' three quarters over again: two medals, to the last digit.
+    expect(CHANCE_BONUS).toBeCloseTo(2, 12);
+    expect(CHANCE_BONUS.toFixed(5)).toBe('2.00000');
     expect(chanceSpinValue(JACKPOT_START)).toBeCloseTo(spinValue(JACKPOT_START) + CHANCE_BONUS, 12);
-    expect(chanceSpinValue(JACKPOT_START).toFixed(5)).toBe('2.19126');
-    expect((chanceSpinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toFixed(5)).toBe('2.16522');
-    // As many times what they were with the table of 40, 15 and 7 in 1,000 as the lines are more likely, like everything the screen's own games make a spin worth.
-    expect(CHANCE_BONUS).toBeCloseTo(MORE * 0.65, 12);
-    expect(chanceSpinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toBeCloseTo(MORE * 1.7461419753086419, 12);
+    expect(chanceSpinValue(JACKPOT_START).toFixed(5)).toBe('5.18855');
+    expect((chanceSpinValue(JACKPOT_START) - JEWEL_SPIN_VALUE).toFixed(5)).toBe('5.15355');
   });
 });
 
 describe('the sugoroku board', () => {
   it('is a loop of twelve squares with one fever on it', () => {
     expect(BOARD).toHaveLength(12);
-    expect(BOARD[FEVER_SQUARE]).toBe(30);
+    expect(BOARD[FEVER_SQUARE]).toBe(40);
     expect(Math.max(...BOARD)).toBe(BOARD[FEVER_SQUARE]);
-    expect(BOARD.filter((medals) => medals === 30)).toHaveLength(1);
+    expect(BOARD.filter((medals) => medals === BOARD[FEVER_SQUARE])).toHaveLength(1);
     expect(BOARD.every((medals) => Number.isInteger(medals) && medals > 0)).toBe(true);
-    expect(BOARD_VALUE).toBeCloseTo(105 / 12, 12);
+    // Its squares come to 120 medals, ten a roll. They came to 105: the two richest pay 40 and 20 where they paid 30 and 15, and the rest what they did.
+    expect([...BOARD]).toEqual([10, 3, 5, 8, 3, 10, 5, 40, 3, 8, 5, 20]);
+    expect(BOARD_VALUE).toBe(10);
+    expect(BOARD_BEFORE.reduce((sum, medals) => sum + medals, 0)).toBe(105);
+    BOARD.forEach((medals, square) => expect(medals).toBeGreaterThanOrEqual(BOARD_BEFORE[square]));
+    expect(BOARD.flatMap((medals, square) => (medals > BOARD_BEFORE[square] ? [[square, BOARD_BEFORE[square], medals]] : []))).toEqual([
+      [FEVER_SQUARE, 30, 40],
+      [11, 15, 20],
+    ]);
     expect(squareAfter(0, 3)).toBe(3);
     expect(squareAfter(9, 6)).toBe(3);
     expect(squareAfter(11, 1)).toBe(0);
@@ -585,9 +599,11 @@ describe('the sugoroku board', () => {
 });
 
 describe('the treasure chests', () => {
-  it('hold ten, twenty and thirty medals in an order shuffled every time', () => {
-    expect(CHESTS).toEqual([10, 20, 30]);
-    expect(CHEST_VALUE).toBe(20);
+  it('hold fifteen, thirty and forty-five medals in an order shuffled every time', () => {
+    // Half as much again as the 10, 20 and 30 they held once.
+    expect(CHESTS).toEqual([15, 30, 45]);
+    expect(CHESTS.map((medals) => medals / 1.5)).toEqual([10, 20, 30]);
+    expect(CHEST_VALUE).toBe(30);
     expect(CHEST_TOWERS_FROM).toBe(20);
     const rng = seededRng(5);
     const draws = 60_000;
@@ -595,7 +611,7 @@ describe('the treasure chests', () => {
     const firstChest = new Map<number, number>();
     for (let i = 0; i < draws; i++) {
       const prizes = shuffleChests(rng);
-      expect([...prizes].sort((a, b) => a - b)).toEqual([10, 20, 30]);
+      expect([...prizes].sort((a, b) => a - b)).toEqual([15, 30, 45]);
       orders.set(prizes.join(), (orders.get(prizes.join()) ?? 0) + 1);
       firstChest.set(prizes[0], (firstChest.get(prizes[0]) ?? 0) + 1);
     }
@@ -603,7 +619,7 @@ describe('the treasure chests', () => {
     expect(orders.size).toBe(6);
     for (const count of orders.values()) expect(Math.abs(count / draws - 1 / 6)).toBeLessThan(0.008);
     for (const count of firstChest.values()) expect(Math.abs(count / draws - 1 / 3)).toBeLessThan(0.01);
-    expect(shuffleChests(() => 0.9999999)).toEqual([10, 20, 30]);
+    expect(shuffleChests(() => 0.9999999)).toEqual([15, 30, 45]);
   });
 });
 
@@ -614,7 +630,7 @@ describe('the jewels', () => {
     expect(TIER_BONUS[JEWEL_TIER]).toBe('chest');
     expect(JEWEL_CHANCE).toBe(tierChance('big'));
     expect(JEWEL_CHANCE).toBeCloseTo(SPIN_TABLE.big / SPIN_TOTAL, 12);
-    expect(JEWEL_CHANCE).toBeCloseTo(465 / 25000, 12);
+    expect(JEWEL_CHANCE).toBeCloseTo(625 / 25000, 12);
     for (let lit = 0; lit < JEWEL.lamps - 1; lit++) expect(jewelPays(lit)).toEqual({ medals: JEWEL.prize, towers: false });
     expect(jewelPays(JEWEL.lamps - 1)).toEqual({ medals: JEWEL.bonus, towers: true });
     // A small prize at once, and a bonus worth collecting a set for.
@@ -639,18 +655,18 @@ describe('the jewels', () => {
     expect(JEWEL_VALUE).toBe(JEWEL_SET / JEWEL.lamps);
     expect(JEWEL_VALUE).toBe(1.4);
     // Every jewel is collected in the end, so this is what they add to a spin, exactly.
-    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.0186 * 1.4, 12);
-    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.02604, 12);
+    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.025 * 1.4, 12);
+    expect(JEWEL_SPIN_VALUE).toBeCloseTo(0.035, 12);
   });
 
   it('are part of what the treasure line and a spin are worth, and a small part: a quarter of a point of return for the best a player can do', () => {
     expect(tierValue(JEWEL_TIER, JACKPOT_START)).toBe(CHEST_VALUE + JEWEL_VALUE);
     for (const tier of TIERS) if (tier !== JEWEL_TIER && tier !== 'miss') expect(tierValue(tier, JACKPOT_START)).toBe(tier === 'small' ? BOARD_VALUE : rouletteValue(JACKPOT_START));
-    // Fed down the middle, about four medals in five leave by the front and a spin starts for about one in eight.
+    // Fed down the middle, about 57 medals in 100 leave by the front and a spin starts for about one in seven.
     const worth = (front: number, spins: number) => front * spins * JEWEL_SPIN_VALUE;
-    expect(worth(0.8, 0.125)).toBeGreaterThan(0.0025);
-    expect(worth(0.8, 0.125)).toBeLessThan(0.003);
+    expect(worth(0.57, 0.14)).toBeGreaterThan(0.0025);
+    expect(worth(0.57, 0.14)).toBeLessThan(0.003);
     // Whatever the field does it is under a point.
-    expect(worth(1, 0.3)).toBeLessThan(0.01);
+    expect(worth(1, 0.25)).toBeLessThan(0.01);
   });
 });

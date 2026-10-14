@@ -665,14 +665,17 @@ describe('what the session reports of the payout works', () => {
     const prize = Math.max(...CHESTS);
     session.bonus = { kind: 'chest', prizes: [prize, prize, prize], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
     const events: SessionEvent[] = [];
-    // Until its towers stand built. What they set going once they are pushed over is another matter.
-    for (let i = 0; i < 60 * (TIMING.choose + 30) && of(events, 'towersReady').length === 0; i++) advance(session, DT, events);
+    // Until its towers stand built: two of them, the one a medal taller than the other and built a moment later. What
+    // they set going once they are pushed over is another matter.
+    const built = () => of(events, 'towersReady').reduce((sum, event) => sum + event.towers, 0);
+    for (let i = 0; i < 60 * (TIMING.choose + 30) && (of(events, 'towersRise').length === 0 || built() < of(events, 'towersRise')[0].towers); i++) advance(session, DT, events);
     expect(of(events, 'chestEnd')).toMatchObject([{ payout: prize }]);
     const rise = of(events, 'towersRise');
     expect(rise).toHaveLength(1);
     expect(rise[0].medals).toBe(prize);
     expect(events.findIndex((event) => event.type === 'towersRise')).toBeGreaterThan(events.findIndex((event) => event.type === 'chestEnd'));
-    expect(of(events, 'towersReady')).toEqual([{ type: 'towersReady', towers: rise[0].towers }]);
+    expect(rise[0].towers).toBe(towerSizes(prize).length);
+    expect(built()).toBe(rise[0].towers);
     expect(of(events, 'pourStart')).toEqual([]);
     expect(session.paidOut).toBe(prize);
     expect(medalsOnField(session.machine) + session.won + session.lost).toBe(start + prize);
@@ -846,7 +849,7 @@ describe('the payout works and the jewels', () => {
   });
 
   it('pour past a jewel on the lower table without taking it for a medal: it is neither poured nor counted', () => {
-    const session = createSession(5, { balls: 0 });
+    const session = createSession(5, { balls: 0, jewels: 2 });
     const lying = jewelsOnField(session.machine);
     expect(lying).toBe(2);
     const start = medalsOnField(session.machine);

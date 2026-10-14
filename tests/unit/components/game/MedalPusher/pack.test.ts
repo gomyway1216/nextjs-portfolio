@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { CLOUD_FORMAT, fromCloud, sizeOf, toCloud } from '@/components/game/MedalPusher/account';
 import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
 import { holds } from '@/components/game/MedalPusher/lift';
+import { JACKPOT_START, JACKPOT_STEP } from '@/components/game/MedalPusher/lottery';
 import { PACK_FORMAT, pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_VERSION, VERSION_BEFORE_LAMP, VERSION_BEFORE_RIDE, restore, serialize } from '@/components/game/MedalPusher/storage';
@@ -386,6 +387,9 @@ describe('a packed save', () => {
 
   it('packs a machine with jewels on its tables and in the air as small as one without', { timeout: LONG }, () => {
     for (const session of [createSession(1), played(2, 20)]) {
+      // A jewel on a table, whatever the play has made of the one a machine starts with, and one in the air.
+      const lying = session.machine.medals.find((medal) => medal.level === 0 && medal.tier === 0 && medal.stack === 1 && medal.grow === 0 && !medal.ball && medal.sinceDrop < 0);
+      if (lying && !session.machine.medals.some((medal) => medal.jewel)) lying.jewel = true;
       dropJewel(session.machine);
       expect(session.machine.medals.some((medal) => medal.jewel)).toBe(true);
       expect(session.machine.falling.some((medal) => medal.jewel)).toBe(true);
@@ -687,7 +691,13 @@ describe('a copy packed before format 2', () => {
     const { lucky, rush, riding, ...numbers } = today.session;
     expect([works.gold, works.chance]).toEqual([0, false]);
     expect([today.version, lucky, rush, riding]).toEqual([STORAGE_VERSION, 0, false, []]);
-    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: numbers })).toBe(fromCloud(second.state)?.text);
+    // Its jackpot is today's as well: the copy's stood below where one starts now, and is brought up to it, a medal
+    // more for each of today's steps its progress had in it. With the copy's own two numbers put back, the rest is
+    // the copy's text.
+    const then = (JSON.parse(fromCloud(second.state)?.text as string) as { session: { jackpot: number; jackpotProgress: number } }).session;
+    expect(then.jackpot).toBeLessThan(JACKPOT_START);
+    expect([works.jackpot, works.jackpotProgress]).toEqual([JACKPOT_START + Math.floor(then.jackpotProgress / JACKPOT_STEP), then.jackpotProgress % JACKPOT_STEP]);
+    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: { ...numbers, jackpot: then.jackpot, jackpotProgress: then.jackpotProgress } })).toBe(fromCloud(second.state)?.text);
   });
 
   it('is read whatever machine it holds: new, played, with the works at work, with jewels, and of every older version', { timeout: LONG }, () => {

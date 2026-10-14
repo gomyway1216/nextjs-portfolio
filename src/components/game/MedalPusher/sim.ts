@@ -9,7 +9,7 @@
  */
 
 import { AIM, CHECKERS, aimArm, armFor, medalsOnField, seededRng, type Arm } from './engine';
-import { CHANCE_BONUS, JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
+import { CHANCE_BONUS, JACKPOT_GROWTH, JACKPOT_START, TIERS, spinValue, type Tier } from './lottery';
 import { advance, createSession, insert, isBusy, type Session } from './session';
 
 export const AIM_IDS = ['centre', 'anywhere', 'beside', 'edges'] as const;
@@ -273,15 +273,22 @@ export async function simulate(
   return result;
 }
 
-/** The share of the medals that left the field which went over the front. */
+/** The share of the medals that left the field which dropped into the tray, over the middle of the front edge: the rest went down the side holes. */
 export const frontShare = (result: AimResult): number => (result.won + result.lost === 0 ? 0 : result.won / (result.won + result.lost));
+
+/**
+ * Medals the screen's games put on the field for each medal played in this
+ * run, with average luck: each spin at its exact average instead of what it
+ * happened to pay, an ordinary spin's, and for a gold spin what being gold
+ * adds to that; and what the jackpot grew by, every medal of which is paid
+ * when it is won.
+ */
+export const steadyPaid = (result: AimResult): number =>
+  result.played === 0 ? 0 : (result.spins * spinValue(JACKPOT_START) + result.gold * CHANCE_BONUS) / result.played + JACKPOT_GROWTH;
 
 /**
  * The return this run would have had with average luck on the screen: every
  * medal on the field, dropped or paid out, leaves by the front with the share
- * measured here, and each spin pays its exact average instead of what it
- * happened to pay: an ordinary spin's, and for a gold spin what being gold
- * adds to that.
+ * measured here, and the screen pays its exact average (`steadyPaid`).
  */
-export const steadyReturn = (result: AimResult): number =>
-  result.played === 0 ? 0 : frontShare(result) * (1 + (result.spins * spinValue(JACKPOT_START) + result.gold * CHANCE_BONUS) / result.played);
+export const steadyReturn = (result: AimResult): number => (result.played === 0 ? 0 : frontShare(result) * (1 + steadyPaid(result)));

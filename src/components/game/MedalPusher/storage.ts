@@ -85,6 +85,31 @@
  * version before it has none: every medal that had come over when it was
  * written had been counted there and then, and is not counted again (see
  * `beforeRide`).
+ *
+ * The lottery was made richer after that, when the machine was set to give
+ * back what a real one does, and the version did not change: a save holds no
+ * odds. Four of its numbers are held to the lottery's tables, though, and the
+ * tables moved (lottery.ts): the jackpot starts at 500 and not 300, and
+ * grows with every 20 medals played and not every 40; two of the board's
+ * squares and the three chests hold more. So those four are read by either
+ * table, the one that was (`PAID_BEFORE`) or the one that is, and every save
+ * written before comes back as the machine it was:
+ *
+ *   the jackpot       one that stands below where a jackpot starts now
+ *                     stands where it starts now, and a higher one as it
+ *                     stood: nobody's jackpot is smaller for the change
+ *   its progress      the medals played since it last grew. More than a
+ *                     step's worth of them have grown it already by today's
+ *                     step: it comes back one medal larger for each step, and
+ *                     what is left over is its progress
+ *   a roll's prize    a piece that had landed had been paid what its square
+ *                     held then, and that is what the screen goes on showing
+ *   the chests        a choice still open is of the chests that were
+ *                     offered: the one picked pays what it held then
+ *
+ * And the jackpot's hole, once the ball has dropped, shows what the jackpot
+ * then stood at, which was never less than a jackpot started at then.
+ * Nothing is paid again and nothing is taken back (see `settleJackpot`).
  */
 
 import {
@@ -154,6 +179,16 @@ import {
 } from './session';
 
 export const STORAGE_KEY = 'medal-pusher-machine';
+/**
+ * What the lottery paid before it was made richer: where the jackpot started,
+ * how many medals played grew it by one, what the board's squares held and
+ * what the chests held. Saves written then are still read (see the head of
+ * this file).
+ */
+export const PAID_BEFORE = { jackpotStart: 300, jackpotStep: 40, board: [10, 3, 5, 8, 3, 10, 5, 30, 3, 8, 5, 15], chests: [10, 20, 30] } as const;
+/** The least a jackpot has ever stood at, and the most medals a save has ever counted towards its next one. */
+const JACKPOT_FLOOR = Math.min(JACKPOT_START, PAID_BEFORE.jackpotStart);
+const JACKPOT_STEPS = Math.max(JACKPOT_STEP, PAID_BEFORE.jackpotStep);
 /** The version every save is written with. */
 export const STORAGE_VERSION = 9;
 /**
@@ -696,8 +731,9 @@ const purse = {
 const counters = {
   hits: count,
   wasted: count,
-  jackpot: whole(JACKPOT_START, LIMITS.purse),
-  jackpotProgress: whole(0, JACKPOT_STEP - 1),
+  // By either table, today's or the one before it: `settleJackpot` brings them to today's.
+  jackpot: whole(JACKPOT_FLOOR, LIMITS.purse),
+  jackpotProgress: whole(0, JACKPOT_STEPS - 1),
   square: whole(0, BOARD.length - 1),
   balls: whole(0, LIMITS.balls),
   roulettes: count,
@@ -708,6 +744,20 @@ const counters = {
   refills: count,
   quickPick: flag,
 };
+
+/**
+ * A jackpot and its progress as today's machine has them. One that stands
+ * below where a jackpot starts now is brought up to it. And progress of a
+ * step or more, which only a save from when the step was longer holds, has
+ * grown the jackpot already: a medal for each step, the rest left as
+ * progress. A save written by today's machine comes back as it is.
+ */
+export function settleJackpot<T extends Pick<StoredNumbers, 'jackpot' | 'jackpotProgress'>>(numbers: T): T {
+  const grown = Math.floor(numbers.jackpotProgress / JACKPOT_STEP);
+  const jackpot = Math.min(LIMITS.purse, Math.max(JACKPOT_START, numbers.jackpot) + grown);
+  const jackpotProgress = numbers.jackpotProgress % JACKPOT_STEP;
+  return jackpot === numbers.jackpot && jackpotProgress === numbers.jackpotProgress ? numbers : { ...numbers, jackpot, jackpotProgress };
+}
 
 /** Before the lucky lamp, only a held spin could be gold, and each gold spin was a medal that found the hold full: the ones still held,
  * and the one on the screen if the screen is on one. So a screen was never gold on a machine no medal had gilded. */
@@ -870,7 +920,8 @@ const activeSpin = (gold: boolean) =>
  *   die and hops    elapsed < duration                         unpaid, the piece still on `from`
  *   prize shown     duration ≤ elapsed < duration + prize      paid what the square it reached holds, the piece on that square
  *
- * A gold spin's roll pays `pays` times what the square holds.
+ * A gold spin's roll pays `pays` times what the square holds: what it holds
+ * now, or what it held when the save was written (`PAID_BEFORE`).
  */
 const activeSugoroku = (square: number, pays: number) =>
   shape<ActiveSugoroku>(
@@ -885,14 +936,16 @@ const activeSugoroku = (square: number, pays: number) =>
     (b) => {
       if (b.duration !== sugorokuDuration(b.roll) || b.elapsed >= b.duration + TIMING.prize) return false;
       const reached = squareAfter(b.from, b.roll);
-      return b.elapsed >= b.duration ? b.payout === BOARD[reached] * pays && square === reached : b.payout === -1 && square === b.from;
+      const paid = b.payout === BOARD[reached] * pays || b.payout === PAID_BEFORE.board[reached] * pays;
+      return b.elapsed >= b.duration ? paid && square === reached : b.payout === -1 && square === b.from;
     },
   );
 
 const inOrder = (medals: readonly number[]): string => [...medals].sort((a, b) => a - b).join();
 
 /**
- * A choice of chests, which hold the three prizes in some order. `quickPick`
+ * A choice of chests, which hold the three prizes in some order: today's, or
+ * the three they held when the save was written (`PAID_BEFORE`). `quickPick`
  * is whether the session picks the moment a chest is offered.
  *
  *   choosing        nothing picked, told or paid; elapsed < choose
@@ -918,7 +971,7 @@ const activeChest = (quickPick: boolean, pays: number) =>
       payout: whole(-1, LIMITS.purse),
     },
     (c) => {
-      if (inOrder(c.prizes) !== inOrder(CHESTS)) return false;
+      if (inOrder(c.prizes) !== inOrder(CHESTS) && inOrder(c.prizes) !== inOrder(PAID_BEFORE.chests)) return false;
       if (c.picked < 0) return c.pickedAt === -1 && !c.told && c.payout === -1 && (quickPick ? c.elapsed === 0 : c.elapsed < TIMING.choose);
       if (c.pickedAt < 0 || c.pickedAt > c.elapsed) return false;
       const byClock = quickPick ? c.pickedAt > 0 : c.pickedAt >= TIMING.choose;
@@ -977,7 +1030,7 @@ const run = {
  * the numbers so far have come to, with the bowls' prize on top once the ball
  * has dropped for good. The jackpot's hole paid the jackpot as it then stood,
  * which the save no longer holds: all that can be told is that it was no less
- * than a jackpot starts at.
+ * than a jackpot has ever started at.
  */
 function runAgrees(r: Run, ball: Ball | null): boolean {
   if (r.duration !== TIMING.roulette) return false;
@@ -992,7 +1045,7 @@ function runAgrees(r: Run, ball: Ball | null): boolean {
     if (!ball.dropped) {
       if (r.over || r.jackpot || r.gain !== 0) return false;
     } else {
-      const held = ball.hole === 'jackpot' ? ball.payout >= JACKPOT_START : ball.payout === holePays(ball.hole, JACKPOT_START);
+      const held = ball.hole === 'jackpot' ? ball.payout >= JACKPOT_FLOOR : ball.payout === holePays(ball.hole, JACKPOT_START);
       if (!held || !r.over || r.jackpot !== (ball.hole === 'jackpot') || r.gain !== ball.payout) return false;
       paid -= ball.payout;
     }
@@ -1173,7 +1226,7 @@ export function restore(text: string | null, seed: number): Session | null {
               ? fieldBeforeArms
               : null;
     const field = read?.(save.machine);
-    const numbers = withRide
+    const counted = withRide
       ? storedNumbers(save.session)
       : withLamp
         ? numbersBeforeRide(save.session)
@@ -1183,7 +1236,9 @@ export function restore(text: string | null, seed: number): Session | null {
             ? numbersBeforeJewels(save.session)
             : numbersBeforeChance(save.session);
     const { screen } = save;
-    if (!field || !numbers || !isRecord(screen)) return null;
+    if (!field || !counted || !isRecord(screen)) return null;
+    // The jackpot as today's machine keeps it, whichever table the save was written by.
+    const numbers = settleJackpot(counted);
 
     const on: OnScreen = {
       spin: shown(activeSpin(numbers.chance), screen.spin),

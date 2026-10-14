@@ -12,16 +12,22 @@ export const TIERS = ['miss', 'small', 'big', 'seven'] as const;
 export type Tier = (typeof TIERS)[number];
 
 /**
- * Chances out of 25,000 spins: a sugoroku line about once in 20, a treasure
- * line in 54, three sevens in 115. The three stand to each other as they
- * always have, 40 to 15 to 7, and each comes 1.24 times as often as it did
- * while the START pockets were wider, when it was 40, 15 and 7 in 1,000:
- * fewer medals start a spin now, and each spin is worth more. That multiple
- * is one of the two numbers the machine's return is tuned with, the other
- * being how wide the pockets' wings open (`CHECKERS.wingWidth` in
- * engine.ts): scripts/medal-pusher-tune.ts measures both.
+ * Chances out of 25,000 spins: a sugoroku line once in 8, a treasure line
+ * once in 40, three sevens once in 67. About one spin in six wins something.
+ *
+ * They were 1,240, 465 and 217 while the machine was tuned to give back
+ * nearly all it took: a line came once in thirteen spins, and a spin was
+ * worth 1.39 medals. A real machine's field gives back little more than half
+ * of what is fed, and its lottery makes up most of the rest. So the lines
+ * come more than twice as often here now, and what they lead to pays more
+ * (the board, the chests and the jackpot below): a spin is worth 3.19 medals.
+ * How often the lines come is one of the numbers the machine's return is
+ * tuned with. The others are how far the side holes reach round the front
+ * corners (`FIELD.sideReach` in engine.ts), which is what the field gives
+ * back, and how wide the pockets' wings open (`CHECKERS.wingWidth`):
+ * scripts/medal-pusher-tune.ts measures them all.
  */
-export const SPIN_TABLE: Record<Tier, number> = { miss: 23078, small: 1240, big: 465, seven: 217 };
+export const SPIN_TABLE: Record<Tier, number> = { miss: 20875, small: 3125, big: 625, seven: 375 };
 export const SPIN_TOTAL = 25000;
 
 /** What a line leads to: a roll on the sugoroku board, a choice of chests, or a prize ball on the field. */
@@ -97,8 +103,11 @@ export function drawSpin(rng: () => number): SpinResult {
 /**
  * The board: a loop of twelve squares, each paying the medals written on it
  * to whoever lands there. The piece stays where it stopped until the next roll.
+ * The squares come to 120 medals, ten a roll. They came to 105 before the
+ * lottery was given a real machine's share to carry: the two richest pay 40
+ * and 20 where they paid 30 and 15, and the rest pay what they did.
  */
-export const BOARD = [10, 3, 5, 8, 3, 10, 5, 30, 3, 8, 5, 15] as const;
+export const BOARD = [10, 3, 5, 8, 3, 10, 5, 40, 3, 8, 5, 20] as const;
 /** The square that pays its medals as a fever: the big one. */
 export const FEVER_SQUARE = 7;
 export const DIE_FACES = 6;
@@ -135,8 +144,8 @@ export function boardAfter(rolls: number, from = 0): number[] {
 
 // ── The treasure chests ─────────────────────────────────────────────────────
 
-/** What the three chests hold. Which chest holds which is shuffled every time. */
-export const CHESTS = [10, 20, 30] as const;
+/** What the three chests hold: half as much again as the 10, 20 and 30 they held once. Which chest holds which is shuffled every time. */
+export const CHESTS = [15, 30, 45] as const;
 /** A chest holding this much or more is paid as towers; less is thrown on loose. */
 export const CHEST_TOWERS_FROM = 20;
 
@@ -168,9 +177,22 @@ export const ROULETTE: readonly Pocket[] = ['stop', 10, 20, 30, 'stop', 10, 20, 
 /** Numbers in a row, with no cross, that start the jackpot challenge: the ball in the bowl. */
 export const CHAIN_GOAL = 4;
 
-/** The jackpot starts here and grows by one medal for every `JACKPOT_STEP` medals played. */
-export const JACKPOT_START = 300;
-export const JACKPOT_STEP = 40;
+/**
+ * The jackpot starts here and grows by one medal for every `JACKPOT_STEP`
+ * medals played. It started at 300 once and grew by one in 40: it starts
+ * higher now and grows twice as fast.
+ */
+export const JACKPOT_START = 500;
+export const JACKPOT_STEP = 20;
+/**
+ * Medals the jackpot's growing adds to what the machine pays, for each medal
+ * played. Every medal it grows by is paid out when it is won, and it goes
+ * back to where it starts: so over a long run this is exact, however long
+ * the jackpot stood between two wins. It is the one part of what the screen
+ * pays that no spin's average has in it, since `spinValue` counts the
+ * jackpot as it stands.
+ */
+export const JACKPOT_GROWTH = 1 / JACKPOT_STEP;
 
 export const drawPocket = (rng: () => number): number => Math.min(ROULETTE.length - 1, Math.floor(rng() * ROULETTE.length));
 
@@ -310,7 +332,7 @@ export const JACKPOT_CHANCE = tierChance('seven') * BALL_JACKPOT_CHANCE;
  * collected: it lights one of the jewel lamps and pays `prize` medals at
  * once. The one that would light the last lamp pays `bonus` medals instead,
  * stacked on the pusher as towers, and the lamps go out. No jewel is lost:
- * it does not fit through an open side.
+ * it does not fit through an open side, or down a side hole's barred mouth.
  */
 export const JEWEL = { lamps: 5, prize: 1, bonus: 3 } as const;
 /** The line a jewel comes with. */

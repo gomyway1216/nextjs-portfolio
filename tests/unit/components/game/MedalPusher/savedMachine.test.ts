@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { ACCOUNT_LIMIT, SEND_EVERY, fromCloud, sizeOf, slotFor, toCloud, type AccountStore, type CloudState, type Slots, type Status } from '@/components/game/MedalPusher/account';
-import { booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
+import { banked, booksOf, booksOfText, keepMachine, newMark } from '@/components/game/MedalPusher/savedMachine';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
 import { STORAGE_KEY, STORAGE_VERSION, restore, serialize } from '@/components/game/MedalPusher/storage';
+
+import { FakeAccounts, settled as settledFakes } from './accountFakes';
 
 import { KEEPALIVE_LIMIT, SCENARIOS, measure, onTheWire, stepsIn, type Scenario } from '../../../../../scripts/medal-pusher-save-size';
 
@@ -143,13 +145,94 @@ describe('the machine on its way to the account', () => {
   });
 });
 
+describe('a machine kept by a page that has let the card go', () => {
+  /**
+   * Two tabs of one browser, one machine on one account. Tab A's write to the account is still on its way when the
+   * card goes to tab B, which plays on and saves its own machine; then A's write is answered. The answer writes down
+   * what A's keeper is shown, and the cabinet shows it nothing once its page no longer holds the card (PlayTab.tsx).
+   */
+  async function handoff(showsNothingAfterTheCardGoes: boolean) {
+    const slots = new MapSlots();
+    const accounts = new FakeAccounts(() => Date.now());
+    accounts.held = [];
+    const uid = 'a-made-up-player';
+    const machineA = createSession(21);
+    play(machineA, 2);
+    let aHolds = true;
+    const keeperA = keepMachine({
+      store: accounts.store,
+      slots: () => slots,
+      session: () => (aHolds || !showsNothingAfterTheCardGoes ? machineA : null),
+      reopen: () => undefined,
+      onStatus: () => undefined,
+    });
+    keeperA.player({ uid, settled: true, expected: true });
+    keeperA.open();
+    keeperA.save('tick');
+    await settledFakes();
+    // The account had nothing: A's machine becomes the account's, and is on its way there.
+    expect(accounts.held.length).toBe(1);
+    // The card goes to tab B, which opens the machine as A left it, plays on, and saves.
+    aHolds = false;
+    let machineB: Session | null = null;
+    const keeperB = keepMachine({ store: accounts.store, slots: () => slots, session: () => machineB, reopen: () => undefined, onStatus: () => undefined });
+    keeperB.player({ uid, settled: true, expected: true });
+    machineB = restore(keeperB.open(), 5) as Session;
+    play(machineB, 3);
+    keeperB.save('tick');
+    const bSaved = JSON.parse(slots.getItem(slotFor(STORAGE_KEY, uid)) ?? '{}').text as string;
+    expect(bSaved).toBe(serialize(banked(machineB)));
+    // A's write is answered now.
+    accounts.held.shift()?.('taken');
+    await settledFakes();
+    return { kept: JSON.parse(slots.getItem(slotFor(STORAGE_KEY, uid)) ?? '{}').text as string, bSaved, aSaved: serialize(banked(machineA)) };
+  }
+
+  it('does not write its old machine over the one another tab has saved since, when its write to the account is answered', async () => {
+    const { kept, bSaved } = await handoff(true);
+    expect(kept).toBe(bSaved);
+  });
+
+  it('would have, had it gone on being shown its machine: which is what the test above guards', async () => {
+    const { kept, aSaved, bSaved } = await handoff(false);
+    expect(kept).toBe(aSaved);
+    expect(kept).not.toBe(bSaved);
+  });
+});
+
 describe('the machine’s books', () => {
-  it('are the same from the machine and from its save', () => {
+  it('are the same from the machine and from its save, and leave out the purse, which is the medal bank’s', () => {
     const session = createSession(3);
     play(session, 5);
     expect(booksOfText(serialize(session))).toBe(booksOf(session));
-    expect(JSON.parse(booksOf(session))).toMatchObject({ credits: session.credits, inserted: session.inserted, jackpot: session.jackpot });
+    expect(JSON.parse(booksOf(session))).toMatchObject({ inserted: session.inserted, jackpot: session.jackpot });
+    expect(JSON.parse(booksOf(session))).not.toHaveProperty('credits');
     expect(booksOf(session)).not.toContain('medals');
+    // Medals coming into the purse or going out of it are the bank's business, not the machine's.
+    const richer = { ...session, credits: session.credits + 500 };
+    expect(booksOf(richer)).toBe(booksOf(session));
+    expect(booksOfText(serialize(richer))).toBe(booksOf(session));
+  });
+
+  it('are kept with an empty purse, so that a machine saved since the bank has no purse to move into it', () => {
+    const session = createSession(5);
+    play(session, 3);
+    expect(session.credits).toBeGreaterThan(0);
+    expect(banked(session).credits).toBe(0);
+    expect(banked(session).inserted).toBe(session.inserted);
+    expect(session.credits).toBeGreaterThan(0);
+    const kept: { text: string | null } = { text: null };
+    const keeper = keepMachine({
+      store: null,
+      slots: () => ({ getItem: () => kept.text, setItem: (_key, value) => void (kept.text = value), removeItem: () => void (kept.text = null) }),
+      session: () => session,
+      reopen: () => undefined,
+      onStatus: () => undefined,
+    });
+    keeper.open();
+    keeper.save('tick');
+    expect(restore(kept.text, 1)?.credits).toBe(0);
+    expect(restore(kept.text, 1)?.inserted).toBe(session.inserted);
   });
 
   it('do not change while the machine is only watched, and do when it is played', () => {
@@ -265,7 +348,8 @@ describe('a real machine kept on an account', () => {
     clock.now += SEND_EVERY * 1000;
     first.keeping.save('tick');
     await first.rest();
-    const left = serialize(first.table.session as Session);
+    // What travels is the machine with an empty purse: the medals are the bank's, which travels on its own.
+    const left = serialize(banked(first.table.session as Session));
     expect(account.docs.size).toBe(1);
     expect(sizeOf(account.docs.get(uid)?.state as object)).toBeLessThan(ACCOUNT_LIMIT / 2);
 
@@ -274,7 +358,7 @@ describe('a real machine kept on an account', () => {
     const second = cabinetOn(slots, account, clock);
     second.keeping.player({ uid, settled: true, expected: false });
     second.open();
-    const guests = serialize(second.table.session as Session);
+    const guests = serialize(banked(second.table.session as Session));
     await second.rest();
     expect(second.table.reopens).toBe(1);
     expect(serialize(second.table.session as Session)).toBe(left);

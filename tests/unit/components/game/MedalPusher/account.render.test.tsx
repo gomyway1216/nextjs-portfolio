@@ -70,19 +70,16 @@ describe('the note that says where the machine is kept', () => {
       const t = getStrings(lang);
       const notes = [t.savedNote, t.unsavedNote, t.accountNote, t.offlineNote, t.unreadableNote, t.checkingNote];
       expect(new Set(notes).size).toBe(notes.length);
-      for (const note of [...notes, t.signInInvite, t.resetConfirmAccount]) expect(note.length).toBeGreaterThan(5);
-      expect(t.resetConfirmAccount).not.toBe(t.resetConfirm);
+      for (const note of [...notes, t.signInInvite, t.bankNote]) expect(note.length).toBeGreaterThan(5);
     }
     const en = getStrings('en');
     expect(en.accountNote).toContain('saved to your account');
     expect(en.offlineNote).toContain('Could not reach your account');
     expect(en.offlineNote).toContain('kept on this device');
     expect(en.unreadableNote).toContain('left as it is');
-    expect(en.resetConfirmAccount).toContain('on your account');
     const ja = getStrings('ja');
     expect(ja.accountNote).toContain('アカウントに預けてあります');
     expect(ja.offlineNote).toContain('この端末に預けてあり');
-    expect(ja.resetConfirmAccount).toContain('アカウントのマシン');
   });
 });
 

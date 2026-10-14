@@ -10,6 +10,9 @@ import { BOWL_TIMES, START_CREDITS, TIMING, advance, createSession } from '../..
 import { SOUND_SETTINGS_KEY } from '../../src/components/game/MedalPusher/soundSettings';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { SCREEN, VIEW, project } from '../../src/components/game/MedalPusher/view';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { createLedger, serializeLedger } from '../../src/components/game/MedalCenter/ledger';
+import { resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 
 // The field is physics with a random seed, so the tests check what must hold
@@ -533,7 +536,7 @@ async function savedMachine(page: Page) {
   return restore(text, 1);
 }
 
-test('the machine is still there after a reload, until it is reset', async ({ page }) => {
+test('the machine is still there after a reload, until the medal center is reset', async ({ page }) => {
   test.setTimeout(90_000);
   await openGame(page);
   await feedOne(page);
@@ -570,18 +573,16 @@ test('the machine is still there after a reload, until it is reset', async ({ pa
   await expect(aimSlider(page, 'left')).toHaveValue('0');
   await expectPurseToBalance(page);
 
-  // Reset takes two presses, and leaves a new machine with nothing of the old one saved.
-  const reset = machine(page).getByTestId('pusher-reset');
-  await expect(reset).toHaveText('Reset the machine');
-  await reset.click();
-  await expect(reset).toHaveAttribute('data-armed', 'true');
-  await expect(reset).toHaveText('Press again to reset');
-  await reset.click();
-  await expect(reset).toHaveAttribute('data-armed', 'false');
+  // The machine has no reset of its own: its medals are the medal bank's, and they and every machine are reset at the
+  // medal center, which it links to. After that, a new machine with nothing of the old one, and a new member's medals.
+  await expect(machine(page).getByTestId('pusher-reset')).toHaveCount(0);
+  await expect(machine(page).getByTestId('pusher-center-link')).toHaveAttribute('href', '/games/medal-center');
+  await resetAtCenter(page);
+  await openGame(page);
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
-  await expect(machine(page).getByTestId('pusher-announcement')).toContainText('has been reset');
-  await expect.poll(async () => (await savedMachine(page))?.inserted ?? 0, { timeout: 20_000 }).toBe(0);
+  await expect(aimSlider(page, 'right')).toHaveValue('58');
+  await expect.poll(async () => (await savedMachine(page))?.inserted ?? -1, { timeout: 20_000 }).toBe(0);
 });
 
 test('the note says so when the browser will not keep the machine', async ({ page }) => {
@@ -1391,25 +1392,16 @@ test.describe('in the hand, on a phone', () => {
       }).toPass({ timeout: 20_000 });
       await expect.poll(felt).toBeGreaterThan(feltBefore);
     };
-    // A hidden page stops the motor, and so does a reset: whatever the old machine was playing is cut off and
-    // forgotten, and the new machine's first press is felt at once.
+    // A hidden page stops the motor: whatever was playing is cut off and forgotten, and the first press after is felt at once.
     await tapIn();
     await forget();
     await setHidden(page, true);
     expect(await asked()).toContainEqual([0]);
     await setHidden(page, false);
-    await tapIn();
-    await forget();
-    const reset = machine(page).getByTestId('pusher-reset');
-    await reset.tap();
-    await expect(reset).toHaveAttribute('data-armed', 'true');
-    await reset.tap();
-    await expect(reset).toHaveAttribute('data-armed', 'false');
-    await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
-    expect(await asked()).toContainEqual([0]);
+    const already = await counter(page, 'played');
     await forget();
     await tapIn();
-    await expect.poll(async () => (await ticks()) - (await counter(page, 'played'))).toBe(0);
+    await expect.poll(async () => (await ticks()) - ((await counter(page, 'played')) - already)).toBe(0);
     // Switched off: whatever was playing is stopped, which is the last thing asked of the motor. Medals go on falling
     // and being fed, and none of it buzzes.
     await feelSwitch(page, 'vibration').tap();
@@ -1517,6 +1509,14 @@ test.describe('in the hand, on a phone', () => {
     // in the air until the test lets time pass.
     await page.clock.install();
     const acted = await recordTray(page);
+    // A bank with nothing in it. (A machine from before the bank with an empty purse is not one: its player is given
+    // a new member's medals, as a refill would have.)
+    await page.addInitScript(
+      ([key, text]) => {
+        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+      },
+      [BANK_KEY, serializeLedger(createLedger('e2edevice01', 0))],
+    );
     await openWithPurse(page, 0);
     await alive(page);
     await expect(feedButton(page, 'left')).toBeDisabled();
@@ -1566,7 +1566,7 @@ test.describe('in the hand, on a phone', () => {
     await expect(feedButton(page, 'left')).toBeEnabled();
   });
 
-  test('the tray acts out what happened and never a change in the count: nothing for a machine that is remembered or reset, a medal leaving for one that is fed', async ({ page }) => {
+  test('the tray acts out what happened and never a change in the count: nothing for a machine that is remembered, a medal leaving for one that is fed', async ({ page }) => {
     test.setTimeout(60_000);
     const acted = await recordTray(page);
     // Twenty fewer than a new machine's purse: a small change in the count, and nothing has happened but that this
@@ -1576,22 +1576,12 @@ test.describe('in the hand, on a phone', () => {
     await expect(medalTray(page)).toHaveAttribute('data-heap', '60');
     await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
     expect(await acted()).toEqual([]);
-    // The machine is reset: twenty more in the purse, a win's worth, and none of them was won. Nothing is acted out.
-    const reset = machine(page).getByTestId('pusher-reset');
-    await reset.scrollIntoViewIfNeeded();
-    await reset.tap();
-    await expect(reset).toHaveAttribute('data-armed', 'true');
-    await reset.tap();
-    await expect(reset).toHaveAttribute('data-armed', 'false');
-    await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
-    await expect(medalTray(page)).toHaveAttribute('data-lying', '60');
-    expect(await acted()).toEqual([]);
     // A medal is fed on the left rail: one is seen to leave the tray.
     await feedButton(page, 'left').scrollIntoViewIfNeeded();
     await expect(async () => {
       await feedButton(page, 'left').tap();
       await page.waitForTimeout(300);
-      expect(await counter(page, 'credits')).toBeLessThan(START_CREDITS);
+      expect(await counter(page, 'credits')).toBeLessThan(START_CREDITS - 20);
     }).toPass({ timeout: 20_000 });
     await expect.poll(acted).toContain('out');
     expect(await acted()).not.toContain('cup');

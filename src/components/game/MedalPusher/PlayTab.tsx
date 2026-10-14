@@ -34,14 +34,15 @@ import {
   stoppedDigits,
   type ScreenState,
 } from './screen';
-import { START_CREDITS, advance, createSession, insert, pickChest, refill, type ActiveRoulette, type Session, type SessionEvent } from './session';
-import { grant } from './session';
+import { START_CREDITS, advance, createSession, insert, pickChest, type ActiveRoulette, type Session, type SessionEvent } from './session';
+import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
-import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
+import { GUEST, slotFor, type AccountStore, type Player, type Status, type Sync, type Why } from './account';
 import { keepMachine } from './savedMachine';
 import { savedNoteFor } from './savedNote';
-import { restore } from './storage';
+import { STORAGE_KEY, restore } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
 import { hopperBusy } from './hopper';
 import { STACK, towersIn } from './stacker';
@@ -132,8 +133,13 @@ const MAX_FRAME = 0.1;
 export const TEETER_FROM = 0.5;
 /** How often the machine is saved while it is showing, in seconds. */
 const SAVE_EVERY = 5;
-/** How long a first press of Reset waits for the second, in seconds. */
+/** How long a first press of a two-press button (clearing the records) waits for the second, in seconds. */
 export const RESET_WINDOW = 6;
+/**
+ * How long the cabinet waits for the card before it says that it is in a machine in another tab, in seconds. The
+ * card is away for a moment whenever another page takes the day's bonus or the like; nothing is said of that.
+ */
+export const CARD_WAIT = 1.5;
 
 /**
  * Whether a press of Reset at `now` is the second press, in time, of one made
@@ -280,10 +286,18 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const musicOn = soundControl.settings.music;
   const arcadeOn = soundControl.settings.arcade;
   const [announcement, setAnnouncement] = useState('');
-  // Reset takes two presses: the first arms it, and the time it was made is kept. Each reset switches the machine off and on again.
-  const [armedAt, setArmedAt] = useState<number | null>(null);
-  const armed = armedAt !== null;
+  // Each time another machine goes on the table (the account's, the one another tab played, or a new one after the
+  // medal center's reset) the cabinet is switched off and on again.
   const [switchedOn, setSwitchedOn] = useState(0);
+  // The medals are the medal bank's, and so is the card that lets this cabinet play from it (MedalCenter/bank.ts).
+  const bankState = useBank();
+  const seat = useRef<Seat | null>(null);
+  // The day's bonus, paid into the bank on this page, for the cabinet's next frame to act out.
+  const gifts = useRef<SessionEvent[]>([]);
+  // What this page last saw of the machine kept on this device: as it opened it, or as it last saved it. When the card
+  // comes back to this page, a different text there means that another page has played the machine since and saved
+  // its own, which is then the machine to play.
+  const seenSave = useRef<string | null>(null);
   // Where the machine is kept, and whether the last write to this device took. Until the keeper has said, the page says what the server said.
   const [status, setStatus] = useState<Status>({ where: 'device', kept: true });
 
@@ -340,13 +354,43 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const now: [boolean, boolean] = [holds.current[0].by.size > 0, holds.current[1].by.size > 0];
     setHeld((was) => (was[0] === now[0] && was[1] === now[1] ? was : now));
   };
-  /** Feeds one medal into a rail, if the purse has one and that rail's slot is free. Neither rail's aim moves. */
+  /** The machine as this device keeps it now, in its player's slot. */
+  const readSave = useCallback((): string | null => {
+    try {
+      return window.localStorage.getItem(slotFor(STORAGE_KEY, keeper.current?.owner() ?? null));
+    } catch {
+      return null;
+    }
+  }, []);
+  /** Saves the machine (see account.ts for where it goes), and notes what is kept on this device now. */
+  const keep = useCallback(
+    (why: Why): void => {
+      keeper.current?.save(why);
+      seenSave.current = readSave();
+    },
+    [readSave],
+  );
+
+  /**
+   * Whether the machine on the table may run: this page holds the card, the bank on the table is the bank of the
+   * player whose machine this is, and the machine is still the one on the table.
+   */
+  const playable = (session: Session | null): session is Session =>
+    session !== null && sessionRef.current === session && (seat.current?.holding() ?? false) && medalBank().owner() === (keeper.current?.owner() ?? null);
+  /** Feeds one medal into a rail, if the bank has one and that rail's slot is free. Neither rail's aim moves. */
   const feedOnce = (arm: Arm) => {
     const session = sessionRef.current;
-    if (session && noteFed(fedBy.current, 'feed', insert(session, arm))) feedSound(live.current.sound);
+    if (!playable(session)) return;
+    // The medal is the bank's: it is taken out as the machine takes it.
+    session.credits = medalBank().balance();
+    const fed = insert(session, arm);
+    if (fed) medalBank().take(1);
+    if (noteFed(fedBy.current, 'feed', fed)) feedSound(live.current.sound);
   };
   /** A finger or a key goes down on a rail's feed. The first one feeds a medal at once; held, the rail streams. */
   const pressRail = (arm: Arm, by: string) => {
+    // A press on a cabinet whose card is in another tab's machine is the player coming back to this one.
+    if (bankState.card === 'away') seat.current?.play();
     const hold = holds.current[arm];
     if (hold.by.has(by)) return;
     if (hold.by.size === 0) {
@@ -490,7 +534,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     keeper.current ??= keepMachine({
       store,
       slots: () => window.localStorage,
-      session: () => sessionRef.current,
+      // The machine is this page's to write down only while this page holds the card. A write that is still on its
+      // way to the account when the card goes is answered after another tab may have saved its own machine, and the
+      // answer writes down what the keeper is shown: nothing, then, so the other tab's machine stays.
+      session: () => (seat.current?.holding() ? sessionRef.current : null),
       reopen: () => {
         setHud(INITIAL_HUD);
         setScreen(IDLE_SCREEN);
@@ -507,6 +554,69 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     keeper.current?.player({ uid: player.uid, settled: player.settled, expected: player.expected });
   }, [player.uid, player.settled, player.expected]);
 
+  // The cabinet's place at the medal bank. It asks for the card as it is set up, and plays from the bank while it holds
+  // it. As the card goes, the machine is written down, so that whichever page has it next finds it as it was left; and
+  // if a machine of this game on another page has played since this page last had it, that page's machine is the one
+  // written down, and this one is opened again from it.
+  useEffect(() => {
+    const purse = medalBank();
+    const mine = purse.sit(PUSHER.game, {
+      granted: (moved) => {
+        if (!moved && readSave() === seenSave.current) {
+          // The machine on the table is the one kept here: it is saved now, which also finds out whether this browser
+          // will keep it at all.
+          if (sessionRef.current) keep('tick');
+          return;
+        }
+        sessionRef.current = null;
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+      },
+      yielding: (why) => {
+        if (sessionRef.current) keep(why === 'moment' ? 'tick' : why);
+        for (const hold of holds.current) hold.by.clear();
+        setHeld((was) => (was[0] || was[1] ? [false, false] : was));
+      },
+    });
+    seat.current = mine;
+    // What the bank does that the cabinet acts out: a bonus or a refill taken here, tipped into the tray; and a reset,
+    // here or anywhere, after which this machine starts over too.
+    const unlisten = purse.listen((event) => {
+      const { strings } = live.current;
+      if (event.type === 'reset') {
+        sessionRef.current = null;
+        keeper.current?.fresh();
+        setHud(INITIAL_HUD);
+        setScreen(IDLE_SCREEN);
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+        setAnnouncement(strings.sayCenterReset);
+        return;
+      }
+      if (event.type === 'bonus') {
+        // The day's bonus is heard, read out and tipped into the tray with everything else in the cabinet's next frame,
+        // and the record book counts it, as it counts what is taken at the cabinet's plate.
+        gifts.current.push({ type: 'bonus', count: event.medals });
+        records.bonusTaken(event.medals);
+        return;
+      }
+      // A cupful, tipped into the tray: it is seen to come down, and heard as it does. The machine counts the refills
+      // its player has taken at it, as it always has, and the record book reads them off its counter.
+      const session = sessionRef.current;
+      if (session) {
+        session.refills += 1;
+        session.credits = purse.balance();
+        setHud(hudOf(session));
+      }
+      tray.current?.happened({ purse: purse.balance(), fed: [], arrived: [{ cause: 'refill', count: event.medals }] });
+    });
+    return () => {
+      unlisten();
+      if (seat.current === mine) seat.current = null;
+      mine.leave();
+    };
+  }, [keep, readSave]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     // In 3D where the browser can, and on the canvas alone where it cannot; `?renderer=2d` asks for the second.
@@ -514,10 +624,25 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const renderer = canvas && keeping && createRenderer(canvas, sceneRef.current, window.location.search);
     if (!canvas || !keeping || !renderer) return;
     const seed = Math.floor(Math.random() * 2 ** 31);
+    const purse = medalBank();
+    // A machine played before the medal center's last reset starts over, wherever it was kept: here, on the account,
+    // or on another device.
+    const restart = purse.restartDue(PUSHER.game);
+    if (restart) keeping.fresh();
     // The machine to open with: the account's for a player who is signed in, and otherwise the one this browser
     // remembers, if it holds one that still reads. After a reset there is none, and the old one is thrown away.
     const remembered = keeping.open();
-    const session = (remembered === null ? null : restore(remembered, seed)) ?? createSession(seed);
+    seenSave.current = readSave();
+    const restored = remembered === null ? null : restore(remembered, seed);
+    const session = restored ?? createSession(seed);
+    if (restart) purse.restarted(PUSHER.game);
+    // The medals are the bank's. A machine saved before there was a bank kept its own purse: that is moved into the
+    // bank, once, as soon as the bank on the table is this machine's player's (`playable`). A new machine has none.
+    let oldPurse = restored && restored.credits > 0 ? restored.credits : null;
+    // Whose purse it was is settled by whose machine it was when it was opened: a guest's machine that becomes an
+    // account's carries the guest's purse, which came into the account's bank with the guest's bank.
+    const purseFrom = keeping.owner() === null ? PUSHER.guestPurse : PUSHER.accountPurse;
+    session.credits = purse.balance();
     sessionRef.current = session;
     // A machine that is remembered has its arms pointed where they were left, and a new one where a new machine's are.
     setAims([session.machine.aims[0], session.machine.aims[1]]);
@@ -533,29 +658,24 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     // Saved on this device as soon as it stands here, every few seconds while it is showing, when the page is
     // hidden or left, and when the cabinet is taken down. A write that fails means the machine is not remembered;
     // the game goes on, and the note under the tally stops saying that it is. The keeper sends it on to the
-    // account, for a player who has one, far less often: see SEND_EVERY in account.ts.
+    // account, for a player who has one, far less often: see SEND_EVERY in account.ts. Only while this page holds the
+    // card: a machine that is not being played here may be older than the one another tab has saved since, and is
+    // never written over it. (As the card goes, the seat writes the machine down: see above.)
+    const mayKeep = () => sessionRef.current === session && (seat.current?.holding() ?? false);
     const saveWhileShowing = () => {
-      if (live.current.active && document.visibilityState === 'visible') keeping.save('tick');
+      if (live.current.active && document.visibilityState === 'visible' && mayKeep()) keep('tick');
     };
     const saveWhenHidden = () => {
-      if (document.visibilityState === 'hidden') keeping.save('hidden');
+      if (document.visibilityState === 'hidden' && mayKeep()) keep('hidden');
     };
     const saveOnLeaving = () => {
-      keeping.save('left');
+      if (mayKeep()) keep('left');
     };
     const saveTimer = window.setInterval(saveWhileShowing, SAVE_EVERY * 1000);
     document.addEventListener('visibilitychange', saveWhenHidden);
     window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
-    keeping.save('tick');
-    // The day's bonus is paid into this machine's purse, and the machine is saved on this device with it at once.
-    // The cabinet hears of it in its next frame, with everything else that happened.
-    const gifts: SessionEvent[] = [];
-    const closePurse = records.openPurse((medals) => {
-      if (!grant(session, medals, gifts)) return false;
-      keeping.save('tick');
-      return true;
-    });
+    if (mayKeep()) keep('tick');
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -610,10 +730,33 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const frame = (now: number) => {
       frameId = requestAnimationFrame(frame);
       // A frame's timestamp can be a touch earlier than the clock read when the loop was set up.
-      const elapsed = Math.max(0, Math.min(MAX_FRAME, (now - last) / 1000));
+      const sinceLast = Math.max(0, Math.min(MAX_FRAME, (now - last) / 1000));
       last = now;
       const { auto: autoNow, sound: soundOn, active: activeNow, strings } = live.current;
-      if (!activeNow || !stage) return;
+      // A machine that is about to be replaced (another tab's, or a new one after a reset) is not run or drawn again.
+      if (!activeNow || !stage || sessionRef.current !== session) return;
+      // The machine runs only while it may play from the bank. Otherwise it stands as it was, drawn, with the bank's
+      // medals on its counter, and no time passes on it.
+      const playing = playable(session);
+      const elapsed = playing ? sinceLast : 0;
+      // The bank on the table when the machine was opened may not have been its player's (it was being found on the
+      // account). Now that it is, a machine this device kept from before that bank's last reset starts over before it
+      // plays a single medal.
+      if (playing && purse.restartDue(PUSHER.game)) {
+        sessionRef.current = null;
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+        return;
+      }
+      if (playing && oldPurse !== null) {
+        // The purse a machine from before the bank kept, moved into its player's bank once (bank.ts says how once).
+        purse.importPurse(keeping.owner(), purseFrom, oldPurse);
+        oldPurse = null;
+      }
+      // The purse is the bank's: what the machine takes and pays in this frame is taken out of it and put back in it
+      // at the end of the frame, and nothing else writes the bank while this page holds the card.
+      session.credits = purse.balance();
+      const purseBefore = session.credits;
 
       // The player's medals. A rail whose feed is held down streams them, as fast as its own slot takes them, and
       // the other rail does the same on its own: both at once is twice the medals. Auto feeds two a second, the
@@ -624,9 +767,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       }
       for (const arm of [0, 1] as const) {
         const hold = holds.current[arm];
-        if (hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && noteFed(fedBy.current, 'stream', insert(session, arm))) feedSound(soundOn);
+        if (playing && hold.by.size > 0 && now / 1000 - hold.since >= HOLD_DELAY && noteFed(fedBy.current, 'stream', insert(session, arm))) feedSound(soundOn);
       }
-      if (autoNow) {
+      if (autoNow && playing) {
         autoClock += elapsed;
         if (autoClock >= 1 / AUTO_PACE) {
           autoClock = 0;
@@ -675,9 +818,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       for (const medal of session.machine.falling) airborne.push(medal.id);
       // Where nothing may move a medal is not seen to ride its tongue, and the machine takes it as it comes over the lip.
       advance(session, elapsed, events, calm.matches);
+      // What the frame took out of the purse and paid into it goes to the bank.
+      const change = session.credits - purseBefore;
+      if (change < 0) purse.take(-change);
+      else if (change > 0) purse.give(change);
       // The machine is heard turning, in step with the pusher as it is drawn.
       turnMotor(soundOn, session.machine.time);
-      if (gifts.length > 0) events.push(...gifts.splice(0));
+      if (gifts.current.length > 0) events.push(...gifts.current.splice(0));
       // The record book hears everything the machine did, whatever becomes of the machine.
       records.note(session, events);
       // What the bowls paid has the cabinet's lights for as long as it is up on the screen, and not a frame longer.
@@ -809,7 +956,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             // A jackpot is not left to wait for the minute: it goes to the account now.
-            if (event.jackpot) keeping.save('moment');
+            if (event.jackpot) keep('moment');
             break;
           case 'bowlDrop':
             // Through a hole and into the bowl below: a step up, and the suspense starts again.
@@ -1024,23 +1171,24 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       window.clearInterval(saveTimer);
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', saveOnLeaving);
-      closePurse();
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
-      keeping.save('left');
-      sessionRef.current = null;
+      if (mayKeep()) keep('left');
+      if (sessionRef.current === session) sessionRef.current = null;
     };
-  }, [switchedOn]);
+  }, [switchedOn, keep, readSave]);
 
-  // An armed Reset waits a few seconds for the second press, then its label goes back and it says so.
-  // The timer only changes what is shown: whether a second press still counts is decided in `onReset`.
+  // While the card is in another tab's machine, the cabinet says so, a moment after (the card goes away for a moment
+  // whenever another page takes the day's bonus or the like, and nothing need be said of that).
+  const [longWait, setLongWait] = useState(false);
   useEffect(() => {
-    if (armedAt === null) return;
-    const timer = window.setTimeout(() => {
-      setArmedAt(null);
-      setAnnouncement(live.current.strings.sayResetOff);
-    }, RESET_WINDOW * 1000);
-    return () => window.clearTimeout(timer);
-  }, [armedAt]);
+    if (bankState.card !== 'asking') return;
+    const timer = window.setTimeout(() => setLongWait(true), CARD_WAIT * 1000);
+    return () => {
+      window.clearTimeout(timer);
+      setLongWait(false);
+    };
+  }, [bankState.card]);
+  const cardAway = bankState.card === 'away' || (bankState.card === 'asking' && longWait);
 
   /** How far across the field the pointer is, or null where the picture shows no part of it. */
   const acrossAt = (event: ReactPointerEvent<HTMLCanvasElement>): number | null => {
@@ -1134,41 +1282,15 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     setSound(!sound);
   };
 
+  // The free refill is the medal bank's, for every game at the medal center. A cupful, tipped into the tray: the bank
+  // says it was paid, and the tray acts it out (see the seat above).
   const onRefill = () => {
-    const session = sessionRef.current;
-    if (session && refill(session)) {
-      // A cupful, tipped into the tray: it is seen to come down, and heard as it does.
-      tray.current?.happened({ purse: session.credits, fed: [], arrived: [{ cause: 'refill', count: session.credits }] });
-      setHud(hudOf(session));
-      keeper.current?.save('moment');
-    }
+    if (playable(sessionRef.current)) medalBank().refill();
   };
 
   const onPick = (chest: number) => {
     const session = sessionRef.current;
     if (session) pickChest(session, chest);
-  };
-
-  // A player who is signed in resets the machine on the account, and is told so before the second press.
-  const resetConfirm = player.uid === null ? t.resetConfirm : t.resetConfirmAccount;
-  const onReset = () => {
-    // A press that does not follow a first one within the window is a first press itself,
-    // even if the label has not gone back yet.
-    const now = Date.now();
-    if (!confirmsReset(armedAt, now)) {
-      setArmedAt(now);
-      setAnnouncement(resetConfirm);
-      return;
-    }
-    // The second press came in time: the cabinet starts again with a new machine and nothing saved. For a player
-    // who is signed in the new machine is the account's as well, and takes the old one's place there.
-    setArmedAt(null);
-    keeper.current?.fresh();
-    setSwitchedOn((times) => times + 1);
-    setHud(INITIAL_HUD);
-    setScreen(IDLE_SCREEN);
-    setAuto(false);
-    setAnnouncement(t.sayReset(START_CREDITS));
   };
 
   // What is true of where the machine is kept: of the account, and of this device, whose last write may not have taken.
@@ -1283,6 +1405,15 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
               if (chest && chest === chestAt(event.clientX, event.clientY)) chest.click();
             }}
           />
+          {/* The member's card is in a machine in another tab: this one stands still until it is played here again. */}
+          {cardAway && (
+            <div className={styles.cardAway} role="status" data-testid="pusher-card-away">
+              <p>{t.cardAway}</p>
+              <button type="button" className={styles.cardAwayButton} data-testid="pusher-play-here" onClick={() => seat.current?.play()}>
+                {t.playHere}
+              </button>
+            </div>
+          )}
         </div>
         {/* What each line of the slot leads to. There is no room for it on the screen now that the screen is in the cabinet. */}
         <div className={`${styles.legendBelow} ${look.card}`} aria-hidden data-testid="pusher-legend">
@@ -1414,9 +1545,14 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             </>
           )}
         </p>
-        <button type="button" className={`${styles.btn} ${styles.reset}`} data-armed={armed} data-testid="pusher-reset" onClick={onReset}>
-          {armed ? resetConfirm : t.reset}
-        </button>
+        {/* The medals are not this machine's: they are the medal bank's, and it is at the medal center that they, and
+            every machine with them, are reset. */}
+        <p className={styles.note} data-testid="pusher-bank-note">
+          {t.bankNote}{' '}
+          <a className={styles.noteLink} href={MEDAL_CENTER_PATH} data-testid="pusher-center-link">
+            {t.bankLink}
+          </a>
+        </p>
       </section>
 
       <p className={styles.srOnly} aria-live="polite" data-testid="pusher-announcement">

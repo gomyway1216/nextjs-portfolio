@@ -493,11 +493,20 @@ const stampedBy = (run: number): number => (run === 0 ? 0 : ((run - 1) % BONUS_C
  * After a missed day the card is a new one.
  */
 export function cardFor(book: RecordBook, day: Day): BonusCard {
+  return cardOn(book.claimed, day);
+}
+
+/**
+ * The card on `day` for the days the bonus was taken, wherever they are kept:
+ * in a record book as they were, or in the medal bank's ledger, which pays
+ * the bonus now for every game in the medal center.
+ */
+export function cardOn(claimed: DaySet, day: Day): BonusCard {
   const today = dayNumber(day);
-  const last = lastIn(book.claimed);
+  const last = lastIn(claimed);
   const size = BONUS_CARD.length;
   const standing = (state: 'taken' | 'later' | 'off', latest: number): BonusCard => {
-    const stamped = stampedBy(runEnding(book.claimed, latest));
+    const stamped = stampedBy(runEnding(claimed, latest));
     return {
       state,
       stamped,
@@ -515,7 +524,7 @@ export function cardFor(book: RecordBook, day: Day): BonusCard {
   if (last !== null && today === last) return standing('taken', last);
   if (last !== null && today < last) return standing('later', last);
   // Today's is still to be taken. It carries on from yesterday's if yesterday's was taken, and a full card is followed by a new one.
-  const carried = last !== null && today === last + 1 ? stampedBy(runEnding(book.claimed, last)) % size : 0;
+  const carried = last !== null && today === last + 1 ? stampedBy(runEnding(claimed, last)) % size : 0;
   return {
     state: 'ready',
     stamped: carried,
@@ -657,7 +666,7 @@ function readCounts(value: unknown): Counts {
 }
 
 /** A stored set of days: the months that are real months of the calendar, each with only days that month has. */
-function readDays(value: unknown): DaySet {
+export function readDays(value: unknown): DaySet {
   const days: Record<string, number> = {};
   if (!isRecord(value)) return days;
   for (const [month, stored] of Object.entries(value)) {

@@ -42,7 +42,6 @@ export interface RecordStrings {
   bonusNoDay: string;
   bonusNotKept: string;
   bonusNotApart: string;
-  bonusNoMachine: string;
   /** While the account is asked whether another device has taken today's bonus. */
   bonusAsking: string;
   pipsAria: (stamped: number, squares: number) => string;
@@ -124,9 +123,8 @@ const en: RecordStrings = {
   bonusNewCard: (medals) => `The card is full! A new one starts tomorrow: +${medals}.`,
   bonusLater: (date, medals) => `The card is stamped ahead of today. The next bonus is on ${date}: +${medals}.`,
   bonusNoDay: 'This device’s date is off the calendar, so there is no bonus today.',
-  bonusNotKept: 'No daily bonus here: this browser is not keeping the record book.',
+  bonusNotKept: 'No daily bonus here: this browser is not keeping your medal bank.',
   bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
-  bonusNoMachine: 'The machine is not running, so there is nowhere to pay today’s bonus.',
   bonusAsking: 'Asking your account whether today’s bonus has been taken on another device…',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
 
@@ -140,7 +138,7 @@ const en: RecordStrings = {
   squareToday: (square, medals) => `Day ${square}: ${medals} medals. Ready today.`,
   squareStamped: (square, medals, date) => `Day ${square}: ${medals} medals. Stamped ${date}.`,
   cardNote:
-    'Bonus medals are free. They go straight into your medals and are not counted as fed, won or paid, so they change no return on this page: not the machine’s, not the lifetime one below, and not the odds.',
+    'Bonus medals are free. They go straight into your medal bank, for every game at the Medal Center, and are not counted as fed, won or paid, so they change no return on this page: not the machine’s, not the lifetime one below, and not the odds.',
   clockNote:
     'A day is a day on this device’s own calendar and changes at its midnight. Each day is stamped once: putting the clock forward takes that day’s stamp early, and then nothing is ready until the day after it really comes.',
 
@@ -257,9 +255,8 @@ const ja: RecordStrings = {
   bonusNewCard: (medals) => `カードがいっぱいになりました！ 明日から新しいカード: +${medals}枚`,
   bonusLater: (date, medals) => `カードには今日より先の日付のスタンプがあります。次のボーナスは${date}: +${medals}枚`,
   bonusNoDay: 'この端末の日付がカレンダーの範囲外のため、今日のボーナスはありません。',
-  bonusNotKept: 'このブラウザでは記録を保存できないため、デイリーボーナスはありません。',
+  bonusNotKept: 'このブラウザではメダルバンクを保存できないため、デイリーボーナスはありません。',
   bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
-  bonusNoMachine: 'マシンが動いていないため、ボーナスを受け取れません。',
   bonusAsking: 'ほかの端末で今日のボーナスを受け取っていないか、アカウントに確認しています…',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
 
@@ -273,7 +270,7 @@ const ja: RecordStrings = {
   squareToday: (square, medals) => `${square}日目: ${medals}枚。今日受け取れます。`,
   squareStamped: (square, medals, date) => `${square}日目: ${medals}枚。${date}にスタンプ済み。`,
   cardNote:
-    'ボーナスのメダルは無料です。そのまま手持ちのメダルに入り、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
+    'ボーナスのメダルは無料です。そのままメダルバンクに入り（メダルゲームセンターのどのゲームでも使えます）、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
   clockNote:
     '1日は、この端末のカレンダーの1日で、端末の午前0時に変わります。スタンプは1日に1回だけです。時計を進めるとその日のスタンプを先に押せますが、本当にその翌日になるまで次は受け取れません。',
 

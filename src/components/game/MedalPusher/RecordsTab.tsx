@@ -105,7 +105,7 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
   return (
     <div className={styles.layout} data-loaded={book !== null} data-testid="pusher-records">
       <InkPad id={ink} />
-      <StampCard state={state} />
+      <StampCard />
 
       <section className={styles.board} aria-label={t.boardTitle} data-testid="pusher-records-board">
         <div className={styles.boardHead}>

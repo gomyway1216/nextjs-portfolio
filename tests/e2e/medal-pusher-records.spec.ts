@@ -14,7 +14,7 @@ import {
   viewOf,
 } from '../../src/components/game/MedalPusher/records';
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
-import { STORAGE_KEY, restore } from '../../src/components/game/MedalPusher/storage';
+import { bankBalance, resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 
 // The Medal Pusher's daily bonus and record book. The machine itself is covered in medal-pusher.spec.ts; these
@@ -48,12 +48,6 @@ async function feedOne(page: Page, rail: 'left' | 'right' = 'left') {
     await machine(page).getByTestId(`pusher-feed-${rail}`).click({ timeout: 1_000 });
     expect(await counter(page, 'played')).toBeGreaterThan(before);
   }).toPass({ timeout: 20_000 });
-}
-
-/** The medals in the machine the browser holds a save of, read the way the game reads it. */
-async function savedCredits(page: Page): Promise<number> {
-  const text = await page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY);
-  return restore(text, 1)?.credits ?? -1;
 }
 
 /** The record book the browser holds, read the way the game reads it, or null when it holds none. */
@@ -219,8 +213,8 @@ test('the daily bonus is taken once a day, adds exactly what the card says, and 
   expect(await counter(page, 'won')).toBe(0);
   expect(await counter(page, 'paid')).toBe(0);
   await expect(machine(page).getByTestId('pusher-return')).toHaveText('—');
-  // The machine is saved with the medals in it, and the book with the day in it, at once.
-  await expect.poll(() => savedCredits(page)).toBe(START_CREDITS + BONUS_CARD[0]);
+  // The medals are in the medal bank at once, and the book has the day in it.
+  await expect.poll(() => bankBalance(page)).toBe(START_CREDITS + BONUS_CARD[0]);
   const book = await savedBook(page);
   if (!book) throw new Error('no record book was saved');
   expect(viewOf(book).total).toMatchObject({ claims: 1, bonus: BONUS_CARD[0], fed: 0, won: 0 });
@@ -250,7 +244,7 @@ test('the daily bonus is taken once a day, adds exactly what the card says, and 
   expect(trouble).toEqual([]);
 });
 
-test('the records count what is played, outlast a reset of the machine, and are cleared only on purpose', async ({ page }) => {
+test('the records count what is played, outlast a reset of the medal center, and are cleared only on purpose', async ({ page }) => {
   test.setTimeout(90_000);
   await openGame(page);
   await feedOne(page, 'left');
@@ -271,12 +265,9 @@ test('the records count what is played, outlast a reset of the machine, and are 
   await expect(records(page).getByTestId('pusher-record-bonus')).toHaveText(String(BONUS_CARD[0]));
   await expect(records(page).getByTestId('pusher-card').locator('li[data-stamped="true"]')).toHaveCount(1);
 
-  // The machine is reset: a new machine with a new purse and nothing played.
-  await page.getByRole('tab', { name: 'Machine' }).click();
-  const reset = machine(page).getByTestId('pusher-reset');
-  await reset.click();
-  await expect(reset).toHaveAttribute('data-armed', 'true');
-  await reset.click();
+  // The medal center is reset: a new machine, a new member's medals and nothing played.
+  await resetAtCenter(page);
+  await openGame(page);
   await expect(machine(page).getByTestId('pusher-played')).toHaveText('0');
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   // The book is as it was, and the day's bonus is not offered a second time.
@@ -389,8 +380,10 @@ test('two tabs of the game pay a day’s bonus once between them, and both end u
   await expect(bonus(page)).toHaveAttribute('data-state', 'ready');
   await expect(bonus(other)).toHaveAttribute('data-state', 'ready');
 
-  // Both tabs reach for today's bonus at the same moment.
-  await Promise.all([takeButton(page).click(), takeButton(other).click()]);
+  // Both tabs reach for today's bonus at the same moment: both buttons are pressed before either tab has heard of the
+  // other's press. (Pressed in the page itself: the button that comes second can be gone by the time a click made from
+  // outside gets to it, which is the very thing being tested.)
+  await Promise.all([page, other].map((tab) => takeButton(tab).evaluate((button: HTMLButtonElement) => button.click())));
   // One of them was paid, and the other hears of it: both show the day taken, with nothing left to press.
   for (const tab of [page, other]) {
     await expect(bonus(tab)).toHaveAttribute('data-state', 'taken');
@@ -403,15 +396,13 @@ test('two tabs of the game pay a day’s bonus once between them, and both end u
       return book ? [viewOf(book).total.claims, viewOf(book).total.bonus] : [];
     })
     .toEqual([1, BONUS_CARD[0]]);
-  // One machine has the medals and the other has not. A tab's machine only runs while the tab is in front.
-  const medals: number[] = [];
+  // The medals are the medal bank's, which both tabs play from: both show the bonus in it, once. A tab's machine only
+  // runs while the tab is in front.
+  await expect.poll(() => bankBalance(page)).toBe(START_CREDITS + BONUS_CARD[0]);
   for (const tab of [page, other]) {
     await tab.bringToFront();
-    await expect.poll(() => counter(tab, 'credits')).toBeGreaterThanOrEqual(START_CREDITS);
-    await tab.waitForTimeout(500);
-    medals.push(await counter(tab, 'credits'));
+    await expect.poll(() => counter(tab, 'credits')).toBe(START_CREDITS + BONUS_CARD[0]);
   }
-  expect(medals.sort((a, b) => a - b)).toEqual([START_CREDITS, START_CREDITS + BONUS_CARD[0]]);
 
   // Pressing again in either, after a reload, pays nothing more.
   await other.reload();

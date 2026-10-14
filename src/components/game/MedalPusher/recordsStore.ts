@@ -7,9 +7,11 @@
  * from the cabinet what the machine did, and keeps the book of a player who
  * is signed in on their account as well.
  *
- * The day's bonus is not the book's any more. It is the medal bank's, which
- * every game at the medal center shares (MedalCenter/bank.ts), and the bank
- * goes by the days this book took it on before, so that none is paid twice.
+ * The day's bonus is not paid by the book any more. It is the medal bank's,
+ * which every game at the medal center shares (MedalCenter/bank.ts), and the
+ * bank goes by the days this book took it on before, so that none is paid
+ * twice. A bonus the bank pays at the cabinet's own plate is still counted
+ * here, as one taken at the cabinet (`bonusTaken`).
  *
  * The page is drawn on the server first, where there is no browser, no book
  * and no today. So nothing is read until the page is in the browser and
@@ -88,6 +90,7 @@ import {
 import {
   RECORDS_KEY,
   clearBook,
+  countBonus,
   createBook,
   dayFrom,
   mergeBooks,
@@ -96,6 +99,7 @@ import {
   rebase,
   record,
   serializeBook,
+  spendDay,
   stamp,
   type AchievementId,
   type Day,
@@ -731,6 +735,24 @@ export function createRecords(env: RecordsEnv) {
       // A stamp is shown at once, and written as soon as the lock is this tab's.
       publish({ fresh: announce(earned) });
       saveSoon(desk);
+    },
+
+    /**
+     * The medal bank has paid today's bonus on this page, at the cabinet's
+     * plate. The book counts it as it always did: the day is stamped and
+     * played, and the medals are bonus medals, not fed, won or paid. A bonus
+     * taken at the medal center's counter is the bank's, and not this
+     * cabinet's to count.
+     */
+    bonusTaken(medals: number): void {
+      const at = desk;
+      const day = state.day;
+      if (!started || !at || !day || !Number.isInteger(medals) || medals <= 0) return;
+      const before = at.book;
+      at.book = countBonus(spendDay(before, day), medals, day);
+      at.unsaved = true;
+      publish({ fresh: announce(newStamps(before, at.book)) });
+      saveSoon(at);
     },
 
     /** A stamp's toast has been shown: it leaves the queue. */

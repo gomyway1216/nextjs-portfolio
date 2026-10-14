@@ -482,6 +482,36 @@ describe('hearing what the machine did', () => {
   });
 });
 
+describe('a day’s bonus the medal bank pays at the cabinet', () => {
+  it('is counted as one taken at the cabinet: the day stamped and played, and its medals bonus medals, not fed or won', () => {
+    const world = browser();
+    const tab = world.open();
+    // Before the page is listening, nothing is counted.
+    tab.store.bonusTaken(30);
+    expect(world.disk.touched).toBe(0);
+    tab.listen();
+    tab.store.bonusTaken(30);
+    expect(tab.total()).toMatchObject({ claims: 1, bonus: 30, fed: 0, won: 0 });
+    expect(hasDay(tab.book().claimed, MONDAY)).toBe(true);
+    expect(viewOf(tab.book()).days).toBe(1);
+    expect(viewOf(world.stored() as RecordBook).total).toMatchObject({ claims: 1, bonus: 30 });
+    // Nothing that is not a bonus is counted as one.
+    for (const medals of [0, -5, 2.5]) tab.store.bonusTaken(medals);
+    expect(tab.total()).toMatchObject({ claims: 1, bonus: 30 });
+  });
+
+  it('earns the week’s stamp on the seventh day in a row, as taking the bonus at the cabinet always did', () => {
+    const world = browser();
+    let book = createBook('device0001');
+    for (let back = 6; back >= 1; back--) book = claim(book, after(-back)).book;
+    world.disk.text = serializeBook(book);
+    const tab = world.open();
+    tab.listen();
+    tab.store.bonusTaken(150);
+    expect(tab.store.getState().fresh).toContain('week');
+  });
+});
+
 describe('two tabs of the game, one after the other', () => {
   it('hear each other: a tab is told when the other has written', () => {
     const world = browser();

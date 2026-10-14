@@ -39,10 +39,10 @@ import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/ba
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
-import { GUEST, type AccountStore, type Player, type Status, type Sync } from './account';
+import { GUEST, slotFor, type AccountStore, type Player, type Status, type Sync, type Why } from './account';
 import { keepMachine } from './savedMachine';
 import { savedNoteFor } from './savedNote';
-import { restore } from './storage';
+import { STORAGE_KEY, restore } from './storage';
 import { useFeel, type FeelNow } from './useFeel';
 import { hopperBusy } from './hopper';
 import { LIFT, holds as liftHolds } from './lift';
@@ -293,6 +293,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
   const seat = useRef<Seat | null>(null);
   // The day's bonus, paid into the bank on this page, for the cabinet's next frame to act out.
   const gifts = useRef<SessionEvent[]>([]);
+  // What this page last saw of the machine kept on this device: as it opened it, or as it last saved it. When the card
+  // comes back to this page, a different text there means that another page has played the machine since and saved
+  // its own, which is then the machine to play.
+  const seenSave = useRef<string | null>(null);
   // Where the machine is kept, and whether the last write to this device took. Until the keeper has said, the page says what the server said.
   const [status, setStatus] = useState<Status>({ where: 'device', kept: true });
 
@@ -349,6 +353,23 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const now: [boolean, boolean] = [holds.current[0].by.size > 0, holds.current[1].by.size > 0];
     setHeld((was) => (was[0] === now[0] && was[1] === now[1] ? was : now));
   };
+  /** The machine as this device keeps it now, in its player's slot. */
+  const readSave = useCallback((): string | null => {
+    try {
+      return window.localStorage.getItem(slotFor(STORAGE_KEY, keeper.current?.owner() ?? null));
+    } catch {
+      return null;
+    }
+  }, []);
+  /** Saves the machine (see account.ts for where it goes), and notes what is kept on this device now. */
+  const keep = useCallback(
+    (why: Why): void => {
+      keeper.current?.save(why);
+      seenSave.current = readSave();
+    },
+    [readSave],
+  );
+
   /**
    * Whether the machine on the table may run: this page holds the card, the bank on the table is the bank of the
    * player whose machine this is, and the machine is still the one on the table.
@@ -537,13 +558,18 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     const purse = medalBank();
     const mine = purse.sit(PUSHER.game, {
       granted: (moved) => {
-        if (!moved) return;
+        if (!moved && readSave() === seenSave.current) {
+          // The machine on the table is the one kept here: it is saved now, which also finds out whether this browser
+          // will keep it at all.
+          if (sessionRef.current) keep('tick');
+          return;
+        }
         sessionRef.current = null;
         setAuto(false);
         setSwitchedOn((times) => times + 1);
       },
       yielding: (why) => {
-        keeper.current?.save(why === 'moment' ? 'tick' : why);
+        if (sessionRef.current) keep(why === 'moment' ? 'tick' : why);
         for (const hold of holds.current) hold.by.clear();
         setHeld((was) => (was[0] || was[1] ? [false, false] : was));
       },
@@ -564,11 +590,20 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
         return;
       }
       if (event.type === 'bonus') {
-        // The day's bonus is heard, read out and tipped into the tray with everything else in the cabinet's next frame.
+        // The day's bonus is heard, read out and tipped into the tray with everything else in the cabinet's next frame,
+        // and the record book counts it, as it counts what is taken at the cabinet's plate.
         gifts.current.push({ type: 'bonus', count: event.medals });
+        records.bonusTaken(event.medals);
         return;
       }
-      // A cupful, tipped into the tray: it is seen to come down, and heard as it does.
+      // A cupful, tipped into the tray: it is seen to come down, and heard as it does. The machine counts the refills
+      // its player has taken at it, as it always has, and the record book reads them off its counter.
+      const session = sessionRef.current;
+      if (session) {
+        session.refills += 1;
+        session.credits = purse.balance();
+        setHud(hudOf(session));
+      }
       tray.current?.happened({ purse: purse.balance(), fed: [], arrived: [{ cause: 'refill', count: event.medals }] });
     });
     return () => {
@@ -576,7 +611,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       if (seat.current === mine) seat.current = null;
       mine.leave();
     };
-  }, []);
+  }, [keep, readSave]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -593,6 +628,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     // The machine to open with: the account's for a player who is signed in, and otherwise the one this browser
     // remembers, if it holds one that still reads. After a reset there is none, and the old one is thrown away.
     const remembered = keeping.open();
+    seenSave.current = readSave();
     const restored = remembered === null ? null : restore(remembered, seed);
     const session = restored ?? createSession(seed);
     if (restart) purse.restarted(PUSHER.game);
@@ -620,19 +656,19 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
     // never written over it. (As the card goes, the seat writes the machine down: see above.)
     const mayKeep = () => sessionRef.current === session && (seat.current?.holding() ?? false);
     const saveWhileShowing = () => {
-      if (live.current.active && document.visibilityState === 'visible' && mayKeep()) keeping.save('tick');
+      if (live.current.active && document.visibilityState === 'visible' && mayKeep()) keep('tick');
     };
     const saveWhenHidden = () => {
-      if (document.visibilityState === 'hidden' && mayKeep()) keeping.save('hidden');
+      if (document.visibilityState === 'hidden' && mayKeep()) keep('hidden');
     };
     const saveOnLeaving = () => {
-      if (mayKeep()) keeping.save('left');
+      if (mayKeep()) keep('left');
     };
     const saveTimer = window.setInterval(saveWhileShowing, SAVE_EVERY * 1000);
     document.addEventListener('visibilitychange', saveWhenHidden);
     window.addEventListener('pagehide', saveOnLeaving);
     // The first save also finds out whether this browser will keep the machine at all.
-    if (mayKeep()) keeping.save('tick');
+    if (mayKeep()) keep('tick');
 
     let stage: Stage | null = null;
     const fit = () => {
@@ -901,7 +937,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
             // A jackpot is not left to wait for the minute: it goes to the account now.
-            if (event.jackpot) keeping.save('moment');
+            if (event.jackpot) keep('moment');
             break;
           case 'bowlDrop':
             // Through a hole and into the bowl below: a step up, and the suspense starts again.
@@ -1116,10 +1152,10 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', saveOnLeaving);
       // Moving to another page of the site hides nothing and leaves nothing, so the machine is saved here too.
-      if (mayKeep()) keeping.save('left');
+      if (mayKeep()) keep('left');
       if (sessionRef.current === session) sessionRef.current = null;
     };
-  }, [switchedOn]);
+  }, [switchedOn, keep, readSave]);
 
   // While the card is in another tab's machine, the cabinet says so, a moment after (the card goes away for a moment
   // whenever another page takes the day's bonus or the like, and nothing need be said of that).

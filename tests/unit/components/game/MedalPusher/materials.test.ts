@@ -350,7 +350,7 @@ describe('what is printed and worn on the cabinet', () => {
     expect(first.fills.filter((fill) => fill.startsWith('rgba(236, 244, 255,')).length).toBeGreaterThanOrEqual(BRUSH_STROKES / 2);
     expect(first.fills.filter((fill) => fill.startsWith('rgba(6, 10, 20,')).length).toBeGreaterThanOrEqual(BRUSH_STROKES / 2);
     // The words the player needs are still printed on it.
-    expect(first.calls.filter((call) => call.name === 'fillText').map((call) => call.args[0])).toEqual(['GET', 'GET', 'GET', 'OUT', 'OUT']);
+    expect(first.calls.filter((call) => call.name === 'fillText').map((call) => call.args[0])).toEqual(['GET', 'GET', 'GET', 'OUT', 'OUT', 'OUT', 'OUT']);
     // Painted again it is stroke for stroke the same sheet: no device and no test gets another.
     paintTable();
     expect(JSON.stringify(made[1].calls)).toBe(JSON.stringify(first.calls));

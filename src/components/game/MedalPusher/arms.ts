@@ -82,8 +82,8 @@ export const SLOT = {
   waist: 3.6,
   /**
    * The mouth a medal goes in at, standing on its edge: how wide it is,
-   * which is getting on for four times as wide as a medal is thick, and how
-   * tall, which is a little more than a medal is across.
+   * which is several times as wide as a medal is thick, so that it is seen on
+   * a phone, and how tall, which is a little more than a medal is across.
    */
   mouth: { wide: 3.4, tall: MEDAL_RADIUS * 2 + 0.6 },
   /** How far in from the face the mouth is. */

@@ -31,7 +31,9 @@ export interface HapticPattern {
  * - `catch`: medals over the front edge, into the tray. At most one every 220 ms, however many fall.
  * - `jewel`: a jewel over the front edge, which lights a lamp. One light tick, a little longer than the medals'
  *   and not held back by them: a jewel goes over among medals, and is the one of them the hand should be told of.
- * - `start`: a medal through a START pocket that holds a spin.
+ * - `start`: a medal through a START pocket that holds a spin. It is felt as the medal drops into the pocket, with
+ *   the pocket's burst of light and its sound: that is when the machine takes it and says so, a ride after the
+ *   lip's rule counted it (session.ts).
  * - `gold`: a medal through a START pocket that holds a gold spin from the start: through the pocket the lucky lamp
  *   is on, or through any pocket while the wings are open. A START pocket's two ticks and a third, longer one. It
  *   matters as much as any medal that holds a spin, and of the medals held in one frame it is the one that is felt.

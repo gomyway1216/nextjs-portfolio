@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { CLOUD_FORMAT, fromCloud, sizeOf, toCloud } from '@/components/game/MedalPusher/account';
 import { buildTowers, dropJewel, jewelsOnField, queuePayout, seededRng } from '@/components/game/MedalPusher/engine';
 import { holds } from '@/components/game/MedalPusher/lift';
+import { JACKPOT_START, JACKPOT_STEP } from '@/components/game/MedalPusher/lottery';
 import { PACK_FORMAT, pack, unpack } from '@/components/game/MedalPusher/pack';
 import { advance, createSession, insert, refill, type Session } from '@/components/game/MedalPusher/session';
-import { STORAGE_VERSION, VERSION_BEFORE_LAMP, restore, serialize } from '@/components/game/MedalPusher/storage';
+import { STORAGE_VERSION, VERSION_BEFORE_LAMP, VERSION_BEFORE_RIDE, restore, serialize } from '@/components/game/MedalPusher/storage';
 
 import inFormat1 from './fixtures/copies-packed-in-format-1.json';
 import beforeChance from './fixtures/save-before-chance-time.json';
@@ -18,6 +19,7 @@ import beforeLipChuckers from './fixtures/save-before-lip-chuckers.json';
 import beforeSlots from './fixtures/save-before-the-front-slots.json';
 import beforeLamp from './fixtures/save-before-the-lucky-lamp.json';
 import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
+import beforeRide from './fixtures/save-before-the-ride.json';
 import beforeWorks from './fixtures/save-before-the-payout-works.json';
 import beforeBowls from './fixtures/save-before-the-three-bowls.json';
 import withOneBowl from './fixtures/save-with-chance-time-and-one-bowl.json';
@@ -102,6 +104,7 @@ const OLDER: [string, string][] = [
   ['before the payout works', beforeWorks.save],
   ['in chance time before the lucky lamp, the jewels and the payout works', beforeLamp.save],
   ['the day before the lucky lamp, with the payout works at work', dayBeforeLamp.save],
+  ['before a medal rode to its pocket, with three that had just come over one', beforeRide.save],
 ];
 
 /** The whole numbers a string of bits holds, read here by hand and not by the packer: `width` bits each, high bit first. */
@@ -384,6 +387,9 @@ describe('a packed save', () => {
 
   it('packs a machine with jewels on its tables and in the air as small as one without', { timeout: LONG }, () => {
     for (const session of [createSession(1), played(2, 20)]) {
+      // A jewel on a table, whatever the play has made of the one a machine starts with, and one in the air.
+      const lying = session.machine.medals.find((medal) => medal.level === 0 && medal.tier === 0 && medal.stack === 1 && medal.grow === 0 && !medal.ball && medal.sinceDrop < 0);
+      if (lying && !session.machine.medals.some((medal) => medal.jewel)) lying.jewel = true;
       dropJewel(session.machine);
       expect(session.machine.medals.some((medal) => medal.jewel)).toBe(true);
       expect(session.machine.falling.some((medal) => medal.jewel)).toBe(true);
@@ -489,6 +495,63 @@ describe('a packed save', () => {
       expect(state?.format).toBe(PACK_FORMAT);
       expect(fromCloud(JSON.parse(JSON.stringify(state)))?.text).toBe(text);
     }
+  });
+
+  it('packs the medals on their tongues as the table they are, and they come back as they were', { timeout: LONG }, () => {
+    // Both rails held down from the start until three medals are on their way to a pocket at once, a lit one's and an unlit one's among them.
+    const session = createSession(20261014, { balls: 0 });
+    const mixed = (): boolean => session.riding.length >= 3 && session.riding.some((rider) => rider.lit) && session.riding.some((rider) => !rider.lit);
+    for (let i = 0; i < 300 * 60 && !mixed(); i++) {
+      if (session.credits === 0) refill(session);
+      insert(session, 0);
+      insert(session, 1);
+      advance(session, DT);
+    }
+    expect(mixed()).toBe(true);
+    const text = serialize(session);
+    const small = pack(text) as string;
+    expect(unpack(small)).toBe(text);
+    // A list of riders is a list of objects that all have the same fields: it is written as those fields once and a column for each.
+    const packed = JSON.parse(small) as { version: number; session: { riding: Record<string, unknown> } };
+    expect(packed.version).toBe(STORAGE_VERSION);
+    expect(packed.session.riding).toMatchObject({ $: 't', k: ['gate', 'lit', 'left'] });
+    expect(packed.session.riding.c).toHaveLength(3);
+    // What comes back is the same machine, its riders with it, and it plays on as the one that was packed does.
+    const back = restore(unpack(small), 1) as Session;
+    expect(serialize(back)).toBe(text);
+    expect(back.riding).toEqual(session.riding);
+    session.machine.rng = seededRng(5);
+    back.machine.rng = seededRng(5);
+    for (let i = 0; i < 180; i++) {
+      advance(session, DT);
+      advance(back, DT);
+    }
+    expect(serialize(back)).toBe(serialize(session));
+    // And on its way to the account and back, in the format a copy is written in now.
+    const state = toCloud(text, 'a-made-up-mark', 0);
+    expect(state?.format).toBe(PACK_FORMAT);
+    expect(fromCloud(JSON.parse(JSON.stringify(state)))?.text).toBe(text);
+    // A save with none on its way has an empty list, which is no table and travels as it is.
+    const none = JSON.parse(pack(serialize(createSession(3))) as string) as { session: Record<string, unknown> };
+    expect(none.session.riding).toEqual([]);
+  });
+
+  it('carries a save written before a medal rode to its pocket, and it comes back with none on its way', () => {
+    const save = beforeRide.save;
+    const small = pack(save) as string;
+    expect(sent(small)).toBeLessThan(bytesOf(save) / 2);
+    expect(unpack(small)).toBe(save);
+    // It travels as that version wrote it: its number, and no word of riders.
+    const packed = JSON.parse(small) as { version: number; session: Record<string, unknown> };
+    expect(packed.version).toBe(VERSION_BEFORE_RIDE);
+    expect(packed.session).not.toHaveProperty('riding');
+    const back = restore(unpack(small), 7) as Session;
+    expect(back.riding).toEqual([]);
+    expect(serialize(back)).toBe(serialize(restore(save, 7) as Session));
+    // Written again it is a save of today's version, and that travels too.
+    const today = serialize(back);
+    expect(JSON.parse(today).version).toBe(STORAGE_VERSION);
+    expect(unpack(pack(today))).toBe(today);
   });
 
   it('carries a save written the day before the lucky lamp, and it comes back in chance time with none of its gold spins the lamp’s', () => {
@@ -616,18 +679,25 @@ describe('a copy packed before format 2', () => {
     expect(first.state.data).toContain('"$":"g"');
     // The second has the payout works at work in it. It was written the day before the lucky lamp, so the text
     // `serialize` writes for that machine today is no longer the copy's own, as it was on that day: it is the copy's
-    // with today's version on it and the lamp's two numbers among the session's, none of its spins the lamp's and no
-    // chance time, since it holds no gold spin. With those taken out again it is the copy's text, to the character.
+    // with today's version on it, the lamp's two numbers among the session's, none of its spins the lamp's and no
+    // chance time, since it holds no gold spin, and no medal on a tongue, since that game counted a medal as it came
+    // over the lip. With those taken out again it is the copy's text, to the character.
     const works = restore(fromCloud(second.state)?.text ?? null, 3) as Session;
     expect((JSON.parse(fromCloud(second.state)?.text as string) as { version: number }).version).toBe(7);
     expect(works.machine.hopper.phase).toBe('pouring');
     expect(works.machine.lifts.filter(holds)).toHaveLength(3);
     expect(jewelsOnField(works.machine)).toBe(3);
     const today = JSON.parse(serialize(works)) as { version: number; session: Record<string, unknown> };
-    const { lucky, rush, ...numbers } = today.session;
+    const { lucky, rush, riding, ...numbers } = today.session;
     expect([works.gold, works.chance]).toEqual([0, false]);
-    expect([today.version, lucky, rush]).toEqual([STORAGE_VERSION, 0, false]);
-    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: numbers })).toBe(fromCloud(second.state)?.text);
+    expect([today.version, lucky, rush, riding]).toEqual([STORAGE_VERSION, 0, false, []]);
+    // Its jackpot is today's as well: the copy's stood below where one starts now, and is brought up to it, a medal
+    // more for each of today's steps its progress had in it. With the copy's own two numbers put back, the rest is
+    // the copy's text.
+    const then = (JSON.parse(fromCloud(second.state)?.text as string) as { session: { jackpot: number; jackpotProgress: number } }).session;
+    expect(then.jackpot).toBeLessThan(JACKPOT_START);
+    expect([works.jackpot, works.jackpotProgress]).toEqual([JACKPOT_START + Math.floor(then.jackpotProgress / JACKPOT_STEP), then.jackpotProgress % JACKPOT_STEP]);
+    expect(JSON.stringify({ ...today, version: VERSION_BEFORE_LAMP, session: { ...numbers, jackpot: then.jackpot, jackpotProgress: then.jackpotProgress } })).toBe(fromCloud(second.state)?.text);
   });
 
   it('is read whatever machine it holds: new, played, with the works at work, with jewels, and of every older version', { timeout: LONG }, () => {

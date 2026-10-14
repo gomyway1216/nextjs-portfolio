@@ -454,7 +454,8 @@ export function record(book: RecordBook, events: readonly RecordEvent[], day: Da
 /**
  * What each square of the bonus card gives, the first day's first. A week
  * comes to 480 medals: the first day is a third of the hundred a machine
- * starts with, and the seventh, the largest, is half of the smallest jackpot.
+ * starts with, and the seventh, the largest, is half as much again as that
+ * hundred.
  */
 export const BONUS_CARD = [30, 40, 50, 60, 70, 80, 150] as const;
 

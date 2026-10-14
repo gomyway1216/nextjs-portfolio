@@ -246,7 +246,7 @@ test('the canvas renderer draws the field when the address asks for it', async (
   expect(trouble).toEqual([]);
 });
 
-test('on a phone the START pockets are three mouths side by side, two dark over their own lamps and the lucky one full of gold, and each slot has a mouth a medal fits', async ({ page }) => {
+test('on a phone the START pockets are three mouths side by side, two dark over their own lamps and the lucky one full of gold, under a dark well with a tongue of brass across it to each, and each slot has a mouth a medal fits', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   // The canvas renderer draws the same cabinet as the 3D one, and its picture can be read back.
   await openGame(page, 'en', '?renderer=2d');
@@ -284,8 +284,11 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
     }, mouths);
   // What marks a START pocket on a phone is small, and it is these: the black floor of its throat, with its lamp in
   // the slot's own colour at the lower lip of it, while it waits; and the gold that fills the mouth of the one the
-  // lucky lamp is on. The catcher rides with the pusher, so the pockets are found by what they look like, and
-  // placed by how far apart the catcher has them: that, as a share of the picture's width, half way through the stroke.
+  // lucky lamp is on. Over the pockets, between them and the lip, is the well, which is all but black and has a
+  // trace of blue in it that a throat's floor has not, and across it to each pocket a tongue of brass, which is the
+  // only way a medal gets to one. The catcher rides with
+  // the pusher, so the pockets are found by what they look like, and placed by how far apart the catcher has them:
+  // that, as a share of the picture's width, half way through the stroke.
   const step = (time: number) => (mouthOnDrawing(1, time).x - mouthOnDrawing(0, time).x) / VIEW.width;
   const pitch = (step(0) + step(PUSHER.period / 2)) / 2;
   const own = SLOT_LIGHT.own.map((colour) => [1, 3, 5].map((at) => parseInt(colour.slice(at, at + 2), 16)));
@@ -294,7 +297,10 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
    * throats are on (as a length down the page). For each: where its middle should be; where the middle of the
    * black of its floor is on that row, and how long that black is; how many pixels of black there are in its mouth;
    * how many pixels of the slot's own colour there are where its lamp is; and how much of the middle of its mouth
-   * is gold, from 0 to 1. Lengths are in pixels of the page.
+   * is gold, from 0 to 1. And the well over them: how many rows of the page above the floors' its row is, how much
+   * of the catcher's width is the well on that row, how many rows on end are mostly that; and each
+   * pocket's tongue on a row low in the well, by where its middle is, how far across its brass is, and how much
+   * well there is on end to either side of it. Lengths are in pixels of the page.
    */
   const pockets = () =>
     page.evaluate(
@@ -311,7 +317,12 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
         const top = Math.floor(canvas.height * 0.55);
         const tall = Math.floor(canvas.height * 0.25);
         const { data } = context.getImageData(left, top, wide, tall);
-        /** What a pixel of that part of the picture shows: the black of a throat's floor, the lit gold of a mouth, one of the slots' own colours, or something else. */
+        /**
+         * What a pixel of that part of the picture shows: the black of a throat's floor, the lit gold of a mouth or the
+         * brass of a tongue, the well, one of the slots' own colours, or something else. The well is 8 to 12 of red, 6 to
+         * 10 of green and 26 of blue, and beside the tongue of the lit pocket the gold of that pocket's glow lies over
+         * it, up to 48, 44, 49: no green over its red, and its blue never far under its red.
+         */
         const kind = (x: number, y: number): string => {
           if (x < 0 || x >= wide || y < 0 || y >= tall) return 'other';
           const at = 4 * (y * wide + x);
@@ -319,6 +330,7 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           if (data[at + 3] !== 255) return 'other';
           if (r < 16 && g < 16 && b < 16) return 'dark';
           if (r >= 215 && g >= 150 && r >= g && g - b >= 25) return 'gold';
+          if (r < 80 && g <= r + 2 && b >= 18 && b < 90 && b >= r - 8) return 'well';
           // A slot's own colour, at its full strength or dimmed toward black as its light is while it glows less: the same hue.
           const match = colours.findIndex(([red, green, blue]) => {
             const scale = Math.max(r, g, b) / Math.max(red, green, blue);
@@ -335,8 +347,9 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           if (count > most) [most, row] = [count, y];
         }
         if (row < 0) return null;
+        const middle = canvas.width / 2 - left;
         const found = [0, 1, 2].map((pocket) => {
-          const centre = canvas.width / 2 - left + (pocket - 1) * apart;
+          const centre = middle + (pocket - 1) * apart;
           const [from, to] = [Math.round(centre - apart / 2), Math.round(centre + apart / 2)];
           // The floor of its throat, on that row: the longest stretch of black in its own stretch of the catcher.
           let floor = { from: Math.round(centre), length: 0 };
@@ -353,48 +366,104 @@ test('on a phone the START pockets are three mouths side by side, two dark over 
           for (let y = row - 7; y <= row + 3; y++) for (let x = from; x < to; x++) if (kind(x, y) === 'dark') black++;
           // Its lamp is on the lower bar of its frame, in the middle: what there is of the slot's own colour within a lamp's reach of there.
           let lamp = 0;
-          for (let y = row - 2; y <= row + 6; y++) for (let x = Math.round(centre) - 4; x <= Math.round(centre) + 4; x++) if (kind(x, y) === `own${pocket}`) lamp++;
+          for (let y = row - 2; y <= row + 10; y++) for (let x = Math.round(centre) - 4; x <= Math.round(centre) + 4; x++) if (kind(x, y) === `own${pocket}`) lamp++;
           // How much of the middle of its mouth is gold: of the floor's row and the three rows over it.
           const span = Math.round(apart * 0.4);
           let gold = 0;
           for (let y = row - 3; y <= row; y++) for (let x = Math.round(centre - span / 2); x < Math.round(centre + span / 2); x++) if (kind(x, y) === 'gold') gold++;
           return { centre: (left + centre) * each, middle: (left + floor.from + floor.length / 2) * each, dark: floor.length * each, black, lamp, gold: gold / (span * 4) };
         });
-        return { row: (top + row) * each, pockets: found };
+        // The well is over the pockets, between them and the lip: of the rows above the floors', the one with the most of
+        // it between the catcher's two ends, which are a pocket and a half to either side of the middle.
+        const [wellFrom, wellTo] = [Math.round(middle - apart * 1.5) + 2, Math.round(middle + apart * 1.5) - 2];
+        const blue = (y: number): number => {
+          let count = 0;
+          for (let x = wellFrom; x < wellTo; x++) if (kind(x, y) === 'well') count++;
+          return count;
+        };
+        let best = row - 8;
+        for (let y = row - 8; y >= Math.max(0, row - 36); y--) if (blue(y) > blue(best)) best = y;
+        // How many rows on end, about that one, are mostly well: how tall the well is seen.
+        const mostly = (y: number): boolean => y >= 0 && y < tall && blue(y) >= (wellTo - wellFrom) * 0.5;
+        let [first, last] = [best, best];
+        while (mostly(first - 1)) first--;
+        while (mostly(last + 1)) last++;
+        // The tongues are looked for low in the well, where a medal that hangs over the lip does not reach: two thirds of the way down it.
+        const across = Math.round(first + (last - first) * 0.7);
+        // A tongue crosses the well to each pocket: on that row, the stretch of brass nearest the pocket's middle, by
+        // where its own middle is and how far across it is, and how much well there is on end to either side of it.
+        const tongues = [0, 1, 2].map((pocket) => {
+          const centre = Math.round(middle + (pocket - 1) * apart);
+          let at = -1;
+          for (let off = 0; off <= 4 && at < 0; off++) for (const x of [centre + off, centre - off]) if (at < 0 && kind(x, across) === 'gold') at = x;
+          if (at < 0) return { middle: (left + centre) * each, wide: 0, left: 0, right: 0 };
+          let [from, to] = [at, at];
+          while (kind(from - 1, across) === 'gold') from--;
+          while (kind(to + 1, across) === 'gold') to++;
+          /** How many pixels of well there are on end from `x`, going `by`, after no more than two of anything else: the tongue's own shaded edge. */
+          const run = (x: number, by: number): number => {
+            let skipped = 0;
+            while (skipped < 2 && kind(x, across) !== 'well') [x, skipped] = [x + by, skipped + 1];
+            let count = 0;
+            while (kind(x, across) === 'well') [x, count] = [x + by, count + 1];
+            return count;
+          };
+          return { middle: (left + (from + to + 1) / 2) * each, wide: (to - from + 1) * each, left: run(from - 1, -1) * each, right: run(to + 1, 1) * each };
+        });
+        return { row: (top + row) * each, pockets: found, well: { above: (row - best) * each, share: blue(best) / (wellTo - wellFrom), tall: (last - first + 1) * each, tongues } };
       },
       { pitch, own },
     );
   type Pockets = NonNullable<Awaited<ReturnType<typeof pockets>>>;
-  /** The pockets of a reading that wait: a black floor a good many pixels of a phone's screen across, and a lamp of the slot's own colour. */
-  const waiting = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark >= 14 && pocket.lamp >= 4);
-  /** The pockets of a reading that are lit: no black on the floor's row, and most of the mouth gold. */
-  const lit = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark === 0 && pocket.gold >= 0.6);
-  // Two that wait and one that is lit, whichever the lucky lamp is on. A medal on its way down the slide covers a
-  // pocket for a moment, so the picture is looked at until none does, and that look is the one that is judged.
+  // Every bound below has room in it. They were read off the canvas at this size, one pixel to a pixel, every 60 ms
+  // through four strokes of a new machine and of one that had been played (250 looks each), and each is set well
+  // inside what was read: another machine's rasteriser may draw an edge a pixel otherwise.
+  /** The pockets of a reading that wait: a black floor a good many pixels of a phone's screen across (19 to 21 read), and a lamp of the slot's own colour (6 pixels of it at the dimmest of its glow, 24 at the brightest). */
+  const waiting = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark >= 14 && pocket.lamp >= 3);
+  /** The pockets of a reading that are lit: no black to speak of on the floor's row (none read), and most of the mouth gold (0.75 to 1 read). */
+  const lit = (seen: Pockets) => seen.pockets.filter((pocket) => pocket.dark <= 3 && pocket.gold >= 0.5);
+  /** The tongues of a reading that are in the clear: brass a few pixels across (5 to 6 read), with the well to either side of it (14 to 31 pixels on end read). */
+  const bridging = (seen: Pockets) => seen.well.tongues.filter((tongue) => tongue.wide >= 3 && tongue.left >= 8 && tongue.right >= 8);
+  // Two that wait and one that is lit, whichever the lucky lamp is on, and a tongue to each of the three. A medal on
+  // its way down a tongue covers it and its pocket for a moment, and one going down into the well covers some of
+  // that, so the picture is looked at until none does, and that look is the one that is judged.
   let seen: Pockets | null = null;
   await expect
     .poll(
       async () => {
         seen = await pockets();
-        return seen ? [waiting(seen).length, lit(seen).length] : [];
+        return seen ? [waiting(seen).length, lit(seen).length, bridging(seen).length] : [];
       },
       { timeout: 10_000 },
     )
-    .toEqual([2, 1]);
+    .toEqual([2, 1, 3]);
   const look = seen as Pockets | null;
   if (!look) throw new Error('no pocket was found in the picture');
-  // Read off the real canvas at this size all through the stroke, a waiting floor is 19 to 21 pixels across with 49 to 78
-  // black pixels in its mouth and 6 to 15 pixels of lamp, and 0.8 to 1 of the lit mouth is gold, with no black in it.
+  // A waiting floor has 68 to 115 black pixels in its mouth, its middle is within a pixel and a quarter of where the
+  // catcher has the pocket, and none of the lit mouth's gold is in it (0.05 at the most, on a played table).
   for (const pocket of waiting(look)) {
-    // Deep enough to be seen into, where the catcher has it, and none of the lucky lamp's gold in it, or no more than the edge of a medal that hangs over the lip above it.
-    expect(pocket.black).toBeGreaterThanOrEqual(30);
+    // Deep enough to be seen into, where the catcher has it, and none of the lucky lamp's gold in it.
+    expect(pocket.black).toBeGreaterThanOrEqual(40);
     expect(Math.abs(pocket.middle - pocket.centre)).toBeLessThan(3);
     expect(pocket.gold).toBeLessThan(0.2);
   }
+  // The well, read the same way: its row is 8 to 16 rows above the floors', 0.80 to 0.82 of the catcher's width on it
+  // is the well, and it is 9 to 14 rows tall. A tongue is 5 to 6 pixels across, 4 or more short of half its pocket's
+  // floor, and within a pixel and a quarter of its pocket's middle.
+  expect(look.well.above).toBeGreaterThanOrEqual(4);
+  expect(look.well.above).toBeLessThanOrEqual(28);
+  expect(look.well.share).toBeGreaterThanOrEqual(0.6);
+  expect(look.well.tall).toBeGreaterThanOrEqual(5);
+  look.well.tongues.forEach((tongue, pocket) => {
+    // A rail, not a board: a few pixels of brass, a good deal narrower than the pocket it leads to, straight above the middle of it.
+    expect(tongue.wide).toBeLessThanOrEqual(9);
+    expect(tongue.wide).toBeLessThan(look.pockets[pocket].dark > 0 ? look.pockets[pocket].dark / 2 : 10);
+    expect(Math.abs(tongue.middle - look.pockets[pocket].centre)).toBeLessThan(3);
+  });
   for (const pocket of lit(look)) {
-    // Gold where the others are black, and its lamp is gold too, not the slot's own colour.
+    // Gold where the others are black, and its lamp is gold too, not the slot's own colour: no black read in it, and a pixel of its own colour at the most.
     expect(pocket.black).toBeLessThanOrEqual(4);
-    expect(pocket.lamp).toBeLessThanOrEqual(2);
+    expect(pocket.lamp).toBeLessThanOrEqual(3);
   }
   // All inside the stage, side by side at even steps, the middle one in the middle, and well apart.
   expect(look.row).toBeGreaterThan(box.height * 0.55);
@@ -2139,21 +2208,23 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page)).toBeVisible();
 
   const slot = odds(page).getByTestId('pusher-slot-table');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('0.868%');
-  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 115');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1.5%');
+  await expect(slot.locator('tr[data-tier="seven"]')).toContainText('1 in 67');
   await expect(slot.locator('tr[data-tier="seven"]')).toContainText('A prize ball on the field');
   await expect(slot.locator('tr[data-tier="big"]')).toContainText('A choice of three chests');
   await expect(slot.locator('tr[data-tier="small"]')).toContainText('A roll on the sugoroku board');
-  await expect(slot.locator('tr[data-tier="small"]')).toContainText('8.8 medals');
+  await expect(slot.locator('tr[data-tier="small"]')).toContainText('12.5%');
+  await expect(slot.locator('tr[data-tier="small"]')).toContainText('1 in 8');
+  await expect(slot.locator('tr[data-tier="small"]')).toContainText('10 medals');
   await expect(odds(page).getByTestId('pusher-board-table').locator('tbody td')).toHaveCount(12);
   await expect(odds(page).getByTestId('pusher-chest-table').locator('tbody tr')).toHaveCount(3);
-  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('92.312%');
+  await expect(slot.locator('tr[data-tier="miss"]')).toContainText('83.5%');
   // How far to trust a reach: the long one hits far more often than the ordinary one.
   const reach = odds(page).getByTestId('pusher-reach-table');
   await expect(reach.locator('tbody tr')).toHaveCount(3);
-  await expect(reach.locator('tr[data-reach="long"]')).toContainText('69.0%');
-  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('20.7%');
-  await expect(reach.locator('tr[data-reach="any"]')).toContainText('35.7%');
+  await expect(reach.locator('tr[data-reach="long"]')).toContainText('84.0%');
+  await expect(reach.locator('tr[data-reach="normal"]')).toContainText('38.3%');
+  await expect(reach.locator('tr[data-reach="any"]')).toContainText('56.8%');
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tbody tr')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-roulette-table').locator('tr[data-pocket="stop"]')).toContainText('33.3%');
   // Four numbers in a row lead to the three bowls: a row for what the holes of each bowl do, and each of the three ends one time in three.
@@ -2163,47 +2234,53 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tbody tr[data-hole]')).toHaveCount(5);
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-bowl="1"][data-hole="down"]')).toContainText('66.7%');
   await expect(odds(page).getByTestId('pusher-bowl-table').locator('tr[data-hole="jackpot"]')).toContainText('33.3%');
-  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 1,750 leads to it');
+  await expect(odds(page)).toContainText('One ball in 15.2 wins it, and one spin in 1,013 leads to it');
+  // Where the jackpot starts and how fast it grows, and that what it grows by is paid.
+  await expect(odds(page)).toContainText('The jackpot starts at 500 medals and grows by one for every 20 medals dropped on this machine. That is 5 medals for every 100 dropped');
   // The jewels: what each of a set of five pays, and the most they can be worth to a spin.
   const jewels = odds(page).getByTestId('pusher-jewel-table');
   await expect(jewels.locator('tbody tr')).toHaveCount(2);
   await expect(jewels.locator('tr[data-jewel="prize"]')).toContainText('1 medal each');
   await expect(jewels.locator('tr[data-jewel="bonus"]')).toContainText('3 medals');
-  await expect(odds(page).getByTestId('pusher-jewel-note')).toContainText('1.4 medals a jewel and 0.026 medals a spin');
-  // The treasure line is worth its chests and the jewel that comes with it, and a spin the 0.026 more for it.
-  await expect(slot.locator('tr[data-tier="big"]')).toContainText('21.4 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('63.7 medals');
-  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('1.385 medals');
+  await expect(odds(page).getByTestId('pusher-jewel-note')).toContainText('1.4 medals a jewel and 0.035 medals a spin');
+  // The treasure line is worth its chests and the jewel that comes with it, and a spin the 0.035 more for it.
+  await expect(slot.locator('tr[data-tier="big"]')).toContainText('31.4 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('76.9 medals');
+  await expect(odds(page).getByTestId('pusher-value-table')).toContainText('3.189 medals');
   // Chance time: an ordinary spin and a gold one to five places, and what being gold adds, the same at every size of jackpot.
   // Both count the jewel a treasure line lets go, once: a gold spin doubles the chest and not the jewel.
   const chance = odds(page).getByTestId('pusher-chance-table');
   await expect(chance.locator('tbody tr')).toHaveCount(3);
-  await expect(chance.locator('tbody tr').first()).toContainText('1.38526 medals');
-  await expect(chance.locator('tbody tr').first()).toContainText('2.19126 medals');
-  await expect(chance.locator('tbody td', { hasText: '0.80600 medals' })).toHaveCount(3);
+  await expect(chance.locator('tbody tr').first()).toContainText('3.18855 medals');
+  await expect(chance.locator('tbody tr').first()).toContainText('5.18855 medals');
+  await expect(chance.locator('tbody td', { hasText: '2.00000 medals' })).toHaveCount(3);
   await expect(odds(page)).toContainText('turns one of the held spins gold');
   // And under it the lucky lamp's rule, with the same two spins' worth, that it cannot be aimed at, and the share of
   // all spins it was measured to make gold.
   const lamp = odds(page).getByTestId('pusher-lucky-note');
   await expect(lamp).toContainText('one of the three START pockets is lit gold at a time');
-  await expect(lamp).toContainText('An ordinary spin is worth 1.38526 medals on average, and a gold spin 2.19126.');
+  await expect(lamp).toContainText('An ordinary spin is worth 3.18855 medals on average, and a gold spin 5.18855.');
   await expect(lamp).toContainText('The lamp cannot be aimed at: a medal takes about half a minute to get from the rail to the lip');
   await expect(lamp).toContainText('Measured at up to two medals a second, the lamp makes about 33% of all spins gold');
 
-  // 80% by the front and 0.12 spins a medal at 1.385 medals a spin.
+  // 57% into the tray and 0.13 spins a medal, each worth its 3.18855 medals and a third of the 2 that being gold
+  // adds, and the 0.05 of a medal that each medal grows the jackpot by: 0.57 × (1 + 0.13 × 3.84855 + 0.05).
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('93.3%');
+  await expect(result).toHaveText('88.4%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('18%');
+  // What it is set to give back, said where the sum is.
+  await expect(odds(page)).toContainText('about 88% of the medals come back. That is about what a real machine is set to give.');
 
-  const front = odds(page).getByRole('slider', { name: /leave by the front/ });
+  // The share goes from all of the medals into the tray down to three in ten: 1.5503 and 0.3 × 1.5503.
+  const front = odds(page).getByRole('slider', { name: /reach your tray/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('116.6%');
+  await expect(result).toHaveText('155.0%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('58.3%');
-  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('72%');
+  await expect(result).toHaveText('46.5%');
+  await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('59%');
 });
 
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
@@ -2221,11 +2298,11 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // Fed down the middle at this pace, about one medal in nine ends up through a START pocket under the pusher's lip
-  // (9% to 15% over twenty-four runs of this size, the most when a tower goes over through one or chance time opens
-  // the wings). Fed at the edges far fewer do (2% to 4% over the same runs, and in none of them as many as down the
-  // middle), though some: the pile carries medals across, and what the screen pays lands all over the pusher. By
-  // the front went 73% to 81% of each aim's medals.
+  // Fed down the middle at this pace, about one medal in seven ends up through a START pocket under the pusher's lip
+  // (9% to 25% over forty-eight runs of this size, the most when a tower goes over through one or chance time opens
+  // the wings). Fed at the edges far fewer do (2% to 9% over the same runs, and in none of them as many as down the
+  // middle), though some: the pile carries medals across, and what the screen pays lands all over the pusher. Into
+  // the tray went 51% to 63% of each aim's medals: the side holes, which turn the front corners, take the rest.
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
   const throughAPocket = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
   const middle = await throughAPocket('centre');
@@ -2234,8 +2311,8 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
   expect(await throughAPocket('edges')).toBeLessThan(middle);
   for (const aim of ['centre', 'anywhere', 'beside', 'edges']) {
     const front = Number(((await cells(aim).nth(2).textContent()) ?? '').replace('%', ''));
-    expect(front).toBeGreaterThan(60);
-    expect(front).toBeLessThan(92);
+    expect(front).toBeGreaterThan(40);
+    expect(front).toBeLessThan(75);
   }
   await expect(sim(page).locator('svg[role="img"] polyline')).toHaveCount(4);
   await expect(sim(page).getByTestId('pusher-sim-slot').locator('tbody tr')).toHaveCount(4);
@@ -2262,7 +2339,7 @@ test('reads in Japanese', async ({ page }) => {
   await expect(machine(page).getByTestId('pusher-mode')).toHaveText('ナンバースロット');
   await expect(page.getByRole('tab', { name: '確率' })).toBeVisible();
   await page.getByRole('tab', { name: '確率' }).click();
-  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('115回に1回');
+  await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('67回に1回');
   await expect(odds(page).getByTestId('pusher-slot-table')).toContainText('3つの宝箱から1つ選ぶ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('スーパーリーチ');
   await expect(odds(page).getByTestId('pusher-reach-table')).toContainText('信頼度');
@@ -2452,7 +2529,8 @@ test('a big prize is poured out of the hopper’s doors, towers come up on their
   await page.addInitScript(
     ([key, text]) => {
       if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
-      // The field says what the payout works are doing. It is over in a couple of seconds, so every word of it is kept.
+      // The field says what the payout works are doing. The pour is over in a couple of seconds and the towers are
+      // built in six or seven, a medal at a time, so every word of it is kept.
       const said: string[] = [];
       (window as unknown as { worksSaid: string[] }).worksSaid = said;
       new MutationObserver((changes) => {

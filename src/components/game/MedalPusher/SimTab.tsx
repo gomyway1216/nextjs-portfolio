@@ -5,7 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Marker, ReturnChart } from './charts';
 import { percent, tidyPercent } from './format';
 import { getStrings } from './i18n';
-import { JACKPOT_START, spinValue, tierChance, type Tier } from './lottery';
+import { JACKPOT_START, JACKPOT_STEP, spinValue, tierChance, type Tier } from './lottery';
 import { MAX_STOCK } from './session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS, PACES, WARM_UP, frontShare, simulate, steadyReturn, type Pace, type SimResult } from './sim';
 import styles from './MedalPusher.module.css';
@@ -181,7 +181,7 @@ export const SimTab = () => {
             </table>
           </div>
           <ul className={styles.facts}>
-            {t.simNotes(exactPerSpin.toFixed(2), MAX_STOCK).map((note, index) => (
+            {t.simNotes(exactPerSpin.toFixed(2), MAX_STOCK, JACKPOT_STEP).map((note, index) => (
               <li key={index}>{note}</li>
             ))}
           </ul>

@@ -6,25 +6,32 @@ import {
   CATCHER,
   SLOPE,
   START_SLOT,
+  TONGUE,
   apronSpot,
   caught,
   clearOfFoot,
+  lampShown,
   lampSpot,
   litSlots,
   mouthOnDrawing,
+  nearness,
   mouthSpot,
   mouthSpots,
   rolling,
   slopeSpot,
   slotCorners,
   slotHalf,
+  tongueCorners,
+  tongueHalf,
   underCatcher,
+  wellCorners,
   wingCorners,
   type Caught,
   type Rolled,
 } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS, chuckerSpot, droppedThrough, grazed } from '@/components/game/MedalPusher/chuckers';
-import { CHECKERS, FIELD, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
+import { CHECKERS, FIELD, JEWEL_DROP, LUCKY, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, START_RIDE, createMachine, luckySlot, pusherFront, slotWidthAt, step, type Medal } from '@/components/game/MedalPusher/engine';
+import { advance, createSession, insert } from '@/components/game/MedalPusher/session';
 import { APRON_CAP, BALL_RADIUS, SLOT_SHAPE } from '@/components/game/MedalPusher/render';
 import { EYE_AT, HEIGHT, VIEW, project } from '@/components/game/MedalPusher/view';
 
@@ -45,34 +52,53 @@ const WORDS_FROM = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;
 
 /** A medal on the lower table that came over the lip `sinceDrop` seconds ago. */
 const over = (x: number, y: number, sinceDrop: number, more: Partial<Medal> = {}): Medal => ({ id: 9, x, y, level: 0, tier: 0, sinceDrop, stack: 1, grow: 0, ball: false, grown: 1, ...more });
-/** Where a spot of the cabinet is against the slide at `time`: how far down it from the lip, and how far clear of it, square to it. */
+/** Where a spot of the cabinet is against the catcher's top at `time`: how far down it from the lip, and how far clear of it, square to it. */
 const onSlide = (spot: Spot, time: number): { down: number; clear: number } => {
   const out = spot.depth - pusherFront(time);
   const up = spot.height - CATCHER.deck;
   return { down: out * COS - up * SIN, clear: up * COS + out * SIN };
 };
 const seen = (spot: Spot) => project(spot.x, spot.height, spot.depth);
-/** No further than this, in field units, does a thing that falls, or is pushed by the pile, move in a sixtieth of a second: a jump is several times as far. */
-const STEP = 1.6;
+/** Points all over a medal that is held tipped: its middle, and rings of them out to its rim. They are the ones `attitude` in mat4.ts would put there. */
+const pointsOf = (held: Caught): Spot[] => {
+  const [ch, sh, ct, st] = [Math.cos(held.heading), Math.sin(held.heading), Math.cos(held.tilt), Math.sin(held.tilt)];
+  const points: Spot[] = [{ x: held.x, height: held.height, depth: held.depth }];
+  for (const ring of [0.25, 0.5, 0.75, 1]) {
+    for (let i = 0; i < 48; i++) {
+      const u = Math.cos((i / 48) * Math.PI * 2) * ring * R;
+      const v = Math.sin((i / 48) * Math.PI * 2) * ring * R;
+      points.push({ x: held.x + ch * u - ct * sh * v, height: held.height - st * v, depth: held.depth + sh * u + ct * ch * v });
+    }
+  }
+  return points;
+};
+/** How far down the catcher's top the furthest part of a medal is that is over the top and not under it: where its nose is, as long as its nose is in the open. */
+const reachOver = (held: Caught, time: number): number => Math.max(-Infinity, ...pointsOf(held).map((point) => onSlide(point, time)).filter(({ clear }) => clear >= 0).map(({ down }) => down));
 
 describe('the catcher for the START slots', () => {
-  it('is a slide hung on the front of the pusher: it starts under the lip and leans down toward the player to a foot clear of the lower table', () => {
+  it('is a box hung on the front of the pusher: a well under the lip, and beyond it a slide that leans down toward the player to a foot clear of the lower table', () => {
     // From just under the edge of the pusher's top, so a medal that comes over the lip is above it.
     expect(CATCHER.deck).toBeLessThan(P);
     expect(CATCHER.deck).toBeGreaterThan(P - 1);
     // Down to a foot that two medals deep, and one more on its way down onto them, pass under.
     expect(CATCHER.foot.height).toBeGreaterThan(T * 2.5);
     expect(CATCHER.foot.height).toBeLessThan(CATCHER.deck);
-    // The foot is no further out from the lip than the foot of the level catcher this one replaces was, and never reaches the open sides.
-    expect(CATCHER.foot.out).toBeLessThanOrEqual(15.6);
+    // The foot never reaches the open sides, and where the hatch throws a jewel is clear of it wherever the pusher is.
     expect(PUSHER.max + CATCHER.foot.out).toBeLessThan(FIELD.sideOpenFrom);
-    // Its lean and its length are those of the line from the one to the other.
+    expect(PUSHER.max + CATCHER.foot.out).toBeLessThan(JEWEL_DROP.near - R);
+    // Its lean and its length are those of the line from the lip to the foot.
     expect(SLOPE.angle).toBeCloseTo(Math.atan2(CATCHER.deck - CATCHER.foot.height, CATCHER.foot.out), 12);
     expect(SLOPE.long).toBeCloseTo(Math.hypot(CATCHER.deck - CATCHER.foot.height, CATCHER.foot.out), 12);
-    // It is a slope and not a shelf: it leans by a good many degrees. It is no steeper than leaves it room for a slot and a word.
-    expect(SLOPE.angle).toBeGreaterThan((18 * Math.PI) / 180);
+    // It is a slope and not a shelf: it leans by a good ten degrees. It is no steeper than leaves it room for a well, a slot and a word.
+    expect(SLOPE.angle).toBeGreaterThan((10 * Math.PI) / 180);
     expect(SLOPE.angle).toBeLessThan((50 * Math.PI) / 180);
     expect(SLOPE.long).toBeGreaterThan(WORDS_FROM + APRON_CAP);
+    // The well is the first of it: a little longer than a medal is across, and no more. A medal that lies flat with
+    // its tail still on the lip has its nose short of the slide, so nothing is carried on to the slots that a
+    // tongue does not carry. Past it are the upper bar of the frames and then the openings.
+    expect(CATCHER.gap).toBeGreaterThan(R * 2);
+    expect(CATCHER.gap).toBeLessThan(R * 2 + 0.5);
+    expect(CATCHER.back).toBeCloseTo(CATCHER.gap + CATCHER.rim.wide, 12);
     for (const time of TIMES) {
       const front = pusherFront(time);
       // It rides with the pusher: its top edge is on the pusher's face under the lip, and its foot as far out as the catcher says.
@@ -92,14 +118,19 @@ describe('the catcher for the START slots', () => {
         expect(onSlide(lifted, time).down).toBeCloseTo(down, 9);
         expect(onSlide(lifted, time).clear).toBeCloseTo(0.8, 9);
       }
+      // The well's mouth: along the lip from one end of the catcher to the other, and out to the upper edge of the slide.
+      const well = wellCorners(time);
+      expect(well).toEqual([slopeSpot(CATCHER.from, 0, time), slopeSpot(CATCHER.to, 0, time), slopeSpot(CATCHER.to, CATCHER.gap, time), slopeSpot(CATCHER.from, CATCHER.gap, time)]);
       // Leaning toward the player, it is seen more nearly square on than a level board there would be: a unit down it is longer on the drawing.
       const middle = slopeSpot(50, SLOPE.long / 2, time);
       const down = seen(slopeSpot(50, SLOPE.long / 2 + 1, time)).y - seen(middle).y;
       const level = project(50, middle.height, middle.depth + 1).y - seen(middle).y;
-      expect(down).toBeGreaterThan(level * 1.2);
+      expect(down).toBeGreaterThan(level * 1.15);
       // And from where the player sits all of it is seen: the line of sight to it comes down on its upper side.
       const sight = { height: EYE_AT.height - middle.height, depth: EYE_AT.depth - middle.depth };
       expect(sight.height * COS + sight.depth * SIN).toBeGreaterThan(0);
+      // The well is as much of the picture as a medal: twelve pixels of a phone's screen from the lip to the slide, or more.
+      expect((seen(well[3]).y - seen(well[0]).y) * PHONE).toBeGreaterThan(12);
     }
   });
 
@@ -120,7 +151,7 @@ describe('the catcher for the START slots', () => {
     // Two slots do not touch, frames and folded wings and all, and there is more closed slide between two openings than a medal's radius.
     expect((slotHalf() + CATCHER.rim.wide + START_SLOT.wing.thick) * 2).toBeLessThan(CATCHER.tile);
     expect(CATCHER.tile - slotHalf() * 2).toBeGreaterThan(R);
-    // A frame is narrow beside the medal it frames, and stands out of the slide by less than a medal is thick, so a medal slides over it.
+    // A frame is narrow beside the medal it frames, and stands out of the slide by less than a medal is thick.
     expect(CATCHER.rim.wide).toBeGreaterThan(0);
     expect(CATCHER.rim.wide).toBeLessThan(R / 2);
     expect(CATCHER.rim.high).toBeGreaterThan(0);
@@ -155,8 +186,8 @@ describe('the catcher for the START slots', () => {
           expect(onSlide(corner, time).down).toBeCloseTo(at < 2 ? CATCHER.back - CATCHER.rim.wide : WORDS_FROM, 9);
           expect(onSlide(corner, time).clear).toBeCloseTo(CATCHER.rim.high, 9);
         });
-        // The whole of it, frame and all, is below the lip and above the strip with the words.
-        expect(CATCHER.back - CATCHER.rim.wide).toBeGreaterThan(0);
+        // The whole of it, frame and all, is on the slide: past the well, and above the strip with the words.
+        expect(CATCHER.back - CATCHER.rim.wide).toBeCloseTo(CATCHER.gap, 12);
         expect(WORDS_FROM).toBeLessThan(SLOPE.long);
         // Its lamp is on the lower bar of its frame, in the middle, standing a little out of it; it is a small one.
         const lamp = lampSpot(chucker, time);
@@ -180,6 +211,54 @@ describe('the catcher for the START slots', () => {
       });
     }
     for (const chucker of [-1, 3, 0.5, Number.NaN]) expect(() => mouthSpot(chucker, 0)).toThrow();
+  });
+
+  it('has a tongue to each slot, the only way over the well: a bridge from the lip to the opening, as wide as the play a medal has in the slot', () => {
+    // As wide as the rule lets a medal's middle be off the slot's, to either side. So a medal's middle is over it
+    // exactly when the rule counts the medal, and a medal that is on it fits the slot at the end of it whole.
+    expect(tongueHalf()).toBe(CHECKERS.halfWidth);
+    expect(tongueHalf(false)).toBe(tongueHalf());
+    expect(tongueHalf(true)).toBe(CHECKERS.wingWidth);
+    expect(tongueHalf() * 2).toBeCloseTo(slotHalf() * 2 - R * 2, 12);
+    expect(tongueHalf(true) * 2).toBeCloseTo(slotHalf(true) * 2 - R * 2, 12);
+    expect(tongueHalf() + R).toBeCloseTo(slotHalf(), 12);
+    // It is a good deal narrower than a medal, which rides it with a side out over the well to either hand; and there
+    // is far more open well between two tongues than a medal is across.
+    expect(tongueHalf(true)).toBeLessThan(R / 2);
+    expect(CATCHER.tile - tongueHalf(true) * 2).toBeGreaterThan(R * 3);
+    // Its web is deep enough to be seen from the side, and does not hang as low as the catcher's floor.
+    expect(TONGUE.deep).toBeGreaterThan(CATCHER.rim.high);
+    expect(TONGUE.deep).toBeLessThan(1);
+    for (const time of TIMES) {
+      const front = pusherFront(time);
+      ALL.forEach((chucker) => {
+        const { x } = mouthSpot(chucker, time);
+        for (const wings of [false, true]) {
+          const top = tongueCorners(chucker, time, wings);
+          expect(top).toHaveLength(4);
+          // Its end at the lip from the left, then its end at the slot from the right: straight out from the pocket, the rule's width to either side.
+          [-1, 1, 1, -1].forEach((side, at) => expect(top[at].x - x).toBeCloseTo(side * tongueHalf(wings), 12));
+          top.forEach((corner, at) => {
+            expect(onSlide(corner, time).down).toBeCloseTo(at < 2 ? 0 : CATCHER.back, 9);
+            // Its top is level with the top of the slot's frame, which it runs on to.
+            expect(onSlide(corner, time).clear).toBeCloseTo(CATCHER.rim.high, 9);
+          });
+          // It leaves the lip no lower than a medal's thickness under the pusher's top, and ends exactly at the upper edge of its slot's opening.
+          expect(top[0].depth - front).toBeLessThan(0.1);
+          expect(P - top[0].height).toBeLessThan(T);
+          const opening = slotCorners(chucker, time, wings, 0, CATCHER.rim.high);
+          expect(top[3].depth).toBeCloseTo(opening[0].depth, 9);
+          expect(top[3].height).toBeCloseTo(opening[0].height, 9);
+          // Any other height can be asked for: the foot of its web.
+          for (const corner of tongueCorners(chucker, time, wings, CATCHER.rim.high - TONGUE.deep)) expect(onSlide(corner, time).clear).toBeCloseTo(CATCHER.rim.high - TONGUE.deep, 9);
+        }
+        expect(tongueCorners(chucker, time, false)).toEqual(tongueCorners(chucker, time));
+        // On a phone it is five pixels across and thirteen long, or more: a rail, and seen as one.
+        const [a, b, , d] = tongueCorners(chucker, time).map(seen);
+        expect((b.x - a.x) * PHONE).toBeGreaterThan(5);
+        expect((d.y - a.y) * PHONE).toBeGreaterThan(13);
+      });
+    }
   });
 
   it('has a wing along either side of each frame, which swings out at its upper end to funnel medals to a wider opening during chance time', () => {
@@ -218,10 +297,11 @@ describe('the catcher for the START slots', () => {
           expect((open[0].x - x) * side).toBeGreaterThan((open[3].x - x) * side);
           // Its top is as far off the slide as the catcher says.
           for (const corner of wingCorners(chucker, side, time, true, START_SLOT.wing.high)) expect(onSlide(corner, time).clear).toBeCloseTo(START_SLOT.wing.high, 9);
-          // All of it is on the catcher.
+          // All of it is on the slide: on the catcher, and none of it over the well.
           for (const corner of [...folded, ...open]) {
             expect(corner.x).toBeGreaterThan(CATCHER.from);
             expect(corner.x).toBeLessThan(CATCHER.to);
+            expect(onSlide(corner, time).down).toBeGreaterThanOrEqual(CATCHER.gap - 1e-9);
           }
         }
         // The opening is in the same place and as long with the wings open; only wider.
@@ -237,24 +317,43 @@ describe('the catcher for the START slots', () => {
     }
   });
 
-  it('lights one slot gold at a time, which steps along with every stroke of the pusher, and all three while the wings are open', () => {
+  it('lights one slot gold at a time, which steps along with every stroke of the pusher, a ride after the lamp itself; and all three while the wings are open', () => {
     expect(LUCKY.dwell).toBe(PUSHER.period);
+    expect(CATCHER.sink).toBe(START_RIDE);
     for (let stroke = 0; stroke < CHUCKERS.count * 2 + 1; stroke++) {
-      for (const share of [0, 0.25, 0.5, 0.99]) {
+      for (const share of [0, 0.1, 0.25, 0.5, 0.99]) {
         const time = (stroke + share) * LUCKY.dwell;
         const lit = litSlots(time);
         expect(lit).toHaveLength(CHUCKERS.count);
-        // One and only one, the one the engine says, which is the next one along from the stroke before.
+        // One and only one: the one the lamp stood on a ride ago, which is the one a medal dropping now came over.
         expect(lit.filter(Boolean)).toHaveLength(1);
-        expect(lit.indexOf(true)).toBe(luckySlot(time));
-        expect(lit.indexOf(true)).toBe(stroke % CHUCKERS.count);
+        expect(lit.indexOf(true)).toBe(lampShown(time));
+        expect(lampShown(time)).toBe(luckySlot(Math.max(0, time - START_RIDE)));
+        // That is the lamp's own slot for most of a stroke, and the one before it for the first ride's length of one.
+        const stepped = share * LUCKY.dwell >= START_RIDE || stroke === 0;
+        expect(lit.indexOf(true)).toBe((stepped ? stroke : stroke - 1) % CHUCKERS.count);
         expect(litSlots(time, false)).toEqual(lit);
         expect(litSlots(time, true)).toEqual(ALL.map(() => true));
+        // Where nothing is shown moving a medal is taken as it comes over, and the light is where the lamp is.
+        expect(lampShown(time, true)).toBe(luckySlot(time));
+        expect(litSlots(time, false, true).indexOf(true)).toBe(stroke % CHUCKERS.count);
       }
     }
   });
 
-  it('shows each slot on the drawing as an opening wider than it is tall, three side by side, big enough to be seen on a phone', () => {
+  it('has the light on a medal’s slot as the medal drops exactly when the lamp was on it as the medal came over, whenever in the stroke that was', () => {
+    for (let came = 0; came < PUSHER.period * 7; came += 1 / 60) {
+      const drops = came + START_RIDE;
+      for (const slot of ALL) expect(litSlots(drops)[slot]).toBe(slot === luckySlot(came));
+    }
+    // Most medals come over late in the pusher's way back, less than a ride before the lamp steps. Shown where the
+    // lamp stands, the slot of such a medal would have changed its light before the medal dropped.
+    const late = PUSHER.period - START_RIDE / 2;
+    expect(luckySlot(late)).not.toBe(luckySlot(late + START_RIDE));
+    expect(lampShown(late + START_RIDE)).toBe(luckySlot(late));
+  });
+
+  it('shows each slot on the drawing as an opening wider than it is tall, three side by side, big enough to be seen on a phone and clear of the lip', () => {
     for (const time of TIMES) {
       const mouths = ALL.map((chucker) => mouthOnDrawing(chucker, time));
       mouths.forEach((mouth, chucker) => {
@@ -268,23 +367,35 @@ describe('the catcher for the START slots', () => {
         expect(mouth.tall).toBeCloseTo(seen(lower).y - seen(upper).y, 9);
         expect(mouth.tall).toBeLessThan(mouth.wide);
         // The board leans toward the player, so the opening is seen more nearly square on than it would be in a level one.
-        expect(mouth.tall).toBeGreaterThan(START_SLOT.long * at.scale * at.tilt * 1.2);
-        // On a phone it is twenty pixels across and nine down, or more, with its frame outside that.
-        expect(mouth.wide * PHONE).toBeGreaterThan(20);
-        expect(mouth.tall * PHONE).toBeGreaterThan(9);
+        expect(mouth.tall).toBeGreaterThan(START_SLOT.long * at.scale * at.tilt * 1.15);
+        // On a phone it is twenty-two pixels across and nine down, or more, with its frame outside that. It was ten
+        // down while the catcher reached past the pusher's stroke, which hid whatever went down the well (see below).
+        expect(mouth.wide * PHONE).toBeGreaterThan(22);
+        expect(mouth.tall * PHONE).toBeGreaterThan(8.8);
         // Down it the floor of its throat is seen, under the foot of the far wall, which is what is black in a slot that
-        // waits and gold in the lucky one: nineteen pixels of a phone's screen across and three down, or more. Its lamp
-        // stands up into the lower end of that by no more than two.
+        // waits and gold in the lucky one: twenty pixels of a phone's screen across and four and a half down, or more. Its lamp
+        // stands up into the lower end of that by no more than two and a half.
         const throat = slotCorners(chucker, time, false, -SLOT_SHAPE.ring.in, -SLOT_SHAPE.ring.down).map((corner) => project(corner.x, CATCHER.throat, corner.depth));
-        expect((throat[1].x - throat[0].x) * PHONE).toBeGreaterThan(19);
-        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(3);
+        expect((throat[1].x - throat[0].x) * PHONE).toBeGreaterThan(20);
+        expect((seen(lower).y - throat[0].y) * PHONE).toBeGreaterThan(4.5);
         const lamp = seen(lampSpot(chucker, time));
-        expect((seen(lower).y - (lamp.y - START_SLOT.lamp.radius * lamp.scale)) * PHONE).toBeLessThan(2);
+        expect((seen(lower).y - (lamp.y - START_SLOT.lamp.radius * lamp.scale)) * PHONE).toBeLessThan(2.5);
         // All of it is on the drawing, in the lower half, below the lip.
         expect(mouth.x - mouth.wide / 2).toBeGreaterThan(0);
         expect(mouth.x + mouth.wide / 2).toBeLessThan(VIEW.width);
         expect(mouth.y - mouth.tall / 2).toBeGreaterThan(project(x, P, pusherFront(time)).y);
         expect(mouth.y + mouth.tall / 2).toBeLessThan(VIEW.height);
+        // And it is out from under the heap. A medal on the pusher hangs over the lip by its radius at the most, and
+        // one lying on another by as much again in height; the line of sight that grazes the edge of either comes
+        // down on the well, a long way short of the opening. The whole of the mouth is past it.
+        for (const high of [P + T, P + T * 2 + 1]) {
+          const edge = { height: high, depth: pusherFront(time) + R };
+          const sight = (EYE_AT.height - edge.height) / (EYE_AT.depth - edge.depth);
+          // Where that line meets the catcher's top, out from the lip.
+          const out = (edge.height - CATCHER.deck + sight * R) / (sight + SIN / COS);
+          expect(out / COS).toBeLessThan(CATCHER.gap - 1);
+          expect(out / COS).toBeLessThan(CATCHER.back - 1.5);
+        }
       });
       // Side by side on one line, evenly, and not touching, with the wings open or folded.
       expect(mouths[1].y).toBeCloseTo(mouths[0].y, 6);
@@ -314,8 +425,8 @@ describe('the catcher for the START slots', () => {
       const unitAcross = seen(apronSpot(wide / 2 + 1, APRON / 2, time)).x - o.x;
       const d = seen(apronSpot(wide / 2, APRON / 2 + 1, time));
       const unitDown = Math.hypot(d.x - o.x, d.y - o.y);
-      expect(unitDown / unitAcross).toBeGreaterThan(0.85);
-      // On a level board there it would be two thirds of that.
+      expect(unitDown / unitAcross).toBeGreaterThan(0.78);
+      // On a level board there it would be seven tenths of that at the most.
       const level = project(middle.x, middle.height, middle.depth + 1);
       expect(Math.hypot(level.x - o.x, level.y - o.y) / unitAcross).toBeLessThan(0.7);
       // The capitals are seven pixels tall or more on a phone, at any point of the stroke.
@@ -363,278 +474,298 @@ describe('a medal that comes over the lip at the catcher', () => {
   const time = 1.3;
   const front = pusherFront(time);
   const pocket = CHECKERS.positions[1];
-  /** A step fine enough to follow a medal that rocks several times in a third of a second. */
+  /** A step fine enough to follow a medal that rocks several times in half a second. */
   const FINE = 1 / 480;
   /** The legs a medal was on, in the order it was on them, each once. */
   const legs = (poses: Caught[]): Caught['leg'][] => poses.map((pose) => pose.leg).filter((leg, at, all) => at === 0 || leg !== all[at - 1]);
-  /** Every pose a medal that came over at `x` is shown in on the catcher, on its slide and in the air off its foot, a fine step apart: until it is down a slot or down on the lower table. */
-  const walk = (x: number, calm = false, wings = false): Caught[] => {
+  /** Every pose a medal that came over at `x` is shown in on the catcher, a fine step apart: until it is down a slot or down the well. */
+  const walk = (x: number, calm = false, wings = false, more: Partial<Medal> = {}): Caught[] => {
     const poses: Caught[] = [];
     for (let sinceDrop = 0; sinceDrop < 2; sinceDrop += FINE) {
-      const held = caught(over(x, sinceDrop === 0 ? front : front + R, sinceDrop), time, calm, wings);
-      if (!held || held.leg === 'table') break;
+      const held = caught(over(x, sinceDrop === 0 ? front : front + R, sinceDrop, more), time, calm, wings);
+      if (!held) break;
       poses.push(held);
     }
     return poses;
   };
-  /** That a medal is lying on the slide: leaning as it leans and no other way, and half its thickness clear of it. */
+  /** That a medal is lying on a tongue: leaning as the catcher leans and no other way, half its thickness clear of the tongue's top, in full light. */
   const lying = (held: Caught): void => {
     expect(held.heading).toBe(0);
     expect(held.tilt).toBeCloseTo(SLOPE.angle, 12);
-    expect(onSlide(held, time).clear).toBeCloseTo(T / 2, 9);
+    expect(onSlide(held, time).clear).toBeCloseTo(CATCHER.rim.high + T / 2, 9);
     expect(held.light).toBe(1);
   };
-  /** That a medal goes off the foot of the slide and comes down flat on the lower table in front of it, from the pose it left the slide in. */
-  const offTheFoot = (poses: Caught[], last: Caught): void => {
-    expect(poses.length).toBeGreaterThan(8);
-    expect(last.landed).toBe(0);
-    let before = last;
-    let nosed = 0;
-    for (const held of poses) {
-      // Out over the edge and down, straight out from where it left the slide, in full light, and nearer the table all the time.
-      expect(held.heading).toBe(0);
-      expect(held.x).toBe(last.x);
-      expect(held.height).toBeLessThanOrEqual(before.height + 1e-9);
-      expect(held.depth).toBeGreaterThanOrEqual(before.depth - 1e-9);
-      expect(held.depth).toBeGreaterThan(front + CATCHER.foot.out);
-      expect(held.light).toBe(1);
-      expect(held.landed).toBeGreaterThanOrEqual(before.landed);
-      // It does not dive: its nose dips, by less than the slide leans and as much again, and no part of it is ever under the table it comes down on.
-      expect(held.tilt).toBeGreaterThanOrEqual(0);
-      expect(held.tilt).toBeLessThan(SLOPE.angle * 2);
-      expect(held.height - T / 2 - R * Math.sin(held.tilt)).toBeGreaterThan(-1e-9);
-      nosed = Math.max(nosed, held.tilt);
-      before = held;
-    }
-    // Its nose did dip. It ends flat, or all but, lying on the table, the whole of it out in front of the foot or all but.
-    expect(nosed).toBeGreaterThan(SLOPE.angle);
-    expect(before.landed).toBeGreaterThan(0.97);
-    expect(before.tilt).toBeLessThan(0.06);
-    expect(before.height).toBeGreaterThanOrEqual(T / 2 - 1e-9);
-    expect(before.height).toBeLessThan(T / 2 + 0.15);
-    expect(before.depth).toBeGreaterThan(front + CATCHER.foot.out + CATCHER.lands * 0.9);
-    expect(before.depth).toBeLessThanOrEqual(front + CATCHER.foot.out + CATCHER.lands + 1e-9);
+  /** That no part of a medal that was not counted is over the slide: all of it that is not under the catcher's top is short of the well's edge. */
+  const shortOfTheSlide = (held: Caught): void => {
+    expect(reachOver(held, time)).toBeLessThan(CATCHER.gap);
   };
 
-  it('comes off the lip on to the slide lying flat with its face up, slides to its slot, and goes into it nose first, down the throat, losing the light', () => {
-    const x = pocket + CHECKERS.halfWidth * 0.9;
-    const mouth = mouthSpot(1, time);
-    const poses = walk(x);
-    const [first] = poses;
-    // In the step it comes over, its middle is on the lip's edge where it was the moment before, at the height it lay at, level.
-    expect(first).toMatchObject({ x, depth: front, light: 1, chucker: 1, near: -1, tilt: 0, heading: 0, leg: 'slide' });
-    expect(first.height).toBeCloseTo(P + T / 2, 12);
-    // On the slide, and then into the slot: never back out of it.
-    expect(legs(poses)).toEqual(['slide', 'slot']);
-    let last = first;
-    for (const held of poses) {
-      expect(held.chucker).toBe(1);
-      expect(held.near).toBe(-1);
-      // Tipped forward only, with the slide, and never back; in toward the middle of the slot across; down, never up; darker, never lighter.
-      expect(held.heading).toBe(0);
-      expect(held.tilt).toBeGreaterThanOrEqual(last.tilt - 1e-12);
-      expect(Math.abs(held.x - mouth.x)).toBeLessThanOrEqual(Math.abs(last.x - mouth.x) + 1e-12);
-      expect(held.height).toBeLessThanOrEqual(last.height + 1e-12);
-      expect(held.light).toBeLessThanOrEqual(last.light);
-      expect(onSlide(held, time).down).toBeGreaterThanOrEqual(onSlide(last, time).down - 1e-9);
-      if (held.leg === 'slide') {
-        // Lying on the slide, in full light, tipping on to it as it comes off the lip and leaning with it from then on.
-        expect(held.light).toBe(1);
-        expect(held.tilt).toBeLessThanOrEqual(SLOPE.angle + 1e-12);
-        if (onSlide(held, time).down > R / 2) lying(held);
-      } else {
-        // In the slot: in the middle of it across, its middle inside the opening, its nose dipped under the slide and going further under.
-        expect(held.x).toBe(mouth.x);
-        expect(held.tilt).toBeGreaterThanOrEqual(SLOPE.angle);
-        expect(onSlide(held, time).down).toBeGreaterThan(CATCHER.back);
-        expect(onSlide(held, time).down).toBeLessThan(CATCHER.back + START_SLOT.long);
-        expect(onSlide(held, time).clear).toBeLessThanOrEqual(onSlide(last, time).clear + 1e-9);
-        expect(Math.abs(held.x - mouth.x) + R).toBeLessThan(slotHalf());
+  it('comes off the lip on to its tongue lying flat with its face up, rides the length of it out over the well, tips over its end into the slot and goes down the throat, losing the light', () => {
+    for (const off of [0, CHECKERS.halfWidth * 0.9, -CHECKERS.halfWidth * 0.9]) {
+      const x = pocket + off;
+      const poses = walk(x);
+      const [first] = poses;
+      // In the step it comes over, its middle is on the lip's edge where it was the moment before, at the height it lay at, level.
+      expect(first).toMatchObject({ x, depth: front, light: 1, chucker: 1, near: -1, tilt: 0, heading: 0, leg: 'tongue' });
+      expect(first.height).toBeCloseTo(P + T / 2, 12);
+      // On the tongue, and then into the slot: never back out of it.
+      expect(legs(poses)).toEqual(['tongue', 'slot']);
+      let last = first;
+      let pace = Infinity;
+      for (const held of poses) {
+        expect(held.chucker).toBe(1);
+        expect(held.near).toBe(-1);
+        // Tipped forward only, with the catcher, and never back; where across it came over, all the way; down, never up; darker, never lighter.
+        expect(held.heading).toBe(0);
+        expect(held.tilt).toBeGreaterThanOrEqual(last.tilt - 1e-12);
+        expect(held.x).toBe(x);
+        expect(held.height).toBeLessThanOrEqual(last.height + 1e-12);
+        expect(held.light).toBeLessThanOrEqual(last.light);
+        expect(onSlide(held, time).down).toBeGreaterThanOrEqual(onSlide(last, time).down - 1e-9);
+        if (held.leg === 'tongue') {
+          // Lying on the tongue, in full light, tipping on to it as it comes off the lip and leaning with it from then on.
+          expect(held.light).toBe(1);
+          expect(held.tilt).toBeLessThanOrEqual(SLOPE.angle + 1e-12);
+          // Its middle is over the tongue, which is all that holds it up out there.
+          expect(Math.abs(held.x - pocket)).toBeLessThanOrEqual(tongueHalf());
+          if (onSlide(last, time).down > R / 2) {
+            lying(held);
+            // It comes off the lip at the pace it was pushed and loses a little of it on the way: it never hurries.
+            const moved = onSlide(held, time).down - onSlide(last, time).down;
+            expect(moved).toBeGreaterThan(0);
+            expect(moved).toBeLessThanOrEqual(pace + 1e-9);
+            pace = moved;
+          }
+        } else {
+          // In the slot: its middle inside the opening, the whole of it clear of the opening's sides, its nose dipped under the slide and going further under.
+          expect(held.tilt).toBeGreaterThanOrEqual(SLOPE.angle);
+          expect(onSlide(held, time).down).toBeGreaterThan(CATCHER.back);
+          expect(onSlide(held, time).down).toBeLessThan(CATCHER.back + START_SLOT.long);
+          expect(onSlide(held, time).clear).toBeLessThanOrEqual(onSlide(last, time).clear + 1e-9);
+          expect(Math.abs(held.x - pocket) + R).toBeLessThan(slotHalf());
+        }
+        last = held;
       }
-      last = held;
+      // It is on the tongue, lying flat in full view, for half a second and more, and going into the slot for a good many frames after that.
+      const riding = poses.filter((held) => held.leg === 'tongue');
+      expect(riding.length * FINE).toBeCloseTo(CATCHER.sink * CATCHER.ride, 2);
+      expect(riding.length * FINE).toBeGreaterThan(0.5);
+      expect(riding[riding.length - 1].tilt).toBeCloseTo(SLOPE.angle, 12);
+      // It rides to the very end of the tongue: its middle is past the upper edge of the opening as it starts to tip.
+      expect(onSlide(riding[riding.length - 1], time).down).toBeGreaterThan(CATCHER.back);
+      expect((poses.length - riding.length) * FINE * 60).toBeGreaterThan(12);
+      // From the lip to out of sight is what the catcher says: seven to nine tenths of a second, which is long enough to follow.
+      expect(poses.length * FINE).toBeCloseTo(CATCHER.sink, 2);
+      expect(CATCHER.sink).toBeGreaterThanOrEqual(0.7);
+      expect(CATCHER.sink).toBeLessThanOrEqual(0.9);
+      expect(CATCHER.sink).toBeGreaterThan(CHUCKERS.drop * 3);
+      // By the end it is well tipped, nose down; the whole of it, tail and all, is under the slide; and it is all but dark.
+      expect(last.tilt - SLOPE.angle).toBeGreaterThan(0.6);
+      expect(last.tilt).toBeLessThan(Math.PI / 2);
+      expect(onSlide(last, time).clear + R * Math.sin(last.tilt - SLOPE.angle)).toBeLessThan(0);
+      expect(last.light).toBeLessThan(0.3);
+      expect(last.light).toBeGreaterThan(0);
+      // After that it lies where the engine has it, under the catcher, and is shown there like any medal.
+      expect(caught(over(x, front + R, CATCHER.sink), time)).toBeNull();
+      expect(underCatcher(x, front + R, R, time)).toBe(true);
     }
-    // It is on the slide, lying flat in full view, for a good part of the time, and in the slot for more.
-    const sliding = poses.filter((held) => held.leg === 'slide');
-    expect(sliding.length * FINE * 60).toBeGreaterThan(8);
-    expect(sliding[sliding.length - 1].tilt).toBeCloseTo(SLOPE.angle, 12);
-    expect((poses.length - sliding.length) * FINE * 60).toBeGreaterThan(12);
-    // It is seen for as long as the catcher says: half a second or so, where the old drop to the table was a fifth of one.
-    expect(poses.length * FINE).toBeCloseTo(CATCHER.sink, 2);
-    expect(CATCHER.sink).toBeGreaterThanOrEqual(0.4);
-    expect(CATCHER.sink).toBeLessThanOrEqual(0.6);
-    expect(CATCHER.sink).toBeGreaterThan(CHUCKERS.drop * 1.5);
-    // By the end it is well tipped, nose down; the whole of it, tail and all, is under the slide; and it is all but dark.
-    expect(last.tilt - SLOPE.angle).toBeGreaterThan(0.6);
-    expect(last.tilt).toBeLessThan(Math.PI / 2);
-    expect(onSlide(last, time).clear + R * Math.sin(last.tilt - SLOPE.angle)).toBeLessThan(0);
-    expect(last.light).toBeLessThan(0.3);
-    expect(last.light).toBeGreaterThan(0);
-    // After that it lies where the engine has it, under the catcher, and is shown there like any medal.
-    expect(caught(over(x, front + R, CATCHER.sink), time)).toBeNull();
-    expect(underCatcher(x, front + R, R, time)).toBe(true);
-    // It goes down the same with motion reduced: only the rattle of a near miss is left out.
-    expect(walk(x, true)).toEqual(poses);
   });
 
-  it('goes down a slot whose wings are open from further to the side than it could with them folded', () => {
+  it('is not seen to ride where nothing may move: it lies in the mouth of its slot, still, and goes dark', () => {
+    const x = pocket + CHECKERS.halfWidth * 0.5;
+    const still = walk(x, true);
+    const [first] = still;
+    // At the end of its tongue from the first, its middle just past the upper edge of the opening, lying as the tongue lies.
+    expect(first).toMatchObject({ x, chucker: 1, near: -1, heading: 0, light: 1, leg: 'tongue' });
+    expect(first.tilt).toBeCloseTo(SLOPE.angle, 12);
+    expect(onSlide(first, time).down).toBeGreaterThan(CATCHER.back);
+    expect(onSlide(first, time).down).toBeLessThan(CATCHER.back + 1);
+    expect(onSlide(first, time).clear).toBeCloseTo(CATCHER.rim.high + T / 2, 9);
+    let last = first;
+    for (const held of still) {
+      // It does not move at all. Only the light on it goes.
+      expect(held).toMatchObject({ x, height: first.height, depth: first.depth, tilt: first.tilt, heading: 0, chucker: 1, near: -1, leg: 'tongue' });
+      expect(held.light).toBeLessThanOrEqual(last.light);
+      last = held;
+    }
+    expect(last.light).toBeLessThan(0.15);
+    expect(last.light).toBeGreaterThan(0);
+    // For a third of a second, which is a good deal less than the ride it is not seen to take.
+    expect(still.length * FINE).toBeCloseTo(CATCHER.still, 2);
+    expect(CATCHER.still).toBeLessThan(CATCHER.sink / 2);
+    expect(caught(over(x, front + R, CATCHER.still), time, true)).toBeNull();
+  });
+
+  it('rides the wider tongue of a slot whose wings are open from further to the side than it could with them folded', () => {
     for (const side of [-1, 1]) {
-      // Between the two widths: too far off to fit the slot as it is, and inside it once the wings are open.
+      // Between the two widths: too far off to be on the tongue as it is, and on it once the wings are open.
       const x = pocket + side * (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5;
       const medal = over(x, front + R, CATCHER.sink / 2);
       expect(droppedThrough(medal, CATCHER.sink)).toBe(-1);
       expect(droppedThrough(medal, CATCHER.sink, true)).toBe(1);
       expect(caught(medal, time)?.chucker).toBe(-1);
       const open = walk(x, false, true);
-      expect(legs(open)).toEqual(['slide', 'slot']);
-      for (const held of open) expect(held).toMatchObject({ chucker: 1, near: -1 });
-      // And it is inside the wider opening as it goes in: clear of the sides of it.
+      expect(legs(open)).toEqual(['tongue', 'slot']);
+      for (const held of open) expect(held).toMatchObject({ x, chucker: 1, near: -1 });
+      // Its middle is over the wider tongue, and it is inside the wider opening as it goes in: clear of the sides of it.
+      expect(Math.abs(x - pocket)).toBeLessThanOrEqual(tongueHalf(true));
       for (const held of open) if (held.leg === 'slot') expect(Math.abs(held.x - pocket) + R).toBeLessThan(slotHalf(true));
-      // Just past the wider width it does not fit even so.
+      // Just past the wider width it is on no tongue even so.
       expect(caught(over(pocket + side * (CHECKERS.wingWidth + 0.05), front, 0), time, false, true)?.chucker).toBe(-1);
     }
   });
 
-  it('catches the frame of a slot it came over a little to one side of: it slides to it, rattles on it less and less, sliding away from the slot, and then slides on down beside the slot and off the foot', () => {
-    // A slot can be caught from no further off than leaves a medal between two slots clear of both.
-    expect(CATCHER.reach).toBeGreaterThan(0);
-    expect(CHECKERS.halfWidth + CATCHER.reach).toBeLessThan(CATCHER.tile / 2);
-    expect(CATCHER.rattle).toBeGreaterThan(CATCHER.slide);
+  it('hangs on the edge of a tongue it has some of under it and not enough, the longer the nearer it was to fitting, tips off away from the slot and falls into the well on its side', () => {
+    // A medal has some of a tongue under it if its middle is within its own radius of the tongue's edge, and no medal has some of two.
+    expect(CATCHER.reach).toBe(R);
+    expect(CHECKERS.wingWidth + CATCHER.reach).toBeLessThan(CATCHER.tile / 2);
+    const { out, least, most } = CATCHER.teeter;
+    expect(least).toBeGreaterThan(0);
+    expect(most).toBeGreaterThan(least * 3);
+    const hung: number[] = [];
     for (const side of [-1, 1]) {
       for (const beyond of [0.05, CATCHER.reach / 2, CATCHER.reach - 0.05]) {
         const x = pocket + side * (CHECKERS.halfWidth + beyond);
         expect(droppedThrough(over(x, front, 0))).toBe(-1);
-        expect(grazed(over(x, front, 0), CATCHER.rattle, CATCHER.reach)).toBe(1);
+        expect(grazed(over(x, front, 0), Infinity, CATCHER.reach)).toBe(1);
         const poses = walk(x);
         const [first] = poses;
-        // In the step it comes over it is on the lip's edge, level, where it came over: bound for the frame, not the slot.
-        expect(first).toMatchObject({ x, depth: front, chucker: -1, near: 1, heading: 0, tilt: 0, light: 1, leg: 'slide' });
+        // In the step it comes over it is on the lip's edge, level, where it came over: bound for no slot.
+        expect(first).toMatchObject({ x, depth: front, chucker: -1, near: 1, heading: 0, tilt: 0, light: 1, leg: 'tongue' });
         expect(first.height).toBeCloseTo(P + T / 2, 12);
         for (const held of poses) expect(held).toMatchObject({ chucker: -1, near: 1 });
-        // Down the slide to the frame, on the frame, on down the slide, and off the foot, in that order.
-        expect(legs(poses)).toEqual(['slide', 'frame', 'slide', 'foot']);
-        const reached = poses.findIndex((held) => held.leg === 'frame');
-        const freed = poses.findIndex((held, at) => at > reached && held.leg !== 'frame');
-        const gone = poses.findIndex((held) => held.leg === 'foot');
-        const rocking = poses.slice(reached, freed);
-        // It gets to the frame quickly, beside the upper end of the opening, where it came over.
-        expect(reached * FINE).toBeLessThan(CATCHER.rattle / 4);
-        for (const held of poses.slice(0, reached)) expect(held.x).toBe(x);
-        // On the frame it is beside the opening, riding on the frame or just off it, in full light, and it slides away from the slot, never back toward it.
+        // On the tongue, and then down into the well: it is never on the slide and never in a slot.
+        expect(legs(poses)).toEqual(['tongue', 'gap']);
+        const gone = poses.findIndex((held) => held.leg === 'gap');
+        const on = poses.slice(0, gone);
+        // It rides out flat, slowing, until its tail has left the lip, and no further: its nose is still short of the slide.
+        const flat = on.filter((held) => held.heading === 0);
+        const reached = onSlide(flat[flat.length - 1], time).down;
+        expect(reached).toBeGreaterThan(R);
+        expect(reached + R).toBeLessThan(CATCHER.gap);
+        let last = first;
+        let rocked = 0;
         const sways: number[] = [];
-        let last = poses[reached - 1];
-        for (const held of rocking) {
+        for (const held of on) {
+          // Where across it came over, in full light, never further out than that, and never rocked toward the slot.
+          expect(held.x).toBe(x);
           expect(held.light).toBe(1);
-          expect(onSlide(held, time).down).toBeGreaterThan(CATCHER.back);
-          expect(onSlide(held, time).down).toBeLessThan(CATCHER.back + START_SLOT.long);
           expect(onSlide(held, time).down).toBeGreaterThanOrEqual(onSlide(last, time).down - 1e-9);
-          expect(onSlide(held, time).clear).toBeGreaterThan(T / 2 - 0.05);
-          expect(onSlide(held, time).clear).toBeLessThanOrEqual(T / 2 + CATCHER.rim.high + 1e-9);
-          expect((held.x - pocket) * side).toBeGreaterThanOrEqual((last.x - pocket) * side - 1e-12);
-          // It still leans forward with the slide, or nearly; what changes is how far it is rocked to one side or the other.
-          expect(Math.cos(held.heading) * Math.sin(held.tilt)).toBeGreaterThan(SIN * 0.85);
-          expect(Math.cos(held.heading) * Math.sin(held.tilt)).toBeLessThanOrEqual(SIN + 1e-12);
-          sways.push(Math.sin(held.heading) * Math.sin(held.tilt));
+          expect(onSlide(held, time).down).toBeLessThanOrEqual(reached + 1e-9);
+          // How far it is rocked over the tongue's edge: its outer side, the one with nothing under it, is the low one.
+          const sway = -Math.sin(held.heading) * Math.sin(held.tilt) * side;
+          expect(sway).toBeGreaterThanOrEqual(-1e-12);
+          sways.push(sway);
+          rocked = Math.max(rocked, sway);
+          // Once it has tipped on to the tongue its middle sags with that side, and never rises off the tongue.
+          if (onSlide(held, time).down > R / 2) expect(onSlide(held, time).clear).toBeLessThanOrEqual(CATCHER.rim.high + T / 2 + 1e-9);
+          shortOfTheSlide(held);
           last = held;
         }
-        expect((last.x - pocket) * side).toBeGreaterThan((x - pocket) * side + 0.5);
-        // It rocks both ways, several times, each rock smaller than the one before, and never far: it is a rattle, not a tumble.
-        const turns = sways.filter((sway, at) => at > 0 && sway * sways[at - 1] < 0).length;
-        expect(turns).toBeGreaterThanOrEqual(4);
-        const third = Math.floor(sways.length / 3);
-        const swing = (from: number, to: number) => Math.max(...sways.slice(from, to).map(Math.abs));
-        expect(swing(0, third)).toBeGreaterThan(swing(third, third * 2));
-        expect(swing(third, third * 2)).toBeGreaterThan(swing(third * 2, sways.length));
-        expect(swing(0, sways.length)).toBeLessThan(Math.sin(Math.PI / 6));
-        expect(swing(0, sways.length)).toBeGreaterThan(Math.sin(0.2));
-        expect(Math.abs(sways[sways.length - 1])).toBeLessThan(0.05);
-        // It is seen rattling for a good many frames.
-        expect(rocking.length * FINE * 60).toBeGreaterThan(15);
-        // Then it lies on the slide again and slides on down it to the foot, as far from the slot as it had slid and no nearer.
-        const beside = poses[freed].x;
-        expect((beside - pocket) * side).toBeGreaterThanOrEqual((last.x - pocket) * side - 1e-12);
-        for (const held of poses.slice(freed, gone)) {
-          lying(held);
-          expect(held.x).toBe(beside);
-          expect(onSlide(held, time).down).toBeGreaterThanOrEqual(onSlide(last, time).down - 1e-9);
+        // By the time it lets go it has rocked well over: more than half way to standing on its edge.
+        expect(rocked).toBeGreaterThan(Math.sin(1));
+        expect(sways[sways.length - 1]).toBeCloseTo(rocked, 2);
+        // The nearest of misses rocks back before it goes: it makes up its mind. One that only clips the tongue goes straight over.
+        const backs = sways.filter((sway, at) => at > 1 && sway < sways[at - 1] - 1e-9 && sways[at - 1] >= sways[at - 2]).length;
+        if (beyond < 0.1) expect(backs).toBeGreaterThanOrEqual(2);
+        if (beyond > CATCHER.reach - 0.1) expect(backs).toBe(0);
+        hung.push(on.length * FINE - out);
+        // Then it falls: on its side, further from the slot, straight down, and out of the light.
+        const falling = poses.slice(gone);
+        for (const held of falling) {
+          expect((held.x - last.x) * side).toBeGreaterThanOrEqual(-1e-12);
+          expect(held.height).toBeLessThan(last.height + 1e-12);
+          expect(held.light).toBeLessThanOrEqual(last.light);
+          expect(-Math.sin(held.heading) * Math.sin(held.tilt) * side).toBeGreaterThan(Math.sin(1));
+          expect(onSlide(held, time).down - onSlide(on[on.length - 1], time).down).toBeLessThan(1.5);
+          shortOfTheSlide(held);
           last = held;
         }
-        expect(onSlide(last, time).down).toBeGreaterThan(SLOPE.long - 0.5);
-        expect(onSlide(last, time).down).toBeLessThanOrEqual(SLOPE.long + 1e-9);
-        offTheFoot(poses.slice(gone), last);
-        // After that it lies on the lower table, where it came down: beside the slot still, and still the medal that caught that frame.
-        expect(poses.length * FINE).toBeCloseTo(CATCHER.rattle, 2);
-        expect(caught(over(x, front + R, CATCHER.rattle), time)).toMatchObject({ leg: 'table', near: 1, chucker: -1, x: beside });
+        expect((last.x - x) * side).toBeGreaterThan(0.5);
+        expect(last.light).toBeLessThan(0.1);
+        // It ends wholly under the catcher's floor, where it is the engine's.
+        expect(last.height + R).toBeLessThan(CATCHER.foot.height + 0.2);
+        expect(falling.length * FINE).toBeCloseTo(CATCHER.fall, 2);
+        expect(caught(over(x, front + R, poses.length * FINE + FINE), time)).toBeNull();
       }
     }
+    // It hangs the longer the nearer its middle was to the tongue: over half a second for the nearest, and hardly at all for one that only clips it.
+    for (const at of [0, 3]) {
+      expect(hung[at]).toBeGreaterThan(hung[at + 1]);
+      expect(hung[at + 1]).toBeGreaterThan(hung[at + 2]);
+      expect(hung[at]).toBeGreaterThan(0.5);
+      expect(hung[at]).toBeLessThanOrEqual(most + 0.01);
+      expect(hung[at + 2]).toBeLessThan(least + 0.02);
+    }
+    // The longest any medal is seen at the catcher is such a one: a second and a little more.
+    expect(out + most + CATCHER.fall).toBeGreaterThan(CATCHER.sink);
+    expect(out + most + CATCHER.fall).toBeLessThan(1.3);
   });
 
-  it('does not rattle with motion reduced: a near miss slides straight down the slide and off its foot, as one between the slots does', () => {
+  it('does not hang there with motion reduced: a near miss goes over the lip’s edge nose first, as one clear of the tongues does', () => {
     for (const side of [-1, 1]) {
       const x = pocket + side * (CHECKERS.halfWidth + CATCHER.reach / 2);
       const calm = walk(x, true);
-      // Never on a frame, never rocked sideways, and where it came over all the way down.
-      expect(legs(calm)).toEqual(['slide', 'foot']);
+      // Never on a tongue, never rocked sideways, and where it came over all the way down.
+      expect(legs(calm)).toEqual(['gap']);
       for (const held of calm) expect(held).toMatchObject({ x, chucker: -1, near: -1, heading: 0 });
-      // It is down in the time a medal takes to slide down, not in the longer time a rattle takes.
-      expect(calm.length * FINE).toBeCloseTo(CATCHER.slide, 2);
-      expect(caught(over(x, front + R, CATCHER.slide), time, true)).toMatchObject({ leg: 'table', near: -1, x });
-      expect(caught(over(x, front + R, CATCHER.slide), time)).toMatchObject({ leg: 'slide', near: 1 });
-      // With motion it is on the frame a moment after it comes over.
-      expect(walk(x).some((held) => held.leg === 'frame')).toBe(true);
+      // It is down in the time a medal takes to go into the well, not in the longer time a hang takes.
+      expect(calm.length * FINE).toBeCloseTo(CATCHER.fall, 2);
+      expect(caught(over(x, front + R, CATCHER.fall), time, true)).toBeNull();
+      expect(caught(over(x, front + R, CATCHER.fall), time)).toMatchObject({ leg: 'tongue', near: 1 });
     }
   });
 
-  it('catches a frame from the wider width while the wings are open', () => {
+  it('has some of a wider tongue under it while the wings are open', () => {
     for (const side of [-1, 1]) {
-      // Past where a slot with folded wings can be caught, and within reach of one whose wings are open.
+      // Past where a tongue with folded wings reaches under a medal, and within reach of one whose wings are open.
       const x = pocket + side * (CHECKERS.halfWidth + CATCHER.reach + (CHECKERS.wingWidth - CHECKERS.halfWidth) / 2);
       expect(caught(over(x, front, 0), time)?.near).toBe(-1);
-      expect(legs(walk(x))).toEqual(['slide', 'foot']);
+      expect(legs(walk(x))).toEqual(['gap']);
       expect(caught(over(x, front, 0), time, false, true)).toMatchObject({ chucker: -1, near: 1 });
-      expect(legs(walk(x, false, true))).toEqual(['slide', 'frame', 'slide', 'foot']);
-      // And past that reach too it slides straight down whatever the wings do.
+      expect(legs(walk(x, false, true))).toEqual(['tongue', 'gap']);
+      // And past that reach too it goes straight down whatever the wings do.
       const far = pocket + side * (CHECKERS.wingWidth + CATCHER.reach + 0.05);
       expect(caught(over(far, front, 0), time, false, true)).toMatchObject({ chucker: -1, near: -1 });
-      expect(legs(walk(far, false, true))).toEqual(['slide', 'foot']);
+      expect(legs(walk(far, false, true))).toEqual(['gap']);
     }
   });
 
-  it('slides the length of the slide and off its foot when it comes over between the slots', () => {
-    for (const x of [(CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, pocket + CHECKERS.halfWidth + CATCHER.reach + 0.4, CATCHER.from + R + 0.1, CATCHER.to - R - 0.1]) {
-      expect(droppedThrough(over(x, front, 0))).toBe(-1);
-      expect(grazed(over(x, front, 0), CATCHER.rattle, CATCHER.reach)).toBe(-1);
-      const poses = walk(x);
+  it('goes over the lip’s edge nose first and straight down into the well when it comes over clear of the tongues, and so does a jewel wherever it comes over', () => {
+    const clear = [(CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, pocket + CHECKERS.halfWidth + CATCHER.reach + 0.4, pocket - CHECKERS.halfWidth - CATCHER.reach - 0.4, (CHECKERS.positions[1] + CHECKERS.positions[2]) / 2];
+    for (const [x, more] of [...clear.map((at): [number, Partial<Medal>] => [at, {}]), [pocket, { jewel: true }] as [number, Partial<Medal>], [pocket + CHECKERS.halfWidth + 0.3, { jewel: true }] as [number, Partial<Medal>]]) {
+      expect(droppedThrough(over(x, front, 0, more))).toBe(-1);
+      expect(grazed(over(x, front, 0, more), Infinity, CATCHER.reach)).toBe(-1);
+      const poses = walk(x, false, false, more);
       const [first] = poses;
-      // Through no slot and on no frame; where it came over, at the height it lay at.
-      expect(first).toMatchObject({ x, depth: front, chucker: -1, near: -1, heading: 0, tilt: 0, light: 1, leg: 'slide' });
+      // On no tongue and for no slot; where it came over, at the height it lay at.
+      expect(first).toMatchObject({ x, depth: front, chucker: -1, near: -1, heading: 0, tilt: 0, light: 1, leg: 'gap' });
       expect(first.height).toBeCloseTo(P + T / 2, 12);
-      for (const held of poses) expect(held).toMatchObject({ x, chucker: -1, near: -1, heading: 0 });
-      expect(legs(poses)).toEqual(['slide', 'foot']);
-      const gone = poses.findIndex((held) => held.leg === 'foot');
-      // It tips on to the slide as it comes off the lip, and then lies on it all the way down, faster and faster, to the foot.
+      expect(legs(poses)).toEqual(['gap']);
       let last = first;
-      let pace = 0;
-      for (const held of poses.slice(1, gone)) {
-        const moved = onSlide(held, time).down - onSlide(last, time).down;
-        expect(moved).toBeGreaterThan(0);
+      for (const held of poses) {
+        // Straight down the field: it tips about the lip's edge, nose down and never back, and slides off it, lower and darker all the time.
+        expect(held).toMatchObject({ x, chucker: -1, near: -1, heading: 0 });
         expect(held.tilt).toBeGreaterThanOrEqual(last.tilt - 1e-12);
-        if (onSlide(last, time).down > R / 2) {
-          lying(held);
-          expect(moved).toBeGreaterThanOrEqual(pace - 1e-9);
-          pace = moved;
-        }
+        expect(held.height).toBeLessThanOrEqual(last.height + 1e-12);
+        expect(held.depth).toBeGreaterThanOrEqual(front - 1e-12);
+        expect(held.light).toBeLessThanOrEqual(last.light);
+        // The whole of it stays in the well: its nose never reaches the slide.
+        expect(held.depth + R * Math.cos(held.tilt)).toBeLessThan(front + CATCHER.gap * COS);
+        shortOfTheSlide(held);
         last = held;
       }
-      expect(onSlide(last, time).down).toBeGreaterThan(SLOPE.long - 0.5);
-      expect(onSlide(last, time).down).toBeLessThanOrEqual(SLOPE.long + 1e-9);
-      // It is seen on the slide for a third of a second or more: twenty frames and over.
-      expect(gone * FINE * 60).toBeGreaterThan(20);
-      offTheFoot(poses.slice(gone), last);
-      // It is down in the time the catcher says, and then lies on the lower table where it came down.
-      expect(poses.length * FINE).toBeCloseTo(CATCHER.slide, 2);
-      expect(CATCHER.slide).toBeGreaterThanOrEqual(0.4);
-      expect(CATCHER.slide).toBeLessThanOrEqual(0.6);
-      expect(caught(over(x, front + R, CATCHER.slide), time)).toMatchObject({ leg: 'table', near: -1, chucker: -1, x });
+      // It ends standing all but on its nose, wholly under the catcher's floor, and all but dark.
+      expect(last.tilt).toBeGreaterThan(1.2);
+      expect(last.tilt).toBeLessThan(Math.PI / 2);
+      expect(last.height + R * Math.sin(last.tilt)).toBeLessThan(CATCHER.foot.height + 0.2);
+      expect(last.light).toBeLessThan(0.1);
+      // It is down in the time the catcher says, which is a little longer than a medal beside the catcher takes to drop to the table; and then it is the engine's, under the catcher.
+      expect(poses.length * FINE).toBeCloseTo(CATCHER.fall, 2);
+      expect(CATCHER.fall).toBeGreaterThan(CHUCKERS.drop);
+      expect(CATCHER.fall).toBeLessThan(0.4);
+      expect(caught(over(x, front + R, CATCHER.fall, more), time)).toBeNull();
+      expect(underCatcher(x, front + R, R, time)).toBe(true);
     }
   });
 
@@ -650,13 +781,13 @@ describe('a medal that comes over the lip at the catcher', () => {
       const medal = over(came, front, 0);
       const first = caught(medal, time);
       if (!first) throw new Error('not caught');
-      for (const sinceDrop of [0.1, 0.25, 0.4]) {
+      for (const sinceDrop of [0.1, 0.2, 0.28]) {
         // The engine has it on the lower table, where the pile pushes it off to where another kind of medal would have come over.
         medal.sinceDrop = sinceDrop;
         medal.x = pushed;
         medal.y = front + R + 1;
         const later = caught(medal, time);
-        // It is shown as one that came over where it did would be, and still for the slot, the frame or the foot it was for.
+        // It is shown as one that came over where it did would be, and still for the slot, the tongue's edge or the well it was for.
         expect(later).toEqual(caught(over(came, front + R, sinceDrop), time));
         expect(later).toMatchObject({ chucker: first.chucker, near: first.near });
         // A medal that did come over there is another matter.
@@ -681,10 +812,11 @@ describe('a medal that comes over the lip at the catcher', () => {
     expect(caught(over(50, 70, 3), time)).toBeNull();
   });
 
-  it('agrees with the machine: every medal the engine counts through a pocket is shown going down that slot', () => {
+  it('agrees with the machine: every medal the engine counts is shown riding a tongue to that slot, and nothing it does not count is ever over the slide', { timeout: 30_000 }, () => {
     const machine = createMachine(11);
     let counted = 0;
     let beside = 0;
+    let hung = 0;
     for (let frame = 0; frame < 60 * 40 && counted < 6; frame++) {
       if (frame % 9 === 0) dropAt(machine, 50 + 9 * Math.sin(frame / 50));
       const events = step(machine, 1 / 60);
@@ -693,22 +825,27 @@ describe('a medal that comes over the lip at the catcher', () => {
       expect(shown.filter((held) => held && held.chucker >= 0).map((held) => held?.chucker).sort()).toEqual([...events.checkers].sort());
       counted += events.checkers.length;
       beside += shown.filter((held) => held && held.chucker < 0).length;
-      // One that is shown bound for a frame was not counted: it is on the frame of a slot it did not go down.
+      hung += shown.filter((held) => held && held.near >= 0).length;
+      // One that has some of a tongue under it and not enough was not counted: it is bound for no slot.
       for (const held of shown) if (held && held.near >= 0) expect(held.chucker).toBe(-1);
-      // Whatever the catcher has on its slide or in a slot of it is over the catcher, and nowhere else.
       for (const medal of machine.medals) {
         const held = caught(medal, machine.time);
-        if (held && held.leg !== 'foot' && held.leg !== 'table') expect(held.depth).toBeLessThan(pusherFront(machine.time) + CATCHER.foot.out + R);
+        if (!held) continue;
+        // Whatever the catcher has is over the catcher, and nowhere else.
+        expect(held.depth).toBeLessThan(pusherFront(machine.time) + CATCHER.foot.out);
+        // And the law of it: a medal is over the slide, where the slots are, only if the engine counted it.
+        if (held.chucker < 0) expect(reachOver(held, machine.time)).toBeLessThan(CATCHER.gap);
       }
     }
     expect(counted).toBeGreaterThanOrEqual(6);
     expect(beside).toBeGreaterThan(0);
+    expect(hung).toBeGreaterThan(0);
   });
 
-  it('agrees with the machine while the wings are open too: what the wider rule counts is shown going down a slot', () => {
+  it('agrees with the machine while the wings are open too: what the wider rule counts is shown riding to a slot', () => {
     for (const side of [-1, 1]) {
       for (const open of [false, true]) {
-        // A medal lying on the pusher just short of the lip, further to one side of a slot than fits it with its wings folded.
+        // A medal lying on the pusher just short of the lip, further to one side of a slot than its tongue reaches with the wings folded.
         const machine = createMachine(11);
         machine.time = time;
         const medal: Medal = over(pocket + side * (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5, front + 0.5, -1, { level: 1 });
@@ -716,7 +853,7 @@ describe('a medal that comes over the lip at the catcher', () => {
         const events = step(machine, 1 / 60, open);
         expect(medal.level).toBe(0);
         expect(medal.sinceDrop).toBe(0);
-        // The engine counts it only while the wings are open, and it is shown bound for the slot only then; otherwise it is bound for the frame.
+        // The engine counts it only while the wings are open, and it is shown bound for the slot only then; otherwise it hangs on the tongue's edge.
         expect(events.checkers).toEqual(open ? [1] : []);
         const held = caught(medal, machine.time, false, open);
         expect(held?.chucker).toBe(open ? 1 : -1);
@@ -726,14 +863,14 @@ describe('a medal that comes over the lip at the catcher', () => {
   });
 
   it('keeps what was decided as the medal came over the lip for the whole of its way down, though the wings open or shut meanwhile', () => {
-    // Further to one side of a slot than fits it with its wings folded, and near enough to fit it with them open.
+    // Further to one side of a slot than its tongue reaches with the wings folded, and on the tongue with them open.
     const beside = pocket + (CHECKERS.halfWidth + CHECKERS.wingWidth) * 0.5;
-    const moments = Array.from({ length: 60 }, (_unused, frame) => (frame + 1) / 60).filter((sinceDrop) => sinceDrop < CATCHER.rattle);
-    expect(moments.length).toBeGreaterThan(30);
+    const moments = Array.from({ length: 80 }, (_unused, frame) => (frame + 1) / 60).filter((sinceDrop) => caught(over(beside, front, sinceDrop), time, false, false) !== null);
+    expect(moments.length).toBeGreaterThan(50);
 
-    // It came over with the wings folded, so it caught the frame. Chance time begins while it rattles there and the
-    // wings open: it is still a medal that caught the frame, all the way down the slide and off its foot. At no
-    // moment is it seen to turn into the slot.
+    // It came over with the wings folded, so it hangs on the tongue's edge. Chance time begins while it hangs there and
+    // the wings open: it is still a medal the tongue did not carry, all the way over the edge and down the well. At
+    // no moment is it seen to ride on to the slot.
     const missed = over(beside, front, 0);
     expect(caught(missed, time, false, false)).toMatchObject({ chucker: -1, near: 1 });
     const way: Caught[] = [];
@@ -746,13 +883,13 @@ describe('a medal that comes over the lip at the catcher', () => {
       expect(held).toMatchObject({ chucker: -1, near: 1 });
       way.push(held);
     }
-    expect(legs(way)).toEqual(['slide', 'frame', 'slide', 'foot']);
-    // A medal that comes over there once the wings are open is another matter: it goes down the slot.
+    expect(legs(way)).toEqual(['tongue', 'gap']);
+    // A medal that comes over there once the wings are open is another matter: it rides to the slot.
     expect(caught(over(beside, front, 0.2), time, false, true)).toMatchObject({ chucker: 1, near: -1 });
 
-    // And the other way about. It came over with the wings open and went into the slot; chance time ends while it is
-    // on its way and the wings shut. It still goes down the slot, and once it is down it is out of sight: it is not
-    // seen again on the slide, rattling on a frame it never caught.
+    // And the other way about. It came over with the wings open and rode its tongue; chance time ends while it is on
+    // its way and the wings shut. It still goes down the slot, and once it is down it is out of sight: it is not
+    // seen again, hanging on the edge of a tongue that carried it.
     const taken = over(beside, front, 0);
     expect(caught(taken, time, false, true)).toMatchObject({ chucker: 1, near: -1 });
     for (const sinceDrop of moments) {
@@ -762,7 +899,7 @@ describe('a medal that comes over the lip at the catcher', () => {
       if (sinceDrop < CATCHER.sink) expect(held).toMatchObject({ chucker: 1, near: -1 });
       else expect(held).toBeNull();
     }
-    // One that comes over there once they are shut catches the frame.
+    // One that comes over there once they are shut hangs on the tongue's edge.
     expect(caught(over(beside, front, 0.2), time, false, false)).toMatchObject({ chucker: -1, near: 1 });
   });
 
@@ -796,7 +933,7 @@ describe('a medal that comes over the lip at the catcher', () => {
     }
   });
 
-  it('gives a tower no word of its own: what goes over as a tower comes down across the table, not down the slide', () => {
+  it('gives a tower no word of its own: what goes over as a tower comes down across the table, not down the catcher', () => {
     const machine = createMachine(11);
     machine.time = time;
     const tower = over(pocket, front + 0.5, -1, { level: 1, stack: 5 });
@@ -808,302 +945,16 @@ describe('a medal that comes over the lip at the catcher', () => {
   });
 });
 
-describe('a medal that has gone off the foot of the slide', () => {
-  const between = (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2;
-  const FRAME = 1 / 60;
-  /** The whole of the time the catcher can have a medal that slid straight down, and a little more. */
-  const LONG = CATCHER.slide + CATCHER.lie.wait + CATCHER.lie.slip + 0.2;
-  interface Moment {
-    time: number;
-    /** How far out the engine has it. */
-    y: number;
-    held: Caught | null;
-  }
-  /**
-   * A medal that came over the lip at `x` at `came`, followed frame by frame as the machine would run it with nothing
-   * else on the lower table: the engine has it at the foot of the pusher's face, where it fell, and the face pushes
-   * it before it when the pusher comes forward. For each frame until `until` seconds on: the time, how far out the
-   * engine has it, and how the catcher shows it.
-   */
-  const follow = (x: number, came: number, until: number, more: Partial<Medal> = {}): Moment[] => {
-    const medal = over(x, pusherFront(came) + R, 0, more);
-    const moments: Moment[] = [];
-    for (let frame = 0; frame * FRAME <= until; frame++) {
-      const now = came + frame * FRAME;
-      medal.sinceDrop = frame * FRAME;
-      medal.y = Math.max(medal.y, pusherFront(now) + R);
-      moments.push({ time: now, y: medal.y, held: caught(medal, now) });
-    }
-    return moments;
-  };
-  /** The frames in which it lay on the lower table, which come one after another, and the first frame after them. */
-  const lain = (moments: Moment[]): { lying: (Moment & { held: Caught })[]; after: Moment } => {
-    const from = moments.findIndex((moment) => moment.held?.leg === 'table');
-    const lying = moments.filter((moment): moment is Moment & { held: Caught } => moment.held?.leg === 'table');
-    expect(from).toBeGreaterThan(0);
-    expect(moments.slice(from, from + lying.length)).toEqual(lying);
-    // Once the catcher has let go of it, it is the engine's for good.
-    expect(moments.slice(from + lying.length).every((moment) => moment.held === null)).toBe(true);
-    expect(moments.length).toBeGreaterThan(from + lying.length);
-    return { lying, after: moments[from + lying.length] };
-  };
-
-  it('comes down flat on the lower table in front of the catcher, the whole of it in view, a good deal further out than the engine has it', () => {
-    // As far out past the foot's edge as its own radius: its tail is at the edge.
-    expect(CATCHER.lands).toBe(R);
-    // Wherever in its stroke the pusher is: on its way back, at the back, on its way out, and at the front.
-    for (const share of [0.8, 0.9, 1, 1.25, 1.5, 1.7]) {
-      const came = PUSHER.period * share;
-      const { lying } = lain(follow(between, came, LONG));
-      const [{ held, time: now, y }] = lying;
-      // It is down in the time a medal takes to slide the length of the slide and drop off it.
-      expect(now - came).toBeGreaterThanOrEqual(CATCHER.slide - 1e-9);
-      expect(now - came).toBeLessThan(CATCHER.slide + FRAME);
-      // Flat, in full light, straight out from where it came over, lying on the table: the pusher sweeps that part of it bare on every stroke.
-      expect(held).toMatchObject({ x: between, tilt: 0, heading: 0, light: 1, landed: 1, chucker: -1, near: -1 });
-      expect(held.height).toBeCloseTo(T / 2, 12);
-      // Where the foot's edge was as it came down, and its own radius beyond: none of it is under the catcher.
-      const foot = pusherFront(came + CATCHER.slide) + CATCHER.foot.out;
-      expect(held.depth).toBeCloseTo(foot + CATCHER.lands, 9);
-      expect(held.depth - R).toBeGreaterThanOrEqual(foot - 1e-9);
-      // So all of it is seen: the furthest point of it from the player is below the foot's edge on the drawing.
-      const edge = project(between, CATCHER.foot.height, pusherFront(now) + CATCHER.foot.out);
-      expect(seen({ x: between, height: T, depth: held.depth - R }).y).toBeGreaterThan(edge.y);
-      expect(seen({ x: between, height: T, depth: held.depth - R }).y).toBeLessThan(VIEW.height);
-      // The engine has it at the foot of the pusher's face, where it fell or where the face has pushed it since, under the
-      // catcher, wholly or in part: nearer the pusher than it is seen to land by as far as the foot is out from the face, less
-      // what the pusher has drawn back meanwhile.
-      expect(underCatcher(between, y, R, now)).toBe(true);
-      if (share <= 1.25) expect(underCatcher(between, y, 0, now)).toBe(true);
-      expect(y).toBeCloseTo(Math.max(pusherFront(came), pusherFront(now)) + R, 9);
-      expect(held.depth - y).toBeGreaterThan(2);
-      expect(held.depth - y).toBeLessThanOrEqual(CATCHER.foot.out + CATCHER.lands - R + 1e-9);
-    }
-  });
-
-  it('lies where it came down while the catcher’s foot passes over it, and is the engine’s once the pusher’s face has come up to it', () => {
-    // Nine medals in ten come over in the last fifth of the pusher's way back. The pusher comes forward again, and its face comes up to where they lie.
-    for (const share of [0.8, 0.85, 0.9, 0.95, 0.99, 1.05]) {
-      const came = PUSHER.period * share;
-      const { lying, after } = lain(follow(between, came, LONG));
-      const spot = lying[0].held.depth;
-      // It does not move: not back with the pusher, not out with it, and not toward where the engine has it.
-      for (const { held } of lying) {
-        expect(held).toMatchObject({ x: between, tilt: 0, heading: 0, landed: 1, light: 1 });
-        expect(held.depth).toBeCloseTo(spot, 9);
-        expect(held.height).toBeCloseTo(T / 2, 12);
-      }
-      // It is seen lying there for a good half second, and the catcher does not have to give up waiting.
-      expect(lying.length * FRAME).toBeGreaterThan(0.5);
-      expect(lying.length * FRAME).toBeLessThan(CATCHER.lie.wait);
-      // The foot passes over it meanwhile. It came down clear of the foot, and by its last frame the catcher is over the whole of it.
-      const last = lying[lying.length - 1];
-      expect(spot - R).toBeGreaterThanOrEqual(pusherFront(came + CATCHER.slide) + CATCHER.foot.out - 1e-9);
-      expect(spot + R).toBeLessThan(pusherFront(last.time) + CATCHER.foot.out - 2);
-      // The engine had it short of there all the while, pushed before the face.
-      for (const { y } of lying) expect(y).toBeLessThan(spot);
-      // The frame the catcher lets go, the engine has it there: at the face, which has come up to where it lay, to within what the face moves in a frame.
-      expect(after.y).toBeGreaterThanOrEqual(spot - 1e-9);
-      expect(after.y - spot).toBeLessThan(0.3);
-      expect(after.y).toBeCloseTo(pusherFront(after.time) + R, 9);
-    }
-  });
-
-  it('slips to where the engine has it, with nothing seen to jump, if the pusher’s face is not on its way to it', () => {
-    // Coming over as the pusher gets to the front of its stroke, it comes down further out than the face ever pushes a medal.
-    const came = PUSHER.period / 2 - CATCHER.slide;
-    for (const tier of [0, 1] as const) {
-      const { lying, after } = lain(follow(between, came, LONG, { tier }));
-      const spot = lying[0].held.depth;
-      const engine = PUSHER.max + R;
-      expect(spot).toBeCloseTo(PUSHER.max + CATCHER.foot.out + CATCHER.lands, 6);
-      expect(spot - engine).toBeGreaterThan(R * 2);
-      // It lies where it came down for as long as the catcher waits: the engine never has it there.
-      const waiting = lying.filter((moment) => moment.time - came - CATCHER.slide <= CATCHER.lie.wait);
-      for (const { held } of waiting) {
-        expect(held).toMatchObject({ x: between, tilt: 0, landed: 1 });
-        expect(held.depth).toBeCloseTo(spot, 9);
-        expect(held.height).toBeCloseTo(T / 2, 12);
-      }
-      expect(waiting[waiting.length - 1].y).toBeCloseTo(engine, 6);
-      expect(waiting.length * FRAME).toBeCloseTo(CATCHER.lie.wait, 1);
-      // Then it slips there: nearer in every frame, never far in one, gently at first and at the last, and never past it.
-      const slipping = lying.slice(waiting.length);
-      expect(slipping.length * FRAME).toBeCloseTo(CATCHER.lie.slip, 1);
-      let last = lying[waiting.length - 1].held;
-      const steps: number[] = [];
-      for (const { held } of slipping) {
-        expect(held.depth).toBeLessThanOrEqual(last.depth + 1e-9);
-        expect(held.depth).toBeGreaterThan(engine);
-        expect(held).toMatchObject({ x: between, tilt: 0, heading: 0, landed: 1, light: 1 });
-        // Up on to the medals the engine has it lying on, if it has it on any, as it goes.
-        expect(held.height).toBeGreaterThanOrEqual(last.height - 1e-12);
-        expect(held.height).toBeLessThanOrEqual((tier === 1 ? T * 1.5 : T / 2) + 1e-12);
-        steps.push(last.depth - held.depth);
-        last = held;
-      }
-      expect(Math.max(...steps)).toBeLessThan(((spot - engine) * 1.6 * FRAME) / CATCHER.lie.slip);
-      expect(steps[0]).toBeLessThan(Math.max(...steps) / 3);
-      expect(steps[steps.length - 1]).toBeLessThan(Math.max(...steps) / 3);
-      // It ends where the engine has it and as high, to within a hair, and the next frame it is the engine's.
-      expect(last.depth - engine).toBeLessThan(0.1);
-      expect(last.height).toBeCloseTo(tier === 1 ? T * 1.5 : T / 2, 1);
-      expect(after.y).toBeCloseTo(engine, 6);
-      expect(after.time - came).toBeCloseTo(CATCHER.slide + CATCHER.lie.wait + CATCHER.lie.slip, 1);
-    }
-    // The wait is long enough for the face to come up to a medal that came over in the last fifth of the pusher's way back, and not a stroke long.
-    expect(CATCHER.lie.wait + CATCHER.lie.slip).toBeLessThan(PUSHER.period / 2 + 1e-9);
-    expect(CATCHER.lie.slip).toBeGreaterThanOrEqual(0.3);
-  });
-
-  it('is the engine’s sideways too by the time the engine has it where it lies, and comes down where the engine has it if that is further out already', () => {
-    const came = PUSHER.period * 0.9;
-    const spot = pusherFront(came + CATCHER.slide) + CATCHER.foot.out + CATCHER.lands;
-    const medal = over(between, pusherFront(came) + R, 0);
-    // The catcher is asked about it as it comes over, which is when it settles where that was.
-    expect(caught(medal, came)).toMatchObject({ x: between, leg: 'slide' });
-    /** How it is shown `since` seconds after it came down, the pile having shoved it two units to the side and to `y` out. */
-    const shoved = (since: number, y: number) => {
-      Object.assign(medal, { sinceDrop: CATCHER.slide + since, x: between + 2, y });
-      return caught(medal, came + CATCHER.slide + since);
-    };
-    // While the engine has it more than a radius short of where it lies, it lies where it came down.
-    expect(shoved(0.1, spot - R - 1)).toMatchObject({ x: between, depth: spot, leg: 'table' });
-    expect(shoved(0.1, spot - R)).toMatchObject({ x: between, depth: spot });
-    // Within a radius it is part of the way across, and all the way by the time the engine has it there.
-    expect(shoved(0.1, spot - R / 2)?.x).toBeCloseTo(between + 1, 9);
-    expect(shoved(0.1, spot - R / 2)?.depth).toBe(spot);
-    expect(shoved(0.1, spot - 0.01)?.x).toBeCloseTo(between + 2, 1);
-    expect(shoved(0.1, spot)).toBeNull();
-    expect(shoved(0.1, spot + 3)).toBeNull();
-    // And it stays the engine's: the pile may push it back a little, and the catcher does not take it up again.
-    expect(shoved(0.15, spot - 0.5)).toBeNull();
-    expect(shoved(0.2, spot - R - 1)).toBeNull();
-    // One the pile has pushed out past there before it is down comes down where the engine has it, and is the engine's as it lands.
-    Object.assign(medal, { sinceDrop: CATCHER.slide - 1e-7, x: between + 2, y: spot + 4 });
-    const down = caught(medal, came + CATCHER.slide - 1e-7);
-    expect(down).toMatchObject({ leg: 'foot' });
-    expect(down?.x).toBeCloseTo(between + 2, 4);
-    expect(down?.depth).toBeCloseTo(spot + 4, 4);
-    expect(down?.height).toBeCloseTo(T / 2, 4);
-    expect(shoved(0, spot + 4)).toBeNull();
-  });
-
-  it('lies on a medal that lies where it comes down, rides up on to one that is pushed in under it, and never stands too high to pass under the foot', () => {
-    const came = PUSHER.period * 0.9;
-    const now = came + CATCHER.slide + 0.1;
-    const spot = pusherFront(came + CATCHER.slide) + CATCHER.foot.out + CATCHER.lands;
-    /** How high the catcher has its middle a tenth of a second after it came down, with these medals in the machine. */
-    const high = (pile: Medal[]): number => {
-      const held = caught(over(between, pusherFront(now) + R, CATCHER.slide + 0.1), now, false, false, pile);
-      if (held?.leg !== 'table') throw new Error('it is not lying on the table');
-      expect(held.depth).toBe(spot);
-      return held.height;
-    };
-    /** A medal lying on the lower table, `across` and `out` from where this one came down. */
-    const other = (across: number, out: number, more: Partial<Medal> = {}): Medal => over(between + across, spot + out, -1, { id: 77, ...more });
-    // On the bare table, with nothing given or nothing near.
-    expect(high([])).toBeCloseTo(T / 2, 12);
-    expect(high([other(R * 2, 0), other(0, -R * 2), other(-R * 1.5, R * 1.5)])).toBeCloseTo(T / 2, 12);
-    // On a medal that lies where it came down: a medal's thickness higher. Wholly on it if the two overlap by half or more.
-    expect(high([other(0, 0)])).toBeCloseTo(T * 1.5, 12);
-    expect(high([other(R, 0)])).toBeCloseTo(T * 1.5, 12);
-    expect(high([other(0, -R)])).toBeCloseTo(T * 1.5, 12);
-    // As one is pushed in under it, it rides up on to it: higher the more they overlap, with no step.
-    let last = T / 2;
-    for (let nearer = 0; nearer <= 16; nearer++) {
-      const now = high([other(0, -R * (2 - nearer / 16))]);
-      expect(now).toBeGreaterThanOrEqual(last - 1e-12);
-      expect(now - last).toBeLessThan(T / 8);
-      last = now;
-    }
-    expect(last).toBeCloseTo(T * 1.5, 12);
-    expect(high([other(R * 1.5, 0)])).toBeCloseTo(T, 9);
-    // On one that lies on another it would stand higher than the foot is; it is as high as passes under it, and no higher.
-    const top = high([other(0, 0, { tier: 1 })]);
-    expect(top).toBeGreaterThan(T * 1.5);
-    expect(top + T / 2).toBeCloseTo(CATCHER.foot.height, 12);
-    // Only a medal lying on the lower table is something to lie on: not one on the pusher, a ball or a jewel. And not itself.
-    expect(high([other(0, 0, { level: 1 })])).toBeCloseTo(T / 2, 12);
-    expect(high([other(0, 0, { ball: true })])).toBeCloseTo(T / 2, 12);
-    expect(high([other(0, 0, { jewel: true })])).toBeCloseTo(T / 2, 12);
-    const self = over(between, spot - 1, CATCHER.slide + 0.1);
-    expect(caught(self, now, false, false, [self])?.height).toBeCloseTo(T / 2, 12);
-    // It comes down on to what lies there: off the foot it ends at that height.
-    const falling = caught(over(between, pusherFront(came) + R, CATCHER.slide - 1e-7), came + CATCHER.slide - 1e-7, false, false, [other(0, 0)]);
-    expect(falling).toMatchObject({ leg: 'foot' });
-    expect(falling?.height).toBeCloseTo(T * 1.5, 4);
-    expect(falling?.depth).toBeCloseTo(spot, 4);
-  });
-
-  it('shows a jewel nowhere on the lower table but where the engine has it', () => {
-    const time = 1.3;
-    const front = pusherFront(time);
-    const stone = (sinceDrop: number): Medal => over(between, front + R, sinceDrop, { jewel: true });
-    // It goes down the slide as a medal that fits no slot does, and off its foot.
-    expect(caught(stone(CATCHER.slide * 0.5), time)).toMatchObject({ leg: 'slide', chucker: -1, near: -1 });
-    const last = caught(stone(CATCHER.slide - 1e-7), time);
-    // It comes down where the engine has it, and is the engine's from then on.
-    expect(last).toMatchObject({ leg: 'foot' });
-    expect(last?.x).toBeCloseTo(between, 4);
-    expect(last?.depth).toBeCloseTo(front + R, 4);
-    expect(last?.height).toBeCloseTo(T / 2, 4);
-    expect(caught(stone(CATCHER.slide), time)).toBeNull();
-    expect(caught(stone(CATCHER.slide + 0.3), time)).toBeNull();
-  });
-
-  it('agrees with the machine: what comes off the foot is shown frame after frame with no jump, until it is where the engine has it', () => {
-    const machine = createMachine(11);
-    const shown = new Map<Medal, Caught>();
-    let landed = 0;
-    let handed = 0;
-    for (let frame = 0; frame < 60 * 60; frame++) {
-      if (frame % 9 === 0) dropAt(machine, 50 + 9 * Math.sin(frame / 50));
-      step(machine, FRAME);
-      const foot = pusherFront(machine.time) + CATCHER.foot.out;
-      for (const medal of machine.medals) {
-        if (medal.level !== 0 || medal.ball) continue;
-        const held = caught(medal, machine.time, false, false, machine.medals);
-        const before = shown.get(medal);
-        if (!held || (held.leg !== 'foot' && held.leg !== 'table')) {
-          // The frame the catcher lets go of one that lay on the table, the engine has it where it was last shown, and as high: nearer than a medal is pushed in a frame.
-          if (before?.leg === 'table' && !held) {
-            expect(Math.hypot(medal.x - before.x, medal.y - before.depth)).toBeLessThan(STEP);
-            expect(Math.abs((medal.tier === 1 ? T * 1.5 : T / 2) - before.height)).toBeLessThan(T / 2);
-            handed++;
-          }
-          shown.delete(medal);
-          continue;
-        }
-        // In the air and on the table it moves no further in a frame than a thing that falls or is pushed does.
-        if (before) expect(Math.hypot(held.x - before.x, held.height - before.height, held.depth - before.depth)).toBeLessThan(STEP);
-        if (held.leg === 'table') {
-          if (before?.leg !== 'table') {
-            // It comes down in front of the foot, in view: its middle is out past the foot's edge.
-            expect(held.depth).toBeGreaterThan(foot);
-            landed++;
-          }
-          // On the table, or on what lies there, and never too high to pass under the foot.
-          expect(held.height).toBeGreaterThanOrEqual(T / 2 - 1e-9);
-          expect(held.height + T / 2).toBeLessThanOrEqual(CATCHER.foot.height + 1e-9);
-          expect([held.tilt, held.light, held.landed]).toEqual([0, 1, 1]);
-        }
-        shown.set(medal, held);
-      }
-    }
-    expect(landed).toBeGreaterThan(40);
-    expect(handed).toBeGreaterThan(40);
-    expect(handed).toBeLessThanOrEqual(landed);
-  });
-});
-
 describe('a prize ball that comes over the lip at the catcher', () => {
   const time = 1.3;
   const front = pusherFront(time);
   const r = BALL_RADIUS;
   const ball = (x: number, sinceDrop: number, more: Partial<Medal> = {}): Medal => over(x, front + R, sinceDrop, { ball: true, ...more });
 
-  it('rolls down the slide, which no slot of takes it, off its foot and down on to the lower table in front of it', () => {
+  it('is too big for the well: it rolls across it and down the slide, which no slot of takes it, off its foot and down on to the lower table in front of it', () => {
+    // It is a good deal bigger across than the well is long, and than a slot's opening.
+    expect(r * 2).toBeGreaterThan(CATCHER.gap + 1.5);
+    expect(r * 2).toBeGreaterThan(START_SLOT.long + 3);
     for (const x of [CHECKERS.positions[1], CHECKERS.positions[0] + 2, CATCHER.to - r - 0.1]) {
       const first = rolling(ball(x, 0), r, time);
       if (!first) throw new Error('not rolling');
@@ -1126,7 +977,7 @@ describe('a prize ball that comes over the lip at the catcher', () => {
         expect(at.height).toBeLessThanOrEqual(last.height + 1e-9);
         const { down, clear } = onSlide(at, time);
         if (at.depth <= slopeSpot(x, SLOPE.long, time, r).depth + 1e-9) {
-          // On the slide: once it is off the lip it stands on it, its middle its own radius clear of it.
+          // On the catcher's top, well and slide alike: once it is off the lip its middle is its own radius clear of it.
           if (down > r / 2) expect(clear).toBeCloseTo(r, 9);
           expect(clear).toBeGreaterThan(r - 1e-9);
           onIt++;
@@ -1152,6 +1003,9 @@ describe('a prize ball that comes over the lip at the catcher', () => {
       // The engine has it at the foot of the pusher's face meanwhile, under the catcher, where the hood would hide it.
       expect(underCatcher(x, front + R, r, time)).toBe(true);
     }
+    // It takes as long over it as the catcher says: a little longer than a medal takes to ride its tongue.
+    expect(CATCHER.slide).toBeGreaterThanOrEqual(0.6);
+    expect(CATCHER.slide).toBeLessThanOrEqual(1);
   });
 
   it('stands against the foot of the slide where it comes down: a ball is taller than the foot is high, and does not go under', () => {
@@ -1167,9 +1021,11 @@ describe('a prize ball that comes over the lip at the catcher', () => {
     expect(clearOfFoot(1)).toBe(1);
   });
 
-  it('stands where it came down until the engine has it there, and is the engine’s from then on, or rolls to where the engine has it', () => {
+  it('stands where it came down until the catcher’s foot has come over the whole of it, and is the engine’s from then on, out of sight; or rolls to where the engine has it', () => {
     const FRAME = 1 / 60;
     const x = CHECKERS.positions[1] + 3;
+    // The catcher reaches nearly as far out from the lip as the pusher's stroke is long, and a ball stands clear of its foot: the face never comes up to a ball that stands there.
+    expect(CATCHER.foot.out + clearOfFoot(r)).toBeGreaterThan(PUSHER.max - PUSHER.min + R);
     /** A ball that came over at `came`, followed as the machine would run it alone: the pusher's face pushes it when it comes forward. */
     const follow = (came: number) => {
       const medal = over(x, pusherFront(came) + R, 0, { ball: true });
@@ -1182,28 +1038,33 @@ describe('a prize ball that comes over the lip at the catcher', () => {
       }
       return moments;
     };
-    // Coming over late in the pusher's way back, as most things do: the face comes up to it.
+    // Coming over late in the pusher's way back, as most things do: the pusher turns and brings the catcher forward over it.
     for (const share of [0.8, 0.9, 0.99]) {
       const came = PUSHER.period * share;
       const moments = follow(came);
       const standing = moments.filter((moment) => moment.at?.leg === 'table');
       const spot = pusherFront(came + CATCHER.slide) + CATCHER.foot.out + clearOfFoot(r);
+      // It stands exactly where it came down, and does not move, for as long as any of it shows.
       for (const { at } of standing) {
         expect(at).toMatchObject({ x, height: r, leg: 'table' });
         expect(at?.depth).toBeCloseTo(spot, 9);
       }
-      expect(standing.length * FRAME).toBeGreaterThan(0.5);
+      expect(standing.length * FRAME).toBeGreaterThan(0.3);
       expect(standing.length * FRAME).toBeLessThan(CATCHER.lie.wait);
       // As it comes down it stands in front of the foot, the middle of it clear: in full view.
       expect(underCatcher(x, spot, 0, standing[0].time)).toBe(false);
-      // The catcher lets go when the engine has it there, and never has it again.
-      const after = moments[moments.indexOf(standing[standing.length - 1]) + 1];
+      // The catcher lets go once its foot has come over the whole of the ball, which is then out of sight, and so is where the engine has it.
+      const last = standing[standing.length - 1];
+      const after = moments[moments.indexOf(last) + 1];
       expect(after.at).toBeNull();
-      expect(after.y).toBeGreaterThanOrEqual(spot - 1e-9);
-      expect(after.y - spot).toBeLessThan(0.3);
+      expect(spot + r).toBeLessThan(pusherFront(after.time) + CATCHER.foot.out);
+      expect(spot + r).toBeGreaterThanOrEqual(pusherFront(last.time) + CATCHER.foot.out);
+      expect(after.y).toBeLessThan(spot);
+      expect(after.y + r).toBeLessThan(pusherFront(after.time) + CATCHER.foot.out);
+      // And never has it again.
       expect(moments.slice(moments.indexOf(after)).every((moment) => moment.at === null)).toBe(true);
     }
-    // Coming over as the pusher gets to the front, it is further out than the face pushes it: it waits, and then rolls back to where the engine has it, a little in each frame.
+    // Coming over as the pusher gets to the front, the foot is going back and never comes over it: it waits, and then rolls back to where the engine has it, a little in each frame.
     const came = PUSHER.period / 2 - CATCHER.slide;
     const moments = follow(came);
     const standing = moments.filter((moment): moment is { time: number; y: number; at: Rolled } => moment.at?.leg === 'table');
@@ -1214,11 +1075,11 @@ describe('a prize ball that comes over the lip at the catcher', () => {
     for (const { at } of standing) {
       expect(at).toMatchObject({ x, height: r });
       expect(at.depth).toBeLessThanOrEqual(last);
-      expect(last - at.depth).toBeLessThan(0.8);
+      expect(last - at.depth).toBeLessThan(1.4);
       expect(at.depth).toBeGreaterThan(engine);
       last = at.depth;
     }
-    expect(last - engine).toBeLessThan(0.1);
+    expect(last - engine).toBeLessThan(0.2);
   });
 
   it('is shown where the engine has it when it is not coming down the slide', () => {
@@ -1233,5 +1094,106 @@ describe('a prize ball that comes over the lip at the catcher', () => {
     expect(rolling(ball(CATCHER.to - r + 0.1, 0.05), r, time)).toBeNull();
     expect(rolling(ball(10, 0.05), r, time)).toBeNull();
     expect(rolling(ball(pocket, 0.05), r, time)).not.toBeNull();
+  });
+});
+
+describe('what has gone down the well', () => {
+  const stroke = PUSHER.max - PUSHER.min;
+
+  it('is out from under the catcher when the pusher is back: the catcher stops short of the pusher’s stroke', () => {
+    // A medal that went down the well lies at the foot of the pusher's face, and the next stroke leaves it a medal's
+    // radius in front of where the face turns. With the pusher back, the whole of it is clear of the foot's edge.
+    expect(CATCHER.foot.out).toBeLessThan(stroke - 0.4);
+    const pushed = PUSHER.max + R;
+    for (const x of CHECKERS.positions) expect(underCatcher(x, pushed, R, 0)).toBe(false);
+    // Not by much: the catcher has to hold the well, the slots and the words, and is as long as the stroke lets it be.
+    expect(CATCHER.foot.out).toBeGreaterThan(stroke - 1);
+    expect(underCatcher(CHECKERS.positions[1], pushed, R, PUSHER.period * 0.1)).toBe(true);
+    // The well is still longer than a medal is across, and the words still fit their strip.
+    expect(CATCHER.gap).toBeGreaterThan(R * 2);
+    expect(APRON_CAP).toBeLessThan(APRON);
+  });
+
+  it('is seen again within the stroke after the one it fell in, on a quiet table: one rail, a medal every two seconds down the middle', { timeout: 30_000 }, () => {
+    const session = createSession(7919, { quickPick: true });
+    session.credits = 1e6;
+    session.machine.aims = [50, 54];
+    /** The medals that have gone over the lip at the catcher and are still wholly or partly under it, and for how many seconds. */
+    const under = new Map<Medal, number>();
+    const waits: number[] = [];
+    for (let frame = 0; frame < 240 * 60; frame++) {
+      if (frame % 120 === 0) insert(session, 0);
+      advance(session, 1 / 60);
+      const { machine } = session;
+      for (const medal of machine.medals) {
+        if (medal.ball || medal.jewel || medal.level !== 0 || medal.stack > 1) continue;
+        if (medal.sinceDrop >= 0 && medal.sinceDrop < 1 / 60 - 1e-9 && medal.x - R >= CATCHER.from && medal.x + R <= CATCHER.to) under.set(medal, 0);
+      }
+      for (const [medal, since] of under) {
+        if (underCatcher(medal.x, medal.y, R, machine.time)) under.set(medal, since + 1 / 60);
+        else {
+          waits.push(since);
+          under.delete(medal);
+        }
+      }
+    }
+    waits.sort((a, b) => a - b);
+    expect(waits.length).toBeGreaterThan(40);
+    // Half of them within a stroke and a sixth, and nine in ten within two. With a catcher that reached 0.4 past the
+    // stroke, as it once did, half of them were out of sight for a quarter of a minute.
+    expect(waits[Math.floor(waits.length / 2)]).toBeLessThan(PUSHER.period * (1 + 1 / 6));
+    expect(waits[Math.floor(waits.length * 0.9)]).toBeLessThan(PUSHER.period * 2);
+  });
+});
+
+describe('how near a medal on a tongue’s edge was to fitting', () => {
+  const FRONT = PUSHER.min;
+  const hanging = (x: number, wings = false) => {
+    const medal: Medal = { id: 9, x, y: FRONT + R, level: 0, tier: 0, sinceDrop: CATCHER.teeter.out + 0.01, stack: 1, grow: 0, ball: false, grown: 1 };
+    return caught(medal, 0, false, wings);
+  };
+
+  it('is all of the way for one whose middle is on the tongue’s edge, none of it for one with only its rim on the tongue, and nothing for a medal that is no near miss', () => {
+    const pocket = CHECKERS.positions[1];
+    const edge = pocket + CHECKERS.halfWidth;
+    // Just off the edge of the tongue, half way out, and with its rim only just on it.
+    const samples = [0.01, CATCHER.reach / 4, CATCHER.reach / 2, CATCHER.reach * 0.99].map((off) => {
+      const held = hanging(edge + off);
+      expect(held).toMatchObject({ near: 1, chucker: -1, leg: 'tongue' });
+      return nearness(held as Caught);
+    });
+    expect(samples[0]).toBeGreaterThan(0.99);
+    expect(samples[1]).toBeCloseTo(0.75, 6);
+    expect(samples[2]).toBeCloseTo(0.5, 6);
+    expect(samples[3]).toBeLessThan(0.02);
+    // On the other side of the tongue, and of another pocket's, it is the same.
+    expect(nearness(hanging(pocket - CHECKERS.halfWidth - CATCHER.reach / 4) as Caught)).toBeCloseTo(0.75, 6);
+    expect(nearness(hanging(CHECKERS.positions[0] + CHECKERS.halfWidth + CATCHER.reach / 2) as Caught)).toBeCloseTo(0.5, 6);
+    // With the wings open the tongue is wider, and the same place is nearer its edge.
+    const wide = hanging(pocket + CHECKERS.wingWidth + CATCHER.reach / 4, true);
+    expect(wide).toMatchObject({ near: 1 });
+    expect(nearness(wide as Caught, true)).toBeCloseTo(0.75, 6);
+    // A medal on its way into the pocket, and one clear of the tongues, are no near miss.
+    const rider = caught({ id: 10, x: pocket, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    expect(rider && nearness(rider)).toBe(0);
+    const between = caught({ id: 11, x: (CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0.1, stack: 1, grow: 0, ball: false, grown: 1 }, 0);
+    expect(between && [between.near, nearness(between)]).toEqual([-1, 0]);
+  });
+
+  it('is what says how long it hangs: the nearer half hang a quarter of a second or more, long enough to be seen and heard to rock', () => {
+    const edge = CHECKERS.positions[1] + CHECKERS.halfWidth;
+    /** How long a medal that came over `off` beyond the tongue's edge is on the tongue before it lets go of it. */
+    const hangs = (off: number): number => {
+      const medal: Medal = { id: 12, x: edge + off, y: FRONT + R, level: 0, tier: 0, sinceDrop: 0, stack: 1, grow: 0, ball: false, grown: 1 };
+      let since = 0;
+      for (; since < 2; since += 1 / 240) {
+        medal.sinceDrop = since;
+        if (caught(medal, 0)?.leg !== 'tongue') break;
+      }
+      return since - CATCHER.teeter.out;
+    };
+    expect(hangs(CATCHER.reach / 2)).toBeGreaterThanOrEqual(0.23);
+    expect(hangs(0.05)).toBeGreaterThan(hangs(CATCHER.reach / 2) * 2);
+    expect(hangs(CATCHER.reach * 0.95)).toBeLessThan(0.14);
   });
 });

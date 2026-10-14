@@ -199,9 +199,21 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
         );
       })}
       <circle cx={X(19)} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={WON} fillOpacity={0.55} stroke={WON} strokeWidth={1.2} />
-      {/* The front edge */}
-      <line x1={X(0)} x2={X(right)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={WON} strokeWidth={3.5} />
-      {[25, 75].map((x) => (
+      {/* The front edge: its middle is over the tray, and its two ends are over the side holes, which turn the corners */}
+      <line data-front="pays" x1={X(FIELD.sideReach)} x2={X(right - FIELD.sideReach)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={WON} strokeWidth={3.5} />
+      {[0, right - FIELD.sideReach].map((x) => (
+        <line key={x} data-front="hole" x1={X(x)} x2={X(x + FIELD.sideReach)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={LOST} strokeWidth={2.4} strokeDasharray="5 4" />
+      ))}
+      {[FIELD.sideReach / 2, right - FIELD.sideReach / 2].map((x) => (
+        <path
+          key={x}
+          d={`M${X(x)} ${Y(102)} L${X(x)} ${Y(109)} M${X(x - 2.5)} ${Y(106)} L${X(x)} ${Y(109)} L${X(x + 2.5)} ${Y(106)}`}
+          fill="none"
+          stroke={LOST}
+          strokeWidth={2}
+        />
+      ))}
+      {[FIELD.sideReach + 15, right - FIELD.sideReach - 15].map((x) => (
         <path
           key={x}
           d={`M${X(x)} ${Y(102)} L${X(x)} ${Y(109)} M${X(x - 2.5)} ${Y(106)} L${X(x)} ${Y(109)} L${X(x + 2.5)} ${Y(106)}`}

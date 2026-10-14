@@ -2,8 +2,9 @@
  * Draws the cabinet on a canvas: the housing round the screen in the back
  * wall, the pusher that comes out from under it with the catcher for the
  * START pockets hung on its front, the two tables of medals, the two feed
- * arms with a slot at the near end of each, the open sides and the tray at
- * the front, and over them the lights, sparks and glass of an arcade cabinet.
+ * arms with a slot at the near end of each, the open sides, the tray at the
+ * middle of the front with a side hole's mouth at each corner beside it, and
+ * over them the lights, sparks and glass of an arcade cabinet.
  * Nothing here decides anything — it only shows the machine the engine is
  * running.
  *
@@ -13,10 +14,11 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
-import { drawHopper, drawLifts } from './works2d';
-import { APRON, CATCHER, SLOPE, START_SLOT, apronSpot, caught, lampSpot, litSlots, rolling, slopeSpot, slotCorners, slotHalf, underCatcher, wingCorners, type Caught } from './catcher';
+import { offLifts } from './works';
+import { drawHatches, drawHopper, drawLifts } from './works2d';
+import { APRON, CATCHER, SLOPE, START_SLOT, TONGUE, apronSpot, caught, lampSpot, litSlots, mouthSpot, rolling, slopeSpot, slotCorners, slotHalf, tongueCorners, tongueHalf, underCatcher, wellCorners, wingCorners, type Caught } from './catcher';
 import { CHUCKERS } from './chuckers';
-import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, pusherFront, type Arm, type Machine, type Medal } from './engine';
+import { CHECKERS, FIELD, LANDING, MEDAL_RADIUS, PUSHER, SETTLE, frontPays, pusherFront, type Arm, type Machine, type Medal } from './engine';
 import {
   JEWEL_CUT,
   JEWEL_FACETS,
@@ -34,6 +36,7 @@ import {
   pointInCabinet,
   type JewelSpot,
 } from './jewel';
+import { SIDE_HOLE, acrossAt, fromSide, holeAt, holeFloor, railTime, railTop, railed, sinking } from './sidehole';
 import { CHUTE, EYE_AT, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise, type Projected } from './view';
 
 const TAU = Math.PI * 2;
@@ -94,6 +97,20 @@ const CAST = { x: 0.3, y: -0.55 } as const;
 export const BALL_RADIUS = 4.3;
 /** How far out from the table's edge the chute beside an open side is drawn: past the edge of the picture. */
 const CHUTE_OUT = 16;
+/**
+ * What is printed on the lower table for the player: GET before the tray, at these places across and this depth; OUT
+ * before each open side and before each side hole's mouth, at these places in from the side and depths; and the
+ * depth the red paint before a mouth starts from.
+ */
+export const TABLE_WORDS = {
+  get: [33, 50, 67],
+  getAt: 93.5,
+  out: [
+    [7.5, 84],
+    [10, 94.5],
+  ],
+  washFrom: 89,
+} as const;
 /** How far the chute's surface leans, in radians: a medal that goes down it lies along it. */
 export const CHUTE_LEAN = Math.atan(CHUTE.slope);
 /** How long each kind of celebration lights the cabinet, in seconds. */
@@ -115,6 +132,12 @@ export interface ExitingMedal {
   ball: boolean;
   /** Set on a jewel, which is drawn as the stone it is on its way out. It only ever leaves by the front. */
   jewel?: boolean;
+  /**
+   * Set on one that went over the front edge at a side hole's mouth, within the hole's reach of a corner
+   * (sidehole.ts). A medal that did is lost: it drops into the mouth and is gone down its chute. A ball or a jewel
+   * that did is collected all the same: it comes down on the bars across the mouth and rolls along them into the tray.
+   */
+  corner?: boolean;
   age: number;
 }
 
@@ -140,13 +163,42 @@ interface Spark {
   color: string;
 }
 
-/** A count that floats up from the tray: the medals just won, or what a jewel has just paid, in its own colour. */
+/**
+ * A count that floats up from the tray: the medals just won, or what a jewel
+ * has just paid, in its own colour. Or a word the cabinet says over a START
+ * slot, which has `word`: which slot it stands over, how tall its letters
+ * are, in pixels of the drawing, and whether it stands still, as it does
+ * where nothing may move.
+ */
 interface Popup {
   x: number;
   y: number;
   text: string;
   age: number;
   color?: string;
+  word?: { gate: number; size: number; still: boolean };
+}
+
+/** What a medal through a START slot came to, as the session says it in its `checker` event. */
+export interface Entry {
+  gate: number;
+  held: boolean;
+  gold: boolean;
+  lucky: boolean;
+}
+
+/**
+ * An entry the cabinet has not finished answering: whether it has begun to,
+ * which it does in the frame the medal dropped; how many seconds its spark
+ * has been on its way up to the hold's lamps, less than nothing until it
+ * sets out; where on the drawing the spark set out from; and whether it has
+ * a lamp of the hold to light, which is settled as the cabinet answers.
+ */
+export interface Arrival extends Entry {
+  dropped: boolean;
+  run: number;
+  from: { x: number; y: number };
+  lamp: boolean;
 }
 
 export interface Stage {
@@ -173,6 +225,16 @@ export interface Stage {
   tallyAge: number;
   /** Seconds each light has left to shine. */
   gateGlow: number[];
+  /** The medals that have dropped into a START slot that the cabinet has not finished answering, the oldest first (see `enterGate`). */
+  entries: Arrival[];
+  /** Seconds each of the hold's lamps still shines brighter, since a spark reached it. */
+  holdGlow: number[];
+  /**
+   * How many of the hold's lamps are shown lit, and how many of those gold: what `holdShown` last said. A spark is
+   * bound for the lamp after them. And how many of the medals the cabinet has still to answer hold a spin the
+   * screen has taken already, and how many a gold one: those have no lamp to light.
+   */
+  hold: { stock: number; gold: number; taken: number; gilt: number };
   trayGlow: number;
   sideGlow: [number, number];
   party: { kind: Party; left: number } | null;
@@ -552,12 +614,68 @@ function paintHousing(g: CanvasRenderingContext2D, ratio: number): void {
   g.fill();
 }
 
-/** The chute beside an open side of the table, as far out as it is drawn: from where the wall ends to a little past the front. */
+/** The chute beside an open side of the table, as far out as it is drawn: from where the wall ends to past the front, where it meets the mouth under the front edge. */
 const chutePatch = (side: number): Projected[] => {
   const x = side < 0 ? 0 : W;
   const out = x + side * CHUTE_OUT;
-  return [project(x, chuteHeight(0), OPEN), project(x, chuteHeight(0), D + 4), project(out, chuteHeight(CHUTE_OUT), D + 4), project(out, chuteHeight(CHUTE_OUT), OPEN)];
+  const past = D + SIDE_HOLE.past;
+  return [project(x, chuteHeight(0), OPEN), project(x, chuteHeight(0), past), project(out, chuteHeight(CHUTE_OUT), past), project(out, chuteHeight(CHUTE_OUT), OPEN)];
 };
+
+/** Where the tray is, across the front edge: between the cheeks, which part it from the side holes' mouths. */
+export const TRAY = { from: SIDE_HOLE.reach + SIDE_HOLE.cheek, to: W - SIDE_HOLE.reach - SIDE_HOLE.cheek } as const;
+
+/** A side hole's mouth, across: from its side of the table to the face of its cheek. */
+const mouthEnds = (side: number): [number, number] => [side < 0 ? 0 : W, acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side)];
+
+/** The chute in a side hole's mouth, as far out as it is drawn: from under the front edge to past the foot of the picture. */
+const mouthPatch = (side: number): Projected[] => {
+  const [from, to] = mouthEnds(side);
+  const past = SIDE_HOLE.past;
+  return [project(from, holeFloor(0), D), project(to, holeFloor(0), D), project(to, holeFloor(past), D + past), project(from, holeFloor(past), D + past)];
+};
+
+/** Strokes one of the arrows on the chute in a mouth: two barbs that meet at its point, which is the further from the table. */
+function mouthArrow(g: CanvasRenderingContext2D, side: number, mark: number): void {
+  const x = acrossAt(mark, side);
+  const barb = (end: number) => project(end, holeFloor(SIDE_HOLE.near), D + SIDE_HOLE.near);
+  const point = project(x, holeFloor(SIDE_HOLE.far), D + SIDE_HOLE.far);
+  const from = barb(x - SIDE_HOLE.span / 2);
+  const to = barb(x + SIDE_HOLE.span / 2);
+  g.beginPath();
+  g.moveTo(from.x, from.y);
+  g.lineTo(point.x, point.y);
+  g.lineTo(to.x, to.y);
+  g.stroke();
+}
+
+/** The inks of the ball rail's bars: the shade under each, its plated body, and the bright line along its top. */
+export const RAIL_INK = { shade: '#2c3350', body: '#aab4d0', bright: '#f4f7fd' } as const;
+
+/**
+ * Lays the ball rail across a side hole's mouth, from the cabinet's frame
+ * beside the table to the tray's cheek. Every frame draws it, after whatever
+ * has gone down the mouth: a medal that drops in passes under the bars, and
+ * is seen through them.
+ */
+function layRails(g: CanvasRenderingContext2D, side: number): void {
+  const edge = side < 0 ? 0 : W;
+  g.lineCap = 'butt';
+  for (const out of SIDE_HOLE.rails) {
+    const from = project(edge + side * CHUTE_OUT, railTop(0) - SIDE_HOLE.bar / 2, D + out);
+    const to = project(acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side), railTop(SIDE_HOLE.reach) - SIDE_HOLE.bar / 2, D + out);
+    const thick = SIDE_HOLE.bar * to.scale;
+    g.strokeStyle = RAIL_INK.shade;
+    g.lineWidth = thick + 1.6;
+    line(g, from, to);
+    g.strokeStyle = RAIL_INK.body;
+    g.lineWidth = thick;
+    line(g, from, to);
+    g.strokeStyle = RAIL_INK.bright;
+    g.lineWidth = Math.max(1, thick * 0.4);
+    line(g, { ...from, y: from.y - thick * 0.22 }, { ...to, y: to.y - thick * 0.22 });
+  }
+}
 
 /** Strokes one of the arrows on a chute: two barbs that meet at its point, which is the further out. */
 function chuteArrow(g: CanvasRenderingContext2D, side: number, mark: number): void {
@@ -682,17 +800,33 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   g.fill();
   g.font = '900 6.5px "Arial Black", Arial, sans-serif';
   g.fillStyle = 'rgba(244, 208, 96, 0.55)';
-  for (const x of [20, 50, 80]) {
-    onTable(g, ratio, x, 93.5);
+  for (const x of TABLE_WORDS.get) {
+    onTable(g, ratio, x, TABLE_WORDS.getAt);
     g.fillText('GET', 0, 0);
   }
   g.fillStyle = 'rgba(232, 96, 110, 0.62)';
   g.font = '900 4.6px "Arial Black", Arial, sans-serif';
-  for (const x of [7.5, W - 7.5]) {
-    onTable(g, ratio, x, 84);
-    g.fillText('OUT', 0, 0);
+  for (const [x, depth] of TABLE_WORDS.out) {
+    for (const across of [x, W - x]) {
+      onTable(g, ratio, across, depth);
+      g.fillText('OUT', 0, 0);
+    }
   }
   flat();
+  // The stretch of the table before each side hole's mouth is painted red toward the edge, and a red line is scribed
+  // where the tray's stretch begins: what is pushed over the edge outside the lines is not the player's.
+  for (const side of [-1, 1]) {
+    const [from, to] = [side < 0 ? 0 : W, acrossAt(SIDE_HOLE.reach, side)];
+    const wash = g.createLinearGradient(0, project(0, 0, TABLE_WORDS.washFrom).y, 0, project(0, 0, D).y);
+    wash.addColorStop(0, 'rgba(232, 60, 84, 0)');
+    wash.addColorStop(1, 'rgba(232, 60, 84, 0.34)');
+    g.fillStyle = wash;
+    path(g, [project(from, 0, TABLE_WORDS.washFrom), project(to, 0, TABLE_WORDS.washFrom), project(to, 0, D), project(from, 0, D)]);
+    g.fill();
+    g.strokeStyle = 'rgba(255, 107, 129, 0.7)';
+    g.lineWidth = 1.6;
+    line(g, project(to, 0, TABLE_WORDS.washFrom), project(to, 0, D));
+  }
   const sheen = g.createLinearGradient(0, project(0, 0, 55).y, 0, floor[2].y);
   sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
   sheen.addColorStop(1, 'rgba(214, 228, 246, 0.16)');
@@ -728,8 +862,41 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     for (const mark of CHUTE.marks) chuteArrow(g, side, mark);
   }
 
-  // The front of the table and the tray the winnings fall into.
-  const lip = [project(0, 0, D), project(W, 0, D), project(W, -18, D), project(0, -18, D)];
+  // The side holes' mouths under the front edge at the corners, where each side's chute turns the corner: black
+  // under the edge, which is the inside of the hole; in it the chute, lit red at the top and black further down,
+  // falling away from the table, with arrows that point the way out; and the red edge that warns of it, as far as
+  // the tray's cheek. The bars across the mouth are laid every frame, over whatever has gone down it.
+  for (const side of [-1, 1]) {
+    const [from, to] = mouthEnds(side);
+    g.fillStyle = '#030104';
+    path(g, [project(from, 0, D), project(to, 0, D), project(to, holeFloor(0), D), project(from, holeFloor(0), D)]);
+    g.fill();
+    // The step down from the side's chute to this one, beside the table's corner.
+    g.fillStyle = '#0b0518';
+    path(g, [project(from, chuteHeight(0), D), project(from, chuteHeight(0), D + SIDE_HOLE.past), project(from, holeFloor(SIDE_HOLE.past), D + SIDE_HOLE.past), project(from, holeFloor(0), D)]);
+    g.fill();
+    const pit = mouthPatch(side);
+    const dark = g.createLinearGradient(0, pit[0].y, 0, VIEW.height);
+    dark.addColorStop(0, '#7a1429');
+    dark.addColorStop(0.55, '#27080f');
+    dark.addColorStop(1, '#070205');
+    g.fillStyle = dark;
+    path(g, pit);
+    g.fill();
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255, 84, 104, 0.3)';
+    g.lineWidth = 7;
+    line(g, project(from, 0, D), project(to, 0, D));
+    g.strokeStyle = '#ff6b81';
+    g.lineWidth = 2.5;
+    line(g, project(from, 0, D), project(to, 0, D));
+    g.lineJoin = 'round';
+    g.lineWidth = 2.4;
+    for (const mark of SIDE_HOLE.marks) mouthArrow(g, side, mark);
+  }
+
+  // The front of the table between the cheeks, and the tray the winnings fall into.
+  const lip = [project(TRAY.from, 0, D), project(TRAY.to, 0, D), project(TRAY.to, -18, D), project(TRAY.from, -18, D)];
   const lipShade = g.createLinearGradient(0, lip[0].y, 0, lip[2].y);
   lipShade.addColorStop(0, '#0a2540');
   lipShade.addColorStop(1, '#030912');
@@ -746,7 +913,7 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
   g.strokeStyle = 'rgba(255, 214, 92, 0.8)';
   g.lineJoin = 'round';
   for (let x = 14; x < W; x += 12) {
-    if (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to) continue;
+    if (x - 3.2 < TRAY.from || x + 3.2 > TRAY.to || (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to)) continue;
     const arrow = [project(x - 3.2, -7.5, D), project(x, -13, D), project(x + 3.2, -7.5, D)];
     g.beginPath();
     g.moveTo(arrow[0].x, arrow[0].y);
@@ -769,6 +936,23 @@ function backgroundLayer(ratio: number): HTMLCanvasElement {
     g.strokeStyle = 'rgba(255, 124, 192, 0.45)';
     g.lineWidth = 1;
     g.stroke();
+  }
+  // The cheeks that part the tray from the mouths: a bar of brushed steel each, level with the table, running out
+  // from the front edge, and the face of it that looks into the tray.
+  for (const side of [-1, 1]) {
+    const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+    const tray = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+    const past = D + SIDE_HOLE.past;
+    g.fillStyle = '#39416a';
+    path(g, [project(tray, 0, D), project(tray, 0, past), project(tray, -18, past), project(tray, -18, D)]);
+    g.fill();
+    const top = [project(hole, 0, D), project(tray, 0, D), project(tray, 0, past), project(hole, 0, past)];
+    const steel = g.createLinearGradient(0, top[0].y, 0, VIEW.height);
+    steel.addColorStop(0, '#e4e8f4');
+    steel.addColorStop(1, '#8d97b8');
+    g.fillStyle = steel;
+    path(g, top);
+    g.fill();
   }
   return canvas;
 }
@@ -795,6 +979,9 @@ export function createStage(ratio: number, painted = true): Stage {
     tally: 0,
     tallyAge: 0,
     gateGlow: CHECKERS.positions.map(() => 0),
+    entries: [],
+    holdGlow: Array.from({ length: HOLD_COUNT }, () => 0),
+    hold: { stock: 0, gold: 0, taken: 0, gilt: 0 },
     trayGlow: 0,
     sideGlow: [0, 0],
     party: null,
@@ -817,6 +1004,159 @@ export function lightGate(stage: Stage, gate: number): void {
   if (gate >= 0 && gate < stage.gateGlow.length) stage.gateGlow[gate] = GLOW_TIME;
 }
 
+/** How many lamps the hold has: one for each spin the machine can hold. */
+export const HOLD_COUNT = 8;
+
+/**
+ * What the cabinet says when a medal drops into a START slot, which is when
+ * it is seen to: the slot bursts with light, `reach` times further out over
+ * the slide than its glow goes on to be, and throws `sparks` sparks, or
+ * `gold` of them for a medal that holds a gold spin or turns one gold; a
+ * word stands over the slot for `word` seconds, its letters `plain` pixels
+ * of the drawing tall, `big` for a gold one and `dull` for a medal that
+ * found the hold full; and a spark runs from the slot up to the hold's
+ * lamps in `run` seconds and lights the lamp the spin is held as.
+ */
+export const BURST = { reach: 1.1, sparks: 9, gold: 16, word: 0.9, plain: 26, big: 36, dull: 20, run: 0.3 } as const;
+/** The words: a medal that holds a spin, one that found the hold full and turned a held spin gold, and one that found it full and nothing left to turn. */
+export const ENTRY_WORDS = { start: 'START!', gold: 'GOLD!', full: 'FULL' } as const;
+/** The colours of the words, and of the sparks: an everyday spin's, a gold one's, and the grey of a medal that started nothing. */
+export const ENTRY_INK = { start: '#fff3a8', gold: '#ffd24a', full: '#8f8aa8' } as const;
+
+/** Whether an entry is told as gold: its spin is gold from the start, or it turned a held spin gold. */
+const goldEntry = (entry: Entry): boolean => entry.gold || entry.lucky;
+/** Whether an entry lights a lamp of the hold. A medal that found the hold full, and nothing in it left to turn gold, does not. */
+const lightsLamp = (entry: Entry): boolean => entry.held || entry.gold;
+
+/**
+ * Notes a medal that has just dropped into its START slot, which is when the
+ * machine takes it (session.ts): a ride after the lip's rule counted it, or
+ * as it came over the lip where nothing may move and it is not seen to ride.
+ * The cabinet answers it in this frame (`dropEntries`), once it has been told
+ * what the machine holds now (`holdShown`).
+ */
+export function enterGate(stage: Stage, entry: Entry): void {
+  if (entry.gate < 0 || entry.gate >= stage.gateGlow.length) return;
+  stage.entries.push({ gate: entry.gate, held: entry.held, gold: entry.gold, lucky: entry.lucky, dropped: false, run: -1, from: { x: 0, y: 0 }, lamp: false });
+}
+
+/** The lamp of the hold a spark has reached shines for a moment, wherever it is in the row. */
+function lightLamp(stage: Stage, entry: Arrival): void {
+  stage.holdGlow[lampFor(stage, entry)] = GLOW_TIME;
+}
+
+/**
+ * The lamp of the hold an entry's spark is bound for, from the left. A gold
+ * one is bound for the first lamp that is not gold yet, which it turns: the
+ * gold spins are the first in the row. Any other is bound for the first lamp
+ * that is not lit. The entries before it that are bound for the same end of
+ * the row get there first, and it takes the lamp after theirs.
+ */
+export function lampFor(stage: Stage, entry: Arrival): number {
+  const gold = goldEntry(entry);
+  let ahead = 0;
+  for (const other of stage.entries) {
+    if (other === entry) break;
+    if (gold ? goldEntry(other) : other.held) ahead++;
+  }
+  return Math.min(stage.holdGlow.length - 1, (gold ? stage.hold.gold : stage.hold.stock) + ahead);
+}
+
+/**
+ * Answers the medals that have dropped into a START slot in this frame, with
+ * the machine's clock at `time`, and gives them back with what each sends up
+ * to the hold: a spark, or nothing. What the cabinet is seen to say starts
+ * here. The slot bursts with light and a word stands over it; and a spark
+ * sets out for the hold's lamps, unless the medal found the hold full and
+ * nothing to turn gold, which is a dull word and nothing more. Nor does a
+ * spark set out for a spin the screen has taken already, as it does in the
+ * step the medal drops when the screen is free and the machine holds nothing
+ * else: that spin has no lamp, and what answers the medal is on the screen.
+ * With `calm` nothing flies: no sparks from the slot and none up to the
+ * hold, whose lamp is lit at once.
+ */
+export function dropEntries(stage: Stage, time: number, calm = false): Arrival[] {
+  const dropped: Arrival[] = [];
+  for (const entry of stage.entries) {
+    if (entry.dropped) continue;
+    entry.dropped = true;
+    dropped.push(entry);
+    const mouth = mouthSpot(entry.gate, time);
+    const at = project(mouth.x, mouth.height + CATCHER.rim.high, mouth.depth);
+    const gold = goldEntry(entry);
+    const lights = lightsLamp(entry);
+    const text = !lights ? ENTRY_WORDS.full : entry.held ? ENTRY_WORDS.start : ENTRY_WORDS.gold;
+    const size = !lights ? BURST.dull : gold ? BURST.big : BURST.plain;
+    // The word stands over the slot, inside the picture. A slot says one thing at a time: the word of a medal that went
+    // down it a moment ago gives way to this one, so a run of medals does not pile their words on one another.
+    const wide = size * 0.36 * text.length;
+    stage.popups = stage.popups.filter((popup) => popup.word?.gate !== entry.gate);
+    stage.popups.push({ x: Math.min(VIEW.width - wide, Math.max(wide, at.x)), y: at.y - 10, text, age: 0, color: !lights ? ENTRY_INK.full : gold ? ENTRY_INK.gold : ENTRY_INK.start, word: { gate: entry.gate, size, still: calm } });
+    if (!lights) continue;
+    lightGate(stage, entry.gate);
+    // The oldest of the medals still to be answered are the ones whose spins the screen has taken: this is one of them if any is.
+    const spun = gold ? stage.hold.gilt > 0 : stage.hold.taken > 0;
+    if (spun) {
+      if (gold) stage.hold.gilt -= 1;
+      else stage.hold.taken -= 1;
+    }
+    entry.lamp = !spun;
+    if (calm) continue;
+    entry.from = { x: at.x, y: at.y };
+    if (!spun) entry.run = 0;
+    const own = SLOT_LIGHT.own[entry.gate % SLOT_LIGHT.own.length];
+    const count = gold ? BURST.gold : BURST.sparks;
+    for (let i = 0; i < count; i++) {
+      // A fan of them, upward and to either side, no two alike and the same every time.
+      const angle = -Math.PI / 2 + ((i + 0.5) / count - 0.5) * 2.6;
+      const speed = 70 + ((i * 53 + entry.gate * 17) % 60);
+      addSpark(stage, { x: at.x, y: at.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, age: 0, life: 0.5, size: gold ? 3 : 2.4, color: i % 3 === 0 ? '#ffffff' : gold || i % 3 === 1 ? ENTRY_INK.gold : own });
+    }
+  }
+  // With nothing to fly, a lamp is lit as its medal drops; and what has nothing more to say is forgotten.
+  if (dropped.length > 0) {
+    for (const entry of stage.entries) if (entry.dropped && entry.run < 0 && entry.lamp) lightLamp(stage, entry);
+    stage.entries = stage.entries.filter((entry) => !entry.dropped || entry.run >= 0);
+  }
+  return dropped;
+}
+
+/**
+ * How many of the spins the machine holds the hold's lamps show, and how
+ * many of those as gold, given what the machine has: `stock` spins held,
+ * `gold` of them gold. The machine has a medal's spin from the moment the
+ * medal dropped into its slot, and the lamps do not show it until its spark
+ * has reached them. So every entry that is still to be answered, or whose
+ * spark is on its way, is one lamp fewer, and each of those that is gold one
+ * gold lamp fewer; never fewer than none. If the machine holds fewer spins
+ * than there are such entries, the screen has taken the rest already: a
+ * medal that finds the screen free starts its spin as it drops. The stage
+ * remembers the answer: it is where the sparks are bound, and which of them
+ * have nowhere to go.
+ */
+export function holdShown(stage: Stage, stock: number, gold: number): Stage['hold'] {
+  stage.hold = holdCount(stage, stock, gold);
+  return stage.hold;
+}
+
+/**
+ * What `holdShown` says, and the stage does not remember it. It is for the
+ * lamps as they are drawn at the end of a frame: a spark that reached its lamp
+ * in the frame has lit it by then, and the lamp is drawn lit under its shine.
+ * The sparks themselves stay bound by the count the stage remembers, which was
+ * taken before they moved.
+ */
+export function holdCount(stage: Stage, stock: number, gold: number): Stage['hold'] {
+  let held = 0;
+  let gilt = 0;
+  for (const entry of stage.entries) {
+    if (entry.held) held++;
+    if (goldEntry(entry)) gilt++;
+  }
+  const shown = Math.max(0, stock - held);
+  return { stock: shown, gold: Math.min(shown, Math.max(0, gold - gilt)), taken: Math.max(0, held - stock), gilt: Math.max(0, gilt - gold) };
+}
+
 /** Starts the cabinet's lights for a tower coming down, a fever or the jackpot. */
 export function celebrate(stage: Stage, kind: Party): void {
   // A jackpot is not cut short by a tower falling in the middle of it.
@@ -828,12 +1168,48 @@ function addSpark(stage: Stage, spark: Spark): void {
   if (stage.sparks.length < MAX_SPARKS) stage.sparks.push(spark);
 }
 
+/** How far a medal can be from a cheek of the tray, where it was last seen, and still have gone over the edge on the other side of it: more than it moves in a frame. */
+export const CHEEK_HAIR = 1;
+
+/** A medal that has just left the field: where it was last seen, whether it went over the front edge, and whether it was won. */
+interface Gone {
+  id: number;
+  last: Seen;
+  front: boolean;
+  pays: boolean;
+}
+
+/**
+ * Holds the medals shown going into the tray to the number the machine has just counted as won. The stage sees a
+ * medal where it lay a frame ago and the machine judges it where it went over, a hair further on, so a medal that
+ * left right beside a cheek can have gone the other side of it. Where the two counts differ, the medals nearest a
+ * cheek are the ones that did, and no medal further from one than a hair is ever told otherwise.
+ */
+function settleGone(gone: Gone[], won: number): void {
+  const plain = gone.filter((medal) => medal.front && !medal.last.ball && !medal.last.jewel);
+  let over = plain.filter((medal) => medal.pays).length - won;
+  if (over === 0) return;
+  const off = (medal: Gone): number => Math.abs(fromSide(medal.last.x, medal.last.x < W / 2 ? -1 : 1) - SIDE_HOLE.reach);
+  const near = plain.filter((medal) => medal.pays === over > 0 && off(medal) <= CHEEK_HAIR).sort((a, b) => off(a) - off(b));
+  for (const medal of near) {
+    if (over === 0) break;
+    medal.pays = !medal.pays;
+    over -= over > 0 ? 1 : -1;
+  }
+}
+
 /**
  * Notes which medals have left the field since the last frame and starts each
- * one falling: over the front into the tray, or off an open side. `won` is the
- * count the session just credited, which floats up from the tray.
+ * one on its way: over the middle of the front edge into the tray; over the
+ * front edge at a corner, down the side hole's mouth there; or off an open
+ * side on to its chute. It is the engine's own rule (`frontPays`) that says
+ * which of the first two. A ball or a jewel is collected wherever it goes
+ * over, and at a corner it crosses the mouth on its bars. `won` is the count
+ * the session just credited, which floats up from the tray, and as many
+ * medals as that are shown going into it; left out, the stage goes by where
+ * each medal was last seen.
  */
-export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
+export function trackMedals(stage: Stage, machine: Machine, won?: number): void {
   // Which arm each medal on its way in is on. It is forgotten once the medal is neither on a rail nor in the air.
   for (const medal of machine.rolling) stage.fed.set(medal.id, medal.arm);
   if (stage.fed.size > machine.rolling.length) {
@@ -854,14 +1230,21 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
       present.set(medal.id, { x: medal.x, y: medal.y, ball: medal.ball, jewel: medal.jewel === true, tower: medal.stack > 1 });
     }
   }
+  const gone: Gone[] = [];
   for (const [id, last] of stage.seen) {
     // A tower that is gone went over the lip, and its medals are already in the air.
     if (last.tower) continue;
-    const toFront = D - last.y;
-    const toSide = Math.min(last.x, W - last.x);
-    const isWon = last.ball || last.jewel || toFront <= toSide;
+    const prize = last.ball || last.jewel;
+    // It left by the edge it was nearest: the front, or an open side. A ball or a jewel fits no side.
+    const front = prize || D - last.y <= Math.min(last.x, W - last.x);
+    gone.push({ id, last, front, pays: prize || (front && frontPays(last.x)) });
+  }
+  if (won !== undefined) settleGone(gone, won);
+  for (const { id, last, front, pays: isWon } of gone) {
     const side = last.x < W / 2 ? -1 : 1;
-    stage.exits.push({ id, x: last.x, y: last.y, kind: isWon ? 'won' : 'lost', side, ball: last.ball, ...(last.jewel ? { jewel: true } : {}), age: 0 });
+    // Over the front edge at a corner: a medal that was not won there went down the mouth, and a prize crossed it.
+    const corner = front && (last.ball || last.jewel ? holeAt(last.x) !== 0 : !isWon);
+    stage.exits.push({ id, x: last.x, y: last.y, kind: isWon ? 'won' : 'lost', side, ball: last.ball, ...(last.jewel ? { jewel: true } : {}), ...(corner ? { corner: true } : {}), age: 0 });
     if (isWon) {
       stage.trayGlow = GLOW_TIME;
       // A glint where it went over.
@@ -885,15 +1268,38 @@ export function trackMedals(stage: Stage, machine: Machine, won = 0): void {
     }
   }
   stage.seen = present;
-  stage.tally += won;
+  stage.tally += won ?? 0;
+}
+
+/**
+ * Seconds something that has left the field is still drawn for. A ball or a jewel that went over a side hole's mouth
+ * is on the bars across it for as long as it takes to roll to the tray, which is longer the nearer the side it went
+ * over; everything else has the same moment to fall out of sight.
+ */
+export function exitTime(exit: ExitingMedal, calm = false): number {
+  if (!exit.corner || !(exit.ball || exit.jewel)) return EXIT_TIME;
+  return Math.max(EXIT_TIME, railTime(fromSide(exit.x, exit.side), exit.ball ? BALL_RADIUS : JEWEL_CUT.girdle, calm));
 }
 
 /** Ages the lights, the sparks and whatever is on its way out. `calm` leaves the confetti out. */
 export function ageStage(stage: Stage, dt: number, calm = false): void {
   stage.clock += dt;
   for (const exit of stage.exits) exit.age += dt;
-  if (stage.exits.length > 0 && stage.exits[0].age >= EXIT_TIME) stage.exits = stage.exits.filter((exit) => exit.age < EXIT_TIME);
+  // The oldest is the first to go, unless it is a prize on the bars across a side hole's mouth, which has longer.
+  if (stage.exits.some((exit) => exit.age >= EXIT_TIME)) stage.exits = stage.exits.filter((exit) => exit.age < exitTime(exit, calm));
   for (let i = 0; i < stage.gateGlow.length; i++) stage.gateGlow[i] = Math.max(0, stage.gateGlow[i] - dt);
+  for (let i = 0; i < stage.holdGlow.length; i++) stage.holdGlow[i] = Math.max(0, stage.holdGlow[i] - dt);
+  // The sparks on their way up to the hold: one that gets there lights its lamp, and that is the last of its entry.
+  if (stage.entries.some((entry) => entry.run >= 0)) {
+    const there: Arrival[] = [];
+    for (const entry of stage.entries) {
+      if (entry.run < 0) continue;
+      entry.run += dt;
+      if (entry.run >= BURST.run) there.push(entry);
+    }
+    for (const entry of there) lightLamp(stage, entry);
+    if (there.length > 0) stage.entries = stage.entries.filter((entry) => !there.includes(entry));
+  }
   stage.trayGlow = Math.max(0, stage.trayGlow - dt);
   stage.sideGlow[0] = Math.max(0, stage.sideGlow[0] - dt);
   stage.sideGlow[1] = Math.max(0, stage.sideGlow[1] - dt);
@@ -909,7 +1315,7 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
     stage.tallyAge = 0;
   }
   for (const popup of stage.popups) popup.age += dt;
-  if (stage.popups.length > 0 && stage.popups[0].age >= 1) stage.popups = stage.popups.filter((popup) => popup.age < 1);
+  if (stage.popups.some((popup) => popup.age >= (popup.word ? BURST.word : 1))) stage.popups = stage.popups.filter((popup) => popup.age < (popup.word ? BURST.word : 1));
 
   if (stage.party) {
     stage.party.left -= dt;
@@ -944,6 +1350,20 @@ export function ageStage(stage: Stage, dt: number, calm = false): void {
 
 /** The turn each medal lies at, fixed by its id so a pile does not look stamped. */
 export const turnOf = (id: number): number => id * 2.399963;
+
+/** How many bulbs run along the tray, under the front edge between the cheeks. */
+export const TRAY_BULBS = 18;
+/**
+ * A jewel that went over the front edge at a side hole's mouth, as the stone it is: on the bars across the mouth,
+ * tumbling along them toward the tray, and down into it past the cheek. With motion reduced it crosses the bars the
+ * way it was going.
+ */
+export function railedJewel(exit: ExitingMedal, calm = false): JewelSpot {
+  const at = railed(exit.x, exit.y, exit.side, exit.age, JEWEL_CUT.girdle, calm);
+  // It rolls about its girdle: a turn for each time it has gone its own way round.
+  const rolled = at.rolled / JEWEL_CUT.girdle;
+  return { id: exit.id, x: at.x, height: at.height, depth: at.depth, turn: turnOf(exit.id), tilt: 0.1 + rolled, heading: calm ? 0 : (exit.side * Math.PI) / 2, light: 1 };
+}
 
 /** The stage's medal as it was struck, and in every tone: the first of the faces is the one the stage calls its medal. */
 function facesOf(struck: HTMLCanvasElement): Pick<Stage, 'medal' | 'faces'> {
@@ -1016,7 +1436,9 @@ function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Medal, base
   g.closePath();
   g.fill();
   g.strokeStyle = 'rgba(88, 54, 0, 0.6)';
-  g.lineWidth = 1;
+  // The line between one medal and the next is three tenths of a medal's thickness as it is seen there, and no wider
+  // than a pixel of the drawing: however thin the medals are, the column is brass with lines in it and not the other way about.
+  g.lineWidth = Math.min(1, T * rise(foot) * 0.3);
   g.beginPath();
   for (let i = 1; i < tower.stack - 1; i++) {
     const f = i / (tower.stack - 1);
@@ -1602,7 +2024,7 @@ export function showJewel(stage: Stage, lamp: number, medals: number, bonus: boo
 // ── The catcher ─────────────────────────────────────────────────────────────
 
 /** How tall the capitals of the words on the catcher's slide are, in field units down its slope. */
-export const APRON_CAP = 3.4;
+export const APRON_CAP = 3.5;
 /** A heavy face for a word that has to be read from across the cabinet, narrow where the device has one that is. */
 const SIGN_FACE = 'Impact, "Avenir Next Condensed", "Arial Narrow", "Arial Black", Arial, sans-serif';
 
@@ -1662,31 +2084,11 @@ export function paintApron(g: CanvasRenderingContext2D, lit?: readonly number[])
   g.fillRect(0, APRON - 0.22, wide, 0.22);
 }
 
-/** A medal that has come over the lip at the catcher and is on its slide or in the air off its foot, and where it has got to. */
+/** A medal that has come over the lip at the catcher and is on its way down: on a tongue, into a slot or into the well. Where it has got to. */
 interface Sliding {
   medal: Medal;
   held: Caught;
 }
-
-/**
- * A medal the catcher has lying on the lower table (`leg` is `table`), as a
- * medal that lies where the catcher has it: there, and as high. It is drawn
- * with the lower table's medals, like any of them, before the catcher, so
- * that the catcher's foot covers it as it passes over. On the bare table
- * it is a medal of the lower tier, and a medal's thickness higher, on
- * another, one of the upper; between the two, riding up on to a medal or
- * down off one, it is a medal that is still making room for itself, which
- * is drawn as far above the table as the catcher has this one. It is not
- * coming over the lip any more.
- */
-export function lyingWhereCaught(medal: Medal, held: Caught): Medal {
-  const up = Math.min(1, Math.max(0, (held.height - T / 2) / T));
-  if (up >= 1 - 1e-9) return { ...medal, x: held.x, y: held.depth, sinceDrop: -1, tier: 1, grown: medal.tier === 1 ? medal.grown : 1 };
-  return { ...medal, x: held.x, y: held.depth, sinceDrop: -1, tier: 0, grown: Math.min(medal.tier === 0 ? medal.grown : 1, SETTLE.from + (1 - up) * (1 - SETTLE.from)) };
-}
-
-/** How much higher than it will lie a medal is drawn while it is still making room for itself in the pile: what `liftOf` adds to its tier. */
-export const ridingOf = (medal: Medal): number => liftOf(medal) - (medal.tier === 1 ? T : 0);
 
 /**
  * What of a START slot's shape the catcher (`START_SLOT` in catcher.ts) does
@@ -1719,18 +2121,32 @@ export const SLOT_THROAT = {
   floor: '#000000',
   gold: { far: ['#fff6cf', '#ffc23d'], side: ['#ffc23d', '#c98a14'], floor: ['#f0b030', '#c98a14'] },
 } as const;
+/**
+ * The well under the lip, which is the inside of the catcher's box seen from
+ * above: the pusher's face in the shade of its own lip, from the lip down to
+ * where the slide's upper edge hides it. It is as dark as the 3D picture
+ * has it, which is all but black, and darker the further down; and never
+ * quite the black of a throat's floor, which has no blue in it at all, so
+ * that a picture read back pixel by pixel tells the one from the other.
+ */
+export const WELL_SHADE = ['#0c0a1a', '#08061a'] as const;
+/**
+ * A tongue: the brass of its top, from its end at the lip to its end at the
+ * slot, and of the side of its web; and the same of one whose slot is lit.
+ */
+export const TONGUE_BRASS = { top: ['#e8bd4a', '#fff0b8'], side: '#8a5a0c', lit: ['#ffe9a6', '#fffbe0'], litSide: '#b77d12' } as const;
 
 /** Where a spot of the cabinet is on the drawing. */
 const seen = (spot: Spot): Projected => project(spot.x, spot.height, spot.depth);
 
 /**
  * A medal the catcher has, drawn where it has it and tipped as it has it.
- * One on the slide, or rattling on a slot's frame, is seen whole. One that
- * is nosing into its slot is seen whole as far as it is still above the
- * slide, and under the slide only down the slot's opening. One that has gone
- * off the foot is seen whole too, in the air in front of the catcher, with
- * the shadow a medal on the table throws coming up under it as it comes
- * down: by the time it touches down it is drawn as a medal lying there is.
+ * One on a tongue, lying on it or hanging on its edge, is seen whole. One
+ * that is going over the end of its tongue into its slot is seen whole as far
+ * as it is still above the slide, and under the slide only down the slot's
+ * opening. One that is going down into the well is seen as far as the well
+ * shows it: above the upper edge of the slide, which hides the rest; and it
+ * darkens as it goes, the well being dark.
  *
  * The catcher says where a medal's middle is. Its face is half its thickness
  * above that, the way the face looks, and its rim as far below.
@@ -1747,24 +2163,19 @@ function stampSliding(g: CanvasRenderingContext2D, stage: Stage, { medal, held }
     g.closePath();
     g.rect(-VIEW.width, opening[0].y - VIEW.height, VIEW.width * 3, VIEW.height + 0.5);
     g.clip();
+  } else if (held.leg === 'gap') {
+    const edge = seen(slopeSpot(W / 2, CATCHER.gap, time));
+    g.beginPath();
+    g.rect(-VIEW.width, edge.y - VIEW.height, VIEW.width * 3, VIEW.height);
+    g.clip();
   }
   // Tipped forward by `tilt` about the line across the field, or about `heading`: the way its face looks.
   const half = T / 2;
   const face: Spot = {
     x: held.x - Math.sin(held.heading) * Math.sin(held.tilt) * half,
-    height: held.height + Math.cos(held.tilt) * half + (held.leg === 'foot' ? ridingOf(medal) * held.landed : 0),
+    height: held.height + Math.cos(held.tilt) * half,
     depth: held.depth + Math.cos(held.heading) * Math.sin(held.tilt) * half,
   };
-  if (held.leg === 'foot' && held.landed > 0) {
-    const point = seen(face);
-    const rx = R * point.scale * 1.06;
-    g.globalAlpha = held.landed * held.landed;
-    g.fillStyle = TABLE_SHADE.color;
-    g.beginPath();
-    g.ellipse(point.x + rx * 0.12, point.y + T * rise(point) * TABLE_SHADE.reach, rx, rx * point.tilt, 0, 0, TAU);
-    g.fill();
-    g.globalAlpha = 1;
-  }
   stampHeld(g, stage, face, turnOf(medal.id), held.tilt, held.heading, shift, held.light, medal.id);
   g.restore();
 }
@@ -1772,32 +2183,34 @@ function stampSliding(g: CanvasRenderingContext2D, stage: Stage, { medal, held }
 /**
  * The catcher that rides on the front of the pusher, under its lip, drawn
  * from the back forward: the shadow it throws on the lower table and the dark
- * under it; its slide, the board that leans from under the lip down toward
- * the player, with the dark where it goes in under the lip; for each START
- * slot the frame that stands up round its opening, and down the opening the
- * throat — the ring of light that slopes into it, the far wall, which catches
- * that light, and the dark floor — then the glow of a slot that is lit, its
- * two wings and the lamp at its lower end; and on the last of the slide,
+ * under it; the well under the lip, which is dark; its slide, the board that
+ * leans from the well's edge down toward the player; for each START slot the
+ * frame that stands up round its opening, and down the opening the throat —
+ * the ring of light that slopes into it, the far wall, which catches that
+ * light, and the dark floor — then the glow of a slot that is lit, its two
+ * wings, its tongue, a bridge of brass from the lip over the well to the
+ * opening, and the lamp at its lower end; and on the last of the slide,
  * under the slots, the strip with the word START under each.
  *
  * A slot is in its own colour while it waits, in a frame of bright brass,
  * and its throat is dark. The one the lucky lamp is on is gold, steadily:
- * its frame, its ring, its lamp, which is a little bigger, and the whole of
- * its mouth, which the gold fills, far wall, sides and floor
+ * its frame, its ring, its tongue, its lamp, which is a little bigger, and
+ * the whole of its mouth, which the gold fills, far wall, sides and floor
  * (`SLOT_THROAT`), with the glow of it over the opening as well as round
- * it. With `wings` all three are, the openings are wider, and the wings,
- * which otherwise lie along the sides of the frames, have swung out like the
- * cheeks of a funnel. A slot a medal has just dropped through is brighter
- * still, all the way down, and its stretch of the strip is lit, for as long
- * as `stage.gateGlow` says. Everything that lies on the lower table under
- * the catcher has been drawn before it and is covered by it; the medals that
- * are on the slide are drawn after it.
+ * it. With `wings` all three are, the openings and the tongues are wider,
+ * and the wings, which otherwise lie along the sides of the frames, have
+ * swung out like the cheeks of a funnel. A slot a medal has just dropped
+ * through is brighter still, all the way down, with a burst of light out
+ * over its frame, and its stretch of the strip is lit, for as long as
+ * `stage.gateGlow` says. Everything that lies on the lower table under the
+ * catcher has been drawn before it and is covered by it; the medals that are
+ * on their way down it are drawn after it.
  */
 function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine, front: number, phase: number, calm: boolean, wings: boolean, shift: number): void {
   const k = stage.ratio;
   const flat = () => g.setTransform(k, 0, 0, k, shift * k, 0);
   const { time } = machine;
-  const { from, to, deck, rim, foot, throat } = CATCHER;
+  const { from, to, deck, rim, foot, throat, gap } = CATCHER;
   const out = front + foot.out;
   /** Fills an outline with a colour. */
   const fill = (points: Projected[], style: string | CanvasGradient): void => {
@@ -1821,19 +2234,24 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
   g.fill();
   fill(facing(from, to, foot.height, 0, out), 'rgba(0, 4, 18, 0.55)');
 
-  // The slide, and the dark where it goes in under the lip.
-  const board = [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, SLOPE.long, time), slopeSpot(from, SLOPE.long, time)].map(seen);
+  // The well under the lip. What is seen down it is the pusher's face in the shade, and that is all: whatever has gone down it is under the catcher.
+  const well = wellCorners(time).map(seen);
+  const pit = g.createLinearGradient(0, well[0].y, 0, well[2].y);
+  pit.addColorStop(0, WELL_SHADE[0]);
+  pit.addColorStop(1, WELL_SHADE[1]);
+  fill(well, pit);
+
+  // The slide, from the well's edge down to its foot, and the bright edge it turns to the well.
+  const board = [slopeSpot(from, gap, time), slopeSpot(to, gap, time), slopeSpot(to, SLOPE.long, time), slopeSpot(from, SLOPE.long, time)].map(seen);
   const steel = g.createLinearGradient(0, board[0].y, 0, board[2].y);
   steel.addColorStop(0, '#7f8aad');
   steel.addColorStop(1, '#dfe5f4');
   fill(board, steel);
-  const under = [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, CATCHER.back, time), slopeSpot(from, CATCHER.back, time)].map(seen);
-  const dark = g.createLinearGradient(0, under[0].y, 0, under[2].y);
-  dark.addColorStop(0, 'rgba(0, 0, 14, 0.8)');
-  dark.addColorStop(1, 'rgba(0, 0, 14, 0)');
-  fill(under, dark);
+  g.strokeStyle = 'rgba(244, 247, 253, 0.9)';
+  g.lineWidth = 1.2;
+  line(g, board[0], board[1]);
 
-  const gold = litSlots(time, wings);
+  const gold = litSlots(time, wings, calm);
   const { ring } = SLOT_SHAPE;
   CHECKERS.positions.forEach((x, index) => {
     const lit = stage.gateGlow[index] / GLOW_TIME;
@@ -1898,7 +2316,7 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
     g.restore();
 
     // The light of it on what is round it: a slot that is lit gold glows, steadily, over its opening and round
-    // it; and one a medal has just gone down flashes over all of it and fades.
+    // it; and one a medal has just gone down bursts with light, out over its frame and the slide, and that fades.
     const glow = (wide: number, strength: number): void => {
       const o = seen(slopeSpot(x, CATCHER.back + START_SLOT.long / 2, time, rim.high));
       const u = seen(slopeSpot(x + 1, CATCHER.back + START_SLOT.long / 2, time, rim.high));
@@ -1915,7 +2333,7 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
     };
     g.globalCompositeOperation = 'lighter';
     if (golden) glow((half + rim.wide) * 1.5, 0.3);
-    if (lit > 0) glow((half + rim.wide) * 1.2, 0.55 * lit);
+    if (lit > 0) glow((half + rim.wide) * (1.2 + BURST.reach * lit), 0.55 * lit);
     g.globalCompositeOperation = 'source-over';
 
     // Its two wings: low fences on the slide. Folded, each lies along the side of the frame. Open, during chance
@@ -1932,6 +2350,20 @@ function drawCatcher(g: CanvasRenderingContext2D, stage: Stage, machine: Machine
       fill([top[3], top[2], foot[2], foot[3]], flank);
       fill(top, wings ? '#fff3a8' : '#f6d877');
     }
+
+    // Its tongue, over the well from the lip to the upper edge of the opening: the side of its web that is turned
+    // to the player, and then its top, which is level with the top of the frame. It is gold while its slot is lit.
+    const bridge = tongueCorners(index, time, wings).map(seen);
+    const web = tongueCorners(index, time, wings, rim.high - TONGUE.deep).map(seen);
+    const beam = tongueHalf(wings);
+    const brass = bright ? TONGUE_BRASS.litSide : TONGUE_BRASS.side;
+    if (shows(x - beam, -1)) fill([bridge[0], bridge[3], web[3], web[0]], brass);
+    if (shows(x + beam, 1)) fill([bridge[1], bridge[2], web[2], web[1]], brass);
+    const run = g.createLinearGradient(0, bridge[0].y, 0, bridge[2].y);
+    const [far, near] = bright ? TONGUE_BRASS.lit : TONGUE_BRASS.top;
+    run.addColorStop(0, far);
+    run.addColorStop(1, near);
+    fill(bridge, run);
 
     // The lamp on the lower bar of its frame: gold, and bigger, while the slot is lit; in the slot's own colour, glowing a little, while it waits.
     const lamp = seen(lampSpot(index, time));
@@ -2068,33 +2500,50 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     g.beginPath();
     g.arc(lamp.x - r * 0.25, lamp.y - r * 0.25, r * 0.45, 0, TAU);
     g.fill();
+    // A lamp a spark has just reached is white hot for a moment, with a wide bloom round it, whether or not the spin it is for is still held.
+    const reached = stage.holdGlow[i] / GLOW_TIME;
+    if (reached > 0) {
+      g.fillStyle = `rgba(255, 251, 224, ${0.5 * reached})`;
+      g.beginPath();
+      g.arc(lamp.x, lamp.y, r * (2.4 + 2.2 * reached), 0, TAU);
+      g.fill();
+      g.fillStyle = `rgba(255, 255, 255, ${reached})`;
+      g.beginPath();
+      g.arc(lamp.x, lamp.y, r * 1.15, 0, TAU);
+      g.fill();
+    }
   }
   bulbs(g, project(0, HEIGHT.sideWall + 2, 2), project(0, HEIGHT.sideWall + 2, OPEN - 2), 12, phase, lights, 2.2);
   bulbs(g, project(W, HEIGHT.sideWall + 2, 2), project(W, HEIGHT.sideWall + 2, OPEN - 2), 12, phase, lights, 2.2);
 
   // The arrows on the chutes beside the open sides glow one after another, away from the wall and toward the
-  // player, which is the way a medal that is lost goes. A chute a medal has just gone down is lit for a moment.
+  // player, which is the way a medal that is lost goes, and the arrows in the mouth round the corner after them,
+  // from the side toward the tray. A hole a medal has just gone down is lit for a moment, the side's chute and the
+  // mouth alike: it is one hole.
   g.lineJoin = 'round';
   g.lineCap = 'round';
   for (const index of [0, 1]) {
     const side = index === 0 ? -1 : 1;
-    for (let i = 0; i < CHUTE.marks.length; i++) {
+    for (let i = 0; i < CHUTE.marks.length + SIDE_HOLE.marks.length; i++) {
       const glow = calm ? 0.3 : 0.12 + 0.5 * Math.max(0, Math.sin(stage.clock * 3.2 - i * 1.3));
       g.strokeStyle = `rgba(255, 150, 160, ${glow})`;
-      g.lineWidth = 7;
-      chuteArrow(g, side, CHUTE.marks[i]);
+      g.lineWidth = i < CHUTE.marks.length ? 7 : 6;
+      if (i < CHUTE.marks.length) chuteArrow(g, side, CHUTE.marks[i]);
+      else mouthArrow(g, side, SIDE_HOLE.marks[i - CHUTE.marks.length]);
     }
     if (stage.sideGlow[index] <= 0) continue;
     g.fillStyle = `rgba(255, 70, 96, ${0.45 * (stage.sideGlow[index] / GLOW_TIME)})`;
     path(g, chutePatch(side));
     g.fill();
+    path(g, mouthPatch(side));
+    g.fill();
   }
   if (stage.trayGlow > 0) {
     g.fillStyle = `rgba(255, 214, 92, ${0.4 * (stage.trayGlow / GLOW_TIME)})`;
-    path(g, [project(0, 0, D), project(W, 0, D), project(W, -18, D), project(0, -18, D)]);
+    path(g, [project(TRAY.from, 0, D), project(TRAY.to, 0, D), project(TRAY.to, -18, D), project(TRAY.from, -18, D)]);
     g.fill();
   }
-  bulbs(g, project(2, -3, D), project(W - 2, -3, D), 30, phase, ['#ffd65c', '#fff3a8'], 2.4);
+  bulbs(g, project(TRAY.from + 1.3, -3, D), project(TRAY.to - 1.3, -3, D), TRAY_BULBS, phase, ['#ffd65c', '#fff3a8'], 2.4);
 
   // The pusher is a box of clear acrylic. Its front face, lighter toward the bright edge of the sheet on top of it, and the shadow it throws on the lower table.
   const face = [project(0, 0, front), project(W, 0, front), project(W, P, front), project(0, P, front)];
@@ -2118,12 +2567,13 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
 
   // The lower table's medals come before the catcher, which hangs over the ones at the foot of the pusher's face and
   // covers them. A ball whose middle has come out from under its foot is taller than it and stands before it, so it
-  // comes after. Whatever has just come over the lip at the catcher is on its slide or in the air off its foot,
-  // above everything it passes, and is drawn last of all the medals: a medal sliding down it, into a slot or off
-  // its foot, and a ball rolling down it. Once it has come down in front of the foot it lies on the lower table,
-  // where the catcher has it until the engine has it there too, and is drawn with the lower table's own: under the
-  // catcher, when the catcher comes over it. A jewel is lower than the catcher and lies under it like a medal.
-  // Every list is drawn from the back forward, so that of two things that overlap, the nearer is the one seen.
+  // comes after. Whatever has just come over the lip at the catcher is on its way down it, above everything it
+  // passes, and is drawn last of all the medals: a medal on its tongue, going into its slot or going down into the
+  // well, and a ball rolling down the slide. Once a medal is down it is under the catcher, where the engine has it,
+  // and is drawn with the lower table's own, which the catcher covers. A ball that has come down in front of the
+  // foot stands there, where the catcher has it, until the engine has it there too. A jewel is lower than the
+  // catcher and lies under it like a medal. Every list is drawn from the back forward, so that of two things that
+  // overlap, the nearer is the one seen.
   const lower: Medal[] = [];
   const upper: Medal[] = [];
   const sliding: Sliding[] = [];
@@ -2134,13 +2584,13 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
       upper.push(medal);
       continue;
     }
-    const held = caught(medal, machine.time, calm, wings, machine.medals);
+    const held = caught(medal, machine.time, calm, wings);
     const rolled = held ? null : rolling(medal, BALL_RADIUS, machine.time);
-    if (held && held.leg !== 'table') sliding.push({ medal, held });
+    if (held) sliding.push({ medal, held });
     else if (rolled && rolled.leg !== 'table') going.push({ ball: medal, at: rolled });
     else {
-      // Where it lies: where the catcher has it, if the catcher has it on the lower table, and where the engine has it if not.
-      const lain = held ? lyingWhereCaught(medal, held) : rolled ? { ...medal, x: rolled.x, y: rolled.depth, sinceDrop: -1 } : medal;
+      // Where it lies: where the catcher has it, if it is a ball the catcher has standing on the lower table, and where the engine has it if not.
+      const lain = rolled ? { ...medal, x: rolled.x, y: rolled.depth, sinceDrop: -1 } : medal;
       if (lain.ball && lain.y >= front + CATCHER.foot.out && underCatcher(lain.x, lain.y, BALL_RADIUS * 2, machine.time)) clear.push(lain);
       else lower.push(lain);
     }
@@ -2182,13 +2632,25 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   g.strokeStyle = 'rgba(236, 252, 255, 0.95)';
   g.lineWidth = 2.5;
   line(g, top[3], top[2]);
-  drawMedals(g, stage, upper, P, shake);
+  // The tower lifts' hatches are in the deck, under whatever lies on it (works2d.ts).
+  drawHatches(g, k, machine, front, calm, shake);
+  // A tower that a lift still holds is not standing on the deck yet: the lift draws it, as far up through its hatch as it has come.
+  drawMedals(g, stage, offLifts(machine, upper), P, shake);
   jewelsOf(upper);
-  // The guards of the lifts that are bringing towers up through the deck (works2d.ts).
-  drawLifts(g, k, machine, front, calm, shake, (tower) => drawTower(g, stage, tower, P, shake));
+  // The lifts that are bringing towers up through the deck, each with its tower and its guard (works2d.ts).
+  drawLifts(
+    g,
+    k,
+    machine,
+    front,
+    calm,
+    shake,
+    (tower) => drawTower(g, stage, tower, P, shake),
+    (point, id) => stamp(g, stage, point, point.tilt, turnOf(id), shake),
+  );
   // What has just come over the lip at the catcher is drawn where the catcher has it, not lying where the engine has
-  // already put it: the medals on its slide, the nearest to the lip first, and a ball rolling down it. A jewel fits
-  // no slot and goes down the slide as a medal that fits none does.
+  // already put it: the medals on their way down it, the nearest to the lip first, and a ball rolling down its
+  // slide. A jewel fits no slot and goes down into the well as a medal that fits none does.
   sliding.sort((a, b) => a.held.depth - b.held.depth || byDepth(a.medal, b.medal));
   for (const slid of sliding) {
     if (slid.medal.jewel) drawJewel(g, stage, lyingJewel(slid.medal, machine.time), false, calm, shake);
@@ -2333,6 +2795,16 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     const depth = exit.y + (won ? EXIT.forward * a : 0);
     // Over the front it drops out of sight below the edge of the glass; into a side pit it is lost in the dark.
     g.globalAlpha = won ? 1 : Math.max(0, 1 - (a / (EXIT_TIME * 0.7)) ** 2);
+    if (exit.corner) {
+      // Over the front edge at a side hole's mouth. A ball or a jewel crosses it on the bars, which are laid first:
+      // it comes after them. A medal tips over the edge and drops into the mouth, on to the chute, and is gone down it.
+      if (exit.ball || exit.jewel) continue;
+      const sunk = sinking(exit.x, exit.y, exit.side, a, T);
+      const point = project(sunk.x, sunk.height + T / 2, sunk.depth);
+      // Its nose goes down toward the player, who looks down on it: the further it tips, the more of its face is seen.
+      stamp(g, stage, point, Math.abs(Math.sin(Math.asin(point.tilt) + sunk.tilt)), turnOf(exit.id), shake, 1, exit.id);
+      continue;
+    }
     if (exit.ball) {
       drawBall(g, stage, x, -fall, depth, false, shake);
       continue;
@@ -2348,6 +2820,20 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
     stamp(g, stage, point, Math.max(0.12, point.tilt * Math.abs(Math.cos(turn))), turnOf(exit.id), shake, 1, exit.id);
   }
   g.globalAlpha = 1;
+  // The ball rails across the mouths, over whatever has gone down them; and on the rails, a ball or a jewel that went
+  // over at a corner, rolling along them to the tray.
+  flat();
+  for (const side of [-1, 1]) layRails(g, side);
+  for (const exit of stage.exits) {
+    if (!exit.corner || !(exit.ball || exit.jewel)) continue;
+    if (exit.ball) {
+      const at = railed(exit.x, exit.y, exit.side, exit.age, BALL_RADIUS, calm);
+      drawBall(g, stage, at.x, at.height - BALL_RADIUS, at.depth, false, shake);
+    } else {
+      drawJewel(g, stage, railedJewel(exit, calm), false, calm, shake);
+    }
+  }
+  flat();
   // The light falls off across the field: strongest where the pusher meets the lower table, under the roof's
   // lamps, and dim toward the side walls and the front corners. One shade over everything that has been drawn.
   flat();
@@ -2405,6 +2891,7 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
   g.font = '900 26px "Arial Black", Arial, sans-serif';
   g.lineJoin = 'round';
   for (const popup of stage.popups) {
+    if (popup.word) continue;
     g.globalAlpha = Math.max(0, 1 - popup.age ** 2);
     const y = popup.y - popup.age * 46;
     g.lineWidth = 5;
@@ -2412,6 +2899,54 @@ export function drawOverlay(g: CanvasRenderingContext2D, stage: Stage, calm = fa
     g.strokeText(popup.text, popup.x, y);
     g.fillStyle = popup.color ?? '#ffe98a';
     g.fillText(popup.text, popup.x, y);
+  }
+  // The words over the START slots. One pops up, a little too big at first, stands, and is gone; where nothing may move it only stands and is gone.
+  for (const popup of stage.popups) {
+    if (!popup.word) continue;
+    const { size, still } = popup.word;
+    const through = popup.age / BURST.word;
+    const pop = still ? 1 : popup.age < 0.08 ? 0.6 + 7.5 * popup.age : popup.age < 0.18 ? 1.2 - 2 * (popup.age - 0.08) : 1;
+    g.globalAlpha = Math.max(0, Math.min(1, (1 - through) / 0.3));
+    g.font = `900 ${size * pop}px "Arial Black", Arial, sans-serif`;
+    const y = popup.y - (still ? 0 : 16 * through);
+    g.lineWidth = size * 0.2;
+    g.strokeStyle = '#2a0f3a';
+    g.strokeText(popup.text, popup.x, y);
+    g.fillStyle = popup.color ?? ENTRY_INK.start;
+    g.fillText(popup.text, popup.x, y);
+  }
+  g.globalAlpha = 1;
+  // The sparks on their way from a START slot up to the hold's lamps: each a bright head with a tail behind it, gold and bigger for a gold spin.
+  for (const entry of stage.entries) {
+    if (entry.run < 0) continue;
+    const lamp = project(HOLD_LAMPS.first + HOLD_LAMPS.step * lampFor(stage, entry), (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
+    const gold = goldEntry(entry);
+    const along = (share: number): { x: number; y: number } => {
+      const eased = share * share * (3 - 2 * share);
+      return { x: entry.from.x + (lamp.x - entry.from.x) * eased, y: entry.from.y + (lamp.y - entry.from.y) * eased };
+    };
+    const share = Math.min(1, entry.run / BURST.run);
+    const head = along(share);
+    const tail = along(Math.max(0, share - 0.3));
+    const ink = gold ? ENTRY_INK.gold : ENTRY_INK.start;
+    g.lineCap = 'round';
+    g.strokeStyle = ink;
+    for (const [alpha, width] of [
+      [0.25, gold ? 11 : 8],
+      [0.9, gold ? 4.5 : 3],
+    ]) {
+      g.globalAlpha = alpha;
+      g.lineWidth = width;
+      g.beginPath();
+      g.moveTo(tail.x, tail.y);
+      g.lineTo(head.x, head.y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(head.x, head.y, gold ? 5.5 : 4, 0, TAU);
+    g.fill();
   }
   g.globalAlpha = 1;
 

@@ -9,7 +9,8 @@
  * plate shows the machine the player is looking at, and follows it when it is
  * rebuilt. The START mouths in particular are whatever catcher.ts says they
  * are on the drawing (`startMouths`): the pockets in its slide, each an
- * opening with square corners that a medal slides into lying flat. A mouth
+ * opening with square corners at the end of a tongue that a medal rides to
+ * it, lying flat, over the well under the lip. A mouth
  * that is handed in as a round hole is drawn round, and one that is a slit
  * as a slit with the medal going down it on its edge.
  *
@@ -20,13 +21,14 @@
 
 import { Fragment, type ReactNode } from 'react';
 import { HATCH, SLOT, armCollar, armTip } from './arms';
-import { APRON, CATCHER, SLOPE, apronSpot, mouthOnDrawing, mouthSpot, slopeSpot, slotCorners } from './catcher';
+import { APRON, CATCHER, SLOPE, apronSpot, mouthOnDrawing, mouthSpot, slopeSpot, slotCorners, tongueCorners } from './catcher';
 import { ARM_REACH, CHECKERS, FIELD, LANDING, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, type Arm } from './engine';
 import type { Bonus } from './lottery';
 import type { PlateRules, StepId } from './plateData';
 import { ReelSymbol } from './ReelSymbols';
 import { BOWL_SHAPE } from './screen';
-import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, project } from './view';
+import { SIDE_HOLE, acrossAt } from './sidehole';
+import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, project, rise } from './view';
 import styles from './InstructionPlate.module.css';
 
 /** The inks the plate is printed in. */
@@ -134,13 +136,42 @@ const tone = (art: string): string => `url(#${toneId(art)})`;
 
 // ── The parts of the cabinet ────────────────────────────────────────────────
 
-/** The lower table, from the foot of the pusher to the front edge, and the cabinet's front under it. */
+/** How far under the front edge the plate shows the cabinet's front and the side holes' mouths, and how wide the red edge over a mouth is printed. */
+const FRONT_DROP = 9;
+const HOLE_EDGE = 1.8;
+
+/**
+ * A side hole's mouth under the front edge at a corner, where the cabinet has
+ * it (sidehole.ts): the dark of the hole from the side of the table to the
+ * tray's cheek, the red edge that warns of it, and the cheek. The plate is a
+ * print, and leaves the ball rail across the mouth out.
+ */
+export function holeMouth(side: number): Shape[] {
+  const D = FIELD.depth;
+  const from = side < 0 ? 0 : W;
+  const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+  const tray = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+  return [
+    { d: outline([from, 0, D], [hole, 0, D], [hole, -FRONT_DROP, D], [from, -FRONT_DROP, D]), fill: INK.key },
+    { d: outline([from, 0, D - HOLE_EDGE], [hole, 0, D - HOLE_EDGE], [hole, 0, D], [from, 0, D]), fill: INK.red, line: 0.8 },
+    { d: outline([hole, 0, D], [tray, 0, D], [tray, -FRONT_DROP, D], [hole, -FRONT_DROP, D]), fill: INK.steel },
+  ];
+}
+
+/**
+ * The lower table, from the foot of the pusher to the front edge, and the
+ * cabinet's front under it: the tray's stretch in the middle, between its
+ * cheeks, and a side hole's mouth at each corner.
+ */
 function table(art: string): Shape[] {
-  const front = outline([0, 0, FIELD.depth], [W, 0, FIELD.depth], [W, -9, FIELD.depth], [0, -9, FIELD.depth]);
+  const tray: [number, number] = [SIDE_HOLE.reach + SIDE_HOLE.cheek, W - SIDE_HOLE.reach - SIDE_HOLE.cheek];
+  const front = outline([tray[0], 0, FIELD.depth], [tray[1], 0, FIELD.depth], [tray[1], -FRONT_DROP, FIELD.depth], [tray[0], -FRONT_DROP, FIELD.depth]);
   return [
     { d: outline([0, 0, LIP], [W, 0, LIP], [W, 0, FIELD.depth], [0, 0, FIELD.depth]), fill: INK.cyan },
     { d: front, fill: INK.purpleDark },
     { d: front, fill: tone(art), line: 0 },
+    ...holeMouth(-1),
+    ...holeMouth(1),
   ];
 }
 
@@ -232,9 +263,11 @@ type Point = readonly [x: number, y: number];
  * The catcher's own are pockets: openings with square corners in its slide,
  * which leans toward the player. `pocket` holds the corners of such an
  * opening on the drawing, and of the frame round it: the upper edge from the
- * left, and then the lower from the right. A mouth without them is drawn from
- * its measures: `round` says whether it is a round hole, which is seen as an
- * oval, or a slit.
+ * left, and then the lower from the right; and the corners of its tongue,
+ * the bridge a medal rides to it over the well under the lip: its end at the
+ * lip from the left, and then its end at the pocket from the right. A mouth
+ * without them is drawn from its measures: `round` says whether it is a
+ * round hole, which is seen as an oval, or a slit.
  */
 export interface Mouth {
   x: number;
@@ -243,7 +276,7 @@ export interface Mouth {
   tall: number;
   rim: number;
   round: boolean;
-  pocket?: { opening: readonly Point[]; frame: readonly Point[] };
+  pocket?: { opening: readonly Point[]; frame: readonly Point[]; tongue: readonly Point[] };
 }
 
 /** The mouths of the START pockets, from the left. Everything the plate draws of them is drawn from this. */
@@ -254,7 +287,8 @@ export function startMouths(): Mouth[] {
     const mouth = mouthOnDrawing(chucker, MID_STROKE);
     // The opening at the top of its frame, and the frame's outer edge, as the cabinet's own drawing has them.
     const corners = (grow: number): Point[] => slotCorners(chucker, MID_STROKE, false, grow, CATCHER.rim.high).map((corner) => xy(corner.x, corner.height, corner.depth));
-    return { ...mouth, rim: CATCHER.rim.wide * seen.scale, round: false, pocket: { opening: corners(0), frame: corners(CATCHER.rim.wide) } };
+    const tongue = tongueCorners(chucker, MID_STROKE).map((corner): Point => xy(corner.x, corner.height, corner.depth));
+    return { ...mouth, rim: CATCHER.rim.wide * seen.scale, round: false, pocket: { opening: corners(0), frame: corners(CATCHER.rim.wide), tongue } };
   });
 }
 
@@ -270,6 +304,9 @@ export const mouthOutline = (mouth: Mouth, grow = 0): string =>
       ? oval(mouth.x, mouth.y, mouth.wide / 2 + grow, mouth.tall / 2 + grow * (mouth.tall / mouth.wide))
       : box(mouth.x - mouth.wide / 2 - grow, mouth.y - mouth.tall / 2 - grow, mouth.wide + grow * 2, mouth.tall + grow * 2, Math.min(mouth.wide, mouth.tall) / 2 + grow);
 
+/** The outline of a pocket's tongue, corner to corner, or nothing for a mouth that has none. */
+export const tongueOutline = (mouth: Mouth): string | null => (mouth.pocket ? `M${mouth.pocket.tongue.map(([x, y]) => `${n(x)} ${n(y)}`).join('L')}Z` : null);
+
 /** How a medal goes down a mouth: sliding into a pocket, lying flat into a round hole, and standing on its edge into a slit. */
 export const dropPose = (mouth: Mouth): 'slide' | 'flat' | 'edge' => (mouth.pocket ? 'slide' : mouth.round ? 'flat' : 'edge');
 
@@ -280,21 +317,28 @@ const onSlide = (x: number, down: number, lift = 0): V3 => {
 };
 
 /**
- * The catcher hung under the pusher's lip: its slide, which leans from the
- * lip down toward the player, with the START mouths in it, and on the last of
- * the slide down to its foot the strip with the words.
+ * The catcher hung under the pusher's lip: the well under the lip, which is
+ * dark; its slide, which leans from the well's edge down toward the player,
+ * with the START mouths in it; a tongue from the lip over the well to each
+ * mouth; and on the last of the slide down to its foot the strip with the
+ * words. Mouths that are handed in without tongues are holes in a slide that
+ * begins at the lip, with no well.
  */
 function catcher(art: string, mouths: readonly Mouth[]): Shape[] {
-  const { from, to } = CATCHER;
+  const { from, to, gap } = CATCHER;
   const words = SLOPE.long - APRON;
-  const top = outline(onSlide(from, 0), onSlide(to, 0), onSlide(to, words), onSlide(from, words));
+  const tongues = mouths.flatMap((mouth) => tongueOutline(mouth) ?? []);
+  const head = tongues.length > 0 ? gap : 0;
+  const top = outline(onSlide(from, head), onSlide(to, head), onSlide(to, words), onSlide(from, words));
   return [
+    ...(head > 0 ? [{ d: outline(onSlide(from, 0), onSlide(to, 0), onSlide(to, gap), onSlide(from, gap)), fill: INK.purpleDark }] : []),
     { d: top, fill: INK.white },
     { d: top, fill: tone(art), line: 0 },
     ...mouths.flatMap((mouth) => [
       { d: mouthOutline(mouth, mouth.rim), fill: INK.gold },
       { d: mouthOutline(mouth), fill: INK.key, line: 0 },
     ]),
+    ...tongues.map((d) => ({ d, fill: INK.gold, line: 0.9 })),
     { d: outline(onSlide(from, words), onSlide(to, words), onSlide(to, SLOPE.long), onSlide(from, SLOPE.long)), fill: INK.magenta },
   ];
 }
@@ -318,8 +362,10 @@ function medal(x: number, depth: number, up = false, sink = 0): Shape[] {
   const spot = project(x, (up ? P : 0) + HEIGHT.medal, depth);
   const rx = MEDAL_RADIUS * spot.scale;
   const ry = rx * spot.tilt;
+  // Its rim shows under its face: as much of it as the camera sees of a medal's thickness there.
+  const rim = HEIGHT.medal * rise(spot);
   return [
-    { d: oval(spot.x, spot.y + sink + rx * 0.22, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
+    { d: oval(spot.x, spot.y + sink + rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
     { d: oval(spot.x, spot.y + sink, rx, ry), fill: INK.gold, line: 0.8, flat: true },
     { d: oval(spot.x, spot.y + sink, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
   ];
@@ -558,12 +604,17 @@ const Aim = ({ mouths }: ArtProps) => {
   );
 };
 
-/** 3. Medals pushed over the front edge are won; those squeezed out of the open sides are gone. */
+/** Where the push drawing's marks stand: how far in from the side the medal that goes down each mouth is, and how far from the middle of the tray each of its two arrows. */
+export const PUSH_MARKS = { lost: SIDE_HOLE.reach / 2 - 0.5, won: 108 } as const;
+
+/** 3. Medals pushed over the middle of the front edge are won; those squeezed out of the open sides, or pushed over a front corner into the side hole's mouth there, are gone. */
 const Push = ({ words, mouths }: ArtProps) => {
   const view: View = [-66, 474, 772, 515];
   const front = project(50, 0, FIELD.depth);
   const open = project(0, 0, (FIELD.sideOpenFrom + FIELD.depth) / 2);
   const openRight = project(W, 0, (FIELD.sideOpenFrom + FIELD.depth) / 2);
+  const hole = project(PUSH_MARKS.lost, 0, FIELD.depth);
+  const holeRight = project(W - PUSH_MARKS.lost, 0, FIELD.depth);
   return (
     <Sheet art="push" view={view} fine={124}>
       {(k) => (
@@ -583,12 +634,19 @@ const Push = ({ words, mouths }: ArtProps) => {
               // The pusher shoves forward.
               { d: arrow(120, 590, 120, 672, 22), fill: INK.white },
               { d: arrow(520, 590, 520, 672, 22), fill: INK.white },
-              // Over the front edge: won.
+              // Over the middle of the front edge, into the tray: won.
               ...medal(34, 100.5, false, 26),
               ...medal(47, 101, false, 60),
               ...medal(62, 100.5, false, 34),
-              { d: arrow(front.x - 160, front.y + 32, front.x - 160, front.y + 140, 32), fill: INK.green },
-              { d: arrow(front.x + 160, front.y + 32, front.x + 160, front.y + 140, 32), fill: INK.green },
+              { d: arrow(front.x - PUSH_MARKS.won, front.y + 32, front.x - PUSH_MARKS.won, front.y + 140, 32), fill: INK.green },
+              { d: arrow(front.x + PUSH_MARKS.won, front.y + 32, front.x + PUSH_MARKS.won, front.y + 140, 32), fill: INK.green },
+              // Over the front edge at a corner, down the side hole's mouth: lost.
+              ...medal(PUSH_MARKS.lost, 100.5, false, 16),
+              ...medal(W - PUSH_MARKS.lost, 100.5, false, 16),
+              { d: arrow(hole.x, hole.y + 44, hole.x, hole.y + 100, 18), fill: INK.red },
+              { d: arrow(holeRight.x, holeRight.y + 44, holeRight.x, holeRight.y + 100, 18), fill: INK.red },
+              ...lostMark(hole.x, hole.y + 128, 22),
+              ...lostMark(holeRight.x, holeRight.y + 128, 22),
               // Out of the open sides: lost.
               ...medal(-4.5, 88),
               ...medal(104.5, 90),
@@ -611,30 +669,34 @@ const Push = ({ words, mouths }: ArtProps) => {
 /** A medal standing on its edge: how much larger than life it is drawn, and how tall it looks for its width when it is seen face on. */
 const EDGE_ON = { larger: 1.3, tall: 0.94 } as const;
 
-/** How far down the slide from the lip the middle of the medal that is sliding into a pocket is drawn: it has just come off the lip, its nose is over the upper edge of the opening, and the opening shows below it. */
-const SLIDING_AT = CATCHER.back - MEDAL_RADIUS * 0.9;
+/** How far down its tongue from the lip the middle of the medal that is sliding into a pocket is drawn: it is out over the well, its tail off the lip, its nose over the upper edge of the opening, and the opening shows below it. */
+const SLIDING_AT = CATCHER.back - MEDAL_RADIUS * 0.8;
+/** How far clear of the catcher's top the middle of that medal is: half its thickness over the top of the tongue it lies on. */
+const SLIDING_CLEAR = CATCHER.rim.high + MEDAL_THICKNESS / 2;
 
 /**
  * The medal that is about to go down a mouth, and the arrow that says so.
- * Into a pocket it slides: it lies flat on the catcher's slide with its face
- * up, come off the lip, its nose at the opening, and the arrow goes from it
- * down the slide into the pocket. Into a round hole it tips
+ * Into a pocket it slides: it lies flat on the pocket's tongue with its face
+ * up, out over the well, its nose at the opening, and the arrow goes from it
+ * down the tongue into the pocket. Into a round hole it tips
  * over the lip lying flat. Into a slit it stands on its edge, half in
  * already: side on in a slit that runs away from the player, and face on in
  * one that runs across.
  */
 function dropping(mouth: Mouth, chucker: number): Shape[] {
   if (mouth.pocket) {
-    // As wide as a medal is there, and as tall as the camera sees one that lies on the slide.
+    // As wide as a medal is there, and as tall as the camera sees one that lies on the tongue.
     const x = CHECKERS.positions[chucker];
-    const [cx, cy] = xy(...onSlide(x, SLIDING_AT, MEDAL_THICKNESS / 2));
-    const rx = Math.abs(xy(...onSlide(x + MEDAL_RADIUS, SLIDING_AT, MEDAL_THICKNESS / 2))[0] - cx);
-    const ry = Math.abs(xy(...onSlide(x, SLIDING_AT + MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1] - xy(...onSlide(x, SLIDING_AT - MEDAL_RADIUS, MEDAL_THICKNESS / 2))[1]) / 2;
+    const [cx, cy] = xy(...onSlide(x, SLIDING_AT, SLIDING_CLEAR));
+    const rx = Math.abs(xy(...onSlide(x + MEDAL_RADIUS, SLIDING_AT, SLIDING_CLEAR))[0] - cx);
+    const ry = Math.abs(xy(...onSlide(x, SLIDING_AT + MEDAL_RADIUS, SLIDING_CLEAR))[1] - xy(...onSlide(x, SLIDING_AT - MEDAL_RADIUS, SLIDING_CLEAR))[1]) / 2;
+    // Its rim shows under its face: a medal's thickness nearer the tongue, as the camera sees that there.
+    const rim = xy(...onSlide(x, SLIDING_AT, SLIDING_CLEAR - MEDAL_THICKNESS))[1];
     return [
-      { d: oval(cx, cy + rx * 0.16, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
+      { d: oval(cx, rim, rx, ry), fill: INK.goldDark, line: 0.8, flat: true },
       { d: oval(cx, cy, rx, ry), fill: INK.gold, line: 0.8, flat: true },
       { d: oval(cx, cy, rx * 0.62, ry * 0.62), fill: INK.goldLight, line: 0 },
-      // From its middle down the slide, into the pocket.
+      // From its middle down the tongue, into the pocket.
       { d: arrow(cx, cy - ry * 0.35, mouth.x, mouth.y + mouth.tall * 0.32, 8), fill: INK.red },
     ];
   }
@@ -1004,12 +1066,15 @@ const MOUTH_KIND = kindOf(startMouths());
 
 /**
  * The compact plate's picture of the START mouths: three pockets with square
- * corners and a medal sliding flat into the middle one, three round holes
- * with a medal lying over them, or three slits with one on its edge.
+ * corners, the dark well over them with a tongue across it to each, and a
+ * medal sliding flat along the middle tongue; three round holes with a medal
+ * lying over them; or three slits with one on its edge.
  */
 const miniStart = (kind: MouthKind): Shape[] => [
+  ...(kind === 'pockets' ? [{ d: box(2, 5, 40, 10, 2), fill: INK.purpleDark }] : []),
   { d: box(2, 13, 40, 11, 2), fill: INK.white },
   { d: box(2, 22, 40, 6, 1.5), fill: INK.magenta },
+  ...(kind === 'pockets' ? [9.5, 22, 34.5].map((x) => ({ d: box(x - 1.1, 5, 2.2, 9.6, 0.4), fill: INK.gold, line: 0.6 })) : []),
   ...[9.5, 22, 34.5].flatMap((x) =>
     kind === 'pockets'
       ? [

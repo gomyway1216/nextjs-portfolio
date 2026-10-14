@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DROP_INTERVAL, TOWER } from '@/components/game/MedalPusher/engine';
+import { DROP_INTERVAL, START_RIDE, TOWER } from '@/components/game/MedalPusher/engine';
 import {
   HAPTICS,
   HAPTIC_NAMES,
@@ -182,6 +182,57 @@ describe('the rule for what may be felt when', () => {
     expect(mayBuzz(state, 'stream', 5100)).toBe(false);
     expect(mayBuzz(state, 'stream', 100)).toBe(true);
     expect(afterBuzz(UNFELT, 'jackpot', 10)).toMatchObject({ until: 10 + hapticLength('jackpot'), rank: HAPTICS.jackpot.rank });
+  });
+});
+
+describe('a medal through a START pocket', () => {
+  const riding: SessionEvent = { type: 'riding', gate: 1, lit: true, seconds: START_RIDE };
+  const plain: SessionEvent = { type: 'checker', gate: 2, held: true, gold: false, lucky: false };
+  const lucky: SessionEvent = { type: 'checker', gate: 0, held: true, gold: false, lucky: true };
+  const wasted: SessionEvent = { type: 'checker', gate: 2, held: false, gold: false, lucky: false };
+
+  it('is felt as it drops into the pocket, which is when the machine takes it, and not as it comes over the lip on to its tongue', () => {
+    // The frame it comes over the lip in: it is on its tongue, lit pocket or not, and the hand is told nothing of it yet.
+    expect(hapticFor([riding])).toBeNull();
+    // What else happened in that frame is felt as it always was.
+    const won: SessionEvent = { type: 'won', count: 2 };
+    expect(hapticFor([won, riding], 'feed')).toBe('catch');
+    // The frame it drops in: the pocket is felt then, as what the medal came to.
+    expect(hapticFor([plain])).toBe('start');
+    expect(hapticFor([lucky])).toBe('gold');
+    expect(hapticFor([won, plain, lucky])).toBe('gold');
+    // A medal that found the hold full is not felt at the pocket, at the lip or at the drop.
+    expect(hapticFor([wasted])).toBeNull();
+    // One medal dropping as another comes over a lit pocket: it is the one that drops that is felt, as what it is.
+    expect(hapticFor([riding, plain])).toBe('start');
+  });
+
+  it('is felt a ride after it came over, on a machine that is played, and at once where nothing is shown moving', { timeout: 30_000 }, () => {
+    const DT = 1 / 60;
+    for (const still of [false, true]) {
+      const session = createSession(7);
+      const events: SessionEvent[] = [];
+      /** The frames a medal came over on to a tongue in, and the frames a held medal was felt in. */
+      const over: number[] = [];
+      const felt: number[] = [];
+      for (let frame = 0; frame < 60 * 60 && felt.length < 3; frame++) {
+        if (frame % 15 === 0) insert(session, frame % 30 === 0 ? 0 : 1);
+        events.length = 0;
+        advance(session, DT, events, still);
+        if (events.some((event) => event.type === 'riding')) over.push(frame);
+        const feel = hapticFor(events.filter((event) => event.type === 'riding' || event.type === 'checker'));
+        if (feel) felt.push(frame);
+      }
+      expect(felt.length, String(still)).toBe(3);
+      if (still) {
+        // No medal rides: none is said to, and each is felt in the frame it comes over the lip.
+        expect(over).toEqual([]);
+      } else {
+        // Each is felt a ride after a medal came over, to the frame, and never in the frame one comes over.
+        for (const frame of felt) expect(over).toContain(frame - Math.round(START_RIDE / DT));
+        expect(over.filter((frame) => frame + Math.round(START_RIDE / DT) <= felt[2])).toHaveLength(3);
+      }
+    }
   });
 });
 

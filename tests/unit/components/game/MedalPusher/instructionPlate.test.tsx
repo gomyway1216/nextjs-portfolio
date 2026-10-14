@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import { MedalPusher } from '@/components/game/MedalPusher';
 import { InstructionPlate, InstructionPlateDialog, PlateSticker, PlateSwitch } from '@/components/game/MedalPusher/InstructionPlate';
-import { StepArt, StepGlyph, arrow, dropPose, hasArt, holePlaces, mouthOutline, startMouths, type Mouth } from '@/components/game/MedalPusher/PlateArt';
+import { INK, PUSH_MARKS, StepArt, StepGlyph, arrow, dropPose, hasArt, holeMouth, holePlaces, mouthOutline, startMouths, tongueOutline, type Mouth } from '@/components/game/MedalPusher/PlateArt';
 import { AIM_CAPS, KEY_CAPS, PlayTab } from '@/components/game/MedalPusher/PlayTab';
 import { armCollar, armTip } from '@/components/game/MedalPusher/arms';
-import { CATCHER, mouthOnDrawing, slopeSpot, slotCorners } from '@/components/game/MedalPusher/catcher';
-import { CHECKERS, MEDAL_RADIUS, PUSHER, armStart, pusherFront } from '@/components/game/MedalPusher/engine';
+import { CATCHER, mouthOnDrawing, slopeSpot, slotCorners, tongueCorners, wellCorners } from '@/components/game/MedalPusher/catcher';
+import { CHECKERS, FIELD, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, armStart, frontPays, pusherFront } from '@/components/game/MedalPusher/engine';
 import { getStrings } from '@/components/game/MedalPusher/i18n';
 import {
   BOARD,
@@ -37,8 +37,9 @@ import {
 import { PLATE_NOTES, PLATE_RULES, PLATE_STEPS, hotterReach, jackpotPath, payoutLines, type PlateRules, type WinTier } from '@/components/game/MedalPusher/plateData';
 import { getPlateStrings } from '@/components/game/MedalPusher/plateStrings';
 import { holeSpot } from '@/components/game/MedalPusher/screen';
+import { SIDE_HOLE, acrossAt } from '@/components/game/MedalPusher/sidehole';
 import { MAX_STOCK } from '@/components/game/MedalPusher/session';
-import { project } from '@/components/game/MedalPusher/view';
+import { HEIGHT, project, rise } from '@/components/game/MedalPusher/view';
 import { createI18nInstance } from '@/lib/i18n';
 
 type Language = 'en' | 'ja';
@@ -444,8 +445,8 @@ describe('the steps', () => {
   });
 
   it('say at step 4 how a medal gets into a START pocket: it slides in, down the catcher’s slide', () => {
-    expect(getPlateStrings('en').steps.start.line(PLATE_RULES)).toBe(`A medal that slides into a START pocket spins the slot once. Up to ${MAX_STOCK} spins are held.`);
-    expect(getPlateStrings('ja').steps.start.line(PLATE_RULES)).toBe(`メダルが斜面をすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${MAX_STOCK}回まで）`);
+    expect(getPlateStrings('en').steps.start.line(PLATE_RULES)).toBe(`A medal that rides a tongue over the well into a START pocket spins the slot once. Up to ${MAX_STOCK} spins are held.`);
+    expect(getPlateStrings('ja').steps.start.line(PLATE_RULES)).toBe(`メダルが橋をすべって溝をわたり、START チャッカーに入ると、スロットが1回まわるよ！（保留は${MAX_STOCK}回まで）`);
     // And the plate prints it, in both languages, beside the drawing of a medal doing so.
     for (const language of LANGUAGES) {
       const html = plate(language);
@@ -494,19 +495,48 @@ describe('the START mouths', () => {
       expect(mouth).toMatchObject(mouthOnDrawing(chucker, MID));
       expect(mouth.rim).toBeGreaterThan(0);
     });
-    // In every drawing that shows the catcher: each mouth's opening, its rim round it, and START under each.
+    // In every drawing that shows the catcher: each mouth's opening, its rim round it, its tongue, and START under each;
+    // and the well under the lip that the tongues cross, drawn once, before them.
     const html = plate('en');
+    const well = `M${wellCorners(MID)
+      .map((corner) => project(corner.x, corner.height, corner.depth))
+      .map((point) => `${one(point.x)} ${one(point.y)}`)
+      .join('L')}Z`;
     for (const step of CATCHER_STEPS) {
       const art = artOf(html, step);
       expect(art.match(/>START</g)).toHaveLength(mouths.length);
+      expect(art.split(`d="${well}"`).length - 1).toBeGreaterThanOrEqual(1);
       for (const mouth of mouths) {
         expect(art).toContain(`d="${mouthOutline(mouth)}"`);
         expect(art).toContain(`d="${mouthOutline(mouth, mouth.rim)}"`);
+        expect(art).toContain(`d="${tongueOutline(mouth)}"`);
+        expect(art.indexOf(`d="${tongueOutline(mouth)}"`)).toBeGreaterThan(art.indexOf(`d="${well}"`));
       }
     }
   });
 
-  it('are drawn as the pockets the catcher has: openings with square corners in its slide, with the medal sliding in lying flat', () => {
+  it('each have the catcher’s tongue: a narrow bridge from the lip over the well to the upper edge of the opening, where the cabinet’s own drawing has it', () => {
+    const seen = (spot: { x: number; height: number; depth: number }) => project(spot.x, spot.height, spot.depth);
+    startMouths().forEach((mouth, chucker) => {
+      const tongue = mouth.pocket?.tongue ?? [];
+      const own = tongueCorners(chucker, MID).map(seen);
+      expect(tongue).toHaveLength(4);
+      tongue.forEach(([x, y], corner) => expect([x, y]).toEqual([own[corner].x, own[corner].y]));
+      expect(tongueOutline(mouth)).toMatch(/^M[\d.-]+ [\d.-]+(L[\d.-]+ [\d.-]+){3}Z$/);
+      // It ends on the upper edge of the opening, in the middle of it, a good deal narrower than the opening; and it begins higher up the drawing, at the lip.
+      const [upperLeft, upperRight] = mouth.pocket?.opening ?? [];
+      expect(tongue[3][1]).toBeCloseTo(upperLeft[1], 9);
+      expect(tongue[3][0]).toBeGreaterThan(upperLeft[0]);
+      expect(tongue[2][0]).toBeLessThan(upperRight[0]);
+      expect(tongue[2][0] - tongue[3][0]).toBeLessThan((upperRight[0] - upperLeft[0]) / 3);
+      expect((tongue[2][0] + tongue[3][0]) / 2).toBeCloseTo(mouth.x, 0);
+      expect(tongue[0][1]).toBeLessThan(tongue[3][1] - 20);
+    });
+    // A mouth that is handed in as a hole or a slit has none.
+    expect(tongueOutline({ x: 0, y: 0, wide: 10, tall: 5, rim: 1, round: true })).toBeNull();
+  });
+
+  it('are drawn as the pockets the catcher has: openings with square corners in its slide, with the medal sliding in along its tongue lying flat', () => {
     const seen = (spot: { x: number; height: number; depth: number }) => project(spot.x, spot.height, spot.depth);
     const mouths = startMouths();
     mouths.forEach((mouth, chucker) => {
@@ -538,9 +568,9 @@ describe('the START mouths', () => {
       expect(frame[2][1]).toBeGreaterThan(opening[2][1]);
       expect(dropPose(mouth)).toBe('slide');
     });
-    // The medal that is shown going into the middle one lies on the slide over it, face up, just come off the lip: an
-    // oval as wide as a medal is there and flatter, its nose over the upper edge of the opening and the opening still to
-    // be seen under it, with an arrow from it into the pocket.
+    // The medal that is shown going into the middle one lies on its tongue, face up, out over the well: an oval as wide
+    // as a medal is there and flatter, its nose over the upper edge of the opening and the opening still to be seen
+    // under it, with an arrow from it into the pocket.
     const start = artOf(plate('en'), 'start');
     const coin = start.split('data-plate-drop="slide"')[1]?.match(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /g)?.[1]?.match(/M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /);
     if (!coin) throw new Error('no medal is drawn sliding into a pocket');
@@ -556,9 +586,17 @@ describe('the START mouths', () => {
     expect(cy).toBeLessThan(upper);
     expect(cy + ry).toBeGreaterThan(upper);
     expect(cy + ry).toBeLessThan((upper + lower) / 2);
-    // It is where a medal with its middle that far down the slide is seen.
-    const down = CATCHER.back - MEDAL_RADIUS * 0.9;
-    expect(cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, 0.45)).y, 0);
+    // It is where a medal with its middle that far down the tongue is seen, half its thickness clear of the tongue's top; and that far down, its tail is off the lip.
+    const down = CATCHER.back - MEDAL_RADIUS * 0.8;
+    const clear = CATCHER.rim.high + MEDAL_THICKNESS / 2;
+    expect(down).toBeGreaterThan(MEDAL_RADIUS);
+    expect(cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, clear)).y, 1);
+    // Its rim is the oval drawn before it, the same size, a medal's thickness nearer the tongue: as thick as the machine's medals are, and no thicker.
+    const rim = start.split('data-plate-drop="slide"')[1]?.match(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) /);
+    if (!rim) throw new Error('the sliding medal has no rim');
+    expect(rim.slice(1).map(Number)).toEqual([left, expect.any(Number), rx, ry]);
+    expect(Number(rim[2])).toBeGreaterThan(cy);
+    expect(Number(rim[2]) - cy).toBeCloseTo(seen(slopeSpot(CHECKERS.positions[1], down, MID, clear - MEDAL_THICKNESS)).y - seen(slopeSpot(CHECKERS.positions[1], down, MID, clear)).y, 1);
     // The arrow is the last thing drawn of it: from the medal, straight down the drawing, to a point inside the opening.
     const arrowAt = start.split('data-plate-drop="slide"')[1]?.split('</g>')[0]?.match(/d="M[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L[\d.-]+ [\d.-]+L([\d.-]+) ([\d.-]+)L/);
     if (!arrowAt) throw new Error('no arrow is drawn from the medal into the pocket');
@@ -579,8 +617,11 @@ describe('the START mouths', () => {
         expect(art).toContain(`d="${mouthOutline(hole, hole.rim)}"`);
         expect(dropPose(hole)).toBe('flat');
       }
-      // No pocket is left in it.
-      for (const pocket of startMouths()) expect(art).not.toContain(`d="${mouthOutline(pocket)}"`);
+      // No pocket is left in it, and no tongue: holes are in a slide that begins at the lip.
+      for (const pocket of startMouths()) {
+        expect(art).not.toContain(`d="${mouthOutline(pocket)}"`);
+        expect(art).not.toContain(`d="${tongueOutline(pocket)}"`);
+      }
     }
     expect(renderToStaticMarkup(<StepArt step="start" rules={PLATE_RULES} words={words} mouths={holes} />)).toContain('data-plate-drop="flat"');
   });
@@ -640,6 +681,10 @@ describe('the START mouths', () => {
     expect(count(pockets, squared)).toBe(CHECKERS.positions.length);
     expect(count(pockets, framed)).toBe(CHECKERS.positions.length * 2);
     for (const other of [holes, slots]) expect(count(other, squared) + count(other, framed)).toBe(0);
+    // And over the pockets, the well with a tongue across it to each: a bar from the top of the well down to its pocket's frame. Holes and slits have neither.
+    const bridged = /d="M[\d.]+ 5h1\.4a0\.4 0\.4 /g;
+    expect(count(pockets, bridged)).toBe(CHECKERS.positions.length * 2);
+    for (const other of [holes, slots]) expect(count(other, bridged)).toBe(0);
     expect(count(pockets, ovals) + count(pockets, slotted)).toBe(0);
     expect(slots).not.toBe(holes);
   });
@@ -678,6 +723,11 @@ describe('the words', () => {
       expect(t.small.length).toBeGreaterThan(0);
     }
     expect(ja.cautions).toHaveLength(en.cautions.length);
+    // What goes down a side hole is not returned, and the holes turn the front corners: the plate says so where it says what is yours.
+    expect(en.steps.push.line(PLATE_RULES)).toBe('Medals over the middle of the front edge are yours. Off the sides or over a front corner, they are gone.');
+    expect(ja.steps.push.line(PLATE_RULES)).toBe('手前のまん中から落ちたメダルをゲット！ 横や手前の角の穴に落ちるともどらないよ。');
+    expect(en.cautions[0]).toBe('Medals that fall down the side holes are not returned.');
+    expect(ja.cautions[0]).toBe('横や手前の角の穴に落ちたメダルはもどりません。');
     // The Japanese plate is titled as the makers title theirs, and its headings urge.
     expect(ja.title).toBe('遊び方');
     for (const step of PLATE_STEPS) expect(ja.steps[step].head.endsWith('！')).toBe(true);
@@ -817,6 +867,121 @@ describe('where the plate lives', () => {
     const plateOnly = plate('en');
     for (const mark of ['data-tier=', 'data-leads=', 'data-here=', 'data-lit=', 'data-pocket=', 'data-hole=', 'data-on=', 'data-arm=', 'data-badge=', 'data-bowl=', 'data-gold=', 'data-kind=', 'role="tab"', '<canvas']) {
       expect(plateOnly).not.toContain(mark);
+    }
+  });
+});
+
+describe('the medals on the plate', () => {
+  it('are as thick as the machine’s: a medal lying on a table shows as much rim under its face as the camera sees of its thickness', () => {
+    // How much of its own half-width a lying medal's rim shows, anywhere on a table: the camera looks down on all of them at much the same angle.
+    const at = project(50, 0, 60);
+    const share = (HEIGHT.medal * rise(at)) / (MEDAL_RADIUS * at.scale);
+    expect(HEIGHT.medal).toBe(MEDAL_THICKNESS);
+    // A coin, and not a counter: the rim is an eighth of the half-width or so. At twice the thickness it was over a fifth.
+    expect(share).toBeGreaterThan(0.08);
+    expect(share).toBeLessThan(0.16);
+    for (const step of ['push', 'start']) {
+      // Every oval of the drawing that is filled with one of the medal's inks, in the order it is drawn: where its left end is, how high, and how big.
+      const ovals = [...artOf(plate('en'), step).split('data-plate-drop=')[0].matchAll(/d="M([\d.-]+) ([\d.-]+)a([\d.]+) ([\d.]+) [^"]*" fill="(#[0-9a-f]+)"/g)].map(([, left, y, rx, ry, fill]) => ({ left: Number(left), y: Number(y), rx: Number(rx), ry: Number(ry), fill }));
+      const rims = ovals.flatMap((oval, index) => (oval.fill === INK.goldDark && ovals[index + 1]?.fill === INK.gold ? [{ rim: oval, face: ovals[index + 1] }] : []));
+      expect(rims.length).toBeGreaterThan(4);
+      for (const { rim, face } of rims) {
+        // The same oval, lower by the rim: each is written to a tenth of a pixel.
+        expect([rim.left, rim.rx, rim.ry]).toEqual([face.left, face.rx, face.ry]);
+        expect(rim.y - face.y).toBeGreaterThan(0);
+        expect(Math.abs(rim.y - face.y - share * face.rx)).toBeLessThan(0.2);
+      }
+    }
+  });
+});
+
+describe('the side holes on the instruction plate', () => {
+  const D = FIELD.depth;
+  const W = FIELD.width;
+  /** An outline through places of the cabinet, as the plate writes one. */
+  const outlineOf = (corners: [number, number, number][]): string =>
+    `M${corners
+      .map(([x, height, depth]) => project(x, height, depth))
+      .map((point) => `${one(point.x)} ${one(point.y)}`)
+      .join('L')}Z`;
+
+  it('draws a dark mouth with a red edge under each front corner, where the cabinet has it, and the tray’s front between two cheeks', () => {
+    const html = plate('en');
+    const tray: [number, number] = [SIDE_HOLE.reach + SIDE_HOLE.cheek, W - SIDE_HOLE.reach - SIDE_HOLE.cheek];
+    const front = outlineOf([
+      [tray[0], 0, D],
+      [tray[1], 0, D],
+      [tray[1], -9, D],
+      [tray[0], -9, D],
+    ]);
+    // Every drawing that shows the front of the table shows it so.
+    for (const step of ['insert', 'aim', 'push', 'start']) {
+      const art = artOf(html, step);
+      expect(art).toContain(`d="${front}"`);
+      for (const side of [-1, 1]) {
+        const from = side < 0 ? 0 : W;
+        const hole = acrossAt(SIDE_HOLE.reach - SIDE_HOLE.cheek, side);
+        const cheek = acrossAt(SIDE_HOLE.reach + SIDE_HOLE.cheek, side);
+        const [dark, edge, steel] = holeMouth(side);
+        // The dark of the hole, in the key's own black, from the side of the table to the cheek.
+        expect(dark).toMatchObject({ fill: INK.key });
+        expect(dark.d).toBe(
+          outlineOf([
+            [from, 0, D],
+            [hole, 0, D],
+            [hole, -9, D],
+            [from, -9, D],
+          ]),
+        );
+        expect(art).toContain(`<path d="${dark.d}" fill="${INK.key}"`);
+        // The red edge over it, on the table, and the cheek beside it.
+        expect(edge.fill).toBe(INK.red);
+        expect(art).toContain(`<path d="${edge.d}" fill="${INK.red}"`);
+        expect(steel.d).toBe(
+          outlineOf([
+            [hole, 0, D],
+            [cheek, 0, D],
+            [cheek, -9, D],
+            [hole, -9, D],
+          ]),
+        );
+        expect(art).toContain(`<path d="${steel.d}" fill="${INK.steel}"`);
+        // It comes after the tray's front in the drawing, and nothing is printed down the whole width of the table's front.
+        expect(art.indexOf(`d="${dark.d}"`)).toBeGreaterThan(art.indexOf(`d="${front}"`));
+      }
+      expect(art).not.toContain(
+        `d="${outlineOf([
+          [0, 0, D],
+          [W, 0, D],
+          [W, -9, D],
+          [0, -9, D],
+        ])}"`,
+      );
+    }
+  });
+
+  it('shows, where it says what is yours, a medal going down each mouth with a cross under it, and the winnings going into the tray only', () => {
+    for (const language of LANGUAGES) {
+      const art = artOf(plate(language), 'push');
+      // A cross for each way a medal is lost: the two open sides, and the two mouths at the front corners.
+      expect(count(art, new RegExp(`stroke="${INK.red}"`, 'g'))).toBe(4);
+      // The medal that goes down each mouth is well inside it, where the rule loses it.
+      expect(frontPays(PUSH_MARKS.lost)).toBe(false);
+      expect(frontPays(W - PUSH_MARKS.lost)).toBe(false);
+      expect(PUSH_MARKS.lost - MEDAL_RADIUS).toBeGreaterThan(0);
+      expect(PUSH_MARKS.lost + MEDAL_RADIUS).toBeLessThan(SIDE_HOLE.reach - SIDE_HOLE.cheek);
+      for (const x of [PUSH_MARKS.lost, W - PUSH_MARKS.lost]) {
+        const hole = project(x, 0, D);
+        expect(art).toContain(`d="${arrow(hole.x, hole.y + 44, hole.x, hole.y + 100, 18)}" fill="${INK.red}"`);
+      }
+      // The green arrows are under the tray's stretch of the edge, head and all, and clear of the cheeks.
+      const middle = project(50, 0, D);
+      const half = (project(W - SIDE_HOLE.reach - SIDE_HOLE.cheek, 0, D).x - project(SIDE_HOLE.reach + SIDE_HOLE.cheek, 0, D).x) / 2;
+      expect(PUSH_MARKS.won + 32 * 1.15).toBeLessThan(half - 10);
+      for (const way of [-1, 1]) {
+        expect(art).toContain(`d="${arrow(middle.x + way * PUSH_MARKS.won, middle.y + 32, middle.x + way * PUSH_MARKS.won, middle.y + 140, 32)}" fill="${INK.green}"`);
+      }
+      expect(count(art, new RegExp(`fill="${INK.green}"`, 'g'))).toBe(2);
     }
   });
 });

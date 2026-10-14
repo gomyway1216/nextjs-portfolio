@@ -10,7 +10,8 @@
 import { APRON, CATCHER } from './catcher';
 import { FIELD, PUSHER } from './engine';
 import { JEWEL_LAMPS, JEWEL_PLATE, LAMP_OUTLINE, jewelLampX } from './jewel';
-import { paintApron, starPath } from './render';
+import { TABLE_WORDS, TRAY, paintApron, starPath } from './render';
+import { SIDE_HOLE, acrossAt } from './sidehole';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
 const TAU = Math.PI * 2;
@@ -122,10 +123,22 @@ export function paintTable(): HTMLCanvasElement {
   g.textBaseline = 'middle';
   g.font = '900 6.5px "Arial Black", Arial, sans-serif';
   g.fillStyle = 'rgba(244, 208, 96, 0.6)';
-  for (const x of [20, 50, 80]) g.fillText('GET', x, 93.5);
+  for (const x of TABLE_WORDS.get) g.fillText('GET', x, TABLE_WORDS.getAt);
   g.font = '900 4.6px "Arial Black", Arial, sans-serif';
   g.fillStyle = 'rgba(232, 96, 110, 0.7)';
-  for (const x of [7.5, W - 7.5]) g.fillText('OUT', x, 84);
+  for (const [x, depth] of TABLE_WORDS.out) for (const across of [x, W - x]) g.fillText('OUT', across, depth);
+  // The stretch before each side hole's mouth is painted red toward the edge, and a red line is scribed where the
+  // tray's stretch begins: what is pushed over the edge outside the lines is not the player's.
+  for (const side of [-1, 1]) {
+    const from = Math.min(side < 0 ? 0 : W, acrossAt(SIDE_HOLE.reach, side));
+    const wash = g.createLinearGradient(0, TABLE_WORDS.washFrom, 0, D);
+    wash.addColorStop(0, 'rgba(232, 60, 84, 0)');
+    wash.addColorStop(1, 'rgba(232, 60, 84, 0.38)');
+    g.fillStyle = wash;
+    g.fillRect(from, TABLE_WORDS.washFrom, SIDE_HOLE.reach, D - TABLE_WORDS.washFrom);
+    g.fillStyle = 'rgba(255, 107, 129, 0.75)';
+    g.fillRect(acrossAt(SIDE_HOLE.reach, side) - 0.14, TABLE_WORDS.washFrom, 0.28, D - TABLE_WORDS.washFrom);
+  }
   // Scuffs: short bright scratches, any way round, thickest where the medals turn at the front.
   for (let scuff = 0; scuff < 160; scuff++) {
     const x = random() * W;
@@ -349,7 +362,7 @@ export function paintLip(): HTMLCanvasElement {
   g.lineJoin = 'round';
   g.lineCap = 'round';
   for (let x = 14; x < W; x += 12) {
-    if (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to) continue;
+    if (x - 3.2 < TRAY.from || x + 3.2 > TRAY.to || (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to)) continue;
     g.beginPath();
     g.moveTo(x - 3.2, 7.5);
     g.lineTo(x, 13);

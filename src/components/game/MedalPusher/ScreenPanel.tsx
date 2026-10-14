@@ -108,8 +108,8 @@ export function squarePlace(square: number): { column: number; row: number } {
   return { column: 0, row: 1 };
 }
 
-/** Medals in the stack that stands on a square: more for a square that pays more, and a tower on the fever. */
-const squareCoins = (medals: number): number => Math.max(1, Math.round(medals / 2.5));
+/** Medals in the stack that stands on a square: more for a square that pays more, and a tower on the fever, which stands as tall as the screen has always had room for. */
+const squareCoins = (medals: number): number => Math.min(12, Math.max(1, Math.round(medals / 2.5)));
 
 /** The line the piece walks, through the middle of every square, in the units of the board's grid. */
 const TRACK = BOARD_SQUARES.map((_, square) => {

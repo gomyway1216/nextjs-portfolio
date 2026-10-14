@@ -160,22 +160,29 @@ describe('a jewel in the cabinet', () => {
     expect(beside(CHUCKERS.drop).height).toBe(JEWEL_CUT.pavilion);
   });
 
-  it('goes down the catcher’s slide when it comes over the lip there: it fits no START slot', () => {
+  it('goes over the lip’s edge and down into the catcher’s well when it comes over the lip there, out of the light: it fits no START slot, and no tongue carries it', () => {
     const time = 2;
     const front = pusherFront(time);
-    // Over the lip in line with a slot, and between two of them: neither takes it, and neither's frame catches it.
+    // Over the lip in line with a slot, and between two of them: neither takes it, and it is on neither's tongue.
     for (const x of [50, 43]) {
       const medal = jewel(22, x, front + MEDAL_RADIUS, 0, { sinceDrop: CHUCKERS.drop * 0.5 });
       const behind = caught(medal, time);
-      expect([behind?.chucker, behind?.near, behind?.leg]).toEqual([-1, -1, 'slide']);
+      expect([behind?.chucker, behind?.near, behind?.leg]).toEqual([-1, -1, 'gap']);
       const spot = lyingJewel(medal, time);
       expect(spot.x).toBe(x);
-      // It is where a medal that fits no slot is on the slide, leaning as the slide has it, with its point where that medal's lower face would be.
+      // It is where a medal that fits no slot is on its way down the well, tipped as the catcher has that, with its point where that medal's lower face would be; and it is as dark as that medal is.
       expect(spot.depth).toBe(behind?.depth);
       expect(spot.depth).toBeGreaterThan(front);
       expect(spot.tilt).toBe(behind?.tilt);
       expect(spot.height).toBeCloseTo((behind?.height ?? 0) - T / 2 + JEWEL_CUT.pavilion, 9);
       expect(spot.height).toBeLessThan(P + JEWEL_CUT.pavilion);
+      expect(spot.light).toBe(behind?.light);
+      expect(spot.light).toBeLessThan(1);
+      // Once it is down it is under the catcher, where the engine has it, lying as any jewel on the lower table does, in the light it has there.
+      const down = jewel(22, x, front + MEDAL_RADIUS, 0, { sinceDrop: 0.5 });
+      expect(caught(down, time)).toBeNull();
+      expect(lyingJewel(down, time)).toEqual(lyingJewel(jewel(22, x, front + MEDAL_RADIUS, 0), time));
+      expect(lyingJewel(down, time).light).toBe(1);
     }
   });
 

@@ -25,7 +25,7 @@ import { paintFoot, paintLip, paintPlain, paintPusher, paintSign, paintTable, pa
 import { FLAT_STRIDE, Flat, MOVING_CAST, MOVING_HOOD, MOVING_PARTS, SOLID_STRIDE, Solid, addCatcherLamps, buildCabinet, buildLamps, buildMoving, buildTouches, type Art, type Part } from './cabinet3d';
 import { Gpu, type Program } from './gl';
 import { PARTY_TIME, SCREEN_GLOW, type DrawOptions, type Stage } from './render';
-import { BEAD_STRIDE, EYE, KEY_LIGHT, MEDAL_STRIDE, ballShape, cameraMatrix, createRows, jewelShape, lightMatrix, medalShape, writeBalls, writeJewels, writeMedals, type Rows, type Shape } from './scene3d';
+import { BEAD_STRIDE, EYE, KEY_LIGHT, MEDAL_EDGE, MEDAL_STRIDE, ballShape, cameraMatrix, createRows, jewelShape, lightMatrix, medalShape, writeBalls, writeJewels, writeMedals, type Rows, type Shape } from './scene3d';
 import {
   BEAD_FRAGMENT,
   BEAD_SHADOW_VERTEX,
@@ -155,7 +155,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     { location: 3, size: 4, offset: 4 },
   ];
   // A medal has a rounded edge for the picture and is a plain disc in the shadow map; a ball is finer than a bulb.
-  const medalMesh = copies(medalShape(32, 0.17), medalBuffer, MEDAL_STRIDE, medalRows);
+  const medalMesh = copies(medalShape(32, MEDAL_EDGE), medalBuffer, MEDAL_STRIDE, medalRows);
   const medalShade = copies(medalShape(16, 0), medalBuffer, MEDAL_STRIDE, medalRows);
   const ballMesh = copies(ballShape(28, 18), ballBuffer, BEAD_STRIDE, beadRows);
   const lowBallMesh = copies(ballShape(28, 18), lowBallBuffer, BEAD_STRIDE, beadRows);
@@ -264,17 +264,17 @@ function build(gpu: Gpu, now: () => number): Scene3d {
 
     // This frame's numbers, and each list sent to the graphics card once.
     writeMedals(medals, machine, stage.exits, stage.fed, calm, options.wings ?? false);
-    writeBalls(balls, machine, stage.exits, lowBalls);
-    writeJewels(jewels, machine, stage.exits);
+    writeBalls(balls, machine, stage.exits, lowBalls, calm);
+    writeJewels(jewels, machine, stage.exits, calm);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
     buildTouches(flat, machine, front, stage, options);
     // The glow moves one bulb every second or so; a fever or a jackpot hurries it.
     const wave = calm ? 0 : stage.clock * (partying ? 7 : 1.6);
-    buildLamps(beads, flat, machine, front, wave, partying, options, stage.clock);
-    addCatcherLamps(beads, machine, stage, wave, options.wings ?? false);
+    buildLamps(beads, flat, machine, front, wave, partying, options, stage.clock, stage.holdGlow);
+    addCatcherLamps(beads, machine, stage, wave, options.wings ?? false, calm);
     // The payout works: the hopper's doors and the tower lifts, after the cabinet's own moving parts (works3d.ts).
-    buildWorks(moving, flat, beads, machine, front, calm);
+    buildWorks(moving, flat, beads, machine, front, calm, medals);
     // The lamps the medals mirror drift slowly, so their glints wander over the pile; a fever or a jackpot hurries that too.
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);

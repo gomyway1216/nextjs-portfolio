@@ -6,8 +6,10 @@
  * wall scrapes the rearmost medals forward along it, and whatever is pushed
  * over its front lip drops to the lower table. When it comes forward again its
  * front face shoves the lower table's medals toward the player. Medals that go
- * over the front edge are won; near the front the sides are open, and medals
- * squeezed out there are lost. Prize balls lie among the medals and are pushed
+ * over the middle of the front edge are won; near the front the sides are
+ * open, and the holes that take what is squeezed out there turn the front
+ * corners, so a medal that goes over either end of the front edge is lost as
+ * well. Prize balls lie among the medals and are pushed
  * the same way, and big prizes stand on the pusher as towers of medals.
  *
  * What the machine pays comes from somewhere. A small win drops out of the
@@ -42,10 +44,45 @@ export const FIELD = {
   depth: 100,
   /** Beyond this depth the side walls stop, and a medal pushed sideways is lost. */
   sideOpenFrom: 78,
+  /**
+   * How far each side hole reaches round its front corner, along the front
+   * edge. The hole that runs down an open side turns the corner and runs this
+   * far in under the front edge, so only the middle of the front edge is over
+   * the player's tray: a medal that goes over within this of either side has
+   * gone down the side hole, and is lost as one pushed off the side is.
+   *
+   * It is what the field gives back. With the sides open and no more, four
+   * medals in five that left the field left it by the front, which is far more
+   * than a real machine's field returns: there the shop sets the share with
+   * the width of the side holes, and about half to six in ten is usual. At
+   * this reach the best aim gets about 57 in 100 back from the field, and the
+   * rest of what the machine returns is the screen's games (lottery.ts).
+   * It was set here and not by opening the sides further back, because a
+   * longer open side takes much less from a field that is fed fast than from
+   * one fed slowly, and a hole at the corner takes the same from both:
+   * scripts/medal-pusher-tune.ts measures the share for every way of playing.
+   */
+  sideReach: 20,
 } as const;
 
+/**
+ * Whether a medal that goes over the front edge at `x` drops into the
+ * player's tray. It does over the middle of the edge; within the side holes'
+ * reach of either side it goes down the hole there instead.
+ */
+export const frontPays = (x: number): boolean => x >= FIELD.sideReach && x <= FIELD.width - FIELD.sideReach;
+
 export const MEDAL_RADIUS = 3.2;
-export const MEDAL_THICKNESS = 0.9;
+/**
+ * How thick a medal is: a thirteenth of what it is across, which is a real
+ * arcade medal's proportion (25 mm across and 1.8 mm thick, a fourteenth).
+ * Everything that has a medal's height in it is reckoned from this number: how
+ * high a pile and a tower stand in both pictures, how high a lift's guard
+ * rises, what passes under the catcher's foot, and how far a tower reaches
+ * across the lower table when it goes over the lip (`spill`), which is the one
+ * place the field's own sums have it in them.
+ */
+export const MEDAL_THICKNESS = 0.5;
 
 /** The pusher's front lip moves between these depths, once per `period` seconds. */
 export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
@@ -108,19 +145,31 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * either side of the middle, stand between them.
  *
  * `halfWidth` is how often a medal starts a spin. With what a spin is worth
- * (`SPIN_TABLE` in lottery.ts) it sets what slow play gets back: the best a
- * player can do, feeding the middle a medal every two seconds, is about
- * 96.5% with average luck on the screen, and at two medals a second about
- * 95%. `wingWidth` is how wide a pocket takes medals while its wings are
- * open, which is during chance time, and it is what fast play is tuned
- * with. Wings as wide as the pockets were before they were narrowed, 1.7,
- * paid a player for filling the hold: five medals a second got back as much
- * as two. At this width five a second get back about half a point less than
- * two, and both buttons held down about 93%. scripts/medal-pusher-tune.ts
- * measures all of it, and its table is the one to read before either
- * number is moved.
+ * (`SPIN_TABLE` in lottery.ts) and what the field gives back
+ * (`FIELD.sideReach`) it sets what slow play gets back: the best a player
+ * can do, feeding the middle a medal every two seconds, is about 90% with
+ * average luck on the screen, which is what a real machine is run at, and at
+ * two medals a second about 88%. `wingWidth` is how wide a pocket takes
+ * medals while its wings are open, which is during chance time. Wings as
+ * wide as the pockets were before they were narrowed, 1.7, paid a player for
+ * filling the hold. At this width five a second get back about three points
+ * less than the best, and both buttons held down about 79%: the screen plays
+ * a gold spin in about two seconds, a line and its game included, and at
+ * eleven medals a second six in ten of the medals through a pocket find the
+ * hold full. scripts/medal-pusher-tune.ts measures all of
+ * it, and its table is the one to read before any of these numbers is moved.
  */
 export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.25 } as const;
+
+/**
+ * Seconds from the lip to the pocket. A medal the lip's rule has counted is
+ * not in its pocket yet: it rides its tongue out over the well and drops in
+ * this long after it came over, which is what the catcher shows (catcher.ts),
+ * and the machine takes it when it drops and not before (session.ts). Which
+ * pocket, how wide the pockets were taking medals and where the lucky lamp
+ * stood were all settled at the lip.
+ */
+export const START_RIDE = 0.8;
 
 /**
  * The lucky lamp. One of the three slots is lit gold at a time, and the light
@@ -154,8 +203,12 @@ export const PAYOUT = { from: 14, to: 86, perSecond: 9 } as const;
 export const TOWER = {
   /** The most medals in one tower. */
   max: 25,
-  /** Medals a second that each tower gains while it is going up. */
-  perSecond: 18,
+  /**
+   * Medals a second that each tower gains while it is going up: slowly enough
+   * to be watched, a tower of 22 in four seconds. It was 18 a second once,
+   * and a tower was there before anyone had seen it come.
+   */
+  perSecond: 5.5,
   /** Towers stand in rows of up to `perRow`, `spacing` apart, each row this far behind the lip. */
   perRow: 6,
   spacing: 14,
@@ -240,8 +293,9 @@ export interface Medal {
    * stands taller than one. It lies among the medals and is pushed like one,
    * it is never under or on top of another, it is not part of a tower, and it
    * does not fit a START pocket. Nor does it fit through an open side, which
-   * is a slot a medal high: so every jewel the machine lets go is pushed over
-   * the front in the end, and how soon is up to the player.
+   * is a slot a medal high, or down a side hole's mouth at a front corner,
+   * which is barred: so every jewel the machine lets go is pushed over the
+   * front in the end, and how soon is up to the player.
    */
   jewel?: boolean;
   /**
@@ -327,7 +381,7 @@ export interface Machine {
 export interface StepEvents {
   /** Medals that went over the front edge. */
   won: number;
-  /** Medals that went out of the open sides. */
+  /** Medals that went down a side hole: out of an open side, or over the front edge at a corner, within the holes' reach. */
   lost: number;
   /** The chucker each medal that went over the lip through one dropped through, one entry per medal. */
   checkers: number[];
@@ -791,7 +845,7 @@ export function buildTowers(machine: Machine, medals: number): void {
   let stacked = 0;
   sizes.forEach((size, index) => {
     const { x, y } = free[index];
-    // It takes its room among the medals lying there over the moment its guard takes to come up, as a medal that lands does.
+    // It takes its room among the medals lying there as a medal that lands does, in a third of a second: while its hatch's lamps come on and the doors begin to part.
     const tower: Medal = { id: machine.nextId++, x, y, level: 1, tier: 0, sinceDrop: -1, stack: 1, grow: size - 1, ball: false, grown: SETTLE.from };
     machine.medals.push(tower);
     machine.lifts.push(startLift(tower, front));
@@ -968,7 +1022,8 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
   settleUpperTier(machine.medals);
   constrain(machine.medals, front);
 
-  // Over the lip, over the front edge, or out of an open side. A medal that goes over the lip where
+  // Over the lip, over the front edge, or out of an open side. A medal that goes over the front edge is won
+  // over the middle of it and lost within the side holes' reach of a corner. A medal that goes over the lip where
   // a chucker is drops through it. A tower that goes over there sends every one of its medals
   // through, one after another; a ball is too big for one, and a jewel stands too tall.
   const kept: Medal[] = [];
@@ -989,9 +1044,13 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
       }
       kept.push(medal);
     } else if (medal.y > FIELD.depth) {
+      // A ball or a jewel is collected wherever it goes over: across each side hole's mouth lies a ball rail
+      // (sidehole.ts). A medal tips over the edge and drops short of its first bar; a prize that goes over at a
+      // corner comes down on the bars and rolls along them into the tray.
       if (medal.jewel) events.jewels++;
       else if (medal.ball) events.balls++;
-      else events.won++;
+      else if (frontPays(medal.x)) events.won++;
+      else events.lost++;
     } else if (medal.x < 0 || medal.x > FIELD.width) {
       events.lost++;
     } else {

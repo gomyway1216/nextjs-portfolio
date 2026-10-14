@@ -158,12 +158,12 @@ const ja: PlateStrings = {
     },
     push: {
       head: 'メダルを落とそう！',
-      line: () => '手前に落ちたメダルをゲット！ 横から落ちるともどらないよ。',
+      line: () => '手前のまん中から落ちたメダルをゲット！ 横や手前の角の穴に落ちるともどらないよ。',
       short: '落とす',
     },
     start: {
       head: 'START をねらおう！',
-      line: (rules) => `メダルが斜面をすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで）`,
+      line: (rules) => `メダルが橋をすべって溝をわたり、START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで）`,
       short: 'START',
     },
     match: {
@@ -238,7 +238,7 @@ const ja: PlateStrings = {
   touchSay: 'タッチ：L・Rボタンを押すと1枚、押したままで連続して入ります。フィールドの左半分・右半分をなぞるか、スライダーで、それぞれのレールのねらいが動きます。',
 
   cautionTitle: 'ご注意',
-  cautions: ['横から落ちたメダルはもどりません。', 'メダルは景品やお金と交換できません。', '台をたたいたり、ゆらしたりしないでください。'],
+  cautions: ['横や手前の角の穴に落ちたメダルはもどりません。', 'メダルは景品やお金と交換できません。', '台をたたいたり、ゆらしたりしないでください。'],
   small: '※ サインインすると、マシンをアカウントに預けておけます。',
   imprint: 'GOLDEN FEVER 遊び方パネル',
   sheet: 'GF-01-INST-J',
@@ -267,12 +267,12 @@ const en: PlateStrings = {
     },
     push: {
       head: 'Push them off!',
-      line: () => 'Medals over the front edge are yours. Off the sides, they are gone.',
+      line: () => 'Medals over the middle of the front edge are yours. Off the sides or over a front corner, they are gone.',
       short: 'PUSH',
     },
     start: {
       head: 'Hit START!',
-      line: (rules) => `A medal that slides into a START pocket spins the slot once. Up to ${rules.hold} spins are held.`,
+      line: (rules) => `A medal that rides a tongue over the well into a START pocket spins the slot once. Up to ${rules.hold} spins are held.`,
       short: 'START',
     },
     match: {
@@ -345,7 +345,7 @@ const en: PlateStrings = {
   touchSay: 'Touch: press L or R to feed one medal, and hold it to keep feeding. Drag on the left or right half of the field, or use the sliders, to aim each rail.',
 
   cautionTitle: 'CAUTION',
-  cautions: ['Medals that fall off the sides are not returned.', 'Medals cannot be exchanged for prizes or money.', 'Do not hit or shake the machine.'],
+  cautions: ['Medals that fall down the side holes are not returned.', 'Medals cannot be exchanged for prizes or money.', 'Do not hit or shake the machine.'],
   small: '* Sign in to keep your machine on your account.',
   imprint: 'GOLDEN FEVER INSTRUCTION PLATE',
   sheet: 'GF-01-INST-E',

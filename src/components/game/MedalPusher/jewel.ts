@@ -106,8 +106,8 @@ const LIP_FALL = CHUCKERS.drop;
  * A stone lying on a table, or on its way down from the pusher's lip. It
  * lies on its point, leaning a little its own way. Over the lip beside the
  * catcher it tips forward as a medal does and comes down level; at the
- * catcher it goes down the slide and off its foot, as a medal that fits no
- * START slot does.
+ * catcher it goes over the lip's edge and down into the well, out of the
+ * light, as a medal that fits no START slot does.
  */
 export function lyingJewel(medal: Medal, time: number): JewelSpot {
   const { id } = medal;
@@ -115,7 +115,7 @@ export function lyingJewel(medal: Medal, time: number): JewelSpot {
   const lean = 0.05 + 0.09 * own(id, 2);
   const heading = own(id, 3) * TAU;
   const behind = caught(medal, time);
-  if (behind) return { id, x: behind.x, height: behind.height - T / 2 + JEWEL_CUT.pavilion, depth: behind.depth, turn, tilt: behind.tilt, heading: 0, light: 1 };
+  if (behind) return { id, x: behind.x, height: behind.height - T / 2 + JEWEL_CUT.pavilion, depth: behind.depth, turn, tilt: behind.tilt, heading: 0, light: behind.light };
   const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
   if (dropping) {
     const fallen = medal.sinceDrop / LIP_FALL;

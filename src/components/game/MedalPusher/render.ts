@@ -176,7 +176,8 @@ interface Popup {
   text: string;
   age: number;
   color?: string;
-  word?: { gate: number; size: number; still: boolean };
+  /** A word over a START slot. `said` is the word itself and `times` how many medals in a row it stands for (`ENTRY_TIMES`). */
+  word?: { gate: number; size: number; still: boolean; said: string; times: number };
 }
 
 /** What a medal through a START slot came to, as the session says it in its `checker` event. */
@@ -1020,6 +1021,14 @@ export const HOLD_COUNT = 8;
 export const BURST = { reach: 1.1, sparks: 9, gold: 16, word: 0.9, plain: 26, big: 36, dull: 20, run: 0.3 } as const;
 /** The words: a medal that holds a spin, one that found the hold full and turned a held spin gold, and one that found it full and nothing left to turn. */
 export const ENTRY_WORDS = { start: 'START!', gold: 'GOLD!', full: 'FULL' } as const;
+/**
+ * What a slot's word says when it stands for more than one medal: medals that
+ * go down the same slot one after another, each before the last one's word is
+ * gone, each start or gild a spin of their own, and the word counts them
+ * (START! ×2) instead of one word simply giving way to the next. A medal that
+ * started nothing is not counted: FULL stays FULL.
+ */
+export const entryTimes = (word: string, times: number): string => (times > 1 ? `${word} ×${times}` : word);
 /** The colours of the words, and of the sparks: an everyday spin's, a gold one's, and the grey of a medal that started nothing. */
 export const ENTRY_INK = { start: '#fff3a8', gold: '#ffd24a', full: '#8f8aa8' } as const;
 
@@ -1088,10 +1097,15 @@ export function dropEntries(stage: Stage, time: number, calm = false): Arrival[]
     const text = !lights ? ENTRY_WORDS.full : entry.held ? ENTRY_WORDS.start : ENTRY_WORDS.gold;
     const size = !lights ? BURST.dull : gold ? BURST.big : BURST.plain;
     // The word stands over the slot, inside the picture. A slot says one thing at a time: the word of a medal that went
-    // down it a moment ago gives way to this one, so a run of medals does not pile their words on one another.
-    const wide = size * 0.36 * text.length;
+    // down it a moment ago gives way to this one, so a run of medals does not pile their words on one another. When
+    // this medal says what the one before it is still saying there, and it started or gilded a spin, the word counts
+    // the two of them, so that two medals in a row are seen to be two (`entryTimes`).
+    const standing = stage.popups.find((popup) => popup.word?.gate === entry.gate)?.word;
+    const times = lights && standing?.said === text ? standing.times + 1 : 1;
+    const shown = entryTimes(text, times);
+    const wide = size * 0.36 * shown.length;
     stage.popups = stage.popups.filter((popup) => popup.word?.gate !== entry.gate);
-    stage.popups.push({ x: Math.min(VIEW.width - wide, Math.max(wide, at.x)), y: at.y - 10, text, age: 0, color: !lights ? ENTRY_INK.full : gold ? ENTRY_INK.gold : ENTRY_INK.start, word: { gate: entry.gate, size, still: calm } });
+    stage.popups.push({ x: Math.min(VIEW.width - wide, Math.max(wide, at.x)), y: at.y - 10, text: shown, age: 0, color: !lights ? ENTRY_INK.full : gold ? ENTRY_INK.gold : ENTRY_INK.start, word: { gate: entry.gate, size, still: calm, said: text, times } });
     if (!lights) continue;
     lightGate(stage, entry.gate);
     // The oldest of the medals still to be answered are the ones whose spins the screen has taken: this is one of them if any is.

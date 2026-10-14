@@ -85,6 +85,7 @@ import {
   drawOverlay,
   dropEntries,
   enterGate,
+  entryTimes,
   faceOf,
   goldFlash,
   holdCount,
@@ -2040,6 +2041,36 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     ]);
     // The one that stands over the slot two medals went down is the second medal's: the younger of the two that are up.
     expect(up[1].age).toBeLessThan(up[0].age);
+  });
+
+  it('counts medals that go down one slot in a row, each before the last one’s word is gone: START! ×2, ×3, and starts again once the word has gone', () => {
+    fakeDocument();
+    const stage = createStage(1);
+    const drop = (entry: Entry, frames: number): void => {
+      enterGate(stage, entry);
+      holdShown(stage, 0, 0);
+      dropEntries(stage, time);
+      for (let i = 0; i < frames; i++) ageStage(stage, FRAME);
+    };
+    // Three everyday medals down the middle slot a few frames apart, and one down the left slot between them.
+    drop(plain, 6);
+    drop({ ...plain, gate: 0 }, 6);
+    drop(plain, 6);
+    drop(plain, 0);
+    const said = () => words(stage).map((popup) => [popup.text, popup.word?.gate, popup.word?.times]);
+    expect(said()).toEqual([
+      [ENTRY_WORDS.start, 0, 1],
+      [`${ENTRY_WORDS.start} ×3`, 1, 3],
+    ]);
+    // One through the lit slot after them starts a spin too, a gold one: it is the fourth, and the word turns gold.
+    drop({ ...lucky, gate: 1 }, 0);
+    expect(words(stage).find((popup) => popup.word?.gate === 1)).toMatchObject({ text: `${ENTRY_WORDS.start} ×4`, color: ENTRY_INK.gold, word: { times: 4 } });
+    expect(entryTimes(ENTRY_WORDS.gold, 2)).toBe('GOLD! ×2');
+    expect(entryTimes(ENTRY_WORDS.start, 1)).toBe(ENTRY_WORDS.start);
+    // Once the word has gone, the next medal down that slot is one again.
+    for (let i = 0; i < Math.ceil(BURST.word / FRAME) + 1; i++) ageStage(stage, FRAME);
+    drop(plain, 0);
+    expect(words(stage).find((popup) => popup.word?.gate === 1)).toMatchObject({ text: ENTRY_WORDS.start, word: { times: 1 } });
   });
 
   it('sends each of several medals’ sparks to its own lamp, in the order they dropped, and never past the last lamp', () => {

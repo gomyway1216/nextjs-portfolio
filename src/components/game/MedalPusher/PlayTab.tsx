@@ -738,6 +738,15 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       // medals on its counter, and no time passes on it.
       const playing = playable(session);
       const elapsed = playing ? sinceLast : 0;
+      // The bank on the table when the machine was opened may not have been its player's (it was being found on the
+      // account). Now that it is, a machine this device kept from before that bank's last reset starts over before it
+      // plays a single medal.
+      if (playing && purse.restartDue(PUSHER.game)) {
+        sessionRef.current = null;
+        setAuto(false);
+        setSwitchedOn((times) => times + 1);
+        return;
+      }
       if (playing && oldPurse !== null) {
         // The purse a machine from before the bank kept, moved into its player's bank once (bank.ts says how once).
         purse.importPurse(keeping.owner(), purseFrom, oldPurse);

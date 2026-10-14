@@ -2541,6 +2541,13 @@ test('a big prize is poured out of the hopper’s doors, towers are stacked in t
           if (change.attributeName) said.push(`${change.attributeName.replace('data-', '')} ${(change.target as HTMLElement).getAttribute(change.attributeName)}`);
         }
       }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-hopper', 'data-tubes'] });
+      // And every word the screen reader is given, as it changes.
+      const told: string[] = [];
+      (window as unknown as { told: string[] }).told = told;
+      new MutationObserver(() => {
+        const now = [...document.querySelectorAll('[data-testid="pusher-announcement"]')].map((element) => element.textContent ?? '').join(' | ');
+        if (now !== told[told.length - 1]) told.push(now);
+      }).observe(document, { subtree: true, childList: true, characterData: true });
     },
     [STORAGE_KEY, save],
   );
@@ -2562,6 +2569,10 @@ test('a big prize is poured out of the hopper’s doors, towers are stacked in t
   const said = await worksSaid();
   expect(said.lastIndexOf('hopper shut')).toBeGreaterThan(said.indexOf('hopper open'));
   expect(said.lastIndexOf('tubes 0')).toBeGreaterThan(said.indexOf('tubes 2'));
+  // The two towers are fifty each, stacked side by side, and leave their tubes in the same frame: the screen reader
+  // is told of both at once, not of the second in the place of the first.
+  const told = await page.evaluate(() => (window as unknown as { told: string[] }).told);
+  expect(told.some((text) => text.includes('A tower of 50 medals is pushed out of the left window') && text.includes('A tower of 50 medals is pushed out of the right window'))).toBe(true);
   const field = machine(page).getByTestId('pusher-field');
   await expect(field).toHaveAttribute('data-hopper', 'shut');
   await expect(field).toHaveAttribute('data-tubes', '0');

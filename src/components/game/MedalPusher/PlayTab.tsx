@@ -691,6 +691,9 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       let lost = false;
       // The pockets a medal has been heard to set off for in this frame, a bit for each.
       let rode = 0;
+      // The towers pushed out in this frame, as they are told: two the same size leave both tubes in the same frame,
+      // and are told together, or the second would take the first's place before it was heard.
+      const towersOut: string[] = [];
       for (const event of events) {
         switch (event.type) {
           case 'bonus':
@@ -858,7 +861,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           case 'towerOut':
             // The arm's motor runs while it pushes the tower out and across, and stops as it lets it go.
             playSound('lift', soundOn, { seconds: STACK.pushes });
-            if (!bowlPrizeUp(session.roulette)) setAnnouncement(live.current.works.sayTowerOut(event.medals, event.tube));
+            if (!bowlPrizeUp(session.roulette)) towersOut.push(live.current.works.sayTowerOut(event.medals, event.tube));
             break;
           case 'gateShut':
             // The arm is back in: the gate slides shut and seats, and the platform rises for the next tower.
@@ -867,6 +870,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             break;
         }
       }
+      if (towersOut.length > 0) setAnnouncement(towersOut.join(' '));
       // The lucky lamp's light steps to the next pocket a ride after the pusher comes to the back of its stroke
       // (`lampShown` in catcher.ts), and its relay is heard as it does. Not in chance time: every pocket is lit then,
       // and no light is seen to move.

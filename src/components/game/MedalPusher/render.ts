@@ -14,7 +14,7 @@
  */
 
 import { ARMS, HATCH, SLOT, airSpot, armCollar, fedSpot, leftHeld, railFrame, slotSpot, type Spot } from './arms';
-import { offArms } from './works';
+import { offArms, onArm } from './works';
 import { drawArms, drawHopper, drawTubeCounts, drawTubes, paintWindows } from './works2d';
 import { APRON, CATCHER, SLOPE, START_SLOT, TONGUE, apronSpot, caught, lampSpot, litSlots, mouthSpot, rolling, slopeSpot, slotCorners, slotHalf, tongueCorners, tongueHalf, underCatcher, wellCorners, wingCorners, type Caught } from './catcher';
 import { CHUCKERS } from './chuckers';
@@ -1342,6 +1342,30 @@ function drawBall(g: CanvasRenderingContext2D, stage: Stage, x: number, height: 
   g.drawImage(stage.ball, -1, -1, 2, 2);
 }
 
+/**
+ * The lowest medal of a tower, as the medals lying round it are drawn: its shadow on the table, its rim and its
+ * face. `drawMedals` draws it with them, and `drawTower` the rest of the tower on it; a tower on an arm is drawn
+ * apart from the medals it is pushed through, and so is given this first.
+ */
+function drawFoot(g: CanvasRenderingContext2D, stage: Stage, tower: Pick<Medal, 'id' | 'x' | 'y'>, base: number, shift: number): void {
+  const k = stage.ratio;
+  const point = project(tower.x, base + T, tower.y);
+  const rx = R * point.scale;
+  const thickness = T * rise(point);
+  g.setTransform(k, 0, 0, k, shift * k, 0);
+  g.fillStyle = TABLE_SHADE.color;
+  g.beginPath();
+  g.ellipse(point.x + rx * 1.06 * 0.12, point.y + thickness * TABLE_SHADE.reach, rx * 1.06, rx * 1.06 * point.tilt, 0, 0, TAU);
+  g.fill();
+  g.fillStyle = MEDAL_PAINT.edge;
+  g.beginPath();
+  g.moveTo(point.x + rx, point.y + thickness);
+  g.ellipse(point.x, point.y + thickness, rx, rx * point.tilt, 0, 0, TAU);
+  g.rect(point.x - rx, point.y, rx * 2, thickness);
+  g.fill();
+  stamp(g, stage, point, point.tilt, turnOf(tower.id), shift, 1, tower.id);
+}
+
 /** The medals of a tower above its lowest one: a column with a rim line for each, and the top medal's face. */
 function drawTower(g: CanvasRenderingContext2D, stage: Stage, tower: Pick<Medal, 'id' | 'x' | 'y' | 'stack'>, base: number, shift: number): void {
   const k = stage.ratio;
@@ -2579,7 +2603,10 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   drawMedals(g, stage, offArms(machine, upper), P, shake);
   jewelsOf(upper);
   // The arms pushing towers out of their tubes and across the pusher, each with its tower (works2d.ts).
-  drawArms(g, k, machine, front, calm, shake, (tower) => drawTower(g, stage, tower, P, shake));
+  drawArms(g, k, machine, front, calm, shake, (tower) => {
+    if (onArm(machine, tower)) drawFoot(g, stage, tower, P, shake);
+    drawTower(g, stage, tower, P, shake);
+  });
   // What has just come over the lip at the catcher is drawn where the catcher has it, not lying where the engine has
   // already put it: the medals on their way down it, the nearest to the lip first, and a ball rolling down its
   // slide. A jewel fits no slot and goes down into the well as a medal that fits none does.

@@ -168,7 +168,7 @@ import {
   type RollingMedal,
 } from './engine';
 import { POUR, shutHopper, type Hopper } from './hopper';
-import { PHASE_TIME, STACK, TUBE_PHASES, armSpot, idleStacker, stackTowers, towersIn, type Stacker, type Tube } from './stacker';
+import { PHASE_TIME, STACK, TUBE_PHASES, armSpot, idleStacker, lastTower, stackTowers, towersIn, type Stacker, type Tube } from './stacker';
 import {
   BOARD,
   BOWL,
@@ -548,7 +548,12 @@ const tube = shape<Tube>(
   },
 );
 
-/** The two tubes, and how many towers their arms have begun to push out: at least as many as are being pushed now. */
+/**
+ * The two tubes, how many towers their arms have begun to push out, which is
+ * at least as many as are being pushed now, and which of them has a roulette
+ * run's tower open to its next number. That tower is the last the tube holds,
+ * one that is still to be built or waits its turn, with room on top.
+ */
 const stacker = shape<Stacker>(
   {
     tubes: (value) => {
@@ -558,8 +563,14 @@ const stacker = shape<Stacker>(
       return left && right ? [left, right] : undefined;
     },
     made: count,
+    open: oneOf([-1, 0, 1]),
   },
-  (s) => s.made >= s.tubes.filter((t) => t.phase === 'pushing').length && !(s.tubes[0].tower > 0 && s.tubes[0].tower === s.tubes[1].tower),
+  (s) => {
+    if (s.made < s.tubes.filter((t) => t.phase === 'pushing').length || (s.tubes[0].tower > 0 && s.tubes[0].tower === s.tubes[1].tower)) return false;
+    if (s.open === -1) return true;
+    const open = s.tubes[s.open];
+    return (open.waiting.length > 0 || (open.phase === 'stacking' && open.size > 0)) && lastTower(open) < STACK.most;
+  },
 );
 
 /**
@@ -816,6 +827,20 @@ const machineWithLifts = shape<MachineWithLifts>(
 );
 
 /**
+ * The heap `createMachine` throws on from the last seed an older field was
+ * put on. Throwing it is by far the dearest part of reading a save, and the
+ * same save is read with the same seed more than once: the copies kept on the
+ * device and in the account are asked whether they read (savedMachine.ts)
+ * before one of them is played. Nothing changes the heap kept here; whoever
+ * reads it makes medals of their own from it.
+ */
+let lastHeap: { seed: number; heap: Pick<Machine, 'time' | 'medals'> } | null = null;
+function newHeap(seed: number): Pick<Machine, 'time' | 'medals'> {
+  if (lastHeap?.seed !== seed) lastHeap = { seed, heap: createMachine(seed) };
+  return lastHeap.heap;
+}
+
+/**
  * Today's field from a field of versions 7 to 9, and so from every version
  * before the tubes, which were all of medals of the old size: on a new heap,
  * with what was the player's to win on the old field carried over to it, as
@@ -838,7 +863,7 @@ const machineWithLifts = shape<MachineWithLifts>(
  * itself. Nothing of the new heap lies on top of it.
  */
 function onANewHeap(field: MachineWithLifts, seed: number): StoredMachine | undefined {
-  const heap = createMachine(seed);
+  const heap = newHeap(seed);
   const ahead = pusherFront(field.time) - pusherFront(heap.time);
   let { nextId, payoutQueue } = field;
   const medals: Medal[] = heap.medals.map((one) => ({ ...one, id: nextId++, y: one.level === 1 ? one.y + ahead : one.y }));
@@ -1462,7 +1487,6 @@ export function restore(text: string | null, seed: number): Session | null {
               ? fieldBeforeArms
               : null;
     const before = withTubes ? undefined : readBefore?.(save.machine);
-    const field = withTubes ? storedMachine(save.machine) : before && onANewHeap(before, seed);
     const counted = withRide
       ? storedNumbers(save.session)
       : withLamp
@@ -1473,7 +1497,10 @@ export function restore(text: string | null, seed: number): Session | null {
             ? numbersBeforeJewels(save.session)
             : numbersBeforeChance(save.session);
     const { screen } = save;
-    if (!field || !counted || !isRecord(screen)) return null;
+    if (!counted || !isRecord(screen)) return null;
+    // An older field is put on a new heap only once everything else has been read, since that is the dearest part.
+    const field = withTubes ? storedMachine(save.machine) : before && onANewHeap(before, seed);
+    if (!field) return null;
     // The jackpot as today's machine keeps it, whichever table the save was written by.
     const numbers = settleJackpot(counted);
 

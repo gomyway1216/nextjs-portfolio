@@ -40,7 +40,9 @@
  * stack. While a ball's roulette is running, its numbers are stacked onto one
  * tower, as ホリアテール stacks its roulette's: a tower that is built and has
  * room on top waits in its tube for the next number, and goes out when the
- * run is over, or when it is as tall as a tower can be.
+ * run is over, or when it is as tall as a tower can be. The run's tower may
+ * have to wait its turn behind towers the tubes already held, and the next
+ * number goes onto it there all the same.
  *
  * This file is the engine's side of it and imports nothing that runs. Where
  * that puts the tubes, the gate and the arm in the cabinet, and how they are
@@ -144,10 +146,19 @@ export interface Stacker {
   tubes: [Tube, Tube];
   /** Towers the arms have begun to push out since the machine was switched on. */
   made: number;
+  /**
+   * The tube whose last tower is a roulette run's, still open to the run's
+   * next number: the tower it is stacking, if none waits behind it, or else
+   * the last one waiting. Nothing (−1) while there is none.
+   */
+  open: -1 | 0 | 1;
 }
 
 export const idleTube = (): Tube => ({ phase: 'stacking', clock: 0, stacked: 0, size: 0, waiting: [], tower: 0 });
-export const idleStacker = (): Stacker => ({ tubes: [idleTube(), idleTube()], made: 0 });
+export const idleStacker = (): Stacker => ({ tubes: [idleTube(), idleTube()], made: 0, open: -1 });
+
+/** How many medals the last tower in a tube will have: the one waiting last, or else the one it is stacking. */
+export const lastTower = (tube: Tube): number => (tube.waiting.length > 0 ? tube.waiting[tube.waiting.length - 1] : tube.size);
 
 /** How many towers a tube holds: the one in it, if there is one, and the ones waiting their turn. */
 export const towersIn = (tube: Tube): number => (tube.size > 0 ? 1 : 0) + tube.waiting.length;
@@ -187,29 +198,35 @@ export function busyFor(tube: Tube): number {
 }
 
 /**
- * Whether a tube's tower stays open while it is built: one that is being
- * gathered and has room on top, with nothing waiting behind it, waits in the
- * tube for more instead of going out.
+ * Whether a tube's tower stays in it once it is built: the run's open tower,
+ * with room on top and nothing waiting behind it, waits in the tube for more
+ * while the run goes on instead of going out.
  */
-const staysOpen = (tube: Tube, gather: boolean): boolean => gather && tube.size < STACK.most && tube.waiting.length === 0;
+const staysOpen = (stacker: Stacker, index: number, gather: boolean): boolean => {
+  const tube = stacker.tubes[index];
+  return gather && stacker.open === index && tube.size < STACK.most && tube.waiting.length === 0;
+};
 
 /**
  * Gives the tubes `medals` to stack and returns how many they took. With
- * `gather`, they go first on top of a tower that is still open; whatever is
- * left is stacked as new towers, as few and as even as will hold it, each in
- * the tube that will be free soonest, for as long as the tubes have room.
+ * `gather`, they go first on top of the run's open tower, whether its tube is
+ * stacking it or it waits its turn there; whatever is left is stacked as new
+ * towers, as few and as even as will hold it, each in the tube that will be
+ * free soonest, for as long as the tubes have room, and the last of them is
+ * the run's open tower from then on. Without `gather` no tower is open.
  */
 export function stackTowers(stacker: Stacker, medals: number, gather = false): number {
   if (!Number.isInteger(medals) || medals < 0) throw new Error('a payout is a whole number of medals');
   let left = medals;
-  if (gather) {
-    // The tallest open tower first: that is the one the run has been stacking.
-    const open = stacker.tubes.filter((tube) => tube.phase === 'stacking' && tube.size > 0 && staysOpen(tube, true)).sort((a, b) => b.size - a.size);
-    for (const tube of open) {
-      const added = Math.min(left, STACK.most - tube.size);
-      tube.size += added;
-      left -= added;
-    }
+  if (!gather) stacker.open = -1;
+  else if (stacker.open !== -1) {
+    const tube = stacker.tubes[stacker.open];
+    const added = Math.min(left, STACK.most - lastTower(tube));
+    if (tube.waiting.length > 0) tube.waiting[tube.waiting.length - 1] += added;
+    else tube.size += added;
+    left -= added;
+    // As tall as a tower can be, it takes no more.
+    if (lastTower(tube) >= STACK.most) stacker.open = -1;
   }
   const room = stacker.tubes.reduce((sum, tube) => sum + Math.max(0, STACK.queue - towersIn(tube)), 0);
   for (const size of towerSizes(left, room)) {
@@ -229,6 +246,7 @@ export function stackTowers(stacker: Stacker, medals: number, gather = false): n
     if (best.phase === 'stacking' && best.size === 0) best.size = size;
     else best.waiting.push(size);
     left -= size;
+    if (gather) stacker.open = size >= STACK.most ? -1 : best === stacker.tubes[0] ? 0 : 1;
   }
   return medals - left;
 }
@@ -259,6 +277,8 @@ export function armSpot(index: 0 | 1, clock: number, front: number): { x: number
  */
 export function runStacker(machine: Machine, dt: number, front: number, gather: boolean): void {
   const { stacker } = machine;
+  // The run is over: its tower is closed, and goes out in its turn.
+  if (!gather) stacker.open = -1;
   for (let index = 0; index < 2; index++) {
     const tube = stacker.tubes[index];
     if (tube.phase === 'stacking') {
@@ -270,9 +290,11 @@ export function runStacker(machine: Machine, dt: number, front: number, gather: 
         }
       }
       if (tube.stacked >= tube.size) tube.clock = 0;
-      if (tube.size > 0 && tube.stacked === tube.size && !staysOpen(tube, gather)) {
+      if (tube.size > 0 && tube.stacked === tube.size && !staysOpen(stacker, index, gather)) {
         tube.phase = 'lowering';
         tube.clock = 0;
+        // The run's tower, as tall as a tower can be, goes out: nothing more is stacked on it.
+        if (stacker.open === index && tube.waiting.length === 0) stacker.open = -1;
       }
       continue;
     }

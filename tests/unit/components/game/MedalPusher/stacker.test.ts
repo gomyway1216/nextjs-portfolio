@@ -107,18 +107,54 @@ describe('splitting a prize into towers', () => {
     expect(medalsInTubes(stacker)).toBe(90 + 20 + taken);
   });
 
-  it('with `gather`, goes on top of an open tower first, the taller of two, and only then makes new ones', () => {
+  it('with `gather`, goes on top of the run’s open tower first, and only then makes new ones, the last of them open', () => {
     const stacker = idleStacker();
     stackTowers(stacker, 10, true);
     expect(stacker.tubes.map((tube) => tube.size)).toEqual([10, 0]);
+    expect(stacker.open).toBe(0);
     stackTowers(stacker, 20, true);
     expect(stacker.tubes.map((tube) => tube.size)).toEqual([30, 0]);
-    // As tall as a tower can be, and the rest a tower of its own in the other tube.
+    // As tall as a tower can be, and the rest a tower of its own in the other tube, which is the run's from then on.
     stackTowers(stacker, 50, true);
     expect(stacker.tubes.map((tube) => tube.size)).toEqual([STACK.most, 16]);
-    // Without it, a prize is towers of its own.
+    expect(stacker.open).toBe(1);
+    // Without it, a prize is towers of its own, and the run's tower is closed.
     stackTowers(stacker, 10);
     expect(stacker.tubes[1].waiting).toEqual([10]);
+    expect(stacker.open).toBe(-1);
+  });
+
+  it('with `gather`, stacks the run’s numbers on its own tower while it waits its turn behind the towers already in the tubes', () => {
+    const stacker = idleStacker();
+    // Each tube stacking a tower of 64 with another of 64 waiting behind it.
+    expect(stackTowers(stacker, 4 * STACK.most)).toBe(4 * STACK.most);
+    expect(stacker.tubes.map(towersIn)).toEqual([2, 2]);
+    // The run's first number is a tower of its own, waiting its turn; the numbers after it go on top of it there,
+    // and take no room in the tubes that another prize could have.
+    for (const number of [10, 20, 30]) expect(stackTowers(stacker, number, true)).toBe(number);
+    expect(stacker.tubes.map(towersIn)).toEqual([3, 2]);
+    expect(stacker.tubes[0].waiting).toEqual([STACK.most, 60]);
+    expect(stacker.open).toBe(0);
+    // Filled to the most a tower holds, the rest of a number is the run's next tower, in the tube with room.
+    expect(stackTowers(stacker, 10, true)).toBe(10);
+    expect(stacker.tubes[0].waiting).toEqual([STACK.most, STACK.most]);
+    expect(stacker.tubes[1].waiting).toEqual([STACK.most, 6]);
+    expect(stacker.open).toBe(1);
+    // Every number of the run was stacked; only a prize of its own, with the tubes full, is left for the hopper.
+    expect(medalsInTubes(stacker)).toBe(4 * STACK.most + 70);
+    expect(stackTowers(stacker, 5)).toBe(0);
+  });
+
+  it('closes the run’s tower when the run is over, and it goes out in its turn', () => {
+    const machine = createMachine(4);
+    buildTowers(machine, 20, true);
+    runUntil(machine, () => false, 3, true);
+    expect(machine.stacker.open).toBe(0);
+    expect(machine.stacker.tubes[0]).toMatchObject({ phase: 'stacking', stacked: 20, size: 20 });
+    // The step after the run is over.
+    step(machine, DT);
+    expect(machine.stacker.open).toBe(-1);
+    expect(machine.stacker.tubes[0].phase).toBe('lowering');
   });
 
   it('says how long a tube is busy for, and whether either is', () => {
@@ -256,13 +292,20 @@ describe('a tower from its tube to its place', () => {
       paid += prize;
       expect(everything(machine, gone)).toBe(start + paid);
     }
-    for (let i = 0; i < 90 * 60; i++) {
+    // Then on, a step at a time, until the tubes and the hopper have paid it all and ten seconds more have gone by.
+    let after = 0;
+    for (let i = 0; i < 90 * 60 && after < 10 * 60; i++) {
       const events = step(machine, DT);
       gone.won += events.won;
       gone.lost += events.lost;
       expect(everything(machine, gone)).toBe(start + paid);
+      after = stackerBusy(machine.stacker) || machine.payoutQueue > 0 ? 0 : after + 1;
     }
     expect(stackerBusy(machine.stacker)).toBe(false);
+    expect(machine.payoutQueue).toBe(0);
+    // And medals did leave the field all the while, into the tray and out at the sides.
+    expect(gone.won).toBeGreaterThan(0);
+    expect(gone.lost).toBeGreaterThan(0);
     expect(machine.stacker.made).toBeGreaterThanOrEqual(TUBE_ROOM);
   });
 

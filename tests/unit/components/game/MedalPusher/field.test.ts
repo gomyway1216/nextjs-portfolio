@@ -103,6 +103,7 @@ import { MEDAL_SHADE } from '@/components/game/MedalPusher/medalLook';
 import { MAX_STOCK, advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { SIDE_HOLE, acrossAt, holeFloor, railTop, railed, sinking } from '@/components/game/MedalPusher/sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
+import { STACK, idleTube } from '@/components/game/MedalPusher/stacker';
 import { pourPose } from '@/components/game/MedalPusher/works';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
@@ -1785,6 +1786,25 @@ describe('a tower on the canvas', () => {
       expect(width).toBeGreaterThan(0);
       expect(width).toBeLessThanOrEqual(1);
       expect(width).toBeLessThan(one * 0.4);
+    }
+  });
+
+  it('is drawn whole on an arm as standing free, its lowest medal and its top one', () => {
+    for (const armed of [false, true]) {
+      fakeDocument();
+      const stage = createStage(1);
+      const machine = createMachine(3);
+      const depth = pusherFront(machine.time) - 12;
+      machine.medals = [{ id: 900, x: 50, y: depth, level: 1, tier: 0, sinceDrop: -1, stack: 30, ball: false, grown: 1 }];
+      // The medals on the pusher are drawn without a tower an arm is pushing, which is drawn with its arm.
+      if (armed) machine.stacker.tubes[0] = { ...idleTube(), phase: 'pushing', clock: STACK.pushes * 0.6, tower: 900 };
+      const screen = recorder();
+      drawField(screen.context, stage, machine, { showGuide: false, calm: true });
+      const faces = screen.stamps.filter((stamp) => stage.faces.includes(stamp.image as HTMLCanvasElement) || stamp.image === stage.medal);
+      for (const height of [P + T, P + 30 * T]) {
+        const at = project(50, height, depth);
+        expect(faces.filter((stamp) => Math.hypot(stamp.x - at.x, stamp.y - at.y) < 1e-6), `${armed ? 'on an arm' : 'free'}, at ${height}`).toHaveLength(1);
+      }
     }
   });
 

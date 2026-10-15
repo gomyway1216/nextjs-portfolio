@@ -11,6 +11,7 @@ import { OddsTab } from '@/components/game/Blackjack/OddsTab';
 import { PlayTab } from '@/components/game/Blackjack/PlayTab';
 import { SimTab } from '@/components/game/Blackjack/SimTab';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -50,7 +51,7 @@ describe('PlayTab', () => {
     expect(markup).toContain('Count cards (Hi-Lo)');
     expect(markup).not.toContain('data-testid="bj-count"');
     // That medals are not money, by the counter; and the way to the medal center.
-    expect(markup).toContain(`data-testid="bj-not-money">${getStrings('en').notMoney}<`);
+    expect(markup).toContain(`data-testid="bj-not-money">${NOT_MONEY.en}<`);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}"`);
     // Nothing of the chips the table had before.
     expect(markup).not.toContain('1000');
@@ -64,7 +65,7 @@ describe('PlayTab', () => {
     expect(markup).toContain('>ヒット<');
     expect(markup).toContain('>1枚ベット<');
     expect(markup).toContain('ブラックジャックは3対2');
-    expect(markup).toContain(getStrings('ja').notMoney);
+    expect(markup).toContain(`data-testid="bj-not-money">${NOT_MONEY.ja}<`);
     expect(markup).not.toContain('BLACKJACK PAYS');
     expect(markup).not.toContain('所持金');
   });
@@ -81,6 +82,8 @@ describe('the words: nothing a player sees could be taken for money', () => {
       else if (value && typeof value === 'object') Object.values(value).forEach(walk);
     };
     walk(getStrings(lang));
+    // The medal center's own words, in the help too.
+    expect(getStrings(lang).infoBody).toContain(NOT_MONEY[lang]);
     out.push(textOf(render(<Blackjack />, lang)));
     // The one note that says what medals are not is the only place those words may stand.
     return out.join('\n').split(getStrings(lang).notMoney).join(' ');

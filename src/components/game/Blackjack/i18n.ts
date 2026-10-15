@@ -3,6 +3,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { Action as AnalysisAction } from './analysis';
 import type { HandOutcome, StrategyId } from './engine';
 
@@ -27,7 +28,7 @@ export interface BlackjackStrings {
   findingMedals: string;
   betLabel: string;
   winLabel: string;
-  /** That medals are not money, near the counter and in the help. */
+  /** That medals are not money, near the counter and in the help: the medal center's own words (`NOT_MONEY`). */
   notMoney: string;
   refill: (medals: number) => string;
   sayRefill: (medals: number) => string;
@@ -169,7 +170,7 @@ const en: BlackjackStrings = {
     'An ace and a ten-value card on the first two cards is blackjack and pays 3:2. The dealer checks for blackjack under an ace or a ten before you act, so doubles and splits never lose to a hidden natural. When the dealer shows an ace you may take insurance with half your bet; it pays 2:1 if the dealer has blackjack.',
     'The dealer draws to 17 and stands on all 17s, including soft 17. Six decks are dealt to a cut card at 75% and then reshuffled.',
     'The table plays with your medals from the Medal Game Center: a bet comes out of them as you make it, and what a hand wins goes back into them. A blackjack’s 3:2 comes in whole medals, rounded down on an odd bet (3 medals win 4), and insurance is half the bet, rounded down. Reload in the middle of a hand and it is still on the table.',
-    'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+    NOT_MONEY.en,
   ],
   action: { hit: 'Hit', stand: 'Stand', double: 'Double', split: 'Split', surrender: 'Surrender' },
   centerLink: 'Medal Game Center',
@@ -180,8 +181,7 @@ const en: BlackjackStrings = {
   findingMedals: 'Finding your medals…',
   betLabel: 'BET',
   winLabel: 'WIN',
-  // The same words as the medal center's own note, until that is shared from MedalCenter/strings.ts.
-  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  notMoney: NOT_MONEY.en,
   refill: (medals) => `Out of medals — take ${medals} more`,
   sayRefill: (medals) => `You were given ${medals} medals.`,
   cardAway: 'Your medals are being played on a machine in another tab. This table waits where it is, with any hand on it.',
@@ -350,7 +350,7 @@ const ja: BlackjackStrings = {
     '最初の2枚でAと10点札ならブラックジャックで3:2の配当です。ディーラーはアップカードがAか10のとき先にブラックジャックを確認する（ピーク）ので、ダブルやスプリットが隠れたナチュラルに負けることはありません。ディーラーのアップカードがAのときはベットの半分でインシュランスを掛けられ、ディーラーがブラックジャックなら2:1の配当です。',
     'ディーラーは17になるまで引き、ソフト17を含むすべての17でスタンドします。6デッキを75%のカットカードまで配ったらシャッフルします。',
     'このテーブルは、メダルゲームセンターの持ちメダルで遊びます。ベットしたメダルはその場で持ちメダルから出し、勝ったメダルは持ちメダルに戻ります。ブラックジャックの3:2は枚数で数え、奇数ベットでは端数を切り捨てます（3枚なら4枚獲得）。インシュランスもベットの半分を切り捨てた枚数です。ハンドの途中でページを読み込み直しても、そのハンドはテーブルに残っています。',
-    'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+    NOT_MONEY.ja,
   ],
   action: { hit: 'ヒット', stand: 'スタンド', double: 'ダブル', split: 'スプリット', surrender: 'サレンダー' },
   centerLink: 'メダルゲームセンター',
@@ -361,7 +361,7 @@ const ja: BlackjackStrings = {
   findingMedals: '持ちメダルを確認しています…',
   betLabel: 'ベット',
   winLabel: '獲得',
-  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+  notMoney: NOT_MONEY.ja,
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
   sayRefill: (medals) => `メダルを${medals}枚受け取りました。`,
   cardAway: 'メダルは別のタブのマシンで遊ばれています。このテーブルは、配られたハンドもそのままで待っています。',

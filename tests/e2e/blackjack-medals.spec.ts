@@ -43,14 +43,13 @@ test('a bet comes out of the player’s medals as it is made, a win goes back in
   expect(await medalsShown(page)).toBe(WELCOME);
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
 
-  // The bet is taken as the hand is dealt.
+  // The bet is taken as the hand is dealt (a natural, or insurance asked, is played out and another hand dealt).
   const before = await dealAHandToPlay(page);
-  expect(before).toBe(WELCOME);
-  await expect.poll(() => medalsShown(page)).toBe(WELCOME - 2);
-  expect(await bankBalance(page)).toBe(WELCOME - 2);
+  await expect.poll(() => medalsShown(page)).toBe(before - 2);
+  expect(await bankBalance(page)).toBe(before - 2);
   await expect(page.getByTestId('bj-on-table')).toHaveText('2');
   await finishRound(page);
-  let medals = WELCOME + (await shownNet(page));
+  let medals = before + (await shownNet(page));
   await expect.poll(() => medalsShown(page)).toBe(medals);
 
   // Played on until a hand is won: what it wins goes back in.

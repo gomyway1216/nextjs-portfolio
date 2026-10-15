@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '../../src/components/game/SlotMachine/engine';
 import { NOTICE_KEY, ROUND_KEY, SLOT_GAME, parseRound } from '../../src/components/game/SlotMachine/medals';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
@@ -157,9 +158,7 @@ test('plays with the medal center’s medals: a bet takes them, a win adds them,
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openSlots(page);
   await expect(page.getByTestId('slot-center')).toHaveAttribute('href', '/games/medal-center');
-  await expect(page.getByTestId('slot-not-money')).toHaveText(
-    'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
-  );
+  await expect(page.getByTestId('slot-not-money')).toHaveText(NOT_MONEY.en);
   // A losing spin of two medals: two come out, nothing goes back.
   await page.getByRole('radio', { name: 'BET 2 medals' }).click();
   await page.evaluate(() => {
@@ -324,7 +323,7 @@ test('says once that the machine plays with the player’s medals now, and fits 
   await expect(page.getByTestId('slot-notice')).toHaveCount(0);
 
   await openSlots(page, 'ja');
-  await expect(page.getByTestId('slot-not-money')).toHaveText('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。');
+  await expect(page.getByTestId('slot-not-money')).toHaveText(NOT_MONEY.ja);
   await expect(page.getByRole('radio', { name: '3枚ベット' })).toBeVisible();
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   expect(errors).toEqual([]);

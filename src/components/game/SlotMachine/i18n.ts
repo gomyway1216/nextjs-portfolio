@@ -3,6 +3,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { PayRuleId, SymbolId } from './engine';
 
 export interface SlotStrings {
@@ -129,7 +130,7 @@ const EN: SlotStrings = {
     'Every spin picks one of 64 "virtual stops" per reel, so there are exactly 64³ = 262,144 equally likely outcomes. That makes every probability on the Exact odds tab a precise count, not an estimate.',
     `In the long run the machine gives back ${rtp} of the medals bet on it, whatever the bet. The Simulation tab shows how slowly real results approach that number — and how often a session ends behind.`,
     'You play with your medals from the Medal Game Center: the same medals as every machine there. Run out and the attendant brings a free cupful of 100. The daily bonus and the one reset are on the Medal Game Center’s front page.',
-    'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+    NOT_MONEY.en,
   ],
   symbolName: { seven: '7', bar: 'BAR', bell: 'Bell', plum: 'Plum', cherry: 'Cherry', blank: 'Blank' },
   ruleName: {
@@ -142,7 +143,7 @@ const EN: SlotStrings = {
     cherry1: 'One cherry',
   },
   centerLink: 'Medal Game Center',
-  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  notMoney: NOT_MONEY.en,
   centerNote: 'These are your medals from the Medal Game Center, shared by every machine there. The daily bonus and the reset are on its front page.',
   centerNoteLink: 'Go to the Medal Game Center',
   noticeTitle: 'Now on the medal floor',
@@ -257,7 +258,7 @@ const JA: SlotStrings = {
     '各リールは 64 個の「バーチャルストップ」から 1 つを選ぶので、1 回の結果はちょうど 64³ = 262,144 通りで、すべて同じ確率です。そのため「正確な確率」タブの数字は推定ではなく、数え上げた厳密値です。',
     `この台は長期的に、ベットしたメダルの ${rtp} を返します（ベット枚数によらず同じです）。「シミュレーション」タブでは、実際の結果がその値にどれほどゆっくり近づくか、そして何割のセッションが減って終わるかを確かめられます。`,
     'メダルゲームセンターの持ちメダルで遊びます。センターのどのマシンとも同じメダルです。メダルがなくなったら、店員さんが 100 枚を無料で持ってきます。デイリーボーナスとリセットは、メダルゲームセンターの入口ページにあります。',
-    'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+    NOT_MONEY.ja,
   ],
   symbolName: { seven: '7', bar: 'BAR', bell: 'ベル', plum: 'プラム', cherry: 'チェリー', blank: '空白' },
   ruleName: {
@@ -270,7 +271,7 @@ const JA: SlotStrings = {
     cherry1: 'チェリー 1 つ',
   },
   centerLink: 'メダルゲームセンター',
-  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+  notMoney: NOT_MONEY.ja,
   centerNote: 'このメダルはメダルゲームセンターの持ちメダルで、センターのどのマシンでも同じです。デイリーボーナスとリセットはセンターの入口ページにあります。',
   centerNoteLink: 'メダルゲームセンターへ',
   noticeTitle: 'メダルフロアに登場',

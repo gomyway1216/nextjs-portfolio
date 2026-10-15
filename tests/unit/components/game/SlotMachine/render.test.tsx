@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { REELS, analyzeMachine } from '@/components/game/SlotMachine/engine';
 import { getStrings, type SlotStrings } from '@/components/game/SlotMachine/i18n';
 import { OddsTab } from '@/components/game/SlotMachine/OddsTab';
@@ -102,8 +103,9 @@ describe('the words', () => {
       // The note is in the help too, in the player's language.
       expect(t.infoBody('95.26%')).toContain(t.notMoney);
     }
-    expect(getStrings('en').notMoney).toBe('Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.');
-    expect(getStrings('ja').notMoney).toBe('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。');
+    // The medal center's own note, word for word, in each language.
+    expect(getStrings('en').notMoney).toBe(NOT_MONEY.en);
+    expect(getStrings('ja').notMoney).toBe(NOT_MONEY.ja);
   });
 
   it('shows no money words anywhere on the page, in either language', () => {

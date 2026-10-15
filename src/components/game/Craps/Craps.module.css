@@ -135,17 +135,6 @@
 }
 
 /* ---------- Layout ---------- */
-.playGrid {
-  display: grid;
-  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .playGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 .panel {
   min-width: 0;
   background: var(--games-route-surface);
@@ -154,38 +143,186 @@
   padding: 1rem 1.1rem;
   box-shadow: var(--games-route-shadow);
 }
-
-/* ---------- Dice tray ---------- */
-.tray {
-  position: relative;
-  aspect-ratio: 100 / 56;
-  border-radius: 18px;
-  overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 60%, #12884b, var(--cr-felt) 55%, var(--cr-felt-2));
-  border: 10px solid var(--cr-rail);
-  box-shadow:
-    inset 0 0 30px rgba(0, 0, 0, 0.45),
-    0 8px 20px rgba(0, 0, 0, 0.25);
+.infoGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
 }
-/* Back wall lined with rubber pyramids. */
-.trayWall {
+@media (max-width: 760px) {
+  .infoGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- The table ---------- */
+.table {
+  position: relative;
+}
+/* A full table on a desk, a half one on a phone: both are drawn, and the one that fits is shown. */
+.tableView[data-table-kind='half'] {
+  display: none;
+}
+@media (max-width: 700px) {
+  .tableView[data-table-kind='half'] {
+    display: block;
+  }
+  .tableView[data-table-kind='full'] {
+    display: none;
+  }
+}
+.tub,
+.centerBox {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  /* The art is drawn to the box's shape: these stop a browser that does not know aspect-ratio from collapsing it. */
+  min-height: 120px;
+}
+.centerBox {
+  margin-top: 0.6rem;
+  min-height: 80px;
+}
+.tableArt {
   position: absolute;
-  top: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.areaGroup {
+  display: contents;
+}
+/* A betting area: a clear button over the felt's art, with the medals on it. */
+.area {
+  position: absolute;
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 0 3%;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.area:hover:not(:disabled) {
+  background: rgba(255, 214, 92, 0.16);
+}
+.area:focus-visible {
+  outline: 3px solid #ffd65c;
+  outline-offset: -3px;
+  z-index: 3;
+}
+.area:disabled {
+  cursor: default;
+}
+.areaUnavailable {
+  background: rgba(0, 0, 0, 0.22);
+}
+.areaMax {
+  position: absolute;
+  bottom: 4%;
   left: 0;
   right: 0;
-  height: calc(100% * 5 / 56);
-  background-color: #2b2b2e;
-  background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.16) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(0, 0, 0, 0.45) 25%, transparent 25%);
-  background-size: 12px 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  font-size: clamp(0.5rem, 1.4vw, 0.7rem);
+  font-weight: 800;
+  color: #ffd65c;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
 }
-.die {
+.areaMedals {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.pile {
+  display: block;
+  width: clamp(18px, 3.4vw, 30px);
+  height: auto;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+.areaCount {
+  margin-top: -2px;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #eff0f2;
+  color: #15161a;
+  border: 1px solid #44474c;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.areaOff {
+  position: absolute;
+  top: -6px;
+  left: -14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  border: 1px solid #555;
+  background: #111;
+  color: #fff;
+  font-size: 0.5rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+/* The puck: white and ON on the point's box, black and OFF in the corner when there is none. */
+.tablePuck {
   position: absolute;
   aspect-ratio: 1;
-  z-index: 2;
-  will-change: transform, left, top;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: clamp(0.5rem, 1.5vw, 0.8rem);
+  font-weight: 900;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 4;
+  transition:
+    left 0.35s ease,
+    top 0.35s ease;
+}
+.tablePuckOn {
+  background: #ffffff;
+  color: #111111;
+  border: 2px solid #111111;
+}
+.tablePuckOff {
+  background: #111111;
+  color: #ffffff;
+  border: 2px solid #666666;
+}
+/* The dice: moved by a transform on every frame, and showing whichever face is up. */
+.diceLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 14px;
+  z-index: 5;
+}
+.tableDie,
+.tableDieShadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.tableDieShadow {
+  border-radius: 30%;
+  background: rgba(0, 0, 0, 0.55);
+  filter: blur(2px);
 }
 .dieFace {
   position: absolute;
@@ -195,22 +332,62 @@
   display: none;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
-.die[data-face='1'] .dieFace[data-value='1'],
-.die[data-face='2'] .dieFace[data-value='2'],
-.die[data-face='3'] .dieFace[data-value='3'],
-.die[data-face='4'] .dieFace[data-value='4'],
-.die[data-face='5'] .dieFace[data-value='5'],
-.die[data-face='6'] .dieFace[data-value='6'] {
+.tableDie[data-face='1'] .dieFace[data-value='1'],
+.tableDie[data-face='2'] .dieFace[data-value='2'],
+.tableDie[data-face='3'] .dieFace[data-value='3'],
+.tableDie[data-face='4'] .dieFace[data-value='4'],
+.tableDie[data-face='5'] .dieFace[data-value='5'],
+.tableDie[data-face='6'] .dieFace[data-value='6'] {
   display: block;
 }
-.dieShadow {
-  position: absolute;
-  aspect-ratio: 1;
-  z-index: 1;
-  border-radius: 30%;
-  background: rgba(0, 0, 0, 0.55);
-  filter: blur(3px);
-  transform: translate(-50%, -50%);
+/* Where motion is reduced, the dice are not thrown: they appear where they rest. */
+.diceCalm .tableDie,
+.diceCalm .tableDieShadow {
+  animation: diceAppear 0.26s ease-out;
+}
+@keyframes diceAppear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.printedNote {
+  margin: 0.4rem 0 0;
+  font-size: 0.74rem;
+  color: var(--games-route-muted);
+  line-height: 1.45;
+}
+.controls {
+  margin-top: 0.4rem;
+}
+.throwChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.toggle {
+  appearance: none;
+  min-height: 40px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.toggle[aria-pressed='true'] {
+  background: var(--cr-gold);
+  color: #1a1200;
+  border-color: transparent;
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--cr-gold);
+  outline-offset: 2px;
 }
 
 .callout {
@@ -654,224 +831,6 @@
 .cardAwayButton:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 2px;
-}
-
-/* ---------- The layout (felt) ---------- */
-.felt {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.7rem;
-  border-radius: 14px;
-  background: linear-gradient(160deg, var(--cr-felt), var(--cr-felt-2));
-  border: 6px solid var(--cr-rail);
-  box-shadow: inset 0 0 36px rgba(0, 0, 0, 0.35);
-  color: #fff;
-}
-.spot {
-  position: relative;
-  appearance: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.1rem;
-  min-height: 46px;
-  padding: 0.35rem 0.3rem;
-  border: 2px solid var(--cr-line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.12s, opacity 0.12s;
-}
-.spot:hover:not(:disabled) {
-  background: rgba(244, 197, 66, 0.18);
-}
-.spot:focus-visible {
-  outline: 3px solid var(--cr-gold);
-  outline-offset: 1px;
-}
-.spot:disabled {
-  cursor: not-allowed;
-}
-.spotUnavailable {
-  opacity: 0.5;
-}
-.spotLabel {
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.82rem;
-  line-height: 1.1;
-}
-.spotPays {
-  font-size: 0.64rem;
-  color: rgba(255, 255, 255, 0.85);
-}
-.spotMax {
-  font-size: 0.6rem;
-  color: var(--cr-gold);
-  font-weight: 700;
-}
-/* How many medals a spot takes at a time, where it pays a fraction. */
-.spotStep {
-  font-size: 0.56rem;
-  font-weight: 800;
-  line-height: 1.1;
-  color: #ffe08a;
-  white-space: nowrap;
-  letter-spacing: -0.01em;
-}
-/* The medals on a spot: a silver medal with their number on it. */
-.chipBadge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 5px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 50% 36%, #eff0f2 0%, #bbbec3 60%, #80848a 100%);
-  color: #15161a;
-  font-size: 0.7rem;
-  font-weight: 850;
-  border: 2px solid #44474c;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  font-variant-numeric: tabular-nums;
-  z-index: 2;
-}
-/* Off on the come-out: a small black button on the spot's bottom edge, clear of its number and of its medals on a
-   phone's narrow spots. */
-.offTag {
-  position: absolute;
-  bottom: -7px;
-  left: 50%;
-  transform: translateX(-50%);
-  line-height: 1.3;
-  padding: 0 4px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  background: #111;
-  color: #fff;
-  font-size: 0.56rem;
-  font-weight: 800;
-  z-index: 2;
-}
-.placeRow {
-  display: grid;
-  grid-template-columns: 38px repeat(6, minmax(0, 1fr));
-  gap: 0.35rem;
-  align-items: stretch;
-}
-.placeSpot {
-  min-height: 68px;
-}
-/* The medals on a place spot sit above its number, which a phone's narrow spot has no room beside. */
-.placeSpot .chipBadge {
-  top: -13px;
-  right: -6px;
-}
-@media (max-width: 520px) {
-  /* A phone's place spots are barely wider than 「6枚単位」. */
-  .placeSpot .spotStep {
-    font-size: 0.5rem;
-    letter-spacing: -0.04em;
-  }
-}
-.placeSpot .spotLabel {
-  font-size: clamp(0.78rem, 2.4vw, 1.35rem);
-  letter-spacing: -0.02em;
-}
-.puck {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  font-size: 0.66rem;
-  font-weight: 900;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
-  align-self: center;
-}
-.puckOff {
-  background: #111;
-  color: #fff;
-  border: 2px solid #555;
-}
-.puckHidden {
-  visibility: hidden;
-}
-.puckOn {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  margin-left: -17px;
-  background: #fff;
-  color: #111;
-  border: 2px solid #111;
-  z-index: 3;
-}
-.fieldSpot {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.2rem 0.8rem;
-  min-height: 52px;
-}
-.fieldNumbers {
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: var(--cr-gold);
-}
-.lineRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.3fr);
-  gap: 0.35rem;
-}
-.passSpot {
-  min-height: 56px;
-}
-.passSpot .spotLabel {
-  font-size: 1.05rem;
-}
-.dontSpot {
-  min-height: 46px;
-}
-.oddsSpot {
-  border-style: dashed;
-}.propBox {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.3rem;
-  margin-top: 0.3rem;
-  padding: 0.4rem;
-  border: 2px solid var(--cr-line);
-  border-radius: 10px;
-}
-@media (max-width: 520px) {
-  .propBox {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.propSpot .spotLabel {
-  font-size: 0.72rem;
-}
-.any7Spot,
-.anyCrapsSpot {
-  grid-column: 1 / -1;
-}
-.any7Spot .spotLabel,
-.anyCrapsSpot .spotLabel {
-  color: #fecaca;
-}
-.hardDice {
-  display: inline-flex;
-  gap: 2px;
 }
 
 .message {

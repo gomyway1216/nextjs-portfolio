@@ -1,0 +1,41 @@
+{
+  "about": "Ledgers as main wrote them at 6f69ced0, before receipts: made by a copy of main’s ledger.ts (not this branch’s), with the balance and era main read from each. Two are also kept as the account keeps them (toCloud, pack format 3). They are here so that every ledger written before receipts is read for good, its medals unchanged.",
+  "ledgers": [
+    {
+      "name": "a guest, played",
+      "text": "{\"v\":1,\"device\":\"phone4k2m9q\",\"era\":0,\"rows\":{\"phone4k2m9q\":{\"got\":52,\"spent\":7}},\"imports\":{\"welcome:0\":100},\"voided\":[],\"claimed\":{},\"restarted\":{}}",
+      "balance": 145,
+      "era": 0
+    },
+    {
+      "name": "a guest who moved an old purse in and took the bonus",
+      "text": "{\"v\":1,\"device\":\"tab7x1r0pz\",\"era\":0,\"rows\":{\"tab7x1r0pz\":{\"got\":125,\"spent\":19}},\"imports\":{\"medal-pusher@guest\":1234},\"voided\":[\"welcome:0\"],\"claimed\":{\"2026-10\":12288},\"restarted\":{}}",
+      "balance": 1340,
+      "era": 0
+    },
+    {
+      "name": "an account on two devices, reset once, every machine started over",
+      "text": "{\"v\":1,\"device\":\"phone4k2m9q\",\"era\":1,\"rows\":{\"lapz81n3cd\":{\"got\":9,\"spent\":7},\"phone4k2m9q\":{\"got\":304,\"spent\":10}},\"imports\":{\"welcome:1\":100},\"voided\":[\"medal-pusher-days@account\"],\"claimed\":{},\"restarted\":{\"baccarat@phone4k2m9q\":1,\"blackjack@phone4k2m9q\":1,\"craps@phone4k2m9q\":1,\"janken@phone4k2m9q\":1,\"medal-pusher@phone4k2m9q\":1,\"roulette@phone4k2m9q\":1,\"slot-machine@phone4k2m9q\":1,\"three-card-poker@phone4k2m9q\":1,\"video-poker@phone4k2m9q\":1}}",
+      "balance": 396,
+      "era": 1,
+      "cloud": {
+        "format": 3,
+        "mark": "fixturemark0000000001",
+        "changedAt": 1800000000000,
+        "data": "{\"v\":1,\"device\":\"phone4k2m9q\",\"era\":1,\"rows\":{\"lapz81n3cd\":{\"got\":9,\"spent\":7},\"phone4k2m9q\":{\"got\":304,\"spent\":10}},\"imports\":{\"welcome:1\":100},\"voided\":[\"medal-pusher-days@account\"],\"claimed\":{},\"restarted\":{\"baccarat@phone4k2m9q\":1,\"blackjack@phone4k2m9q\":1,\"craps@phone4k2m9q\":1,\"janken@phone4k2m9q\":1,\"medal-pusher@phone4k2m9q\":1,\"roulette@phone4k2m9q\":1,\"slot-machine@phone4k2m9q\":1,\"three-card-poker@phone4k2m9q\":1,\"video-poker@phone4k2m9q\":1}}"
+      }
+    },
+    {
+      "name": "an account whose two devices spent the same medals",
+      "text": "{\"v\":1,\"device\":\"phone4k2m9q\",\"era\":0,\"rows\":{\"lapz81n3cd\":{\"got\":0,\"spent\":40},\"phone4k2m9q\":{\"got\":0,\"spent\":100}},\"imports\":{\"welcome:0\":100},\"voided\":[],\"claimed\":{},\"restarted\":{}}",
+      "balance": -40,
+      "era": 0,
+      "cloud": {
+        "format": 3,
+        "mark": "fixturemark0000000001",
+        "changedAt": 1800000000000,
+        "data": "{\"v\":1,\"device\":\"phone4k2m9q\",\"era\":0,\"rows\":{\"lapz81n3cd\":{\"got\":0,\"spent\":40},\"phone4k2m9q\":{\"got\":0,\"spent\":100}},\"imports\":{\"welcome:0\":100},\"voided\":[],\"claimed\":{},\"restarted\":{}}"
+      }
+    }
+  ]
+}

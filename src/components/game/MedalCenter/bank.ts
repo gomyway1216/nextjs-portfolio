@@ -32,6 +32,31 @@
  * - A machine does not run while its page does not hold the card. Its field
  *   pays medals at any moment, and they would have nowhere to go.
  *
+ * ## A machine's rounds
+ *
+ * The Medal Pusher feeds and wins a medal at a time (`take`, `give`). A
+ * machine that plays in rounds (a spin, a hand, a coup, a bet on the craps
+ * table) keeps each round in a record of its own, beside the medals, and
+ * moves the round's medals with `apply`: each move under a receipt that goes
+ * into the ledger in the same write as the medals (see "Receipts" in
+ * ledger.ts). The record and the medals are two writes, and a browser that
+ * dies between them leaves one without the other; with the receipt, the
+ * machine finds out which, and a move tried again is made only if it was not
+ * made before. The rule every machine keeps:
+ *
+ * - **Its record first.** The record says what the next move is before the
+ *   move is made: a stake about to be taken, a win about to be paid. A
+ *   record that names a stake whose receipt is not there is a stake that was
+ *   never taken, and the step it was for never happened (the round, or the
+ *   double or the bet, is taken back off the record). A record that names a
+ *   win whose receipt is not there is a win still to be paid: it is paid.
+ * - **Receipts let go of last.** A machine lets go of a round's receipts
+ *   (`forget`) only once its record no longer needs them: the round is over
+ *   and written down as over, or gone.
+ *
+ * A record written before there were receipts is taken at its word: its
+ * stakes were taken.
+ *
  * A browser without Web Locks (Safari before 15.4) has nothing that keeps two
  * tabs apart. There every page writes as though it held the card, and two
  * tabs of the bank open at once can lose a medal to each other. Nothing is
@@ -75,17 +100,21 @@ import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type
 import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
 import {
   REFILL,
+  applyMove,
   balanceOf,
   cardOf,
   claimBonus,
   createLedger,
+  forgetReceipts,
   give,
   hasImported,
+  hasReceipt,
   importPurse,
   markChecked,
   mergeLedgers,
   parseLedger,
   printOf,
+  receiptOf,
   refill,
   refillDue,
   resetLedger,
@@ -291,6 +320,23 @@ export type BankEvent =
   | { type: 'bonus' | 'refill'; medals: number }
   /** The bank has been reset, here or elsewhere: every machine starts over. */
   | { type: 'reset' };
+
+/**
+ * A move of medals that is one step of a machine's round (`apply`): made once,
+ * under a receipt named by the game, the round and the step.
+ */
+export interface Move {
+  /** The game's name at the bank. */
+  game: string;
+  /** The round's name: letters and digits, up to 24, that no other round of the game on this device has. */
+  round: string;
+  /** The step's name within the round: letters, digits and hyphens, up to 16 (`stake`, `pay`…). */
+  step: string;
+  /** Medals given, or taken when below nothing. None moves for 0, and the step is written down all the same. */
+  medals: number;
+  /** The era of the medals the round was played in, when the machine knows it: a move for another era is not made. */
+  era?: number;
+}
 
 /** A machine's place at the bank. */
 export interface Seat {
@@ -875,6 +921,10 @@ export function createBank(env: BankEnv) {
     else ({ ledger, banked: bankedNow } = newLedger(owner));
     const at: Desk = had ?? { owner, key, ledger, unsaved: false, joins: [], imports: [], days: null, checks: [], moved: false, banked: null };
     at.ledger = ledger;
+    // The copy handed over is joined into what storage holds when the bank is next written, as a copy heard from the
+    // account is (`hears`): writing reads storage first, and would otherwise leave out what only the handed copy has
+    // (another device's play, and the receipts of its moves) until the next copy came from the account.
+    if (fromStorage && given) at.joins.push(given);
     at.moved ||= moved && owner !== null;
     at.banked ??= bankedNow;
     // An account's machine kept on this device from before the bank may hold a purse: it is moved in.
@@ -1089,6 +1139,55 @@ export function createBank(env: BankEnv) {
       at.ledger = give(at.ledger, medals);
       store(at);
       publish();
+      return true;
+    },
+
+    /**
+     * Makes one move of a round's medals, once, by the page that holds the
+     * card: the medals and the move's receipt go into the ledger in one write
+     * (see "Receipts" in ledger.ts). `applied`: made now. `already`: made
+     * before, here or by any page or device, and not made again. Null: not
+     * made, because this page does not hold the card, the move will not do,
+     * the medals are not there to take, it is for another era of the medals
+     * than the one on the table, or this device holds as many receipts as it
+     * may. Like `take` and `give`, a move this browser's storage would not
+     * keep stays in the medals on the page (`kept` says so), and goes to
+     * storage with the next write that takes.
+     */
+    apply(move: Move): 'applied' | 'already' | null {
+      const at = desk;
+      if (!at || !holding() || (move.era !== undefined && move.era !== at.ledger.era)) return null;
+      const receipt = receiptOf(move.game, move.round, move.step);
+      const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals);
+      if (!moved) return null;
+      if (!moved.applied) return 'already';
+      at.ledger = moved.ledger;
+      store(at);
+      publish();
+      return 'applied';
+    },
+
+    /** Whether a move of a round's medals has been made in the medals on the table: its receipt is there. */
+    applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean {
+      const receipt = receiptOf(move.game, move.round, move.step);
+      return desk !== null && receipt !== null && hasReceipt(desk.ledger, receipt);
+    },
+
+    /**
+     * Lets go of this device's receipts for `game`'s rounds, all but those of
+     * the rounds in `keep`, by the page that holds the card: a round is over
+     * and kept no more, and nothing will try its moves again. Returns whether
+     * this page could (it holds the card).
+     */
+    forget(game: string, keep: readonly string[] = []): boolean {
+      const at = desk;
+      if (!at || !holding()) return false;
+      const next = forgetReceipts(at.ledger, game, keep);
+      if (next !== at.ledger) {
+        at.ledger = next;
+        store(at);
+        publish();
+      }
       return true;
     },
 

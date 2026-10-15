@@ -285,7 +285,9 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   const oddsSpot = (id: 'passOdds' | 'dontPassOdds') => {
     const max = maxOdds(id, point, bets);
     const pays = point === null ? t.trueOdds : ratioText(id === 'passOdds' ? TRUE_ODDS[point] : LAY_ODDS[point]);
-    return spot(id, t.betName[id], pays, styles.oddsSpot, max > 0 ? <span className={styles.spotMax}>{t.oddsMax(max)}</span> : null);
+    // Printed short on the felt, as the odds sit behind the line with no box of their own on a real table; the button's
+    // name says it in full.
+    return spot(id, id === 'passOdds' ? t.oddsShort : t.layShort, pays, styles.oddsSpot, max > 0 ? <span className={styles.spotMax}>{t.oddsMax(max)}</span> : null);
   };
 
   return (

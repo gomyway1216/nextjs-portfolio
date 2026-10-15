@@ -3,17 +3,10 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { BetId, RollEvent } from './engine';
 import type { TableError } from './medalTable';
 import type { StrategyId } from './sim';
-
-/**
- * The owner's note on what medals are, shown wherever the game shows the
- * player's medals. The same words go into the medal center's shared strings;
- * until they are there, they are written out here.
- */
-export const NOT_MONEY_EN = 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.';
-export const NOT_MONEY_JA = 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。';
 
 export interface CrapsStrings {
   title: string;
@@ -66,6 +59,9 @@ export interface CrapsStrings {
   betAria: (name: string, pays: string, amount: number, step: number) => string;
   stepTag: (step: number) => string;
   oddsMax: (max: number) => string;
+  /** The odds behind the line, as the felt prints them. */
+  oddsShort: string;
+  layShort: string;
   fieldNote: string;
   offOnComeOut: string;
   proposition: string;
@@ -220,7 +216,7 @@ const EN: CrapsStrings = {
     'Place bets and hardways work only while a point is on; place bets stay up after they win. Field and the center bets are one-roll bets. Pick a BET size, click a betting area, then ROLL.',
     'You play with your medals from the Medal Game Center, the same medals every game there uses. A bet takes its medals as you put it on; a win brings back the bet and what it won. A spot holds up to 50 medals, and every win is whole medals: Place 6 and 8 take medals in 6s, Place 4, 5, 9 and 10 in 5s, and the odds in the steps shown on them.',
     'Bets stay on the table when you leave or reload the page, as they would at a real table. Take down brings back every bet that may come down; a Pass Line bet stays until its point is decided.',
-    NOT_MONEY_EN,
+    NOT_MONEY.en,
   ],
   betName: BET_EN,
   centerLink: 'Medal Game Center',
@@ -229,7 +225,7 @@ const EN: CrapsStrings = {
   wonMedals: (medals) => `Won ${medals} ${medals === 1 ? 'medal' : 'medals'}`,
   onTable: 'On the table',
   net: 'Net medals',
-  notMoney: NOT_MONEY_EN,
+  notMoney: NOT_MONEY.en,
   centerNote: 'These are your medals from the Medal Game Center, shared by every game there. They are reset only at the Medal Game Center.',
   cardAway: 'Your medals are being played on a machine in another tab. This table waits as it is, with your bets on it.',
   playHere: 'Play here',
@@ -290,6 +286,8 @@ const EN: CrapsStrings = {
     `${name} (${pays})${step > 1 ? `, in ${step}s` : ''}${amount > 0 ? ` — ${amount} ${amount === 1 ? 'medal' : 'medals'} on it` : ''}`,
   stepTag: (step) => `in ${step}s`,
   oddsMax: (max) => `max ${max}`,
+  oddsShort: 'ODDS',
+  layShort: 'LAY',
   fieldNote: '2 pays double · 12 pays triple',
   offOnComeOut: 'Off on the come-out',
   proposition: 'One-roll & hardway bets',
@@ -417,7 +415,7 @@ const JA: CrapsStrings = {
     'プレイスベットとハードウェイはポイントが ON のときだけ有効で、プレイスは当たってもそのまま残ります。フィールドと中央のベットは 1 投ごとに決着します。ベット枚数を選んでエリアをクリックし、ROLL を押します。',
     'メダルゲームセンターの持ちメダルで遊びます。センターのどのゲームとも共通のメダルです。ベットを置くとその枚数が持ちメダルから減り、勝つとベットと配当の分が戻ります。1 か所に置けるのは 50 枚まで。配当はいつも整数枚です。プレイス 6・8 は 6 枚単位、プレイス 4・5・9・10 は 5 枚単位、オッズはエリアに書かれた単位でベットします。',
     'ページを閉じたり読み込み直したりしても、ベットは本物のテーブルと同じようにテーブルに残ります。「引き上げる」で、引き上げられるベットをすべて持ちメダルに戻せます。パスラインはポイントの決着までそのままです。',
-    NOT_MONEY_JA,
+    NOT_MONEY.ja,
   ],
   betName: BET_JA,
   centerLink: 'メダルゲームセンター',
@@ -426,7 +424,7 @@ const JA: CrapsStrings = {
   wonMedals: (medals) => `${medals}枚獲得`,
   onTable: 'テーブル上',
   net: '差枚',
-  notMoney: NOT_MONEY_JA,
+  notMoney: NOT_MONEY.ja,
   centerNote: 'メダルゲームセンターの持ちメダルで、センターのすべてのゲームで共通です。リセットはメダルゲームセンターでだけできます。',
   cardAway: 'メダルは別のタブのマシンで遊ばれています。このテーブルはベットをそのままにして待っています。',
   playHere: 'ここで遊ぶ',
@@ -486,6 +484,8 @@ const JA: CrapsStrings = {
   betAria: (name, pays, amount, step) => `${name}（${pays}）${step > 1 ? `・${step}枚単位` : ''}${amount > 0 ? ` — ${amount}枚ベット中` : ''}`,
   stepTag: (step) => `${step}枚単位`,
   oddsMax: (max) => `最大 ${max}`,
+  oddsShort: 'オッズ',
+  layShort: 'レイ',
   fieldNote: '2 は 2 倍・12 は 3 倍',
   offOnComeOut: 'カムアウト中は無効',
   proposition: '1 投ベットとハードウェイ',

@@ -8,7 +8,8 @@ import { OddsTab } from '@/components/game/Craps/OddsTab';
 import { PlayTab } from '@/components/game/Craps/PlayTab';
 import { SimTab } from '@/components/game/Craps/SimTab';
 import { BET_IDS } from '@/components/game/Craps/engine';
-import { NOT_MONEY_EN, NOT_MONEY_JA, getStrings } from '@/components/game/Craps/i18n';
+import { getStrings } from '@/components/game/Craps/i18n';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { BET_SIZES } from '@/components/game/Craps/medalTable';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { createI18nInstance } from '@/lib/i18n';
@@ -56,7 +57,7 @@ describe('PlayTab', () => {
     expect(markup).not.toMatch(/>Reset</);
     expect(markup).not.toMatch(/Chip|Bankroll/);
     // The note that medals are not money, by the counter, and the way to the Medal Game Center.
-    expect(markup).toContain(NOT_MONEY_EN);
+    expect(markup).toContain(NOT_MONEY.en);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}"`);
   });
 
@@ -67,7 +68,7 @@ describe('PlayTab', () => {
     expect(markup).toContain('aria-label="パスライン（1:1）"');
     expect(markup).toContain('aria-label="プレイス 6（7:6）・6枚単位"');
     expect(markup).toContain('aria-label="1枚ベット"');
-    expect(markup).toContain(NOT_MONEY_JA);
+    expect(markup).toContain(NOT_MONEY.ja);
   });
 });
 
@@ -105,13 +106,13 @@ function readable(lang: 'en' | 'ja'): string {
 
 describe('nothing a player reads could be taken for money', () => {
   it('says medals in English, and never bank, cash, money, balance or credits, but in the note that medals are not money', () => {
-    const text = readable('en').split(NOT_MONEY_EN).join(' ');
+    const text = readable('en').split(NOT_MONEY.en).join(' ');
     expect(text).not.toMatch(/\b(bank|bankroll|deposit|withdraw|cash|money|dollars?|balance|credits?|paid|payout)\b|\$/i);
     expect(text).toMatch(/medals/);
   });
 
   it('says メダル in Japanese, and never 預け, 引き出し, 残高, お金, 円 or 換金, but in the note that medals are not money', () => {
-    const text = readable('ja').split(NOT_MONEY_JA).join(' ');
+    const text = readable('ja').split(NOT_MONEY.ja).join(' ');
     expect(text).not.toMatch(/預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金|持ち金|賭け金/);
     expect(text).toContain('持ちメダル');
   });

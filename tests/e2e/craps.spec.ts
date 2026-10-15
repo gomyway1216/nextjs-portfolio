@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { resolveRoll, totalOnTable, type Dice } from '../../src/components/game/Craps/engine';
-import { NOT_MONEY_EN, NOT_MONEY_JA } from '../../src/components/game/Craps/i18n';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { TABLE_KEY, parseTable, unreadKey } from '../../src/components/game/Craps/medalTable';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
@@ -266,7 +266,7 @@ test('says once that the table plays with medals now, at a phone’s width, with
   await expect(notice).toBeVisible();
   await expect(notice).toContainText('Craps now plays with your medals');
   await expect(page.getByTestId('craps-notice-center')).toHaveAttribute('href', '/games/medal-center');
-  await expect(page.getByTestId('craps-not-money')).toHaveText(NOT_MONEY_EN);
+  await expect(page.getByTestId('craps-not-money')).toHaveText(NOT_MONEY.en);
   await expect(page.getByTestId('craps-center')).toHaveAttribute('href', '/games/medal-center');
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   await page.getByTestId('craps-notice-close').click();
@@ -279,7 +279,7 @@ test('says once that the table plays with medals now, at a phone’s width, with
 
   await openCraps(page, 'ja');
   await expect(page.locator('#craps-counter-label')).toHaveText('持ちメダル');
-  await expect(page.getByTestId('craps-not-money')).toHaveText(NOT_MONEY_JA);
+  await expect(page.getByTestId('craps-not-money')).toHaveText(NOT_MONEY.ja);
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   expect(errors).toEqual([]);
 });

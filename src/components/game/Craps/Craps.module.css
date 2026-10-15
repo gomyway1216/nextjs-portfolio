@@ -770,6 +770,11 @@
 .placeSpot {
   min-height: 68px;
 }
+/* The medals on a place spot sit above its number, which a phone's narrow spot has no room beside. */
+.placeSpot .chipBadge {
+  top: -13px;
+  right: -6px;
+}
 @media (max-width: 520px) {
   /* A phone's place spots are barely wider than 「6枚単位」. */
   .placeSpot .spotStep {
@@ -839,13 +844,7 @@
 }
 .oddsSpot {
   border-style: dashed;
-}
-/* 「パスのオッズ」 fits on one line of a phone's narrow odds spot, clear of the medals on it. */
-.oddsSpot .spotLabel {
-  font-size: 0.76rem;
-  letter-spacing: 0;
-}
-.propBox {
+}.propBox {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.3rem;

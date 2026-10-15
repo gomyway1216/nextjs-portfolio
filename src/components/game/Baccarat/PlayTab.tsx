@@ -171,10 +171,10 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   // The felt, which takes the keyboard when the player comes back from another tab (the button they pressed goes).
   const feltRef = useRef<HTMLDivElement | null>(null);
   const store = useMemo(() => (typeof window === 'undefined' ? null : browserStore()), []);
-  const live = useRef({ t, playerUid: player.uid });
+  const live = useRef({ t });
 
   useEffect(() => {
-    live.current = { t, playerUid: player.uid };
+    live.current = { t };
   });
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);

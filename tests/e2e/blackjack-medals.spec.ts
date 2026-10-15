@@ -182,10 +182,13 @@ test('the medal center’s reset starts the table over: the hand on it goes with
   await dealButton(page).click();
   await finishRound(page);
   await expect.poll(() => medalsShown(page)).toBe(WELCOME + (await shownNet(page)));
+  // Kept as played: after a reload the hand is still on the table (as many hands as it was split into).
+  const hands = await page.locator('[data-hand]').count();
+  expect(hands).toBeGreaterThan(0);
   await page.reload();
   await arrived(page);
   await seated(page);
-  await expect(page.locator('[data-hand]')).toHaveCount(1);
+  await expect(page.locator('[data-hand]')).toHaveCount(hands);
 });
 
 test('old saved state: what the table cannot read is put aside, and the medals a Medal Pusher kept before the medal center are played here', async ({ page }) => {
@@ -226,9 +229,9 @@ test('a browser with no room left for the table bets nothing, and says why', asy
   await dealButton(page).click();
   await expect(page.getByTestId('bj-message')).toHaveText('This browser could not save the table, so no medals were bet. Its storage for this site may be full.');
   await expect(page.locator('[data-hand]')).toHaveCount(0);
-  expect(await medalsShown(page)).toBe(before);
-  expect(await bankBalance(page)).toBe(before);
-  // With room again, the same bet is made.
+  await expect.poll(() => medalsShown(page)).toBe(before);
+  await expect.poll(() => bankBalance(page)).toBe(before);
+  // With room again, the same bet is made, and only that one: the refused deal took nothing.
   await page.evaluate(() => {
     (window as unknown as { __full?: boolean }).__full = false;
   });

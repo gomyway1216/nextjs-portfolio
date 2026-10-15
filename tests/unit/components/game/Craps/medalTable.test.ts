@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { BET_IDS, POINT_NUMBERS, maxOdds, resolveRoll, type BetId, type Bets, type Dice, type PointNumber } from '@/components/game/Craps/engine';
 import {
   BET_SIZES,
@@ -32,8 +33,11 @@ import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 const ALL_DICE: Dice[] = Array.from({ length: 36 }, (_, i) => [1 + Math.floor(i / 6), 1 + (i % 6)] as const);
 
+/** A page's own storage, as the table is given it. */
+const storageOf = (page: FakePage): TableStorage => ({ read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text), remove: (key) => page.env.remove(key) });
+
 /** A page with the craps table on it, seated at the medal center as the game seats it. */
-function crapsOn(page: FakePage, storage: TableStorage = { read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text) }) {
+function crapsOn(page: FakePage, storage: TableStorage = storageOf(page)) {
   const held: { seat: Seat | null } = { seat: null };
   const table: MedalTable = createTable(purseOf(page.bank), storage, () => held.seat?.holding() ?? false);
   held.seat = page.bank.sit(CRAPS_GAME, { granted: () => table.sync(), yielding: () => undefined });
@@ -51,6 +55,12 @@ const storedMedals = (browser: FakeBrowser): number => {
   return ledger ? balanceOf(ledger) : -1;
 };
 const storedTable = (browser: FakeBrowser, owner: string | null = null): Table | null => parseTable(browser.storage.get(tableKey(owner)) ?? null);
+/** A table without the mark of the medals it was written with. */
+const unmarked = (table: Table | null): Omit<Table, 'mark'> | null => {
+  if (!table) return null;
+  const { mark: _mark, ...rest } = table;
+  return rest;
+};
 
 /** Every medal the player has: in hand and on the table. */
 const everything = (page: FakePage, table: MedalTable): number => page.bank.balance() + onTable(table.table());
@@ -349,7 +359,7 @@ describe('a reset at the Medal Game Center', () => {
     await quiet(browser);
     expect(page.bank.balance()).toBe(WELCOME);
     expect(table.table()).toEqual(freshTable());
-    expect(storedTable(browser)).toEqual(freshTable());
+    expect(unmarked(storedTable(browser))).toEqual(freshTable());
     expect(page.bank.restartDue(CRAPS_GAME)).toBe(false);
     // Nothing on the table came back into the new medals.
     expect(storedMedals(browser)).toBe(WELCOME);
@@ -380,7 +390,7 @@ describe('a reset at the Medal Game Center', () => {
     const two = crapsOn(again);
     await quiet(browser);
     expect(two.table.table()).toEqual(freshTable());
-    expect(storedTable(browser)).toEqual(freshTable());
+    expect(unmarked(storedTable(browser))).toEqual(freshTable());
     expect(again.bank.balance()).toBe(WELCOME);
   });
 });
@@ -447,7 +457,7 @@ describe('storage that will not keep the table', () => {
     const browser = new FakeBrowser();
     const page = browser.open();
     const failing: TableStorage = {
-      read: (key) => page.env.read(key),
+      ...storageOf(page),
       write: (key) => {
         if (key.startsWith(TABLE_KEY)) throw new Error('full');
       },
@@ -471,6 +481,72 @@ describe('storage that will not keep the table', () => {
     const rolled = table.roll([6, 5]);
     expect(rolled.ok && rolled.value.resolution.returned).toBe(10);
     expect(page.bank.balance()).toBe(WELCOME + 5);
+  });
+
+  /** The medals' own writes fail from now on, while the table's go on working: storage almost full. */
+  const medalsFail = (page: FakePage) => {
+    const write = page.env.write;
+    page.env.write = (key, text) => {
+      if (key === 'medal-center-bank') throw new Error('full');
+      write(key, text);
+    };
+    return () => {
+      page.env.write = write;
+    };
+  };
+
+  it('makes no bet whose medals were not kept as taken: a reload could not find them taken, and the bet would be medals made', async () => {
+    const { browser, page, table } = await opened();
+    const healed = medalsFail(page);
+    expect(table.place('pass', 5)).toEqual({ ok: false, error: 'notKept' });
+    expect(page.bank.balance()).toBe(WELCOME);
+    expect(storedMedals(browser)).toBe(WELCOME);
+    expect(table.table().bets).toEqual({});
+    expect(storedTable(browser)?.bets ?? {}).toEqual({});
+    healed();
+    expect(table.place('pass', 5).ok).toBe(true);
+    expect(storedMedals(browser)).toBe(WELCOME - 5);
+  });
+
+  it('leaves the table as it was when the medals it gives back are not kept: neither lost nor made twice', async () => {
+    const { browser, page, table } = await opened();
+    table.place('pass', 5);
+    table.place('field', 5);
+    const healed = medalsFail(page);
+    expect(table.takeDown()).toEqual({ ok: false, error: 'notKept' });
+    expect(table.undo()).toEqual({ ok: false, error: 'notKept' });
+    // 5 + 6: the Pass and the Field would both win. The roll is not made.
+    expect(table.roll([5, 6])).toEqual({ ok: false, error: 'notKept' });
+    expect(table.table().bets).toEqual({ pass: 5, field: 5 });
+    expect(table.table().stats.rolls).toBe(0);
+    expect(storedTable(browser)?.bets).toEqual({ pass: 5, field: 5 });
+    expect(page.bank.balance()).toBe(WELCOME - 10);
+    expect(storedMedals(browser)).toBe(WELCOME - 10);
+    healed();
+    expect(table.roll([5, 6]).ok).toBe(true);
+    expect(storedMedals(browser)).toBe(WELCOME + 10);
+    expect(storedTable(browser)?.bets).toEqual({});
+  });
+
+  it('writes nothing over a table it cannot read until that has been put aside', async () => {
+    const browser = new FakeBrowser();
+    const unreadable = JSON.stringify({ bankroll: 1000, bets: { pass: 25 } });
+    browser.storage.set(TABLE_KEY, unreadable);
+    const page = browser.open();
+    const archiving: TableStorage = {
+      ...storageOf(page),
+      write: (key, text) => {
+        if (key.endsWith('#unread')) throw new Error('full');
+        page.env.write(key, text);
+      },
+    };
+    const { table } = crapsOn(page, archiving);
+    await quiet(browser);
+    expect(table.table()).toEqual(freshTable());
+    expect(table.place('pass', 5)).toEqual({ ok: false, error: 'notKept' });
+    expect(browser.storage.get(TABLE_KEY)).toBe(unreadable);
+    expect(page.bank.balance()).toBe(WELCOME);
+    expect(storedMedals(browser)).toBe(WELCOME);
   });
 });
 
@@ -499,14 +575,23 @@ describe('whose table it is', () => {
       restartDue: () => false,
       restarted: () => undefined,
       kept: () => true,
+      mark: () => (owner === null ? 'guest00001:0' : 'account001:0'),
     };
     return { medals, purse, become: (who: string | null) => (owner = who) };
   }
+  const mapStorage = (storage: Map<string, string>, unreadable: (key: string) => boolean = () => false): TableStorage => ({
+    read: (key) => {
+      if (unreadable(key)) throw new Error('blocked');
+      return storage.get(key) ?? null;
+    },
+    write: (key, text) => void storage.set(key, text),
+    remove: (key) => void storage.delete(key),
+  });
 
   it('keeps a guest’s table and an account’s apart, each under its own name', () => {
     const storage = new Map<string, string>();
     const { medals, purse, become } = purses();
-    const table = createTable(purse, { read: (key) => storage.get(key) ?? null, write: (key, text) => void storage.set(key, text) }, () => true);
+    const table = createTable(purse, mapStorage(storage), () => true);
     table.sync();
     table.place('pass', 5);
     expect(storage.has(tableKey(null))).toBe(true);
@@ -520,5 +605,78 @@ describe('whose table it is', () => {
     table.sync();
     expect(table.table().bets).toEqual({ pass: 5 });
     expect(medals.get(null)).toBe(95);
+  });
+
+  it('lets go of one player’s table as soon as the medals are another’s, even when the other’s cannot be read', () => {
+    const storage = new Map<string, string>();
+    const { medals, purse, become } = purses();
+    const table = createTable(purse, mapStorage(storage, (key) => key === tableKey('player-a')), () => true);
+    table.sync();
+    table.place('pass', 20);
+    table.place('field', 10);
+    become('player-a');
+    table.sync();
+    expect(table.table().bets).toEqual({});
+    // Nothing of the guest's bets can be taken down, or won, into the account's medals.
+    expect(table.takeDown()).toEqual({ ok: false, error: 'nothing' });
+    table.roll([5, 6]);
+    expect(medals.get('player-a')).toBe(300);
+    expect(medals.get(null)).toBe(70);
+  });
+});
+
+describe('a guest who signs in', () => {
+  const UID = 'test-player-1';
+
+  async function guestWithBets() {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const page = browser.open();
+    const { table } = crapsOn(page);
+    await quiet(browser);
+    table.place('pass', 5);
+    table.roll([3, 3]); // the point is 6
+    table.place('passOdds', 10);
+    return { browser, accounts, page, table };
+  }
+
+  it('takes the table along when the guest’s medals become a new account’s, and leaves nothing behind for the next guest', async () => {
+    const { browser, accounts, page, table } = await guestWithBets();
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME - 15 });
+    table.sync();
+    expect(table.table().bets).toEqual({ pass: 5, passOdds: 10 });
+    expect(table.table().point).toBe(6);
+    expect(storedTable(browser, UID)?.bets).toEqual({ pass: 5, passOdds: 10 });
+    expect(browser.storage.has(TABLE_KEY)).toBe(false);
+    // The bets play on with the account's medals: 4 + 2 makes the point.
+    const rolled = table.roll([4, 2]);
+    expect(rolled.ok && rolled.value.resolution.returned).toBe(10 + 22);
+    expect(page.bank.balance()).toBe(WELCOME - 15 + 32);
+    // Signed out, the next guest has a new member's medals and a table with nothing on it.
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store);
+    await quiet(browser);
+    table.sync();
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(table.table().bets).toEqual({});
+    expect(table.takeDown()).toEqual({ ok: false, error: 'nothing' });
+  });
+
+  it('leaves the guest’s table with the guest’s medals when the account has medals of its own', async () => {
+    const { browser, accounts, page, table } = await guestWithBets();
+    accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 400)), 'm-elsewhere');
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME + 400 });
+    table.sync();
+    expect(table.table().bets).toEqual({});
+    expect(storedTable(browser)?.bets).toEqual({ pass: 5, passOdds: 10 });
+    // Back as the guest, the guest's bets and medals are where they were.
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store);
+    await quiet(browser);
+    table.sync();
+    expect(page.bank.getState().balance).toBe(WELCOME - 15);
+    expect(table.table().bets).toEqual({ pass: 5, passOdds: 10 });
   });
 });

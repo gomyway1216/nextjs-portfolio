@@ -16,11 +16,18 @@
  *   cannot be taken down at a real table, and handing it back at a reload would
  *   let a player out of a bet that is worth less than its stake.
  * - **Medals leave before the table holds them, and the table lets go before
- *   they come back.** A bet's medals are taken before the table is written,
- *   and the table is written without a bet before its medals are given back.
- *   So a write that fails between the two can only ever lose medals, never
- *   make them twice; and a change whose table cannot be written is undone,
- *   unless the medals cannot be kept by this browser either.
+ *   they come back, and each step is kept or the change is not made.** A
+ *   bet's medals are taken, and must be kept as taken, before the table is
+ *   written with the bet; the table is written without a bet before its
+ *   medals are given back, and if they are not kept as given, they are taken
+ *   back and the table is written as it was. So no write that fails can make
+ *   medals twice, or lose them. Only where storage cannot be read at all is
+ *   everything played in the page alone, and there nothing outlives it.
+ * - **A guest's table goes with the guest's medals.** On a first sign-in to an
+ *   account with no medals, the guest's medals become the account's
+ *   (MedalCenter/bank.ts); the table, marked with those medals (`mark`), moves
+ *   with them. An account with medals of its own keeps its own table, and the
+ *   guest's stays the guest's.
  * - **Every win is whole medals.** A spot that pays a fraction (Place 6 pays
  *   7 for 6) takes medals only in amounts it pays in whole medals
  *   (`stakeStep`), as a dealer asks for 6 on the 6. Nothing is ever rounded,
@@ -188,6 +195,13 @@ export interface Table {
   history: HistoryEntry[];
   /** The last roll as it was thrown: the table before it and the dice. What it decided is worked out again from these. */
   last: { point: PointNumber | null; bets: Bets; dice: Dice } | null;
+  /**
+   * Which medals the bets on it were taken from: the medals' own copy on this
+   * device and its era (`TablePurse.mark`). A guest's medals that become an
+   * account's on its first sign-in keep their mark, and so the table goes with
+   * them; an account that brings medals of its own has another.
+   */
+  mark?: string;
 }
 
 export const EMPTY_STATS: Stats = { rolls: 0, shooter: 1, handRolls: 0, longestHand: 0, pointsMade: 0, sevenOuts: 0, net: 0 };
@@ -310,7 +324,11 @@ export function parseTable(text: unknown): Table | null {
     if (lastPoint === undefined || !lastBets || !dice || !standsUp(lastBets, lastPoint)) return null;
     last = { point: lastPoint, bets: lastBets, dice };
   }
-  return { v: TABLE_VERSION, point, bets, placed, lastRound, stats, history, last };
+  const { mark } = raw;
+  if (mark !== undefined && !(typeof mark === 'string' && mark.length <= 64)) return null;
+  const parsed: Table = { v: TABLE_VERSION, point, bets, placed, lastRound, stats, history, last };
+  if (mark !== undefined) parsed.mark = mark;
+  return parsed;
 }
 
 /** A table as it is written down. */
@@ -324,6 +342,7 @@ export function serializeTable(table: Table): string {
     stats: table.stats,
     history: table.history,
     last: table.last,
+    ...(table.mark === undefined ? {} : { mark: table.mark }),
   });
 }
 
@@ -337,17 +356,23 @@ export interface TablePurse {
   balance(): number;
   /** Whose medals they are: an account's id, or null for a guest's. */
   owner(): string | null;
+  /**
+   * Which medals they are: this device's copy of them and its era. A guest's
+   * medals that become an account's on its first sign-in keep it; an
+   * account's own medals have another. Null until they are read.
+   */
+  mark(): string | null;
   take(medals: number): boolean;
   give(medals: number): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
-  /** Whether this browser kept the medals' last write. */
+  /** Whether this browser kept the medals' last write: read straight after a take or a give, whether that one was. */
   kept(): boolean;
 }
 
 /** The medal center's bank, as the table uses it. */
 export const purseOf = (bank: {
-  getState(): { loaded: boolean; kept: boolean };
+  getState(): { loaded: boolean; kept: boolean; ledger: { device: string; era: number } | null };
   balance(): number;
   owner(): string | null;
   take(medals: number): boolean;
@@ -358,6 +383,10 @@ export const purseOf = (bank: {
   loaded: () => bank.getState().loaded,
   balance: () => bank.balance(),
   owner: () => bank.owner(),
+  mark: () => {
+    const ledger = bank.getState().ledger;
+    return ledger ? `${ledger.device}:${ledger.era}` : null;
+  },
   take: (medals) => bank.take(medals),
   give: (medals) => bank.give(medals),
   restartDue: (game) => bank.restartDue(game),
@@ -369,6 +398,7 @@ export const purseOf = (bank: {
 export interface TableStorage {
   read(key: string): string | null;
   write(key: string, text: string): void;
+  remove(key: string): void;
 }
 
 export type Done<T = true> = { ok: true; value: T } | { ok: false; error: TableError };
@@ -389,12 +419,22 @@ const UNREAD = Symbol('unread');
  * The table of whoever's medals are on the table, as this page knows it.
  * `may` says whether this page may play now: it holds the medal center's card,
  * and the medals are its player's.
+ *
+ * Where storage can be read, every change is kept or not made at all: a bet
+ * whose medals were not kept as taken is not put on, and medals that were not
+ * kept as given back leave the table as it was. Only where storage cannot be
+ * read at all (a browser that blocks it) is the table played in the page
+ * alone; nothing there outlives the page, the medals included.
  */
 export function createTable(purse: TablePurse, storage: TableStorage, may: () => boolean) {
   let owner: string | null = null;
   let table: Table = FRESH_TABLE;
   /** The text last read or written under the owner's name. */
   let seen: string | null | typeof UNREAD = UNREAD;
+  /** Whether storage cannot be read at all, so that the table is played in the page alone. */
+  let unkept = false;
+  /** A table nobody can read lies under the owner's name and could not be put aside: nothing is written over it. */
+  let stuck = false;
   /** Whether the last write took. */
   let kept = true;
   const listeners = new Set<() => void>();
@@ -410,27 +450,67 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
 
   const read = (key: string): string | null | undefined => {
     try {
-      return storage.read(key);
+      const text = storage.read(key);
+      unkept = false;
+      return text;
     } catch {
+      unkept = true;
       return undefined;
     }
   };
-  const write = (next: Table): boolean => {
-    const text = serializeTable(next);
+  const writeText = (key: string, text: string): boolean => {
     try {
-      storage.write(tableKey(owner), text);
-      seen = text;
-      kept = true;
+      storage.write(key, text);
+      return true;
     } catch {
-      kept = false;
+      return false;
     }
-    return kept;
   };
-  /** Puts a change on the table if it is written down, or if nothing of the medals is being kept by this browser either. */
+  /** Writes a table under the owner's name, marked with the medals it was played with. */
+  const write = (next: Table): Table | null => {
+    if (stuck) return null;
+    const mark = purse.mark();
+    const marked: Table = mark === null ? next : { ...next, mark };
+    const text = serializeTable(marked);
+    kept = writeText(tableKey(owner), text);
+    if (!kept) return null;
+    seen = text;
+    return marked;
+  };
+  /** Puts a change on the table if it is written down, or if nothing is kept by this browser at all. */
   const commit = (next: Table): boolean => {
-    if (!write(next) && purse.kept()) return false;
-    show(next);
+    if (unkept) {
+      show(next);
+      return true;
+    }
+    const written = write(next);
+    if (!written) return false;
+    show(written);
     return true;
+  };
+  /** Whether a take or a give just made was kept: always, where nothing is. */
+  const medalsKept = (): boolean => unkept || purse.kept();
+
+  /**
+   * A guest's medals that became the account's on its first sign-in are the
+   * same medals: the guest's table, played with them, goes with them, and
+   * leaves the guest's place once it is in the account's.
+   */
+  const adopt = (): void => {
+    if (owner === null || !may()) return;
+    const guestText = read(TABLE_KEY);
+    const guest = typeof guestText === 'string' ? parseTable(guestText) : null;
+    const mark = purse.mark();
+    if (!guest || guest.mark === undefined || mark === null || guest.mark !== mark) return;
+    const text = serializeTable(guest);
+    if (!writeText(tableKey(owner), text)) return;
+    try {
+      storage.remove(TABLE_KEY);
+    } catch {
+      // It stays under the guest's name, where its mark no longer matches the guest's medals.
+    }
+    seen = text;
+    show(guest);
   };
 
   /**
@@ -443,32 +523,38 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
     if (!purse.loaded()) return;
     const now = purse.owner();
     if (now !== owner) {
+      // Another player's medals: nothing of the last player's table stays in hand, whatever storage says next.
       owner = now;
       seen = UNREAD;
+      stuck = false;
+      show(FRESH_TABLE);
     }
-    const text = read(tableKey(owner));
+    let text = read(tableKey(owner));
+    if (text === null && owner !== null) {
+      adopt();
+      text = read(tableKey(owner));
+    }
     if (text !== undefined && text !== seen) {
       const parsed = text === null ? null : parseTable(text);
       if (text !== null && !parsed) {
-        // A table this version cannot read is put aside, by the page that may write, not written over.
-        if (may()) {
-          try {
-            storage.write(unreadKey(owner), text);
-            seen = text;
-          } catch {
-            // Read again next time.
-          }
+        // A table this version cannot read is put aside, by the page that may write, not written over. Until it is,
+        // nothing is written under its name.
+        stuck = true;
+        if (may() && writeText(unreadKey(owner), text)) {
+          stuck = false;
+          seen = text;
         }
       } else {
+        stuck = false;
         seen = text;
       }
       show(parsed ?? FRESH_TABLE);
     }
     if (purse.restartDue(CRAPS_GAME)) {
       // The medals have been reset since this table last was: its bets went with them. It is cleared for good once
-      // that is written (or nothing is being kept by this browser at all); until then it is only shown cleared.
+      // that is written (or nothing is kept by this browser at all); until then it is only shown cleared.
       show(FRESH_TABLE);
-      if (may() && (write(FRESH_TABLE) || !purse.kept())) purse.restarted(CRAPS_GAME);
+      if (may() && (unkept || write(FRESH_TABLE))) purse.restarted(CRAPS_GAME);
       else seen = UNREAD;
     }
   };
@@ -488,19 +574,33 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
     return next;
   };
 
-  /** Gives medals back for bets taken off, once the table without them is written. */
-  const giveBack = (next: Table, medals: number): Done => {
-    if (!commit(next)) return fail('notKept');
-    if (medals > 0) purse.give(medals);
-    return { ok: true, value: true };
+  /**
+   * Gives medals back for bets taken off the table: the table without them is
+   * written first, then the medals are given. Medals that are not kept as
+   * given are taken back, and the table goes back to what it was, so that
+   * nothing is lost and nothing is made twice.
+   */
+  const giveBack = (before: Table, next: Table, medals: number): boolean => {
+    if (!commit(next)) return false;
+    if (medals > 0 && (!purse.give(medals) || !medalsKept())) {
+      purse.take(medals);
+      commit(before);
+      return false;
+    }
+    return true;
   };
 
-  /** Puts `amount` medals on `id`, taken from the player's medals. */
+  /** Puts `amount` medals on `id`, taken from the player's medals: taken first, and kept as taken, before the table holds them. */
   const place = (id: BetId, amount: number): Done => {
     if (!ready()) return fail('notHere');
     const error = placeError(id, amount, table.point, table.bets, purse.balance());
     if (error) return fail(error);
     if (!purse.take(amount)) return fail('noMedals');
+    if (!medalsKept()) {
+      // The medals were not kept as taken: they go back, and no bet is made.
+      purse.give(amount);
+      return fail('notKept');
+    }
     const next: Table = { ...table, bets: { ...table.bets, [id]: (table.bets[id] ?? 0) + amount }, placed: [...table.placed, { id, amount }] };
     if (!commit(next)) {
       // The table could not hold them: the medals go back.
@@ -536,7 +636,10 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       if (!ready()) return fail('notHere');
       const lastPlaced = table.placed.at(-1);
       if (!lastPlaced) return fail('nothing');
-      return giveBack({ ...table, bets: without(table.bets, lastPlaced.id, lastPlaced.amount), placed: table.placed.slice(0, -1) }, lastPlaced.amount);
+      const before = table;
+      return giveBack(before, { ...table, bets: without(table.bets, lastPlaced.id, lastPlaced.amount), placed: table.placed.slice(0, -1) }, lastPlaced.amount)
+        ? { ok: true, value: true }
+        : fail('notKept');
     },
 
     /** Takes back everything put on since the roll. */
@@ -549,7 +652,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         bets = without(bets, id, amount);
         medals += amount;
       }
-      return giveBack({ ...table, bets, placed: [] }, medals);
+      return giveBack(table, { ...table, bets, placed: [] }, medals) ? { ok: true, value: true } : fail('notKept');
     },
 
     /** Takes down every bet that may come down: all of them but a Pass Line bet whose point is on. */
@@ -564,7 +667,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         else bets[id] = amount;
       }
       if (medals === 0) return fail('nothing');
-      return giveBack({ ...table, bets, placed: table.placed.filter(({ id }) => bets[id] !== undefined) }, medals);
+      return giveBack(table, { ...table, bets, placed: table.placed.filter(({ id }) => bets[id] !== undefined) }, medals) ? { ok: true, value: true } : fail('notKept');
     },
 
     /** Puts back what was on the table at the last roll, where it is missing. Returns the last reason a bet could not be made, if one could not. */
@@ -582,7 +685,8 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
 
     /**
      * Throws the dice: every bet is resolved, the table is written as the roll
-     * leaves it, and then the medals the roll gives back are given, once.
+     * leaves it, and then the medals the roll gives back are given, once. A
+     * roll whose table or medals cannot be kept is not made.
      */
     roll(dice: Dice): Done<Thrown> {
       if (!ready()) return fail('notHere');
@@ -591,7 +695,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       // Every stake the table takes pays whole medals; a table that holds anything else is not played.
       if (!Number.isSafeInteger(resolution.returned) || resolution.returned < 0) return fail('step');
       const next: Table = {
-        v: TABLE_VERSION,
+        ...before,
         point: resolution.pointAfter,
         bets: resolution.bets,
         placed: [],
@@ -600,8 +704,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         history: [{ dice, event: resolution.event }, ...before.history].slice(0, HISTORY_LIMIT),
         last: { point: before.point, bets: before.bets, dice },
       };
-      if (!commit(next)) return fail('notKept');
-      if (resolution.returned > 0) purse.give(resolution.returned);
+      if (!giveBack(before, next, resolution.returned)) return fail('notKept');
       return { ok: true, value: { resolution, before } };
     },
   };

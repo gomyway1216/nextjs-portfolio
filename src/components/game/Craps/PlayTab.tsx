@@ -174,6 +174,9 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   const medals = Math.max(0, bankState.balance - (held?.returned ?? 0));
   const staked = onTable(shown);
   const net = shown.stats.net;
+  // The dice in the tray: this page's throw while it is in the air, and otherwise the table's last roll, whoever threw
+  // it (this page before a reload, or another tab), shown as it lies.
+  const trayDice = rolling ? dice : (shown.last?.dice ?? null);
 
   const errorText = (error: TableError, id?: BetId): string => {
     const max = id ? spotLimit(id, table.point, table.bets) : undefined;
@@ -367,7 +370,7 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
 
       <div className={styles.playGrid}>
         <div className={styles.panel}>
-          <DiceTray dice={dice} rollId={rollId} onSettled={settle} label={dice ? t.diceLabel(dice[0], dice[1]) : t.trayIdle} />
+          <DiceTray dice={dice} rollId={rollId} onSettled={settle} resting={rolling ? null : (shown.last?.dice ?? null)} label={trayDice ? t.diceLabel(trayDice[0], trayDice[1]) : t.trayIdle} />
 
           <div className={styles.callout} aria-live="polite" data-testid="craps-callout">
             {rolling ? (

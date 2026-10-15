@@ -422,6 +422,11 @@ describe('old and unreadable tables', () => {
       wrong((raw) => (raw.bets = { come: 5 })),
       // Place 6 with 5 medals on it would win 5⅚: never a table this game wrote.
       wrong((raw) => (raw.bets = { place6: 5 })),
+      // More than a spot holds: this version could never have put them there.
+      wrong((raw) => (raw.bets = { pass: 1000 })),
+      wrong((raw) => (raw.bets = { field: 51 })),
+      wrong((raw) => (raw.bets = { place6: 54 })),
+      wrong((raw) => (raw.last = { point: null, bets: { any7: 60 }, dice: [3, 4] })),
       // Odds with no point, and odds over the limit.
       wrong((raw) => (raw.bets = { pass: 5, passOdds: 10 })),
       wrong((raw) => ((raw.point = 6), (raw.bets = { pass: 5, passOdds: 30 }))),
@@ -628,11 +633,11 @@ describe('whose table it is', () => {
 describe('a guest who signs in', () => {
   const UID = 'test-player-1';
 
-  async function guestWithBets() {
+  async function guestWithBets(storage?: (page: FakePage) => TableStorage) {
     const browser = new FakeBrowser();
     const accounts = new FakeAccounts(() => browser.clock);
     const page = browser.open();
-    const { table } = crapsOn(page);
+    const { table } = crapsOn(page, storage?.(page));
     await quiet(browser);
     table.place('pass', 5);
     table.roll([3, 3]); // the point is 6
@@ -661,6 +666,37 @@ describe('a guest who signs in', () => {
     expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
     expect(table.table().bets).toEqual({});
     expect(table.takeDown()).toEqual({ ok: false, error: 'nothing' });
+  });
+
+  it('plays no table with medals its bets were not taken from: a guest’s copy that could not be removed is not the next guest’s', async () => {
+    const { browser, accounts, page, table } = await guestWithBets((p) => ({
+      ...storageOf(p),
+      remove: (key) => {
+        if (key === TABLE_KEY) throw new Error('blocked');
+        p.env.remove(key);
+      },
+    }));
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    table.sync();
+    expect(table.table().bets).toEqual({ pass: 5, passOdds: 10 });
+    // The guest's copy is still under the guest's name.
+    expect(storedTable(browser)?.bets).toEqual({ pass: 5, passOdds: 10 });
+    // The account plays them: 4 + 2 makes the point.
+    table.roll([4, 2]);
+    expect(page.bank.balance()).toBe(WELCOME - 15 + 32);
+    // Signed out: the next guest has new medals of their own, and the copy left behind is not played with them.
+    page.bank.attend({ uid: null, settled: true, expected: false }, accounts.store);
+    await quiet(browser);
+    table.sync();
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(table.table().bets).toEqual({});
+    expect(table.takeDown()).toEqual({ ok: false, error: 'nothing' });
+    expect(page.bank.balance()).toBe(WELCOME);
+    // It is put aside, not lost, and the guest's place holds the next guest's table.
+    expect(parseTable(browser.storage.get(unreadKey(null)))?.bets).toEqual({ pass: 5, passOdds: 10 });
+    table.place('field', 5);
+    expect(storedTable(browser)?.bets).toEqual({ field: 5 });
   });
 
   it('leaves the guest’s table with the guest’s medals when the account has medals of its own', async () => {

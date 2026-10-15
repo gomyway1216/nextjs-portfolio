@@ -257,13 +257,18 @@ function readBets(value: unknown): Bets | null {
   return bets;
 }
 
-/** Whether every bet on a table could stand there, at that point: each one pays whole medals, and the odds sit behind a line bet within their limit. */
+/**
+ * Whether every bet on a table could stand there, at that point: each one
+ * pays whole medals and is no more than its spot holds, and the odds sit
+ * behind a line bet within their limit. A table with anything else is not one
+ * this version made, and is not played.
+ */
 function standsUp(bets: Bets, point: PointNumber | null): boolean {
   for (const id of BET_IDS) {
     const amount = bets[id];
     if (!amount) continue;
     if (amount % stakeStep(id, point) !== 0) return false;
-    if (isOdds(id) && (point === null || amount > maxOdds(id, point, bets))) return false;
+    if (isOdds(id) ? point === null || amount > maxOdds(id, point, bets) : amount > spotLimit(id, point, bets)) return false;
   }
   return true;
 }
@@ -535,10 +540,16 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       text = read(tableKey(owner));
     }
     if (text !== undefined && text !== seen) {
-      const parsed = text === null ? null : parseTable(text);
+      const read = text === null ? null : parseTable(text);
+      // A table is played only with the medals its bets were taken from. One marked with other medals (a guest's
+      // table left behind when the guest's medals became an account's, or one from before the medals were started
+      // again) is put aside like a table that cannot be read: its bets are not medals these medals hold. A table with
+      // no mark is from before tables were marked, and is played as it is.
+      const mark = purse.mark();
+      const parsed = read && (read.mark === undefined || mark === null || read.mark === mark) ? read : null;
       if (text !== null && !parsed) {
-        // A table this version cannot read is put aside, by the page that may write, not written over. Until it is,
-        // nothing is written under its name.
+        // A table this version cannot read, or cannot play, is put aside by the page that may write, not written over.
+        // Until it is, nothing is written under its name.
         stuck = true;
         if (may() && writeText(unreadKey(owner), text)) {
           stuck = false;

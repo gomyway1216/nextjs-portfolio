@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { BANK_KEY, type BankEvent } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { BANK_KEY, ledgerKey, type BankEvent } from '@/components/game/MedalCenter/bank';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { PAY_TABLES, payout, rankCards } from '@/components/game/VideoPoker/engine';
 import {
   GAME,
@@ -21,6 +21,7 @@ import {
   type SavedHand,
 } from '@/components/game/VideoPoker/medals';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // Video poker plays with the medal center's medals (medals.ts). These tests play it on the medal center's own fake
 // browser (one storage, the member's card, tabs that hear each other), as the medal center's tests do. No account,
@@ -53,11 +54,33 @@ function machine(page: FakePage, random: () => number = dealing(...FULL_HOUSE), 
   return { seat, play };
 }
 
-const storedBalance = (browser: FakeBrowser): number | null => {
-  const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null);
+const storedBalance = (browser: FakeBrowser, uid: string | null = null): number | null => {
+  const ledger = parseLedger(browser.storage.get(uid === null ? BANK_KEY : ledgerKey(uid)) ?? null);
   return ledger ? balanceOf(ledger) : null;
 };
-const storedHand = (browser: FakeBrowser): SavedHand | null => parseHand(browser.storage.get(HAND_KEY) ?? null);
+const storedHand = (browser: FakeBrowser, uid: string | null = null): SavedHand | null => parseHand(browser.storage.get(handKey(uid)) ?? null);
+
+/** This device's storage as the hand sees it, which a test can make fail for the hand alone: reads, writes, or removing. */
+function failing(page: FakePage) {
+  const fail = { reads: false, writes: false, removes: false };
+  const store: HandStore = {
+    read: (key) => {
+      if (fail.reads && key.startsWith(HAND_KEY)) throw new Error('SecurityError');
+      return page.env.read(key);
+    },
+    write: (key, text) => {
+      if (fail.writes && key.startsWith(HAND_KEY)) throw new Error('QuotaExceededError');
+      page.env.write(key, text);
+    },
+    remove: (key) => {
+      if (fail.removes && key.startsWith(HAND_KEY)) throw new Error('SecurityError');
+      page.env.remove(key);
+    },
+  };
+  return { fail, store };
+}
+
+const UID = 'test-player-1';
 
 const hear = (page: FakePage): BankEvent[] => {
   const events: BankEvent[] = [];
@@ -272,7 +295,7 @@ describe('a reset at the medal center', () => {
 });
 
 describe('what is kept', () => {
-  const VALID: SavedHand = { v: 1, id: 'hand00001', era: 0, hand: [0, 1, 2, 3, 4], stub: [5, 6, 7, 8, 9], coins: 5, payId: '9/6', held: 0, drawn: false };
+  const VALID: SavedHand = { v: 1, id: 'hand00001', era: 0, device: 'device00001', hand: [0, 1, 2, 3, 4], stub: [5, 6, 7, 8, 9], coins: 5, payId: '9/6', held: 0, drawn: false };
 
   it('reads back exactly what it wrote, and works out the cards and the win from the cards, never from storage', () => {
     expect(parseHand(serializeHand(VALID))).toEqual(VALID);
@@ -301,6 +324,9 @@ describe('what is kept', () => {
     JSON.stringify({ ...VALID, id: 'NOT AN ID' }),
     JSON.stringify({ ...VALID, era: -1 }),
     JSON.stringify({ ...VALID, era: 1.5 }),
+    JSON.stringify({ ...VALID, device: undefined }),
+    JSON.stringify({ ...VALID, device: 'NOT A DEVICE' }),
+    JSON.stringify({ ...VALID, device: 7 }),
     JSON.stringify({ ...VALID, hand: [0, 1, 2, 3] }),
     JSON.stringify({ ...VALID, hand: [0, 1, 2, 3, 52] }),
     JSON.stringify({ ...VALID, hand: [0, 1, 2, 3, '4'] }),
@@ -335,19 +361,27 @@ describe('what is kept', () => {
     expect(parseHand(42)).toBeNull();
   });
 
-  it('keeps a hand of a bank that was reset elsewhere out of play, whichever tab opens it', async () => {
+  it('keeps a hand of other medals out of play: of an era since reset, or of another copy of the medals', async () => {
     const browser = new FakeBrowser();
-    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, era: 3 }));
     const page = browser.open();
     const { play } = machine(page);
     await quiet(browser);
+    const device = page.bank.getState().ledger!.device;
     // The medals here are of era 0: a hand bet from era 3's is not theirs.
+    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, era: 3, device }));
     expect(play.read()).toEqual({ ok: true, hand: null });
     expect(play.draw(VALID.id, ALL)).toEqual({ kind: 'gone', hand: null });
+    // Nor one bet from another copy of the medals (a guest's, say, whose medals have since become an account's).
+    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, device: 'elsewhere01' }));
+    expect(play.read()).toEqual({ ok: true, hand: null });
+    expect(play.draw(VALID.id, ALL)).toEqual({ kind: 'gone', hand: null });
+    // This copy's, of this era, is the hand in play.
+    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, device }));
+    expect(play.read()).toEqual({ ok: true, hand: { ...VALID, device } });
     expect(storedBalance(browser)).toBe(WELCOME);
   });
 
-  it('plays from memory where storage keeps nothing, and still pays once', async () => {
+  it('plays from memory where storage keeps nothing at all, and still wins once', async () => {
     const browser = new FakeBrowser();
     const page = browser.open();
     const { play } = machine(page);
@@ -358,12 +392,73 @@ describe('what is kept', () => {
     expect(page.bank.balance()).toBe(WELCOME - 5);
     expect(play.read()).toEqual({ ok: false });
     expect(play.hold(dealt.hand.id, ALL)).toMatchObject({ held: ALL });
-    const drawn = play.draw(dealt.hand.id, ALL, { ...dealt.hand, held: ALL });
+    const drawn = play.draw(dealt.hand.id, ALL);
     expect(drawn).toMatchObject({ kind: 'drawn', won: 45 });
-    if (drawn.kind !== 'drawn') return;
-    // The page now shows the hand drawn: drawn again from what it shows, it wins nothing.
-    expect(play.draw(dealt.hand.id, ALL, drawn.hand)).toMatchObject({ kind: 'gone' });
+    // Drawn again: it wins nothing.
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone' });
     expect(page.bank.balance()).toBe(WELCOME - 5 + 45);
+  });
+
+  it('wins nothing for a kept hand it cannot read back, and lets the cards wait, held as they were, until storage works again', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const { fail, store } = failing(page);
+    const { play } = machine(page, dealing(...FULL_HOUSE), store);
+    await quiet(browser);
+    const dealt = play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    expect(play.hold(dealt.hand.id, 0b00011)).toMatchObject({ held: 0b00011 });
+    // Storage cannot be read: the hand storage keeps can be neither held nor drawn, and nothing is won.
+    fail.reads = true;
+    expect(play.read()).toEqual({ ok: false });
+    expect(play.hold(dealt.hand.id, ALL)).toBeNull();
+    expect(play.draw(dealt.hand.id, ALL)).toEqual({ kind: 'unsaved' });
+    expect(storedHand(browser)).toEqual({ ...dealt.hand, held: 0b00011 });
+    expect(storedBalance(browser)).toBe(WELCOME - 5);
+    fail.reads = false;
+    // Readable again: the kept hand is the one in play, held as it was, and it is drawn once.
+    expect(play.read()).toEqual({ ok: true, hand: { ...dealt.hand, held: 0b00011 } });
+    expect(play.hold(dealt.hand.id, ALL)).toMatchObject({ held: ALL });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone' });
+    expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
+  });
+
+  it('wins nothing for a kept hand that storage will neither mark drawn nor let go of, so that no reload can draw it again', async () => {
+    const browser = new FakeBrowser();
+    const first = browser.open();
+    const { fail, store } = failing(first);
+    const one = machine(first, dealing(...FULL_HOUSE), store);
+    await quiet(browser);
+    const dealt = one.play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    fail.writes = true;
+    fail.removes = true;
+    expect(one.play.draw(dealt.hand.id, ALL)).toEqual({ kind: 'unsaved' });
+    // Nor is a new hand dealt over it.
+    expect(one.play.deal(5, '9/6')).toEqual({ kind: 'inPlay', hand: dealt.hand });
+    expect(storedHand(browser)).toEqual(dealt.hand);
+    expect(storedBalance(browser)).toBe(WELCOME - 5);
+    // The page is reloaded with storage working again: the hand is still dealt, and its win goes in once.
+    first.close();
+    const second = browser.open();
+    const two = machine(second);
+    await quiet(browser);
+    expect(two.play.read()).toEqual({ ok: true, hand: dealt.hand });
+    expect(two.play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
+  });
+
+  it('deals nothing where storage can be read but will neither take a new hand nor let go of the last one', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const { fail, store } = failing(page);
+    const { play } = machine(page, dealing(...FULL_HOUSE), store);
+    await quiet(browser);
+    fail.writes = true;
+    fail.removes = true;
+    expect(play.deal(5, '9/6')).toEqual({ kind: 'unsaved' });
+    expect(page.bank.balance()).toBe(WELCOME);
   });
 
   it('never leaves a hand behind that a reload could draw again, when storage is too full to take the hand', async () => {
@@ -378,10 +473,10 @@ describe('what is kept', () => {
       },
       remove: (key) => page.env.remove(key),
     };
-    // An older hand, drawn and done, is lying there from before storage filled up.
-    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, drawn: true }));
     const { play } = machine(page, dealing(...FULL_HOUSE), full);
     await quiet(browser);
+    // An older hand, drawn and done, is lying there from before storage filled up.
+    browser.storage.set(HAND_KEY, serializeHand({ ...VALID, device: page.bank.getState().ledger!.device, drawn: true }));
     const dealt = play.deal(5, '9/6');
     if (dealt.kind !== 'dealt') throw new Error('not dealt');
     // The old hand is gone, so that the new one is the hand in play here, from memory.
@@ -415,6 +510,119 @@ describe('what is kept', () => {
     };
     expect(noticeSeen(blocked)).toBe(false);
     expect(() => markNoticeSeen(blocked)).not.toThrow();
+  });
+});
+
+describe('a player who signs in or out with a hand on the machine', () => {
+  const setup = () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const machines = new FakeAccounts(() => browser.clock);
+    const page = browser.open();
+    return { browser, accounts, machines, page };
+  };
+  const guestAgain = { uid: null, settled: true, expected: false };
+
+  it('brings a guest’s hand along when the guest’s medals become the account’s, and leaves nothing for the next guest', async () => {
+    const { browser, accounts, machines, page } = setup();
+    const { play } = machine(page);
+    await quiet(browser);
+    const dealt = play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    // The account has no medals yet: the guest's, with the bet out of them, become the account's.
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME - 5 });
+    expect(play.read()).toEqual({ ok: true, hand: dealt.hand });
+    // The account finishes the hand it paid for: the win goes into the account's medals, once, and the hand is kept
+    // under the account from now on.
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(storedBalance(browser, UID)).toBe(WELCOME - 5 + 45);
+    expect(storedHand(browser, UID)).toMatchObject({ id: dealt.hand.id, drawn: true });
+    expect(browser.storage.has(HAND_KEY)).toBe(false);
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone' });
+    // Signed out: a new guest's medals, and no hand of the account's (nor the old guest's) for them to draw.
+    page.bank.attend(guestAgain, accounts.store, { machines: machines.store });
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(play.read()).toEqual({ ok: true, hand: null });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone', hand: null });
+    expect(storedBalance(browser)).toBe(WELCOME);
+  });
+
+  it('never lets the next guest draw a hand the account took over, even when its guest copy could not be taken away', async () => {
+    const { browser, accounts, machines, page } = setup();
+    const { fail, store } = failing(page);
+    const { play } = machine(page, dealing(...FULL_HOUSE), store);
+    await quiet(browser);
+    const dealt = play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    await quiet(browser);
+    fail.removes = true;
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    // The guest's copy is still lying there, dealt.
+    expect(storedHand(browser)).toEqual(dealt.hand);
+    fail.removes = false;
+    page.bank.attend(guestAgain, accounts.store, { machines: machines.store });
+    await quiet(browser);
+    // It was bet from medals that are the account's now: the new guest's medals are another copy, and it is not theirs.
+    expect(play.read()).toEqual({ ok: true, hand: null });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone', hand: null });
+    expect(page.bank.balance()).toBe(WELCOME);
+  });
+
+  it('leaves a guest’s hand with the guest when the account has medals of its own, and lets the guest finish it once', async () => {
+    const { browser, accounts, machines, page } = setup();
+    accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 400)), 'm-elsewhere');
+    const { play } = machine(page);
+    await quiet(browser);
+    const dealt = play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME + 400 });
+    // The account's medals did not pay for the guest's hand: it is not theirs to draw.
+    expect(play.read()).toEqual({ ok: true, hand: null });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone', hand: null });
+    expect(storedBalance(browser, UID)).toBe(WELCOME + 400);
+    page.bank.attend(guestAgain, accounts.store, { machines: machines.store });
+    await quiet(browser);
+    // The guest again, with the guest's medals: the hand is there, and wins once.
+    expect(play.read()).toEqual({ ok: true, hand: dealt.hand });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
+    expect(storedBalance(browser, UID)).toBe(WELCOME + 400);
+  });
+
+  it('keeps a hand storage would not take with the player who bet it, whoever signs in meanwhile', async () => {
+    const { browser, accounts, machines, page } = setup();
+    accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 400)), 'm-elsewhere');
+    const { fail, store } = failing(page);
+    const { play } = machine(page, dealing(...FULL_HOUSE), store);
+    await quiet(browser);
+    fail.writes = true;
+    const dealt = play.deal(5, '9/6');
+    if (dealt.kind !== 'dealt') throw new Error('not dealt');
+    expect(browser.storage.has(HAND_KEY)).toBe(false);
+    expect(play.read()).toEqual({ ok: true, hand: dealt.hand });
+    page.bank.attend(signedIn(UID), accounts.store, { machines: machines.store });
+    await quiet(browser);
+    // The account never bet on the hand this page holds for the guest: not after a write failed,
+    expect(play.read()).toEqual({ ok: true, hand: null });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'gone', hand: null });
+    // nor when storage cannot be read either.
+    fail.reads = true;
+    expect(play.draw(dealt.hand.id, ALL)).toEqual({ kind: 'unsaved' });
+    expect(storedBalance(browser, UID)).toBe(WELCOME + 400);
+    fail.reads = false;
+    page.bank.attend(guestAgain, accounts.store, { machines: machines.store });
+    await quiet(browser);
+    // Back to the guest who bet it: theirs, and won once.
+    expect(play.read()).toEqual({ ok: true, hand: dealt.hand });
+    expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(page.bank.balance()).toBe(WELCOME - 5 + 45);
+    expect(storedBalance(browser, UID)).toBe(WELCOME + 400);
   });
 });
 

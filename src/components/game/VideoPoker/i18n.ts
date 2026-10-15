@@ -3,6 +3,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { HandName } from './engine';
 import type { StrategyId } from './sim';
 
@@ -17,8 +18,6 @@ export interface VideoPokerStrings {
   hand: Record<HandName, string>;
   // The medal center
   centerLink: string;
-  /** What the medals are, and are not: shown by the counter. */
-  notMoney: string;
   noticeTitle: string;
   noticeBody: string;
   noticeLink: string;
@@ -26,6 +25,8 @@ export interface VideoPokerStrings {
   cardAway: string;
   playHere: string;
   findingMedals: string;
+  /** Storage will not keep the hand just now, so nothing was bet or won. */
+  unsaved: string;
   refill: (medals: number) => string;
   sayRefill: (medals: number) => string;
   sayReset: string;
@@ -148,7 +149,7 @@ const en: VideoPokerStrings = {
     'A pair of jacks or better is the lowest winning hand. A royal flush wins 250 medals for each medal bet, but 4,000 on a five-medal bet — which is why you bet five.',
     'A hand that has been dealt stays dealt: reload the page, or come back to it in another tab, and the same five cards are waiting, with the same cards to come.',
     'There are 32 ways to play every deal. The Best play panel shows the five best of them, plus your own hold, each with its exact expected return, counted over every card that could be drawn.',
-    'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+    NOT_MONEY.en,
   ],
   hand: {
     nothing: 'Nothing',
@@ -163,7 +164,6 @@ const en: VideoPokerStrings = {
     royalFlush: 'Royal Flush',
   },
   centerLink: 'Medal Game Center',
-  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
   noticeTitle: 'Video Poker now plays with your medals',
   noticeBody:
     'This machine now plays with your medals from the Medal Game Center, the same medals as every other machine there. The 1,000 it used to start every visit with are gone, and were not added to your medals.',
@@ -172,6 +172,7 @@ const en: VideoPokerStrings = {
   cardAway: 'Your medals are being played on a machine in another tab. This machine waits where it is.',
   playHere: 'Play here',
   findingMedals: 'Looking for your medals…',
+  unsaved: 'This browser cannot save the hand just now, so nothing was bet or won. Try again in a moment.',
   refill: (medals) => `Out of medals — take ${medals} more`,
   sayRefill: (medals) => `${medals} medals added.`,
   sayReset: 'Your medals were reset at the Medal Game Center: this machine starts over, and the hand that was on it is gone.',
@@ -311,7 +312,7 @@ const ja: VideoPokerStrings = {
     'ジャック以上のワンペアが最低の当たりです。ロイヤルフラッシュは1枚ベットあたり250枚ですが、5枚ベットのときだけ4,000枚になります。だから5枚ベットが基本です。',
     '配られた手はそのまま残ります。ページを読み込み直しても、別のタブで開いても、同じ5枚と、同じ引き直しのカードが待っています。',
     'どの配り方にも32通りの残し方があります。「最善手」パネルには、そのうち上位5通りと自分が選んだ残し方が、引く可能性のあるカードをすべて数えた正確な期待値つきで表示されます。',
-    'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+    NOT_MONEY.ja,
   ],
   hand: {
     nothing: 'ハズレ',
@@ -326,7 +327,6 @@ const ja: VideoPokerStrings = {
     royalFlush: 'ロイヤルフラッシュ',
   },
   centerLink: 'メダルゲームセンター',
-  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
   noticeTitle: 'ビデオポーカーは持ちメダルで遊ぶようになりました',
   noticeBody:
     'このマシンは、メダルゲームセンターの持ちメダルで遊ぶようになりました。ほかのマシンと同じメダルです。これまで毎回最初にあった1,000はなくなり、持ちメダルには加わりません。',
@@ -335,6 +335,7 @@ const ja: VideoPokerStrings = {
   cardAway: 'メダルは別のタブのマシンで遊ばれています。このマシンはそのまま待っています。',
   playHere: 'ここで遊ぶ',
   findingMedals: '持ちメダルを確認しています…',
+  unsaved: 'このブラウザはいま手を保存できないため、ベットも獲得もしていません。少ししてからもう一度お試しください。',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
   sayRefill: (medals) => `${medals}枚もらいました。`,
   sayReset: 'メダルゲームセンターでメダルがリセットされました。このマシンも最初からになり、遊んでいた手はなくなりました。',

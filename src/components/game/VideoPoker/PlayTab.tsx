@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { analyzeHand, tablesAsync, tablesReady, type HoldValue } from './analysis';
@@ -247,11 +248,14 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     };
   }, []);
 
-  // The medals on the table change hands (a player signs in, the medals are found, or reset): the hand kept for them is the one shown.
+  // The medals on the table change hands (a player signs in, the medals are found, or reset), or the site settles who
+  // is playing: the hand kept for them is the one shown. (The card can come before the site knows who is playing, and
+  // a hand is not shown until it does.)
   const era = bankState.ledger?.era ?? null;
+  const copy = bankState.ledger?.device ?? null;
   useEffect(() => {
     queueMicrotask(() => live.current.resync());
-  }, [bankState.loaded, bankState.owner, era]);
+  }, [bankState.loaded, bankState.owner, era, copy, seatedFor.uid, seatedFor.settled]);
 
   // While the card is in a machine in another tab, the machine says so, a moment after (the medal center borrows the
   // card for a moment whenever it pays the day's bonus or the like, and nothing need be said of that).
@@ -300,8 +304,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     }
     const outcome = play.deal(bet, payId);
     if (outcome.kind === 'away') return;
-    if (outcome.kind === 'short') {
-      setError(t.noMedals);
+    if (outcome.kind === 'short' || outcome.kind === 'unsaved') {
+      setError(outcome.kind === 'short' ? t.noMedals : t.unsaved);
       return;
     }
     if (outcome.kind === 'inPlay') {
@@ -322,8 +326,13 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     const play = medals.current;
     const dealt = handRef.current;
     if (busyRef.current || !dealt || dealt.drawn || !play || !playable) return;
-    const outcome = play.draw(dealt.id, dealt.held, dealt);
+    const outcome = play.draw(dealt.id, dealt.held);
     if (outcome.kind === 'away') return;
+    if (outcome.kind === 'unsaved') {
+      // The hand stays dealt, and nothing is won yet: it is drawn once storage can keep it as drawn.
+      setError(t.unsaved);
+      return;
+    }
     if (outcome.kind === 'gone') {
       // Drawn in another tab, or thrown away by a reset: whatever is kept now is what is shown, and nothing is won here.
       resync();
@@ -333,6 +342,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     const finished: Play = { hand: drawn.hand, mask: drawn.held, pays: effectivePays(PAY_TABLES[drawn.payId], drawn.coins), coins: drawn.coins };
     // Replaced cards turn over left to right, each in its own position. The medals are in already; they are shown once the cards are.
     const lastReplaced = heldFromMask(drawn.held).lastIndexOf(false);
+    setError(null);
     commitHand(drawn);
     const settle = () => {
       setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + finished.coins, paid: s.paid + outcome.won }));
@@ -356,7 +366,10 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     const dealt = handRef.current;
     if (busyRef.current || !dealt || dealt.drawn || !play || !playable) return;
     const next = play.hold(dealt.id, mask);
-    if (next) commitHand(next);
+    if (next) {
+      setError(null);
+      commitHand(next);
+    } else if (!play.read().ok) setError(t.unsaved);
     else resync();
   };
 
@@ -519,7 +532,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
           </div>
         </div>
         <p className={styles.notMoney} data-testid="vp-not-money">
-          {t.notMoney}
+          {NOT_MONEY[language]}
         </p>
 
         <div className={styles.controls}>

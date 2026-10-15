@@ -11,6 +11,7 @@ import { analyzeHand } from '@/components/game/VideoPoker/analysis';
 import { NetHistogram, histogramBins } from '@/components/game/VideoPoker/charts';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
 import { getStrings } from '@/components/game/VideoPoker/i18n';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -233,7 +234,7 @@ describe('the words', () => {
     return out;
   };
   // The note on what medals are is the one place that names money, to say that they are not.
-  const NOTE = { en: getStrings('en').notMoney, ja: getStrings('ja').notMoney };
+  const NOTE = NOT_MONEY;
 
   it('says nothing that could be taken for real money, in English', () => {
     const words = /\b(bank|banked|deposit|withdraw|cash|money|dollars?|balance|credits?|pay ?in|pay ?out|payback|paid back)\b|\$/i;

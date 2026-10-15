@@ -7,6 +7,7 @@ import {
   addValue,
   dealerOutcome,
   gameValue,
+  medalBetEdge,
   optimalChart,
   policyValue,
   upcard,
@@ -213,6 +214,23 @@ describe('the whole game', () => {
     const mean = sum / rounds;
     const se = Math.sqrt((sumSq / rounds - mean * mean) / rounds);
     expect(Math.abs(mean - gameValue().ev)).toBeLessThan(4 * se);
+  });
+});
+
+describe('bets in medals', () => {
+  it('keeps the table’s edge exactly on an even bet, and adds the rounded-down half medal on an odd one', () => {
+    const table = gameValue();
+    // A blackjack the dealer does not match: 8/169 of hands, times the 161/169 the dealer has none.
+    const unmatched = table.playerBlackjack * (1 - table.dealerBlackjack);
+    expect(unmatched).toBeCloseTo((8 / 169) * (161 / 169), 12);
+    for (let bet = 1; bet <= 10; bet++) {
+      const lost = 1.5 - Math.floor(1.5 * bet) / bet;
+      expect(medalBetEdge(bet)).toBeCloseTo(table.houseEdge + lost * unmatched, 12);
+      if (bet % 2 === 0) expect(medalBetEdge(bet)).toBe(table.houseEdge);
+    }
+    expect(medalBetEdge(1)).toBeCloseTo(0.0276656, 6);
+    expect(medalBetEdge(3)).toBeCloseTo(0.0126334, 6);
+    expect(() => medalBetEdge(1.5)).toThrow();
   });
 });
 

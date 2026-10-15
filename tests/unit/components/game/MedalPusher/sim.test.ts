@@ -252,12 +252,24 @@ describe('the simulation', () => {
     expect(progress.every((share, index) => index === 0 || share >= progress[index - 1])).toBe(true);
   }, 30_000);
 
-  it('gives the same answer for the same seed, and another for another', async () => {
-    const a = await simulate(40, 5, {}, 7);
-    const b = await simulate(40, 5, {}, 7);
-    const c = await simulate(40, 5, {}, 8);
-    expect(a).toEqual(b);
-    expect(a).not.toEqual(c);
+  // One run of the simulation is four aims of 340 medals each, warm-up included, and since the medals were made smaller
+  // (and more of them lie on the table) a run takes several seconds on a busy CI runner: so each run has a test, and a
+  // budget, of its own, and the first is shared.
+  let first: Awaited<ReturnType<typeof simulate>> | undefined;
+  const seven = async () => (first ??= await simulate(40, 5, {}, 7));
+
+  it('runs a seeded simulation to the end', async () => {
+    expect(await seven()).not.toBeNull();
+  }, 30_000);
+
+  it('gives the same answer for the same seed', async () => {
+    const again = await simulate(40, 5, {}, 7);
+    expect(await seven()).toEqual(again);
+  }, 30_000);
+
+  it('gives another answer for another seed', async () => {
+    const other = await simulate(40, 5, {}, 8);
+    expect(await seven()).not.toEqual(other);
   }, 30_000);
 
   it('stops when it is cancelled', async () => {

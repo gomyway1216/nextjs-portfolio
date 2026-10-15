@@ -23,14 +23,14 @@ const CLAIMS = {
     lookingOnTheAccount: /looking for the machine saved to your account/i,
   },
   ja: {
-    deviceHasACopy: /この端末に預けてあり|この端末にも控えが残ります|この端末にだけ預けています/,
+    deviceHasACopy: /この端末に保存してあり|この端末にも控えが残ります|この端末にだけ保存しています/,
     deviceHasNoCopy: /保存できませんでした/,
     startsAgainOnReload: /マシンは最初からになります/,
     lostIfClosed: /失われます/,
-    onTheAccount: /このマシンはアカウントに預けてあります/,
+    onTheAccount: /このマシンはアカウントに保存してあります/,
     accountNotReached: /アカウントに接続でき(ません|ず)/,
     accountUnreadable: /読み取れません/,
-    lookingOnTheAccount: /アカウントに預けたマシンを確認しています/,
+    lookingOnTheAccount: /アカウントに保存したマシンを確認しています/,
   },
 } as const;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PUSHER } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { DECKS, RANKS, STRATEGIES, SUITS, createShoe, legalActions, type Card, type Rank, type Shoe } from '@/components/game/Blackjack/engine';
 import {
   DEFAULT_BET,
@@ -20,7 +20,7 @@ import {
   type Shelf,
   type TableSave,
 } from '@/components/game/Blackjack/medalTable';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 // The blackjack table at the medal center, played against the medal center's real bank in a browser made for its
 // tests (bankFakes.ts): one storage the pages share, the one card, and the channel between them. No account, and
@@ -476,6 +476,103 @@ describe('a browser that will not keep something: no medal is lost, and none com
     expect(table.act('double').ok).toBe(true);
     expect(table.settle().ok).toBe(true);
     expect(medals(browser)).toBe(WELCOME + 4);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The table and the medals are two writes (medalTable.ts): the browser is killed at every moment of a hand, started
+  // again, and the table plays on from what it left. Every stake is taken once and every return put back once, or the
+  // step it was for never happened. Here the table writes through the page's own storage, which can die.
+  const shelfOn = (page: FakePage): Shelf => ({ read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text) });
+  const tables = new Map<FakeBrowser, Seated>();
+  const opened = async (browser: FakeBrowser): Promise<Seated> => {
+    const page = browser.open();
+    const seat = page.bank.sit(GAME, { granted: () => undefined, yielding: () => undefined });
+    const table = createMedalTable({ bank: page.bank, shelf: shelfOn(page), holding: () => seat.holding(), random: seeded(7) });
+    await quiet(browser);
+    table.open(null);
+    table.refresh(true);
+    return { page, table, seat };
+  };
+  const spentIn = (browser: FakeBrowser): number => {
+    const ledger = parseLedger(browser.storage.get('medal-center-bank') ?? null)!;
+    return ledger.rows[ledger.device]?.spent ?? 0;
+  };
+
+  /** Plays the hand on the table to its end the way it was first played: a double or a split when it can, and stand. */
+  const playOut = (table: MedalTable, plan: 'double' | 'split' | 'insure') => {
+    for (let guard = 0; guard < 10 && unsettled(table.current()); guard++) {
+      const round = table.current().round!;
+      if (round.phase === 'insurance') table.insure(plan === 'insure');
+      else if (round.phase === 'player') {
+        const legal = legalActions(round);
+        table.act(plan !== 'insure' && legal[plan] ? plan : 'stand');
+      } else table.settle();
+    }
+  };
+
+  for (const [what, ranks, bet, plan, end] of [
+    // 6 and 5 against 6 and a ten; the double draws a ten for 21 and the dealer draws a king and busts.
+    ['a doubled hand', ['6', '6', '5', 'T', 'T', 'K'], 2, 'double', WELCOME - 4 + 8],
+    // Two 8s against a 6: each 8 draws a ten, both stand, and the dealer draws a king and busts.
+    ['a split hand', ['8', '6', '8', 'T', 'T', 'T', 'K'], 3, 'split', WELCOME - 6 + 12],
+    // 9s against an ace: insured for 1, and the dealer has blackjack.
+    ['an insured hand', ['9', 'A', '9', 'K'], 3, 'insure', WELCOME - 1],
+  ] as const) {
+    it(`takes the stakes of ${what} once and puts back what it brings once, or deals nothing, wherever the browser dies`, async () => {
+      const writes = await atEveryWrite(
+        async () => {
+          const browser = new FakeBrowser();
+          shoeOnTable(browser, stacked(...ranks));
+          tables.set(browser, await opened(browser));
+          return browser;
+        },
+        (browser) => {
+          const { table } = tables.get(browser)!;
+          table.deal(bet);
+          playOut(table, plan);
+        },
+        async (after, reached) => {
+          const dealt = spentIn(after) >= bet;
+          const { table } = await opened(after);
+          playOut(table, plan);
+          expect(medals(after), `died after ${reached} writes`).toBe(dealt ? end : WELCOME);
+          expect(unsettled(table.current()), `died after ${reached} writes`).toBe(false);
+          // Looked at again, nothing more; and the next hand starts with the last one's receipts let go of.
+          table.refresh(true);
+          expect(medals(after)).toBe(dealt ? end : WELCOME);
+          expect(table.deal(1).ok).toBe(true);
+          const ledger = parseLedger(after.storage.get('medal-center-bank') ?? null)!;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${table.current().id}:deal`]);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(6);
+    });
+  }
+
+  it('takes a hand dealt before receipts at its word: its bet was taken, and a double and the return are made once', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = new FakeBrowser();
+        shoeOnTable(browser, stacked('6', '6', '5', 'T', 'T', 'K'));
+        // As the table wrote it before receipts: the bet taken, the hand on the table with no name.
+        const at = await opened(browser);
+        expect(at.table.deal(2).ok).toBe(true);
+        const kept = JSON.parse(browser.storage.get(TABLE_KEY)!) as Record<string, unknown>;
+        delete kept.id;
+        delete kept.pending;
+        browser.storage.set(TABLE_KEY, JSON.stringify(kept));
+        at.page.close();
+        tables.set(browser, await opened(browser));
+        return browser;
+      },
+      (browser) => playOut(tables.get(browser)!.table, 'double'),
+      async (after, reached) => {
+        const { table } = await opened(after);
+        playOut(table, 'double');
+        expect(medals(after), `died after ${reached} writes`).toBe(WELCOME - 4 + 8);
+      },
+    );
   });
 });
 

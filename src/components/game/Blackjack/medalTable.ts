@@ -19,6 +19,17 @@
  *   hand written back as it was, so that after a reload both are as they were.
  *   Either way a stake is never lost and a hand's medals never come back
  *   twice.
+ * - The browser can also die between the two writes. So every move of a
+ *   hand's medals goes in under a receipt (`bank.apply`; "A machine's rounds"
+ *   in bank.ts), named by the hand and the step, and a stake is written down
+ *   with the table as it was before it (`pending`). The page that next holds
+ *   the card looks at the table against the receipts: a stake whose receipt
+ *   the medals do not hold was never taken, and the table goes back to how
+ *   it was before it (the deal, the double, the split or the insurance never
+ *   happened); a hand written down as settled whose return never went in has
+ *   it put back now. A move made already is never made again. A hand's
+ *   receipts are let go of when the next hand is dealt. A hand dealt before
+ *   there were receipts is taken at its word: its stakes were taken.
  *
  * ## A reload in the middle of a hand: the hand carries on
  *
@@ -46,6 +57,7 @@
  * they are retired, not turned into medals.
  */
 
+import type { Move } from '../MedalCenter/bank';
 import {
   DECKS,
   MAX_HANDS,
@@ -128,7 +140,30 @@ export interface TableSave {
   /** Cards in the shoe when the hand on the table was dealt. */
   left: number | null;
   stats: Stats;
+  /** The hand's name, which its moves of medals go under (`bank.apply`). None on a table from before receipts until a move is made. */
+  id?: string;
+  /**
+   * The last stake written down: its step, its medals, and the table as storage had it before (null for none). Until
+   * the medals hold its receipt it may never have been taken, and the table goes back to `before`.
+   */
+  pending?: Pending;
 }
+
+/** A stake written down before it is taken (`TableSave.pending`). */
+export interface Pending {
+  step: string;
+  medals: number;
+  before: string | null;
+}
+
+/** The names of a hand's moves of medals: the bet, insurance, each double and split, and the return. */
+export const DEAL_STEP = 'deal';
+export const INSURE_STEP = 'insure';
+export const PAY_STEP = 'pay';
+/** A double of the hand at `index`: each hand can be doubled once. */
+export const doubleStep = (index: number): string => `double${index}`;
+/** The split that makes the `hands`th hand. */
+export const splitStep = (hands: number): string => `split${hands}`;
 
 export const freshTable = (era: number, stats: Stats = EMPTY_STATS, bet: number = DEFAULT_BET): TableSave => ({
   v: TABLE_VERSION,
@@ -168,6 +203,19 @@ function readCards(text: unknown, fewest: number, most: number): Card[] | null {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const count = (value: unknown, most: number): number | null => (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= most ? value : null);
 const BIG = 1_000_000_000;
+const ID_SHAPE = /^[a-z0-9]{1,24}$/;
+const STEP_SHAPE = /^[a-z0-9-]{1,16}$/;
+/** The longest table text read: with the table before a stake written inside it. */
+const LONGEST = 16_000;
+
+/** A stake written down, read back: null for one that is not in shape. */
+function readPending(value: unknown): Pending | null {
+  if (!isRecord(value) || typeof value.step !== 'string' || !STEP_SHAPE.test(value.step)) return null;
+  const { medals, before } = value;
+  if (typeof medals !== 'number' || !Number.isSafeInteger(medals) || medals > 0 || medals < -BIG) return null;
+  if (before !== null && (typeof before !== 'string' || before.length > LONGEST / 2)) return null;
+  return { step: value.step, medals, before };
+}
 /** The most cards a hand or the dealer can hold: a hand of 21 aces, which a shoe of six decks has. */
 const MOST_CARDS = 21;
 
@@ -255,6 +303,8 @@ export function serializeTable(save: TableSave): string {
     count: save.count,
     left: save.left,
     stats: save.stats,
+    ...(save.id === undefined ? {} : { id: save.id }),
+    ...(save.pending === undefined ? {} : { pending: save.pending }),
   });
 }
 
@@ -264,7 +314,7 @@ export function serializeTable(save: TableSave): string {
  * all: a hand read wrongly could bring back medals it never won.
  */
 export function parseTable(text: unknown): TableSave | null {
-  if (typeof text !== 'string' || text.length > 16_000) return null;
+  if (typeof text !== 'string' || text.length > LONGEST) return null;
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -290,15 +340,27 @@ export function parseTable(text: unknown): TableSave | null {
   }
   // Only a hand played out can have had its medals put back.
   if (value.paid && round && round.phase !== 'done') return null;
-  return { v: TABLE_VERSION, era, hand, bet, shoe, round, paid: round ? value.paid : true, count: runningCount, left, stats };
+  const save: TableSave = { v: TABLE_VERSION, era, hand, bet, shoe, round, paid: round ? value.paid : true, count: runningCount, left, stats };
+  if (value.id !== undefined) {
+    if (typeof value.id !== 'string' || !ID_SHAPE.test(value.id)) return null;
+    save.id = value.id;
+  }
+  if (value.pending !== undefined) {
+    const pending = value.pending === null ? null : readPending(value.pending);
+    if (value.pending !== null && !pending) return null;
+    if (pending) save.pending = pending;
+  }
+  return save;
 }
 
 // ── The table at the medal center ───────────────────────────────────────────
 
 /** What the table needs of the medal center's bank (`bank()` in MedalCenter/bank.ts). */
 export interface TableBank {
-  take: (medals: number) => boolean;
-  give: (medals: number) => boolean;
+  /** A move of a hand's medals under its receipt, once. */
+  apply: (move: Move) => 'applied' | 'already' | null;
+  applied: (move: Pick<Move, 'game' | 'round' | 'step'>) => boolean;
+  forget: (game: string, keep?: readonly string[]) => boolean;
   /** The medals that can be played now. */
   balance: () => number;
   owner: () => string | null;
@@ -329,7 +391,29 @@ export type Step = { ok: true; save: TableSave } | { ok: false; why: Refusal; sa
 
 export type MedalTable = ReturnType<typeof createMedalTable>;
 
-export function createMedalTable({ bank, shelf, holding, random = Math.random }: { bank: TableBank; shelf: Shelf; holding: () => boolean; random?: () => number }) {
+const LETTERS = '0123456789abcdefghijklmnopqrstuvwxyz';
+/** A new hand's name: twelve letters and digits from the browser's random numbers (never the shoe's). */
+const randomId = (): string => {
+  try {
+    return Array.from(globalThis.crypto.getRandomValues(new Uint32Array(12)), (n) => LETTERS[n % LETTERS.length]).join('');
+  } catch {
+    return Array.from({ length: 12 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
+  }
+};
+
+export function createMedalTable({
+  bank,
+  shelf,
+  holding,
+  random = Math.random,
+  newId = randomId,
+}: {
+  bank: TableBank;
+  shelf: Shelf;
+  holding: () => boolean;
+  random?: () => number;
+  newId?: () => string;
+}) {
   /** Whose table is open: an account's id, null for a guest's, undefined before one is. */
   let owner: string | null | undefined;
   let save: TableSave = freshTable(0);
@@ -456,8 +540,32 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
       ahead = put(save) !== 'kept';
       bank.restarted(GAME);
     }
+    if (square()) changed = true;
     return changed;
   };
+
+  /**
+   * Squares the table with its receipts, with the card: a stake written down whose receipt the medals do not hold was
+   * never taken (the browser died between the two), and the table goes back to how storage had it before; and a hand
+   * written down as settled whose return never went in has it put back now. Returns whether the table changed.
+   */
+  function square(): boolean {
+    if (owner === undefined || !holding() || bank.owner() !== owner || !bank.getState().ledger || ahead) return false;
+    let changed = false;
+    for (let back = 0; back < 16 && save.id !== undefined && save.pending && !bank.applied({ game: GAME, round: save.id, step: save.pending.step }); back++) {
+      const before = save.pending.before;
+      const earlier = before === null ? null : parseTable(before);
+      save = earlier && earlier.era === save.era ? earlier : freshTable(save.era, save.stats, save.bet);
+      put(save);
+      changed = true;
+    }
+    const round = save.round;
+    const returned = round?.phase === 'done' && round.result ? round.result.returned : 0;
+    if (save.id !== undefined && save.paid && returned > 0 && !bank.applied({ game: GAME, round: save.id, step: PAY_STEP })) {
+      bank.apply({ game: GAME, round: save.id, step: PAY_STEP, medals: returned, era: save.era });
+    }
+    return changed;
+  }
 
   /** Why nothing can be done now, or null when a step can be made. */
   const refusal = (): Refusal | null => {
@@ -468,8 +576,19 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
 
   const no = (why: Refusal): Step => ({ ok: false, why, save });
   const done = (): Step => ({ ok: true, save });
-  /** Takes `medals` from the player's medals, if they have that many. */
-  const taking = (medals: number) => (medals > 0 ? () => bank.take(medals) : null);
+  /**
+   * A stake of `medals` for the hand `id`, at `step`: the table after it, written down with the stake still to be
+   * taken and the table as storage had it before, and the move that takes it under its receipt. Null for no stake.
+   */
+  const staking = (next: TableSave, id: string, step: string, medals: number): { next: TableSave; move: (() => boolean) | null } => {
+    if (medals <= 0) return { next, move: null };
+    // The table storage has now, without the stake written down in it: that one has been taken (a step is made only
+    // after the one before it), or the table storage has was written back to before it (`step`).
+    const earlier = typeof seen === 'string' ? parseTable(seen) : null;
+    if (earlier) delete earlier.pending;
+    const pending: Pending = { step, medals: -medals, before: earlier ? serializeTable(earlier) : null };
+    return { next: { ...next, id, pending }, move: () => bank.apply({ game: GAME, round: id, step, medals: -medals, era: next.era }) === 'applied' };
+  };
 
   return {
     /** Opens `player`'s table (an account's id, or null for a guest's), as it is kept here. */
@@ -498,8 +617,12 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
       const fresh = save.shoe === null || needsShuffle(save.shoe);
       const shoe = fresh ? createShoe(DECKS, random) : save.shoe!;
       const round = startRound(shoe, bet, { whole: true });
-      const next = { ...save, era: era(), hand: save.hand + 1, bet, shoe: round.shoe, round, paid: false, count: fresh ? 0 : save.count, left: cardsLeft(shoe) };
-      return step(next, taking(bet));
+      const id = newId();
+      const staked = staking({ ...save, era: era(), hand: save.hand + 1, bet, shoe: round.shoe, round, paid: false, count: fresh ? 0 : save.count, left: cardsLeft(shoe) }, id, DEAL_STEP, bet);
+      const dealt = step(staked.next, staked.move);
+      // The hand before this one is no longer kept: nothing will look at its receipts again.
+      if (dealt.ok) bank.forget(GAME, [id]);
+      return dealt;
     },
 
     /** Answers the insurance offer. Insurance taken is half the bet, rounded down, taken from the player's medals. */
@@ -511,7 +634,8 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
       const cost = take ? insuranceCost(round) : 0;
       if (bank.balance() < cost) return no('short');
       const next = answerInsurance(round, take);
-      return step({ ...save, shoe: next.shoe, round: next }, taking(cost));
+      const staked = staking({ ...save, shoe: next.shoe, round: next }, save.id ?? newId(), INSURE_STEP, cost);
+      return step(staked.next, staked.move);
     },
 
     /** Plays the hand: a double or a split takes another stake from the player's medals. `chart` is whether it was the chart's play. */
@@ -524,7 +648,9 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
       if (bank.balance() < extra) return no('short');
       const next = playAction(round, action);
       const stats = { ...save.stats, decisions: save.stats.decisions + 1, agreed: save.stats.agreed + (chart ? 1 : 0) };
-      return step({ ...save, shoe: next.shoe, round: next, stats }, taking(extra));
+      const name = action === 'double' ? doubleStep(round.active) : splitStep(round.hands.length + 1);
+      const staked = staking({ ...save, shoe: next.shoe, round: next, stats }, save.id ?? newId(), name, extra);
+      return step(staked.next, staked.move);
     },
 
     /** Puts back what a played-out hand brings back, once, and counts it in the record. */
@@ -537,8 +663,12 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
       const outcomes = result.hands.map((hand) => hand.outcome);
       const tally = (...kinds: string[]) => outcomes.filter((outcome) => kinds.includes(outcome)).length;
       const seenCards = [...round.dealer, ...round.hands.flatMap((hand) => hand.cards)];
+      // Written down as settled first, then the return put back under its receipt: a browser that dies between the two
+      // leaves a hand that the next page to hold the card puts back (`square`), once.
+      const id = save.id ?? newId();
       const next: TableSave = {
         ...save,
+        id,
         paid: true,
         count: save.count + seenCards.reduce((n, card) => n + hiLo(card), 0),
         stats: {
@@ -551,7 +681,7 @@ export function createMedalTable({ bank, shelf, holding, random = Math.random }:
           net: save.stats.net + result.net,
         },
       };
-      const given = step(next, result.returned > 0 ? () => bank.give(result.returned) : null);
+      const given = step(next, result.returned > 0 ? () => bank.apply({ game: GAME, round: id, step: PAY_STEP, medals: result.returned, era: next.era }) !== null : null);
       // The medal center takes nothing back only when this page no longer holds the card.
       return !given.ok && given.why === 'short' ? no('away') : given;
     },

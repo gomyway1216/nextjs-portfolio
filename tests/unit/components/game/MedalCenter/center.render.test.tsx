@@ -23,18 +23,25 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher and Blackjack open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher, the Slot Machine and Blackjack open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
-    const blackjack = html.match(/<a[^>]*data-testid="center-play-blackjack"[^>]*>/)?.[0] ?? '';
-    expect(blackjack).toContain('href="/games/blackjack"');
+    // The Slot Machine and Blackjack play with the medals: open, and each Play link goes to its own page in the catalog.
+    for (const id of ['slot-machine', 'blackjack']) {
+      const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
+      expect(link).toContain(`href="${games.find((game) => game.id === id)?.path}"`);
+    }
+    expect(FLOOR.find(({ id }) => id === 'slot-machine')?.path).toBe('/games/slot-machine');
+    expect(FLOOR.find(({ id }) => id === 'blackjack')?.path).toBe('/games/blackjack');
     // Every machine on the floor is open with a way in, or shown as coming with none.
     for (const { id, path } of FLOOR) {
       if (path !== null) expect(html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0]).toContain(`href="${path}"`);
     }
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
+    expect(soon).not.toContain('slot-machine');
     expect(soon).not.toContain('blackjack');
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
     for (const id of soon) {
       expect(html).toContain(`data-machine="${id}"`);
       expect(html).not.toContain(`center-play-${id}`);

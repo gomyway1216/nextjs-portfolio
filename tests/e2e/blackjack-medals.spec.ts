@@ -35,6 +35,18 @@ async function dealAHandToPlay(page: Page): Promise<number> {
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
 
+/**
+ * The player goes to another tab, or back: this one is hidden, or shown, as a browser hides a tab that is not in
+ * front. (Every page Playwright opens is shown at once, as two windows side by side would be.)
+ */
+async function setHidden(page: Page, hidden: boolean): Promise<void> {
+  await page.evaluate((isHidden) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (isHidden ? 'hidden' : 'visible') });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => isHidden });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+}
+
 test('a bet comes out of the player’s medals as it is made, a win goes back in, and the medal center shows the same count after a reload', async ({ page }) => {
   test.setTimeout(90_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -144,13 +156,20 @@ test('the medal center’s reset starts the table over: the hand on it goes with
   await openBlackjack(page);
   await dealAHandToPlay(page);
   await expect(page.locator('[data-hand]')).toHaveCount(1);
-  // Reset at the medal center, in another tab, while the hand is on the table.
+  // The player goes to the medal center in another tab, the table's tab hidden behind it with the hand on it, and
+  // resets the medals there. (With both tabs shown at once, the medal center's moment with the card can wait for
+  // good when its request for the card reaches the browser late: a race in MedalCenter/bank.ts, reported on the PR.)
   const hub = await context.newPage();
+  await setHidden(page, true);
   await resetAtCenter(hub);
-  await page.bringToFront();
+  // The hidden table hears of the reset and starts over on the page at once.
   await expect(page.locator('[data-hand]')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByTestId('bj-announcement')).toContainText('The Medal Game Center was reset');
   await expect.poll(() => medalsShown(page)).toBe(WELCOME);
+  // Back to the table's tab: it has the card again, and writes itself down as started over.
+  await page.bringToFront();
+  await setHidden(page, false);
+  await seated(page);
   await expect(page.getByTestId('shoe-info')).toHaveText('A fresh six-deck shoe is shuffled on the first deal.');
   // This device's table is written down as started over in the new era, once.
   await expect

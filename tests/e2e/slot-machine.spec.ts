@@ -1,10 +1,16 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '../../src/components/game/SlotMachine/engine';
+import { NOTICE_KEY, ROUND_KEY, SLOT_GAME, parseRound } from '../../src/components/game/SlotMachine/medals';
+import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { settled } from './medalPusherPage';
 import { arrived } from './streamedPage';
 
 // Spins are random, so these checks read what was drawn and verify that the
-// reels on screen, the announced payline, the payout and the stats all agree.
+// reels on screen, the announced payline, the payout, the stats and the
+// player's medals (the medal center's bank, in this browser's storage) all agree.
 
 const STRIP_CELLS = PHYSICAL_STOPS + 3;
 const EN_SYMBOLS: Record<string, SymbolId> = { '7': 'seven', BAR: 'bar', Bell: 'bell', Plum: 'plum', Cherry: 'cherry', Blank: 'blank' };
@@ -16,17 +22,39 @@ async function openSlots(page: Page, language: 'en' | 'ja' = 'en') {
   // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
   await arrived(page);
   await expect(reelWindow(page)).toBeVisible();
+  // The medals are read, and the card is here: the machine takes bets.
+  await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true', { timeout: 20_000 });
 }
 
 const reelWindow = (page: Page) => page.locator('[role="img"][data-spinning]');
+const spinButton = (page: Page) => page.getByRole('button', { name: 'SPIN', exact: true });
 
-/** Presses SPIN until hydration has attached the handler and the reels start. */
-async function firstSpin(page: Page) {
-  await expect(async () => {
-    await page.getByRole('button', { name: 'SPIN', exact: true }).click({ timeout: 1_000 });
-    await expect(page.getByTestId('slot-credits')).not.toHaveText('500', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+/** A count of medals as the counter writes it. */
+const count = (n: number) => n.toLocaleString('en-US');
+
+/** The medals on the machine's counter. */
+async function medals(page: Page): Promise<number> {
+  return Number(((await page.getByTestId('slot-medals').textContent()) ?? '').replace(/,/g, ''));
 }
+
+/** Presses SPIN once the machine takes bets (its medals read, the card here, the page hydrated). */
+async function spin(page: Page) {
+  await expect(spinButton(page)).toBeEnabled({ timeout: 20_000 });
+  await spinButton(page).click();
+  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+}
+
+/** The next spins land on 7-7-7: virtual stop 0 of every reel is its 7. Put back with `unforce`. */
+const force = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.001;
+  });
+const unforce = (page: Page) =>
+  page.evaluate(() => {
+    Math.random = (window as unknown as { __random: () => number }).__random;
+  });
 
 async function settledLine(page: Page): Promise<Line> {
   await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'false', { timeout: 10_000 });
@@ -52,11 +80,15 @@ async function stat(page: Page, label: string): Promise<number> {
   return Number(text.replace(/[,+]/g, '').split(' ')[0]);
 }
 
-test('the reels stop on the payline that is announced and paid', async ({ page }) => {
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
+
+test('the reels stop on the payline that is announced, and its win goes into the player’s medals', async ({ page }) => {
   await openSlots(page);
-  await firstSpin(page);
-  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  expect(await medals(page)).toBe(WELCOME);
+  await spin(page);
   await expect(page.getByRole('button', { name: 'Spinning…' })).toBeDisabled();
+  // The stake is out of the medals as the lever is pulled.
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1));
 
   // The strips really move (animated, not snapped to the result).
   const early = await page.locator('[data-reel="0"]').getAttribute('style');
@@ -68,15 +100,15 @@ test('the reels stop on the payline that is announced and paid', async ({ page }
 
   const win = (evaluateLine(line)?.pays ?? 0) * 1;
   await expect(page.getByTestId('slot-win')).toHaveText(String(win));
-  await expect(page.getByTestId('slot-credits')).toHaveText(String(500 - 1 + win));
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + win));
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 1 + win);
   expect(await stat(page, 'Spins')).toBe(1);
-  expect(await stat(page, 'Paid out')).toBe(win);
+  expect(await stat(page, 'Medals won')).toBe(win);
 });
 
 test('switching tabs mid-spin keeps the spin and the session', async ({ page }) => {
   await openSlots(page);
-  await firstSpin(page);
-  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  await spin(page);
   // Leave while the reels are still rolling (the bet is already taken)…
   await page.getByRole('tab', { name: 'Exact odds' }).click();
   await expect(page.getByTestId('slot-rtp')).toBeVisible();
@@ -86,43 +118,215 @@ test('switching tabs mid-spin keeps the spin and the session', async ({ page }) 
   const line = await settledLine(page);
   const win = evaluateLine(line)?.pays ?? 0;
   expect(await stat(page, 'Spins')).toBe(1);
-  await expect(page.getByTestId('slot-credits')).toHaveText(String(500 - 1 + win));
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + win));
   expect(await paylineOnScreen(page)).toEqual([...line]);
 });
 
-test('a jackpot pays 1000× and the session books balance over auto-spins', async ({ page }) => {
+test('a jackpot pays 1000× the medals bet, and the session books balance over auto-spins at three medals a spin', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openSlots(page);
-  await firstSpin(page);
+  await spin(page);
   await settledLine(page);
-  const afterFirst = Number(await page.getByTestId('slot-credits').innerText());
+  const afterFirst = await medals(page);
 
-  // Force the draw: virtual stop 0 on every reel is the 7. Restored right after.
-  await page.evaluate(() => {
-    const w = window as unknown as { __random: () => number };
-    w.__random = Math.random;
-    Math.random = () => 0.001;
-  });
-  await page.getByRole('button', { name: 'SPIN', exact: true }).click();
-  await page.evaluate(() => {
-    Math.random = (window as unknown as { __random: () => number }).__random;
-  });
+  // Three medals, the most the machine takes, and the draw forced to 7-7-7. Put back right after.
+  await page.getByRole('radio', { name: 'BET 3 medals' }).click();
+  await expect(page.getByTestId('slot-bet')).toHaveText('3');
+  await force(page);
+  await spinButton(page).click();
+  await unforce(page);
   expect(await settledLine(page)).toEqual(['seven', 'seven', 'seven']);
   expect(await paylineOnScreen(page)).toEqual(['seven', 'seven', 'seven']);
-  await expect(page.getByTestId('slot-win')).toHaveText('1000');
-  await expect(page.getByTestId('slot-credits')).toHaveText(String(afterFirst - 1 + 1000));
-  await expect(page.getByText('Three 7s — you win 1000 credits!')).toBeVisible();
+  await expect(page.getByTestId('slot-win')).toHaveText('3000');
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(afterFirst - 3 + 3000));
+  await expect(page.getByTestId('slot-result')).toHaveText('Three 7s — won 3000 medals!');
 
   await page.getByRole('button', { name: 'Auto ×10' }).click();
   await expect.poll(() => stat(page, 'Spins'), { timeout: 30_000 }).toBe(12);
   await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'false');
   await expect(page.getByRole('button', { name: 'Auto ×10' })).toBeEnabled();
 
-  const wagered = await stat(page, 'Wagered');
-  const paid = await stat(page, 'Paid out');
-  expect(wagered).toBe(12);
-  await expect(page.getByTestId('slot-credits')).toHaveText(String(500 - wagered + paid));
-  expect(await stat(page, 'Net')).toBe(paid - wagered);
+  const wagered = await stat(page, 'Medals bet');
+  const paid = await stat(page, 'Medals won');
+  expect(wagered).toBe(1 + 3 + 10 * 3);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - wagered + paid));
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - wagered + paid);
+  expect(await stat(page, 'Net medals')).toBe(paid - wagered);
+});
+
+test('plays with the medal center’s medals: a bet takes them, a win adds them, and the hub shows the same count after a reload', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await expect(page.getByTestId('slot-center')).toHaveAttribute('href', '/games/medal-center');
+  await expect(page.getByTestId('slot-not-money')).toHaveText(NOT_MONEY.en);
+  // A losing spin of two medals: two come out, nothing goes back.
+  await page.getByRole('radio', { name: 'BET 2 medals' }).click();
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    // Virtual stop 63 of every reel is the blank above its 7: no win.
+    Math.random = () => 0.999;
+  });
+  await spinButton(page).click();
+  await unforce(page);
+  expect(evaluateLine(await settledLine(page))).toBeNull();
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 2));
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 2);
+  // A winning spin of two medals: two out, two thousand back.
+  await force(page);
+  await spinButton(page).click();
+  await unforce(page);
+  await settledLine(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 4 + 2000));
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 4 + 2000);
+  // The round is settled and no longer written down.
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), ROUND_KEY)).toBeNull();
+
+  // After a reload the machine shows the same medals, and so does the medal center's counter.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('slot-medals')).toHaveText('2,096');
+  await openCenter(page);
+  await expect(page.getByTestId('center-balance')).toHaveText('2,096');
+  await expect(page.getByTestId('center-play-slot-machine')).toHaveAttribute('href', '/games/slot-machine');
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('center-balance')).toHaveText('2,096');
+  expect(await bankBalance(page)).toBe(2096);
+});
+
+test('a spin under way when the page is reloaded is finished after the reload, and paid once: never refunded, never twice', async ({ page }) => {
+  await openSlots(page);
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  // The stake is taken and the round written down, not yet paid: its reels are still turning (7-7 holds the last one).
+  const before = parseRound(await page.evaluate((key) => window.localStorage.getItem(key), ROUND_KEY));
+  expect(before).toMatchObject({ bet: 1, stops: [0, 0, 0], paid: false });
+  expect(await bankBalance(page)).toBe(WELCOME - 1);
+
+  await page.reload();
+  await arrived(page);
+  // The page going paid it, once; the tab comes back and is shown the spin it left, reels and all.
+  await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true', { timeout: 20_000 });
+  await expect(page.getByTestId('slot-resumed')).toHaveText('The spin left under way has been finished.', { timeout: 15_000 });
+  expect(await settledLine(page)).toEqual(['seven', 'seven', 'seven']);
+  expect(await paylineOnScreen(page)).toEqual(['seven', 'seven', 'seven']);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + 1000));
+  await expect(page.getByTestId('slot-result')).toHaveText('Three 7s — won 1000 medals!');
+  expect(await stat(page, 'Spins')).toBe(1);
+  expect(await bankBalance(page)).toBe(WELCOME + 999);
+  await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), ROUND_KEY)).toBeNull();
+
+  // Nothing more comes of it, however often the page is opened.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true', { timeout: 20_000 });
+  await page.waitForTimeout(1_000);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME + 999));
+  expect(await stat(page, 'Spins')).toBe(0);
+  expect(await bankBalance(page)).toBe(WELCOME + 999);
+});
+
+test('the medals are played at one machine at a time: another tab takes them, this one waits, and Play here brings them back', async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await spin(page);
+  await settledLine(page);
+  const other = await context.newPage();
+  await other.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(other);
+  // The first tab's machine waits, says why, and takes no bet.
+  await expect(page.getByTestId('slot-card-away')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('slot-play-here')).toHaveText('Play here');
+  await expect(spinButton(page)).toBeDisabled();
+  // The second plays with the same medals.
+  await expect.poll(() => medals(other)).toBe(await bankBalance(other));
+  await spin(other);
+  await settledLine(other);
+  await expect.poll(() => bankBalance(other)).toBe(await medals(other));
+  // Back to the first: it has the medals again, as the second left them, and the second waits.
+  await page.bringToFront();
+  await page.getByTestId('slot-play-here').click();
+  await expect(page.getByTestId('slot-card-away')).toHaveCount(0);
+  await expect(other.getByTestId('slot-card-away')).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => medals(page)).toBe(await bankBalance(page));
+  await spin(page);
+  await settledLine(page);
+  await expect.poll(() => bankBalance(page)).toBe(await medals(page));
+});
+
+test('the Medal Pusher opened in another tab takes the medals from the slot machine, and both show the same count', async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await spin(page);
+  await settledLine(page);
+  const pusher = await context.newPage();
+  await pusher.goto('/games/medal-pusher');
+  await settled(pusher);
+  await expect(page.getByTestId('slot-card-away')).toBeVisible({ timeout: 10_000 });
+  await expect(spinButton(page)).toBeDisabled();
+  const onPusher = async () => Number(((await pusher.locator('#pusher-panel-machine').getByTestId('pusher-credits').textContent()) ?? '').replace(/,/g, ''));
+  await expect.poll(onPusher, { timeout: 15_000 }).toBe(await bankBalance(pusher));
+  expect(await onPusher()).toBe(await medals(page));
+});
+
+test('the reset at the medal center starts the machine over with a new member’s medals', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME + 999));
+  await resetAtCenter(page);
+  await openSlots(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME));
+  expect(await stat(page, 'Spins')).toBe(0);
+  // This device's machine is written down as started over in the new era, once.
+  await expect.poll(async () => {
+    const ledger = await storedBank(page);
+    return ledger ? (ledger.restarted[`${SLOT_GAME}@${ledger.device}`] ?? -1) : -1;
+  }).toBe(1);
+  await spin(page);
+  await settledLine(page);
+  await expect.poll(() => bankBalance(page)).toBe(await medals(page));
+});
+
+test('says once that the machine plays with the player’s medals now, and fits a phone in both languages', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // Whatever a device kept under the machine's names before (it never saved its old count) is passed over.
+  await page.addInitScript(() => {
+    if (window.localStorage.getItem('slot-machine-seeded') !== null) return;
+    window.localStorage.setItem('slot-machine-seeded', '1');
+    window.localStorage.setItem('slot-machine', JSON.stringify({ credits: 500, bet: 10 }));
+    window.localStorage.setItem('slot-machine-round', JSON.stringify({ credits: 500 }));
+  });
+  await openSlots(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME));
+  const notice = page.getByTestId('slot-notice');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('now plays with your medals from the Medal Game Center');
+  await expect(page.getByTestId('slot-notice-link')).toHaveAttribute('href', '/games/medal-center');
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  await spin(page);
+  await settledLine(page);
+  await page.getByTestId('slot-notice-dismiss').click();
+  await expect(notice).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), NOTICE_KEY)).toBe('1');
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('slot-notice')).toHaveCount(0);
+
+  await openSlots(page, 'ja');
+  await expect(page.getByTestId('slot-not-money')).toHaveText(NOT_MONEY.ja);
+  await expect(page.getByRole('radio', { name: '3枚ベット' })).toBeVisible();
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  expect(errors).toEqual([]);
 });
 
 test('the exact odds tab shows the computed paytable and virtual reels', async ({ page }) => {
@@ -144,12 +348,13 @@ test('the simulations run and report against the theory', async ({ page }) => {
   await page.getByRole('button', { name: 'Run' }).first().click();
   await expect(page.getByTestId('slot-convergence-result')).toContainText('After 10,000 spins the observed return was');
 
+  await page.getByLabel('Medals bet per spin').selectOption('3');
   await page.getByLabel('Players (sessions)').fill('300');
   await page.getByRole('button', { name: 'Run' }).nth(1).click();
   const results = page.getByTestId('slot-session-results');
   await expect(results).toBeVisible({ timeout: 20_000 });
-  await expect(results).toContainText('Went broke');
-  await expect(results).toContainText('Expected final credits');
+  await expect(results).toContainText('Ran out of medals');
+  await expect(results).toContainText('Expected medals left');
 });
 
 test('the slot machine is localized', async ({ page }) => {
@@ -158,4 +363,5 @@ test('the slot machine is localized', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('スロットマシン');
   await expect(page.getByRole('tab', { name: '正確な確率' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'レバーを引いて回す' })).toBeVisible();
+  await expect(page.getByTestId('slot-center')).toHaveText('← メダルゲームセンター');
 });

@@ -22,9 +22,16 @@
  *
  * So a spin is never refunded. Its number was drawn when it was bet, as on a
  * real wheel once the ball is in the bowl, and a reload is no way to take
- * back a bet that is going to lose. A spin on record is paid at most once:
- * it is marked paid before its winnings go in, and only the page that holds
- * the card pays one.
+ * back a bet that is going to lose. A spin on record is paid exactly once,
+ * and only by the page that holds the card.
+ *
+ * The spin's record and the medals are two writes, and the browser can die
+ * between any two writes. So its stake and its winnings each go into the
+ * medals under a receipt (`bank.apply`; "A machine's rounds" in bank.ts): a
+ * spin on record whose stake never went in never happened, and is thrown
+ * away with nothing paid; a spin whose winnings went in and that was not yet
+ * marked paid is marked paid, and paid nothing more. A spin written down
+ * before there were receipts is taken at its word: its stake was taken.
  *
  * A spin belongs to the medals it was bet from: the player's ledger on this
  * device (known by the name the ledger keeps for this device, which goes with
@@ -37,9 +44,9 @@
  * Its stake is on record only if the bank could write the stake down too:
  * where this browser's storage refuses the bank's write, the spin is played
  * from memory alone, so that a page that dies then cannot come back to a
- * spin whose medals were never taken. Its winnings are marked paid before
- * they go in; a credit the bank could not write yet is still in its medals in
- * memory, and goes to storage with the bank's next write.
+ * spin whose medals were never taken. A credit the bank could not write yet
+ * is still in its medals in memory, and goes to storage with the bank's next
+ * write.
  *
  * ## The table's limits
  *
@@ -51,6 +58,7 @@
  * in, so that the tests can run it against a fake browser.
  */
 
+import type { Move } from '../MedalCenter/bank';
 import { payoutMultiplier, type Bet } from './engine';
 
 /** The game's name at the medal center: its seat, and its restarts after a reset. */
@@ -89,7 +97,16 @@ export interface SpinRecord {
   /** The medals it wins back, its bets included (0 when nothing won). */
   won: number;
   paid: boolean;
+  /**
+   * Whether its stake and its winnings go in under receipts (`bank.apply`): its stake was taken only if the bank holds
+   * the stake's receipt. A spin written before there were receipts has none, and its stake was taken.
+   */
+  receipts?: true;
 }
+
+/** The names of a spin's two moves of medals at the bank. */
+export const STAKE_STEP = 'stake';
+export const PAY_STEP = 'pay';
 
 /** A spin as the page that holds it knows it. */
 export interface Staked {
@@ -163,7 +180,10 @@ export function parseSpin(text: unknown): SpinRecord | null {
   const wagered = bets.reduce((sum, { amount }) => sum + amount, 0);
   // What it bet and what it won are worked out again: a record that says otherwise is not one this table wrote.
   if (bets.length === 0 || data.wagered !== wagered || data.won !== winningsOf(bets, data.result)) return null;
-  return { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, result: data.result, bets, wagered, won: data.won, paid: data.paid };
+  if (data.receipts !== undefined && data.receipts !== true) return null;
+  const spin: SpinRecord = { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, result: data.result, bets, wagered, won: data.won, paid: data.paid };
+  if (data.receipts) spin.receipts = true;
+  return spin;
 }
 
 export const serializeSpin = (record: SpinRecord): string => JSON.stringify(record);
@@ -179,6 +199,10 @@ export interface TableBank {
   /** `kept`: whether the bank's last write to this device's storage took. */
   getState(): { loaded: boolean; kept: boolean; ledger: { era: number; device: string } | null };
   restartDue(game: string): boolean;
+  /** A move of a spin's medals under its receipt, once (bank.ts). */
+  apply(move: Move): 'applied' | 'already' | null;
+  applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
+  forget(game: string, keep?: readonly string[]): boolean;
 }
 
 /** This device's storage. Every call may throw: storage can be blocked, full or switched off. */
@@ -237,6 +261,11 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     return typeof text === 'string' ? parseSpin(text) : null;
   };
 
+  /** A move of a spin's medals, under its receipt. */
+  const move = (record: SpinRecord, step: string, medals: number) => bank.apply({ game: ROULETTE_GAME, round: record.id, step, medals, era: record.era });
+  /** Whether a spin's stake went in: the bank holds its receipt until the spin is paid. A spin from before receipts is taken at its word. */
+  const stakeIn = (record: SpinRecord): boolean => !record.receipts || bank.applied({ game: ROULETTE_GAME, round: record.id, step: STAKE_STEP });
+
   /** Whether a spin was bet from the medals on the table now: the same ledger, in the same era. */
   const current = (record: SpinRecord): boolean => {
     const medals = onTable();
@@ -259,7 +288,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     for (const place of places) {
       const record = keptFor(place);
       if (!record || record.paid || record.ledger !== medals.device) continue;
-      if (record.era !== medals.era || bank.restartDue(ROULETTE_GAME)) {
+      // From before a reset, or written down by a page that died before its stake went in: it never was, and is thrown away.
+      if (record.era !== medals.era || bank.restartDue(ROULETTE_GAME) || !stakeIn(record)) {
         remove(spinKey(place));
         continue;
       }
@@ -288,9 +318,9 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       if (unfinished()) return null;
       const owner = bank.owner();
       const key = spinKey(owner);
-      const record: SpinRecord = { v: 1, id: newId(), owner, ledger: medals.device, era: medals.era, result, bets: placed, wagered, won: winningsOf(placed, result), paid: false };
+      const record: SpinRecord = { v: 1, id: newId(), owner, ledger: medals.device, era: medals.era, result, bets: placed, wagered, won: winningsOf(placed, result), paid: false, receipts: true };
       let stored = write(key, serializeSpin(record));
-      if (!bank.take(wagered)) {
+      if (move(record, STAKE_STEP, -wagered) !== 'applied') {
         if (stored) remove(key);
         return null;
       }
@@ -332,10 +362,20 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
           return 'already';
         }
       }
-      // Marked paid before the medals go in: a page that dies between the two leaves a spin that is never paid twice.
+      // Its stake never went in (the page that bet it died first): it never was, and pays nothing.
+      if (!stakeIn(record)) {
+        staked.void = true;
+        staked.paid = true;
+        if (typeof there === 'string' && parseSpin(there)?.id === record.id) remove(key);
+        return 'void';
+      }
+      // Paid under its receipt, then marked paid: a page that dies between the two leaves a spin that the next page
+      // finds paid already, and marks paid without paying it again.
+      if (record.won > 0 && !move(record, PAY_STEP, record.won)) return 'later';
       if (!write(key, serializeSpin({ ...record, paid: true }))) remove(key);
       staked.paid = true;
-      if (record.won > 0) bank.give(record.won);
+      // Over, and on record as over: nothing will try its moves again.
+      bank.forget(ROULETTE_GAME);
       return 'paid';
     },
 

@@ -15,14 +15,22 @@
  *   not handed back when the page is left: a Pass Line bet with its point on
  *   cannot be taken down at a real table, and handing it back at a reload would
  *   let a player out of a bet that is worth less than its stake.
- * - **Medals leave before the table holds them, and the table lets go before
- *   they come back, and each step is kept or the change is not made.** A
- *   bet's medals are taken, and must be kept as taken, before the table is
- *   written with the bet; the table is written without a bet before its
- *   medals are given back, and if they are not kept as given, they are taken
- *   back and the table is written as it was. So no write that fails can make
- *   medals twice, or lose them. Only where storage cannot be read at all is
- *   everything played in the page alone, and there nothing outlives it.
+ * - **The table says what is about to move before the medals move, and each
+ *   step is kept or the change is not made.** A change that moves medals is
+ *   written down first, with the move it makes and the table as it was
+ *   before it (`pending`), and then the medals are moved under a receipt
+ *   (`bank.apply`; "A machine's rounds" in bank.ts). If they are not kept as
+ *   moved, they are moved back and the table is written as it was. So no
+ *   write that fails can make medals twice, or lose them. Only where storage
+ *   cannot be read at all is everything played in the page alone, and there
+ *   nothing outlives it.
+ * - **A browser that dies between the two writes loses nothing and makes
+ *   nothing.** The page that next holds the card looks at the table against
+ *   the receipts: a bet written down whose medals the medals do not show as
+ *   taken was never made, and the table goes back to how it was before it;
+ *   medals written down as coming back (a win, a bet taken down) that never
+ *   came are given now, once. Each move's receipt is let go of once the
+ *   next move is made. A table from before receipts is taken at its word.
  * - **A guest's table goes with the guest's medals.** On a first sign-in to an
  *   account with no medals, the guest's medals become the account's
  *   (MedalCenter/bank.ts); the table, marked with those medals (`mark`), moves
@@ -43,6 +51,7 @@
  * bank in a fake browser.
  */
 
+import type { Move } from '../MedalCenter/bank';
 import {
   BET_IDS,
   LAY_ODDS,
@@ -207,7 +216,28 @@ export interface Table {
    * them; an account that brings medals of its own has another.
    */
   mark?: string;
+  /** The table's name, which its moves of medals go under (`bank.apply`), and how many moves it has made. */
+  id?: string;
+  seq?: number;
+  /**
+   * The last move of medals written down: its number, the medals it moves (taken below nothing, given above), and the
+   * table as it was before it. Until the medals hold its receipt it may never have been made (the browser died
+   * between the two writes): a bet then goes back off the table, and medals coming back are given.
+   */
+  pending?: Pending;
 }
+
+/** A move of medals written down before it is made (`Table.pending`). */
+export interface Pending {
+  n: number;
+  medals: number;
+  before: string | null;
+}
+
+/** The name every move of the table's medals goes under, at the bank: one move to a round. */
+export const MOVE_STEP = 'move';
+/** The round a move of a table's medals is, at the bank: the table's name and the move's number. */
+export const moveRound = (id: string, n: number): string => `${id}-${n}`;
 
 export const EMPTY_STATS: Stats = { rolls: 0, shooter: 1, handRolls: 0, longestHand: 0, pointsMade: 0, sevenOuts: 0, net: 0 };
 
@@ -336,10 +366,19 @@ export function parseTable(text: unknown): Table | null {
     if (seed !== undefined && !(typeof seed === 'number' && Number.isSafeInteger(seed) && seed >= 0 && seed < 2 ** 32)) return null;
     last = seed === undefined ? { point: lastPoint, bets: lastBets, dice } : { point: lastPoint, bets: lastBets, dice, seed };
   }
-  const { mark } = raw;
+  const { mark, id, seq, pending } = raw;
   if (mark !== undefined && !(typeof mark === 'string' && mark.length <= 64)) return null;
+  if (id !== undefined && !(typeof id === 'string' && /^[a-z0-9]{1,12}$/.test(id))) return null;
+  if (seq !== undefined && !isCount(seq)) return null;
   const parsed: Table = { v: TABLE_VERSION, point, bets, placed, lastRound, stats, history, last };
   if (mark !== undefined) parsed.mark = mark;
+  if (id !== undefined) parsed.id = id;
+  if (seq !== undefined) parsed.seq = seq;
+  if (pending !== undefined) {
+    if (!isRecord(pending) || !isCount(pending.n, 1) || typeof pending.medals !== 'number' || !Number.isSafeInteger(pending.medals) || pending.medals === 0) return null;
+    if (pending.before !== null && (typeof pending.before !== 'string' || pending.before.length > LONGEST / 2)) return null;
+    parsed.pending = { n: pending.n, medals: pending.medals, before: pending.before };
+  }
   return parsed;
 }
 
@@ -355,6 +394,9 @@ export function serializeTable(table: Table): string {
     history: table.history,
     last: table.last,
     ...(table.mark === undefined ? {} : { mark: table.mark }),
+    ...(table.id === undefined ? {} : { id: table.id }),
+    ...(table.seq === undefined ? {} : { seq: table.seq }),
+    ...(table.pending === undefined ? {} : { pending: table.pending }),
   });
 }
 
@@ -376,6 +418,10 @@ export interface TablePurse {
   mark(): string | null;
   take(medals: number): boolean;
   give(medals: number): boolean;
+  /** A move of the table's medals under its receipt, once (bank.ts). */
+  apply(move: Move): 'applied' | 'already' | null;
+  applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
+  forget(game: string, keep?: readonly string[]): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
   /** Whether this browser kept the medals' last write: read straight after a take or a give, whether that one was. */
@@ -389,6 +435,9 @@ export const purseOf = (bank: {
   owner(): string | null;
   take(medals: number): boolean;
   give(medals: number): boolean;
+  apply(move: Move): 'applied' | 'already' | null;
+  applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
+  forget(game: string, keep?: readonly string[]): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
 }): TablePurse => ({
@@ -401,6 +450,9 @@ export const purseOf = (bank: {
   },
   take: (medals) => bank.take(medals),
   give: (medals) => bank.give(medals),
+  apply: (move) => bank.apply(move),
+  applied: (move) => bank.applied(move),
+  forget: (game, keep) => bank.forget(game, keep),
   restartDue: (game) => bank.restartDue(game),
   restarted: (game) => bank.restarted(game),
   kept: () => bank.getState().kept,
@@ -427,6 +479,16 @@ export type MedalTable = ReturnType<typeof createTable>;
 /** Nothing read yet, or what was read is to be read again. */
 const UNREAD = Symbol('unread');
 
+const LETTERS = '0123456789abcdefghijklmnopqrstuvwxyz';
+/** A new table's name: ten letters and digits from the browser's random numbers. */
+const randomId = (): string => {
+  try {
+    return Array.from(globalThis.crypto.getRandomValues(new Uint32Array(10)), (n) => LETTERS[n % LETTERS.length]).join('');
+  } catch {
+    return Array.from({ length: 10 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
+  }
+};
+
 /**
  * The table of whoever's medals are on the table, as this page knows it.
  * `may` says whether this page may play now: it holds the medal center's card,
@@ -438,7 +500,7 @@ const UNREAD = Symbol('unread');
  * read at all (a browser that blocks it) is the table played in the page
  * alone; nothing there outlives the page, the medals included.
  */
-export function createTable(purse: TablePurse, storage: TableStorage, may: () => boolean) {
+export function createTable(purse: TablePurse, storage: TableStorage, may: () => boolean, newId: () => string = randomId) {
   let owner: string | null = null;
   let table: Table = FRESH_TABLE;
   /** The text last read or written under the owner's name. */
@@ -575,6 +637,29 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       if (may() && (unkept || write(FRESH_TABLE))) purse.restarted(CRAPS_GAME);
       else seen = UNREAD;
     }
+    square();
+  };
+
+  /**
+   * Squares the table with its receipts, by the page that may play: a move written down whose receipt the medals do
+   * not hold was never made, because the browser died between the two writes. A bet goes back off the table (it is
+   * written as it was before), and medals coming back are given now, once.
+   */
+  const square = (): void => {
+    for (let back = 0; back < 16 && may() && !unkept && !stuck; back++) {
+      const { id, pending } = table;
+      if (id === undefined || !pending) return;
+      const move = { game: CRAPS_GAME, round: moveRound(id, pending.n), step: MOVE_STEP };
+      if (purse.applied(move)) return;
+      if (pending.medals > 0) {
+        purse.apply({ ...move, medals: pending.medals });
+        return;
+      }
+      const earlier = pending.before === null ? null : parseTable(pending.before);
+      const restored = write(earlier ?? { ...freshTable(), stats: table.stats, history: table.history });
+      if (!restored) return;
+      show(restored);
+    }
   };
 
   /** Whether this page may play now, the table brought up to date first. */
@@ -593,39 +678,48 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
   };
 
   /**
-   * Gives medals back for bets taken off the table: the table without them is
-   * written first, then the medals are given. Medals that are not kept as
-   * given are taken back, and the table goes back to what it was, so that
-   * nothing is lost and nothing is made twice.
+   * Makes a change to the table that moves `medals` (taken below nothing, given above): the table after it is written
+   * down first, with the move still to be made and the table as it was, and then the medals are moved under the
+   * move's receipt. Medals the bank would not move (not there to take) leave the table as it was; medals that are not
+   * kept as moved are moved back, and the table goes back to what it was, so that nothing is lost and nothing is made
+   * twice. A change that moves nothing is simply written. Returns why it was not made, or null.
    */
-  const giveBack = (before: Table, next: Table, medals: number): boolean => {
-    if (!commit(next)) return false;
-    if (medals > 0 && (!purse.give(medals) || !medalsKept())) {
-      purse.take(medals);
-      commit(before);
-      return false;
+  const change = (before: Table, next: Table, medals: number): TableError | null => {
+    if (medals === 0) return commit({ ...next, pending: undefined }) ? null : 'notKept';
+    const id = before.id ?? newId();
+    const n = (before.seq ?? 0) + 1;
+    const plain: Table = { ...before };
+    delete plain.pending;
+    const pending: Pending = { n, medals, before: serializeTable(plain) };
+    if (!commit({ ...next, id, seq: n, pending })) return 'notKept';
+    const move = { game: CRAPS_GAME, round: moveRound(id, n), step: MOVE_STEP };
+    const done = purse.apply({ ...move, medals });
+    if (done === 'applied' && medalsKept()) {
+      // Made, and the table says so: the moves before it are let go of.
+      purse.forget(CRAPS_GAME, [move.round]);
+      return null;
     }
-    return true;
+    if (done === 'applied') {
+      // Not kept as moved: moved back, and the move's receipt let go of with it, so that it can be made again.
+      if (medals < 0) purse.give(-medals);
+      else purse.take(medals);
+      purse.forget(CRAPS_GAME, before.id !== undefined && before.pending ? [moveRound(before.id, before.pending.n)] : []);
+    }
+    commit(before);
+    return done === null && medals < 0 ? 'noMedals' : 'notKept';
   };
 
-  /** Puts `amount` medals on `id`, taken from the player's medals: taken first, and kept as taken, before the table holds them. */
+  /** Gives medals back for bets taken off the table: the table without them, and then the medals (`change`). */
+  const giveBack = (before: Table, next: Table, medals: number): boolean => change(before, next, medals) === null;
+
+  /** Puts `amount` medals on `id`, taken from the player's medals: the table with the bet on it, and then the medals (`change`). */
   const place = (id: BetId, amount: number): Done => {
     if (!ready()) return fail('notHere');
     const error = placeError(id, amount, table.point, table.bets, purse.balance());
     if (error) return fail(error);
-    if (!purse.take(amount)) return fail('noMedals');
-    if (!medalsKept()) {
-      // The medals were not kept as taken: they go back, and no bet is made.
-      purse.give(amount);
-      return fail('notKept');
-    }
     const next: Table = { ...table, bets: { ...table.bets, [id]: (table.bets[id] ?? 0) + amount }, placed: [...table.placed, { id, amount }] };
-    if (!commit(next)) {
-      // The table could not hold them: the medals go back.
-      purse.give(amount);
-      return fail('notKept');
-    }
-    return { ok: true, value: true };
+    const why = change(table, next, -amount);
+    return why === null ? { ok: true, value: true } : fail(why);
   };
 
   return {

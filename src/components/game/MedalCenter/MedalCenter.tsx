@@ -27,7 +27,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'medal-pusher', path: MEDAL_PUSHER_PATH },
   { id: 'slot-machine', path: null },
   { id: 'roulette', path: null },
-  { id: 'blackjack', path: null },
+  { id: 'blackjack', path: '/games/blackjack' },
   { id: 'video-poker', path: null },
   { id: 'baccarat', path: null },
   { id: 'craps', path: null },

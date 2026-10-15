@@ -5,10 +5,14 @@ import { describe, expect, it } from 'vitest';
 import { Baccarat } from '@/components/game/Baccarat';
 import { PlayingCard } from '@/components/game/Baccarat/Cards';
 import { OddsTab } from '@/components/game/Baccarat/OddsTab';
-import { INITIAL_BANKROLL, PlayTab, revealSchedule } from '@/components/game/Baccarat/PlayTab';
+import { BET_STEPS } from '@/components/game/Baccarat/medals';
+import { MEDAL_PLACES } from '@/components/game/Baccarat/MedalCounter';
+import { PlayTab, revealSchedule } from '@/components/game/Baccarat/PlayTab';
 import { BeadPlate, BigRoad } from '@/components/game/Baccarat/Roads';
 import { SimTab } from '@/components/game/Baccarat/SimTab';
 import type { RoadEntry } from '@/components/game/Baccarat/engine';
+import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
+import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -39,30 +43,65 @@ describe('cards and scoreboards', () => {
 });
 
 describe('PlayTab', () => {
-  it('opens with a full bankroll, the commission layout and fresh-shoe odds', () => {
+  it('opens at the no-commission table with the medal counter dark until the player’s medals are read, and fresh-shoe odds', () => {
     const markup = render(<PlayTab />);
-    expect(markup).toContain(`data-testid="baccarat-bankroll">${INITIAL_BANKROLL}<`);
-    expect(markup).toContain('data-testid="baccarat-on-table">0<');
+    // The server knows nothing of the player's medals: the counter's windows are dark and nothing can be bet yet.
+    expect(markup).toContain('data-testid="baccarat-counter" data-loaded="false"');
+    expect(markup).toContain('data-testid="baccarat-medals">Looking for your medals…<');
+    expect(markup).not.toMatch(/data-testid="baccarat-medals" data-medals=/);
+    expect(markup).toContain('data-testid="baccarat-on-table" data-medals="0">0 on the table<');
+    expect(markup.match(/<polygon[^>]*data-on="true"/g)).toBeNull();
+    expect(markup.match(/<polygon[^>]*data-on="false"/g)?.length).toBeGreaterThanOrEqual(MEDAL_PLACES * 7);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>DEAL<\/button>/);
     expect([...markup.matchAll(/data-bet="(\w+)"/g)].map((m) => m[1]).sort()).toEqual(
-      ['banker', 'bankerPair', 'player', 'playerPair', 'tie'],
+      ['banker', 'bankerPair', 'dragon7', 'panda8', 'player', 'playerPair', 'tie'],
     );
-    expect(markup).toContain('aria-label="Banker (0.95:1)"');
+    expect(markup).toContain('aria-label="Banker (1:1 · 3-card 7 pushes)"');
     expect(markup).toContain('aria-label="Tie (8:1)"');
-    expect(markup).toContain('>DEAL<');
+    expect(markup).toContain('aria-label="Dragon 7 (40:1)"');
+    // BET buttons of medals, the first one chosen.
+    expect([...markup.matchAll(/data-step="(\d+)"/g)].map((m) => Number(m[1]))).toEqual([...BET_STEPS]);
+    expect(markup).toMatch(/aria-checked="true" aria-label="Bet 1 medal a press"/);
     expect(markup).toContain('A fresh eight-deck shoe is shuffled on the first deal.');
-    // Live odds for the first hand = the eight-deck edges.
-    expect(markup).toMatch(/data-live="banker"><td>Banker<\/td><td[^>]*>45\.860%<\/td><td[^>]*>1\.058%</);
+    // Live odds for the first hand = the eight-deck edges, at the EZ table.
+    expect(markup).toMatch(/data-live="banker"><td>Banker<\/td><td[^>]*>43\.606%<\/td><td[^>]*>1\.018%</);
     expect(markup).toMatch(/data-live="tie"><td>Tie<\/td><td[^>]*>9\.516%<\/td><td[^>]*>14\.360%</);
     expect(markup).not.toContain('data-positive');
     expect(markup).toContain('Computed from the 416 cards');
   });
 
-  it('is localized', () => {
+  it('says near the counter that medals are not money, and where they come from, with no reset of its own', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toContain(
+      'data-testid="baccarat-not-money">Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.<',
+    );
+    expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="baccarat-center-note-link">Medal Game Center<`);
+    expect(markup).not.toMatch(/>Reset</);
+  });
+
+  it('is localized, in the words of a medal machine', () => {
     const markup = render(<PlayTab />, 'ja');
-    expect(markup).toContain('所持金');
+    expect(markup).toContain('持ちメダル');
     expect(markup).toContain('>ディール<');
-    expect(markup).toContain('aria-label="バンカー（0.95:1）"');
+    expect(markup).toContain('aria-label="バンカー（1:1・3枚の7は引き分け）"');
+    expect(markup).toContain('aria-label="1回1枚ベット"');
     expect(markup).toContain('ビーズプレート');
+    expect(markup).toContain('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。');
+    expect(markup).not.toContain('所持金');
+  });
+
+  it('writes nothing a player sees that could be taken for real money, in either language', () => {
+    for (const lang of ['en', 'ja'] as const) {
+      const markup = render(<Baccarat />, lang);
+      // The one sentence that says medals are not money names money in order to say so; nothing else may.
+      const text = markup
+        .replace(/<[^>]+>/g, ' ')
+        .replace('Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.', '')
+        .replace('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。', '');
+      expect(text, lang).not.toMatch(/bankroll|\bbank\b|deposit|withdraw|cash|money|dollar|balance|credit|\$|預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金|収支|チップ/i);
+      const attributes = [...markup.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1]).join(' ');
+      expect(attributes, lang).not.toMatch(/bankroll|\bbank\b|money|balance|credit|chip|所持金|チップ/i);
+    }
   });
 
   it('paces the deal with a beat before third cards', () => {
@@ -117,8 +156,10 @@ describe('SimTab', () => {
 });
 
 describe('Baccarat shell', () => {
-  it('keeps every tab panel mounted and hides the inactive ones', () => {
+  it('links back to the Medal Game Center, and keeps every tab panel mounted and hides the inactive ones', () => {
     const markup = render(<Baccarat />, 'ja');
+    expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="baccarat-center"`);
+    expect(markup).toContain('メダルゲームセンター');
     const panels = [...markup.matchAll(/<div role="tabpanel" id="baccarat-panel-(\w+)"[^>]*?( hidden="")?>/g)];
     expect(panels.map((m) => [m[1], Boolean(m[2])])).toEqual([
       ['play', false],
@@ -127,5 +168,16 @@ describe('Baccarat shell', () => {
     ]);
     expect(markup).toContain('バカラ');
     expect(markup).toContain('>シミュレーション<');
+  });
+});
+
+describe('on the medal floor', () => {
+  it('is OPEN at the Medal Game Center, with a Play link to the table', () => {
+    const html = render(<MedalCenter signInHref="/signin" />);
+    expect(FLOOR.find(({ id }) => id === 'baccarat')?.path).toBe('/games/baccarat');
+    const play = html.match(/<a[^>]*data-testid="center-play-baccarat"[^>]*>/)?.[0] ?? '';
+    expect(play).toContain('href="/games/baccarat"');
+    expect(html).toMatch(/<li[^>]*data-open="true" data-machine="baccarat"/);
+    expect(html).not.toMatch(/data-open="false" data-machine="baccarat"/);
   });
 });

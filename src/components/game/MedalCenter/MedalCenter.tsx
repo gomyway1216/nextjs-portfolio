@@ -29,7 +29,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'roulette', path: null },
   { id: 'blackjack', path: null },
   { id: 'video-poker', path: null },
-  { id: 'baccarat', path: null },
+  { id: 'baccarat', path: '/games/baccarat' },
   { id: 'craps', path: null },
   { id: 'three-card-poker', path: null },
 ];

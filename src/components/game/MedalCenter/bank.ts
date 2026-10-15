@@ -612,16 +612,25 @@ export function createBank(env: BankEnv) {
     publish();
   };
 
-  /** Asks for the card, telling the page that holds it why: for a machine to be played, for a moment, or not at all. */
+  /**
+   * Asks for the card, telling the page that holds it why: for a machine to be played, for a moment, or not at all.
+   *
+   * The request goes in before the holder is told. A holder that lets the card go asks for it again at once, when its
+   * machine is still to be played; told first, it could ask again before this page's request had reached the browser's
+   * lock manager, and take the card straight back, and this page would wait behind it for as long as the machine
+   * played. A page that waits with a job to do also says so again with every tick (`tick`), so that even a request
+   * that reached the lock manager late is next in a turn or two.
+   */
   const ask = (because: 'play' | 'moment' | null): void => {
+    if (!held && !waiting) {
+      let answered = false;
+      const withdraw = env.card.ask((release) => {
+        answered = true;
+        granted(release);
+      });
+      if (!answered) waiting = withdraw;
+    }
     if (because) env.post({ kind: 'want', page: env.page, play: because === 'play' });
-    if (held || waiting) return;
-    let answered = false;
-    const withdraw = env.card.ask((release) => {
-      answered = true;
-      granted(release);
-    });
-    if (!answered) waiting = withdraw;
     publish();
   };
 
@@ -903,6 +912,9 @@ export function createBank(env: BankEnv) {
   const tick = (): void => {
     if (!started || !desk) return;
     ticks += 1;
+    // A job still waiting for the card says so again: the holder may have taken the card back before this page's request
+    // reached the lock manager (see `ask`), and it lets the card go once more when it hears.
+    if (waiting && jobs.length > 0) env.post({ kind: 'want', page: env.page, play: false });
     if (state.day !== env.today()) publish();
     if (ticks % LOOK_EVERY === 0) sync?.save(where === 'offline' ? 'moment' : 'tick');
     if (checkAt !== null && env.now() >= checkAt) {

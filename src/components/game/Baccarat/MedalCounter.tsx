@@ -1,0 +1,91 @@
+'use client';
+
+import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
+import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
+import styles from './Baccarat.module.css';
+
+/** How many digits each LED window has: the medals up to 9,999,999 (as the Medal Game Center's counter), a bet of up to 300, a hand's win of up to 9,999. */
+export const MEDAL_PLACES = 7;
+export const BET_PLACES = 3;
+export const WIN_PLACES = 4;
+
+/** The star struck on every medal (medalLook.ts), in a 32-unit view box. */
+const STAR = FACE_STAR.map(([x, y]) => `${(16 + x * 15).toFixed(2)},${(16 + y * 15).toFixed(2)}`).join(' ');
+
+/** One of the medal floor's medals: copper-nickel with a raised rim and its star, the same silver as the machines'. */
+export const MedalIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 32 32" aria-hidden focusable="false">
+    <circle cx="16" cy="16" r="15" fill={MEDAL_PAINT.face} stroke={MEDAL_PAINT.edge} strokeWidth="1.4" />
+    <circle cx="16" cy="16" r="12.2" fill="none" stroke={MEDAL_PAINT.light} strokeWidth="1.6" />
+    <circle cx="16.4" cy="16.5" r="12.2" fill="none" stroke={MEDAL_PAINT.rim} strokeWidth="0.8" opacity="0.7" />
+    <polygon points={STAR} fill={MEDAL_PAINT.dark} />
+  </svg>
+);
+
+export interface MedalCounterProps {
+  /** Whether the player's medals have been read. Until then the windows are dark. */
+  loaded: boolean;
+  /** The medals the player holds, not counting those on the felt. */
+  medals: number;
+  /** The medals on the felt. */
+  onTable: number;
+  /** The medals the last hand gave back, or null when no hand has been settled. */
+  won: number | null;
+  labels: { medals: string; bet: string; win: string; held: (n: string) => string; onTable: (n: string) => string; won: (n: string) => string; waiting: string };
+  fmt: (n: number) => string;
+}
+
+/**
+ * The table's medal counter, as a medal machine's: the player's medals on a
+ * red seven-segment LED window, and the bet and the last win on amber ones.
+ * The windows are pictures; the counts are written in type under them for a
+ * screen reader and anything else that reads the page.
+ */
+export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt }: MedalCounterProps) => (
+  <section className={styles.counter} aria-labelledby="baccarat-counter-label" data-testid="baccarat-counter" data-loaded={loaded}>
+    <div className={styles.counterMain}>
+      <h3 id="baccarat-counter-label" className={styles.counterLabel}>
+        <MedalIcon className={styles.counterMedal} />
+        {labels.medals}
+      </h3>
+      <span className={styles.ledBig}>
+        <SegmentDisplay value={loaded ? medals : ''} places={MEDAL_PLACES} />
+      </span>
+    </div>
+    <div className={styles.counterSmall} aria-hidden>
+      <span className={styles.ledPair}>
+        <span className={styles.ledLabel}>{labels.bet}</span>
+        <span className={styles.ledSmall}>
+          <SegmentDisplay value={loaded ? onTable : ''} places={BET_PLACES} tone="amber" />
+        </span>
+      </span>
+      <span className={styles.ledPair}>
+        <span className={styles.ledLabel}>{labels.win}</span>
+        <span className={styles.ledSmall}>
+          <SegmentDisplay value={loaded && won !== null ? won : ''} places={WIN_PLACES} tone="amber" />
+        </span>
+      </span>
+    </div>
+    <p className={styles.counterText}>
+      {loaded ? (
+        <strong data-testid="baccarat-medals" data-medals={medals}>
+          {labels.held(fmt(medals))}
+        </strong>
+      ) : (
+        <strong data-testid="baccarat-medals">{labels.waiting}</strong>
+      )}
+      <span aria-hidden> · </span>
+      <span data-testid="baccarat-on-table" data-medals={onTable}>
+        {labels.onTable(fmt(onTable))}
+      </span>
+      {won !== null && (
+        <>
+          <span aria-hidden> · </span>
+          <span data-testid="baccarat-won" data-medals={won}>
+            {labels.won(fmt(won))}
+          </span>
+        </>
+      )}
+    </p>
+  </section>
+);

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { colorOf } from '../../src/components/game/Roulette/engine';
 import { getStrings } from '../../src/components/game/Roulette/i18n';
 import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette/resultsStore';
@@ -13,8 +14,6 @@ import { arrived } from './streamedPage';
 // is taken when the wheel spins and what it wins goes back when the ball stops, once each, through reloads, a page
 // that dies, another tab and the medal center's reset. Nothing here signs in: the medals are a guest's, on this device.
 
-const NOT_MONEY_EN = 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.';
-const NOT_MONEY_JA = 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。';
 
 /** The spin this device has on record for a guest, read the way the table reads it. */
 async function spinOnRecord(page: Page): Promise<SpinRecord | null> {
@@ -35,7 +34,7 @@ test('a bet takes medals when the wheel spins, a win puts medals back, and the m
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoulette(page);
   expect(await shownMedals(page)).toBe(WELCOME);
-  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_EN);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY.en);
   await expect(page.getByTestId('roulette-center')).toHaveAttribute('href', '/games/medal-center');
 
   await coverTheWheel(page);
@@ -245,12 +244,12 @@ test('the medal counter and the note that medals are not money, at a phone’s w
   await openRoulette(page);
   await expect(page.getByTestId('roulette-meter')).toBeVisible();
   await expect(page.getByTestId('roulette-medals')).toHaveText(`Your medals: ${WELCOME}`);
-  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_EN);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY.en);
   expect(await sideways(page)).toBeLessThanOrEqual(375);
 
   await openRoulette(page, 'ja');
   await expect(page.getByTestId('roulette-medals')).toHaveText(`持ちメダル ${WELCOME}枚`);
-  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_JA);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY.ja);
   await expect(page.getByRole('radiogroup', { name: '1回のベット枚数' })).toBeVisible();
   expect(await sideways(page)).toBeLessThanOrEqual(375);
 });

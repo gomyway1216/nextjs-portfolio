@@ -9,6 +9,8 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+// That medals are not money, in the medal center's own words: every game that plays with them shows it.
+import { NOT_MONEY } from '../MedalCenter/strings';
 import { colorOf } from './engine';
 import { BET_STEPS, SPOT_MAX } from './medalTable';
 
@@ -198,12 +200,6 @@ const medalsEn = (n: number): string => `${n.toLocaleString('en-US')} ${n === 1 
 /** A change in medals with its sign: +5, −5, ±0. */
 const signed = (n: number): string => (n > 0 ? `+${n.toLocaleString('en-US')}` : n < 0 ? `−${(-n).toLocaleString('en-US')}` : '±0');
 
-/**
- * Medals are for playing only. Inlined until the medal center's shared
- * `NOT_MONEY` (MedalCenter/strings.ts) is on main; the words are the same.
- */
-const NOT_MONEY_EN = 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.';
-const NOT_MONEY_JA = 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。';
 
 const EN: RouletteStrings = {
   title: 'Roulette',
@@ -218,7 +214,7 @@ const EN: RouletteStrings = {
   medalsSr: (n) => `Your medals: ${n.toLocaleString('en-US')}`,
   betSr: (n) => `On the felt: ${medalsEn(n)}`,
   finding: 'Looking for your medals…',
-  notMoney: NOT_MONEY_EN,
+  notMoney: NOT_MONEY.en,
   centerNote: 'These are your medals from the Medal Game Center: every game there plays with the same ones, and they are reset only there.',
   centerNoteLink: 'Go to the Medal Game Center',
   notice:
@@ -284,7 +280,7 @@ const EN: RouletteStrings = {
     'Inside bets sit on the number grid; outside bets (red/black, odd/even, dozens, columns, etc.) sit around it.',
     'A spin is never taken back: its number is drawn when SPIN is pressed. If the page is hidden, left or reloaded while the ball is rolling, the spin is settled with that number, and anything it won is added to your medals.',
     'The Martingale tab and House-edge tab are statistical demos with pretend medals: they never touch yours, and no betting system can beat a negative expected value in the long run.',
-    NOT_MONEY_EN,
+    NOT_MONEY.en,
   ],
   payoutTableTitle: 'Odds (medals won for each medal bet; the bet comes back too)',
   simIntroTitle: 'What is the Martingale system?',
@@ -347,7 +343,7 @@ const JA: RouletteStrings = {
   medalsSr: (n) => `持ちメダル ${n.toLocaleString('ja-JP')}枚`,
   betSr: (n) => `テーブル上のベット ${n.toLocaleString('ja-JP')}枚`,
   finding: '持ちメダルを確認しています…',
-  notMoney: NOT_MONEY_JA,
+  notMoney: NOT_MONEY.ja,
   centerNote: 'メダルゲームセンターの持ちメダルです。センターのどのゲームも同じメダルで遊び、リセットはセンターでのみ行えます。',
   centerNoteLink: 'メダルゲームセンターへ',
   notice: 'ルーレットは、メダルゲームセンターの持ちメダルで遊ぶようになりました。センターのどのゲームとも同じメダルです。これまでこのテーブルで配っていたチップは廃止しました。',
@@ -411,7 +407,7 @@ const JA: RouletteStrings = {
     'インサイドは数字グリッド上、アウトサイド（赤黒・偶奇・ダズン・コラム等）はその周囲にあります。',
     'スピンの取り消しはできません。出目は SPIN を押したときに決まります。ボールが回っている間にページを隠したり、離れたり、読み込み直したりした場合は、その出目でスピンを精算し、当たった分を持ちメダルに加えます。',
     'マーチン法タブとハウスエッジ検証タブは仮のメダルを使う統計デモで、持ちメダルは使いません。期待値がマイナスの勝負に長期的に勝てるベットシステムは存在しません。',
-    NOT_MONEY_JA,
+    NOT_MONEY.ja,
   ],
   payoutTableTitle: '配当（ベット1枚あたりの獲得枚数。ベットした分も戻ります）',
   simIntroTitle: 'マーチンゲール法とは',

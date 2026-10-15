@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Roulette } from '@/components/game/Roulette';
 import { getStrings } from '@/components/game/Roulette/i18n';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { createI18nInstance } from '@/lib/i18n';
 
 describe('Roulette shell', () => {
@@ -59,6 +60,9 @@ function everyString(lang: 'en' | 'ja'): string[] {
 
 describe('the table on the medal center’s floor', () => {
   it('shows a medal counter and the note that medals are not money, in both languages, with a way to the medal center', () => {
+    // The medal center's own words for it, in the player's language.
+    expect(getStrings('en').notMoney).toBe(NOT_MONEY.en);
+    expect(getStrings('ja').notMoney).toBe(NOT_MONEY.ja);
     const en = renderRoulette('en');
     expect(en).toMatch(/data-testid="roulette-meter" data-loaded="false"/);
     expect(en).toContain(getStrings('en').notMoney);

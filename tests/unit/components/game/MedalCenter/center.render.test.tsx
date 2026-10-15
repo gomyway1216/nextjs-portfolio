@@ -23,32 +23,30 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher and the Slot Machine open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher and the casino games already on the medals open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
-    // The Slot Machine plays with the medals: open, and its Play link goes to its own page in the catalog.
-    const slot = html.match(/<a[^>]*data-testid="center-play-slot-machine"[^>]*>/)?.[0] ?? '';
-    expect(slot).toContain(`href="${games.find((game) => game.id === 'slot-machine')?.path}"`);
-    expect(FLOOR.find(({ id }) => id === 'slot-machine')?.path).toBe('/games/slot-machine');
+    // The casino games on the medals so far: open, and each Play link goes to its own page in the catalog.
+    const open = ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker'];
+    for (const id of open) {
+      expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
+      const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
+      expect(link).toContain(`href="${games.find((game) => game.id === id)?.path}"`);
+    }
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).not.toContain('slot-machine');
-    expect(soon).not.toContain('craps');
+    for (const id of open) expect(soon).not.toContain(id);
+    // With nothing still to come, the coming-soon shelf is not there at all.
+    if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
     expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
-    for (const id of soon) {
+    // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
+    for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
-      expect(html).not.toContain(`center-play-${id}`);
+      if (path === null) expect(html).not.toContain(`center-play-${id}`);
+      else expect(html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '').toContain(`href="${path}"`);
     }
     // Every machine on the floor is a game the site has.
     for (const { id } of FLOOR) expect(games.some((game) => game.id === id)).toBe(true);
-  });
-
-  it('has Craps open on the floor, with a Play link to its table', () => {
-    const html = render();
-    const play = html.match(/<a[^>]*data-testid="center-play-craps"[^>]*>/)?.[0] ?? '';
-    expect(play).toContain('href="/games/craps"');
-    expect(html).toMatch(/<li[^>]*data-open="true" data-machine="craps"/);
-    expect(FLOOR.find(({ id }) => id === 'craps')?.path).toBe(games.find((game) => game.id === 'craps')?.path);
   });
 
   it('reads in Japanese, in the words of a medal counter', () => {
@@ -56,7 +54,9 @@ describe('the medal center’s front, as the server sends it', () => {
     const t = getCenterStrings('ja');
     expect(html).toContain('持ちメダル');
     expect(html).toContain('メダルをリセット');
-    expect(html).toContain(t.soon);
+    expect(html).toContain(t.floorTitle);
+    // Every casino game is on the floor now: nothing is shown as coming.
+    expect(html).not.toContain(t.soon);
     expect(t.resetDialogBody('2,480', true)).toContain('すべての端末');
     expect(getCenterStrings('en').resetDialogBody('2,480', false)).not.toContain('every device');
   });

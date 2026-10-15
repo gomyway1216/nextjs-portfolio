@@ -1,73 +1,31 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 import { betOdds, exactOdds } from '../../src/components/game/Baccarat/analysis';
-import {
-  RANKS,
-  fullShoeCounts,
-  playRound,
-  settleBets,
-  type Card,
-  type Rank,
-  type Suit,
-} from '../../src/components/game/Baccarat/engine';
+import { RANKS, fullShoeCounts, type Rank } from '../../src/components/game/Baccarat/engine';
+import { medalsBack } from '../../src/components/game/Baccarat/medals';
+import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { betStep, cardsOf, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, replay, spot } from './baccaratPage';
 import { arrived } from './streamedPage';
+import { bankBalance } from './medalCenterPage';
 
 // Hands are random: the test reads the dealt cards off the table, replays
 // them through the engine's drawing rules and checks the table against it.
+// The table plays with the player's medals from the Medal Game Center: a new
+// browser is a new guest, with a new member's medals.
 
-async function openBaccarat(page: Page, language: 'en' | 'ja' = 'en') {
-  await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
-  const response = await page.goto('/games/baccarat');
-  expect(response?.status()).toBe(200);
-  // The page streams in, and for a moment there is a second, hidden copy of it: wait until that is gone.
-  await arrived(page);
-  await expect(page.getByTestId('baccarat-callout')).toBeVisible();
-}
-
-const bankroll = (page: Page) => page.getByTestId('baccarat-bankroll');
-const onTable = (page: Page) => page.getByTestId('baccarat-on-table');
-const spot = (page: Page, name: RegExp) => page.getByRole('button', { name });
-const dealButton = (page: Page) => page.getByRole('button', { name: 'DEAL', exact: true });
-
-/** Clicks a spot until hydration has attached handlers. */
-async function firstBet(page: Page, name: RegExp) {
-  await expect(async () => {
-    await spot(page, name).click({ timeout: 1_000 });
-    await expect(onTable(page)).not.toHaveText('0', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
-}
-
-async function dealAndSettle(page: Page) {
-  await dealButton(page).click();
-  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
-}
-
-async function cardsOf(page: Page, side: 'player' | 'banker'): Promise<Card[]> {
-  return page
-    .locator(`[data-hand="${side}"] [data-rank]`)
-    .evaluateAll((els) => els.map((el) => ({ rank: el.getAttribute('data-rank'), suit: el.getAttribute('data-suit') })))
-    .then((cards) => cards.map((c) => ({ rank: c.rank as Rank, suit: c.suit as Suit })));
-}
-
-/** Replays the cards in dealing order (P, B, P, B, P3, B3) through the rules. */
-function replay(player: Card[], banker: Card[]) {
-  const order = [player[0], banker[0], player[1], banker[1]];
-  if (player[2]) order.push(player[2]);
-  if (banker[2]) order.push(banker[2]);
-  let i = 0;
-  const hand = playRound(() => order[i++]);
-  expect(i, 'the rules drew exactly the cards on the table').toBe(player.length + banker.length);
-  return hand;
-}
-
-test('a dealt hand follows the drawing rules and settles every bet', async ({ page }) => {
+test('a dealt hand follows the drawing rules and settles every bet in whole medals', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openBaccarat(page);
-  await firstBet(page, /^Banker \(0\.95:1\)/); // Banker 5
-  await spot(page, /^Banker \(0\.95:1\)/).click(); // Banker 10
+  expect(await medalsShown(page)).toBe(WELCOME);
+  await betStep(page, 5);
+  await firstBet(page, /^Banker \(1:1/); // Banker 5
+  await spot(page, /^Banker \(1:1/).click(); // Banker 10
   await spot(page, /^Tie \(8:1\)/).click(); // Tie 5
   await spot(page, /^Player Pair/).click(); // Player Pair 5
-  await expect(bankroll(page)).toHaveText('980');
+  expect(await onTable(page)).toBe(20);
+  expect(await medalsShown(page)).toBe(WELCOME - 20);
+  // Nothing has left the player's medals yet: they go at the deal.
+  expect(await bankBalance(page)).toBe(WELCOME);
 
   await dealAndSettle(page);
   const player = await cardsOf(page, 'player');
@@ -78,10 +36,12 @@ test('a dealt hand follows the drawing rules and settles every bet', async ({ pa
   await expect(page.getByTestId('player-total')).toHaveText(String(hand.playerTotal));
   await expect(page.getByTestId('banker-total')).toHaveText(String(hand.bankerTotal));
 
-  const { returned } = settleBets({ banker: 10, tie: 5, playerPair: 5 }, hand, 'commission');
-  const expected = Math.round((980 + returned) * 100) / 100;
-  await expect(bankroll(page)).toHaveText(Number.isInteger(expected) ? String(expected) : expected.toFixed(2));
-  await expect(onTable(page)).toHaveText('0');
+  const { returned } = medalsBack({ banker: 10, tie: 5, playerPair: 5 }, hand, 'ez');
+  const expected = WELCOME - 20 + returned;
+  await expect.poll(() => bankBalance(page)).toBe(expected);
+  expect(await medalsShown(page)).toBe(expected);
+  expect(await onTable(page)).toBe(0);
+  await expect(page.getByTestId('baccarat-won')).toHaveAttribute('data-medals', String(returned));
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(1);
   await expect(page.locator(`[data-road="bead"] [data-cell="${hand.winner}"]`)).toHaveCount(1);
 
@@ -94,49 +54,72 @@ test('a dealt hand follows the drawing rules and settles every bet', async ({ pa
   const seen = [burn![1] === '10' ? 'T' : burn![1], ...[...player, ...banker].map((c) => c.rank)] as Rank[];
   for (const rank of seen) counts[RANKS.indexOf(rank)]--;
   const next = exactOdds(counts);
-  const bankerWin = `${(betOdds('banker', next).win * 100).toFixed(3)}%`;
+  const bankerWin = `${(betOdds('bankerEz', next).win * 100).toFixed(3)}%`;
   await expect(page.locator('[data-live="banker"] td').nth(1)).toHaveText(bankerWin);
   await expect(page.getByText(`Computed from the ${next.cards} cards`)).toBeVisible();
 });
 
-test('rebet and a run of hands keep the books straight', async ({ page }) => {
+test('rebet and a run of hands keep the medals straight, and the table carries on after a reload', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openBaccarat(page);
+  await betStep(page, 5);
   await firstBet(page, /^Player \(1:1\)/);
-  let expected = 1000;
+  let expected = WELCOME;
   for (let i = 0; i < 8; i++) {
     if (i > 0) await page.getByRole('button', { name: 'Rebet' }).click();
-    await expect(onTable(page)).toHaveText('5');
+    expect(await onTable(page)).toBe(5);
     expected -= 5;
     await dealAndSettle(page);
-    const hand = replay(await cardsOf(page, 'player'), await cardsOf(page, 'banker'));
-    expected += settleBets({ player: 5 }, hand, 'commission').returned;
-    await expect(bankroll(page)).toHaveText(String(expected));
+    expected += medalsBack({ player: 5 }, await handOnTable(page), 'ez').returned;
+    await expect.poll(() => medalsShown(page)).toBe(expected);
   }
+  expect(await bankBalance(page)).toBe(expected);
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(8);
   await expect(page.getByTestId('shoe-info')).toContainText('Hand 8');
+  // The table has no reset of its own: the medals are reset only at the Medal Game Center.
+  await expect(page.getByRole('button', { name: 'Reset' })).toHaveCount(0);
+  await expect(page.getByTestId('baccarat-center')).toHaveAttribute('href', '/games/medal-center');
 
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await expect(bankroll(page)).toHaveText('1000');
-  await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(0);
-  await expect(page.getByTestId('shoe-info')).toHaveText('A fresh eight-deck shoe is shuffled on the first deal.');
+  // A reload carries on with the same shoe, scoreboards and medals.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
+  await expect.poll(() => medalsShown(page)).toBe(expected);
+  await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(8);
+  await expect(page.getByTestId('shoe-info')).toContainText('Hand 8');
+  await expect(page.locator('[data-hand="player"] [data-rank]').first()).toBeVisible();
 });
 
-test('the EZ table swaps the banker payout and adds Dragon 7 and Panda 8', async ({ page }) => {
+test('the 5% table bets the Banker in twenties, pays it 19 for 20, and has no Dragon 7 or Panda 8', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openBaccarat(page);
-  await firstBet(page, /^Banker \(0\.95:1\)/);
-  // Can't switch tables with chips down.
-  await page.getByRole('radio', { name: 'No commission (EZ)' }).click();
-  await expect(page.getByTestId('baccarat-message')).toHaveText('Take your bets down to switch tables.');
-  await expect(page.getByTestId('ez-bets')).toHaveCount(0);
-
-  await page.getByRole('button', { name: 'Clear' }).click();
-  await page.getByRole('radio', { name: 'No commission (EZ)' }).click();
   await expect(page.getByRole('radio', { name: 'No commission (EZ)' })).toHaveAttribute('aria-checked', 'true');
-  await expect(spot(page, /^Banker \(1:1 · 3-card 7 pushes\)/)).toBeVisible();
   await expect(spot(page, /^Dragon 7 \(40:1\)/)).toBeVisible();
-  await expect(spot(page, /^Panda 8 \(25:1\)/)).toBeVisible();
-  await expect(page.locator('[data-live="dragon7"]')).toBeVisible();
+  await firstBet(page, /^Player \(1:1\)/);
+  // Can't switch tables with medals on the felt.
+  await page.getByRole('radio', { name: '5% commission' }).click();
+  await expect(page.getByTestId('baccarat-message')).toHaveText('Take your bets down to switch tables.');
+  await page.getByRole('button', { name: 'Clear' }).click();
+  expect(await onTable(page)).toBe(0);
+  await page.getByRole('radio', { name: '5% commission' }).click();
+  await expect(page.getByRole('radio', { name: '5% commission' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('ez-bets')).toHaveCount(0);
+  // One press of BET 1 on the Banker puts 20 medals down: 5% of 20 is a whole medal.
+  await spot(page, /^Banker \(0\.95:1 · in 20s\)/).click();
+  await expect(page.getByTestId('stake-banker')).toHaveText('20');
+  await spot(page, /^Tie \(8:1\)/).click();
+  expect(await onTable(page)).toBe(21);
+  await dealAndSettle(page);
+  const hand = await handOnTable(page);
+  const { returned } = medalsBack({ banker: 20, tie: 1 }, hand, 'commission');
+  if (hand.winner === 'banker') expect(returned).toBe(39);
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 21 + returned);
+  // The limits: a Tie takes up to 20 medals.
+  await betStep(page, 20);
+  await spot(page, /^Tie \(8:1\)/).click();
+  await spot(page, /^Tie \(8:1\)/).click();
+  await expect(page.getByTestId('baccarat-message')).toHaveText('Tie takes up to 20 medals.');
+  await expect(page.getByTestId('stake-tie')).toHaveText('20');
 });
 
 test('switching tabs mid-deal does not drop the hand', async ({ page }) => {
@@ -149,7 +132,7 @@ test('switching tabs mid-deal does not drop the hand', async ({ page }) => {
   await page.getByRole('tab', { name: 'Table' }).click();
   await expect(dealButton(page)).toBeEnabled();
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(1);
-  await expect(onTable(page)).toHaveText('0');
+  expect(await onTable(page)).toBe(0);
 });
 
 test('the odds tab recomputes the exact odds for each deck count', async ({ page }) => {
@@ -167,8 +150,9 @@ test('the odds tab recomputes the exact odds for each deck count', async ({ page
   await expect(page.getByTestId('pair-body')).toContainText('= 1/17');
 });
 
-test('the simulation tab runs every simulation through the real rules', async ({ page }) => {
+test('the simulation tab runs every simulation through the real rules, and never touches the medals', async ({ page }) => {
   await openBaccarat(page);
+  const before = await bankBalance(page);
   await page.getByRole('tab', { name: 'Simulation' }).click();
   const section = (title: string) => page.locator('section', { has: page.getByRole('heading', { name: title }) });
 
@@ -196,4 +180,6 @@ test('the simulation tab runs every simulation through the real rules', async ({
   const bankerFavorable = await page.getByTestId('baccarat-sim-counting').locator('tr[data-line="banker"] td').nth(1).textContent();
   expect(parseFloat(bankerFavorable ?? '')).toBeLessThan(3);
   await expect(page.getByText(/^10 shoes, [\d,]+ hands\./)).toBeVisible();
+  // Thousands of simulated hands, and not one medal moved.
+  expect(await bankBalance(page)).toBe(before);
 });

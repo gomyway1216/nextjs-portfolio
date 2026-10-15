@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { REFILL } from '../MedalCenter/ledger';
+import { NOT_MONEY } from '../MedalCenter/strings';
+import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
+import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { analyzeHand, tablesAsync, tablesReady, type HoldValue } from './analysis';
 import {
   HANDS,
@@ -10,25 +15,28 @@ import {
   PAY_TABLE_IDS,
   ROYAL_SHORT_PAY,
   cardLabel,
-  deal as dealCards,
-  draw as drawCards,
   heldFromMask,
   holdMask,
   payout,
   rankCards,
-  type Deal,
   type HandRank,
   type PayTable,
   type PayTableId,
 } from './engine';
 import { CardBack, MiniCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
+import { cardsOf, createMedalPlay, deviceStore, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
 import { PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
 
-export const INITIAL_CREDITS = 1000;
-/** Animation pacing (ms): the gap between cards turning over and the pause before paying. */
+/** Animation pacing (ms): the gap between cards turning over and the pause before the result is shown. */
 export const TIMING = { step: 90, flip: 340, settle: 200 } as const;
+/** How long the member's card may be away for a moment (the medal center borrowing it) before the machine says it is in another tab, in seconds. */
+export const CARD_WAIT = 1.5;
+/** How many digits the medal counter has: as many as the medal center's own. */
+export const MEDAL_PLACES = 7;
+/** The win meter's digits: the most a hand wins is 4,000. */
+export const WIN_PLACES = 4;
 const TOP_HOLDS = 5;
 /** Holds within this of the best expectation count as the best play. */
 const EPS = 1e-9;
@@ -43,18 +51,11 @@ interface Stats {
   /** Hands whose hold could be compared with the exact best play. */
   judged: number;
   best: number;
-  /** Expected coins given up by holds other than the best. */
+  /** Expected medals given up by holds other than the best. */
   givenUp: number;
 }
 
 export const EMPTY_STATS: Stats = { hands: 0, wagered: 0, paid: 0, judged: 0, best: 0, givenUp: 0 };
-
-/** A hand with the bet and pay table it was dealt under; later changes to either apply to the next hand. */
-interface Round {
-  deal: Deal;
-  coins: number;
-  payId: PayTableId;
-}
 
 /** A finished hold, kept until the analysis tables exist to judge it. */
 interface Play {
@@ -64,10 +65,18 @@ interface Play {
   coins: number;
 }
 
+/** Whose medals the machine plays with: an account's id, or null for a guest's; and whether the site knows yet who is playing. */
+export interface SeatedFor {
+  uid: string | null;
+  settled: boolean;
+}
+
+const GUEST_SEAT: SeatedFor = { uid: null, settled: true };
+
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
-/** The pay table as it applies to a bet: below five coins the royal pays 250 per coin. */
+/** The pay table as it applies to a bet: below five medals the royal wins 250 per medal. */
 export const effectivePays = (pays: PayTable, coins: number): PayTable =>
   coins < MAX_COINS ? pays.map((p, r) => (r === HANDS.length - 1 ? ROYAL_SHORT_PAY : p)) : pays;
 
@@ -80,20 +89,37 @@ export const judgePlay = (s: Stats, play: Play): Stats => {
   return { ...s, judged: s.judged + 1, best: s.best + (lost < EPS ? 1 : 0), givenUp: s.givenUp + lost * play.coins };
 };
 
-export const PlayTab = () => {
+const sameHand = (a: SavedHand | null, b: SavedHand | null): boolean => (a === null || b === null ? a === b : serializeHand(a) === serializeHand(b));
+
+/** The star struck on every medal (medalLook.ts), in the counter medal's view box. */
+const COUNTER_STAR = FACE_STAR.map(([x, y]) => `${(16 + x * 15).toFixed(2)},${(16 + y * 15).toFixed(2)}`).join(' ');
+
+/** One of the medals the medal center's machines play with, by the counter: copper-nickel, with its raised rim and its star, as the Medal Pusher draws its own. */
+const CounterMedal = () => (
+  <svg className={styles.counterMedal} viewBox="0 0 32 32" aria-hidden focusable="false">
+    <circle cx="16" cy="16" r="15" fill={MEDAL_PAINT.face} stroke={MEDAL_PAINT.edge} strokeWidth="1.4" />
+    <circle cx="16" cy="16" r="12.2" fill="none" stroke={MEDAL_PAINT.light} strokeWidth="1.6" />
+    <circle cx="16.4" cy="16.5" r="12.2" fill="none" stroke={MEDAL_PAINT.rim} strokeWidth="0.8" opacity="0.7" />
+    <polygon points={COUNTER_STAR} fill={MEDAL_PAINT.dark} />
+  </svg>
+);
+
+/**
+ * The machine. It plays with the player's medals from the medal center
+ * (medals.ts says how a bet is taken and a win put back, once each), while
+ * this page holds the member's card.
+ */
+export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = {}) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const fmt = (n: number) => n.toLocaleString(locale);
 
-  const [credits, setCredits] = useState(INITIAL_CREDITS);
+  const bankState = useBank();
   const [coins, setCoins] = useState(MAX_COINS);
   const [payId, setPayId] = useState<PayTableId>('9/6');
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [round, setRound] = useState<Round | null>(null);
-  const [cards, setCards] = useState<number[]>([]);
-  const [held, setHeld] = useState<boolean[]>(NONE);
-  const [result, setResult] = useState<{ rank: HandRank; paid: number } | null>(null);
+  /** The hand on the machine: as dealt, or as drawn. It is the one kept on this device (medals.ts). */
+  const [hand, setHand] = useState<SavedHand | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBest, setShowBest] = useState(true);
@@ -101,13 +127,85 @@ export const PlayTab = () => {
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   /** Changes every deal so each hand's cards mount (and flip) fresh. */
   const [dealNo, setDealNo] = useState(0);
+  const [announcement, setAnnouncement] = useState('');
+  const [longWait, setLongWait] = useState(false);
 
-  const creditsRef = useRef(INITIAL_CREDITS);
   const busyRef = useRef(false);
+  const handRef = useRef<SavedHand | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const alive = useRef(true);
   /** Hands drawn before the tables were ready; judged as soon as they are. */
   const unjudged = useRef<Play[]>([]);
+  // The machine's place at the medal center, and its play with the medals.
+  const seat = useRef<Seat | null>(null);
+  const medals = useRef<MedalPlay | null>(null);
+
+  const commitBusy = (next: boolean) => {
+    busyRef.current = next;
+    setBusy(next);
+  };
+  const commitHand = (next: SavedHand | null) => {
+    handRef.current = next;
+    setHand(next);
+  };
+  const stopTimers = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current.length = 0;
+  };
+
+  /** Whether the medals on the table are the medals of whoever is playing: the site knows who that is, and their medals have been found. */
+  const ownMedals = (owner: string | null, loaded: boolean) => loaded && seatedFor.settled && owner === seatedFor.uid;
+
+  /**
+   * Shows the hand that is kept on this device for the player whose medals
+   * are on the table: the one this page left, or one another tab has dealt or
+   * drawn since. After a reset at the medal center the hand is thrown away.
+   */
+  const resync = () => {
+    const play = medals.current;
+    const purse = medalBank();
+    if (!play || !ownMedals(purse.owner(), purse.getState().loaded)) return;
+    if (seat.current?.holding()) play.restartIfDue();
+    const reading = play.read();
+    // Storage that cannot be read: the page goes on with what it shows.
+    if (!reading.ok) return;
+    const stored = reading.hand;
+    const shown = handRef.current;
+    if (sameHand(stored, shown)) return;
+    if (!stored) {
+      // No hand is kept: one shown as dealt is gone (thrown away by a reset). One shown as drawn stays on show.
+      if (shown && !shown.drawn) {
+        stopTimers();
+        commitBusy(false);
+        commitHand(null);
+      }
+      return;
+    }
+    stopTimers();
+    commitBusy(false);
+    setError(null);
+    setCoins(stored.coins);
+    setPayId(stored.payId);
+    commitHand(stored);
+    setDealNo((n) => n + 1);
+  };
+
+  /** The medal center has been reset: the machine starts over, and the hand on it is gone with the medals it was bet from. */
+  const onReset = () => {
+    medals.current?.discard();
+    medals.current?.restartIfDue();
+    stopTimers();
+    commitBusy(false);
+    commitHand(null);
+    setError(null);
+    setAnnouncement(t.sayReset);
+  };
+
+  // What the bank's events and the card's comings and goings act on: the latest of each, without setting them up again.
+  const live = useRef({ resync, onReset, t });
+  useEffect(() => {
+    live.current = { resync, onReset, t };
+  });
 
   useEffect(() => {
     alive.current = true;
@@ -127,42 +225,97 @@ export const PlayTab = () => {
     };
   }, []);
 
-  const pays = PAY_TABLES[payId];
-  const commitCredits = (next: number) => {
-    creditsRef.current = next;
-    setCredits(next);
-  };
-  const commitBusy = (next: boolean) => {
-    busyRef.current = next;
-    setBusy(next);
-  };
+  // The machine's place at the medal center. It asks for the member's card as it is set up, and plays only while it
+  // holds it. Everything the machine has is written down as it happens, so it has nothing to write as the card goes;
+  // whenever the card comes back, the hand kept on this device is the one shown (another tab may have played it since).
+  useEffect(() => {
+    const purse = medalBank();
+    let mine: Seat | null = null;
+    medals.current = createMedalPlay({ bank: purse, holding: () => mine?.holding() ?? false, store: deviceStore });
+    mine = purse.sit(GAME, {
+      granted: () => queueMicrotask(() => live.current.resync()),
+      yielding: () => undefined,
+    });
+    seat.current = mine;
+    const unlisten = purse.listen((event) => {
+      if (event.type === 'reset') live.current.onReset();
+      else if (event.type === 'refill') setAnnouncement(live.current.t.sayRefill(event.medals));
+    });
+    return () => {
+      unlisten();
+      if (seat.current === mine) seat.current = null;
+      mine?.leave();
+    };
+  }, []);
 
-  const game = round?.deal ?? null;
+  // The medals on the table change hands (a player signs in, the medals are found, or reset), or the site settles who
+  // is playing: the hand kept for them is the one shown. (The card can come before the site knows who is playing, and
+  // a hand is not shown until it does.)
+  const era = bankState.ledger?.era ?? null;
+  const copy = bankState.ledger?.device ?? null;
+  useEffect(() => {
+    queueMicrotask(() => live.current.resync());
+  }, [bankState.loaded, bankState.owner, era, copy, seatedFor.uid, seatedFor.settled]);
+
+  // While the card is in a machine in another tab, the machine says so, a moment after (the medal center borrows the
+  // card for a moment whenever it pays the day's bonus or the like, and nothing need be said of that).
+  useEffect(() => {
+    if (bankState.card !== 'asking') return;
+    const timer = window.setTimeout(() => setLongWait(true), CARD_WAIT * 1000);
+    return () => {
+      window.clearTimeout(timer);
+      setLongWait(false);
+    };
+  }, [bankState.card]);
+  const cardAway = bankState.card === 'away' || (bankState.card === 'asking' && longWait);
+  const mineToPlay = ownMedals(bankState.owner, bankState.loaded);
+  const playable = mineToPlay && bankState.card === 'here';
+
+  const phase: Phase = !hand ? 'idle' : hand.drawn ? 'drawn' : 'dealt';
+  const cards = hand ? cardsOf(hand) : [];
+  const held = hand ? heldFromMask(hand.held) : NONE;
+  /** The cards have been drawn and are still turning over: what they won is not shown yet. */
+  const revealing = phase === 'drawn' && busy;
+  const won = hand && phase === 'drawn' && !revealing ? wonBy(hand) : null;
+  const finalRank: HandRank | null = hand && phase === 'drawn' && !revealing ? rankCards(cards) : null;
+  // The bet and the pay table on the machine: the hand's while it is being played, and the next hand's once it is over.
+  const inPlay = hand !== null && (phase === 'dealt' || revealing);
+  const shownCoins = inPlay ? hand.coins : coins;
+  // The medals: what the medal center holds, less a win that is still being turned over.
+  const medalsNow = bankState.loaded ? Math.max(0, bankState.balance - (revealing && hand ? wonBy(hand) : 0)) : null;
+
   /** Every way to play the dealt hand, best first (once the tables are ready), under the rules it was dealt with. */
   const analysis = useMemo<HoldValue[] | null>(
-    () => (ready && round ? analyzeHand(round.deal.hand, effectivePays(PAY_TABLES[round.payId], round.coins)) : null),
-    [ready, round],
+    () => (ready && hand ? analyzeHand(hand.hand, effectivePays(PAY_TABLES[hand.payId], hand.coins)) : null),
+    [ready, hand],
   );
   const chosenMask = holdMask(held);
   const chosen = analysis?.find((h) => h.mask === chosenMask) ?? null;
   const best = analysis?.[0] ?? null;
   const bestMask = best?.mask ?? null;
+  const pays = PAY_TABLES[inPlay ? hand.payId : payId];
 
   const startDeal = (bet: number) => {
-    if (busyRef.current || phase === 'dealt') return;
-    if (bet > creditsRef.current) {
-      setError(t.noCredits);
+    const play = medals.current;
+    if (busyRef.current || handRef.current?.drawn === false || !play || !playable) return;
+    if (bet > bankState.balance) {
+      setError(t.noMedals);
       return;
     }
-    const next = dealCards();
-    commitCredits(creditsRef.current - bet);
+    const outcome = play.deal(bet, payId);
+    if (outcome.kind === 'away') return;
+    if (outcome.kind === 'short' || outcome.kind === 'unsaved') {
+      setError(outcome.kind === 'short' ? t.noMedals : t.unsaved);
+      return;
+    }
+    if (outcome.kind === 'inPlay') {
+      // Another tab dealt a hand meanwhile: that one is played first, and nothing more was bet.
+      resync();
+      return;
+    }
     setCoins(bet);
-    setRound({ deal: next, coins: bet, payId });
-    setCards(next.hand);
-    setHeld(NONE);
-    setResult(null);
+    commitHand(outcome.hand);
     setError(null);
-    setPhase('dealt');
     setDealNo((n) => n + 1);
     const wait = prefersReducedMotion() ? 0 : 4 * TIMING.step + TIMING.flip;
     commitBusy(wait > 0);
@@ -170,28 +323,32 @@ export const PlayTab = () => {
   };
 
   const drawNow = () => {
-    if (busyRef.current || phase !== 'dealt' || !round) return;
-    const final = drawCards(round.deal, held);
-    const rank = rankCards(final);
-    const roundPays = PAY_TABLES[round.payId];
-    const paid = payout(rank, roundPays, round.coins);
-    const play: Play = {
-      hand: round.deal.hand,
-      mask: holdMask(held),
-      pays: effectivePays(roundPays, round.coins),
-      coins: round.coins,
-    };
-    // Replaced cards turn over left to right, each in its own position.
-    const lastReplaced = held.lastIndexOf(false);
-    setCards(final);
+    const play = medals.current;
+    const dealt = handRef.current;
+    if (busyRef.current || !dealt || dealt.drawn || !play || !playable) return;
+    const outcome = play.draw(dealt.id, dealt.held);
+    if (outcome.kind === 'away') return;
+    if (outcome.kind === 'unsaved') {
+      // The hand stays dealt, and nothing is won yet: it is drawn once storage can keep it as drawn.
+      setError(t.unsaved);
+      return;
+    }
+    if (outcome.kind === 'gone') {
+      // Drawn in another tab, or thrown away by a reset: whatever is kept now is what is shown, and nothing is won here.
+      resync();
+      return;
+    }
+    const drawn = outcome.hand;
+    const finished: Play = { hand: drawn.hand, mask: drawn.held, pays: effectivePays(PAY_TABLES[drawn.payId], drawn.coins), coins: drawn.coins };
+    // Replaced cards turn over left to right, each in its own position. The medals are in already; they are shown once the cards are.
+    const lastReplaced = heldFromMask(drawn.held).lastIndexOf(false);
+    setError(null);
+    commitHand(drawn);
     const settle = () => {
-      commitCredits(creditsRef.current + paid);
-      setResult({ rank, paid });
-      setPhase('drawn');
-      setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + play.coins, paid: s.paid + paid }));
+      setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + finished.coins, paid: s.paid + outcome.won }));
       // The tables may still be building on the first hands: judge those once they exist.
-      if (tablesReady()) setStats((s) => judgePlay(s, play));
-      else unjudged.current.push(play);
+      if (tablesReady()) setStats((s) => judgePlay(s, finished));
+      else unjudged.current.push(finished);
       commitBusy(false);
     };
     const wait = prefersReducedMotion() || lastReplaced < 0 ? 0 : lastReplaced * TIMING.step + TIMING.flip + TIMING.settle;
@@ -203,9 +360,22 @@ export const PlayTab = () => {
     timers.current.push(setTimeout(settle, wait));
   };
 
+  /** Holds the cards of `mask`, and notes them with the hand, so that a reload finds them held. */
+  const holdCards = (mask: number) => {
+    const play = medals.current;
+    const dealt = handRef.current;
+    if (busyRef.current || !dealt || dealt.drawn || !play || !playable) return;
+    const next = play.hold(dealt.id, mask);
+    if (next) {
+      setError(null);
+      commitHand(next);
+    } else if (!play.read().ok) setError(t.unsaved);
+    else resync();
+  };
+
   const toggle = (i: number) => {
-    if (busyRef.current || phase !== 'dealt') return;
-    setHeld((h) => h.map((v, k) => (k === i ? !v : v)));
+    const dealt = handRef.current;
+    if (dealt) holdCards(dealt.held ^ (1 << i));
   };
 
   const betOne = () => {
@@ -214,40 +384,32 @@ export const PlayTab = () => {
     setError(null);
   };
 
-  const reset = () => {
-    if (busyRef.current) return;
-    timers.current.forEach(clearTimeout);
-    timers.current.length = 0;
-    commitCredits(INITIAL_CREDITS);
-    setCoins(MAX_COINS);
-    setPhase('idle');
-    setRound(null);
-    unjudged.current.length = 0;
-    setCards([]);
-    setHeld(NONE);
-    setResult(null);
-    setError(null);
-    setStats(EMPTY_STATS);
+  const onRefill = () => {
+    if (playable) medalBank().refill();
   };
 
   // The row to light up: the final hand, or a hand already made on the deal.
-  const dealtRank = game && phase === 'dealt' ? rankCards(game.hand) : 0;
-  const litRank = result ? result.rank : dealtRank;
-  const message = error
-    ? { text: error, tone: 'error' }
-    : phase === 'idle'
-      ? { text: t.pressDeal, tone: 'idle' }
-      : phase === 'dealt'
-        ? { text: t.chooseHolds, tone: 'idle' }
-        : result && result.paid > 0
-          ? { text: t.resultWin(t.hand[HANDS[result.rank]], fmt(result.paid)), tone: 'win' }
-          : { text: t.resultLose, tone: 'idle' };
+  const dealtRank = hand && (phase === 'dealt' || revealing) ? rankCards(hand.hand) : 0;
+  const litRank = finalRank ?? dealtRank;
+  const message =
+    !mineToPlay && phase === 'idle'
+      ? { text: t.findingMedals, tone: 'idle' }
+      : error
+        ? { text: error, tone: 'error' }
+        : phase === 'idle'
+          ? { text: t.pressDeal, tone: 'idle' }
+          : phase === 'dealt' || revealing
+            ? { text: t.chooseHolds(shownCoins), tone: 'idle' }
+            : won !== null && won > 0 && finalRank !== null
+              ? { text: t.resultWin(t.hand[HANDS[finalRank]], won, fmt(won)), tone: 'win' }
+              : { text: t.resultLose, tone: 'idle' };
   const canChange = phase !== 'dealt' && !busy;
-  const net = credits - INITIAL_CREDITS;
+  const net = stats.paid - stats.wagered;
+  const refillDue = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt';
 
   const describe = (h: HoldValue) => {
-    if (!game) return null;
-    const kept = game.hand.filter((_, i) => h.mask & (1 << i));
+    if (!hand) return null;
+    const kept = hand.hand.filter((_, i) => h.mask & (1 << i));
     if (kept.length === 0) return <span>{t.discardAll}</span>;
     return kept.map((c) => <MiniCard key={c} card={c} />);
   };
@@ -257,7 +419,7 @@ export const PlayTab = () => {
 
   return (
     <div className={styles.playGrid}>
-      <div className={styles.machine}>
+      <div className={styles.machine} data-testid="vp-machine" data-playable={playable ? 'true' : 'false'}>
         <div className={styles.screen}>
           <table className={styles.payTable} data-testid="vp-paytable">
             <caption className={styles.srOnly}>{t.payTableLabel}</caption>
@@ -268,8 +430,8 @@ export const PlayTab = () => {
                   <span className={styles.srOnly}>{t.colHand}</span>
                 </th>
                 {[1, 2, 3, 4, 5].map((c) => (
-                  <th key={c} scope="col" aria-current={c === coins ? 'true' : undefined}>
-                    <span className={styles.srOnly}>{t.coinColumn(c, c === coins)}</span>
+                  <th key={c} scope="col" aria-current={c === shownCoins ? 'true' : undefined}>
+                    <span className={styles.srOnly}>{t.coinColumn(c, c === shownCoins)}</span>
                   </th>
                 ))}
               </tr>
@@ -282,7 +444,7 @@ export const PlayTab = () => {
                   <tr key={name} className={litRank === rank ? styles.payRow : undefined} data-hand={name} data-lit={litRank === rank ? 'true' : undefined}>
                     <th scope="row">{t.hand[name]}</th>
                     {[1, 2, 3, 4, 5].map((c) => (
-                      <td key={c} className={c === coins ? styles.payCol : undefined}>
+                      <td key={c} className={c === shownCoins ? styles.payCol : undefined}>
                         {fmt(payout(rank, pays, c))}
                       </td>
                     ))}
@@ -293,7 +455,7 @@ export const PlayTab = () => {
 
           <div className={styles.cardsRow}>
             {[0, 1, 2, 3, 4].map((i) => {
-              const card = cards[i];
+              const card = cards[i] as number | undefined;
               const isHeld = held[i] && phase !== 'idle';
               const suggested = showBest && phase === 'dealt' && bestMask !== null && (bestMask & (1 << i)) !== 0;
               return (
@@ -302,7 +464,7 @@ export const PlayTab = () => {
                   type="button"
                   className={styles.slot}
                   onClick={() => toggle(i)}
-                  disabled={phase !== 'dealt' || busy}
+                  disabled={phase !== 'dealt' || busy || !playable}
                   aria-pressed={isHeld}
                   aria-label={card === undefined ? t.cardBack : t.holdAria(cardLabel(card), isHeld)}
                   data-slot={i}
@@ -324,65 +486,87 @@ export const PlayTab = () => {
           <p className={styles.message} role="status" data-tone={message.tone} data-testid="vp-message">
             {message.text}
           </p>
+
+          {/* The member's card is in a machine in another tab: this one waits until it is played here again. */}
+          {cardAway && (
+            <div className={styles.cardAway} role="status" data-testid="vp-card-away">
+              <p>{t.cardAway}</p>
+              <button type="button" className={styles.cardAwayButton} data-testid="vp-play-here" onClick={() => seat.current?.play()}>
+                {t.playHere}
+              </button>
+            </div>
+          )}
         </div>
 
+        {/* The meters, on LED digits as a machine shows them. The numbers are in type too, for whoever reads the page. */}
         <div className={styles.meters}>
-          <div className={styles.meter}>
-            <span className={styles.meterLabel}>{t.credits}</span>
-            <span className={styles.meterValue} data-testid="vp-credits">
-              {fmt(credits)}
+          <div className={`${styles.meter} ${styles.meterMedals}`} data-testid="vp-medal-counter">
+            <span className={styles.meterLabel}>
+              <CounterMedal />
+              {t.medals}
+            </span>
+            <strong className={`${styles.srOnly} ${styles.meterNumber}`} data-testid="vp-medals" data-loaded={bankState.loaded ? 'true' : 'false'}>
+              {medalsNow === null ? '—' : fmt(medalsNow)}
+            </strong>
+            <span className={styles.meterLed}>
+              <SegmentDisplay value={medalsNow ?? ''} places={MEDAL_PLACES} />
             </span>
           </div>
           <div className={styles.meter}>
             <span className={styles.meterLabel}>{t.bet}</span>
-            <span className={styles.meterValue} data-testid="vp-bet">
-              {coins}
+            <strong className={`${styles.srOnly} ${styles.meterNumber}`} data-testid="vp-bet">
+              {shownCoins}
+            </strong>
+            <span className={styles.meterLed}>
+              <SegmentDisplay value={shownCoins} places={1} tone="amber" />
             </span>
           </div>
           <div className={styles.meter}>
             <span className={styles.meterLabel}>{t.win}</span>
-            <span className={styles.meterValue} data-testid="vp-win">
-              {result ? fmt(result.paid) : 0}
+            <strong className={`${styles.srOnly} ${styles.meterNumber}`} data-testid="vp-win">
+              {fmt(won ?? 0)}
+            </strong>
+            <span className={styles.meterLed}>
+              <SegmentDisplay value={won ?? 0} places={WIN_PLACES} tone="amber" />
             </span>
           </div>
         </div>
+        <p className={styles.notMoney} data-testid="vp-not-money">
+          {NOT_MONEY[language]}
+        </p>
 
         <div className={styles.controls}>
-          <button type="button" className={styles.machineBtn} onClick={betOne} disabled={!canChange}>
+          <button type="button" className={styles.machineBtn} onClick={betOne} disabled={!canChange || !playable}>
             {t.betOne}
           </button>
-          <button type="button" className={styles.machineBtn} onClick={() => startDeal(MAX_COINS)} disabled={!canChange}>
+          <button type="button" className={styles.machineBtn} onClick={() => startDeal(MAX_COINS)} disabled={!canChange || !playable}>
             {t.betMax}
           </button>
           {phase === 'dealt' ? (
-            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={drawNow} disabled={busy}>
+            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={drawNow} disabled={busy || !playable}>
               {t.draw}
             </button>
           ) : (
-            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={() => startDeal(coins)} disabled={busy}>
+            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={() => startDeal(coins)} disabled={busy || !playable}>
               {t.deal}
             </button>
           )}
         </div>
+        {refillDue && (
+          <button type="button" className={styles.refill} data-testid="vp-refill" onClick={onRefill}>
+            {t.refill(REFILL)}
+          </button>
+        )}
 
         <div className={styles.settingsRow}>
           <label htmlFor="vp-paytable-select">{t.payTableLabel}</label>
-          <select
-            id="vp-paytable-select"
-            className={styles.select}
-            value={payId}
-            onChange={(e) => setPayId(e.target.value as PayTableId)}
-            disabled={!canChange}
-          >
+          <select id="vp-paytable-select" className={styles.select} value={payId} onChange={(e) => setPayId(e.target.value as PayTableId)} disabled={!canChange}>
             {PAY_TABLE_IDS.map((id) => (
               <option key={id} value={id}>
                 {t.payTableOption(id, `${(PRECOMPUTED[id].payback * 100).toFixed(2)}%`)}
               </option>
             ))}
           </select>
-          <button type="button" className={`${styles.btn} ${styles.spacerLeft}`} onClick={reset} disabled={busy}>
-            {t.reset}
-          </button>
         </div>
       </div>
 
@@ -428,13 +612,13 @@ export const PlayTab = () => {
               ))}
             </ul>
             {/* Judge the hold once it is final, not while the player is still choosing. */}
-            {phase === 'drawn' && chosen && best && (
+            {phase === 'drawn' && !revealing && chosen && best && (
               <p className={styles.verdict} data-good={best.ev - chosen.ev < EPS ? 'true' : 'false'} data-testid="vp-verdict">
                 {best.ev - chosen.ev < EPS ? t.perfect : t.mistake((best.ev - chosen.ev).toFixed(3))}
               </p>
             )}
             {phase === 'dealt' && best && (
-              <button type="button" className={styles.btn} style={{ marginTop: '0.6rem' }} onClick={() => setHeld(heldFromMask(best.mask))} disabled={busy}>
+              <button type="button" className={styles.btn} style={{ marginTop: '0.6rem' }} onClick={() => holdCards(best.mask)} disabled={busy || !playable}>
                 {t.holdBest}
               </button>
             )}
@@ -452,7 +636,7 @@ export const PlayTab = () => {
           </div>
           <div>
             <dt>{t.net}</dt>
-            <dd>
+            <dd data-testid="vp-net">
               {net > 0 ? '+' : net < 0 ? '−' : ''}
               {fmt(Math.abs(net))}
             </dd>
@@ -477,6 +661,10 @@ export const PlayTab = () => {
           ))}
         </ul>
       </div>
+
+      <p className={styles.srOnly} aria-live="polite" data-testid="vp-announcement">
+        {announcement}
+      </p>
     </div>
   );
 };

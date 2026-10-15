@@ -10,9 +10,11 @@ import {
   createShoe,
   handValue,
   hiLo,
+  insuranceCost,
   isBlackjack,
   isPair,
   legalActions,
+  naturalWin,
   needsShuffle,
   playRound,
   startRound,
@@ -192,6 +194,63 @@ describe('basic strategy chart', () => {
     expect(basicStrategy(cards('A', '2', '2'), up('5'), { double: false, split: false })).toBe('hit');
     // 8,8 without a split is a hard 16.
     expect(basicStrategy(cards('8', '8'), up('T'), { double: true, split: false })).toBe('hit');
+  });
+});
+
+describe('whole medals, as the medal table plays', () => {
+  it('rounds a blackjack’s 3:2 down to whole medals, and an even bet wins it in full', () => {
+    for (const [bet, profit] of [
+      [1, 1],
+      [2, 3],
+      [3, 4],
+      [5, 7],
+      [10, 15],
+    ]) {
+      const r = startRound(scripted('A', '9', 'K', '8'), bet, { whole: true });
+      expect(r.result?.hands[0]).toEqual({ outcome: 'blackjack', stake: bet, profit });
+      expect(r.result?.returned).toBe(bet + profit);
+    }
+    // Away from the medal table the half stays.
+    expect(startRound(scripted('A', '9', 'K', '8'), 3).result?.hands[0].profit).toBe(4.5);
+    expect(naturalWin(3)).toBe(4.5);
+    expect(naturalWin(3, true)).toBe(4);
+    expect(() => startRound(scripted('9', '6', '9', 'K'), 2.5, { whole: true })).toThrow();
+  });
+
+  it('insures half the bet rounded down, and offers no insurance on a 1-medal bet', () => {
+    const r = startRound(scripted('9', 'A', '9', 'K'), 3, { whole: true });
+    expect(r.phase).toBe('insurance');
+    expect(insuranceCost(r)).toBe(1);
+    const insured = answerInsurance(r, true);
+    expect(insured.insurance).toBe(1);
+    expect(insured.result).toMatchObject({ insurance: { stake: 1, profit: 2 }, returned: 3, net: -1 });
+    // One medal has no half to insure with: the dealer peeks at once.
+    const one = startRound(scripted('9', 'A', '9', 'K'), 1, { whole: true });
+    expect(one.phase).toBe('done');
+    expect(one.insurance).toBe(0);
+    expect(startRound(scripted('9', 'A', '9', '6'), 1, { whole: true }).phase).toBe('player');
+    // Away from the medal table a 1-unit bet is offered half a unit's insurance, as before.
+    expect(startRound(scripted('9', 'A', '9', 'K'), 1).phase).toBe('insurance');
+  });
+
+  it('keeps every stake and every win whole through doubles, splits and insurance', () => {
+    const rng = seeded(21);
+    let shoe = createShoe(DECKS, rng);
+    for (let i = 0; i < 2_000; i++) {
+      const bet = 1 + (i % 10);
+      if (needsShuffle(shoe)) shoe = createShoe(DECKS, rng);
+      let r = startRound(shoe, bet, { whole: true });
+      if (r.phase === 'insurance') r = answerInsurance(r, i % 2 === 0);
+      while (r.phase === 'player') {
+        const legal = legalActions(r);
+        r = act(r, STRATEGIES.basic(r.hands[r.active], r.dealer[0], legal, r));
+      }
+      shoe = r.shoe;
+      expect(Number.isSafeInteger(totalStaked(r))).toBe(true);
+      for (const h of r.result!.hands) expect(Number.isSafeInteger(h.profit)).toBe(true);
+      expect(Number.isSafeInteger(r.result!.returned)).toBe(true);
+      expect(r.result!.net).toBe(r.result!.returned - totalStaked(r));
+    }
   });
 });
 

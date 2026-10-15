@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { NOTICE_KEY, TABLE_KEY, coupKey, medalsBack, serializeCoup } from '../../src/components/game/Baccarat/medals';
+import { TABLE_KEY, coupKey, medalsBack, serializeCoup } from '../../src/components/game/Baccarat/medals';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
-import { WELCOME, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { WELCOME, rowOf, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, spot } from './baccaratPage';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { arrived } from './streamedPage';
@@ -16,6 +16,8 @@ import { arrived } from './streamedPage';
 const NOT_MONEY_EN = NOT_MONEY.en;
 const NOT_MONEY_JA = NOT_MONEY.ja;
 
+/** Where the table writes down a coup dealt from this browser's guest medals: under the medals' own device name. */
+const coupKeyFor = async (page: Page): Promise<string> => coupKey((await storedBank(page))!.device);
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
 const shownAtCenter = async (page: Page) => Number(((await page.getByTestId('center-balance').textContent()) ?? '').replace(/,/g, ''));
 
@@ -124,7 +126,7 @@ test('a hand dealt just before a reload is finished, not refunded, and its medal
   const { returned } = medalsBack({ player: 10 }, await handOnTable(page), 'ez');
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - 10 + returned);
   await expect.poll(() => medalsShown(page)).toBe(WELCOME - 10 + returned);
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), coupKey(null))).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), await coupKeyFor(page))).toBeNull();
   // Once: nothing more comes back however long the table stands, or however often it is opened.
   await page.waitForTimeout(2_000);
   await page.reload();
@@ -139,17 +141,18 @@ test('a hand left unpaid by a page that was killed mid-deal is paid by the next 
   // As a page killed mid-deal leaves it: the stake taken from the medals, and the hand written down unpaid.
   const ledger = (await storedBank(page))!;
   const after = take(ledger, 10)!;
+  const coup = { id: 'killed-1', owner: null, device: ledger.device, era: ledger.era, stake: 10, returned: 30, spentBefore: rowOf(ledger, ledger.device).spent, state: 'dealt' as const };
   await page.evaluate(
-    ([bankKey, bank, key, coup]) => {
+    ([bankKey, bank, key, text]) => {
       window.localStorage.setItem(bankKey, bank);
-      window.localStorage.setItem(key, coup);
+      window.localStorage.setItem(key, text);
     },
-    [BANK_KEY, serializeLedger(after), coupKey(null), serializeCoup({ id: 'killed-1', owner: null, era: ledger.era, stake: 10, returned: 30 })],
+    [BANK_KEY, serializeLedger(after), coupKey(ledger.device), serializeCoup(coup)],
   );
   await openBaccarat(page);
   await expect.poll(() => bankBalance(page)).toBe(WELCOME + 20);
   await expect(page.getByTestId('baccarat-message')).toHaveText('The hand dealt before this page closed has been finished: 30 medals came back.');
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), coupKey(null))).toBeNull();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), coupKey(ledger.device))).toBeNull();
   await page.reload();
   await arrived(page);
   await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
@@ -218,15 +221,16 @@ test('starts over after the reset at the Medal Game Center: the medals are a new
 test('opens with old or damaged saved state without an error, and pays nothing from it', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(
-    ([tableKey, coup, notice]) => {
-      if (window.localStorage.getItem(notice) !== null) return;
+  // The player's medals, then damaged saved state of the table's beside them.
+  await openCenter(page);
+  await page.evaluate(
+    ([tableKey, coup]) => {
       window.localStorage.setItem(tableKey, '{"v":1,"mode":"ez","shoe":{"decks":8,"cards":"A♠');
       window.localStorage.setItem(coup, '{"v":1,"id":"x","owner":null,"era":0,"stake":"ten","returned":1000}');
       // What an older version might have left: chips of the table's own, which are not medals.
       window.localStorage.setItem('baccarat-bankroll', '1000');
     },
-    [TABLE_KEY, coupKey(null), NOTICE_KEY],
+    [TABLE_KEY, await coupKeyFor(page)],
   );
   await openBaccarat(page);
   await page.waitForTimeout(1_000);

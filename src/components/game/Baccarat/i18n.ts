@@ -52,6 +52,7 @@ export interface BaccaratStrings {
   bankerPays: (mode: Mode) => string;
   betAria: (name: string, pays: string) => string;
   noMedals: string;
+  notKept: string;
   spotMax: (name: string, most: number) => string;
   bankerStep: (step: number) => string;
   placeBets: string;
@@ -216,6 +217,7 @@ const en: BaccaratStrings = {
   bankerPays: (mode) => (mode === 'ez' ? '1:1 · 3-card 7 pushes' : '0.95:1 · in 20s'),
   betAria: (name, pays) => `${name} (${pays})`,
   noMedals: 'Not enough medals for that bet.',
+  notKept: 'This browser is not saving anything just now, so no hand can be dealt with your medals.',
   spotMax: (name, most) => `${name} takes up to ${most} medals.`,
   bankerStep: (step) => `On the 5% table the Banker is bet in ${step}s, so its 5% is a whole medal.`,
   placeBets: 'Place your bets, then deal.',
@@ -418,6 +420,7 @@ const ja: BaccaratStrings = {
   bankerPays: (mode) => (mode === 'ez' ? '1:1・3枚の7は引き分け' : '0.95:1・20枚単位'),
   betAria: (name, pays) => `${name}（${pays}）`,
   noMedals: 'メダルが足りません。',
+  notKept: 'このブラウザにはいま保存できないため、持ちメダルで配ることができません。',
   spotMax: (name, most) => `${name}は最大${most}枚までです。`,
   bankerStep: (step) => `コミッション5%のテーブルでは、5%がメダル1枚単位になるよう、バンカーは${step}枚単位でベットします。`,
   placeBets: 'ベットしてからディールしてください。',

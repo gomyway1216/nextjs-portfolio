@@ -26,7 +26,8 @@
  * device so that a reload carries on with the same shoe. It holds no medals.
  */
 
-import type { BankState, Seat, SeatHandlers } from '../MedalCenter/bank';
+import type { BankEvent, BankState, Seat, SeatHandlers } from '../MedalCenter/bank';
+import { isDevice, rowOf } from '../MedalCenter/ledger';
 import {
   BET_IDS,
   CUT_CARD_FROM_END,
@@ -55,8 +56,8 @@ import {
 export const GAME = 'baccarat';
 /** Where this device keeps the table: shoe, scoreboards and the last hand. No medals. */
 export const TABLE_KEY = 'baccarat-table';
-/** Where a coup dealt and not yet paid is written down, for each player whose medals it was dealt from. */
-export const coupKey = (owner: string | null): string => (owner === null ? 'baccarat-coup' : `baccarat-coup:${owner}`);
+/** Where a coup dealt and not yet paid is written down, under the device name of the medals it was dealt from (`Coup.device`). */
+export const coupKey = (device: string): string => `baccarat-coup:${device}`;
 /** Written once the player has been told that the table now plays with their medals. */
 export const NOTICE_KEY = 'baccarat-medal-notice';
 
@@ -339,12 +340,22 @@ export interface Coup {
   id: string;
   /** Whose medals it was dealt from: an account's id, or null for a guest's. */
   owner: string | null;
-  /** The era of their medals it was dealt in. A reset at the Medal Game Center since then throws it away unpaid. */
+  /**
+   * The device name of the medals it was dealt from (`Ledger.device`). Medals keep it wherever they go: a guest's
+   * medals that become a new account's carry it there, and a new guest's medals have a new one. So a coup is paid
+   * into the medals it was dealt from, whoever's they are now, and into no others.
+   */
+  device: string;
+  /** The era of those medals it was dealt in. A reset at the Medal Game Center since then throws it away unpaid. */
   era: number;
   /** Medals taken when it was dealt. */
   stake: number;
   /** Medals it gives back: winnings with their stakes, and the stakes of pushes. */
   returned: number;
+  /** What this device had taken out of those medals before the stake: had the stake been taken when the page went. */
+  spentBefore: number;
+  /** Dealt; or paid, its medals back already, the record not yet struck off. */
+  state: 'dealt' | 'paid';
 }
 
 export const COUP_VERSION = 1;
@@ -356,12 +367,13 @@ export function parseCoup(text: unknown): Coup | null {
   try {
     const value = JSON.parse(text) as unknown;
     if (!isRecord(value) || value.v !== COUP_VERSION) return null;
-    const { id, owner, era, stake, returned } = value;
+    const { id, owner, device, era, stake, returned, spentBefore, state } = value;
     if (typeof id !== 'string' || id.length === 0 || id.length > 64) return null;
     if (owner !== null && (typeof owner !== 'string' || owner.length === 0 || owner.length > 128)) return null;
-    const [e, s, r] = [count(era), count(stake), count(returned)];
-    if (e === null || s === null || r === null) return null;
-    return { id, owner, era: e, stake: s, returned: r };
+    if (!isDevice(device) || (state !== 'dealt' && state !== 'paid')) return null;
+    const [e, s, r, b] = [count(era), count(stake), count(returned), count(spentBefore, Number.MAX_SAFE_INTEGER)];
+    if (e === null || s === null || r === null || b === null) return null;
+    return { id, owner, device, era: e, stake: s, returned: r, spentBefore: b, state };
   } catch {
     return null;
   }
@@ -404,6 +416,8 @@ export const browserStore = (): TableStore => ({
 /** What of the medal bank the table uses (MedalCenter/bank.ts). */
 export interface Purse {
   sit: (game: string, handlers: SeatHandlers) => Seat;
+  listen: (hearer: (event: BankEvent) => void) => () => void;
+  balance: () => number;
   take: (medals: number) => boolean;
   give: (medals: number) => boolean;
   owner: () => string | null;
@@ -419,7 +433,7 @@ export interface TableHooks {
   yielding: (why: 'moment' | 'hidden' | 'left') => void;
   /** A coup dealt here has been paid. `early`: before its cards were all turned over, because the card was leaving. */
   paid: (coup: Coup, early: boolean) => void;
-  /** A coup dealt by a page that was closed before it could pay it has been settled here: paid, or thrown away by a reset. */
+  /** A coup dealt by a page that was closed before it could pay it has been settled here: paid, or thrown away (a reset since, or a stake never taken). */
   resumed: (coup: Coup, paid: boolean) => void;
 }
 
@@ -431,49 +445,92 @@ const randomId = (): string => `${Date.now().toString(36)}${Math.floor(Math.rand
  * The table's place at the bank: the one way it takes and gives medals.
  * `sit` asks for the card; a coup is dealt (`deal`) and paid (`settle`)
  * only while it is held.
+ *
+ * Every step that moves medals is written down so that a page that goes at
+ * any point between two of them leaves nothing paid twice and no medals
+ * made:
+ *
+ * - **Dealing:** the coup is written down first, with what this device had
+ *   taken out of the medals before it; then the stake is taken. A coup that
+ *   cannot be written down is not dealt, and nothing is taken. A coup found
+ *   written down whose stake was never taken is struck off unpaid.
+ * - **Paying:** the coup is marked paid first; then its medals go back; then
+ *   it is struck off. A coup found marked paid is struck off and not paid
+ *   again, so it does not matter whether the striking off took.
+ *
+ * Left open: a page that goes between marking a coup paid and its medals
+ * going back loses that coup's return. Closing that needs the mark and the
+ * medals in one write, inside the medals' own record (`ledger.ts`).
  */
 export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHooks, makeId: () => string = randomId) {
   let seat: Seat | null = null;
+  let unlisten: (() => void) | null = null;
   /** The coup dealt on this page whose medals have not gone back yet. */
   let open: Coup | null = null;
 
-  const era = (): number => purse.getState().ledger?.era ?? 0;
   const holding = (): boolean => seat?.holding() ?? false;
+  /** The medals on the table, as the bank last published them. */
+  const ledgerNow = () => purse.getState().ledger;
+
+  type Settled = { settled: boolean; paid: boolean; again: boolean };
+  const NOT_YET: Settled = { settled: false, paid: false, again: false };
 
   /**
-   * Gives a coup's medals back and strikes it off, in one step, while the
-   * card is here and the medals on the table are the ones it was dealt from.
-   * A coup from before a reset is struck off with nothing given: the medals
-   * it was dealt from were thrown away. Returns whether it is settled.
+   * Gives a coup's medals back and strikes it off, while the card is here and
+   * the medals on the table are the ones it was dealt from. A coup from
+   * before a reset is struck off with nothing given: the medals it was dealt
+   * from were thrown away. Returns whether it is settled.
    */
-  const pay = (coup: Coup): { settled: boolean; paid: boolean } => {
-    if (!holding() || purse.owner() !== coup.owner) return { settled: false, paid: false };
-    const now = era();
-    if (coup.era > now) return { settled: false, paid: false };
-    const paid = coup.era === now;
-    if (paid && coup.returned > 0 && !purse.give(coup.returned)) return { settled: false, paid: false };
-    store.remove(coupKey(coup.owner));
-    return { settled: true, paid };
+  const pay = (coup: Coup): Settled => {
+    // A coup dealt with nothing on the felt took nothing, owes nothing and was never written down.
+    if (coup.stake === 0) return { settled: true, paid: true, again: false };
+    const ledger = ledgerNow();
+    if (!holding() || !ledger || ledger.device !== coup.device || coup.era > ledger.era) return NOT_YET;
+    const key = coupKey(coup.device);
+    const struck = (paid: boolean, again = false): Settled => {
+      store.remove(key);
+      return { settled: true, paid, again };
+    };
+    if (coup.era < ledger.era) return struck(false);
+    if (coup.state === 'paid') return struck(false, true);
+    if (rowOf(ledger, ledger.device).spent < coup.spentBefore + coup.stake) return struck(false);
+    if (coup.returned > 0) {
+      if (!store.write(key, serializeCoup({ ...coup, state: 'paid' }))) return NOT_YET;
+      if (!purse.give(coup.returned)) {
+        store.write(key, serializeCoup(coup));
+        return NOT_YET;
+      }
+    }
+    return struck(true);
   };
 
-  /** A coup left written down by a page that could not pay it: paid now, once. */
+  /** A coup left written down by a page that could not pay it: paid now, once, into the medals it was dealt from. */
   const resume = (): void => {
-    const owner = purse.owner();
-    const coup = parseCoup(store.read(coupKey(owner)));
-    if (!coup || coup.owner !== owner || coup.id === open?.id) return;
-    const { settled, paid } = pay(coup);
-    if (settled) hooks.resumed(coup, paid);
+    const ledger = ledgerNow();
+    if (!ledger) return;
+    const coup = parseCoup(store.read(coupKey(ledger.device)));
+    if (!coup || coup.id === open?.id) return;
+    const { settled, paid, again } = pay(coup);
+    if (settled && !again) hooks.resumed(coup, paid);
   };
 
   const settle = (id: string, early = false): 'paid' | 'waiting' | 'gone' => {
     const coup = open;
     if (!coup || coup.id !== id) return 'gone';
     const { settled } = pay(coup);
-    // Not now (the medals on the table are another player's): it stays written down and is paid when theirs are back.
+    // Not now (other medals are on the table): it stays written down, and is paid when they are back.
     open = null;
     if (!settled) return 'waiting';
     hooks.paid(coup, early);
     return 'paid';
+  };
+
+  /** A reset at the Medal Game Center threw away the medals a coup in flight was dealt from: it is dropped, unpaid. */
+  const discard = (): void => {
+    const coup = open;
+    if (!coup) return;
+    open = null;
+    if (coup.stake > 0) store.remove(coupKey(coup.device));
   };
 
   return {
@@ -482,8 +539,13 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
       if (seat) return;
       seat = purse.sit(GAME, {
         granted: (moved) => {
-          resume();
-          hooks.granted(moved);
+          // The bank publishes what it read with the card (a reset among it) only after this returns: what is owed is
+          // looked at once it has, and only if the card is still here.
+          queueMicrotask(() => {
+            if (!holding()) return;
+            resume();
+            hooks.granted(moved);
+          });
         },
         yielding: (why) => {
           // The cards are decided already: the coup in flight is paid before the card goes.
@@ -491,11 +553,18 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
           hooks.yielding(why);
         },
       });
+      // A reset can reach a page that holds the card (from the account, made on another device) without the card
+      // leaving it: the coup in flight was dealt from medals that are gone.
+      unlisten = purse.listen((event) => {
+        if (event.type === 'reset') discard();
+      });
     },
     /** Gets up: a coup in flight is paid first (the bank lets the card go through `yielding`). */
     leave(): void {
       seat?.leave();
       seat = null;
+      unlisten?.();
+      unlisten = null;
     },
     /** The player plays here again: the card is asked back from the other tab. */
     play(): void {
@@ -507,21 +576,41 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
     /** Settles a coup left by a page that was closed, if one is waiting for the medals on the table now. */
     resume,
     /**
-     * Deals a coup: takes `stake` medals and writes the coup down, in one
-     * step. Returns null when it cannot (the card is elsewhere, or the medals
-     * are not there).
+     * Deals a coup: writes it down, then takes `stake` medals. Returns null
+     * when it cannot: the card is elsewhere, the medals are not there, or
+     * this browser will not keep the coup written down (then nothing is
+     * taken).
      */
     deal(stake: number, returned: number): Coup | null {
       if (!holding() || open) return null;
       if (!Number.isSafeInteger(stake) || stake < 0 || !Number.isSafeInteger(returned) || returned < 0) return null;
-      if (stake > 0 && !purse.take(stake)) return null;
-      const coup: Coup = { id: makeId(), owner: purse.owner(), era: era(), stake, returned };
+      const ledger = ledgerNow();
+      if (!ledger || stake > purse.balance()) return null;
+      const coup: Coup = {
+        id: makeId(),
+        owner: purse.owner(),
+        device: ledger.device,
+        era: ledger.era,
+        stake,
+        returned,
+        spentBefore: rowOf(ledger, ledger.device).spent,
+        state: 'dealt',
+      };
+      if (stake > 0) {
+        const key = coupKey(coup.device);
+        if (!store.write(key, serializeCoup(coup))) return null;
+        if (!purse.take(stake)) {
+          store.remove(key);
+          return null;
+        }
+      }
       open = coup;
-      if (stake > 0) store.write(coupKey(coup.owner), serializeCoup(coup));
       return coup;
     },
     /** Gives back what a coup dealt here returns, once its cards are all turned over. */
     settle,
+    /** Drops the coup in flight unpaid: its medals were thrown away by a reset. */
+    discard,
     /** Whether the Medal Game Center has been reset since this table last started over; if so, it is noted that it has now. */
     restartIfDue(): boolean {
       if (!holding() || !purse.restartDue(GAME)) return false;

@@ -412,7 +412,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     // The stake is taken and the coup written down in one step; nothing is dealt if the medals are not there.
     const coup = table.deal(stake, returned);
     if (!coup) {
-      setMessage(stake > medalBank().balance() ? t.noMedals : t.cardAway);
+      // Not enough medals; or the card is elsewhere; or, holding it, this browser would not keep the coup written down.
+      setMessage(stake > medalBank().balance() ? t.noMedals : table.holding() ? t.notKept : t.cardAway);
       return;
     }
     const before = tableRef.current;

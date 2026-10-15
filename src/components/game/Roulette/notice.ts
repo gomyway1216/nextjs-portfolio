@@ -16,7 +16,9 @@ let putAway = false;
 const seen = (): boolean => {
   if (putAway) return true;
   try {
-    return window.localStorage.getItem(NOTICE_KEY) !== null;
+    // Once seen, it is not read again: React asks on every drawing.
+    putAway = window.localStorage.getItem(NOTICE_KEY) !== null;
+    return putAway;
   } catch {
     return false;
   }

@@ -3,7 +3,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import type { Player } from '@/components/game/MedalPusher/account';
 import { ROULETTE_RESULTS_STORAGE_KEY, parseStoredResults } from '@/components/game/Roulette/resultsStore';
 import {
   BET_STEPS,
@@ -24,6 +25,7 @@ import {
   type Staked,
 } from '@/components/game/Roulette/medalTable';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // The roulette table plays with the medal center's medals: a spin's stake is taken once, its winnings are given back
 // once, and neither is lost or doubled by a reload, another tab, a reset or old saved state. The bank here is the real
@@ -361,8 +363,179 @@ describe('the medal center’s reset', () => {
   });
 });
 
+describe('signing in and out', () => {
+  const UID = 'test-player-1';
+  const GUEST_PLAYER: Player = { uid: null, settled: true, expected: false };
+  const setup = () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    return { browser, accounts };
+  };
+
+  it('brings a guest’s unfinished spin along when the first sign-in moves the guest’s medals into the account, and pays it there once', async () => {
+    const { browser, accounts } = setup();
+    const killed = browser.open();
+    const before = rouletteOn(killed);
+    await quiet(browser);
+    const staked = before.spin([RED, SEVENTEEN], HITS_17)!;
+    const guestLedger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+    expect(staked.record).toMatchObject({ owner: null, ledger: guestLedger });
+    crash(browser, killed);
+
+    // The next page is the same player's, signed in for the first time: the account has no medals, so the guest's
+    // become the account's (and leave the guest's place).
+    const next = browser.open();
+    const after = rouletteOn(next);
+    await quiet(browser);
+    next.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(next.bank.getState()).toMatchObject({ owner: UID, where: 'account', balance: WELCOME - 12 });
+    expect(parseLedger(browser.storage.get(ledgerKey(UID)) ?? null)?.device).toBe(guestLedger);
+    expect(browser.storage.has(BANK_KEY)).toBe(false);
+
+    const left = after.table.leftover();
+    expect(left).toMatchObject({ id: staked.record.id, owner: UID, ledger: guestLedger, paid: false });
+    // Moved to the account's place, and gone from the guest's.
+    expect(record(browser, UID)?.id).toBe(staked.record.id);
+    expect(browser.storage.has(SPIN_KEY)).toBe(false);
+    expect(after.table.settle({ record: left!, stored: true, paid: false, void: false })).toBe('paid');
+    expect(stored(browser, UID)).toBe(WELCOME - 12 + 72);
+
+    // Signed out, the guest's new medals are a new member's: the spin is not paid into them as well.
+    next.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    expect(next.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(after.table.leftover()).toBeNull();
+    expect(stored(browser)).toBe(WELCOME);
+  });
+
+  it('pays a spin still rolling as the first sign-in moves the medals into the account, into the account', async () => {
+    const { browser, accounts } = setup();
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    roulette.spin([SEVENTEEN], HITS_17);
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState().owner).toBe(UID);
+    expect(roulette.stop()).toBe('paid');
+    expect(stored(browser, UID)).toBe(WELCOME - 2 + 72);
+    expect(stored(browser)).toBeNull();
+  });
+
+  it('never pays a guest’s spin into an account that has medals of its own, and pays it to the guest once they are back', async () => {
+    const { browser, accounts } = setup();
+    accounts.put(UID, serializeLedger(createLedger('laptop0001', 500)), 'm-elsewhere');
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    roulette.spin([SEVENTEEN], HITS_17);
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: 500 });
+    // The guest's spin waits, untouched, for the guest's medals.
+    expect(roulette.stop()).toBe('later');
+    expect(roulette.table.leftover()).toBeNull();
+    expect(record(browser)).toMatchObject({ paid: false });
+    expect(stored(browser, UID)).toBe(500);
+    // Back as the guest: the spin is finished into the guest's medals, which it was bet from.
+    page.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    const left = roulette.table.leftover();
+    expect(left).toMatchObject({ owner: null, paid: false });
+    expect(roulette.table.settle({ record: left!, stored: true, paid: false, void: false })).toBe('paid');
+    expect(stored(browser)).toBe(WELCOME - 2 + 72);
+    expect(stored(browser, UID)).toBe(500);
+  });
+
+  it('does not take another player’s era for a reset: an account’s spin rolling as they sign out waits for them, and is paid when they are back', async () => {
+    const { browser, accounts } = setup();
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    // The account's medals have been reset once: they are in era 1, and a guest's would be in era 0.
+    page.bank.reset();
+    await quiet(browser);
+    expect(page.bank.getState().ledger?.era).toBe(1);
+    const staked = roulette.spin([SEVENTEEN], HITS_17)!;
+    expect(staked.record).toMatchObject({ owner: UID, era: 1 });
+    page.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null });
+    expect(page.bank.getState().ledger?.era).toBe(0);
+    expect(roulette.stop()).toBe('later');
+    expect(record(browser, UID)).toMatchObject({ id: staked.record.id, paid: false });
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    const left = roulette.table.leftover();
+    expect(left?.id).toBe(staked.record.id);
+    expect(roulette.table.settle({ record: left!, stored: true, paid: false, void: false })).toBe('paid');
+    expect(stored(browser, UID)).toBe(WELCOME - 2 + 72);
+  });
+});
+
+describe('when storage refuses the bank’s writes', () => {
+  /** Makes this browser refuse to write a player's medals, and nothing else. */
+  const refuseLedger = (page: FakePage, uid: string | null = null) => {
+    const write = page.env.write;
+    page.env.write = (key, text) => {
+      if (key === ledgerKey(uid)) throw new Error('quota');
+      write(key, text);
+    };
+    return () => {
+      page.env.write = write;
+    };
+  };
+
+  it('leaves no spin on record whose stake the bank could not write: a page that dies then makes no medals', async () => {
+    const browser = new FakeBrowser();
+    const killed = browser.open();
+    const roulette = rouletteOn(killed);
+    await quiet(browser);
+    refuseLedger(killed);
+    const staked = roulette.spin([SEVENTEEN], HITS_17)!;
+    expect(staked.stored).toBe(false);
+    expect(killed.bank.getState()).toMatchObject({ kept: false, balance: WELCOME - 2 });
+    expect(browser.storage.has(SPIN_KEY)).toBe(false);
+    crash(browser, killed);
+
+    const next = browser.open();
+    const reopened = rouletteOn(next);
+    await quiet(browser);
+    expect(reopened.table.leftover()).toBeNull();
+    // Neither the stake nor the winnings ever reached storage: the medals are as they were.
+    expect(stored(browser)).toBe(WELCOME);
+  });
+
+  it('pays once a spin whose winnings the bank could not write at once: they go to storage with its next write, and never twice', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    roulette.spin([SEVENTEEN], HITS_17);
+    const allow = refuseLedger(page);
+    expect(roulette.stop()).toBe('paid');
+    expect(record(browser)).toMatchObject({ paid: true });
+    expect(page.bank.getState()).toMatchObject({ kept: false, balance: WELCOME - 2 + 72 });
+    expect(stored(browser)).toBe(WELCOME - 2);
+    allow();
+    expect(page.bank.take(1)).toBe(true);
+    expect(stored(browser)).toBe(WELCOME - 2 + 72 - 1);
+    // Reloaded: nothing left to pay.
+    page.hide('left');
+    page.close();
+    const next = browser.open();
+    const reopened = rouletteOn(next);
+    await quiet(browser);
+    expect(reopened.table.leftover()).toBeNull();
+    expect(stored(browser)).toBe(WELCOME - 2 + 72 - 1);
+  });
+});
+
 describe('players, storage and old saved state', () => {
-  it('keeps each player’s spin under their own name, and never settles one into another player’s medals', async () => {
+  it('keeps each player’s spin under their own name, and never settles one into other medals than it was bet from', async () => {
     const browser = new FakeBrowser();
     const page = browser.open();
     const roulette = rouletteOn(page);
@@ -370,9 +543,10 @@ describe('players, storage and old saved state', () => {
     const guest = roulette.spin([RED], HITS_RED)!;
     expect(spinKey(null)).toBe(SPIN_KEY);
     expect(spinKey('test-player-1')).toBe(`${SPIN_KEY}:test-player-1`);
-    // The medals on the table belong to somebody else now (as when a player signs in mid-spin).
-    const someoneElse = { ...guest, record: { ...guest.record, owner: 'test-player-1' } };
-    expect(roulette.table.settle(someoneElse)).toBe('later');
+    // A spin of other medals than the ones on the table (another ledger) is not touched.
+    const elsewhere = { ...guest, record: { ...guest.record, ledger: 'otherledger1' } };
+    expect(roulette.table.settle(elsewhere)).toBe('later');
+    expect(record(browser)).toMatchObject({ paid: false });
     expect(stored(browser)).toBe(WELCOME - 10);
     expect(roulette.stop()).toBe('paid');
     expect(stored(browser)).toBe(WELCOME + 10);
@@ -415,7 +589,7 @@ describe('players, storage and old saved state', () => {
   });
 
   it('reads back only a spin it could have written: every field checked, what it bet and won worked out again', () => {
-    const good: SpinRecord = { v: 1, id: 'spin1', owner: null, era: 0, result: HITS_17, bets: [RED, SEVENTEEN], wagered: 12, won: 72, paid: false };
+    const good: SpinRecord = { v: 1, id: 'spin1', owner: null, ledger: 'device00001', era: 0, result: HITS_17, bets: [RED, SEVENTEEN], wagered: 12, won: 72, paid: false };
     expect(parseSpin(serializeSpin(good))).toEqual(good);
     expect(parseSpin(serializeSpin({ ...good, owner: 'test-player-1', era: 3, paid: true }))).toMatchObject({ owner: 'test-player-1', era: 3, paid: true });
     const bad: unknown[] = [
@@ -434,6 +608,8 @@ describe('players, storage and old saved state', () => {
       JSON.stringify({ ...good, owner: 5 }),
       JSON.stringify({ ...good, id: '' }),
       JSON.stringify({ ...good, paid: 'yes' }),
+      JSON.stringify({ ...good, ledger: undefined }),
+      JSON.stringify({ ...good, ledger: 'Not A Ledger!' }),
     ];
     for (const text of bad) expect(parseSpin(text)).toBeNull();
     expect(readBet({ kind: 'split', numbers: [1, 2] })).toEqual({ kind: 'split', numbers: [1, 2] });

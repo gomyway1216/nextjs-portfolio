@@ -114,6 +114,48 @@ test('moving to another page of the site while the ball rolls settles the spin a
   expect(await bankBalance(page)).toBe(WELCOME - 2 + winningsOf(staked!.bets, staked!.result));
 });
 
+test('a spin settled while the medal center borrowed the medals still goes on the board when the page is reloaded before the ball stops', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  const staked = await spinOnRecord(page);
+  // The day's bonus taken at the medal center in another tab: it borrows the medals for a moment, and the spin is
+  // settled as they go.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  await hub.close();
+  // Reloaded before the ball has stopped: the number goes on the board all the same, once.
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
+});
+
+test('a reset at the medal center while the ball rolls: once it stops, the table shows nothing of before', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await hub.getByTestId('center-reset').click();
+  await hub.getByTestId('center-reset-confirm').click();
+  await expect(hub.getByTestId('center-balance')).toHaveText(String(WELCOME));
+  await page.bringToFront();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'false', { timeout: 15_000 });
+  await expect(page.getByTestId('roulette-result')).toHaveText('');
+  await expect(page.getByTestId('roulette-outcome')).toHaveAttribute('data-won', '');
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-medals', String(WELCOME));
+  await expect(page.getByText('No spins yet.')).toBeVisible();
+});
+
 test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context }) => {
   test.setTimeout(60_000);
   await openRoulette(page);

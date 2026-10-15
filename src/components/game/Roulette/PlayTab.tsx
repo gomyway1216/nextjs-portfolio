@@ -281,6 +281,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       const { t: strings } = live.current;
       const said = record.won > 0 ? strings.wonLine(record.won, record.won - record.wagered) : strings.lostLine(record.wagered);
       setAnnouncement(`${record.result} ${strings.colorName(record.result)}. ${said}`);
+    } else {
+      // A reset came while the ball rolled: now that it has stopped, its number goes too, as everything else did.
+      setResult(null);
     }
     setFelt({});
     spinningRef.current = false;
@@ -323,8 +326,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     });
     const settleNow = (why: 'moment' | 'hidden' | 'left') => {
       const spun = inFlight.current;
-      if (!spun || spun.paid || spun.void || !table.current) return;
-      const settled = table.current.settle(spun);
+      if (!spun || spun.void || !table.current) return;
+      // Settled already when the card went for a moment, perhaps; it may still have to go on the board.
+      const settled = spun.paid ? 'already' : table.current.settle(spun);
       // A page that is hidden or left will not show the number when the ball stops: it goes on the board now.
       if ((settled === 'paid' || settled === 'already') && why !== 'moment' && !spun.boarded) {
         resultsStore.record(spun.record.result);
@@ -451,7 +455,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
             idleLabel={t.wheelIdle}
           />
 
-          <div className={styles.resultBadge} aria-live="polite">
+          <div className={styles.resultBadge} aria-live="polite" data-testid="roulette-result">
             {spinning ? (
               <span className={styles.noMoreBets}>{t.noMoreBets}</span>
             ) : (

@@ -26,9 +26,20 @@
  * it is marked paid before its winnings go in, and only the page that holds
  * the card pays one.
  *
- * A spin staked before the medals were reset at the medal center is not
- * paid after it: the reset threw away every medal there was, its stake with
- * them.
+ * A spin belongs to the medals it was bet from: the player's ledger on this
+ * device (known by the name the ledger keeps for this device, which goes with
+ * it when a guest's medals become an account's at the first sign-in) in the
+ * era it was bet in. It is paid into those medals and no others: not into
+ * another player's that are on the table meanwhile (it waits for its own),
+ * and not after the medals were reset at the medal center (the reset threw
+ * away every medal there was, its stake with them).
+ *
+ * Its stake is on record only if the bank could write the stake down too:
+ * where this browser's storage refuses the bank's write, the spin is played
+ * from memory alone, so that a page that dies then cannot come back to a
+ * spin whose medals were never taken. Its winnings are marked paid before
+ * they go in; a credit the bank could not write yet is still in its medals in
+ * memory, and goes to storage with the bank's next write.
  *
  * ## The table's limits
  *
@@ -66,8 +77,10 @@ export interface PlacedBet {
 export interface SpinRecord {
   v: 1;
   id: string;
-  /** Whose medals were bet: an account's id, or null for a guest's. */
+  /** Whose medals were bet: an account's id, or null for a guest's. It says where the spin is kept (`spinKey`). */
   owner: string | null;
+  /** The ledger the medals were bet from: the name it keeps for this device. */
+  ledger: string;
   /** The era of the medals when it was bet: a reset since voids it. */
   era: number;
   result: number;
@@ -112,6 +125,9 @@ const isWhole = (value: unknown, min: number, max: number): value is number => t
 const isNumbers = (value: unknown, count: number): value is number[] =>
   Array.isArray(value) && value.length === count && value.every((n) => isWhole(n, 1, 36)) && new Set(value).size === count;
 
+/** A ledger's name for a device, as the bank makes them. */
+const LEDGER_SHAPE = /^[a-z0-9]{1,64}$/;
+
 const EVEN_MONEY = new Set(['red', 'black', 'odd', 'even', 'low', 'high']);
 const SPREADS: Record<string, number> = { split: 2, street: 3, corner: 4, line: 6 };
 
@@ -137,7 +153,7 @@ export function parseSpin(text: unknown): SpinRecord | null {
   }
   if (!isRecord(data) || data.v !== 1 || typeof data.id !== 'string' || data.id.length === 0 || data.id.length > 64) return null;
   const owner = data.owner === null || (typeof data.owner === 'string' && data.owner.length > 0 && data.owner.length <= 128) ? data.owner : undefined;
-  if (owner === undefined || !isWhole(data.era, 0, 1_000_000) || !isWhole(data.result, 0, 36) || typeof data.paid !== 'boolean' || !Array.isArray(data.bets)) return null;
+  if (owner === undefined || typeof data.ledger !== 'string' || !LEDGER_SHAPE.test(data.ledger) || !isWhole(data.era, 0, 1_000_000) || !isWhole(data.result, 0, 36) || typeof data.paid !== 'boolean' || !Array.isArray(data.bets)) return null;
   const bets: PlacedBet[] = [];
   for (const placed of data.bets) {
     const bet = isRecord(placed) ? readBet(placed.bet) : null;
@@ -147,7 +163,7 @@ export function parseSpin(text: unknown): SpinRecord | null {
   const wagered = bets.reduce((sum, { amount }) => sum + amount, 0);
   // What it bet and what it won are worked out again: a record that says otherwise is not one this table wrote.
   if (bets.length === 0 || data.wagered !== wagered || data.won !== winningsOf(bets, data.result)) return null;
-  return { v: 1, id: data.id, owner, era: data.era, result: data.result, bets, wagered, won: data.won, paid: data.paid };
+  return { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, result: data.result, bets, wagered, won: data.won, paid: data.paid };
 }
 
 export const serializeSpin = (record: SpinRecord): string => JSON.stringify(record);
@@ -160,7 +176,8 @@ export interface TableBank {
   balance(): number;
   take(medals: number): boolean;
   give(medals: number): boolean;
-  getState(): { loaded: boolean; ledger: { era: number } | null };
+  /** `kept`: whether the bank's last write to this device's storage took. */
+  getState(): { loaded: boolean; kept: boolean; ledger: { era: number; device: string } | null };
   restartDue(game: string): boolean;
 }
 
@@ -183,7 +200,11 @@ export interface TableOptions {
 export type Table = ReturnType<typeof createTable>;
 
 export function createTable({ bank, storage, holding, newId }: TableOptions) {
-  const era = (): number | null => bank.getState().ledger?.era ?? null;
+  /** The medals on the table: which ledger, in which era. */
+  const onTable = (): { device: string; era: number } | null => {
+    const ledger = bank.getState().ledger;
+    return ledger ? { device: ledger.device, era: ledger.era } : null;
+  };
 
   /** The text under `key`, or undefined when storage cannot be read. */
   const read = (key: string): string | null | undefined => {
@@ -210,59 +231,98 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     }
   };
 
-  /** The spin on record for the player whose medals are on the table, read back; null for none, or for text that is not one. */
-  const onRecord = (): SpinRecord | null => {
-    const text = read(spinKey(bank.owner()));
+  /** The spin kept for a player, read back; null for none, or for text that is not one. */
+  const keptFor = (owner: string | null): SpinRecord | null => {
+    const text = read(spinKey(owner));
     return typeof text === 'string' ? parseSpin(text) : null;
   };
 
-  /** Whether a spin was bet with the medals that are on the table now: the same player's, and no reset since. */
-  const current = (record: SpinRecord): boolean => record.owner === bank.owner() && record.era === era();
+  /** Whether a spin was bet from the medals on the table now: the same ledger, in the same era. */
+  const current = (record: SpinRecord): boolean => {
+    const medals = onTable();
+    return medals !== null && record.ledger === medals.device && record.era === medals.era;
+  };
+
+  /**
+   * A spin of the medals on the table that is still to be finished, wherever
+   * it is kept: under the player's name, or, for an account whose medals were
+   * a guest's on this device until the first sign-in moved them in, under the
+   * guest's, where it was bet. Such a spin is moved to the account's place.
+   * One bet from these medals before a reset is thrown away. Spins of other
+   * medals are left as they are.
+   */
+  const unfinished = (): SpinRecord | null => {
+    const medals = onTable();
+    if (!medals) return null;
+    const owner = bank.owner();
+    const places = owner === null ? [null] : [owner, null];
+    for (const place of places) {
+      const record = keptFor(place);
+      if (!record || record.paid || record.ledger !== medals.device) continue;
+      if (record.era !== medals.era || bank.restartDue(ROULETTE_GAME)) {
+        remove(spinKey(place));
+        continue;
+      }
+      if (place === owner) return record;
+      const moved: SpinRecord = { ...record, owner };
+      if (!write(spinKey(owner), serializeSpin(moved))) return record;
+      remove(spinKey(place));
+      return moved;
+    }
+    return null;
+  };
 
   return {
     /**
      * Bets the medals on the felt on a spin whose number has been drawn: the
      * spin is written down, then its medals are taken. Null, with nothing
      * taken, when they cannot be: the card is not here, the medals are not
-     * enough, or a spin of this player's is still to be finished.
+     * enough, or a spin of these medals is still to be finished.
      */
     stake(bets: readonly PlacedBet[], result: number): Staked | null {
-      const ledgerEra = era();
-      if (!holding() || !bank.getState().loaded || ledgerEra === null) return null;
+      const medals = onTable();
+      if (!holding() || !bank.getState().loaded || medals === null) return null;
       const placed = bets.filter(({ amount }) => amount > 0).map(({ bet, amount }) => ({ bet, amount }));
       const wagered = placed.reduce((sum, { amount }) => sum + amount, 0);
       if (wagered <= 0 || placed.some(({ amount }) => !Number.isSafeInteger(amount) || amount > SPOT_MAX) || bank.balance() < wagered) return null;
-      const waiting = onRecord();
-      if (waiting && !waiting.paid && current(waiting)) return null;
+      if (unfinished()) return null;
       const owner = bank.owner();
-      const record: SpinRecord = { v: 1, id: newId(), owner, era: ledgerEra, result, bets: placed, wagered, won: winningsOf(placed, result), paid: false };
-      const stored = write(spinKey(owner), serializeSpin(record));
+      const key = spinKey(owner);
+      const record: SpinRecord = { v: 1, id: newId(), owner, ledger: medals.device, era: medals.era, result, bets: placed, wagered, won: winningsOf(placed, result), paid: false };
+      let stored = write(key, serializeSpin(record));
       if (!bank.take(wagered)) {
-        if (stored) remove(spinKey(owner));
+        if (stored) remove(key);
         return null;
       }
+      // The bank could not write the stake down: the spin is not left on record either, or a page that dies now would
+      // come back to a spin whose medals were never taken. It is played from memory, as the bank's medals are.
+      if (stored && !bank.getState().kept) stored = !remove(key);
       return { record, stored, paid: false, void: false };
     },
 
     /**
      * Puts a spin's winnings into the medals, once. `later`: not now (the
-     * card is not here, or the medals on the table are another player's),
-     * and the spin stays on record to be finished. `already`: another page
-     * settled it. `void`: the medals were reset since it was bet.
+     * card is not here, or the medals on the table are not the ones it was
+     * bet from), and the spin stays on record to be finished. `already`:
+     * another page settled it. `void`: the medals were reset since it was
+     * bet.
      */
     settle(staked: Staked): Settled {
       if (staked.void) return 'void';
       if (staked.paid) return 'already';
       const { record } = staked;
+      const medals = onTable();
+      // Another player's medals, or none yet: the spin waits for its own, untouched.
+      if (!medals || record.ledger !== medals.device) return 'later';
       const key = spinKey(record.owner);
-      if (record.era !== era() && era() !== null) {
+      if (record.era !== medals.era) {
         staked.void = true;
         staked.paid = true;
         const there = read(key);
         if (typeof there === 'string' && parseSpin(there)?.id === record.id) remove(key);
         return 'void';
       }
-      if (!holding() || record.owner !== bank.owner()) return 'later';
+      if (!holding()) return 'later';
       const there = read(key);
       if (there !== undefined && staked.stored) {
         const found = there === null ? null : parseSpin(there);
@@ -280,32 +340,21 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     },
 
     /**
-     * A spin this device left unfinished for the player whose medals are on
-     * the table, which the page that holds the card now is to finish: null
-     * when there is none. One from before a reset is thrown away.
+     * A spin this device left unfinished with the medals on the table, which
+     * the page that holds the card now is to finish: null when there is none.
      */
     leftover(): SpinRecord | null {
       if (!holding() || !bank.getState().loaded) return null;
       const key = spinKey(bank.owner());
       const text = read(key);
-      if (typeof text !== 'string') return null;
-      const record = parseSpin(text);
-      if (!record) {
-        // Text that is not a spin this table can read: an unreadable copy, not a stake, and not one to keep.
-        remove(key);
-        return null;
-      }
-      if (record.paid) return null;
-      if (!current(record) || bank.restartDue(ROULETTE_GAME)) {
-        remove(key);
-        return null;
-      }
-      return record;
+      // Text that is not a spin this table can read: an unreadable copy, not a stake, and not one to keep.
+      if (typeof text === 'string' && !parseSpin(text)) remove(key);
+      return unfinished();
     },
 
-    /** The last spin this player's medals were settled on, for the table to show: null when there is none to show. */
+    /** The last spin these medals were settled on, for the table to show: null when there is none to show. */
     last(): SpinRecord | null {
-      const record = onRecord();
+      const record = keptFor(bank.owner());
       return record && record.paid && current(record) ? record : null;
     },
 

@@ -256,7 +256,7 @@ describe('the bonus plate beside the cabinet', () => {
     expect(html).toContain('data-state="off"');
     expect(html).not.toContain('<button');
     expect(shown(html, 'pusher-bonus-status')).toBe(t.bonusNotKept);
-    expect(t.bonusNotKept).toContain('medal bank');
+    expect(t.bonusNotKept).toContain('your medals');
     expect(render(<BonusStripView state={notRead} />)).not.toContain('<button');
   });
 

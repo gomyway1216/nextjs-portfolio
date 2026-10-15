@@ -23,16 +23,17 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher open on the floor, and every casino game shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher open on the floor, every game that has come onto it open with a way in, and the rest shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
-    const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
-    for (const id of soon) {
+    // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
+    for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
-      expect(html).not.toContain(`center-play-${id}`);
+      if (path === null) expect(html).not.toContain(`center-play-${id}`);
+      else expect(html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '').toContain(`href="${path}"`);
     }
+    expect(FLOOR.filter(({ path }) => path !== null).length).toBeGreaterThanOrEqual(2);
     // Every machine on the floor is a game the site has.
     for (const { id } of FLOOR) expect(games.some((game) => game.id === id)).toBe(true);
   });

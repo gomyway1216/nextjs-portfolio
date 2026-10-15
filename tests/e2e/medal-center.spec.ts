@@ -71,7 +71,10 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
   // The floor: the Medal Pusher open and linked, the casino games shown as not open yet.
   await expect(page.getByTestId('center-play-medal-pusher')).toHaveAttribute('href', '/games/medal-pusher');
-  await expect(page.getByTestId('center-soon').locator('li')).toHaveCount(7);
+  // Every casino game but the ones that have come onto the floor (Three Card Poker so far) is not open yet.
+  await expect(page.getByTestId('center-machines').locator('li[data-open="true"]')).toHaveCount(2);
+  await expect(page.getByTestId('center-soon').locator('li')).toHaveCount(6);
+  await expect(page.getByTestId('center-soon').locator('li[data-machine="three-card-poker"]')).toHaveCount(0);
   await expect(page.getByTestId('center-soon')).toContainText('Slot Machine');
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');

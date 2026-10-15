@@ -18,16 +18,25 @@ export interface ThreeCardPokerStrings {
   strategyName: Record<StrategyId, string>;
   decisionName: Record<Decision, string>;
   // Table
-  bankroll: string;
+  /** The medals the player has, on the counter. */
+  medals: string;
+  medalsUnit: string;
+  /** Said of the counter while the medals are still being read. */
+  medalsWaiting: string;
+  /** What the medals are, beside the counter: the owner's note that they are not money. */
+  notMoney: string;
+  /** Where the medals come from, around the link to the Medal Game Center: the words before it and after it. */
+  medalsFrom: readonly [string, string];
+  centerLink: string;
   onTable: string;
   net: string;
-  chip: string;
+  step: string;
+  stepAria: (medals: number) => string;
   deal: string;
   dealing: string;
   undo: string;
   clear: string;
   rebet: string;
-  reset: string;
   play: string;
   fold: string;
   dealer: string;
@@ -44,12 +53,27 @@ export interface ThreeCardPokerStrings {
   feltQualify: string;
   feltBonus: string;
   noFunds: string;
+  spotFull: (most: number) => string;
   needAnte: string;
-  needPlayFunds: (ante: string) => string;
+  needPlayFunds: (ante: number) => string;
+  playShort: string;
+  handBusy: string;
+  resumed: string;
   placeBets: string;
   yourMove: string;
   revealing: string;
-  result: (showdown: Showdown, net: string) => string;
+  /** What a hand came to, `net` being the medals it won less those it cost. */
+  result: (showdown: Showdown, net: number) => string;
+  // The medals: the card in another tab, the refill, the reset, and the notice that the table plays with medals now
+  cardAway: string;
+  playHere: string;
+  refill: (medals: number) => string;
+  sayRefill: (medals: number) => string;
+  sayCenterReset: string;
+  noticeTitle: string;
+  noticeBody: string;
+  noticeLink: string;
+  noticeOk: string;
   handResults: string;
   handTotal: string;
   outcome: Record<Outcome, string>;
@@ -72,6 +96,8 @@ export interface ThreeCardPokerStrings {
   hint: string[];
   // Odds
   oddsIntro: (hands: string, dealerHands: string, total: string) => string;
+  /** The Ante & Play edge and Pair Plus's, in medals at the table's limit on each spot. */
+  medalsNote: (most: number, wager: string, loss: string, pairPlusLoss: string) => string;
   handsTitle: string;
   payTableLabel: string;
   payTableName: Record<PairPlusTableId, string>;
@@ -141,13 +167,14 @@ const en: ThreeCardPokerStrings = {
   tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
-    'One 52-card deck, shuffled before every hand. Put chips on the Ante (required) and, if you like, on the Pair Plus side bet, then press DEAL. You and the dealer get three cards each; the dealer’s stay face down.',
+    'One 52-card deck, shuffled before every hand. Bet medals on the Ante (required, 1 to 10) and, if you like, on the Pair Plus side bet (up to 10), then press DEAL: those medals come out of your medals as the cards are dealt. You and the dealer get three cards each; the dealer’s stay face down.',
     'Three-card hands rank, best first: straight flush, three of a kind, straight, flush, pair, high card. A straight beats a flush here because it is harder to make with three cards. A-2-3 is the lowest straight and Q-K-A the highest. Hands of the same kind are split by their ranks — pairs by the pair first, then the kicker.',
-    'After seeing your cards, either PLAY — a Play bet equal to your Ante — or FOLD, which forfeits the Ante and the Pair Plus bet.',
+    'After seeing your cards, either PLAY — a Play bet equal to your Ante, which comes out of your medals then — or FOLD, which forfeits the Ante and the Pair Plus bet.',
     'The dealer needs Queen-high or better to qualify. If the dealer doesn’t qualify, the Ante pays 1:1 and the Play bet pushes. If the dealer qualifies, the higher hand wins: when you win, the Ante and the Play bet both pay 1:1; when the dealer wins, both lose; a tie pushes both.',
     'Ante Bonus: whenever you play, a straight pays 1:1 on the Ante, three of a kind 4:1 and a straight flush 5:1 — whatever the dealer holds, even if you lose the hand.',
     'Pair Plus is paid on your own three cards, whatever the dealer holds: pair 1:1, flush 3:1, straight 6:1, three of a kind 30:1, straight flush 40:1.',
     'The best strategy fits in one line: play Q-6-4 or better, fold anything worse.',
+    'You play with your medals from the Medal Game Center, the same medals every game there uses. What a hand wins goes back into them as the dealer’s cards are turned over, and every win is a whole number of medals. A hand left half-played is kept: come back, even after a reload, and it carries on where it was.',
   ],
   category: {
     highCard: 'High card',
@@ -164,16 +191,21 @@ const en: ThreeCardPokerStrings = {
     always: 'Always play',
   },
   decisionName: { play: 'Play', fold: 'Fold' },
-  bankroll: 'Bankroll',
+  medals: 'Your medals',
+  medalsUnit: 'medals',
+  medalsWaiting: 'Looking for your medals…',
+  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  medalsFrom: ['The same medals play every game at the ', ', where the daily bonus and the one reset are.'],
+  centerLink: 'Medal Game Center',
   onTable: 'On table',
-  net: 'Net',
-  chip: 'Chip',
+  net: 'This session',
+  step: 'Bet per press',
+  stepAria: (medals) => `Bet ${medals} ${medals === 1 ? 'medal' : 'medals'} per press`,
   deal: 'DEAL',
   dealing: 'Dealing…',
   undo: 'Undo',
   clear: 'Clear',
   rebet: 'Rebet',
-  reset: 'Reset',
   play: 'PLAY',
   fold: 'FOLD',
   dealer: 'Dealer',
@@ -193,27 +225,43 @@ const en: ThreeCardPokerStrings = {
   spotAria: (name, pays) => `${name} (${pays})`,
   feltQualify: 'Dealer plays with Queen-high or better',
   feltBonus: 'Ante Bonus · Straight 1 · Three of a kind 4 · Straight flush 5',
-  noFunds: 'Not enough bankroll for that chip.',
-  needAnte: 'Put a chip on the Ante first.',
-  needPlayFunds: (ante) => `Keep ${ante} behind for the Play bet — lower the Ante or the Pair Plus bet.`,
+  noFunds: 'Not enough medals for that bet.',
+  spotFull: (most) => `Up to ${most} medals on each spot.`,
+  needAnte: 'Bet at least 1 medal on the Ante first.',
+  needPlayFunds: (ante) => `Keep ${ante} ${ante === 1 ? 'medal' : 'medals'} for the Play bet — lower the Ante or the Pair Plus bet.`,
+  playShort: 'Not enough medals left for the Play bet: you can fold this hand.',
+  handBusy: 'There is a hand on the table already.',
+  resumed: 'Your hand was kept as it was: play or fold.',
   placeBets: 'Place your Ante, then deal.',
   yourMove: 'Play or fold?',
   revealing: 'The dealer turns over…',
   result: (showdown, net) => {
+    const medals = (n: number) => `${n} ${n === 1 ? 'medal' : 'medals'}`;
+    const came = net > 0 ? `won ${medals(net)}` : net < 0 ? `lost ${medals(-net)}` : 'no medals won or lost';
     switch (showdown) {
       case 'fold':
-        return `You folded · ${net}`;
+        return `You folded · ${came}`;
       case 'notQualified':
-        return `Dealer doesn’t qualify — Ante pays, Play pushes · ${net}`;
+        return `Dealer doesn’t qualify — Ante pays, Play pushes · ${came}`;
       case 'win':
-        return `You beat the dealer · ${net}`;
+        return `You beat the dealer · ${came}`;
       case 'lose':
-        return `The dealer wins · ${net}`;
+        return `The dealer wins · ${came}`;
       case 'tie':
-        return `Tie — Ante and Play push · ${net}`;
+        return `Tie — Ante and Play push · ${came}`;
     }
   },
-  handResults: 'This hand',
+  cardAway: 'Your medals are being played in another tab. This table waits as it is.',
+  playHere: 'Play here',
+  refill: (medals) => `Out of medals — take ${medals} more`,
+  sayRefill: (medals) => `${medals} medals are yours to play.`,
+  sayCenterReset: 'The medals have been reset at the Medal Game Center: this table starts over.',
+  noticeTitle: 'This table plays with medals now',
+  noticeBody:
+    'Three Card Poker now plays with your medals from the Medal Game Center, the same medals every game there uses. The 1,000 practice chips this table used to start you with are retired: they were a different thing on a different scale, so they are not turned into medals.',
+  noticeLink: 'Open the Medal Game Center',
+  noticeOk: 'Got it',
+  handResults: 'This hand, in medals',
   handTotal: 'Total',
   outcome: { win: 'won', lose: 'lost', push: 'push' },
   hintToggle: 'Show the strategy hint',
@@ -236,10 +284,12 @@ const en: ThreeCardPokerStrings = {
   hint: [
     'Play Q-6-4 or better, fold anything worse — that one rule is the whole optimal strategy.',
     'Folding costs exactly the Ante. Playing a weak hand risks two antes, but it still wins one whenever the dealer fails to qualify — about three hands in ten.',
-    'Pair Plus is a separate bet on your own cards. At 1-3-6-30-40 it costs 7.28% of every unit, more than twice the main game.',
+    'Pair Plus is a separate bet on your own cards. At 1-3-6-30-40 it costs 7.28 of every 100 medals bet on it, more than twice the main game.',
   ],
   oddsIntro: (hands, dealerHands, total) =>
     `Three Card Poker is small enough to count completely: there are ${hands} three-card hands, and for each one the dealer can hold any of ${dealerHands} hands from the other 49 cards — ${total} combinations. Every number on this tab comes from playing all of them. Nothing is simulated.`,
+  medalsNote: (most, wager, loss, pairPlusLoss) =>
+    `In medals, at the table’s limit of ${most} on each spot: with the best strategy a hand puts ${wager} medals on the Ante and Play bets on average and loses ${loss} of them, and ${most} medals on Pair Plus lose another ${pairPlusLoss} a hand. Every bet is a whole number of medals and every win a whole multiple of it, so nothing is ever rounded.`,
   handsTitle: 'Every three-card hand, and what Pair Plus pays',
   payTableLabel: 'Pair Plus pay table',
   payTableName: { standard: '1-3-6-30-40 (common)', old: '1-4-6-30-40 (original)' },
@@ -251,7 +301,7 @@ const en: ThreeCardPokerStrings = {
   loses: 'loses',
   total: 'Total',
   handsNote:
-    'With three cards a straight (720 ways) is rarer than a flush (1,096 ways), so it ranks higher — the reverse of five-card poker. “Return” is probability × payout: the rows add up to what the side bet gives back per unit, and what is missing is the house edge. Cutting the flush from 4:1 to 3:1 more than triples it.',
+    'With three cards a straight (720 ways) is rarer than a flush (1,096 ways), so it ranks higher — the reverse of five-card poker. “Return” is probability × what the hand pays: the rows add up to what the side bet gives back per medal bet, and what is missing is the house edge. Cutting the flush from 4:1 to 3:1 more than triples it.',
   statPairPlusEdge: (table) => `House edge at ${table}`,
   statPairPlusWin: 'Hands that are paid',
   anteTitle: 'Ante & Play',
@@ -323,13 +373,14 @@ const ja: ThreeCardPokerStrings = {
   tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
-    '52枚のデッキ1組を毎回シャッフルします。アンティ（必須）と、お好みでペアプラスにチップを置いて「ディール」を押してください。あなたとディーラーに3枚ずつ配られ、ディーラーのカードは伏せたままです。',
+    '52枚のデッキ1組を毎回シャッフルします。アンティ（必須、1〜10枚）と、お好みでペアプラス（10枚まで）にメダルをベットして「ディール」を押してください。ベットしたメダルは、カードが配られるときに持ちメダルから出ます。あなたとディーラーに3枚ずつ配られ、ディーラーのカードは伏せたままです。',
     '3枚の役は強い順に、ストレートフラッシュ、スリーカード、ストレート、フラッシュ、ペア、ハイカード。3枚ではストレートの方が作りにくいので、フラッシュより上です。A-2-3が一番弱いストレート、Q-K-Aが一番強いストレート。同じ役どうしはランクで決め、ペアはまずペアのランク、次に残り1枚（キッカー）で比べます。',
-    '手札を見たら「プレイ」（アンティと同額のプレイベットを追加）か「フォールド」（アンティとペアプラスを没収）を選びます。',
+    '手札を見たら「プレイ」（アンティと同額のプレイベットを追加。そのとき持ちメダルから出ます）か「フォールド」（アンティとペアプラスを没収）を選びます。',
     'ディーラーはクイーンハイ以上でクオリファイ（勝負成立）します。クオリファイしなければ、アンティは1:1で配当、プレイは引き分け。クオリファイしたら強い方の勝ちで、あなたが勝てばアンティもプレイも1:1、ディーラーが勝てば両方負け、同じ強さなら両方引き分けです。',
     'アンティボーナス：プレイしたときは、ストレートで1:1、スリーカードで4:1、ストレートフラッシュで5:1がアンティに対して支払われます。ディーラーの手に関係なく、勝負に負けても受け取れます。',
     'ペアプラスはディーラーに関係なく自分の3枚だけで決まります。ペア1:1、フラッシュ3:1、ストレート6:1、スリーカード30:1、ストレートフラッシュ40:1。',
     '最適戦略は1行です。Q-6-4以上ならプレイ、それ未満はフォールド。',
+    'メダルゲームセンターの持ちメダルで遊びます。センターのどのゲームとも同じメダルです。勝った分はディーラーのカードが開くときに持ちメダルに戻り、配当はいつも整数の枚数です。途中のハンドは残るので、ページを読み込み直しても続きから遊べます。',
   ],
   category: {
     highCard: 'ハイカード',
@@ -346,16 +397,21 @@ const ja: ThreeCardPokerStrings = {
     always: '常にプレイ',
   },
   decisionName: { play: 'プレイ', fold: 'フォールド' },
-  bankroll: '所持金',
+  medals: '持ちメダル',
+  medalsUnit: '枚',
+  medalsWaiting: '持ちメダルを確認しています…',
+  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+  medalsFrom: ['', 'のどのゲームとも共通のメダルです。デイリーボーナスとリセットはセンターにあります。'],
+  centerLink: 'メダルゲームセンター',
   onTable: 'ベット中',
-  net: '収支',
-  chip: 'チップ',
+  net: '今回の増減',
+  step: '1回のベット',
+  stepAria: (medals) => `1回${medals}枚ベット`,
   deal: 'ディール',
   dealing: 'ディール中…',
   undo: '取り消し',
   clear: 'クリア',
   rebet: '同じベット',
-  reset: 'リセット',
   play: 'プレイ',
   fold: 'フォールド',
   dealer: 'ディーラー',
@@ -371,27 +427,42 @@ const ja: ThreeCardPokerStrings = {
   spotAria: (name, pays) => `${name}（${pays}）`,
   feltQualify: 'ディーラーはクイーンハイ以上で勝負',
   feltBonus: 'アンティボーナス・ストレート1・スリーカード4・ストレートフラッシュ5',
-  noFunds: '所持金が足りません。',
-  needAnte: 'まずアンティにチップを置いてください。',
-  needPlayFunds: (ante) => `プレイベット用に${ante}を残してください。アンティかペアプラスを減らしましょう。`,
+  noFunds: '持ちメダルが足りません。',
+  spotFull: (most) => `1つのスポットに置けるのは${most}枚までです。`,
+  needAnte: 'まずアンティに1枚以上ベットしてください。',
+  needPlayFunds: (ante) => `プレイベット用に${ante}枚残してください。アンティかペアプラスを減らしましょう。`,
+  playShort: 'プレイベットに足りるメダルがありません。このハンドはフォールドできます。',
+  handBusy: 'テーブルにはまだ途中のハンドがあります。',
+  resumed: '途中のハンドをそのまま残してあります。プレイかフォールドを選んでください。',
   placeBets: 'アンティを置いてディールしてください。',
   yourMove: 'プレイ？フォールド？',
   revealing: 'ディーラーがカードを開きます…',
   result: (showdown, net) => {
+    const came = net > 0 ? `${net}枚獲得` : net < 0 ? `${-net}枚の負け` : '増減なし';
     switch (showdown) {
       case 'fold':
-        return `フォールド・${net}`;
+        return `フォールド・${came}`;
       case 'notQualified':
-        return `ディーラーはクオリファイせず — アンティは配当、プレイは引き分け・${net}`;
+        return `ディーラーはクオリファイせず — アンティは配当、プレイは引き分け・${came}`;
       case 'win':
-        return `あなたの勝ち・${net}`;
+        return `あなたの勝ち・${came}`;
       case 'lose':
-        return `ディーラーの勝ち・${net}`;
+        return `ディーラーの勝ち・${came}`;
       case 'tie':
-        return `同じ強さ — アンティもプレイも引き分け・${net}`;
+        return `同じ強さ — アンティもプレイも引き分け・${came}`;
     }
   },
-  handResults: 'この回の結果',
+  cardAway: 'メダルは別のタブで遊ばれています。このテーブルはそのまま待っています。',
+  playHere: 'ここで遊ぶ',
+  refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
+  sayRefill: (medals) => `${medals}枚を受け取りました。`,
+  sayCenterReset: 'メダルゲームセンターでメダルがリセットされました。このテーブルも最初からになります。',
+  noticeTitle: 'このテーブルはメダルで遊ぶようになりました',
+  noticeBody:
+    'スリーカードポーカーは、メダルゲームセンターの持ちメダルで遊ぶようになりました。センターのどのゲームとも同じメダルです。これまでテーブルで最初に用意していた1,000枚の練習用チップは廃止しました。別物で単位も違うため、メダルには引き継いでいません。',
+  noticeLink: 'メダルゲームセンターへ',
+  noticeOk: 'OK',
+  handResults: 'この回の結果（枚）',
   handTotal: '合計',
   outcome: { win: '勝ち', lose: '負け', push: '引き分け' },
   hintToggle: '戦略のヒントを表示',
@@ -414,10 +485,12 @@ const ja: ThreeCardPokerStrings = {
   hint: [
     'Q-6-4以上ならプレイ、それ未満はフォールド。最適戦略はこのルール1つだけです。',
     'フォールドの損はアンティちょうど1つ分。弱い手でプレイするとアンティ2つ分を危険にさらしますが、ディーラーがクオリファイしなければ（約3割）1つ分勝てます。',
-    'ペアプラスは自分の手札だけに賭ける別のベットです。1-3-6-30-40の配当では1単位あたり7.28%の負担で、本体のゲームの2倍以上です。',
+    'ペアプラスは自分の手札だけに賭ける別のベットです。1-3-6-30-40の配当では、ベットしたメダル100枚につき平均7.28枚を失い、本体のゲームの2倍以上です。',
   ],
   oddsIntro: (hands, dealerHands, total) =>
     `スリーカードポーカーは全部数え切れる大きさです。3枚の手札は${hands}通り、そのそれぞれに対してディーラーは残り49枚から${dealerHands}通りの手を持ち得るので、組み合わせは全部で${total}通り。このタブの数字はそのすべてを実際に勝負させて求めたもので、シミュレーションは使っていません。`,
+  medalsNote: (most, wager, loss, pairPlusLoss) =>
+    `メダルで言うと、各スポットの上限${most}枚で最適戦略なら、1回にアンティとプレイへ平均${wager}枚を賭け、そのうち${loss}枚を失います。ペアプラスに${most}枚賭けると、さらに1回${pairPlusLoss}枚です。ベットはいつも整数の枚数で、配当はその整数倍なので、端数が出ることはありません。`,
   handsTitle: '3枚の役の出やすさと、ペアプラスの配当',
   payTableLabel: 'ペアプラスの配当表',
   payTableName: { standard: '1-3-6-30-40（一般的）', old: '1-4-6-30-40（元の配当）' },
@@ -429,7 +502,7 @@ const ja: ThreeCardPokerStrings = {
   loses: '負け',
   total: '合計',
   handsNote:
-    '3枚ではストレート（720通り）の方がフラッシュ（1,096通り）より出にくいので、5枚のポーカーとは逆にストレートが上です。「期待値への寄与」は確率×配当で、合計がこのサイドベット1単位あたりの戻り、足りない分がハウスエッジです。フラッシュの配当を4:1から3:1に下げるだけで、エッジは3倍以上になります。',
+    '3枚ではストレート（720通り）の方がフラッシュ（1,096通り）より出にくいので、5枚のポーカーとは逆にストレートが上です。「期待値への寄与」は確率×配当で、合計がこのサイドベットのメダル1枚あたりの戻り、足りない分がハウスエッジです。フラッシュの配当を4:1から3:1に下げるだけで、エッジは3倍以上になります。',
   statPairPlusEdge: (table) => `${table} のハウスエッジ`,
   statPairPlusWin: '配当がつく手の割合',
   anteTitle: 'アンティとプレイ',

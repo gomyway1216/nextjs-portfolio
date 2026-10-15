@@ -14,6 +14,7 @@
   /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
   --tcp-win-text: #15803d;
   --tcp-lose-text: #b91c1c;
+  --tcp-info-text: #1d4ed8;
   --cw: 64px;
   --ch: 92px;
 
@@ -30,6 +31,7 @@
 :global(html.dark) .root {
   --tcp-win-text: #4ade80;
   --tcp-lose-text: #f87171;
+  --tcp-info-text: #93c5fd;
 }
 .shell {
   max-width: 1160px;
@@ -49,6 +51,23 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+/* Back to the Medal Game Center, whose floor the table stands on. */
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -568,28 +587,6 @@
   font-size: 0.85rem;
   font-weight: 700;
 }
-.chip {
-  --c: var(--tcp-gold);
-  appearance: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 3px dashed rgba(255, 255, 255, 0.7);
-  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--c) 78%, #fff) 0%, var(--c) 62%, color-mix(in srgb, var(--c) 70%, #000) 100%);
-  font-weight: 800;
-  font-size: 0.8rem;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
-}
-.chip[aria-checked='true'] {
-  outline: 3px solid var(--games-route-fg);
-  outline-offset: 2px;
-  transform: translateY(-2px) scale(1.05);
-}
-.chip:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 /* ---------- Betting layout ---------- */
 .felt {
@@ -677,11 +674,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 38%, #f4cd7a 0%, var(--tcp-gold) 62%, #a9781f 100%);
-  color: #1a1200;
+  /* A medal in the medal center's silver (MedalPusher/medalLook.ts), with the count struck on it. */
+  background: radial-gradient(circle at 42% 34%, #f6f7f9 0%, #d4d8de 38%, #bbbec3 70%, #80848a 100%);
+  color: #111318;
   font-size: 0.7rem;
   font-weight: 850;
-  border: 2px solid #1a1200;
+  border: 2px solid #44474c;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   font-variant-numeric: tabular-nums;
   z-index: 2;
@@ -704,6 +702,9 @@
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--tcp-lose-text);
+}
+.message[data-tone='info'] {
+  color: var(--tcp-info-text);
 }
 .actions {
   display: flex;
@@ -1048,8 +1049,242 @@
     animation: none;
   }
   .spot,
-  .chip,
+  .medalStep,
   .area {
     transition: none;
+  }
+}
+
+/* ---------- The medals ---------- */
+
+/* Shown until it has been read: the table plays with the Medal Game Center's medals now. */
+.notice {
+  grid-column: 1 / -1;
+  padding: 0.9rem 1.1rem;
+  border-radius: 16px;
+  border: 2px solid var(--tcp-gold);
+  background: var(--games-route-surface);
+  box-shadow: var(--games-route-shadow);
+}
+.noticeTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 820;
+}
+.noticeMedal {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+.noticeBody {
+  margin: 0.45rem 0 0;
+  line-height: 1.55;
+  font-size: 0.92rem;
+  max-width: 78ch;
+}
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.6rem;
+}
+.noticeLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.noticeLink:focus-visible,
+.counterLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* The medal counter: a cabinet's dark panel with the medals on its LED digits. It is the same dark in both themes, as
+   the felt is, and every colour on it is chosen against that dark. */
+.counter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+  padding: 0.75rem 0.85rem 0.8rem;
+  border-radius: 14px;
+  border: 2px solid #3b2f7a;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0) 30%),
+    linear-gradient(180deg, #221854 0%, #110c2b 100%);
+  color: #f3f0ff;
+  box-shadow: 0 6px 18px rgba(18, 10, 46, 0.3);
+}
+.counterHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.counterMedal {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+.counterLabel {
+  margin: 0;
+  color: #f3d27a;
+  font-size: 0.8rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.counterCount {
+  margin: 0 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.counterCount strong {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+.counterUnit {
+  font-weight: 700;
+  color: #d9d4f5;
+}
+.counterLed {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+/* The cabinet's own LED display (MedalPusher/SegmentDisplay), made big. */
+.counterLed > span {
+  width: 100%;
+  max-width: 300px;
+  height: 42px;
+  padding: 5px 8px;
+  gap: 3px;
+  border-radius: 7px;
+}
+.refill {
+  appearance: none;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0.45rem 1.2rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.refill:focus-visible,
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+.notMoney {
+  margin: 0;
+  color: #d9d4f5;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.counterNote {
+  margin: 0;
+  color: #d9d4f5;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.counterLink {
+  color: #ffd65c;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* How many medals a press of a spot bets: silver medals with the number struck on them. */
+.medalStep {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #44474c;
+  background: radial-gradient(circle at 42% 34%, #f6f7f9 0%, #d4d8de 38%, #bbbec3 70%, #80848a 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.28);
+  color: #111318;
+  font-weight: 850;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.medalStep[aria-checked='true'] {
+  outline: 3px solid var(--games-route-fg);
+  outline-offset: 2px;
+  transform: translateY(-2px) scale(1.05);
+}
+.medalStep:focus-visible {
+  outline: 3px solid var(--tcp-gold);
+  outline-offset: 2px;
+}
+.medalStep:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The member's card is in a game in another tab: the table waits, and says so over the felt. */
+.cardAway {
+  position: absolute;
+  inset: auto 6% 30% 6%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.94);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+  font-size: 0.92rem;
+}
+.cardAway p {
+  margin: 0;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (forced-colors: active) {
+  .counterLed {
+    display: none;
   }
 }
